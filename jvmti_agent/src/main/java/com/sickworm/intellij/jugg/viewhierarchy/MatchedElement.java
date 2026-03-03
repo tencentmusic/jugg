@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.viewhierarchy;
 import android.view.View;
 
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -58,6 +59,23 @@ final class MatchedElement {
         json.put("centerY", centerY);
         json.put("visibility", visibility);
         json.put("clickable", clickable);
+        return json;
+    }
+
+    JSONObject toMatchedElementJson() throws JSONException {
+        JSONObject json = new JSONObject();
+        json.put("text", text);
+        json.put("className", ViewNode.shortenClassName(className));
+        json.put("resourceId", ViewNode.shortenId(resourceId));
+        json.put("contentDesc", contentDesc);
+        JSONArray boundsArray = new JSONArray();
+        boundsArray.put(bounds.left);
+        boundsArray.put(bounds.top);
+        boundsArray.put(bounds.right);
+        boundsArray.put(bounds.bottom);
+        json.put("bounds", boundsArray);
+        json.put("centerX", centerX);
+        json.put("centerY", centerY);
         return json;
     }
 

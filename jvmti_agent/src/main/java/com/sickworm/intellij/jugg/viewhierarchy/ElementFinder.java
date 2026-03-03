@@ -75,7 +75,7 @@ public class ElementFinder {
             String nodeClassName = view.getClass().getName();
 
             boolean matches = isMatch(text, nodeText)
-                && isMatch(resourceId, nodeResourceId)
+                && isResourceIdMatch(resourceId, nodeResourceId)
                 && isMatch(contentDesc, nodeContentDesc)
                 && isMatch(className, nodeClassName);
             if (matches) {
@@ -140,7 +140,22 @@ public class ElementFinder {
     }
 
     private boolean isMatch(String selector, String value) {
-        return selector == null || selector.isEmpty() || selector.equals(value);
+        if (selector == null || selector.isEmpty()) {
+            return true;
+        }
+        return selector.equals(value);
+    }
+
+    private boolean isResourceIdMatch(String selector, String value) {
+        if (selector == null || selector.isEmpty()) {
+            return true;
+        }
+        String selectorShort = ViewNode.shortenId(selector);
+        String valueShort = ViewNode.shortenId(value);
+        if (selectorShort != null && selectorShort.equals(valueShort)) {
+            return true;
+        }
+        return selector.equals(value);
     }
 
     private boolean isActionableNode(View view, ViewNode.Bounds bounds) {

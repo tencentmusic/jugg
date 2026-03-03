@@ -50,6 +50,8 @@ class LayoutDumpMcpToolActionTest {
         }.use { construction ->
             val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
             Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertTrue(result.message.contains("windows"))
+            Assert.assertTrue(result.message.contains("nodes"))
             Assert.assertEquals(1, construction.constructed().size)
             Assert.assertEquals(0, setup.adb.pullCount)
             Assert.assertEquals("json", result.artifacts.firstOrNull()?.type)
@@ -159,6 +161,9 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertNotNull("data.content should be present", data["content"])
             val contentStr = data["content"].toString()
             Assert.assertTrue("content should contain InlineTest", contentStr.contains("InlineTest"))
+            Assert.assertEquals(false, data["inlineOmitted"])
+            Assert.assertEquals(16, data["inlineThresholdKb"])
+            Assert.assertTrue((data["contentBytes"] as Number).toInt() > 0)
         }
     }
 
@@ -167,12 +172,12 @@ class LayoutDumpMcpToolActionTest {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_root_layout_")
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
-        val rootLayoutId = "com.example:id/content"
+        val rootLayoutId = "content"
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
             Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
                 LayoutDumpResult(
-                    payloadJson = """{"windows":[],"truncated":false,"rootLayout":"com.example:id/content"}""",
+                    payloadJson = """{"windows":[],"truncated":false,"rootLayout":"content"}""",
                     remoteFilePath = null,
                 )
             )
@@ -184,6 +189,62 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertEquals(McpToolStatus.OK, result.status)
             val client = construction.constructed().first()
             Mockito.verify(client).dumpLayout(rootLayoutId, true)
+        }
+    }
+
+    @Test
+    fun testLayoutDumpOmitInlineContentWhenPayloadTooLarge() {
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_large_payload_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        val action = LayoutDumpMcpToolAction()
+        val largeText = "x".repeat(20_000)
+        val largeJson = """{"windows":[{"title":"MainActivity","root":{"className":"Root","text":"$largeText","bounds":[0,0,10,10]}}],"truncated":false}"""
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+                LayoutDumpResult(
+                    payloadJson = largeJson,
+                    remoteFilePath = null,
+                )
+            )
+        }.use {
+            val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals(true, data["inlineOmitted"])
+            Assert.assertEquals(16, data["inlineThresholdKb"])
+            Assert.assertTrue((data["contentBytes"] as Number).toInt() > 16 * 1024)
+            Assert.assertFalse(data.containsKey("content"))
+        }
+    }
+
+    @Test
+    fun testLayoutDumpInlineMaxKbClampToMin() {
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_min_inline_kb_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        val action = LayoutDumpMcpToolAction()
+        val mediumText = "x".repeat(3_000)
+        val mediumJson = """{"windows":[{"title":"MainActivity","root":{"className":"Root","text":"$mediumText","bounds":[0,0,10,10]}}],"truncated":false}"""
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+                LayoutDumpResult(
+                    payloadJson = mediumJson,
+                    remoteFilePath = null,
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to projectDir.absolutePath, "inlineMaxKb" to 1),
+                setup.runtime,
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals(4, data["inlineThresholdKb"])
+            Assert.assertEquals(false, data["inlineOmitted"])
+            Assert.assertNotNull(data["content"])
         }
     }
 

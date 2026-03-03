@@ -72,24 +72,66 @@ open class ViewHierarchyClient(
         contentDesc: String?,
         className: String?,
     ): FindAndTapResult? {
+        return findAndPress(
+            action = "find_and_tap",
+            text = text,
+            resourceId = resourceId,
+            contentDesc = contentDesc,
+            className = className,
+            duration = null,
+        )
+    }
+
+    /**
+     * Execute atomic find-and-long-press on device side.
+     */
+    fun findAndLongPress(
+        text: String?,
+        resourceId: String?,
+        contentDesc: String?,
+        className: String?,
+        duration: Int,
+    ): FindAndTapResult? {
+        return findAndPress(
+            action = "find_and_long_press",
+            text = text,
+            resourceId = resourceId,
+            contentDesc = contentDesc,
+            className = className,
+            duration = duration,
+        )
+    }
+
+    private fun findAndPress(
+        action: String,
+        text: String?,
+        resourceId: String?,
+        contentDesc: String?,
+        className: String?,
+        duration: Int?,
+    ): FindAndTapResult? {
         val params = linkedMapOf<String, Any?>(
             "text" to text,
             "resourceId" to resourceId,
             "contentDesc" to contentDesc,
             "className" to className,
         )
+        if (duration != null) {
+            params["duration"] = duration
+        }
         val response = sendRequest(
             ViewHierarchyRequest(
-                action = "find_and_tap",
+                action = action,
                 params = params,
             )
         ) ?: return null
 
         if (response.isOk()) {
-            val data = response.data ?: return FindAndTapResult.Failure("find_and_tap returned empty data")
-            val x = data.optIntOrNull("x") ?: return FindAndTapResult.Failure("missing x in find_and_tap response")
-            val y = data.optIntOrNull("y") ?: return FindAndTapResult.Failure("missing y in find_and_tap response")
-            val matchedElement = data.optStringOrNull("matchedElement").orEmpty()
+            val data = response.data ?: return FindAndTapResult.Failure("$action returned empty data")
+            val x = data.optIntOrNull("x") ?: return FindAndTapResult.Failure("missing x in $action response")
+            val y = data.optIntOrNull("y") ?: return FindAndTapResult.Failure("missing y in $action response")
+            val matchedElement = parseMatchedElement(data.optJsonObject("matchedElement"))
+                ?: return FindAndTapResult.Failure("missing matchedElement in $action response")
             val matchCount = data.optIntOrNull("matchCount") ?: 1
             return FindAndTapResult.Success(
                 x = x,
@@ -99,7 +141,7 @@ open class ViewHierarchyClient(
             )
         }
 
-        val message = response.message ?: "find_and_tap failed"
+        val message = response.message ?: "$action failed"
         val data = response.data
         val matchCount = data?.optIntOrNull("matchCount")
         val candidates = parseCandidates(data)
@@ -118,6 +160,27 @@ open class ViewHierarchyClient(
 
             else -> FindAndTapResult.Failure(message)
         }
+    }
+
+    private fun parseMatchedElement(element: JsonObject?): MatchedElementData? {
+        if (element == null) {
+            return null
+        }
+        val bounds = element.optJsonArray("bounds")
+            ?.mapNotNull { it.asIntOrNull() }
+            .orEmpty()
+        if (bounds.size != 4) {
+            return null
+        }
+        return MatchedElementData(
+            text = element.optStringOrNull("text").orEmpty(),
+            className = element.optStringOrNull("className").orEmpty(),
+            resourceId = element.optStringOrNull("resourceId").orEmpty(),
+            contentDesc = element.optStringOrNull("contentDesc").orEmpty(),
+            bounds = bounds,
+            centerX = element.optIntOrNull("centerX") ?: return null,
+            centerY = element.optIntOrNull("centerY") ?: return null,
+        )
     }
 
     private fun parseCandidates(data: JsonObject?): List<MatchCandidate> {
@@ -396,6 +459,13 @@ open class ViewHierarchyClient(
 
     private fun JsonElement.asJsonObjectOrNull(): JsonObject? {
         return if (isJsonObject) asJsonObject else null
+    }
+
+    private fun JsonElement.asIntOrNull(): Int? {
+        if (isJsonNull) {
+            return null
+        }
+        return runCatching { asInt }.getOrNull()
     }
 
     companion object {

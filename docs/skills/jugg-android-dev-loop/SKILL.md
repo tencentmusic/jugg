@@ -71,6 +71,20 @@ Intent -> first file mapping:
 - For detailed runtime/observe procedures, load `references/tool_cards_runtime_observe.md`.
 - Unknown/high-risk failure: stop and ask user.
 
+## Tool Description Migration (Compact)
+
+Keep MCP tool schema descriptions concise. Put guidance/strategy in this skill and its references.
+
+- `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `inlineMaxKb`.
+- `tap` (compact): perform `tap` / `longPress` / `swipe` with coordinate, percent, or element mode; mode priority is `coordinate > percent > element`.
+
+`inlineMaxKb` recommendation:
+
+- Main agent direct call (no heavy analysis): `8` (or `4` if only need file artifact path).
+- Sub-agent observe/analysis: `32`.
+- Complex page with known container: use `rootLayout` first, then `inlineMaxKb=16~32` instead of blindly increasing threshold.
+- Avoid `>64` unless explicitly required by user/debug scenario.
+
 ## Observe Delegation Policy
 
 `layout_dump` / `tap` / `screenshot` / recording produce large context (layout JSON, images, video). Isolate observation from main agent context when possible.

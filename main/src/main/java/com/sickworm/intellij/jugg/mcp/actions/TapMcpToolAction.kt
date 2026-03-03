@@ -11,36 +11,29 @@ import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.FindAndTapResult
+import com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchedElementData
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.logger.getInstance
 
 /**
- * TapMcpToolAction implements MCP tool `tap` with three tap modes:
- * 1. coordinate mode (x + y): tap exact pixel coordinates
- * 2. percent mode (xPercent + yPercent): tap by screen percentage, auto-resolves screen size
- * 3. element mode (text / resourceId / contentDesc): app-side atomic find_and_tap only (no legacy fallback)
- *
- * Parse priority when multiple mode parameters are provided together:
- * coordinate > percent > element. If no mode matches, returns MCP_INVALID_PARAMS.
+ * TapMcpToolAction implements MCP tool `tap` and supports tap, longPress and swipe actions.
  */
 class TapMcpToolAction : McpToolAction {
     override val toolName: String = "tap"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Tap on target device screen. Supports three modes: " +
-            "(1) coordinate mode with x+y pixel values, " +
-            "(2) percent mode with xPercent+yPercent (0-100) auto-resolved to pixels, " +
-            "(3) element mode with text/resourceId/contentDesc to find UI element and tap its center " +
-            "(app-side atomic find_and_tap only; no legacy uiautomator fallback), " +
-            "(exact match only; if multiple elements match, returns all candidates without tapping — " +
-            "use coordinate or percent mode to tap the intended one). " +
-            "Parameter parse priority when multiple mode parameters are provided: " +
-            "coordinate > percent > element.",
+        description = "Tap, long press, or swipe on target device. Modes: coordinate (x/y), percent (xPercent/yPercent), " +
+            "or element selectors (text/resourceId/contentDesc, optional className). Mode priority: coordinate > percent > element.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "action" to McpJsonSchemaProperty(
+                    type = "string",
+                    enum = listOf("tap", "longPress", "swipe"),
+                    description = "Touch action type. Default: tap.",
+                ),
                 "x" to McpJsonSchemaProperty(
                     type = "number",
                     description = "X coordinate in device screen space (coordinate mode).",
@@ -52,6 +45,18 @@ class TapMcpToolAction : McpToolAction {
                     description = "Y coordinate in device screen space (coordinate mode).",
                     minimum = 0.0,
                     examples = listOf(400),
+                ),
+                "endX" to McpJsonSchemaProperty(
+                    type = "number",
+                    description = "End X coordinate for swipe (coordinate mode).",
+                    minimum = 0.0,
+                    examples = listOf(200),
+                ),
+                "endY" to McpJsonSchemaProperty(
+                    type = "number",
+                    description = "End Y coordinate for swipe (coordinate mode).",
+                    minimum = 0.0,
+                    examples = listOf(1200),
                 ),
                 "xPercent" to McpJsonSchemaProperty(
                     type = "number",
@@ -67,13 +72,32 @@ class TapMcpToolAction : McpToolAction {
                     maximum = 100.0,
                     examples = listOf(50),
                 ),
+                "endXPercent" to McpJsonSchemaProperty(
+                    type = "number",
+                    description = "End X as percentage of screen width for swipe, 0-100.",
+                    minimum = 0.0,
+                    maximum = 100.0,
+                    examples = listOf(50),
+                ),
+                "endYPercent" to McpJsonSchemaProperty(
+                    type = "number",
+                    description = "End Y as percentage of screen height for swipe, 0-100.",
+                    minimum = 0.0,
+                    maximum = 100.0,
+                    examples = listOf(20),
+                ),
+                "duration" to McpJsonSchemaProperty(
+                    type = "number",
+                    description = "Duration in ms. For swipe: speed. For longPress: hold time. Defaults: swipe=300, longPress=500.",
+                    minimum = 50.0,
+                ),
                 "text" to McpJsonSchemaProperty(
                     type = "string",
                     description = "UI element text to match (element mode). Exact match only.",
                 ),
                 "resourceId" to McpJsonSchemaProperty(
                     type = "string",
-                    description = "UI element resource-id to match (element mode). Exact match only.",
+                    description = "UI element resource-id to match (element mode). Exact match only. Prefer short id (e.g. btn_play).",
                 ),
                 "contentDesc" to McpJsonSchemaProperty(
                     type = "string",
@@ -92,12 +116,29 @@ class TapMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
+                        "action" to McpJsonSchemaProperty(type = "string"),
                         "x" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
                         "y" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
+                        "endX" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
+                        "endY" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
+                        "duration" to McpJsonSchemaProperty(type = "number", minimum = 50.0),
                         "mode" to McpJsonSchemaProperty(type = "string"),
                         "screenWidth" to McpJsonSchemaProperty(type = "number"),
                         "screenHeight" to McpJsonSchemaProperty(type = "number"),
-                        "matchedElement" to McpJsonSchemaProperty(type = "string"),
+                        "matchedElement" to McpJsonSchemaProperty(
+                            type = "object",
+                            properties = mapOf(
+                                "text" to McpJsonSchemaProperty(type = "string"),
+                                "className" to McpJsonSchemaProperty(type = "string"),
+                                "resourceId" to McpJsonSchemaProperty(type = "string"),
+                                "contentDesc" to McpJsonSchemaProperty(type = "string"),
+                                "bounds" to McpJsonSchemaProperty(type = "array", items = McpJsonSchemaProperty(type = "number")),
+                                "centerX" to McpJsonSchemaProperty(type = "number"),
+                                "centerY" to McpJsonSchemaProperty(type = "number"),
+                            ),
+                            required = listOf("text", "className", "resourceId", "contentDesc", "bounds", "centerX", "centerY"),
+                            additionalProperties = false,
+                        ),
                         "matchCount" to McpJsonSchemaProperty(type = "number"),
                         "matches" to McpJsonSchemaProperty(
                             type = "array",
@@ -105,7 +146,7 @@ class TapMcpToolAction : McpToolAction {
                             items = McpJsonSchemaProperty(type = "object", additionalProperties = true),
                         ),
                     ),
-                    required = listOf("mode"),
+                    required = listOf("action", "mode"),
                     additionalProperties = false,
                 )
             )
@@ -114,44 +155,120 @@ class TapMcpToolAction : McpToolAction {
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val logger = runtime.logger.getInstance("TapMcpToolAction")
-        logger.debug(
-            "tap start: hasCoordinate=${arguments["x"] != null && arguments["y"] != null}, " +
-                "hasPercent=${arguments["xPercent"] != null && arguments["yPercent"] != null}, " +
-                "hasElementSelector=${arguments["text"] != null || arguments["resourceId"] != null || arguments["contentDesc"] != null}"
-        )
+        val action = (arguments["action"] as? String)?.ifBlank { "tap" } ?: "tap"
         val selected = resolveOnlineDevice(runtime)
             ?: run {
                 logger.warn("tap failed: no online device")
                 return noDeviceResult("tap")
             }
         val adb = selected.adb
+        val packageName = resolvePackageName(runtime)
 
-        val x = (arguments["x"] as? Number)?.toInt()
-        val y = (arguments["y"] as? Number)?.toInt()
-        val xPercent = (arguments["xPercent"] as? Number)?.toDouble()
-        val yPercent = (arguments["yPercent"] as? Number)?.toDouble()
+        return when (action) {
+            "tap" -> executeTap(arguments, adb, packageName, logger)
+            "longPress" -> executeLongPress(arguments, adb, packageName, logger)
+            "swipe" -> executeSwipe(arguments, adb, logger)
+            else -> McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "tap failed. Reason: Unsupported action: $action. Use tap, longPress, or swipe.",
+                data = emptyMap<String, Any>(),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            )
+        }
+    }
+
+    private fun executeTap(
+        arguments: Map<String, Any?>,
+        adb: IDeviceAdb,
+        packageName: String?,
+        logger: com.intellij.openapi.diagnostic.Logger,
+    ): McpToolResult {
+        val x = arguments.numberAsInt("x")
+        val y = arguments.numberAsInt("y")
+        val xPercent = arguments.numberAsDouble("xPercent")
+        val yPercent = arguments.numberAsDouble("yPercent")
         val text = arguments["text"] as? String
         val resourceId = arguments["resourceId"] as? String
         val contentDesc = arguments["contentDesc"] as? String
         val className = arguments["className"] as? String
-        val packageName = resolvePackageName(runtime)
 
         return when {
             x != null && y != null -> tapByCoordinate(adb, x, y, logger)
             xPercent != null && yPercent != null -> tapByPercent(adb, xPercent, yPercent, logger)
-            text != null || resourceId != null || contentDesc != null ->
-                tapByElement(adb, packageName, text, resourceId, contentDesc, className, logger)
-            else -> {
-                logger.warn("tap failed: no valid tap mode detected in arguments")
-                McpToolResult(
-                    status = McpToolStatus.ERROR,
-                    message = "tap failed. Reason: No valid tap mode detected. " +
-                        "Provide (x+y), (xPercent+yPercent), or (text/resourceId/contentDesc).",
-                    data = emptyMap<String, Any>(),
-                    artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INVALID_PARAMS,
-                )
+            hasElementSelector(text, resourceId, contentDesc) ->
+                tapByElement(adb, packageName, text, resourceId, contentDesc, className)
+            else -> invalidModeResult()
+        }
+    }
+
+    private fun executeLongPress(
+        arguments: Map<String, Any?>,
+        adb: IDeviceAdb,
+        packageName: String?,
+        logger: com.intellij.openapi.diagnostic.Logger,
+    ): McpToolResult {
+        val x = arguments.numberAsInt("x")
+        val y = arguments.numberAsInt("y")
+        val xPercent = arguments.numberAsDouble("xPercent")
+        val yPercent = arguments.numberAsDouble("yPercent")
+        val text = arguments["text"] as? String
+        val resourceId = arguments["resourceId"] as? String
+        val contentDesc = arguments["contentDesc"] as? String
+        val className = arguments["className"] as? String
+        val duration = sanitizeDuration(arguments.numberAsInt("duration") ?: DEFAULT_LONG_PRESS_DURATION_MS)
+
+        return when {
+            x != null && y != null -> longPressByCoordinate(adb, x, y, duration, logger)
+            xPercent != null && yPercent != null -> longPressByPercent(adb, xPercent, yPercent, duration, logger)
+            hasElementSelector(text, resourceId, contentDesc) ->
+                longPressByElement(adb, packageName, text, resourceId, contentDesc, className, duration)
+            else -> invalidModeResult()
+        }
+    }
+
+    private fun executeSwipe(
+        arguments: Map<String, Any?>,
+        adb: IDeviceAdb,
+        logger: com.intellij.openapi.diagnostic.Logger,
+    ): McpToolResult {
+        val x = arguments.numberAsInt("x")
+        val y = arguments.numberAsInt("y")
+        val endX = arguments.numberAsInt("endX")
+        val endY = arguments.numberAsInt("endY")
+        val xPercent = arguments.numberAsDouble("xPercent")
+        val yPercent = arguments.numberAsDouble("yPercent")
+        val endXPercent = arguments.numberAsDouble("endXPercent")
+        val endYPercent = arguments.numberAsDouble("endYPercent")
+        val text = arguments["text"] as? String
+        val resourceId = arguments["resourceId"] as? String
+        val contentDesc = arguments["contentDesc"] as? String
+        val duration = sanitizeDuration(arguments.numberAsInt("duration") ?: DEFAULT_SWIPE_DURATION_MS)
+
+        return when {
+            x != null || y != null || endX != null || endY != null -> {
+                if (x == null || y == null || endX == null || endY == null) {
+                    return swipeMissingEndResult()
+                }
+                swipeByCoordinate(adb, x, y, endX, endY, duration, logger)
             }
+
+            xPercent != null || yPercent != null || endXPercent != null || endYPercent != null -> {
+                if (xPercent == null || yPercent == null || endXPercent == null || endYPercent == null) {
+                    return swipeMissingEndResult()
+                }
+                swipeByPercent(adb, xPercent, yPercent, endXPercent, endYPercent, duration, logger)
+            }
+
+            hasElementSelector(text, resourceId, contentDesc) -> McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "tap failed. Reason: swipe action does not support element mode.",
+                data = emptyMap<String, Any>(),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            )
+
+            else -> invalidModeResult()
         }
     }
 
@@ -159,11 +276,11 @@ class TapMcpToolAction : McpToolAction {
         logger.debug("tap coordinate mode: device=${adb.serial}, x=$x, y=$y")
         return try {
             adb.execAdbShellCmd("input tap $x $y")
-            logger.info("tap coordinate success: device=${adb.serial}, x=$x, y=$y")
             McpToolResult(
                 status = McpToolStatus.OK,
                 message = "tap executed successfully.",
                 data = mapOf(
+                    "action" to "tap",
                     "x" to x,
                     "y" to y,
                     "mode" to "coordinate",
@@ -183,28 +300,17 @@ class TapMcpToolAction : McpToolAction {
         yPercent: Double,
         logger: com.intellij.openapi.diagnostic.Logger,
     ): McpToolResult {
-        logger.debug("tap percent mode: device=${adb.serial}, xPercent=$xPercent, yPercent=$yPercent")
         return try {
             val screenSize = getScreenSize(adb)
-                ?: return McpToolResult(
-                    status = McpToolStatus.ERROR,
-                    message = "tap failed. Reason: Unable to determine screen size from device.",
-                    data = emptyMap<String, Any>(),
-                    artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-                )
-                    .also { logger.warn("tap percent failed: unable to resolve screen size from device=${adb.serial}") }
+                ?: return screenSizeErrorResult()
             val tapX = (screenSize.width * xPercent / 100.0).toInt()
             val tapY = (screenSize.height * yPercent / 100.0).toInt()
             adb.execAdbShellCmd("input tap $tapX $tapY")
-            logger.info(
-                "tap percent success: device=${adb.serial}, xPercent=$xPercent, yPercent=$yPercent, " +
-                    "x=$tapX, y=$tapY, screen=${screenSize.width}x${screenSize.height}"
-            )
             McpToolResult(
                 status = McpToolStatus.OK,
                 message = "tap executed successfully.",
                 data = mapOf(
+                    "action" to "tap",
                     "x" to tapX,
                     "y" to tapY,
                     "mode" to "percent",
@@ -227,138 +333,296 @@ class TapMcpToolAction : McpToolAction {
         resourceId: String?,
         contentDesc: String?,
         className: String?,
+    ): McpToolResult {
+        if (packageName.isNullOrBlank()) {
+            return packageNameMissingResult()
+        }
+
+        val serverResult = ViewHierarchyClient(adb, packageName)
+            .findAndTap(text = text, resourceId = resourceId, contentDesc = contentDesc, className = className)
+            ?: return serverUnavailableResult("tap")
+
+        return serverResultToToolResult(serverResult, "tap")
+    }
+
+    private fun longPressByCoordinate(
+        adb: IDeviceAdb,
+        x: Int,
+        y: Int,
+        duration: Int,
         logger: com.intellij.openapi.diagnostic.Logger,
     ): McpToolResult {
-        logger.debug(
-            "tap element mode: device=${adb.serial}, package=$packageName, text=$text, " +
-                "resourceId=$resourceId, contentDesc=$contentDesc, className=$className"
-        )
         return try {
-            if (packageName.isNullOrBlank()) {
-                logger.warn("tap element failed: package name is empty")
-                return McpToolResult(
-                    status = McpToolStatus.ERROR,
-                    message = "tap failed. Reason: Unable to resolve package name for ViewHierarchy server.",
-                    data = mapOf("mode" to "element"),
-                    artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-                )
-            }
-
-            val serverResult = ViewHierarchyClient(adb, packageName)
-                .findAndTap(text = text, resourceId = resourceId, contentDesc = contentDesc, className = className)
-                ?: return McpToolResult(
-                    status = McpToolStatus.ERROR,
-                    message = "tap failed. Reason: ViewHierarchy server is unavailable.",
-                    data = mapOf("mode" to "element"),
-                    artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-                )
-                    .also { logger.warn("tap element failed: ViewHierarchy server unavailable for package=$packageName") }
-
-            when (serverResult) {
-                is FindAndTapResult.Success -> {
-                    logger.info(
-                        "tap element success: device=${adb.serial}, x=${serverResult.x}, y=${serverResult.y}, " +
-                            "matchCount=${serverResult.matchCount}"
-                    )
-                    return McpToolResult(
-                        status = McpToolStatus.OK,
-                        message = "tap executed successfully.",
-                        data = mapOf(
-                            "x" to serverResult.x,
-                            "y" to serverResult.y,
-                            "mode" to "element",
-                            "matchedElement" to serverResult.matchedElement,
-                            "matchCount" to serverResult.matchCount,
-                        ),
-                        artifacts = emptyList(),
-                        errorCode = null,
-                    )
-                }
-
-                is FindAndTapResult.Multiple -> {
-                    logger.warn("tap element failed: multiple matches=${serverResult.matchCount}")
-                    val matchesSummary = serverResult.matches.mapIndexed { i, match ->
-                        mapOf(
-                            "index" to i,
-                            "text" to match.text,
-                            "resourceId" to match.resourceId,
-                            "contentDesc" to match.contentDesc,
-                            "className" to match.className,
-                            "bounds" to (match.bounds?.toString() ?: ""),
-                            "centerX" to match.centerX,
-                            "centerY" to match.centerY,
-                        )
-                    }
-                    return McpToolResult(
-                        status = McpToolStatus.ERROR,
-                        message = "tap failed. Reason: ${serverResult.matchCount} elements matched. " +
-                            "Use coordinate mode (x+y) or percent mode (xPercent+yPercent) to tap the intended element.",
-                        data = mapOf(
-                            "matchCount" to serverResult.matchCount,
-                            "mode" to "element",
-                            "matches" to matchesSummary,
-                        ),
-                        artifacts = emptyList(),
-                        errorCode = McpErrorCode.MCP_INVALID_PARAMS,
-                    )
-                }
-
-                is FindAndTapResult.NotFound -> {
-                    logger.warn("tap element failed: no matching element")
-                    val candidateDesc = if (serverResult.candidates.isNotEmpty()) {
-                        " Available clickable elements: " + serverResult.candidates.joinToString("; ") { candidate ->
-                            buildString {
-                                if (candidate.text.isNotBlank()) {
-                                    append("text=\"")
-                                    append(candidate.text)
-                                    append("\"")
-                                }
-                                if (candidate.resourceId.isNotBlank()) {
-                                    if (isNotEmpty()) append(", ")
-                                    append("resource-id=\"")
-                                    append(candidate.resourceId)
-                                    append("\"")
-                                }
-                                if (candidate.className.isNotBlank()) {
-                                    if (isNotEmpty()) append(", ")
-                                    append("class=\"")
-                                    append(candidate.className)
-                                    append("\"")
-                                }
-                            }
-                        }
-                    } else {
-                        ""
-                    }
-                    return McpToolResult(
-                        status = McpToolStatus.ERROR,
-                        message = "tap failed. Reason: No matching UI element found.$candidateDesc",
-                        data = mapOf(
-                            "matchCount" to 0,
-                            "mode" to "element",
-                        ),
-                        artifacts = emptyList(),
-                        errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-                    )
-                }
-
-                is FindAndTapResult.Failure -> {
-                    logger.warn("tap element failed: server error=${serverResult.message}")
-                    return McpToolResult(
-                        status = McpToolStatus.ERROR,
-                        message = "tap failed. Reason: ViewHierarchy server error: ${serverResult.message}",
-                        data = mapOf("mode" to "element"),
-                        artifacts = emptyList(),
-                        errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-                    )
-                }
-            }
+            adb.execAdbShellCmd("input swipe $x $y $x $y $duration")
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "longPress executed successfully.",
+                data = mapOf(
+                    "action" to "longPress",
+                    "x" to x,
+                    "y" to y,
+                    "duration" to duration,
+                    "mode" to "coordinate",
+                ),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
         } catch (e: Exception) {
-            logger.warn("tap element failed with exception: ${e.message}", e)
+            logger.warn("longPress coordinate failed: ${e.message}", e)
             McpToolResult.internalErrorResult("tap", e.message ?: "unknown error")
         }
+    }
+
+    private fun longPressByPercent(
+        adb: IDeviceAdb,
+        xPercent: Double,
+        yPercent: Double,
+        duration: Int,
+        logger: com.intellij.openapi.diagnostic.Logger,
+    ): McpToolResult {
+        return try {
+            val screenSize = getScreenSize(adb)
+                ?: return screenSizeErrorResult()
+            val x = (screenSize.width * xPercent / 100.0).toInt()
+            val y = (screenSize.height * yPercent / 100.0).toInt()
+            adb.execAdbShellCmd("input swipe $x $y $x $y $duration")
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "longPress executed successfully.",
+                data = mapOf(
+                    "action" to "longPress",
+                    "x" to x,
+                    "y" to y,
+                    "duration" to duration,
+                    "mode" to "percent",
+                    "screenWidth" to screenSize.width,
+                    "screenHeight" to screenSize.height,
+                ),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            logger.warn("longPress percent failed: ${e.message}", e)
+            McpToolResult.internalErrorResult("tap", e.message ?: "unknown error")
+        }
+    }
+
+    private fun longPressByElement(
+        adb: IDeviceAdb,
+        packageName: String?,
+        text: String?,
+        resourceId: String?,
+        contentDesc: String?,
+        className: String?,
+        duration: Int,
+    ): McpToolResult {
+        if (packageName.isNullOrBlank()) {
+            return packageNameMissingResult()
+        }
+        val serverResult = ViewHierarchyClient(adb, packageName)
+            .findAndLongPress(
+                text = text,
+                resourceId = resourceId,
+                contentDesc = contentDesc,
+                className = className,
+                duration = duration,
+            )
+            ?: return serverUnavailableResult("longPress")
+
+        return serverResultToToolResult(serverResult, "longPress", duration)
+    }
+
+    private fun swipeByCoordinate(
+        adb: IDeviceAdb,
+        x: Int,
+        y: Int,
+        endX: Int,
+        endY: Int,
+        duration: Int,
+        logger: com.intellij.openapi.diagnostic.Logger,
+    ): McpToolResult {
+        return try {
+            adb.execAdbShellCmd("input swipe $x $y $endX $endY $duration")
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "swipe executed successfully.",
+                data = mapOf(
+                    "action" to "swipe",
+                    "x" to x,
+                    "y" to y,
+                    "endX" to endX,
+                    "endY" to endY,
+                    "duration" to duration,
+                    "mode" to "coordinate",
+                ),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            logger.warn("swipe coordinate failed: ${e.message}", e)
+            McpToolResult.internalErrorResult("tap", e.message ?: "unknown error")
+        }
+    }
+
+    private fun swipeByPercent(
+        adb: IDeviceAdb,
+        xPercent: Double,
+        yPercent: Double,
+        endXPercent: Double,
+        endYPercent: Double,
+        duration: Int,
+        logger: com.intellij.openapi.diagnostic.Logger,
+    ): McpToolResult {
+        return try {
+            val screenSize = getScreenSize(adb)
+                ?: return screenSizeErrorResult()
+            val x = (screenSize.width * xPercent / 100.0).toInt()
+            val y = (screenSize.height * yPercent / 100.0).toInt()
+            val endX = (screenSize.width * endXPercent / 100.0).toInt()
+            val endY = (screenSize.height * endYPercent / 100.0).toInt()
+            adb.execAdbShellCmd("input swipe $x $y $endX $endY $duration")
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "swipe executed successfully.",
+                data = mapOf(
+                    "action" to "swipe",
+                    "x" to x,
+                    "y" to y,
+                    "endX" to endX,
+                    "endY" to endY,
+                    "duration" to duration,
+                    "mode" to "percent",
+                    "screenWidth" to screenSize.width,
+                    "screenHeight" to screenSize.height,
+                ),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            logger.warn("swipe percent failed: ${e.message}", e)
+            McpToolResult.internalErrorResult("tap", e.message ?: "unknown error")
+        }
+    }
+
+    private fun serverResultToToolResult(
+        serverResult: FindAndTapResult,
+        action: String,
+        duration: Int? = null,
+    ): McpToolResult {
+        return when (serverResult) {
+            is FindAndTapResult.Success -> {
+                val baseData = mutableMapOf<String, Any>(
+                    "action" to action,
+                    "x" to serverResult.x,
+                    "y" to serverResult.y,
+                    "mode" to "element",
+                    "matchedElement" to toMatchedElementMap(serverResult.matchedElement),
+                    "matchCount" to serverResult.matchCount,
+                )
+                if (duration != null) {
+                    baseData["duration"] = duration
+                }
+                McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "$action executed successfully.",
+                    data = baseData,
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            is FindAndTapResult.Multiple -> {
+                val matchesSummary = serverResult.matches.mapIndexed { i, match ->
+                    mapOf(
+                        "index" to i,
+                        "text" to match.text,
+                        "resourceId" to match.resourceId,
+                        "contentDesc" to match.contentDesc,
+                        "className" to match.className,
+                        "bounds" to (match.bounds?.toString() ?: ""),
+                        "centerX" to match.centerX,
+                        "centerY" to match.centerY,
+                    )
+                }
+                McpToolResult(
+                    status = McpToolStatus.ERROR,
+                    message = "tap failed. Reason: ${serverResult.matchCount} elements matched. " +
+                        "Use coordinate mode (x+y) or percent mode (xPercent+yPercent) to tap the intended element.",
+                    data = mapOf(
+                        "action" to action,
+                        "matchCount" to serverResult.matchCount,
+                        "mode" to "element",
+                        "matches" to matchesSummary,
+                    ),
+                    artifacts = emptyList(),
+                    errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                )
+            }
+
+            is FindAndTapResult.NotFound -> {
+                val candidateDesc = if (serverResult.candidates.isNotEmpty()) {
+                    " Available clickable elements: " + serverResult.candidates.joinToString("; ") { candidate ->
+                        buildString {
+                            if (candidate.text.isNotBlank()) {
+                                append("text=\"")
+                                append(candidate.text)
+                                append("\"")
+                            }
+                            if (candidate.resourceId.isNotBlank()) {
+                                if (isNotEmpty()) append(", ")
+                                append("resource-id=\"")
+                                append(candidate.resourceId)
+                                append("\"")
+                            }
+                            if (candidate.className.isNotBlank()) {
+                                if (isNotEmpty()) append(", ")
+                                append("class=\"")
+                                append(candidate.className)
+                                append("\"")
+                            }
+                        }
+                    }
+                } else {
+                    ""
+                }
+                McpToolResult(
+                    status = McpToolStatus.ERROR,
+                    message = "tap failed. Reason: No matching UI element found.$candidateDesc",
+                    data = mapOf(
+                        "action" to action,
+                        "matchCount" to 0,
+                        "mode" to "element",
+                    ),
+                    artifacts = emptyList(),
+                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                )
+            }
+
+            is FindAndTapResult.Failure -> {
+                McpToolResult(
+                    status = McpToolStatus.ERROR,
+                    message = "tap failed. Reason: ViewHierarchy server error: ${serverResult.message}",
+                    data = mapOf(
+                        "action" to action,
+                        "mode" to "element",
+                    ),
+                    artifacts = emptyList(),
+                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                )
+            }
+        }
+    }
+
+    private fun toMatchedElementMap(element: MatchedElementData): Map<String, Any> {
+        return mapOf(
+            "text" to element.text,
+            "className" to element.className,
+            "resourceId" to element.resourceId,
+            "contentDesc" to element.contentDesc,
+            "bounds" to element.bounds,
+            "centerX" to element.centerX,
+            "centerY" to element.centerY,
+        )
     }
 
     /**
@@ -380,6 +644,67 @@ class TapMcpToolAction : McpToolAction {
             }
         }
         return if (width != null && height != null) ScreenSize(width, height) else null
+    }
+
+    private fun sanitizeDuration(duration: Int): Int {
+        return if (duration < MIN_DURATION_MS) MIN_DURATION_MS else duration
+    }
+
+    private fun hasElementSelector(text: String?, resourceId: String?, contentDesc: String?): Boolean {
+        return !text.isNullOrBlank() || !resourceId.isNullOrBlank() || !contentDesc.isNullOrBlank()
+    }
+
+    private fun invalidModeResult(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "tap failed. Reason: No valid tap mode detected. Provide (x+y), (xPercent+yPercent), or (text/resourceId/contentDesc).",
+            data = emptyMap<String, Any>(),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+        )
+    }
+
+    private fun swipeMissingEndResult(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "tap failed. Reason: swipe requires both start and end coordinates in the same mode.",
+            data = emptyMap<String, Any>(),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+        )
+    }
+
+    private fun screenSizeErrorResult(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "tap failed. Reason: Unable to determine screen size from device.",
+            data = emptyMap<String, Any>(),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+        )
+    }
+
+    private fun packageNameMissingResult(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "tap failed. Reason: Unable to resolve package name for ViewHierarchy server.",
+            data = mapOf("mode" to "element"),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+        )
+    }
+
+    private fun serverUnavailableResult(action: String): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "tap failed. Reason: ViewHierarchy server is unavailable.",
+            data = mapOf(
+                "action" to action,
+                "mode" to "element",
+            ),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+        )
     }
 
     private data class ScreenSize(val width: Int, val height: Int)
@@ -416,7 +741,14 @@ class TapMcpToolAction : McpToolAction {
         }
     }
 
+    private fun Map<String, Any?>.numberAsInt(key: String): Int? = (this[key] as? Number)?.toInt()
+
+    private fun Map<String, Any?>.numberAsDouble(key: String): Double? = (this[key] as? Number)?.toDouble()
+
     companion object {
         private val SIZE_PATTERN = Regex("""(\d+)x(\d+)""")
+        private const val DEFAULT_LONG_PRESS_DURATION_MS = 500
+        private const val DEFAULT_SWIPE_DURATION_MS = 300
+        private const val MIN_DURATION_MS = 50
     }
 }

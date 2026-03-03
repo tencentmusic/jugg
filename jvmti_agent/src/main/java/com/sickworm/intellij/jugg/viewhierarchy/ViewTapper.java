@@ -36,6 +36,25 @@ public class ViewTapper {
     }
 
     /**
+     * Long press a matched element. Returns true when long press dispatch is accepted.
+     */
+    public boolean longPress(MatchedElement element, long durationMs) {
+        if (element == null || element.view == null) {
+            return false;
+        }
+        long holdDuration = Math.max(50L, durationMs);
+        try {
+            if (element.view.isLongClickable() && element.view.performLongClick()) {
+                return true;
+            }
+            return dispatchLongPressToRoot(element.window.rootView, element.centerX, element.centerY, holdDuration);
+        } catch (Throwable t) {
+            LogUtils.e(TAG, "longPress failed", t);
+            return false;
+        }
+    }
+
+    /**
      * Tap by absolute screen coordinates. Windows are checked in reverse order
      * to favor top-most overlays.
      */
@@ -84,6 +103,34 @@ public class ViewTapper {
             return downHandled || upHandled;
         } catch (Throwable t) {
             LogUtils.e(TAG, "dispatchTapToRoot failed", t);
+            return false;
+        } finally {
+            down.recycle();
+            up.recycle();
+        }
+    }
+
+    private boolean dispatchLongPressToRoot(View rootView, int screenX, int screenY, long durationMs) {
+        if (rootView == null) {
+            return false;
+        }
+
+        int[] location = new int[2];
+        rootView.getLocationOnScreen(location);
+        float localX = screenX - location[0];
+        float localY = screenY - location[1];
+
+        long downTime = SystemClock.uptimeMillis();
+        MotionEvent down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, localX, localY, 0);
+        MotionEvent up = MotionEvent.obtain(downTime, downTime + durationMs, MotionEvent.ACTION_UP, localX, localY, 0);
+
+        try {
+            boolean downHandled = rootView.dispatchTouchEvent(down);
+            SystemClock.sleep(durationMs);
+            boolean upHandled = rootView.dispatchTouchEvent(up);
+            return downHandled || upHandled;
+        } catch (Throwable t) {
+            LogUtils.e(TAG, "dispatchLongPressToRoot failed", t);
             return false;
         } finally {
             down.recycle();

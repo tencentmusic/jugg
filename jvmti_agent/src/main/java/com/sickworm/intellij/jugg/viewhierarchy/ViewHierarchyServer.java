@@ -160,6 +160,14 @@ public class ViewHierarchyServer {
                             return doFindAndTap(finalParamsFindAndTap);
                         }
                     });
+                case "find_and_long_press":
+                    JSONObject finalParamsFindAndLongPress = params;
+                    return runOnMainThread(new Callable<JSONObject>() {
+                        @Override
+                        public JSONObject call() {
+                            return doFindAndLongPress(finalParamsFindAndLongPress);
+                        }
+                    });
                 case "tap_coordinate":
                     JSONObject finalParamsTap = params;
                     return runOnMainThread(new Callable<JSONObject>() {
@@ -251,10 +259,21 @@ public class ViewHierarchyServer {
     }
 
     private JSONObject doFindAndTap(JSONObject params) {
+        return doFindAndPress(params, false);
+    }
+
+    private JSONObject doFindAndLongPress(JSONObject params) {
+        return doFindAndPress(params, true);
+    }
+
+    private JSONObject doFindAndPress(JSONObject params, boolean isLongPress) {
         String text = optString(params, "text");
         String resourceId = optString(params, "resourceId");
         String contentDesc = optString(params, "contentDesc");
         String className = optString(params, "className");
+        Integer durationValue = optInt(params, "duration");
+        int duration = durationValue != null ? Math.max(50, durationValue) : 500;
+        String actionName = isLongPress ? "find_and_long_press" : "find_and_tap";
 
         try {
             List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className);
@@ -270,21 +289,25 @@ public class ViewHierarchyServer {
             }
 
             MatchedElement target = matches.get(0);
-            boolean tapped = viewTapper.tap(target);
+            boolean pressed = isLongPress ? viewTapper.longPress(target, duration) : viewTapper.tap(target);
             JSONObject data = new JSONObject();
-            data.put("tapped", tapped);
+            data.put(isLongPress ? "longPressed" : "tapped", pressed);
             data.put("matchCount", 1);
             data.put("x", target.centerX);
             data.put("y", target.centerY);
-            data.put("matchedElement", target.describe());
+            data.put("matchedElement", target.toMatchedElementJson());
+            if (isLongPress) {
+                data.put("duration", duration);
+            }
 
-            if (!tapped) {
-                return error("find_and_tap matched but tap dispatch failed.", data);
+            if (!pressed) {
+                String failedAction = isLongPress ? "long press" : "tap";
+                return error(actionName + " matched but " + failedAction + " dispatch failed.", data);
             }
             return ok(data);
         } catch (Throwable t) {
-            LogUtils.e(TAG, "doFindAndTap failed", t);
-            return error("find_and_tap failed: " + t.getMessage(), null);
+            LogUtils.e(TAG, "doFindAndPress failed", t);
+            return error(actionName + " failed: " + t.getMessage(), null);
         }
     }
 

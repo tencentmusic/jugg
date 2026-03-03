@@ -114,6 +114,11 @@ public class ViewTreeDumper {
             return null;
         }
         String resourceId = resolveResourceId(view);
+        String targetShortId = ViewNode.shortenId(targetId);
+        String resourceShortId = ViewNode.shortenId(resourceId);
+        if (targetShortId != null && targetShortId.equals(resourceShortId)) {
+            return view;
+        }
         if (targetId.equals(resourceId)) {
             return view;
         }

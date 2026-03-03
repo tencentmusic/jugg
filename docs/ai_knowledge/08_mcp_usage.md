@@ -46,10 +46,10 @@
 | `screenshot` | `projectDir` | 截图 |
 | `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
-| `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 内联返回 |
+| `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `inlineMaxKb` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按阈值内联返回 |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
-| `tap` | `projectDir` + 模式参数 | 屏幕点击（三模式：坐标/百分比/元素） |
+| `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
 
 > 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
 
@@ -70,8 +70,11 @@
 补充（layout_dump 语义）：
 - 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树并落盘为 `.json`。
 - 成功时 `data.file` 返回本地绝对路径，`data.content` 内联返回完整 JSON 数据（无需额外读取文件），`artifacts` 里会包含 `type=json` 的产物。
-- 可选参数 `rootLayout`：传入节点 `id` 值（如 `"com.example:id/content"`），仅返回该节点及其子树。未传或目标节点不存在时，返回完整层级。
+- 可选参数 `rootLayout`：传入节点 `id` 值（推荐 short id，如 `"content"`），仅返回该节点及其子树。未传或目标节点不存在时，返回完整层级。
+- 可选参数 `inlineMaxKb`：控制 `data.content` 最大内联大小（KB），默认 16，实际生效值会被 clamp 到 `4..128`。
 - Server 可能返回内联 JSON 或远端文件路径，`layout_dump` 会统一拉齐为本地 `.json` 文件输出。
+- 返回中新增 `data.contentBytes`、`data.inlineOmitted`、`data.inlineThresholdKb`。当 `contentBytes > inlineThresholdKb * 1024` 时，`data.content` 被省略，但 `data.file` 仍可读取完整 JSON。
+- `message` 不再固定为 executed successfully，而是摘要信息：窗口数、顶层窗口标题、节点数、是否截断。
 - **服务端剪枝**：App 内 ViewHierarchyServer 限制最大深度 `MAX_DEPTH=60`，最大节点数 `MAX_NODE_COUNT=5000`。超限时根节点会包含 `"truncated":true` 字段，被截断的节点自身 `tag` 为 `"truncated:node_limit"` 或 `"truncated:depth_limit"`。
 - **不可见节点**：默认排除 `GONE` 节点以减少体积；设置 `isIncludeGone=true` 可包含 GONE 节点用于诊断。`INVISIBLE` 节点始终包含。注意：元素模式 `tap` 会过滤掉不可见节点（仅匹配 VISIBLE + isShown），因此 GONE/INVISIBLE 的 View 无法通过 `tap(text=...)` 定位，需借助 `layout_dump(isIncludeGone=true)` 诊断。
 - **根 JSON 结构**：`{windows:[{windowType, title, root:<node>}], truncated}`。
@@ -84,11 +87,18 @@
 - socket 不可连的推荐动作：`restart_app` 重试一次；若仍失败，执行一次 `force_gradle_compile`（必要时轮询 `get_compile_status` 到终态）-> `compile_and_deploy` -> `restart_app` 后再试 `layout_dump`/元素模式 `tap`。
 
 补充（tap 三模式语义）：
+- `action` 支持：`tap`（默认）、`longPress`、`swipe`。
 - **坐标模式**（`x` + `y`）：直接传入设备像素坐标，行为与原有逻辑一致。
 - **百分比模式**（`xPercent` + `yPercent`，范围 0-100）：自动通过 `adb shell wm size` 获取屏幕尺寸后换算为像素坐标，优先使用 Override size。返回 `data` 中包含 `screenWidth`、`screenHeight`。
-- **元素模式**（`text` / `resourceId` / `contentDesc`，可选 `className`）：所有选择器均为**精确匹配**（exact match）。走 App 内 `find_and_tap` 原子执行（查找+点击），避免 IDE 侧 dump 与点击之间的竞态；若 Server 不可用则直接返回 `ERROR`。唯一匹配时点击元素中心点；**多匹配时不执行 tap**，返回 `ERROR` + 所有匹配元素摘要（含 bounds/center）。
+- **元素模式**（`text` / `resourceId` / `contentDesc`，可选 `className`）：所有选择器均为**精确匹配**（exact match）。`resourceId` 推荐传 short id（如 `btn_play`）；full id 为兼容回退。走 App 内原子执行（tap: `find_and_tap`，longPress: `find_and_long_press`）。唯一匹配时执行动作；**多匹配时不执行**，返回 `ERROR` + 所有匹配元素摘要（含 bounds/center）。
+- `swipe` 仅支持坐标/百分比两种模式，且必须提供起点与终点：坐标模式需要 `x/y/endX/endY`，百分比模式需要 `xPercent/yPercent/endXPercent/endYPercent`。元素模式下 `swipe` 会直接返回 `MCP_INVALID_PARAMS`。
+- `duration` 参数：
+  - `longPress`：按住时长（默认 500ms）
+  - `swipe`：滑动时长（默认 300ms）
+  - 最小值 50ms（低于该值会按 50ms 处理）
 - 元素模式未命中时返回 `MCP_INTERNAL_ERROR`，`message` 会包含可点击候选元素摘要，便于快速改 selector。
 - 元素模式命中前会过滤不可操作节点（`VISIBLE + isShown + 非零尺寸 + 有效 bounds`），避免隐藏模板节点导致误报多匹配。
+- 元素模式成功时 `data.matchedElement` 为结构化对象：`{text, className, resourceId, contentDesc, bounds:[l,t,r,b], centerX, centerY}`。
 - 参数使用优先级（仅在同一次调用里同时传入多种模式参数时生效）：`coordinate > percent > element`。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
 - 推荐交互顺序（Agent/Skill 指引）：优先 `layout_dump + element tap`；元素模式不适用时使用 `layout_dump + coordinate tap`；仅当 ViewHierarchy 路径明确不可用时，才退回 `screenshot + percent/coordinate tap`。
 

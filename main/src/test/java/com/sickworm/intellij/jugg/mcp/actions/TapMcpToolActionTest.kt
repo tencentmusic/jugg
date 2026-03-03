@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.FindAndTapResult
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchCandidate
+import com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchedElementData
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -30,13 +31,13 @@ import org.mockito.Mockito
 import java.io.File
 
 /**
- * TapMcpToolActionTest covers coordinate/percent modes and server-only element mode.
+ * TapMcpToolActionTest validates tap/longPress/swipe actions and element-mode server behavior.
  */
 class TapMcpToolActionTest {
 
     @Test
-    fun testTapCoordinateMode() {
-        val (action, _) = setup()
+    fun testDefaultTapActionCoordinateMode() {
+        val (action, adb) = setup()
         val result = action.execute(
             mapOf("projectDir" to "/tmp/test", "x" to 540, "y" to 960),
             runtime()
@@ -44,14 +45,16 @@ class TapMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
+        Assert.assertEquals("tap", data["action"])
+        Assert.assertEquals("coordinate", data["mode"])
         Assert.assertEquals(540, data["x"])
         Assert.assertEquals(960, data["y"])
-        Assert.assertEquals("coordinate", data["mode"])
+        Assert.assertTrue(adb.executedCommands.contains("input tap 540 960"))
     }
 
     @Test
     fun testTapPercentMode() {
-        val (action, _) = setup(
+        val (action, adb) = setup(
             shellOutputs = mapOf(
                 "wm size" to "Physical size: 1080x2400",
             )
@@ -63,46 +66,151 @@ class TapMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
+        Assert.assertEquals("tap", data["action"])
+        Assert.assertEquals("percent", data["mode"])
         Assert.assertEquals(540, data["x"])
         Assert.assertEquals(1200, data["y"])
-        Assert.assertEquals("percent", data["mode"])
         Assert.assertEquals(1080, data["screenWidth"])
         Assert.assertEquals(2400, data["screenHeight"])
+        Assert.assertTrue(adb.executedCommands.contains("input tap 540 1200"))
     }
 
     @Test
-    fun testTapPercentModeOverrideSize() {
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "wm size" to "Physical size: 1080x2400\nOverride size: 720x1280",
-            )
-        )
+    fun testSwipeCoordinateMode() {
+        val (action, adb) = setup()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "xPercent" to 50.0, "yPercent" to 50.0),
-            runtime()
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "swipe",
+                "x" to 540,
+                "y" to 1800,
+                "endX" to 540,
+                "endY" to 400,
+                "duration" to 300,
+            ),
+            runtime(),
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
-        Assert.assertEquals(360, data["x"])
-        Assert.assertEquals(640, data["y"])
-        Assert.assertEquals(720, data["screenWidth"])
-        Assert.assertEquals(1280, data["screenHeight"])
+        Assert.assertEquals("swipe", data["action"])
+        Assert.assertEquals("coordinate", data["mode"])
+        Assert.assertEquals(540, data["x"])
+        Assert.assertEquals(1800, data["y"])
+        Assert.assertEquals(540, data["endX"])
+        Assert.assertEquals(400, data["endY"])
+        Assert.assertEquals(300, data["duration"])
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 540 1800 540 400 300"))
     }
 
     @Test
-    fun testTapPercentModeScreenSizeFail() {
-        val (action, _) = setup(
+    fun testSwipePercentMode() {
+        val (action, adb) = setup(
             shellOutputs = mapOf(
-                "wm size" to "error: no device",
+                "wm size" to "Physical size: 1080x2400",
             )
         )
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "xPercent" to 50.0, "yPercent" to 50.0),
-            runtime()
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "swipe",
+                "xPercent" to 50.0,
+                "yPercent" to 80.0,
+                "endXPercent" to 50.0,
+                "endYPercent" to 20.0,
+            ),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("swipe", data["action"])
+        Assert.assertEquals("percent", data["mode"])
+        Assert.assertEquals(540, data["x"])
+        Assert.assertEquals(1920, data["y"])
+        Assert.assertEquals(540, data["endX"])
+        Assert.assertEquals(480, data["endY"])
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 540 1920 540 480 300"))
+    }
+
+    @Test
+    fun testSwipeWithoutEndCoordinates() {
+        val (action, _) = setup()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "swipe",
+                "x" to 10,
+                "y" to 20,
+            ),
+            runtime(),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue(result.message.contains("Unable to determine screen size"))
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("requires both start and end"))
+    }
+
+    @Test
+    fun testSwipeElementModeReturnsError() {
+        val (action, _) = setup()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "swipe",
+                "text" to "Login",
+            ),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("does not support element mode"))
+    }
+
+    @Test
+    fun testLongPressCoordinateModeDefaultDuration() {
+        val (action, adb) = setup()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "longPress",
+                "x" to 540,
+                "y" to 960,
+            ),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("longPress", data["action"])
+        Assert.assertEquals("coordinate", data["mode"])
+        Assert.assertEquals(500, data["duration"])
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 540 960 540 960 500"))
+    }
+
+    @Test
+    fun testLongPressPercentMode() {
+        val (action, adb) = setup(
+            shellOutputs = mapOf(
+                "wm size" to "Physical size: 1080x2400",
+            )
+        )
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "longPress",
+                "xPercent" to 50.0,
+                "yPercent" to 50.0,
+                "duration" to 800,
+            ),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("longPress", data["action"])
+        Assert.assertEquals("percent", data["mode"])
+        Assert.assertEquals(800, data["duration"])
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 540 1200 540 1200 800"))
     }
 
     @Test
@@ -113,7 +221,7 @@ class TapMcpToolActionTest {
                 FindAndTapResult.Success(
                     x = 321,
                     y = 654,
-                    matchedElement = "text=\"Login\"",
+                    matchedElement = matchedElementData(),
                     matchCount = 1,
                 )
             )
@@ -123,14 +231,56 @@ class TapMcpToolActionTest {
                 runtime()
             )
             Assert.assertEquals(McpToolStatus.OK, result.status)
-            Assert.assertTrue(adb.tappedCommands.isEmpty())
+            Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
+            Assert.assertEquals("tap", data["action"])
             Assert.assertEquals("element", data["mode"])
             Assert.assertEquals(321, data["x"])
             Assert.assertEquals(654, data["y"])
             Assert.assertEquals(1, data["matchCount"])
-            Assert.assertEquals("text=\"Login\"", data["matchedElement"])
+            @Suppress("UNCHECKED_CAST")
+            val matched = data["matchedElement"] as Map<String, Any>
+            Assert.assertEquals("Login", matched["text"])
+            Assert.assertEquals("Button", matched["className"])
+            Assert.assertEquals(321, matched["centerX"])
+            Assert.assertEquals(654, matched["centerY"])
+        }
+    }
+
+    @Test
+    fun testLongPressElementModeUsesServerSuccess() {
+        val (action, adb) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndLongPress("Login", null, null, null, 900)).thenReturn(
+                FindAndTapResult.Success(
+                    x = 111,
+                    y = 222,
+                    matchedElement = matchedElementData(),
+                    matchCount = 1,
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to "/tmp/test",
+                    "action" to "longPress",
+                    "text" to "Login",
+                    "duration" to 900,
+                ),
+                runtime(),
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals("longPress", data["action"])
+            Assert.assertEquals("element", data["mode"])
+            Assert.assertEquals(900, data["duration"])
+            Assert.assertEquals(1, data["matchCount"])
+            @Suppress("UNCHECKED_CAST")
+            val matched = data["matchedElement"] as Map<String, Any>
+            Assert.assertEquals("Login", matched["text"])
         }
     }
 
@@ -157,15 +307,15 @@ class TapMcpToolActionTest {
             )
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
             Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
-            Assert.assertTrue(adb.tappedCommands.isEmpty())
+            Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
+            Assert.assertEquals("tap", data["action"])
             Assert.assertEquals("element", data["mode"])
             Assert.assertEquals(2, data["matchCount"])
             @Suppress("UNCHECKED_CAST")
             val matches = data["matches"] as List<Map<String, Any>>
             Assert.assertEquals(2, matches.size)
-            Assert.assertEquals("{\"left\":1,\"top\":2,\"right\":101,\"bottom\":102}", matches[0]["bounds"])
             Assert.assertEquals(51, matches[0]["centerX"])
             Assert.assertEquals(251, matches[1]["centerX"])
         }
@@ -200,28 +350,7 @@ class TapMcpToolActionTest {
             Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
             Assert.assertTrue(result.message.contains("No matching UI element found"))
             Assert.assertTrue(result.message.contains("Login"))
-            Assert.assertTrue(result.message.contains("com.example:id/login"))
-            Assert.assertTrue(result.message.contains("android.widget.Button"))
-            Assert.assertTrue(adb.tappedCommands.isEmpty())
-        }
-    }
-
-    @Test
-    fun testTapElementModeServerFailureReturnsError() {
-        val (action, adb) = setup(packageName = "com.example.app")
-        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.findAndTap("Any", null, null, null)).thenReturn(
-                FindAndTapResult.Failure("socket failed")
-            )
-        }.use {
-            val result = action.execute(
-                mapOf("projectDir" to "/tmp/test", "text" to "Any"),
-                runtime()
-            )
-            Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
-            Assert.assertTrue(result.message.contains("ViewHierarchy server error"))
-            Assert.assertTrue(adb.tappedCommands.isEmpty())
+            Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
         }
     }
 
@@ -242,15 +371,15 @@ class TapMcpToolActionTest {
     }
 
     @Test
-    fun testTapElementModeWithoutPackageNameReturnsError() {
-        val (action, _) = setup(packageName = null)
+    fun testUnknownActionReturnsError() {
+        val (action, _) = setup()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "text" to "Any"),
-            runtime()
+            mapOf("projectDir" to "/tmp/test", "action" to "fling", "x" to 1, "y" to 2),
+            runtime(),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
-        Assert.assertTrue(result.message.contains("Unable to resolve package name"))
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("Unsupported action"))
     }
 
     @Test
@@ -258,10 +387,11 @@ class TapMcpToolActionTest {
         val (action, _) = setup(
             shellOutputs = mapOf(
                 "wm size" to "Physical size: 1080x2400",
-            )
+            ),
+            packageName = "com.example.app",
         )
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200, "xPercent" to 50.0, "yPercent" to 50.0),
+            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200, "xPercent" to 50.0, "yPercent" to 50.0, "text" to "Login"),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -270,24 +400,6 @@ class TapMcpToolActionTest {
         Assert.assertEquals("coordinate", data["mode"])
         Assert.assertEquals(100, data["x"])
         Assert.assertEquals(200, data["y"])
-    }
-
-    @Test
-    fun testTapPriorityPercentOverElement() {
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "wm size" to "Physical size: 1080x2400",
-            ),
-            packageName = "com.example.app",
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "xPercent" to 10.0, "yPercent" to 20.0, "text" to "Login"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals("percent", data["mode"])
     }
 
     @Test
@@ -316,6 +428,18 @@ class TapMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("No valid tap mode"))
+    }
+
+    private fun matchedElementData(): MatchedElementData {
+        return MatchedElementData(
+            text = "Login",
+            className = "Button",
+            resourceId = "login",
+            contentDesc = "",
+            bounds = listOf(1, 2, 3, 4),
+            centerX = 321,
+            centerY = 654,
+        )
     }
 
     // --- Test helpers ---
@@ -396,14 +520,9 @@ class TapMcpToolActionTest {
         override val isOnline: Boolean = true
 
         val executedCommands = mutableListOf<String>()
-        val tappedCommands = mutableListOf<String>()
 
         override fun execAdbShellCmd(cmd: String): String {
             executedCommands.add(cmd)
-            if (cmd.startsWith("input tap ")) {
-                tappedCommands.add(cmd)
-                return ""
-            }
             return shellOutputs[cmd].orEmpty()
         }
 

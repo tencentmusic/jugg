@@ -41,13 +41,26 @@ data class MatchCandidate(
 )
 
 /**
+ * MatchedElementData is the structured element payload returned on element-mode success.
+ */
+data class MatchedElementData(
+    val text: String,
+    val className: String,
+    val resourceId: String,
+    val contentDesc: String,
+    val bounds: List<Int>,
+    val centerX: Int,
+    val centerY: Int,
+)
+
+/**
  * FindAndTapResult keeps business outcomes distinguishable from transport failures.
  */
 sealed class FindAndTapResult {
     data class Success(
         val x: Int,
         val y: Int,
-        val matchedElement: String,
+        val matchedElement: MatchedElementData,
         val matchCount: Int,
     ) : FindAndTapResult()
 

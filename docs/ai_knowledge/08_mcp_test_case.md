@@ -209,8 +209,16 @@
 **INTERACT-3: 百分比点击**
 调用 `tap`，传入 `projectDir`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data` 中 `mode` 为 `percent`，`screenWidth` 和 `screenHeight` 有值，`x` 和 `y` 为换算后的像素坐标。
 
-**INTERACT-4: 元素模式点击 - 按 text 精确匹配**
+**INTERACT-4: swipe 坐标模式**
+调用 `tap`，传入 `projectDir`、`action=\"swipe\"`、`x=540`、`y=1800`、`endX=540`、`endY=400`、`duration=300`，验证返回 `status` 为 `OK`，`data.action=\"swipe\"`，`mode=\"coordinate\"`，并包含起终点坐标。
+
+**INTERACT-5: longPress 百分比模式**
+调用 `tap`，传入 `projectDir`、`action=\"longPress\"`、`xPercent=50`、`yPercent=50`、`duration=800`，验证返回 `status` 为 `OK`，`data.action=\"longPress\"`，`mode=\"percent\"`，`duration=800`。
+
+**INTERACT-6: 元素模式点击 - 按 text 精确匹配**
 通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有**唯一** `text` 属性的可见元素（确认该 text 在当前界面只出现一次），然后调用 `tap`，传入 `projectDir` 和 `text=<该元素的完整 text>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`，`data.matchedElement` 包含对应元素信息。注意：text 为精确匹配，子串不会命中。
+
+补充：`data.matchedElement` 现在是结构化对象（非字符串），包含 `text/className/resourceId/contentDesc/bounds/centerX/centerY`。
 
 **INTERACT-5: 元素模式点击 - 按 resourceId 匹配**
 通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有 `resourceId` 属性的元素，然后调用 `tap`，传入 `projectDir` 和 `resourceId=<该元素的 resourceId>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`。
@@ -230,6 +238,12 @@
 
 **INTERACT-10: tap - 缺少必填参数**
 调用 `tap`，仅传入 `projectDir`，不传 `x`、`y`、`xPercent`、`yPercent`、`text`、`resourceId`、`contentDesc`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
+
+**INTERACT-10A: swipe - 缺少终点参数**
+调用 `tap`，传入 `projectDir`、`action=\"swipe\"`、`x=100`、`y=200`，不传 `endX/endY`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
+
+**INTERACT-10B: swipe - 元素模式不支持**
+调用 `tap`，传入 `projectDir`、`action=\"swipe\"`、`text=\"Unique MCP Target\"`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
 **INTERACT-11: tap - 坐标模式优先于百分比模式**
 调用 `tap`，同时传入 `projectDir`、`x=100`、`y=200`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data.mode` 为 `coordinate`，`data.x` 为 100，`data.y` 为 200（优先使用坐标模式）。
