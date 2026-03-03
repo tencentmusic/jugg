@@ -23,7 +23,6 @@ Use this file only when normal execution cannot proceed due to context/device/ru
 
 - Use when runtime behavior is abnormal (unexpected activity, dead process, missing target UI evidence).
 - Required input: `projectDir`.
-- Optional input: `packageName`.
 - Key output fields:
   - `data.hasCrash`
   - `data.crashLogs`

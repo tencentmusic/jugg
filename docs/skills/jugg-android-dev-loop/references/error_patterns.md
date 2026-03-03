@@ -185,13 +185,15 @@ Use this library to constrain auto-fix behavior.
   stage: observe
   signature:
     includes: ["ViewHierarchy server is unavailable", "find_and_tap failed", "layout_dump failed"]
-  diagnosis: app-side ViewHierarchy server is unreachable and no legacy fallback path is available
-  fix_strategy: restart_app_then_retry_layout_dump_or_switch_to_non_element_tap
+  diagnosis: >
+    app-side ViewHierarchy server is unreachable and no legacy fallback path is available.
+    If error text indicates socket connect/forward failure, this is likely app-side server integration/runtime package mismatch.
+  fix_strategy: restart_app_then_one_gradle_compile_for_socket_failures_then_retry
   fix_scope: low
-  confidence_hint: 0.91
+  confidence_hint: 0.93
   auto_apply: true
   next_action_on_success: retry_element_mode_or_layout_verification
-  next_action_on_failure: ask_user_for_expected_runtime_state
+  next_action_on_failure: fallback_to_screenshot_percent_or_coordinate_then_ask_user
 
 - id: layout_dump_json_single_line
   stage: observe

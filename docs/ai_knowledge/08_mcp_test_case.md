@@ -8,6 +8,26 @@
 
 ## 执行须知
 
+### 用例编号规则
+
+采用 **「分类前缀-序号」** 命名，前缀对应章节分类，序号在各分类内独立递增。插入新用例只需追加序号，不影响其他分类。
+
+| 前缀 | 对应章节 | 说明 |
+|------|---------|------|
+| `SSH` | 一、远程 SSH | 远程 SSH 信息 |
+| `CONN` | 二、基础连通性 | 项目连通验证 |
+| `DEV` | 三、设备相关 | 设备列表等 |
+| `MEDIA` | 四、截图/录屏/布局/崩溃 | 截图、录屏、布局导出、崩溃报告 |
+| `INTERACT` | 五、应用控制与交互 | 重启、点击等 |
+| `BUILD` | 六、编译与部署（正常） | 正常编译部署 |
+| `BUILDFAIL` | 七、编译失败 | 编译错误信息验证 |
+| `DEGRADE` | 八、编译降级 | build.gradle 变更降级 |
+| `LONG` | 九、长耗时编译 | >25s 异步编译 |
+| `NODEV` | 十、无设备场景 | 无设备全量验证 |
+| `SELECT` | 十一、设备选择 | 设备选择策略 |
+| `ERR` | 十二、错误处理 | 边界与错误 |
+| `E2E` | 十三、组合场景 | 端到端工作流 |
+
 ### 测试页面入口（android_demo_project）
 
 为便于执行 `tap/layout_dump/screenshot` 相关用例，测试工程新增了 MCP 专用页面：
@@ -20,7 +40,7 @@
   - 重复文本：`Repeat Tap Target`（两个可见节点）
   - 可见/隐藏同文案节点：`Visibility Tap Target`（一个可见、一个 `invisible`）
 
-执行 TC-20b~20f 时优先在该页面取样，减少环境差异导致的不稳定。
+执行 INTERACT-4~8 时优先在该页面取样，减少环境差异导致的不稳定。
 
 ### 执行顺序约束
 
@@ -28,27 +48,27 @@
 
 ### 分组执行策略（防止 context 溢出）
 
-> 本文档有 59 个用例，工具调用密集，单次会话 context 容易溢出。**必须按分组执行**，每组隔离 context。
+> 本文档有 63 个用例，工具调用密集，单次会话 context 容易溢出。**必须按分组执行**，每组隔离 context。
 
 **分组表：**
 
 | 组 | 用例范围 | 章节 | 备注 |
 |----|---------|------|------|
-| 1 | TC-01~04 | 一、远程 SSH | 需用户交互，直接执行 |
-| 2 | TC-05~08 | 二、三 基础连通+设备 | |
-| 3 | TC-09~15 | 四、截图/录屏/布局 | |
-| 4 | TC-16~24 | 五、应用控制与交互 | |
-| 5 | TC-25~30 | 六、编译与部署（正常） | |
-| 6 | TC-31~34 | 七、编译失败 | |
-| 7 | TC-35 | 八、build.gradle 降级 | |
-| 8 | TC-36~39 | 九、长耗时编译 | |
-| 9 | TC-40~54 | 十、无设备场景 | 执行前关闭 AVD，执行后恢复 |
-| 10 | TC-55~60 | 十一、十二 设备选择+错误处理 | |
-| 11 | TC-61~64 | 十三、组合场景 | |
+| 1 | SSH-1~4 | 一、远程 SSH | 需用户交互，直接执行 |
+| 2 | CONN-1~2, DEV-1~2 | 二、三 基础连通+设备 | |
+| 3 | MEDIA-1~12 | 四、截图/录屏/布局/崩溃报告 | |
+| 4 | INTERACT-1~14 | 五、应用控制与交互 | |
+| 5 | BUILD-1~6 | 六、编译与部署（正常） | |
+| 6 | BUILDFAIL-1~4 | 七、编译失败 | |
+| 7 | DEGRADE-1 | 八、build.gradle 降级 | |
+| 8 | LONG-1~4 | 九、长耗时编译 | |
+| 9 | NODEV-1~16 | 十、无设备场景 | 执行前关闭 AVD，执行后恢复 |
+| 10 | SELECT-1~2, ERR-1~4 | 十一、十二 设备选择+错误处理 | |
+| 11 | E2E-1~4 | 十三、组合场景 | |
 
 **通用规则（适用于所有 AI coding agent）：**
 
-1. 组1（TC-01~04）直接执行（需要用户交互）
+1. 组1（SSH-1~4）直接执行（需要用户交互）
 2. 其余每组独立执行，执行完一组再执行下一组
 3. **严格串行**：MCP 同时只支持一个客户端调用，不可并行
 4. 每组执行前，先读取本文件中对应章节的用例内容
@@ -88,16 +108,16 @@
 > 本章必须在用户在场时执行。`request_remote_ssh_info` 会触发 IDE 弹窗二次确认，需要用户点击。
 > 两条路径（同意 / 不同意）都要测试。建议先测"用户同意"，再测"用户不同意"。
 
-**TC-01: 请求 SSH 信息 - 用户同意**
+**SSH-1: 请求 SSH 信息 - 用户同意**
 调用 `request_remote_ssh_info`，传入 `projectDir`、`reason="testing mcp ssh tool"`、`userConsent=true`。IDE 侧会弹出二次确认弹窗，**用户点击"同意/确认"**。验证返回 `status` 为 `OK`，`data` 中包含 SSH 连接信息（如 host、port、username 等字段）。
 
-**TC-02: 请求 SSH 信息 - 用户拒绝**
+**SSH-2: 请求 SSH 信息 - 用户拒绝**
 再次调用 `request_remote_ssh_info`，传入 `projectDir`、`reason="testing mcp ssh tool rejection"`、`userConsent=true`。IDE 侧弹出二次确认弹窗，**用户点击"拒绝/取消"**。验证返回 `status` 为 `ERROR`，不返回任何 SSH 连接信息。
 
-**TC-03: 请求 SSH 信息 - userConsent=false**
+**SSH-3: 请求 SSH 信息 - userConsent=false**
 调用 `request_remote_ssh_info`，传入 `projectDir`、`reason="test"`、`userConsent=false`。验证不弹出 IDE 弹窗，直接返回 `status` 为 `ERROR`，不返回 SSH 信息（agent 未获得用户授权即直接拒绝）。
 
-**TC-04: 请求 SSH 信息 - 缺少 reason**
+**SSH-4: 请求 SSH 信息 - 缺少 reason**
 调用 `request_remote_ssh_info`，不传 `reason` 参数，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
 > 以上交互完成后，用户可以离开电脑，后续用例全部由 agent 自动执行。
@@ -106,114 +126,143 @@
 
 ## 二、基础连通性
 
-**TC-05: 获取项目列表**
+**CONN-1: 获取项目列表**
 调用 `list_projects`，验证返回值中 `status` 为 `OK`，`data.projects` 是一个数组，数组中每个元素包含 `projectDir`（字符串）和 `initialized`（布尔值）字段。
 
-**TC-06: list_projects 无参数**
+**CONN-2: list_projects 无参数**
 `list_projects` 不需要任何参数（无 `projectDir` 要求），直接调用应当成功返回，不应报 `MCP_INVALID_PARAMS`。
 
 ---
 
 ## 三、设备相关工具
 
-**TC-07: 获取设备列表**
+**DEV-1: 获取设备列表**
 调用 `device_list`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 中包含设备信息列表，且有 `selected` 标记标识当前选中的设备。
 
-**TC-08: device_list - 项目未初始化**
+**DEV-2: device_list - 项目未初始化**
 调用 `device_list`，传入一个不存在/未初始化的 `projectDir`（如 `/tmp/not_a_project`），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_PROJECT_NOT_INITIALIZED`。
 
 ---
 
 ## 四、截图 / 录屏 / 布局导出
 
-**TC-09: 截图 - 有设备连接**
+**MEDIA-1: 截图 - 有设备连接**
 在有设备连接的情况下，调用 `screenshot`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`artifacts` 数组非空，包含一个类型为 `screenshot` 的产物，`path` 字段指向一个实际存在的图片文件。
 
-**TC-10: 开始录屏 - 立即返回 session**
+**MEDIA-2: 开始录屏 - 立即返回 session**
 在有设备连接的情况下，调用 `start_record`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，`data` 中包含 `sessionId`，且调用应快速返回（不阻塞至录屏结束）。
 
-**TC-11: 停止录屏 - 拉取产物**
+**MEDIA-3: 停止录屏 - 拉取产物**
 先调用 `start_record` 获取 `sessionId`，等待 2~3 秒后调用 `stop_record`（传入 `projectDir`、`sessionId`），验证返回 `status` 为 `OK`，`artifacts` 中包含可读取的 mp4 文件。
 
-**TC-12: start_record - 不接受旧参数**
+**MEDIA-4: start_record - 不接受旧参数**
 调用 `start_record`，传入 `projectDir` 和旧参数 `durationSec=10`（或 `tapX`/`tapY`），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
-**TC-13: stop_record - 缺少 sessionId**
+**MEDIA-5: stop_record - 缺少 sessionId**
 调用 `stop_record`，仅传入 `projectDir`，不传 `sessionId`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
-**TC-14: 布局导出 - 有设备**
+**MEDIA-6: 布局导出 - 有设备**
 在有设备连接的情况下，调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data.file` 指向一个 JSON 文件绝对路径，`artifacts` 数组中包含一个 `type=json` 的产物，且 `path` 与 `data.file` 一致。读取该文件，确认内容是有效的 ViewHierarchy JSON 树。
 
-**TC-15: Activity 栈查询**
+**MEDIA-7: 布局导出 - data.content 内联数据**
+在有设备连接的情况下，调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data.content` 字段存在且为有效 JSON 对象（包含 `windows` 数组），内容与 `data.file` 指向的文件一致。Agent 可直接使用 `data.content` 而无需额外读取文件。
+
+**MEDIA-8: 布局导出 - rootLayout 局部 dump**
+在有设备连接的情况下，先调用 `layout_dump`（不传 `rootLayout`）获取完整层级，找到一个有 `id` 属性的非根节点。然后调用 `layout_dump`，传入 `projectDir` 和 `rootLayout=<该节点 id>`，验证返回 `status` 为 `OK`，`data.content` 中 `windows` 数组的 `windowType` 为 `"subtree"`，`rootLayout` 字段与传入值一致，且节点数明显少于全量 dump。若传入不存在的 `rootLayout`（如 `"non_existent_id_12345"`），验证返回全量 dump（fallback 行为）。
+
+**MEDIA-9: Activity 栈查询**
 在有设备连接的情况下，调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 或 `artifacts` 中包含当前 Activity 栈信息，能看到前台 Activity 名称。
+
+**MEDIA-10: 崩溃报告 - 无崩溃**
+在有设备连接且应用正常运行的情况下，调用 `crash_report`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 中包含以下字段：
+- `isProcessAlive` 为 `true`（应用进程存活）
+- `hasCrash` 为 `false`（无崩溃信号）
+- `crashLogs` 为空数组
+- `allErrorLogPath` 指向一个实际存在的 `.log` 文件
+- `packageName` 为当前项目的包名
+`artifacts` 数组中包含一个 `type=log` 的产物，`path` 与 `data.allErrorLogPath` 一致。
+
+**MEDIA-11: 崩溃报告 - 有崩溃**
+先通过某种方式让应用产生崩溃（如在代码中故意引入一个运行时异常并 `compile_and_deploy`，或手动触发崩溃），然后调用 `crash_report`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 中：
+- `hasCrash` 为 `true`
+- `crashLogs` 为非空数组，包含崩溃关键日志（如 `FATAL EXCEPTION`、堆栈信息等）
+- `allErrorLogPath` 指向一个实际存在的 `.log` 文件，读取该文件内容应包含完整的错误日志
+- `relatedActivity` 字段可能存在，包含崩溃时的前台 Activity 名称
+`artifacts` 数组中包含一个 `type=log` 的产物。
+
+**MEDIA-12: 崩溃报告 - 应用未启动**
+在有设备连接但目标应用未启动（进程不存在）的情况下，调用 `crash_report`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 中：
+- `isProcessAlive` 为 `false`
+- `allErrorLogPath` 指向一个实际存在的 `.log` 文件
+`artifacts` 数组中仍包含一个 `type=log` 的产物（即使无崩溃，也会导出完整错误日志）。
 
 ---
 
 ## 五、应用控制与交互
 
-**TC-16: 重启应用 - 默认入口**
+**INTERACT-1: 重启应用 - 默认入口**
 调用 `restart_app`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，应用被成功拉起（可通过后续 `activity_stack` 或 `screenshot` 确认）。
 
-**TC-20: 坐标点击**
+**INTERACT-2: 坐标点击**
 调用 `tap`，传入 `projectDir`、`x=540`、`y=960`，验证返回 `status` 为 `OK`。可通过前后截图对比确认点击生效。
 
-**TC-20a: 百分比点击**
+**INTERACT-3: 百分比点击**
 调用 `tap`，传入 `projectDir`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data` 中 `mode` 为 `percent`，`screenWidth` 和 `screenHeight` 有值，`x` 和 `y` 为换算后的像素坐标。
 
-**TC-20b: 元素模式点击 - 按 text 精确匹配**
+**INTERACT-4: 元素模式点击 - 按 text 精确匹配**
 通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有**唯一** `text` 属性的可见元素（确认该 text 在当前界面只出现一次），然后调用 `tap`，传入 `projectDir` 和 `text=<该元素的完整 text>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`，`data.matchedElement` 包含对应元素信息。注意：text 为精确匹配，子串不会命中。
 
-**TC-20c: 元素模式点击 - 按 resourceId 匹配**
+**INTERACT-5: 元素模式点击 - 按 resourceId 匹配**
 通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有 `resourceId` 属性的元素，然后调用 `tap`，传入 `projectDir` 和 `resourceId=<该元素的 resourceId>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`。
 
-**TC-20d: 元素模式点击 - 无匹配返回候选**
+**INTERACT-6: 元素模式点击 - 无匹配返回候选**
 调用 `tap`，传入 `projectDir` 和 `text="ThisElementDoesNotExist_12345"`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INTERNAL_ERROR`，`data.mode` 为 `element`，`data.matchCount` 为 0，且 `message` 中包含 "No matching UI element found" 以及可点击的候选元素列表。
 
-**TC-20e: 元素模式点击 - 多匹配返回候选列表**
+**INTERACT-7: 元素模式点击 - 多匹配返回候选列表**
 通过 `layout_dump` 找到一个在当前界面出现多次的 `text`（如列表项的重复文字），调用 `tap`，传入 `projectDir` 和 `text=<该重复 text>`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`data.matchCount` > 1，`data.matches` 为数组且每个元素包含 `bounds`、`centerX`、`centerY`，`message` 中包含引导使用坐标或百分比模式的提示。Agent 应根据返回的坐标信息用 `tap(x, y)` 进行二次精确点击。
 补充：若 ViewHierarchy Server 不可用，`layout_dump` / `tap` 元素模式会直接返回 `ERROR`，不再回退到 `uiautomator dump`。
 
-**TC-20f: 元素模式点击 - 隐藏重复节点不应计入匹配**
-构造同 selector 的两个节点（一个可见、一个 `GONE/INVISIBLE` 或零尺寸），调用 `tap` 元素模式，验证不会返回“多匹配”，仅可见可操作节点会参与命中。
+**INTERACT-8: 元素模式点击 - 隐藏重复节点不应计入匹配**
+构造同 selector 的两个节点（一个可见、一个 `GONE/INVISIBLE` 或零尺寸），调用 `tap` 元素模式，验证不会返回"多匹配"，仅可见可操作节点会参与命中。
 
-**TC-20g: ViewHierarchy 多进程 socket 回退**
+**INTERACT-9: ViewHierarchy 多进程 socket 回退**
 多进程应用中模拟 `pidof` 返回多个 PID，首个 PID 对应 socket 不可连、次个 PID 可连，调用 `layout_dump` 或 `tap` 元素模式，验证请求最终成功；当全部 `jugg_vh_<pid>` 失败时，仍会尝试 `jugg_vh` 兼容名。
 
-**TC-21: tap - 缺少必填参数**
+**INTERACT-10: tap - 缺少必填参数**
 调用 `tap`，仅传入 `projectDir`，不传 `x`、`y`、`xPercent`、`yPercent`、`text`、`resourceId`、`contentDesc`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
-**TC-21a: tap - 坐标模式优先于百分比模式**
+**INTERACT-11: tap - 坐标模式优先于百分比模式**
 调用 `tap`，同时传入 `projectDir`、`x=100`、`y=200`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data.mode` 为 `coordinate`，`data.x` 为 100，`data.y` 为 200（优先使用坐标模式）。
 
-**TC-22: 重启应用**
+**INTERACT-12: 重启应用**
 调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`message` 包含 "restart_app executed successfully"。`restart_app` 不返回额外 data 字段（`data` 为空对象）。
 
-**TC-23: 重启应用 - serial 参数不支持**
+**INTERACT-13: 重启应用 - serial 参数不支持**
 `restart_app` 不接受 `serial` 参数（`additionalProperties=false`），因此传入 `serial` 会被 MCP 框架拦截返回 `MCP_INVALID_PARAMS`。本条用例由单元测试 `testRestartAppRejectSerialArgument` 覆盖。
 
-**TC-24: 重启应用 - serial 回落（不适用）**
+**INTERACT-14: 重启应用 - serial 回落（不适用）**
 `restart_app` 不支持 `serial` 参数，本条用例不适用。设备选择始终使用 IDE 当前选中的设备。
 
 ---
 
 ## 六、编译与部署（正常场景）
 
-**TC-25: 仅编译（不部署）**
+**BUILD-1: 仅编译（不部署）**
 修改项目中一个 Kotlin/Java 文件（如加一行注释），然后调用 `compile_only`，传入 `projectDir`，验证返回 `status` 为 `OK`，确认编译成功但不会部署到设备。
 
-**TC-26: 编译并部署 - 同步完成**
+**BUILD-2: 编译并部署 - 同步完成**
 修改项目中一个文件，调用 `compile_and_deploy`，传入 `projectDir`。如果返回 `isFinal=true`，验证 `status` 为 `OK`；如果返回 `isFinal=false`，验证 `data` 中包含 `jobId`。
 
-**TC-27: 编译并部署 - 异步轮询**
+**BUILD-3: 编译并部署 - 异步轮询**
 调用 `compile_and_deploy` 后，如果返回 `isFinal=false`，取出 `jobId`，反复调用 `get_compile_status`（传入 `projectDir` 和 `jobId`），直到返回 `isFinal=true`，验证最终 `status` 为 `OK` 或包含编译错误信息。
 
-**TC-28: 查询编译状态 - 无效 jobId**
+**BUILD-4: 查询编译状态 - 无效 jobId**
 调用 `get_compile_status`，传入有效 `projectDir` 和一个不存在的 `jobId`（如 `"fake-job-999"`），验证返回 `status` 为 `ERROR`，有合理的错误信息。
 
-**TC-29: Gradle 回退编译**
+**BUILD-5: Gradle 回退编译**
 调用 `force_gradle_compile`，传入 `projectDir`。由于 Gradle 编译较慢，验证可能返回 `isFinal=false` 和 `jobId`，使用 `get_compile_status` 轮询直到完成。
 
-**TC-30: 卸载重装 APK**
+**BUILD-6: 卸载重装 APK**
 调用 `clean_reinstall_apk`，传入 `projectDir`，验证返回 `status` 为 `OK`（或异步完成后为 `OK`），应用数据被清空，APK 被重新安装。注意：此操作会清空应用数据，测试时需预期。
 
 ---
@@ -222,16 +271,16 @@
 
 > 本章验证编译失败时，各编译类工具能否正确返回可读的错误信息（文件名、行号、错误描述）。
 
-**TC-31: compile_only - 语法错误**
+**BUILDFAIL-1: compile_only - 语法错误**
 在项目中故意引入一个 Kotlin 语法错误（如在某个 `.kt` 文件中写入 `val x: String = 123`），调用 `compile_only`。验证返回 `status` 为 `ERROR`，`message` 或 `data` 中包含：出错文件名、行号、具体错误描述（如类型不匹配）。错误信息应当足够让 agent 定位并修复问题。
 
-**TC-32: compile_and_deploy - 语法错误**
-同 TC-31 的错误代码不还原，调用 `compile_and_deploy`。如果是异步返回，使用 `get_compile_status` 轮询至终态。验证最终 `status` 为 `ERROR`，错误信息中包含出错文件名、行号和错误描述。
+**BUILDFAIL-2: compile_and_deploy - 语法错误**
+同 BUILDFAIL-1 的错误代码不还原，调用 `compile_and_deploy`。如果是异步返回，使用 `get_compile_status` 轮询至终态。验证最终 `status` 为 `ERROR`，错误信息中包含出错文件名、行号和错误描述。
 
-**TC-33: compile_and_deploy - 符号未解析**
+**BUILDFAIL-3: compile_and_deploy - 符号未解析**
 在项目中调用一个不存在的方法（如 `nonExistentMethod()`），调用 `compile_and_deploy`。等待终态，验证返回 `status` 为 `ERROR`，错误信息中包含 "unresolved reference" 或类似未解析符号的描述。验证完毕后还原代码。
 
-**TC-34: force_gradle_compile - 编译失败**
+**BUILDFAIL-4: force_gradle_compile - 编译失败**
 在项目中引入一个编译错误，调用 `force_gradle_compile`。使用 `get_compile_status` 轮询至终态。验证最终 `status` 为 `ERROR`，错误信息中包含可定位的文件和错误描述。验证完毕后还原代码。
 
 ---
@@ -240,7 +289,7 @@
 
 > 验证 `compile_and_deploy` 在检测到 `build.gradle` 文件变更时，自动降级到 Gradle 编译路径。
 
-**TC-35: 修改 build.gradle 后 compile_and_deploy 降级**
+**DEGRADE-1: 修改 build.gradle 后 compile_and_deploy 降级**
 1. 在项目的 `build.gradle`（或 `build.gradle.kts`）中做一个无害修改（如在文件末尾加一行注释 `// mcp test`）
 2. 调用 `compile_and_deploy`，传入 `projectDir`
 3. 验证行为：工具应自动降级走 Gradle 编译路径（而非 Jugg 增量编译），可通过返回的 `message` 或 `data` 中是否包含 Gradle 相关的描述来判断
@@ -255,7 +304,7 @@
 > 制造长耗时方式：在根目录 build.gradle 增加 sleep 25s，且在 build.gradle 末尾增加空行，保证触发 build.gradle 变更识别
 > 测试完成后，需回退改动
 
-**TC-36: 长耗时编译 - 成功**
+**LONG-1: 长耗时编译 - 成功**
 1. 通过 CLI 修改一个会触发大范围重编译的文件（如在 `build.gradle` 中添加一行无害注释，或修改 `buildSrc` 中的版本号常量，使整个工程需要重新编译）
 2. 调用 `force_gradle_compile`，传入 `projectDir`
 3. 验证立即返回 `isFinal=false` 和 `jobId`（因为耗时超过同步阈值）
@@ -263,7 +312,7 @@
 5. 等待编译完成（预期超过 25 秒），验证最终返回 `isFinal=true`、`status` 为 `OK`
 6. 还原修改
 
-**TC-37: 长耗时编译 - 失败**
+**LONG-2: 长耗时编译 - 失败**
 1. 通过 CLI 在一个公共基础模块的核心文件中引入编译错误（如在频繁被依赖的工具类中写入非法语法），同时修改 `build.gradle` 确保触发完整 Gradle 编译
 2. 调用 `force_gradle_compile`，传入 `projectDir`
 3. 验证立即返回 `isFinal=false` 和 `jobId`
@@ -271,14 +320,14 @@
 5. 验证最终返回 `isFinal=true`、`status` 为 `ERROR`，且错误信息中包含出错文件名和错误描述
 6. 还原修改
 
-**TC-38: 长耗时 compile_and_deploy - 成功**
+**LONG-3: 长耗时 compile_and_deploy - 成功**
 1. 通过 CLI 修改 `build.gradle` 触发降级 + 长耗时
 2. 调用 `compile_and_deploy`，传入 `projectDir`
 3. 验证异步返回 `isFinal=false` 和 `jobId`
 4. 使用 `get_compile_status` 轮询至终态，验证最终 `status` 为 `OK`，应用被成功部署
 5. 还原修改
 
-**TC-39: 长耗时 compile_and_deploy - 失败**
+**LONG-4: 长耗时 compile_and_deploy - 失败**
 1. 通过 CLI 修改 `build.gradle`（触发降级）+ 引入编译错误
 2. 调用 `compile_and_deploy`，传入 `projectDir`
 3. 验证异步返回 `isFinal=false` 和 `jobId`
@@ -298,51 +347,54 @@
 
 ### 不需要设备的工具（应正常返回）
 
-**TC-40: 无设备 - list_projects**
+**NODEV-1: 无设备 - list_projects**
 调用 `list_projects`，验证返回 `status` 为 `OK`，正常返回项目列表。无设备不影响此工具。
 
-**TC-41: 无设备 - device_list**
+**NODEV-2: 无设备 - device_list**
 调用 `device_list`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 中设备列表为空数组。
 
-**TC-42: 无设备 - compile_only**
+**NODEV-3: 无设备 - compile_only**
 修改一个源码文件，调用 `compile_only`，传入 `projectDir`，验证返回 `status` 为 `OK`。仅编译不需要设备。
 
-**TC-43: 无设备 - get_compile_status**
-使用 TC-42 中如果有返回的 `jobId` 调用 `get_compile_status`，验证正常返回编译状态。如果 TC-42 同步完成无 `jobId`，则传入一个假 `jobId`，验证返回合理的错误。
+**NODEV-4: 无设备 - get_compile_status**
+使用 NODEV-3 中如果有返回的 `jobId` 调用 `get_compile_status`，验证正常返回编译状态。如果 NODEV-3 同步完成无 `jobId`，则传入一个假 `jobId`，验证返回合理的错误。
 
 ### 需要设备的工具（应返回 MCP_NO_DEVICE）
 
-**TC-44: 无设备 - compile_and_deploy**
+**NODEV-5: 无设备 - compile_and_deploy**
 调用 `compile_and_deploy`，传入有效 `projectDir`，验证工具能正常执行编译阶段。由于无设备，部署阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`，因为编译后部署失败）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
 
-**TC-45: 无设备 - force_gradle_compile**
+**NODEV-6: 无设备 - force_gradle_compile**
 调用 `force_gradle_compile`，传入有效 `projectDir`，验证工具能正常执行 Gradle 编译。由于无设备，部署阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`，因为编译后部署失败）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
 
-**TC-46: 无设备 - clean_reinstall_apk**
+**NODEV-7: 无设备 - clean_reinstall_apk**
 调用 `clean_reinstall_apk`，传入有效 `projectDir`，验证工具能正常执行编译阶段。由于无设备，重装阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
 
-**TC-47: 无设备 - restart_app**
+**NODEV-8: 无设备 - restart_app**
 调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-48: 无设备 - screenshot**
+**NODEV-9: 无设备 - screenshot**
 调用 `screenshot`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-49: 无设备 - start_record**
+**NODEV-10: 无设备 - start_record**
 调用 `start_record`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-50: 无设备 - layout_dump**
+**NODEV-11: 无设备 - layout_dump**
 调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-51: 无设备 - activity_stack**
+**NODEV-12: 无设备 - activity_stack**
 调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-54: 无设备 - tap**
+**NODEV-13: 无设备 - crash_report**
+调用 `crash_report`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+
+**NODEV-14: 无设备 - tap**
 调用 `tap`，传入有效 `projectDir`、`x=100`、`y=100`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-54a: 无设备 - tap 百分比模式**
+**NODEV-15: 无设备 - tap 百分比模式**
 调用 `tap`，传入有效 `projectDir`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-54b: 无设备 - tap 元素模式**
+**NODEV-16: 无设备 - tap 元素模式**
 调用 `tap`，传入有效 `projectDir`、`text="Login"`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 ### 后置操作
@@ -353,33 +405,33 @@
 
 ## 十一、设备选择策略
 
-**TC-55: 不传 serial - 自动使用 selected device**
+**SELECT-1: 不传 serial - 自动使用 selected device**
 调用任何需要设备的工具（如 `screenshot`），不传 `serial`，验证返回 `status` 为 `OK`，工具正常执行。注意：`message` 中不包含设备选择说明文案，设备选择细节不暴露在 MCP 响应中。
 
-**TC-56: 多设备环境 - 指定 serial**
+**SELECT-2: 多设备环境 - 指定 serial**
 在连接了多台设备的环境下，通过 `device_list` 获取非 selected 的设备 serial，调用 `screenshot` 并指定该 serial，验证截图来自指定设备（可通过截图内容区分）。
 
 ---
 
 ## 十二、错误处理与边界
 
-**TC-57: projectDir 缺失**
+**ERR-1: projectDir 缺失**
 对任何需要 `projectDir` 的工具（如 `compile_and_deploy`），不传 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`message` 中包含 "projectDir is required" 或类似提示。
 
-**TC-58: projectDir 非绝对路径**
+**ERR-2: projectDir 非绝对路径**
 调用 `compile_and_deploy`，传入 `projectDir="relative/path"`（不以 `/` 开头），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`（inputSchema 要求 `pattern: "^/.+"`）。
 
-**TC-59: 调用不存在的工具**
+**ERR-3: 调用不存在的工具**
 通过 JSON-RPC 发送 `tools/call`，`name` 设为 `"nonexistent_tool"`，验证返回 `errorCode` 为 `MCP_TOOL_NOT_FOUND`。
 
-**TC-60: 返回结构一致性验证**
+**ERR-4: 返回结构一致性验证**
 对当前注册的 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
 
 ---
 
 ## 十三、组合场景（端到端工作流）
 
-**TC-61: 完整开发迭代流程**
+**E2E-1: 完整开发迭代流程**
 1. 调用 `list_projects` 获取有效 `projectDir`
 2. 调用 `device_list` 确认有设备连接
 3. 调用 `restart_app` 启动应用
@@ -390,7 +442,7 @@
 8. 调用 `screenshot` 截取部署后状态
 9. 对比前后两次截图，确认修改已生效
 
-**TC-62: 编译失败后 Gradle 回退流程**
+**E2E-2: 编译失败后 Gradle 回退流程**
 1. 故意在代码中引入一个编译错误
 2. 调用 `compile_and_deploy`，预期编译失败
 3. 验证返回 `status` 为 `ERROR`，包含编译错误信息
@@ -398,7 +450,7 @@
 5. 调用 `force_gradle_compile` 走 Gradle 回退
 6. 验证最终编译成功
 
-**TC-63: UI 自动化操作流程**
+**E2E-3: UI 自动化操作流程**
 1. 调用 `restart_app` 启动应用
 2. 调用 `screenshot` 获取当前界面
 3. 调用 `layout_dump` 获取 UI 层级
@@ -407,7 +459,7 @@
 6. 调用 `screenshot` 验证点击后的界面变化
 7. 调用 `activity_stack` 验证当前页面是否跳转
 
-**TC-64: 两段式录屏验证完整流程**
+**E2E-4: 两段式录屏验证完整流程**
 1. 调用 `start_record`（仅传 `projectDir`）并获取 `sessionId`
 2. 调用 `restart_app` 启动应用
 3. 调用 `tap` 点击目标坐标

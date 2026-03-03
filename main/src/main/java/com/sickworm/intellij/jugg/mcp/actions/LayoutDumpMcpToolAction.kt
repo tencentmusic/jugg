@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.google.gson.JsonParser
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -26,10 +27,37 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Dump current UI hierarchy from app-side ViewHierarchy server and export JSON artifact.",
+        description = "Dump current UI hierarchy from app-side ViewHierarchy server and export JSON artifact. " +
+            "Returns inline JSON in `data.content` (no extra file read needed) plus file path in `data.file`. " +
+            "Optional `rootLayout` parameter: pass a node `id` value from a previous layout_dump " +
+            "(e.g. \"com.example:id/content\") to dump only that subtree; omit for full hierarchy. " +
+            "By default GONE nodes are excluded; set `isIncludeGone=true` to include them for diagnostics. " +
+            "Includes INVISIBLE views (with visibility field). Server-side pruning: MAX_DEPTH=60, MAX_NODE_COUNT=5000; " +
+            "if exceeded, root has \"truncated\":true and truncated nodes carry tag " +
+            "\"truncated:node_limit\" or \"truncated:depth_limit\". " +
+            "Root JSON: {windows:[{windowType, title, root:<node>}], truncated}. " +
+            "**Compressed output**: default/empty fields are omitted to reduce payload size. " +
+            "className uses simple class name only (package stripped). " +
+            "id strips package prefix before slash (e.g. \"com.example:id/btn\" -> \"btn\"). " +
+            "bounds and padding use compact array format [left,top,right,bottom]. " +
+            "Omitted when default: id/text/contentDesc/tag (when \"\"), " +
+            "visibility (when \"visible\"), alpha (when 1.0), clickable (when false), " +
+            "enabled (when true), padding (when all zero), children/composeNodes (when empty). " +
+            "Node fields: {className, id?, text?, contentDesc?, tag?, " +
+            "bounds:[l,t,r,b], visibility?, " +
+            "alpha?, clickable?, enabled?, " +
+            "padding?:[l,t,r,b], children?:[], composeNodes?:[]}.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "rootLayout" to McpJsonSchemaProperty(
+                    type = "string",
+                    description = "Optional node id to dump only that subtree. Pass the `id` value from a previous layout_dump node (e.g. \"com.example:id/content\"). When omitted, dumps the full hierarchy.",
+                ),
+                "isIncludeGone" to McpJsonSchemaProperty(
+                    type = "boolean",
+                    description = "When true, include GONE nodes in the output for diagnostics. Default is false (GONE nodes are excluded to reduce payload size).",
+                ),
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -40,8 +68,9 @@ class LayoutDumpMcpToolAction : McpToolAction {
                     type = "object",
                     properties = mapOf(
                         "file" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.json$"),
+                        "content" to McpJsonSchemaProperty(type = "object", description = "Inline layout hierarchy JSON data"),
                     ),
-                    required = listOf("file"),
+                    required = listOf("file", "content"),
                     additionalProperties = false,
                 )
             )
@@ -49,10 +78,12 @@ class LayoutDumpMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return layoutDumpAction(runtime)
+        val rootLayout = arguments["rootLayout"] as? String
+        val isIncludeGone = arguments["isIncludeGone"] as? Boolean ?: false
+        return layoutDumpAction(runtime, rootLayout, isIncludeGone)
     }
 
-    private fun layoutDumpAction(runtime: IMcpRuntime): McpToolResult {
+    private fun layoutDumpAction(runtime: IMcpRuntime, rootLayout: String? = null, isIncludeGone: Boolean = false): McpToolResult {
         val logger = runtime.logger.getInstance("LayoutDumpMcpToolAction")
         logger.debug("layout_dump start")
         val selected = resolveOnlineDevice(runtime)
@@ -78,7 +109,8 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
         return try {
             val client = ViewHierarchyClient(adb, packageName)
-            val dumpResult = client.dumpLayout()
+            val excludeGone = !isIncludeGone
+            val dumpResult = client.dumpLayout(rootLayout, excludeGone)
                 ?: return McpToolResult.internalErrorResult(
                     "layout_dump",
                     "ViewHierarchy server is unavailable or returned invalid response"
@@ -99,11 +131,13 @@ class LayoutDumpMcpToolAction : McpToolAction {
                     .also { logger.warn("layout_dump failed: output file missing or empty, path=${localJsonFile.absolutePath}") }
             }
             logger.info("layout_dump success: ${localJsonFile.absolutePath}, size=${localJsonFile.length()}")
+            val jsonContent = localJsonFile.readText(StandardCharsets.UTF_8)
             McpToolResult(
                 status = McpToolStatus.OK,
                 message = "layout_dump executed successfully.",
                 data = mapOf(
                     "file" to localJsonFile.absolutePath,
+                    "content" to JsonParser.parseString(jsonContent),
                 ),
                 artifacts = listOf(McpArtifact(type = "json", path = localJsonFile.absolutePath)),
                 errorCode = null,

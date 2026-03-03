@@ -9,12 +9,13 @@ import java.util.List;
 
 /**
  * ViewNode is the normalized JSON-ready node model for a single Android View.
+ * toJson() omits default/empty fields and uses compact array format for bounds/padding
+ * to reduce payload size.
  */
 public class ViewNode {
 
     public String className = "";
     public String id = "";
-    public String idHex = "";
     public String text = "";
     public String contentDesc = "";
     public String tag = "";
@@ -23,42 +24,93 @@ public class ViewNode {
     public float alpha = 1.0f;
     public boolean clickable = false;
     public boolean enabled = true;
-    public boolean focused = false;
-    public boolean selected = false;
     public Padding padding = new Padding();
     public final List<ViewNode> children = new ArrayList<>();
     public final List<ComposeNode> composeNodes = new ArrayList<>();
 
+    /**
+     * Shorten resource id by stripping the package prefix before the slash.
+     * e.g. "com.tencent.ibg.joox:id/btn_play" -> "btn_play"
+     */
+    static String shortenId(String id) {
+        if (id == null || id.isEmpty()) {
+            return id;
+        }
+        int slashIndex = id.lastIndexOf('/');
+        if (slashIndex >= 0 && slashIndex < id.length() - 1) {
+            return id.substring(slashIndex + 1);
+        }
+        return id;
+    }
+
     public JSONObject toJson() throws JSONException {
         JSONObject json = new JSONObject();
-        json.put("className", className);
-        json.put("id", id);
-        json.put("idHex", idHex);
-        json.put("text", text);
-        json.put("contentDesc", contentDesc);
-        json.put("tag", tag);
-        json.put("bounds", bounds.toJson());
-        json.put("visibility", visibility);
-        json.put("alpha", alpha);
-        json.put("clickable", clickable);
-        json.put("enabled", enabled);
-        json.put("focused", focused);
-        json.put("selected", selected);
-        json.put("padding", padding.toJson());
+        json.put("className", shortenClassName(className));
 
-        JSONArray childArray = new JSONArray();
-        for (ViewNode child : children) {
-            childArray.put(child.toJson());
+        String shortId = shortenId(id);
+        if (shortId != null && !shortId.isEmpty()) {
+            json.put("id", shortId);
         }
-        json.put("children", childArray);
+        if (!text.isEmpty()) {
+            json.put("text", text);
+        }
+        if (!contentDesc.isEmpty()) {
+            json.put("contentDesc", contentDesc);
+        }
+        if (!tag.isEmpty()) {
+            json.put("tag", tag);
+        }
 
-        JSONArray composeArray = new JSONArray();
-        for (ComposeNode composeNode : composeNodes) {
-            composeArray.put(composeNode.toJson());
+        json.put("bounds", bounds.toJsonArray());
+
+        if (!"visible".equals(visibility)) {
+            json.put("visibility", visibility);
         }
-        json.put("composeNodes", composeArray);
+        if (Float.compare(alpha, 1.0f) != 0) {
+            json.put("alpha", alpha);
+        }
+        if (clickable) {
+            json.put("clickable", true);
+        }
+        if (!enabled) {
+            json.put("enabled", false);
+        }
+        if (!padding.isAllZero()) {
+            json.put("padding", padding.toJsonArray());
+        }
+
+        if (!children.isEmpty()) {
+            JSONArray childArray = new JSONArray();
+            for (ViewNode child : children) {
+                childArray.put(child.toJson());
+            }
+            json.put("children", childArray);
+        }
+
+        if (!composeNodes.isEmpty()) {
+            JSONArray composeArray = new JSONArray();
+            for (ComposeNode composeNode : composeNodes) {
+                composeArray.put(composeNode.toJson());
+            }
+            json.put("composeNodes", composeArray);
+        }
 
         return json;
+    }
+
+    /**
+     * Shorten className to simple class name by stripping the package prefix.
+     * e.g. "com.tencent.mtt.hippy.views.text.HippyTextView" -> "HippyTextView"
+     */
+    static String shortenClassName(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        int lastDot = name.lastIndexOf('.');
+        if (lastDot >= 0 && lastDot < name.length() - 1) {
+            return name.substring(lastDot + 1);
+        }
+        return name;
     }
 
     public static class Bounds {
@@ -67,6 +119,21 @@ public class ViewNode {
         public int right;
         public int bottom;
 
+        /**
+         * Serialize as compact array [left, top, right, bottom].
+         */
+        JSONArray toJsonArray() {
+            JSONArray arr = new JSONArray();
+            arr.put(left);
+            arr.put(top);
+            arr.put(right);
+            arr.put(bottom);
+            return arr;
+        }
+
+        /**
+         * Serialize as object for contexts requiring named fields (e.g. MatchedElement).
+         */
         JSONObject toJson() throws JSONException {
             JSONObject json = new JSONObject();
             json.put("left", left);
@@ -91,13 +158,20 @@ public class ViewNode {
         public int right;
         public int bottom;
 
-        JSONObject toJson() throws JSONException {
-            JSONObject json = new JSONObject();
-            json.put("left", left);
-            json.put("top", top);
-            json.put("right", right);
-            json.put("bottom", bottom);
-            return json;
+        boolean isAllZero() {
+            return left == 0 && top == 0 && right == 0 && bottom == 0;
+        }
+
+        /**
+         * Serialize as compact array [left, top, right, bottom].
+         */
+        JSONArray toJsonArray() {
+            JSONArray arr = new JSONArray();
+            arr.put(left);
+            arr.put(top);
+            arr.put(right);
+            arr.put(bottom);
+            return arr;
         }
     }
 }

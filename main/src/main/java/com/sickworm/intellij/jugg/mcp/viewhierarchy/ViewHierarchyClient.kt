@@ -27,13 +27,21 @@ open class ViewHierarchyClient(
     private val gson = Gson()
 
     /**
-     * Request full layout dump from app process.
+     * Request layout dump from app process, optionally scoped to a subtree.
+     * When excludeGone is true, GONE nodes and their subtrees are omitted from output.
      */
-    fun dumpLayout(): LayoutDumpResult? {
+    fun dumpLayout(rootLayout: String? = null, excludeGone: Boolean = false): LayoutDumpResult? {
+        val params = linkedMapOf<String, Any?>()
+        if (!rootLayout.isNullOrBlank()) {
+            params["rootLayout"] = rootLayout
+        }
+        if (excludeGone) {
+            params["excludeGone"] = true
+        }
         val response = sendRequest(
             ViewHierarchyRequest(
                 action = "layout_dump",
-                params = emptyMap(),
+                params = params,
             )
         ) ?: return null
         if (!response.isOk()) {

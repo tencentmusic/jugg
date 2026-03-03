@@ -24,6 +24,8 @@ import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.Assert
 import org.junit.Test
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -39,7 +41,7 @@ class LayoutDumpMcpToolActionTest {
         val action = LayoutDumpMcpToolAction()
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout()).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = """{"windows":[{"title":"MainActivity"}]}""",
                     remoteFilePath = null,
@@ -68,7 +70,7 @@ class LayoutDumpMcpToolActionTest {
         val remotePath = "/data/local/tmp/jugg_vh/layout_remote.json"
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout()).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = null,
                     remoteFilePath = remotePath,
@@ -96,7 +98,7 @@ class LayoutDumpMcpToolActionTest {
         val action = LayoutDumpMcpToolAction()
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout()).thenReturn(null)
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(null)
         }.use { construction ->
             val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
@@ -133,6 +135,56 @@ class LayoutDumpMcpToolActionTest {
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+    }
+
+    @Test
+    fun testLayoutDumpReturnsInlineContent() {
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_inline_content_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        val action = LayoutDumpMcpToolAction()
+        val inlineJson = """{"windows":[{"title":"InlineTest"}],"truncated":false}"""
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+                LayoutDumpResult(
+                    payloadJson = inlineJson,
+                    remoteFilePath = null,
+                )
+            )
+        }.use {
+            val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertNotNull("data.content should be present", data["content"])
+            val contentStr = data["content"].toString()
+            Assert.assertTrue("content should contain InlineTest", contentStr.contains("InlineTest"))
+        }
+    }
+
+    @Test
+    fun testLayoutDumpPassesRootLayoutToClient() {
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_root_layout_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        val action = LayoutDumpMcpToolAction()
+        val rootLayoutId = "com.example:id/content"
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+                LayoutDumpResult(
+                    payloadJson = """{"windows":[],"truncated":false,"rootLayout":"com.example:id/content"}""",
+                    remoteFilePath = null,
+                )
+            )
+        }.use { construction ->
+            val result = action.execute(
+                mapOf("projectDir" to projectDir.absolutePath, "rootLayout" to rootLayoutId),
+                setup.runtime,
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            val client = construction.constructed().first()
+            Mockito.verify(client).dumpLayout(rootLayoutId, true)
+        }
     }
 
     private fun setup(

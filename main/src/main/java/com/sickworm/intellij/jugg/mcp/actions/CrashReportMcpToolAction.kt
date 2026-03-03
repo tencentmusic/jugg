@@ -28,12 +28,6 @@ class CrashReportMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "packageName" to McpJsonSchemaProperty(
-                    type = "string",
-                    description = "Optional package name. If absent, uses current Jugg package name.",
-                    pattern = "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$",
-                    examples = listOf("com.example.app"),
-                ),
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -61,16 +55,16 @@ class CrashReportMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return crashReportAction(runtime, arguments["packageName"] as? String)
+        return crashReportAction(runtime)
     }
 
     /**
      * Build a crash triage payload from current device and recent error logs.
      */
-    private fun crashReportAction(runtime: IMcpRuntime, packageName: String?): McpToolResult {
+    private fun crashReportAction(runtime: IMcpRuntime): McpToolResult {
         val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult(toolName)
-        val resolvedPackageName = packageName ?: runtime.deployTargetManager.getPackageNameOrNull()
+        val resolvedPackageName = runtime.deployTargetManager.getPackageNameOrNull()
 
         return try {
             val allErrorLogs = runtime.deployTargetManager.dumpErrorLogs()

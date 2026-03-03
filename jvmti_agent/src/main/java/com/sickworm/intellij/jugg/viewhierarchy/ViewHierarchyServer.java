@@ -137,10 +137,11 @@ public class ViewHierarchyServer {
 
             switch (action) {
                 case "layout_dump":
+                    JSONObject finalParamsDump = params;
                     return runOnMainThread(new Callable<JSONObject>() {
                         @Override
                         public JSONObject call() {
-                            return doLayoutDump();
+                            return doLayoutDump(finalParamsDump);
                         }
                     });
                 case "find_elements":
@@ -223,9 +224,11 @@ public class ViewHierarchyServer {
         return result != null ? result : error("Empty main thread result.", null);
     }
 
-    private JSONObject doLayoutDump() {
+    private JSONObject doLayoutDump(JSONObject params) {
         try {
-            return ok(viewTreeDumper.dumpWindowsJson());
+            String rootLayout = optString(params, "rootLayout");
+            boolean excludeGone = optBoolean(params, "excludeGone", false);
+            return ok(viewTreeDumper.dumpWindowsJson(rootLayout, excludeGone));
         } catch (Throwable t) {
             LogUtils.e(TAG, "doLayoutDump failed", t);
             return error("layout_dump failed: " + t.getMessage(), null);
@@ -326,6 +329,17 @@ public class ViewHierarchyServer {
         }
         String str = String.valueOf(value).trim();
         return str.isEmpty() ? null : str;
+    }
+
+    private boolean optBoolean(JSONObject params, String key, boolean defaultValue) {
+        Object value = params.opt(key);
+        if (value == null || value == JSONObject.NULL) {
+            return defaultValue;
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        return Boolean.parseBoolean(String.valueOf(value));
     }
 
     private Integer optInt(JSONObject params, String key) {

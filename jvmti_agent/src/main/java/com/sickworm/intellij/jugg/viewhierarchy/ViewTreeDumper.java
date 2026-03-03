@@ -46,11 +46,23 @@ public class ViewTreeDumper {
      * Build a JSON object with all window roots and their serialized nodes.
      */
     public JSONObject dumpWindowsJson() throws JSONException {
+        return dumpWindowsJson(null, false);
+    }
+
+    /**
+     * Build a JSON object for a subtree or full hierarchy.
+     * When excludeGone is true, GONE nodes and their subtrees are omitted.
+     */
+    public JSONObject dumpWindowsJson(String rootId, boolean excludeGone) throws JSONException {
+        if (rootId != null && !rootId.isEmpty()) {
+            return dumpSubtreeJson(rootId, excludeGone);
+        }
+
         JSONArray windowsJson = new JSONArray();
         NodeBudget budget = new NodeBudget(MAX_NODE_COUNT);
 
         for (WindowInfo window : getAllWindows()) {
-            ViewNode rootNode = dumpView(window.rootView, 0, budget);
+            ViewNode rootNode = dumpView(window.rootView, 0, budget, excludeGone);
             windowsJson.put(window.toJson(rootNode));
         }
 
@@ -58,6 +70,67 @@ public class ViewTreeDumper {
         data.put("windows", windowsJson);
         data.put("truncated", budget.truncated);
         return data;
+    }
+
+    /**
+     * Build a JSON object for a subtree rooted at the view matching rootId.
+     * Falls back to full dump when rootId is empty or no matching view is found.
+     */
+    private JSONObject dumpSubtreeJson(String rootId, boolean excludeGone) throws JSONException {
+        View targetView = null;
+        for (WindowInfo window : getAllWindows()) {
+            targetView = findViewByResourceId(window.rootView, rootId);
+            if (targetView != null) {
+                break;
+            }
+        }
+        if (targetView == null) {
+            return dumpWindowsJson(null, excludeGone);
+        }
+
+        NodeBudget budget = new NodeBudget(MAX_NODE_COUNT);
+        ViewNode rootNode = dumpView(targetView, 0, budget, excludeGone);
+
+        JSONObject windowObj = new JSONObject();
+        windowObj.put("windowType", "subtree");
+        windowObj.put("title", rootId);
+        windowObj.put("root", rootNode != null ? rootNode.toJson() : new JSONObject());
+
+        JSONArray windowsJson = new JSONArray();
+        windowsJson.put(windowObj);
+
+        JSONObject data = new JSONObject();
+        data.put("windows", windowsJson);
+        data.put("truncated", budget.truncated);
+        data.put("rootLayout", rootId);
+        return data;
+    }
+
+    /**
+     * Recursively find a View whose resource name or hex id matches targetId.
+     */
+    private View findViewByResourceId(View view, String targetId) {
+        if (view == null) {
+            return null;
+        }
+        String resourceId = resolveResourceId(view);
+        if (targetId.equals(resourceId)) {
+            return view;
+        }
+        String idHex = resolveIdHex(view.getId());
+        if (targetId.equals(idHex)) {
+            return view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findViewByResourceId(group.getChildAt(i), targetId);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -94,8 +167,11 @@ public class ViewTreeDumper {
         return windows;
     }
 
-    private ViewNode dumpView(View view, int depth, NodeBudget budget) {
+    private ViewNode dumpView(View view, int depth, NodeBudget budget, boolean excludeGone) {
         if (view == null) {
+            return null;
+        }
+        if (excludeGone && view.getVisibility() == View.GONE) {
             return null;
         }
         if (!budget.consume()) {
@@ -116,7 +192,7 @@ public class ViewTreeDumper {
             ViewGroup group = (ViewGroup) view;
             int childCount = group.getChildCount();
             for (int i = 0; i < childCount; i++) {
-                ViewNode child = dumpView(group.getChildAt(i), depth + 1, budget);
+                ViewNode child = dumpView(group.getChildAt(i), depth + 1, budget, excludeGone);
                 if (child != null) {
                     node.children.add(child);
                 }
@@ -135,7 +211,6 @@ public class ViewTreeDumper {
         ViewNode node = new ViewNode();
         node.className = view.getClass().getName();
         node.id = resolveResourceId(view);
-        node.idHex = resolveIdHex(view.getId());
         node.text = resolveText(view);
         node.contentDesc = safeToString(view.getContentDescription());
         node.tag = safeToString(view.getTag());
@@ -144,8 +219,6 @@ public class ViewTreeDumper {
         node.alpha = view.getAlpha();
         node.clickable = view.isClickable();
         node.enabled = view.isEnabled();
-        node.focused = view.isFocused();
-        node.selected = view.isSelected();
         node.padding.left = view.getPaddingLeft();
         node.padding.top = view.getPaddingTop();
         node.padding.right = view.getPaddingRight();

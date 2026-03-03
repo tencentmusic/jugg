@@ -21,9 +21,9 @@ Use this file when executing runtime interaction or evidence collection (typical
 
 ### Coordinate Derivation Protocol (Mandatory for coordinate mode)
 
-1. Run `layout_dump`.
+1. Run `layout_dump` (use `rootLayout` to scope when container id is known).
 2. Locate node by priority: `resource-id` -> `text` -> `content-desc`.
-3. Parse bounds from JSON fields: `left`, `top`, `right`, `bottom`.
+3. Parse bounds from JSON array: `bounds: [left, top, right, bottom]`.
 4. Tap center: `x=(left+right)/2`, `y=(top+bottom)/2`.
 5. If target is moving/transient, refresh `layout_dump` right before tap.
 
@@ -37,14 +37,35 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 5. If multiple matches: returns `MCP_INVALID_PARAMS` with `data.matches` array (bounds/center), then retry with coordinate or percent mode.
 6. If no match: returns `MCP_INTERNAL_ERROR` with clickable candidates in message for selector debugging.
 7. If server unavailable: returns error directly (no `uiautomator` fallback).
+8. If server unavailable is clearly caused by socket connect/forward failure: run one `force_gradle_compile` (with async polling), and retry once.
 
 ## `layout_dump`
 
 - Purpose: UI hierarchy evidence and coordinate lookup.
 - Required input: `projectDir`.
-- Output: `data.file` absolute `.json` path and `artifacts` entry with `type=json`.
+- Optional input: `rootLayout` (node `id` from a previous dump to scope to that subtree only).
+- Output: `data.file` absolute `.json` path, `data.content` inline JSON data (no extra file read needed), and `artifacts` entry with `type=json`.
 - Source: app-side ViewHierarchy server via `adb forward` + LocalSocket; no `uiautomator` fallback.
 - Locate node by `resource-id` first, then `text`, then `bounds` center.
+- When `rootLayout` is provided, only the matching subtree is returned (with `windowType: "subtree"`). Falls back to full dump if the id is not found.
+- **Compressed output**: default/empty fields are omitted. `bounds` is `[left,top,right,bottom]` array. `className` strips common prefixes (`android.widget.`, `android.view.`, `androidx.`).
+
+### Subtree Scoping Strategy (Mandatory for complex pages)
+
+When interacting with a specific area (e.g., a dialog, a settings section, a list item detail):
+
+1. First `layout_dump` (full) to identify the container `id` of the target area.
+2. Subsequent `layout_dump(rootLayout="com.example:id/container")` to dump only that subtree.
+3. This dramatically reduces payload size and improves coordinate lookup accuracy.
+
+**When to use `rootLayout`:**
+- Page has deep nesting or many sibling views (e.g., RecyclerView with 50+ items).
+- You already know the container id from a previous dump.
+- Iterating on the same UI area (e.g., tapping multiple items in a list).
+
+**When NOT to use `rootLayout`:**
+- First dump on an unknown page.
+- Need to verify overall page structure (e.g., which Activity is shown).
 
 ## `activity_stack`
 

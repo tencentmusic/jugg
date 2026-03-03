@@ -43,6 +43,7 @@
 - 构建脚本：`jvmti_agent/CMakeLists.txt`。  
 - native 目标库：`jugg_jvmti_agent`。  
 - agent 版本由 `BuildConfig.AGENT_VERSION` 与部署逻辑协同。
+- 修改本模块任意文件，必须递增工程根目录 `build.gradle` 的 `agentVersion`，否则不会更新 agent
 
 ---
 

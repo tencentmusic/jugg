@@ -26,14 +26,14 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testAppStartRejectWhenPackagePatternInvalid() {
+    fun testCrashReportRejectPackageNameArgument() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 2,
                 params = mapOf(
-                    "name" to "start_activity",
+                    "name" to "crash_report",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "packageName" to "invalid-package-name"
@@ -45,7 +45,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("packageName does not match required pattern"))
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): packageName"))
     }
 
     @Test

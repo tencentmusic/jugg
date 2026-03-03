@@ -45,6 +45,7 @@ class RuntimeObserveMcpToolActionTest {
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+        Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenReturn("com.example.app")
         Mockito.`when`(deployTargetManager.dumpErrorLogs()).thenReturn(
             """
             02-28 10:00:00.000 1234 1234 I ActivityManager: Start proc
@@ -59,7 +60,6 @@ class RuntimeObserveMcpToolActionTest {
         val result = action.execute(
             mapOf(
                 "projectDir" to projectDir.absolutePath,
-                "packageName" to "com.example.app",
             ),
             runtime(projectDir, deployTargetManager)
         )

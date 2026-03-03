@@ -63,7 +63,11 @@ Intent -> first file mapping:
 - Max autonomous retries for same failure category: `3`.
 - Never tap with guessed coordinates; prefer element mode (`text`/`resourceId`/`contentDesc`) over manual coordinate derivation. Never claim success without artifact evidence.
 - Runtime interaction strategy: prefer `layout_dump + element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent/coordinate tap` only when ViewHierarchy path is clearly unavailable.
-- Element mode is server-only exact match (`find_and_tap`); if ViewHierarchy server is unavailable, retry after `restart_app` once, then switch strategy or ask user.
+- Element mode is server-only exact match (`find_and_tap`).
+- If ViewHierarchy server is unavailable:
+  - retry once after `restart_app`;
+  - if logs/errors clearly indicate socket connection failure, treat it as likely app-side server integration/runtime package issue, run one `force_gradle_compile` (finish async polling), then `compile_and_deploy` + `restart_app` and retry once;
+  - if still unavailable, switch to `screenshot + percent/coordinate tap` or ask user.
 - For detailed runtime/observe procedures, load `references/tool_cards_runtime_observe.md`.
 - Unknown/high-risk failure: stop and ask user.
 
