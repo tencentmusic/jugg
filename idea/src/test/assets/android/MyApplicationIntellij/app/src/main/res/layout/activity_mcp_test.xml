@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tv_mcp_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MCP Test Page"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/tv_mcp_case_group_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btn_mcp_unique_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Unique MCP Target" />
+
+        <Button
+            android:id="@+id/btn_mcp_resource_target"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:contentDescription="mcp-resource-target"
+            android:text="Resource Tap Target" />
+
+        <Button
+            android:id="@+id/btn_mcp_repeat_a"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Repeat Tap Target" />
+
+        <Button
+            android:id="@+id/btn_mcp_repeat_b"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Repeat Tap Target" />
+
+        <Button
+            android:id="@+id/btn_mcp_visibility_visible"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Visibility Tap Target" />
+
+        <Button
+            android:id="@+id/btn_mcp_visibility_hidden"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Visibility Tap Target"
+            android:visibility="invisible" />
+
+        <TextView
+            android:id="@+id/tv_mcp_action_state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Waiting for interaction..."
+            android:textSize="15sp" />
+    </LinearLayout>
+</ScrollView>

@@ -8,6 +8,20 @@
 
 ## 执行须知
 
+### 测试页面入口（MyApplicationIntellij）
+
+为便于执行 `tap/layout_dump/screenshot` 相关用例，测试工程新增了 MCP 专用页面：
+
+- 入口 Activity：`com.sickworm.jugg.demo.testcase.mcp.McpTestActivity`
+- 入口路径：启动 `com.example.myapplication.MainActivity` 后点击按钮 **MCP Test Page**
+- 关键控件（用于元素模式点击）：
+  - 唯一文本：`Unique MCP Target`
+  - 资源 ID：`btn_mcp_resource_target`（文本：`Resource Tap Target`）
+  - 重复文本：`Repeat Tap Target`（两个可见节点）
+  - 可见/隐藏同文案节点：`Visibility Tap Target`（一个可见、一个 `invisible`）
+
+执行 TC-20b~20f 时优先在该页面取样，减少环境差异导致的不稳定。
+
 ### 执行顺序约束
 
 本文档的章节顺序即为推荐执行顺序。**第一章（远程 SSH）必须最先执行**，因为涉及 IDE 弹窗交互，需要用户在电脑前操作。交互完成后用户即可离开，剩余用例由 agent 自动完成。
