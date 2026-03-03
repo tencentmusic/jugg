@@ -1,6 +1,6 @@
 # Jugg MCP 测试用例
 
-> 说明：本文档覆盖 Jugg MCP 全部 17 个工具的功能验证，用自然语言描述，可直接输入给 AI coding agent 执行。
+> 说明：本文档覆盖 Jugg MCP 当前注册的 16 个工具的功能验证，用自然语言描述，可直接输入给 AI coding agent 执行。
 > 工具清单来源：`McpToolActionRegistry.kt` + `08_mcp_usage.md`
 > 最后核对：2026-03-03（文档与代码冲突时，以代码为准）
 
@@ -28,7 +28,7 @@
 
 ### 分组执行策略（防止 context 溢出）
 
-> 本文档有 64 个用例，工具调用密集，单次会话 context 容易溢出。**必须按分组执行**，每组隔离 context。
+> 本文档有 59 个用例，工具调用密集，单次会话 context 容易溢出。**必须按分组执行**，每组隔离 context。
 
 **分组表：**
 
@@ -37,7 +37,7 @@
 | 1 | TC-01~04 | 一、远程 SSH | 需用户交互，直接执行 |
 | 2 | TC-05~08 | 二、三 基础连通+设备 | |
 | 3 | TC-09~15 | 四、截图/录屏/布局 | |
-| 4 | TC-16~24 | 五、应用启动与交互 | |
+| 4 | TC-16~24 | 五、应用控制与交互 | |
 | 5 | TC-25~30 | 六、编译与部署（正常） | |
 | 6 | TC-31~34 | 七、编译失败 | |
 | 7 | TC-35 | 八、build.gradle 降级 | |
@@ -149,19 +149,10 @@
 
 ---
 
-## 五、应用启动与交互
+## 五、应用控制与交互
 
-**TC-16: 启动应用 - 默认入口**
-调用 `start_app`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，应用被成功启动（可通过后续 `activity_stack` 或 `screenshot` 确认）。
-
-**TC-17: 启动应用 - 指定包名**
-调用 `start_app`，传入 `projectDir` 和一个有效的 `packageName`，验证返回 `status` 为 `OK`。
-
-**TC-18: 启动特定 Activity - 基本调用**
-调用 `start_activity`，传入 `projectDir` 和一个有效的 `activity`（如 `.MainActivity`），验证返回 `status` 为 `OK`，目标 Activity 被启动。
-
-**TC-19: 启动特定 Activity - 完整 intent 参数**
-调用 `start_activity`，传入 `projectDir`、`action`（如 `android.intent.action.VIEW`）、`data`（如 `https://example.com`）、`categories`（如 `["android.intent.category.BROWSABLE"]`）、`mimeType`、`extras`（如 `{"key1": "value1", "key2": 42, "key3": true}`），验证返回 `status` 为 `OK`。
+**TC-16: 重启应用 - 默认入口**
+调用 `restart_app`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，应用被成功拉起（可通过后续 `activity_stack` 或 `screenshot` 确认）。
 
 **TC-20: 坐标点击**
 调用 `tap`，传入 `projectDir`、`x=540`、`y=960`，验证返回 `status` 为 `OK`。可通过前后截图对比确认点击生效。
@@ -325,7 +316,7 @@
 调用 `compile_and_deploy`，传入有效 `projectDir`，验证工具能正常执行编译阶段。由于无设备，部署阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`，因为编译后部署失败）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
 
 **TC-45: 无设备 - force_gradle_compile**
-调用 `force_gradle_compile`，传入有效 `projectDir`，验证工具能正常执行 Gradle 编译。`force_gradle_compile` 是纯编译操作，不依赖设备，应正常返回编译结果（`status` 为 `OK` 或编译失败的 `ERROR`），不应返回 `MCP_NO_DEVICE`。
+调用 `force_gradle_compile`，传入有效 `projectDir`，验证工具能正常执行 Gradle 编译。由于无设备，部署阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`，因为编译后部署失败）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
 
 **TC-46: 无设备 - clean_reinstall_apk**
 调用 `clean_reinstall_apk`，传入有效 `projectDir`，验证工具能正常执行编译阶段。由于无设备，重装阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
@@ -344,12 +335,6 @@
 
 **TC-51: 无设备 - activity_stack**
 调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
-
-**TC-52: 无设备 - start_app**
-调用 `start_app`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
-
-**TC-53: 无设备 - start_activity**
-调用 `start_activity`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 **TC-54: 无设备 - tap**
 调用 `tap`，传入有效 `projectDir`、`x=100`、`y=100`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
@@ -388,7 +373,7 @@
 通过 JSON-RPC 发送 `tools/call`，`name` 设为 `"nonexistent_tool"`，验证返回 `errorCode` 为 `MCP_TOOL_NOT_FOUND`。
 
 **TC-60: 返回结构一致性验证**
-对所有 17 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
+对当前注册的 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
 
 ---
 
@@ -397,7 +382,7 @@
 **TC-61: 完整开发迭代流程**
 1. 调用 `list_projects` 获取有效 `projectDir`
 2. 调用 `device_list` 确认有设备连接
-3. 调用 `start_app` 启动应用
+3. 调用 `restart_app` 启动应用
 4. 调用 `screenshot` 截取应用初始状态
 5. 修改一个源码文件
 6. 调用 `compile_and_deploy` 编译部署
@@ -414,7 +399,7 @@
 6. 验证最终编译成功
 
 **TC-63: UI 自动化操作流程**
-1. 调用 `start_app` 启动应用
+1. 调用 `restart_app` 启动应用
 2. 调用 `screenshot` 获取当前界面
 3. 调用 `layout_dump` 获取 UI 层级
 4. 根据 layout_dump 结果找到目标按钮坐标
@@ -424,7 +409,7 @@
 
 **TC-64: 两段式录屏验证完整流程**
 1. 调用 `start_record`（仅传 `projectDir`）并获取 `sessionId`
-2. 调用 `start_app` 启动应用
+2. 调用 `restart_app` 启动应用
 3. 调用 `tap` 点击目标坐标
 4. 等待 2~3 秒后调用 `stop_record`（传 `projectDir`、`sessionId`）
 5. 验证返回成功且 mp4 产物存在，播放确认包含启动与点击过程
@@ -439,7 +424,7 @@
 | 2 | `compile_and_deploy` | 否（编译不需要，部署需要） | Jugg 增量编译 + 部署 |
 | 3 | `compile_only` | 否 | 仅 Jugg 增量编译，不部署 |
 | 4 | `clean_reinstall_apk` | 否（编译不需要，重装需要） | 卸载重装 APK（清数据） |
-| 5 | `force_gradle_compile` | 否 | Gradle 回退编译 |
+| 5 | `force_gradle_compile` | 否（编译不需要，部署需要） | Gradle 回退编译 |
 | 6 | `get_compile_status` | 否 | 查询异步编译任务状态 |
 | 7 | `restart_app` | 是 | 重启应用 |
 | 8 | `device_list` | 否 | 列出已连接设备 |
@@ -448,7 +433,6 @@
 | 11 | `stop_record` | 是 | 停止录屏并拉取 mp4 |
 | 12 | `layout_dump` | 是 | 导出 UI 层级 JSON |
 | 13 | `activity_stack` | 是 | 获取当前 Activity 栈 |
-| 14 | `start_app` | 是 | 启动应用默认入口 |
-| 15 | `start_activity` | 是 | 按 intent 参数启动 Activity |
-| 16 | `tap` | 是 | 屏幕点击（三模式：坐标/百分比/元素） |
-| 17 | `request_remote_ssh_info` | 否 | 获取远端 SSH 信息 |
+| 14 | `crash_report` | 是 | 收集最近崩溃摘要与完整错误日志 |
+| 15 | `tap` | 是 | 屏幕点击（三模式：坐标/百分比/元素） |
+| 16 | `request_remote_ssh_info` | 否 | 获取远端 SSH 信息 |
