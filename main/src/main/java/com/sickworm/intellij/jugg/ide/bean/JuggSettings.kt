@@ -1,3 +1,5 @@
+@file:Suppress("ConstPropertyName", "SimplifyBooleanWithConstants", "KotlinConstantConditions")
+
 package com.sickworm.intellij.jugg.ide.bean
 
 import com.google.gson.Gson
@@ -42,12 +44,12 @@ object JuggSettings {
      * Enable init gradle scripts when gradle compile.
      * Effected function: [isEnableReadProjectInfoFromGradle], [isEnableCompatibleDeploymentMode]
      */
-    var isEnableInjectGradleCompile: Boolean by propertiesComponent.delegate(defaultValue = true)
+    const val isEnableInjectGradleCompile: Boolean = true
 
     /**
      * Enable read project info from gradle.
      */
-    var isEnableReadProjectInfoFromGradle: Boolean by propertiesComponent.delegate(defaultValue = true)
+    const val isEnableReadProjectInfoFromGradle: Boolean = true
     val finalIsEnableReadProjectInfoFromGradle get() = isEnableInjectGradleCompile && isEnableReadProjectInfoFromGradle
 
     /**

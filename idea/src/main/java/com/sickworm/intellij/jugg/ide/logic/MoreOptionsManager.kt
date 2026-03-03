@@ -144,34 +144,7 @@ class MoreOptionsManager(
 
         createSplitLine("Function switches")
 
-        createOption(
-            name = "Enable inject Gradle compilation",
-            onGet = { JuggSettings.isEnableInjectGradleCompile },
-            onSet = {
-                val isConfirmed = CommonConfirmDialog.showAndGetResult(
-                    "Confirm Switch Inject Gradle Compilation",
-                    "<html>This will reset compiler and fallback to gradle compile next time.<br>Are you sure to continue?</html>"
-                )
-                if (isConfirmed) {
-                    JuggSettings.isEnableInjectGradleCompile = it
-                    enableInjectGradleCompilation()
-                    if (!it) {
-                        JuggSettings.isEmbeddedToApk = false
-                    }
-                }
-            }
-        )
-
         if (JuggSettings.isEnableInjectGradleCompile) {
-            createOption(
-                name = "Enable read project info from Gradle",
-                onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
-                onSet = {
-                    JuggSettings.isEnableReadProjectInfoFromGradle = it
-                    enableReadProjectFromGradle()
-                }
-            )
-
             createOption(
                 name = "Enable compatible deployment mode",
                 onGet = { JuggSettings.isEnableCompatibleDeploymentMode },
@@ -180,7 +153,6 @@ class MoreOptionsManager(
                     enableCompatibleDeploymentMode()
                 }
             )
-
 
             createOption(
                 name = "Enable use project Kotlin compiler",
