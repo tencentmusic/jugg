@@ -1,3 +1,8 @@
+- version: 2.6.20
+  date: 2026.03.04
+  updates:
+    - 兼容部分子模块用了 compileSdk = 36 导致 aapt2 加载失败，降级 gradle
+
 - version: 2.6.18
   date: 2026.02.24
   updates:

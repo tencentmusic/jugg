@@ -34,9 +34,6 @@ class BaseCompileContext(
     private val customCompilerManager: CustomCompilerManager,
 ): ICompileContext {
 
-    private val androidJarApi: String = getSuggestedPlatformApi(modules)
-    override val androidJar: File = File(androidHome, "platforms/android-$androidJarApi/android.jar")
-
     private val tempLibraryDir: File = File(tempModuleDir, "libs")
     private val tempLibraryRecordFile: File = File(tempLibraryDir, "infos.json")
     override var tempModule = ModuleInfo.virtualModule.copy(
@@ -73,6 +70,11 @@ class BaseCompileContext(
     override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules() // must run before findApplicationModule()
 
     override var applicationModule: ModuleInfo? = findApplicationModule()
+
+    private val androidJarApi: String = applicationModule
+        ?.let { getSuggestedPlatformApi(mapOf(it.name to it)) }
+        ?: getSuggestedPlatformApi(modules)
+    override val androidJar: File = File(androidHome, "platforms/android-$androidJarApi/android.jar")
 
     private fun findApplicationModule(): ModuleInfo? {
         var applicationModules = modules.values.filter { module ->
