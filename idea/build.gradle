@@ -81,14 +81,14 @@ runIde {
     // default 11_0_11b1341.57 and will get Access Denied
 //    jbrVersion = '11_0_4b520.11'
 //    ideDirectory '/Applications/Android Studio.app/Contents'
-    jbrVersion = '17b106.1'
+    jbrVersion = '17.0.9b1087.7'
     jvmArgs = ['-Xmx8G']
 }
 
 buildSearchableOptions {
     // default 11_0_11b1341.57 and will get Access Denied
 //    jbrVersion = '11_0_4b520.11'
-    jbrVersion = '17b106.1'
+    jbrVersion = '17.0.9b1087.7'
     enabled = false
 }
 
