@@ -355,6 +355,47 @@ class TapMcpToolActionTest {
     }
 
     @Test
+    fun testTapElementModeNotFoundByResourceIdUsesResourceIdCandidates() {
+        val (action, _) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap(null, "missing_id", null, null)).thenReturn(
+                FindAndTapResult.NotFound(
+                    candidates = listOf(
+                        MatchCandidate(
+                            text = "Login",
+                            resourceId = "com.example:id/login",
+                            contentDesc = "login button",
+                            className = "android.widget.Button",
+                            bounds = null,
+                            centerX = 10,
+                            centerY = 20,
+                        ),
+                        MatchCandidate(
+                            text = "",
+                            resourceId = "",
+                            contentDesc = "",
+                            className = "com.google.android.material.tabs.TabLayout\$TabView",
+                            bounds = null,
+                            centerX = 30,
+                            centerY = 40,
+                        ),
+                    ),
+                    message = "not found",
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "resourceId" to "missing_id"),
+                runtime(),
+            )
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertTrue(result.message.contains("No matching UI element found"))
+            Assert.assertTrue(result.message.contains("resource-id=\"com.example:id/login\""))
+            Assert.assertFalse(result.message.contains("class=\"com.google.android.material.tabs.TabLayout\$TabView\""))
+        }
+    }
+
+    @Test
     fun testTapElementModeServerUnavailableReturnsError() {
         val (action, _) = setup(packageName = "com.example.app")
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->

@@ -342,7 +342,11 @@ class TapMcpToolAction : McpToolAction {
             .findAndTap(text = text, resourceId = resourceId, contentDesc = contentDesc, className = className)
             ?: return serverUnavailableResult("tap")
 
-        return serverResultToToolResult(serverResult, "tap")
+        return serverResultToToolResult(
+            serverResult = serverResult,
+            action = "tap",
+            selectorContext = ElementSelectorContext.from(text, resourceId, contentDesc, className),
+        )
     }
 
     private fun longPressByCoordinate(
@@ -429,7 +433,12 @@ class TapMcpToolAction : McpToolAction {
             )
             ?: return serverUnavailableResult("longPress")
 
-        return serverResultToToolResult(serverResult, "longPress", duration)
+        return serverResultToToolResult(
+            serverResult = serverResult,
+            action = "longPress",
+            duration = duration,
+            selectorContext = ElementSelectorContext.from(text, resourceId, contentDesc, className),
+        )
     }
 
     private fun swipeByCoordinate(
@@ -508,6 +517,7 @@ class TapMcpToolAction : McpToolAction {
         serverResult: FindAndTapResult,
         action: String,
         duration: Int? = null,
+        selectorContext: ElementSelectorContext = ElementSelectorContext(),
     ): McpToolResult {
         return when (serverResult) {
             is FindAndTapResult.Success -> {
@@ -560,31 +570,7 @@ class TapMcpToolAction : McpToolAction {
             }
 
             is FindAndTapResult.NotFound -> {
-                val candidateDesc = if (serverResult.candidates.isNotEmpty()) {
-                    " Available clickable elements: " + serverResult.candidates.joinToString("; ") { candidate ->
-                        buildString {
-                            if (candidate.text.isNotBlank()) {
-                                append("text=\"")
-                                append(candidate.text)
-                                append("\"")
-                            }
-                            if (candidate.resourceId.isNotBlank()) {
-                                if (isNotEmpty()) append(", ")
-                                append("resource-id=\"")
-                                append(candidate.resourceId)
-                                append("\"")
-                            }
-                            if (candidate.className.isNotBlank()) {
-                                if (isNotEmpty()) append(", ")
-                                append("class=\"")
-                                append(candidate.className)
-                                append("\"")
-                            }
-                        }
-                    }
-                } else {
-                    ""
-                }
+                val candidateDesc = buildNotFoundCandidateDesc(serverResult.candidates, selectorContext)
                 McpToolResult(
                     status = McpToolStatus.ERROR,
                     message = "tap failed. Reason: No matching UI element found.$candidateDesc",
@@ -611,6 +597,43 @@ class TapMcpToolAction : McpToolAction {
                 )
             }
         }
+    }
+
+    private fun buildNotFoundCandidateDesc(
+        candidates: List<com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchCandidate>,
+        selectorContext: ElementSelectorContext,
+    ): String {
+        if (candidates.isEmpty()) {
+            return ""
+        }
+        val candidateSummaries = candidates.mapNotNull { candidate ->
+            buildNotFoundCandidateSummary(candidate, selectorContext)
+        }
+        if (candidateSummaries.isEmpty()) {
+            return ""
+        }
+        val label = selectorContext.describeSelectedFields()
+        return " Available $label candidates: ${candidateSummaries.joinToString("; ")}"
+    }
+
+    private fun buildNotFoundCandidateSummary(
+        candidate: com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchCandidate,
+        selectorContext: ElementSelectorContext,
+    ): String? {
+        val parts = mutableListOf<String>()
+        if (selectorContext.byText && candidate.text.isNotBlank()) {
+            parts.add("text=\"${candidate.text}\"")
+        }
+        if (selectorContext.byResourceId && candidate.resourceId.isNotBlank()) {
+            parts.add("resource-id=\"${candidate.resourceId}\"")
+        }
+        if (selectorContext.byContentDesc && candidate.contentDesc.isNotBlank()) {
+            parts.add("content-desc=\"${candidate.contentDesc}\"")
+        }
+        if (selectorContext.byClassName && candidate.className.isNotBlank()) {
+            parts.add("class=\"${candidate.className}\"")
+        }
+        return if (parts.isEmpty()) null else parts.joinToString(", ")
     }
 
     private fun toMatchedElementMap(element: MatchedElementData): Map<String, Any> {
@@ -710,6 +733,41 @@ class TapMcpToolAction : McpToolAction {
     private data class ScreenSize(val width: Int, val height: Int)
 
     private data class SelectedAdb(val adb: IDeviceAdb)
+
+    private data class ElementSelectorContext(
+        val byText: Boolean = false,
+        val byResourceId: Boolean = false,
+        val byContentDesc: Boolean = false,
+        val byClassName: Boolean = false,
+    ) {
+        fun describeSelectedFields(): String {
+            val selected = mutableListOf<String>()
+            if (byText) selected.add("text")
+            if (byResourceId) selected.add("resource-id")
+            if (byContentDesc) selected.add("content-desc")
+            if (byClassName) selected.add("class")
+            if (selected.isEmpty()) {
+                return "selector-related"
+            }
+            return selected.joinToString("+")
+        }
+
+        companion object {
+            fun from(
+                text: String?,
+                resourceId: String?,
+                contentDesc: String?,
+                className: String?,
+            ): ElementSelectorContext {
+                return ElementSelectorContext(
+                    byText = !text.isNullOrBlank(),
+                    byResourceId = !resourceId.isNullOrBlank(),
+                    byContentDesc = !contentDesc.isNullOrBlank(),
+                    byClassName = !className.isNullOrBlank(),
+                )
+            }
+        }
+    }
 
     private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
         val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)

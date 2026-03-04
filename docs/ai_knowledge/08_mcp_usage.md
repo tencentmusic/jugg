@@ -96,7 +96,7 @@
   - `longPress`：按住时长（默认 500ms）
   - `swipe`：滑动时长（默认 300ms）
   - 最小值 50ms（低于该值会按 50ms 处理）
-- 元素模式未命中时返回 `MCP_INTERNAL_ERROR`，`message` 会包含可点击候选元素摘要，便于快速改 selector。
+- 元素模式未命中时返回 `MCP_INTERNAL_ERROR`，`message` 会包含与本次输入 selector 类型一致的候选元素摘要（例如仅传 `resourceId` 时只返回 `resource-id` 候选），便于快速改 selector。
 - 元素模式命中前会过滤不可操作节点（`VISIBLE + isShown + 非零尺寸 + 有效 bounds`），避免隐藏模板节点导致误报多匹配。
 - 元素模式成功时 `data.matchedElement` 为结构化对象：`{text, className, resourceId, contentDesc, bounds:[l,t,r,b], centerX, centerY}`。
 - 参数使用优先级（仅在同一次调用里同时传入多种模式参数时生效）：`coordinate > percent > element`。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
