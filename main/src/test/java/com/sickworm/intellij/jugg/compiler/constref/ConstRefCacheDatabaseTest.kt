@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -408,5 +409,120 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         )
         assertEquals(setOf("com.example.ConstantsKt"), classesBySimpleName["ConstantsKt"])
         assertEquals(setOf("com.example.flags.BuildFlags"), classesBySimpleName["BuildFlags"])
+    }
+
+    @Test
+    fun `should isolate mtime map by worktree when mtime is same`() {
+        val rootDir = createTempDirectory("const_ref_db_worktree_isolation")
+        val commonGitDir = File(rootDir, "common.git").apply { mkdirs() }
+        val worktreeA = File(rootDir, "worktree_a").apply { mkdirs() }
+        val worktreeB = File(rootDir, "worktree_b").apply { mkdirs() }
+        prepareWorktreeGitRef(worktreeA, commonGitDir, "a")
+        prepareWorktreeGitRef(worktreeB, commonGitDir, "b")
+
+        val constantsInA = File(worktreeA, "src/Constants.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nconst val MAX = 1\n")
+            setLastModified(100L)
+        }
+        val constantsInB = File(worktreeB, "src/Constants.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nconst val MAX = 2\n")
+            setLastModified(100L)
+        }
+
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref_test.db"), logger)
+
+        database.upsertFileAnalysis(
+            filePath = constantsInA.toStdPath(),
+            lastModified = 100L,
+            checksum = 1001L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsInA.toStdPath(),
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "1",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = constantsInB.toStdPath(),
+            lastModified = 100L,
+            checksum = 2002L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsInB.toStdPath(),
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "2",
+                )
+            ),
+            references = emptyList(),
+        )
+
+        assertEquals(1001L, database.getChecksumByLastModified(constantsInA.toStdPath(), 100L))
+        assertEquals(2002L, database.getChecksumByLastModified(constantsInB.toStdPath(), 100L))
+        assertEquals(1001L, database.getMtimeMapChecksum(constantsInA.toStdPath()))
+        assertEquals(2002L, database.getMtimeMapChecksum(constantsInB.toStdPath()))
+    }
+
+    @Test
+    fun `should return latest mtime map checksum for current worktree`() {
+        val dbDir = createTempDirectory("const_ref_db_mtime_baseline")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+        val filePath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 100L,
+            checksum = 111L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = filePath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "1",
+                )
+            ),
+            references = emptyList(),
+        )
+        assertEquals(111L, database.getMtimeMapChecksum(filePath))
+
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 200L,
+            checksum = 222L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = filePath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "2",
+                )
+            ),
+            references = emptyList(),
+        )
+        assertEquals(222L, database.getMtimeMapChecksum(filePath))
+
+        val fileCache = database.getFileCache(filePath)
+        assertNotNull(fileCache)
+        assertEquals(200L, fileCache?.lastModified)
+    }
+
+    private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {
+        val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
+        File(worktreeGitDir, "commondir").writeText("../../\n")
+        File(worktreeDir, ".git").writeText("gitdir: ${worktreeGitDir.absolutePath}\n")
     }
 }

@@ -613,6 +613,110 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         }
     }
 
+    @Test
+    fun `should trigger recompile for pulled const change in another worktree on cold start`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.lookup.mode" to "db_session",
+                "jugg.constref.session.file.cache.max" to "500",
+                "jugg.constref.session.lookup.cache.max" to "4000",
+                "jugg.constref.session.cache.ttl.ms" to "600000",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_scheduler_worktree_pull")
+            val commonGitDir = File(rootDir, "common.git").apply { mkdirs() }
+            val worktreeA = File(rootDir, "worktree_a").apply { mkdirs() }
+            val worktreeB = File(rootDir, "worktree_b").apply { mkdirs() }
+            prepareWorktreeGitRef(worktreeA, commonGitDir, "a")
+            prepareWorktreeGitRef(worktreeB, commonGitDir, "b")
+
+            val constantsInA = File(worktreeA, "src/Constants.kt").apply {
+                parentFile.mkdirs()
+                writeText(
+                    """
+                    package com.example
+                    const val MAX = 1
+                    """.trimIndent()
+                )
+            }
+            val userInA = File(worktreeA, "src/User.kt").apply {
+                parentFile.mkdirs()
+                writeText(
+                    """
+                    package com.example
+                    import com.example.MAX
+                    val value = MAX
+                    """.trimIndent()
+                )
+            }
+            val constantsInB = File(worktreeB, "src/Constants.kt").apply {
+                parentFile.mkdirs()
+                writeText(constantsInA.readText())
+            }
+            val userInB = File(worktreeB, "src/User.kt").apply {
+                parentFile.mkdirs()
+                writeText(userInA.readText())
+            }
+
+            val sharedDbFile = File(rootDir, "const_ref_shared.db")
+            val sharedFingerprintDbFile = File(rootDir, "repo_fingerprint.db")
+
+            val scopeA = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val schedulerA = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(sharedDbFile, logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scopeA),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
+            )
+            try {
+                schedulerA.onFileSaved(constantsInA.absolutePath)
+                schedulerA.onFileSaved(userInA.absolutePath)
+                schedulerA.awaitAnalysis(listOf(constantsInA.absolutePath, userInA.absolutePath), timeoutMs = 10_000L)
+                schedulerA.getEffectedFiles(listOf(constantsInA.absolutePath))
+
+                constantsInA.writeText(
+                    """
+                    package com.example
+                    const val MAX = 2
+                    """.trimIndent()
+                )
+                constantsInB.writeText(constantsInA.readText())
+                constantsInB.setLastModified(constantsInA.lastModified())
+                schedulerA.onFileSaved(constantsInA.absolutePath)
+                schedulerA.awaitAnalysis(listOf(constantsInA.absolutePath), timeoutMs = 10_000L)
+                schedulerA.getEffectedFiles(listOf(constantsInA.absolutePath))
+            } finally {
+                schedulerA.dispose()
+                scopeA.cancel()
+            }
+
+            val scopeB = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val schedulerB = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(sharedDbFile, logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scopeB),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
+            )
+            try {
+                schedulerB.onFileSaved(constantsInB.absolutePath)
+                schedulerB.onFileSaved(userInB.absolutePath)
+                schedulerB.awaitAnalysis(listOf(constantsInB.absolutePath, userInB.absolutePath), timeoutMs = 10_000L)
+
+                val effected = schedulerB.getEffectedFiles(listOf(constantsInB.absolutePath))
+                assertEquals(
+                    "Pulled const change in another worktree should trigger one-time safe recompile",
+                    setOf(userInB.toStdPath()),
+                    effected.map { it.refFilePath }.toSet(),
+                )
+            } finally {
+                schedulerB.dispose()
+                scopeB.cancel()
+            }
+        }
+    }
+
     private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {
         val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
         File(worktreeGitDir, "commondir").writeText("../../\n")

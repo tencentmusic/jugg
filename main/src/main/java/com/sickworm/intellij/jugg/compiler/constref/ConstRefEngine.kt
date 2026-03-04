@@ -339,6 +339,7 @@ class ConstRefEngine(
                     onFingerprintHit = { fingerprintHitCount++ },
                     onCrcMiss = { crcMissCount++ },
                 )
+                val previousMtimeChecksum = database.getMtimeMapChecksum(path)
                 if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
                     analysisReuseHitCount++
                     // Reuse hit means file content matches a previously analysed checksum.
@@ -347,7 +348,7 @@ class ConstRefEngine(
                     // was the last analysed version but A's cached checksum is now restored).
                     // When definitions are identical (same content re-saved), we must NOT
                     // overwrite existing unconsumed changedKeys in changeTracker.
-                    val previousDefinitions = loadPreviousDefinitionsLocked(path)
+                    val previousDefinitions = loadPreviousDefinitionsLocked(path, previousMtimeChecksum)
                     val reusedDefinitions = database.getDefinitionsByFileAndChecksum(path, checksum)
                     if (!areSameDefinitions(previousDefinitions, reusedDefinitions)) {
                         changeTracker.updateDefinitionDiff(
@@ -850,19 +851,27 @@ class ConstRefEngine(
         return definitions.values.toList()
     }
 
-    private fun loadPreviousDefinitionsLocked(filePath: String): List<ConstDefinition> {
+    private fun loadPreviousDefinitionsLocked(
+        filePath: String,
+        mtimeChecksum: Long? = database.getMtimeMapChecksum(filePath),
+    ): List<ConstDefinition> {
         if (lookupMode == LookupMode.LEGACY) {
-            return cachedDefinitionsByFile[filePath].orEmpty()
+            val cachedDefinitions = cachedDefinitionsByFile[filePath]
+            if (cachedDefinitions != null) {
+                return cachedDefinitions
+            }
+        } else {
+            val cachedDefinitions = sessionCache.getFileDefinitions(filePath)
+            if (cachedDefinitions != null) {
+                return cachedDefinitions
+            }
         }
-        val cachedDefinitions = sessionCache.getFileDefinitions(filePath)
-        if (cachedDefinitions != null) {
-            return cachedDefinitions
+        if (mtimeChecksum != null) {
+            val definitions = database.getDefinitionsByFileAndChecksum(filePath, mtimeChecksum)
+            updatePreviousDefinitionsLocked(filePath, definitions)
+            return definitions
         }
-        val definitions = database.getLatestDefinitionsByFile(filePath)
-        if (definitions.isNotEmpty()) {
-            sessionCache.putFileDefinitions(filePath, definitions)
-        }
-        return definitions
+        return emptyList()
     }
 
     /**

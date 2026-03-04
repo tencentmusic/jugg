@@ -18,6 +18,7 @@ class ConstRefCacheDatabase(
     private val maxDefinitionKeysPerQuery = 400
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
     private val repoRootByKey = mutableMapOf<String, String>()
+    private val worktreeRootByKey = mutableMapOf<String, String>()
 
     init {
         init()
@@ -68,14 +69,45 @@ class ConstRefCacheDatabase(
                    AND h.relative_path = m.relative_path
                    AND h.checksum = m.checksum
                 WHERE m.repo_key = ?
+                  AND m.worktree_key = ?
                   AND m.relative_path = ?
                   AND m.last_modified = ?
                 LIMIT 1
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, repoIdentity.repoKey)
+                statement.setString(2, repoIdentity.worktreeKey)
+                statement.setString(3, repoIdentity.relativePath)
+                statement.setLong(4, lastModified)
+                statement.executeQuery().use { resultSet ->
+                    if (!resultSet.next()) {
+                        return@withConnection null
+                    }
+                    return@withConnection resultSet.getLong("checksum")
+                }
+            }
+        }
+    }
+
+    @Synchronized
+    fun getMtimeMapChecksum(filePath: String): Long? {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return null
+        return withConnection { connection ->
+            connection.prepareStatement(
+                """
+                SELECT m.checksum
+                FROM file_checksum_mtime_map m
+                INNER JOIN file_analysis_head h
+                    ON h.repo_key = m.repo_key
+                   AND h.relative_path = m.relative_path
+                   AND h.checksum = m.checksum
+                WHERE m.worktree_key = ?
+                  AND m.relative_path = ?
+                LIMIT 1
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, repoIdentity.worktreeKey)
                 statement.setString(2, repoIdentity.relativePath)
-                statement.setLong(3, lastModified)
                 statement.executeQuery().use { resultSet ->
                     if (!resultSet.next()) {
                         return@withConnection null
@@ -139,6 +171,7 @@ class ConstRefCacheDatabase(
 
                 upsertMtimeMap(
                     connection = connection,
+                    worktreeKey = repoIdentity.worktreeKey,
                     repoKey = repoIdentity.repoKey,
                     relativePath = repoIdentity.relativePath,
                     lastModified = lastModified,
@@ -169,13 +202,15 @@ class ConstRefCacheDatabase(
                    AND h.relative_path = m.relative_path
                    AND h.checksum = m.checksum
                 WHERE m.repo_key = ?
+                  AND m.worktree_key = ?
                   AND m.relative_path = ?
                 ORDER BY m.updated_at DESC, m.last_modified DESC
                 LIMIT 1
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, repoIdentity.repoKey)
-                statement.setString(2, repoIdentity.relativePath)
+                statement.setString(2, repoIdentity.worktreeKey)
+                statement.setString(3, repoIdentity.relativePath)
                 statement.executeQuery().use { resultSet ->
                     if (!resultSet.next()) {
                         return@withConnection null
@@ -289,6 +324,7 @@ class ConstRefCacheDatabase(
 
                 upsertMtimeMap(
                     connection = connection,
+                    worktreeKey = repoIdentity.worktreeKey,
                     repoKey = repoIdentity.repoKey,
                     relativePath = repoIdentity.relativePath,
                     lastModified = lastModified,
@@ -315,6 +351,7 @@ class ConstRefCacheDatabase(
             try {
                 upsertMtimeMap(
                     connection = connection,
+                    worktreeKey = repoIdentity.worktreeKey,
                     repoKey = repoIdentity.repoKey,
                     relativePath = repoIdentity.relativePath,
                     lastModified = lastModified,
@@ -355,11 +392,11 @@ class ConstRefCacheDatabase(
                 connection.prepareStatement(
                     """
                     DELETE FROM file_checksum_mtime_map
-                    WHERE repo_key = ?
+                    WHERE worktree_key = ?
                       AND relative_path = ?
                     """.trimIndent()
                 ).use { statement ->
-                    statement.setString(1, repoIdentity.repoKey)
+                    statement.setString(1, repoIdentity.worktreeKey)
                     statement.setString(2, repoIdentity.relativePath)
                     statement.executeUpdate()
                 }
@@ -393,9 +430,9 @@ class ConstRefCacheDatabase(
             try {
                 if (relativePath.isBlank()) {
                     connection.prepareStatement(
-                        "DELETE FROM file_checksum_mtime_map WHERE repo_key = ?"
+                        "DELETE FROM file_checksum_mtime_map WHERE worktree_key = ?"
                     ).use { statement ->
-                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(1, repoIdentity.worktreeKey)
                         statement.executeUpdate()
                     }
                     connection.prepareStatement(
@@ -409,11 +446,11 @@ class ConstRefCacheDatabase(
                     connection.prepareStatement(
                         """
                         DELETE FROM file_checksum_mtime_map
-                        WHERE repo_key = ?
+                        WHERE worktree_key = ?
                           AND (relative_path = ? OR relative_path LIKE ?)
                         """.trimIndent()
                     ).use { statement ->
-                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(1, repoIdentity.worktreeKey)
                         statement.setString(2, relativePath)
                         statement.setString(3, likePattern)
                         statement.executeUpdate()
@@ -764,45 +801,47 @@ class ConstRefCacheDatabase(
                 val filePath = file.toStdPath()
                 val repoIdentity = resolveRepoIdentity(filePath) ?: return@mapNotNull null
                 ReusableFileIdentity(
+                    worktreeKey = repoIdentity.worktreeKey,
                     repoKey = repoIdentity.repoKey,
                     relativePath = repoIdentity.relativePath,
                     lastModified = file.lastModified(),
                 )
             }
-            .distinctBy { "${it.repoKey}|${it.relativePath}|${it.lastModified}" }
+            .distinctBy { "${it.worktreeKey}|${it.relativePath}|${it.lastModified}" }
             .toList()
         if (identities.isEmpty()) {
             return emptySet()
         }
-        val repoRoots = repoRootByKey.toMap()
+        val worktreeRoots = worktreeRootByKey.toMap()
         return withConnection { connection ->
             val reusablePaths = linkedSetOf<String>()
             identities.chunked(MAX_MTIME_QUERY_ROWS_PER_BATCH).forEach { chunk ->
                 val whereClause = chunk.joinToString(" OR ") {
-                    "(m.repo_key = ? AND m.relative_path = ? AND m.last_modified = ?)"
+                    "(m.worktree_key = ? AND m.relative_path = ? AND m.last_modified = ?)"
                 }
                 val sql = """
-                    SELECT m.repo_key, m.relative_path
+                    SELECT m.worktree_key, m.relative_path
                     FROM file_checksum_mtime_map m
                     INNER JOIN file_analysis_head h
                         ON h.repo_key = m.repo_key
                        AND h.relative_path = m.relative_path
                        AND h.checksum = m.checksum
                     WHERE $whereClause
-                    GROUP BY m.repo_key, m.relative_path
+                    GROUP BY m.worktree_key, m.relative_path
                 """.trimIndent()
                 connection.prepareStatement(sql).use { statement ->
                     var paramIndex = 1
                     chunk.forEach { identity ->
-                        statement.setString(paramIndex++, identity.repoKey)
+                        statement.setString(paramIndex++, identity.worktreeKey)
                         statement.setString(paramIndex++, identity.relativePath)
                         statement.setLong(paramIndex++, identity.lastModified)
                     }
                     statement.executeQuery().use { resultSet ->
                         while (resultSet.next()) {
-                            val repoKey = resultSet.getString("repo_key")
+                            val worktreeKey = resultSet.getString("worktree_key")
                             val relativePath = resultSet.getString("relative_path")
-                            val absolutePath = resolveAbsolutePath(repoKey, relativePath, repoRoots) ?: continue
+                            val absolutePath = resolveWorktreeAbsolutePath(worktreeKey, relativePath, worktreeRoots)
+                                ?: continue
                             reusablePaths += absolutePath
                         }
                     }
@@ -847,7 +886,7 @@ class ConstRefCacheDatabase(
                             SELECT rowid FROM (
                                 SELECT rowid,
                                        ROW_NUMBER() OVER (
-                                           PARTITION BY repo_key, relative_path
+                                           PARTITION BY worktree_key, relative_path
                                            ORDER BY updated_at DESC, last_modified DESC
                                        ) AS rank_num
                                 FROM file_checksum_mtime_map
@@ -1053,12 +1092,13 @@ class ConstRefCacheDatabase(
             statement.executeUpdate(
                 """
                 CREATE TABLE IF NOT EXISTS file_checksum_mtime_map (
+                    worktree_key TEXT NOT NULL,
                     repo_key TEXT NOT NULL,
                     relative_path TEXT NOT NULL,
                     last_modified INTEGER NOT NULL,
                     checksum INTEGER NOT NULL,
                     updated_at INTEGER NOT NULL,
-                    PRIMARY KEY (repo_key, relative_path, last_modified)
+                    PRIMARY KEY (worktree_key, relative_path)
                 );
                 CREATE INDEX IF NOT EXISTS idx_mtime_map_updated ON file_checksum_mtime_map(updated_at);
                 CREATE INDEX IF NOT EXISTS idx_mtime_map_checksum ON file_checksum_mtime_map(repo_key, relative_path, checksum);
@@ -1154,6 +1194,7 @@ class ConstRefCacheDatabase(
     private fun resolveRepoIdentity(filePath: String): RepoFileIdentity? {
         val repoIdentity = ConstRefRepoPathResolver.resolve(filePath) ?: return null
         repoRootByKey[repoIdentity.repoKey] = repoIdentity.worktreeRoot.toStdPath()
+        worktreeRootByKey[repoIdentity.worktreeKey] = repoIdentity.worktreeRoot.toStdPath()
         return repoIdentity
     }
 
@@ -1404,12 +1445,26 @@ class ConstRefCacheDatabase(
         }
     }
 
+    private fun resolveWorktreeAbsolutePath(
+        worktreeKey: String,
+        relativePath: String,
+        worktreeRoots: Map<String, String>,
+    ): String? {
+        val worktreeRoot = worktreeRoots[worktreeKey] ?: return null
+        return if (relativePath.isBlank()) {
+            File(worktreeRoot).toStdPath()
+        } else {
+            File(worktreeRoot, relativePath).toStdPath()
+        }
+    }
+
     private fun ConstDefinition.uniqueDefinitionKey(): String {
         return "$filePath|$fqClassName|$constName|$constType|${constValue.orEmpty()}"
     }
 
     private fun upsertMtimeMap(
         connection: Connection,
+        worktreeKey: String,
         repoKey: String,
         relativePath: String,
         lastModified: Long,
@@ -1418,18 +1473,21 @@ class ConstRefCacheDatabase(
     ) {
         connection.prepareStatement(
             """
-            INSERT INTO file_checksum_mtime_map(repo_key, relative_path, last_modified, checksum, updated_at)
-            VALUES(?, ?, ?, ?, ?)
-            ON CONFLICT(repo_key, relative_path, last_modified)
-            DO UPDATE SET checksum = excluded.checksum,
+            INSERT INTO file_checksum_mtime_map(worktree_key, repo_key, relative_path, last_modified, checksum, updated_at)
+            VALUES(?, ?, ?, ?, ?, ?)
+            ON CONFLICT(worktree_key, relative_path)
+            DO UPDATE SET repo_key = excluded.repo_key,
+                          last_modified = excluded.last_modified,
+                          checksum = excluded.checksum,
                           updated_at = excluded.updated_at
             """.trimIndent()
         ).use { statement ->
-            statement.setString(1, repoKey)
-            statement.setString(2, relativePath)
-            statement.setLong(3, lastModified)
-            statement.setLong(4, checksum)
-            statement.setLong(5, updatedAt)
+            statement.setString(1, worktreeKey)
+            statement.setString(2, repoKey)
+            statement.setString(3, relativePath)
+            statement.setLong(4, lastModified)
+            statement.setLong(5, checksum)
+            statement.setLong(6, updatedAt)
             statement.executeUpdate()
         }
     }
@@ -1559,13 +1617,14 @@ class ConstRefCacheDatabase(
     )
 
     private data class ReusableFileIdentity(
+        val worktreeKey: String,
         val repoKey: String,
         val relativePath: String,
         val lastModified: Long,
     )
 
     companion object {
-        private const val DB_SCHEMA_VERSION = 2
+        private const val DB_SCHEMA_VERSION = 3
         private const val MAX_MTIME_QUERY_ROWS_PER_BATCH = 250
         private const val CLEANUP_INTERVAL_MS = 24L * 60L * 60L * 1000L
         private const val MTIME_MAP_TTL_MS = 30L * 24L * 60L * 60L * 1000L

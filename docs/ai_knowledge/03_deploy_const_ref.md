@@ -66,7 +66,7 @@
 - `FILE_CHANGE`：日常保存触发的异步增量分析；
 - `PRE_COMPILE`：`awaitAnalysis()` 内同步抢占执行，确保编译前尽量完成待分析文件。
 
-> `FULL_SCAN` 会先按 `(repo_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新就绪状态，未命中项才进入解析流程。
+> `FULL_SCAN` 会先按 `(worktree_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新就绪状态，未命中项才进入解析流程。
 
 ### 3.3 状态模型（核心字段）
 
@@ -161,7 +161,7 @@ Kotlin 引用覆盖：
 
 核心表：
 
-- `file_checksum_mtime_map`：`(repo_key, relative_path, last_modified) -> checksum`
+- `file_checksum_mtime_map`：`(worktree_key, relative_path) -> (last_modified, checksum)`（每 worktree 每文件仅保留一行“最近一次看到的 checksum”）
 - `file_analysis_head`：`(repo_key, relative_path, checksum)` 的分析版本头（`analyzed_at/last_access_at`）
 - `const_definitions`：按 `repo_key + relative_path + checksum` 存定义
 - `const_references`：按 `repo_key + relative_path + checksum` 存引用
@@ -169,7 +169,8 @@ Kotlin 引用覆盖：
 
 关键行为：
 
-- 同仓库多 worktree 通过 `repo_key + relative_path` 共享分析结果；
+- `file_analysis_head` / `const_definitions` / `const_references` 仍通过 `repo_key + relative_path` 共享分析结果；
+- `file_checksum_mtime_map` 通过 `worktree_key + relative_path` 隔离“项目本地基线”；
 - 受影响文件查询先定位定义 key，再按当前 worktree 还原绝对路径，仅返回本地存在文件；
 - 新增 DB-first 查询 API（latest 口径）：
 - `getLatestDefinitionsByFile(filePath)`
@@ -177,7 +178,7 @@ Kotlin 引用覆盖：
 - `queryDefinitionsByClassConstKeys(Set<Pair<class,const>>)`
 - `queryDefinitionsByPackageConstKeys(Set<Pair<pkg,const>>)`
 - `queryClassesBySimpleNames(Set<String>)`
-- db schema 使用 `PRAGMA schema_version=2`，不兼容时重建。
+- db schema 使用 `PRAGMA schema_version=3`，不兼容时重建。
 
 ### 5.3 Repo 共享指纹：RepoSharedFingerprintStore
 

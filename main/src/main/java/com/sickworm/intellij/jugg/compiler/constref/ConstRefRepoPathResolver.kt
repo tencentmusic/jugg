@@ -30,6 +30,7 @@ internal object ConstRefRepoPathResolver {
                 }
                 return RepoFileIdentity(
                     repoKey = repoKey,
+                    worktreeKey = worktreeRoot.canonicalPath,
                     relativePath = relativePath,
                     worktreeRoot = worktreeRoot,
                 )
@@ -80,6 +81,7 @@ internal object ConstRefRepoPathResolver {
 
 internal data class RepoFileIdentity(
     val repoKey: String,
+    val worktreeKey: String,
     val relativePath: String,
     val worktreeRoot: File,
 ) {
