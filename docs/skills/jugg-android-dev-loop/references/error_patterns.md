@@ -90,18 +90,6 @@ Use this library to constrain auto-fix behavior.
   next_action_on_success: recompile
   next_action_on_failure: ask_user_for_expected_resource
 
-- id: install_signature_mismatch
-  stage: deploy
-  signature:
-    includes: ["INSTALL_FAILED_UPDATE_INCOMPATIBLE", "signatures do not match"]
-  diagnosis: installed package signature mismatch
-  fix_strategy: clean_reinstall_apk
-  fix_scope: medium
-  confidence_hint: 0.94
-  auto_apply: true
-  next_action_on_success: restart_app
-  next_action_on_failure: ask_user_for_signing_policy
-
 - id: runtime_fatal_exception
   stage: runtime
   signature:

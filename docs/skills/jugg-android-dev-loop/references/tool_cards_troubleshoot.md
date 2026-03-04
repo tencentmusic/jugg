@@ -28,3 +28,11 @@ Use this file only when normal execution cannot proceed due to context/device/ru
   - `data.crashLogs`
   - `data.relatedActivity`
   - `data.allErrorLogPath`
+
+## Crash Triage Loop
+
+When runtime evidence is abnormal (unexpected activity, dead process, missing target UI):
+
+1. Call `crash_report(projectDir)` to identify likely cause.
+2. If `crash_report` is unavailable or empty, fallback to `adb logcat` for current session.
+3. Apply fix and return to normal 5-step loop.

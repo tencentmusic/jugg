@@ -15,8 +15,6 @@ Default to MCP-only flow and avoid raw adb in normal execution.
 
 ## Read Gate (Single Source of Truth)
 
-This section is the only entry gate for loading extra docs.
-
 Read only this file first, then output a `LoadDecision` before opening any reference file.
 
 `LoadDecision` format:
@@ -29,30 +27,27 @@ Read only this file first, then output a `LoadDecision` before opening any refer
 Reference load rules:
 
 - Load only files required by current intent.
-- Never bulk-load `references` or `examples`.
-- If `load=none`, continue execution with this file only.
+- Never bulk-load all `references`.
 
-Intent -> first file mapping:
+Intent -> reference file mapping:
 
-- runtime/evidence decision -> `references/tool_cards_runtime_observe.md`
-- context troubleshooting decision -> `references/tool_cards_troubleshoot.md`
-- failure signature matching -> `references/error_patterns.md`
-- incremental vs gradle decision -> this file, section `Incremental Compile Limitations` (no extra load needed)
-- concrete walkthrough asked by user -> `examples/*.md`
+- compile, deploy, or handle compile/deploy failure -> `references/tool_cards_build_deploy.md`
+- interact with running app or collect runtime evidence (tap, layout, screenshot, recording) -> `references/tool_cards_runtime_observe.md`
+- device/project context problem (`MCP_NO_DEVICE`, `MCP_PROJECT_NOT_INITIALIZED`, crash, unknown runtime state) -> `references/tool_cards_troubleshoot.md`
+- changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
+- match a specific error message/errorCode to a known fix -> `references/error_patterns.md`
+
+Skip rule: if no Android source code needs to be compiled, deployed, or verified on device, do not execute the loop or load any reference file.
 
 ## 5-Step Loop
 
 1. Modify sources.
-2. Build/deploy:
-   - default: `compile_and_deploy(projectDir)`
-   - no device or compile-only ask: `compile_only(projectDir)` (same failure triage as `compile_and_deploy`, skip runtime verification)
-3. Runtime actions & evidence (if needed):
-   - `restart_app(projectDir)`, then interact and collect evidence per `references/tool_cards_runtime_observe.md`.
-   - **If >=2 runtime tool calls or heavy-output analysis needed, delegate via Observe Delegation Policy.**
+2. Build/deploy (load `references/tool_cards_build_deploy.md` when details are needed).
+3. Runtime actions & evidence (load `references/tool_cards_runtime_observe.md` when details are needed).
 4. Verdict:
-   - **PASS** → step 5.
-   - **FAIL** → back to step 1 (fix source), respect retry budget.
-   - **INCONCLUSIVE** → gather more evidence or ask user when exhausted all available methods.
+   - **PASS** -> step 5.
+   - **FAIL** -> back to step 1 (fix source), respect retry budget.
+   - **INCONCLUSIVE** -> gather more evidence or ask user when exhausted all available methods.
 5. Final staging:
    - clear `${projectDir}/build/mcp_fetch/final`
    - copy final artifacts as `final_screenshot.png` / `final_record.mp4`
@@ -61,91 +56,27 @@ Intent -> first file mapping:
 
 - `projectDir`: use current working directory by default.
 - Max autonomous retries for same failure category: `3`.
-- Never tap with guessed coordinates; prefer element mode (`text`/`resourceId`/`contentDesc`) over manual coordinate derivation. Never claim success without artifact evidence.
-- Runtime interaction strategy: prefer `layout_dump + element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent/coordinate tap` only when ViewHierarchy path is clearly unavailable.
-- Element mode is server-only exact match (`find_and_tap`).
-- If ViewHierarchy server is unavailable:
-  - retry once after `restart_app`;
-  - if logs/errors clearly indicate socket connection failure, treat it as likely app-side server integration/runtime package issue, run one `force_gradle_compile` (finish async polling), then `compile_and_deploy` + `restart_app` and retry once;
-  - if still unavailable, switch to `screenshot + percent/coordinate tap` or ask user.
-- For detailed runtime/observe procedures, load `references/tool_cards_runtime_observe.md`.
+- Never claim success without artifact evidence.
+- Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
+- Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.
-
-## Tool Description Migration (Compact)
-
-Keep MCP tool schema descriptions concise. Put guidance/strategy in this skill and its references.
-
-- `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `inlineMaxKb`.
-- `tap` (compact): perform `tap` / `longPress` / `swipe` with coordinate, percent, or element mode; mode priority is `coordinate > percent > element`.
-
-`inlineMaxKb` recommendation:
-
-- Main agent direct call (no heavy analysis): `8` (or `4` if only need file artifact path).
-- Sub-agent observe/analysis: `32`.
-- Complex page with known container: use `rootLayout` first, then `inlineMaxKb=16~32` instead of blindly increasing threshold.
-- Avoid `>64` unless explicitly required by user/debug scenario.
 
 ## Observe Delegation Policy
 
-`layout_dump` / `tap` / `screenshot` / recording produce large context (layout JSON, images, video). Isolate observation from main agent context when possible.
+`layout_dump` / `screenshot` / `recording` produce large context (layout JSON, images, video). Isolate observation from main agent context when possible.
 
 Delegate (prefer sub-agent, fallback to main-agent-with-summarize) when **any** condition is true:
 
-1. **>=2 runtime tool calls** — interaction chains, recording sessions, combined evidence.
-2. **Analysis required on heavy output** — even 1 tool call, if the result needs reasoning over large data (e.g., `layout_dump` JSON to judge layout correctness, or video/screenshot to verify visual behavior).
+1. **>=2 large context tool calls**.
+2. **Analysis required on heavy output**.
 
-Direct call from main agent only when: single tool call **and** result is used as-is without analysis (e.g., one `activity_stack` to confirm page, one `screenshot` as final proof with verdict already decided).
+Direct call from main agent only when: single tool call **and** result is used as-is without analysis.
 
 **Default**: when unsure, delegate.
 
 Sub-agent **must** have MCP tool access (use the agent type with full/all tool access, e.g. `general-purpose` in Claude Code). If unavailable, execute in main agent instead.
 
-Sub-agent receives `projectDir` + intent + target hints, returns only `{verdict, summary, artifacts, issues}`, never raw layout JSON/image/video.
-
-## Crash Triage Loop
-
-When runtime result looks abnormal (unexpected activity, dead process, or missing UI evidence):
-
-1. Call `crash_report(projectDir)` to try to find out the reason.
-2. Fallback to `adb logcat` if step 1 is not working.
-3. Continue normal 5-Step loop after fix.
-
-## Async Compile Rule (Mandatory)
-
-For `compile_and_deploy` or `force_gradle_compile`:
-
-- If `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent (must have MCP access; if unavailable, poll in main agent).
-- Poll with `get_compile_status(jobId)` and follow `pollIntervalSuggestedMs` when present.
-- Determine result only by terminal compile status.
-- If `status=unknown`, treat as invalid job/context; stop and re-check `jobId` source.
-
-## Incremental Compile Limitations
-
-Jugg incremental compile supports **only** these annotation processors / compiler plugins:
-
-`DataBinding`, `ViewBinding`, `Compose`, `Parcelize`, `Page` for Kuikly, `JsonClass` for Moshi
-
-Key behaviors:
-
-- **Unsupported annotations**: if you only modify regular source code (not adding/changing annotations), the change takes effect normally. But if you **add new annotations or change annotation values** for unsupported processors (Dagger/Hilt, Room, Glide, etc.), the annotation processor will not re-run and the change **silently does not take effect**.
-- **Transform / bytecode instrumentation**: Jugg compiles `source → class → dex` without Gradle Transform. Any file recompiled by Jugg will have its **previously instrumented bytecode replaced by raw compiler output** (e.g., ASM-injected init hooks, AOP aspects disappear from the recompiled classes).
-
-**Decision**: if your change adds/modifies unsupported annotations, or the changed file relies on Transform instrumentation, use `force_gradle_compile` directly. For symptom matching details, load `references/error_patterns.md`.
-
-## Fallback Chain
-
-Use this order for compile/deploy failures:
-
-1. Parse `status/message/errorCode/data/artifacts`.
-2. Retry `compile_and_deploy` up to 3 times.
-3. If still no way to fix the expected error use `force_gradle_compile` (heavy), finish async polling, and retry `compile_and_deploy`. On final failure inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-4. If still broken, try `clean_reinstall_apk`.
-5. If still unclear, stop and confirm with user.
-6. Remote troubleshooting (`request_remote_ssh_info`) requires explicit user consent.
-
-Special case:
-
-- `MCP_NO_DEVICE`: stop and ask user to connect/start device, or switch to `compile_only`.
+Sub-agent returns only `{verdict, summary, artifacts, issues}`, never raw layout JSON/image/video.
 
 ## Minimal MCP Result Contract
 
@@ -161,17 +92,6 @@ Use these fields for decisions:
 
 - Known pattern + low-risk fix: auto apply.
 - Unknown pattern or confidence `< 0.8`: ask user before large changes.
-- For detailed mapping and signatures, load `references/error_patterns.md`.
-
-## Reference Entry Points
-
-- Runtime/observe cards: `references/tool_cards_runtime_observe.md`
-- Troubleshoot cards: `references/tool_cards_troubleshoot.md`
-- Error signatures/fixes: `references/error_patterns.md`
-- Walkthroughs:
-  - `examples/01_fix_compile_error.md`
-  - `examples/02_ui_change_verify.md`
-  - `examples/03_deploy_fallback.md`
 
 ## Response Checklist
 

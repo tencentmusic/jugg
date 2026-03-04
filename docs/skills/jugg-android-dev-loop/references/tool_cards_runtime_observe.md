@@ -51,6 +51,13 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 - When `rootLayout` is provided, only the matching subtree is returned (with `windowType: "subtree"`). Falls back to full dump if the id is not found.
 - **Compressed output**: default/empty fields are omitted. `bounds` is `[left,top,right,bottom]` array. `className` strips common prefixes (`android.widget.`, `android.view.`, `androidx.`).
 
+## Tool Description Migration (UI Observe Stage Only)
+
+Keep MCP tool schema descriptions concise. Put guidance and strategy in this file instead of MCP schema text.
+
+- `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `inlineMaxKb`.
+- `tap` (compact): perform `tap` / `longPress` / `swipe` with coordinate, percent, or element mode; mode priority is `coordinate > percent > element`.
+
 ### `inlineMaxKb` Tuning
 
 - Main agent: prefer `inlineMaxKb=8`; use `4` when only artifact path is needed.
