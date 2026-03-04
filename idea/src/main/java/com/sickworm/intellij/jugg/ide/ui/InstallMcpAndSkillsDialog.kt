@@ -1,9 +1,12 @@
 package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.ide.logic.ClientSetupDocExporter
@@ -22,22 +25,24 @@ import javax.swing.JPanel
  * Multi-select dialog for choosing target clients for MCP and skill installation.
  */
 class InstallMcpAndSkillsDialog(
+    private val project: Project,
     private val projectDir: File,
 ) : DialogWrapper(true) {
 
     private val codexCheckBox = JBCheckBox("Codex")
+    @Suppress("DialogTitleCapitalization")
     private val claudeCheckBox = JBCheckBox("Claude Code")
     private val geminiCheckBox = JBCheckBox("Gemini")
     private val panel = JPanel(GridBagLayout())
 
     init {
-        title = "Install Jugg MCP and skills"
+        title = "Install Jugg MCP and Skills"
 
         val constraints = GridBagConstraints()
         constraints.gridx = 0
         constraints.gridy = 0
         constraints.anchor = GridBagConstraints.WEST
-        constraints.insets = JBUI.insets(4, 0, 4, 0)
+        constraints.insets = JBUI.emptyInsets()
         panel.add(JLabel("Select clients to install:"), constraints)
 
         constraints.gridy++
@@ -63,14 +68,13 @@ class InstallMcpAndSkillsDialog(
     }
 
     override fun createLeftSideActions(): Array<Action> {
-        return arrayOf(object : AbstractAction("View all") {
+        return arrayOf(object : AbstractAction("Manual Setup Guide") {
             override fun actionPerformed(e: ActionEvent?) {
                 try {
                     val outputFile = ClientSetupDocExporter.export(projectDir)
-                    Messages.showInfoMessage(
-                        "Guide file created:\n${outputFile.path}",
-                        "Client Setup Guide",
-                    )
+                    val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(outputFile)
+                        ?: throw IllegalStateException("Failed to locate exported guide file.")
+                    FileEditorManager.getInstance(project).openFile(virtualFile, true)
                 } catch (t: Throwable) {
                     Messages.showErrorDialog("Failed to create guide file: ${t.message}", "Client Setup Guide")
                 }
@@ -93,10 +97,10 @@ class InstallMcpAndSkillsDialog(
     }
 
     companion object {
-        fun showAndGetResult(projectDir: File): Set<InstallClient> {
+        fun showAndGetResult(project: Project, projectDir: File): Set<InstallClient> {
             var result: Set<InstallClient> = emptySet()
             ApplicationManager.getApplication().invokeAndWait {
-                val dialog = InstallMcpAndSkillsDialog(projectDir)
+                val dialog = InstallMcpAndSkillsDialog(project, projectDir)
                 dialog.setOKButtonText("Install")
                 if (dialog.showAndGet()) {
                     result = dialog.selectedClients()

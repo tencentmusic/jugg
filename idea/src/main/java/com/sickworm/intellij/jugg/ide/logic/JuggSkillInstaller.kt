@@ -1,3 +1,5 @@
+@file:Suppress("SameParameterValue")
+
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.google.gson.JsonObject
@@ -114,15 +116,57 @@ object JuggSkillInstaller {
         val configFile = File(codexHomeDir(userHome), "config.toml")
         configFile.parentFile?.mkdirs()
         val content = if (configFile.exists()) configFile.readText(StandardCharsets.UTF_8) else ""
-        val sectionRegex = Regex("""(?ms)^\[mcp_servers\."$serverName"]\n(?:.+\n)*?(?=^\[|\z)""")
-        val newSection = "[mcp_servers.\"$serverName\"]\nurl = \"$endpoint\"\n"
-        val normalized = if (sectionRegex.containsMatchIn(content)) {
-            content.replace(sectionRegex, newSection)
-        } else {
-            val suffix = if (content.isBlank() || content.endsWith("\n")) "" else "\n"
-            content + suffix + newSection
-        }
+        val normalized = upsertCodexMcpServer(content, serverName, endpoint)
         configFile.writeText(normalized, StandardCharsets.UTF_8)
+    }
+
+    /**
+     * Upserts Codex MCP server config in a stable and idempotent way.
+     * It removes equivalent legacy representations first to avoid duplicate TOML keys.
+     */
+    private fun upsertCodexMcpServer(content: String, serverName: String, endpoint: String): String {
+        var normalized = removeCodexServerSections(content, serverName)
+        normalized = removeCodexInlineServerKeys(normalized, serverName)
+        normalized = normalized.trimEnd('\n')
+
+        val newSection = "[mcp_servers.\"$serverName\"]\nurl = \"$endpoint\"\n"
+        return if (normalized.isBlank()) {
+            newSection
+        } else {
+            "$normalized\n\n$newSection"
+        }
+    }
+
+    private fun removeCodexServerSections(content: String, serverName: String): String {
+        val serverToken = codexTomlServerTokenPattern(serverName)
+        val sectionRegex = Regex(
+            """(?ms)^\[\s*mcp_servers\s*\.\s*$serverToken\s*]\s*\n(?:^(?!\[).*(?:\n|$))*""",
+        )
+        return content.replace(sectionRegex, "")
+    }
+
+    private fun removeCodexInlineServerKeys(content: String, serverName: String): String {
+        val mcpServersBlockRegex = Regex("""(?ms)^\[\s*mcp_servers\s*]\s*\n(?:^(?!\[).*(?:\n|$))*""")
+        val inlineKeyRegex = Regex("""^\s*${codexTomlServerTokenPattern(serverName)}\s*=.*$""")
+        return mcpServersBlockRegex.replace(content) { match ->
+            val lines = match.value.lines()
+            if (lines.isEmpty()) {
+                return@replace match.value
+            }
+            val header = lines.first()
+            val body = lines.drop(1)
+                .filter { line -> line.isNotBlank() && !inlineKeyRegex.matches(line) }
+            if (body.isEmpty()) {
+                "$header\n"
+            } else {
+                "$header\n${body.joinToString("\n")}\n"
+            }
+        }
+    }
+
+    private fun codexTomlServerTokenPattern(serverName: String): String {
+        val escaped = Regex.escape(serverName)
+        return """(?:"$escaped"|'$escaped'|$escaped)"""
     }
 
     private fun writeGeminiMcpConfig(userHome: File, serverName: String, endpoint: String) {

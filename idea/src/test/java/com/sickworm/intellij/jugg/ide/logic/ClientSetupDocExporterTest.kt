@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -12,14 +13,15 @@ class ClientSetupDocExporterTest {
     fun export_shouldCopyClientSetupFileToBuildConfig() {
         val root = Files.createTempDirectory("jugg-client-setup-test").toFile()
         val output = ClientSetupDocExporter.export(root)
-        val resourceText = ClientSetupDocExporter::class.java.classLoader
-            .getResourceAsStream("docs/skills/install/client_setup.md")
-            ?.bufferedReader(Charsets.UTF_8)
-            ?.use { it.readText() }
 
         assertTrue(output.exists())
         assertEquals(File(root, "build/jugg/config/client_setup.md").path, output.path)
-        assertTrue(resourceText != null)
-        assertEquals(resourceText, output.readText(Charsets.UTF_8))
+        val text = output.readText(Charsets.UTF_8)
+        assertTrue(text.contains("SKILL_SRC=\"./jugg-android-dev-loop\""))
+        assertFalse(text.contains("SKILL_SRC=\"docs/skills/"))
+        assertFalse(text.contains("docs/skills/jugg-android-dev-loop"))
+
+        val skillFile = File(root, "build/jugg/config/jugg-android-dev-loop/SKILL.md")
+        assertTrue(skillFile.exists())
     }
 }

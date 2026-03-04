@@ -30,6 +30,8 @@
 
 ### 测试页面入口（android_demo_project）
 
+除非用户指定，默认使用项目根目录工程 `android_demo_project`。
+
 为便于执行 `tap/layout_dump/screenshot` 相关用例，测试工程新增了 MCP 专用页面：
 
 - 入口 Activity：`com.sickworm.jugg.demo.testcase.mcp.McpTestActivity`
@@ -75,7 +77,7 @@
 5. 每组只返回/记录精简的测试结果表格（用例编号、PASS/FAIL、关键备注），不记录工具调用的原始 JSON
 6. 涉及环境变更（开关 AVD）在组与组之间处理
 7. 每组开始前，告知用户该组负责哪些用例
-8. 每组完成后，展示结果摘要，并追加写入 `jugg-mcp-test-result.md`
+8. 每组完成后，展示结果摘要，并覆盖输出到 `jugg-mcp-test-result.md`
 9. 全部完成后，汇总整体通过率
 
 **Sub-agent 优化（支持 Sub-agent 的工具适用）：**

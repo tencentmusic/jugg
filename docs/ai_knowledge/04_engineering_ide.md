@@ -40,8 +40,8 @@
 
 - 运行配置与设置：`ide/logic/JuggRunSettingsComponent.kt`、`JuggRunConfigurationOptionsExt.kt`。  
 - More Options 下拉与工具入口：`ide/logic/MoreOptionsManager.kt`、`ide/ui/InstallMcpAndSkillsDialog.kt`。  
-  - `Tools` 分组首项支持 `Install Jugg MCP and skills`，可多选 `Codex / Claude Code / Gemini`，并触发 `ide/logic/JuggSkillInstaller.kt` 通过代码直接完成 skill 安装（内置 zip 资源）与 MCP 配置写入（不依赖外部脚本）。  
-  - 安装弹窗提供 `View all`，运行时从插件资源 `docs/skills/install/client_setup.md` 读取模板并导出到 `build/jugg/config/client_setup.md`（`ide/logic/ClientSetupDocExporter.kt`）。  
+  - `Tools` 分组首项支持 `Install Jugg MCP and skills`，可多选 `Codex / Claude Code / Gemini`，并触发 `ide/logic/JuggSkillInstaller.kt` 通过代码直接完成 skill 安装（内置 zip 资源）与 MCP 配置写入（不依赖外部脚本，Codex `config.toml` 为幂等去重写入）。  
+  - 安装弹窗提供 `View all`，运行时从插件资源 `docs/skills/install/client_setup.md` 导出到 `build/jugg/config/client_setup.md`，并将内置 `docs/skills/jugg-android-dev-loop.zip` 同步解压到同级目录 `build/jugg/config/jugg-android-dev-loop/`；导出时会将文档内 skill 源路径改写为同级相对路径（`./jugg-android-dev-loop`），随后使用 IDE 文件编辑器直接打开导出文件（`ide/logic/ClientSetupDocExporter.kt`）。  
 - 操作入口：`ide/ui/GradleCompileAction.kt`、`RestartAppAction.kt` 等。  
 - 通知与对话框：`JuggCommonNotification.kt`、`BuildChangesConfirmDialog.kt`、`Report*Dialog.kt`。
 

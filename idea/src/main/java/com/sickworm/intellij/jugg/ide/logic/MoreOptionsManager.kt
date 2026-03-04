@@ -95,7 +95,7 @@ class MoreOptionsManager(
                 name = "Embedded to APK(for Android RemoteViews)",
                 { JuggSettings.isEmbeddedToApk  },
                 {
-                    var isConfirmed = true
+                    var isConfirmed: Boolean
                     if (!JuggSettings.isEmbeddedToApk) {
                         isConfirmed = CommonConfirmDialog.showAndGetResult(
                             "Enable Embedded to APK",
@@ -216,14 +216,6 @@ class MoreOptionsManager(
         )
 
         return items
-    }
-
-    private fun enableInjectGradleCompilation() {
-        logger.info("[options] enableInjectGradleCompilation")
-        deployHistoryManager.deleteDeployHistory()
-        enableReadProjectFromGradle()
-        enableCompatibleDeploymentMode()
-        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
     }
 
     private fun markAsSyncedAndReInitCompiler() {
@@ -356,11 +348,11 @@ class MoreOptionsManager(
     }
 
     private fun installJuggMcpAndSkills() {
-        val selectedClients = InstallMcpAndSkillsDialog.showAndGetResult(pathManager.projectDir)
+        val selectedClients = InstallMcpAndSkillsDialog.showAndGetResult(juggManager.project, pathManager.projectDir)
         if (selectedClients.isEmpty()) {
             return
         }
-        taskRunnerManager.runTaskSafe("Install Jugg MCP and skills", Runnable {
+        taskRunnerManager.runTaskSafe("Install Jugg MCP and skills", {
             val summary = JuggSkillInstaller.install(pathManager.projectDir, selectedClients, logger)
             val title: String
             val balloonMessage: String
