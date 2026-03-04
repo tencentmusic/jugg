@@ -41,6 +41,8 @@
   - 资源 ID：`btn_mcp_resource_target`（文本：`Resource Tap Target`）
   - 重复文本：`Repeat Tap Target`（两个可见节点）
   - 可见/隐藏同文案节点：`Visibility Tap Target`（一个可见、一个 `invisible`）
+  - swipe 专用可滑动区域：`sv_mcp_swipe_target`
+  - swipe 起止标记文本：`Swipe Start Marker`（初始可见）、`Swipe End Marker`（初始不可见，滑动后可见）
 
 执行 INTERACT-4~8 时优先在该页面取样，减少环境差异导致的不稳定。
 
@@ -212,7 +214,11 @@
 调用 `tap`，传入 `projectDir`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data` 中 `mode` 为 `percent`，`screenWidth` 和 `screenHeight` 有值，`x` 和 `y` 为换算后的像素坐标。
 
 **INTERACT-4: swipe 坐标模式**
-调用 `tap`，传入 `projectDir`、`action=\"swipe\"`、`x=540`、`y=1800`、`endX=540`、`endY=400`、`duration=300`，验证返回 `status` 为 `OK`，`data.action=\"swipe\"`，`mode=\"coordinate\"`，并包含起终点坐标。
+在 `MCP Test Page` 的可滑动组件 `sv_mcp_swipe_target` 上执行：
+1. 先通过 `layout_dump` 确认 `Swipe Start Marker` 可见，`Swipe End Marker` 不可见（或不在当前可见区域）。
+2. 调用 `tap`，传入 `projectDir`、`action=\"swipe\"`，并使用 `sv_mcp_swipe_target` 区域内坐标作为起终点（例如从区域下半部分向上滑到上半部分，`duration=300`）。
+3. 验证返回 `status` 为 `OK`，`data.action=\"swipe\"`，`mode=\"coordinate\"`，并包含起终点坐标。
+4. 再次 `layout_dump`，验证 `Swipe End Marker` 变为可见（且 `Swipe Start Marker` 不再处于初始位置），证明滑动发生在可滑动组件而非普通容器。
 
 **INTERACT-5: longPress 百分比模式**
 调用 `tap`，传入 `projectDir`、`action=\"longPress\"`、`xPercent=50`、`yPercent=50`、`duration=800`，验证返回 `status` 为 `OK`，`data.action=\"longPress\"`，`mode=\"percent\"`，`duration=800`。
