@@ -15,6 +15,11 @@
     - fixes could cause the IDE to stuck for some time, during initialization after downgrade completion
     - fix untracked file rollbacks on first time compile
 
+- version: 2.6.20
+  date: 2026.03.04
+  updates:
+    - Compat with some module use compileSdk = 36
+
 - version: 2.6.18
   date: 2026.02.24
   updates:
