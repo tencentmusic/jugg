@@ -52,6 +52,33 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
    - clear `${projectDir}/build/mcp_fetch/final`
    - copy final artifacts as `final_screenshot.png` / `final_record.mp4`
 
+## UI Navigation Prerequisite
+
+When a task involves **UI verification** (runtime observe, screenshot comparison, layout check, etc.), the agent **must** know how to navigate from app launch to the target debug page before starting any work.
+
+### Required: Navigation Tap Sequence
+
+A navigation tap sequence is an ordered list of tap actions (by `resourceId` or `text`) that brings the app from its launch screen to the target page. Example:
+
+```
+1. tap text="Settings"
+2. tap resourceId="menu_advanced"
+3. tap text="Debug Panel"
+```
+
+### Workflow
+
+1. **Check**: before starting a UI-related task, determine whether a navigation tap sequence to the target page is available.
+2. **Ask if missing**: if the user has not provided one, **stop and ask** the user to supply the tap sequence (id or text based). Do not guess or skip this step.
+3. **Verify first**: once obtained, execute the tap sequence on the device to confirm it reaches the expected page (use `layout_dump` or `screenshot` to verify). Only proceed with the actual task after verification passes.
+4. **Retry on failure**: if the navigation sequence fails (element not found, wrong page reached), report the failure details to the user and ask for a corrected sequence.
+
+### When This Applies
+
+- Any task that requires observing or verifying UI state on device.
+- Any task where the app will be restarted (deploy implies restart).
+- Does **not** apply to pure code modification tasks without runtime verification.
+
 ## Core Rules
 
 - `projectDir`: use current working directory by default.
