@@ -45,6 +45,16 @@ class RestartAppMcpToolAction : McpToolAction {
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
             )
         }
+        val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
+        if (!waitResult.isReady) {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = waitResult.reason ?: "restart_app failed. Reason: app is not ready after restart.",
+                data = mapOf("readyChecks" to waitResult.checks),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            )
+        }
 
         return McpToolResult(
             status = McpToolStatus.OK,

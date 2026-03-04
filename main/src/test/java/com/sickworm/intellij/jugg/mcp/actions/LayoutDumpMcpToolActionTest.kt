@@ -21,7 +21,9 @@ import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import org.junit.After
 import org.junit.Assert
+import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
@@ -33,6 +35,15 @@ import java.nio.charset.StandardCharsets
  * LayoutDumpMcpToolActionTest verifies app-side server-only behavior (no uiautomator fallback).
  */
 class LayoutDumpMcpToolActionTest {
+    @Before
+    fun setUp() {
+        McpAppReadyGuard.resetForTest()
+    }
+
+    @After
+    fun tearDown() {
+        McpAppReadyGuard.resetForTest()
+    }
 
     @Test
     fun testLayoutDumpUsesServerInlineJsonWhenAvailable() {
@@ -137,6 +148,31 @@ class LayoutDumpMcpToolActionTest {
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+    }
+
+    @Test
+    fun testLayoutDumpReturnsErrorWhenAppNotReadyAfterRetries() {
+        McpAppReadyGuard.preTimeoutOverrideForTest = 8L
+        McpAppReadyGuard.prePollIntervalOverrideForTest = 1L
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_not_ready_")
+        var checks = 0
+        val setup = setup(
+            projectDir = projectDir,
+            packageName = "com.example.app",
+            isAppReadyProvider = {
+                checks += 1
+                false
+            },
+        )
+        val action = LayoutDumpMcpToolAction()
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java).use { construction ->
+            val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertTrue(result.message.contains("app is not ready"))
+            Assert.assertTrue(checks >= 2)
+            Assert.assertEquals(0, construction.constructed().size)
+        }
     }
 
     @Test
@@ -251,6 +287,7 @@ class LayoutDumpMcpToolActionTest {
     private fun setup(
         projectDir: File,
         packageName: String? = null,
+        isAppReadyProvider: () -> Boolean = { true },
     ): SetupResult {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
@@ -263,12 +300,16 @@ class LayoutDumpMcpToolActionTest {
             Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(packageName)
         }
         return SetupResult(
-            runtime = buildRuntime(projectDir, deployTargetManager),
+            runtime = buildRuntime(projectDir, deployTargetManager, isAppReadyProvider),
             adb = adb,
         )
     }
 
-    private fun buildRuntime(projectDir: File, deployTargetManager: IDeployTargetManager): IMcpRuntime {
+    private fun buildRuntime(
+        projectDir: File,
+        deployTargetManager: IDeployTargetManager,
+        isAppReadyProvider: () -> Boolean = { true },
+    ): IMcpRuntime {
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
         return object : IMcpRuntime {
@@ -306,6 +347,10 @@ class LayoutDumpMcpToolActionTest {
                 override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean): JuggRunInvocationResult {
                     throw UnsupportedOperationException("not used")
                 }
+            }
+
+            override fun isAppReadyDeploy(): Boolean {
+                return isAppReadyProvider()
             }
         }
     }

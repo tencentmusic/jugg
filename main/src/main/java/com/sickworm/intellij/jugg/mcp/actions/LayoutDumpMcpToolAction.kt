@@ -90,6 +90,11 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 logger.warn("layout_dump failed: no online device")
                 return noDeviceResult("layout_dump")
             }
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        if (!preWaitResult.isReady) {
+            logger.warn("layout_dump failed: app not ready after pre-check retries")
+            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult("layout_dump", "app is not ready")
+        }
         val adb = selected.adb
         val toolDir = ensureToolDir(runtime, "layout_dump")
             ?: run {
@@ -105,51 +110,56 @@ class LayoutDumpMcpToolAction : McpToolAction {
         val jsonFileName = "layout_${System.currentTimeMillis()}.json"
         val localJsonFile = File(toolDir, jsonFileName)
 
-        return try {
-            val client = ViewHierarchyClient(adb, packageName)
-            val excludeGone = !isIncludeGone
-            val dumpResult = client.dumpLayout(rootLayout, excludeGone)
-                ?: return McpToolResult.internalErrorResult(
-                    "layout_dump",
-                    "ViewHierarchy server is unavailable or returned invalid response"
+        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+            try {
+                val client = ViewHierarchyClient(adb, packageName)
+                val excludeGone = !isIncludeGone
+                val dumpResult = client.dumpLayout(rootLayout, excludeGone)
+                    ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
+                        "layout_dump",
+                        "ViewHierarchy server is unavailable or returned invalid response"
+                    )
+                val payloadJson = dumpResult.payloadJson
+                val remoteFilePath = dumpResult.remoteFilePath
+                if (!payloadJson.isNullOrBlank()) {
+                    localJsonFile.writeText(payloadJson, StandardCharsets.UTF_8)
+                } else if (!remoteFilePath.isNullOrBlank()) {
+                    adb.pull(remoteFilePath, localJsonFile)
+                }
+                if (!localJsonFile.exists() || localJsonFile.length() <= 0) {
+                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
+                        "layout_dump",
+                        "failed to fetch layout dump from ViewHierarchy server"
+                    )
+                }
+
+                val jsonContent = localJsonFile.readText(StandardCharsets.UTF_8)
+                val jsonElement = JsonParser.parseString(jsonContent)
+                val summary = buildSummaryMessage(jsonElement)
+                val contentBytes = jsonContent.toByteArray(StandardCharsets.UTF_8).size
+                val thresholdKb = clampInlineMaxKb(inlineMaxKb)
+                val inlineOmitted = contentBytes > thresholdKb * 1024
+                val data = mutableMapOf<String, Any>(
+                    "file" to localJsonFile.absolutePath,
+                    "contentBytes" to contentBytes,
+                    "inlineOmitted" to inlineOmitted,
+                    "inlineThresholdKb" to thresholdKb,
                 )
-            val payloadJson = dumpResult.payloadJson
-            val remoteFilePath = dumpResult.remoteFilePath
-            if (!payloadJson.isNullOrBlank()) {
-                localJsonFile.writeText(payloadJson, StandardCharsets.UTF_8)
-            } else if (!remoteFilePath.isNullOrBlank()) {
-                adb.pull(remoteFilePath, localJsonFile)
-            }
-            if (!localJsonFile.exists() || localJsonFile.length() <= 0) {
-                return McpToolResult.internalErrorResult("layout_dump", "failed to fetch layout dump from ViewHierarchy server")
-            }
+                if (!inlineOmitted) {
+                    data["content"] = jsonElement
+                }
 
-            val jsonContent = localJsonFile.readText(StandardCharsets.UTF_8)
-            val jsonElement = JsonParser.parseString(jsonContent)
-            val summary = buildSummaryMessage(jsonElement)
-            val contentBytes = jsonContent.toByteArray(StandardCharsets.UTF_8).size
-            val thresholdKb = clampInlineMaxKb(inlineMaxKb)
-            val inlineOmitted = contentBytes > thresholdKb * 1024
-            val data = mutableMapOf<String, Any>(
-                "file" to localJsonFile.absolutePath,
-                "contentBytes" to contentBytes,
-                "inlineOmitted" to inlineOmitted,
-                "inlineThresholdKb" to thresholdKb,
-            )
-            if (!inlineOmitted) {
-                data["content"] = jsonElement
+                McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = summary,
+                    data = data,
+                    artifacts = listOf(McpArtifact(type = "json", path = localJsonFile.absolutePath)),
+                    errorCode = null,
+                )
+            } catch (e: Exception) {
+                logger.warn("layout_dump failed with exception: ${e.message}", e)
+                McpToolResult.internalErrorResult("layout_dump", e.message ?: "unknown error")
             }
-
-            McpToolResult(
-                status = McpToolStatus.OK,
-                message = summary,
-                data = data,
-                artifacts = listOf(McpArtifact(type = "json", path = localJsonFile.absolutePath)),
-                errorCode = null,
-            )
-        } catch (e: Exception) {
-            logger.warn("layout_dump failed with exception: ${e.message}", e)
-            McpToolResult.internalErrorResult("layout_dump", e.message ?: "unknown error")
         }
     }
 

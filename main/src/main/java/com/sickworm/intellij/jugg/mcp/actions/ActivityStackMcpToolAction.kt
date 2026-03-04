@@ -58,42 +58,51 @@ class ActivityStackMcpToolAction : McpToolAction {
     private fun activityStackAction(runtime: IMcpRuntime): McpToolResult {
         val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult("activity_stack")
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        if (!preWaitResult.isReady) {
+            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult("activity_stack", "app is not ready")
+        }
         val adb = selected.adb
         val sourceCommand = "dumpsys activity activities"
 
-        return try {
-            val dumpOutput = adb.execAdbShellCmd(sourceCommand)
-            if (dumpOutput.isBlank()) {
-                return McpToolResult.internalErrorResult("activity_stack", "empty dumpsys output")
+        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+            try {
+                val dumpOutput = adb.execAdbShellCmd(sourceCommand)
+                if (dumpOutput.isBlank()) {
+                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult("activity_stack", "empty dumpsys output")
+                }
+
+                val toolDir = ensureToolDir(runtime, "activity_stack")
+                    ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
+                        "activity_stack",
+                        "failed to prepare artifact directory"
+                    )
+                val dumpFile = File(toolDir, "activity_stack_${System.currentTimeMillis()}.txt")
+                dumpFile.writeText(dumpOutput)
+
+                val parsedEntries = parseActivityEntries(dumpOutput)
+                val topContext = findTopContext(dumpOutput, parsedEntries)
+                val activities = buildActivitiesTopToBottom(topContext, parsedEntries)
+
+                val data = mutableMapOf<String, Any>(
+                    "activities" to activities,
+                    "dumpFile" to dumpFile.absolutePath,
+                    "sourceCommand" to sourceCommand,
+                )
+                if (!topContext.activity.isNullOrBlank()) {
+                    data["topActivity"] = topContext.activity
+                }
+
+                McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "activity_stack executed successfully.",
+                    data = data,
+                    artifacts = listOf(McpArtifact(type = "text", path = dumpFile.absolutePath)),
+                    errorCode = null,
+                )
+            } catch (e: Exception) {
+                McpToolResult.internalErrorResult("activity_stack", e.message ?: "unknown error")
             }
-
-            val toolDir = ensureToolDir(runtime, "activity_stack")
-                ?: return McpToolResult.internalErrorResult("activity_stack", "failed to prepare artifact directory")
-            val dumpFile = File(toolDir, "activity_stack_${System.currentTimeMillis()}.txt")
-            dumpFile.writeText(dumpOutput)
-
-            val parsedEntries = parseActivityEntries(dumpOutput)
-            val topContext = findTopContext(dumpOutput, parsedEntries)
-            val activities = buildActivitiesTopToBottom(topContext, parsedEntries)
-
-            val data = mutableMapOf<String, Any>(
-                "activities" to activities,
-                "dumpFile" to dumpFile.absolutePath,
-                "sourceCommand" to sourceCommand,
-            )
-            if (!topContext.activity.isNullOrBlank()) {
-                data["topActivity"] = topContext.activity
-            }
-
-            McpToolResult(
-                status = McpToolStatus.OK,
-                message = "activity_stack executed successfully.",
-                data = data,
-                artifacts = listOf(McpArtifact(type = "text", path = dumpFile.absolutePath)),
-                errorCode = null,
-            )
-        } catch (e: Exception) {
-            McpToolResult.internalErrorResult("activity_stack", e.message ?: "unknown error")
         }
     }
 

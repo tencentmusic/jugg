@@ -161,20 +161,27 @@ class TapMcpToolAction : McpToolAction {
                 logger.warn("tap failed: no online device")
                 return noDeviceResult("tap")
             }
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        if (!preWaitResult.isReady) {
+            logger.warn("tap failed: app not ready after pre-check timeout")
+            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult("tap", "app is not ready")
+        }
         val adb = selected.adb
         val packageName = resolvePackageName(runtime)
 
-        return when (action) {
-            "tap" -> executeTap(arguments, adb, packageName, logger)
-            "longPress" -> executeLongPress(arguments, adb, packageName, logger)
-            "swipe" -> executeSwipe(arguments, adb, logger)
-            else -> McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "tap failed. Reason: Unsupported action: $action. Use tap, longPress, or swipe.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
-            )
+        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+            when (action) {
+                "tap" -> executeTap(arguments, adb, packageName, logger)
+                "longPress" -> executeLongPress(arguments, adb, packageName, logger)
+                "swipe" -> executeSwipe(arguments, adb, logger)
+                else -> McpToolResult(
+                    status = McpToolStatus.ERROR,
+                    message = "tap failed. Reason: Unsupported action: $action. Use tap, longPress, or swipe.",
+                    data = emptyMap<String, Any>(),
+                    artifacts = emptyList(),
+                    errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                )
+            }
         }
     }
 

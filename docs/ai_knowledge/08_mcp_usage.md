@@ -51,6 +51,12 @@
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
 
+补充（App 在线等待阻塞）：
+- `restart_app`、`compile_and_deploy`、`force_gradle_compile`、`clean_reinstall_apk` 在成功路径会后置等待 App 在线（判断口径：`deployStateManager.updateDeployState().isReadyDeploy`）。
+- `compile_and_deploy` / `force_gradle_compile` 若走异步返回，在线等待会体现在最终 `get_compile_status` 结果里（最终可能因为 App 未就绪而失败）。
+- `layout_dump`、`activity_stack`、`screenshot`、`tap` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
+- 若前置等待过程中发生过实际等待（并非首检即 ready），且本次工具调用返回失败，会自动重试最多 3 次，重试间隔 2s（仅用于内部/瞬时失败）。
+
 > 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
 
 补充（录屏工具容错语义）：

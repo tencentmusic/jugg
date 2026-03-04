@@ -25,7 +25,9 @@ import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import org.junit.After
 import org.junit.Assert
+import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 import java.io.File
@@ -34,6 +36,15 @@ import java.io.File
  * TapMcpToolActionTest validates tap/longPress/swipe actions and element-mode server behavior.
  */
 class TapMcpToolActionTest {
+    @Before
+    fun setUpGuard() {
+        McpAppReadyGuard.resetForTest()
+    }
+
+    @After
+    fun tearDownGuard() {
+        McpAppReadyGuard.resetForTest()
+    }
 
     @Test
     fun testDefaultTapActionCoordinateMode() {
@@ -471,6 +482,38 @@ class TapMcpToolActionTest {
         Assert.assertTrue(result.message.contains("No valid tap mode"))
     }
 
+    @Test
+    fun testTapRetriesAfterPreWaitWhenFirstAttemptFails() {
+        McpAppReadyGuard.preTimeoutOverrideForTest = 10L
+        McpAppReadyGuard.prePollIntervalOverrideForTest = 1L
+        McpAppReadyGuard.preFailureRetryIntervalOverrideForTest = 0L
+        var inputTapCount = 0
+        val (action, adb) = setup(
+            commandBehavior = { cmd, _ ->
+                if (cmd.startsWith("input tap ")) {
+                    inputTapCount++
+                    if (inputTapCount == 1) {
+                        throw RuntimeException("transient tap error")
+                    }
+                }
+                ""
+            }
+        )
+        var readyChecks = 0
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200),
+            runtime(
+                isAppReadyProvider = {
+                    readyChecks++
+                    readyChecks >= 2
+                }
+            ),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertEquals(2, inputTapCount)
+        Assert.assertEquals(2, adb.executedCommands.count { it == "input tap 100 200" })
+    }
+
     private fun matchedElementData(): MatchedElementData {
         return MatchedElementData(
             text = "Login",
@@ -488,9 +531,10 @@ class TapMcpToolActionTest {
     private fun setup(
         shellOutputs: Map<String, String> = emptyMap(),
         packageName: String? = null,
+        commandBehavior: ((String, Int) -> String)? = null,
     ): Pair<TapMcpToolAction, FakeDeviceAdb> {
         val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb(shellOutputs)
+        val adb = FakeDeviceAdb(shellOutputs, commandBehavior)
         PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
@@ -505,7 +549,10 @@ class TapMcpToolActionTest {
 
     private var currentDeployTargetManager: IDeployTargetManager? = null
 
-    private fun runtime(dtm: IDeployTargetManager? = null): IMcpRuntime {
+    private fun runtime(
+        dtm: IDeployTargetManager? = null,
+        isAppReadyProvider: () -> Boolean = { true },
+    ): IMcpRuntime {
         val deployTargetManager = dtm ?: currentDeployTargetManager!!
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn("/tmp/test")
@@ -545,6 +592,10 @@ class TapMcpToolActionTest {
                     throw UnsupportedOperationException("not used")
                 }
             }
+
+            override fun isAppReadyDeploy(): Boolean {
+                return isAppReadyProvider()
+            }
         }
     }
 
@@ -554,6 +605,7 @@ class TapMcpToolActionTest {
 
     private class FakeDeviceAdb(
         private val shellOutputs: Map<String, String> = emptyMap(),
+        private val commandBehavior: ((String, Int) -> String)? = null,
     ) : IDeviceAdb {
         override val displayName: String? = "fake_device"
         override val api: Int = 34
@@ -561,9 +613,15 @@ class TapMcpToolActionTest {
         override val isOnline: Boolean = true
 
         val executedCommands = mutableListOf<String>()
+        private var commandCount: Int = 0
 
         override fun execAdbShellCmd(cmd: String): String {
             executedCommands.add(cmd)
+            commandCount += 1
+            val custom = commandBehavior
+            if (custom != null) {
+                return custom(cmd, commandCount)
+            }
             return shellOutputs[cmd].orEmpty()
         }
 

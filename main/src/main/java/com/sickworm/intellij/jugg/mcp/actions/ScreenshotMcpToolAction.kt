@@ -61,6 +61,10 @@ class ScreenshotMcpToolAction : McpToolAction {
     private fun screenshotAction(runtime: IMcpRuntime): McpToolResult {
         val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult("screenshot")
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        if (!preWaitResult.isReady) {
+            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult("screenshot", "app is not ready")
+        }
         val adb = selected.adb
         val toolDir = ensureToolDir(runtime, "screenshot")
             ?: return McpToolResult.internalErrorResult("screenshot", "failed to prepare artifact directory")
@@ -70,25 +74,27 @@ class ScreenshotMcpToolAction : McpToolAction {
         val remoteDir = "/sdcard/Download/jugg_mcp"
         val remoteFile = "$remoteDir/$fileName"
 
-        return try {
-            adb.execAdbShellCmd("mkdir -p $remoteDir")
-            adb.execAdbShellCmd("screencap -p $remoteFile")
-            if (!adb.pull(remoteFile, localFile) || !localFile.exists()) {
-                return McpToolResult.internalErrorResult("screenshot", "failed to pull screenshot file")
-            }
-            val outputFile = optimizeForUpload(localFile)
+        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+            try {
+                adb.execAdbShellCmd("mkdir -p $remoteDir")
+                adb.execAdbShellCmd("screencap -p $remoteFile")
+                if (!adb.pull(remoteFile, localFile) || !localFile.exists()) {
+                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult("screenshot", "failed to pull screenshot file")
+                }
+                val outputFile = optimizeForUpload(localFile)
 
-            McpToolResult(
-                status = McpToolStatus.OK,
-                message = "screenshot executed successfully.",
-                data = mapOf(
-                    "file" to outputFile.absolutePath,
-                ),
-                artifacts = listOf(McpArtifact(type = "image", path = outputFile.absolutePath)),
-                errorCode = null,
-            )
-        } catch (e: Exception) {
-            McpToolResult.internalErrorResult("screenshot", e.message ?: "unknown error")
+                McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "screenshot executed successfully.",
+                    data = mapOf(
+                        "file" to outputFile.absolutePath,
+                    ),
+                    artifacts = listOf(McpArtifact(type = "image", path = outputFile.absolutePath)),
+                    errorCode = null,
+                )
+            } catch (e: Exception) {
+                McpToolResult.internalErrorResult("screenshot", e.message ?: "unknown error")
+            }
         }
     }
 

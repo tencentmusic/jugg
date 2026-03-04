@@ -25,11 +25,13 @@ class CompileAndDeployMcpToolActionTest {
     @Before
     fun setUp() {
         CompileJobManager.resetForTest()
+        McpAppReadyGuard.resetForTest()
     }
 
     @After
     fun tearDown() {
         CompileJobManager.resetForTest()
+        McpAppReadyGuard.resetForTest()
     }
 
     @Test
@@ -101,20 +103,29 @@ class CompileAndDeployMcpToolActionTest {
     @Test
     fun testTimeoutReturnsRunningThenJobCanReachFinalState() {
         CompileJobManager.softTimeoutMillisOverrideForTest = 10L
+        McpAppReadyGuard.postTimeoutOverrideForTest = 1_500L
+        McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
         val action = CompileAndDeployMcpToolAction()
-        val runtime = runtimeWithRunner {
-            Thread.sleep(80L)
-            JuggRunInvocationResult(
-                isSuccess = true,
-                runResult = RunResult(
-                    isGradleCompile = false,
-                    isCompileSuccess = true,
-                    isDeploySuccess = true,
-                    isCancel = false,
-                ),
-                detail = "",
-            )
-        }
+        var readyChecks = 0
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                Thread.sleep(80L)
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = true,
+                        isCancel = false,
+                    ),
+                    detail = "",
+                )
+            },
+            isAppReadyProvider = {
+                readyChecks += 1
+                readyChecks >= 2
+            },
+        )
 
         val result = action.execute(emptyMap(), runtime)
 
@@ -134,11 +145,43 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals("success", finalState.status)
     }
 
-    private fun runtimeWithResult(result: JuggRunInvocationResult): IMcpRuntime {
-        return runtimeWithRunner { result }
+    @Test
+    fun testCompileSuccessTurnsFailedWhenAppNeverGetsReady() {
+        McpAppReadyGuard.postTimeoutOverrideForTest = 5L
+        McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
+        val action = CompileAndDeployMcpToolAction()
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = true,
+                        isCancel = false,
+                    ),
+                    detail = "",
+                )
+            },
+            isAppReadyProvider = { false },
+        )
+
+        val result = action.execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("failed", data["status"])
     }
 
-    private fun runtimeWithRunner(runFirstConfiguration: () -> JuggRunInvocationResult): IMcpRuntime {
+    private fun runtimeWithResult(result: JuggRunInvocationResult): IMcpRuntime {
+        return runtimeWithRunner(runFirstConfiguration = { result })
+    }
+
+    private fun runtimeWithRunner(
+        runFirstConfiguration: () -> JuggRunInvocationResult,
+        isAppReadyProvider: () -> Boolean = { true },
+    ): IMcpRuntime {
         return object : IMcpRuntime {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
@@ -183,6 +226,10 @@ class CompileAndDeployMcpToolActionTest {
                 override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean): JuggRunInvocationResult {
                     return runFirstConfiguration()
                 }
+            }
+
+            override fun isAppReadyDeploy(): Boolean {
+                return isAppReadyProvider()
             }
         }
     }

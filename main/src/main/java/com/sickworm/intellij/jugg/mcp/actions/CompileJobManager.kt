@@ -38,10 +38,11 @@ object CompileJobManager {
                 val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlocking(
                     autoConfirm = true,
                 )
-                CompileJobExecutionResult(
+                val initialResult = CompileJobExecutionResult(
                     status = result.status,
                     message = result.message,
                 )
+                waitAppReadyIfSuccess(runtime, "force_gradle_compile", initialResult)
             },
         )
     }
@@ -75,11 +76,12 @@ object CompileJobManager {
                 } else {
                     "Jugg compile finished with status=$finalStatus."
                 }
-                CompileJobExecutionResult(
+                val initialResult = CompileJobExecutionResult(
                     status = finalStatus,
                     message = finalMessage,
                     runInvocationResult = runResponse,
                 )
+                waitAppReadyIfSuccess(runtime, "compile_and_deploy", initialResult)
             },
         )
     }
@@ -204,6 +206,24 @@ object CompileJobManager {
             "running", "success", "failed", "canceled", "unknown" -> raw.lowercase()
             else -> "failed"
         }
+    }
+
+    private fun waitAppReadyIfSuccess(
+        runtime: IMcpRuntime,
+        toolName: String,
+        result: CompileJobExecutionResult,
+    ): CompileJobExecutionResult {
+        if (result.status != "success") {
+            return result
+        }
+        val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
+        if (waitResult.isReady) {
+            return result
+        }
+        return result.copy(
+            status = "failed",
+            message = waitResult.reason ?: "$toolName finished but app is not ready.",
+        )
     }
 
     fun buildPollSuggestionData(): Map<String, Any> {
