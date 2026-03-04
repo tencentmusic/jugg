@@ -26,7 +26,6 @@ class ConstRefEngine(
     private val stateLock = Any()
     private val changeTracker = ConstRefChangeTracker()
     private val impactResolver = ConstRefImpactResolver(database)
-    private val lookupMode = LookupMode.fromSystemProperty()
     private val sessionCache = ConstRefSessionCache(
         fileCacheMaxFiles = readPositiveIntProperty(SESSION_FILE_CACHE_MAX_PROPERTY, DEFAULT_SESSION_FILE_CACHE_MAX),
         lookupCacheMaxKeys = readPositiveIntProperty(SESSION_LOOKUP_CACHE_MAX_PROPERTY, DEFAULT_SESSION_LOOKUP_CACHE_MAX),
@@ -35,9 +34,6 @@ class ConstRefEngine(
     private val pendingAnalyzeFiles = linkedSetOf<String>()
     private var currentEditingFile: String? = null
     private val analyzedAt = mutableMapOf<String, Long>()
-    private val cachedDefinitionsByFile = mutableMapOf<String, List<ConstDefinition>>()
-    private val definitionIndex = ConstDefinitionIndex()
-    private var definitionIndexInitialized = false
     private val trackedSourceDirs = mutableListOf<String>()
     private val fullScanReadySourceDirs = mutableSetOf<String>()
     private val cacheCleaner = ConstRefCacheCleaner(logger)
@@ -52,7 +48,6 @@ class ConstRefEngine(
         readNonNegativeLongProperty(FULL_SCAN_LOG_INTERVAL_MS_PROPERTY, DEFAULT_FULL_SCAN_LOG_INTERVAL_MS)
 
     init {
-        logger.info("ConstRefEngine lookup mode=$lookupMode")
         if (ioThrottleSleepMs > 0L) {
             logger.info("ConstRefEngine io throttle enabled, " +
                     "sleepMs=$ioThrottleSleepMs, everyNFiles=$ioThrottleEveryNFiles")
@@ -83,10 +78,6 @@ class ConstRefEngine(
         }
         changeTracker.onFileDeleted(stdPath)
         analysisMutex.withLock {
-            if (lookupMode == LookupMode.LEGACY && definitionIndexInitialized) {
-                removeDefinitionsFromIndexLocked(stdPath)
-                removeDefinitionsByPrefixFromIndexLocked("$stdPath/")
-            }
             sessionCache.removeFile(stdPath)
             sessionCache.removeFilesByPrefix("$stdPath/")
         }
@@ -300,9 +291,6 @@ class ConstRefEngine(
         }
         analysisMutex.withLock {
             database.registerPathHints(files.map { it.toStdPath() })
-            if (lookupMode == LookupMode.LEGACY) {
-                ensureDefinitionIndexInitializedLocked()
-            }
             val existingFiles = mutableListOf<File>()
             files.distinctBy { it.toStdPath() }.forEach { file ->
                 val path = file.toStdPath()
@@ -380,25 +368,8 @@ class ConstRefEngine(
                 path to loadPreviousDefinitionsLocked(path)
             }
             val parsedDefinitionsByPath = analyzer.parseDefinitions(changedFiles)
-            if (lookupMode == LookupMode.LEGACY) {
-                changedFiles.forEach { file ->
-                    val path = file.toStdPath()
-                    val definitions = parsedDefinitionsByPath[path].orEmpty()
-                    if (definitions.isEmpty()) {
-                        cachedDefinitionsByFile.remove(path)
-                    } else {
-                        cachedDefinitionsByFile[path] = definitions
-                    }
-                    definitionIndex.replaceFileDefinitions(path, definitions)
-                }
-            } else {
-                sessionCache.clearLookupCache()
-            }
-            val parsedReferencesByPath = if (lookupMode == LookupMode.LEGACY) {
-                analyzer.parseReferences(changedFiles, definitionIndex)
-            } else {
-                parseReferencesByDbSessionMode(changedFiles, parsedDefinitionsByPath)
-            }
+            sessionCache.clearLookupCache()
+            val parsedReferencesByPath = parseReferencesByDbSessionMode(changedFiles, parsedDefinitionsByPath)
             changedFiles.forEach { file ->
                 val path = file.toStdPath()
                 val definitions = parsedDefinitionsByPath[path].orEmpty()
@@ -415,20 +386,16 @@ class ConstRefEngine(
                     previousDefinitions = previousDefinitionsByPath[path].orEmpty(),
                     currentDefinitions = definitions,
                 )
-                if (lookupMode == LookupMode.DB_SESSION) {
-                    sessionCache.putFileAnalysis(
-                        filePath = path,
-                        lastModified = file.lastModified(),
-                        checksum = checksumMap[path] ?: 0L,
-                        definitions = definitions,
-                        references = references,
-                    )
-                }
+                sessionCache.putFileAnalysis(
+                    filePath = path,
+                    lastModified = file.lastModified(),
+                    checksum = checksumMap[path] ?: 0L,
+                    definitions = definitions,
+                    references = references,
+                )
                 markAnalyzed(path)
             }
-            if (lookupMode == LookupMode.DB_SESSION) {
-                sessionCache.clearLookupCache()
-            }
+            sessionCache.clearLookupCache()
         }
     }
 
@@ -855,16 +822,9 @@ class ConstRefEngine(
         filePath: String,
         mtimeChecksum: Long? = database.getMtimeMapChecksum(filePath),
     ): List<ConstDefinition> {
-        if (lookupMode == LookupMode.LEGACY) {
-            val cachedDefinitions = cachedDefinitionsByFile[filePath]
-            if (cachedDefinitions != null) {
-                return cachedDefinitions
-            }
-        } else {
-            val cachedDefinitions = sessionCache.getFileDefinitions(filePath)
-            if (cachedDefinitions != null) {
-                return cachedDefinitions
-            }
+        val cachedDefinitions = sessionCache.getFileDefinitions(filePath)
+        if (cachedDefinitions != null) {
+            return cachedDefinitions
         }
         if (mtimeChecksum != null) {
             val definitions = database.getDefinitionsByFileAndChecksum(filePath, mtimeChecksum)
@@ -879,15 +839,7 @@ class ConstRefEngine(
      * so that the next diff is based on the correct baseline.
      */
     private fun updatePreviousDefinitionsLocked(filePath: String, definitions: List<ConstDefinition>) {
-        if (lookupMode == LookupMode.LEGACY) {
-            if (definitions.isEmpty()) {
-                cachedDefinitionsByFile.remove(filePath)
-            } else {
-                cachedDefinitionsByFile[filePath] = definitions
-            }
-        } else {
-            sessionCache.putFileDefinitions(filePath, definitions)
-        }
+        sessionCache.putFileDefinitions(filePath, definitions)
     }
 
     private fun areSameDefinitions(a: List<ConstDefinition>, b: List<ConstDefinition>): Boolean {
@@ -898,40 +850,8 @@ class ConstRefEngine(
     }
 
     private fun removeDefinitionsFromLookupStateLocked(filePath: String) {
-        if (lookupMode == LookupMode.LEGACY && definitionIndexInitialized) {
-            removeDefinitionsFromIndexLocked(filePath)
-        }
         sessionCache.removeFile(filePath)
         sessionCache.clearLookupCache()
-    }
-
-    private fun ensureDefinitionIndexInitializedLocked() {
-        if (definitionIndexInitialized) {
-            return
-        }
-        database.registerPathHints(trackedSourceDirs)
-        cachedDefinitionsByFile.clear()
-        database.getAllDefinitions()
-            .groupBy { it.filePath }
-            .forEach { (filePath, definitions) ->
-                cachedDefinitionsByFile[filePath] = definitions
-                definitionIndex.replaceFileDefinitions(filePath, definitions)
-            }
-        definitionIndexInitialized = true
-    }
-
-    private fun removeDefinitionsFromIndexLocked(filePath: String) {
-        cachedDefinitionsByFile.remove(filePath)
-        definitionIndex.removeFileDefinitions(filePath)
-    }
-
-    private fun removeDefinitionsByPrefixFromIndexLocked(prefixPath: String) {
-        val pathsToRemove = cachedDefinitionsByFile.keys
-            .filter { it.startsWith(prefixPath) }
-            .toList()
-        pathsToRemove.forEach { path ->
-            removeDefinitionsFromIndexLocked(path)
-        }
     }
 
     private fun ConstDefinition.uniqueDefinitionKey(): String {
@@ -1129,22 +1049,7 @@ class ConstRefEngine(
         var runningJob: Job? = null,
     )
 
-    private enum class LookupMode {
-        LEGACY,
-        DB_SESSION;
-
-        companion object {
-            fun fromSystemProperty(): LookupMode {
-                return when (System.getProperty(ConstRefEngine.LOOKUP_MODE_PROPERTY)?.trim()?.lowercase()) {
-                    "db_session" -> DB_SESSION
-                    else -> LEGACY
-                }
-            }
-        }
-    }
-
     companion object {
-        private const val LOOKUP_MODE_PROPERTY = "jugg.constref.lookup.mode"
         private const val IO_THROTTLE_MS_PROPERTY = "jugg.constref.io.throttle.ms"
         private const val IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.io.throttle.every"
         private const val FULL_SCAN_LOG_INTERVAL_MS_PROPERTY = "jugg.constref.full.scan.log.interval.ms"

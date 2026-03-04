@@ -51,9 +51,7 @@
 
 - 串行调度分析任务（避免并发解析冲突）；
 - 管理“当前编辑文件/待分析队列/分析完成时间戳”；
-- 支持 `lookup.mode=legacy|db_session` 双路径：
-- `legacy`：维护 `ConstDefinitionIndex` 全量内存索引；
-- `db_session`：以 `ConstRefCacheDatabase` 为主数据源，结合 `ConstRefSessionCache`（LRU+TTL）做会话热点缓存；
+- 以 `ConstRefCacheDatabase` 为主数据源，结合 `ConstRefSessionCache`（LRU+TTL）做会话热点缓存；
 - 维护三层 checksum 命中链路：`mtime-map -> RepoSharedFingerprintStore -> CRC32`；
 - 在预编译点强制冲刷待分析队列，尽量保证结果新鲜；
 - 异步触发 `ConstRefCacheCleaner` 做 TTL/版本上限清理，不阻塞主流程；
@@ -76,8 +74,7 @@
 - `ConstRefChangeTracker.changedDefinitionKeys`：文件真实变化的 `(fqClassName, constName)` 集；
 - `ConstRefChangeTracker.removedDefinitionKeys`：文件删掉的 `(fqClassName, constName)` 集；
 - `trackedSourceDirs` + `fullScanReadySourceDirs`：全量扫描目录与就绪标记；
-- `definitionIndex` + `cachedDefinitionsByFile`：`legacy` 模式下的当前定义索引快照；
-- `sessionCache(fileCache+lookupCache)`：`db_session` 模式下会话热点缓存。
+- `sessionCache(fileCache+lookupCache)`：会话热点缓存。
 
 ### 3.4 核心 API 行为
 
@@ -150,8 +147,7 @@ Kotlin 引用覆盖：
 
 ### 5.1 查找模式与内存缓存
 
-- `legacy`：使用 `ConstDefinitionIndex` 做全量内存查找，支持按 `class+const / package+const / constName / simpleClassName` 查询。
-- `db_session`：不做全量预加载；每个待解析文件先用线索回源 DB 查询候选 definitions，再构建临时 `ConstDefinitionIndex` 仅用于当前文件引用解析。
+- 不做全量预加载；每个待解析文件先用线索回源 DB 查询候选 definitions，再构建临时 `ConstDefinitionIndex` 仅用于当前文件引用解析。
 - `ConstRefSessionCache`：
 - `fileCache`：缓存会话内已访问文件的 definitions/references（用于增量 diff 快速命中）；
 - `lookupCache`：缓存 `constName / class+const / package+const / simpleClassName` 查询结果；
@@ -205,7 +201,6 @@ Kotlin 引用覆盖：
 另外支持 IO 限频（系统属性）：
 - `jugg.constref.io.throttle.ms`：每次节流 sleep 的毫秒数（默认 `0`，即关闭）；
 - `jugg.constref.io.throttle.every`：每处理 N 个文件触发一次 sleep（默认 `1`）。
-- `jugg.constref.lookup.mode`：`legacy|db_session`（默认 `legacy`）；
 - `jugg.constref.session.file.cache.max`：会话文件缓存上限（默认 `500`）；
 - `jugg.constref.session.lookup.cache.max`：会话查询缓存 key 上限（默认 `4000`）；
 - `jugg.constref.session.cache.ttl.ms`：会话缓存 TTL（默认 `900000`ms）。

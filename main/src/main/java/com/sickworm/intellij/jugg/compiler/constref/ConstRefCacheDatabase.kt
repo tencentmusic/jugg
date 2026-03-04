@@ -33,10 +33,10 @@ class ConstRefCacheDatabase(
         var recreateReason = ""
         withConnection { connection ->
             val schemaVersion = readSchemaVersion(connection)
-            val hasLegacySchema = tableExists(connection, "file_cache")
-            if (schemaVersion != DB_SCHEMA_VERSION && (schemaVersion != 0 || hasLegacySchema)) {
+            val hasOldSchemaTable = tableExists(connection, "file_cache")
+            if (schemaVersion != DB_SCHEMA_VERSION && (schemaVersion != 0 || hasOldSchemaTable)) {
                 needRecreate = true
-                recreateReason = "schema_version=$schemaVersion legacy=$hasLegacySchema"
+                recreateReason = "schema_version=$schemaVersion has_old_schema_table=$hasOldSchemaTable"
             } else {
                 ensureSchema(connection)
             }
@@ -965,115 +965,6 @@ class ConstRefCacheDatabase(
         )
     }
 
-    /**
-     * Import legacy project-local const-ref db (`build/jugg/database/const_ref.db`) into shared schema.
-     */
-    @Synchronized
-    fun importLegacyProjectDatabase(legacyDbFile: File): ImportResult {
-        if (!legacyDbFile.exists() || legacyDbFile.absolutePath == dbFile.absolutePath) {
-            return ImportResult(skipped = true, importedFiles = 0, importedDefinitions = 0, importedReferences = 0)
-        }
-        return runCatching {
-            DriverManager.getConnection("jdbc:sqlite:${legacyDbFile.absolutePath}").use { legacyConnection ->
-                if (!tableExists(legacyConnection, "file_cache")) {
-                    return@use ImportResult(
-                        skipped = true,
-                        importedFiles = 0,
-                        importedDefinitions = 0,
-                        importedReferences = 0,
-                    )
-                }
-                val fileRows = mutableListOf<LegacyFileRow>()
-                legacyConnection.createStatement().use { statement ->
-                    statement.executeQuery("SELECT file_path, last_modified, checksum FROM file_cache").use { resultSet ->
-                        while (resultSet.next()) {
-                            fileRows += LegacyFileRow(
-                                filePath = resultSet.getString("file_path"),
-                                lastModified = resultSet.getLong("last_modified"),
-                                checksum = resultSet.getLong("checksum"),
-                            )
-                        }
-                    }
-                }
-                if (fileRows.isEmpty()) {
-                    return@use ImportResult(skipped = true, importedFiles = 0, importedDefinitions = 0, importedReferences = 0)
-                }
-
-                var importedFiles = 0
-                var importedDefinitions = 0
-                var importedReferences = 0
-                legacyConnection.prepareStatement(
-                    """
-                    SELECT package_name, fq_class_name, const_name, const_type, const_value
-                    FROM const_definitions
-                    WHERE file_path = ?
-                    """.trimIndent()
-                ).use { definitionStatement ->
-                    legacyConnection.prepareStatement(
-                        """
-                        SELECT def_fq_class_name, const_name
-                        FROM const_references
-                        WHERE ref_file_path = ?
-                        """.trimIndent()
-                    ).use { referenceStatement ->
-                        fileRows.forEach { row ->
-                            val definitions = mutableListOf<ConstDefinition>()
-                            definitionStatement.setString(1, row.filePath)
-                            definitionStatement.executeQuery().use { definitionResultSet ->
-                                while (definitionResultSet.next()) {
-                                    definitions += ConstDefinition(
-                                        filePath = row.filePath,
-                                        packageName = definitionResultSet.getString("package_name"),
-                                        fqClassName = definitionResultSet.getString("fq_class_name"),
-                                        constName = definitionResultSet.getString("const_name"),
-                                        constType = definitionResultSet.getString("const_type"),
-                                        constValue = definitionResultSet.getString("const_value"),
-                                    )
-                                }
-                            }
-
-                            val references = mutableListOf<ConstReference>()
-                            referenceStatement.setString(1, row.filePath)
-                            referenceStatement.executeQuery().use { referenceResultSet ->
-                                while (referenceResultSet.next()) {
-                                    references += ConstReference(
-                                        refFilePath = row.filePath,
-                                        defFqClassName = referenceResultSet.getString("def_fq_class_name"),
-                                        constName = referenceResultSet.getString("const_name"),
-                                    )
-                                }
-                            }
-
-                            upsertFileAnalysis(
-                                filePath = row.filePath,
-                                lastModified = row.lastModified,
-                                checksum = row.checksum,
-                                definitions = definitions,
-                                references = references,
-                            )
-                            importedFiles++
-                            importedDefinitions += definitions.size
-                            importedReferences += references.size
-                        }
-                    }
-                }
-                ImportResult(
-                    skipped = false,
-                    importedFiles = importedFiles,
-                    importedDefinitions = importedDefinitions,
-                    importedReferences = importedReferences,
-                )
-            }
-        }.onFailure { throwable ->
-            logger.warn(
-                "import legacy const-ref db failed, from=${legacyDbFile.absolutePath}, to=${dbFile.absolutePath}",
-                throwable,
-            )
-        }.getOrElse {
-            ImportResult(skipped = true, importedFiles = 0, importedDefinitions = 0, importedReferences = 0)
-        }
-    }
-
     private fun recreateDatabase() {
         runCatching {
             dbFile.delete()
@@ -1598,22 +1489,9 @@ class ConstRefCacheDatabase(
         val vacuumExecuted: Boolean,
     )
 
-    data class ImportResult(
-        val skipped: Boolean,
-        val importedFiles: Int,
-        val importedDefinitions: Int,
-        val importedReferences: Int,
-    )
-
     private data class MaintenanceResult(
         val checkpointExecuted: Boolean,
         val vacuumExecuted: Boolean,
-    )
-
-    private data class LegacyFileRow(
-        val filePath: String,
-        val lastModified: Long,
-        val checksum: Long,
     )
 
     private data class ReusableFileIdentity(

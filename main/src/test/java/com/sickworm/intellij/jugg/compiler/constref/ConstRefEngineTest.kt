@@ -393,7 +393,6 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     fun `should resolve effected files in db session lookup mode`() {
         withSystemProperties(
             mapOf(
-                "jugg.constref.lookup.mode" to "db_session",
                 "jugg.constref.session.file.cache.max" to "500",
                 "jugg.constref.session.lookup.cache.max" to "4000",
                 "jugg.constref.session.cache.ttl.ms" to "600000",
@@ -454,7 +453,6 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     fun `should keep result consistent after session cache eviction in db session mode`() {
         withSystemProperties(
             mapOf(
-                "jugg.constref.lookup.mode" to "db_session",
                 "jugg.constref.session.file.cache.max" to "1",
                 "jugg.constref.session.lookup.cache.max" to "1",
                 "jugg.constref.session.cache.ttl.ms" to "600000",
@@ -617,7 +615,6 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     fun `should trigger recompile for pulled const change in another worktree on cold start`() {
         withSystemProperties(
             mapOf(
-                "jugg.constref.lookup.mode" to "db_session",
                 "jugg.constref.session.file.cache.max" to "500",
                 "jugg.constref.session.lookup.cache.max" to "4000",
                 "jugg.constref.session.cache.ttl.ms" to "600000",

@@ -53,7 +53,6 @@ class DeployFileManager(
         val fingerprintLogger = logger.getInstance("RepoSharedFingerprintStore")
         logger.debug("Const-ref db paths: sharedDb=${pathManager.constRefSharedDbFile.absolutePath}, " +
                     "repoFingerprintDb=${pathManager.repoFingerprintDbFile.absolutePath}")
-        RepoSharedFingerprintStore.migrateLegacyDbIfNeeded(pathManager.repoFingerprintDbFile, fingerprintLogger)
         RepoSharedFingerprintStore(
             logger = fingerprintLogger,
             dbFile = pathManager.repoFingerprintDbFile,

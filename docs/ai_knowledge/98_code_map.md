@@ -38,7 +38,7 @@
 | compiler | DataBindingGenBaseClassesCompiler, DataBindingGenMapperCompiler | compiler/databinding | DB/VB 处理 | 稳定 | 2025-01-20 |
 | compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
 | compiler | CustomCompilerManager, CompileUiHandler | compiler/custom | 自定义编译器插件 | 稳定 | 2025-01-20 |
-| compiler | ConstRefEngine, ConstRefAnalyzer, ConstRefChangeTracker, ConstRefImpactResolver, ConstRefSessionCache | compiler/constref | 编译期常量定义/引用分析；按“真实变更常量 key”定位受影响源码；`legacy`(全量内存索引) / `db_session`(DB 主导+会话缓存) 双模式；repo/worktree 共享缓存与过期清理 | 稳定 | 2026-03-01 |
+| compiler | ConstRefEngine, ConstRefAnalyzer, ConstRefChangeTracker, ConstRefImpactResolver, ConstRefSessionCache | compiler/constref | 编译期常量定义/引用分析；按“真实变更常量 key”定位受影响源码；DB 主导+会话缓存；repo/worktree 共享缓存与过期清理 | 稳定 | 2026-03-04 |
 | deploy | JuggDeployer, DeployFileManager, DeployFileStateTracker, DeployDataPlanner, CompileEffectAnalyzer | deploy/core | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |
 | deploy | DeployDataGenerator, ClassNodeComparator | deploy/data | 类结构比较、影响分析 | 稳定 | 2026-02-01 |
 | deploy | DeployDataDatabase, IncrementalDeployDataDatabase | deploy/data | 双层数据库、引用索引 | 稳定 | 2026-02-01 |

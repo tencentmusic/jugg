@@ -348,44 +348,5 @@ class RepoSharedFingerprintStore(
         private const val VACUUM_TRIGGER_BYTES = 256L * 1024L * 1024L
         private const val META_LAST_CLEANUP_AT = "last_cleanup_at"
         private const val META_LAST_VACUUM_AT = "last_vacuum_at"
-
-        fun legacyDbFile(): File {
-            return File(System.getProperty("user.home"), ".jugg/const_ref/repo_fingerprint.db")
-        }
-
-        fun migrateLegacyDbIfNeeded(targetDbFile: File, logger: Logger) {
-            if (targetDbFile.exists()) {
-                return
-            }
-            val legacyDbFile = legacyDbFile()
-            if (!legacyDbFile.exists()) {
-                return
-            }
-            targetDbFile.parentFile?.mkdirs()
-            runCatching {
-                copyFileIfExists(legacyDbFile, targetDbFile)
-                copyFileIfExists(File("${legacyDbFile.absolutePath}-wal"), File("${targetDbFile.absolutePath}-wal"))
-                copyFileIfExists(File("${legacyDbFile.absolutePath}-shm"), File("${targetDbFile.absolutePath}-shm"))
-            }.onSuccess {
-                logger.info(
-                    "migrate legacy repo fingerprint db success, from=${legacyDbFile.absolutePath}, " +
-                        "to=${targetDbFile.absolutePath}"
-                )
-            }.onFailure { throwable ->
-                logger.warn(
-                    "migrate legacy repo fingerprint db failed, from=${legacyDbFile.absolutePath}, " +
-                        "to=${targetDbFile.absolutePath}",
-                    throwable,
-                )
-            }
-        }
-
-        private fun copyFileIfExists(source: File, target: File) {
-            if (!source.exists()) {
-                return
-            }
-            target.parentFile?.mkdirs()
-            source.copyTo(target, overwrite = false)
-        }
     }
 }
