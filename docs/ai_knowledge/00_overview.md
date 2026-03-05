@@ -1,6 +1,6 @@
 # Jugg 项目概览（AI 速读版）
 
-> 最后核对：2026-02-24  
+> 最后核对：2026-03-05
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -65,11 +65,7 @@
 
 ## 7. AI 任务入口建议
 
-- 改编译流程：先看 `02_compile_core.md` + `98_code_map.md`。  
-- 改部署行为：先看 `03_deploy_core.md` + `03_deploy_complete.md`。  
-- 改项目/Gradle读取：先看 `04_engineering_project.md`。  
-- 改 IDE 生命周期/运行配置：先看 `04_engineering_ide.md`。  
-- 改 MCP 工具：先看 `08_mcp_usage.md` + `08_mcp_design.md`。
+AI 任务路由（任务类型 → 最小必读文档 → 代码入口）详见 `97_ai_usage.md §3`。
 
 ---
 

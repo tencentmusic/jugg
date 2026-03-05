@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-02-23  
+> 最后核对：2026-03-05
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -8,51 +8,27 @@
 
 ## 1. 核心层（`main/src/main/java/com/sickworm/intellij/jugg`）
 
-| 领域 | 关键类/接口 | 目录 | 说明 |
-|------|-------------|------|------|
-| 编译总控 | `JuggCompiler`, `IncrementalCompilerHelper`, `CompileOrder` | `compiler/` | 增量编译主流程、阶段顺序与循环重编译 |
-| 源码编译 | `SourceCompiler`, `JuggAptCompiler`, `IJuggAptProcessor`, `JavaCompiler`, `KotlinCompiler`, `DexCompiler` | `compiler/source/`, `compiler/source/apt/`, `compiler/source/kotlin/` | Java/Kotlin 编译与 DEX 生成（含生成源码增量改写） |
-| 资源编译 | `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler` | `compiler/overlay/` | res/manifest 编译与 aapt2 link |
-| DataBinding | `DataBindingArgsManager`, `DataBindingGenBaseClassesCompiler`, `DataBindingGenMapperCompiler` | `compiler/databinding/` | DataBinding/ViewBinding 增量处理 |
-| Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer` | `compiler/manifest/` | 清单差异合并 |
-| 混淆映射 | `ClassMinifyCompiler`, `DexMinifyCompiler`, `ClassObfuscator`, `R8MappingReader` | `compiler/obfuscation/` | release 混淆映射一致性 |
-| 自定义编译器 | `CustomCompilerManager`, `ICompilerCreator` | `compiler/custom/` | SPI 扩展、远端下载 jar、动态装载 |
-| 编译 UI 协议 | `CompileUiHandler`, `RunResult`, `BuildChangesConfirmResult` | `compiler/`, `compiler/ui/` | 编译交互抽象（供 IDE/CLI） |
-| 部署文件管理 | `DeployFileManager`, `DeployHistoryManager`, `ClassFileLookupHelper` | `deploy/` | 变更文件、历史记录、staging 管理与 class 文件检索复用 |
-| 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data/` | 类结构变更传播和部署数据生成 |
-| 部署数据模型 | `JuggDeployData`, `LaunchResult` | `deploy/run/` | 下发设备的部署数据结构 |
-| 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo` | `project/data/` | 模块、路径、依赖等快照 |
-| 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency/` | 依赖变更检测策略 |
-| Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script/` | 通过 Gradle 反射读取模块信息 |
-| Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile/` | 本地/远端 Gradle 构建执行 |
-| MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `mcp/` | MCP HTTP + JSON-RPC 处理 |
-| MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner` | `mcp/actions/` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理 |
-| MCP ViewHierarchy 通信 | `ViewHierarchyClient`, `ViewHierarchyRequest`, `ViewHierarchyResponse` | `mcp/viewhierarchy/` | `layout_dump` / `tap` 元素模式的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
-| 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 |
-
-| 模块 | 关键类/接口 | 文件路径 | 职责/说明 | 状态 | 最近同步 |
-|------|-------------|----------|-----------|------|-----------|
-| compiler | JuggCompiler, BaseCompiler, CompileTask | compiler/core | 编译调度与任务编排 | 稳定 | 2025-01-20 |
-| compiler | SourceCompiler, JuggAptCompiler, IJuggAptProcessor, JavaCompiler, KotlinCompiler, DexCompiler | compiler/source | 源码/生成源码改写/字节码/DEX 编译 | 稳定 | 2026-02-23 |
-| compiler | ResourceCompiler, Aapt2Invoker | compiler/resource | AAPT2 资源编译与调用 | 稳定 | 2025-01-20 |
-| compiler | DataBindingGenBaseClassesCompiler, DataBindingGenMapperCompiler | compiler/databinding | DB/VB 处理 | 稳定 | 2025-01-20 |
-| compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
-| compiler | CustomCompilerManager, CompileUiHandler | compiler/custom | 自定义编译器插件 | 稳定 | 2025-01-20 |
-| compiler | ConstRefEngine, ConstRefAnalyzer, ConstRefChangeTracker, ConstRefImpactResolver, ConstRefSessionCache | compiler/constref | 编译期常量定义/引用分析；按“真实变更常量 key”定位受影响源码；DB 主导+会话缓存；repo/worktree 共享缓存与过期清理 | 稳定 | 2026-03-04 |
-| deploy | JuggDeployer, DeployFileManager, DeployFileStateTracker, DeployDataPlanner, CompileEffectAnalyzer | deploy/core | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |
-| deploy | DeployDataGenerator, ClassNodeComparator | deploy/data | 类结构比较、影响分析 | 稳定 | 2026-02-01 |
-| deploy | DeployDataDatabase, IncrementalDeployDataDatabase | deploy/data | 双层数据库、引用索引 | 稳定 | 2026-02-01 |
-| deploy | InlineMethodDetector | deploy/data | 内联方法影响检测 | 稳定 | 2026-02-01 |
-| deploy | IncrementalDeployHelper, DeployHistoryManager | deploy/core | 增量部署与历史管理 | 稳定 | 2025-01-20 |
-| project | JuggProjectInfo, GradleProjectInfoReader, JuggPathManager | project | 项目信息读取/序列化；统一路径管理 | 稳定 | 2026-02-22 |
-| project | DependencyResolver, LocalGradleCompileClient | project | 依赖解析与 Gradle 调用 | 稳定 | 2025-01-20 |
-| apk | ApkFileModifier | apk | APK 修改/签名 | 稳定 | 2025-01-20 |
-| aapt2 | Aapt2DaemonInvoker | aapt2 | AAPT2 守护进程调用 | 稳定 | 2025-01-20 |
-| git | GitManager | git | Git 集成 | 稳定 | 2025-01-20 |
-| logger | JuggLogger | logger | 日志体系 | 稳定 | 2025-01-20 |
-| mcp | McpLocalServer, McpInvoker | mcp | 本地 MCP/工具命令注册 | 稳定 | 2026-02-09 |
-| server | JuggServer | server | 远程编译/服务端 | 稳定 | 2025-01-20 |
-| platform | PlatformApi | platform | 平台 API 注入点 | 稳定 | 2025-01-20 |
+| 领域 | 关键类/接口 | 目录 | 职责/说明 | 状态 | 最近同步 |
+|------|-------------|------|-----------|------|----------|
+| 编译总控 | `JuggCompiler`, `BaseCompiler`, `CompileTask` | `compiler/core` | 增量编译主流程、阶段顺序与循环重编译 | 稳定 | 2025-01-20 |
+| 源码编译 | `SourceCompiler`, `JuggAptCompiler`, `IJuggAptProcessor`, `JavaCompiler`, `KotlinCompiler`, `DexCompiler` | `compiler/source`, `compiler/source/apt`, `compiler/source/kotlin` | Java/Kotlin 编译与 DEX 生成（含生成源码增量改写） | 稳定 | 2026-02-23 |
+| 资源编译 | `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler`, `Aapt2Invoker` | `compiler/overlay`, `compiler/resource` | res/manifest 编译与 aapt2 link | 稳定 | 2025-01-20 |
+| DataBinding | `DataBindingArgsManager`, `DataBindingGenBaseClassesCompiler`, `DataBindingGenMapperCompiler` | `compiler/databinding` | DataBinding/ViewBinding 增量处理 | 稳定 | 2025-01-20 |
+| Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer`, `ObfuscationCompiler` | `compiler/manifest` | 清单差异合并与混淆 | 稳定 | 2025-01-20 |
+| 混淆映射 | `ClassMinifyCompiler`, `DexMinifyCompiler`, `ClassObfuscator`, `R8MappingReader` | `compiler/obfuscation` | release 混淆映射一致性 | 稳定 | 2025-01-20 |
+| 自定义编译器 | `CustomCompilerManager`, `ICompilerCreator`, `CompileUiHandler` | `compiler/custom` | SPI 扩展、远端下载 jar、动态装载；编译交互抽象（供 IDE/CLI） | 稳定 | 2025-01-20 |
+| 常量引用分析 | `ConstRefEngine`, `ConstRefAnalyzer`, `ConstRefChangeTracker`, `ConstRefImpactResolver`, `ConstRefSessionCache` | `compiler/constref` | 编译期常量定义/引用分析；按”真实变更常量 key”定位受影响源码；DB 主导+会话缓存；repo/worktree 共享缓存与过期清理 | 稳定 | 2026-03-04 |
+| 部署文件管理 | `JuggDeployer`, `DeployFileManager`, `DeployFileStateTracker`, `DeployDataPlanner`, `CompileEffectAnalyzer`, `DeployHistoryManager`, `ClassFileLookupHelper` | `deploy/core` | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |
+| 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `IncrementalDeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data` | 类结构变更传播和部署数据生成；双层数据库与引用索引；内联方法影响检测 | 稳定 | 2026-02-01 |
+| 部署数据模型 | `JuggDeployData`, `LaunchResult` | `deploy/run` | 下发设备的部署数据结构 | 稳定 | 2025-01-20 |
+| 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo`, `JuggPathManager` | `project/data`, `project` | 模块、路径、依赖等快照；项目信息读取/序列化；统一路径管理 | 稳定 | 2026-02-22 |
+| 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency` | 依赖变更检测策略 | 稳定 | 2025-01-20 |
+| Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script` | 通过 Gradle 反射读取模块信息 | 稳定 | 2025-01-20 |
+| Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile` | 本地/远端 Gradle 构建执行 | 稳定 | 2025-01-20 |
+| MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `mcp/` | MCP HTTP + JSON-RPC 处理 | 稳定 | 2026-02-09 |
+| MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner` | `mcp/actions` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理 | 稳定 | 2026-02-09 |
+| MCP ViewHierarchy 通信 | `ViewHierarchyClient`, `ViewHierarchyRequest`, `ViewHierarchyResponse` | `mcp/viewhierarchy` | `layout_dump` / `tap` 元素模式的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） | 稳定 | 2026-02-09 |
+| 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 | 稳定 | 2025-01-20 |
 
 ---
 
