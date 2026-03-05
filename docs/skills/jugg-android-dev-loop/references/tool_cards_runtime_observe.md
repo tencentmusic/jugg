@@ -2,6 +2,33 @@
 
 Use this file when executing runtime interaction or evidence collection (typically inside observe sub-agent, or main agent when delegation is not applicable).
 
+## Target Page Context Gate (Run Before Evidence)
+
+UI verification must execute this gate before taking final screenshot/recording evidence.
+
+Required inputs:
+- Navigation tap sequence from launch screen to target page.
+- At least one expected page anchor (`resourceId` preferred, `text` fallback).
+- Optional expected activity name.
+
+If required inputs are missing, stop and ask user before runtime verification.
+
+1. Launch/restart app (`restart_app`) when needed.
+2. Execute known navigation tap sequence to target page.
+3. Verify page context with hard signals:
+   - `activity_stack` matches expected activity when provided, or
+   - `layout_dump` contains expected target anchor (`resourceId` preferred, `text` fallback).
+4. Only after gate pass, continue to screenshot/recording and acceptance checks.
+
+Gate fail handling:
+- Refresh `layout_dump` and retry navigation within retry budget.
+- If still failing, report failure details and ask user for corrected navigation/anchor.
+- Do not produce PASS verdict from unconfirmed page context.
+
+No-early-evidence rule:
+- Do not capture final screenshot or final recording before gate passes.
+- One diagnostic screenshot is allowed only to explain navigation failure.
+
 ## `restart_app`
 
 - Purpose: launch/restart app process.
@@ -91,6 +118,7 @@ When interacting with a specific area (e.g., a dialog, a settings section, a lis
 
 - Purpose: final visual proof.
 - Required input: `projectDir`.
+- Use only after Target Page Context Gate passes.
 - If screenshot fails, fallback to `layout_dump`; if both fail, verification fails.
 
 ### Image Scaling Warning
@@ -128,6 +156,17 @@ Estimation approach:
 ## Evidence Collection Order
 
 Prefer lightweight first: `activity_stack` -> `layout_dump` -> `screenshot`. Add recording when action chain has >=2 user actions or involves animation/async/transient UI.
+
+## Fast UI Verify Profile (Efficiency Default)
+
+For static UI acceptance checks with single-page target:
+
+1. Run Target Page Context Gate.
+2. Use one `layout_dump` for selector confirmation.
+3. Capture one final `screenshot`.
+4. Skip recording unless task explicitly needs temporal evidence.
+
+This profile avoids repeated screenshots on wrong pages and reduces runtime/tool overhead.
 
 ## Interaction Proof Profile
 

@@ -44,6 +44,8 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
 1. Modify sources.
 2. Build/deploy (load `references/tool_cards_build_deploy.md` when details are needed).
 3. Runtime actions & evidence (load `references/tool_cards_runtime_observe.md` when details are needed).
+   - Run **Target Page Context Gate** first.
+   - Collect screenshot/recording evidence only after the gate passes.
 4. Verdict:
    - **PASS** -> step 5.
    - **FAIL** -> back to step 1 (fix source), respect retry budget.
@@ -54,24 +56,13 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
 
 ## UI Navigation Prerequisite
 
-When a task involves **UI verification** (runtime observe, screenshot comparison, layout check, etc.), the agent **must** know how to navigate from app launch to the target debug page before starting any work.
+When a task involves **UI verification** (runtime observe, screenshot comparison, layout check, etc.), enforce navigation-first verification:
 
-### Required: Navigation Tap Sequence
+1. Ensure a navigation sequence to target page exists (ask user if missing).
+2. Execute runtime context verification before evidence collection.
+3. Collect final screenshot/recording only after context verification passes.
 
-A navigation tap sequence is an ordered list of tap actions (by `resourceId` or `text`) that brings the app from its launch screen to the target page. Example:
-
-```
-1. tap text="Settings"
-2. tap resourceId="menu_advanced"
-3. tap text="Debug Panel"
-```
-
-### Workflow
-
-1. **Check**: before starting a UI-related task, determine whether a navigation tap sequence to the target page is available.
-2. **Ask if missing**: if the user has not provided one, **stop and ask** the user to supply the tap sequence (id or text based). Do not guess or skip this step.
-3. **Verify first**: once obtained, execute the tap sequence on the device to confirm it reaches the expected page (use `layout_dump` or `screenshot` to verify). Only proceed with the actual task after verification passes.
-4. **Retry on failure**: if the navigation sequence fails (element not found, wrong page reached), report the failure details to the user and ask for a corrected sequence.
+Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are defined in `references/tool_cards_runtime_observe.md`.
 
 ### When This Applies
 
@@ -87,6 +78,8 @@ A navigation tap sequence is an ordered list of tap actions (by `resourceId` or 
 - Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
 - Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.
+- Any app restart (deploy/restart) invalidates previous page context; rerun navigation and context gate.
+- Reuse validated navigation sequence and page anchors within the same session to avoid repeated user queries.
 
 ## Observe Delegation Policy
 
