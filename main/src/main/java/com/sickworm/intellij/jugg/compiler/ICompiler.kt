@@ -7,6 +7,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.data.SigningConfig
 import java.io.File
@@ -351,6 +352,18 @@ interface ICompileContext {
     fun getModulePackageName(moduleInfo: ModuleInfo): String?
 
     fun backupGradleDir(sourceDir: File, overrideOnExists: Boolean = false, dryRun: Boolean = false): File
+
+    /**
+     * Registers runtime changed files discovered during compile flow.
+     * Default no-op keeps existing non-IDE/test contexts source-compatible.
+     */
+    fun addChangedFile(files: List<ChangedFile>) = Unit
+
+    /**
+     * Removes runtime changed-file records for files that should not be tracked anymore.
+     * Default no-op keeps existing non-IDE/test contexts source-compatible.
+     */
+    fun removeChangedFile(files: List<File>) = Unit
 
     /**
      * Scene marks where compile context is built: IDE-run flow or incremental-APK flow.

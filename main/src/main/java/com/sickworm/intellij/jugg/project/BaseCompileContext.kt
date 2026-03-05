@@ -538,6 +538,14 @@ class BaseCompileContext(
         return targetDir
     }
 
+    override fun addChangedFile(files: List<ChangedFile>) {
+        deployFileManager.addChangedFile(files)
+    }
+
+    override fun removeChangedFile(files: List<File>) {
+        deployFileManager.removeChangedFile(files)
+    }
+
     fun update(
         apkInfos: List<ApkInfo>? = null,
         modules: Map<String, ModuleInfo>? = null,

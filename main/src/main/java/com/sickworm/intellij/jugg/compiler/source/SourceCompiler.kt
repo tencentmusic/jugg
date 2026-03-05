@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompi
 import com.sickworm.intellij.jugg.compiler.obfuscation.DexMinifyCompiler
 import com.sickworm.intellij.jugg.compiler.source.apt.JuggAptCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.LinkedHashMap
@@ -36,6 +37,7 @@ class SourceCompiler(
     private data class SourceCompilePreparation(
         val compileTask: CompileTask,
         val juggAptGeneratedFiles: List<CompileFile>,
+        val trackedJuggAptChangedFiles: List<ChangedFile>,
         val dataBindingJavaFiles: List<CompileFile>,
     )
 
@@ -53,6 +55,7 @@ class SourceCompiler(
             compileTask = prepared.compileTask,
             module = module,
             juggAptGeneratedFiles = prepared.juggAptGeneratedFiles,
+            trackedJuggAptChangedFiles = prepared.trackedJuggAptChangedFiles,
             dataBindingJavaFiles = prepared.dataBindingJavaFiles,
         )
         if (!classCompileResult.isAllSuccess) return classCompileResult.quickFailedOthers(task, isClearOutput = true)
@@ -129,6 +132,20 @@ class SourceCompiler(
             parentTask = task,
         )
         val juggAptGeneratedFiles = collectJuggAptGeneratedFiles(compileTask, module)
+        val trackedJuggAptChangedFiles = juggAptGeneratedFiles
+            .map { changedFile ->
+                ChangedFile(
+                    type = changedFile.type,
+                    file = changedFile.file,
+                    baseDir = changedFile.baseDir,
+                    module = changedFile.module,
+                    extraInfo = changedFile.extraInfo,
+                )
+            }
+            .distinctBy { it.file.absolutePath }
+        if (trackedJuggAptChangedFiles.isNotEmpty()) {
+            context.addChangedFile(trackedJuggAptChangedFiles)
+        }
         val dataBindingMapperResult = SourceDataBindingProcessor(dataBindingGenMapperCompiler, context, logger)
             .processDataBindingMapper(task, module)
         if (!dataBindingMapperResult.isAllSuccess) {
@@ -140,7 +157,12 @@ class SourceCompiler(
             .filter { it.type == CompileOutput.Type.Java }
             .map { CompileFile(CompileFile.Type.Java, it.file, it.baseDir, module) }
         return SourceCompilePreparationResult(
-            preparation = SourceCompilePreparation(compileTask, juggAptGeneratedFiles, dataBindingJavaFiles),
+            preparation = SourceCompilePreparation(
+                compileTask = compileTask,
+                juggAptGeneratedFiles = juggAptGeneratedFiles,
+                trackedJuggAptChangedFiles = trackedJuggAptChangedFiles,
+                dataBindingJavaFiles = dataBindingJavaFiles,
+            ),
         )
     }
 
@@ -152,6 +174,7 @@ class SourceCompiler(
         compileTask: CompileTask,
         module: ModuleInfo,
         juggAptGeneratedFiles: List<CompileFile>,
+        trackedJuggAptChangedFiles: List<ChangedFile>,
         dataBindingJavaFiles: List<CompileFile>,
     ): CompileResult {
         val firstCompileResult = compileLanguageStages(
@@ -163,6 +186,9 @@ class SourceCompiler(
         )
         if (firstCompileResult.isAllSuccess || !shouldRetryWithoutJuggApt(firstCompileResult, juggAptGeneratedFiles)) {
             return firstCompileResult
+        }
+        if (trackedJuggAptChangedFiles.isNotEmpty()) {
+            context.removeChangedFile(trackedJuggAptChangedFiles.map { it.file })
         }
         logger.warn("JuggApt generated sources caused compile failure, retry once without JuggApt outputs.")
         return compileLanguageStages(

@@ -35,7 +35,9 @@
 5. class 产物进入 `DexCompiler`。  
 6. 若处于 minified 场景，再走 `DexMinifyCompiler`。
 
-补充：若本轮 Kotlin/Java 编译失败且失败文件命中 `JuggAptCompiler` 产物，`SourceCompiler` 会自动重试一次“去掉 JuggApt 产物”的降级路径，避免错误改写阻断主源码编译链路。
+补充：
+- `SourceCompiler` 会将本轮 `JuggAptCompiler` 实际改写的 generated Java/Kotlin 文件登记为 changed file（通过 `ICompileContext.addChangedFile`），避免“改写已落盘但本轮因其他文件失败未编译”时下轮漏编译。
+- 若本轮 Kotlin/Java 编译失败且失败文件命中 `JuggAptCompiler` 产物，`SourceCompiler` 会自动重试一次“去掉 JuggApt 产物”的降级路径；进入该重试分支前会移除上述登记（`ICompileContext.removeChangedFile`），避免错误改写持续参与后续增量。
 
 ---
 
