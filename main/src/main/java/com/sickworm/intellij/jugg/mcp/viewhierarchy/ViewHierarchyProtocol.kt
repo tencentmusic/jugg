@@ -17,6 +17,7 @@ data class ViewHierarchyResponse(
     val status: String?,
     val message: String?,
     val data: JsonObject?,
+    val version: String? = null,
 )
 
 /**

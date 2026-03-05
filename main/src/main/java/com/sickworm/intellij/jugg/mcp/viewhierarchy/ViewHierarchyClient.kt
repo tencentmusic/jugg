@@ -7,6 +7,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.InputStreamReader
@@ -214,6 +215,7 @@ open class ViewHierarchyClient(
         for (socketName in socketNames) {
             val response = sendRequestToSocket(socketName, request)
             if (response != null) {
+                checkServerVersion(response.version)
                 return response
             }
         }
@@ -352,10 +354,32 @@ open class ViewHierarchyClient(
                 status = root.optStringOrNull("status"),
                 message = root.optStringOrNull("message"),
                 data = root.optJsonObject("data"),
+                version = root.optStringOrNull("version"),
             )
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Compare server response version with the client expected protocol version.
+     * Current behavior is warn-only to keep backward compatibility.
+     */
+    private fun checkServerVersion(serverVersion: String?) {
+        if (serverVersion == VIEW_HIERARCHY_PROTOCOL_VERSION) {
+            return
+        }
+        onServerVersionMismatch(serverVersion)
+    }
+
+    /**
+     * Hook point for handling protocol-version mismatch.
+     */
+    protected open fun onServerVersionMismatch(serverVersion: String?) {
+        logger.warn(
+            "ViewHierarchy protocol version mismatch. " +
+                "expected=$VIEW_HIERARCHY_PROTOCOL_VERSION, actual=${serverVersion ?: "<missing>"}"
+        )
     }
 
     private fun reserveLocalPort(): Int? {
@@ -472,6 +496,8 @@ open class ViewHierarchyClient(
     }
 
     companion object {
+        private val logger = JuggLogger.getGlobalLogger("ViewHierarchyClient")
+        private const val VIEW_HIERARCHY_PROTOCOL_VERSION = "1.0"
         private val PACKAGE_NAME_PATTERN = Regex("^[A-Za-z0-9_.]+$")
         private val WHITESPACE_REGEX = Regex("\\s+")
         private const val CONNECT_TIMEOUT_MS = 3_000

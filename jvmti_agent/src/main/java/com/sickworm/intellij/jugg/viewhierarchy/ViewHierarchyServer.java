@@ -31,6 +31,7 @@ public class ViewHierarchyServer {
 
     private static final String TAG = "Jugg#ViewHierarchyServer";
     private static final String SOCKET_PREFIX = "jugg_vh_";
+    private static final String PROTOCOL_VERSION = "1.0";
     private static final long MAIN_THREAD_TIMEOUT_MS = 5000L;
 
     private static volatile ViewHierarchyServer sInstance;
@@ -387,6 +388,7 @@ public class ViewHierarchyServer {
         JSONObject response = new JSONObject();
         try {
             response.put("status", "ok");
+            response.put("version", PROTOCOL_VERSION);
             response.put("data", data != null ? data : new JSONObject());
         } catch (Throwable t) {
             LogUtils.e(TAG, "build ok response failed", t);
@@ -398,6 +400,7 @@ public class ViewHierarchyServer {
         JSONObject response = new JSONObject();
         try {
             response.put("status", "error");
+            response.put("version", PROTOCOL_VERSION);
             response.put("message", message != null ? message : "Unknown error");
             if (data != null) {
                 response.put("data", data);

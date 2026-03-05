@@ -90,11 +90,47 @@ class ViewHierarchyClientTest {
         Assert.assertEquals(listOf("jugg_vh_100", "jugg_vh_200", "jugg_vh"), client.attemptedSockets)
     }
 
-    private fun okResponse(): ViewHierarchyResponse {
+    @Test
+    fun testVersionMismatchOnlyWarnsAndDoesNotBreakRequest() {
+        val client = StubViewHierarchyClient(
+            adb = FakeDeviceAdb(emptyMap()),
+            packageName = "com.example.app",
+            socketCandidates = listOf("jugg_vh"),
+            responsesBySocket = mapOf(
+                "jugg_vh" to okResponse(version = "0.9"),
+            ),
+        )
+
+        val result = client.dumpLayout()
+
+        Assert.assertNotNull(result)
+        Assert.assertEquals(1, client.versionWarnings.size)
+        Assert.assertEquals("0.9", client.versionWarnings[0])
+    }
+
+    @Test
+    fun testVersionMatchedNoWarning() {
+        val client = StubViewHierarchyClient(
+            adb = FakeDeviceAdb(emptyMap()),
+            packageName = "com.example.app",
+            socketCandidates = listOf("jugg_vh"),
+            responsesBySocket = mapOf(
+                "jugg_vh" to okResponse(version = "1.0"),
+            ),
+        )
+
+        val result = client.dumpLayout()
+
+        Assert.assertNotNull(result)
+        Assert.assertTrue(client.versionWarnings.isEmpty())
+    }
+
+    private fun okResponse(version: String = "1.0"): ViewHierarchyResponse {
         return ViewHierarchyResponse(
             status = "ok",
             message = null,
             data = jsonObject("""{"windows":[{"title":"Main"}]}"""),
+            version = version,
         )
     }
 
@@ -132,6 +168,7 @@ class ViewHierarchyClientTest {
         private val responsesBySocket: Map<String, ViewHierarchyResponse?> = emptyMap(),
     ) : ViewHierarchyClient(adb, packageName) {
         val attemptedSockets = mutableListOf<String>()
+        val versionWarnings = mutableListOf<String?>()
 
         fun socketCandidates(): List<String> {
             return super.resolveSocketCandidates()
@@ -147,6 +184,10 @@ class ViewHierarchyClientTest {
         ): ViewHierarchyResponse? {
             attemptedSockets.add(socketName)
             return responsesBySocket[socketName]
+        }
+
+        override fun onServerVersionMismatch(serverVersion: String?) {
+            versionWarnings.add(serverVersion)
         }
     }
 }

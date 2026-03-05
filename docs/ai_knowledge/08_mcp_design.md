@@ -58,6 +58,8 @@
 - `ElementFinder` 在 selector 命中前先过滤不可操作节点（可见、已显示、非零尺寸、有效 bounds）。
 - `ViewHierarchyServerLoader` 仅在 `ViewHierarchyServer.start(...)` 成功后设置初始化标志，失败可重试。
 - `ViewHierarchyClient` 在多进程场景按“主进程优先 -> 其余 PID -> `jugg_vh` 兼容名”尝试 socket，避免首个 PID 误选导致不可用。
+- ViewHierarchy socket 响应包含 `version` 字段；客户端当前为 warn-only 策略（版本不匹配仅告警，不拦截请求）。
+- **Versioning rule**: 当 `ViewHierarchyServer` 响应结构发生 breaking change（字段删除/类型变更/语义不兼容）时，必须递增服务端协议版本号，并同步客户端常量与文档。
 
 ---
 
