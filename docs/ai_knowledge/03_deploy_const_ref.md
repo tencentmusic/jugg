@@ -53,7 +53,7 @@
 - 管理“当前编辑文件/待分析队列/分析完成时间戳”；
 - 以 `ConstRefCacheDatabase` 为主数据源，结合 `ConstRefSessionCache`（LRU+TTL）做会话热点缓存；
 - 维护三层 checksum 命中链路：`mtime-map -> RepoSharedFingerprintStore -> CRC32`；
-- 在预编译点强制冲刷待分析队列，尽量保证结果新鲜；
+- 在预编译点触发 `PRE_COMPILE` 分析任务冲刷待分析队列；`awaitAnalysis` 只在超时窗口内等待状态，不会因场景锁竞争无限阻塞；
 - 异步触发 `ConstRefCacheCleaner` 做 TTL/版本上限清理，不阻塞主流程；
 - 通过 `ConstRefChangeTracker` 追踪“真实变更 key + 已删除 key”，避免空白改动触发全量常量引用重编译；
 - 通过 `ConstRefImpactResolver` 统一执行受影响文件查询与过滤。
@@ -62,7 +62,7 @@
 
 - `FULL_SCAN`：模块 sourceDir 初始化后异步全量扫描与落库（命中可复用缓存则跳过解析）；
 - `FILE_CHANGE`：日常保存触发的异步增量分析；
-- `PRE_COMPILE`：`awaitAnalysis()` 内同步抢占执行，确保编译前尽量完成待分析文件。
+- `PRE_COMPILE`：`awaitAnalysis()` 内异步触发执行，用于尽量冲刷待分析文件且不阻塞超时预算。
 
 > `FULL_SCAN` 会先按 `(worktree_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新就绪状态，未命中项才进入解析流程。
 
@@ -81,7 +81,7 @@
 | API | 行为摘要 |
 |---|---|
 | `onFileSaved(path)` | 仅处理 `.java/.kt`；将“前一个编辑文件”推入待分析队列，当前文件仅标记为 editing。 |
-| `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile` 到待分析；触发 `PRE_COMPILE` 同步分析；等待“目标文件 analyzedAt 达标 + 相关 sourceDir full scan ready”。 |
+| `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile` 到待分析；触发 `PRE_COMPILE` 异步分析；在 `timeout` 窗口内等待“目标文件 analyzedAt 达标 + 相关 sourceDir full scan ready”。 |
 | `initializeFullScan(sourceDirs)` | 异步扫描目录下所有源码，构建 definitions/references 索引，并设置目录 ready。 |
 | `onFileDeleted(path)` | 清理内存状态、索引、数据库文件记录（含前缀删除）。 |
 | `getEffectedFiles(changedPaths)` | 基于 `changedDefinitionKeys` + `removedDefinitionKeys` 查询引用文件；仅返回本地存在且不在 `changedPaths` 的文件。 |
@@ -219,6 +219,7 @@ Kotlin 引用覆盖：
 超时或中断时返回：
 
 - `AnalysisReadiness(isReady = false, unreadyPaths, pendingSourceDirs)`
+- 日志分级：`debug` 打印详细路径；`warn` 仅打印数量（如 `targetPathCount/unreadyPathCount`）。
 
 ### 6.2 DeployDataGenerator 降级行为
 
@@ -287,7 +288,7 @@ Kotlin 引用覆盖：
 ### 9.2 代码定位顺序（固定入口）
 
 1. `IncrementalCompilerHelper.compile`  
-确认是否在首轮调用 `deployFileManager.awaitConstRefAnalysis(changedSourcePaths)`，以及重编译轮次的 `changedSourcePaths` 来源。
+确认是否在“首轮编译成功后、调用 `getRecompileFiles` 前”执行 `deployFileManager.awaitConstRefAnalysis(changedSourcePaths)`，以及重编译轮次的 `changedSourcePaths` 来源。
 
 2. `DeployFileManager.getRecompileFiles`  
 确认 `changedSourcePaths` 是否透传到 `DeployDataGenerator.buildDeployData(... constRefChangedSourcePaths=...)`。

@@ -109,7 +109,7 @@ class ConstRefEngine(
             trimAnalyzedAtLocked()
             schedulePendingLocked()
         }
-        forceAnalyzePendingNow()
+        triggerPreCompileAnalyze()
         var readiness = AnalysisReadiness.READY
         synchronized(stateLock) {
             val relatedSourceDirs = resolveRelatedSourceDirsLocked(targetPaths)
@@ -135,9 +135,15 @@ class ConstRefEngine(
                         unreadyPaths = unreadyPaths,
                         pendingSourceDirs = pendingSourceDirs,
                     )
-                    logger.warn(
+                    logger.debug(
                         "ConstRefEngine.awaitAnalysis timeout(${timeoutMs}ms), " +
                             "targetPaths=$targetPaths, unreadyPaths=$unreadyPaths, pendingSourceDirs=$pendingSourceDirs"
+                    )
+                    logger.warn(
+                        "ConstRefEngine.awaitAnalysis timeout(${timeoutMs}ms), " +
+                            "targetPathCount=${targetPaths.size}, " +
+                            "unreadyPathCount=${unreadyPaths.size}, " +
+                            "pendingSourceDirCount=${pendingSourceDirs.size}"
                     )
                     break
                 }
@@ -154,7 +160,13 @@ class ConstRefEngine(
                         unreadyPaths = unreadyPaths,
                         pendingSourceDirs = pendingSourceDirs,
                     )
-                    logger.warn("ConstRefEngine.awaitAnalysis interrupted, targetPaths=$targetPaths")
+                    logger.debug("ConstRefEngine.awaitAnalysis interrupted, targetPaths=$targetPaths")
+                    logger.warn(
+                        "ConstRefEngine.awaitAnalysis interrupted, " +
+                            "targetPathCount=${targetPaths.size}, " +
+                            "unreadyPathCount=${unreadyPaths.size}, " +
+                            "pendingSourceDirCount=${pendingSourceDirs.size}"
+                    )
                     break
                 }
             }
@@ -399,27 +411,16 @@ class ConstRefEngine(
         }
     }
 
-    private fun forceAnalyzePendingNow() {
-        if (!beginSyncScene(AnalyzeScene.PRE_COMPILE)) {
-            return
-        }
-        val toAnalyze = synchronized(stateLock) {
+    private fun triggerPreCompileAnalyze() {
+        synchronized(stateLock) {
             if (pendingAnalyzeFiles.isEmpty()) {
-                endSyncScene(AnalyzeScene.PRE_COMPILE)
                 return
             }
             sceneTaskStates[AnalyzeScene.FILE_CHANGE]?.scheduledJob?.cancel()
             sceneTaskStates[AnalyzeScene.FILE_CHANGE]?.scheduledJob = null
-            val files = pendingAnalyzeFiles.toList()
-            pendingAnalyzeFiles.clear()
-            files
-        }
-        try {
-            analyzeFiles(toAnalyze.map(::File))
-        } catch (t: Throwable) {
-            logger.warn("ConstRefEngine.forceAnalyzePendingNow failed", t)
-        } finally {
-            endSyncScene(AnalyzeScene.PRE_COMPILE)
+            launchSceneTaskLocked(AnalyzeScene.PRE_COMPILE) {
+                analyzePending()
+            }
         }
     }
 
@@ -930,25 +931,6 @@ class ConstRefEngine(
             }
         }
         sceneState.scheduledJob = scheduledJob
-    }
-
-    private fun beginSyncScene(scene: AnalyzeScene): Boolean {
-        synchronized(stateLock) {
-            val state = sceneTaskStates.getValue(scene)
-            if (state.runningJob?.isActive == true) {
-                return false
-            }
-            state.runningJob = Job()
-            return true
-        }
-    }
-
-    private fun endSyncScene(scene: AnalyzeScene) {
-        synchronized(stateLock) {
-            val state = sceneTaskStates.getValue(scene)
-            state.runningJob = null
-            notifyStateChangedLocked()
-        }
     }
 
     private fun isSceneActiveLocked(scene: AnalyzeScene): Boolean {

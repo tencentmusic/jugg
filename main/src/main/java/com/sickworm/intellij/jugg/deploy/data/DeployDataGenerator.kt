@@ -176,9 +176,14 @@ class DeployDataGenerator(
                 ConstRefReadiness(isReady = false)
             }
             if (!readiness.isReady) {
+                logger.debug(
+                    "const ref analysis not ready details, " +
+                        "unreadyPaths=${readiness.unreadyPaths}, pendingSourceDirs=${readiness.pendingSourceDirs}"
+                )
                 logger.warn(
                     "const ref analysis not ready, fallback to completed cache only, " +
-                        "unreadyPaths=${readiness.unreadyPaths}, pendingSourceDirs=${readiness.pendingSourceDirs}"
+                        "unreadyPathCount=${readiness.unreadyPaths.size}, " +
+                        "pendingSourceDirCount=${readiness.pendingSourceDirs.size}"
                 )
             }
             try {

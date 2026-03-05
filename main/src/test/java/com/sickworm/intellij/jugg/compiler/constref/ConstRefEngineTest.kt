@@ -5,15 +5,71 @@ import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.concurrent.Executors
+import kotlin.system.measureTimeMillis
 
 class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
+    @Test
+    fun `awaitAnalysis should return within timeout when pending analysis is slow`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.io.throttle.ms" to "1200",
+                "jugg.constref.io.throttle.every" to "1",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_scheduler_timeout_budget")
+            File(rootDir, ".git").mkdirs()
+            val constantsFile = File(rootDir, "Constants.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    const val MAX = 1
+                    """.trimIndent()
+                )
+            }
+            val userFile = File(rootDir, "User.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    import com.example.MAX
+                    val value = MAX
+                    """.trimIndent()
+                )
+            }
+            val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+            val scope = CoroutineScope(dispatcher + SupervisorJob())
+            val scheduler = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            )
+            try {
+                scheduler.onFileSaved(constantsFile.absolutePath)
+                scheduler.onFileSaved(userFile.absolutePath)
+                val elapsedMs = measureTimeMillis {
+                    val readiness = scheduler.awaitAnalysis(listOf(userFile.absolutePath), timeoutMs = 300L)
+                    assertFalse(readiness.isReady)
+                }
+                assertTrue("awaitAnalysis should not block much longer than timeout, elapsedMs=$elapsedMs", elapsedMs < 1_000L)
+            } finally {
+                scheduler.dispose()
+                scope.cancel()
+                dispatcher.close()
+            }
+        }
+    }
+
     @Test
     fun `should not analyze current editing file until next file changes`() {
         val rootDir = createTempDirectory("const_ref_scheduler_editing_state")
