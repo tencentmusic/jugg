@@ -107,6 +107,7 @@
 - 元素模式未命中时返回 `MCP_INTERNAL_ERROR`，`message` 会包含与本次输入 selector 类型一致的候选元素摘要（例如仅传 `resourceId` 时只返回 `resource-id` 候选），便于快速改 selector。
 - 元素模式命中前会过滤不可操作节点（`VISIBLE + isShown + 非零尺寸 + 有效 bounds`），避免隐藏模板节点导致误报多匹配。
 - 元素模式成功时 `data.matchedElement` 为结构化对象：`{text, className, resourceId, contentDesc, bounds:[l,t,r,b], centerX, centerY}`。
+- `tap` 在执行点击前会额外检查前台 `topActivity` 稳定性：要求连续 2 次检查结果均为同一 `topActivity` 且状态为 `onResume/RESUMED`，两次检查间隔固定 1 秒；最多等待 5 秒，超时后继续执行点击。若工具最终失败，`message` 会附带当前 `topActivity` 不稳定提示。
 - 参数使用优先级（仅在同一次调用里同时传入多种模式参数时生效）：`coordinate > percent > element`。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
 - 推荐交互顺序（Agent/Skill 指引）：优先 `layout_dump + element tap`；元素模式不适用时使用 `layout_dump + coordinate tap`；仅当 ViewHierarchy 路径明确不可用时，才退回 `screenshot + percent/coordinate tap`。
 

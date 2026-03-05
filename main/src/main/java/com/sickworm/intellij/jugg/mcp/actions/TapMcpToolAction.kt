@@ -169,8 +169,8 @@ class TapMcpToolAction : McpToolAction {
         }
         val adb = selected.adb
         val packageName = resolvePackageName(runtime)
-
-        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+        val topActivityStabilityResult = waitTopActivityOnResumeStable(adb)
+        val actionResult = McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
             when (action) {
                 "tap" -> executeTap(arguments, adb, packageName, logger)
                 "longPress" -> executeLongPress(arguments, adb, packageName, logger)
@@ -184,6 +184,10 @@ class TapMcpToolAction : McpToolAction {
                 )
             }
         }
+        if (!topActivityStabilityResult.isStable) {
+            return appendTopActivityNotStableHintIfNeeded(actionResult, topActivityStabilityResult)
+        }
+        return actionResult
     }
 
     private fun executeTap(
@@ -807,6 +811,106 @@ class TapMcpToolAction : McpToolAction {
         )
     }
 
+    private fun waitTopActivityOnResumeStable(adb: IDeviceAdb): TopActivityStabilityResult {
+        val deadline = System.currentTimeMillis() + TOP_ACTIVITY_STABLE_TIMEOUT_MS
+        var checks = 0
+        var previousStableCandidate: TopActivitySnapshot? = null
+        var lastSnapshot: TopActivitySnapshot? = null
+
+        while (System.currentTimeMillis() <= deadline) {
+            val snapshot = queryTopActivitySnapshot(adb)
+            checks++
+            lastSnapshot = snapshot
+            if (snapshot != null && snapshot.isOnResume) {
+                if (previousStableCandidate != null && previousStableCandidate.activity == snapshot.activity) {
+                    return TopActivityStabilityResult(
+                        isStable = true,
+                        checks = checks,
+                        activity = snapshot.activity,
+                        state = snapshot.state,
+                    )
+                }
+                previousStableCandidate = snapshot
+            } else {
+                previousStableCandidate = null
+            }
+            Thread.sleep(TOP_ACTIVITY_STABLE_INTERVAL_MS)
+        }
+
+        return TopActivityStabilityResult(
+            isStable = false,
+            checks = checks,
+            activity = lastSnapshot?.activity,
+            state = lastSnapshot?.state,
+        )
+    }
+
+    private fun queryTopActivitySnapshot(adb: IDeviceAdb): TopActivitySnapshot? {
+        val output = adb.execAdbShellCmd(ACTIVITY_DUMP_COMMAND)
+        val parsedEntries = ActivityStackMcpToolAction.parseActivityEntries(output)
+        val activityLine = TOP_ACTIVITY_KEYWORDS.asSequence()
+            .mapNotNull { keyword ->
+                output.lineSequence()
+                    .firstOrNull { it.contains(keyword) }
+                    ?.let { line -> keyword to line }
+            }
+            .firstOrNull()
+        if (activityLine == null) {
+            val fallbackEntry = parsedEntries.firstOrNull() ?: return null
+            return TopActivitySnapshot(
+                activity = fallbackEntry.component,
+                state = "unknown",
+                isOnResume = false,
+            )
+        }
+        val line = activityLine.second.trim()
+        val activity = parsedEntries.firstOrNull { entry -> entry.line == line }?.component
+            ?: parsedEntries.firstOrNull { entry -> line.contains(entry.component) }?.component
+            ?: return null
+        val state = resolveTopActivityState(activityLine.first, line)
+        return TopActivitySnapshot(activity = activity, state = state, isOnResume = isOnResumeState(state))
+    }
+
+    private fun resolveTopActivityState(keyword: String, line: String): String {
+        val stateFromLine = STATE_PATTERN.find(line)?.groupValues?.getOrNull(1)
+        if (!stateFromLine.isNullOrBlank()) {
+            return stateFromLine
+        }
+        return if (keyword == "topResumedActivity" || keyword == "mResumedActivity") {
+            ON_RESUME_STATE
+        } else {
+            "unknown"
+        }
+    }
+
+    private fun isOnResumeState(state: String): Boolean {
+        val normalized = state.lowercase()
+        return normalized == "resumed" || normalized == "onresume"
+    }
+
+    private fun appendTopActivityNotStableHintIfNeeded(
+        result: McpToolResult,
+        notStable: TopActivityStabilityResult,
+    ): McpToolResult {
+        if (result.status != McpToolStatus.ERROR) {
+            return result
+        }
+        if (result.errorCode == McpErrorCode.MCP_INVALID_PARAMS) {
+            return result
+        }
+        val hint = " topActivity/state is currently not stable (checks=${notStable.checks}, " +
+            "topActivity=${notStable.activity ?: ""}, state=${notStable.state ?: "unknown"})."
+        val mergedData = (result.data as? Map<*, *>)?.toMutableMap() ?: mutableMapOf()
+        mergedData["topActivityStable"] = false
+        mergedData["topActivityStableChecks"] = notStable.checks
+        mergedData["topActivity"] = notStable.activity ?: ""
+        mergedData["topActivityState"] = notStable.state ?: "unknown"
+        return result.copy(
+            message = result.message + hint,
+            data = mergedData,
+        )
+    }
+
     private fun resolvePackageName(runtime: IMcpRuntime): String? {
         return try {
             runtime.deployTargetManager.getPackageName().takeIf { it.isNotBlank() }
@@ -819,7 +923,26 @@ class TapMcpToolAction : McpToolAction {
 
     private fun Map<String, Any?>.numberAsDouble(key: String): Double? = (this[key] as? Number)?.toDouble()
 
+    private data class TopActivitySnapshot(
+        val activity: String,
+        val state: String,
+        val isOnResume: Boolean,
+    )
+
+    private data class TopActivityStabilityResult(
+        val isStable: Boolean,
+        val checks: Int,
+        val activity: String?,
+        val state: String?,
+    )
+
     companion object {
+        private const val ACTIVITY_DUMP_COMMAND = "dumpsys activity activities"
+        private const val TOP_ACTIVITY_STABLE_TIMEOUT_MS = 5_000L
+        private const val TOP_ACTIVITY_STABLE_INTERVAL_MS = 1_000L
+        private const val ON_RESUME_STATE = "onResume"
+        private val TOP_ACTIVITY_KEYWORDS = listOf("topResumedActivity", "mResumedActivity", "mFocusedActivity")
+        private val STATE_PATTERN = Regex("\\bstate=([A-Za-z_]+)\\b")
         private val SIZE_PATTERN = Regex("""(\d+)\s*x\s*(\d+)""")
         private const val DEFAULT_LONG_PRESS_DURATION_MS = 500
         private const val DEFAULT_SWIPE_DURATION_MS = 300

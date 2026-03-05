@@ -109,7 +109,7 @@ class ActivityStackMcpToolAction : McpToolAction {
     /**
      * ActivityEntry carries stackIndex, histIndex, taskId, and component.
      */
-    private data class ActivityEntry(
+    internal data class ActivityEntry(
         val stackIndex: Int,
         val histIndex: Int,
         val taskId: Int,
@@ -124,43 +124,6 @@ class ActivityStackMcpToolAction : McpToolAction {
         val activity: String?,
         val taskId: Int?,
     )
-
-    private fun parseActivityEntries(dumpOutput: String): List<ActivityEntry> {
-        val taskRegex = Regex("Task\\{[^#]*#(\\d+)")
-        val histRegex = Regex("Hist\\s+#(\\d+)")
-        val inlineTaskRegex = Regex("\\bt(\\d+)\\b")
-        val componentRegex = Regex("([a-zA-Z][a-zA-Z0-9_.$]*(?:\\.[a-zA-Z0-9_.$]+)+/[a-zA-Z0-9_.$]+)")
-
-        var currentTaskId = -1
-        val entries = mutableListOf<ActivityEntry>()
-        dumpOutput.lineSequence().forEachIndexed { index, rawLine ->
-            val line = rawLine.trim()
-            taskRegex.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { currentTaskId = it }
-            val shouldParse = line.contains("ActivityRecord{") ||
-                line.contains("Hist #") ||
-                line.contains("topResumedActivity") ||
-                line.contains("mResumedActivity") ||
-                line.contains("mFocusedActivity")
-            if (!shouldParse) {
-                return@forEachIndexed
-            }
-
-            val histIndex = histRegex.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: -1
-            val inlineTaskId = inlineTaskRegex.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            val resolvedTaskId = inlineTaskId ?: currentTaskId
-            componentRegex.findAll(line).forEach { componentMatch ->
-                entries += ActivityEntry(
-                    stackIndex = index,
-                    histIndex = histIndex,
-                    taskId = resolvedTaskId,
-                    component = componentMatch.groupValues[1],
-                    line = line.take(600),
-                )
-            }
-        }
-
-        return entries
-    }
 
     private fun findTopContext(dumpOutput: String, parsedEntries: List<ActivityEntry>): TopContext {
         val componentRegex = Regex("([a-zA-Z][a-zA-Z0-9_.$]*(?:\\.[a-zA-Z0-9_.$]+)+/[a-zA-Z0-9_.$]+)")
@@ -238,5 +201,43 @@ class ActivityStackMcpToolAction : McpToolAction {
             artifacts = emptyList(),
             errorCode = McpErrorCode.MCP_NO_DEVICE,
         )
+    }
+
+    companion object {
+        internal fun parseActivityEntries(dumpOutput: String): List<ActivityEntry> {
+            var currentTaskId = -1
+            val entries = mutableListOf<ActivityEntry>()
+            dumpOutput.lineSequence().forEachIndexed { index, rawLine ->
+                val line = rawLine.trim()
+                TASK_REGEX.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { currentTaskId = it }
+                val shouldParse = line.contains("ActivityRecord{") ||
+                    line.contains("Hist #") ||
+                    line.contains("topResumedActivity") ||
+                    line.contains("mResumedActivity") ||
+                    line.contains("mFocusedActivity")
+                if (!shouldParse) {
+                    return@forEachIndexed
+                }
+
+                val histIndex = HIST_REGEX.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: -1
+                val inlineTaskId = INLINE_TASK_REGEX.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                val resolvedTaskId = inlineTaskId ?: currentTaskId
+                COMPONENT_REGEX.findAll(line).forEach { componentMatch ->
+                    entries += ActivityEntry(
+                        stackIndex = index,
+                        histIndex = histIndex,
+                        taskId = resolvedTaskId,
+                        component = componentMatch.groupValues[1],
+                        line = line.take(600),
+                    )
+                }
+            }
+            return entries
+        }
+
+        private val TASK_REGEX = Regex("Task\\{[^#]*#(\\d+)")
+        private val HIST_REGEX = Regex("Hist\\s+#(\\d+)")
+        private val INLINE_TASK_REGEX = Regex("\\bt(\\d+)\\b")
+        private val COMPONENT_REGEX = Regex("([a-zA-Z][a-zA-Z0-9_.$]*(?:\\.[a-zA-Z0-9_.$]+)+/[a-zA-Z0-9_.$]+)")
     }
 }

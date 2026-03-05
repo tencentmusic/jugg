@@ -47,6 +47,58 @@ class TapMcpToolActionTest {
     }
 
     @Test
+    fun testTapShouldWaitTopActivityOnResumeStableBeforeTap() {
+        val dumpsysResumed = "topResumedActivity=ActivityRecord{123 com.example.app/.MainActivity t12}"
+        val (action, adb) = setup(
+            commandBehavior = { cmd, _ ->
+                if (cmd == "dumpsys activity activities") {
+                    return@setup dumpsysResumed
+                }
+                null
+            }
+        )
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "x" to 540, "y" to 960),
+            runtime()
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(adb.executedCommands.contains("input tap 540 960"))
+        Assert.assertEquals(2, adb.executedCommands.count { it == "dumpsys activity activities" })
+    }
+
+    @Test
+    fun testTapShouldFailWhenTopActivityOnResumeIsNotStable() {
+        val dumpsysOutputs = listOf(
+            "topResumedActivity=ActivityRecord{123 com.example.app/.MainActivity t12}",
+            "mFocusedActivity: ActivityRecord{456 com.example.app/.MainActivity t12 state=PAUSED}",
+            "topResumedActivity=ActivityRecord{789 com.example.app/.OtherActivity t13}",
+        )
+        var dumpsysIndex = 0
+        val (action, adb) = setup(
+            commandBehavior = { cmd, _ ->
+                if (cmd == "dumpsys activity activities") {
+                    val current = dumpsysOutputs[dumpsysIndex % dumpsysOutputs.size]
+                    dumpsysIndex += 1
+                    return@setup current
+                }
+                if (cmd.startsWith("input tap ")) {
+                    throw RuntimeException("transient tap error")
+                }
+                null
+            }
+        )
+
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "x" to 10, "y" to 20),
+            runtime()
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+        Assert.assertTrue(result.message.contains("currently not stable"))
+        Assert.assertTrue(adb.executedCommands.any { it.startsWith("input tap ") })
+    }
+
+    @Test
     fun testDefaultTapActionCoordinateMode() {
         val (action, adb) = setup()
         val result = action.execute(
@@ -530,7 +582,7 @@ class TapMcpToolActionTest {
                         throw RuntimeException("transient tap error")
                     }
                 }
-                ""
+                null
             }
         )
         var readyChecks = 0
@@ -565,7 +617,7 @@ class TapMcpToolActionTest {
     private fun setup(
         shellOutputs: Map<String, String> = emptyMap(),
         packageName: String? = null,
-        commandBehavior: ((String, Int) -> String)? = null,
+        commandBehavior: ((String, Int) -> String?)? = null,
     ): Pair<TapMcpToolAction, FakeDeviceAdb> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb(shellOutputs, commandBehavior)
@@ -639,7 +691,7 @@ class TapMcpToolActionTest {
 
     private class FakeDeviceAdb(
         private val shellOutputs: Map<String, String> = emptyMap(),
-        private val commandBehavior: ((String, Int) -> String)? = null,
+        private val commandBehavior: ((String, Int) -> String?)? = null,
     ) : IDeviceAdb {
         override val displayName: String? = "fake_device"
         override val api: Int = 34
@@ -654,7 +706,13 @@ class TapMcpToolActionTest {
             commandCount += 1
             val custom = commandBehavior
             if (custom != null) {
-                return custom(cmd, commandCount)
+                val customResult = custom(cmd, commandCount)
+                if (customResult != null) {
+                    return customResult
+                }
+            }
+            if (cmd == "dumpsys activity activities") {
+                return DEFAULT_DUMPSYS_ACTIVITY_OUTPUT
             }
             return shellOutputs[cmd].orEmpty()
         }
@@ -664,6 +722,11 @@ class TapMcpToolActionTest {
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
         override fun getArch(packageName: String): String = "ARCH_64_BIT"
         override fun getProperty(name: String): String? = null
+
+        companion object {
+            private const val DEFAULT_DUMPSYS_ACTIVITY_OUTPUT =
+                "topResumedActivity=ActivityRecord{100 com.example.app/.MainActivity t10}"
+        }
     }
 
     private class FakePlatformApi(
