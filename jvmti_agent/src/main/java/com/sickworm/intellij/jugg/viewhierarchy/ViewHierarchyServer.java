@@ -236,7 +236,8 @@ public class ViewHierarchyServer {
         try {
             String rootLayout = optString(params, "rootLayout");
             boolean excludeGone = optBoolean(params, "excludeGone", false);
-            return ok(viewTreeDumper.dumpWindowsJson(rootLayout, excludeGone));
+            boolean topWindowOnly = optBoolean(params, "topWindowOnly", true);
+            return ok(viewTreeDumper.dumpWindowsJson(rootLayout, excludeGone, topWindowOnly));
         } catch (Throwable t) {
             LogUtils.e(TAG, "doLayoutDump failed", t);
             return error("layout_dump failed: " + t.getMessage(), null);
@@ -248,9 +249,10 @@ public class ViewHierarchyServer {
         String resourceId = optString(params, "resourceId");
         String contentDesc = optString(params, "contentDesc");
         String className = optString(params, "className");
+        boolean topWindowOnly = optBoolean(params, "topWindowOnly", true);
 
         try {
-            List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className);
+            List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly);
             return ok(buildElementsData(matches));
         } catch (Throwable t) {
             LogUtils.e(TAG, "doFindElements failed", t);
@@ -273,12 +275,13 @@ public class ViewHierarchyServer {
         String className = optString(params, "className");
         Integer durationValue = optInt(params, "duration");
         int duration = durationValue != null ? Math.max(50, durationValue) : 500;
+        boolean topWindowOnly = optBoolean(params, "topWindowOnly", true);
         String actionName = isLongPress ? "find_and_long_press" : "find_and_tap";
 
         try {
-            List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className);
+            List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly);
             if (matches.isEmpty()) {
-                List<MatchedElement> candidates = elementFinder.findClickableCandidates(5);
+                List<MatchedElement> candidates = elementFinder.findClickableCandidates(5, topWindowOnly);
                 JSONObject data = buildElementsData(candidates);
                 data.put("matchCount", 0);
                 return error("No matching UI element found.", data);
@@ -338,7 +341,7 @@ public class ViewHierarchyServer {
         JSONObject data = new JSONObject();
         JSONArray elements = new JSONArray();
         for (MatchedElement match : matches) {
-            elements.put(match.toJson());
+            elements.put(match.toMatchedElementJson());
         }
         data.put("matchCount", matches.size());
         data.put("elements", elements);

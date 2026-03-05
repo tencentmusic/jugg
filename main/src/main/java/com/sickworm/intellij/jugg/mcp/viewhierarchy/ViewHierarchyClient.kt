@@ -29,8 +29,9 @@ open class ViewHierarchyClient(
     /**
      * Request layout dump from app process, optionally scoped to a subtree.
      * When excludeGone is true, GONE nodes and their subtrees are omitted from output.
+     * When topWindowOnly is true, only the topmost window is included in the dump.
      */
-    fun dumpLayout(rootLayout: String? = null, excludeGone: Boolean = false): LayoutDumpResult? {
+    fun dumpLayout(rootLayout: String? = null, excludeGone: Boolean = false, topWindowOnly: Boolean = true): LayoutDumpResult? {
         val params = linkedMapOf<String, Any?>()
         if (!rootLayout.isNullOrBlank()) {
             params["rootLayout"] = rootLayout
@@ -38,6 +39,7 @@ open class ViewHierarchyClient(
         if (excludeGone) {
             params["excludeGone"] = true
         }
+        params["topWindowOnly"] = topWindowOnly
         val response = sendRequest(
             ViewHierarchyRequest(
                 action = "layout_dump",
@@ -115,6 +117,7 @@ open class ViewHierarchyClient(
             "resourceId" to resourceId,
             "contentDesc" to contentDesc,
             "className" to className,
+            "topWindowOnly" to true,
         )
         if (duration != null) {
             params["duration"] = duration
@@ -195,7 +198,7 @@ open class ViewHierarchyClient(
                 resourceId = item.optStringOrNull("resourceId").orEmpty(),
                 contentDesc = item.optStringOrNull("contentDesc").orEmpty(),
                 className = item.optStringOrNull("className").orEmpty(),
-                bounds = item.optJsonObject("bounds"),
+                bounds = item.optJsonArray("bounds")?.mapNotNull { it.asIntOrNull() }?.takeIf { it.size == 4 },
                 centerX = item.optIntOrNull("centerX") ?: -1,
                 centerY = item.optIntOrNull("centerY") ?: -1,
             )

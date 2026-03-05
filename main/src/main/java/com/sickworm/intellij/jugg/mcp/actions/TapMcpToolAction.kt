@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchedElementData
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.logger.getInstance
+import kotlin.math.roundToInt
 
 /**
  * TapMcpToolAction implements MCP tool `tap` and supports tap, longPress and swipe actions.
@@ -310,8 +311,8 @@ class TapMcpToolAction : McpToolAction {
         return try {
             val screenSize = getScreenSize(adb)
                 ?: return screenSizeErrorResult()
-            val tapX = (screenSize.width * xPercent / 100.0).toInt()
-            val tapY = (screenSize.height * yPercent / 100.0).toInt()
+            val tapX = percentToCoordinate(xPercent, screenSize.width)
+            val tapY = percentToCoordinate(yPercent, screenSize.height)
             adb.execAdbShellCmd("input tap $tapX $tapY")
             McpToolResult(
                 status = McpToolStatus.OK,
@@ -394,8 +395,8 @@ class TapMcpToolAction : McpToolAction {
         return try {
             val screenSize = getScreenSize(adb)
                 ?: return screenSizeErrorResult()
-            val x = (screenSize.width * xPercent / 100.0).toInt()
-            val y = (screenSize.height * yPercent / 100.0).toInt()
+            val x = percentToCoordinate(xPercent, screenSize.width)
+            val y = percentToCoordinate(yPercent, screenSize.height)
             adb.execAdbShellCmd("input swipe $x $y $x $y $duration")
             McpToolResult(
                 status = McpToolStatus.OK,
@@ -492,10 +493,10 @@ class TapMcpToolAction : McpToolAction {
         return try {
             val screenSize = getScreenSize(adb)
                 ?: return screenSizeErrorResult()
-            val x = (screenSize.width * xPercent / 100.0).toInt()
-            val y = (screenSize.height * yPercent / 100.0).toInt()
-            val endX = (screenSize.width * endXPercent / 100.0).toInt()
-            val endY = (screenSize.height * endYPercent / 100.0).toInt()
+            val x = percentToCoordinate(xPercent, screenSize.width)
+            val y = percentToCoordinate(yPercent, screenSize.height)
+            val endX = percentToCoordinate(endXPercent, screenSize.width)
+            val endY = percentToCoordinate(endYPercent, screenSize.height)
             adb.execAdbShellCmd("input swipe $x $y $endX $endY $duration")
             McpToolResult(
                 status = McpToolStatus.OK,
@@ -556,7 +557,7 @@ class TapMcpToolAction : McpToolAction {
                         "resourceId" to match.resourceId,
                         "contentDesc" to match.contentDesc,
                         "className" to match.className,
-                        "bounds" to (match.bounds?.toString() ?: ""),
+                        "bounds" to (match.bounds ?: emptyList<Int>()),
                         "centerX" to match.centerX,
                         "centerY" to match.centerY,
                     )
@@ -669,11 +670,19 @@ class TapMcpToolAction : McpToolAction {
             val h = sizeMatch.groupValues[2].toIntOrNull() ?: continue
             width = w
             height = h
-            if (line.trimStart().startsWith("Override")) {
+            if (line.trimStart().lowercase().startsWith("override")) {
                 break
             }
         }
         return if (width != null && height != null) ScreenSize(width, height) else null
+    }
+
+    private fun percentToCoordinate(percent: Double, edgeSize: Int): Int {
+        if (edgeSize <= 0) {
+            return 0
+        }
+        val raw = (edgeSize.toDouble() * percent / 100.0).roundToInt()
+        return raw.coerceIn(0, edgeSize - 1)
     }
 
     private fun sanitizeDuration(duration: Int): Int {
@@ -811,7 +820,7 @@ class TapMcpToolAction : McpToolAction {
     private fun Map<String, Any?>.numberAsDouble(key: String): Double? = (this[key] as? Number)?.toDouble()
 
     companion object {
-        private val SIZE_PATTERN = Regex("""(\d+)x(\d+)""")
+        private val SIZE_PATTERN = Regex("""(\d+)\s*x\s*(\d+)""")
         private const val DEFAULT_LONG_PRESS_DURATION_MS = 500
         private const val DEFAULT_SWIPE_DURATION_MS = 300
         private const val MIN_DURATION_MS = 50

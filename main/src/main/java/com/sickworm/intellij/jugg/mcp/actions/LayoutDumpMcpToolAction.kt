@@ -49,6 +49,10 @@ class LayoutDumpMcpToolAction : McpToolAction {
                     minimum = 4.0,
                     maximum = 128.0,
                 ),
+                "isAllWindows" to McpJsonSchemaProperty(
+                    type = "boolean",
+                    description = "When true, dump all windows instead of only the top window. Default is false.",
+                ),
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -75,7 +79,8 @@ class LayoutDumpMcpToolAction : McpToolAction {
         val rootLayout = arguments["rootLayout"] as? String
         val isIncludeGone = arguments["isIncludeGone"] as? Boolean ?: false
         val inlineMaxKb = (arguments["inlineMaxKb"] as? Number)?.toInt() ?: DEFAULT_INLINE_THRESHOLD_KB
-        return layoutDumpAction(runtime, rootLayout, isIncludeGone, inlineMaxKb)
+        val isAllWindows = arguments["isAllWindows"] as? Boolean ?: false
+        return layoutDumpAction(runtime, rootLayout, isIncludeGone, inlineMaxKb, isAllWindows)
     }
 
     private fun layoutDumpAction(
@@ -83,6 +88,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
         rootLayout: String? = null,
         isIncludeGone: Boolean = false,
         inlineMaxKb: Int,
+        isAllWindows: Boolean = false,
     ): McpToolResult {
         val logger = runtime.logger.getInstance("LayoutDumpMcpToolAction")
         val selected = resolveOnlineDevice(runtime)
@@ -114,7 +120,8 @@ class LayoutDumpMcpToolAction : McpToolAction {
             try {
                 val client = ViewHierarchyClient(adb, packageName)
                 val excludeGone = !isIncludeGone
-                val dumpResult = client.dumpLayout(rootLayout, excludeGone)
+                val topWindowOnly = !isAllWindows
+                val dumpResult = client.dumpLayout(rootLayout, excludeGone, topWindowOnly)
                     ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
                         "layout_dump",
                         "ViewHierarchy server is unavailable or returned invalid response"

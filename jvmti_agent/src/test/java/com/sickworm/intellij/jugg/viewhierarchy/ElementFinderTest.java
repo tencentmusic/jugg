@@ -50,6 +50,28 @@ public class ElementFinderTest {
         Assert.assertEquals(2, matches.size());
     }
 
+    @Test
+    public void find_shouldUseFirstWindowAsTopWhenTopWindowOnlyIsEnabled() {
+        TextView topText = mockTextView("TopWindowTarget", View.VISIBLE, true, 120, 48, 10, 20);
+        TextView backgroundText = mockTextView("BackgroundTarget", View.VISIBLE, true, 120, 48, 200, 220);
+
+        ViewGroup topWindowRoot = mockRoot(topText);
+        ViewGroup backgroundWindowRoot = mockRoot(backgroundText);
+
+        ElementFinder finder = new ElementFinder(
+            new FixedWindowsDumper(
+                new WindowInfo("activity", "Top", topWindowRoot),
+                new WindowInfo("activity", "Background", backgroundWindowRoot)
+            )
+        );
+
+        List<MatchedElement> topMatches = finder.find("TopWindowTarget", null, null, null, true);
+        List<MatchedElement> backgroundMatches = finder.find("BackgroundTarget", null, null, null, true);
+
+        Assert.assertEquals(1, topMatches.size());
+        Assert.assertTrue(backgroundMatches.isEmpty());
+    }
+
     private ViewGroup mockRoot(View... children) {
         ViewGroup root = Mockito.mock(ViewGroup.class);
         Mockito.when(root.getVisibility()).thenReturn(View.VISIBLE);

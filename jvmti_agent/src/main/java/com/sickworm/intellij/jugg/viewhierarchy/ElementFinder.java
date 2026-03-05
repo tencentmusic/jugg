@@ -6,6 +6,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -28,8 +29,22 @@ public class ElementFinder {
         String contentDesc,
         String className
     ) {
+        return find(text, resourceId, contentDesc, className, false);
+    }
+
+    /**
+     * Find elements with AND logic: all non-empty selectors must match.
+     * When topWindowOnly is true, only searches in the topmost window.
+     */
+    public List<MatchedElement> find(
+        String text,
+        String resourceId,
+        String contentDesc,
+        String className,
+        boolean topWindowOnly
+    ) {
         List<MatchedElement> result = new ArrayList<>();
-        List<WindowInfo> windows = dumper.getAllWindows();
+        List<WindowInfo> windows = resolveWindows(topWindowOnly);
 
         // Traverse in reverse so overlay/popup windows are preferred over base activity.
         for (int i = windows.size() - 1; i >= 0; i--) {
@@ -43,8 +58,16 @@ public class ElementFinder {
      * Return clickable candidates for debugging when a selector has no match.
      */
     public List<MatchedElement> findClickableCandidates(int limit) {
+        return findClickableCandidates(limit, false);
+    }
+
+    /**
+     * Return clickable candidates for debugging when a selector has no match.
+     * When topWindowOnly is true, only searches in the topmost window.
+     */
+    public List<MatchedElement> findClickableCandidates(int limit, boolean topWindowOnly) {
         List<MatchedElement> result = new ArrayList<>();
-        List<WindowInfo> windows = dumper.getAllWindows();
+        List<WindowInfo> windows = resolveWindows(topWindowOnly);
         for (int i = windows.size() - 1; i >= 0; i--) {
             WindowInfo window = windows.get(i);
             collectClickable(window.rootView, window, result, limit);
@@ -53,6 +76,14 @@ public class ElementFinder {
             }
         }
         return result;
+    }
+
+    private List<WindowInfo> resolveWindows(boolean topWindowOnly) {
+        if (topWindowOnly) {
+            WindowInfo top = dumper.getTopWindow();
+            return top != null ? Collections.singletonList(top) : Collections.emptyList();
+        }
+        return dumper.getAllWindows();
     }
 
     private void findInView(

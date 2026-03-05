@@ -35,7 +35,7 @@ data class MatchCandidate(
     val resourceId: String,
     val contentDesc: String,
     val className: String,
-    val bounds: JsonObject?,
+    val bounds: List<Int>?,
     val centerX: Int,
     val centerY: Int,
 )

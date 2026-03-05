@@ -46,22 +46,31 @@ public class ViewTreeDumper {
      * Build a JSON object with all window roots and their serialized nodes.
      */
     public JSONObject dumpWindowsJson() throws JSONException {
-        return dumpWindowsJson(null, false);
+        return dumpWindowsJson(null, false, false);
     }
 
     /**
      * Build a JSON object for a subtree or full hierarchy.
      * When excludeGone is true, GONE nodes and their subtrees are omitted.
+     * When topWindowOnly is true, only the topmost window is included.
      */
-    public JSONObject dumpWindowsJson(String rootId, boolean excludeGone) throws JSONException {
+    public JSONObject dumpWindowsJson(String rootId, boolean excludeGone, boolean topWindowOnly) throws JSONException {
         if (rootId != null && !rootId.isEmpty()) {
             return dumpSubtreeJson(rootId, excludeGone);
+        }
+
+        List<WindowInfo> windows;
+        if (topWindowOnly) {
+            WindowInfo top = getTopWindow();
+            windows = top != null ? java.util.Collections.singletonList(top) : java.util.Collections.emptyList();
+        } else {
+            windows = getAllWindows();
         }
 
         JSONArray windowsJson = new JSONArray();
         NodeBudget budget = new NodeBudget(MAX_NODE_COUNT);
 
-        for (WindowInfo window : getAllWindows()) {
+        for (WindowInfo window : windows) {
             ViewNode rootNode = dumpView(window.rootView, 0, budget, excludeGone);
             windowsJson.put(window.toJson(rootNode));
         }
@@ -70,6 +79,19 @@ public class ViewTreeDumper {
         data.put("windows", windowsJson);
         data.put("truncated", budget.truncated);
         return data;
+    }
+
+    /**
+     * Return the topmost window.
+     * getAllWindows() prepends the top resumed activity decor view first, so index 0
+     * is the most reliable top entry for top-window-only flows.
+     */
+    public WindowInfo getTopWindow() {
+        List<WindowInfo> windows = getAllWindows();
+        if (windows.isEmpty()) {
+            return null;
+        }
+        return windows.get(0);
     }
 
     /**
@@ -85,7 +107,7 @@ public class ViewTreeDumper {
             }
         }
         if (targetView == null) {
-            return dumpWindowsJson(null, excludeGone);
+            return dumpWindowsJson(null, excludeGone, false);
         }
 
         NodeBudget budget = new NodeBudget(MAX_NODE_COUNT);

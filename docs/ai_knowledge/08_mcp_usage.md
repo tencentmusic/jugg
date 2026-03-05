@@ -77,6 +77,7 @@
 - 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树并落盘为 `.json`。
 - 成功时 `data.file` 返回本地绝对路径，`data.content` 内联返回完整 JSON 数据（无需额外读取文件），`artifacts` 里会包含 `type=json` 的产物。
 - 可选参数 `rootLayout`：传入节点 `id` 值（推荐 short id，如 `"content"`），仅返回该节点及其子树。未传或目标节点不存在时，返回完整层级。
+- `topWindowOnly=true`（默认）时，服务端优先使用当前 top resumed Activity 对应窗口，避免误选到后台 Activity 窗口。
 - 可选参数 `inlineMaxKb`：控制 `data.content` 最大内联大小（KB），默认 16，实际生效值会被 clamp 到 `4..128`。
 - Server 可能返回内联 JSON 或远端文件路径，`layout_dump` 会统一拉齐为本地 `.json` 文件输出。
 - 返回中新增 `data.contentBytes`、`data.inlineOmitted`、`data.inlineThresholdKb`。当 `contentBytes > inlineThresholdKb * 1024` 时，`data.content` 被省略，但 `data.file` 仍可读取完整 JSON。
@@ -96,6 +97,7 @@
 - `action` 支持：`tap`（默认）、`longPress`、`swipe`。
 - **坐标模式**（`x` + `y`）：直接传入设备像素坐标，行为与原有逻辑一致。
 - **百分比模式**（`xPercent` + `yPercent`，范围 0-100）：自动通过 `adb shell wm size` 获取屏幕尺寸后换算为像素坐标，优先使用 Override size。返回 `data` 中包含 `screenWidth`、`screenHeight`。
+- 百分比换算结果会做边界钳制到 `[0, width-1]` / `[0, height-1]`，避免 100% 落到越界坐标。
 - **元素模式**（`text` / `resourceId` / `contentDesc`，可选 `className`）：所有选择器均为**精确匹配**（exact match）。`resourceId` 推荐传 short id（如 `btn_play`）；full id 为兼容回退。走 App 内原子执行（tap: `find_and_tap`，longPress: `find_and_long_press`）。唯一匹配时执行动作；**多匹配时不执行**，返回 `ERROR` + 所有匹配元素摘要（含 bounds/center）。
 - `swipe` 仅支持坐标/百分比两种模式，且必须提供起点与终点：坐标模式需要 `x/y/endX/endY`，百分比模式需要 `xPercent/yPercent/endXPercent/endYPercent`。元素模式下 `swipe` 会直接返回 `MCP_INVALID_PARAMS`。
 - `duration` 参数：

@@ -87,6 +87,40 @@ class TapMcpToolActionTest {
     }
 
     @Test
+    fun testTapPercentModeShouldClampToScreenBounds() {
+        val (action, adb) = setup(
+            shellOutputs = mapOf(
+                "wm size" to "Physical size: 1080x2400",
+            )
+        )
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "xPercent" to 100.0, "yPercent" to 100.0),
+            runtime()
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(1079, data["x"])
+        Assert.assertEquals(2399, data["y"])
+        Assert.assertTrue(adb.executedCommands.contains("input tap 1079 2399"))
+    }
+
+    @Test
+    fun testTapPercentModeSupportsWmSizeWithSpaces() {
+        val (action, adb) = setup(
+            shellOutputs = mapOf(
+                "wm size" to "Physical size: 1080 x 2400",
+            )
+        )
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "xPercent" to 50.0, "yPercent" to 50.0),
+            runtime()
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(adb.executedCommands.contains("input tap 540 1200"))
+    }
+
+    @Test
     fun testSwipeCoordinateMode() {
         val (action, adb) = setup()
         val result = action.execute(
@@ -298,8 +332,8 @@ class TapMcpToolActionTest {
     @Test
     fun testTapElementModeUsesServerMultipleMatches() {
         val (action, adb) = setup(packageName = "com.example.app")
-        val boundsA = jsonObject("""{"left":1,"top":2,"right":101,"bottom":102}""")
-        val boundsB = jsonObject("""{"left":201,"top":202,"right":301,"bottom":302}""")
+        val boundsA = listOf(1, 2, 101, 102)
+        val boundsB = listOf(201, 202, 301, 302)
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
             Mockito.`when`(mock.findAndTap("Item", null, null, null)).thenReturn(
                 FindAndTapResult.Multiple(

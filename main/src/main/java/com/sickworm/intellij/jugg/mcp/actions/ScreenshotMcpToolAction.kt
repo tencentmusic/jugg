@@ -32,7 +32,9 @@ class ScreenshotMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Capture screenshot from target device.",
+        description = "Capture screenshot from target device. " +
+            "The returned image may be scaled down for upload optimization; " +
+            "do NOT use its pixel coordinates for tap positioning.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
@@ -81,15 +83,25 @@ class ScreenshotMcpToolAction : McpToolAction {
                 if (!adb.pull(remoteFile, localFile) || !localFile.exists()) {
                     return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult("screenshot", "failed to pull screenshot file")
                 }
-                val outputFile = optimizeForUpload(localFile)
+                val optimizeResult = optimizeForUpload(localFile)
+                val message = if (optimizeResult.isScaled) {
+                    val ratio = String.format("%.2f", optimizeResult.scaleRatio)
+                    "screenshot captured (scaled from ${optimizeResult.originalWidth}x${optimizeResult.originalHeight}" +
+                        " to ${optimizeResult.outputWidth}x${optimizeResult.outputHeight}, ratio=$ratio)." +
+                        " WARNING: image pixels do NOT match device coordinates." +
+                        " Do NOT calculate tap positions from this image." +
+                        " Use layout_dump + element tap or percent mode tap instead."
+                } else {
+                    "screenshot executed successfully."
+                }
 
                 McpToolResult(
                     status = McpToolStatus.OK,
-                    message = "screenshot executed successfully.",
+                    message = message,
                     data = mapOf(
-                        "file" to outputFile.absolutePath,
+                        "file" to optimizeResult.file.absolutePath,
                     ),
-                    artifacts = listOf(McpArtifact(type = "image", path = outputFile.absolutePath)),
+                    artifacts = listOf(McpArtifact(type = "image", path = optimizeResult.file.absolutePath)),
                     errorCode = null,
                 )
             } catch (e: Exception) {
@@ -99,24 +111,40 @@ class ScreenshotMcpToolAction : McpToolAction {
     }
 
     /**
+     * Result of screenshot optimization containing the output file and scaling metadata.
+     */
+    private data class OptimizeResult(
+        val file: File,
+        val originalWidth: Int,
+        val originalHeight: Int,
+        val outputWidth: Int,
+        val outputHeight: Int,
+        val isScaled: Boolean,
+    ) {
+        val scaleRatio: Double
+            get() = if (originalWidth > 0) outputWidth.toDouble() / originalWidth.toDouble() else 1.0
+    }
+
+    /**
      * Optimize screenshot for upload/token cost:
      * 1) if long edge is too large or file is too heavy, resize;
      * 2) encode to jpeg for better compression.
      * Falls back to original file when optimize step fails.
      */
-    private fun optimizeForUpload(inputFile: File): File {
-        val sourceImage = ImageIO.read(inputFile) ?: return inputFile
+    private fun optimizeForUpload(inputFile: File): OptimizeResult {
+        val sourceImage = ImageIO.read(inputFile)
+            ?: return OptimizeResult(inputFile, 0, 0, 0, 0, isScaled = false)
         val sourceWidth = sourceImage.width
         val sourceHeight = sourceImage.height
         if (sourceWidth <= 0 || sourceHeight <= 0) {
-            return inputFile
+            return OptimizeResult(inputFile, sourceWidth, sourceHeight, sourceWidth, sourceHeight, isScaled = false)
         }
 
         val longEdge = maxOf(sourceWidth, sourceHeight)
         val shouldScale = longEdge > maxLongEdgePx
         val shouldCompress = inputFile.length() > forceOptimizeSizeBytes
         if (!shouldScale && !shouldCompress) {
-            return inputFile
+            return OptimizeResult(inputFile, sourceWidth, sourceHeight, sourceWidth, sourceHeight, isScaled = false)
         }
 
         val scale = if (shouldScale) {
@@ -137,7 +165,7 @@ class ScreenshotMcpToolAction : McpToolAction {
         val outputFile = File(inputFile.parentFile, inputFile.nameWithoutExtension + "_opt.jpg")
         val writers = ImageIO.getImageWritersByFormatName("jpeg")
         if (!writers.hasNext()) {
-            return inputFile
+            return OptimizeResult(inputFile, sourceWidth, sourceHeight, sourceWidth, sourceHeight, isScaled = false)
         }
         val writer = writers.next()
         return try {
@@ -151,12 +179,12 @@ class ScreenshotMcpToolAction : McpToolAction {
                 writer.write(null, IIOImage(targetImage, null, null), param)
             }
             if (outputFile.exists() && outputFile.length() > 0) {
-                outputFile
+                OptimizeResult(outputFile, sourceWidth, sourceHeight, targetWidth, targetHeight, isScaled = shouldScale)
             } else {
-                inputFile
+                OptimizeResult(inputFile, sourceWidth, sourceHeight, sourceWidth, sourceHeight, isScaled = false)
             }
         } catch (_: Throwable) {
-            inputFile
+            OptimizeResult(inputFile, sourceWidth, sourceHeight, sourceWidth, sourceHeight, isScaled = false)
         } finally {
             writer.dispose()
         }

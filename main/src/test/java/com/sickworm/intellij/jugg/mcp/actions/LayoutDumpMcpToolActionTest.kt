@@ -52,7 +52,7 @@ class LayoutDumpMcpToolActionTest {
         val action = LayoutDumpMcpToolAction()
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = """{"windows":[{"title":"MainActivity"}]}""",
                     remoteFilePath = null,
@@ -83,7 +83,7 @@ class LayoutDumpMcpToolActionTest {
         val remotePath = "/data/local/tmp/jugg_vh/layout_remote.json"
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = null,
                     remoteFilePath = remotePath,
@@ -111,7 +111,7 @@ class LayoutDumpMcpToolActionTest {
         val action = LayoutDumpMcpToolAction()
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(null)
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(null)
         }.use { construction ->
             val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
@@ -183,7 +183,7 @@ class LayoutDumpMcpToolActionTest {
         val inlineJson = """{"windows":[{"title":"InlineTest"}],"truncated":false}"""
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = inlineJson,
                     remoteFilePath = null,
@@ -211,7 +211,7 @@ class LayoutDumpMcpToolActionTest {
         val rootLayoutId = "content"
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = """{"windows":[],"truncated":false,"rootLayout":"content"}""",
                     remoteFilePath = null,
@@ -224,7 +224,7 @@ class LayoutDumpMcpToolActionTest {
             )
             Assert.assertEquals(McpToolStatus.OK, result.status)
             val client = construction.constructed().first()
-            Mockito.verify(client).dumpLayout(rootLayoutId, true)
+            Mockito.verify(client).dumpLayout(rootLayoutId, true, true)
         }
     }
 
@@ -237,7 +237,7 @@ class LayoutDumpMcpToolActionTest {
         val largeJson = """{"windows":[{"title":"MainActivity","root":{"className":"Root","text":"$largeText","bounds":[0,0,10,10]}}],"truncated":false}"""
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = largeJson,
                     remoteFilePath = null,
@@ -264,7 +264,7 @@ class LayoutDumpMcpToolActionTest {
         val mediumJson = """{"windows":[{"title":"MainActivity","root":{"className":"Root","text":"$mediumText","bounds":[0,0,10,10]}}],"truncated":false}"""
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any())).thenReturn(
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
                 LayoutDumpResult(
                     payloadJson = mediumJson,
                     remoteFilePath = null,

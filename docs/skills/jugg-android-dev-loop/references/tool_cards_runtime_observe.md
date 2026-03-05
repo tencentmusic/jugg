@@ -93,6 +93,31 @@ When interacting with a specific area (e.g., a dialog, a settings section, a lis
 - Required input: `projectDir`.
 - If screenshot fails, fallback to `layout_dump`; if both fail, verification fails.
 
+### Image Scaling Warning
+
+The returned screenshot image **may be scaled down** (long edge capped to 1440px, JPEG compressed) to reduce upload size. When scaling occurs, `message` reports the original and output dimensions with scale ratio, e.g. `scaled from 2960x1440 to 1440x702, ratio=0.49`.
+
+**Critical**: pixel coordinates in the scaled image do **NOT** correspond to device screen coordinates. Never calculate `tap(x, y)` positions by measuring pixels in a screenshot.
+
+Correct alternatives:
+- **Preferred**: `layout_dump` + element mode `tap` (by `resourceId`/`text`/`contentDesc`).
+- **Fallback**: `layout_dump` + coordinate mode `tap` (derive from `bounds` in layout JSON).
+- **Last resort**: percent mode `tap` (`xPercent`/`yPercent`) which auto-resolves screen size.
+
+### Percent Mode After Screenshot (Last Resort Only)
+
+When ViewHierarchy is unavailable and percent mode tap must be used:
+
+- **Correct**: visually estimate where the target element sits as a fraction of the image dimensions.
+  - Example: button appears roughly 30% from the left edge and 60% from the top → `xPercent=30, yPercent=60`.
+- **Wrong**: dividing image pixel coordinates by device screen resolution. The image may be scaled (non-integer ratio), so pixel math produces incorrect results.
+
+Estimation approach:
+1. Look at the screenshot image as a whole rectangle.
+2. Estimate the horizontal distance from the left edge to the element center, divided by total image width → `xPercent`.
+3. Estimate the vertical distance from the top edge to the element center, divided by total image height → `yPercent`.
+4. These ratios are device-resolution-independent and map correctly regardless of scaling.
+
 ## `start_record` / `stop_record`
 
 - Use when: time-based evidence is required (animation/async/transient UI), or action chain has >=2 user actions, or user explicitly asks for video.
