@@ -56,7 +56,10 @@
 
 ### 5.2 增量内重试
 
-- 依赖缺失修复：`IDependencyMissingResolver`。
+- 重试策略接口：`IIncrementalCompileRetryResolver`，由 `IncrementalCompileRetryResolverChain` 串联多个实现。
+- 当前 chain 顺序：
+  1. `GitChangesRetryResolver`（`idea` 层）：检测 `unresolved reference / cannot find symbol` 类错误 → 触发 `GitFileChangesDetector.updateChangedFiles()` → 若发现新文件则重试一次。
+  2. `IncrementalCompileRetryResolver`：检测依赖缺失关键词 → 更新 compile context → 有变化则重试一次。
 - 影响传播重编译：基于 `DeployFileManager.getRecompileFiles(...)`。
 
 ---

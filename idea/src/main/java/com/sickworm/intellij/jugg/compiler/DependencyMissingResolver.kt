@@ -6,11 +6,11 @@ import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 
 
-class DependencyMissingResolver(
+class IncrementalCompileRetryResolver(
     private val compileContextManager: CompileContextManager,
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
     private val logger: Logger
-) : IDependencyMissingResolver {
+) : IIncrementalCompileRetryResolver {
 
     private var lastCheckTime = 0L
 
@@ -45,7 +45,7 @@ class DependencyMissingResolver(
             logger.debug("DependencyMissingResolver: error log show no missing dependency.")
             return false
         }
-        logger.debug("DependencyMissingResolver: error log shows may has missing dependency.")
+        logger.info("DependencyMissingResolver: error log shows may has missing dependency. try to update compile context.")
         lastCheckTime = System.currentTimeMillis()
 
         var isUpdate = compileContextManager.updateCompileContext(isAfterSync = false) {
@@ -55,6 +55,11 @@ class DependencyMissingResolver(
         if (!isUpdate) {
             isUpdate = compileContextManager.triggerMerge()
             logger.debug("DependencyMissingResolver: triggerMerge isUpdate=$isUpdate")
+        }
+        if (isUpdate) {
+            logger.info("DependencyMissingResolver: updateCompileContext success.")
+        } else {
+            logger.info("DependencyMissingResolver: updateCompileContext has no change, give up.")
         }
         TimeLogger.end("DependencyMissingResolver.resolve", logger)
         return isUpdate

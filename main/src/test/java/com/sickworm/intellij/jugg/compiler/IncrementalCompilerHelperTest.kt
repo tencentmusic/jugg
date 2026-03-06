@@ -5,7 +5,6 @@ import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.RecompileFiles
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -58,7 +57,7 @@ class IncrementalCompilerHelperTest {
         val deployStateManager: IDeployStateManager = mock()
         val deployFileManager: DeployFileManager = mock()
         val fileChangesHandler: IFileChangesHandler = mock()
-        val dependencyMissingResolver: IDependencyMissingResolver = mock()
+        val dependencyMissingResolver: IIncrementalCompileRetryResolver = mock()
         val juggDeployData: JuggDeployData = mock()
         whenever(compiler.context).thenReturn(compileContext)
         whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
@@ -80,7 +79,7 @@ class IncrementalCompilerHelperTest {
             deployStateManager = deployStateManager,
             deployFileManager = deployFileManager,
             fileChangesHandler = fileChangesHandler,
-            dependencyMissingResolver = dependencyMissingResolver,
+            retryResolver = dependencyMissingResolver,
             loggerArg = logger,
         )
 
@@ -128,7 +127,7 @@ class IncrementalCompilerHelperTest {
         val deployStateManager: IDeployStateManager = mock()
         val deployFileManager: DeployFileManager = mock()
         val fileChangesHandler: IFileChangesHandler = mock()
-        val dependencyMissingResolver: IDependencyMissingResolver = mock()
+        val dependencyMissingResolver: IIncrementalCompileRetryResolver = mock()
         whenever(compiler.context).thenReturn(compileContext)
         whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
         whenever(compiler.compile(any())).thenReturn(compileResult)
@@ -140,7 +139,7 @@ class IncrementalCompilerHelperTest {
             deployStateManager = deployStateManager,
             deployFileManager = deployFileManager,
             fileChangesHandler = fileChangesHandler,
-            dependencyMissingResolver = dependencyMissingResolver,
+            retryResolver = dependencyMissingResolver,
             loggerArg = logger,
         )
 
@@ -151,5 +150,143 @@ class IncrementalCompilerHelperTest {
         )
         assertFalse(result.isSuccess)
         verify(deployFileManager, never()).awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
+    }
+
+    @Test
+    fun `should retry compile once and succeed when retryResolver returns true`() {
+        val tempDir = Files.createTempDirectory("inc_compile_helper_retry_success").toFile()
+        val sourceFile = File(tempDir, "src/A.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nconst val A = 1\n")
+        }
+        val changedFile = ChangedFile(
+            type = CompileFile.Type.Kotlin,
+            file = sourceFile,
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val compileFile = CompileFile(
+            type = CompileFile.Type.Kotlin,
+            file = sourceFile,
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val failResult = CompileResult(
+            task = CompileTask(listOf(compileFile), File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+            details = listOf(Result.failure(CompileError(compileFile, listOf(1L to "compiler.err.cant.resolve.location foo")))),
+            outputs = emptyList(),
+        )
+        val successResult = CompileResult(
+            task = CompileTask(listOf(compileFile), File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+            details = listOf(Result.success(compileFile)),
+            outputs = emptyList(),
+        )
+
+        val compiler: JuggCompiler = mock()
+        val compileContext: ICompileContext = mock()
+        val pathManager: JuggPathManager = mock()
+        val deployStateManager: IDeployStateManager = mock()
+        val deployFileManager: DeployFileManager = mock()
+        val fileChangesHandler: IFileChangesHandler = mock()
+        val retryResolver: IIncrementalCompileRetryResolver = mock()
+        val juggDeployData: JuggDeployData = mock()
+        whenever(compiler.context).thenReturn(compileContext)
+        whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
+        // First compile fails, second (retry) succeeds
+        whenever(compiler.compile(any())).thenReturn(failResult, successResult)
+        whenever(retryResolver.resolve(any())).thenReturn(true)
+        whenever(fileChangesHandler.filter(any())).thenReturn(emptyList())
+        whenever(
+            deployFileManager.getRecompileFiles(false, false, null)
+        ).thenReturn(
+            RecompileFiles(
+                effectedSourceFiles = emptyList(),
+                redexClasses = emptyList(),
+                juggDeployData = juggDeployData,
+            )
+        )
+
+        val helper = IncrementalCompilerHelper(
+            compiler = compiler,
+            pathManager = pathManager,
+            deployStateManager = deployStateManager,
+            deployFileManager = deployFileManager,
+            fileChangesHandler = fileChangesHandler,
+            retryResolver = retryResolver,
+            loggerArg = logger,
+        )
+
+        val result = helper.compile(
+            undeployedFiles = listOf(changedFile),
+            uiHandler = CompileUiHandler.DEFAULT,
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        assertTrue(result.isSuccess)
+        // retryResolver.resolve() called once for the first failure; not called on retry round
+        verify(retryResolver, Mockito.times(1)).resolve(any())
+        // compiler.compile() called twice: first round + retry round
+        verify(compiler, Mockito.times(2)).compile(any())
+    }
+
+    @Test
+    fun `should not retry again when retry compile also fails`() {
+        val tempDir = Files.createTempDirectory("inc_compile_helper_retry_failed").toFile()
+        val sourceFile = File(tempDir, "src/A.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nconst val A = 1\n")
+        }
+        val changedFile = ChangedFile(
+            type = CompileFile.Type.Kotlin,
+            file = sourceFile,
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val compileFile = CompileFile(
+            type = CompileFile.Type.Kotlin,
+            file = sourceFile,
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val failResult = CompileResult(
+            task = CompileTask(listOf(compileFile), File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+            details = listOf(Result.failure(CompileError(compileFile, listOf(1L to "compiler.err.cant.resolve.location foo")))),
+            outputs = emptyList(),
+        )
+
+        val compiler: JuggCompiler = mock()
+        val compileContext: ICompileContext = mock()
+        val pathManager: JuggPathManager = mock()
+        val deployStateManager: IDeployStateManager = mock()
+        val deployFileManager: DeployFileManager = mock()
+        val fileChangesHandler: IFileChangesHandler = mock()
+        val retryResolver: IIncrementalCompileRetryResolver = mock()
+        whenever(compiler.context).thenReturn(compileContext)
+        whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
+        // Both first and retry compile fail
+        whenever(compiler.compile(any())).thenReturn(failResult)
+        whenever(retryResolver.resolve(any())).thenReturn(true)
+
+        val helper = IncrementalCompilerHelper(
+            compiler = compiler,
+            pathManager = pathManager,
+            deployStateManager = deployStateManager,
+            deployFileManager = deployFileManager,
+            fileChangesHandler = fileChangesHandler,
+            retryResolver = retryResolver,
+            loggerArg = logger,
+        )
+
+        val result = helper.compile(
+            undeployedFiles = listOf(changedFile),
+            uiHandler = CompileUiHandler.DEFAULT,
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        assertFalse(result.isSuccess)
+        // retryResolver.resolve() called only once: retry round uses isRetry=true, skips resolver
+        verify(retryResolver, Mockito.times(1)).resolve(any())
+        // compiler.compile() called twice: first round + retry round
+        verify(compiler, Mockito.times(2)).compile(any())
     }
 }

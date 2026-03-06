@@ -4,7 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.IDependencyMissingResolver
+import com.sickworm.intellij.jugg.compiler.IIncrementalCompileRetryResolver
 import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
@@ -53,7 +53,7 @@ class CmdLineContextManager(
         }
     }
 
-    val dependencyMissingResolver = object : IDependencyMissingResolver {
+    val dependencyMissingResolver = object : IIncrementalCompileRetryResolver {
         override fun resolve(compileResult: CompileResult): Boolean {
             return false
         }

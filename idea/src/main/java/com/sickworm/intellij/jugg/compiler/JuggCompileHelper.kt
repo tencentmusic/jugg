@@ -18,6 +18,7 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
@@ -41,6 +42,7 @@ class JuggCompilerHelper(
     private val fileChangesHandler: IFileChangesHandler,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
+    private val gitFileChangesDetector: GitFileChangesDetector,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
 
@@ -56,8 +58,12 @@ class JuggCompilerHelper(
         Disposer.register(this, it)
     }
 
-    private val dependencyMissingResolver = DependencyMissingResolver(
-        compileContextManager, gradleProjectInfoLocalFetchManager, logger)
+    private val dependencyMissingResolver = IncrementalCompileRetryResolverChain(
+        listOf(
+            GitChangesRetryResolver(gitFileChangesDetector, deployFileManager, logger),
+            IncrementalCompileRetryResolver(compileContextManager, gradleProjectInfoLocalFetchManager, logger),
+        )
+    )
 
     @Synchronized
     fun compile(

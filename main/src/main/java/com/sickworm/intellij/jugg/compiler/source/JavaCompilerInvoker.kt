@@ -139,7 +139,10 @@ class JavaCompilerInvoker {
             } else {
                 logger.warn(message)
             }
-            item.errors.add(diagnostic.lineNumber to message)
+            // Prefix error with locale-independent diagnostic code for reliable keyword matching
+            // regardless of JVM locale. diagnostic.code (e.g. "compiler.err.cant.resolve.location")
+            // is stable across all locales, unlike diagnostic.toString() or getMessage().
+            item.errors.add(diagnostic.lineNumber to "${diagnostic.code} $message")
         }
 
         // compile files

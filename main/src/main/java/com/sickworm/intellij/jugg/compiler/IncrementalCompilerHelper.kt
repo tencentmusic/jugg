@@ -17,7 +17,7 @@ import java.io.File
 
 /**
  * IncrementalCompilerHelper orchestrates one incremental compile loop, including retry/recompile decisions and deploy-state updates.
- * Collaboration: Delegates compilation to [JuggCompiler.compile], tracks staged outputs through [DeployFileManager], and resolves follow-up impacts via [IFileChangesHandler] and [IDependencyMissingResolver].
+ * Collaboration: Delegates compilation to [JuggCompiler.compile], tracks staged outputs through [DeployFileManager], and resolves follow-up impacts via [IFileChangesHandler] and [IIncrementalCompileRetryResolver].
  * Data Contract: [compile] exits early when [CompileStatusHolder.isShouldCancel] is true, updates undeployed-file state on the first round, and only enters effect-detection retry logic after a successful compile round.
  */
 class IncrementalCompilerHelper(
@@ -26,7 +26,7 @@ class IncrementalCompilerHelper(
     private val deployStateManager: IDeployStateManager,
     private val deployFileManager: DeployFileManager,
     private val fileChangesHandler: IFileChangesHandler,
-    private val dependencyMissingResolver: IDependencyMissingResolver,
+    private val retryResolver: IIncrementalCompileRetryResolver,
     loggerArg: Logger,
 ) {
     private val logger = loggerArg.getInstance("JuggCompilerHelper")
@@ -181,10 +181,10 @@ class IncrementalCompilerHelper(
         }
 
         if (!isSuccess && !compileLoopStatus.isRetry) {
-            val isCanRetry = dependencyMissingResolver.resolve(compileResult)
-            logger.debug("DependencyMissingResolver isCanRetry: $isCanRetry")
+            val isCanRetry = retryResolver.resolve(compileResult)
+            logger.debug("retryResolver isCanRetry: $isCanRetry")
             if (isCanRetry) {
-                logger.info("\nCompile failed, but try fixing dependency success, retry compile once.\n")
+                logger.info("\nCompile failed, but try fixing success, retry compile once.\n")
                 val status = CompileLoopStatus().also {
                     it.isRetry = true
                 }
