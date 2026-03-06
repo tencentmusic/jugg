@@ -10,6 +10,8 @@ internal class ConstRefSessionCache(
     private val ttlMs: Long,
 ) {
     private val lock = Any()
+    private var lastCleanupMs = 0L
+    private val cleanupIntervalMs = DEFAULT_CLEANUP_INTERVAL_MS
     private val fileCache = object : LinkedHashMap<String, FileCacheEntry>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FileCacheEntry>?): Boolean {
             return size > fileCacheMaxFiles
@@ -159,6 +161,10 @@ internal class ConstRefSessionCache(
         if (ttlMs <= 0L) {
             return
         }
+        if (nowMs - lastCleanupMs < cleanupIntervalMs) {
+            return
+        }
+        lastCleanupMs = nowMs
         fileCache.entries.removeIf { (_, entry) -> isExpired(entry.updatedAt, nowMs) }
         lookupCache.entries.removeIf { (_, entry) -> isExpired(entry.updatedAt, nowMs) }
     }
@@ -195,4 +201,8 @@ internal class ConstRefSessionCache(
         val value: Any,
         val updatedAt: Long,
     )
+
+    companion object {
+        private const val DEFAULT_CLEANUP_INTERVAL_MS = 60_000L
+    }
 }

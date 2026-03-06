@@ -53,6 +53,7 @@
 - 管理“当前编辑文件/待分析队列/分析完成时间戳”；
 - 以 `ConstRefCacheDatabase` 为主数据源，结合 `ConstRefSessionCache`（LRU+TTL）做会话热点缓存；
 - 维护三层 checksum 命中链路：`mtime-map -> RepoSharedFingerprintStore -> CRC32`；
+- 分析锁使用协程 `Mutex`，按文件粒度加锁；IO 节流在锁外 `delay()`，避免长时间持锁阻塞；
 - 在预编译点触发 `PRE_COMPILE` 分析任务冲刷待分析队列；`awaitAnalysis` 只在超时窗口内等待状态，不会因场景锁竞争无限阻塞；
 - 异步触发 `ConstRefCacheCleaner` 做 TTL/版本上限清理，不阻塞主流程；
 - 通过 `ConstRefChangeTracker` 追踪“真实变更 key + 已删除 key”，避免空白改动触发全量常量引用重编译；
@@ -65,6 +66,7 @@
 - `PRE_COMPILE`：`awaitAnalysis()` 内异步触发执行，用于尽量冲刷待分析文件且不阻塞超时预算。
 
 > `FULL_SCAN` 会先按 `(worktree_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新就绪状态，未命中项才进入解析流程。
+> `FULL_SCAN` 使用 `Dispatchers.IO.limitedParallelism(1)` 与默认 dispatcher 隔离，避免挤占 IDE 常规后台任务。
 
 ### 3.3 状态模型（核心字段）
 
@@ -148,10 +150,12 @@ Kotlin 引用覆盖：
 ### 5.1 查找模式与内存缓存
 
 - 不做全量预加载；每个待解析文件先用线索回源 DB 查询候选 definitions，再构建临时 `ConstDefinitionIndex` 仅用于当前文件引用解析。
+- `db_session` 模式下新增短路：当单文件 `collectReferenceLookupHints()` 为空，或候选+overlay definitions 为空时，直接返回空 references，不再执行二次 `parseReferences`。
 - `ConstRefSessionCache`：
 - `fileCache`：缓存会话内已访问文件的 definitions/references（用于增量 diff 快速命中）；
 - `lookupCache`：缓存 `constName / class+const / package+const / simpleClassName` 查询结果；
-- 采用 LRU+TTL，缓存失效后统一回源 DB，语义不变。
+- 采用 LRU+TTL，缓存失效后统一回源 DB，语义不变；
+- 过期清理采用惰性节流（默认 60s 一次），读取时仍逐条校验 TTL，不返回过期数据。
 
 ### 5.2 SQLite 缓存：ConstRefCacheDatabase
 
@@ -174,6 +178,8 @@ Kotlin 引用覆盖：
 - `queryDefinitionsByClassConstKeys(Set<Pair<class,const>>)`
 - `queryDefinitionsByPackageConstKeys(Set<Pair<pkg,const>>)`
 - `queryClassesBySimpleNames(Set<String>)`
+- 使用共享 SQLite 长连接（`init()` 创建、`close()` 关闭），避免高频建连与重复 PRAGMA；
+- latest 版本选择在 `analyzed_at/last_access_at` 相同场景下追加 `checksum` 作为稳定 tie-breaker；
 - db schema 使用 `PRAGMA schema_version=3`，不兼容时重建。
 
 ### 5.3 Repo 共享指纹：RepoSharedFingerprintStore
@@ -199,8 +205,8 @@ Kotlin 引用覆盖：
    - 未命中才执行 parse definitions/references 并落库。
 
 另外支持 IO 限频（系统属性）：
-- `jugg.constref.io.throttle.ms`：每次节流 sleep 的毫秒数（默认 `0`，即关闭）；
-- `jugg.constref.io.throttle.every`：每处理 N 个文件触发一次 sleep（默认 `1`）。
+- `jugg.constref.io.throttle.ms`：每次节流 `delay` 的毫秒数（默认 `10`）；
+- `jugg.constref.io.throttle.every`：每处理 N 个文件触发一次节流（默认 `50`）；
 - `jugg.constref.session.file.cache.max`：会话文件缓存上限（默认 `500`）；
 - `jugg.constref.session.lookup.cache.max`：会话查询缓存 key 上限（默认 `4000`）；
 - `jugg.constref.session.cache.ttl.ms`：会话缓存 TTL（默认 `900000`ms）。

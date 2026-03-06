@@ -520,6 +520,35 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         assertEquals(200L, fileCache?.lastModified)
     }
 
+    @Test
+    fun `should reopen shared connection after close`() {
+        val dbDir = createTempDirectory("const_ref_db_reopen_after_close")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+        val filePath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+        val definition = ConstDefinition(
+            filePath = filePath,
+            packageName = "com.example",
+            fqClassName = "com.example.ConstantsKt",
+            constName = "MAX",
+            constType = "Int",
+            constValue = "1",
+        )
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 100L,
+            checksum = 200L,
+            definitions = listOf(definition),
+            references = emptyList(),
+        )
+
+        database.close()
+
+        val latestDefinitions = database.getLatestDefinitionsByFile(filePath)
+        assertEquals(1, latestDefinitions.size)
+        assertEquals("MAX", latestDefinitions.first().constName)
+    }
+
     private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {
         val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
         File(worktreeGitDir, "commondir").writeText("../../\n")

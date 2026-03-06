@@ -2,14 +2,21 @@ package com.sickworm.intellij.jugg.compiler.constref
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
-import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
-import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.CRC32
-import kotlin.concurrent.withLock
 
 /**
  * Coordinates const-ref analysis lifecycle and exposes readiness/impact APIs to deploy flow.
@@ -22,7 +29,10 @@ class ConstRefEngine(
     private val repoSharedFingerprintStore: RepoSharedFingerprintStore,
 ) {
     private val maxAnalyzedHistory = 4096
-    private val analysisMutex = ReentrantLock()
+    private val analysisMutex = Mutex()
+    private val sceneTaskScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val fullScanDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val stateLock = Any()
     private val changeTracker = ConstRefChangeTracker()
     private val impactResolver = ConstRefImpactResolver(database)
@@ -42,8 +52,10 @@ class ConstRefEngine(
         AnalyzeScene.FILE_CHANGE to SceneTaskState(),
         AnalyzeScene.PRE_COMPILE to SceneTaskState(),
     )
-    private val ioThrottleSleepMs: Long = readNonNegativeLongProperty(IO_THROTTLE_MS_PROPERTY, 0L)
-    private val ioThrottleEveryNFiles: Int = readPositiveIntProperty(IO_THROTTLE_EVERY_PROPERTY, 1)
+    private val ioThrottleSleepMs: Long =
+        readNonNegativeLongProperty(IO_THROTTLE_MS_PROPERTY, DEFAULT_IO_THROTTLE_MS)
+    private val ioThrottleEveryNFiles: Int =
+        readPositiveIntProperty(IO_THROTTLE_EVERY_PROPERTY, DEFAULT_IO_THROTTLE_EVERY)
     private val fullScanLogIntervalMs: Long =
         readNonNegativeLongProperty(FULL_SCAN_LOG_INTERVAL_MS_PROPERTY, DEFAULT_FULL_SCAN_LOG_INTERVAL_MS)
 
@@ -77,7 +89,7 @@ class ConstRefEngine(
             notifyStateChangedLocked()
         }
         changeTracker.onFileDeleted(stdPath)
-        analysisMutex.withLock {
+        withAnalysisLockBlocking {
             sessionCache.removeFile(stdPath)
             sessionCache.removeFilesByPrefix("$stdPath/")
         }
@@ -262,7 +274,9 @@ class ConstRefEngine(
                 it.runningJob?.cancel()
             }
         }
+        sceneTaskScope.cancel()
         analyzer.dispose()
+        database.close()
     }
 
     private fun scheduleCacheCleanup() {
@@ -277,7 +291,7 @@ class ConstRefEngine(
         }
     }
 
-    private fun analyzePending() {
+    private suspend fun analyzePending() {
         val toAnalyze = synchronized(stateLock) {
             if (pendingAnalyzeFiles.isEmpty()) {
                 return
@@ -297,38 +311,37 @@ class ConstRefEngine(
         }
     }
 
-    private fun analyzeFiles(files: List<File>) {
+    private suspend fun analyzeFiles(files: List<File>) {
         if (files.isEmpty()) {
             return
         }
-        analysisMutex.withLock {
-            database.registerPathHints(files.map { it.toStdPath() })
-            val existingFiles = mutableListOf<File>()
-            files.distinctBy { it.toStdPath() }.forEach { file ->
-                val path = file.toStdPath()
-                if (!file.exists()) {
+        database.registerPathHints(files.map { it.toStdPath() })
+        val existingFiles = mutableListOf<File>()
+        files.distinctBy { it.toStdPath() }.forEach { file ->
+            val path = file.toStdPath()
+            if (!file.exists()) {
+                analysisMutex.withLock {
                     database.removeFile(path)
                     removeDefinitionsFromLookupStateLocked(path)
                     changeTracker.onFileDeleted(path)
-                    markAnalyzed(path)
-                } else if (isSourceFile(path)) {
-                    existingFiles += file
                 }
+                markAnalyzed(path)
+            } else if (isSourceFile(path)) {
+                existingFiles += file
             }
-            if (existingFiles.isEmpty()) {
-                return
-            }
+        }
+        if (existingFiles.isEmpty()) {
+            return
+        }
 
-            val checksumMap = mutableMapOf<String, Long>()
-            val changedFiles = mutableListOf<File>()
-            var mtimeHitCount = 0
-            var fingerprintHitCount = 0
-            var crcMissCount = 0
-            var analysisReuseHitCount = 0
-            var ioProcessedCount = 0
-            existingFiles.forEach { file ->
-                ioProcessedCount++
-                maybeThrottleIo(ioProcessedCount)
+        val checksumMap = mutableMapOf<String, Long>()
+        val changedFiles = mutableListOf<File>()
+        var mtimeHitCount = 0
+        var fingerprintHitCount = 0
+        var crcMissCount = 0
+        var analysisReuseHitCount = 0
+        existingFiles.forEachIndexed { index, file ->
+            analysisMutex.withLock {
                 val path = file.toStdPath()
                 val fileLastModified = file.lastModified()
 
@@ -359,33 +372,43 @@ class ConstRefEngine(
                         updatePreviousDefinitionsLocked(path, reusedDefinitions)
                     }
                     markAnalyzed(path)
-                    return@forEach
+                } else {
+                    checksumMap[path] = checksum
+                    changedFiles += file
                 }
-                checksumMap[path] = checksum
-                changedFiles += file
             }
-            if (mtimeHitCount > 0 || fingerprintHitCount > 0 || crcMissCount > 0 || analysisReuseHitCount > 0) {
-                logger.debug(
-                    "ConstRefEngine checksum resolve stats, " +
-                        "mtimeHit=$mtimeHitCount, fingerprintHit=$fingerprintHitCount, " +
-                        "crcMiss=$crcMissCount, analysisReuseHit=$analysisReuseHitCount"
-                )
-            }
-            if (changedFiles.isEmpty()) {
-                return
-            }
+            maybeThrottleIo(index + 1)
+        }
+        if (mtimeHitCount > 0 || fingerprintHitCount > 0 || crcMissCount > 0 || analysisReuseHitCount > 0) {
+            logger.debug(
+                "ConstRefEngine checksum resolve stats, " +
+                    "mtimeHit=$mtimeHitCount, fingerprintHit=$fingerprintHitCount, " +
+                    "crcMiss=$crcMissCount, analysisReuseHit=$analysisReuseHitCount"
+            )
+        }
+        if (changedFiles.isEmpty()) {
+            return
+        }
 
-            val previousDefinitionsByPath = changedFiles.associate { file ->
+        val parsedDefinitionsByPath = mutableMapOf<String, List<ConstDefinition>>()
+        changedFiles.forEachIndexed { index, file ->
+            analysisMutex.withLock {
                 val path = file.toStdPath()
-                path to loadPreviousDefinitionsLocked(path)
+                parsedDefinitionsByPath[path] = analyzer.parseDefinitions(listOf(file))[path].orEmpty()
             }
-            val parsedDefinitionsByPath = analyzer.parseDefinitions(changedFiles)
-            sessionCache.clearLookupCache()
-            val parsedReferencesByPath = parseReferencesByDbSessionMode(changedFiles, parsedDefinitionsByPath)
-            changedFiles.forEach { file ->
+            maybeThrottleIo(index + 1)
+        }
+
+        changedFiles.forEachIndexed { index, file ->
+            analysisMutex.withLock {
                 val path = file.toStdPath()
+                val previousDefinitions = loadPreviousDefinitionsLocked(path)
                 val definitions = parsedDefinitionsByPath[path].orEmpty()
-                val references = parsedReferencesByPath[path].orEmpty()
+                sessionCache.clearLookupCache()
+                val references = parseReferencesByDbSessionMode(
+                    changedFiles = listOf(file),
+                    parsedDefinitionsByPath = parsedDefinitionsByPath,
+                )[path].orEmpty()
                 database.upsertFileAnalysis(
                     filePath = path,
                     lastModified = file.lastModified(),
@@ -395,7 +418,7 @@ class ConstRefEngine(
                 )
                 changeTracker.updateDefinitionDiff(
                     filePath = path,
-                    previousDefinitions = previousDefinitionsByPath[path].orEmpty(),
+                    previousDefinitions = previousDefinitions,
                     currentDefinitions = definitions,
                 )
                 sessionCache.putFileAnalysis(
@@ -406,8 +429,9 @@ class ConstRefEngine(
                     references = references,
                 )
                 markAnalyzed(path)
+                sessionCache.clearLookupCache()
             }
-            sessionCache.clearLookupCache()
+            maybeThrottleIo(index + 1)
         }
     }
 
@@ -512,15 +536,11 @@ class ConstRefEngine(
         return crc32.value
     }
 
-    private fun maybeThrottleIo(processedCount: Int) {
-        if (ioThrottleSleepMs <= 0L || processedCount % ioThrottleEveryNFiles != 0) {
+    private suspend fun maybeThrottleIo(processedCount: Int) {
+        if (processedCount % ioThrottleEveryNFiles != 0) {
             return
         }
-        try {
-            Thread.sleep(ioThrottleSleepMs)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-        }
+        delay(ioThrottleSleepMs)
     }
 
     private fun parseReferencesByDbSessionMode(
@@ -544,6 +564,10 @@ class ConstRefEngine(
         changedFiles.forEach { file ->
             val stdPath = file.toStdPath()
             val hints = hintsByPath[stdPath] ?: ConstReferenceLookupHints.EMPTY
+            if (hints.isEmpty()) {
+                referencesByPath[stdPath] = emptyList()
+                return@forEach
+            }
             val candidateDefinitions = queryCandidateDefinitionsForFile(
                 filePath = stdPath,
                 hints = hints,
@@ -559,6 +583,10 @@ class ConstRefEngine(
                 overlayDefinitionsByPackageConst = overlayDefinitionsByPackageConst,
             ).forEach { definition ->
                 allDefinitions[definition.uniqueDefinitionKey()] = definition
+            }
+            if (allDefinitions.isEmpty()) {
+                referencesByPath[stdPath] = emptyList()
+                return@forEach
             }
             val definitionIndex = ConstDefinitionIndex(allDefinitions.values)
             val references = analyzer.parseReferences(listOf(file), definitionIndex)[stdPath].orEmpty()
@@ -899,24 +927,29 @@ class ConstRefEngine(
         (stateLock as java.lang.Object).wait(waitMs)
     }
 
-    private fun launchSceneTaskLocked(scene: AnalyzeScene, action: () -> Unit) {
+    private fun launchSceneTaskLocked(scene: AnalyzeScene, action: suspend () -> Unit) {
         val sceneState = sceneTaskStates.getValue(scene)
         sceneState.scheduledJob?.cancel()
+        val dispatcher = when (scene) {
+            AnalyzeScene.FULL_SCAN -> fullScanDispatcher
+            else -> backgroundTaskRunner.dispatcher
+        }
         var scheduledJob: Job? = null
-        scheduledJob = backgroundTaskRunner.runBackgroundSafe("ConstRefEngine#$scene") {
+        scheduledJob = sceneTaskScope.launch(dispatcher, start = CoroutineStart.LAZY) {
             val shouldRun = synchronized(stateLock) {
                 val state = sceneTaskStates.getValue(scene)
                 if (state.scheduledJob == scheduledJob) {
                     state.scheduledJob = null
                 }
                 if (state.runningJob?.isActive == true) {
-                    return@synchronized false
+                    false
+                } else {
+                    state.runningJob = scheduledJob
+                    true
                 }
-                state.runningJob = scheduledJob
-                true
             }
             if (!shouldRun) {
-                return@runBackgroundSafe
+                return@launch
             }
             try {
                 action()
@@ -931,6 +964,7 @@ class ConstRefEngine(
             }
         }
         sceneState.scheduledJob = scheduledJob
+        checkNotNull(scheduledJob).start()
     }
 
     private fun isSceneActiveLocked(scene: AnalyzeScene): Boolean {
@@ -940,6 +974,14 @@ class ConstRefEngine(
 
     private fun isSourceFile(path: String): Boolean {
         return path.endsWith(".java") || path.endsWith(".kt")
+    }
+
+    private fun withAnalysisLockBlocking(action: () -> Unit) {
+        runBlocking {
+            analysisMutex.withLock {
+                action()
+            }
+        }
     }
 
     private class FullScanProgressLogger(
@@ -1038,6 +1080,8 @@ class ConstRefEngine(
         private const val SESSION_FILE_CACHE_MAX_PROPERTY = "jugg.constref.session.file.cache.max"
         private const val SESSION_LOOKUP_CACHE_MAX_PROPERTY = "jugg.constref.session.lookup.cache.max"
         private const val SESSION_CACHE_TTL_MS_PROPERTY = "jugg.constref.session.cache.ttl.ms"
+        private const val DEFAULT_IO_THROTTLE_MS = 10L
+        private const val DEFAULT_IO_THROTTLE_EVERY = 50
         private const val DEFAULT_FULL_SCAN_LOG_INTERVAL_MS = 5000L
         private const val DEFAULT_SESSION_FILE_CACHE_MAX = 500
         private const val DEFAULT_SESSION_LOOKUP_CACHE_MAX = 4000

@@ -13,6 +13,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import java.io.File
 import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
@@ -635,6 +641,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 const val ROUTE = "page_b"
                 """.trimIndent()
             )
+            constantsFile.setLastModified(constantsFile.lastModified() + 1000L)
             scheduler.onFileSaved(constantsFile.absolutePath)
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
 
@@ -652,6 +659,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 const val ROUTE = "page_a"
                 """.trimIndent()
             )
+            constantsFile.setLastModified(constantsFile.lastModified() + 1000L)
             scheduler.onFileSaved(constantsFile.absolutePath)
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
 
@@ -661,6 +669,53 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 setOf(userFile.toStdPath()),
                 effectedAfterRevert.map { it.refFilePath }.toSet(),
             )
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should skip reference parsing when lookup hints are empty in db session mode`() {
+        val rootDir = createTempDirectory("const_ref_scheduler_empty_hints")
+        File(rootDir, ".git").mkdirs()
+        val plainFile = File(rootDir, "Plain.kt").apply {
+            writeText(
+                """
+                package com.example
+                class Plain
+                """.trimIndent()
+            )
+        }
+        val analyzer = mock<ConstRefAnalyzer>()
+        whenever(analyzer.parseDefinitions(any())).thenAnswer { invocation ->
+            val files = invocation.getArgument<Collection<File>>(0)
+            files.associate { file ->
+                file.toStdPath() to emptyList<ConstDefinition>()
+            }
+        }
+        whenever(analyzer.collectReferenceLookupHints(any())).thenAnswer { invocation ->
+            val files = invocation.getArgument<Collection<File>>(0)
+            files.associate { file ->
+                file.toStdPath() to ConstReferenceLookupHints.EMPTY
+            }
+        }
+        whenever(analyzer.parseReferences(any(), any<ConstDefinitionLookup>())).thenReturn(emptyMap())
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = analyzer,
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(plainFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(plainFile.absolutePath), timeoutMs = 10_000L)
+
+            verify(analyzer, atLeastOnce()).collectReferenceLookupHints(any())
+            verify(analyzer, never()).parseReferences(any(), any<ConstDefinitionLookup>())
         } finally {
             scheduler.dispose()
             scope.cancel()

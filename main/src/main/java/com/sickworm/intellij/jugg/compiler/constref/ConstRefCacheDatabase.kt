@@ -17,6 +17,7 @@ class ConstRefCacheDatabase(
 ) {
     private val maxDefinitionKeysPerQuery = 400
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
+    private var sharedConnection: Connection? = null
     private val repoRootByKey = mutableMapOf<String, String>()
     private val worktreeRootByKey = mutableMapOf<String, String>()
 
@@ -28,6 +29,7 @@ class ConstRefCacheDatabase(
     fun init() {
         SqLiteDriverLoader.load(logger)
         dbFile.parentFile?.mkdirs()
+        ensureSharedConnectionLocked()
 
         var needRecreate = false
         var recreateReason = ""
@@ -47,6 +49,11 @@ class ConstRefCacheDatabase(
         }
         logger.warn("ConstRefCacheDatabase recreate db due to incompatible schema: $recreateReason")
         recreateDatabase()
+    }
+
+    @Synchronized
+    fun close() {
+        closeConnectionLocked()
     }
 
     @Synchronized
@@ -499,7 +506,7 @@ class ConstRefCacheDatabase(
                            checksum,
                            ROW_NUMBER() OVER (
                                PARTITION BY repo_key, relative_path
-                               ORDER BY analyzed_at DESC, last_access_at DESC
+                               ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
                            ) AS rank_num
                     FROM file_analysis_head
                     WHERE repo_key IN ($repoPlaceholders)
@@ -966,6 +973,7 @@ class ConstRefCacheDatabase(
     }
 
     private fun recreateDatabase() {
+        closeConnectionLocked()
         runCatching {
             dbFile.delete()
             File("${dbFile.absolutePath}-wal").delete()
@@ -1108,7 +1116,7 @@ class ConstRefCacheDatabase(
             FROM file_analysis_head
             WHERE repo_key = ?
               AND relative_path = ?
-            ORDER BY analyzed_at DESC, last_access_at DESC
+            ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
             LIMIT 1
             """.trimIndent()
         ).use { statement ->
@@ -1160,7 +1168,7 @@ class ConstRefCacheDatabase(
                            checksum,
                            ROW_NUMBER() OVER (
                                PARTITION BY repo_key, relative_path
-                               ORDER BY analyzed_at DESC, last_access_at DESC
+                               ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
                            ) AS rank_num
                     FROM file_analysis_head
                     WHERE repo_key IN ($repoPlaceholders)
@@ -1465,9 +1473,35 @@ class ConstRefCacheDatabase(
     }
 
     private inline fun <T> withConnection(block: (Connection) -> T): T {
-        DriverManager.getConnection(url).use { connection ->
-            applyConnectionPragmas(connection)
-            return block(connection)
+        return block(ensureSharedConnectionLocked())
+    }
+
+    private fun ensureSharedConnectionLocked(): Connection {
+        val existed = sharedConnection
+        if (existed != null) {
+            runCatching {
+                if (!existed.isClosed) {
+                    return existed
+                }
+            }.onFailure {
+                logger.warn("ConstRefCacheDatabase shared connection status check failed", it)
+            }
+        }
+        val connection = DriverManager.getConnection(url)
+        applyConnectionPragmas(connection)
+        sharedConnection = connection
+        return connection
+    }
+
+    private fun closeConnectionLocked() {
+        val connection = sharedConnection ?: return
+        sharedConnection = null
+        runCatching {
+            if (!connection.isClosed) {
+                connection.close()
+            }
+        }.onFailure {
+            logger.warn("ConstRefCacheDatabase close shared connection failed", it)
         }
     }
 
