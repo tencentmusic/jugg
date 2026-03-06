@@ -25,6 +25,38 @@ import kotlin.system.measureTimeMillis
 
 class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     @Test
+    fun `analyzeOnDemand should analyze target file synchronously`() {
+        val rootDir = createTempDirectory("const_ref_scheduler_on_demand")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            val readiness = scheduler.analyzeOnDemand(listOf(constantsFile.absolutePath))
+            assertTrue(readiness.isReady)
+            assertNotNull(database.getFileCache(constantsFile.toStdPath()))
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `awaitAnalysis should return within timeout when pending analysis is slow`() {
         withSystemProperties(
             mapOf(

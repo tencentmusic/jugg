@@ -140,3 +140,10 @@ dependencies {
     // arouter-compiler
 //    compileOnly 'com.alibaba:arouter-compiler:1.5.2'
 }
+
+tasks.withType(Test).configureEach {
+    // Increase heap only for external-project benchmark runs to avoid OOM on large source trees.
+    if (System.getProperty("benchmark.project.dir")) {
+        maxHeapSize = "4g"
+    }
+}

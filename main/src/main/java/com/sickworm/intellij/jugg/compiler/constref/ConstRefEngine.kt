@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.zip.CRC32
+import kotlin.system.measureTimeMillis
 
 /**
  * Coordinates const-ref analysis lifecycle and exposes readiness/impact APIs to deploy flow.
@@ -188,6 +189,59 @@ class ConstRefEngine(
 
     fun ensureReadyForRecompile(filePaths: Collection<String>, timeoutMs: Long = 5000L): AnalysisReadiness {
         return awaitAnalysis(filePaths.toList(), timeoutMs)
+    }
+
+    /**
+     * Analyze target files synchronously with best-effort cache reuse.
+     * Existing analysis is reused through checksum-based paths inside [analyzeFiles].
+     */
+    fun analyzeOnDemand(filePaths: Collection<String>): AnalysisReadiness {
+        val targetPaths = filePaths
+            .map { File(it).toStdPath() }
+            .filter { isSourceFile(it) }
+            .distinct()
+        if (targetPaths.isEmpty()) {
+            return AnalysisReadiness.READY
+        }
+
+        val analyzePaths = synchronized(stateLock) {
+            flushCurrentEditingFileLocked()
+            targetPaths.forEach { path ->
+                pendingAnalyzeFiles += path
+            }
+            val paths = pendingAnalyzeFiles
+                .filter { isSourceFile(it) }
+                .distinct()
+                .toList()
+            pendingAnalyzeFiles.clear()
+            paths
+        }
+
+        if (analyzePaths.isNotEmpty()) {
+            val costMs = measureTimeMillis {
+                runBlocking {
+                    analyzeFiles(analyzePaths.map(::File))
+                }
+            }
+            logger.debug(
+                "ConstRefEngine analyzeOnDemand finished, " +
+                    "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, cost=${costMs}ms"
+            )
+        }
+
+        return synchronized(stateLock) {
+            val unreadyPaths = targetPaths.filter { path ->
+                File(path).exists() && (analyzedAt[path] ?: 0L) <= 0L
+            }
+            if (unreadyPaths.isEmpty()) {
+                AnalysisReadiness.READY
+            } else {
+                AnalysisReadiness(
+                    isReady = false,
+                    unreadyPaths = unreadyPaths,
+                )
+            }
+        }
     }
 
     fun initializeFullScan(sourceDirs: List<File>) {

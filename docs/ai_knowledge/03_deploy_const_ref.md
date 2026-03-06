@@ -84,6 +84,7 @@
 |---|---|
 | `onFileSaved(path)` | 仅处理 `.java/.kt`；将“前一个编辑文件”推入待分析队列，当前文件仅标记为 editing。 |
 | `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile` 到待分析；触发 `PRE_COMPILE` 异步分析；在 `timeout` 窗口内等待“目标文件 analyzedAt 达标 + 相关 sourceDir full scan ready”。 |
+| `analyzeOnDemand(paths)` | 同步按需分析入口：优先复用已有 checksum 分析结果；缺失或内容变化时立即同步分析并返回，不依赖等待超时窗口。 |
 | `initializeFullScan(sourceDirs)` | 异步扫描目录下所有源码，构建 definitions/references 索引，并设置目录 ready。 |
 | `onFileDeleted(path)` | 清理内存状态、索引、数据库文件记录（含前缀删除）。 |
 | `getEffectedFiles(changedPaths)` | 基于 `changedDefinitionKeys` + `removedDefinitionKeys` 查询引用文件；仅返回本地存在且不在 `changedPaths` 的文件。 |
@@ -256,6 +257,9 @@ Kotlin 引用覆盖：
 
 2. 结果疑似滞后  
 确认是否执行过 `awaitAnalysis()`；若日志出现 readiness timeout，检查 `pendingSourceDirs`。
+
+2.1 增量编译首轮 const-ref 预处理路径  
+`DeployFileManager.awaitConstRefAnalysis(...)` 可使用 `analyzeOnDemand(...)` 同步按需分析，不依赖固定 timeout 等待窗口。
 
 3. 误以为删除 `const` 不会触发影响  
 `ConstRefEngine` 通过 `removedDefinitionKeys` 回补此场景，需确保变更文件已被重新分析。

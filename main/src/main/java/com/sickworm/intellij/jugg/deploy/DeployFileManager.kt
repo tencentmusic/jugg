@@ -172,7 +172,28 @@ class DeployFileManager(
         if (!isConstRefTasksEnabled) {
             return
         }
-        constRefEngine.awaitAnalysis(filePaths, timeoutMs)
+        val targetPaths = filePaths
+            .map { File(it).stdAbsPath }
+            .filter { it.endsWith(".java") || it.endsWith(".kt") }
+            .distinct()
+        if (targetPaths.isEmpty()) {
+            return
+        }
+        logger.info(
+            "Const-ref on-demand analysis start, files=${targetPaths.map { File(it).name }}, " +
+                "legacyTimeoutMs=$timeoutMs"
+        )
+        val startTime = System.currentTimeMillis()
+        val readiness = constRefEngine.analyzeOnDemand(targetPaths)
+        val costTime = System.currentTimeMillis() - startTime
+        if (readiness.isReady) {
+            logger.info("Const-ref on-demand analysis finish, cost ${costTime}ms")
+        } else {
+            logger.warn(
+                "Const-ref on-demand analysis finish with unready files, " +
+                    "unreadyPathCount=${readiness.unreadyPaths.size}, cost ${costTime}ms"
+            )
+        }
     }
 
     @Synchronized
