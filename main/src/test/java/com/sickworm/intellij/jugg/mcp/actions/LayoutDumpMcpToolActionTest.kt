@@ -176,7 +176,7 @@ class LayoutDumpMcpToolActionTest {
     }
 
     @Test
-    fun testLayoutDumpReturnsInlineContent() {
+    fun testLayoutDumpReturnsFilePathAndContentBytes() {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_inline_content_")
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
@@ -194,12 +194,11 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertEquals(McpToolStatus.OK, result.status)
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
-            Assert.assertNotNull("data.content should be present", data["content"])
-            val contentStr = data["content"].toString()
-            Assert.assertTrue("content should contain InlineTest", contentStr.contains("InlineTest"))
-            Assert.assertEquals(false, data["inlineOmitted"])
-            Assert.assertEquals(16, data["inlineThresholdKb"])
+            Assert.assertFalse("data.content should not be present", data.containsKey("content"))
+            Assert.assertFalse("inlineOmitted should not be present", data.containsKey("inlineOmitted"))
+            Assert.assertFalse("inlineThresholdKb should not be present", data.containsKey("inlineThresholdKb"))
             Assert.assertTrue((data["contentBytes"] as Number).toInt() > 0)
+            Assert.assertTrue((data["file"] as String).endsWith(".json"))
         }
     }
 
@@ -229,7 +228,7 @@ class LayoutDumpMcpToolActionTest {
     }
 
     @Test
-    fun testLayoutDumpOmitInlineContentWhenPayloadTooLarge() {
+    fun testLayoutDumpNeverInlinesContentForLargePayload() {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_large_payload_")
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
@@ -248,10 +247,9 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertEquals(McpToolStatus.OK, result.status)
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
-            Assert.assertEquals(true, data["inlineOmitted"])
-            Assert.assertEquals(16, data["inlineThresholdKb"])
+            Assert.assertFalse("data.content should not be present", data.containsKey("content"))
+            Assert.assertFalse("inlineOmitted should not be present", data.containsKey("inlineOmitted"))
             Assert.assertTrue((data["contentBytes"] as Number).toInt() > 16 * 1024)
-            Assert.assertFalse(data.containsKey("content"))
         }
     }
 

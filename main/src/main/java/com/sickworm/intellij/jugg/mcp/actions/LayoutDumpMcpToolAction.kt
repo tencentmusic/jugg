@@ -57,12 +57,9 @@ class LayoutDumpMcpToolAction : McpToolAction {
                     type = "object",
                     properties = mapOf(
                         "file" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.json$"),
-                        "content" to McpJsonSchemaProperty(type = "object", description = "Inline layout hierarchy JSON data (omitted when oversized)"),
                         "contentBytes" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
-                        "inlineOmitted" to McpJsonSchemaProperty(type = "boolean"),
-                        "inlineThresholdKb" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
                     ),
-                    required = listOf("file", "contentBytes", "inlineOmitted", "inlineThresholdKb"),
+                    required = listOf("file", "contentBytes"),
                     additionalProperties = false,
                 )
             )
@@ -136,17 +133,10 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 val jsonElement = JsonParser.parseString(jsonContent)
                 val summary = buildSummaryMessage(jsonElement)
                 val contentBytes = jsonContent.toByteArray(StandardCharsets.UTF_8).size
-                val thresholdKb = DEFAULT_INLINE_THRESHOLD_KB
-                val inlineOmitted = contentBytes > thresholdKb * 1024
-                val data = mutableMapOf<String, Any>(
+                val data = mapOf<String, Any>(
                     "file" to localJsonFile.absolutePath,
                     "contentBytes" to contentBytes,
-                    "inlineOmitted" to inlineOmitted,
-                    "inlineThresholdKb" to thresholdKb,
                 )
-                if (!inlineOmitted) {
-                    data["content"] = jsonElement
-                }
 
                 McpToolResult(
                     status = McpToolStatus.OK,
@@ -266,7 +256,6 @@ class LayoutDumpMcpToolAction : McpToolAction {
     }
 
     companion object {
-        private const val DEFAULT_INLINE_THRESHOLD_KB = 16
         private const val MAX_COUNT_VISIT = 10_000
     }
 }
