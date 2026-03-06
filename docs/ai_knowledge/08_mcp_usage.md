@@ -46,7 +46,7 @@
 | `screenshot` | `projectDir` | 截图 |
 | `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
-| `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `inlineMaxKb` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按阈值内联返回 |
+| `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
@@ -78,7 +78,7 @@
 - 成功时 `data.file` 返回本地绝对路径，`data.content` 内联返回完整 JSON 数据（无需额外读取文件），`artifacts` 里会包含 `type=json` 的产物。
 - 可选参数 `rootLayout`：传入节点 `id` 值（推荐 short id，如 `"content"`），仅返回该节点及其子树。未传或目标节点不存在时，返回完整层级。
 - `topWindowOnly=true`（默认）时，服务端优先使用当前 top resumed Activity 对应窗口，避免误选到后台 Activity 窗口。
-- 可选参数 `inlineMaxKb`：控制 `data.content` 最大内联大小（KB），默认 16，实际生效值会被 clamp 到 `4..128`。
+- `data.content` 的内联阈值固定为 16KB，不再接受外部参数调整。
 - Server 可能返回内联 JSON 或远端文件路径，`layout_dump` 会统一拉齐为本地 `.json` 文件输出。
 - 返回中新增 `data.contentBytes`、`data.inlineOmitted`、`data.inlineThresholdKb`。当 `contentBytes > inlineThresholdKb * 1024` 时，`data.content` 被省略，但 `data.file` 仍可读取完整 JSON。
 - `message` 不再固定为 executed successfully，而是摘要信息：窗口数、顶层窗口标题、节点数、是否截断。

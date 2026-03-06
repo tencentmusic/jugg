@@ -255,35 +255,6 @@ class LayoutDumpMcpToolActionTest {
         }
     }
 
-    @Test
-    fun testLayoutDumpInlineMaxKbClampToMin() {
-        val projectDir = createTempDir(prefix = "jugg_layout_dump_min_inline_kb_")
-        val setup = setup(projectDir, packageName = "com.example.app")
-        val action = LayoutDumpMcpToolAction()
-        val mediumText = "x".repeat(3_000)
-        val mediumJson = """{"windows":[{"title":"MainActivity","root":{"className":"Root","text":"$mediumText","bounds":[0,0,10,10]}}],"truncated":false}"""
-
-        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
-                LayoutDumpResult(
-                    payloadJson = mediumJson,
-                    remoteFilePath = null,
-                )
-            )
-        }.use {
-            val result = action.execute(
-                mapOf("projectDir" to projectDir.absolutePath, "inlineMaxKb" to 1),
-                setup.runtime,
-            )
-            Assert.assertEquals(McpToolStatus.OK, result.status)
-            @Suppress("UNCHECKED_CAST")
-            val data = result.data as Map<String, Any>
-            Assert.assertEquals(4, data["inlineThresholdKb"])
-            Assert.assertEquals(false, data["inlineOmitted"])
-            Assert.assertNotNull(data["content"])
-        }
-    }
-
     private fun setup(
         projectDir: File,
         packageName: String? = null,

@@ -31,7 +31,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
         description = "Dump UI hierarchy from app-side ViewHierarchy server to a local JSON artifact. " +
-            "Returns data.file and optional inline data.content. Supports rootLayout subtree dump, isIncludeGone, and inlineMaxKb.",
+            "Returns data.file and optional inline data.content. Supports rootLayout subtree dump and isIncludeGone.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
@@ -42,12 +42,6 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 "isIncludeGone" to McpJsonSchemaProperty(
                     type = "boolean",
                     description = "When true, include GONE nodes in the output for diagnostics. Default is false.",
-                ),
-                "inlineMaxKb" to McpJsonSchemaProperty(
-                    type = "number",
-                    description = "Max inline content size in KB. Default 16, clamped to 4..128.",
-                    minimum = 4.0,
-                    maximum = 128.0,
                 ),
                 "isAllWindows" to McpJsonSchemaProperty(
                     type = "boolean",
@@ -66,7 +60,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
                         "content" to McpJsonSchemaProperty(type = "object", description = "Inline layout hierarchy JSON data (omitted when oversized)"),
                         "contentBytes" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
                         "inlineOmitted" to McpJsonSchemaProperty(type = "boolean"),
-                        "inlineThresholdKb" to McpJsonSchemaProperty(type = "number", minimum = 4.0, maximum = 128.0),
+                        "inlineThresholdKb" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
                     ),
                     required = listOf("file", "contentBytes", "inlineOmitted", "inlineThresholdKb"),
                     additionalProperties = false,
@@ -78,16 +72,14 @@ class LayoutDumpMcpToolAction : McpToolAction {
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val rootLayout = arguments["rootLayout"] as? String
         val isIncludeGone = arguments["isIncludeGone"] as? Boolean ?: false
-        val inlineMaxKb = (arguments["inlineMaxKb"] as? Number)?.toInt() ?: DEFAULT_INLINE_THRESHOLD_KB
         val isAllWindows = arguments["isAllWindows"] as? Boolean ?: false
-        return layoutDumpAction(runtime, rootLayout, isIncludeGone, inlineMaxKb, isAllWindows)
+        return layoutDumpAction(runtime, rootLayout, isIncludeGone, isAllWindows)
     }
 
     private fun layoutDumpAction(
         runtime: IMcpRuntime,
         rootLayout: String? = null,
         isIncludeGone: Boolean = false,
-        inlineMaxKb: Int,
         isAllWindows: Boolean = false,
     ): McpToolResult {
         val logger = runtime.logger.getInstance("LayoutDumpMcpToolAction")
@@ -144,7 +136,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 val jsonElement = JsonParser.parseString(jsonContent)
                 val summary = buildSummaryMessage(jsonElement)
                 val contentBytes = jsonContent.toByteArray(StandardCharsets.UTF_8).size
-                val thresholdKb = clampInlineMaxKb(inlineMaxKb)
+                val thresholdKb = DEFAULT_INLINE_THRESHOLD_KB
                 val inlineOmitted = contentBytes > thresholdKb * 1024
                 val data = mutableMapOf<String, Any>(
                     "file" to localJsonFile.absolutePath,
@@ -201,10 +193,6 @@ class LayoutDumpMcpToolAction : McpToolAction {
             count += countNodeRecursive(childObj)
         }
         return count
-    }
-
-    private fun clampInlineMaxKb(value: Int): Int {
-        return value.coerceIn(MIN_INLINE_THRESHOLD_KB, MAX_INLINE_THRESHOLD_KB)
     }
 
     /**
@@ -278,9 +266,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
     }
 
     companion object {
-        private const val MIN_INLINE_THRESHOLD_KB = 4
         private const val DEFAULT_INLINE_THRESHOLD_KB = 16
-        private const val MAX_INLINE_THRESHOLD_KB = 128
         private const val MAX_COUNT_VISIT = 10_000
     }
 }

@@ -71,7 +71,6 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 - Purpose: UI hierarchy evidence and coordinate lookup.
 - Required input: `projectDir`.
 - Optional input: `rootLayout` (node `id` from a previous dump to scope to that subtree only).
-- Optional input: `inlineMaxKb` controls max inline JSON size (`4..128`, default `16`).
 - Output: `data.file` absolute `.json` path, `data.content` inline JSON data (no extra file read needed), and `artifacts` entry with `type=json`.
 - Source: app-side ViewHierarchy server via `adb forward` + LocalSocket; no `uiautomator` fallback.
 - Locate node by `resource-id` first, then `text`, then `bounds` center.
@@ -82,15 +81,8 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 
 Keep MCP tool schema descriptions concise. Put guidance and strategy in this file instead of MCP schema text.
 
-- `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `inlineMaxKb`.
+- `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `isAllWindows`.
 - `tap` (compact): perform `tap` / `longPress` / `swipe` with coordinate, percent, or element mode; mode priority is `coordinate > percent > element`.
-
-### `inlineMaxKb` Tuning
-
-- Main agent: prefer `inlineMaxKb=8`; use `4` when only artifact path is needed.
-- Observe sub-agent: prefer `inlineMaxKb=32` for local analysis.
-- Prefer `rootLayout` scoping before increasing `inlineMaxKb`.
-- Do not exceed `64` unless user explicitly requests deep inline payload.
 
 ### Subtree Scoping Strategy (Mandatory for complex pages)
 
