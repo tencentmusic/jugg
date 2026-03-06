@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -24,82 +25,118 @@ import org.mockito.Mockito
 import java.io.File
 
 /**
- * RuntimeObserveMcpToolActionTest covers runtime-observe MCP actions with device/adb stubs.
+ * RecordMcpToolActionTest verifies start_record/stop_record validation order and app-ready gating.
  */
-class RuntimeObserveMcpToolActionTest {
-
+class RecordMcpToolActionTest {
     @Test
-    fun testCrashReportReturnsCrashSummaryAndArtifact() {
-        val projectDir = createTempDir(prefix = "jugg_mcp_crash_report_")
-        val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb(
-            shellOutputs = mapOf(
-                "dumpsys activity activities" to "topResumedActivity: ActivityRecord{123 t9 com.example.app/.MainActivity}",
-                "pidof com.example.app" to "",
-                "ps | grep com.example.app" to "",
-                "ps -A | grep com.example.app" to "",
-                "logcat -d -b crash -v threadtime" to """
-                    03-06 12:00:00.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main
-                    03-06 12:00:00.010  1234  1234 E AndroidRuntime: Process: com.example.app, PID: 1234
-                    03-06 12:00:00.020  1234  1234 E AndroidRuntime: java.lang.IllegalStateException: boom
-                """.trimIndent(),
+    fun testStartRecordReturnsAppNotReadyError() {
+        val projectDir = createTempDir(prefix = "jugg_mcp_start_record_not_ready_")
+        val setup = setup(projectDir) { false }
+        val action = StartRecordMcpToolAction()
+
+        try {
+            val result = action.execute(
+                mapOf("projectDir" to projectDir.absolutePath),
+                setup.runtime,
             )
-        )
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
 
-        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
-        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
-        Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
-        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
-        Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenReturn("com.example.app")
-        Mockito.`when`(deployTargetManager.dumpErrorLogs()).thenReturn("")
-
-        val action = CrashReportMcpToolAction()
-        val result = action.execute(
-            mapOf(
-                "projectDir" to projectDir.absolutePath,
-            ),
-            runtime(projectDir, deployTargetManager)
-        )
-
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(true, data["hasCrash"])
-        Assert.assertEquals(false, data["isProcessAlive"])
-        Assert.assertEquals("com.example.app/.MainActivity", data["relatedActivity"])
-        Assert.assertEquals("com.example.app", data["packageName"])
-        val crashLogs = data["crashLogs"] as List<*>
-        Assert.assertFalse(crashLogs.isEmpty())
-        val allErrorLogPath = data["allErrorLogPath"] as String
-        Assert.assertTrue(File(allErrorLogPath).exists())
-        Assert.assertEquals("log", result.artifacts.firstOrNull()?.type)
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertTrue(result.message.contains("app is not ready"))
+            Assert.assertNull(RecordSessionRegistry.findBySerial(setup.adb.serial))
+        } finally {
+            val existing = RecordSessionRegistry.findBySerial(setup.adb.serial)
+            if (existing != null) {
+                RecordSessionRegistry.remove(existing.sessionId)
+            }
+        }
     }
 
     @Test
-    fun testLayoutDumpReturnsErrorWhenPackageMissing() {
-        val projectDir = createTempDir(prefix = "jugg_mcp_layout_dump_")
-        val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb()
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+    fun testStopRecordBlankSessionIdReturnsInvalidParamsBeforeAppReady() {
+        val projectDir = createTempDir(prefix = "jugg_mcp_stop_record_invalid_params_")
+        var readyChecks = 0
+        val setup = setup(projectDir) {
+            readyChecks += 1
+            false
+        }
+        val action = StopRecordMcpToolAction()
 
-        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
-        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
-        Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
-
-        val action = LayoutDumpMcpToolAction()
-        val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), runtime(projectDir, deployTargetManager))
+        val result = action.execute(
+            mapOf("projectDir" to projectDir.absolutePath, "sessionId" to " "),
+            setup.runtime,
+        )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue(result.message.contains("failed to resolve package name"))
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("sessionId is required"))
+        Assert.assertEquals(0, readyChecks)
     }
 
-    private fun runtime(projectDir: File, deployTargetManager: IDeployTargetManager): IMcpRuntime {
+    @Test
+    fun testStopRecordReturnsAppNotReadyErrorWhenSessionExists() {
+        val projectDir = createTempDir(prefix = "jugg_mcp_stop_record_not_ready_")
+        var readyChecks = 0
+        val setup = setup(projectDir) {
+            readyChecks += 1
+            false
+        }
+        val action = StopRecordMcpToolAction()
+        val session = RecordSessionRegistry.RecordSession(
+            sessionId = "rec_test",
+            serial = setup.adb.serial,
+            pid = "1234",
+            remoteFile = "/sdcard/Download/jugg_mcp/rec_test.mp4",
+            localFilePath = File(projectDir, "rec_test.mp4").absolutePath,
+            startedAtMs = System.currentTimeMillis(),
+            launchMode = "HOST_ADB",
+            hostProcess = null,
+        )
+        RecordSessionRegistry.registerIfAbsent(session)
+
+        try {
+            val result = action.execute(
+                mapOf("projectDir" to projectDir.absolutePath, "sessionId" to session.sessionId),
+                setup.runtime,
+            )
+
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertTrue(result.message.contains("app is not ready"))
+            Assert.assertTrue(readyChecks > 0)
+        } finally {
+            RecordSessionRegistry.remove(session.sessionId)
+        }
+    }
+
+    private fun setup(
+        projectDir: File,
+        isAppReadyProvider: () -> Boolean,
+    ): SetupResult {
+        val device = Mockito.mock(IDevice::class.java)
+        Mockito.`when`(device.serialNumber).thenReturn("emulator-5554")
+        val adb = FakeDeviceAdb(serial = "emulator-5554")
+        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        return SetupResult(
+            runtime = buildRuntime(projectDir, deployTargetManager, isAppReadyProvider),
+            adb = adb,
+        )
+    }
+
+    private fun buildRuntime(
+        projectDir: File,
+        deployTargetManager: IDeployTargetManager,
+        isAppReadyProvider: () -> Boolean,
+    ): IMcpRuntime {
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
         return object : IMcpRuntime {
             override val logger: com.intellij.openapi.diagnostic.Logger
-                get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
+                get() = com.intellij.openapi.diagnostic.Logger.getInstance("RecordMcpToolActionTest")
             override val project: Project = project
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
@@ -133,43 +170,30 @@ class RuntimeObserveMcpToolActionTest {
                     throw UnsupportedOperationException("not used")
                 }
             }
+
+            override fun isAppReadyDeploy(): Boolean {
+                return isAppReadyProvider()
+            }
         }
     }
 
+    private data class SetupResult(
+        val runtime: IMcpRuntime,
+        val adb: FakeDeviceAdb,
+    )
+
     private class FakeDeviceAdb(
-        private val shellOutputs: Map<String, String> = emptyMap(),
-        private val pullHandler: (from: String, to: File, attempt: Int) -> Boolean = { _, to, _ ->
-            to.parentFile?.mkdirs()
-            to.writeText("ok")
-            true
-        },
+        override val serial: String,
     ) : IDeviceAdb {
         override val displayName: String? = "fake_device"
         override val api: Int = 34
-        override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
-        var pullCount: Int = 0
-            private set
-
-        override fun execAdbShellCmd(cmd: String): String {
-            if (cmd.startsWith("uiautomator dump ")) {
-                return "UI hierchary dumped"
-            }
-            return shellOutputs[cmd].orEmpty()
-        }
-
+        override fun execAdbShellCmd(cmd: String): String = ""
         override fun push(from: File, to: String): Boolean = true
-
-        override fun pull(from: String, to: File): Boolean {
-            pullCount += 1
-            return pullHandler(from, to, pullCount)
-        }
-
+        override fun pull(from: String, to: File): Boolean = true
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
-
         override fun getArch(packageName: String): String = "ARCH_64_BIT"
-
         override fun getProperty(name: String): String? = null
     }
 
@@ -201,17 +225,11 @@ class RuntimeObserveMcpToolActionTest {
         ): String? = null
 
         override fun allAvailableJavaHomes(): List<String> = emptyList()
-
         override fun getGradleJdkPath(project: Project, logger: Logger): String? = null
-
         override fun getAndroidHomePath(logger: Logger): String? = null
-
         override fun getIdeVersion(): String = "test"
-
         override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
-
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
-
         override fun invokeMcp(request: com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest): com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse {
             throw UnsupportedOperationException("not used")
         }

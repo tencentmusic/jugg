@@ -27,7 +27,7 @@ Use this library to constrain auto-fix behavior.
   next_action_on_failure: deterministic fallback
 ```
 
-## Seed Patterns
+## Patterns
 
 ```yaml
 - id: mcp_project_not_initialized
@@ -154,7 +154,7 @@ Use this library to constrain auto-fix behavior.
 
 ```
 
-## Session Notes
+## Patterns (Learned)
 
 ```yaml
 - id: xml_regex_patch_miss

@@ -10,9 +10,9 @@ Use this file when executing compile/deploy actions or handling compile/deploy f
 
 ## Async Compile Rule (Mandatory)
 
-For `compile_and_deploy` or `force_gradle_compile`:
+For `compile_and_deploy`, `compile_only`, or `force_gradle_compile`:
 
-- If `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent (must have MCP access; if unavailable, poll in main agent).
+- If `isFinal=false`, prefer delegating polling to an `awaiter` sub-agent when runtime supports MCP-capable sub-agents; otherwise poll in main agent.
 - Poll with `get_compile_status(jobId)` and follow `pollIntervalSuggestedMs` when present.
 - Determine result only by terminal compile status.
 - If `status=unknown`, treat as invalid job/context; stop and re-check `jobId` source.
@@ -23,10 +23,19 @@ Use this order for compile/deploy failures:
 
 1. Parse `status/message/errorCode/data/artifacts`.
 2. Retry `compile_and_deploy` up to 3 times.
-3. If still no way to fix the expected error use `force_gradle_compile` (heavy), finish async polling, and retry `compile_and_deploy`. On final failure inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-4. If still broken, try `clean_reinstall_apk`.
-5. If still unclear, stop and confirm with user.
-6. Remote troubleshooting (`request_remote_ssh_info`) requires explicit user consent.
+3. If still failing, use `force_gradle_compile` (heavy).
+   - `force_gradle_compile` produces the compiled artifact only (no deploy). After async polling completes, use `compile_and_deploy` to push the artifact to device (compile phase will be skipped because output is already up-to-date).
+   - On final failure, inspect `${projectDir}/build/jugg/log/compile_latest.log`.
+4. Retry `compile_and_deploy` once after `force_gradle_compile`.
+5. If still broken, inspect `${projectDir}/build/jugg/log/compile_latest.log`.
+6. Only when install-state corruption or signature conflict is likely, run `clean_reinstall_apk` as a post-step.
+7. If still unclear, stop and confirm with user.
+8. Remote troubleshooting (`request_remote_ssh_info`) requires explicit user consent.
+
+Important:
+
+- Do not place `clean_reinstall_apk` before `force_gradle_compile`.
+- `clean_reinstall_apk` is conditional recovery, not a general retry.
 
 Special case:
 

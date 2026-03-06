@@ -157,6 +157,10 @@ class TapMcpToolAction : McpToolAction {
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val logger = runtime.logger.getInstance("TapMcpToolAction")
         val action = (arguments["action"] as? String)?.ifBlank { "tap" } ?: "tap"
+        val validationError = validateArgumentsBeforeRuntimeCheck(action, arguments)
+        if (validationError != null) {
+            return validationError
+        }
         val selected = resolveOnlineDevice(runtime)
             ?: run {
                 logger.warn("tap failed: no online device")
@@ -188,6 +192,72 @@ class TapMcpToolAction : McpToolAction {
             return appendTopActivityNotStableHintIfNeeded(actionResult, topActivityStabilityResult)
         }
         return actionResult
+    }
+
+    private fun validateArgumentsBeforeRuntimeCheck(
+        action: String,
+        arguments: Map<String, Any?>,
+    ): McpToolResult? {
+        val x = arguments.numberAsInt("x")
+        val y = arguments.numberAsInt("y")
+        val endX = arguments.numberAsInt("endX")
+        val endY = arguments.numberAsInt("endY")
+        val xPercent = arguments.numberAsDouble("xPercent")
+        val yPercent = arguments.numberAsDouble("yPercent")
+        val endXPercent = arguments.numberAsDouble("endXPercent")
+        val endYPercent = arguments.numberAsDouble("endYPercent")
+        val text = arguments["text"] as? String
+        val resourceId = arguments["resourceId"] as? String
+        val contentDesc = arguments["contentDesc"] as? String
+
+        return when (action) {
+            "tap", "longPress" -> {
+                when {
+                    x != null && y != null -> null
+                    xPercent != null && yPercent != null -> null
+                    hasElementSelector(text, resourceId, contentDesc) -> null
+                    else -> invalidModeResult()
+                }
+            }
+
+            "swipe" -> {
+                when {
+                    x != null || y != null || endX != null || endY != null -> {
+                        if (x == null || y == null || endX == null || endY == null) {
+                            swipeMissingEndResult()
+                        } else {
+                            null
+                        }
+                    }
+
+                    xPercent != null || yPercent != null || endXPercent != null || endYPercent != null -> {
+                        if (xPercent == null || yPercent == null || endXPercent == null || endYPercent == null) {
+                            swipeMissingEndResult()
+                        } else {
+                            null
+                        }
+                    }
+
+                    hasElementSelector(text, resourceId, contentDesc) -> McpToolResult(
+                        status = McpToolStatus.ERROR,
+                        message = "tap failed. Reason: swipe action does not support element mode.",
+                        data = emptyMap<String, Any>(),
+                        artifacts = emptyList(),
+                        errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                    )
+
+                    else -> invalidModeResult()
+                }
+            }
+
+            else -> McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "tap failed. Reason: Unsupported action: $action. Use tap, longPress, or swipe.",
+                data = emptyMap<String, Any>(),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            )
+        }
     }
 
     private fun executeTap(

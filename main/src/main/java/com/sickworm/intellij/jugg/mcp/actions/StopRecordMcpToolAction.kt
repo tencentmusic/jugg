@@ -77,6 +77,10 @@ class StopRecordMcpToolAction : McpToolAction {
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
         }
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        if (!preWaitResult.isReady) {
+            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult(toolName, "app is not ready")
+        }
 
         val localFile = File(session.localFilePath)
 

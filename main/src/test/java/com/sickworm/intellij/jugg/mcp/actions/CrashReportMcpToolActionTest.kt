@@ -3,11 +3,11 @@ package com.sickworm.intellij.jugg.mcp.actions
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
-import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -26,27 +26,82 @@ import org.mockito.Mockito
 import java.io.File
 
 /**
- * CrashReportMcpToolActionTest verifies crash report data extraction and edge-case behavior.
+ * CrashReportMcpToolActionTest verifies crash_report filtering, buffer priority and reason semantics.
  */
 class CrashReportMcpToolActionTest {
 
     @Test
-    fun testCrashReportNoCrashReturnsEmptySnippetAndArtifact() {
-        val projectDir = createTempDir(prefix = "jugg_mcp_crash_report_no_crash_")
+    fun testCrashReportPrioritizesCrashBufferAndFiltersTargetProcess() {
+        val projectDir = createTempDir(prefix = "jugg_mcp_crash_report_target_filter_")
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb(
             shellOutputs = mapOf(
-                "dumpsys activity activities" to "",
-                "pidof com.example.app" to "",
-                "ps | grep com.example.app" to "",
-            )
+                "dumpsys activity activities" to "topResumedActivity: ActivityRecord{123 t9 com.example.app/.MainActivity}",
+                "pidof com.example.app" to "1234",
+                "ps -A | grep com.example.app" to "u0_a123      1234  111   com.example.app",
+                "logcat -d -b crash -v threadtime" to """
+                    03-06 10:00:00.000  9999  9999 E AndroidRuntime: FATAL EXCEPTION: main
+                    03-06 10:00:00.010  9999  9999 E AndroidRuntime: Process: com.other.app, PID: 9999
+                    03-06 10:00:01.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main
+                    03-06 10:00:01.010  1234  1234 E AndroidRuntime: Process: com.example.app, PID: 1234
+                    03-06 10:00:01.020  1234  1234 E AndroidRuntime: java.lang.IllegalStateException: boom
+                """.trimIndent(),
+            ),
         )
         PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
         val deployTargetManager = FakeDeployTargetManager(
             selected = listOf(device),
             connected = listOf(device),
             packageName = "com.example.app",
-            logs = "I/AnyTag: app is healthy",
+        )
+        val action = CrashReportMcpToolAction()
+
+        val result = action.execute(
+            mapOf("projectDir" to projectDir.absolutePath),
+            runtime(projectDir, deployTargetManager),
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["hasCrash"])
+        Assert.assertEquals(true, data["isProcessAlive"])
+        Assert.assertEquals("com.example.app/.MainActivity", data["relatedActivity"])
+        Assert.assertEquals("com.example.app", data["packageName"])
+        Assert.assertFalse(data.containsKey("reason"))
+        @Suppress("UNCHECKED_CAST")
+        val crashLogs = data["crashLogs"] as List<String>
+        Assert.assertTrue(crashLogs.any { it.contains("com.example.app") })
+        Assert.assertTrue(crashLogs.none { it.contains("com.other.app") })
+        val allErrorLogPath = data["allErrorLogPath"] as String
+        Assert.assertTrue(File(allErrorLogPath).exists())
+        Assert.assertEquals("log", result.artifacts.firstOrNull()?.type)
+        Assert.assertFalse(adb.executedCommands.contains("logcat -d -b main -v threadtime"))
+    }
+
+    @Test
+    fun testCrashReportNoCrashReturnsReasonAndCollectsMainBuffer() {
+        val projectDir = createTempDir(prefix = "jugg_mcp_crash_report_no_crash_")
+        val device = Mockito.mock(IDevice::class.java)
+        val adb = FakeDeviceAdb(
+            shellOutputs = mapOf(
+                "dumpsys activity activities" to "",
+                "pidof com.example.app" to "",
+                "ps -A | grep com.example.app" to "",
+                "logcat -d -b crash -v threadtime" to """
+                    03-06 11:00:00.000  9999  9999 I ActivityManager: unrelated process log
+                """.trimIndent(),
+                "logcat -d -b main -v threadtime" to """
+                    03-06 11:00:01.000  1234  1234 I ExampleTag: app heartbeat
+                    03-06 11:00:01.200  1234  1234 W ExampleTag: no crash happened
+                """.trimIndent(),
+            ),
+        )
+        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        val deployTargetManager = FakeDeployTargetManager(
+            selected = listOf(device),
+            connected = listOf(device),
+            packageName = "com.example.app",
         )
         val action = CrashReportMcpToolAction()
 
@@ -62,74 +117,10 @@ class CrashReportMcpToolActionTest {
         Assert.assertEquals(false, data["isProcessAlive"])
         Assert.assertEquals("com.example.app", data["packageName"])
         Assert.assertTrue((data["crashLogs"] as List<*>).isEmpty())
-        val allErrorLogPath = data["allErrorLogPath"] as String
-        Assert.assertTrue(File(allErrorLogPath).exists())
-        Assert.assertEquals("log", result.artifacts.firstOrNull()?.type)
-    }
-
-    @Test
-    fun testCrashReportUsesRuntimePackageAndPidofAlive() {
-        val projectDir = createTempDir(prefix = "jugg_mcp_crash_report_pidof_")
-        val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb(
-            shellOutputs = mapOf(
-                "dumpsys activity activities" to "topResumedActivity: ActivityRecord{1 t1 com.example.fallback/.MainActivity}",
-                "pidof com.example.fallback" to "1234",
-            )
-        )
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
-        val deployTargetManager = FakeDeployTargetManager(
-            selected = listOf(device),
-            connected = listOf(device),
-            packageName = "com.example.fallback",
-            logs = "E AndroidRuntime: FATAL EXCEPTION: main\nE AndroidRuntime: Process: com.example.fallback",
-        )
-        val action = CrashReportMcpToolAction()
-
-        val result = action.execute(
-            mapOf("projectDir" to projectDir.absolutePath),
-            runtime(projectDir, deployTargetManager),
-        )
-
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(true, data["isProcessAlive"])
-        Assert.assertEquals("com.example.fallback", data["packageName"])
-        Assert.assertEquals("com.example.fallback/.MainActivity", data["relatedActivity"])
-        Assert.assertEquals(true, data["hasCrash"])
-    }
-
-    @Test
-    fun testCrashReportFallsBackToPsWhenPidofIsEmpty() {
-        val projectDir = createTempDir(prefix = "jugg_mcp_crash_report_ps_")
-        val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb(
-            shellOutputs = mapOf(
-                "dumpsys activity activities" to "",
-                "pidof com.example.ps" to "",
-                "ps | grep com.example.ps" to "u0_a1  2234  300 com.example.ps",
-            )
-        )
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
-        val deployTargetManager = FakeDeployTargetManager(
-            selected = listOf(device),
-            connected = listOf(device),
-            packageName = "com.example.ps",
-            logs = "",
-        )
-        val action = CrashReportMcpToolAction()
-
-        val result = action.execute(
-            mapOf("projectDir" to projectDir.absolutePath),
-            runtime(projectDir, deployTargetManager),
-        )
-
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(true, data["isProcessAlive"])
-        Assert.assertEquals(false, data["hasCrash"])
+        val reason = data["reason"] as String
+        Assert.assertTrue(reason.contains("No crash signal"))
+        Assert.assertTrue(adb.executedCommands.contains("logcat -d -b crash -v threadtime"))
+        Assert.assertTrue(adb.executedCommands.contains("logcat -d -b main -v threadtime"))
     }
 
     @Test
@@ -140,7 +131,6 @@ class CrashReportMcpToolActionTest {
             selected = emptyList(),
             connected = emptyList(),
             packageName = "com.example.app",
-            logs = "",
         )
         val action = CrashReportMcpToolAction()
 
@@ -158,7 +148,7 @@ class CrashReportMcpToolActionTest {
         Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
         return object : IMcpRuntime {
             override val logger: com.intellij.openapi.diagnostic.Logger
-                get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
+                get() = com.intellij.openapi.diagnostic.Logger.getInstance("CrashReportMcpToolActionTest")
             override val project: Project = project
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
@@ -203,7 +193,13 @@ class CrashReportMcpToolActionTest {
         override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
-        override fun execAdbShellCmd(cmd: String): String = shellOutputs[cmd].orEmpty()
+        val executedCommands: MutableList<String> = mutableListOf()
+
+        override fun execAdbShellCmd(cmd: String): String {
+            executedCommands += cmd
+            return shellOutputs[cmd].orEmpty()
+        }
+
         override fun push(from: File, to: String): Boolean = true
         override fun pull(from: String, to: File): Boolean = true
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
@@ -215,29 +211,20 @@ class CrashReportMcpToolActionTest {
         private val selected: List<IDevice>,
         private val connected: List<IDevice>,
         private val packageName: String,
-        private val logs: String,
     ) : IDeployTargetManager {
         override fun setApks(apks: List<ApkInfo>) {
             // no-op
         }
 
         override fun getApks(): List<ApkInfo> = emptyList()
-
         override fun getSelectedDevices(): List<IDevice> = selected
-
         override fun getConnectedDevices(): List<IDevice> = connected
-
         override fun startApp(device: IDevice): Boolean = true
-
         override fun restartApp(device: IDevice): Boolean = true
-
         override fun stopApp(device: IDevice): Boolean = true
-
         override fun isAppForeground(device: IDevice): Boolean = false
-
         override fun getPackageName(): String = packageName
-
-        override fun dumpErrorLogs(): String = logs
+        override fun dumpErrorLogs(): String = ""
     }
 
     private class FakePlatformApi(

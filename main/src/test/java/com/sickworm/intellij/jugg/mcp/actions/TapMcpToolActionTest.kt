@@ -569,6 +569,30 @@ class TapMcpToolActionTest {
     }
 
     @Test
+    fun testTapInvalidParamsShouldTakePriorityOverAppNotReady() {
+        val (action, _) = setup()
+        var readyChecks = 0
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "swipe",
+                "x" to 10,
+                "y" to 20,
+            ),
+            runtime(
+                isAppReadyProvider = {
+                    readyChecks += 1
+                    false
+                },
+            ),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("requires both start and end"))
+        Assert.assertEquals(0, readyChecks)
+    }
+
+    @Test
     fun testTapRetriesAfterPreWaitWhenFirstAttemptFails() {
         McpAppReadyGuard.preTimeoutOverrideForTest = 10L
         McpAppReadyGuard.prePollIntervalOverrideForTest = 1L

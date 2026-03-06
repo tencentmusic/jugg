@@ -1,6 +1,6 @@
 # MCP 使用说明（当前注册工具）
 
-> 最后核对：2026-03-03  
+> 最后核对：2026-03-06  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -54,7 +54,8 @@
 补充（App 在线等待阻塞）：
 - `restart_app`、`compile_and_deploy`、`force_gradle_compile`、`clean_reinstall_apk` 在成功路径会后置等待 App 在线（判断口径：`deployStateManager.updateDeployState().isReadyDeploy`）。
 - `compile_and_deploy` / `force_gradle_compile` 若走异步返回，在线等待会体现在最终 `get_compile_status` 结果里（最终可能因为 App 未就绪而失败）。
-- `layout_dump`、`activity_stack`、`screenshot`、`tap` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
+- `layout_dump`、`activity_stack`、`screenshot`、`tap`、`start_record`、`stop_record` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
+- 运行态工具执行顺序：参数完整性/组合合法性校验 -> `projectDir` 初始化态校验 -> App 在线校验 -> 业务执行。参数类错误优先返回 `MCP_INVALID_PARAMS`，避免被 `app not ready` 覆盖。
 - 若前置等待过程中发生过实际等待（并非首检即 ready），且本次工具调用返回失败，会自动重试最多 3 次，重试间隔 2s（仅用于内部/瞬时失败）。
 
 > 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
@@ -69,9 +70,11 @@
 - `data.file` 返回优化后的文件路径，扩展名可能为 `png/jpg/jpeg`。
 
 补充（crash_report 输出语义）：
-- `hasCrash=true` 表示在近期日志中检测到崩溃信号（如 `FATAL EXCEPTION`）。
-- `crashLogs` 返回最近一段崩溃关键日志（通常 15~30 行）。
-- `allErrorLogPath` 为完整错误日志路径，客户端可按需读取全文。
+- 目标进程强过滤：`crashLogs` 仅保留目标包名/进程名与目标 PID 相关日志。
+- 采集优先级：先读 `logcat -b crash`，仅当未检测到崩溃信号时再补读 `logcat -b main`。
+- `hasCrash=true` 表示检测到崩溃信号（如 `FATAL EXCEPTION` / `Fatal signal`）。
+- `hasCrash=false` 时返回 `data.reason`，明确“无崩溃”原因（例如目标进程未运行）。
+- `allErrorLogPath` 持续保留原始采集日志（artifact）以供深度排障。
 
 补充（layout_dump 语义）：
 - 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树并落盘为 `.json`。
@@ -143,9 +146,11 @@
 
 ## 6. 连通性与排查
 
+> 仅在“连通性/上下文异常排查”场景使用以下步骤；正常使用无需把 `list_projects` / `device_list` 作为固定 preflight。  
+
 1. 先确认 IDE 已初始化该项目（`list_projects`）。  
 2. 参数异常先对照 `tools/list` 返回的 `inputSchema`。  
-3. 设备类工具失败先执行 `device_list`。  
+3. 设备类工具失败时再执行 `device_list`。  
 4. 编译类异步任务卡住时，用 `get_compile_status` + `compile_latest.log`。
 5. `layout_dump`/元素模式 `tap` 返回 `ViewHierarchy server is unavailable` 时，按“先 `restart_app` 一次 -> 再 `force_gradle_compile` 一次 -> 重试”的顺序处理；若仍失败，再退回 `screenshot + percent/coordinate tap`。
 

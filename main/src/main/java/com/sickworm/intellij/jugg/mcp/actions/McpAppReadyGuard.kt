@@ -129,7 +129,8 @@ object McpAppReadyGuard {
     private fun appNotReadyResult(toolName: String, stage: String, attempts: Int): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.ERROR,
-            message = "$toolName failed. Reason: app is not ready $stage after $attempts checks.",
+            message = "$toolName failed. Reason: app is not ready $stage after $attempts checks. " +
+                "Next action: run restart_app and retry $toolName.",
             data = mapOf("readyChecks" to attempts),
             artifacts = emptyList(),
             errorCode = McpErrorCode.MCP_INTERNAL_ERROR,

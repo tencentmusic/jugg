@@ -66,6 +66,10 @@ class StartRecordMcpToolAction : McpToolAction {
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
         }
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        if (!preWaitResult.isReady) {
+            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult(toolName, "app is not ready")
+        }
 
         val toolDir = RecordToolSupport.ensureToolDir(runtime, "record")
             ?: return McpToolResult.internalErrorResult(toolName, "failed to prepare artifact directory")

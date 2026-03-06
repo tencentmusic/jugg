@@ -1,6 +1,13 @@
 ---
 name: jugg-android-dev-loop
-description: Use Jugg MCP tools for a deterministic Android modify/verify closed-loop (no runner scripts). Trigger ONLY when ALL conditions are met - (1) current project is an Android application project AND (2) user explicitly asks to build/deploy/verify on device, OR Android app source code/resources were modified and verification is the logical next step. Do NOT trigger for non-Android-app codebase even if they contain Kotlin/Java files or Android-related tooling code.
+description: >-
+  Use Jugg MCP tools for a deterministic Android modify/verify closed-loop (no
+  runner scripts). Trigger ONLY when ALL of the following are met: (A) current
+  project is an Android application project; (B) at least one of: user
+  explicitly asks to build/deploy/verify on device, OR Android app source
+  code/resources were modified and verification is the logical next step. Do
+  NOT trigger for non-Android-app codebase even if they contain Kotlin/Java
+  files or Android-related tooling code.
 ---
 
 # Jugg MCP Android Dev Loop (Compact Router)
@@ -85,16 +92,18 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
 
 `layout_dump` / `screenshot` / `recording` produce large context (layout JSON, images, video). Isolate observation from main agent context when possible.
 
-Delegate (prefer sub-agent, fallback to main-agent-with-summarize) when **any** condition is true:
+If runtime supports MCP-capable sub-agents, delegate observation when **any** condition is true:
 
 1. **>=2 large context tool calls**.
 2. **Analysis required on heavy output**.
 
-Direct call from main agent only when: single tool call **and** result is used as-is without analysis.
+Use main-agent direct call when: single tool call **and** result is used as-is without analysis.
 
-**Default**: when unsure, delegate.
+If runtime does not support MCP-capable sub-agents, execute in main agent and summarize heavy outputs instead of copying raw payloads.
 
-Sub-agent **must** have MCP tool access (use the agent type with full/all tool access, e.g. `general-purpose` in Claude Code). If unavailable, execute in main agent instead.
+**Default**: when unsure, prefer delegation if available.
+
+Sub-agent must have MCP tool access. Claude Code example: use `general-purpose` (has MCP access). In other environments, use any agent type that exposes MCP tools.
 
 Sub-agent returns only `{verdict, summary, artifacts, issues}`, never raw layout JSON/image/video.
 

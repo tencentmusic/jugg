@@ -1,6 +1,6 @@
 # MCP 设计说明（当前实现视角）
 
-> 最后核对：2026-03-03  
+> 最后核对：2026-03-06  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -31,6 +31,7 @@
 - 主入口：`/jugg-mcp`。  
 - 统一业务返回：`structuredContent` 内含 `status/message/data/artifacts/errorCode`。  
 - 工具调用前必须经过 schema 校验与项目初始化校验（除 `list_projects`）。
+- 运行态工具在 action 内执行“参数组合校验 -> App ready 校验 -> 业务执行”；其中参数错误优先返回 `MCP_INVALID_PARAMS`，App 未就绪返回 `MCP_INTERNAL_ERROR`，并附带 next action 建议。
 
 ---
 
