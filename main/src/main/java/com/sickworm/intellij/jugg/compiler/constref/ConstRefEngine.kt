@@ -475,6 +475,10 @@ class ConstRefEngine(
                 }
                 database.upsertBatchDefinitions(definitionsBatch)
             }
+            // Reset KotlinCoreEnvironment after each batch to release the string-intern table
+            // that grows ~200 KB per parsed file. Without this, full-scan peak resident heap
+            // scales with total file count; with this, it is bounded by batch size.
+            analyzer.resetEnvironment()
             phase1ProcessedCount += batch.size
             maybeThrottleIo(phase1ProcessedCount)
         }
@@ -532,6 +536,8 @@ class ConstRefEngine(
                     sessionCache.clearLookupCache()
                 }
             }
+            // Reset KotlinCoreEnvironment after each batch to release string-intern caches.
+            analyzer.resetEnvironment()
             phase2ProcessedCount += batch.size
             maybeThrottleIo(phase2ProcessedCount)
         }
@@ -1213,7 +1219,7 @@ class ConstRefEngine(
         private const val DEFAULT_SESSION_FILE_CACHE_MAX = 500
         private const val DEFAULT_SESSION_LOOKUP_CACHE_MAX = 4000
         private const val DEFAULT_SESSION_CACHE_TTL_MS = 15L * 60L * 1000L
-        private const val DEFAULT_BATCH_SIZE = 200
+        private const val DEFAULT_BATCH_SIZE = 50
 
         private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
             return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue

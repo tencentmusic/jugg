@@ -91,10 +91,7 @@ internal class ConstRefSessionCache(
     }
 
     fun putConstNameLookup(constName: String, definitions: List<ConstDefinition>) {
-        putLookupEntry(
-            key = lookupKeyConstName(constName),
-            value = definitions.toList(),
-        )
+        putLookupEntry(key = lookupKeyConstName(constName), value = definitions.toList())
     }
 
     fun getClassConstLookup(fqClassName: String, constName: String): List<ConstDefinition>? {
@@ -103,10 +100,7 @@ internal class ConstRefSessionCache(
     }
 
     fun putClassConstLookup(fqClassName: String, constName: String, definitions: List<ConstDefinition>) {
-        putLookupEntry(
-            key = lookupKeyClassConst(fqClassName, constName),
-            value = definitions.toList(),
-        )
+        putLookupEntry(key = lookupKeyClassConst(fqClassName, constName), value = definitions.toList())
     }
 
     fun getPackageConstLookup(packageName: String, constName: String): List<ConstDefinition>? {
@@ -115,10 +109,7 @@ internal class ConstRefSessionCache(
     }
 
     fun putPackageConstLookup(packageName: String, constName: String, definitions: List<ConstDefinition>) {
-        putLookupEntry(
-            key = lookupKeyPackageConst(packageName, constName),
-            value = definitions.toList(),
-        )
+        putLookupEntry(key = lookupKeyPackageConst(packageName, constName), value = definitions.toList())
     }
 
     fun getSimpleClassLookup(simpleName: String): Set<String>? {
@@ -127,10 +118,7 @@ internal class ConstRefSessionCache(
     }
 
     fun putSimpleClassLookup(simpleName: String, fqClasses: Set<String>) {
-        putLookupEntry(
-            key = lookupKeySimpleClass(simpleName),
-            value = fqClasses.toSet(),
-        )
+        putLookupEntry(key = lookupKeySimpleClass(simpleName), value = fqClasses.toSet())
     }
 
     private fun getLookupEntry(key: String): Any? {

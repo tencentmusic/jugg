@@ -577,9 +577,13 @@ class ConstRefEngineBenchmarkTest {
         // Parallel GC+sampler: forces GC every interval and records heap after collection.
         val residentSamples = Collections.synchronizedList(mutableListOf<Double>())
         val samplerRunning = java.util.concurrent.atomic.AtomicBoolean(true)
+        val analysisStartMs = System.currentTimeMillis()
         val samplerThread = Thread {
             while (samplerRunning.get()) {
-                residentSamples += forceGcHeapMb()
+                val mb = forceGcHeapMb()
+                val elapsedS = (System.currentTimeMillis() - analysisStartMs) / 1000
+                residentSamples += mb
+                println("[DIAG-RESIDENT] sample t+${elapsedS}s: %.1fMB".format(mb))
                 Thread.sleep(RESIDENT_SAMPLE_INTERVAL_MS)
             }
         }.also {

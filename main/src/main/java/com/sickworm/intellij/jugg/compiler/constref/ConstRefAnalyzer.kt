@@ -69,6 +69,14 @@ class ConstRefAnalyzer(
         kotlinConstParser.dispose()
     }
 
+    /**
+     * Recreates the internal [KotlinCoreEnvironment] to release its accumulated string-intern
+     * table. Call after each analysis batch during full scans to bound resident heap growth.
+     */
+    fun resetEnvironment() {
+        kotlinConstParser.resetEnvironment()
+    }
+
     /** Drops internal PSI and resolve caches in the Kotlin compiler environment. */
     fun dropResolveCaches() {
         kotlinConstParser.dropResolveCaches()

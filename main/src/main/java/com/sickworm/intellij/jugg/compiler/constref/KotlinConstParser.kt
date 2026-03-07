@@ -32,20 +32,12 @@ import java.io.File
 class KotlinConstParser(
     private val logger: Logger,
 ) {
-    private val disposable: Disposable = Disposer.newDisposable()
-    private val environment: KotlinCoreEnvironment
-    private val psiFactory: KtPsiFactory
+    private var disposable: Disposable = Disposer.newDisposable()
+    private var environment: KotlinCoreEnvironment
+    private var psiFactory: KtPsiFactory
 
     init {
-        val configuration = CompilerConfiguration().also {
-            it.put(CommonConfigurationKeys.MODULE_NAME, "jugg-const-ref")
-            it.put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, MessageCollector.NONE)
-        }
-        environment = KotlinCoreEnvironment.createForProduction(
-            disposable,
-            configuration,
-            EnvironmentConfigFiles.JVM_CONFIG_FILES,
-        )
+        environment = buildEnvironment(disposable)
         psiFactory = KtPsiFactory(environment.project, false)
     }
 
@@ -191,12 +183,38 @@ class KotlinConstParser(
     }
 
     /**
+     * Disposes the current [KotlinCoreEnvironment] and recreates it from scratch.
+     * The environment accumulates an internal string-intern table (identifier strings, PSI
+     * provider caches) that grows ~200 KB per parsed file and is only released on dispose.
+     * Calling this after each analysis batch caps resident heap to roughly
+     * batchSize × 200 KB instead of totalFileCount × 200 KB.
+     */
+    fun resetEnvironment() {
+        Disposer.dispose(disposable)
+        disposable = Disposer.newDisposable()
+        environment = buildEnvironment(disposable)
+        psiFactory = KtPsiFactory(environment.project, false)
+    }
+
+    /**
      * Drops internal PSI and resolve caches accumulated by the Kotlin compiler environment.
      * Call this after each analysis batch to prevent unbounded heap growth during full scans.
      * Safe to call at any time; subsequent parses will rebuild caches as needed.
      */
     fun dropResolveCaches() {
         PsiManager.getInstance(environment.project).dropResolveCaches()
+    }
+
+    private fun buildEnvironment(disposable: Disposable): KotlinCoreEnvironment {
+        val configuration = CompilerConfiguration().also {
+            it.put(CommonConfigurationKeys.MODULE_NAME, "jugg-const-ref")
+            it.put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, MessageCollector.NONE)
+        }
+        return KotlinCoreEnvironment.createForProduction(
+            disposable,
+            configuration,
+            EnvironmentConfigFiles.JVM_CONFIG_FILES,
+        )
     }
 
     /**
