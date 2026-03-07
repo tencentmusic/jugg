@@ -142,6 +142,13 @@ dependencies {
 }
 
 tasks.withType(Test).configureEach {
+    // Forward benchmark system properties to the test JVM.
+    ["benchmark.project.dir", "benchmark.output.dir", "benchmark.constref.cache.dir"].each { key ->
+        def value = System.getProperty(key)
+        if (value) {
+            systemProperty key, value
+        }
+    }
     // Increase heap only for external-project benchmark runs to avoid OOM on large source trees.
     if (System.getProperty("benchmark.project.dir")) {
         maxHeapSize = "4g"

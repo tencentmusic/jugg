@@ -69,6 +69,37 @@ class ConstRefAnalyzer(
         kotlinConstParser.dispose()
     }
 
+    /** Drops internal PSI and resolve caches in the Kotlin compiler environment. */
+    fun dropResolveCaches() {
+        kotlinConstParser.dropResolveCaches()
+    }
+
+    /**
+     * Collects lookup hints and parses references in a single KtFile parse pass for a .kt file.
+     * Falls through to [collectReferenceLookupHints] + [parseReferences] for Java files.
+     *
+     * @param definitionIndexFactory receives the collected hints and returns the lookup index,
+     *        or null if no candidates are found (which skips the reference parse).
+     */
+    fun collectHintsAndParseReferences(
+        sourceFile: File,
+        definitionIndexFactory: (ConstReferenceLookupHints) -> ConstDefinitionLookup?,
+    ): List<ConstReference> {
+        if (!sourceFile.exists() || !isSupportedSourceFile(sourceFile)) {
+            return emptyList()
+        }
+        return when (sourceFile.extension) {
+            "kt" -> kotlinConstParser.collectHintsAndParseReferences(sourceFile, definitionIndexFactory)
+            "java" -> {
+                val hints = collectReferenceLookupHints(sourceFile)
+                if (hints.isEmpty()) return emptyList()
+                val definitionIndex = definitionIndexFactory(hints) ?: return emptyList()
+                javaConstParser.parseReferences(sourceFile, definitionIndex)
+            }
+            else -> emptyList()
+        }
+    }
+
     private fun normalizeSourceFiles(files: Collection<File>): List<File> {
         val sourceFiles = files
             .asSequence()

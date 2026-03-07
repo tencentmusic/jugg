@@ -468,6 +468,152 @@ class ConstRefEngineBenchmarkTest {
         }
     }
 
+    /**
+     * Measures heap growth at each phase of analyzeFiles for a batch of real source files.
+     * Reports heap at: before engine init, after Phase 1, after Phase 2, and after dispose.
+     *
+     * Requires -Dbenchmark.project.dir.
+     */
+    @Test
+    fun diagnoseKotlinParserHeapRetention() {
+        val projectDirPath = System.getProperty(PROP_PROJECT_DIR)?.trim().orEmpty()
+        assumeTrue("benchmark.project.dir is required", projectDirPath.isNotEmpty())
+
+        val projectDir = File(projectDirPath)
+        val sourceRoots = collectSourceRoots(projectDir)
+        val allFiles = collectSourceFiles(sourceRoots).take(500)
+        assumeTrue("no source files found", allFiles.isNotEmpty())
+
+        fun heapUsedMb(): Double {
+            repeat(3) { System.gc() }
+            Thread.sleep(300)
+            val rt = Runtime.getRuntime()
+            return (rt.totalMemory() - rt.freeMemory()).toDouble() / (1024 * 1024)
+        }
+
+        val cacheDir = File(System.getProperty("java.io.tmpdir"), "diag_constref_cache")
+        cacheDir.mkdirs()
+        val sharedDb = File(cacheDir, "diag_shared.db").also { it.delete() }
+        val repoFingerprintDb = File(cacheDir, "diag_fingerprint.db").also { it.delete() }
+
+        val logger = object : com.intellij.openapi.diagnostic.DefaultLogger("diag") {
+            override fun isDebugEnabled() = false
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+        val heapBefore = heapUsedMb()
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(sharedDb, logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, repoFingerprintDb),
+        )
+        val heapAfterInit = heapUsedMb()
+        println("[DIAG] before=%.1fMB, after engine init=%.1fMB, engine_overhead=%.1fMB".format(
+            heapBefore, heapAfterInit, heapAfterInit - heapBefore))
+
+        val analyzeFilesFn = ConstRefEngine::class.declaredFunctions
+            .first { it.name == "analyzeFiles" }
+            .also { it.isAccessible = true }
+
+        runBlocking { analyzeFilesFn.callSuspend(engine, allFiles) }
+        val heapAfterAnalyze = heapUsedMb()
+        println("[DIAG] after analyzeFiles(%d files): %.1fMB (delta from init: %.1fMB, per-file: %.2fMB)".format(
+            allFiles.size, heapAfterAnalyze, heapAfterAnalyze - heapAfterInit,
+            (heapAfterAnalyze - heapAfterInit) / allFiles.size))
+
+        engine.dispose()
+        scope.cancel()
+        repeat(5) { System.gc() }
+        Thread.sleep(500)
+        val heapAfterDispose = heapUsedMb()
+        println("[DIAG] after dispose+gc: %.1fMB (released from peak: %.1fMB)".format(
+            heapAfterDispose, heapAfterAnalyze - heapAfterDispose))
+    }
+
+    /**
+     * Measures the maximum resident (live-set) heap during analyzeFiles by running a parallel
+     * GC+sample thread while analysis executes. Forcing GC periodically flushes short-lived
+     * objects so each sample reflects the true live set at that moment. The maximum of these
+     * samples is the peak resident memory during analysis.
+     *
+     * Requires -Dbenchmark.project.dir.
+     */
+    @Test
+    fun diagnoseAnalysisResidentMemory() {
+        val projectDirPath = System.getProperty(PROP_PROJECT_DIR)?.trim().orEmpty()
+        assumeTrue("benchmark.project.dir is required", projectDirPath.isNotEmpty())
+
+        val projectDir = File(projectDirPath)
+        val sourceRoots = collectSourceRoots(projectDir)
+        val allFiles = collectSourceFiles(sourceRoots)
+        assumeTrue("no source files found", allFiles.isNotEmpty())
+
+        val cacheDir = File(System.getProperty("java.io.tmpdir"), "diag_resident_cache")
+        cacheDir.mkdirs()
+        val sharedDb = File(cacheDir, "diag_resident_shared.db").also { it.delete() }
+        val repoFingerprintDb = File(cacheDir, "diag_resident_fingerprint.db").also { it.delete() }
+
+        val logger = object : com.intellij.openapi.diagnostic.DefaultLogger("diag-resident") {
+            override fun isDebugEnabled() = false
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(sharedDb, logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, repoFingerprintDb),
+        )
+
+        fun forceGcHeapMb(): Double {
+            repeat(3) { System.gc() }
+            Thread.sleep(200)
+            val rt = Runtime.getRuntime()
+            return (rt.totalMemory() - rt.freeMemory()).toDouble() / (1024 * 1024)
+        }
+
+        // Parallel GC+sampler: forces GC every interval and records heap after collection.
+        val residentSamples = Collections.synchronizedList(mutableListOf<Double>())
+        val samplerRunning = java.util.concurrent.atomic.AtomicBoolean(true)
+        val samplerThread = Thread {
+            while (samplerRunning.get()) {
+                residentSamples += forceGcHeapMb()
+                Thread.sleep(RESIDENT_SAMPLE_INTERVAL_MS)
+            }
+        }.also {
+            it.isDaemon = true
+            it.start()
+        }
+
+        val heapBefore = forceGcHeapMb()
+        println("[DIAG-RESIDENT] before analyzeFiles: %.1fMB, fileCount=%d".format(heapBefore, allFiles.size))
+
+        val analyzeFilesFn = ConstRefEngine::class.declaredFunctions
+            .first { it.name == "analyzeFiles" }
+            .also { it.isAccessible = true }
+
+        try {
+            runBlocking { analyzeFilesFn.callSuspend(engine, allFiles) }
+        } finally {
+            samplerRunning.set(false)
+            samplerThread.join(5_000L)
+            engine.dispose()
+            scope.cancel()
+        }
+
+        val heapAfter = forceGcHeapMb()
+        val peakResident = residentSamples.maxOrNull() ?: 0.0
+        val minResident = residentSamples.minOrNull() ?: 0.0
+
+        println("[DIAG-RESIDENT] after analyzeFiles+gc: %.1fMB".format(heapAfter))
+        println("[DIAG-RESIDENT] sample count=%d, interval=%dms".format(residentSamples.size, RESIDENT_SAMPLE_INTERVAL_MS))
+        println("[DIAG-RESIDENT] resident min=%.1fMB, peak=%.1fMB, delta-from-before=%.1fMB".format(
+            minResident, peakResident, peakResident - heapBefore))
+        println("[DIAG-RESIDENT] conclusion: max resident memory during analysis = %.1fMB".format(peakResident))
+    }
+
     companion object {
         private const val PROP_PROJECT_DIR = "benchmark.project.dir"
         private const val PROP_OUTPUT_DIR = "benchmark.output.dir"
@@ -482,6 +628,7 @@ class ConstRefEngineBenchmarkTest {
         private const val DEFAULT_CACHE_RELATIVE_DIR = "Library/Caches/Google/AndroidStudio2025.3.1/jugg/const_ref"
         private val SOURCE_ROOT_REGEX = Regex(".*/src/[^/]+/(java|kotlin)$")
         private const val MAX_CAPTURE_LINES = 2048
+        private const val RESIDENT_SAMPLE_INTERVAL_MS = 3000L
 
         private fun formatDouble(value: Double): String = "%.4f".format(value)
         private fun escape(value: String): String =

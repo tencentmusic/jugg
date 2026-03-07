@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.com.intellij.openapi.Disposable
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
+import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.lexer.KtTokens
@@ -89,6 +90,19 @@ class KotlinConstParser(
         }
         val sourcePath = sourceFile.toStdPath()
         val ktFile = parseKtFile(sourceFile) ?: return emptyList()
+        return collectReferencesFromKtFile(ktFile, sourcePath, definitionIndex)
+    }
+
+    /**
+     * Traverses an already-parsed KtFile to collect const references.
+     * Extracted so that [parseReferences] and [collectHintsAndParseReferences] can share the
+     * visitor logic without parsing the file a second time.
+     */
+    private fun collectReferencesFromKtFile(
+        ktFile: KtFile,
+        sourcePath: String,
+        definitionIndex: ConstDefinitionLookup,
+    ): List<ConstReference> {
         val packageName = ktFile.packageFqName.asString()
         val importContext = buildImportContext(ktFile, definitionIndex)
         val ownerImportContext = OwnerImportContext(
@@ -172,9 +186,51 @@ class KotlinConstParser(
 
         return references.toList()
     }
-
     fun dispose() {
         Disposer.dispose(disposable)
+    }
+
+    /**
+     * Drops internal PSI and resolve caches accumulated by the Kotlin compiler environment.
+     * Call this after each analysis batch to prevent unbounded heap growth during full scans.
+     * Safe to call at any time; subsequent parses will rebuild caches as needed.
+     */
+    fun dropResolveCaches() {
+        PsiManager.getInstance(environment.project).dropResolveCaches()
+    }
+
+    /**
+     * Collects lookup hints and parses references in a single KtFile parse pass.
+     * Use instead of calling [collectReferenceLookupHints] + [parseReferences] separately
+     * to halve the number of KtFile allocations per file during Phase 2.
+     *
+     * @param definitionIndexFactory called with the collected hints to build the lookup index.
+     *        The factory may return null if no candidate definitions are found (hints empty).
+     * @return the parsed references, or empty list if no hints or no candidates.
+     */
+    fun collectHintsAndParseReferences(
+        sourceFile: File,
+        definitionIndexFactory: (ConstReferenceLookupHints) -> ConstDefinitionLookup?,
+    ): List<ConstReference> {
+        if (sourceFile.extension != "kt" || !sourceFile.exists()) {
+            return emptyList()
+        }
+        val sourcePath = sourceFile.toStdPath()
+        val ktFile = parseKtFile(sourceFile) ?: return emptyList()
+
+        // Collect hints by replaying the visitor with a no-op lookup that tracks accesses.
+        val trackingLookup = HintsTrackingLookup()
+        collectReferencesFromKtFile(ktFile, sourcePath, trackingLookup)
+        val hints = trackingLookup.buildHints()
+        if (hints.isEmpty()) {
+            return emptyList()
+        }
+
+        // Build the real index using caller-supplied candidates.
+        val definitionIndex = definitionIndexFactory(hints) ?: return emptyList()
+
+        // Re-use the same KtFile to parse references — no second file read.
+        return collectReferencesFromKtFile(ktFile, sourcePath, definitionIndex)
     }
 
     private fun collectDefinitionsFromClassOrObject(
@@ -336,5 +392,61 @@ class KotlinConstParser(
             }
         }
         return context
+    }
+
+    /**
+     * A [ConstDefinitionLookup] that records every lookup key without requiring real definitions.
+     * Used in [collectHintsAndParseReferences] to drive the visitor pass that collects
+     * [ConstReferenceLookupHints] from the parsed KtFile.
+     */
+    private class HintsTrackingLookup : ConstDefinitionLookup {
+        private val constNames = linkedSetOf<String>()
+        private val classConstKeys = linkedSetOf<Pair<String, String>>()
+        private val packageConstKeys = linkedSetOf<Pair<String, String>>()
+        private val simpleClassNames = linkedSetOf<String>()
+
+        override fun hasConstName(constName: String): Boolean {
+            val n = constName.trim()
+            if (n.isNotEmpty()) constNames += n
+            return true
+        }
+
+        override fun hasClass(fqClassName: String): Boolean = true
+
+        override fun hasDefinition(fqClassName: String, constName: String): Boolean {
+            record(fqClassName, constName)
+            return true
+        }
+
+        override fun findByClassAndConst(fqClassName: String, constName: String): List<ConstDefinition> {
+            record(fqClassName, constName)
+            return emptyList()
+        }
+
+        override fun findByPackageAndConst(packageName: String, constName: String): List<ConstDefinition> {
+            val p = packageName.trim()
+            val n = constName.trim()
+            if (p.isNotEmpty() && n.isNotEmpty()) packageConstKeys += p to n
+            return emptyList()
+        }
+
+        override fun findClassBySimpleName(simpleName: String): Set<String> {
+            val s = simpleName.trim()
+            if (s.isNotEmpty()) simpleClassNames += s
+            return emptySet()
+        }
+
+        fun buildHints() = ConstReferenceLookupHints(
+            constNames = constNames,
+            classConstKeys = classConstKeys,
+            packageConstKeys = packageConstKeys,
+            simpleClassNames = simpleClassNames,
+        )
+
+        private fun record(fqClassName: String, constName: String) {
+            val c = fqClassName.trim()
+            val n = constName.trim()
+            if (c.isNotEmpty() && n.isNotEmpty()) classConstKeys += c to n
+        }
     }
 }

@@ -726,12 +726,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 file.toStdPath() to emptyList<ConstDefinition>()
             }
         }
-        whenever(analyzer.collectReferenceLookupHints(any())).thenAnswer { invocation ->
-            val files = invocation.getArgument<Collection<File>>(0)
-            files.associate { file ->
-                file.toStdPath() to ConstReferenceLookupHints.EMPTY
-            }
-        }
+        whenever(analyzer.collectHintsAndParseReferences(any(), any())).thenReturn(emptyList())
         whenever(analyzer.parseReferences(any(), any<ConstDefinitionLookup>())).thenReturn(emptyMap())
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -746,7 +741,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             scheduler.onFileSaved(plainFile.absolutePath)
             scheduler.awaitAnalysis(listOf(plainFile.absolutePath), timeoutMs = 10_000L)
 
-            verify(analyzer, atLeastOnce()).collectReferenceLookupHints(any())
+            verify(analyzer, atLeastOnce()).collectHintsAndParseReferences(any(), any())
             verify(analyzer, never()).parseReferences(any(), any<ConstDefinitionLookup>())
         } finally {
             scheduler.dispose()

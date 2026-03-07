@@ -648,26 +648,25 @@ class ConstRefEngine(
     /**
      * Parses references for a single file using only DB-stored definitions (no in-memory overlay).
      * Phase 1 must have already written all definitions to DB before calling this.
+     * Uses [ConstRefAnalyzer.collectHintsAndParseReferences] to parse the file only once.
      */
     private fun parseReferencesByDbOnly(file: File): List<ConstReference> {
         val stdPath = file.toStdPath()
-        val hints = analyzer.collectReferenceLookupHints(listOf(file))[stdPath] ?: ConstReferenceLookupHints.EMPTY
-        if (hints.isEmpty()) {
-            return emptyList()
+        return analyzer.collectHintsAndParseReferences(file) { hints ->
+            val candidateDefinitions = queryCandidateDefinitionsForFile(
+                filePath = stdPath,
+                hints = hints,
+            )
+            if (candidateDefinitions.isEmpty()) {
+                null
+            } else {
+                val allDefinitions = linkedMapOf<String, ConstDefinition>()
+                candidateDefinitions.forEach { definition ->
+                    allDefinitions[definition.uniqueDefinitionKey()] = definition
+                }
+                ConstDefinitionIndex(allDefinitions.values)
+            }
         }
-        val candidateDefinitions = queryCandidateDefinitionsForFile(
-            filePath = stdPath,
-            hints = hints,
-        )
-        if (candidateDefinitions.isEmpty()) {
-            return emptyList()
-        }
-        val allDefinitions = linkedMapOf<String, ConstDefinition>()
-        candidateDefinitions.forEach { definition ->
-            allDefinitions[definition.uniqueDefinitionKey()] = definition
-        }
-        val definitionIndex = ConstDefinitionIndex(allDefinitions.values)
-        return analyzer.parseReferences(listOf(file), definitionIndex)[stdPath].orEmpty()
     }
 
     private fun parseReferencesByDbSessionMode(
