@@ -28,6 +28,40 @@ open class ViewHierarchyClient(
     private val gson = Gson()
 
     /**
+     * Execute a live verify request on the app side.
+     * Returns VerifyResult with PASS/FAIL/ERROR and details.
+     */
+    fun verify(params: Map<String, Any?>): VerifyResult? {
+        val response = sendRequest(
+            ViewHierarchyRequest(
+                action = "verify",
+                params = params,
+            )
+        ) ?: return null
+        if (!response.isOk() && response.data == null) {
+            return VerifyResult(
+                result = "ERROR",
+                message = response.message ?: "verify failed",
+            )
+        }
+        val data = response.data ?: return null
+        val result = data.optStringOrNull("result") ?: return null
+        val message = data.optStringOrNull("message") ?: ""
+        val actual = data.get("actual")?.let { if (it.isJsonNull) null else it.asString }
+        val expected = data.get("expected")?.let { if (it.isJsonNull) null else it.asString }
+        val unit = data.optStringOrNull("unit")
+        val candidates = parseCandidates(data)
+        return VerifyResult(
+            result = result,
+            message = message,
+            actual = actual,
+            expected = expected,
+            unit = unit,
+            candidates = candidates,
+        )
+    }
+
+    /**
      * Request layout dump from app process, optionally scoped to a subtree.
      * When excludeGone is true, GONE nodes and their subtrees are omitted from output.
      * When topWindowOnly is true, only the topmost window is included in the dump.
@@ -497,7 +531,7 @@ open class ViewHierarchyClient(
 
     companion object {
         private val logger = JuggLogger.getGlobalLogger("ViewHierarchyClient")
-        private const val VIEW_HIERARCHY_PROTOCOL_VERSION = "1.0"
+        private const val VIEW_HIERARCHY_PROTOCOL_VERSION = "1.1"
         private val PACKAGE_NAME_PATTERN = Regex("^[A-Za-z0-9_.]+$")
         private val WHITESPACE_REGEX = Regex("\\s+")
         private const val CONNECT_TIMEOUT_MS = 3_000

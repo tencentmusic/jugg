@@ -1,13 +1,12 @@
 ---
 name: jugg-android-dev-loop
 description: >-
-  Use Jugg MCP tools for a deterministic Android modify/verify closed-loop (no
-  runner scripts). Trigger ONLY when ALL of the following are met: (A) current
-  project is an Android application project; (B) at least one of: user
-  explicitly asks to build/deploy/verify on device, OR Android app source
-  code/resources were modified and verification is the logical next step. Do
-  NOT trigger for non-Android-app codebase even if they contain Kotlin/Java
-  files or Android-related tooling code.
+  Use Jugg MCP tools for Android app modify/deploy/verify loop. Trigger ONLY
+  when: (A) the project artifact is an APK/AAB installed on a device (NOT an
+  IDE plugin, Gradle plugin, library, or tool); AND (B) user explicitly asks
+  to build/deploy/verify on device, OR app source was just modified and device
+  verification is the next step. Never trigger just because the codebase
+  contains Android/Kotlin/Java code.
 ---
 
 # Jugg MCP Android Dev Loop (Compact Router)
@@ -40,6 +39,7 @@ Intent -> reference file mapping:
 
 - compile, deploy, or handle compile/deploy failure -> `references/tool_cards_build_deploy.md`
 - interact with running app or collect runtime evidence (tap, layout, screenshot, recording) -> `references/tool_cards_runtime_observe.md`
+- verify UI element properties or spatial relations (bounds, text, visibility, spacing, alignment) -> `references/tool_cards_runtime_observe.md`
 - device/project context problem (`MCP_NO_DEVICE`, `MCP_PROJECT_NOT_INITIALIZED`, crash, unknown runtime state) -> `references/tool_cards_troubleshoot.md`
 - changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
 - match a specific error message/errorCode to a known fix -> `references/error_patterns.md`

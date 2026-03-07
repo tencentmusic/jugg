@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -78,6 +79,7 @@ public class ViewTreeDumper {
         JSONObject data = new JSONObject();
         data.put("windows", windowsJson);
         data.put("truncated", budget.truncated);
+        appendDeviceInfo(data);
         return data;
     }
 
@@ -125,6 +127,7 @@ public class ViewTreeDumper {
         data.put("windows", windowsJson);
         data.put("truncated", budget.truncated);
         data.put("rootLayout", rootId);
+        appendDeviceInfo(data);
         return data;
     }
 
@@ -250,6 +253,13 @@ public class ViewTreeDumper {
         node.padding.top = view.getPaddingTop();
         node.padding.right = view.getPaddingRight();
         node.padding.bottom = view.getPaddingBottom();
+        if (view instanceof TextView) {
+            int color = ((TextView) view).getCurrentTextColor();
+            // Only store non-black colors to save space (black is default)
+            if (color != 0xFF000000) {
+                node.textColor = color;
+            }
+        }
         return node;
     }
 
@@ -468,6 +478,21 @@ public class ViewTreeDumper {
             LogUtils.e(TAG, "extractViewFromViewRootImpl failed", t);
         }
         return null;
+    }
+
+    /**
+     * Append deviceInfo (density, scaledDensity) to the root JSON object for dp/sp conversion.
+     */
+    private void appendDeviceInfo(JSONObject data) {
+        try {
+            DisplayMetrics dm = Resources.getSystem().getDisplayMetrics();
+            JSONObject deviceInfo = new JSONObject();
+            deviceInfo.put("density", dm.density);
+            deviceInfo.put("scaledDensity", dm.scaledDensity);
+            data.put("deviceInfo", deviceInfo);
+        } catch (Throwable t) {
+            LogUtils.e(TAG, "appendDeviceInfo failed", t);
+        }
     }
 
     private static final class NodeBudget {

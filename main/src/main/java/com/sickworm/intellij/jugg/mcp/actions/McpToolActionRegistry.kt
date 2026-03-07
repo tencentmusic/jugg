@@ -36,6 +36,7 @@ class McpToolActionRegistry(
                 StartRecordMcpToolAction(),
                 StopRecordMcpToolAction(),
                 LayoutDumpMcpToolAction(),
+                LayoutVerifyMcpToolAction(),
                 ActivityStackMcpToolAction(),
                 CrashReportMcpToolAction(),
                 TapMcpToolAction(),

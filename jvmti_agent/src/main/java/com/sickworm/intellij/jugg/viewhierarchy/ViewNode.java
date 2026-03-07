@@ -25,6 +25,8 @@ public class ViewNode {
     public boolean clickable = false;
     public boolean enabled = true;
     public Padding padding = new Padding();
+    /** Text color in ARGB format. 0 means not applicable (non-TextView or default black 0xFF000000). */
+    public int textColor = 0;
     public final List<ViewNode> children = new ArrayList<>();
     public final List<ComposeNode> composeNodes = new ArrayList<>();
 
@@ -78,6 +80,9 @@ public class ViewNode {
         if (!padding.isAllZero()) {
             json.put("padding", padding.toJsonArray());
         }
+        if (textColor != 0) {
+            json.put("textColor", colorToHex(textColor));
+        }
 
         if (!children.isEmpty()) {
             JSONArray childArray = new JSONArray();
@@ -96,6 +101,13 @@ public class ViewNode {
         }
 
         return json;
+    }
+
+    /**
+     * Convert ARGB int color to hex string, e.g. 0xFFFF0000 -> "#FFFF0000".
+     */
+    static String colorToHex(int color) {
+        return String.format("#%08X", color);
     }
 
     /**

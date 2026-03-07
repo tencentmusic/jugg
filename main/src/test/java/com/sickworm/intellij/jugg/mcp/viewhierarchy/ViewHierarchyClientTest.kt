@@ -115,7 +115,7 @@ class ViewHierarchyClientTest {
             packageName = "com.example.app",
             socketCandidates = listOf("jugg_vh"),
             responsesBySocket = mapOf(
-                "jugg_vh" to okResponse(version = "1.0"),
+                "jugg_vh" to okResponse(version = "1.1"),
             ),
         )
 

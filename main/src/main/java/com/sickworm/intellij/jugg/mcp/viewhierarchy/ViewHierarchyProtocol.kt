@@ -55,8 +55,16 @@ data class MatchedElementData(
 )
 
 /**
- * FindAndTapResult keeps business outcomes distinguishable from transport failures.
+ * VerifyResult is the PASS/FAIL/ERROR outcome from a layout_verify call.
  */
+data class VerifyResult(
+    val result: String,        // "PASS", "FAIL", "ERROR"
+    val message: String,
+    val actual: Any? = null,
+    val expected: Any? = null,
+    val unit: String? = null,
+    val candidates: List<MatchCandidate> = emptyList(),
+)
 sealed class FindAndTapResult {
     data class Success(
         val x: Int,

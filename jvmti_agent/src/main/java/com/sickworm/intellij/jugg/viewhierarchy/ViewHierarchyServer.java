@@ -31,7 +31,7 @@ public class ViewHierarchyServer {
 
     private static final String TAG = "Jugg#ViewHierarchyServer";
     private static final String SOCKET_PREFIX = "jugg_vh_";
-    private static final String PROTOCOL_VERSION = "1.0";
+    private static final String PROTOCOL_VERSION = "1.1";
     private static final long MAIN_THREAD_TIMEOUT_MS = 5000L;
 
     private static volatile ViewHierarchyServer sInstance;
@@ -41,6 +41,10 @@ public class ViewHierarchyServer {
     private final ViewTreeDumper viewTreeDumper = new ViewTreeDumper();
     private final ElementFinder elementFinder = new ElementFinder(viewTreeDumper);
     private final ViewTapper viewTapper = new ViewTapper();
+    private final LayoutVerifier layoutVerifier = new LayoutVerifier(
+        elementFinder,
+        android.content.res.Resources.getSystem().getDisplayMetrics()
+    );
 
     private volatile boolean running;
 
@@ -175,6 +179,14 @@ public class ViewHierarchyServer {
                         @Override
                         public JSONObject call() {
                             return doTapCoordinate(finalParamsTap);
+                        }
+                    });
+                case "verify":
+                    JSONObject finalParamsVerify = params;
+                    return runOnMainThread(new Callable<JSONObject>() {
+                        @Override
+                        public JSONObject call() {
+                            return doVerify(finalParamsVerify);
                         }
                     });
                 default:
@@ -338,8 +350,16 @@ public class ViewHierarchyServer {
         }
     }
 
-    private JSONObject buildElementsData(List<MatchedElement> matches) throws Exception {
-        JSONObject data = new JSONObject();
+    private JSONObject doVerify(JSONObject params) {
+        try {
+            return layoutVerifier.verify(params);
+        } catch (Throwable t) {
+            LogUtils.e(TAG, "doVerify failed", t);
+            return error("verify failed: " + t.getMessage(), null);
+        }
+    }
+
+    private JSONObject buildElementsData(List<MatchedElement> matches) throws Exception {        JSONObject data = new JSONObject();
         JSONArray elements = new JSONArray();
         for (MatchedElement match : matches) {
             elements.put(match.toMatchedElementJson());

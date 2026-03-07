@@ -158,9 +158,10 @@ class LayoutDumpMcpToolAction : McpToolAction {
         val windowCount = windows.size()
         val topTitle = windows.firstOrNullObject()?.get("title")?.asStringOrNull()?.takeIf { it.isNotBlank() } ?: "unknown"
         val nodeCount = countNodes(windows)
+        val clickableCount = countClickable(windows)
         val truncated = root.get("truncated")?.asBooleanOrFalse() ?: false
         val truncatedText = if (truncated) "truncated" else "not truncated"
-        return "$windowCount windows (top: $topTitle), $nodeCount nodes, $truncatedText"
+        return "$windowCount windows (top: $topTitle), $nodeCount nodes, $clickableCount clickable, $truncatedText"
     }
 
     private fun countNodes(windows: JsonArray): Int {
@@ -168,6 +169,15 @@ class LayoutDumpMcpToolAction : McpToolAction {
         windows.forEach { windowElement ->
             val rootNode = windowElement.asJsonObjectOrNull()?.get("root")?.asJsonObjectOrNull() ?: return@forEach
             total += countNodeRecursive(rootNode)
+        }
+        return total
+    }
+
+    private fun countClickable(windows: JsonArray): Int {
+        var total = 0
+        windows.forEach { windowElement ->
+            val rootNode = windowElement.asJsonObjectOrNull()?.get("root")?.asJsonObjectOrNull() ?: return@forEach
+            total += countClickableRecursive(rootNode)
         }
         return total
     }
@@ -181,6 +191,19 @@ class LayoutDumpMcpToolAction : McpToolAction {
             }
             val childObj = child.asJsonObjectOrNull() ?: continue
             count += countNodeRecursive(childObj)
+        }
+        return count
+    }
+
+    private fun countClickableRecursive(node: JsonObject): Int {
+        var count = if (node.get("clickable")?.runCatching { asBoolean }?.getOrDefault(false) == true) 1 else 0
+        val children = node.getAsJsonArrayOrEmpty("children")
+        for (child in children) {
+            if (count >= MAX_COUNT_VISIT) {
+                return count
+            }
+            val childObj = child.asJsonObjectOrNull() ?: continue
+            count += countClickableRecursive(childObj)
         }
         return count
     }

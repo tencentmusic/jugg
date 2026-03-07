@@ -358,6 +358,31 @@ class LayoutDumpMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
+    @Test
+    fun testLayoutDumpSummaryContainsClickableCount() {
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_clickable_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        val action = LayoutDumpMcpToolAction()
+        val jsonWithClickable = """{"windows":[{"title":"MainActivity","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"children":[{"className":"Button","bounds":[0,0,300,100],"clickable":true},{"className":"TextView","bounds":[0,200,300,300]}]}}],"truncated":false}"""
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
+                LayoutDumpResult(payloadJson = jsonWithClickable, remoteFilePath = null)
+            )
+        }.use {
+            val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertTrue(
+                "summary should contain 'clickable' count: ${result.message}",
+                result.message.contains("clickable")
+            )
+            Assert.assertTrue(
+                "summary should count 1 clickable: ${result.message}",
+                result.message.contains("1 clickable")
+            )
+        }
+    }
+
     private class FakePlatformApi(
         private val adbByDevice: Map<IDevice, IDeviceAdb>,
     ) : IPlatformApi {

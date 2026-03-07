@@ -77,11 +77,82 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 - When `rootLayout` is provided, only the matching subtree is returned (with `windowType: "subtree"`). Falls back to full dump if the id is not found.
 - **Compressed output**: default/empty fields are omitted. `bounds` is `[left,top,right,bottom]` array. `className` strips common prefixes (`android.widget.`, `android.view.`, `androidx.`).
 
+## `layout_verify`
+
+- Purpose: assert a UI element property or check a spatial relation between two elements without parsing raw layout JSON.
+- Required input: `projectDir`, `target` (selector with `resourceId`/`text`/`contentDesc`/`className`), plus either `assert` or `relation`.
+- Optional input: `dumpFile` (path from a previous `layout_dump`). When provided, verification runs entirely from the JSON file with no extra App communication (preferred). Omit `dumpFile` for live query mode (needed for properties not in dump such as `textSizeSp`).
+
+### Assert Mode (`assert`)
+
+Single-element property check. Fields:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `property` | string | See table below |
+| `op` | string | `eq` (default) / `gte` / `lte` / `gt` / `lt` / `contains` / `matches` |
+| `value` | any | Expected value |
+| `unit` | string | `dp` or `px` (default `px`) for numeric bounds/padding properties |
+
+Supported properties:
+
+| Property | Availability | Notes |
+|----------|-------------|-------|
+| `exists` | dumpFile + live | Always PASS when target is found |
+| `visibility` | dumpFile + live | `visible` / `invisible` / `gone` |
+| `clickable` | dumpFile + live | Boolean |
+| `enabled` | dumpFile + live | Boolean |
+| `text` | dumpFile + live | String |
+| `textColor` | dumpFile + live | `#AARRGGBB` hex; dumpFile requires `textColor != black` in dump |
+| `alpha` | dumpFile + live | Float 0.0–1.0 |
+| `bounds.width` / `bounds.height` | dumpFile + live | px or dp |
+| `bounds.left` / `bounds.top` / `bounds.right` / `bounds.bottom` | dumpFile + live | px or dp |
+| `padding.left` / `padding.top` / `padding.right` / `padding.bottom` | dumpFile + live | px or dp |
+| `textSizeSp` | **live only** | sp; not stored in dump JSON |
+
+### Relation Mode (`relation`)
+
+Two-element spatial/structural check. Requires `target2`. Fields:
+
+| Field | Values | Notes |
+|-------|--------|-------|
+| `type` | `spacing` / `alignment` / `overlap` / `containment` / `order` | |
+| `direction` | `vertical` / `horizontal` | Required for spacing / alignment / order |
+| `expected` | number | Expected gap (for spacing) |
+| `tolerance` | number | Allowed deviation (for spacing, default 0) |
+| `unit` | `dp` / `px` | For spacing |
+
+Relation semantics:
+- `spacing`: gap between outer edges of the two elements in the given direction.
+- `alignment`: centers aligned on the axis perpendicular to `direction` (tolerance ±2px).
+- `overlap`: PASS when no overlap exists.
+- `containment`: PASS when `target` is fully inside `target2`.
+- `order`: PASS when `target` appears before `target2` in the given direction.
+
+### Result
+
+- `status: OK` → PASS; `status: ERROR` → FAIL or ERROR.
+- `data.result`: `PASS` / `FAIL` / `ERROR`.
+- `data.message`: human-readable detail.
+- `data.actual` / `data.expected`: values compared (when applicable).
+- `data.unit`: unit used.
+
+### UI Verification Protocol (Three-step)
+
+For precise acceptance checks, use this sequence:
+
+1. `layout_dump` → obtain dump file path (`data.file`) and confirm target node exists.
+2. `layout_verify(dumpFile=<path>, ...)` → assert properties or relations using the dump (0 extra App call).
+3. `screenshot` → visual proof after all property checks pass.
+
+Use live query mode only when the required property is not in the dump (`textSizeSp`).
+
 ## Tool Description Migration (UI Observe Stage Only)
 
 Keep MCP tool schema descriptions concise. Put guidance and strategy in this file instead of MCP schema text.
 
 - `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `isAllWindows`.
+- `layout_verify` (compact): assert element property or two-element relation from dump file (preferred) or live query; returns PASS/FAIL/ERROR with `data.result`.
 - `tap` (compact): perform `tap` / `longPress` / `swipe` with coordinate, percent, or element mode; mode priority is `coordinate > percent > element`.
 
 ### Subtree Scoping Strategy (Mandatory for complex pages)
