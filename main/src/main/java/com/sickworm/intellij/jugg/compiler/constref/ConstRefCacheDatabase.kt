@@ -79,6 +79,7 @@ class ConstRefCacheDatabase(
                   AND m.worktree_key = ?
                   AND m.relative_path = ?
                   AND m.last_modified = ?
+                  AND h.analyzed_at != $PHASE1_ANALYZED_AT_SENTINEL
                 LIMIT 1
                 """.trimIndent()
             ).use { statement ->
@@ -110,6 +111,7 @@ class ConstRefCacheDatabase(
                    AND h.checksum = m.checksum
                 WHERE m.worktree_key = ?
                   AND m.relative_path = ?
+                  AND h.analyzed_at != $PHASE1_ANALYZED_AT_SENTINEL
                 LIMIT 1
                 """.trimIndent()
             ).use { statement ->
@@ -163,6 +165,7 @@ class ConstRefCacheDatabase(
                     WHERE repo_key = ?
                       AND relative_path = ?
                       AND checksum = ?
+                      AND analyzed_at != $PHASE1_ANALYZED_AT_SENTINEL
                     """.trimIndent()
                 ).use { statement ->
                     statement.setLong(1, nowMs)
@@ -338,6 +341,218 @@ class ConstRefCacheDatabase(
                     checksum = checksum,
                     updatedAt = nowMs,
                 )
+                connection.commit()
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
+            }
+        }
+    }
+
+    /**
+     * Batch-writes only definitions for a set of files in a single transaction (Phase 1).
+     * Inserts a placeholder file_analysis_head row with analyzed_at=PHASE1_ANALYZED_AT_SENTINEL
+     * to satisfy FK constraints; touchFileAnalysis excludes sentinel rows, so these files are
+     * not treated as fully analyzed until Phase 2 overwrites the row with a real analyzed_at.
+     */
+    @Synchronized
+    fun upsertBatchDefinitions(batch: List<FileDefinitionsEntry>) {
+        if (batch.isEmpty()) {
+            return
+        }
+        val resolvedBatch = batch.mapNotNull { entry ->
+            val repoIdentity = resolveRepoIdentity(entry.filePath) ?: return@mapNotNull null
+            repoIdentity to entry
+        }
+        if (resolvedBatch.isEmpty()) {
+            return
+        }
+        val nowMs = System.currentTimeMillis()
+        withConnection { connection ->
+            connection.autoCommit = false
+            try {
+                resolvedBatch.forEach { (repoIdentity, entry) ->
+                    // Ensure file_analysis_head row exists for FK constraint.
+                    // INSERT OR IGNORE preserves any existing real analyzed_at (from prior analysis).
+                    // If the row already exists (real or sentinel), this is a no-op.
+                    connection.prepareStatement(
+                        """
+                        INSERT OR IGNORE INTO file_analysis_head(repo_key, relative_path, checksum, analyzed_at, last_access_at)
+                        VALUES(?, ?, ?, ?, ?)
+                        """.trimIndent()
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, repoIdentity.relativePath)
+                        statement.setLong(3, entry.checksum)
+                        statement.setLong(4, PHASE1_ANALYZED_AT_SENTINEL)
+                        statement.setLong(5, nowMs)
+                        statement.executeUpdate()
+                    }
+                    connection.prepareStatement(
+                        """
+                        DELETE FROM const_definitions
+                        WHERE repo_key = ?
+                          AND relative_path = ?
+                          AND checksum = ?
+                        """.trimIndent()
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, repoIdentity.relativePath)
+                        statement.setLong(3, entry.checksum)
+                        statement.executeUpdate()
+                    }
+                    connection.prepareStatement(
+                        """
+                        INSERT INTO const_definitions(
+                            repo_key, relative_path, checksum, package_name, fq_class_name, const_name, const_type, const_value
+                        )
+                        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                        """.trimIndent()
+                    ).use { statement ->
+                        entry.definitions.forEach { definition ->
+                            statement.setString(1, repoIdentity.repoKey)
+                            statement.setString(2, repoIdentity.relativePath)
+                            statement.setLong(3, entry.checksum)
+                            statement.setString(4, definition.packageName)
+                            statement.setString(5, definition.fqClassName)
+                            statement.setString(6, definition.constName)
+                            statement.setString(7, definition.constType)
+                            statement.setString(8, definition.constValue)
+                            statement.addBatch()
+                        }
+                        statement.executeBatch()
+                    }
+                    upsertMtimeMap(
+                        connection = connection,
+                        worktreeKey = repoIdentity.worktreeKey,
+                        repoKey = repoIdentity.repoKey,
+                        relativePath = repoIdentity.relativePath,
+                        lastModified = entry.lastModified,
+                        checksum = entry.checksum,
+                        updatedAt = nowMs,
+                    )
+                }
+                connection.commit()
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
+            }
+        }
+    }
+
+    /**
+     * Batch-writes full analysis results (definitions + references + file_analysis_head) in a single transaction (Phase 2).
+     */
+    @Synchronized
+    fun upsertBatchAnalysis(batch: List<FileAnalysisEntry>) {
+        if (batch.isEmpty()) {
+            return
+        }
+        val resolvedBatch = batch.mapNotNull { entry ->
+            val repoIdentity = resolveRepoIdentity(entry.filePath) ?: return@mapNotNull null
+            repoIdentity to entry
+        }
+        if (resolvedBatch.isEmpty()) {
+            return
+        }
+        val nowMs = System.currentTimeMillis()
+        withConnection { connection ->
+            connection.autoCommit = false
+            try {
+                resolvedBatch.forEach { (repoIdentity, entry) ->
+                    connection.prepareStatement(
+                        """
+                        INSERT INTO file_analysis_head(repo_key, relative_path, checksum, analyzed_at, last_access_at)
+                        VALUES(?, ?, ?, ?, ?)
+                        ON CONFLICT(repo_key, relative_path, checksum)
+                        DO UPDATE SET analyzed_at = excluded.analyzed_at,
+                                      last_access_at = excluded.last_access_at
+                        """.trimIndent()
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, repoIdentity.relativePath)
+                        statement.setLong(3, entry.checksum)
+                        statement.setLong(4, nowMs)
+                        statement.setLong(5, nowMs)
+                        statement.executeUpdate()
+                    }
+                    connection.prepareStatement(
+                        """
+                        DELETE FROM const_definitions
+                        WHERE repo_key = ?
+                          AND relative_path = ?
+                          AND checksum = ?
+                        """.trimIndent()
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, repoIdentity.relativePath)
+                        statement.setLong(3, entry.checksum)
+                        statement.executeUpdate()
+                    }
+                    connection.prepareStatement(
+                        """
+                        DELETE FROM const_references
+                        WHERE repo_key = ?
+                          AND relative_path = ?
+                          AND checksum = ?
+                        """.trimIndent()
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, repoIdentity.relativePath)
+                        statement.setLong(3, entry.checksum)
+                        statement.executeUpdate()
+                    }
+                    connection.prepareStatement(
+                        """
+                        INSERT INTO const_definitions(
+                            repo_key, relative_path, checksum, package_name, fq_class_name, const_name, const_type, const_value
+                        )
+                        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                        """.trimIndent()
+                    ).use { statement ->
+                        entry.definitions.forEach { definition ->
+                            statement.setString(1, repoIdentity.repoKey)
+                            statement.setString(2, repoIdentity.relativePath)
+                            statement.setLong(3, entry.checksum)
+                            statement.setString(4, definition.packageName)
+                            statement.setString(5, definition.fqClassName)
+                            statement.setString(6, definition.constName)
+                            statement.setString(7, definition.constType)
+                            statement.setString(8, definition.constValue)
+                            statement.addBatch()
+                        }
+                        statement.executeBatch()
+                    }
+                    connection.prepareStatement(
+                        """
+                        INSERT INTO const_references(repo_key, relative_path, checksum, def_fq_class_name, const_name)
+                        VALUES(?, ?, ?, ?, ?)
+                        """.trimIndent()
+                    ).use { statement ->
+                        entry.references.forEach { reference ->
+                            statement.setString(1, repoIdentity.repoKey)
+                            statement.setString(2, repoIdentity.relativePath)
+                            statement.setLong(3, entry.checksum)
+                            statement.setString(4, reference.defFqClassName)
+                            statement.setString(5, reference.constName)
+                            statement.addBatch()
+                        }
+                        statement.executeBatch()
+                    }
+                    upsertMtimeMap(
+                        connection = connection,
+                        worktreeKey = repoIdentity.worktreeKey,
+                        repoKey = repoIdentity.repoKey,
+                        relativePath = repoIdentity.relativePath,
+                        lastModified = entry.lastModified,
+                        checksum = entry.checksum,
+                        updatedAt = nowMs,
+                    )
+                }
                 connection.commit()
             } catch (t: Throwable) {
                 connection.rollback()
@@ -834,6 +1049,7 @@ class ConstRefCacheDatabase(
                        AND h.relative_path = m.relative_path
                        AND h.checksum = m.checksum
                     WHERE $whereClause
+                      AND h.analyzed_at != $PHASE1_ANALYZED_AT_SENTINEL
                     GROUP BY m.worktree_key, m.relative_path
                 """.trimIndent()
                 connection.prepareStatement(sql).use { statement ->
@@ -1505,6 +1721,29 @@ class ConstRefCacheDatabase(
         }
     }
 
+    /**
+     * Entry for batch-writing only definitions (Phase 1 of batched full-scan).
+     * Does NOT write file_analysis_head, so interrupted batches leave no stale "analyzed" marker.
+     */
+    data class FileDefinitionsEntry(
+        val filePath: String,
+        val lastModified: Long,
+        val checksum: Long,
+        val definitions: List<ConstDefinition>,
+    )
+
+    /**
+     * Entry for batch-writing full analysis results (Phase 2 of batched full-scan).
+     * Writes file_analysis_head together with definitions and references in one transaction.
+     */
+    data class FileAnalysisEntry(
+        val filePath: String,
+        val lastModified: Long,
+        val checksum: Long,
+        val definitions: List<ConstDefinition>,
+        val references: List<ConstReference>,
+    )
+
     data class FileCacheEntry(
         val filePath: String,
         val lastModified: Long,
@@ -1547,5 +1786,14 @@ class ConstRefCacheDatabase(
         private const val VACUUM_TRIGGER_BYTES = 256L * 1024L * 1024L
         private const val META_LAST_CLEANUP_AT = "last_cleanup_at"
         private const val META_LAST_VACUUM_AT = "last_vacuum_at"
+
+        /**
+         * Sentinel value written by upsertBatchDefinitions (Phase 1) to file_analysis_head.
+         * Indicates definitions-only state (no references yet). touchFileAnalysis excludes rows
+         * with this value so they are never treated as complete analysis.
+         * Using Long.MAX_VALUE also ensures these rows rank first in analyzed_at DESC ordering,
+         * making Phase 1 definitions visible to Phase 2 DB queries.
+         */
+        internal const val PHASE1_ANALYZED_AT_SENTINEL = Long.MAX_VALUE
     }
 }

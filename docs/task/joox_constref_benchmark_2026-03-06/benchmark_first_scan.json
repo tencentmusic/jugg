@@ -1,0 +1,33 @@
+{
+  "scenario": "first_scan",
+  "projectDir": "/Users/wormchen/IdeaProjects/joox/JOOX_Android_3",
+  "durationMs": 466995,
+  "sourceFileCount": 5558,
+  "sourceTotalBytes": 89399525,
+  "totalFilesFromLog": 0,
+  "totalDirsFromLog": 0,
+  "totalAnalyzedFromLog": 0,
+  "totalReusedFromLog": 0,
+  "checksum": {
+    "mtimeHit": 0,
+    "fingerprintHit": 5558,
+    "crcMiss": 0,
+    "analysisReuseHit": 0,
+    "analysisReuseRate": 0.0000
+  },
+  "cpu": {
+    "p50": 6.5971,
+    "p95": 13.7967,
+    "samples": 466
+  },
+  "heapMb": {
+    "before": 48.4531,
+    "peak": 3154.1123,
+    "after": 1221.2764
+  },
+  "ioProxy": {
+    "dbSizeBytes": 38256640,
+    "totalAnalyzedFromLog": 0,
+    "totalReusedFromLog": 0
+  }
+}

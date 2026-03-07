@@ -57,6 +57,8 @@ class ConstRefEngine(
         readNonNegativeLongProperty(IO_THROTTLE_MS_PROPERTY, DEFAULT_IO_THROTTLE_MS)
     private val ioThrottleEveryNFiles: Int =
         readPositiveIntProperty(IO_THROTTLE_EVERY_PROPERTY, DEFAULT_IO_THROTTLE_EVERY)
+    private val analyzeFilesBatchSize: Int =
+        readPositiveIntProperty(BATCH_SIZE_PROPERTY, DEFAULT_BATCH_SIZE)
     private val fullScanLogIntervalMs: Long =
         readNonNegativeLongProperty(FULL_SCAN_LOG_INTERVAL_MS_PROPERTY, DEFAULT_FULL_SCAN_LOG_INTERVAL_MS)
 
@@ -114,7 +116,12 @@ class ConstRefEngine(
             flushCurrentEditingFileLocked()
             targetPaths.forEach { path ->
                 if (File(path).exists()) {
-                    pendingAnalyzeFiles += path
+                    pendingAnalyzeFiles.add(path)
+                    // Clear stale analyzedAt so awaitAnalysis always waits for the analysis
+                    // triggered by this call. Without this, a prior analysis completing at a
+                    // timestamp >= startAt (e.g. the A→B analysis in an A→B→A scenario)
+                    // could cause awaitAnalysis to return before the B→A analysis runs.
+                    analyzedAt.remove(path)
                 } else {
                     analyzedAt[path] = startAt
                 }
@@ -444,48 +451,89 @@ class ConstRefEngine(
             return
         }
 
-        val parsedDefinitionsByPath = mutableMapOf<String, List<ConstDefinition>>()
-        changedFiles.forEachIndexed { index, file ->
+        // Phase 1: parse definitions in batches and write to DB without file_analysis_head.
+        // Each batch is released from memory after the DB write, avoiding full-list residency.
+        // Also pre-load "previous definitions" into sessionCache so Phase 2 can compute diffs
+        // without needing getMtimeMapChecksum (which excludes Phase 1 sentinel rows).
+        var phase1ProcessedCount = 0
+        changedFiles.chunked(analyzeFilesBatchSize).forEach { batch ->
+            val definitionsBatch = mutableListOf<ConstRefCacheDatabase.FileDefinitionsEntry>()
             analysisMutex.withLock {
-                val path = file.toStdPath()
-                parsedDefinitionsByPath[path] = analyzer.parseDefinitions(listOf(file))[path].orEmpty()
+                batch.forEach { file ->
+                    val path = file.toStdPath()
+                    // Load previous definitions before parsing so changeTracker diffs correctly.
+                    val previousDefinitions = loadPreviousDefinitionsLocked(path)
+                    val definitions = analyzer.parseDefinitions(listOf(file))[path].orEmpty()
+                    definitionsBatch += ConstRefCacheDatabase.FileDefinitionsEntry(
+                        filePath = path,
+                        lastModified = file.lastModified(),
+                        checksum = checksumMap[path] ?: calculateChecksum(file),
+                        definitions = definitions,
+                    )
+                    // Store in sessionCache so Phase 2 loadPreviousDefinitionsLocked can find it.
+                    updatePreviousDefinitionsLocked(path, previousDefinitions)
+                }
+                database.upsertBatchDefinitions(definitionsBatch)
             }
-            maybeThrottleIo(index + 1)
+            phase1ProcessedCount += batch.size
+            maybeThrottleIo(phase1ProcessedCount)
         }
 
-        changedFiles.forEachIndexed { index, file ->
+        // Phase 2: parse references per batch; DB now has all definitions from Phase 1,
+        // so no in-memory overlay is needed. Each file's AST is parsed only once.
+        var phase2ProcessedCount = 0
+        changedFiles.chunked(analyzeFilesBatchSize).forEach { batch ->
+            val analysisBatch = mutableListOf<ConstRefCacheDatabase.FileAnalysisEntry>()
+            // Collect per-file state needed for post-write updates (changeTracker, sessionCache).
+            data class FilePendingState(
+                val path: String,
+                val file: File,
+                val previousDefinitions: List<ConstDefinition>,
+                val definitions: List<ConstDefinition>,
+                val references: List<ConstReference>,
+            )
+            val pendingStates = mutableListOf<FilePendingState>()
             analysisMutex.withLock {
-                val path = file.toStdPath()
-                val previousDefinitions = loadPreviousDefinitionsLocked(path)
-                val definitions = parsedDefinitionsByPath[path].orEmpty()
-                sessionCache.clearLookupCache()
-                val references = parseReferencesByDbSessionMode(
-                    changedFiles = listOf(file),
-                    parsedDefinitionsByPath = parsedDefinitionsByPath,
-                )[path].orEmpty()
-                database.upsertFileAnalysis(
-                    filePath = path,
-                    lastModified = file.lastModified(),
-                    checksum = checksumMap[path] ?: calculateChecksum(file),
-                    definitions = definitions,
-                    references = references,
-                )
-                changeTracker.updateDefinitionDiff(
-                    filePath = path,
-                    previousDefinitions = previousDefinitions,
-                    currentDefinitions = definitions,
-                )
-                sessionCache.putFileAnalysis(
-                    filePath = path,
-                    lastModified = file.lastModified(),
-                    checksum = checksumMap[path] ?: 0L,
-                    definitions = definitions,
-                    references = references,
-                )
-                markAnalyzed(path)
-                sessionCache.clearLookupCache()
+                batch.forEach { file ->
+                    val path = file.toStdPath()
+                    val previousDefinitions = loadPreviousDefinitionsLocked(path)
+                    val definitions = database.getDefinitionsByFileAndChecksum(
+                        path,
+                        checksumMap[path] ?: calculateChecksum(file),
+                    )
+                    sessionCache.clearLookupCache()
+                    val references = parseReferencesByDbOnly(file)
+                    analysisBatch += ConstRefCacheDatabase.FileAnalysisEntry(
+                        filePath = path,
+                        lastModified = file.lastModified(),
+                        checksum = checksumMap[path] ?: calculateChecksum(file),
+                        definitions = definitions,
+                        references = references,
+                    )
+                    pendingStates += FilePendingState(path, file, previousDefinitions, definitions, references)
+                }
+                // Flush full analysis to DB before markAnalyzed so awaitAnalysis observers
+                // see consistent data (references written) when the analyzed timestamp appears.
+                database.upsertBatchAnalysis(analysisBatch)
+                pendingStates.forEach { state ->
+                    changeTracker.updateDefinitionDiff(
+                        filePath = state.path,
+                        previousDefinitions = state.previousDefinitions,
+                        currentDefinitions = state.definitions,
+                    )
+                    sessionCache.putFileAnalysis(
+                        filePath = state.path,
+                        lastModified = state.file.lastModified(),
+                        checksum = checksumMap[state.path] ?: 0L,
+                        definitions = state.definitions,
+                        references = state.references,
+                    )
+                    markAnalyzed(state.path)
+                    sessionCache.clearLookupCache()
+                }
             }
-            maybeThrottleIo(index + 1)
+            phase2ProcessedCount += batch.size
+            maybeThrottleIo(phase2ProcessedCount)
         }
     }
 
@@ -595,6 +643,31 @@ class ConstRefEngine(
             return
         }
         delay(ioThrottleSleepMs)
+    }
+
+    /**
+     * Parses references for a single file using only DB-stored definitions (no in-memory overlay).
+     * Phase 1 must have already written all definitions to DB before calling this.
+     */
+    private fun parseReferencesByDbOnly(file: File): List<ConstReference> {
+        val stdPath = file.toStdPath()
+        val hints = analyzer.collectReferenceLookupHints(listOf(file))[stdPath] ?: ConstReferenceLookupHints.EMPTY
+        if (hints.isEmpty()) {
+            return emptyList()
+        }
+        val candidateDefinitions = queryCandidateDefinitionsForFile(
+            filePath = stdPath,
+            hints = hints,
+        )
+        if (candidateDefinitions.isEmpty()) {
+            return emptyList()
+        }
+        val allDefinitions = linkedMapOf<String, ConstDefinition>()
+        candidateDefinitions.forEach { definition ->
+            allDefinitions[definition.uniqueDefinitionKey()] = definition
+        }
+        val definitionIndex = ConstDefinitionIndex(allDefinitions.values)
+        return analyzer.parseReferences(listOf(file), definitionIndex)[stdPath].orEmpty()
     }
 
     private fun parseReferencesByDbSessionMode(
@@ -1134,12 +1207,14 @@ class ConstRefEngine(
         private const val SESSION_FILE_CACHE_MAX_PROPERTY = "jugg.constref.session.file.cache.max"
         private const val SESSION_LOOKUP_CACHE_MAX_PROPERTY = "jugg.constref.session.lookup.cache.max"
         private const val SESSION_CACHE_TTL_MS_PROPERTY = "jugg.constref.session.cache.ttl.ms"
+        private const val BATCH_SIZE_PROPERTY = "jugg.constref.batch.size"
         private const val DEFAULT_IO_THROTTLE_MS = 10L
         private const val DEFAULT_IO_THROTTLE_EVERY = 50
         private const val DEFAULT_FULL_SCAN_LOG_INTERVAL_MS = 5000L
         private const val DEFAULT_SESSION_FILE_CACHE_MAX = 500
         private const val DEFAULT_SESSION_LOOKUP_CACHE_MAX = 4000
         private const val DEFAULT_SESSION_CACHE_TTL_MS = 15L * 60L * 1000L
+        private const val DEFAULT_BATCH_SIZE = 200
 
         private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
             return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue
