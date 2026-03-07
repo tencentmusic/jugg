@@ -32,7 +32,7 @@ public class ViewNode {
 
     /**
      * Shorten resource id by stripping the package prefix before the slash.
-     * e.g. "com.tencent.ibg.joox:id/btn_play" -> "btn_play"
+     * e.g. "com.example.application:id/btn_play" -> "btn_play"
      */
     static String shortenId(String id) {
         if (id == null || id.isEmpty()) {

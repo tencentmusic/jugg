@@ -84,8 +84,8 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
             ?: return null
         val file = VfsUtil.virtualToIoFile(virtualFile)
         // java.lang.IllegalArgumentException: this and base files have different roots:
-        // rootProject.projectDir/wesing_src/SubModule/Business/services/advertiseservice/advertiseservice-interface and
-        // /Users/wormchen/IdeaProjects/joox/JOOX_Android.
+        // rootProject.projectDir/my-service-interface and
+        // /Users/sickworm/IdeaProjects/Example_Android.
         if (file.path.startsWith("rootProject.projectDir")) {
             val relativePath = file.path.substring("rootProject.projectDir".length + 1)
             return File(relativePath)
