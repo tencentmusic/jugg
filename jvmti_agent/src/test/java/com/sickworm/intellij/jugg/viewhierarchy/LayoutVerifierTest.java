@@ -234,6 +234,218 @@ public class LayoutVerifierTest {
         Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
     }
 
+    // ---- Test: spacing FAIL message contains bounds of both elements ----
+
+    @Test
+    public void verify_shouldIncludeBoundsInSpacingFailMessage() throws JSONException {
+        // A bounds=[0,50,1080,100], B bounds=[0,748,1080,860] → spacing=648px; expected=60px → FAIL
+        View viewA = mockPlainView(View.VISIBLE, true, 1080, 50, 0, 50);
+        View viewB = mockPlainView(View.VISIBLE, true, 1080, 112, 0, 748);
+
+        Map<String, MatchedElement> elementMap = new HashMap<>();
+        elementMap.put("tv_title", makeElement("tv_title", "", viewA, makeBounds(0, 50, 1080, 100)));
+        elementMap.put("btn_main", makeElement("btn_main", "", viewB, makeBounds(0, 748, 1080, 860)));
+        LayoutVerifier verifier = new LayoutVerifier(
+            new FixedElementFinder(elementMap),
+            makeDisplayMetrics(3.0f, 3.0f)
+        );
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("tv_title"));
+        params.put("target2", selectorById("btn_main"));
+        JSONObject relation = new JSONObject();
+        relation.put("type", "spacing");
+        relation.put("direction", "vertical");
+        relation.put("expected", 20);
+        relation.put("tolerance", 5);
+        relation.put("unit", "dp");
+        params.put("relation", relation);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        JSONObject data = response.getJSONObject("data");
+        Assert.assertEquals("FAIL", data.getString("result"));
+        String message = data.getString("message");
+        Assert.assertTrue("Expected bounds info for target in message: " + message, message.contains("target"));
+        Assert.assertTrue("Expected bounds info for target2 in message: " + message, message.contains("target2"));
+    }
+
+    // ---- Test: tolerance in assert returns ERROR with guidance ----
+
+    @Test
+    public void verify_shouldReturnErrorWhenAssertContainsTolerance() throws JSONException {
+        TextView view = mockTextView("Hello", View.VISIBLE, true, 200, 60, 0, 0);
+        LayoutVerifier verifier = buildSingleElementVerifier("tv", "Hello", view,
+            0, 0, 200, 60, 3.0f, 3.0f);
+
+        JSONObject assertObj = new JSONObject();
+        assertObj.put("property", "bounds.height");
+        assertObj.put("op", "eq");
+        assertObj.put("value", 20);
+        assertObj.put("unit", "dp");
+        assertObj.put("tolerance", 5);
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("tv"));
+        params.put("assert", assertObj);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("error", response.getString("status"));
+        JSONObject data = response.getJSONObject("data");
+        Assert.assertEquals("ERROR", data.getString("result"));
+        String message = data.getString("message");
+        Assert.assertTrue("Expected gte/lte guidance in message: " + message,
+            message.contains("gte") && message.contains("lte"));
+    }
+
+    // ---- Test: matches with invalid regex → ERROR (not silent FAIL) ----
+
+    @Test
+    public void verify_shouldReturnErrorForMatchesWithInvalidRegex() throws JSONException {
+        TextView view = mockTextView("Hello", View.VISIBLE, true, 200, 60, 0, 0);
+        LayoutVerifier verifier = buildSingleElementVerifier("tv", "Hello", view,
+            0, 0, 200, 60, 3.0f, 3.0f);
+
+        JSONObject assertObj = new JSONObject();
+        assertObj.put("property", "text");
+        assertObj.put("op", "matches");
+        assertObj.put("value", "[invalid(");
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("tv"));
+        params.put("assert", assertObj);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("error", response.getString("status"));
+        JSONObject data = response.getJSONObject("data");
+        Assert.assertEquals("ERROR", data.getString("result"));
+        Assert.assertTrue("Expected 'invalid regex' in message: " + data.getString("message"),
+            data.getString("message").contains("invalid regex"));
+    }
+
+    // ---- Test: matches with valid regex that does not match → FAIL (not ERROR) ----
+
+    @Test
+    public void verify_shouldReturnFailForMatchesWithValidRegexNotMatching() throws JSONException {
+        TextView view = mockTextView("Ready for action", View.VISIBLE, true, 200, 60, 0, 0);
+        LayoutVerifier verifier = buildSingleElementVerifier("tv", "Ready for action", view,
+            0, 0, 200, 60, 3.0f, 3.0f);
+
+        JSONObject assertObj = new JSONObject();
+        assertObj.put("property", "text");
+        assertObj.put("op", "matches");
+        assertObj.put("value", "Waiting.*interaction");
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("tv"));
+        params.put("assert", assertObj);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        JSONObject data = response.getJSONObject("data");
+        Assert.assertEquals("FAIL", data.getString("result"));
+    }
+
+    // ---- Test: matches partial regex → PASS when pattern found anywhere in string ----
+
+    @Test
+    public void verify_shouldPassForMatchesWithPartialRegex() throws JSONException {
+        // "Waiting for interaction..." contains the pattern "Waiting.*interaction"
+        TextView view = mockTextView("Waiting for interaction...", View.VISIBLE, true, 200, 60, 0, 0);
+        LayoutVerifier verifier = buildSingleElementVerifier("tv", "Waiting for interaction...", view,
+            0, 0, 200, 60, 3.0f, 3.0f);
+
+        JSONObject assertObj = new JSONObject();
+        assertObj.put("property", "text");
+        assertObj.put("op", "matches");
+        assertObj.put("value", "Waiting.*interaction");
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("tv"));
+        params.put("assert", assertObj);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        JSONObject data = response.getJSONObject("data");
+        Assert.assertEquals("PASS", data.getString("result"));
+    }
+
+    // ---- Test: text neq → PASS when text differs ----
+
+    @Test
+    public void verify_shouldPassForTextNeq() throws JSONException {
+        TextView view = mockTextView("#FF1976D2", View.VISIBLE, true, 200, 60, 0, 0);
+        LayoutVerifier verifier = buildSingleElementVerifier("tv", "#FF1976D2", view,
+            0, 0, 200, 60, 3.0f, 3.0f);
+
+        JSONObject assertObj = new JSONObject();
+        assertObj.put("property", "text");
+        assertObj.put("op", "neq");
+        assertObj.put("value", "#FFFFFFFF");
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("tv"));
+        params.put("assert", assertObj);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
+    }
+
+    // ---- Test: text neq → FAIL when text equals ----
+
+    @Test
+    public void verify_shouldFailForTextNeqWhenEqual() throws JSONException {
+        TextView view = mockTextView("#FFFFFFFF", View.VISIBLE, true, 200, 60, 0, 0);
+        LayoutVerifier verifier = buildSingleElementVerifier("tv", "#FFFFFFFF", view,
+            0, 0, 200, 60, 3.0f, 3.0f);
+
+        JSONObject assertObj = new JSONObject();
+        assertObj.put("property", "text");
+        assertObj.put("op", "neq");
+        assertObj.put("value", "#FFFFFFFF");
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("tv"));
+        params.put("assert", assertObj);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        Assert.assertEquals("FAIL", response.getJSONObject("data").getString("result"));
+    }
+
+    // ---- Test: spacing with tolerance in dp → PASS ----
+
+    @Test
+    public void verify_shouldPassForSpacingWithToleranceInDp() throws JSONException {
+        // A=[0,0,1080,100], B=[0,760,1080,860], density=3.0 → spacing=660px=220dp; expected=220dp ±5dp → PASS
+        View viewA = mockPlainView(View.VISIBLE, true, 1080, 100, 0, 0);
+        View viewB = mockPlainView(View.VISIBLE, true, 1080, 100, 0, 760);
+
+        Map<String, MatchedElement> elementMap = new HashMap<>();
+        elementMap.put("view_a", makeElement("view_a", "", viewA, makeBounds(0, 0, 1080, 100)));
+        elementMap.put("view_b", makeElement("view_b", "", viewB, makeBounds(0, 760, 1080, 860)));
+        LayoutVerifier verifier = new LayoutVerifier(
+            new FixedElementFinder(elementMap),
+            makeDisplayMetrics(3.0f, 3.0f)
+        );
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("view_a"));
+        params.put("target2", selectorById("view_b"));
+        JSONObject relation = new JSONObject();
+        relation.put("type", "spacing");
+        relation.put("direction", "vertical");
+        relation.put("expected", 220);
+        relation.put("tolerance", 5);
+        relation.put("unit", "dp");
+        params.put("relation", relation);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
+    }
+
     // ---- Test: missing assert and relation → ERROR ----
 
     @Test

@@ -330,7 +330,7 @@ class LayoutVerifyMcpToolActionTest {
 
     @Test
     fun testDumpFileModeAssertTextMatchesInvalidRegex() {
-        // Invalid regex must not crash, must return FAIL (not exception)
+        // Invalid regex pattern must return ERROR with descriptive message, not a silent FAIL
         val dumpFile = writeDumpFile(
             """{"windows":[{"title":"Main","root":{"className":"TextView","id":"com.example:id/label","bounds":[0,0,300,100],"text":"abc"}}],"deviceInfo":{"density":3.0}}"""
         )
@@ -343,8 +343,113 @@ class LayoutVerifyMcpToolActionTest {
             ),
             buildRuntime(null),
         )
-        // Invalid regex → matches() returns false → FAIL (not a crash/exception)
+        // Invalid regex → ERROR (distinct from FAIL which means valid regex but text did not match)
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(
+            "Expected 'invalid regex' in message: ${result.message}",
+            result.message.contains("invalid regex", ignoreCase = true),
+        )
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertTextMatchesValidRegexNotMatching() {
+        // Valid regex that does not match → FAIL (not ERROR), so agent can distinguish the two cases
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"TextView","id":"com.example:id/tv","bounds":[0,0,300,100],"text":"Ready for action"}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "tv"),
+                "assert" to mapOf("property" to "text", "op" to "matches", "value" to "Waiting.*interaction"),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(
+            "Expected FAIL (not ERROR) in message: ${result.message}",
+            result.message.startsWith("FAIL"),
+        )
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertWithToleranceReturnsError() {
+        // tolerance is not supported in assert; should return ERROR with guidance message
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/sv","bounds":[0,0,1080,660]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "sv"),
+                "assert" to mapOf("property" to "bounds.height", "op" to "eq", "value" to "220", "unit" to "dp", "tolerance" to 5),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(
+            "Expected guidance about gte/lte in message: ${result.message}",
+            result.message.contains("gte", ignoreCase = true) && result.message.contains("lte", ignoreCase = true),
+        )
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeRelationSpacingFailContainsBoundsInfo() {
+        // spacing FAIL message must include bounds of both elements to help agent diagnose
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"id":"root",
+                "children":[
+                  {"className":"TextView","id":"com.example:id/tv_title","bounds":[0,50,1080,100]},
+                  {"className":"Button","id":"com.example:id/btn_main","bounds":[0,748,1080,860]}
+                ]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        // Actual spacing = 748-100=648px = 216dp; expected=20dp → FAIL
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "tv_title"),
+                "target2" to mapOf("resourceId" to "btn_main"),
+                "relation" to mapOf("type" to "spacing", "direction" to "vertical", "expected" to 20, "tolerance" to 5, "unit" to "dp"),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected FAIL in message: ${result.message}", result.message.startsWith("FAIL"))
+        Assert.assertTrue(
+            "Expected bounds info in FAIL message: ${result.message}",
+            result.message.contains("target") && result.message.contains("target2"),
+        )
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeRelationSpacingWithToleranceInDpPass() {
+        // A=[0,0,1080,100], B=[0,760,1080,860], density=3.0 → spacing=660px=220dp; expected=220dp ±5dp → PASS
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,1080,100]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[0,760,1080,860]}
+                ]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "view_a"),
+                "target2" to mapOf("resourceId" to "view_b"),
+                "relation" to mapOf("type" to "spacing", "direction" to "vertical", "expected" to 220, "tolerance" to 5, "unit" to "dp"),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
         dumpFile.delete()
     }
 
@@ -1039,6 +1144,90 @@ class LayoutVerifyMcpToolActionTest {
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeSelectByClassNameSubstring() {
+        // Node className=android.support.v7.widget.AppCompatTextView;
+        // selector className=TextView (suffix of short name "AppCompatTextView") → PASS
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"android.support.v7.widget.AppCompatTextView","id":"com.example:id/tv_title","bounds":[0,0,1080,60],"text":"MCP Test Page"}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("text" to "MCP Test Page", "className" to "TextView"),
+            "assert" to mapOf("property" to "exists"),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertTextMatchesPartialRegexPass() {
+        // "Waiting for interaction..." matches the pattern "Waiting.*interaction" via containsMatchIn
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"TextView","id":"com.example:id/tv","bounds":[0,0,300,60],"text":"Waiting for interaction..."}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "tv"),
+            "assert" to mapOf("property" to "text", "op" to "matches", "value" to "Waiting.*interaction"),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertTextNeqPass() {
+        // op=neq: text != "Wrong" → PASS
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"TextView","id":"com.example:id/tv","bounds":[0,0,300,60],"text":"#FF1976D2"}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "tv"),
+            "assert" to mapOf("property" to "text", "op" to "neq", "value" to "#FFFFFFFF"),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertTextNeqFail() {
+        // op=neq: text == expected → FAIL
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"TextView","id":"com.example:id/tv","bounds":[0,0,300,60],"text":"#FFFFFFFF"}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "tv"),
+            "assert" to mapOf("property" to "text", "op" to "neq", "value" to "#FFFFFFFF"),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertBoundsExpectedFieldCorrectWhenValuePassedAsString() {
+        // value passed as String "100"; after fix, data.expected must echo 100 not 0
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"Button","id":"com.example:id/btn","bounds":[0,0,900,150]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        // width=900px / density=3.0 = 300dp; assert gte "100"dp → PASS; expected field must be 100
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "btn"),
+            "assert" to mapOf("property" to "bounds.width", "op" to "gte", "value" to "100", "unit" to "dp"),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        val expectedVal = result.data["expected"]
+        Assert.assertEquals("expected field must echo the passed value (100), not 0", 100, expectedVal)
         dumpFile.delete()
     }
 

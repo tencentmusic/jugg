@@ -78,10 +78,20 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                         ),
                         "op" to McpJsonSchemaProperty(
                             type = "string",
-                            description = "Comparison operator: eq (default)/gte/lte/gt/lt/contains/matches",
+                            description = "Comparison operator: eq (default)/gte/lte/gt/lt/contains/matches/neq. " +
+                                "'matches' treats value as a Java regex and checks if the pattern is found anywhere in the string (substring match, not full-string match). " +
+                                "'neq' checks that the actual value does NOT equal the expected value.",
+                            `enum` = listOf("eq", "neq", "gte", "lte", "gt", "lt", "contains", "matches"),
                         ),
-                        "value" to McpJsonSchemaProperty(type = "string", description = "Expected value"),
-                        "unit" to McpJsonSchemaProperty(type = "string", description = "Unit: dp or px (default px for coordinates)"),
+                        "value" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Expected value. Numeric values can be passed as strings (e.g. \"100\") or numbers.",
+                        ),
+                        "unit" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Unit: dp or px (default px for coordinates)",
+                            `enum` = listOf("dp", "px"),
+                        ),
                     ),
                     additionalProperties = false,
                 ),
@@ -91,15 +101,24 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                     properties = mapOf(
                         "type" to McpJsonSchemaProperty(
                             type = "string",
-                            description = "Relation type: spacing/alignment/overlap/containment/order",
+                            description = "Relation type: spacing/alignment/overlap/containment/order. " +
+                                "spacing measures the actual on-screen pixel gap between two element bounds — this is NOT the same as layout margin.",
+                            `enum` = listOf("spacing", "alignment", "overlap", "containment", "order"),
                         ),
                         "direction" to McpJsonSchemaProperty(
                             type = "string",
-                            description = "Direction for spacing/alignment/order: horizontal or vertical",
+                            description = "Direction for spacing/alignment/order: " +
+                                "vertical = elements are stacked top-to-bottom (checks same horizontal/X center for alignment); " +
+                                "horizontal = elements are placed left-to-right (checks same vertical/Y center for alignment)",
+                            `enum` = listOf("horizontal", "vertical"),
                         ),
-                        "expected" to McpJsonSchemaProperty(type = "number", description = "Expected value (for spacing)"),
-                        "tolerance" to McpJsonSchemaProperty(type = "number", description = "Tolerance (for spacing, default 0)"),
-                        "unit" to McpJsonSchemaProperty(type = "string", description = "Unit: dp or px"),
+                        "expected" to McpJsonSchemaProperty(type = "number", description = "Expected value (for spacing). Defaults to 0 when omitted."),
+                        "tolerance" to McpJsonSchemaProperty(type = "number", description = "Tolerance for spacing (default 0). Used to account for dp rounding errors."),
+                        "unit" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Unit: dp or px",
+                            `enum` = listOf("dp", "px"),
+                        ),
                     ),
                     additionalProperties = false,
                 ),
@@ -261,7 +280,11 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             val idMatch = resourceId == null || shortId(resourceId) == shortId(nodeId)
             val textMatch = text == null || text == nodeText
             val descMatch = contentDesc == null || contentDesc == nodeContentDesc
-            val classMatch = className == null || className == nodeClassName || className == nodeClassName?.substringAfterLast('.')
+            // Support both simple name (e.g. "TextView") and full name matching.
+            // A class like "AppCompatTextView" ends with "TextView", so we use endsWith for the short name.
+            val classMatch = className == null || className == nodeClassName
+                || className == nodeClassName?.substringAfterLast('.')
+                || nodeClassName?.substringAfterLast('.')?.contains(className) == true
             idMatch && textMatch && descMatch && classMatch
         }
     }
@@ -278,6 +301,15 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val op = assert["op"] as? String ?: "eq"
         val value = assert["value"]
         val unit = assert["unit"] as? String
+
+        if (assert.containsKey("tolerance")) {
+            return VerifyResult(
+                "ERROR",
+                "assert does not support 'tolerance'. " +
+                    "To verify approximate values, use two separate asserts with 'gte' and 'lte'. " +
+                    "For layout gap checks with tolerance, use relation.type=spacing with tolerance."
+            )
+        }
 
         return when (property) {
             "exists" -> VerifyResult("PASS", "exists = true (expected: exists)")
@@ -342,9 +374,19 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     }
 
     private fun assertStr(actual: String, op: String, expected: String, property: String): VerifyResult {
+        if (op == "matches") {
+            val regex = runCatching { Regex(expected) }.getOrElse {
+                return VerifyResult("ERROR", "invalid regex pattern for $property: \"$expected\" (${it.message})")
+            }
+            // Use containsMatchIn() so the pattern can match a substring, not the whole string.
+            val pass = regex.containsMatchIn(actual)
+            val msg = "$property = \"$actual\" (expected: matches \"$expected\")"
+            return if (pass) VerifyResult("PASS", msg, actual, expected)
+            else VerifyResult("FAIL", msg, actual, expected)
+        }
         val pass = when (op) {
             "contains" -> actual.contains(expected)
-            "matches" -> runCatching { actual.matches(Regex(expected)) }.getOrDefault(false)
+            "neq" -> actual != expected
             else -> actual == expected
         }
         val msg = "$property = \"$actual\" (expected: $op \"$expected\")"
@@ -354,13 +396,19 @@ class LayoutVerifyMcpToolAction : McpToolAction {
 
     private fun assertBoundsDp(actualPx: Int, op: String, value: Any?, unit: String?, density: Double, property: String): VerifyResult {
         val actual = if (unit == "dp" && density > 0) Math.round(actualPx / density).toInt() else actualPx
-        val expected = (value as? Number)?.toInt() ?: 0
+        // Accept both Number and String to tolerate MCP callers that serialize numbers as strings.
+        val expected = when (value) {
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull() ?: 0
+            else -> 0
+        }
         val unitLabel = unit ?: "px"
         val pass = when (op) {
             "gte" -> actual >= expected
             "lte" -> actual <= expected
             "gt" -> actual > expected
             "lt" -> actual < expected
+            "neq" -> actual != expected
             else -> actual == expected
         }
         val msg = "$property = $actual$unitLabel (expected: $op $expected$unitLabel)"
@@ -392,7 +440,8 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 val actual = if (unit == "dp" && density > 0) Math.round(spacingPx / density).toInt() else spacingPx
                 val unitLabel = unit ?: "px"
                 val pass = Math.abs(actual - expected) <= tolerance
-                val msg = "spacing ($direction) = $actual$unitLabel (expected: $expected$unitLabel ±$tolerance$unitLabel)"
+                val boundsInfo = " [target:[$aLeft,$aTop,$aRight,$aBottom], target2:[$bLeft,$bTop,$bRight,$bBottom]]"
+                val msg = "spacing ($direction) = $actual$unitLabel (expected: $expected$unitLabel ±$tolerance$unitLabel)$boundsInfo"
                 if (pass) VerifyResult("PASS", msg, actual, expected, unitLabel)
                 else VerifyResult("FAIL", msg, actual, expected, unitLabel)
             }

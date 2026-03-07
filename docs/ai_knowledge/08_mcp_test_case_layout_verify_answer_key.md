@@ -2,7 +2,7 @@
 
 > ⚠️ 本文件是盲测评估的答案表。被测 agent 绝对不能看到此文件。
 > 在 agent 完成 `08_mcp_test_case_layout_verify.md` 中的所有任务后，使用本文件进行评分。
-> 最后更新：2026-03-07
+> 最后更新：2026-03-08
 
 ---
 
@@ -79,14 +79,14 @@
 |---------|---------|-------------------|------|---------|
 | LV-EVAL-C-01 | **PASS**（符合） | PASS | 两个按钮之间垂直间距 ≈ 12dp（布局 margin） | |
 | LV-EVAL-C-02 | **FAIL**（不符合） | FAIL | 实际间距约 12dp，需求要求 100dp | Agent 必须报告间距不匹配；应引用实际间距值 |
-| LV-EVAL-C-03 | **PASS**（符合） | PASS | 标题到第一个按钮间距 ≈ 20dp（marginTop=20dp） | |
+| LV-EVAL-C-03 | **PASS**（符合） | PASS | `tv_mcp_case_group_summary` 到第一个按钮间距 ≈ 20dp（marginTop=20dp） | |
 | LV-EVAL-C-04 | **PASS**（符合） | PASS | 两个按钮都是 match_parent，水平居中 | |
 | LV-EVAL-C-05 | **PASS**（符合） | PASS | 两个按钮都是 match_parent，水平居中 | |
 | LV-EVAL-C-06 | **PASS**（符合） | PASS | 标题在按钮上方（正确的垂直顺序） | |
 | LV-EVAL-C-07 | **FAIL**（不符合） | FAIL | 按钮在标题下方而非上方；需求声明了错误的顺序 | Agent 必须报告顺序不匹配 |
 | LV-EVAL-C-08 | **PASS**（符合） | PASS | 两个按钮不重叠（垂直排列） | |
 | LV-EVAL-C-09 | **FAIL**（不符合） | FAIL | `btn_mcp_unique_text` 不在 `sv_mcp_swipe_target` 内部；它在外层 LinearLayout 中 | Agent 必须报告包含关系断言失败 |
-| LV-EVAL-C-10 | **FAIL**（不符合） | FAIL | 实际间距约 20dp，需求要求 100dp | Agent 必须报告间距不匹配 |
+| LV-EVAL-C-10 | **FAIL**（不符合） | FAIL | 实际间距约 216dp，需求要求 100dp | Agent 必须报告间距不匹配 |
 | LV-EVAL-C-11 | **PASS**（符合） | PASS | 两个重复按钮有正的垂直间距 | |
 | LV-EVAL-C-12 | **PASS**（符合） | PASS | clickable=true 且 text="Resource Tap Target" 都正确 | Agent 需要两次 layout_verify 调用 |
 
@@ -119,17 +119,17 @@
 
 | 任务 ID | 预期结果 | 预期 `data.result` | 原因 | 评分说明 |
 |---------|---------|-------------------|------|---------|
-| LV-EVAL-E-01 | **PASS**（符合） | PASS | `tv_mcp_colored_text` 的 textColor 为 #FF1976D2 | `[EXT]` — 需要扩展测试页控件 |
-| LV-EVAL-E-02 | **PASS**（符合） | PASS | `layout_mcp_alpha_bg` 的 backgroundColor 为 #1F88939B | `[EXT]` — 带 alpha 通道的 ARGB |
+| LV-EVAL-E-01 | **PASS**（符合） | PASS | `tv_mcp_title` 的 textColor 为 #8A000000 | |
+| LV-EVAL-E-02 | **PASS**（符合） | PASS | `btn_mcp_unique_text` 的 textColor 为 #DE000000 | |
 | LV-EVAL-E-03 | **PASS**（符合） | PASS | tv_mcp_title 的 textColor 不是白色（neq #FFFFFFFF） | 否定颜色断言 |
-| LV-EVAL-E-04 | **FAIL**（不符合） | FAIL | `tv_mcp_colored_text` 实际 textColor 为 #FF1976D2（蓝色），需求要求 #FFFF0000（红色） | `[EXT]` Agent 必须报告颜色不匹配；应引用实际颜色值 |
-| LV-EVAL-E-05 | **PASS**（符合） | PASS | maxLines=1 且 ellipsize="end" | `[EXT]` 实时查询模式；标准 dump 中可能不包含 |
+| LV-EVAL-E-04 | **FAIL**（不符合） | FAIL | `tv_mcp_title` 实际 textColor 为 #8A000000，需求要求 #FFFF0000（红色） | Agent 必须报告颜色不匹配；应引用实际颜色值 |
+| LV-EVAL-E-05 | **PASS**（符合） | PASS | `tv_mcp_case_group_summary` 的 textSizeSp 在 13sp~15sp 之间 | 实时查询模式 |
 | LV-EVAL-E-06 | **PASS**（符合） | PASS | 两个按钮的文本都是 "Visibility Tap Target" | 两次验证调用检查一致性 |
 | LV-EVAL-E-07 | **PASS**（符合） | PASS | btn_mcp_unique_text 的 5 项检查全部通过 | 复合验证；5 次 layout_verify 调用 |
 | LV-EVAL-E-08 | **PASS**（符合） | PASS | 4 项关系检查全部通过 | 复合关系验证；4 次 layout_verify 调用 |
 | LV-EVAL-E-09 | **PASS**（符合） | PASS | 3 项可见性/文本检查全部通过 | |
 | LV-EVAL-E-10 | **PASS**（符合） | PASS | 文本、大小、存在性均正确 | 混合 dumpFile + 实时查询模式 |
-| LV-EVAL-E-11 | **PASS**（符合） | PASS | 对话框出现且内部控件已验证 | `[EXT]` 取决于 Dialog 窗口的 dump 捕获支持；若 dump 无法捕获 Dialog 则标记为 N/A |
+| LV-EVAL-E-11 | **PASS**（符合） | PASS | 点击 `btn_mcp_repeat_a` 后状态文本变为 "Clicked: Repeat Tap Target" | 交互后需重新 dump |
 | LV-EVAL-E-12 | **FAIL**（不符合） | FAIL | 实际文本为 "Unique MCP Target"，需求要求 "Complete Purchase" | Agent 必须报告文本不匹配 |
 
 **批次 5 预期分布**：10 PASS、2 FAIL
@@ -156,11 +156,11 @@
 | LV-EVAL-C-02 | 3 | 间距不匹配 | 约 12dp ≠ 100dp |
 | LV-EVAL-C-07 | 3 | 顺序错误 | 按钮在标题下方而非上方 |
 | LV-EVAL-C-09 | 3 | 包含关系不成立 | 按钮不在 ScrollView 内部 |
-| LV-EVAL-C-10 | 3 | 间距不匹配 | 约 20dp ≠ 100dp |
+| LV-EVAL-C-10 | 3 | 间距不匹配 | 约 216dp ≠ 100dp |
 | LV-EVAL-D-05 | 4 | 元素未找到 | `btn_does_not_exist` 不存在 |
 | LV-EVAL-D-10 | 4 | 精确文本不匹配（陷阱） | "Clicked: Unique MCP Target" ≠ "Clicked" |
 | LV-EVAL-D-11 | 4 | 可见性不匹配 | visible ≠ gone |
-| LV-EVAL-E-04 | 5 | 颜色不匹配 | #FF1976D2（蓝色）≠ #FFFF0000（红色） |
+| LV-EVAL-E-04 | 5 | 颜色不匹配 | #8A000000 ≠ #FFFF0000 |
 | LV-EVAL-E-12 | 5 | 文本不匹配 | "Unique MCP Target" ≠ "Complete Purchase" |
 
 ### FAIL 类型分布

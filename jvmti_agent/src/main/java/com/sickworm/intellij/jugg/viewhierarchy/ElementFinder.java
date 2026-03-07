@@ -108,7 +108,7 @@ public class ElementFinder {
             boolean matches = isMatch(text, nodeText)
                 && isResourceIdMatch(resourceId, nodeResourceId)
                 && isMatch(contentDesc, nodeContentDesc)
-                && isMatch(className, nodeClassName);
+                && isClassNameMatch(className, nodeClassName);
             if (matches) {
                 result.add(
                     new MatchedElement(
@@ -175,6 +175,23 @@ public class ElementFinder {
             return true;
         }
         return selector.equals(value);
+    }
+
+    /**
+     * Match className with support for simple name containment.
+     * e.g. selector "TextView" matches "android.widget.AppCompatTextView" because the simple name
+     * "AppCompatTextView" contains "TextView".
+     */
+    private boolean isClassNameMatch(String selector, String value) {
+        if (selector == null || selector.isEmpty()) {
+            return true;
+        }
+        if (selector.equals(value)) {
+            return true;
+        }
+        // Compare against the simple class name (part after the last '.')
+        String simpleValue = value != null ? value.substring(value.lastIndexOf('.') + 1) : "";
+        return simpleValue.contains(selector);
     }
 
     private boolean isResourceIdMatch(String selector, String value) {

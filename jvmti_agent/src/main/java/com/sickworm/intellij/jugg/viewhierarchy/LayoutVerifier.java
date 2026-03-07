@@ -87,6 +87,15 @@ public class LayoutVerifier {
         String op = assertParams.optString("op", "eq");
         String unit = optString(assertParams, "unit");
 
+        if (assertParams.has("tolerance")) {
+            return errorResult(
+                "assert does not support 'tolerance'. " +
+                "To verify approximate values, use two separate asserts with 'gte' and 'lte'. " +
+                "For layout gap checks with tolerance, use relation.type=spacing with tolerance.",
+                null
+            );
+        }
+
         switch (property) {
             case "exists":
                 return buildPassResult("exists", true, "exists", unit);
@@ -173,6 +182,9 @@ public class LayoutVerifier {
             case "lt":
                 pass = actual < expectedValue;
                 break;
+            case "neq":
+                pass = actual != expectedValue;
+                break;
             default: // "eq"
                 pass = actual == expectedValue;
                 break;
@@ -210,13 +222,25 @@ public class LayoutVerifier {
     }
 
     private JSONObject assertText(String actual, String op, String expected, String property) throws JSONException {
+        if ("matches".equals(op)) {
+            java.util.regex.Pattern compiled;
+            try {
+                compiled = java.util.regex.Pattern.compile(expected);
+            } catch (java.util.regex.PatternSyntaxException e) {
+                return errorResult("invalid regex pattern for " + property + ": \"" + expected + "\" (" + e.getMessage() + ")", null);
+            }
+            // Use find() so the pattern can match a substring, not the whole string.
+            boolean pass = actual != null && compiled.matcher(actual).find();
+            String message = property + " = \"" + actual + "\" (expected: matches \"" + expected + "\")";
+            return pass ? buildPassResult(message, actual, expected, null) : buildFailResult(message, actual, expected, null);
+        }
         boolean pass;
         switch (op) {
             case "contains":
                 pass = actual != null && actual.contains(expected);
                 break;
-            case "matches":
-                pass = actual != null && actual.matches(expected);
+            case "neq":
+                pass = !expected.equals(actual);
                 break;
             default:
                 pass = expected.equals(actual);
@@ -278,8 +302,10 @@ public class LayoutVerifier {
         int actual = toDpIfNeeded(spacingPx, unit);
         String unitLabel = unit != null ? unit : "px";
         boolean pass = Math.abs(actual - expected) <= tolerance;
+        String boundsInfo = " [target:[" + a.bounds.left + "," + a.bounds.top + "," + a.bounds.right + "," + a.bounds.bottom + "]"
+            + ", target2:[" + b.bounds.left + "," + b.bounds.top + "," + b.bounds.right + "," + b.bounds.bottom + "]]";
         String message = "spacing (" + direction + ") = " + actual + unitLabel
-            + " (expected: " + expected + unitLabel + " ±" + tolerance + unitLabel + ")";
+            + " (expected: " + expected + unitLabel + " ±" + tolerance + unitLabel + ")" + boundsInfo;
         return pass ? buildPassResult(message, actual, expected, unit) : buildFailResult(message, actual, expected, unit);
     }
 

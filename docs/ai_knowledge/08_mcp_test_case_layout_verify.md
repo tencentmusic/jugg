@@ -2,7 +2,7 @@
 
 > 本文件是用于测试 AI agent 在工程 android_demo_project 使用 `layout_verify` 进行 UI 验证能力的盲测题目集。
 > 任务完成前绝对不可以读取预期结果 `08_mcp_test_case_layout_verify_answer_key.md`。
-> 最后更新：2026-03-07
+> 最后更新：2026-03-08
 > 前置文档：`08_mcp_test_case.md`（执行约定和工具使用方式）
 
 ---
@@ -51,7 +51,8 @@
 - 部分任务在验证前需要交互（点击）— 任务会明确说明
 - 任何交互之后，必须重新调用 `layout_dump` 获取最新布局快照再进行验证
 - 部分任务需要实时查询模式（不传 `dumpFile`）— 任务会明确说明
-- 需要扩展测试页控件（`tv_mcp_colored_text`、`layout_mcp_alpha_bg` 等）的任务标记为 `[EXT]`
+- 本题集默认基线页面为 `android_demo_project/app/src/main/res/layout/activity_mcp_test.xml`
+- 页面发生任何改动（控件新增/删除、resourceId、文本、样式、布局关系）时，必须同步更新本文件与 `08_mcp_test_case_layout_verify_answer_key.md`
 
 ---
 
@@ -170,7 +171,7 @@
 > 请验证该需求是否满足。
 
 **LV-EVAL-C-03**
-> 设计稿要求：`tv_mcp_title` 和 `btn_mcp_unique_text` 之间的垂直间距必须约为 20dp（容差 ±5dp）。
+> 设计稿要求：`tv_mcp_case_group_summary` 和 `btn_mcp_unique_text` 之间的垂直间距必须约为 20dp（容差 ±5dp）。
 > 请验证该需求是否满足。
 
 **LV-EVAL-C-04**
@@ -274,24 +275,24 @@
 
 ## 批次 5：LV-EVAL-E（12 题）
 
-**LV-EVAL-E-01** `[EXT]`
-> 设计稿要求：`tv_mcp_colored_text` 的文字颜色必须为 `#FF1976D2`（蓝色）。
+**LV-EVAL-E-01**
+> 设计稿要求：`tv_mcp_title` 的文字颜色必须为 `#8A000000`。
 > 请验证该需求是否满足。
 
-**LV-EVAL-E-02** `[EXT]`
-> 设计稿要求：`layout_mcp_alpha_bg` 的背景颜色必须为 `#1F88939B`（alpha ≈ 12%）。
+**LV-EVAL-E-02**
+> 设计稿要求：`btn_mcp_unique_text` 的文字颜色必须为 `#DE000000`。
 > 请验证该需求是否满足。
 
 **LV-EVAL-E-03**
 > 设计稿要求：`tv_mcp_title` 的文字颜色不能为白色（`#FFFFFFFF`）。
 > 请验证该需求是否满足。
 
-**LV-EVAL-E-04** `[EXT]`
-> 设计稿要求：`tv_mcp_colored_text` 的文字颜色必须为 `#FFFF0000`（红色）。
+**LV-EVAL-E-04**
+> 设计稿要求：`tv_mcp_title` 的文字颜色必须为 `#FFFF0000`（红色）。
 > 请验证该需求是否满足。
 
-**LV-EVAL-E-05** `[EXT]` `[实时查询]`
-> 设计稿要求：`tv_mcp_long_text` 必须有 maxLines = 1 且 ellipsize = "end"。
+**LV-EVAL-E-05** `[实时查询]`
+> 设计稿要求：`tv_mcp_case_group_summary` 的文字大小必须在 13sp 到 15sp 之间（含边界）。
 > 请使用实时查询模式验证以上两个属性。
 
 **LV-EVAL-E-06**
@@ -329,12 +330,10 @@
 > 3. 元素存在且可见
 > 请验证以上三项。
 
-**LV-EVAL-E-11** `[EXT]` `[需要交互]`
-> 设计稿要求：点击 `btn_mcp_show_dialog` 后应出现对话框。对话框出现后：
-> 1. 重新获取布局快照
-> 2. 验证对话框标题控件的文本是否符合预期值
-> 3. 验证对话框内容控件的文本是否符合预期值
-> 请执行交互并验证。
+**LV-EVAL-E-11** `[需要交互]`
+> 前置条件：调用 `restart_app` 重置应用状态并导航到 MCP 测试页面。
+> 设计稿要求：点击 `btn_mcp_repeat_a` 后，`tv_mcp_action_state` 的文本必须变为 "Clicked: Repeat Tap Target"。
+> 请点击按钮，获取最新布局快照，然后验证。
 
 **LV-EVAL-E-12**
 > 设计稿要求：`btn_mcp_unique_text` 的文本必须为 "Complete Purchase"。
