@@ -1,6 +1,6 @@
 # MCP 设计说明（当前实现视角）
 
-> 最后核对：2026-03-06  
+> 最后核对：2026-03-07  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -61,6 +61,8 @@
 - `ViewHierarchyClient` 在多进程场景按“主进程优先 -> 其余 PID -> `jugg_vh` 兼容名”尝试 socket，避免首个 PID 误选导致不可用。
 - ViewHierarchy socket 响应包含 `version` 字段；客户端当前为 warn-only 策略（版本不匹配仅告警，不拦截请求）。
 - **Versioning rule**: 当 `ViewHierarchyServer` 响应结构发生 breaking change（字段删除/类型变更/语义不兼容）时，必须递增服务端协议版本号，并同步客户端常量与文档。
+- `layout_verify` 工具通过 `LayoutVerifier`（App 侧，jvmti_agent 模块）执行 live query 模式的属性/关系断言；dumpFile 模式在 `LayoutVerifyMcpToolAction`（MCP 侧）解析 JSON 完成，0 次 App 通信。
+- `LayoutVerifyMcpToolAction` 的 dumpFile 模式依赖 dump JSON 根节点的 `deviceInfo.density` 做 dp 换算。
 
 ---
 

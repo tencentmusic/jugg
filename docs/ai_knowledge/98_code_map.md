@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-03-05
+> 最后核对：2026-03-07
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -58,7 +58,7 @@
 | platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `BuildGradleBaseCommand`, `BuildIncrementalApkCommand` |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |
-| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | JVMTI native 能力（`native-lib.cpp`）+ App 内 ViewHierarchy LocalSocket Server（`ViewHierarchyServer*`, `ViewTreeDumper`, `ElementFinder`, `ViewTapper`，由 `BootstrapApplication` 初始化） |
+| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | JVMTI native 能力（`native-lib.cpp`）+ App 内 ViewHierarchy LocalSocket Server（`ViewHierarchyServer*`, `ViewTreeDumper`, `ElementFinder`, `ViewTapper`, `LayoutVerifier`，由 `BootstrapApplication` 初始化） |
 
 ---
 

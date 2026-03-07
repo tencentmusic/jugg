@@ -18,6 +18,7 @@
 | `CONN` | 二、基础连通性 | 项目连通验证 |
 | `DEV` | 三、设备相关 | 设备列表等 |
 | `MEDIA` | 四、截图/录屏/布局/崩溃 | 截图、录屏、布局导出、崩溃报告 |
+| `VERIFY` | 四（续）、布局验证 | layout_verify 属性/关系断言 |
 | `INTERACT` | 五、应用控制与交互 | 重启、点击等 |
 | `BUILD` | 六、编译与部署（正常） | 正常编译部署 |
 | `BUILDFAIL` | 七、编译失败 | 编译错误信息验证 |
@@ -199,6 +200,35 @@
 - `isProcessAlive` 为 `false`
 - `allErrorLogPath` 指向一个实际存在的 `.log` 文件
 `artifacts` 数组中仍包含一个 `type=log` 的产物（即使无崩溃，也会导出完整错误日志）。
+
+### 布局验证（layout_verify）
+
+> 本小节测试新增的 `layout_verify` 工具。需要设备连接且 App 在前台运行。
+> 前置：先调用 `layout_dump` 获取 dump 文件路径（`data.file`），后续 dumpFile 模式用例复用此文件。
+
+**VERIFY-1: dumpFile 模式 - assert exists**
+先调用 `layout_dump` 获取 `dumpFile` 路径。调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<已知存在的 id>"}` 和 `assert: {property: "exists"}`。验证返回 `status` 为 `OK`，`data.result` 为 `PASS`。
+
+**VERIFY-2: dumpFile 模式 - assert text**
+调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<已知 TextView id>"}` 和 `assert: {property: "text", op: "eq", value: "<已知文本>"}`。验证返回 `data.result` 为 `PASS`，`data.actual` 与 `data.expected` 一致。
+
+**VERIFY-3: dumpFile 模式 - assert bounds.width with dp unit**
+调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<已知 id>"}` 和 `assert: {property: "bounds.width", op: "gte", value: "40", unit: "dp"}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（取决于实际宽度），但 `status` 不是因参数错误返回的 `ERROR`，且 `data.actual` 和 `data.expected` 字段存在。
+
+**VERIFY-4: live query 模式 - assert textSizeSp**
+调用 `layout_verify`，不传 `dumpFile`，传入 `projectDir`、`target: {resourceId: "<已知 TextView id>"}` 和 `assert: {property: "textSizeSp", op: "gte", value: "12"}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非 `ERROR`），确认 live query 模式正常工作。
+
+**VERIFY-5: relation spacing**
+调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<id_1>"}` 和 `target2: {resourceId: "<id_2>"}`，`relation: {type: "spacing", direction: "vertical", expected: 16, unit: "dp", tolerance: 4}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非 `ERROR`），且 `data.actual` 字段存在。
+
+**VERIFY-6: 元素未找到**
+调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "non_existent_element_xyz"}` 和 `assert: {property: "exists"}`。验证返回 `status` 为 `ERROR`，`data.result` 为 `ERROR`，`message` 中包含未找到元素的提示，`data.candidates` 列出近似匹配。
+
+**VERIFY-7: assert 与 relation 互斥**
+调用 `layout_verify`，同时传入 `assert` 和 `relation`（均为合法值），验证工具不会同时处理两者。注意：当前代码实现中 `assert` 优先于 `relation`（若同时传入，仅执行 `assert`），但传入行为本身不报错。验证 `data.result` 为 `PASS`/`FAIL`（以 `assert` 结果为准）。
+
+**VERIFY-8: 缺少 assert 和 relation**
+调用 `layout_verify`，传入 `projectDir` 和 `target`，不传 `assert` 也不传 `relation`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`message` 包含 "assert or relation is required"。
 
 ---
 
@@ -403,6 +433,9 @@
 
 **NODEV-11: 无设备 - layout_dump**
 调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+
+**NODEV-11a: 无设备 - layout_verify (live 模式)**
+调用 `layout_verify`，传入有效 `projectDir`、`target: {resourceId: "any_id"}` 和 `assert: {property: "exists"}`，不传 `dumpFile`（live 模式需设备），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 **NODEV-12: 无设备 - activity_stack**
 调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。

@@ -1,6 +1,6 @@
 # MCP 使用说明（当前注册工具）
 
-> 最后核对：2026-03-06  
+> 最后核对：2026-03-07  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -47,6 +47,7 @@
 | `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
+| `layout_verify` | `projectDir`, `target`; 需提供 `assert` 或 `relation` 之一；可选 `dumpFile`, `target2` | 验证 UI 元素属性或元素间关系（dumpFile 缓存模式 / live query 模式） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
@@ -54,7 +55,7 @@
 补充（App 在线等待阻塞）：
 - `restart_app`、`compile_and_deploy`、`force_gradle_compile`、`clean_reinstall_apk` 在成功路径会后置等待 App 在线（判断口径：`deployStateManager.updateDeployState().isReadyDeploy`）。
 - `compile_and_deploy` / `force_gradle_compile` 若走异步返回，在线等待会体现在最终 `get_compile_status` 结果里（最终可能因为 App 未就绪而失败）。
-- `layout_dump`、`activity_stack`、`screenshot`、`tap`、`start_record`、`stop_record` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
+- `layout_dump`、`layout_verify`（live 模式）、`activity_stack`、`screenshot`、`tap`、`start_record`、`stop_record` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
 - 运行态工具执行顺序：参数完整性/组合合法性校验 -> `projectDir` 初始化态校验 -> App 在线校验 -> 业务执行。参数类错误优先返回 `MCP_INVALID_PARAMS`，避免被 `app not ready` 覆盖。
 - 若前置等待过程中发生过实际等待（并非首检即 ready），且本次工具调用返回失败，会自动重试最多 3 次，重试间隔 2s（仅用于内部/瞬时失败）。
 
@@ -73,7 +74,7 @@
 - 目标进程强过滤：`crashLogs` 仅保留目标包名/进程名与目标 PID 相关日志。
 - 采集优先级：先读 `logcat -b crash`，仅当未检测到崩溃信号时再补读 `logcat -b main`。
 - `hasCrash=true` 表示检测到崩溃信号（如 `FATAL EXCEPTION` / `Fatal signal`）。
-- `hasCrash=false` 时返回 `data.reason`，明确“无崩溃”原因（例如目标进程未运行）。
+- `hasCrash=false` 时返回 `data.reason`，明确"无崩溃"原因（例如目标进程未运行）。
 - `allErrorLogPath` 持续保留原始采集日志（artifact）以供深度排障。
 
 补充（layout_dump 语义）：
@@ -95,6 +96,29 @@
   - 明确是 socket 不可连（如 `ViewHierarchy server is unavailable` / connect failed / forward failed）：高概率是 App 侧 `ViewHierarchyServer` 未成功集成到当前运行包（未安装最新包、构建链路未带上对应集成）。
   - 其他请求失败（超时、返回体非法）：优先看 `build/jugg/log/compile_latest.log` 与 IDE 日志。
 - socket 不可连的推荐动作：`restart_app` 重试一次；若仍失败，执行一次 `force_gradle_compile`（必要时轮询 `get_compile_status` 到终态）-> `compile_and_deploy` -> `restart_app` 后再试 `layout_dump`/元素模式 `tap`。
+
+补充（layout_verify 语义）：
+- 支持两种模式：
+  - **dumpFile 模式**：传入 `dumpFile`（来自 `layout_dump` 的 JSON 文件路径），0 次额外 App 通信，从缓存文件解析。
+  - **live query 模式**：不传 `dumpFile`，实时查询 App 内 ViewHierarchy Server，可访问 dump 中不含的属性（如 `textSizeSp`）。
+- 每次调用执行一个 `assert`（单元素属性断言）或一个 `relation`（双元素空间/结构关系检查），两者互斥；均不传时返回 `MCP_INVALID_PARAMS`。
+- **target / target2 选择器**：至少提供 `resourceId` / `text` / `contentDesc` / `className` 之一。`resourceId` 支持 short id（如 `btn_play`）。`relation` 模式必须同时传 `target2`。
+- **assert 参数**：
+  - `property`：`exists` / `visibility` / `clickable` / `enabled` / `text` / `bounds.width` / `bounds.height` / `bounds.left` / `bounds.top` / `bounds.right` / `bounds.bottom` / `alpha` / `textColor` / `textSizeSp`（仅 live）/ `padding.left` / `padding.top` / `padding.right` / `padding.bottom`
+  - `op`：`eq`（默认）/ `gte` / `lte` / `gt` / `lt` / `contains` / `matches`
+  - `value`：期望值（字符串）
+  - `unit`：`dp` 或 `px`（坐标/尺寸类属性默认 `px`）
+- **relation 参数**：
+  - `type`：`spacing` / `alignment` / `overlap` / `containment` / `order`
+  - `direction`：`horizontal` 或 `vertical`（用于 spacing / alignment / order）
+  - `expected`：期望值（用于 spacing，数值）
+  - `tolerance`：容差（用于 spacing，默认 0）
+  - `unit`：`dp` 或 `px`
+- 返回 `data.result` 为 `PASS` / `FAIL` / `ERROR`，含 `actual`、`expected`、`message` 字段。`PASS` 时 `status=OK`，`FAIL`/`ERROR` 时 `status=ERROR`。
+- 元素未找到时返回 `data.result=ERROR`，`data.candidates` 列出最多 5 个 clickable 近似匹配元素摘要。
+- dumpFile 模式的 dp 换算依赖 dump JSON 根节点的 `deviceInfo.density`。
+- `textSizeSp` 等 dump 中不含的属性在 dumpFile 模式下返回 `ERROR`（unsupported property in dumpFile mode）。
+- `layout_verify`（live 模式）在执行前同样会先等待 App 在线（同 `layout_dump`）。
 
 补充（tap 三模式语义）：
 - `action` 支持：`tap`（默认）、`longPress`、`swipe`。
@@ -146,13 +170,13 @@
 
 ## 6. 连通性与排查
 
-> 仅在“连通性/上下文异常排查”场景使用以下步骤；正常使用无需把 `list_projects` / `device_list` 作为固定 preflight。  
+> 仅在"连通性/上下文异常排查"场景使用以下步骤；正常使用无需把 `list_projects` / `device_list` 作为固定 preflight。  
 
 1. 先确认 IDE 已初始化该项目（`list_projects`）。  
 2. 参数异常先对照 `tools/list` 返回的 `inputSchema`。  
 3. 设备类工具失败时再执行 `device_list`。  
 4. 编译类异步任务卡住时，用 `get_compile_status` + `compile_latest.log`。
-5. `layout_dump`/元素模式 `tap` 返回 `ViewHierarchy server is unavailable` 时，按“先 `restart_app` 一次 -> 再 `force_gradle_compile` 一次 -> 重试”的顺序处理；若仍失败，再退回 `screenshot + percent/coordinate tap`。
+5. `layout_dump`/`layout_verify`（live 模式）/元素模式 `tap` 返回 `ViewHierarchy server is unavailable` 时，按"先 `restart_app` 一次 -> 再 `force_gradle_compile` 一次 -> 重试"的顺序处理；若仍失败，再退回 `screenshot + percent/coordinate tap`。
 
 ---
 
