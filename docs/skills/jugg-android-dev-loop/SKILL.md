@@ -39,7 +39,7 @@ Intent -> reference file mapping:
 
 - compile, deploy, or handle compile/deploy failure -> `references/tool_cards_build_deploy.md`
 - interact with running app or collect runtime evidence (tap, layout, screenshot, recording) -> `references/tool_cards_runtime_observe.md`
-- verify UI element properties or spatial relations (bounds, text, visibility, spacing, alignment) -> `references/tool_cards_runtime_observe.md`
+- verify UI element properties or spatial relations via `layout_verify` (bounds, text, visibility, spacing, alignment, containment, order, overlap) -> `references/tool_cards_runtime_observe.md`
 - device/project context problem (`MCP_NO_DEVICE`, `MCP_PROJECT_NOT_INITIALIZED`, crash, unknown runtime state) -> `references/tool_cards_troubleshoot.md`
 - changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
 - match a specific error message/errorCode to a known fix -> `references/error_patterns.md`
@@ -52,6 +52,7 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
 2. Build/deploy (load `references/tool_cards_build_deploy.md` when details are needed).
 3. Runtime actions & evidence (load `references/tool_cards_runtime_observe.md` when details are needed).
    - Run **Target Page Context Gate** first.
+   - Use `layout_verify` for property/relation acceptance checks (verify-first, see Core Rules).
    - Collect screenshot/recording evidence only after the gate passes.
 4. Verdict:
    - **PASS** -> step 5.
@@ -82,6 +83,7 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
 - `projectDir`: use current working directory by default.
 - Max autonomous retries for same failure category: `3`.
 - Never claim success without artifact evidence.
+- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. Use `layout_dump` → `layout_verify(dumpFile=...)` → `screenshot` three-step protocol (details in `references/tool_cards_runtime_observe.md` §UI Verification Protocol).
 - Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
 - Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.

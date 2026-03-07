@@ -194,4 +194,47 @@ Use this library to constrain auto-fix behavior.
   auto_apply: true
   next_action_on_success: tap_with_center_point_then_screenshot
   next_action_on_failure: fallback_to_manual_screenshot_and_user_confirm
+
+- id: layout_verify_target_not_found
+  stage: observe
+  signature:
+    includes: ["layout_verify failed", "target not found"]
+  diagnosis: >
+    layout_verify could not find the target element by the provided selector.
+    Common causes: wrong resourceId, text changed after interaction, element not rendered yet,
+    element inside a different window (dialog/popup), or selector too broad/narrow.
+  fix_strategy: refine_selector_or_refresh_dump
+  fix_scope: low
+  confidence_hint: 0.90
+  auto_apply: true
+  next_action_on_success: retry_layout_verify_with_corrected_selector
+  next_action_on_failure: layout_dump_full_and_inspect_candidates
+
+- id: layout_verify_dumpfile_not_found
+  stage: observe
+  signature:
+    includes: ["layout_verify failed", "dumpFile not found"]
+  diagnosis: >
+    The dumpFile path passed to layout_verify does not exist.
+    Likely the dump file was cleaned up, path was stale from a previous session, or never created.
+  fix_strategy: rerun_layout_dump_and_retry_verify
+  fix_scope: low
+  confidence_hint: 0.95
+  auto_apply: true
+  next_action_on_success: retry_layout_verify_with_new_dumpfile
+  next_action_on_failure: switch_to_live_query_mode
+
+- id: layout_verify_unsupported_property_dumpfile
+  stage: observe
+  signature:
+    includes: ["layout_verify failed", "unsupported property in dumpFile mode"]
+  diagnosis: >
+    The requested property (e.g. textSizeSp) is not available in dumpFile mode.
+    Must use live query mode (omit dumpFile parameter) for this property.
+  fix_strategy: retry_without_dumpfile_for_live_query
+  fix_scope: low
+  confidence_hint: 0.98
+  auto_apply: true
+  next_action_on_success: verify_passes_in_live_mode
+  next_action_on_failure: ask_user_for_alternative_property
 ```

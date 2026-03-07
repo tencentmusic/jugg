@@ -82,6 +82,7 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 - Purpose: assert a UI element property or check a spatial relation between two elements without parsing raw layout JSON.
 - Required input: `projectDir`, `target` (selector with `resourceId`/`text`/`contentDesc`/`className`), plus either `assert` or `relation`.
 - Optional input: `dumpFile` (path from a previous `layout_dump`). When provided, verification runs entirely from the JSON file with no extra App communication (preferred). Omit `dumpFile` for live query mode (needed for properties not in dump such as `textSizeSp`).
+- **Matching strategy (dumpFile mode)**: when multiple elements match the `target` selector, dumpFile mode silently uses the **first match** (unlike `tap` element mode which returns ERROR on multiple matches). To ensure precision, provide the most specific selector combination (prefer `resourceId`; add `className` when `text` alone may match multiple nodes).
 
 ### Assert Mode (`assert`)
 
@@ -93,6 +94,11 @@ Single-element property check. Fields:
 | `op` | string | `eq` (default) / `gte` / `lte` / `gt` / `lt` / `contains` / `matches` |
 | `value` | any | Expected value |
 | `unit` | string | `dp` or `px` (default `px`) for numeric bounds/padding properties |
+
+Assert does not have a built-in `tolerance` field (unlike `relation.spacing`). To verify approximate numeric values, combine two calls:
+- `layout_verify(assert={property:"bounds.height", op:"gte", value:215, unit:"dp"})` AND
+- `layout_verify(assert={property:"bounds.height", op:"lte", value:225, unit:"dp"})`
+This is the recommended approach for "approximately X ± N" checks on single-element properties.
 
 Supported properties:
 
@@ -225,11 +231,12 @@ Prefer lightweight first: `activity_stack` -> `layout_dump` -> `screenshot`. Add
 For static UI acceptance checks with single-page target:
 
 1. Run Target Page Context Gate.
-2. Use one `layout_dump` for selector confirmation.
-3. Capture one final `screenshot`.
-4. Skip recording unless task explicitly needs temporal evidence.
+2. Use one `layout_dump` to obtain `data.file` path and confirm target nodes exist.
+3. Run `layout_verify(dumpFile=<path>, ...)` for all property/relation acceptance checks (follows §UI Verification Protocol).
+4. Capture one final `screenshot` as visual proof after all verify checks pass.
+5. Skip recording unless task explicitly needs temporal evidence.
 
-This profile avoids repeated screenshots on wrong pages and reduces runtime/tool overhead.
+This profile avoids repeated screenshots on wrong pages, eliminates manual JSON parsing, and reduces runtime/tool overhead.
 
 ## Interaction Proof Profile
 
