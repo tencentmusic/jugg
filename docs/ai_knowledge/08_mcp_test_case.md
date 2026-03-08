@@ -205,31 +205,31 @@
 ### 布局验证（layout_verify）
 
 > 本小节测试新增的 `layout_verify` 工具。需要设备连接且 App 在前台运行。
-> 前置：默认直接 `layout_verify`（自动快照）；仅在历史回放场景显式传 `dumpFile`。
+> 前置：默认直接 `layout_verify`（自动快照）。所有数值类属性始终以 dp 为单位（无需传 `unit`）。
 
-**VERIFY-1: 默认自动快照 - asserts exists**
-调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<已知存在的 id>"}`、`asserts: [{property: "exists"}]`。验证返回 `status` 为 `OK`，`data.result` 为 `PASS`。
+**VERIFY-1: 默认自动快照 - checks exists**
+调用 `layout_verify`，传入 `projectDir`、`checks: [{target: {resourceId: "<已知存在的 id>"}, type: "property", property: "exists"}]`。验证返回 `status` 为 `OK`，`data.result` 为 `PASS`。
 
 **VERIFY-2: 默认自动快照 - 单断言文本**
-调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<已知 TextView id>"}` 和 `asserts: [{property: "text", op: "eq", value: "<已知文本>"}]`。验证返回 `data.result` 为 `PASS`。
+调用 `layout_verify`，传入 `projectDir` 和 `checks: [{target: {resourceId: "<已知 TextView id>"}, type: "property", property: "text", op: "eq", value: "<已知文本>"}]`。验证返回 `data.result` 为 `PASS`。
 
 **VERIFY-3: 批量断言聚合**
-调用 `layout_verify`，传入 `projectDir`、`target` 与 `asserts`（混合一个 PASS 一个 FAIL）。验证返回 `data.result` 为 `PARTIAL_FAIL`，且 `data.items` 有两项明细。
+调用 `layout_verify`，传入 `projectDir` 与 `checks`（混合一个 PASS 一个 FAIL，且每条 check 自带 `target`）。验证返回 `data.result` 为 `PARTIAL_FAIL`，且 `data.checkResults` 有两项明细。
 
 **VERIFY-4: live query 自动切换 - textSizeSp**
-调用 `layout_verify`，不传 `dumpFile`，传入 `projectDir`、`target` 和 `asserts: [{property: "textSizeSp", op: "gte", value: "12"}]`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。
+调用 `layout_verify`，传入 `projectDir` 和 `checks: [{target: {resourceId: "<已知 TextView id>"}, type: "property", property: "textSizeSp", op: "gte", value: "12"}]`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。`textSizeSp` 属性会自动切换到 live query 模式。
 
-**VERIFY-5: relations 单项 spacing**
-调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<id_1>"}` 和 `relations: [{target2: {resourceId: "<id_2>"}, type: "spacing", direction: "vertical", expected: 16, unit: "dp", tolerance: 4}]`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。
+**VERIFY-5: checks 单项 spacing**
+调用 `layout_verify`，传入 `projectDir` 和 `checks: [{target: {resourceId: "<id_1>"}, target2: {resourceId: "<id_2>"}, type: "spacing", direction: "vertical", expected: 16, tolerance: 4}]`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。所有数值始终为 dp。
 
 **VERIFY-6: 元素未找到**
-调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "non_existent_element_xyz"}` 和 `asserts: [{property: "exists"}]`。验证返回 `status` 为 `ERROR`，`data.result` 为 `ERROR`，`data.candidates` 列出近似匹配且包含 `score/reason`。
+调用 `layout_verify`，传入 `projectDir` 和 `checks: [{target: {resourceId: "non_existent_element_xyz"}, type: "property", property: "exists"}]`。验证返回 `status` 为 `ERROR`，`data.result` 为 `ERROR`，`data.candidates` 列出近似匹配且包含 `score/reason`。
 
-**VERIFY-7: asserts 与 relations 同时执行**
-调用 `layout_verify`，同时传入 `asserts` 和 `relations`（均为合法值），验证返回 `data.items` 同时包含两类检查结果，`data.result` 为聚合值（可能 PASS/PARTIAL_FAIL/FAIL）。
+**VERIFY-7: 多类型 checks 同时执行**
+调用 `layout_verify`，同一次请求在 `checks` 中同时包含 property 与 relation 类型（均为合法值），验证返回 `data.checkResults` 同时包含两类检查结果，`data.result` 为聚合值（可能 PASS/PARTIAL_FAIL/FAIL）。
 
-**VERIFY-8: 缺少 asserts 和 relations**
-调用 `layout_verify`，传入 `projectDir` 和 `target`，不传 `asserts` 也不传 `relations`，验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
+**VERIFY-8: 缺少 checks**
+调用 `layout_verify`，仅传入 `projectDir`，不传 `checks`，验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
 
 ---
 
@@ -436,7 +436,7 @@
 调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 **NODEV-11a: 无设备 - layout_verify (live 模式)**
-调用 `layout_verify`，传入有效 `projectDir`、`target: {resourceId: "any_id"}` 和 `asserts: [{property: "exists"}]`，不传 `dumpFile`（自动快照/实时都需设备），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+调用 `layout_verify`，传入有效 `projectDir` 和 `checks: [{target: {resourceId: "any_id"}, type: "property", property: "exists"}]`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`（自动快照/实时都需设备）。
 
 **NODEV-12: 无设备 - activity_stack**
 调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。

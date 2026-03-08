@@ -258,7 +258,6 @@ public class LayoutVerifierTest {
         relation.put("direction", "vertical");
         relation.put("expected", 20);
         relation.put("tolerance", 5);
-        relation.put("unit", "dp");
         params.put("relation", relation);
 
         JSONObject response = verifier.verify(params);
@@ -282,7 +281,6 @@ public class LayoutVerifierTest {
         assertObj.put("property", "bounds.height");
         assertObj.put("op", "eq");
         assertObj.put("value", 20);
-        assertObj.put("unit", "dp");
         assertObj.put("tolerance", 5);
 
         JSONObject params = new JSONObject();
@@ -438,7 +436,6 @@ public class LayoutVerifierTest {
         relation.put("direction", "vertical");
         relation.put("expected", 220);
         relation.put("tolerance", 5);
-        relation.put("unit", "dp");
         params.put("relation", relation);
 
         JSONObject response = verifier.verify(params);

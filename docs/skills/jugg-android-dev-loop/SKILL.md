@@ -39,8 +39,7 @@ Intent -> reference file mapping:
 
 - compile, deploy, or handle compile/deploy failure -> `references/tool_cards_build_deploy.md`
 - interact with running app or collect runtime evidence (tap, layout, screenshot, recording) -> `references/tool_cards_runtime_observe.md`
-- verify UI element properties or spatial relations via `layout_verify` (bounds, text, visibility, spacing, alignment, containment, order, overlap) -> `references/tool_cards_runtime_observe.md`
-- convert design intent, screenshot annotation, or Figma spec into `layout_verify` assertions (mapping, pitfalls, examples) -> `references/guide_layout_verify_assertion.md`
+- verify UI properties/relations OR convert design intent into layout_verify assertions -> `references/tool_cards_runtime_observe.md` + `references/guide_layout_verify_assertion.md` (load both)
 - device/project context problem (`MCP_NO_DEVICE`, `MCP_PROJECT_NOT_INITIALIZED`, crash, unknown runtime state) -> `references/tool_cards_troubleshoot.md`
 - changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
 - match a specific error message/errorCode to a known fix -> `references/error_patterns.md`
@@ -84,7 +83,9 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
 - `projectDir`: use current working directory by default.
 - Max autonomous retries for same failure category: `3`.
 - Never claim success without artifact evidence.
-- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. Default flow is `layout_verify` without `dumpFile` (auto snapshot) → `screenshot`. Pass `dumpFile` only when running ≥5 assertions on the same snapshot (batch efficiency) or replaying a historical state (details in `references/tool_cards_runtime_observe.md` §UI Verification Protocol).
+  - **UI verification tasks**: require screenshot or recording artifact as evidence.
+  - **compile_only tasks** (no UI verification): `status=OK` with `isFinal=true` and `logPath` is sufficient evidence; screenshot/recording is not required.
+- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. Default flow is `layout_verify` (auto snapshot) → `screenshot`. All numeric values (bounds/padding/spacing) are always in dp — no `unit` parameter needed.
 - Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
 - Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.

@@ -79,93 +79,27 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 
 ## `layout_verify`
 
-- Purpose: assert a UI element property or check a spatial relation between two elements without parsing raw layout JSON.
-- Required input: `projectDir`, `target` (selector with `resourceId`/`text`/`contentDesc`/`className`), plus `asserts` and/or `relations`.
-- Optional input: `dumpFile` (historical snapshot path). If omitted, tool defaults to auto snapshot mode.
-- **Matching strategy (dumpFile mode)**: when multiple elements match the `target` selector, dumpFile mode silently uses the **first match** (unlike `tap` element mode which returns ERROR on multiple matches). To ensure precision, provide the most specific selector combination (prefer `resourceId`; add `className` when `text` alone may match multiple nodes).
+- Purpose: assert element properties or spatial relations without parsing raw JSON.
+- Required: `projectDir`, `target` selector, non-empty `checks`.
+- Multi-match: silently picks first match. Prefer `resourceId`; add `className` to narrow.
+- Schema details (fields, enums, descriptions) are in the MCP tool definition. See `guide_layout_verify_assertion.md` for design→assertion mapping and pitfalls.
 
-### Assert Mode (`asserts`)
+Key points not in schema:
+- `textColor`: dump may omit black (`#FF000000`).
+- `alpha`: only `eq`/`gte`/`lte` reliable; `gt`/`lt`/`neq` silently approximate.
+- `textSizeSp`: live-only, auto-switches.
+- `backgroundColor`/`maxLines`/`ellipsize`: not supported.
 
-Single-element property checks in batch. Fields:
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `property` | string | See table below |
-| `op` | string | `eq` (default) / `gte` / `lte` / `gt` / `lt` / `contains` / `matches` |
-| `value` | any | Expected value |
-| `unit` | string | `dp` or `px` (default `px`) for numeric bounds/padding properties |
-
-`asserts` does not have a built-in `tolerance` field (unlike `relations[].spacing`). To verify approximate numeric values, combine `gte` + `lte` assertions:
-- `layout_verify(asserts=[{property:"bounds.height", op:"gte", value:215, unit:"dp"}])` AND
-- `layout_verify(asserts=[{property:"bounds.height", op:"lte", value:225, unit:"dp"}])`
-This is the recommended approach for "approximately X ± N" checks on single-element properties.
-
-Supported properties:
-
-| Property | Availability | Notes |
-|----------|-------------|-------|
-| `exists` | dumpFile + live | Always PASS when target is found |
-| `visibility` | dumpFile + live | `visible` / `invisible` / `gone` |
-| `clickable` | dumpFile + live | Boolean |
-| `enabled` | dumpFile + live | Boolean |
-| `text` | dumpFile + live | String |
-| `textColor` | dumpFile + live | `#AARRGGBB` hex; dumpFile requires `textColor != black` in dump |
-| `alpha` | dumpFile + live | Float 0.0–1.0 |
-| `bounds.width` / `bounds.height` | dumpFile + live | px or dp |
-| `bounds.left` / `bounds.top` / `bounds.right` / `bounds.bottom` | dumpFile + live | px or dp |
-| `padding.left` / `padding.top` / `padding.right` / `padding.bottom` | dumpFile + live | px or dp |
-| `textSizeSp` | **live only** | sp; not stored in dump JSON |
-
-### Relation Mode (`relations`)
-
-Two-element spatial/structural checks in batch. Each `relations[i]` requires `target2`. Fields:
-
-| Field | Values | Notes |
-|-------|--------|-------|
-| `target2` | selector object | required |
-| `type` | `spacing` / `alignment` / `overlap` / `containment` / `order` | |
-| `direction` | `vertical` / `horizontal` | Required for spacing / alignment / order |
-| `expected` | number | Expected gap (for spacing) |
-| `tolerance` | number | Allowed deviation (for spacing, default 0) |
-| `unit` | `dp` / `px` | For spacing |
-
-Relation semantics:
-- `spacing`: gap between outer edges of the two elements in the given direction.
-- `alignment`: centers aligned on the axis perpendicular to `direction` (tolerance ±2px).
-- `overlap`: PASS when no overlap exists.
-- `containment`: PASS when `target` is fully inside `target2`.
-- `order`: PASS when `target` appears before `target2` in the given direction.
-
-### Result
-
-- `status: OK` → `data.result=PASS`; otherwise `status: ERROR`.
-- `data.result`: `PASS` / `PARTIAL_FAIL` / `FAIL` / `ERROR`.
-- `data.message`: aggregated summary.
-- `data.items[]`: each item contains `index/result/message`.
-- Target not found includes `data.candidates[]` with `score/reason`.
+Result: `data.result` = `PASS`/`PARTIAL_FAIL`/`FAIL`/`ERROR`. `data.checkResults[]` per item. Target not found returns `data.candidates[]`.
 
 ### UI Verification Protocol (Auto-First)
 
-For precise acceptance checks, default to **auto snapshot mode** (no `dumpFile`). This reduces agent cognitive load — no need to manage dump file paths between calls.
+1. `layout_verify(...)` → auto snapshot per call (default).
+2. `screenshot` → visual proof after checks pass.
 
-1. `layout_verify(...)` without `dumpFile` → auto snapshot per call (default).
-2. `screenshot` → visual proof after verify checks pass.
+Live query auto-switches for `textSizeSp`.
 
-Switch to **explicit dump mode** only when:
-- **Batch efficiency**: ≥5 assertions on the same page state — `layout_dump` once, then `layout_verify(dumpFile=<path>, ...)` for all checks to avoid repeated snapshots.
-- **Historical replay**: reproducing or comparing a previously captured state (e.g., before/after interaction comparison with two dump files).
-
-Use live query only for live-only properties (`textSizeSp`), which switches automatically.
-
-## Tool Description Migration (UI Observe Stage Only)
-
-Keep MCP tool schema descriptions concise. Put guidance and strategy in this file instead of MCP schema text.
-
-- `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `isAllWindows`.
-- `layout_verify` (compact): batch assert/relation from auto snapshot (default), explicit dump replay, or live query; returns aggregated result with array items.
-- `tap` (compact): perform `tap` / `longPress` / `swipe` with coordinate, percent, or element mode; mode priority is `coordinate > percent > element`.
-
-### Subtree Scoping Strategy (Mandatory for complex pages)
+## Subtree Scoping Strategy (for complex pages)
 
 When interacting with a specific area (e.g., a dialog, a settings section, a list item detail):
 
@@ -196,28 +130,9 @@ When interacting with a specific area (e.g., a dialog, a settings section, a lis
 
 ### Image Scaling Warning
 
-The returned screenshot image **may be scaled down** (long edge capped to 1440px, JPEG compressed) to reduce upload size. When scaling occurs, `message` reports the original and output dimensions with scale ratio, e.g. `scaled from 2960x1440 to 1440x702, ratio=0.49`.
+Screenshot may be scaled down (long edge ≤ 1440px). Pixel coordinates do **NOT** map to device coords. Never derive `tap(x,y)` from screenshot pixels.
 
-**Critical**: pixel coordinates in the scaled image do **NOT** correspond to device screen coordinates. Never calculate `tap(x, y)` positions by measuring pixels in a screenshot.
-
-Correct alternatives:
-- **Preferred**: `layout_dump` + element mode `tap` (by `resourceId`/`text`/`contentDesc`).
-- **Fallback**: `layout_dump` + coordinate mode `tap` (derive from `bounds` in layout JSON).
-- **Last resort**: percent mode `tap` (`xPercent`/`yPercent`) which auto-resolves screen size.
-
-### Percent Mode After Screenshot (Last Resort Only)
-
-When ViewHierarchy is unavailable and percent mode tap must be used:
-
-- **Correct**: visually estimate where the target element sits as a fraction of the image dimensions.
-  - Example: button appears roughly 30% from the left edge and 60% from the top → `xPercent=30, yPercent=60`.
-- **Wrong**: dividing image pixel coordinates by device screen resolution. The image may be scaled (non-integer ratio), so pixel math produces incorrect results.
-
-Estimation approach:
-1. Look at the screenshot image as a whole rectangle.
-2. Estimate the horizontal distance from the left edge to the element center, divided by total image width → `xPercent`.
-3. Estimate the vertical distance from the top edge to the element center, divided by total image height → `yPercent`.
-4. These ratios are device-resolution-independent and map correctly regardless of scaling.
+Correct: `layout_dump` + element/coordinate tap. Last resort: percent tap (`xPercent`/`yPercent`) estimated visually as fraction of image dimensions.
 
 ## `start_record` / `stop_record`
 
@@ -235,8 +150,7 @@ Prefer lightweight first: `activity_stack` -> `layout_dump` -> `screenshot`. Add
 For static UI acceptance checks with single-page target:
 
 1. Run Target Page Context Gate.
-2. Run `layout_verify(...)` without `dumpFile` for each acceptance check (auto snapshot mode — simplest path, no dump management needed).
-   - **Batch optimization**: when ≥5 checks target the same page state, use one `layout_dump` to obtain `data.file`, then `layout_verify(dumpFile=<path>, ...)` for all checks to avoid repeated snapshots.
+2. Run `layout_verify(...)` for each acceptance check (auto snapshot mode — simplest path, no dump management needed). All numeric values are always in dp.
 3. Capture one final `screenshot` as visual proof after all verify checks pass.
 4. Skip recording unless task explicitly needs temporal evidence.
 

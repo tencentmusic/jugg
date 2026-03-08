@@ -1,305 +1,138 @@
-# Guide: Converting Design Intent to layout_verify Assertions
+# Guide: Design Intent → layout_verify Assertions
 
-Use this file when you need to translate a design spec (screenshot annotation, Figma structure, or natural-language requirement) into `layout_verify` calls. This guide covers:
+> For schema, supported properties, and result format, see `tool_cards_runtime_observe.md §layout_verify`.
 
-1. Design intent → property/relation mapping table
-2. Critical pitfalls
-3. Few-shot examples (input → correct JSON)
+## 1. Mapping Tables
 
----
+### 1.1 Properties (`type: property`)
 
-## 1. Design Intent → layout_verify Mapping Table
+| Design Intent | `property` | `op` | `value` | Notes |
+|---------------|-----------|------|---------|-------|
+| Text is "Login" | `text` | `eq` | `"Login"` | |
+| Text contains "MCP" | `text` | `contains` | `"MCP"` | |
+| Text matches regex | `text` | `matches` | `"Waiting.*done"` | Java regex |
+| Element exists | `exists` | — | — | |
+| Visible / invisible / gone | `visibility` | `eq` | `"visible"` | |
+| Width ≈ 200dp ± 5 | `bounds.width` | `gte`+`lte` | `195`/`205` | ⚠️ Pitfall #1 |
+| Color = blue | `textColor` | `eq` | `"#FF1976D2"` | ⚠️ Must #AARRGGBB |
+| Color ≠ white | `textColor` | `neq` | `"#FFFFFFFF"` | |
+| backgroundColor | — | — | — | ❌ Not supported; use screenshot |
+| Font size = 20sp | `textSizeSp` | `eq` | `20` | ⚠️ Live-only |
+| Clickable / enabled | `clickable` | `eq` | `true` | Boolean |
+| Alpha | `alpha` | `eq` | `1.0` | ⚠️ Only eq/gte/lte reliable |
+| Padding left = 16dp | `padding.left` | `eq` | `16` | |
 
-### 1.1 Single-Element Properties (`asserts`)
+### 1.2 Relations
 
-| Design Intent | `property` | `op` | `value` format | `unit` | Notes |
-|---------------|-----------|------|----------------|--------|-------|
-| Text content is "Login" | `text` | `eq` | `"Login"` | — | Exact match; default op is `eq` |
-| Text contains "MCP" | `text` | `contains` | `"MCP"` | — | Substring match |
-| Text matches pattern | `text` | `matches` | `"Waiting.*done"` | — | Java regex |
-| Element exists | `exists` | — | — | — | PASS if target found; no `value` needed |
-| Visible | `visibility` | `eq` | `"visible"` | — | Values: `visible` / `invisible` / `gone` |
-| Hidden but occupies space | `visibility` | `eq` | `"invisible"` | — | `invisible` ≠ `gone` |
-| Width = 200dp | `bounds.width` | `eq` | `200` | `dp` | **Must** specify `unit:"dp"` |
-| Width ≈ 200dp ± 5 | `bounds.width` | `gte` + `lte` | `195` / `205` | `dp` | Two asserts in one call; see §2 Pitfall #1 |
-| Height > 0px | `bounds.height` | `gt` | `0` | `px` | `px` is default, can omit `unit` |
-| Top position < 500px | `bounds.top` | `lt` | `500` | — | — |
-| Clickable | `clickable` | `eq` | `true` | — | Boolean |
-| Enabled | `enabled` | `eq` | `true` | — | Boolean |
-| Alpha = 1.0 | `alpha` | `eq` | `1.0` | — | Float 0.0–1.0 |
-| Text color = blue | `textColor` | `eq` | `"#FF1976D2"` | — | **Must** include alpha prefix `FF` |
-| Text color is NOT white | `textColor` | `neq` | `"#FFFFFFFF"` | — | Negative assertion with `neq` |
-| Background color (with alpha) | `backgroundColor` | `eq` | `"#1F88939B"` | — | Full `#AARRGGBB` format |
-| Font size = 20sp | `textSizeSp` | `eq` | `20` | — | **Live only**; do NOT pass `dumpFile` |
-| Padding left = 16dp | `padding.left` | `eq` | `16` | `dp` | Also: `padding.top` / `.right` / `.bottom` |
+| Design Intent | `type` | `direction` | Extra | Notes |
+|---------------|--------|-------------|-------|-------|
+| Gap ≈ 16dp ± 4 | `spacing` | `vertical`/`horizontal` | `expected:16, tolerance:4` | tolerance only here |
+| Horizontally centered | `alignment` | `vertical` | — | ⚠️ vertical → checks **X**-center |
+| Vertically centered | `alignment` | `horizontal` | — | ⚠️ horizontal → checks **Y**-center |
+| A above B | `order` | `vertical` | — | target=A, target2=B |
+| A inside B | `containment` | — | — | ⚠️ target=child, target2=parent |
+| No overlap | `overlap` | — | — | ⚠️ PASS = **no** overlap |
 
-### 1.2 Two-Element Relations (`relations`)
+### 1.3 Figma → layout_verify
 
-| Design Intent | `type` | `direction` | Extra fields | Notes |
-|---------------|--------|-------------|-------------|-------|
-| Vertical gap ≈ 16dp ± 4dp | `spacing` | `vertical` | `expected:16, tolerance:4, unit:"dp"` | `tolerance` **only** works in relations, not asserts |
-| Horizontal gap = 8dp | `spacing` | `horizontal` | `expected:8, tolerance:0, unit:"dp"` | — |
-| Two elements horizontally centered | `alignment` | `horizontal` | — | Checks X-center alignment (perpendicular axis) |
-| Two elements vertically centered | `alignment` | `vertical` | — | Checks Y-center alignment |
-| A is above B | `order` | `vertical` | — | target=A, target2=B |
-| A is left of B | `order` | `horizontal` | — | target=A, target2=B |
-| A is inside B | `containment` | — | — | target=child, target2=parent |
-| No overlap between A and B | `overlap` | — | — | PASS = no overlap |
-
-### 1.3 Figma / Screenshot Property → layout_verify
-
-| Figma / Screenshot Concept | layout_verify Expression | Notes |
-|---------------------------|------------------------|-------|
-| `fontSize: 20` | `textSizeSp`, live only | Do NOT pass `dumpFile` |
-| `color: #1976D2` | `textColor: "#FF1976D2"` | Prepend `FF` for full opacity |
-| `opacity: 0.5` | `alpha: 0.5` | View-level alpha |
-| `background: rgba(136,147,155,0.12)` | `backgroundColor: "#1F88939B"` | Convert rgba → `#AARRGGBB` |
-| `gap: 16` (between siblings) | `relation.spacing` | Use tolerance for ±N |
-| `width: 200` / `height: 48` | `bounds.width` / `bounds.height` | Specify `unit:"dp"` |
-| `padding: 16 12` | `padding.top:16, padding.left:12` etc. | Each side is a separate assert |
-| `align: center` (horizontal) | `relation.alignment, direction:"horizontal"` | See §2 Pitfall #3 |
-| `display: none` | `visibility: "gone"` | Figma hidden = Android `gone` |
-| Element name / layer ID | `target.resourceId` | Requires Figma→Android ID mapping |
+| Figma Concept | Expression | Notes |
+|--------------|-----------|-------|
+| `color: #1976D2` | `textColor: "#FF1976D2"` | Prepend `FF` |
+| `fontSize: 20` | `textSizeSp` | Live-only |
+| `background: rgba(...)` | ❌ | Screenshot fallback |
+| `gap: 16` | `type=spacing` | |
+| `align: center` (horiz) | `alignment, direction:"vertical"` | Pitfall #3 |
+| `display: none` | `visibility: "gone"` | |
 
 ---
 
-## 2. Critical Pitfalls
+## 2. Pitfalls
 
-### Pitfall #1: `asserts` has NO `tolerance` field
+### #1: No tolerance in type=property
 
-**Wrong** (will be ignored or cause error):
-```json
-{ "asserts": [{ "property": "bounds.height", "op": "eq", "value": 220, "tolerance": 5, "unit": "dp" }] }
-```
+❌ `{ "type":"property", "property":"bounds.height", "value":220, "tolerance":5 }`
+✅ Use two checks: `op:"gte", value:215` + `op:"lte", value:225`
 
-**Correct** — use `gte` + `lte` in a single call:
-```json
-{
-  "asserts": [
-    { "property": "bounds.height", "op": "gte", "value": 215, "unit": "dp" },
-    { "property": "bounds.height", "op": "lte", "value": 225, "unit": "dp" }
-  ]
-}
-```
+### #2: All numeric values are dp
 
-`tolerance` is **only** available in `relations[].type="spacing"`.
+Auto px→dp conversion. If spec gives px: `dp = px / density`.
 
-### Pitfall #2: Omitting `unit: "dp"` when value is in dp
+### #3: alignment.direction is counter-intuitive
 
-All numeric bounds/padding values default to **px**. If your design spec uses dp, you **must** pass `unit: "dp"`.
+- `direction:"vertical"` → checks **X**-center (horizontal centering)
+- `direction:"horizontal"` → checks **Y**-center (vertical centering)
 
-**Wrong**: `{ "property": "bounds.width", "op": "eq", "value": 200 }` — compares against px.
+### #4: textColor must be #AARRGGBB
 
-**Correct**: `{ "property": "bounds.width", "op": "eq", "value": 200, "unit": "dp" }`.
+`#1976D2` → `"#FF1976D2"`. `rgba(136,147,155,0.12)` → `"#1F88939B"`.
 
-### Pitfall #3: `alignment.direction` semantics are counter-intuitive
+### #5: Black textColor may be omitted in dump
 
-- `direction: "horizontal"` → checks that X-centers are aligned (both elements are **horizontally centered** with each other).
-- `direction: "vertical"` → checks that Y-centers are aligned (both elements are **vertically centered** with each other).
+Dump omits `#FF000000`. Use live query if asserting black.
 
-The direction names the **axis of alignment**, not the arrangement of elements.
+### #6: textSizeSp is live-only
 
-### Pitfall #4: Color values must be full `#AARRGGBB`
+Auto-switches to live query when used.
 
-- Design spec says `#1976D2` → layout_verify needs `"#FF1976D2"` (prepend `FF` for full opacity).
-- Design spec says `rgba(136,147,155,0.12)` → convert to `"#1F88939B"` (alpha `0x1F` ≈ 12%).
-- **Never** pass 6-digit hex `#RRGGBB` without the alpha prefix.
+### #7: Mix property + relation in one checks[]
 
-### Pitfall #5: `textColor` black may not exist in dumpFile mode
+Batch both types in a single call.
 
-In dump JSON, black (`#FF000000`) textColor is often **omitted** as a default. If you need to assert black textColor, use **live query mode** (omit `dumpFile`).
+### #8: Multi-match picks first silently
 
-### Pitfall #6: `textSizeSp` is live-only
+Prefer `resourceId`. Add `className` to narrow `text` matches.
 
-`textSizeSp` is **not stored** in dump JSON. You **must not** pass `dumpFile` when asserting `textSizeSp`. The tool auto-switches to live query when `dumpFile` is omitted.
+### #9: backgroundColor not supported
 
-### Pitfall #7: `asserts` and `relations` can coexist in one call
+Use `screenshot` + visual comparison as fallback.
 
-A single `layout_verify` call can contain **both** `asserts` (single-element checks) and `relations` (two-element checks). They are not mutually exclusive. Use this to batch multiple checks in one call for efficiency.
+### #10: alpha only supports eq/gte/lte
 
-### Pitfall #8: Multi-match in dumpFile mode is silent
-
-When `target` selector matches multiple elements, dumpFile mode silently picks the **first match**. To ensure you verify the right element:
-- Prefer `resourceId` (unique).
-- If using `text`, add `className` to narrow down.
-- If verifying a specific occurrence, use `resourceId` instead of `text`.
+`gt`/`lt`/`neq` silently behave as approximate `eq`. Use `gte`/`lte` for ranges.
 
 ---
 
-## 3. Few-Shot Examples
+## 3. Examples
 
-### Example 1: Verify button text and clickability
-
-**Design intent**: "Login" button should display "Login" and be clickable.
-
+### Ex1: Property checks (text + clickable)
 ```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "dumpFile": "<dumpFile>",
-  "target": { "resourceId": "btn_login" },
-  "asserts": [
-    { "property": "text", "op": "eq", "value": "Login" },
-    { "property": "clickable", "op": "eq", "value": true }
-  ]
-})
+{ "checks": [
+    { "type":"property", "property":"text", "value":"Login" },
+    { "type":"property", "property":"clickable", "value":true }
+]}
 ```
 
-### Example 2: Verify element height ≈ 220dp ± 5dp
+### Ex2: Approximate height (Pitfall #1)
 
-**Design intent**: Scrollable area height should be approximately 220dp.
+❌ `{ "type":"property", "property":"bounds.height", "value":220, "tolerance":5 }`
 
+✅ `{ "checks": [{ "type":"property", "property":"bounds.height", "op":"gte", "value":215 }, { "type":"property", "property":"bounds.height", "op":"lte", "value":225 }] }`
+
+### Ex3: Spacing
 ```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "dumpFile": "<dumpFile>",
-  "target": { "resourceId": "sv_scroll_area" },
-  "asserts": [
-    { "property": "bounds.height", "op": "gte", "value": 215, "unit": "dp" },
-    { "property": "bounds.height", "op": "lte", "value": 225, "unit": "dp" }
-  ]
-})
+{ "checks": [{ "target2":{"resourceId":"btn_first"}, "type":"spacing", "direction":"vertical", "expected":16, "tolerance":4 }] }
 ```
 
-### Example 3: Verify vertical spacing between two buttons
-
-**Design intent**: Gap between title and first button is 16dp ± 4dp.
-
+### Ex4: Alignment (Pitfall #3)
 ```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "dumpFile": "<dumpFile>",
-  "target": { "resourceId": "tv_title" },
-  "relations": [
-    {
-      "target2": { "resourceId": "btn_first" },
-      "type": "spacing",
-      "direction": "vertical",
-      "expected": 16,
-      "tolerance": 4,
-      "unit": "dp"
-    }
-  ]
-})
+{ "checks": [{ "target2":{"resourceId":"btn_b"}, "type":"alignment", "direction":"vertical" }] }
+```
+`direction:"vertical"` = checks X-center alignment.
+
+### Ex5: Color #AARRGGBB (Pitfall #4)
+```json
+{ "checks": [
+    { "type":"property", "property":"textColor", "value":"#FF1976D2" },
+    { "type":"property", "property":"textColor", "op":"neq", "value":"#FFFFFFFF" }
+]}
 ```
 
-### Example 4: Verify horizontal center alignment
-
-**Design intent**: Two buttons should be horizontally centered with each other.
-
+### Ex6: Mixed property + relation
 ```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "dumpFile": "<dumpFile>",
-  "target": { "resourceId": "btn_a" },
-  "relations": [
-    {
-      "target2": { "resourceId": "btn_b" },
-      "type": "alignment",
-      "direction": "horizontal"
-    }
-  ]
-})
+{ "checks": [
+    { "type":"property", "property":"visibility", "value":"visible" },
+    { "type":"property", "property":"clickable", "value":true },
+    { "target2":{"resourceId":"btn_b"}, "type":"spacing", "direction":"vertical", "expected":12, "tolerance":3 },
+    { "target2":{"resourceId":"btn_b"}, "type":"order", "direction":"vertical" }
+]}
 ```
-
-### Example 5: Verify text color (ARGB) and negative assertion
-
-**Design intent**: Title text should be blue (#1976D2), NOT white.
-
-```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "dumpFile": "<dumpFile>",
-  "target": { "resourceId": "tv_title" },
-  "asserts": [
-    { "property": "textColor", "op": "eq", "value": "#FF1976D2" },
-    { "property": "textColor", "op": "neq", "value": "#FFFFFFFF" }
-  ]
-})
-```
-
-### Example 6: Verify font size (live query, no dumpFile)
-
-**Design intent**: Title font size should be 20sp.
-
-```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "target": { "resourceId": "tv_title" },
-  "asserts": [
-    { "property": "textSizeSp", "op": "eq", "value": 20 }
-  ]
-})
-```
-
-Note: **No `dumpFile`** — `textSizeSp` requires live query.
-
-### Example 7: Verify order + containment + no overlap
-
-**Design intent**: Icon is inside container, icon is left of label, and they don't overlap.
-
-```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "dumpFile": "<dumpFile>",
-  "target": { "resourceId": "iv_icon" },
-  "relations": [
-    {
-      "target2": { "resourceId": "layout_container" },
-      "type": "containment"
-    },
-    {
-      "target2": { "resourceId": "tv_label" },
-      "type": "order",
-      "direction": "horizontal"
-    },
-    {
-      "target2": { "resourceId": "tv_label" },
-      "type": "overlap"
-    }
-  ]
-})
-```
-
-### Example 8: Mixed asserts + relations in one call
-
-**Design intent**: Button A should be visible, clickable, AND positioned above Button B with 12dp gap.
-
-```json
-layout_verify({
-  "projectDir": "<projectDir>",
-  "dumpFile": "<dumpFile>",
-  "target": { "resourceId": "btn_a" },
-  "asserts": [
-    { "property": "visibility", "op": "eq", "value": "visible" },
-    { "property": "clickable", "op": "eq", "value": true }
-  ],
-  "relations": [
-    {
-      "target2": { "resourceId": "btn_b" },
-      "type": "spacing",
-      "direction": "vertical",
-      "expected": 12,
-      "tolerance": 3,
-      "unit": "dp"
-    },
-    {
-      "target2": { "resourceId": "btn_b" },
-      "type": "order",
-      "direction": "vertical"
-    }
-  ]
-})
-```
-
----
-
-## 4. Conversion Workflow
-
-When converting a design spec or screenshot annotation to `layout_verify` calls:
-
-1. **Identify target elements** — extract `resourceId` (preferred), `text`, or `contentDesc` for each element. If input is screenshot, you **must** have a `layout_dump` JSON to resolve IDs.
-2. **Classify each check** — single-element property (`asserts`) or two-element relation (`relations`)?
-3. **Map design values** — use §1 mapping table. Pay attention to unit (dp vs px), color format (#AARRGGBB), and live-only properties.
-4. **Check pitfalls** — review §2 before finalizing. Especially: no tolerance in asserts, dp unit required, ARGB format.
-5. **Batch where possible** — put multiple `asserts` and `relations` into a single call when they share the same `target`.
-6. **Split when targets differ** — separate calls for different `target` elements.

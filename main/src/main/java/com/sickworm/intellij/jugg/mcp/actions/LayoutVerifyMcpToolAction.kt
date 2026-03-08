@@ -25,10 +25,10 @@ import java.nio.charset.StandardCharsets
 
 /**
  * LayoutVerifyMcpToolAction verifies UI element properties or relations with
- * three internal modes:
- *  - explicit dump (`dumpFile` is provided)
- *  - auto dump (no `dumpFile`, default behavior)
- *  - live query (used when any assert property requires live-only data)
+ * two internal modes:
+ *  - auto dump (default behavior)
+ *  - live query (used when any property check requires live-only data)
+ * All numeric values (bounds, padding, spacing) are always in dp.
  */
 class LayoutVerifyMcpToolAction : McpToolAction {
     override val toolName: String = "layout_verify"
@@ -36,64 +36,25 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
         description = "Verify UI element properties or relations. " +
-            "When dumpFile is omitted, tool fetches the latest layout snapshot automatically. " +
-            "Use asserts/relations arrays for batch checks. " +
+            "Tool fetches the latest layout snapshot automatically. " +
+            "Use checks array for batch verification. All numeric values are in dp. " +
             "live-only properties (e.g. textSizeSp) are verified via live query automatically.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "dumpFile" to McpJsonSchemaProperty(
+                "checksFile" to McpJsonSchemaProperty(
                     type = "string",
-                    description = "Optional absolute path to a historical layout_dump JSON file.",
+                    description = "Optional absolute path to JSON file containing checks. Used when inline checks is omitted.",
                 ),
-                "target" to McpJsonSchemaProperty(
-                    type = "object",
-                    description = "Element selector for the primary target. At least one of resourceId/text/contentDesc/className required.",
-                    properties = mapOf(
-                        "resourceId" to McpJsonSchemaProperty(type = "string"),
-                        "text" to McpJsonSchemaProperty(type = "string"),
-                        "contentDesc" to McpJsonSchemaProperty(type = "string"),
-                        "className" to McpJsonSchemaProperty(type = "string"),
-                    ),
-                    additionalProperties = false,
-                ),
-                "asserts" to McpJsonSchemaProperty(
+                "checks" to McpJsonSchemaProperty(
                     type = "array",
-                    description = "Batch property assertions.",
+                    description = "Batch checks. All numeric values in dp.",
                     items = McpJsonSchemaProperty(
                         type = "object",
                         properties = mapOf(
-                            "property" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Property to check: exists/visibility/clickable/enabled/text/bounds.width/bounds.height/" +
-                                    "bounds.left/bounds.top/bounds.right/bounds.bottom/alpha/textColor/textSizeSp/padding.left/padding.top/padding.right/padding.bottom",
-                            ),
-                            "op" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Comparison operator: eq (default)/gte/lte/gt/lt/contains/matches/neq.",
-                                `enum` = listOf("eq", "neq", "gte", "lte", "gt", "lt", "contains", "matches"),
-                            ),
-                            "value" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Expected value. Numeric values can be passed as strings or numbers.",
-                            ),
-                            "unit" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Unit: dp or px.",
-                                `enum` = listOf("dp", "px"),
-                            ),
-                        ),
-                        additionalProperties = false,
-                    ),
-                ),
-                "relations" to McpJsonSchemaProperty(
-                    type = "array",
-                    description = "Batch relation checks. Each item must include target2 selector and relation fields.",
-                    items = McpJsonSchemaProperty(
-                        type = "object",
-                        properties = mapOf(
-                            "target2" to McpJsonSchemaProperty(
+                            "target" to McpJsonSchemaProperty(
                                 type = "object",
+                                description = "Element selector.",
                                 properties = mapOf(
                                     "resourceId" to McpJsonSchemaProperty(type = "string"),
                                     "text" to McpJsonSchemaProperty(type = "string"),
@@ -104,24 +65,54 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             ),
                             "type" to McpJsonSchemaProperty(
                                 type = "string",
-                                `enum` = listOf("spacing", "alignment", "overlap", "containment", "order"),
+                                description = "property: single-element check. spacing: gap (dp, supports expected+tolerance). " +
+                                    "alignment: center alignment (vertical→X-center, horizontal→Y-center). " +
+                                    "overlap: PASS=no overlap. containment: PASS=target inside target2. order: PASS=target before target2.",
+                                `enum` = listOf("property", "spacing", "alignment", "overlap", "containment", "order"),
+                            ),
+                            "property" to McpJsonSchemaProperty(
+                                type = "string",
+                                description = "For type=property. textColor uses #AARRGGBB (e.g. #FF1976D2). textSizeSp is live-only.",
+                            ),
+                            "op" to McpJsonSchemaProperty(
+                                type = "string",
+                                description = "Comparison operator. Default: eq.",
+                                `enum` = listOf("eq", "neq", "gte", "lte", "gt", "lt", "contains", "matches"),
+                            ),
+                            "value" to McpJsonSchemaProperty(
+                                type = "string",
+                                description = "Expected value. textColor: #AARRGGBB format.",
+                            ),
+                            "target2" to McpJsonSchemaProperty(
+                                type = "object",
+                                description = "Second element. containment: target=child, target2=parent.",
+                                properties = mapOf(
+                                    "resourceId" to McpJsonSchemaProperty(type = "string"),
+                                    "text" to McpJsonSchemaProperty(type = "string"),
+                                    "contentDesc" to McpJsonSchemaProperty(type = "string"),
+                                    "className" to McpJsonSchemaProperty(type = "string"),
+                                ),
+                                additionalProperties = false,
                             ),
                             "direction" to McpJsonSchemaProperty(
                                 type = "string",
+                                description = "For spacing/alignment/order. alignment: vertical→checks X-center, horizontal→checks Y-center.",
                                 `enum` = listOf("horizontal", "vertical"),
                             ),
-                            "expected" to McpJsonSchemaProperty(type = "number"),
-                            "tolerance" to McpJsonSchemaProperty(type = "number"),
-                            "unit" to McpJsonSchemaProperty(
-                                type = "string",
-                                `enum` = listOf("dp", "px"),
+                            "expected" to McpJsonSchemaProperty(
+                                type = "number",
+                                description = "Expected gap in dp. Only for type=spacing.",
+                            ),
+                            "tolerance" to McpJsonSchemaProperty(
+                                type = "number",
+                                description = "Deviation in dp. Only for type=spacing. NOT supported in type=property — use gte+lte instead.",
                             ),
                         ),
                         additionalProperties = false,
                     ),
                 ),
             ),
-            required = listOf("projectDir", "target"),
+            required = listOf("projectDir"),
             additionalProperties = false,
         ),
         outputSchema = McpToolSchemas.baseOutputSchema.copy(
@@ -131,7 +122,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                     properties = mapOf(
                         "result" to McpJsonSchemaProperty(type = "string", `enum` = listOf("PASS", "PARTIAL_FAIL", "FAIL", "ERROR")),
                         "message" to McpJsonSchemaProperty(type = "string"),
-                        "items" to McpJsonSchemaProperty(type = "array"),
+                        "checkResults" to McpJsonSchemaProperty(type = "array"),
                     ),
                     additionalProperties = true,
                 )
@@ -144,56 +135,49 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val logger = runtime.logger.getInstance("LayoutVerifyMcpToolAction")
 
         val dumpFile = arguments["dumpFile"] as? String
-        val target = arguments["target"] as? Map<String, Any?>
-        val asserts = (arguments["asserts"] as? List<*>)?.mapNotNull { it as? Map<String, Any?> }?.toMutableList()
-            ?: mutableListOf()
-        val relations = (arguments["relations"] as? List<*>)?.mapNotNull { it as? Map<String, Any?> }?.toMutableList()
-            ?: mutableListOf()
-        val legacyAssert = arguments["assert"] as? Map<String, Any?>
-        val legacyRelation = arguments["relation"] as? Map<String, Any?>
-        val legacyTarget2 = arguments["target2"] as? Map<String, Any?>
-        if (asserts.isEmpty() && legacyAssert != null) {
-            asserts.add(legacyAssert)
-        }
-        if (relations.isEmpty() && legacyRelation != null) {
-            val relationItem = legacyRelation.toMutableMap()
-            if (legacyTarget2 != null) {
-                relationItem["target2"] = legacyTarget2
+        val checksFile = arguments["checksFile"] as? String
+        val legacyTarget = arguments["target"] as? Map<String, Any?>
+        val inlineChecks = (arguments["checks"] as? List<*>)?.mapNotNull { it as? Map<String, Any?> } ?: emptyList()
+
+        val fileChecks = if (inlineChecks.isEmpty()) {
+            try {
+                loadChecksFromFile(checksFile)
+            } catch (e: IllegalArgumentException) {
+                return invalidParams(e.message ?: "layout_verify failed: invalid checksFile")
             }
-            relations.add(relationItem)
+        } else {
+            emptyList()
+        }
+        val checks = if (inlineChecks.isNotEmpty()) inlineChecks else fileChecks
+        if (checks.isEmpty()) {
+            return invalidParams("layout_verify failed: checks is required and must be non-empty")
+        }
+        if (checks.any { (it["type"] as? String).isNullOrBlank() }) {
+            return invalidParams("layout_verify failed: every check requires type")
+        }
+        if (checks.any { isPropertyCheck(it) && (it["property"] as? String).isNullOrBlank() }) {
+            return invalidParams("layout_verify failed: type=property check requires property")
+        }
+        val invalidTargetIndex = checks.indexOfFirst { !isValidSelector(resolveCheckTarget(it, legacyTarget) ?: emptyMap()) }
+        if (invalidTargetIndex >= 0) {
+            return invalidParams("layout_verify failed: check[${invalidTargetIndex + 1}] requires valid target")
+        }
+        if (checks.any { !isPropertyCheck(it) && !isValidSelector((it["target2"] as? Map<String, Any?>) ?: emptyMap()) }) {
+            return invalidParams("layout_verify failed: relation check requires valid target2 selector")
         }
 
-        if (target == null) {
-            return invalidParams("layout_verify failed: target is required")
-        }
-        if (!isValidSelector(target)) {
-            return invalidParams("layout_verify failed: target selector requires one of resourceId/text/contentDesc/className")
-        }
-        if (asserts.isEmpty() && relations.isEmpty()) {
-            return invalidParams("layout_verify failed: assert or relation is required (use arrays asserts/relations)")
-        }
-        if (asserts.isEmpty().not() && asserts.any { (it["property"] as? String).isNullOrBlank() }) {
-            return invalidParams("layout_verify failed: every assert requires property")
-        }
-        if (relations.any { (it["type"] as? String).isNullOrBlank() }) {
-            return invalidParams("layout_verify failed: every relation requires type")
-        }
-        if (relations.any { !isValidSelector((it["target2"] as? Map<String, Any?>) ?: emptyMap()) }) {
-            return invalidParams("layout_verify failed: every relation requires valid target2 selector")
-        }
-
-        val shouldUseLive = asserts.any { isLiveOnlyAssert(it) }
+        val shouldUseLive = checks.any { isLiveOnlyCheck(it) }
         if (!dumpFile.isNullOrBlank()) {
             return if (shouldUseLive) {
-                executeLiveQueryMode(runtime, target, asserts, relations, logger)
+                executeLiveQueryMode(runtime, checks, legacyTarget, logger)
             } else {
-                executeDumpFileMode(dumpFile, target, asserts, relations, logger)
+                executeDumpFileMode(dumpFile, checks, legacyTarget, logger)
             }
         }
         return if (shouldUseLive) {
-            executeLiveQueryMode(runtime, target, asserts, relations, logger)
+            executeLiveQueryMode(runtime, checks, legacyTarget, logger)
         } else {
-            executeAutoDumpMode(runtime, target, asserts, relations, logger)
+            executeAutoDumpMode(runtime, checks, legacyTarget, logger)
         }
     }
 
@@ -201,9 +185,8 @@ class LayoutVerifyMcpToolAction : McpToolAction {
 
     private fun executeAutoDumpMode(
         runtime: IMcpRuntime,
-        target: Map<String, Any?>,
-        asserts: List<Map<String, Any?>>,
-        relations: List<Map<String, Any?>>,
+        checks: List<Map<String, Any?>>,
+        legacyTarget: Map<String, Any?>?,
         logger: com.intellij.openapi.diagnostic.Logger,
     ): McpToolResult {
         val selected = resolveOnlineDevice(runtime) ?: return noDeviceResult()
@@ -215,7 +198,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 ?: return McpToolResult.internalErrorResult(toolName, "ViewHierarchy server is unavailable or returned invalid response")
             val autoDumpFile = saveAutoDumpFile(runtime, selected.adb, dumpResult)
                 ?: return McpToolResult.internalErrorResult(toolName, "failed to fetch layout dump from ViewHierarchy server")
-            executeDumpFileMode(autoDumpFile.absolutePath, target, asserts, relations, logger)
+            executeDumpFileMode(autoDumpFile.absolutePath, checks, legacyTarget, logger)
         } catch (e: Exception) {
             logger.warn("layout_verify auto dump mode failed: ${e.message}", e)
             McpToolResult.internalErrorResult(toolName, e.message ?: "unknown error")
@@ -224,9 +207,8 @@ class LayoutVerifyMcpToolAction : McpToolAction {
 
     private fun executeDumpFileMode(
         dumpFilePath: String,
-        target: Map<String, Any?>,
-        asserts: List<Map<String, Any?>>,
-        relations: List<Map<String, Any?>>,
+        checks: List<Map<String, Any?>>,
+        legacyTarget: Map<String, Any?>?,
         logger: com.intellij.openapi.diagnostic.Logger,
     ): McpToolResult {
         val file = File(dumpFilePath)
@@ -245,22 +227,31 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             val density = root.optDouble("deviceInfo", "density") ?: 1.0f.toDouble()
             val allNodes = collectAllNodes(root)
 
-            val targetNode = findNodeBySelector(allNodes, target)
-                ?: return errorResult("target not found: ${selectorDesc(target)}", buildCandidates(allNodes, target))
-
-            val assertItems = asserts.mapIndexed { index, assertItem ->
-                    val verifyResult = assertDumpNode(targetNode, assertItem, density)
-                    VerifyItem(index = index + 1, result = verifyResult.result, message = verifyResult.message)
-            }
-            val relationItems = relations.mapIndexed { index, relationItem ->
-                val t2Selector = relationItem["target2"] as? Map<String, Any?>
-                    ?: return invalidParams("layout_verify failed: relation.target2 required")
-                val target2Node = findNodeBySelector(allNodes, t2Selector)
-                    ?: return errorResult("target2 not found: ${selectorDesc(t2Selector)}", buildCandidates(allNodes, t2Selector))
-                val verifyResult = relationDumpNodes(targetNode, target2Node, relationItem, density)
+            val items = checks.mapIndexed { index, check ->
+                val targetSelector = resolveCheckTarget(check, legacyTarget)
+                    ?: return invalidParams("layout_verify failed: check[${index + 1}] requires valid target")
+                val targetNode = findNodeBySelector(allNodes, targetSelector)
+                    ?: return errorResult(
+                        message = "target not found for check[${index + 1}]: ${selectorDesc(targetSelector)}",
+                        candidates = buildCandidates(allNodes, targetSelector),
+                        checkIndex = index + 1,
+                    )
+                val verifyResult = if (isPropertyCheck(check)) {
+                    assertDumpNode(targetNode, check, density)
+                } else {
+                    val target2Selector = check["target2"] as? Map<String, Any?>
+                        ?: return invalidParams("layout_verify failed: relation check requires target2")
+                    val target2Node = findNodeBySelector(allNodes, target2Selector)
+                        ?: return errorResult(
+                            message = "target2 not found for check[${index + 1}]: ${selectorDesc(target2Selector)}",
+                            candidates = buildCandidates(allNodes, target2Selector),
+                            checkIndex = index + 1,
+                        )
+                    relationDumpNodes(targetNode, target2Node, check, density)
+                }
                 VerifyItem(index = index + 1, result = verifyResult.result, message = verifyResult.message)
             }
-            toAggregatedMcpResult(assertItems, relationItems)
+            toAggregatedMcpResult(items)
         } catch (e: Exception) {
             logger.warn("layout_verify dumpFile mode failed: ${e.message}", e)
             McpToolResult(
@@ -335,15 +326,9 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val property = assert["property"] as? String ?: return VerifyResult("ERROR", "assert.property is required")
         val op = assert["op"] as? String ?: "eq"
         val value = assert["value"]
-        val unit = assert["unit"] as? String
 
         if (assert.containsKey("tolerance")) {
-            return VerifyResult(
-                "ERROR",
-                "assert does not support 'tolerance'. " +
-                    "To verify approximate values, use two separate asserts with 'gte' and 'lte'. " +
-                    "For layout gap checks with tolerance, use relation.type=spacing with tolerance."
-            )
+            return propertyToleranceErrorResult()
         }
 
         return when (property) {
@@ -379,12 +364,9 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 assertStr(actual, op, expected, "text")
             }
             "textColor" -> {
-                val actual = node.optStringOrNull("textColor") ?: "#FF000000"
-                val expected = value as? String ?: ""
-                if (actual.equals(expected, ignoreCase = true))
-                    VerifyResult("PASS", "textColor = $actual", actual, expected)
-                else
-                    VerifyResult("FAIL", "textColor = $actual (expected: $expected)", actual, expected)
+                val actual = (node.optStringOrNull("textColor") ?: "#FF000000").uppercase()
+                val expected = (value as? String ?: "").uppercase()
+                assertStr(actual, op, expected, "textColor")
             }
             "alpha" -> {
                 val actual = node.get("alpha")?.runCatching { asDouble }?.getOrDefault(1.0) ?: 1.0
@@ -394,16 +376,16 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 else
                     VerifyResult("FAIL", "alpha = $actual (expected: $op $expected)", actual, expected)
             }
-            "bounds.width" -> assertBoundsDp(boundsWidth(node), op, value, unit, density, "bounds.width")
-            "bounds.height" -> assertBoundsDp(boundsHeight(node), op, value, unit, density, "bounds.height")
-            "bounds.left" -> assertBoundsDp(boundsLeft(node), op, value, unit, density, "bounds.left")
-            "bounds.top" -> assertBoundsDp(boundsTop(node), op, value, unit, density, "bounds.top")
-            "bounds.right" -> assertBoundsDp(boundsRight(node), op, value, unit, density, "bounds.right")
-            "bounds.bottom" -> assertBoundsDp(boundsBottom(node), op, value, unit, density, "bounds.bottom")
-            "padding.left" -> assertBoundsDp(paddingAt(node, 0), op, value, unit, density, "padding.left")
-            "padding.top" -> assertBoundsDp(paddingAt(node, 1), op, value, unit, density, "padding.top")
-            "padding.right" -> assertBoundsDp(paddingAt(node, 2), op, value, unit, density, "padding.right")
-            "padding.bottom" -> assertBoundsDp(paddingAt(node, 3), op, value, unit, density, "padding.bottom")
+            "bounds.width" -> assertBoundsDp(boundsWidth(node), op, value, density, "bounds.width")
+            "bounds.height" -> assertBoundsDp(boundsHeight(node), op, value, density, "bounds.height")
+            "bounds.left" -> assertBoundsDp(boundsLeft(node), op, value, density, "bounds.left")
+            "bounds.top" -> assertBoundsDp(boundsTop(node), op, value, density, "bounds.top")
+            "bounds.right" -> assertBoundsDp(boundsRight(node), op, value, density, "bounds.right")
+            "bounds.bottom" -> assertBoundsDp(boundsBottom(node), op, value, density, "bounds.bottom")
+            "padding.left" -> assertBoundsDp(paddingAt(node, 0), op, value, density, "padding.left")
+            "padding.top" -> assertBoundsDp(paddingAt(node, 1), op, value, density, "padding.top")
+            "padding.right" -> assertBoundsDp(paddingAt(node, 2), op, value, density, "padding.right")
+            "padding.bottom" -> assertBoundsDp(paddingAt(node, 3), op, value, density, "padding.bottom")
             else -> VerifyResult("ERROR", "unsupported property in dumpFile mode: $property")
         }
     }
@@ -429,15 +411,14 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         else VerifyResult("FAIL", msg, actual, expected)
     }
 
-    private fun assertBoundsDp(actualPx: Int, op: String, value: Any?, unit: String?, density: Double, property: String): VerifyResult {
-        val actual = if (unit == "dp" && density > 0) Math.round(actualPx / density).toInt() else actualPx
+    private fun assertBoundsDp(actualPx: Int, op: String, value: Any?, density: Double, property: String): VerifyResult {
+        val actual = if (density > 0) Math.round(actualPx / density).toInt() else actualPx
         // Accept both Number and String to tolerate MCP callers that serialize numbers as strings.
         val expected = when (value) {
             is Number -> value.toInt()
             is String -> value.toIntOrNull() ?: 0
             else -> 0
         }
-        val unitLabel = unit ?: "px"
         val pass = when (op) {
             "gte" -> actual >= expected
             "lte" -> actual <= expected
@@ -446,9 +427,9 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             "neq" -> actual != expected
             else -> actual == expected
         }
-        val msg = "$property = $actual$unitLabel (expected: $op $expected$unitLabel)"
-        return if (pass) VerifyResult("PASS", msg, actual, expected, unitLabel)
-        else VerifyResult("FAIL", msg, actual, expected, unitLabel)
+        val msg = "$property = ${actual}dp (expected: $op ${expected}dp)"
+        return if (pass) VerifyResult("PASS", msg, actual, expected, "dp")
+        else VerifyResult("FAIL", msg, actual, expected, "dp")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -457,7 +438,6 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val direction = relation["direction"] as? String
         val expected = (relation["expected"] as? Number)?.toInt() ?: 0
         val tolerance = (relation["tolerance"] as? Number)?.toInt() ?: 0
-        val unit = relation["unit"] as? String
 
         return when (type) {
             "spacing" -> {
@@ -472,13 +452,12 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                     val rightOfLeft = minOf(aRight, bRight)
                     leftOfRight - rightOfLeft
                 }
-                val actual = if (unit == "dp" && density > 0) Math.round(spacingPx / density).toInt() else spacingPx
-                val unitLabel = unit ?: "px"
+                val actual = if (density > 0) Math.round(spacingPx / density).toInt() else spacingPx
                 val pass = Math.abs(actual - expected) <= tolerance
                 val boundsInfo = " [target:[$aLeft,$aTop,$aRight,$aBottom], target2:[$bLeft,$bTop,$bRight,$bBottom]]"
-                val msg = "spacing ($direction) = $actual$unitLabel (expected: $expected$unitLabel ±$tolerance$unitLabel)$boundsInfo"
-                if (pass) VerifyResult("PASS", msg, actual, expected, unitLabel)
-                else VerifyResult("FAIL", msg, actual, expected, unitLabel)
+                val msg = "spacing ($direction) = ${actual}dp (expected: ${expected}dp ±${tolerance}dp)$boundsInfo"
+                if (pass) VerifyResult("PASS", msg, actual, expected, "dp")
+                else VerifyResult("FAIL", msg, actual, expected, "dp")
             }
             "alignment" -> {
                 val (aLeft, aTop, aRight, aBottom) = getBounds(target)
@@ -570,9 +549,8 @@ class LayoutVerifyMcpToolAction : McpToolAction {
 
     private fun executeLiveQueryMode(
         runtime: IMcpRuntime,
-        target: Map<String, Any?>,
-        asserts: List<Map<String, Any?>>,
-        relations: List<Map<String, Any?>>,
+        checks: List<Map<String, Any?>>,
+        legacyTarget: Map<String, Any?>?,
         logger: com.intellij.openapi.diagnostic.Logger,
     ): McpToolResult {
         val selected = resolveOnlineDevice(runtime) ?: return noDeviceResult()
@@ -587,21 +565,19 @@ class LayoutVerifyMcpToolAction : McpToolAction {
 
         return try {
             val client = ViewHierarchyClient(selected.adb, packageName)
-            val assertItems = mutableListOf<VerifyItem>()
-            asserts.forEachIndexed { index, assertItem ->
-                    val verifyResult = client.verify(buildLiveParams(target, null, assertItem, null))
-                        ?: return McpToolResult.internalErrorResult(toolName, "ViewHierarchy server unavailable")
-                    assertItems.add(VerifyItem(index + 1, verifyResult.result, verifyResult.message))
-            }
-            val relationItems = mutableListOf<VerifyItem>()
-            relations.forEachIndexed { index, relationItem ->
-                val target2 = relationItem["target2"] as? Map<String, Any?>
-                    ?: return invalidParams("layout_verify failed: relation.target2 required")
-                val verifyResult = client.verify(buildLiveParams(target, target2, null, relationItem.toMutableMap().apply { remove("target2") }))
+            val items = mutableListOf<VerifyItem>()
+            checks.forEachIndexed { index, check ->
+                val checkTarget = resolveCheckTarget(check, legacyTarget)
+                    ?: return invalidParams("layout_verify failed: check[${index + 1}] requires valid target")
+                if (isPropertyCheck(check) && check.containsKey("tolerance")) {
+                    items.add(VerifyItem(index + 1, "ERROR", propertyToleranceErrorResult().message))
+                    return@forEachIndexed
+                }
+                val verifyResult = client.verify(buildLiveParams(checkTarget, check))
                     ?: return McpToolResult.internalErrorResult(toolName, "ViewHierarchy server unavailable")
-                relationItems.add(VerifyItem(index + 1, verifyResult.result, verifyResult.message))
+                items.add(VerifyItem(index + 1, verifyResult.result, verifyResult.message))
             }
-            toAggregatedMcpResult(assertItems, relationItems)
+            toAggregatedMcpResult(items)
         } catch (e: Exception) {
             logger.warn("layout_verify live mode failed: ${e.message}", e)
             McpToolResult(
@@ -617,22 +593,32 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     @Suppress("UNCHECKED_CAST")
     private fun buildLiveParams(
         target: Map<String, Any?>,
-        target2: Map<String, Any?>?,
-        assert: Map<String, Any?>?,
-        relation: Map<String, Any?>?,
+        check: Map<String, Any?>,
     ): Map<String, Any?> {
         val params = mutableMapOf<String, Any?>()
         params["target"] = target
-        if (target2 != null) params["target2"] = target2
-        if (assert != null) params["assert"] = assert
-        if (relation != null) params["relation"] = relation
+        if (isPropertyCheck(check)) {
+            val assert = check.toMutableMap().apply {
+                remove("type")
+                remove("target")
+            }
+            params["assert"] = assert
+            return params
+        }
+        val target2 = check["target2"] as? Map<String, Any?>
+            ?: return params
+        val relation = check.toMutableMap().apply {
+            remove("target")
+            remove("target2")
+        }
+        params["target2"] = target2
+        params["relation"] = relation
         return params
     }
 
     // ---- Result conversion ----
 
-    private fun toAggregatedMcpResult(assertItems: List<VerifyItem>, relationItems: List<VerifyItem>): McpToolResult {
-        val items = assertItems + relationItems
+    private fun toAggregatedMcpResult(items: List<VerifyItem>): McpToolResult {
         val aggregated = aggregateResult(items)
         val status = if (aggregated == "PASS") McpToolStatus.OK else McpToolStatus.ERROR
         val summary = if (items.size == 1) {
@@ -648,15 +634,13 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val data = mutableMapOf<String, Any>(
             "result" to aggregated,
             "message" to summary,
-            "items" to items.map {
+            "checkResults" to items.map {
                 mapOf(
                     "index" to it.index,
                     "result" to it.result,
                     "message" to it.message,
                 )
             },
-            "assertItems" to assertItems.map { mapOf("index" to it.index, "result" to it.result, "message" to it.message) },
-            "relationItems" to relationItems.map { mapOf("index" to it.index, "result" to it.result, "message" to it.message) },
         )
         return McpToolResult(
             status = status,
@@ -667,13 +651,13 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         )
     }
 
-    private fun errorResult(message: String, candidates: List<CandidateHint>): McpToolResult {
+    private fun errorResult(message: String, candidates: List<CandidateHint>, checkIndex: Int = 1): McpToolResult {
         val data = mutableMapOf<String, Any>(
             "result" to "ERROR",
             "message" to message,
-            "items" to listOf(
+            "checkResults" to listOf(
                 mapOf(
-                    "index" to 1,
+                    "index" to checkIndex,
                     "result" to "ERROR",
                     "message" to message,
                 )
@@ -803,6 +787,78 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         return dp[right.length]
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun resolveCheckTarget(
+        check: Map<String, Any?>,
+        legacyTarget: Map<String, Any?>?,
+    ): Map<String, Any?>? {
+        return (check["target"] as? Map<String, Any?>) ?: legacyTarget
+    }
+
+    private fun loadChecksFromFile(checksFilePath: String?): List<Map<String, Any?>> {
+        if (checksFilePath.isNullOrBlank()) {
+            return emptyList()
+        }
+        val file = File(checksFilePath)
+        if (!file.exists()) {
+            throw IllegalArgumentException("layout_verify failed: checksFile not found: $checksFilePath")
+        }
+        val content = file.readText(StandardCharsets.UTF_8)
+        if (content.isBlank()) {
+            throw IllegalArgumentException("layout_verify failed: checksFile is empty: $checksFilePath")
+        }
+        val root = runCatching { JsonParser.parseString(content) }.getOrElse {
+            throw IllegalArgumentException("layout_verify failed: checksFile is not valid JSON")
+        }
+        return when {
+            root.isJsonArray -> parseChecksArray(root)
+            root.isJsonObject -> parseChecksObject(root.asJsonObject)
+            else -> throw IllegalArgumentException("layout_verify failed: checksFile must be JSON array or object")
+        }
+    }
+
+    private fun parseChecksObject(root: JsonObject): List<Map<String, Any?>> {
+        if (root.has("target")) {
+            throw IllegalArgumentException("layout_verify failed: root target is not supported in checksFile; use checks[i].target")
+        }
+        val checksElement = root.get("checks")
+        val checks = when {
+            checksElement == null -> emptyList()
+            !checksElement.isJsonArray -> throw IllegalArgumentException("layout_verify failed: checksFile.checks must be an array")
+            else -> parseChecksArray(checksElement)
+        }
+        return checks
+    }
+
+    private fun parseChecksArray(element: JsonElement): List<Map<String, Any?>> {
+        val checksArray = element.asJsonArray
+        return checksArray.mapIndexed { index, item ->
+            val checkObject = item.asJsonObjectOrNull()
+                ?: throw IllegalArgumentException("layout_verify failed: checksFile checks[$index] must be object")
+            jsonObjectToMap(checkObject)
+        }
+    }
+
+    private fun jsonObjectToMap(jsonObject: JsonObject): Map<String, Any?> {
+        val map = linkedMapOf<String, Any?>()
+        jsonObject.entrySet().forEach { entry ->
+            map[entry.key] = jsonElementToValue(entry.value)
+        }
+        return map
+    }
+
+    private fun jsonElementToValue(element: JsonElement): Any? {
+        if (element.isJsonNull) return null
+        if (element.isJsonObject) return jsonObjectToMap(element.asJsonObject)
+        if (element.isJsonArray) return element.asJsonArray.map { jsonElementToValue(it) }
+        val primitive = element.asJsonPrimitive
+        return when {
+            primitive.isBoolean -> primitive.asBoolean
+            primitive.isNumber -> primitive.asNumber
+            else -> primitive.asString
+        }
+    }
+
     private fun aggregateResult(items: List<VerifyItem>): String {
         if (items.isEmpty()) return "ERROR"
         val results = items.map { it.result }
@@ -832,8 +888,24 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             && (selector["className"] as? String).isNullOrBlank())
     }
 
-    private fun isLiveOnlyAssert(assert: Map<String, Any?>): Boolean {
-        return (assert["property"] as? String) in LIVE_ONLY_PROPERTIES
+    private fun isLiveOnlyCheck(check: Map<String, Any?>): Boolean {
+        if (!isPropertyCheck(check)) {
+            return false
+        }
+        return (check["property"] as? String) in LIVE_ONLY_PROPERTIES
+    }
+
+    private fun isPropertyCheck(check: Map<String, Any?>): Boolean {
+        return (check["type"] as? String) == PROPERTY_CHECK_TYPE
+    }
+
+    private fun propertyToleranceErrorResult(): VerifyResult {
+        return VerifyResult(
+            "ERROR",
+            "type=property check does not support 'tolerance'. " +
+                "To verify approximate values, use two separate checks with 'gte' and 'lte'. " +
+                "For layout gap checks with tolerance, use type=spacing with tolerance."
+        )
     }
 
     private fun saveAutoDumpFile(runtime: IMcpRuntime, adb: IDeviceAdb, dumpResult: LayoutDumpResult): File? {
@@ -909,6 +981,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     }
 
     companion object {
+        private const val PROPERTY_CHECK_TYPE = "property"
         private val LIVE_ONLY_PROPERTIES = setOf("textSizeSp")
         private const val MAX_CANDIDATES = 5
     }

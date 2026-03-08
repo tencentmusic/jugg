@@ -10,13 +10,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
  * LayoutVerifier performs assertion-based UI property verification on live View objects.
  * Supports both single-element property assertions (assert) and two-element relation checks (relation).
- * All pixel values are converted to dp/sp using DisplayMetrics when unit="dp"/"sp".
+ * All pixel values are always converted to dp using DisplayMetrics.density.
+ * textSizeSp is always in sp using scaledDensity.
  */
 public class LayoutVerifier {
 
@@ -85,7 +85,6 @@ public class LayoutVerifier {
     private JSONObject executeAssert(MatchedElement target, JSONObject assertParams) throws JSONException {
         String property = assertParams.optString("property", "");
         String op = assertParams.optString("op", "eq");
-        String unit = optString(assertParams, "unit");
 
         if (assertParams.has("tolerance")) {
             return errorResult(
@@ -98,7 +97,7 @@ public class LayoutVerifier {
 
         switch (property) {
             case "exists":
-                return buildPassResult("exists", true, "exists", unit);
+                return buildPassResult("exists", true, "exists", "dp");
             case "visibility":
                 return assertText(target.visibility, op, assertParams.optString("value", "visible"), "visibility");
             case "clickable":
@@ -112,27 +111,27 @@ public class LayoutVerifier {
             case "textColor":
                 return assertTextColor(target.view, op, assertParams.optString("value", ""));
             case "textSizeSp":
-                return assertTextSizeSp(target.view, op, assertParams.optDouble("value", 0), unit);
+                return assertTextSizeSp(target.view, op, assertParams.optDouble("value", 0));
             case "bounds.width":
-                return assertInt(boundsWidth(target), op, assertParams.optInt("value", 0), "bounds.width", unit);
+                return assertInt(boundsWidth(target), op, assertParams.optInt("value", 0), "bounds.width");
             case "bounds.height":
-                return assertInt(boundsHeight(target), op, assertParams.optInt("value", 0), "bounds.height", unit);
+                return assertInt(boundsHeight(target), op, assertParams.optInt("value", 0), "bounds.height");
             case "bounds.left":
-                return assertInt(target.bounds.left, op, assertParams.optInt("value", 0), "bounds.left", unit);
+                return assertInt(target.bounds.left, op, assertParams.optInt("value", 0), "bounds.left");
             case "bounds.top":
-                return assertInt(target.bounds.top, op, assertParams.optInt("value", 0), "bounds.top", unit);
+                return assertInt(target.bounds.top, op, assertParams.optInt("value", 0), "bounds.top");
             case "bounds.right":
-                return assertInt(target.bounds.right, op, assertParams.optInt("value", 0), "bounds.right", unit);
+                return assertInt(target.bounds.right, op, assertParams.optInt("value", 0), "bounds.right");
             case "bounds.bottom":
-                return assertInt(target.bounds.bottom, op, assertParams.optInt("value", 0), "bounds.bottom", unit);
+                return assertInt(target.bounds.bottom, op, assertParams.optInt("value", 0), "bounds.bottom");
             case "padding.left":
-                return assertInt(target.view.getPaddingLeft(), op, assertParams.optInt("value", 0), "padding.left", unit);
+                return assertInt(target.view.getPaddingLeft(), op, assertParams.optInt("value", 0), "padding.left");
             case "padding.top":
-                return assertInt(target.view.getPaddingTop(), op, assertParams.optInt("value", 0), "padding.top", unit);
+                return assertInt(target.view.getPaddingTop(), op, assertParams.optInt("value", 0), "padding.top");
             case "padding.right":
-                return assertInt(target.view.getPaddingRight(), op, assertParams.optInt("value", 0), "padding.right", unit);
+                return assertInt(target.view.getPaddingRight(), op, assertParams.optInt("value", 0), "padding.right");
             case "padding.bottom":
-                return assertInt(target.view.getPaddingBottom(), op, assertParams.optInt("value", 0), "padding.bottom", unit);
+                return assertInt(target.view.getPaddingBottom(), op, assertParams.optInt("value", 0), "padding.bottom");
             default:
                 return errorResult("unsupported property: " + property, null);
         }
@@ -144,11 +143,10 @@ public class LayoutVerifier {
         String direction = optString(relationParams, "direction");
         int expected = relationParams.optInt("expected", 0);
         int tolerance = relationParams.optInt("tolerance", 0);
-        String unit = optString(relationParams, "unit");
 
         switch (type) {
             case "spacing":
-                return checkSpacing(target, target2, direction, expected, tolerance, unit);
+                return checkSpacing(target, target2, direction, expected, tolerance);
             case "alignment":
                 return checkAlignment(target, target2, direction);
             case "overlap":
@@ -164,10 +162,9 @@ public class LayoutVerifier {
 
     // ---- Assertion helpers ----
 
-    private JSONObject assertInt(int actualPx, String op, int expectedValue, String property, String unit)
+    private JSONObject assertInt(int actualPx, String op, int expectedValue, String property)
             throws JSONException {
-        int actual = toDpIfNeeded(actualPx, unit);
-        String unitLabel = unit != null ? unit : "px";
+        int actual = toDp(actualPx);
         boolean pass;
         switch (op) {
             case "gte":
@@ -189,12 +186,12 @@ public class LayoutVerifier {
                 pass = actual == expectedValue;
                 break;
         }
-        String message = property + " of element = " + actual + unitLabel
-            + " (expected: " + op + " " + expectedValue + unitLabel + ")";
+        String message = property + " of element = " + actual + "dp"
+            + " (expected: " + op + " " + expectedValue + "dp)";
         if (pass) {
-            return buildPassResult(message, actual, expectedValue, unit);
+            return buildPassResult(message, actual, expectedValue, "dp");
         }
-        return buildFailResult(message, actual, expectedValue, unit);
+        return buildFailResult(message, actual, expectedValue, "dp");
     }
 
     private JSONObject assertDouble(double actual, String op, double expected, String property, String unit)
@@ -255,13 +252,12 @@ public class LayoutVerifier {
             return errorResult("textColor assertion requires a TextView; got " + view.getClass().getSimpleName(), null);
         }
         int color = ((TextView) view).getCurrentTextColor();
-        String actualHex = ViewNode.colorToHex(color);
-        boolean pass = "eq".equals(op) ? actualHex.equalsIgnoreCase(expected) : actualHex.equalsIgnoreCase(expected);
-        String message = "textColor = " + actualHex + " (expected: " + expected + ")";
-        return pass ? buildPassResult(message, actualHex, expected, null) : buildFailResult(message, actualHex, expected, null);
+        String actualHex = ViewNode.colorToHex(color).toUpperCase();
+        String normalizedExpected = expected != null ? expected.toUpperCase() : "";
+        return assertText(actualHex, op, normalizedExpected, "textColor");
     }
 
-    private JSONObject assertTextSizeSp(View view, String op, double expected, String unit) throws JSONException {
+    private JSONObject assertTextSizeSp(View view, String op, double expected) throws JSONException {
         if (!(view instanceof TextView)) {
             return errorResult("textSizeSp assertion requires a TextView; got " + view.getClass().getSimpleName(), null);
         }
@@ -286,7 +282,7 @@ public class LayoutVerifier {
     // ---- Relation helpers ----
 
     private JSONObject checkSpacing(MatchedElement a, MatchedElement b, String direction,
-                                    int expected, int tolerance, String unit) throws JSONException {
+                                    int expected, int tolerance) throws JSONException {
         int spacingPx;
         if ("vertical".equals(direction)) {
             // vertical spacing: gap between bottom of a and top of b (or vice versa)
@@ -299,14 +295,13 @@ public class LayoutVerifier {
             int rightOfLeft = Math.min(a.bounds.right, b.bounds.right);
             spacingPx = leftOfRight - rightOfLeft;
         }
-        int actual = toDpIfNeeded(spacingPx, unit);
-        String unitLabel = unit != null ? unit : "px";
+        int actual = toDp(spacingPx);
         boolean pass = Math.abs(actual - expected) <= tolerance;
         String boundsInfo = " [target:[" + a.bounds.left + "," + a.bounds.top + "," + a.bounds.right + "," + a.bounds.bottom + "]"
             + ", target2:[" + b.bounds.left + "," + b.bounds.top + "," + b.bounds.right + "," + b.bounds.bottom + "]]";
-        String message = "spacing (" + direction + ") = " + actual + unitLabel
-            + " (expected: " + expected + unitLabel + " ±" + tolerance + unitLabel + ")" + boundsInfo;
-        return pass ? buildPassResult(message, actual, expected, unit) : buildFailResult(message, actual, expected, unit);
+        String message = "spacing (" + direction + ") = " + actual + "dp"
+            + " (expected: " + expected + "dp ±" + tolerance + "dp)" + boundsInfo;
+        return pass ? buildPassResult(message, actual, expected, "dp") : buildFailResult(message, actual, expected, "dp");
     }
 
     private JSONObject checkAlignment(MatchedElement a, MatchedElement b, String direction) throws JSONException {
@@ -453,8 +448,8 @@ public class LayoutVerifier {
         return e.bounds.bottom - e.bounds.top;
     }
 
-    private int toDpIfNeeded(int px, String unit) {
-        if ("dp".equals(unit) && displayMetrics.density > 0) {
+    private int toDp(int px) {
+        if (displayMetrics.density > 0) {
             return Math.round(px / displayMetrics.density);
         }
         return px;

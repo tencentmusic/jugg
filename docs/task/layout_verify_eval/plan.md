@@ -22,15 +22,13 @@
 | agent 仅调用 `layout_verify` 即完成判断，给出 PASS/FAIL 结论 | **自治** |
 | agent 调用 `layout_verify` 后又读取 `layout_dump` 的 `data.content` 来二次分析 | **非自治**（verify 结果不够充分） |
 | agent 调用 `screenshot` 来做视觉判断（非最终证据用途） | **非自治**（verify 无法覆盖该场景） |
-| agent 调用 `layout_dump` 获取 `data.file` 再传给 `layout_verify(dumpFile=...)` | **自治**（这是标准工作流） |
 
 ### 1.3 执行方式
 
 1. Agent 先执行 `restart_app` 导航到 MCP Test Page
-2. 执行一次 `layout_dump` 获取 `data.file` 路径
-3. 依次执行下列用例，每条用例给出自然语言指令
-4. 观察 agent 是否仅通过 `layout_verify` 完成校验
-5. 记录每条用例的结果：PASS/FAIL + 是否自治
+2. 依次执行下列用例，每条用例给出自然语言指令
+3. 观察 agent 是否仅通过 `layout_verify` 完成校验
+4. 记录每条用例的结果：PASS/FAIL + 是否自治
 
 ### 1.4 前置条件
 
@@ -47,7 +45,7 @@
 |------|--------|-------------------|-----------|
 | A. 元素存在性 | 4 | 元素是否存在、不存在、visibility 状态 | 100% |
 | B. 文本属性 | 5 | 文本内容精确匹配、包含、正则 | 100% |
-| C. 尺寸校验 | 4 | 宽高 dp/px | 100% |
+| C. 尺寸校验 | 4 | 宽高 dp | 100% |
 | D. 位置校验 | 3 | bounds 坐标 | 100% |
 | E. 间距校验 | 4 | 两元素垂直/水平间距 | 100% |
 | F. 对齐校验 | 3 | 水平/垂直中心对齐 | 100% |
@@ -75,7 +73,7 @@
 ### 执行须知
 
 - 每条用例以自然语言描述"验证需求"，交给 agent 执行
-- agent 应先获取 dumpFile（如未缓存），再使用 `layout_verify` 完成校验
+- agent 应使用 `layout_verify`（自动快照）完成校验
 - 用例编号规则：`LV-{分类字母}-{序号}`
 - **MCP 调用串行**：同一时刻只能有一个 MCP 调用
 
@@ -164,20 +162,20 @@
 
 ### C. 尺寸校验（4 条）
 
-**LV-C-1: 宽度校验 (px)**
-> 请验证 `btn_mcp_unique_text` 的宽度是否大于 0 像素。
+**LV-C-1: 宽度校验**
+> 请验证 `btn_mcp_unique_text` 的宽度是否大于 0dp。
 
-预期：`assert={property:"bounds.width", op:"gt", value:0, unit:"px"}` → PASS
+预期：`assert={property:"bounds.width", op:"gt", value:0}` → PASS（所有数值始终为 dp）
 
 **LV-C-2: 宽度校验 (dp)**
 > 请验证 `btn_mcp_unique_text` 的宽度是否大于等于 100dp。
 
-预期：agent 使用 dumpFile 模式，density 从 deviceInfo 中读取换算 → PASS（按钮为 match_parent，远大于 100dp）
+预期：agent 使用自动快照模式，density 从 deviceInfo 中读取自动换算 → PASS（按钮为 match_parent，远大于 100dp）
 
 **LV-C-3: 高度校验 (dp)**
 > 请验证 `sv_mcp_swipe_target` 的高度是否约为 220dp（允许 ±5dp 误差）。
 
-预期：agent 获取 bounds.height 后验证，可能需要 `gte` 215dp + `lte` 225dp 两次校验，或单次 `eq` 220dp + tolerance 处理。
+预期：agent 获取 bounds.height 后验证，可能需要 `gte` 215dp + `lte` 225dp 两次校验。
 
 **LV-C-4: 宽度相对屏幕（match_parent 验证）**
 > 请验证 `btn_mcp_unique_text` 的宽度是否等于 `btn_mcp_resource_target` 的宽度。
@@ -194,14 +192,14 @@
 预期：`assert={property:"bounds.left", op:"gte", value:0}` → PASS
 
 **LV-D-2: 位置 - top 坐标**
-> 请验证 `tv_mcp_title` 在屏幕上方（bounds.top 小于 500px）。
+> 请验证 `tv_mcp_title` 在屏幕上方（bounds.top 小于 167dp）。
 
-预期：`assert={property:"bounds.top", op:"lt", value:500}` → PASS
+预期：`assert={property:"bounds.top", op:"lt", value:167}` → PASS（所有数值始终为 dp）
 
 **LV-D-3: 位置 - right 边界 (dp)**
 > 请验证 `btn_mcp_unique_text` 的右边界 bounds.right 是否大于 300dp。
 
-预期：`assert={property:"bounds.right", op:"gt", value:300, unit:"dp"}` → PASS
+预期：`assert={property:"bounds.right", op:"gt", value:300}` → PASS
 
 ---
 
@@ -210,17 +208,17 @@
 **LV-E-1: 垂直间距**
 > 请验证 `btn_mcp_unique_text` 和 `btn_mcp_resource_target` 之间的垂直间距是否约为 12dp（容差 ±3dp）。
 
-预期：`layout_verify(target={resourceId:"btn_mcp_unique_text"}, target2={resourceId:"btn_mcp_resource_target"}, relation={type:"spacing", direction:"vertical", expected:12, tolerance:3, unit:"dp"})` → PASS
+预期：`layout_verify(target={resourceId:"btn_mcp_unique_text"}, target2={resourceId:"btn_mcp_resource_target"}, relation={type:"spacing", direction:"vertical", expected:12, tolerance:3})` → PASS
 
-**LV-E-2: 垂直间距 (px)**
-> 请验证 `btn_mcp_repeat_a` 和 `btn_mcp_repeat_b` 之间的垂直间距是否大于 0px。
+**LV-E-2: 垂直间距**
+> 请验证 `btn_mcp_repeat_a` 和 `btn_mcp_repeat_b` 之间的垂直间距是否大于 0dp。
 
-预期：`relation={type:"spacing", direction:"vertical", expected:0, tolerance:0, unit:"px"}` → 可用 `gt` 间接验证。或直接给 expected + tolerance。
+预期：`relation={type:"spacing", direction:"vertical", expected:0, tolerance:0}` → 可用间接验证。所有数值始终为 dp。
 
 **LV-E-3: 标题到第一个按钮的间距**
 > 请验证 `tv_mcp_title` 到 `btn_mcp_unique_text` 的垂直间距是否约为 20dp（容差 ±5dp）。
 
-预期：`relation={type:"spacing", direction:"vertical", expected:20, tolerance:5, unit:"dp"}` → PASS（布局 marginTop=20dp）
+预期：`relation={type:"spacing", direction:"vertical", expected:20, tolerance:5}` → PASS（布局 marginTop=20dp）
 
 **LV-E-4: 间距断言失败**
 > 请验证 `btn_mcp_unique_text` 和 `btn_mcp_resource_target` 之间的垂直间距是否恰好为 100dp（无容差）。
@@ -338,7 +336,7 @@
 **LV-L-2: padding dp 换算**
 > 请验证 `tv_mcp_action_state` 的 padding.left 以 dp 为单位。
 
-预期：agent 使用 dumpFile 模式 + unit:"dp"，观察 dp 换算是否正确。
+预期：所有数值始终为 dp，观察 dp 换算是否正确。
 
 ---
 
@@ -347,7 +345,7 @@
 **LV-M-1: textSizeSp 校验（live 模式）**
 > 请验证 `tv_mcp_title` 的字号是否为 20sp。
 
-预期：agent 不传 dumpFile，走 live query 模式。`assert={property:"textSizeSp", op:"eq", value:20}` → PASS
+预期：`textSizeSp` 属性自动切换 live query 模式。`assert={property:"textSizeSp", op:"eq", value:20}` → PASS
 
 **LV-M-2: textSizeSp 校验 - 另一个元素**
 > 请验证 `tv_mcp_action_state` 的字号是否为 15sp。
@@ -430,7 +428,7 @@
 > 1. 点击 "Unique MCP Target" 按钮
 > 2. 验证 `tv_mcp_action_state` 的文本变为 "Clicked: Unique MCP Target"
 
-预期：agent 先 `tap`，然后需要重新 `layout_dump`（因为状态变了），再用 `layout_verify(dumpFile=新dump)` 校验文本。自治。
+预期：agent 先 `tap`，然后 `layout_verify`（自动快照获取最新状态）校验文本。自治。
 
 **LV-P-5: 字号 + 颜色复合验收（需 live 模式）**
 > 请验收 `tv_mcp_title`：
@@ -438,7 +436,7 @@
 > 2. 字号为 20sp
 > 3. 元素存在且可见
 
-预期：textSizeSp 需要 live 模式，其余可用 dumpFile 模式。agent 可能混合使用两种模式。
+预期：textSizeSp 自动切换 live 模式，其余自动快照模式。
 
 ---
 
@@ -592,7 +590,7 @@
 
 ### 4.2 每组执行流程
 
-1. **前置**：`restart_app` → 导航到 McpTestActivity → `layout_dump` 获取 dumpFile
+1. **前置**：`restart_app` → 导航到 McpTestActivity
 2. **执行**：逐条下发自然语言指令，agent 自行选择工具完成校验
 3. **记录**：每条用例记录：
    - 用例编号
@@ -607,9 +605,8 @@
 
 ```
 你现在在 MCP Test Page 上执行 UI 验证。
-已有的 layout_dump 文件路径为：{dumpFile}
-请使用 layout_verify 工具完成以下验证任务。
-如果需要新的 layout dump（如交互后状态变化），可以重新调用 layout_dump。
+请使用 layout_verify 工具完成以下验证任务。所有数值始终为 dp。
+如果需要交互后验证状态变化，可以先执行交互操作再调用 layout_verify。
 请对每项验证给出 PASS/FAIL 结论和简要说明。
 ```
 
@@ -622,8 +619,8 @@
 ```markdown
 | 用例 | 验证目标 | 结果 | 自治 | agent 调用链 | 备注 |
 |------|---------|------|------|-------------|------|
-| LV-A-1 | 元素存在 | PASS | ✅ | layout_verify(dumpFile) | |
-| LV-A-2 | 元素不存在 | PASS | ✅ | layout_verify(dumpFile) | 正确返回 ERROR |
+| LV-A-1 | 元素存在 | PASS | ✅ | layout_verify | |
+| LV-A-2 | 元素不存在 | PASS | ✅ | layout_verify | 正确返回 ERROR |
 | ... | ... | ... | ... | ... | ... |
 ```
 
@@ -646,7 +643,7 @@
 | 同 text 多匹配时的精确定位 | verify 和 tap 一样可能遇到多匹配问题 | 需 className 辅助或 resourceId 替代 |
 | 动态列表中无 resourceId 的元素 | 无法通过 selector 精确定位 | 可能需要 layout_dump + 手动解析 |
 | 复杂嵌套布局的相对关系 | verify 仅支持两元素之间的关系 | 多次 verify 组合 |
-| 黑色 textColor（dump 省略） | dumpFile 模式下黑色不输出 textColor 字段 | 需要 live query 或约定检查逻辑 |
+| 黑色 textColor（dump 省略） | dump 模式下黑色不输出 textColor 字段 | 需要 live query 或约定检查逻辑 |
 | ARGB 带 alpha 通道的色值 | dump 以有符号整数输出，需十六进制转换 | layout_verify 需支持 ARGB↔integer 双向转换 |
 | Dialog/Toast Window 的视图树捕获 | layout_dump 可能仅捕获主 Activity Window | 需确认 ViewHierarchy 多 Window 支持 |
 | maxLines/ellipsize 属性 | 标准 dump 可能不包含这些属性 | 需 live query 支持 |
