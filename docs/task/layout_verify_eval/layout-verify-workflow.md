@@ -116,29 +116,32 @@ Figma 图层名不可信时，以**文本内容**作为跨系统的映射锚点�
 
 ## 六、调用流程注意事项
 
-### 1. dumpFile 生命周期
+### 1. 默认流程（推荐）
 
-每次有用户交互（tap、swipe 等）后，必须重新调用 `layout_dump` 获取新路径，不能复用旧 dumpFile。使用旧文件工具不会报错，但数据是过期的，属于**静默错误**，是最危险的坑。
+`layout_verify` 默认自动抓取最新快照，因此常规流程不再强依赖先 `layout_dump`：
 
 ```
-✅ 正确：tap → layout_dump（新路径）→ layout_verify（新路径）
-❌ 错误：tap → layout_verify（旧路径）← 数据过期，结果不可信
+restart_app → 导航页面 → layout_verify(asserts/relation) → screenshot（可选）
 ```
 
-### 2. 实时模式 vs dumpFile 模式
+### 2. 何时使用 dumpFile
 
-- 需要 `textSizeSp`、`maxLines`、`ellipsize` 等属性 → **必须用实时模式**（不传 dumpFile）
-- 其他属性 → 优先用 dumpFile 模式（复用同一次 dump，减少设备通信）
+- 只在“历史回放/复现”场景传 `dumpFile`（显式快照模式）
+- 交互后若仍要回放旧状态，必须明确这是旧快照，不代表当前页面
 
-### 3. 标准初始化流程
+### 3. live-only 属性
+
+- `textSizeSp` 等 dump 不支持属性会自动切到 live 查询，无需手动切模式
+
+### 4. 标准初始化流程
 
 每次开始验证前：
 
 ```
-restart_app → tap（导航到目标页面）→ layout_dump → 开始 verify
+restart_app → tap（导航到目标页面）→ 开始 verify
 ```
 
-### 4. 串行调用
+### 5. 串行调用
 
 layout_verify 调用必须串行，不可并行。
 

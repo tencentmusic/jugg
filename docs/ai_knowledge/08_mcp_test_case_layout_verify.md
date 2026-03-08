@@ -16,11 +16,11 @@
 ### 执行流程
 
 1. Agent 导航到 `McpTestActivity`（从 MainActivity 点击 "MCP Test Page"）
-2. Agent 调用 `layout_dump` 获取 `dumpFile` 路径
-3. Agent 依次执行每个任务，使用 `layout_verify` 验证所述需求
+2. Agent 依次执行每个任务，默认直接调用 `layout_verify`（自动快照模式）
+3. 仅在需要历史回放时，才先调用 `layout_dump` 并把 `dumpFile` 传给 `layout_verify`
 4. 对于每个任务，agent 必须提供：
    - 明确的**结论**："UI 符合需求" 或 "UI 不符合需求"
-   - **证据**：引用 `layout_verify` 响应中的 `data.actual` 和 `data.expected` 值
+   - **证据**：引用 `layout_verify` 响应中的 `data.result` 与 `data.items[*].message`
    - **不做额外操作**：如果 `layout_verify` 返回 FAIL，报告发现即可 — 不要尝试修复或重试
 5. 所有任务完成后，保存测试结果到 `jugg-mcp-test-layout-verify-result.md`
 6. 对比 `jugg-mcp-test-layout-verify-result.md` 和 `08_mcp_test_case_layout_verify_answer_key.md`，得出真正的校验结果，汇报给用户。
@@ -41,7 +41,7 @@
 
 ### 每批次流程
 
-1. **初始化**：`restart_app` → 导航到 McpTestActivity → `layout_dump` 获取 `dumpFile`
+1. **初始化**：`restart_app` → 导航到 McpTestActivity
 2. **执行**：按顺序处理每个任务；MCP 调用必须串行（一次一个）
 3. **记录**：对每个任务记录：任务 ID、结论（符合 / 不符合）、证据摘要
 4. **输出**：将结果写入 `layout-verify-eval-result.md`
@@ -49,8 +49,8 @@
 ### 重要说明
 
 - 部分任务在验证前需要交互（点击）— 任务会明确说明
-- 任何交互之后，必须重新调用 `layout_dump` 获取最新布局快照再进行验证
-- 部分任务需要实时查询模式（不传 `dumpFile`）— 任务会明确说明
+- 任何交互之后，默认直接继续 `layout_verify`（自动快照会获取最新状态）
+- 若题目明确要求回放同一快照，才复用 `dumpFile`
 - 本题集默认基线页面为 `android_demo_project/app/src/main/res/layout/activity_mcp_test.xml`
 - 页面发生任何改动（控件新增/删除、resourceId、文本、样式、布局关系）时，必须同步更新本文件与 `08_mcp_test_case_layout_verify_answer_key.md`
 

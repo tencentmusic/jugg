@@ -205,31 +205,31 @@
 ### 布局验证（layout_verify）
 
 > 本小节测试新增的 `layout_verify` 工具。需要设备连接且 App 在前台运行。
-> 前置：先调用 `layout_dump` 获取 dump 文件路径（`data.file`），后续 dumpFile 模式用例复用此文件。
+> 前置：默认直接 `layout_verify`（自动快照）；仅在历史回放场景显式传 `dumpFile`。
 
-**VERIFY-1: dumpFile 模式 - assert exists**
-先调用 `layout_dump` 获取 `dumpFile` 路径。调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<已知存在的 id>"}` 和 `assert: {property: "exists"}`。验证返回 `status` 为 `OK`，`data.result` 为 `PASS`。
+**VERIFY-1: 默认自动快照 - asserts exists**
+调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<已知存在的 id>"}`、`asserts: [{property: "exists"}]`。验证返回 `status` 为 `OK`，`data.result` 为 `PASS`。
 
-**VERIFY-2: dumpFile 模式 - assert text**
-调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<已知 TextView id>"}` 和 `assert: {property: "text", op: "eq", value: "<已知文本>"}`。验证返回 `data.result` 为 `PASS`，`data.actual` 与 `data.expected` 一致。
+**VERIFY-2: 默认自动快照 - 单断言文本**
+调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<已知 TextView id>"}` 和 `asserts: [{property: "text", op: "eq", value: "<已知文本>"}]`。验证返回 `data.result` 为 `PASS`。
 
-**VERIFY-3: dumpFile 模式 - assert bounds.width with dp unit**
-调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<已知 id>"}` 和 `assert: {property: "bounds.width", op: "gte", value: "40", unit: "dp"}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（取决于实际宽度），但 `status` 不是因参数错误返回的 `ERROR`，且 `data.actual` 和 `data.expected` 字段存在。
+**VERIFY-3: 批量断言聚合**
+调用 `layout_verify`，传入 `projectDir`、`target` 与 `asserts`（混合一个 PASS 一个 FAIL）。验证返回 `data.result` 为 `PARTIAL_FAIL`，且 `data.items` 有两项明细。
 
-**VERIFY-4: live query 模式 - assert textSizeSp**
-调用 `layout_verify`，不传 `dumpFile`，传入 `projectDir`、`target: {resourceId: "<已知 TextView id>"}` 和 `assert: {property: "textSizeSp", op: "gte", value: "12"}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非 `ERROR`），确认 live query 模式正常工作。
+**VERIFY-4: live query 自动切换 - textSizeSp**
+调用 `layout_verify`，不传 `dumpFile`，传入 `projectDir`、`target` 和 `asserts: [{property: "textSizeSp", op: "gte", value: "12"}]`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。
 
 **VERIFY-5: relation spacing**
-调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "<id_1>"}` 和 `target2: {resourceId: "<id_2>"}`，`relation: {type: "spacing", direction: "vertical", expected: 16, unit: "dp", tolerance: 4}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非 `ERROR`），且 `data.actual` 字段存在。
+调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<id_1>"}` 和 `target2: {resourceId: "<id_2>"}`，`relation: {type: "spacing", direction: "vertical", expected: 16, unit: "dp", tolerance: 4}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。
 
 **VERIFY-6: 元素未找到**
-调用 `layout_verify`，传入 `projectDir`、`dumpFile`、`target: {resourceId: "non_existent_element_xyz"}` 和 `assert: {property: "exists"}`。验证返回 `status` 为 `ERROR`，`data.result` 为 `ERROR`，`message` 中包含未找到元素的提示，`data.candidates` 列出近似匹配。
+调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "non_existent_element_xyz"}` 和 `asserts: [{property: "exists"}]`。验证返回 `status` 为 `ERROR`，`data.result` 为 `ERROR`，`data.candidates` 列出近似匹配且包含 `score/reason`。
 
-**VERIFY-7: assert 与 relation 互斥**
-调用 `layout_verify`，同时传入 `assert` 和 `relation`（均为合法值），验证工具不会同时处理两者。注意：当前代码实现中 `assert` 优先于 `relation`（若同时传入，仅执行 `assert`），但传入行为本身不报错。验证 `data.result` 为 `PASS`/`FAIL`（以 `assert` 结果为准）。
+**VERIFY-7: asserts 与 relation 互斥**
+调用 `layout_verify`，同时传入 `asserts` 和 `relation`（均为合法值），验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
 
-**VERIFY-8: 缺少 assert 和 relation**
-调用 `layout_verify`，传入 `projectDir` 和 `target`，不传 `assert` 也不传 `relation`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`message` 包含 "assert or relation is required"。
+**VERIFY-8: 缺少 asserts 和 relation**
+调用 `layout_verify`，传入 `projectDir` 和 `target`，不传 `asserts` 也不传 `relation`，验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
 
 ---
 

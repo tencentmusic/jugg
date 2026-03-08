@@ -47,7 +47,7 @@
 | `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
-| `layout_verify` | `projectDir`, `target`; 需提供 `assert` 或 `relation` 之一；可选 `dumpFile`, `target2` | 验证 UI 元素属性或元素间关系（dumpFile 缓存模式 / live query 模式） |
+| `layout_verify` | `projectDir`, `target`; 需提供 `asserts` 或 `relation` 之一；可选 `dumpFile`, `target2` | 验证 UI 元素属性或元素间关系（默认自动快照；可指定历史 dump） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
@@ -98,14 +98,15 @@
 - socket 不可连的推荐动作：`restart_app` 重试一次；若仍失败，执行一次 `force_gradle_compile`（必要时轮询 `get_compile_status` 到终态）-> `compile_and_deploy` -> `restart_app` 后再试 `layout_dump`/元素模式 `tap`。
 
 补充（layout_verify 语义）：
-- 支持两种模式：
-  - **dumpFile 模式**：传入 `dumpFile`（来自 `layout_dump` 的 JSON 文件路径），0 次额外 App 通信，从缓存文件解析。
-  - **live query 模式**：不传 `dumpFile`，实时查询 App 内 ViewHierarchy Server，可访问 dump 中不含的属性（如 `textSizeSp`）。
-- 每次调用执行一个 `assert`（单元素属性断言）或一个 `relation`（双元素空间/结构关系检查），两者互斥；均不传时返回 `MCP_INVALID_PARAMS`。
+- 支持三种内部模式：
+  - **explicit_dump**：传 `dumpFile` 绝对路径，回放历史快照。
+  - **auto_dump**：不传 `dumpFile` 时默认模式；工具会先抓取一份最新布局快照再断言。
+  - **live query**：当断言属性是 dump 不支持项（当前为 `textSizeSp`）时，自动切换 live。
+- 每次调用执行一组 `asserts`（数组，至少 1 项）或一个 `relation`，两者互斥；均不传时返回 `MCP_INVALID_PARAMS`。
 - **target / target2 选择器**：至少提供 `resourceId` / `text` / `contentDesc` / `className` 之一。`resourceId` 支持 short id（如 `btn_play`）。`relation` 模式必须同时传 `target2`。
-- **assert 参数**：
+- **asserts[i] 参数**：
   - `property`：`exists` / `visibility` / `clickable` / `enabled` / `text` / `bounds.width` / `bounds.height` / `bounds.left` / `bounds.top` / `bounds.right` / `bounds.bottom` / `alpha` / `textColor` / `textSizeSp`（仅 live）/ `padding.left` / `padding.top` / `padding.right` / `padding.bottom`
-  - `op`：`eq`（默认）/ `gte` / `lte` / `gt` / `lt` / `contains` / `matches`
+  - `op`：`eq`（默认）/ `neq` / `gte` / `lte` / `gt` / `lt` / `contains` / `matches`
   - `value`：期望值（字符串）
   - `unit`：`dp` 或 `px`（坐标/尺寸类属性默认 `px`）
 - **relation 参数**：
@@ -114,11 +115,11 @@
   - `expected`：期望值（用于 spacing，数值）
   - `tolerance`：容差（用于 spacing，默认 0）
   - `unit`：`dp` 或 `px`
-- 返回 `data.result` 为 `PASS` / `FAIL` / `ERROR`，含 `actual`、`expected`、`message` 字段。`PASS` 时 `status=OK`，`FAIL`/`ERROR` 时 `status=ERROR`。
-- 元素未找到时返回 `data.result=ERROR`，`data.candidates` 列出最多 5 个 clickable 近似匹配元素摘要。
+- 返回精简为：`data.result`、`data.message`、`data.items[]`（每项仅 `index/result/message`）。
+- 批量聚合 `data.result` 取值：`PASS | PARTIAL_FAIL | FAIL | ERROR`。
+- 元素未找到时返回 `data.result=ERROR`，`data.candidates` 列出最多 5 个候选，并带 `score/reason`（用于拼写纠错）。
 - dumpFile 模式的 dp 换算依赖 dump JSON 根节点的 `deviceInfo.density`。
-- `textSizeSp` 等 dump 中不含的属性在 dumpFile 模式下返回 `ERROR`（unsupported property in dumpFile mode）。
-- `layout_verify`（live 模式）在执行前同样会先等待 App 在线（同 `layout_dump`）。
+- `layout_verify`（auto_dump/live）在执行前同样会先等待 App 在线（同 `layout_dump`）。
 
 补充（tap 三模式语义）：
 - `action` 支持：`tap`（默认）、`longPress`、`swipe`。

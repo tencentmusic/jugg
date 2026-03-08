@@ -80,13 +80,13 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 ## `layout_verify`
 
 - Purpose: assert a UI element property or check a spatial relation between two elements without parsing raw layout JSON.
-- Required input: `projectDir`, `target` (selector with `resourceId`/`text`/`contentDesc`/`className`), plus either `assert` or `relation`.
-- Optional input: `dumpFile` (path from a previous `layout_dump`). When provided, verification runs entirely from the JSON file with no extra App communication (preferred). Omit `dumpFile` for live query mode (needed for properties not in dump such as `textSizeSp`).
+- Required input: `projectDir`, `target` (selector with `resourceId`/`text`/`contentDesc`/`className`), plus either `asserts` or `relation`.
+- Optional input: `dumpFile` (historical snapshot path). If omitted, tool defaults to auto snapshot mode.
 - **Matching strategy (dumpFile mode)**: when multiple elements match the `target` selector, dumpFile mode silently uses the **first match** (unlike `tap` element mode which returns ERROR on multiple matches). To ensure precision, provide the most specific selector combination (prefer `resourceId`; add `className` when `text` alone may match multiple nodes).
 
-### Assert Mode (`assert`)
+### Assert Mode (`asserts`)
 
-Single-element property check. Fields:
+Single-element property checks in batch. Fields:
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -95,7 +95,7 @@ Single-element property check. Fields:
 | `value` | any | Expected value |
 | `unit` | string | `dp` or `px` (default `px`) for numeric bounds/padding properties |
 
-Assert does not have a built-in `tolerance` field (unlike `relation.spacing`). To verify approximate numeric values, combine two calls:
+`asserts` does not have a built-in `tolerance` field (unlike `relation.spacing`). To verify approximate numeric values, combine `gte` + `lte` assertions:
 - `layout_verify(assert={property:"bounds.height", op:"gte", value:215, unit:"dp"})` AND
 - `layout_verify(assert={property:"bounds.height", op:"lte", value:225, unit:"dp"})`
 This is the recommended approach for "approximately X ± N" checks on single-element properties.
@@ -137,21 +137,21 @@ Relation semantics:
 
 ### Result
 
-- `status: OK` → PASS; `status: ERROR` → FAIL or ERROR.
-- `data.result`: `PASS` / `FAIL` / `ERROR`.
-- `data.message`: human-readable detail.
-- `data.actual` / `data.expected`: values compared (when applicable).
-- `data.unit`: unit used.
+- `status: OK` → `data.result=PASS`; otherwise `status: ERROR`.
+- `data.result`: `PASS` / `PARTIAL_FAIL` / `FAIL` / `ERROR`.
+- `data.message`: aggregated summary.
+- `data.items[]`: each item contains `index/result/message`.
+- Target not found includes `data.candidates[]` with `score/reason`.
 
-### UI Verification Protocol (Three-step)
+### UI Verification Protocol (Default + Replay)
 
 For precise acceptance checks, use this sequence:
 
-1. `layout_dump` → obtain dump file path (`data.file`) and confirm target node exists.
-2. `layout_verify(dumpFile=<path>, ...)` → assert properties or relations using the dump (0 extra App call).
-3. `screenshot` → visual proof after all property checks pass.
+1. `layout_verify(...)` without `dumpFile` (auto snapshot mode).
+2. `screenshot` → visual proof after verify checks pass.
+3. Optional replay: `layout_dump` + `layout_verify(dumpFile=<path>, ...)` only when reproducing a historical state.
 
-Use live query mode only when the required property is not in the dump (`textSizeSp`).
+Use live query only for live-only properties (`textSizeSp`), which now switches automatically.
 
 ## Tool Description Migration (UI Observe Stage Only)
 

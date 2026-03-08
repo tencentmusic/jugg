@@ -83,7 +83,7 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
 - `projectDir`: use current working directory by default.
 - Max autonomous retries for same failure category: `3`.
 - Never claim success without artifact evidence.
-- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. Use `layout_dump` → `layout_verify(dumpFile=...)` → `screenshot` three-step protocol (details in `references/tool_cards_runtime_observe.md` §UI Verification Protocol).
+- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. Default flow is `layout_verify` (auto snapshot) → `screenshot`; use `dumpFile` only for historical replay (details in `references/tool_cards_runtime_observe.md` §UI Verification Protocol).
 - Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
 - Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.

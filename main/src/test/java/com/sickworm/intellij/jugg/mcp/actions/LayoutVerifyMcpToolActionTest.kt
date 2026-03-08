@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.mcp.viewhierarchy.LayoutDumpResult
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.VerifyResult
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -1226,8 +1227,11 @@ class LayoutVerifyMcpToolActionTest {
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
-        val expectedVal = result.data["expected"]
-        Assert.assertEquals("expected field must echo the passed value (100), not 0", 100, expectedVal)
+        val data = result.data as? Map<*, *> ?: emptyMap<String, Any>()
+        val items = data["items"] as? List<*> ?: emptyList<Any>()
+        val firstItem = items.firstOrNull() as? Map<*, *> ?: emptyMap<String, Any>()
+        val itemMessage = firstItem["message"] as? String ?: ""
+        Assert.assertTrue("Expected item message to include expected threshold: $itemMessage", itemMessage.contains("100dp"))
         dumpFile.delete()
     }
 
@@ -1415,7 +1419,7 @@ class LayoutVerifyMcpToolActionTest {
                 mapOf(
                     "projectDir" to projectDir.absolutePath,
                     "target" to mapOf("resourceId" to "btn_ok"),
-                    "assert" to mapOf("property" to "text", "value" to "OK"),
+                    "assert" to mapOf("property" to "textSizeSp", "op" to "gte", "value" to "12"),
                 ),
                 setup.runtime,
             )
@@ -1440,7 +1444,7 @@ class LayoutVerifyMcpToolActionTest {
                 mapOf(
                     "projectDir" to projectDir.absolutePath,
                     "target" to mapOf("resourceId" to "btn_ok"),
-                    "assert" to mapOf("property" to "text", "value" to "Expected"),
+                    "assert" to mapOf("property" to "textSizeSp", "op" to "gte", "value" to "12"),
                 ),
                 setup.runtime,
             )
@@ -1496,6 +1500,129 @@ class LayoutVerifyMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
         projectDir.deleteRecursively()
+    }
+
+    @Test
+    fun testAutoDumpModeWhenDumpFileMissing() {
+        val projectDir = createTempDir(prefix = "jugg_verify_auto_dump_")
+        val setup = setupDevice(projectDir, packageName = "com.example.app")
+        val action = LayoutVerifyMcpToolAction()
+        val dumpJson = """{"windows":[{"root":{"id":"com.example:id/btn_ok","className":"Button","bounds":[0,0,200,80],"text":"OK"}}],"deviceInfo":{"density":3.0}}"""
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
+                LayoutDumpResult(payloadJson = dumpJson, remoteFilePath = null)
+            )
+        }.use { mocked ->
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to projectDir.absolutePath,
+                    "target" to mapOf("resourceId" to "btn_ok"),
+                    "asserts" to listOf(mapOf("property" to "text", "value" to "OK")),
+                ),
+                setup.runtime,
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            val constructed = mocked.constructed().first()
+            Mockito.verify(constructed, Mockito.times(1)).dumpLayout(anyOrNull(), any(), any())
+            Mockito.verify(constructed, Mockito.never()).verify(any())
+        }
+        projectDir.deleteRecursively()
+    }
+
+    @Test
+    fun testBatchAssertsReturnsPartialFail() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"root":{"id":"com.example:id/btn_ok","className":"Button","bounds":[0,0,200,80],"text":"OK"}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "btn_ok"),
+                "asserts" to listOf(
+                    mapOf("property" to "text", "value" to "OK"),
+                    mapOf("property" to "text", "value" to "MISMATCH"),
+                ),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        val data = result.data as Map<*, *>
+        Assert.assertEquals("PARTIAL_FAIL", data["result"])
+        val items = data["items"] as List<*>
+        Assert.assertEquals(2, items.size)
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testRejectAssertsAndRelationTogether() {
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "target" to mapOf("resourceId" to "btn_ok"),
+                "target2" to mapOf("resourceId" to "btn_ok_2"),
+                "asserts" to listOf(mapOf("property" to "exists")),
+                "relation" to mapOf("type" to "overlap"),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+    }
+
+    @Test
+    fun testLiveOnlyPropertyUsesLiveModeWithoutDump() {
+        val projectDir = createTempDir(prefix = "jugg_verify_live_only_")
+        val setup = setupDevice(projectDir, packageName = "com.example.app")
+        val action = LayoutVerifyMcpToolAction()
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.verify(any())).thenReturn(
+                VerifyResult(result = "PASS", message = "textSizeSp = 14 (expected: gte 12)")
+            )
+        }.use { mocked ->
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to projectDir.absolutePath,
+                    "target" to mapOf("resourceId" to "btn_ok"),
+                    "asserts" to listOf(mapOf("property" to "textSizeSp", "op" to "gte", "value" to "12")),
+                ),
+                setup.runtime,
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            val constructed = mocked.constructed().first()
+            Mockito.verify(constructed, Mockito.never()).dumpLayout(anyOrNull(), any(), any())
+            Mockito.verify(constructed, Mockito.times(1)).verify(any())
+        }
+        projectDir.deleteRecursively()
+    }
+
+    @Test
+    fun testTargetNotFoundReturnsScoredCandidates() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"root":{"id":"root","className":"FrameLayout","bounds":[0,0,1000,1000],"children":[
+                {"id":"com.example:id/btn_primary","className":"Button","text":"Primary","bounds":[0,0,200,80]},
+                {"id":"com.example:id/btn_secondary","className":"Button","text":"Secondary","bounds":[0,100,200,180]}
+            ]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "btn_prmary"),
+                "asserts" to listOf(mapOf("property" to "exists")),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        val data = result.data as Map<*, *>
+        val candidates = data["candidates"] as? List<*> ?: emptyList<Any>()
+        Assert.assertTrue(candidates.isNotEmpty())
+        val first = candidates.first() as Map<*, *>
+        Assert.assertTrue(first.containsKey("score"))
+        Assert.assertTrue(first.containsKey("reason"))
+        dumpFile.delete()
     }
 
     // ---- Helpers ----
