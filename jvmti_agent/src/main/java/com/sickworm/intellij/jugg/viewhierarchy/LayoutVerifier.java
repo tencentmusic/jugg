@@ -155,22 +155,42 @@ public class LayoutVerifier {
     private JSONObject executeRelation(MatchedElement target, MatchedElement target2, JSONObject relationParams)
             throws JSONException {
         String type = relationParams.optString("type", "");
-        String direction = optString(relationParams, "direction");
+        String axis = resolveAxis(type, relationParams);
+        String op = optString(relationParams, "op");
+        if (op == null || op.isEmpty()) {
+            op = "eq";
+        }
         int expected = relationParams.optInt("expected", 0);
         int tolerance = relationParams.optInt("tolerance", 0);
+        boolean hasTolerance = relationParams.has("tolerance");
 
         switch (type) {
             case "spacing":
-                return checkSpacing(target, target2, direction, expected, tolerance);
+                if (axis == null) {
+                    return errorResult("unsupported axis for spacing: " + optString(relationParams, "axis")
+                        + ". Use axis=x or axis=y.", null);
+                }
+                if (hasTolerance && relationParams.has("op")) {
+                    return errorResult("type=spacing check 'op' and 'tolerance' are mutually exclusive", null);
+                }
+                return checkSpacing(target, target2, axis, expected, op, tolerance, hasTolerance);
             case "alignment":
-                return checkAlignment(target, target2, direction);
+                if (axis == null) {
+                    return errorResult("unsupported axis for alignment: " + optString(relationParams, "axis")
+                        + ". Use axis=x or axis=y.", null);
+                }
+                return checkAlignment(target, target2, axis);
             case "overlap":
                 boolean expectOverlap = relationParams.optBoolean("expectOverlap", false);
                 return checkOverlap(target, target2, expectOverlap);
             case "containment":
                 return checkContainment(target, target2);
             case "order":
-                return checkOrder(target, target2, direction);
+                if (axis == null) {
+                    return errorResult("unsupported axis for order: " + optString(relationParams, "axis")
+                        + ". Use axis=x or axis=y.", null);
+                }
+                return checkOrder(target, target2, axis);
             default:
                 return errorResult("unsupported relation type: " + type, null);
         }
@@ -306,10 +326,10 @@ public class LayoutVerifier {
 
     // ---- Relation helpers ----
 
-    private JSONObject checkSpacing(MatchedElement a, MatchedElement b, String direction,
-                                    int expected, int tolerance) throws JSONException {
+    private JSONObject checkSpacing(MatchedElement a, MatchedElement b, String axis,
+                                    int expected, String op, int tolerance, boolean hasTolerance) throws JSONException {
         int spacingPx;
-        if ("vertical".equals(direction)) {
+        if ("y".equals(axis)) {
             // vertical spacing: gap between bottom of a and top of b (or vice versa)
             int topOfLower = Math.max(a.bounds.top, b.bounds.top);
             int bottomOfUpper = Math.min(a.bounds.bottom, b.bounds.bottom);
@@ -321,29 +341,39 @@ public class LayoutVerifier {
             spacingPx = leftOfRight - rightOfLeft;
         }
         int actual = toDp(spacingPx);
-        boolean pass = Math.abs(actual - expected) <= tolerance;
+        SpacingEval eval = evaluateSpacing(actual, expected, op, tolerance, hasTolerance);
+        if (eval.error != null) {
+            return errorResult(eval.error, null);
+        }
+        boolean pass = eval.pass;
         String boundsInfo = " [target:[" + a.bounds.left + "," + a.bounds.top + "," + a.bounds.right + "," + a.bounds.bottom + "]"
             + ", target2:[" + b.bounds.left + "," + b.bounds.top + "," + b.bounds.right + "," + b.bounds.bottom + "]]";
-        String message = "spacing (" + direction + ") = " + actual + "dp"
-            + " (expected: " + expected + "dp ±" + tolerance + "dp)" + boundsInfo;
+        String message;
+        if (hasTolerance) {
+            message = "spacing (axis=" + axis + ") = " + actual + "dp"
+                + " (expected: " + expected + "dp ±" + tolerance + "dp)" + boundsInfo;
+        } else {
+            message = "spacing (axis=" + axis + ") = " + actual + "dp"
+                + " (expected: " + op + " " + expected + "dp)" + boundsInfo;
+        }
         return pass ? buildPassResult(message, actual, expected, "dp") : buildFailResult(message, actual, expected, "dp");
     }
 
-    private JSONObject checkAlignment(MatchedElement a, MatchedElement b, String direction) throws JSONException {
+    private JSONObject checkAlignment(MatchedElement a, MatchedElement b, String axis) throws JSONException {
         boolean pass;
         String desc;
-        if ("vertical".equals(direction)) {
+        if ("x".equals(axis)) {
             // vertically aligned: same horizontal center
             int centerA = (a.bounds.left + a.bounds.right) / 2;
             int centerB = (b.bounds.left + b.bounds.right) / 2;
             pass = Math.abs(centerA - centerB) <= 2;
-            desc = "direction=vertical → X-center check: " + centerA + " vs " + centerB;
+            desc = "axis=x -> X-center check: " + centerA + " vs " + centerB;
         } else {
             // horizontally aligned: same vertical center
             int centerA = (a.bounds.top + a.bounds.bottom) / 2;
             int centerB = (b.bounds.top + b.bounds.bottom) / 2;
             pass = Math.abs(centerA - centerB) <= 2;
-            desc = "direction=horizontal → Y-center check: " + centerA + " vs " + centerB;
+            desc = "axis=y -> Y-center check: " + centerA + " vs " + centerB;
         }
         String message = "alignment (" + desc + ")";
         return pass ? buildPassResult(message, null, null, null) : buildFailResult(message, null, null, null);
@@ -370,18 +400,78 @@ public class LayoutVerifier {
         return contained ? buildPassResult(message, null, null, null) : buildFailResult(message, null, null, null);
     }
 
-    private JSONObject checkOrder(MatchedElement a, MatchedElement b, String direction) throws JSONException {
+    private JSONObject checkOrder(MatchedElement a, MatchedElement b, String axis) throws JSONException {
         boolean inOrder;
         String desc;
-        if ("vertical".equals(direction)) {
+        if ("y".equals(axis)) {
             inOrder = a.bounds.top < b.bounds.top;
             desc = "vertical order: a.top=" + a.bounds.top + " b.top=" + b.bounds.top;
         } else {
             inOrder = a.bounds.left < b.bounds.left;
             desc = "horizontal order: a.left=" + a.bounds.left + " b.left=" + b.bounds.left;
         }
-        String message = "order (" + direction + "): " + desc;
+        String message = "order (axis=" + axis + "): " + desc;
         return inOrder ? buildPassResult(message, null, null, null) : buildFailResult(message, null, null, null);
+    }
+
+    private String resolveAxis(String type, JSONObject relationParams) {
+        String axis = optString(relationParams, "axis");
+        if (axis != null && !axis.isEmpty()) {
+            String normalizedAxis = axis.toLowerCase();
+            if ("x".equals(normalizedAxis) || "y".equals(normalizedAxis)) {
+                return normalizedAxis;
+            }
+            return null;
+        }
+        String direction = optString(relationParams, "direction");
+        if (direction != null) {
+            if ("alignment".equals(type)) {
+                return "vertical".equals(direction) ? "x" : "y";
+            }
+            if ("spacing".equals(type) || "order".equals(type)) {
+                return "vertical".equals(direction) ? "y" : "x";
+            }
+        }
+        // Preserve historical defaults when direction is omitted.
+        if ("alignment".equals(type)) {
+            return "y";
+        }
+        if ("spacing".equals(type) || "order".equals(type)) {
+            return "x";
+        }
+        return null;
+    }
+
+    private SpacingEval evaluateSpacing(int actual, int expected, String op, int tolerance, boolean hasTolerance) {
+        if (hasTolerance) {
+            return new SpacingEval(Math.abs(actual - expected) <= tolerance, null);
+        }
+        switch (op) {
+            case "eq":
+                return new SpacingEval(actual == expected, null);
+            case "neq":
+                return new SpacingEval(actual != expected, null);
+            case "gte":
+                return new SpacingEval(actual >= expected, null);
+            case "lte":
+                return new SpacingEval(actual <= expected, null);
+            case "gt":
+                return new SpacingEval(actual > expected, null);
+            case "lt":
+                return new SpacingEval(actual < expected, null);
+            default:
+                return new SpacingEval(false, "unsupported op for spacing: " + op);
+        }
+    }
+
+    private static final class SpacingEval {
+        private final boolean pass;
+        private final String error;
+
+        private SpacingEval(boolean pass, String error) {
+            this.pass = pass;
+            this.error = error;
+        }
     }
 
     // ---- Result builders ----

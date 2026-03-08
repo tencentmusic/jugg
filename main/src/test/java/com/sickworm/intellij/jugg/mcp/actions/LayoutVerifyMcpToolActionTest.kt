@@ -33,6 +33,27 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
+    fun testInputSchemaPropertyEnumIncludesCanonicalAndAliasNames() {
+        val checksProperties = LayoutVerifyMcpToolAction().definition.inputSchema.properties
+        val checksItems = checksProperties["checks"]?.items
+        val propertyEnum = checksItems?.properties?.get("property")?.`enum`?.mapNotNull { it as? String } ?: emptyList()
+        Assert.assertTrue("property enum should include width alias", propertyEnum.contains("width"))
+        Assert.assertTrue("property enum should include bounds.width", propertyEnum.contains("bounds.width"))
+        Assert.assertTrue("property enum should include alpha", propertyEnum.contains("alpha"))
+    }
+
+    @Test
+    fun testInputSchemaRelationAxisAndSpacingOpExist() {
+        val checksProperties = LayoutVerifyMcpToolAction().definition.inputSchema.properties
+        val checksItems = checksProperties["checks"]?.items
+        val axisEnum = checksItems?.properties?.get("axis")?.`enum`?.mapNotNull { it as? String } ?: emptyList()
+        val opEnum = checksItems?.properties?.get("op")?.`enum`?.mapNotNull { it as? String } ?: emptyList()
+        Assert.assertTrue("axis enum should include x", axisEnum.contains("x"))
+        Assert.assertTrue("axis enum should include y", axisEnum.contains("y"))
+        Assert.assertTrue("op enum should include gt", opEnum.contains("gt"))
+    }
+
+    @Test
     fun testDumpFileModeReturnsErrorWhenNoTargetProvidedForCheck() {
         val dumpFile = writeDumpFile(
             """{"windows":[{"title":"Main","root":{"className":"Button","id":"com.example:id/btn_ok","bounds":[0,0,200,80]}}],"deviceInfo":{"density":3.0}}"""
@@ -1069,6 +1090,102 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
+    fun testDumpFileModeRelationSpacingOpGtPass() {
+        // spacing=16px, expected gt 0dp -> PASS
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"id":"root",
+                "children":[
+                  {"className":"Button","id":"com.example:id/btn_a","bounds":[0,0,300,100]},
+                  {"className":"Button","id":"com.example:id/btn_b","bounds":[0,116,300,200]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "btn_a"),
+                "checks" to listOf(
+                    mapOf(
+                        "target2" to mapOf("resourceId" to "btn_b"),
+                        "type" to "spacing",
+                        "axis" to "y",
+                        "op" to "gt",
+                        "expected" to 0,
+                    )
+                ),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        Assert.assertTrue("Expected op in message: ${result.message}", result.message.contains("expected: gt 0dp"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeRelationSpacingOpGtFail() {
+        // spacing=16px, expected gt 16dp -> FAIL
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"id":"root",
+                "children":[
+                  {"className":"Button","id":"com.example:id/btn_a","bounds":[0,0,300,100]},
+                  {"className":"Button","id":"com.example:id/btn_b","bounds":[0,116,300,200]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "btn_a"),
+                "checks" to listOf(
+                    mapOf(
+                        "target2" to mapOf("resourceId" to "btn_b"),
+                        "type" to "spacing",
+                        "axis" to "y",
+                        "op" to "gt",
+                        "expected" to 16,
+                    )
+                ),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeRelationSpacingRejectsOpAndToleranceTogether() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"id":"root",
+                "children":[
+                  {"className":"Button","id":"com.example:id/btn_a","bounds":[0,0,300,100]},
+                  {"className":"Button","id":"com.example:id/btn_b","bounds":[0,116,300,200]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "btn_a"),
+                "checks" to listOf(
+                    mapOf(
+                        "target2" to mapOf("resourceId" to "btn_b"),
+                        "type" to "spacing",
+                        "axis" to "y",
+                        "op" to "gt",
+                        "expected" to 8,
+                        "tolerance" to 2,
+                    )
+                ),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue("Expected mutual exclusive hint in message: ${result.message}",
+            result.message.contains("mutually exclusive", ignoreCase = true))
+        dumpFile.delete()
+    }
+
+    @Test
     fun testDumpFileModeRelationSpacingHorizontal() {
         // A=[0,0,100,100], B=[120,0,220,100] → horizontal spacing = 120-100=20px
         val dumpFile = writeDumpFile(
@@ -1084,6 +1201,26 @@ class LayoutVerifyMcpToolActionTest {
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeRelationSpacingAxisXPass() {
+        // A=[0,0,100,100], B=[120,0,220,100] -> axis=x spacing=20px
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,200],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,100]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[120,0,220,100]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "axis" to "x", "expected" to 20, "tolerance" to 0)),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        Assert.assertTrue("Expected axis in message: ${result.message}", result.message.contains("spacing (axis=x)"))
         dumpFile.delete()
     }
 
@@ -1160,6 +1297,46 @@ class LayoutVerifyMcpToolActionTest {
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeRelationAlignmentAxisXPass() {
+        // axis=x checks X-center alignment
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,50]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[0,60,100,110]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "axis" to "x")),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        Assert.assertTrue("Expected axis message: ${result.message}", result.message.contains("axis=x"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeRelationAlignmentAxisYPass() {
+        // axis=y checks Y-center alignment
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,200],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,60]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[110,0,210,60]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "axis" to "y")),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        Assert.assertTrue("Expected axis message: ${result.message}", result.message.contains("axis=y"))
         dumpFile.delete()
     }
 
@@ -1536,6 +1713,46 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
+    fun testDumpFileModeWidthAliasMappedToBoundsWidth() {
+        // width alias should be normalized to bounds.width
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,300,100]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "v"),
+            "checks" to listOf(mapOf("type" to "property", "property" to "width", "value" to 100)),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected normalized property in message: ${result.message}",
+            result.message.contains("bounds.width"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeUnsupportedPropertyReturnsSuggestionAndObservedSize() {
+        // Misspelled width should include did-you-mean and a direct observed width hint.
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,300,100]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "v"),
+            "checks" to listOf(mapOf("type" to "property", "property" to "widht", "value" to 50)),
+        ), buildRuntime(null))
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected did-you-mean guidance: ${result.message}",
+            result.message.contains("did you mean", ignoreCase = true))
+        Assert.assertTrue("Expected suggestion to mention width/bounds.width: ${result.message}",
+            result.message.contains("width", ignoreCase = true))
+        Assert.assertTrue("Expected observed width hint in message: ${result.message}",
+            result.message.contains("reference bounds.width", ignoreCase = true))
+        Assert.assertTrue("Expected supported properties list in message: ${result.message}",
+            result.message.contains("supported properties", ignoreCase = true))
+        dumpFile.delete()
+    }
+
+    @Test
     fun testDumpFileModeUnsupportedRelationType() {
         // Unsupported relation type → ERROR
         val dumpFile = writeDumpFile(
@@ -1789,6 +2006,54 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
+    fun testLiveQueryModeRelationAxisInjectsLegacyDirection() {
+        val projectDir = createTempDir(prefix = "jugg_verify_live_axis_")
+        val setup = setupDevice(projectDir, packageName = "com.example.app")
+        val action = LayoutVerifyMcpToolAction()
+        val capturedParams = mutableListOf<Map<String, Any?>>()
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.verify(any())).thenAnswer { invocation ->
+                @Suppress("UNCHECKED_CAST")
+                capturedParams.add(invocation.arguments[0] as Map<String, Any?>)
+                VerifyResult(result = "PASS", message = "spacing (axis=y) = 16dp (expected: gt 0dp)")
+            }
+        }.use {
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to projectDir.absolutePath,
+                    "target" to mapOf("resourceId" to "btn_a"),
+                    "checks" to listOf(
+                        mapOf(
+                            "type" to "property",
+                            "property" to "textSizeSp",
+                            "op" to "gte",
+                            "value" to 12,
+                        ),
+                        mapOf(
+                            "type" to "spacing",
+                            "target2" to mapOf("resourceId" to "btn_b"),
+                            "axis" to "y",
+                            "op" to "gt",
+                            "expected" to 0,
+                        )
+                    ),
+                ),
+                setup.runtime,
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+        }
+        Assert.assertEquals(2, capturedParams.size)
+        val params = capturedParams[1]
+        @Suppress("UNCHECKED_CAST")
+        val relation = params["relation"] as Map<String, Any?>
+        Assert.assertEquals("y", relation["axis"])
+        Assert.assertEquals("vertical", relation["direction"])
+        Assert.assertEquals("gt", relation["op"])
+        projectDir.deleteRecursively()
+    }
+
+    @Test
     fun testTargetNotFoundReturnsScoredCandidates() {
         val dumpFile = writeDumpFile(
             """{"windows":[{"root":{"id":"root","className":"FrameLayout","bounds":[0,0,1000,1000],"children":[
@@ -1833,6 +2098,23 @@ class LayoutVerifyMcpToolActionTest {
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertAlphaGtPassWhenValueIsString() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":1.0}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "gt", "value" to "0.5")),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected threshold 0.5 in message: ${result.message}", result.message.contains("gt 0.5"))
         dumpFile.delete()
     }
 
@@ -1959,7 +2241,7 @@ class LayoutVerifyMcpToolActionTest {
             "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "vertical")),
         ), buildRuntime(null))
         Assert.assertTrue("Message should contain X-center check: ${result.message}", result.message.contains("X-center check"))
-        Assert.assertTrue("Message should contain direction=vertical: ${result.message}", result.message.contains("direction=vertical"))
+        Assert.assertTrue("Message should contain axis=x: ${result.message}", result.message.contains("axis=x"))
         dumpFile.delete()
     }
 
@@ -1978,7 +2260,7 @@ class LayoutVerifyMcpToolActionTest {
             "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "horizontal")),
         ), buildRuntime(null))
         Assert.assertTrue("Message should contain Y-center check: ${result.message}", result.message.contains("Y-center check"))
-        Assert.assertTrue("Message should contain direction=horizontal: ${result.message}", result.message.contains("direction=horizontal"))
+        Assert.assertTrue("Message should contain axis=y: ${result.message}", result.message.contains("axis=y"))
         dumpFile.delete()
     }
 

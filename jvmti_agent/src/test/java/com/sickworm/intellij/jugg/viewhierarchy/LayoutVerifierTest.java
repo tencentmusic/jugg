@@ -234,6 +234,93 @@ public class LayoutVerifierTest {
         Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
     }
 
+    @Test
+    public void verify_shouldPassForSpacingRelationWithOpGt() throws JSONException {
+        View viewA = mockPlainView(View.VISIBLE, true, 300, 100, 0, 0);
+        View viewB = mockPlainView(View.VISIBLE, true, 300, 84, 0, 116);
+
+        Map<String, MatchedElement> elementMap = new HashMap<>();
+        elementMap.put("view_a", makeElement("view_a", "", viewA, makeBounds(0, 0, 300, 100)));
+        elementMap.put("view_b", makeElement("view_b", "", viewB, makeBounds(0, 116, 300, 200)));
+        LayoutVerifier verifier = new LayoutVerifier(
+            new FixedElementFinder(elementMap),
+            makeDisplayMetrics(1.0f, 1.0f)
+        );
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("view_a"));
+        params.put("target2", selectorById("view_b"));
+        JSONObject relation = new JSONObject();
+        relation.put("type", "spacing");
+        relation.put("axis", "y");
+        relation.put("op", "gt");
+        relation.put("expected", 0);
+        params.put("relation", relation);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
+        Assert.assertTrue(response.getJSONObject("data").getString("message").contains("expected: gt 0dp"));
+    }
+
+    @Test
+    public void verify_shouldReturnErrorWhenSpacingOpAndToleranceBothPresent() throws JSONException {
+        View viewA = mockPlainView(View.VISIBLE, true, 300, 100, 0, 0);
+        View viewB = mockPlainView(View.VISIBLE, true, 300, 84, 0, 116);
+
+        Map<String, MatchedElement> elementMap = new HashMap<>();
+        elementMap.put("view_a", makeElement("view_a", "", viewA, makeBounds(0, 0, 300, 100)));
+        elementMap.put("view_b", makeElement("view_b", "", viewB, makeBounds(0, 116, 300, 200)));
+        LayoutVerifier verifier = new LayoutVerifier(
+            new FixedElementFinder(elementMap),
+            makeDisplayMetrics(1.0f, 1.0f)
+        );
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("view_a"));
+        params.put("target2", selectorById("view_b"));
+        JSONObject relation = new JSONObject();
+        relation.put("type", "spacing");
+        relation.put("axis", "y");
+        relation.put("op", "gt");
+        relation.put("expected", 8);
+        relation.put("tolerance", 2);
+        params.put("relation", relation);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("error", response.getString("status"));
+        JSONObject data = response.getJSONObject("data");
+        Assert.assertEquals("ERROR", data.getString("result"));
+        Assert.assertTrue(data.getString("message").contains("mutually exclusive"));
+    }
+
+    @Test
+    public void verify_shouldPassForAlignmentAxisX() throws JSONException {
+        View viewA = mockPlainView(View.VISIBLE, true, 100, 50, 0, 0);
+        View viewB = mockPlainView(View.VISIBLE, true, 100, 50, 0, 60);
+
+        Map<String, MatchedElement> elementMap = new HashMap<>();
+        elementMap.put("view_a", makeElement("view_a", "", viewA, makeBounds(0, 0, 100, 50)));
+        elementMap.put("view_b", makeElement("view_b", "", viewB, makeBounds(0, 60, 100, 110)));
+        LayoutVerifier verifier = new LayoutVerifier(
+            new FixedElementFinder(elementMap),
+            makeDisplayMetrics(1.0f, 1.0f)
+        );
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("view_a"));
+        params.put("target2", selectorById("view_b"));
+        JSONObject relation = new JSONObject();
+        relation.put("type", "alignment");
+        relation.put("axis", "x");
+        params.put("relation", relation);
+
+        JSONObject response = verifier.verify(params);
+        Assert.assertEquals("ok", response.getString("status"));
+        Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
+        Assert.assertTrue(response.getJSONObject("data").getString("message").contains("axis=x"));
+    }
+
     // ---- Test: spacing FAIL message contains bounds of both elements ----
 
     @Test

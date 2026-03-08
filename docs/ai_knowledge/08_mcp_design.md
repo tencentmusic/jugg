@@ -63,6 +63,8 @@
 - **Versioning rule**: 当 `ViewHierarchyServer` 响应结构发生 breaking change（字段删除/类型变更/语义不兼容）时，必须递增服务端协议版本号，并同步客户端常量与文档。
 - `layout_verify` 默认走 auto_dump：MCP 侧先抓取最新布局快照再执行断言；传 `dumpFile` 时走 explicit_dump 回放历史文件；live-only 属性（如 `textSizeSp`）自动切到 live query。
 - `layout_verify` 的批量入口为 `checks[]`；每条 `check` 必须携带 `target`。支持 `checksFile` 文件输入（优先级低于参数 `checks`）。返回 `PASS | PARTIAL_FAIL | FAIL | ERROR` 聚合结果与 `checkResults[]` 明细；`checks` 为空时返回 `MCP_INVALID_PARAMS`。
+- 关系类断言（`spacing/alignment/order`）统一以 `axis=x|y` 表达检查轴；`direction=horizontal|vertical` 仅做兼容映射（建议新调用改用 `axis`）。
+- `spacing` 支持数值比较操作符（`eq/neq/gte/lte/gt/lt`）；当使用 `op` 时不允许再传 `tolerance`。
 - `LayoutVerifyMcpToolAction` 的 dump 路径依赖 dump JSON 根节点 `deviceInfo.density` 做 dp 换算。
 
 ---
