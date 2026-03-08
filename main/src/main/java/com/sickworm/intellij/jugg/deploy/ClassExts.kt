@@ -4,6 +4,18 @@ import org.jetbrains.kotlin.utils.addToStdlib.indexOfOrNull
 import java.io.File
 
 
+/**
+ * Returns true if this class name (in sig format like "Ljava/lang/Object;") belongs to
+ * boot classpath (Android SDK or JDK runtime). These classes are NOT shipped in project
+ * library jars and should be skipped from class file lookup.
+ */
+inline val String.isBootClasspathClass: Boolean
+    get() {
+        return startsWith("Ljava/") || startsWith("Ljavax/")
+            || (startsWith("Landroid/") && !startsWith("Landroidx/"))
+            || startsWith("Ldalvik/")
+    }
+
 inline val String.isOfficialClass: Boolean
     get() {
         if (startsWith("Ljava/")) {

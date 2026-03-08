@@ -185,7 +185,9 @@ class CompileEffectAnalyzer(
         forEach {
             if (it.sourceFileName.endsWith(".kt") || it.sourceFileName.endsWith(".java")) {
                 existsSourceNode.add(it)
-            } else if (!it.className.contains("\$\$ExternalSyntheticLambda")) {
+            } else if (!it.className.contains("\$\$ExternalSyntheticLambda")
+                && !it.className.isBootClasspathClass
+            ) {
                 missingSourceNode.add(it)
             }
         }
