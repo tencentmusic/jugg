@@ -1556,19 +1556,38 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
-    fun testRejectAssertsAndRelationTogether() {
+    fun testAssertsAndRelationsCanRunTogether() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"root":{"id":"root","className":"FrameLayout","bounds":[0,0,400,400],"children":[
+                {"id":"com.example:id/btn_ok","className":"Button","bounds":[0,0,100,50],"text":"OK"},
+                {"id":"com.example:id/btn_ok_2","className":"Button","bounds":[0,70,100,120],"text":"OK2"}
+            ]}}],"deviceInfo":{"density":1.0}}"""
+        )
         val result = LayoutVerifyMcpToolAction().execute(
             mapOf(
                 "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "btn_ok"),
-                "target2" to mapOf("resourceId" to "btn_ok_2"),
                 "asserts" to listOf(mapOf("property" to "exists")),
-                "relation" to mapOf("type" to "overlap"),
+                "relations" to listOf(
+                    mapOf(
+                        "target2" to mapOf("resourceId" to "btn_ok_2"),
+                        "type" to "spacing",
+                        "direction" to "vertical",
+                        "expected" to 20,
+                        "tolerance" to 0,
+                    )
+                ),
             ),
             buildRuntime(null),
         )
-        Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        val data = result.data as Map<*, *>
+        val assertItems = data["assertItems"] as? List<*> ?: emptyList<Any>()
+        val relationItems = data["relationItems"] as? List<*> ?: emptyList<Any>()
+        Assert.assertEquals(1, assertItems.size)
+        Assert.assertEquals(1, relationItems.size)
+        dumpFile.delete()
     }
 
     @Test

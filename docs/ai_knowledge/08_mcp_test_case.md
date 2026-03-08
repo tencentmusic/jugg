@@ -219,17 +219,17 @@
 **VERIFY-4: live query 自动切换 - textSizeSp**
 调用 `layout_verify`，不传 `dumpFile`，传入 `projectDir`、`target` 和 `asserts: [{property: "textSizeSp", op: "gte", value: "12"}]`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。
 
-**VERIFY-5: relation spacing**
-调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<id_1>"}` 和 `target2: {resourceId: "<id_2>"}`，`relation: {type: "spacing", direction: "vertical", expected: 16, unit: "dp", tolerance: 4}`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。
+**VERIFY-5: relations 单项 spacing**
+调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "<id_1>"}` 和 `relations: [{target2: {resourceId: "<id_2>"}, type: "spacing", direction: "vertical", expected: 16, unit: "dp", tolerance: 4}]`。验证返回 `data.result` 为 `PASS` 或 `FAIL`（非参数错误）。
 
 **VERIFY-6: 元素未找到**
 调用 `layout_verify`，传入 `projectDir`、`target: {resourceId: "non_existent_element_xyz"}` 和 `asserts: [{property: "exists"}]`。验证返回 `status` 为 `ERROR`，`data.result` 为 `ERROR`，`data.candidates` 列出近似匹配且包含 `score/reason`。
 
-**VERIFY-7: asserts 与 relation 互斥**
-调用 `layout_verify`，同时传入 `asserts` 和 `relation`（均为合法值），验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
+**VERIFY-7: asserts 与 relations 同时执行**
+调用 `layout_verify`，同时传入 `asserts` 和 `relations`（均为合法值），验证返回 `data.items` 同时包含两类检查结果，`data.result` 为聚合值（可能 PASS/PARTIAL_FAIL/FAIL）。
 
-**VERIFY-8: 缺少 asserts 和 relation**
-调用 `layout_verify`，传入 `projectDir` 和 `target`，不传 `asserts` 也不传 `relation`，验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
+**VERIFY-8: 缺少 asserts 和 relations**
+调用 `layout_verify`，传入 `projectDir` 和 `target`，不传 `asserts` 也不传 `relations`，验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
 
 ---
 
@@ -436,7 +436,7 @@
 调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 **NODEV-11a: 无设备 - layout_verify (live 模式)**
-调用 `layout_verify`，传入有效 `projectDir`、`target: {resourceId: "any_id"}` 和 `assert: {property: "exists"}`，不传 `dumpFile`（live 模式需设备），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+调用 `layout_verify`，传入有效 `projectDir`、`target: {resourceId: "any_id"}` 和 `asserts: [{property: "exists"}]`，不传 `dumpFile`（自动快照/实时都需设备），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 **NODEV-12: 无设备 - activity_stack**
 调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。

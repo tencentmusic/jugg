@@ -62,7 +62,7 @@
 - ViewHierarchy socket 响应包含 `version` 字段；客户端当前为 warn-only 策略（版本不匹配仅告警，不拦截请求）。
 - **Versioning rule**: 当 `ViewHierarchyServer` 响应结构发生 breaking change（字段删除/类型变更/语义不兼容）时，必须递增服务端协议版本号，并同步客户端常量与文档。
 - `layout_verify` 默认走 auto_dump：MCP 侧先抓取最新布局快照再执行断言；传 `dumpFile` 时走 explicit_dump 回放历史文件；live-only 属性（如 `textSizeSp`）自动切到 live query。
-- `layout_verify` 的批量断言入口为 `asserts[]`，返回 `PASS | PARTIAL_FAIL | FAIL | ERROR` 聚合结果与 `items[]` 明细；参数互斥冲突（`asserts` + `relation`）返回 `MCP_INVALID_PARAMS`。
+- `layout_verify` 的批量入口为 `asserts[] + relations[]`（可同时提供），返回 `PASS | PARTIAL_FAIL | FAIL | ERROR` 聚合结果与 `items[]` 明细；两数组都为空时返回 `MCP_INVALID_PARAMS`。
 - `LayoutVerifyMcpToolAction` 的 dump 路径依赖 dump JSON 根节点 `deviceInfo.density` 做 dp 换算。
 
 ---

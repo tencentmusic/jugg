@@ -47,7 +47,7 @@
 | `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
-| `layout_verify` | `projectDir`, `target`; 需提供 `asserts` 或 `relation` 之一；可选 `dumpFile`, `target2` | 验证 UI 元素属性或元素间关系（默认自动快照；可指定历史 dump） |
+| `layout_verify` | `projectDir`, `target`; 至少提供 `asserts` 或 `relations` 之一；可选 `dumpFile` | 验证 UI 元素属性或元素间关系（默认自动快照；可指定历史 dump） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
@@ -102,14 +102,15 @@
   - **explicit_dump**：传 `dumpFile` 绝对路径，回放历史快照。
   - **auto_dump**：不传 `dumpFile` 时默认模式；工具会先抓取一份最新布局快照再断言。
   - **live query**：当断言属性是 dump 不支持项（当前为 `textSizeSp`）时，自动切换 live。
-- 每次调用执行一组 `asserts`（数组，至少 1 项）或一个 `relation`，两者互斥；均不传时返回 `MCP_INVALID_PARAMS`。
-- **target / target2 选择器**：至少提供 `resourceId` / `text` / `contentDesc` / `className` 之一。`resourceId` 支持 short id（如 `btn_play`）。`relation` 模式必须同时传 `target2`。
+- 每次调用可同时执行 `asserts[]` 与 `relations[]`；两者都为空时返回 `MCP_INVALID_PARAMS`。
+- **target / relation.target2 选择器**：至少提供 `resourceId` / `text` / `contentDesc` / `className` 之一。`resourceId` 支持 short id（如 `btn_play`）。
 - **asserts[i] 参数**：
   - `property`：`exists` / `visibility` / `clickable` / `enabled` / `text` / `bounds.width` / `bounds.height` / `bounds.left` / `bounds.top` / `bounds.right` / `bounds.bottom` / `alpha` / `textColor` / `textSizeSp`（仅 live）/ `padding.left` / `padding.top` / `padding.right` / `padding.bottom`
   - `op`：`eq`（默认）/ `neq` / `gte` / `lte` / `gt` / `lt` / `contains` / `matches`
   - `value`：期望值（字符串）
   - `unit`：`dp` 或 `px`（坐标/尺寸类属性默认 `px`）
-- **relation 参数**：
+- **relations[i] 参数**：
+  - `target2`：第二个元素选择器（必填）
   - `type`：`spacing` / `alignment` / `overlap` / `containment` / `order`
   - `direction`：`horizontal` 或 `vertical`（用于 spacing / alignment / order）
   - `expected`：期望值（用于 spacing，数值）
