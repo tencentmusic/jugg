@@ -89,7 +89,7 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
 - Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
 - Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.
-- Any app restart (deploy/restart) invalidates previous page context; rerun navigation and context gate.
+- Any deploy (`compile_and_deploy`) or app restart invalidates previous page context; rerun Target Page Context Gate immediately after deploy completes. If gate confirms same page, continue verification; if page changed, re-execute navigation sequence to return to target page.
 - Reuse validated navigation sequence and page anchors within the same session to avoid repeated user queries.
 
 ## Observe Delegation Policy

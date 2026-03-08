@@ -47,6 +47,7 @@ Special case:
 - Purpose: compile modified code and deploy to device.
 - Required input: `projectDir`.
 - Primary path for Android modify+verify loop.
+- Post-deploy: page state may change (app restart or activity recreation). Always rerun Target Page Context Gate after deploy succeeds before continuing verification. If gate confirms same page, continue verification. If page changed, re-execute navigation sequence to return to target page.
 
 ### `compile_only`
 - Purpose: compile modified sources without deployment.
