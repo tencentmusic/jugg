@@ -16,10 +16,10 @@
 | Width ≈ 200dp ± 5 | `bounds.width` | `gte`+`lte` | `195`/`205` | ⚠️ Pitfall #1 |
 | Color = blue | `textColor` | `eq` | `"#FF1976D2"` | ⚠️ Must #AARRGGBB |
 | Color ≠ white | `textColor` | `neq` | `"#FFFFFFFF"` | |
-| backgroundColor | — | — | — | ❌ Not supported; use screenshot |
+| backgroundColor (solid) | `backgroundColor` | `eq` | `"#FF1976D2"` | ⚠️ Live-only; solid color only |
 | Font size = 20sp | `textSizeSp` | `eq` | `20` | ⚠️ Live-only |
 | Clickable / enabled | `clickable` | `eq` | `true` | Boolean |
-| Alpha | `alpha` | `eq` | `1.0` | ⚠️ Only eq/gte/lte reliable |
+| Alpha | `alpha` | `eq` | `1.0` | All 6 ops supported (epsilon=0.001) |
 | Padding left = 16dp | `padding.left` | `eq` | `16` | |
 
 ### 1.2 Relations
@@ -86,9 +86,10 @@ Prefer `resourceId`. Add `className` to narrow `text` matches.
 
 Use `screenshot` + visual comparison as fallback.
 
-### #10: alpha only supports eq/gte/lte
+### #10: alpha supports all 6 ops
 
-`gt`/`lt`/`neq` silently behave as approximate `eq`. Use `gte`/`lte` for ranges.
+All standard ops (`eq`/`neq`/`gt`/`lt`/`gte`/`lte`) work correctly for `alpha`.
+Comparison uses epsilon=0.001 for floating-point tolerance.
 
 ---
 
@@ -136,3 +137,21 @@ Use `screenshot` + visual comparison as fallback.
     { "target2":{"resourceId":"btn_b"}, "type":"order", "direction":"vertical" }
 ]}
 ```
+
+### Ex7: Overlap with expectOverlap
+```json
+{ "checks": [
+    { "target":{"resourceId":"badge"}, "target2":{"resourceId":"avatar"}, "type":"overlap", "expectOverlap":true }
+]}
+```
+`expectOverlap:true` → PASS when elements DO overlap.
+
+### Ex8: Containment (target=child, target2=parent)
+```json
+{ "checks": [{
+    "target": {"resourceId": "icon_avatar"},
+    "target2": {"resourceId": "container_header"},
+    "type": "containment"
+}]}
+```
+Verifies `icon_avatar` (child) is fully inside `container_header` (parent).

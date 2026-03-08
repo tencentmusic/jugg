@@ -66,13 +66,17 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             "type" to McpJsonSchemaProperty(
                                 type = "string",
                                 description = "property: single-element check. spacing: gap (dp, supports expected+tolerance). " +
-                                    "alignment: center alignment (vertical→X-center, horizontal→Y-center). " +
-                                    "overlap: PASS=no overlap. containment: PASS=target inside target2. order: PASS=target before target2.",
+                                    "alignment: center alignment — IMPORTANT: vertical→checks X-center (horizontal centering), horizontal→checks Y-center (vertical centering). " +
+                                    "overlap: checks whether two elements overlap. Default: PASS=no overlap (asserts elements do NOT overlap). Set expectOverlap=true to reverse: PASS=elements DO overlap. " +
+                                    "containment: PASS=target(child) is fully inside target2(parent). " +
+                                    "order: PASS=target before target2.",
                                 `enum` = listOf("property", "spacing", "alignment", "overlap", "containment", "order"),
                             ),
                             "property" to McpJsonSchemaProperty(
                                 type = "string",
-                                description = "For type=property. textColor uses #AARRGGBB (e.g. #FF1976D2). textSizeSp is live-only.",
+                                description = "For type=property. textColor/backgroundColor use #AARRGGBB (e.g. #FF1976D2). " +
+                                    "textSizeSp and backgroundColor are live-only. " +
+                                    "backgroundColor only works for solid-color backgrounds (ColorDrawable).",
                             ),
                             "op" to McpJsonSchemaProperty(
                                 type = "string",
@@ -85,7 +89,10 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             ),
                             "target2" to McpJsonSchemaProperty(
                                 type = "object",
-                                description = "Second element. containment: target=child, target2=parent.",
+                                description = "Second element for relation checks. " +
+                                    "containment: target=CHILD (inner element), target2=PARENT (outer container). " +
+                                    "PASS means target is fully inside target2. " +
+                                    "spacing/order: target is the 'from' element, target2 is the 'to' element.",
                                 properties = mapOf(
                                     "resourceId" to McpJsonSchemaProperty(type = "string"),
                                     "text" to McpJsonSchemaProperty(type = "string"),
@@ -96,7 +103,11 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             ),
                             "direction" to McpJsonSchemaProperty(
                                 type = "string",
-                                description = "For spacing/alignment/order. alignment: vertical→checks X-center, horizontal→checks Y-center.",
+                                description = "For spacing/alignment/order. " +
+                                    "ALIGNMENT SEMANTICS (IMPORTANT): " +
+                                    "To check if two elements are horizontally centered (same X-center), use direction='vertical'. " +
+                                    "To check if two elements are vertically centered (same Y-center), use direction='horizontal'. " +
+                                    "SPACING/ORDER: direction indicates the axis of measurement.",
                                 `enum` = listOf("horizontal", "vertical"),
                             ),
                             "expected" to McpJsonSchemaProperty(
@@ -106,6 +117,10 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             "tolerance" to McpJsonSchemaProperty(
                                 type = "number",
                                 description = "Deviation in dp. Only for type=spacing. NOT supported in type=property — use gte+lte instead.",
+                            ),
+                            "expectOverlap" to McpJsonSchemaProperty(
+                                type = "boolean",
+                                description = "Only for type=overlap. Default false (PASS=no overlap). Set true to assert elements DO overlap (PASS=overlap exists).",
                             ),
                         ),
                         additionalProperties = false,
@@ -371,10 +386,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             "alpha" -> {
                 val actual = node.get("alpha")?.runCatching { asDouble }?.getOrDefault(1.0) ?: 1.0
                 val expected = (value as? Number)?.toDouble() ?: 1.0
-                if (Math.abs(actual - expected) < 0.001)
-                    VerifyResult("PASS", "alpha = $actual", actual, expected)
-                else
-                    VerifyResult("FAIL", "alpha = $actual (expected: $op $expected)", actual, expected)
+                assertDouble(actual, op, expected, "alpha")
             }
             "bounds.width" -> assertBoundsDp(boundsWidth(node), op, value, density, "bounds.width")
             "bounds.height" -> assertBoundsDp(boundsHeight(node), op, value, density, "bounds.height")
@@ -468,28 +480,33 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                     val centerA = (aLeft + aRight) / 2
                     val centerB = (bLeft + bRight) / 2
                     pass = Math.abs(centerA - centerB) <= 2
-                    desc = "horizontal centers: $centerA vs $centerB"
+                    desc = "direction=vertical → X-center check: $centerA vs $centerB"
                 } else {
                     val centerA = (aTop + aBottom) / 2
                     val centerB = (bTop + bBottom) / 2
                     pass = Math.abs(centerA - centerB) <= 2
-                    desc = "vertical centers: $centerA vs $centerB"
+                    desc = "direction=horizontal → Y-center check: $centerA vs $centerB"
                 }
-                val msg = "alignment ($direction): $desc"
+                val msg = "alignment ($desc)"
                 if (pass) VerifyResult("PASS", msg) else VerifyResult("FAIL", msg)
             }
             "overlap" -> {
                 val (aLeft, aTop, aRight, aBottom) = getBounds(target)
                 val (bLeft, bTop, bRight, bBottom) = getBounds(target2)
                 val overlaps = aLeft < bRight && aRight > bLeft && aTop < bBottom && aBottom > bTop
-                val msg = "overlap: " + if (overlaps) "elements overlap" else "no overlap"
-                if (!overlaps) VerifyResult("PASS", msg) else VerifyResult("FAIL", msg)
+                val expectOverlap = relation["expectOverlap"] as? Boolean ?: false
+                val pass = if (expectOverlap) overlaps else !overlaps
+                val msg = "overlap (expectOverlap=$expectOverlap): " +
+                    if (overlaps) "elements overlap" else "no overlap"
+                if (pass) VerifyResult("PASS", msg) else VerifyResult("FAIL", msg)
             }
             "containment" -> {
                 val (aLeft, aTop, aRight, aBottom) = getBounds(target)
                 val (bLeft, bTop, bRight, bBottom) = getBounds(target2)
                 val contained = aLeft >= bLeft && aTop >= bTop && aRight <= bRight && aBottom <= bBottom
-                val msg = "containment: target " + if (contained) "is inside" else "is NOT inside" + " container"
+                val msg = "containment: target(child) " +
+                    (if (contained) "is inside" else "is NOT inside") +
+                    " target2(parent)"
                 if (contained) VerifyResult("PASS", msg) else VerifyResult("FAIL", msg)
             }
             "order" -> {
@@ -980,9 +997,24 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         return runCatching { value.asString }.getOrNull()
     }
 
+    private fun assertDouble(actual: Double, op: String, expected: Double, property: String): VerifyResult {
+        val pass = when (op) {
+            "gte" -> actual >= expected - DOUBLE_EPSILON
+            "lte" -> actual <= expected + DOUBLE_EPSILON
+            "gt"  -> actual > expected + DOUBLE_EPSILON
+            "lt"  -> actual < expected - DOUBLE_EPSILON
+            "neq" -> Math.abs(actual - expected) >= DOUBLE_EPSILON
+            else  -> Math.abs(actual - expected) < DOUBLE_EPSILON // eq
+        }
+        val msg = "$property = $actual (expected: $op $expected)"
+        return if (pass) VerifyResult("PASS", msg, actual, expected)
+        else VerifyResult("FAIL", msg, actual, expected)
+    }
+
     companion object {
         private const val PROPERTY_CHECK_TYPE = "property"
-        private val LIVE_ONLY_PROPERTIES = setOf("textSizeSp")
+        private val LIVE_ONLY_PROPERTIES = setOf("textSizeSp", "backgroundColor")
         private const val MAX_CANDIDATES = 5
+        private const val DOUBLE_EPSILON = 0.001
     }
 }

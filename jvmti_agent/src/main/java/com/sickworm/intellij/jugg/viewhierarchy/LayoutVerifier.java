@@ -132,6 +132,21 @@ public class LayoutVerifier {
                 return assertInt(target.view.getPaddingRight(), op, assertParams.optInt("value", 0), "padding.right");
             case "padding.bottom":
                 return assertInt(target.view.getPaddingBottom(), op, assertParams.optInt("value", 0), "padding.bottom");
+            case "backgroundColor": {
+                android.graphics.drawable.Drawable bg = target.view.getBackground();
+                if (bg instanceof android.graphics.drawable.ColorDrawable) {
+                    int color = ((android.graphics.drawable.ColorDrawable) bg).getColor();
+                    String actualHex = ViewNode.colorToHex(color).toUpperCase();
+                    String normalizedExpected = assertParams.optString("value", "").toUpperCase();
+                    return assertText(actualHex, op, normalizedExpected, "backgroundColor");
+                }
+                // Non-ColorDrawable backgrounds cannot be expressed as a single color
+                return errorResult(
+                    "backgroundColor is not a solid color (drawable type: " + (bg != null ? bg.getClass().getSimpleName() : "null") + "). " +
+                    "Use screenshot comparison for gradient/shape backgrounds.",
+                    null
+                );
+            }
             default:
                 return errorResult("unsupported property: " + property, null);
         }
@@ -150,7 +165,8 @@ public class LayoutVerifier {
             case "alignment":
                 return checkAlignment(target, target2, direction);
             case "overlap":
-                return checkOverlap(target, target2);
+                boolean expectOverlap = relationParams.optBoolean("expectOverlap", false);
+                return checkOverlap(target, target2, expectOverlap);
             case "containment":
                 return checkContainment(target, target2);
             case "order":
@@ -199,12 +215,21 @@ public class LayoutVerifier {
         boolean pass;
         switch (op) {
             case "gte":
-                pass = actual >= expected;
+                pass = actual >= expected - 0.001;
                 break;
             case "lte":
-                pass = actual <= expected;
+                pass = actual <= expected + 0.001;
                 break;
-            default:
+            case "gt":
+                pass = actual > expected + 0.001;
+                break;
+            case "lt":
+                pass = actual < expected - 0.001;
+                break;
+            case "neq":
+                pass = Math.abs(actual - expected) >= 0.001;
+                break;
+            default: // eq
                 pass = Math.abs(actual - expected) < 0.001;
                 break;
         }
@@ -312,26 +337,28 @@ public class LayoutVerifier {
             int centerA = (a.bounds.left + a.bounds.right) / 2;
             int centerB = (b.bounds.left + b.bounds.right) / 2;
             pass = Math.abs(centerA - centerB) <= 2;
-            desc = "horizontal centers: " + centerA + " vs " + centerB;
+            desc = "direction=vertical → X-center check: " + centerA + " vs " + centerB;
         } else {
             // horizontally aligned: same vertical center
             int centerA = (a.bounds.top + a.bounds.bottom) / 2;
             int centerB = (b.bounds.top + b.bounds.bottom) / 2;
             pass = Math.abs(centerA - centerB) <= 2;
-            desc = "vertical centers: " + centerA + " vs " + centerB;
+            desc = "direction=horizontal → Y-center check: " + centerA + " vs " + centerB;
         }
-        String message = "alignment (" + direction + "): " + desc;
+        String message = "alignment (" + desc + ")";
         return pass ? buildPassResult(message, null, null, null) : buildFailResult(message, null, null, null);
     }
 
-    private JSONObject checkOverlap(MatchedElement a, MatchedElement b) throws JSONException {
+    private JSONObject checkOverlap(MatchedElement a, MatchedElement b, boolean expectOverlap) throws JSONException {
         boolean overlaps = a.bounds.left < b.bounds.right
             && a.bounds.right > b.bounds.left
             && a.bounds.top < b.bounds.bottom
             && a.bounds.bottom > b.bounds.top;
-        String message = "overlap check: " + (overlaps ? "elements overlap" : "no overlap");
-        // PASS when no overlap (expected non-overlapping)
-        return !overlaps ? buildPassResult(message, false, false, null) : buildFailResult(message, true, false, null);
+        boolean pass = expectOverlap ? overlaps : !overlaps;
+        String message = "overlap (expectOverlap=" + expectOverlap + "): "
+            + (overlaps ? "elements overlap" : "no overlap");
+        return pass ? buildPassResult(message, overlaps, expectOverlap, null)
+                    : buildFailResult(message, overlaps, expectOverlap, null);
     }
 
     private JSONObject checkContainment(MatchedElement target, MatchedElement container) throws JSONException {
@@ -339,7 +366,7 @@ public class LayoutVerifier {
             && target.bounds.top >= container.bounds.top
             && target.bounds.right <= container.bounds.right
             && target.bounds.bottom <= container.bounds.bottom;
-        String message = "containment: target " + (contained ? "is inside" : "is NOT inside") + " container";
+        String message = "containment: target(child) " + (contained ? "is inside" : "is NOT inside") + " target2(parent)";
         return contained ? buildPassResult(message, null, null, null) : buildFailResult(message, null, null, null);
     }
 

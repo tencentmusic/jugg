@@ -1817,6 +1817,304 @@ class LayoutVerifyMcpToolActionTest {
 
     // ---- Helpers ----
 
+    // ==== Tests for §1: alpha op support (gt/lt/neq) ====
+
+    @Test
+    fun testDumpFileModeAssertAlphaGtPass() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":1.0}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "gt", "value" to 0.5)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertAlphaGtFailEqual() {
+        // alpha=0.5, gt 0.5 → should FAIL (not strictly greater)
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":0.5}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "gt", "value" to 0.5)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertAlphaLtPass() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":0.3}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "lt", "value" to 0.5)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertAlphaNeqPass() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":0.5}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "neq", "value" to 1.0)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertAlphaNeqFailEqual() {
+        // alpha=1.0, neq 1.0 → should FAIL
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":1.0}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "neq", "value" to 1.0)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertAlphaGteBoundary() {
+        // alpha=0.5, gte 0.5 → PASS (epsilon tolerance)
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":0.5}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "gte", "value" to 0.5)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAssertAlphaLteBoundary() {
+        // alpha=0.5, lte 0.5 → PASS (epsilon tolerance)
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,100,100],"alpha":0.5}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "v"),
+                "checks" to listOf(mapOf("type" to "property", "property" to "alpha", "op" to "lte", "value" to 0.5)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    // ==== Tests for §2: alignment message format ====
+
+    @Test
+    fun testDumpFileModeAlignmentVerticalMessageContainsXCenter() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,50]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[0,60,100,110]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "view_a"),
+            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "vertical")),
+        ), buildRuntime(null))
+        Assert.assertTrue("Message should contain X-center check: ${result.message}", result.message.contains("X-center check"))
+        Assert.assertTrue("Message should contain direction=vertical: ${result.message}", result.message.contains("direction=vertical"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeAlignmentHorizontalMessageContainsYCenter() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,200],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,60]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[110,0,210,60]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "view_a"),
+            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "horizontal")),
+        ), buildRuntime(null))
+        Assert.assertTrue("Message should contain Y-center check: ${result.message}", result.message.contains("Y-center check"))
+        Assert.assertTrue("Message should contain direction=horizontal: ${result.message}", result.message.contains("direction=horizontal"))
+        dumpFile.delete()
+    }
+
+    // ==== Tests for §4: overlap expectOverlap parameter ====
+
+    @Test
+    fun testDumpFileModeOverlapExpectOverlapTrueOverlappingPass() {
+        // Two overlapping views + expectOverlap=true → PASS
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,100]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[50,50,150,150]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "view_a"),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "overlap", "expectOverlap" to true)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        Assert.assertTrue("Message should indicate expectOverlap=true: ${result.message}", result.message.contains("expectOverlap=true"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeOverlapExpectOverlapTrueNoOverlapFail() {
+        // Two non-overlapping views + expectOverlap=true → FAIL
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,100]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[200,0,300,100]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "view_a"),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "overlap", "expectOverlap" to true)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeOverlapDefaultBehaviorPreserved() {
+        // No expectOverlap param → default false → no overlap = PASS
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,100]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[200,0,300,100]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "view_a"),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "overlap")),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        Assert.assertTrue("Message should indicate expectOverlap=false: ${result.message}", result.message.contains("expectOverlap=false"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeOverlapExpectOverlapFalseExplicit() {
+        // Explicit expectOverlap=false, overlapping → FAIL
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,100]},
+                  {"className":"View","id":"com.example:id/view_b","bounds":[50,50,150,150]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+                "target" to mapOf("resourceId" to "view_a"),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "overlap", "expectOverlap" to false)),
+            ), buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
+        dumpFile.delete()
+    }
+
+    // ==== Tests for §5: containment message format ====
+
+    @Test
+    fun testDumpFileModeContainmentPassMessageFormat() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/inner","bounds":[10,10,90,90]},
+                  {"className":"View","id":"com.example:id/outer","bounds":[0,0,100,100]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "inner"),
+            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "outer"), "type" to "containment")),
+        ), buildRuntime(null))
+        Assert.assertTrue("Message should contain target(child): ${result.message}", result.message.contains("target(child)"))
+        Assert.assertTrue("Message should contain target2(parent): ${result.message}", result.message.contains("target2(parent)"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testDumpFileModeContainmentFailMessageFormat() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
+                "children":[
+                  {"className":"View","id":"com.example:id/inner","bounds":[0,0,110,100]},
+                  {"className":"View","id":"com.example:id/outer","bounds":[0,0,100,100]}
+                ]}}],"deviceInfo":{"density":1.0}}"""
+        )
+        val result = LayoutVerifyMcpToolAction().execute(mapOf(
+            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
+            "target" to mapOf("resourceId" to "inner"),
+            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "outer"), "type" to "containment")),
+        ), buildRuntime(null))
+        Assert.assertTrue("Message should contain target(child): ${result.message}", result.message.contains("target(child)"))
+        Assert.assertTrue("Message should contain 'is NOT inside': ${result.message}", result.message.contains("is NOT inside"))
+        Assert.assertTrue("Message should contain target2(parent): ${result.message}", result.message.contains("target2(parent)"))
+        dumpFile.delete()
+    }
+
     private fun writeDumpFile(json: String): File {
         val f = File.createTempFile("jugg_verify_dump_", ".json")
         f.writeText(json, StandardCharsets.UTF_8)
