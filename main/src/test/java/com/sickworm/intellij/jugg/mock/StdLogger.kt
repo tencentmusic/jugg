@@ -8,7 +8,7 @@ val logger = StdLogger("JuggTest")
 /**
  * Output log to [System.out].
  */
-class StdLogger(category: String): DefaultLogger(category) {
+class StdLogger(private val category: String): DefaultLogger(category) {
 
     var isEnableDebug = true
     var isEnableInfo = true
@@ -35,42 +35,42 @@ class StdLogger(category: String): DefaultLogger(category) {
 
     override fun debug(message: String?) {
         if (isEnableDebug) {
-            println("[D] $message")
+            println("[FINE   ] $message")
         }
     }
 
     override fun debug(t: Throwable?) {
         if (isEnableDebug) {
-            dumpExceptionsToStderr("[D] ", t)
+            dumpExceptionsToStderr("[FINE   ] [$category]", t)
         }
     }
 
     override fun debug(@NonNls message: String?, t: Throwable?) {
         if (isEnableDebug) {
-            dumpExceptionsToStderr("[D] $message", t)
+            dumpExceptionsToStderr("[FINE   ] $message", t)
         }
 
     }
 
     override fun info(message: String?) {
         if (isEnableInfo) {
-            println("[I] $message")
+            println("[INFO   ] [$category] $message")
         }
     }
 
     override fun info(message: String?, t: Throwable?) {
         if (isEnableInfo) {
-            dumpExceptionsToStderr("[I] $message", t)
+            dumpExceptionsToStderr("[INFO   ] $message", t)
         }
     }
 
     override fun warn(message: String?, t: Throwable?) {
-        println("[W] $message")
+        println("[WARN   ] $message")
         t?.printStackTrace(System.err)
     }
 
     override fun error(message: String?, t: Throwable?, vararg details: String?) {
-        println("[E] $message")
+        println("[ERROR  ] $message")
         t?.printStackTrace(System.err)
     }
 }
