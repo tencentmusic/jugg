@@ -455,25 +455,45 @@ class ConstRefEngine(
         // Each batch is released from memory after the DB write, avoiding full-list residency.
         // Also pre-load "previous definitions" into sessionCache so Phase 2 can compute diffs
         // without needing getMtimeMapChecksum (which excludes Phase 1 sentinel rows).
+        //
+        // Lock strategy: read shared state per-file under lock, parse AST without lock (CPU-heavy,
+        // no shared state dependency), then batch-write results under lock. This minimizes mutex
+        // hold time so concurrent analyzeOnDemand calls are not blocked by full-scan batches.
         var phase1ProcessedCount = 0
         changedFiles.chunked(analyzeFilesBatchSize).forEach { batch ->
-            val definitionsBatch = mutableListOf<ConstRefCacheDatabase.FileDefinitionsEntry>()
-            analysisMutex.withLock {
-                batch.forEach { file ->
+            data class Phase1FileState(
+                val path: String,
+                val file: File,
+                val previousDefinitions: List<ConstDefinition>,
+                val checksum: Long,
+            )
+            // Step 1: read previous definitions under lock (fast per-file DB/cache read).
+            val pendingFiles = mutableListOf<Phase1FileState>()
+            batch.forEach { file ->
+                val state = analysisMutex.withLock {
                     val path = file.toStdPath()
-                    // Load previous definitions before parsing so changeTracker diffs correctly.
                     val previousDefinitions = loadPreviousDefinitionsLocked(path)
-                    val definitions = analyzer.parseDefinitions(listOf(file))[path].orEmpty()
-                    definitionsBatch += ConstRefCacheDatabase.FileDefinitionsEntry(
-                        filePath = path,
-                        lastModified = file.lastModified(),
-                        checksum = checksumMap[path] ?: calculateChecksum(file),
-                        definitions = definitions,
-                    )
-                    // Store in sessionCache so Phase 2 loadPreviousDefinitionsLocked can find it.
-                    updatePreviousDefinitionsLocked(path, previousDefinitions)
+                    Phase1FileState(path, file, previousDefinitions, checksumMap[path] ?: calculateChecksum(file))
                 }
+                pendingFiles += state
+            }
+            // Step 2: parse definitions WITHOUT lock (CPU-intensive AST parsing, no shared state).
+            val definitionsBatch = mutableListOf<ConstRefCacheDatabase.FileDefinitionsEntry>()
+            pendingFiles.forEach { state ->
+                val definitions = analyzer.parseDefinitions(listOf(state.file))[state.path].orEmpty()
+                definitionsBatch += ConstRefCacheDatabase.FileDefinitionsEntry(
+                    filePath = state.path,
+                    lastModified = state.file.lastModified(),
+                    checksum = state.checksum,
+                    definitions = definitions,
+                )
+            }
+            // Step 3: batch-write results under lock (fast DB upsert + cache update).
+            analysisMutex.withLock {
                 database.upsertBatchDefinitions(definitionsBatch)
+                pendingFiles.forEach { state ->
+                    updatePreviousDefinitionsLocked(state.path, state.previousDefinitions)
+                }
             }
             // Reset KotlinCoreEnvironment after each batch to release the string-intern table
             // that grows ~200 KB per parsed file. Without this, full-scan peak resident heap
@@ -485,10 +505,14 @@ class ConstRefEngine(
 
         // Phase 2: parse references per batch; DB now has all definitions from Phase 1,
         // so no in-memory overlay is needed. Each file's AST is parsed only once.
+        //
+        // Lock strategy: per-file lock for read+parse (parseReferencesByDbOnly needs DB/cache
+        // access), then a separate batch lock for DB write + state updates. This reduces max
+        // mutex hold time from O(batchSize * perFileCost) to O(perFileCost), allowing concurrent
+        // analyzeOnDemand calls to interleave between files.
         var phase2ProcessedCount = 0
         changedFiles.chunked(analyzeFilesBatchSize).forEach { batch ->
             val analysisBatch = mutableListOf<ConstRefCacheDatabase.FileAnalysisEntry>()
-            // Collect per-file state needed for post-write updates (changeTracker, sessionCache).
             data class FilePendingState(
                 val path: String,
                 val file: File,
@@ -497,8 +521,9 @@ class ConstRefEngine(
                 val references: List<ConstReference>,
             )
             val pendingStates = mutableListOf<FilePendingState>()
-            analysisMutex.withLock {
-                batch.forEach { file ->
+            // Per-file lock: read state + parse references, then release lock between files.
+            batch.forEach { file ->
+                analysisMutex.withLock {
                     val path = file.toStdPath()
                     val previousDefinitions = loadPreviousDefinitionsLocked(path)
                     val definitions = database.getDefinitionsByFileAndChecksum(
@@ -516,8 +541,11 @@ class ConstRefEngine(
                     )
                     pendingStates += FilePendingState(path, file, previousDefinitions, definitions, references)
                 }
-                // Flush full analysis to DB before markAnalyzed so awaitAnalysis observers
-                // see consistent data (references written) when the analyzed timestamp appears.
+            }
+            // Batch lock: flush analysis to DB and update shared state atomically.
+            // markAnalyzed is called here so awaitAnalysis observers see consistent data
+            // (references written) when the analyzed timestamp appears.
+            analysisMutex.withLock {
                 database.upsertBatchAnalysis(analysisBatch)
                 pendingStates.forEach { state ->
                     changeTracker.updateDefinitionDiff(

@@ -873,6 +873,61 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         return condition()
     }
 
+    @Test
+    fun `analyzeOnDemand should not be blocked by concurrent full scan batch`() {
+        val rootDir = createTempDirectory("const_ref_mutex_contention")
+        File(rootDir, ".git").mkdirs()
+
+        // Create many source files so full scan has a large batch to process.
+        val bulkDir = File(rootDir, "bulk").apply { mkdirs() }
+        val bulkFileCount = 80
+        repeat(bulkFileCount) { i ->
+            File(bulkDir, "Bulk$i.kt").writeText(
+                """
+                package com.example.bulk
+                const val BULK_$i = $i
+                """.trimIndent()
+            )
+        }
+        val targetFile = File(rootDir, "Target.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val TARGET = 1
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            // Start full scan with many files — this will hold analysisMutex in batches.
+            engine.initializeFullScan(listOf(bulkDir))
+            // Immediately run on-demand analysis on a single target file.
+            engine.onFileSaved(targetFile.absolutePath)
+            val elapsedMs = measureTimeMillis {
+                val readiness = engine.analyzeOnDemand(listOf(targetFile.absolutePath))
+                assertTrue("analyzeOnDemand should complete", readiness.isReady)
+            }
+            // With per-file lock granularity, on-demand should complete in well under 10s
+            // even if full scan is processing 80+ files concurrently.
+            assertTrue(
+                "analyzeOnDemand should complete quickly despite concurrent full scan, " +
+                    "elapsedMs=$elapsedMs",
+                elapsedMs < 10_000L,
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
     private inline fun <T> withSystemProperties(properties: Map<String, String>, action: () -> T): T {
         val previousValues = properties.mapValues { (key, _) -> System.getProperty(key) }
         properties.forEach { (key, value) -> System.setProperty(key, value) }
