@@ -15,6 +15,7 @@ If required inputs are missing, stop and ask user before runtime verification.
 
 1. Launch/restart app (`restart_app`) when needed.
 2. Execute known navigation tap sequence to target page.
+   - Preferred shortcut: pass `tap_actions` in `restart_app` to combine restart + deterministic element navigation in one call.
 3. Verify page context with hard signals:
    - `activity_stack` matches expected activity when provided, or
    - `layout_dump` contains expected target anchor (`resourceId` preferred, `text` fallback).
@@ -33,6 +34,10 @@ No-early-evidence rule:
 
 - Purpose: launch/restart app process.
 - Required input: `projectDir`.
+- Optional input: `tap_actions` (array of element selectors; each step supports `text` / `resourceId` / `contentDesc`, optional `className`).
+- When `tap_actions` is provided, steps run sequentially after app-ready wait.
+- If one step returns `No matching UI element found`, tool retries briefly (up to 2 extra attempts) before failing.
+- Any step failure aborts the whole call; response includes `data.failedStep`.
 - Use as default runtime entry before interaction.
 
 ## `tap`

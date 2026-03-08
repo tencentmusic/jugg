@@ -1,6 +1,6 @@
 # MCP 使用说明（当前注册工具）
 
-> 最后核对：2026-03-07  
+> 最后核对：2026-03-08  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -35,7 +35,7 @@
 | 工具 | 必填参数 | 说明 |
 |------|----------|------|
 | `list_projects` | 无 | 列出当前 IDE 已初始化项目 |
-| `restart_app` | `projectDir` | 重启目标 App |
+| `restart_app` | `projectDir`; 可选 `tap_actions` | 重启目标 App，并可在启动后串行执行元素点击导航 |
 | `compile_only` | `projectDir` | 仅编译不部署 |
 | `compile_and_deploy` | `projectDir` | 编译并部署（可能异步） |
 | `clean_reinstall_apk` | `projectDir` | 卸载并重装 APK |
@@ -58,6 +58,7 @@
 - `layout_dump`、`layout_verify`（live 模式）、`activity_stack`、`screenshot`、`tap`、`start_record`、`stop_record` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
 - 运行态工具执行顺序：参数完整性/组合合法性校验 -> `projectDir` 初始化态校验 -> App 在线校验 -> 业务执行。参数类错误优先返回 `MCP_INVALID_PARAMS`，避免被 `app not ready` 覆盖。
 - 若前置等待过程中发生过实际等待（并非首检即 ready），且本次工具调用返回失败，会自动重试最多 3 次，重试间隔 2s（仅用于内部/瞬时失败）。
+- `restart_app` 传入 `tap_actions` 时，会在 App ready 后按顺序执行元素点击步骤：每步支持 `text/resourceId/contentDesc`（可选 `className`）。若遇到 `No matching UI element found`，会做最多 2 次短暂重试；任一步失败会整体返回 `ERROR`，并在 `data.failedStep` 标出失败步骤。
 
 > 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
 

@@ -238,6 +238,16 @@
 **INTERACT-1: 重启应用 - 默认入口**
 调用 `restart_app`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，应用被成功拉起（可通过后续 `activity_stack` 或 `screenshot` 确认）。
 
+**INTERACT-1A: 重启应用并串行导航（tap_actions）**
+调用 `restart_app`，传入 `projectDir` 与：
+`tap_actions=[{"text":"MCP Test Page"},{"resourceId":"btn_some_secondary_entry"}]`，验证返回 `status=OK`，且导航动作按顺序执行（可通过 `activity_stack` 或 `layout_dump` 验证最终页面上下文）。
+
+**INTERACT-1B: tap_actions 元素未命中重试后成功**
+调用 `restart_app`，传入 `projectDir` 与单步 `tap_actions=[{"text":"MCP Test Page"}]`。在目标元素存在但首帧未渲染的场景下，验证工具会进行短暂重试并最终返回 `status=OK`。
+
+**INTERACT-1C: tap_actions 中途失败应返回失败步骤**
+调用 `restart_app`，传入 `projectDir` 与多步 `tap_actions`，让第 2 步故意使用不存在的 selector。验证返回 `status=ERROR`，`errorCode` 与失败原因一致，`message` 含 `tap_actions step 2 failed`，且 `data.failedStep=2`。
+
 **INTERACT-2: 坐标点击**
 调用 `tap`，传入 `projectDir`、`x=540`、`y=960`，验证返回 `status` 为 `OK`。可通过前后截图对比确认点击生效。
 
@@ -287,8 +297,8 @@
 **INTERACT-11: tap - 坐标模式优先于百分比模式**
 调用 `tap`，同时传入 `projectDir`、`x=100`、`y=200`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data.mode` 为 `coordinate`，`data.x` 为 100，`data.y` 为 200（优先使用坐标模式）。
 
-**INTERACT-12: 重启应用**
-调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`message` 包含 "restart_app executed successfully"。`restart_app` 不返回额外 data 字段（`data` 为空对象）。
+**INTERACT-12: 重启应用（无 tap_actions）**
+调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`message` 包含 "restart_app executed successfully"。未传 `tap_actions` 时，`data` 为空对象。
 
 **INTERACT-13: 重启应用 - serial 参数不支持**
 `restart_app` 不接受 `serial` 参数（`additionalProperties=false`），因此传入 `serial` 会被 MCP 框架拦截返回 `MCP_INVALID_PARAMS`。本条用例由单元测试 `testRestartAppRejectSerialArgument` 覆盖。
