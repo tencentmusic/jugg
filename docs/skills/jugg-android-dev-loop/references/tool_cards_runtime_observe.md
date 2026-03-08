@@ -80,7 +80,7 @@ When using element mode, the tool automatically performs the Coordinate Derivati
 ## `layout_verify`
 
 - Purpose: assert a UI element property or check a spatial relation between two elements without parsing raw layout JSON.
-- Required input: `projectDir`, `target` (selector with `resourceId`/`text`/`contentDesc`/`className`), plus either `asserts` or `relation`.
+- Required input: `projectDir`, `target` (selector with `resourceId`/`text`/`contentDesc`/`className`), plus `asserts` and/or `relations`.
 - Optional input: `dumpFile` (historical snapshot path). If omitted, tool defaults to auto snapshot mode.
 - **Matching strategy (dumpFile mode)**: when multiple elements match the `target` selector, dumpFile mode silently uses the **first match** (unlike `tap` element mode which returns ERROR on multiple matches). To ensure precision, provide the most specific selector combination (prefer `resourceId`; add `className` when `text` alone may match multiple nodes).
 
@@ -95,9 +95,9 @@ Single-element property checks in batch. Fields:
 | `value` | any | Expected value |
 | `unit` | string | `dp` or `px` (default `px`) for numeric bounds/padding properties |
 
-`asserts` does not have a built-in `tolerance` field (unlike `relation.spacing`). To verify approximate numeric values, combine `gte` + `lte` assertions:
-- `layout_verify(assert={property:"bounds.height", op:"gte", value:215, unit:"dp"})` AND
-- `layout_verify(assert={property:"bounds.height", op:"lte", value:225, unit:"dp"})`
+`asserts` does not have a built-in `tolerance` field (unlike `relations[].spacing`). To verify approximate numeric values, combine `gte` + `lte` assertions:
+- `layout_verify(asserts=[{property:"bounds.height", op:"gte", value:215, unit:"dp"}])` AND
+- `layout_verify(asserts=[{property:"bounds.height", op:"lte", value:225, unit:"dp"}])`
 This is the recommended approach for "approximately X ± N" checks on single-element properties.
 
 Supported properties:
@@ -116,12 +116,13 @@ Supported properties:
 | `padding.left` / `padding.top` / `padding.right` / `padding.bottom` | dumpFile + live | px or dp |
 | `textSizeSp` | **live only** | sp; not stored in dump JSON |
 
-### Relation Mode (`relation`)
+### Relation Mode (`relations`)
 
-Two-element spatial/structural check. Requires `target2`. Fields:
+Two-element spatial/structural checks in batch. Each `relations[i]` requires `target2`. Fields:
 
 | Field | Values | Notes |
 |-------|--------|-------|
+| `target2` | selector object | required |
 | `type` | `spacing` / `alignment` / `overlap` / `containment` / `order` | |
 | `direction` | `vertical` / `horizontal` | Required for spacing / alignment / order |
 | `expected` | number | Expected gap (for spacing) |
@@ -143,22 +144,25 @@ Relation semantics:
 - `data.items[]`: each item contains `index/result/message`.
 - Target not found includes `data.candidates[]` with `score/reason`.
 
-### UI Verification Protocol (Default + Replay)
+### UI Verification Protocol (Auto-First)
 
-For precise acceptance checks, use this sequence:
+For precise acceptance checks, default to **auto snapshot mode** (no `dumpFile`). This reduces agent cognitive load — no need to manage dump file paths between calls.
 
-1. `layout_verify(...)` without `dumpFile` (auto snapshot mode).
+1. `layout_verify(...)` without `dumpFile` → auto snapshot per call (default).
 2. `screenshot` → visual proof after verify checks pass.
-3. Optional replay: `layout_dump` + `layout_verify(dumpFile=<path>, ...)` only when reproducing a historical state.
 
-Use live query only for live-only properties (`textSizeSp`), which now switches automatically.
+Switch to **explicit dump mode** only when:
+- **Batch efficiency**: ≥5 assertions on the same page state — `layout_dump` once, then `layout_verify(dumpFile=<path>, ...)` for all checks to avoid repeated snapshots.
+- **Historical replay**: reproducing or comparing a previously captured state (e.g., before/after interaction comparison with two dump files).
+
+Use live query only for live-only properties (`textSizeSp`), which switches automatically.
 
 ## Tool Description Migration (UI Observe Stage Only)
 
 Keep MCP tool schema descriptions concise. Put guidance and strategy in this file instead of MCP schema text.
 
 - `layout_dump` (compact): dump UI hierarchy to local JSON artifact, optional inline `data.content`, supports `rootLayout` / `isIncludeGone` / `isAllWindows`.
-- `layout_verify` (compact): assert element property or two-element relation from dump file (preferred) or live query; returns PASS/FAIL/ERROR with `data.result`.
+- `layout_verify` (compact): batch assert/relation from auto snapshot (default), explicit dump replay, or live query; returns aggregated result with array items.
 - `tap` (compact): perform `tap` / `longPress` / `swipe` with coordinate, percent, or element mode; mode priority is `coordinate > percent > element`.
 
 ### Subtree Scoping Strategy (Mandatory for complex pages)
@@ -231,12 +235,12 @@ Prefer lightweight first: `activity_stack` -> `layout_dump` -> `screenshot`. Add
 For static UI acceptance checks with single-page target:
 
 1. Run Target Page Context Gate.
-2. Use one `layout_dump` to obtain `data.file` path and confirm target nodes exist.
-3. Run `layout_verify(dumpFile=<path>, ...)` for all property/relation acceptance checks (follows §UI Verification Protocol).
-4. Capture one final `screenshot` as visual proof after all verify checks pass.
-5. Skip recording unless task explicitly needs temporal evidence.
+2. Run `layout_verify(...)` without `dumpFile` for each acceptance check (auto snapshot mode — simplest path, no dump management needed).
+   - **Batch optimization**: when ≥5 checks target the same page state, use one `layout_dump` to obtain `data.file`, then `layout_verify(dumpFile=<path>, ...)` for all checks to avoid repeated snapshots.
+3. Capture one final `screenshot` as visual proof after all verify checks pass.
+4. Skip recording unless task explicitly needs temporal evidence.
 
-This profile avoids repeated screenshots on wrong pages, eliminates manual JSON parsing, and reduces runtime/tool overhead.
+This profile avoids repeated screenshots on wrong pages, eliminates manual JSON parsing, and minimizes agent cognitive overhead.
 
 ## Interaction Proof Profile
 
