@@ -24,12 +24,14 @@
 
 ### 1.2 Relations
 
-| Design Intent | `type` | `direction` | Extra | Notes |
-|---------------|--------|-------------|-------|-------|
-| Gap ≈ 16dp ± 4 | `spacing` | `vertical`/`horizontal` | `expected:16, tolerance:4` | tolerance only here |
-| Horizontally centered | `alignment` | `vertical` | — | ⚠️ vertical → checks **X**-center |
-| Vertically centered | `alignment` | `horizontal` | — | ⚠️ horizontal → checks **Y**-center |
-| A above B | `order` | `vertical` | — | target=A, target2=B |
+| Design Intent | `type` | `axis` | Extra | Notes |
+|---------------|--------|--------|-------|-------|
+| Gap = 16dp | `spacing` | `y`/`x` | `expected:16, op:"eq"` | ⚠️ tolerance removed |
+| Gap ≥ 16dp | `spacing` | `y`/`x` | `expected:16, op:"gte"` | Use op for range |
+| Gap in [12,20]dp | `spacing` | `y`/`x` | Two checks: `gte:12` + `lte:20` | ⚠️ Pitfall #1 |
+| Horizontally centered | `alignment` | `x` | — | axis=x checks X-center |
+| Vertically centered | `alignment` | `y` | — | axis=y checks Y-center |
+| A above B | `order` | `y` | — | target=A, target2=B |
 | A inside B | `containment` | — | — | ⚠️ target=child, target2=parent |
 | No overlap | `overlap` | — | — | ⚠️ PASS = **no** overlap |
 
@@ -57,10 +59,11 @@
 
 Auto px→dp conversion. If spec gives px: `dp = px / density`.
 
-### #3: alignment.direction is counter-intuitive
+### #3: axis vs direction (prefer axis)
 
-- `direction:"vertical"` → checks **X**-center (horizontal centering)
-- `direction:"horizontal"` → checks **Y**-center (vertical centering)
+- `axis:"y"` → vertical axis (checks vertical spacing/alignment/order)
+- `axis:"x"` → horizontal axis (checks horizontal spacing/alignment/order)
+- `direction` is deprecated but still supported (auto-mapped to axis)
 
 ### #4: textColor must be #AARRGGBB
 
@@ -103,24 +106,32 @@ Comparison uses epsilon=0.001 for floating-point tolerance.
 ]}
 ```
 
-### Ex2: Approximate height (Pitfall #1)
+### Ex2: Approximate height (range check)
 
 ❌ `{ "type":"property", "property":"bounds.height", "value":220, "tolerance":5 }`
 
 ✅ `{ "checks": [{ "type":"property", "property":"bounds.height", "op":"gte", "value":215 }, { "type":"property", "property":"bounds.height", "op":"lte", "value":225 }] }`
 
-### Ex3: Spacing
+### Ex3: Spacing (exact match)
 ```json
-{ "checks": [{ "target2":{"resourceId":"btn_first"}, "type":"spacing", "direction":"vertical", "expected":16, "tolerance":4 }] }
+{ "checks": [{ "target2":{"resourceId":"btn_first"}, "type":"spacing", "axis":"y", "expected":16, "op":"eq" }] }
 ```
 
-### Ex4: Alignment (Pitfall #3)
+### Ex4: Spacing (range check)
 ```json
-{ "checks": [{ "target2":{"resourceId":"btn_b"}, "type":"alignment", "direction":"vertical" }] }
+{ "checks": [
+    { "target2":{"resourceId":"btn_first"}, "type":"spacing", "axis":"y", "expected":12, "op":"gte" },
+    { "target2":{"resourceId":"btn_first"}, "type":"spacing", "axis":"y", "expected":20, "op":"lte" }
+]}
 ```
-`direction:"vertical"` = checks X-center alignment.
 
-### Ex5: Color #AARRGGBB (Pitfall #4)
+### Ex5: Alignment
+```json
+{ "checks": [{ "target2":{"resourceId":"btn_b"}, "type":"alignment", "axis":"x" }] }
+```
+`axis:"x"` = checks X-center alignment (horizontal centering).
+
+### Ex6: Color #AARRGGBB
 ```json
 { "checks": [
     { "type":"property", "property":"textColor", "value":"#FF1976D2" },
@@ -128,17 +139,17 @@ Comparison uses epsilon=0.001 for floating-point tolerance.
 ]}
 ```
 
-### Ex6: Mixed property + relation
+### Ex7: Mixed property + relation
 ```json
 { "checks": [
     { "type":"property", "property":"visibility", "value":"visible" },
     { "type":"property", "property":"clickable", "value":true },
-    { "target2":{"resourceId":"btn_b"}, "type":"spacing", "direction":"vertical", "expected":12, "tolerance":3 },
-    { "target2":{"resourceId":"btn_b"}, "type":"order", "direction":"vertical" }
+    { "target2":{"resourceId":"btn_b"}, "type":"spacing", "axis":"y", "expected":12, "op":"eq" },
+    { "target2":{"resourceId":"btn_b"}, "type":"order", "axis":"y" }
 ]}
 ```
 
-### Ex7: Overlap with expectOverlap
+### Ex8: Overlap with expectOverlap
 ```json
 { "checks": [
     { "target":{"resourceId":"badge"}, "target2":{"resourceId":"avatar"}, "type":"overlap", "expectOverlap":true }
@@ -146,7 +157,7 @@ Comparison uses epsilon=0.001 for floating-point tolerance.
 ```
 `expectOverlap:true` → PASS when elements DO overlap.
 
-### Ex8: Containment (target=child, target2=parent)
+### Ex9: Containment (target=child, target2=parent)
 ```json
 { "checks": [{
     "target": {"resourceId": "icon_avatar"},

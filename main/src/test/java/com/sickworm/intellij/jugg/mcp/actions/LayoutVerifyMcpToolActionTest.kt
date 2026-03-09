@@ -343,7 +343,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "btn_a"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 16, "tolerance" to 0)),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 16, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -368,7 +368,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "btn_a"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 20, "tolerance" to 0)),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 20, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -514,7 +514,7 @@ class LayoutVerifyMcpToolActionTest {
 
     @Test
     fun testDumpFileModeAssertWithToleranceReturnsError() {
-        // tolerance is not supported in assert; should return ERROR with guidance message
+        // tolerance is no longer supported; should return ERROR
         val dumpFile = writeDumpFile(
             """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/sv","bounds":[0,0,1080,660]}}],"deviceInfo":{"density":3.0}}"""
         )
@@ -529,8 +529,8 @@ class LayoutVerifyMcpToolActionTest {
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertTrue(
-            "Expected guidance about gte/lte in message: ${result.message}",
-            result.message.contains("gte", ignoreCase = true) && result.message.contains("lte", ignoreCase = true),
+            "Expected message about tolerance not supported: ${result.message}",
+            result.message.contains("tolerance", ignoreCase = true) && result.message.contains("no longer supported", ignoreCase = true),
         )
         dumpFile.delete()
     }
@@ -551,7 +551,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "tv_title"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_main"), "type" to "spacing", "direction" to "vertical", "expected" to 20, "tolerance" to 5)),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_main"), "type" to "spacing", "direction" to "vertical", "expected" to 20, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -579,7 +579,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "view_a"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "direction" to "vertical", "expected" to 220, "tolerance" to 5)),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "direction" to "vertical", "expected" to 220, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -1065,8 +1065,8 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
-    fun testDumpFileModeRelationSpacingToleranceBoundary() {
-        // spacing=16px; tolerance=2 → diff=|16-16|=0 ≤ 2 → PASS; expected=13 → diff=3 > 2 → FAIL
+    fun testDumpFileModeRelationSpacingToleranceRejected() {
+        // tolerance parameter is no longer supported, should return ERROR
         val dumpFile = writeDumpFile(
             """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"id":"root",
                 "children":[
@@ -1076,16 +1076,15 @@ class LayoutVerifyMcpToolActionTest {
         )
         val action = LayoutVerifyMcpToolAction()
         val runtime = buildRuntime(null)
-        val rPass = action.execute(mapOf(
+        val result = action.execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
             "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 16, "tolerance" to 2)),
         ), runtime)
-        val rFail = action.execute(mapOf(
-            "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 13, "tolerance" to 2)),
-        ), runtime)
-        Assert.assertEquals("tolerance boundary PASS", McpToolStatus.OK, rPass.status)
-        Assert.assertEquals("tolerance boundary FAIL", McpToolStatus.ERROR, rFail.status)
+        Assert.assertEquals("tolerance should be rejected", McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(
+            "Expected message about tolerance not supported: ${result.message}",
+            result.message.contains("tolerance", ignoreCase = true) && result.message.contains("no longer supported", ignoreCase = true)
+        )
         dumpFile.delete()
     }
 
@@ -1180,8 +1179,8 @@ class LayoutVerifyMcpToolActionTest {
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
-        Assert.assertTrue("Expected mutual exclusive hint in message: ${result.message}",
-            result.message.contains("mutually exclusive", ignoreCase = true))
+        Assert.assertTrue("Expected tolerance not supported message: ${result.message}",
+            result.message.contains("tolerance", ignoreCase = true) && result.message.contains("no longer supported", ignoreCase = true))
         dumpFile.delete()
     }
 
@@ -1197,7 +1196,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "direction" to "horizontal", "expected" to 20, "tolerance" to 0)),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "direction" to "horizontal", "expected" to 20, "op" to "eq")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1216,7 +1215,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "axis" to "x", "expected" to 20, "tolerance" to 0)),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "axis" to "x", "expected" to 20, "op" to "eq")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1236,7 +1235,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 30, "tolerance" to 0)),
+            "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 30, "op" to "eq")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1965,7 +1964,7 @@ class LayoutVerifyMcpToolActionTest {
                         "type" to "spacing",
                         "direction" to "vertical",
                         "expected" to 20,
-                        "tolerance" to 0,
+                        "op" to "eq",
                     )
                 ),
             ),

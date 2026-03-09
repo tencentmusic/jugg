@@ -109,7 +109,7 @@
 - **checks[i] 参数**：
   - `type`：`property` / `spacing` / `alignment` / `overlap` / `containment` / `order`
   - `type=property`：需要 `target` / `property`；可选 `op` / `value`
-  - `type in {spacing, alignment, overlap, containment, order}`：需要 `target2`；关系类优先使用 `axis`（`x|y`），并按类型携带 `expected` / `tolerance`
+  - `type in {spacing, alignment, overlap, containment, order}`：需要 `target2`；关系类优先使用 `axis`（`x|y`），并按类型携带 `expected` / `op`
   - `axis`：仅用于 `spacing` / `alignment` / `order`。`x` 表示水平轴，`y` 表示垂直轴。`alignment` 下 `axis=x` 检查 X-center，`axis=y` 检查 Y-center。
   - `direction`：兼容字段（`horizontal|vertical`，已不推荐）。工具会自动映射为 `axis`；建议新调用统一改用 `axis`。
   - `property`：`exists` / `visibility` / `clickable` / `enabled` / `text` / `bounds.width` / `bounds.height` / `bounds.left` / `bounds.top` / `bounds.right` / `bounds.bottom` / `alpha` / `textColor` / `backgroundColor`（仅 live）/ `textSizeSp`（仅 live）/ `padding.left` / `padding.top` / `padding.right` / `padding.bottom`
@@ -117,8 +117,8 @@
   - `tools/list` 的 `inputSchema.checks.items.properties.property` 已带 `enum`（包含标准键与上述别名），可直接用于参数约束与提示。
   - `op`：`eq`（默认）/ `neq` / `gte` / `lte` / `gt` / `lt` / `contains` / `matches`。其中 `type=spacing` 仅支持数值比较操作（`eq/neq/gte/lte/gt/lt`）。
   - **所有数值类属性（bounds/padding/spacing）始终以 dp 为单位**，无需传 `unit` 参数。px→dp 转换由工具内部自动完成（使用 `displayMetrics.density`）。`textSizeSp` 始终为 sp。
-  - `tolerance` 仅支持 `type=spacing` 且与 `op` 互斥；`type=property` 传 `tolerance` 返回 `ERROR` 并提示改用 `gte`+`lte`
 - 返回精简为：`data.result`、`data.message`、`data.checkResults[]`（每项仅 `index/result/message`）。
+- **spacing 检查返回消息格式**：`spacing (axis=y) = 18dp (expected: eq 20dp, diff: -2dp)`。消息中包含实际值、期望值和差异信息，Agent 可根据 diff 自行判断容错。
 - 批量聚合 `data.result` 取值：`PASS | PARTIAL_FAIL | FAIL | ERROR`。
 - 元素未找到时返回 `data.result=ERROR`，`data.candidates` 列出最多 5 个候选，并带 `score/reason`（用于拼写纠错）。
 - dumpFile 模式下属性不支持时，`message` 会包含 `did you mean` 候选与支持属性列表；若目标元素已匹配，还会附带参考观测值（如 `reference bounds.width = xxxdp`）以便 Agent 直接给出证据。

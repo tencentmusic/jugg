@@ -54,7 +54,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                         properties = mapOf(
                             "target" to McpJsonSchemaProperty(
                                 type = "object",
-                                description = "Element selector.",
+                                description = "Element selector. ONLY supports: resourceId, text, contentDesc, className.",
                                 properties = mapOf(
                                     "resourceId" to McpJsonSchemaProperty(type = "string"),
                                     "text" to McpJsonSchemaProperty(type = "string"),
@@ -83,8 +83,9 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             "op" to McpJsonSchemaProperty(
                                 type = "string",
                                 description = "Comparison operator. Default: eq. " +
-                                    "For type=spacing: supports eq/neq/gte/lte/gt/lt. " +
-                                    "When op is provided, tolerance must be omitted.",
+                                    "Supports: eq/neq/gte/lte/gt/lt. " +
+                                    "For range checks, use two separate checks with gte and lte. " +
+                                    "Result message includes actual value and difference for agent analysis.",
                                 `enum` = listOf("eq", "neq", "gte", "lte", "gt", "lt", "contains", "matches"),
                             ),
                             "value" to McpJsonSchemaProperty(
@@ -120,12 +121,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             ),
                             "expected" to McpJsonSchemaProperty(
                                 type = "number",
-                                description = "Expected gap/value in dp. Only for type=spacing.",
-                            ),
-                            "tolerance" to McpJsonSchemaProperty(
-                                type = "number",
-                                description = "Deviation in dp. Only for type=spacing when op is omitted. " +
-                                    "NOT supported in type=property — use gte+lte instead.",
+                                description = "Expected value in dp. For type=spacing/alignment/order.",
                             ),
                             "expectOverlap" to McpJsonSchemaProperty(
                                 type = "boolean",
@@ -189,13 +185,12 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         if (checks.any { !isPropertyCheck(it) && !isValidSelector((it["target2"] as? Map<String, Any?>) ?: emptyMap()) }) {
             return invalidParams("layout_verify failed: relation check requires valid target2 selector")
         }
-        if (checks.any {
-                isSpacingCheck(it) &&
-                    !((it["op"] as? String).isNullOrBlank()) &&
-                    it.containsKey("tolerance")
-            }
-        ) {
-            return invalidParams("layout_verify failed: type=spacing check 'op' and 'tolerance' are mutually exclusive")
+        if (checks.any { it.containsKey("tolerance") }) {
+            return invalidParams(
+                "layout_verify failed: 'tolerance' parameter is no longer supported. " +
+                "Use 'op' parameter instead (e.g., op=gte/lte for range checks). " +
+                "Result messages include actual values and differences for agent analysis."
+            )
         }
 
         val shouldUseLive = checks.any { isLiveOnlyCheck(it) }
@@ -360,10 +355,6 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val op = assert["op"] as? String ?: "eq"
         val value = assert["value"]
 
-        if (assert.containsKey("tolerance")) {
-            return propertyToleranceErrorResult()
-        }
-
         return when (property) {
             "exists" -> VerifyResult("PASS", "exists = true (expected: exists)")
             "visibility" -> {
@@ -520,17 +511,12 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val type = relation["type"] as? String ?: return VerifyResult("ERROR", "relation.type is required")
         val axis = resolveRelationAxis(type, relation)
         val expected = parseIntValue(relation["expected"], default = 0)
-        val tolerance = parseIntValue(relation["tolerance"], default = 0)
         val op = (relation["op"] as? String)?.ifBlank { null } ?: "eq"
-        val hasTolerance = relation.containsKey("tolerance")
 
         return when (type) {
             "spacing" -> {
                 if (axis == null) {
                     return VerifyResult("ERROR", "unsupported axis for spacing: ${relation["axis"]}. Use axis=x or axis=y.")
-                }
-                if (hasTolerance && !((relation["op"] as? String).isNullOrBlank())) {
-                    return VerifyResult("ERROR", "type=spacing check 'op' and 'tolerance' are mutually exclusive")
                 }
                 val (aLeft, aTop, aRight, aBottom) = getBounds(target)
                 val (bLeft, bTop, bRight, bBottom) = getBounds(target2)
@@ -545,15 +531,13 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 }
                 val actual = if (density > 0) Math.round(spacingPx / density).toInt() else spacingPx
                 val boundsInfo = " [target:[$aLeft,$aTop,$aRight,$aBottom], target2:[$bLeft,$bTop,$bRight,$bBottom]]"
-                val spacingResult = evaluateSpacingResult(actual, expected, op, tolerance, hasTolerance)
+                val spacingResult = evaluateSpacingResult(actual, expected, op)
                 if (spacingResult.errorMessage != null) {
                     return VerifyResult("ERROR", spacingResult.errorMessage)
                 }
-                val msg = if (hasTolerance) {
-                    "spacing (axis=$axis) = ${actual}dp (expected: ${expected}dp ±${tolerance}dp)$boundsInfo"
-                } else {
-                    "spacing (axis=$axis) = ${actual}dp (expected: $op ${expected}dp)$boundsInfo"
-                }
+                val diff = actual - expected
+                val diffSign = if (diff >= 0) "+" else ""
+                val msg = "spacing (axis=$axis) = ${actual}dp (expected: $op ${expected}dp, diff: $diffSign${diff}dp)$boundsInfo"
                 val pass = spacingResult.pass
                 if (pass) VerifyResult("PASS", msg, actual, expected, "dp")
                 else VerifyResult("FAIL", msg, actual, expected, "dp")
@@ -679,10 +663,6 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             checks.forEachIndexed { index, check ->
                 val checkTarget = resolveCheckTarget(check, legacyTarget)
                     ?: return invalidParams("layout_verify failed: check[${index + 1}] requires valid target")
-                if (isPropertyCheck(check) && check.containsKey("tolerance")) {
-                    items.add(VerifyItem(index + 1, "ERROR", propertyToleranceErrorResult().message))
-                    return@forEachIndexed
-                }
                 val verifyResult = client.verify(buildLiveParams(checkTarget, check))
                     ?: return McpToolResult.internalErrorResult(toolName, "ViewHierarchy server unavailable")
                 items.add(VerifyItem(index + 1, verifyResult.result, verifyResult.message))
@@ -763,19 +743,30 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     }
 
     private fun errorResult(message: String, candidates: List<CandidateHint>, checkIndex: Int = 1): McpToolResult {
+        val hint = when {
+            candidates.size > 1 -> {
+                "\n💡 Found ${candidates.size} matching elements. " +
+                "Combine selectors (e.g., className + text) or use layout_dump to inspect the hierarchy."
+            }
+            candidates.isEmpty() -> {
+                "\n💡 No matching elements found. Use layout_dump to verify element properties."
+            }
+            else -> ""
+        }
+
         val data = mutableMapOf<String, Any>(
             "result" to "ERROR",
-            "message" to message,
+            "message" to message + hint,
             "checkResults" to listOf(
                 mapOf(
                     "index" to checkIndex,
                     "result" to "ERROR",
-                    "message" to message,
+                    "message" to message + hint,
                 )
             )
         )
         if (candidates.isNotEmpty()) {
-            data["candidates"] = candidates.map { c ->
+            data["candidates"] = candidates.take(5).map { c ->
                 mapOf(
                     "text" to c.candidate.text,
                     "resourceId" to c.candidate.resourceId,
@@ -788,7 +779,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         }
         return McpToolResult(
             status = McpToolStatus.ERROR,
-            message = "ERROR: $message",
+            message = "ERROR: $message$hint",
             data = data,
             artifacts = emptyList(),
             errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -1078,12 +1069,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         actual: Int,
         expected: Int,
         op: String,
-        tolerance: Int,
-        hasTolerance: Boolean,
     ): SpacingEvaluation {
-        if (hasTolerance) {
-            return SpacingEvaluation(pass = Math.abs(actual - expected) <= tolerance)
-        }
         val pass = when (op) {
             "eq" -> actual == expected
             "neq" -> actual != expected
@@ -1094,15 +1080,6 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             else -> return SpacingEvaluation(pass = false, errorMessage = "unsupported op for spacing: $op")
         }
         return SpacingEvaluation(pass = pass)
-    }
-
-    private fun propertyToleranceErrorResult(): VerifyResult {
-        return VerifyResult(
-            "ERROR",
-            "type=property check does not support 'tolerance'. " +
-                "To verify approximate values, use two separate checks with 'gte' and 'lte'. " +
-                "For layout gap checks with tolerance, use type=spacing with tolerance."
-        )
     }
 
     private fun saveAutoDumpFile(runtime: IMcpRuntime, adb: IDeviceAdb, dumpResult: LayoutDumpResult): File? {
