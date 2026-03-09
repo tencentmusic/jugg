@@ -335,9 +335,10 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
         val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
-            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            database = database,
             logger = logger,
             backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
@@ -976,6 +977,57 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         } finally {
             releaseLock.countDown()
             lockHolder.join(5_000L)
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `awaitAnalysis should skip full scan requirement for build generated directories`() {
+        val rootDir = createTempDirectory("const_ref_build_generated")
+        File(rootDir, ".git").mkdirs()
+        val generatedDir = File(rootDir, "build/generated/ksp/debug/kotlin").apply { mkdirs() }
+        val generatedFile = File(generatedDir, "GeneratedCode.kt").apply {
+            writeText(
+                """
+                package com.example.generated
+                const val GENERATED_CONST = "value"
+                """.trimIndent()
+            )
+        }
+        // Create many files to simulate slow full scan
+        repeat(100) { i ->
+            File(generatedDir, "Generated$i.kt").writeText(
+                """
+                package com.example.generated
+                const val CONST_$i = $i
+                """.trimIndent()
+            )
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            // Initialize full scan for the generated directory (will be slow)
+            engine.initializeFullScan(listOf(generatedDir))
+
+            // Trigger on-demand analysis for the target file
+            engine.onFileSaved(generatedFile.absolutePath)
+
+            // awaitAnalysis should succeed even if full scan is not complete
+            // because build/generated directories skip the full scan requirement
+            val readiness = engine.awaitAnalysis(listOf(generatedFile.absolutePath), timeoutMs = 1000L)
+
+            assertTrue("Should be ready even without full scan completion", readiness.isReady)
+            assertTrue("Should have no unready paths", readiness.unreadyPaths.isEmpty())
+            assertTrue("Should have no pending source dirs", readiness.pendingSourceDirs.isEmpty())
+        } finally {
             engine.dispose()
             scope.cancel()
         }

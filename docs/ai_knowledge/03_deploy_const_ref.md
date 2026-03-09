@@ -221,7 +221,12 @@ Kotlin 引用覆盖：
 `awaitAnalysis()` 成功条件：
 
 1. 目标文件存在时，其 `analyzedAt >= 本次等待开始时间`；
-2. 目标文件所属 sourceDir 已完成 full scan。
+2. 目标文件所属 sourceDir 已完成 full scan（**例外**：`build/generated` 目录跳过此要求）。
+
+**生成目录特殊处理**（2026-03-09 新增）：
+- 对于 `build/generated` 路径下的文件，如果文件本身已分析完成，不强制要求整个目录的 full scan 完成
+- 理由：生成目录包含大量编译产物，full scan 耗时长；按需分析已足够
+- 实现：`ConstRefEngine.shouldSkipFullScanRequirement()` 检查路径是否包含 `/build/generated/`
 
 超时或中断时返回：
 
@@ -241,7 +246,7 @@ Kotlin 引用覆盖：
 
 | 测试文件 | 重点验证 |
 |---|---|
-| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用、`db_session` 模式一致性与缓存淘汰一致性。 |
+| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用、`db_session` 模式一致性与缓存淘汰一致性、`build/generated` 目录跳过 full scan 要求。 |
 | `ConstRefIntegrationTest.kt` | 冷启动 full scan 后的命中、companion const 变更命中、无关类变更不误报。 |
 | `JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
 | `KotlinConstParserTest.kt` | Kotlin 定义/引用解析、alias/星号导入、同包解析、忽略注释/字符串。 |
@@ -258,8 +263,11 @@ Kotlin 引用覆盖：
 2. 结果疑似滞后  
 确认是否执行过 `awaitAnalysis()`；若日志出现 readiness timeout，检查 `pendingSourceDirs`。
 
-2.1 增量编译首轮 const-ref 预处理路径  
+2.1 增量编译首轮 const-ref 预处理路径
 `DeployFileManager.awaitConstRefAnalysis(...)` 可使用 `analyzeOnDemand(...)` 同步按需分析，不依赖固定 timeout 等待窗口。
+
+2.2 `build/generated` 目录超时警告（2026-03-09 已修复）
+若看到 `pendingSourceDirCount=1` 且路径为 `build/generated`，这是正常的优化行为：生成目录跳过 full scan 要求，只要目标文件本身已分析完成即可。
 
 3. 误以为删除 `const` 不会触发影响  
 `ConstRefEngine` 通过 `removedDefinitionKeys` 回补此场景，需确保变更文件已被重新分析。

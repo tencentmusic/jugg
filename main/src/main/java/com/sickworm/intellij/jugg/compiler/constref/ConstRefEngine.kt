@@ -135,7 +135,7 @@ class ConstRefEngine(
                     !File(path).exists() || (analyzedAt[path] ?: 0L) >= startAt
                 }
                 val sourceReady = relatedSourceDirs.all { dir ->
-                    fullScanReadySourceDirs.contains(dir)
+                    fullScanReadySourceDirs.contains(dir) || shouldSkipFullScanRequirement(dir)
                 }
                 if (fileReady && sourceReady) {
                     break
@@ -146,7 +146,9 @@ class ConstRefEngine(
                     val unreadyPaths = targetPaths.filter { path ->
                         File(path).exists() && (analyzedAt[path] ?: 0L) < startAt
                     }
-                    val pendingSourceDirs = relatedSourceDirs.filterNot { fullScanReadySourceDirs.contains(it) }
+                    val pendingSourceDirs = relatedSourceDirs.filterNot {
+                        fullScanReadySourceDirs.contains(it) || shouldSkipFullScanRequirement(it)
+                    }
                     readiness = AnalysisReadiness(
                         isReady = false,
                         unreadyPaths = unreadyPaths,
@@ -171,7 +173,9 @@ class ConstRefEngine(
                     val unreadyPaths = targetPaths.filter { path ->
                         File(path).exists() && (analyzedAt[path] ?: 0L) < startAt
                     }
-                    val pendingSourceDirs = relatedSourceDirs.filterNot { fullScanReadySourceDirs.contains(it) }
+                    val pendingSourceDirs = relatedSourceDirs.filterNot {
+                        fullScanReadySourceDirs.contains(it) || shouldSkipFullScanRequirement(it)
+                    }
                     readiness = AnalysisReadiness(
                         isReady = false,
                         unreadyPaths = unreadyPaths,
@@ -1072,6 +1076,17 @@ class ConstRefEngine(
                 .filter { sourceDir -> path == sourceDir || path.startsWith("$sourceDir/") }
                 .maxByOrNull { it.length }
         }.toSet()
+    }
+
+    /**
+     * Check if a source directory should skip full scan readiness requirement.
+     * Generated directories (build/generated) are exempted because:
+     * 1. They contain compiler-generated files, not user-written source code
+     * 2. Full scan can be slow due to large file count
+     * 3. On-demand analysis is sufficient for generated files
+     */
+    private fun shouldSkipFullScanRequirement(sourceDir: String): Boolean {
+        return sourceDir.contains("/build/generated/")
     }
 
     private fun notifyStateChangedLocked() {
