@@ -43,6 +43,8 @@ class ConstRefEngine(
         ttlMs = readNonNegativeLongProperty(SESSION_CACHE_TTL_MS_PROPERTY, DEFAULT_SESSION_CACHE_TTL_MS),
     )
     private val pendingAnalyzeFiles = linkedSetOf<String>()
+    private val pendingDeleteCleanupPaths = linkedSetOf<String>()
+    private var deleteCleanupJob: Job? = null
     private var currentEditingFile: String? = null
     private val analyzedAt = mutableMapOf<String, Long>()
     private val trackedSourceDirs = mutableListOf<String>()
@@ -92,14 +94,9 @@ class ConstRefEngine(
             notifyStateChangedLocked()
         }
         changeTracker.onFileDeleted(stdPath)
-        withAnalysisLockBlocking {
-            sessionCache.removeFile(stdPath)
-            sessionCache.removeFilesByPrefix("$stdPath/")
-        }
-        if (isSourceFile(stdPath)) {
-            database.removeFile(stdPath)
-        }
-        database.removeFilesByPrefix("$stdPath/")
+        sessionCache.removeFile(stdPath)
+        sessionCache.removeFilesByPrefix("$stdPath/")
+        enqueueDeleteCleanup(stdPath)
     }
 
     fun awaitAnalysis(filePaths: List<String>, timeoutMs: Long = 5000L): AnalysisReadiness {
@@ -1127,6 +1124,42 @@ class ConstRefEngine(
         checkNotNull(scheduledJob).start()
     }
 
+    /**
+     * Enqueues deleted paths and schedules asynchronous DB cleanup.
+     * This avoids blocking caller threads (including EDT) on DB monitor contention.
+     */
+    private fun enqueueDeleteCleanup(path: String) {
+        synchronized(stateLock) {
+            pendingDeleteCleanupPaths += path
+            if (deleteCleanupJob?.isActive == true) {
+                return
+            }
+            deleteCleanupJob = sceneTaskScope.launch(Dispatchers.IO) {
+                while (true) {
+                    val paths = synchronized(stateLock) {
+                        if (pendingDeleteCleanupPaths.isEmpty()) {
+                            deleteCleanupJob = null
+                            return@launch
+                        }
+                        val snapshot = pendingDeleteCleanupPaths.toList()
+                        pendingDeleteCleanupPaths.clear()
+                        snapshot
+                    }
+                    paths.forEach { deletedPath ->
+                        try {
+                            if (isSourceFile(deletedPath)) {
+                                database.removeFile(deletedPath)
+                            }
+                            database.removeFilesByPrefix("$deletedPath/")
+                        } catch (t: Exception) {
+                            logger.warn("ConstRefEngine delete cleanup failed, path=$deletedPath", t)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun isSceneActiveLocked(scene: AnalyzeScene): Boolean {
         val state = sceneTaskStates.getValue(scene)
         return state.runningJob?.isActive == true || state.scheduledJob?.isActive == true
@@ -1134,14 +1167,6 @@ class ConstRefEngine(
 
     private fun isSourceFile(path: String): Boolean {
         return path.endsWith(".java") || path.endsWith(".kt")
-    }
-
-    private fun withAnalysisLockBlocking(action: () -> Unit) {
-        runBlocking {
-            analysisMutex.withLock {
-                action()
-            }
-        }
     }
 
     private class FullScanProgressLogger(

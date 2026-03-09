@@ -20,7 +20,9 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.system.measureTimeMillis
 
 class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
@@ -219,9 +221,10 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
         val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
-            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            database = database,
             logger = logger,
             backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
@@ -353,10 +356,12 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             scheduler.onFileSaved(constantsFile.absolutePath)
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
             assertTrue(scheduler.getEffectedFiles(listOf(constantsFile.absolutePath)).isNotEmpty())
+            assertNotNull(database.getFileCache(userFile.toStdPath()))
 
             userFile.delete()
             scheduler.onFileDeleted(userFile.absolutePath)
             assertTrue(scheduler.getEffectedFiles(listOf(constantsFile.absolutePath)).isEmpty())
+            assertTrue(waitUntil { database.getFileCache(userFile.toStdPath()) == null })
         } finally {
             scheduler.dispose()
             scope.cancel()
@@ -923,6 +928,54 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 elapsedMs < 10_000L,
             )
         } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `onFileDeleted should not block when database monitor is busy`() {
+        val rootDir = createTempDirectory("const_ref_delete_non_blocking")
+        File(rootDir, ".git").mkdirs()
+        val deletedFile = File(rootDir, "Deleted.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val DELETED = 1
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        val lockReady = CountDownLatch(1)
+        val releaseLock = CountDownLatch(1)
+        val lockHolder = Thread {
+            synchronized(database) {
+                lockReady.countDown()
+                releaseLock.await(5, TimeUnit.SECONDS)
+            }
+        }
+        lockHolder.start()
+        try {
+            assertTrue("database lock should be held before deletion", lockReady.await(2, TimeUnit.SECONDS))
+            val elapsedMs = measureTimeMillis {
+                engine.onFileDeleted(deletedFile.absolutePath)
+            }
+            assertTrue(
+                "onFileDeleted should not wait for database monitor, elapsedMs=$elapsedMs",
+                elapsedMs < 500L,
+            )
+        } finally {
+            releaseLock.countDown()
+            lockHolder.join(5_000L)
             engine.dispose()
             scope.cancel()
         }
