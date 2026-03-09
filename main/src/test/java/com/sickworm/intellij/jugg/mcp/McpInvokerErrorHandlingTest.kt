@@ -189,7 +189,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testRestartAppRejectUnknownTapActionsField() {
+    fun testRestartAppAcceptTapActionsSwipeFields() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -201,8 +201,38 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                         "projectDir" to "/tmp/projectA",
                         "tap_actions" to listOf(
                             mapOf(
-                                "resourceId" to "btn_mcp_test_page",
+                                "action" to "swipe",
                                 "x" to 100,
+                                "y" to 200,
+                                "endX" to 100,
+                                "endY" to 50,
+                            )
+                        ),
+                    ),
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertTrue(result.content.first().text.contains("restart_app executed successfully"))
+    }
+
+    @Test
+    fun testRestartAppRejectUnknownTapActionsCustomField() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 12,
+                params = mapOf(
+                    "name" to "restart_app",
+                    "arguments" to mapOf(
+                        "projectDir" to "/tmp/projectA",
+                        "tap_actions" to listOf(
+                            mapOf(
+                                "resourceId" to "btn_mcp_test_page",
+                                "custom" to 100,
                             )
                         ),
                     ),
@@ -213,6 +243,6 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): x"))
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): custom"))
     }
 }

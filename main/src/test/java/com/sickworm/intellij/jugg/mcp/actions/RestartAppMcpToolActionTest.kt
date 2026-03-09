@@ -44,7 +44,7 @@ class RestartAppMcpToolActionTest {
     }
 
     @Test
-    fun testInputSchemaShouldExposeTapActionsSelectorList() {
+    fun testInputSchemaShouldExposeTapActionsTapCompatibleFields() {
         val properties = RestartAppMcpToolAction().definition.inputSchema.properties
         val tapActions = properties["tap_actions"]
         Assert.assertNotNull(tapActions)
@@ -56,11 +56,21 @@ class RestartAppMcpToolActionTest {
         Assert.assertEquals(false, item?.additionalProperties)
 
         val itemProperties = item?.properties ?: emptyMap()
+        Assert.assertTrue(itemProperties.containsKey("action"))
+        Assert.assertTrue(itemProperties.containsKey("x"))
+        Assert.assertTrue(itemProperties.containsKey("y"))
+        Assert.assertTrue(itemProperties.containsKey("endX"))
+        Assert.assertTrue(itemProperties.containsKey("endY"))
+        Assert.assertTrue(itemProperties.containsKey("xPercent"))
+        Assert.assertTrue(itemProperties.containsKey("yPercent"))
+        Assert.assertTrue(itemProperties.containsKey("endXPercent"))
+        Assert.assertTrue(itemProperties.containsKey("endYPercent"))
+        Assert.assertTrue(itemProperties.containsKey("duration"))
         Assert.assertTrue(itemProperties.containsKey("text"))
         Assert.assertTrue(itemProperties.containsKey("resourceId"))
         Assert.assertTrue(itemProperties.containsKey("contentDesc"))
         Assert.assertTrue(itemProperties.containsKey("className"))
-        Assert.assertFalse(itemProperties.containsKey("x"))
+        Assert.assertEquals(listOf("tap", "longPress", "swipe"), itemProperties["action"]?.`enum`)
     }
 
     @Test
@@ -104,6 +114,39 @@ class RestartAppMcpToolActionTest {
             Mockito.verify(clients[1]).findAndTap(null, "btn_some_secondary_entry", null, null)
             Assert.assertTrue(result.message.contains("restart_app executed successfully"))
         }
+    }
+
+    @Test
+    fun testRestartAppShouldSupportSwipeAndLongPressInTapActions() {
+        val (runtime, adb) = runtimeWithMocksAndAdb()
+        val action = RestartAppMcpToolAction()
+
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "tap_actions" to listOf(
+                    mapOf(
+                        "action" to "swipe",
+                        "x" to 10,
+                        "y" to 20,
+                        "endX" to 200,
+                        "endY" to 300,
+                        "duration" to 350,
+                    ),
+                    mapOf(
+                        "action" to "longPress",
+                        "x" to 100,
+                        "y" to 120,
+                        "duration" to 700,
+                    ),
+                ),
+            ),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 10 20 200 300 350"))
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 100 120 100 120 700"))
     }
 
     @Test
@@ -208,6 +251,16 @@ class RestartAppMcpToolActionTest {
     }
 
     private fun runtimeWithMocks(): Pair<IMcpRuntime, IDeployTargetManager> {
+        val (runtime, deployTargetManager, _) = runtimeWithMocksInternal()
+        return runtime to deployTargetManager
+    }
+
+    private fun runtimeWithMocksAndAdb(): Pair<IMcpRuntime, FakeDeviceAdb> {
+        val (runtime, _, adb) = runtimeWithMocksInternal()
+        return runtime to adb
+    }
+
+    private fun runtimeWithMocksInternal(): Triple<IMcpRuntime, IDeployTargetManager, FakeDeviceAdb> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
         PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
@@ -263,16 +316,18 @@ class RestartAppMcpToolActionTest {
             }
         }
 
-        return runtime to deployTargetManager
+        return Triple(runtime, deployTargetManager, adb)
     }
 
     private class FakeDeviceAdb : IDeviceAdb {
+        val executedCommands = mutableListOf<String>()
         override val displayName: String? = "fake_device"
         override val api: Int = 34
         override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
         override fun execAdbShellCmd(cmd: String): String {
+            executedCommands.add(cmd)
             if (cmd == "dumpsys activity activities") {
                 return "topResumedActivity=ActivityRecord{100 com.example.app/.MainActivity t10}"
             }

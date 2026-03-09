@@ -25,30 +25,9 @@ class RestartAppMcpToolAction : McpToolAction {
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 "tap_actions" to McpJsonSchemaProperty(
                     type = "array",
-                    description = "Optional post-restart element tap steps. Each step supports text/resourceId/contentDesc " +
-                        "with optional className and runs sequentially.",
-                    items = McpJsonSchemaProperty(
-                        type = "object",
-                        properties = mapOf(
-                            "text" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Exact UI text selector for one tap action step.",
-                            ),
-                            "resourceId" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Exact UI resource-id selector for one tap action step.",
-                            ),
-                            "contentDesc" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Exact UI content-desc selector for one tap action step.",
-                            ),
-                            "className" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Optional className filter combined with selector fields.",
-                            ),
-                        ),
-                        additionalProperties = false,
-                    ),
+                    description = "Optional post-restart touch steps. Each step supports the same action/mode arguments as tool tap " +
+                        "(tap/longPress/swipe, coordinate/percent/element selectors) and runs sequentially.",
+                    items = McpToolSchemas.tapActionStepProperty,
                 ),
             ),
             required = listOf("projectDir"),
