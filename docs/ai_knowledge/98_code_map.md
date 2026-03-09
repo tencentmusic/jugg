@@ -27,7 +27,7 @@
 | Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile` | 本地/远端 Gradle 构建执行 | 稳定 | 2025-01-20 |
 | MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `mcp/` | MCP HTTP + JSON-RPC 处理 | 稳定 | 2026-02-09 |
 | MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner` | `mcp/actions` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理 | 稳定 | 2026-02-09 |
-| MCP ViewHierarchy 通信 | `ViewHierarchyClient`, `ViewHierarchyRequest`, `ViewHierarchyResponse` | `mcp/viewhierarchy` | `layout_dump` / `tap` 元素模式的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） | 稳定 | 2026-02-09 |
+| MCP ViewHierarchy 通信 | `ViewHierarchyClient`, `ViewHierarchyRequest`, `ViewHierarchyResponse` | `mcp/viewhierarchy` | `layout_dump` / `tap` 元素模式 / `eval_view` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） | 稳定 | 2026-03-09 |
 | 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 | 稳定 | 2025-01-20 |
 
 ---
@@ -58,7 +58,7 @@
 | platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `BuildGradleBaseCommand`, `BuildIncrementalApkCommand` |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |
-| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | JVMTI native 能力（`native-lib.cpp`）+ App 内 ViewHierarchy LocalSocket Server（`ViewHierarchyServer*`, `ViewTreeDumper`, `ElementFinder`, `ViewTapper`, `LayoutVerifier`，由 `BootstrapApplication` 初始化） |
+| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | JVMTI native 能力（`native-lib.cpp`）+ App 内 ViewHierarchy LocalSocket Server（`ViewHierarchyServer*`, `ViewTreeDumper`, `ElementFinder`, `ViewTapper`, `LayoutVerifier`, `ViewExpressionEvaluator`，由 `BootstrapApplication` 初始化） |
 
 ---
 

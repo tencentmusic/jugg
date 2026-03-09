@@ -189,6 +189,14 @@ public class ViewHierarchyServer {
                             return doVerify(finalParamsVerify);
                         }
                     });
+                case "eval_view":
+                    JSONObject finalParamsEval = params;
+                    return runOnMainThread(new Callable<JSONObject>() {
+                        @Override
+                        public JSONObject call() {
+                            return doEvalView(finalParamsEval);
+                        }
+                    });
                 default:
                     return error("Unsupported action: " + action, null);
             }
@@ -357,6 +365,108 @@ public class ViewHierarchyServer {
             LogUtils.e(TAG, "doVerify failed", t);
             return error("verify failed: " + t.getMessage(), null);
         }
+    }
+
+    private JSONObject doEvalView(JSONObject params) {
+        try {
+            JSONObject targetObj = params.optJSONObject("target");
+            if (targetObj == null) {
+                return error("eval_view requires 'target' selector.", null);
+            }
+
+            String text = optString(targetObj, "text");
+            String resourceId = optString(targetObj, "resourceId");
+            String contentDesc = optString(targetObj, "contentDesc");
+            String className = optString(targetObj, "className");
+
+            JSONArray expressions = params.optJSONArray("expressions");
+            if (expressions == null || expressions.length() == 0) {
+                return error("eval_view requires non-empty 'expressions' array.", null);
+            }
+
+            List<MatchedElement> matches = elementFinder.find(
+                text, resourceId, contentDesc, className, true);
+
+            if (matches.isEmpty()) {
+                List<MatchedElement> candidates = elementFinder.findClickableCandidates(5, true);
+                JSONObject data = new JSONObject();
+                JSONArray candidatesArray = new JSONArray();
+                for (MatchedElement c : candidates) {
+                    candidatesArray.put(c.toMatchedElementJson());
+                }
+                data.put("candidates", candidatesArray);
+                return error("No matching element found for selector {"
+                    + describeSelector(targetObj) + "}.", data);
+            }
+            if (matches.size() > 1) {
+                JSONObject data = new JSONObject();
+                JSONArray matchesArray = new JSONArray();
+                for (MatchedElement m : matches) {
+                    matchesArray.put(m.toMatchedElementJson());
+                }
+                data.put("matchCount", matches.size());
+                data.put("matches", matchesArray);
+                return error("Multiple elements matched (" + matches.size()
+                    + "). Narrow the selector or add className.", data);
+            }
+
+            MatchedElement target = matches.get(0);
+            android.view.View view = target.view;
+
+            JSONArray values = new JSONArray();
+            for (int i = 0; i < expressions.length(); i++) {
+                String expr = expressions.getString(i);
+                JSONObject entry = new JSONObject();
+                entry.put("expression", expr);
+                try {
+                    ViewExpressionEvaluator.Result result =
+                        ViewExpressionEvaluator.evaluate(view, expr);
+                    entry.put("value", result.jsonValue == null
+                        ? JSONObject.NULL : result.jsonValue);
+                    entry.put("type", result.typeName);
+                } catch (Exception e) {
+                    entry.put("value", JSONObject.NULL);
+                    entry.put("type", "error");
+                    entry.put("error", e.getClass().getSimpleName()
+                        + ": " + e.getMessage());
+                }
+                values.put(entry);
+            }
+
+            JSONObject data = new JSONObject();
+            data.put("className", view.getClass().getName());
+            data.put("resourceId", ViewNode.shortenId(target.resourceId));
+            data.put("density", android.content.res.Resources.getSystem()
+                .getDisplayMetrics().density);
+            data.put("values", values);
+            return ok(data);
+
+        } catch (Throwable t) {
+            LogUtils.e(TAG, "doEvalView failed", t);
+            return error("eval_view failed: " + t.getMessage(), null);
+        }
+    }
+
+    private String describeSelector(JSONObject selector) {
+        StringBuilder sb = new StringBuilder();
+        String rid = optString(selector, "resourceId");
+        String txt = optString(selector, "text");
+        String cd = optString(selector, "contentDesc");
+        String cn = optString(selector, "className");
+        if (rid != null) sb.append("resourceId='").append(rid).append("'");
+        if (txt != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append("text='").append(txt).append("'");
+        }
+        if (cd != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append("contentDesc='").append(cd).append("'");
+        }
+        if (cn != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append("className='").append(cn).append("'");
+        }
+        return sb.toString();
     }
 
     private JSONObject buildElementsData(List<MatchedElement> matches) throws Exception {        JSONObject data = new JSONObject();

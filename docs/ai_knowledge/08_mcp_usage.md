@@ -48,6 +48,7 @@
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
 | `layout_verify` | `projectDir`, `checks`（至少 1 条）；可选 `checksFile` | 验证 UI 元素属性或元素间关系（默认自动快照） |
+| `eval_view` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
@@ -123,6 +124,19 @@
 - dumpFile 模式下属性不支持时，`message` 会包含 `did you mean` 候选与支持属性列表；若目标元素已匹配，还会附带参考观测值（如 `reference bounds.width = xxxdp`）以便 Agent 直接给出证据。
 - auto_dump 模式的 dp 换算依赖 dump JSON 根节点的 `deviceInfo.density`。
 - `layout_verify`（auto_dump/live）在执行前同样会先等待 App 在线（同 `layout_dump`）。
+
+补充（eval_view 语义）：
+- `eval_view` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。
+- **target**：元素选择器（同 `layout_verify`/`tap` 元素模式：`resourceId`/`text`/`contentDesc`/`className`，AND 逻辑）。必须唯一匹配一个元素。
+- **expressions**：getter 方法表达式数组（1~20 个）。语法为 `methodName()` 或 `methodName().anotherMethod()`，最大链深度 5。
+- 仅允许 getter/查询方法（`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length`/`name`/`ordinal`/`size`/`isEmpty` 等白名单）。有副作用的方法（`set*`/`remove*`/`add*`/`post*`/`dispatch*`/`perform*` 等）被禁止。
+- 返回 `data.values[]`，每项含 `expression`/`value`/`type`（`string`/`int`/`long`/`float`/`double`/`boolean`/`null`/`error`）。
+- 返回 `data.density`（设备像素密度），便于 Agent 将 px 转换为 dp 而无需额外调用。
+- 链中间结果为 null 时返回 `{value: null, type: "null"}` 而非 NPE。
+- 方法不存在时对应表达式返回 `{type: "error", error: "NoSuchMethodException: ..."}`，不影响同批其他表达式。
+- 适用场景：单个 View 的属性查询（textColor、textSize、maxLines、ellipsize、tintColor、cornerRadius、自定义 View getter 等）。
+- 与 `layout_verify` 分工：需要两个 View 坐标计算的场景（spacing/alignment/overlap/containment/order）用 `layout_verify`；查询单个 View 属性用 `eval_view`。
+- 在执行前同样会先等待 App 在线（同 `layout_dump`）。
 
 补充（tap 三模式语义）：
 - `action` 支持：`tap`（默认）、`longPress`、`swipe`。

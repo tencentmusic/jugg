@@ -139,6 +139,79 @@ open class ViewHierarchyClient(
         )
     }
 
+    /**
+     * Execute eval_view on device side: find one element by selector and evaluate
+     * getter expressions reflectively.
+     */
+    fun evalView(
+        text: String?,
+        resourceId: String?,
+        contentDesc: String?,
+        className: String?,
+        expressions: List<String>,
+    ): EvalViewResult? {
+        val target = linkedMapOf<String, Any?>(
+            "text" to text,
+            "resourceId" to resourceId,
+            "contentDesc" to contentDesc,
+            "className" to className,
+        )
+        val params = linkedMapOf<String, Any?>(
+            "target" to target,
+            "expressions" to expressions,
+        )
+        val response = sendRequest(
+            ViewHierarchyRequest(
+                action = "eval_view",
+                params = params,
+            )
+        ) ?: return null
+
+        if (!response.isOk()) {
+            val message = response.message ?: "eval_view failed"
+            val data = response.data
+            val candidates = parseCandidates(data)
+            return EvalViewResult(
+                className = "",
+                resourceId = "",
+                density = 0.0,
+                values = emptyList(),
+                errorMessage = message,
+            )
+        }
+
+        val data = response.data ?: return null
+        val resolvedClassName = data.optStringOrNull("className").orEmpty()
+        val resolvedResourceId = data.optStringOrNull("resourceId").orEmpty()
+        val density = data.get("density")?.runCatching { asDouble }?.getOrDefault(0.0) ?: 0.0
+        val valuesArray = data.optJsonArray("values") ?: return null
+
+        val values = mutableListOf<EvalViewValue>()
+        for (element in valuesArray) {
+            val item = element.asJsonObjectOrNull() ?: continue
+            val expr = item.optStringOrNull("expression").orEmpty()
+            val type = item.optStringOrNull("type").orEmpty()
+            val error = item.optStringOrNull("error")
+            val rawValue = item.get("value")
+            val value: Any? = when {
+                rawValue == null || rawValue.isJsonNull -> null
+                type == "int" -> rawValue.runCatching { asInt }.getOrNull()
+                type == "long" -> rawValue.runCatching { asLong }.getOrNull()
+                type == "float" || type == "double" -> rawValue.runCatching { asDouble }.getOrNull()
+                type == "boolean" -> rawValue.runCatching { asBoolean }.getOrNull()
+                else -> rawValue.runCatching { asString }.getOrNull()
+            }
+            values.add(EvalViewValue(expression = expr, value = value, type = type, error = error))
+        }
+
+        return EvalViewResult(
+            className = resolvedClassName,
+            resourceId = resolvedResourceId,
+            density = density,
+            values = values,
+        )
+    }
+
     private fun findAndPress(
         action: String,
         text: String?,

@@ -2,8 +2,9 @@
 
 > 本文件是用于测试 AI agent 在工程 android_demo_project 使用 `layout_verify` 进行 UI 验证能力的盲测题目集。
 > 任务完成前绝对不可以读取预期结果 `08_mcp_test_case_layout_verify_answer_key.md`。
-> 最后更新：2026-03-08
+> 最后更新：2026-03-09
 > 前置文档：`08_mcp_test_case.md`（执行约定和工具使用方式）
+> 配套文档：`08_mcp_test_case_eval_view.md`（`eval_view` 盲测评估，测试反射查询能力）
 
 ---
 

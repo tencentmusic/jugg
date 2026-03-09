@@ -155,3 +155,23 @@ Comparison uses epsilon=0.001 for floating-point tolerance.
 }]}
 ```
 Verifies `icon_avatar` (child) is fully inside `container_header` (parent).
+
+---
+
+## 4. When to use `eval_view` instead
+
+`layout_verify` covers the most common UI assertions. For properties it does **not** support, use `eval_view` to reflectively query View getters.
+
+| Property | `layout_verify` | `eval_view` expression |
+|----------|-----------------|----------------------|
+| maxLines | ❌ | `getMaxLines()` |
+| ellipsize | ❌ | `getEllipsize().name()` |
+| letterSpacing | ❌ | `getLetterSpacing()` |
+| lineCount | ❌ | `getLineCount()` |
+| cornerRadius | ❌ | `getBackground().getCornerRadius()` |
+| tint color | ❌ | `getBackgroundTintList().getDefaultColor()` |
+| textSize (px) | ✅ `textSizeSp` (sp) | `getTextSize()` (px, use `data.density` to convert) |
+| textColor | ✅ | `getCurrentTextColor()` |
+| custom View getter | ❌ | `getCustomProperty()` |
+
+**Key difference**: `layout_verify` returns PASS/FAIL verdict; `eval_view` returns raw values — Agent must interpret.

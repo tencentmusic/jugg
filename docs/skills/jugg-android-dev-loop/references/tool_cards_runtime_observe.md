@@ -121,6 +121,32 @@ When interacting with a specific area (e.g., a dialog, a settings section, a lis
 - First dump on an unknown page.
 - Need to verify overall page structure (e.g., which Activity is shown).
 
+## `eval_view`
+
+- Purpose: reflectively invoke getter method chains on a single View to query runtime properties not available in `layout_dump` or `layout_verify`.
+- Required: `projectDir`, `target` (element selector), `expressions` (string array, 1–20).
+- `target`: same selector model as `layout_verify`/`tap` element mode (`resourceId`/`text`/`contentDesc`/`className`, AND logic). Must uniquely match exactly one element; multiple matches → ERROR with candidates.
+- `expressions` syntax: `methodName()` or `methodName().anotherMethod()`, max chain depth 5. e.g. `getText()`, `getBackground().getCornerRadius()`.
+- Safety: getter-only whitelist (`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length`/`name`/`ordinal`/`size`/`isEmpty`). Mutating methods (`set*`/`remove*`/`add*`/`post*`/`dispatch*`/`perform*`) are blocked.
+- Result: `data.values[]` — each entry has `expression`/`value`/`type` (`string`/`int`/`long`/`float`/`double`/`boolean`/`null`/`error`). Also returns `data.density` (device pixel density) for px→dp conversion.
+- Null-safe: intermediate null → `{value: null, type: "null"}`, not NPE.
+- Per-expression error isolation: one bad method name returns `{type: "error", error: "..."}` without affecting sibling expressions.
+
+### When to use `eval_view` vs `layout_verify`
+
+| Scenario | Tool |
+|----------|------|
+| Single View property query (textColor, textSize, maxLines, ellipsize, tintColor, cornerRadius, custom getters) | `eval_view` |
+| Two-element spatial relation (spacing, alignment, overlap, containment, order) | `layout_verify` |
+| Standard property assertion with PASS/FAIL verdict (text, visibility, bounds, clickable, alpha, padding) | `layout_verify` |
+| Property not supported by `layout_verify` (maxLines, ellipsize, custom View getter) | `eval_view` |
+
+### Typical flow
+
+1. Use `layout_verify` for standard acceptance checks (text, visibility, bounds, spacing, alignment, etc.).
+2. Use `eval_view` for properties `layout_verify` cannot query (e.g. `getMaxLines()`, `getEllipsize().name()`, `getBackground().getCornerRadius()`).
+3. Agent interprets raw values from `eval_view` — there is no built-in PASS/FAIL assertion.
+
 ## `activity_stack`
 
 - Purpose: verify page/activity context before or after actions.

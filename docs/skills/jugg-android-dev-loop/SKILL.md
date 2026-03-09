@@ -40,6 +40,7 @@ Intent -> reference file mapping:
 - compile, deploy, or handle compile/deploy failure -> `references/tool_cards_build_deploy.md`
 - interact with running app or collect runtime evidence (tap, layout, screenshot, recording) -> `references/tool_cards_runtime_observe.md`
 - verify UI properties/relations OR convert design intent into layout_verify assertions -> `references/tool_cards_runtime_observe.md` + `references/guide_layout_verify_assertion.md` (load both)
+- query single View runtime properties via reflection (eval_view: textColor, textSize, maxLines, ellipsize, custom getters) -> `references/tool_cards_runtime_observe.md`
 - device/project context problem (`MCP_NO_DEVICE`, `MCP_PROJECT_NOT_INITIALIZED`, crash, unknown runtime state) -> `references/tool_cards_troubleshoot.md`
 - changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
 - match a specific error message/errorCode to a known fix -> `references/error_patterns.md`
@@ -53,6 +54,7 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
 3. Runtime actions & evidence (load `references/tool_cards_runtime_observe.md` when details are needed).
    - Run **Target Page Context Gate** first.
    - Use `layout_verify` for property/relation acceptance checks (verify-first, see Core Rules).
+   - Use `eval_view` for properties `layout_verify` cannot query (maxLines, ellipsize, custom getters).
    - Collect screenshot/recording evidence only after the gate passes.
 4. Verdict:
    - **PASS** -> step 5.
@@ -85,7 +87,7 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
 - Never claim success without artifact evidence.
   - **UI verification tasks**: require screenshot or recording artifact as evidence.
   - **compile_only tasks** (no UI verification): `status=OK` with `isFinal=true` and `logPath` is sufficient evidence; screenshot/recording is not required.
-- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. Default flow is `layout_verify` (auto snapshot) → `screenshot`. All numeric values (bounds/padding/spacing) are always in dp — no `unit` parameter needed.
+- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. For properties not supported by `layout_verify` (maxLines, ellipsize, cornerRadius, custom View getters), use `eval_view`. Default flow is `layout_verify` (auto snapshot) → `eval_view` (if needed) → `screenshot`. All numeric values (bounds/padding/spacing) are always in dp — no `unit` parameter needed.
 - Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
 - Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.

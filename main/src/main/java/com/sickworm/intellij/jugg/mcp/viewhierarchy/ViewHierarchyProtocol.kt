@@ -88,3 +88,24 @@ sealed class FindAndTapResult {
         val message: String,
     ) : FindAndTapResult()
 }
+
+/**
+ * EvalViewResult models the response from an eval_view request.
+ */
+data class EvalViewResult(
+    val className: String,
+    val resourceId: String,
+    val density: Double,
+    val values: List<EvalViewValue>,
+    val errorMessage: String? = null,
+)
+
+/**
+ * EvalViewValue models one expression evaluation result.
+ */
+data class EvalViewValue(
+    val expression: String,
+    val value: Any?,
+    val type: String,
+    val error: String? = null,
+)

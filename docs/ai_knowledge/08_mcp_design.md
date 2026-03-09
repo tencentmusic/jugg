@@ -20,7 +20,7 @@
 | 工具执行层 | `McpToolInvoker` | 参数校验、工具路由、结果映射 |
 | 校验层 | `McpRequestValidator` | schema 校验、默认值填充、projectDir 授权检查 |
 | 注册层 | `McpToolRegistry`, `McpToolActionRegistry` | 工具定义与 action 注册 |
-| 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout_dump` / `tap` 元素模式的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
+| 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout_dump` / `tap` 元素模式 / `eval_view` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
 | 运行时适配层 | `IMcpRuntime`, `IdeaMcpRuntime` | 将工具执行连接到 IDE 真实能力 |
 
 ---

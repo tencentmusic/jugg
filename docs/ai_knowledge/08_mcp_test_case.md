@@ -1,8 +1,8 @@
 # Jugg MCP 测试用例
 
-> 说明：本文档覆盖 Jugg MCP 当前注册的 16 个工具的功能验证，用自然语言描述，可直接输入给 AI coding agent 执行。
+> 说明：本文档覆盖 Jugg MCP 当前注册的 17 个工具的功能验证，用自然语言描述，可直接输入给 AI coding agent 执行。
 > 工具清单来源：`McpToolActionRegistry.kt` + `08_mcp_usage.md`
-> 最后核对：2026-03-08（文档与代码冲突时，以代码为准）
+> 最后核对：2026-03-09（文档与代码冲突时，以代码为准）
 
 ---
 
@@ -19,6 +19,7 @@
 | `DEV` | 三、设备相关 | 设备列表等 |
 | `MEDIA` | 四、截图/录屏/布局/崩溃 | 截图、录屏、布局导出、崩溃报告 |
 | `VERIFY` | 四（续）、布局验证 | layout_verify 属性/关系断言 |
+| `EVALVIEW` | 四（续）、视图表达式求值 | eval_view 反射查询 |
 | `INTERACT` | 五、应用控制与交互 | 重启、点击等 |
 | `BUILD` | 六、编译与部署（正常） | 正常编译部署 |
 | `BUILDFAIL` | 七、编译失败 | 编译错误信息验证 |
@@ -54,7 +55,7 @@
 
 ### 分组执行策略（防止 context 溢出）
 
-> 本文档有 63 个用例，工具调用密集，单次会话 context 容易溢出。**必须按分组执行**，每组隔离 context。
+> 本文档有 71 个用例，工具调用密集，单次会话 context 容易溢出。**必须按分组执行**，每组隔离 context。
 
 **分组表：**
 
@@ -63,6 +64,7 @@
 | 1 | SSH-1~4 | 一、远程 SSH | 需用户交互，直接执行 |
 | 2 | CONN-1~2, DEV-1~2 | 二、三 基础连通+设备 | |
 | 3 | MEDIA-1~12 | 四、截图/录屏/布局/崩溃报告 | |
+| 3a | EVALVIEW-1~8 | 四（续）、视图表达式求值 | |
 | 4 | INTERACT-1~14 | 五、应用控制与交互 | |
 | 5 | BUILD-1~6 | 六、编译与部署（正常） | |
 | 6 | BUILDFAIL-1~4 | 七、编译失败 | |
@@ -230,6 +232,35 @@
 
 **VERIFY-8: 缺少 checks**
 调用 `layout_verify`，仅传入 `projectDir`，不传 `checks`，验证返回 `status=ERROR`、`errorCode=MCP_INVALID_PARAMS`。
+
+### 视图表达式求值（eval_view）
+
+> 本小节测试新增的 `eval_view` 工具。需要设备连接且 App 在前台运行于 MCP 测试页面。
+> 前置：导航到 McpTestActivity。
+
+**EVALVIEW-1: 基本 getter 调用 - getText()**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "btn_mcp_unique_text"}`、`expressions: ["getText()"]`。验证返回 `status` 为 `OK`，`data.values[0].value` 为 `"Unique MCP Target"`，`data.values[0].type` 为 `string`。
+
+**EVALVIEW-2: 多表达式批量查询**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "btn_mcp_unique_text"}`、`expressions: ["getText()", "isClickable()", "isEnabled()", "getAlpha()"]`。验证返回 `status` 为 `OK`，`data.values` 数组长度为 4，每项含 `expression`/`value`/`type`，无 `error` 字段。
+
+**EVALVIEW-3: 方法链调用**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "tv_mcp_title"}`、`expressions: ["getText().toString()"]`。验证返回 `status` 为 `OK`，`data.values[0].value` 为 `"MCP Test Page"`，`data.values[0].type` 为 `string`。
+
+**EVALVIEW-4: 不存在的方法 - 隔离错误**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "btn_mcp_unique_text"}`、`expressions: ["getText()", "getNonExistentProperty()", "isClickable()"]`。验证返回 `status` 为 `OK`，`data.values[0]` 和 `data.values[2]` 正常返回值，`data.values[1].type` 为 `error`，`data.values[1].error` 包含 `NoSuchMethodException`。
+
+**EVALVIEW-5: 安全限制 - 拒绝 setter 方法**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "btn_mcp_unique_text"}`、`expressions: ["setText()"]`。验证返回 `status` 为 `OK`，`data.values[0].type` 为 `error`，`data.values[0].error` 包含安全相关的拒绝信息（如 `SecurityException` 或 blocked）。
+
+**EVALVIEW-6: 元素未找到**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "non_existent_element_xyz"}`、`expressions: ["getText()"]`。验证返回 `status` 为 `ERROR`，`message` 包含 "No matching element found"。
+
+**EVALVIEW-7: 缺少 expressions**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "btn_mcp_unique_text"}`，不传 `expressions`（或传空数组），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
+
+**EVALVIEW-8: density 返回值**
+调用 `eval_view`，传入 `projectDir`、`target: {resourceId: "tv_mcp_title"}`、`expressions: ["getTextSize()"]`。验证返回 `status` 为 `OK`，`data.density` 为正数（大于 0），可用于 px→dp 转换。`data.values[0].type` 为 `float`。
 
 ---
 
@@ -448,6 +479,9 @@
 **NODEV-11a: 无设备 - layout_verify (live 模式)**
 调用 `layout_verify`，传入有效 `projectDir` 和 `checks: [{target: {resourceId: "any_id"}, type: "property", property: "exists"}]`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`（自动快照/实时都需设备）。
 
+**NODEV-11b: 无设备 - eval_view**
+调用 `eval_view`，传入有效 `projectDir`、`target: {resourceId: "any_id"}`、`expressions: ["getText()"]`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+
 **NODEV-12: 无设备 - activity_stack**
 调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
@@ -491,7 +525,7 @@
 通过 JSON-RPC 发送 `tools/call`，`name` 设为 `"nonexistent_tool"`，验证返回 `errorCode` 为 `MCP_TOOL_NOT_FOUND`。
 
 **ERR-4: 返回结构一致性验证**
-对当前注册的 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
+对当前注册的 18 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
 
 ---
 
@@ -550,7 +584,9 @@
 | 10 | `start_record` | 是 | 开始设备录屏并返回 `sessionId` |
 | 11 | `stop_record` | 是 | 停止录屏并拉取 mp4 |
 | 12 | `layout_dump` | 是 | 导出 UI 层级 JSON |
-| 13 | `activity_stack` | 是 | 获取当前 Activity 栈 |
-| 14 | `crash_report` | 是 | 收集最近崩溃摘要与完整错误日志 |
-| 15 | `tap` | 是 | 屏幕点击（三模式：坐标/百分比/元素） |
-| 16 | `request_remote_ssh_info` | 否 | 获取远端 SSH 信息 |
+| 13 | `layout_verify` | 是 | 验证 UI 元素属性或关系（自动快照） |
+| 14 | `eval_view` | 是 | 反射调用 View getter 方法链查询属性 |
+| 15 | `activity_stack` | 是 | 获取当前 Activity 栈 |
+| 16 | `crash_report` | 是 | 收集最近崩溃摘要与完整错误日志 |
+| 17 | `tap` | 是 | 屏幕点击（三模式：坐标/百分比/元素） |
+| 18 | `request_remote_ssh_info` | 否 | 获取远端 SSH 信息 |
