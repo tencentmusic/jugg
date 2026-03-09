@@ -60,8 +60,7 @@
 | `08_mcp_design.md` | MCP 协议分层与设计约束 |
 | `08_mcp_usage.md` | MCP 工具清单、参数与排查 |
 | `08_mcp_test_case.md` | MCP 全量测试用例分组执行与验收标准 |
-| `08_mcp_test_case_layout_verify.md` | layout_verify 盲测评估题目（60 题） |
-| `08_mcp_test_case_eval_view.md` | eval_view 盲测评估题目（30 题） |
+| `08_mcp_test_case_ui_verify.md` | UI 验证盲测评估题目（layout_verify 60 题 + eval_view 30 题） |
 
 ---
 
@@ -79,8 +78,7 @@
 | 改 AS 兼容层 | `04_engineering_compat.md` |
 | 新增/调整 MCP 工具 | `08_mcp_usage.md`, `08_mcp_design.md` |
 | 执行 MCP 工具回归测试 | `08_mcp_test_case.md`, `08_mcp_usage.md` |
-| 执行 layout_verify 盲测评估 | `08_mcp_test_case_layout_verify.md` |
-| 执行 eval_view 盲测评估 | `08_mcp_test_case_eval_view.md` |
+| 执行 UI 盲测评估（layout_verify + eval_view） | `08_mcp_test_case_ui_verify.md` |
 
 ---
 

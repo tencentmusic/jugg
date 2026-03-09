@@ -45,7 +45,7 @@
   - 可见/隐藏同文案节点：`Visibility Tap Target`（一个可见、一个 `invisible`）
   - swipe 专用可滑动区域：`sv_mcp_swipe_target`
   - swipe 起止标记文本：`Swipe Start Marker`（初始可见）、`Swipe End Marker`（初始不可见，滑动后可见）
-- 维护约束：若 `McpTestActivity` 页面控件或布局发生任何改动（新增/删除、resourceId、文案、样式、关系），必须同步更新 `08_mcp_test_case_layout_verify.md` 与其答案表。
+- 维护约束：若 `McpTestActivity` 页面控件或布局发生任何改动（新增/删除、resourceId、文案、样式、关系），必须同步更新 `08_mcp_test_case_ui_verify.md` 与对应答案表`08_mcp_test_case_ui_verify_answer.md`。
 
 执行 INTERACT-4~8 时优先在该页面取样，减少环境差异导致的不稳定。
 

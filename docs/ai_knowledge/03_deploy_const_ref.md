@@ -86,7 +86,7 @@
 | `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile` 到待分析；触发 `PRE_COMPILE` 异步分析；在 `timeout` 窗口内等待“目标文件 analyzedAt 达标 + 相关 sourceDir full scan ready”。 |
 | `analyzeOnDemand(paths)` | 同步按需分析入口：优先复用已有 checksum 分析结果；缺失或内容变化时立即同步分析并返回，不依赖等待超时窗口。 |
 | `initializeFullScan(sourceDirs)` | 异步扫描目录下所有源码，构建 definitions/references 索引，并设置目录 ready。 |
-| `onFileDeleted(path)` | 清理内存状态、索引、数据库文件记录（含前缀删除）。 |
+| `onFileDeleted(path)` | 立即清理内存状态与变更跟踪；数据库删除改为后台队列异步执行（含前缀删除），避免在调用线程（如 EDT）上等待 DB 锁。 |
 | `getEffectedFiles(changedPaths)` | 基于 `changedDefinitionKeys` + `removedDefinitionKeys` 查询引用文件；仅返回本地存在且不在 `changedPaths` 的文件。 |
 
 ### 3.5 路径与注入
