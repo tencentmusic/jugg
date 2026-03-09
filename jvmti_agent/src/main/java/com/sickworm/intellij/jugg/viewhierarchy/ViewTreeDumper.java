@@ -32,8 +32,10 @@ public class ViewTreeDumper {
     private static final String TAG = "Jugg#ViewTreeDumper";
     private static final int MAX_DEPTH = 60;
     private static final int MAX_NODE_COUNT = 5000;
+    private static final String VIRTUAL_ID_PREFIX = "_vir_id_";
 
     private final ComposeTreeExtractor composeTreeExtractor;
+    private int virtualIdCounter;
 
     public ViewTreeDumper() {
         this(new NoOpComposeTreeExtractor());
@@ -56,6 +58,8 @@ public class ViewTreeDumper {
      * When topWindowOnly is true, only the topmost window is included.
      */
     public JSONObject dumpWindowsJson(String rootId, boolean excludeGone, boolean topWindowOnly) throws JSONException {
+        virtualIdCounter = 0;
+
         if (rootId != null && !rootId.isEmpty()) {
             return dumpSubtreeJson(rootId, excludeGone);
         }
@@ -101,6 +105,8 @@ public class ViewTreeDumper {
      * Falls back to full dump when rootId is empty or no matching view is found.
      */
     private JSONObject dumpSubtreeJson(String rootId, boolean excludeGone) throws JSONException {
+        virtualIdCounter = 0;
+
         View targetView = null;
         for (WindowInfo window : getAllWindows()) {
             targetView = findViewByResourceId(window.rootView, rootId);
@@ -240,7 +246,7 @@ public class ViewTreeDumper {
     private ViewNode buildNode(View view) {
         ViewNode node = new ViewNode();
         node.className = view.getClass().getName();
-        node.id = resolveResourceId(view);
+        node.id = resolveResourceIdOrGenerateVirtual(view);
         node.text = resolveText(view);
         node.contentDesc = safeToString(view.getContentDescription());
         node.tag = safeToString(view.getTag());
@@ -261,6 +267,18 @@ public class ViewTreeDumper {
             }
         }
         return node;
+    }
+
+    /**
+     * Resolve resource id or generate virtual id for views without resource id.
+     * Virtual id format: _jugg_<index>
+     */
+    private String resolveResourceIdOrGenerateVirtual(View view) {
+        String resourceId = resolveResourceId(view);
+        if (resourceId.isEmpty()) {
+            return VIRTUAL_ID_PREFIX + virtualIdCounter++;
+        }
+        return resourceId;
     }
 
     private ViewNode.Bounds resolveBounds(View view) {

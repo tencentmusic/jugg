@@ -35,16 +35,15 @@ class LayoutVerifyMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Verify UI element properties or relations. " +
-            "Tool fetches the latest layout snapshot automatically. " +
+        description = "Verify UI element properties or relations. Fetches layout snapshot automatically. " +
             "Use checks array for batch verification. All numeric values are in dp. " +
-            "live-only properties (e.g. textSizeSp) are verified via live query automatically.",
+            "Live-only properties (textSizeSp, backgroundColor) are verified via live query automatically.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 "checksFile" to McpJsonSchemaProperty(
                     type = "string",
-                    description = "Optional absolute path to JSON file containing checks. Used when inline checks is omitted.",
+                    description = "Absolute path to JSON file with checks. Used when inline checks is omitted.",
                 ),
                 "checks" to McpJsonSchemaProperty(
                     type = "array",
@@ -54,7 +53,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                         properties = mapOf(
                             "target" to McpJsonSchemaProperty(
                                 type = "object",
-                                description = "Element selector. ONLY supports: resourceId, text, contentDesc, className.",
+                                description = "Element selector (resourceId/text/contentDesc/className).",
                                 properties = mapOf(
                                     "resourceId" to McpJsonSchemaProperty(type = "string"),
                                     "text" to McpJsonSchemaProperty(type = "string"),
@@ -65,39 +64,29 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             ),
                             "type" to McpJsonSchemaProperty(
                                 type = "string",
-                                description = "property: single-element check. spacing: gap check on axis x/y. " +
-                                    "alignment: center alignment on axis x/y. " +
-                                    "overlap: checks whether two elements overlap. Default: PASS=no overlap (asserts elements do NOT overlap). Set expectOverlap=true to reverse: PASS=elements DO overlap. " +
-                                    "containment: PASS=target(child) is fully inside target2(parent). " +
-                                    "order: PASS=target before target2.",
+                                description = "property: single-element check. spacing: gap on axis x/y. alignment: center on axis. " +
+                                    "overlap: PASS=no overlap; set expectOverlap=true to assert DO overlap. " +
+                                    "containment: PASS=target inside target2. order: PASS=target before target2.",
                                 `enum` = listOf("property", "spacing", "alignment", "overlap", "containment", "order"),
                             ),
                             "property" to McpJsonSchemaProperty(
                                 type = "string",
-                                description = "For type=property. textColor/backgroundColor use #AARRGGBB (e.g. #FF1976D2). " +
-                                    "textSizeSp and backgroundColor are live-only. " +
-                                    "backgroundColor only works for solid-color backgrounds (ColorDrawable). " +
-                                    "Aliases: width/height/left/top/right/bottom map to bounds.*.",
+                                description = "For type=property. textColor/backgroundColor use #AARRGGBB. " +
+                                    "textSizeSp/backgroundColor are live-only.",
                                 `enum` = PROPERTY_SCHEMA_VALUES,
                             ),
                             "op" to McpJsonSchemaProperty(
                                 type = "string",
-                                description = "Comparison operator. Default: eq. " +
-                                    "Supports: eq/neq/gte/lte/gt/lt. " +
-                                    "For range checks, use two separate checks with gte and lte. " +
-                                    "Result message includes actual value and difference for agent analysis.",
-                                `enum` = listOf("eq", "neq", "gte", "lte", "gt", "lt", "contains", "matches"),
+                                description = "Comparison operator. Default: eq. ",
+                                enum = listOf("eq", "neq", "gte", "lte", "gt", "lt", "contains", "matches"),
                             ),
                             "value" to McpJsonSchemaProperty(
                                 type = "string",
-                                description = "Expected value. textColor: #AARRGGBB format.",
+                                description = "Expected value. textColor: #AARRGGBB.",
                             ),
                             "target2" to McpJsonSchemaProperty(
                                 type = "object",
-                                description = "Second element for relation checks. " +
-                                    "containment: target=CHILD (inner element), target2=PARENT (outer container). " +
-                                    "PASS means target is fully inside target2. " +
-                                    "spacing/order: target is the 'from' element, target2 is the 'to' element.",
+                                description = "Second element for relation checks (containment/spacing/order/overlap).",
                                 properties = mapOf(
                                     "resourceId" to McpJsonSchemaProperty(type = "string"),
                                     "text" to McpJsonSchemaProperty(type = "string"),
@@ -108,24 +97,16 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                             ),
                             "axis" to McpJsonSchemaProperty(
                                 type = "string",
-                                description = "For spacing/alignment/order. " +
-                                    "x = horizontal axis, y = vertical axis. " +
-                                    "For alignment: axis=x checks X-center, axis=y checks Y-center.",
+                                description = "x=horizontal, y=vertical. For spacing/alignment/order.",
                                 `enum` = listOf("x", "y"),
-                            ),
-                            "direction" to McpJsonSchemaProperty(
-                                type = "string",
-                                description = "Deprecated legacy field for spacing/alignment/order. " +
-                                    "Use axis instead. direction=vertical/horizontal will be mapped internally.",
-                                `enum` = listOf("horizontal", "vertical"),
                             ),
                             "expected" to McpJsonSchemaProperty(
                                 type = "number",
-                                description = "Expected value in dp. For type=spacing/alignment/order.",
+                                description = "Expected value in dp. For spacing/alignment/order.",
                             ),
                             "expectOverlap" to McpJsonSchemaProperty(
                                 type = "boolean",
-                                description = "Only for type=overlap. Default false (PASS=no overlap). Set true to assert elements DO overlap (PASS=overlap exists).",
+                                description = "For type=overlap. Default false (PASS=no overlap). True: PASS=overlap exists.",
                             ),
                         ),
                         additionalProperties = false,
@@ -135,19 +116,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             required = listOf("projectDir"),
             additionalProperties = false,
         ),
-        outputSchema = McpToolSchemas.baseOutputSchema.copy(
-            properties = McpToolSchemas.baseOutputSchema.properties + mapOf(
-                "data" to McpJsonSchemaProperty(
-                    type = "object",
-                    properties = mapOf(
-                        "result" to McpJsonSchemaProperty(type = "string", `enum` = listOf("PASS", "PARTIAL_FAIL", "FAIL", "ERROR")),
-                        "message" to McpJsonSchemaProperty(type = "string"),
-                        "checkResults" to McpJsonSchemaProperty(type = "array"),
-                    ),
-                    additionalProperties = true,
-                )
-            )
-        ),
+        outputSchema = McpToolSchemas.baseOutputSchema,
     )
 
     @Suppress("UNCHECKED_CAST")
@@ -1002,10 +971,6 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         return (check["type"] as? String) == PROPERTY_CHECK_TYPE
     }
 
-    private fun isSpacingCheck(check: Map<String, Any?>): Boolean {
-        return (check["type"] as? String) == "spacing"
-    }
-
     private fun parseIntValue(value: Any?, default: Int): Int {
         return when (value) {
             is Number -> value.toInt()
@@ -1022,12 +987,6 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 else -> null
             }
         }
-        val direction = (relation["direction"] as? String)?.trim()?.lowercase()
-        if (!direction.isNullOrBlank()) {
-            return mapDirectionToAxis(type, direction)
-        }
-        // Preserve historical default when direction was omitted:
-        // spacing/order -> horizontal branch, alignment -> horizontal branch.
         return when (type) {
             "spacing", "order" -> "x"
             "alignment" -> "y"
@@ -1035,29 +994,10 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         }
     }
 
-    private fun mapDirectionToAxis(type: String, direction: String): String {
-        return when (type) {
-            "alignment" -> if (direction == "vertical") "x" else "y"
-            "spacing", "order" -> if (direction == "vertical") "y" else "x"
-            else -> "x"
-        }
-    }
-
-    private fun mapAxisToDirection(type: String, axis: String): String {
-        return when (type) {
-            "alignment" -> if (axis == "x") "vertical" else "horizontal"
-            "spacing", "order" -> if (axis == "y") "vertical" else "horizontal"
-            else -> "horizontal"
-        }
-    }
-
     private fun normalizeRelationParamsForLive(relation: MutableMap<String, Any?>) {
         val type = relation["type"] as? String ?: return
         val axis = resolveRelationAxis(type, relation) ?: return
         relation["axis"] = axis
-        if ((relation["direction"] as? String).isNullOrBlank()) {
-            relation["direction"] = mapAxisToDirection(type, axis)
-        }
     }
 
     private data class SpacingEvaluation(
@@ -1187,12 +1127,6 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             "textColor",
             "backgroundColor",
             "alpha",
-            "width",
-            "height",
-            "left",
-            "top",
-            "right",
-            "bottom",
             "bounds.width",
             "bounds.height",
             "bounds.left",

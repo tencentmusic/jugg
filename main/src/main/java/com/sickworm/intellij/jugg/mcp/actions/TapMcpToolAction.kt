@@ -6,7 +6,6 @@ import com.sickworm.intellij.jugg.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
-import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
@@ -32,46 +31,7 @@ class TapMcpToolAction : McpToolAction {
             required = listOf("projectDir"),
             additionalProperties = false,
         ),
-        outputSchema = McpToolSchemas.baseOutputSchema.copy(
-            properties = McpToolSchemas.baseOutputSchema.properties + mapOf(
-                "data" to McpJsonSchemaProperty(
-                    type = "object",
-                    properties = mapOf(
-                        "action" to McpJsonSchemaProperty(type = "string"),
-                        "x" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
-                        "y" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
-                        "endX" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
-                        "endY" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
-                        "duration" to McpJsonSchemaProperty(type = "number", minimum = 50.0),
-                        "mode" to McpJsonSchemaProperty(type = "string"),
-                        "screenWidth" to McpJsonSchemaProperty(type = "number"),
-                        "screenHeight" to McpJsonSchemaProperty(type = "number"),
-                        "matchedElement" to McpJsonSchemaProperty(
-                            type = "object",
-                            properties = mapOf(
-                                "text" to McpJsonSchemaProperty(type = "string"),
-                                "className" to McpJsonSchemaProperty(type = "string"),
-                                "resourceId" to McpJsonSchemaProperty(type = "string"),
-                                "contentDesc" to McpJsonSchemaProperty(type = "string"),
-                                "bounds" to McpJsonSchemaProperty(type = "array", items = McpJsonSchemaProperty(type = "number")),
-                                "centerX" to McpJsonSchemaProperty(type = "number"),
-                                "centerY" to McpJsonSchemaProperty(type = "number"),
-                            ),
-                            required = listOf("text", "className", "resourceId", "contentDesc", "bounds", "centerX", "centerY"),
-                            additionalProperties = false,
-                        ),
-                        "matchCount" to McpJsonSchemaProperty(type = "number"),
-                        "matches" to McpJsonSchemaProperty(
-                            type = "array",
-                            description = "All matched elements with bounds/center when matchCount > 1.",
-                            items = McpJsonSchemaProperty(type = "object", additionalProperties = true),
-                        ),
-                    ),
-                    required = listOf("action", "mode"),
-                    additionalProperties = false,
-                )
-            )
-        ),
+        outputSchema = McpToolSchemas.baseOutputSchema,
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {

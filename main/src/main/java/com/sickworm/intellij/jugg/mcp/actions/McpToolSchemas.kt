@@ -10,9 +10,8 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 object McpToolSchemas {
     val projectDirProperty = McpJsonSchemaProperty(
         type = "string",
-        description = "Absolute project path. Must match a currently initialized IDE project.",
+        description = "Project absolute path.",
         pattern = "^/.+",
-        examples = listOf("/Users/you/IdeaProjects/demo"),
     )
 
     val baseOutputSchema = McpJsonSchemaObject(
@@ -47,76 +46,68 @@ object McpToolSchemas {
         ),
         "x" to McpJsonSchemaProperty(
             type = "number",
-            description = "X coordinate in device screen space (coordinate mode).",
+            description = "X coordinate (coordinate mode).",
             minimum = 0.0,
-            examples = listOf(200),
         ),
         "y" to McpJsonSchemaProperty(
             type = "number",
-            description = "Y coordinate in device screen space (coordinate mode).",
+            description = "Y coordinate (coordinate mode).",
             minimum = 0.0,
-            examples = listOf(400),
         ),
         "endX" to McpJsonSchemaProperty(
             type = "number",
-            description = "End X coordinate for swipe (coordinate mode).",
+            description = "End X for swipe (coordinate mode).",
             minimum = 0.0,
-            examples = listOf(200),
         ),
         "endY" to McpJsonSchemaProperty(
             type = "number",
-            description = "End Y coordinate for swipe (coordinate mode).",
+            description = "End Y for swipe (coordinate mode).",
             minimum = 0.0,
-            examples = listOf(1200),
         ),
         "xPercent" to McpJsonSchemaProperty(
             type = "number",
-            description = "X position as percentage of screen width, 0-100 (percent mode).",
+            description = "X% of screen width (0-100, percent mode).",
             minimum = 0.0,
             maximum = 100.0,
-            examples = listOf(50),
         ),
         "yPercent" to McpJsonSchemaProperty(
             type = "number",
-            description = "Y position as percentage of screen height, 0-100 (percent mode).",
+            description = "Y% of screen height (0-100, percent mode).",
             minimum = 0.0,
             maximum = 100.0,
-            examples = listOf(50),
         ),
         "endXPercent" to McpJsonSchemaProperty(
             type = "number",
-            description = "End X as percentage of screen width for swipe, 0-100.",
+            description = "End X% for swipe (0-100).",
             minimum = 0.0,
             maximum = 100.0,
-            examples = listOf(50),
         ),
         "endYPercent" to McpJsonSchemaProperty(
             type = "number",
-            description = "End Y as percentage of screen height for swipe, 0-100.",
+            description = "End Y% for swipe (0-100).",
             minimum = 0.0,
             maximum = 100.0,
-            examples = listOf(20),
         ),
         "duration" to McpJsonSchemaProperty(
             type = "number",
-            description = "Duration in ms. For swipe: speed. For longPress: hold time. Defaults: swipe=300, longPress=500.",
+            description = "Duration in ms (swipe speed / longPress hold). Defaults: swipe=300, longPress=500.",
             minimum = 50.0,
         ),
         "text" to McpJsonSchemaProperty(
             type = "string",
-            description = "UI element text to match (element mode). Exact match only.",
+            description = "Element text selector (element mode, exact match).",
         ),
         "resourceId" to McpJsonSchemaProperty(
             type = "string",
-            description = "UI element resource-id to match (element mode). Exact match only. Prefer short id (e.g. btn_play).",
+            description = "Element resource-id selector (element mode, exact match).",
         ),
         "contentDesc" to McpJsonSchemaProperty(
             type = "string",
-            description = "UI element content-desc to match (element mode). Exact match only.",
+            description = "Element content-desc selector (element mode, exact match).",
         ),
         "className" to McpJsonSchemaProperty(
             type = "string",
-            description = "Additional class name filter for element mode (AND logic with other selectors). Exact match only.",
+            description = "Class name filter for element mode (AND with other selectors).",
         ),
     )
 

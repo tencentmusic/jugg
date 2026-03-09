@@ -90,8 +90,10 @@
 - `message` 不再固定为 executed successfully，而是摘要信息：窗口数、顶层窗口标题、节点数、是否截断。
 - **服务端剪枝**：App 内 ViewHierarchyServer 限制最大深度 `MAX_DEPTH=60`，最大节点数 `MAX_NODE_COUNT=5000`。超限时根节点会包含 `"truncated":true` 字段，被截断的节点自身 `tag` 为 `"truncated:node_limit"` 或 `"truncated:depth_limit"`。
 - **不可见节点**：默认排除 `GONE` 节点以减少体积；设置 `isIncludeGone=true` 可包含 GONE 节点用于诊断。`INVISIBLE` 节点始终包含。注意：元素模式 `tap` 会过滤掉不可见节点（仅匹配 VISIBLE + isShown），因此 GONE/INVISIBLE 的 View 无法通过 `tap(text=...)` 定位，需借助 `layout_dump(isIncludeGone=true)` 诊断。
-- **根 JSON 结构**：`{windows:[{windowType, title, root:<node>}], truncated}`。
-- **节点字段（压缩输出，省略默认/空值）**：`{className, id?, text?, contentDesc?, tag?, bounds:[left,top,right,bottom], visibility?, alpha?, clickable?, enabled?, padding?:[left,top,right,bottom], children?:[], composeNodes?:[]}`。其中 `?` 表示该字段在默认值时省略：`id/text/contentDesc/tag` 为空串时省略；`visibility` 为 `"visible"` 时省略；`alpha` 为 `1.0` 时省略；`clickable` 为 `false` 时省略；`enabled` 为 `true` 时省略；`padding` 全零时省略；`children/composeNodes` 为空数组时省略。`className` 仅保留简单类名（去掉包名），如 `com.tencent.mtt.hippy.views.text.HippyTextView` → `HippyTextView`。`id` 去掉斜杠前的包名前缀，如 `com.example.application:id/btn_play` → `btn_play`。`bounds` 和 `padding` 使用紧凑数组格式 `[left,top,right,bottom]`。
+- **根 JSON 结构**：`{windows:[{windowType, title, root:<node>}], truncated, deviceInfo:{density, scaledDensity}}`。
+- **单位统一为 dp**：所有 `bounds` 和 `padding` 字段已在 IDE 端自动转换为 dp 单位（公式：`dp = (int)(px / density)`，取整），与 `layout_verify` 和 `tap` 百分比模式保持一致。原始像素值由 App 端采集，转换在 IDE 端完成。
+- **虚拟 ID 生成**：对于没有 resource id 的控件，自动生成虚拟 id，格式为 `_vir_id_<index>`（如 `_vir_id_0`, `_vir_id_1`）。虚拟 id 按深度优先遍历顺序分配，每次 dump 重新计数。虚拟 id 可直接用于 `tap` 和 `layout_verify` 的 `resourceId` 参数，无需依赖 `text` 或 `contentDesc`。
+- **节点字段（压缩输出，省略默认/空值）**：`{className, id?, text?, contentDesc?, tag?, bounds:[left,top,right,bottom], visibility?, alpha?, clickable?, enabled?, padding?:[left,top,right,bottom], children?:[], composeNodes?:[]}`。其中 `?` 表示该字段在默认值时省略：`id/text/contentDesc/tag` 为空串时省略（但虚拟 id 始终输出）；`visibility` 为 `"visible"` 时省略；`alpha` 为 `1.0` 时省略；`clickable` 为 `false` 时省略；`enabled` 为 `true` 时省略；`padding` 全零时省略；`children/composeNodes` 为空数组时省略。`className` 仅保留简单类名（去掉包名），如 `com.tencent.mtt.hippy.views.text.HippyTextView` → `HippyTextView`。`id` 去掉斜杠前的包名前缀，如 `com.example.application:id/btn_play` → `btn_play`。`bounds` 和 `padding` 使用紧凑数组格式 `[left,top,right,bottom]`，单位为 dp。
 - 多进程应用下，客户端会优先尝试主进程 socket（`processName == packageName`），再按其余 PID 依次尝试，最后兜底兼容 socket 名 `jugg_vh`。
 - 当 ViewHierarchy 路径失败时，返回 `ERROR`（不再回退 `uiautomator dump`），建议按以下场景拆分排查：
   - `packageName` 无法解析：先确认 `projectDir` 对应运行配置、应用包名与前台进程一致。

@@ -343,7 +343,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "btn_a"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 16, "op" to "eq")),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "axis" to "y", "expected" to 16, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -368,7 +368,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "btn_a"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 20, "op" to "eq")),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "axis" to "y", "expected" to 20, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -551,7 +551,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "tv_title"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_main"), "type" to "spacing", "direction" to "vertical", "expected" to 20, "op" to "eq")),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_main"), "type" to "spacing", "axis" to "y", "expected" to 20, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -579,7 +579,7 @@ class LayoutVerifyMcpToolActionTest {
                 "projectDir" to "/tmp",
                 "dumpFile" to dumpFile.absolutePath,
                 "target" to mapOf("resourceId" to "view_a"),
-                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "direction" to "vertical", "expected" to 220, "op" to "eq")),
+                "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "axis" to "y", "expected" to 220, "op" to "eq")),
             ),
             buildRuntime(null),
         )
@@ -1078,7 +1078,7 @@ class LayoutVerifyMcpToolActionTest {
         val runtime = buildRuntime(null)
         val result = action.execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 16, "tolerance" to 2)),
+            "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "axis" to "y", "expected" to 16, "tolerance" to 2)),
         ), runtime)
         Assert.assertEquals("tolerance should be rejected", McpToolStatus.ERROR, result.status)
         Assert.assertTrue(
@@ -1196,7 +1196,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "direction" to "horizontal", "expected" to 20, "op" to "eq")),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "spacing", "axis" to "x", "expected" to 20, "op" to "eq")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1235,7 +1235,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "direction" to "vertical", "expected" to 30, "op" to "eq")),
+            "target" to mapOf("resourceId" to "btn_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "btn_b"), "type" to "spacing", "axis" to "y", "expected" to 30, "op" to "eq")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1254,7 +1254,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "vertical")),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "axis" to "x")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1273,7 +1273,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "vertical")),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "axis" to "x")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
@@ -1292,7 +1292,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "horizontal")),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "axis" to "y")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1389,7 +1389,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "order", "direction" to "vertical")),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "order", "axis" to "y")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
@@ -1408,7 +1408,7 @@ class LayoutVerifyMcpToolActionTest {
         )
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
-            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "order", "direction" to "horizontal")),
+            "target" to mapOf("resourceId" to "view_a"), "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "order", "axis" to "x")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertTrue("Expected FAIL: ${result.message}", result.message.startsWith("FAIL"))
@@ -1426,7 +1426,7 @@ class LayoutVerifyMcpToolActionTest {
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
             "target" to mapOf("resourceId" to "view_a"),
-            "checks" to listOf(mapOf("type" to "spacing", "direction" to "vertical", "expected" to 16)),
+            "checks" to listOf(mapOf("type" to "spacing", "axis" to "y", "expected" to 16)),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
@@ -1962,7 +1962,7 @@ class LayoutVerifyMcpToolActionTest {
                     mapOf(
                         "target2" to mapOf("resourceId" to "btn_ok_2"),
                         "type" to "spacing",
-                        "direction" to "vertical",
+                        "axis" to "y",
                         "expected" to 20,
                         "op" to "eq",
                     )
@@ -2047,7 +2047,6 @@ class LayoutVerifyMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val relation = params["relation"] as Map<String, Any?>
         Assert.assertEquals("y", relation["axis"])
-        Assert.assertEquals("vertical", relation["direction"])
         Assert.assertEquals("gt", relation["op"])
         projectDir.deleteRecursively()
     }
@@ -2237,7 +2236,7 @@ class LayoutVerifyMcpToolActionTest {
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
             "target" to mapOf("resourceId" to "view_a"),
-            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "vertical")),
+            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "axis" to "x")),
         ), buildRuntime(null))
         Assert.assertTrue("Message should contain X-center check: ${result.message}", result.message.contains("X-center check"))
         Assert.assertTrue("Message should contain axis=x: ${result.message}", result.message.contains("axis=x"))
@@ -2256,7 +2255,7 @@ class LayoutVerifyMcpToolActionTest {
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
             "target" to mapOf("resourceId" to "view_a"),
-            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "direction" to "horizontal")),
+            "checks" to listOf(mapOf("target2" to mapOf("resourceId" to "view_b"), "type" to "alignment", "axis" to "y")),
         ), buildRuntime(null))
         Assert.assertTrue("Message should contain Y-center check: ${result.message}", result.message.contains("Y-center check"))
         Assert.assertTrue("Message should contain axis=y: ${result.message}", result.message.contains("axis=y"))

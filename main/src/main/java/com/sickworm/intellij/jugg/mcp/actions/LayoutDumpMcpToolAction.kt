@@ -51,19 +51,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
             required = listOf("projectDir"),
             additionalProperties = false,
         ),
-        outputSchema = McpToolSchemas.baseOutputSchema.copy(
-            properties = McpToolSchemas.baseOutputSchema.properties + mapOf(
-                "data" to McpJsonSchemaProperty(
-                    type = "object",
-                    properties = mapOf(
-                        "file" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.json$"),
-                        "contentBytes" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
-                    ),
-                    required = listOf("file", "contentBytes"),
-                    additionalProperties = false,
-                )
-            )
-        ),
+        outputSchema = McpToolSchemas.baseOutputSchema,
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
@@ -131,8 +119,19 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
                 val jsonContent = localJsonFile.readText(StandardCharsets.UTF_8)
                 val jsonElement = JsonParser.parseString(jsonContent)
+
+                // Convert px to dp for all bounds and padding
+                val density = extractDensity(jsonElement)
+                if (density > 0) {
+                    convertPxToDp(jsonElement, density)
+                }
+
+                // Write converted JSON back to file
+                val convertedJson = jsonElement.toString()
+                localJsonFile.writeText(convertedJson, StandardCharsets.UTF_8)
+
                 val summary = buildSummaryMessage(jsonElement)
-                val contentBytes = jsonContent.toByteArray(StandardCharsets.UTF_8).size
+                val contentBytes = convertedJson.toByteArray(StandardCharsets.UTF_8).size
                 val data = mapOf<String, Any>(
                     "file" to localJsonFile.absolutePath,
                     "contentBytes" to contentBytes,
@@ -276,6 +275,88 @@ class LayoutDumpMcpToolAction : McpToolAction {
             return null
         }
         return get(0).asJsonObjectOrNull()
+    }
+
+    /**
+     * Extract density from deviceInfo in the root JSON object.
+     */
+    private fun extractDensity(element: JsonElement): Double {
+        val root = element.asJsonObjectOrNull() ?: return 0.0
+        val deviceInfo = root.get("deviceInfo")?.asJsonObjectOrNull() ?: return 0.0
+        return deviceInfo.get("density")?.runCatching { asDouble }?.getOrNull() ?: 0.0
+    }
+
+    /**
+     * Convert all bounds and padding from px to dp recursively.
+     * Formula: dp = px / density, rounded to 1 decimal place.
+     */
+    private fun convertPxToDp(element: JsonElement, density: Double) {
+        val root = element.asJsonObjectOrNull() ?: return
+        val windows = root.getAsJsonArrayOrEmpty("windows")
+        windows.forEach { windowElement ->
+            val windowObj = windowElement.asJsonObjectOrNull() ?: return@forEach
+            val rootNode = windowObj.get("root")?.asJsonObjectOrNull() ?: return@forEach
+            convertNodePxToDp(rootNode, density)
+        }
+    }
+
+    /**
+     * Recursively convert bounds and padding in a node and its children.
+     */
+    private fun convertNodePxToDp(node: JsonObject, density: Double) {
+        // Convert bounds array [left, top, right, bottom]
+        val bounds = node.get("bounds")
+        if (bounds != null && bounds.isJsonArray) {
+            val boundsArray = bounds.asJsonArray
+            if (boundsArray.size() == 4) {
+                val convertedBounds = com.google.gson.JsonArray()
+                for (i in 0 until 4) {
+                    val pxValue = boundsArray.get(i).asInt
+                    val dpValue = pxToDp(pxValue, density)
+                    convertedBounds.add(dpValue)
+                }
+                node.add("bounds", convertedBounds)
+            }
+        }
+
+        // Convert padding array [left, top, right, bottom]
+        val padding = node.get("padding")
+        if (padding != null && padding.isJsonArray) {
+            val paddingArray = padding.asJsonArray
+            if (paddingArray.size() == 4) {
+                val convertedPadding = com.google.gson.JsonArray()
+                for (i in 0 until 4) {
+                    val pxValue = paddingArray.get(i).asInt
+                    val dpValue = pxToDp(pxValue, density)
+                    convertedPadding.add(dpValue)
+                }
+                node.add("padding", convertedPadding)
+            }
+        }
+
+        // Recursively convert children
+        val children = node.getAsJsonArrayOrEmpty("children")
+        children.forEach { childElement ->
+            val childObj = childElement.asJsonObjectOrNull() ?: return@forEach
+            convertNodePxToDp(childObj, density)
+        }
+
+        // Recursively convert composeNodes
+        val composeNodes = node.getAsJsonArrayOrEmpty("composeNodes")
+        composeNodes.forEach { composeElement ->
+            val composeObj = composeElement.asJsonObjectOrNull() ?: return@forEach
+            convertNodePxToDp(composeObj, density)
+        }
+    }
+
+    /**
+     * Convert px to dp, rounded to integer.
+     */
+    private fun pxToDp(px: Int, density: Double): Int {
+        if (density <= 0) {
+            return px
+        }
+        return (px / density).toInt()
     }
 
     companion object {
