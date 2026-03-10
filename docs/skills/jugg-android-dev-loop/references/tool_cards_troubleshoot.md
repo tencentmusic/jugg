@@ -44,4 +44,7 @@ When runtime evidence is abnormal (unexpected activity, dead process, missing ta
 1. Call `crash_report(projectDir)` to identify likely cause.
 2. If `crash_report` is unavailable or returns empty/unusable result, fallback to `adb logcat` for current session.
 3. If adb fallback is used, include explicit marker: `fallback path used: adb`.
-4. Apply fix and return to normal 5-step loop.
+4. Route by result:
+   - `hasCrash=true`: locate crash source from `crashLogs` top stack frame, apply fix, return to 5-step loop step 1.
+   - `hasCrash=false` + `isProcessAlive=false`: restart app and rerun Target Page Context Gate; if recurring, stop and ask user.
+   - `hasCrash=false` + `isProcessAlive=true`: page state issue — refresh `layout_dump` and retry navigation within retry budget.

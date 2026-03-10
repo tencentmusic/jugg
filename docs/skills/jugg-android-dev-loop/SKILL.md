@@ -45,7 +45,11 @@ Intent -> reference file mapping:
 - changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
 - match a specific error message/errorCode to a known fix -> `references/error_patterns.md`
 
-Skip rule: if no Android source code needs to be compiled, deployed, or verified on device, do not execute the loop or load any reference file.
+Skip rule: if no Android source code needs to be compiled, deployed, or verified on device, do not execute the loop or load any reference file. Common non-trigger cases:
+
+- Modifying Gradle plugin, IDE plugin, or build tool source (not app code).
+- Modifying library/SDK source that is not directly installed as APK on device.
+- Code review, documentation, or refactoring tasks without device verification intent.
 
 ## 5-Step Loop
 
@@ -82,7 +86,7 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
 
 ## Core Rules
 
-- `projectDir`: use current working directory by default.
+- `projectDir`: use current working directory by default. For multi-module projects, use the root project directory opened in Android Studio.
 - Max autonomous retries for same failure category: `3`.
 - Never claim success without artifact evidence.
   - **UI verification tasks**: require screenshot or recording artifact as evidence.
@@ -138,3 +142,17 @@ Each result summary should include:
 - artifact absolute paths
 - final pass/fail verdict
 - next action on failure
+
+## Quick Example: Change a TextView Label
+
+Scenario: change button text from "Submit" to "Confirm" in `activity_main.xml`, verify on device.
+
+```
+1. Modify: edit android:text="Submit" → "Confirm" in activity_main.xml.
+2. Build:  compile_and_deploy(projectDir) → poll get_compile_status(jobId) until isFinal=true.
+3. Gate:   restart_app(projectDir, tap_actions=[{text:"Settings"}]) → layout_dump → confirm anchor.
+4. Verify: layout_verify(target={resourceId:"btn_submit"}, checks=[{type:"property", property:"text", op:"eq", value:"Confirm"}]) → PASS.
+5. Evidence: screenshot(projectDir) → copy to ${projectDir}/build/mcp_fetch/final/final_screenshot.png.
+```
+
+Verdict: **PASS** — text changed, screenshot artifact collected.

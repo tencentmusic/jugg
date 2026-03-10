@@ -93,7 +93,8 @@ Key points not in schema:
 - `textColor`: dump may omit black (`#FF000000`).
 - `alpha`: only `eq`/`gte`/`lte` reliable; `gt`/`lt`/`neq` silently approximate.
 - `textSizeSp`: live-only, auto-switches.
-- `backgroundColor`/`maxLines`/`ellipsize`: not supported.
+- `backgroundColor`: live-only (not available in dump mode); solid color only.
+- `maxLines`/`ellipsize`: not supported; use `eval_view`.
 
 Result: `data.result` = `PASS`/`PARTIAL_FAIL`/`FAIL`/`ERROR`. `data.checkResults[]` per item. Target not found returns `data.candidates[]`.
 
