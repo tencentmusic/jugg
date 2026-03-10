@@ -1,12 +1,10 @@
 ---
 name: jugg-android-dev-loop
 description: >-
-  Use Jugg MCP tools for Android app modify/deploy/verify loop. Trigger ONLY
-  when: (A) the project artifact is an APK/AAB installed on a device (NOT an
-  IDE plugin, Gradle plugin, library, or tool); AND (B) user explicitly asks
-  to build/deploy/verify on device, OR app source was just modified and device
-  verification is the next step. Never trigger just because the codebase
-  contains Android/Kotlin/Java code.
+  Use Jugg MCP tools for Android app modify/deploy/verify loop. Trigger ONLY when both (A) and (B) are true:
+  (A) the project artifact is an APK/AAB installed on a device (NOT an IDE plugin, Gradle plugin, library, or tool); 
+  (B) user explicitly mention Jugg, or asks to build/deploy/verify on device, OR app source was just modified and device
+  verification is the next step.
 ---
 
 # Jugg MCP Android Dev Loop (Compact Router)
@@ -40,6 +38,7 @@ Intent -> reference file mapping:
 - compile, deploy, or handle compile/deploy failure -> `references/tool_cards_build_deploy.md`
 - interact with running app or collect runtime evidence (tap, layout, screenshot, recording) -> `references/tool_cards_runtime_observe.md`
 - verify UI properties/relations OR convert design intent into layout_verify assertions -> `references/tool_cards_runtime_observe.md` + `references/guide_layout_verify_assertion.md` (load both)
+- convert structured design data (Figma JSON, design tokens) into assertions and produce verification report -> `references/guide_layout_verify_assertion.md` (§6 + §7 required)
 - query single View runtime properties via reflection (eval_view: textColor, textSize, maxLines, ellipsize, custom getters) -> `references/tool_cards_runtime_observe.md`
 - device/project context problem (`MCP_NO_DEVICE`, `MCP_PROJECT_NOT_INITIALIZED`, crash, unknown runtime state) -> `references/tool_cards_troubleshoot.md`
 - changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
@@ -56,13 +55,15 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
 1. Modify sources.
 2. Build/deploy (load `references/tool_cards_build_deploy.md` when details are needed).
 3. Runtime actions & evidence (load `references/tool_cards_runtime_observe.md` when details are needed).
+   - **If structured design data is available**: convert design spec into `layout_verify` / `eval_view` assertions first (see `guide_layout_verify_assertion.md §6`). Do not proceed to runtime verification until assertion set is complete.
    - Run **Target Page Context Gate** first.
    - Use `layout_verify` for property/relation acceptance checks (verify-first, see Core Rules).
    - Use `eval_view` for properties `layout_verify` cannot query (maxLines, ellipsize, custom getters).
    - Collect screenshot/recording evidence only after the gate passes.
 4. Verdict:
+   - **If structured design data is available**: produce a verification report (`guide_layout_verify_assertion.md §7`) before changing code. Present to user for review.
    - **PASS** -> step 5.
-   - **FAIL** -> back to step 1 (fix source), respect retry budget.
+   - **FAIL** -> back to step 1 (fix source), then **re-execute the complete verification flow** (Step 0 → Step 7, or §6+§7 if design-spec-driven). Partial re-checks of only the failed items are not acceptable. Respect retry budget.
    - **INCONCLUSIVE** -> gather more evidence or ask user when exhausted all available methods.
 5. Final staging:
    - clear `${projectDir}/build/mcp_fetch/final`
@@ -92,6 +93,11 @@ Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are
   - **UI verification tasks**: require screenshot or recording artifact as evidence.
   - **compile_only tasks** (no UI verification): `status=OK` with `isFinal=true` and `logPath` is sufficient evidence; screenshot/recording is not required.
 - **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. For properties not supported by `layout_verify` (maxLines, ellipsize, cornerRadius, custom View getters), use `eval_view`. Default flow is `layout_verify` (auto snapshot) → `eval_view` (if needed) → `screenshot`. All numeric values (bounds/padding/spacing) are always in dp — no `unit` parameter needed.
+- **Selector fallback & failure-no-skip**: when `layout_verify` or `eval_view` fails to match an element, walk the fallback chain defined in `guide_layout_verify_assertion.md §1.3.1` (resourceId → resourceId+className → text+className → contentDesc+className → layout_dump manual). Skipping a check or marking it INCONCLUSIVE after a single selector failure is prohibited.
+- **Design-spec-driven verification** (applies when structured design data — Figma JSON, design tokens, annotated spec — is available):
+  1. **Assert-first gate**: before any runtime verification, convert design spec data into a complete set of `layout_verify` checks and `eval_view` expressions. Never skip this step and fall back to ad-hoc `layout_dump` + `screenshot` comparison. See `guide_layout_verify_assertion.md §6` for detailed conversion SOP.
+  2. **Verification report gate**: after all assertions are executed and before making any code changes, produce a structured verification report (see `guide_layout_verify_assertion.md §7`) listing every check with its expected/actual/verdict. Present the report to the user for confirmation. Do not begin code modification until the report is reviewed.
+  3. **Anti-pattern**: using `layout_dump` raw JSON parsing or `screenshot` visual eyeballing as the primary verification method when structured design data is available is explicitly prohibited. These tools remain useful as supplementary evidence, but assertions must be the primary verdict source.
 - Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
 - Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
 - Unknown/high-risk failure: stop and ask user.

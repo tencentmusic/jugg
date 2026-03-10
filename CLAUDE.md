@@ -10,7 +10,7 @@
 
 在回答任何项目问题前，必须执行以下流程。
 
-### 1) 新会话首次必读
+### 1) 新会话首次必读/未读补读
 
 - [00_overview.md](docs/ai_knowledge/00_overview.md)
 - [97_ai_usage.md](docs/ai_knowledge/97_ai_usage.md)
