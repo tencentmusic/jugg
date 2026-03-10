@@ -111,15 +111,13 @@ object McpToolSchemas {
         ),
     )
 
-    // Compact variant used for tap_actions items in restart_app: retains type constraints but
-    // strips description/examples to avoid duplicating the full field docs already present in
-    // the top-level tap tool schema.
+    // Lightweight variant for tap_actions items in restart_app: omits per-field properties
+    // to keep the tools/list payload small.  LLM already sees full field docs in the tap
+    // tool schema; runtime validation happens inside TapMcpToolAction.execute().
     val tapActionStepProperty = McpJsonSchemaProperty(
         type = "object",
-        description = "Touch step. Supports the same action/mode args as tool tap.",
-        properties = tapActionProperties.mapValues { (_, v) ->
-            v.copy(description = null, examples = null)
-        },
-        additionalProperties = false,
+        description = "Touch step object. Accepts the same arguments as tool tap " +
+            "(action, x, y, endX, endY, xPercent, yPercent, endXPercent, endYPercent, " +
+            "duration, text, resourceId, contentDesc, className). Refer to tool tap for details.",
     )
 }

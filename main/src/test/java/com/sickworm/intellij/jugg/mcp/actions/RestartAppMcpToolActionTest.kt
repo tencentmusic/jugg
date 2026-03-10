@@ -44,7 +44,7 @@ class RestartAppMcpToolActionTest {
     }
 
     @Test
-    fun testInputSchemaShouldExposeTapActionsTapCompatibleFields() {
+    fun testInputSchemaShouldExposeTapActionsAsLightweightReference() {
         val properties = RestartAppMcpToolAction().definition.inputSchema.properties
         val tapActions = properties["tap_actions"]
         Assert.assertNotNull(tapActions)
@@ -53,24 +53,10 @@ class RestartAppMcpToolActionTest {
         val item = tapActions?.items
         Assert.assertNotNull(item)
         Assert.assertEquals("object", item?.type)
-        Assert.assertEquals(false, item?.additionalProperties)
-
-        val itemProperties = item?.properties ?: emptyMap()
-        Assert.assertTrue(itemProperties.containsKey("action"))
-        Assert.assertTrue(itemProperties.containsKey("x"))
-        Assert.assertTrue(itemProperties.containsKey("y"))
-        Assert.assertTrue(itemProperties.containsKey("endX"))
-        Assert.assertTrue(itemProperties.containsKey("endY"))
-        Assert.assertTrue(itemProperties.containsKey("xPercent"))
-        Assert.assertTrue(itemProperties.containsKey("yPercent"))
-        Assert.assertTrue(itemProperties.containsKey("endXPercent"))
-        Assert.assertTrue(itemProperties.containsKey("endYPercent"))
-        Assert.assertTrue(itemProperties.containsKey("duration"))
-        Assert.assertTrue(itemProperties.containsKey("text"))
-        Assert.assertTrue(itemProperties.containsKey("resourceId"))
-        Assert.assertTrue(itemProperties.containsKey("contentDesc"))
-        Assert.assertTrue(itemProperties.containsKey("className"))
-        Assert.assertEquals(listOf("tap", "longPress", "swipe"), itemProperties["action"]?.`enum`)
+        // Lightweight variant: no per-field properties, relies on description referencing tool tap.
+        Assert.assertNull("items should not carry expanded properties", item?.properties)
+        Assert.assertNotNull("items description must reference tool tap", item?.description)
+        Assert.assertTrue(item!!.description!!.contains("tool tap"))
     }
 
     @Test
