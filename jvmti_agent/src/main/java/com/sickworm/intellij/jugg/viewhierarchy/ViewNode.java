@@ -27,6 +27,8 @@ public class ViewNode {
     public Padding padding = new Padding();
     /** Text color in ARGB format. 0 means not applicable (non-TextView or default black 0xFF000000). */
     public int textColor = 0;
+    /** Diagnostic message for this node (e.g. resolve failure from custom view resolvers). */
+    public String message = "";
     public final List<ViewNode> children = new ArrayList<>();
     public final List<ComposeNode> composeNodes = new ArrayList<>();
 
@@ -82,6 +84,9 @@ public class ViewNode {
         }
         if (textColor != 0) {
             json.put("textColor", colorToHex(textColor));
+        }
+        if (!message.isEmpty()) {
+            json.put("message", message);
         }
 
         if (!children.isEmpty()) {

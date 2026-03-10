@@ -247,7 +247,6 @@ public class ViewTreeDumper {
         ViewNode node = new ViewNode();
         node.className = view.getClass().getName();
         node.id = resolveResourceIdOrGenerateVirtual(view);
-        node.text = resolveText(view);
         node.contentDesc = safeToString(view.getContentDescription());
         node.tag = safeToString(view.getTag());
         node.bounds = resolveBounds(view);
@@ -259,11 +258,19 @@ public class ViewTreeDumper {
         node.padding.top = view.getPaddingTop();
         node.padding.right = view.getPaddingRight();
         node.padding.bottom = view.getPaddingBottom();
+
         if (view instanceof TextView) {
+            node.text = safeToString(((TextView) view).getText());
             int color = ((TextView) view).getCurrentTextColor();
             // Only store non-black colors to save space (black is default)
             if (color != 0xFF000000) {
                 node.textColor = color;
+            }
+        } else if (KuiklyViewResolver.canResolve(view)) {
+            KuiklyViewResolver.ResolveResult result = KuiklyViewResolver.resolveText(view);
+            node.text = result.text;
+            if (result.hasError()) {
+                node.message = result.errorMessage;
             }
         }
         return node;
@@ -358,13 +365,6 @@ public class ViewTreeDumper {
             return "";
         }
         return "0x" + Integer.toHexString(id);
-    }
-
-    private String resolveText(View view) {
-        if (view instanceof TextView) {
-            return safeToString(((TextView) view).getText());
-        }
-        return "";
     }
 
     private String resolveVisibility(int visibility) {

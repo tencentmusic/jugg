@@ -244,6 +244,10 @@ public class ElementFinder {
         if (view instanceof TextView) {
             return safeToString(((TextView) view).getText());
         }
+        if (KuiklyViewResolver.canResolve(view)) {
+            KuiklyViewResolver.ResolveResult result = KuiklyViewResolver.resolveText(view);
+            return result.text;
+        }
         return "";
     }
 
