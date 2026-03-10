@@ -13,6 +13,9 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -60,6 +63,7 @@ class IncrementalCompilerHelper(
         val startTime = System.currentTimeMillis()
         compileStatusHolder.setCompileFiles(compileFiles)
         val compileResult = try {
+            asyncCheckBeforeCompile(isFirstRoundCompile, undeployedFiles)
             compiler.compile(CompileTask(compileFiles, pathManager.stagingDir, compileStatusHolder))
         } catch (e: Exception) {
             logger.error("Compile unexpected error: ${e.message}", e)
@@ -88,12 +92,7 @@ class IncrementalCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            if (isFirstRoundCompile) {
-                val changedSourcePaths = undeployedFiles
-                    .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
-                    .map { it.file.absolutePath }
-                deployFileManager.awaitConstRefAnalysis(changedSourcePaths)
-            }
+            syncCheckAfterCompile(isFirstRoundCompile, undeployedFiles)
             val classObfuscator = compiler.context.mappingFile
                 ?.takeIf { it.exists() }
                 ?.let { ClassObfuscator.fromMappingFile(it) }
@@ -288,6 +287,22 @@ class IncrementalCompilerHelper(
         }
 
         return null
+    }
+
+    private fun asyncCheckBeforeCompile(isFirstRoundCompile: Boolean, undeployedFiles: List<ChangedFile>) {
+        CoroutineScope(Dispatchers.IO).launch {
+            syncCheckAfterCompile(isFirstRoundCompile, undeployedFiles)
+        }
+    }
+
+    @Synchronized
+    private fun syncCheckAfterCompile(isFirstRoundCompile: Boolean, undeployedFiles: List<ChangedFile>) {
+        if (isFirstRoundCompile) {
+            val changedSourcePaths = undeployedFiles
+                .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
+                .map { it.file.absolutePath }
+            deployFileManager.awaitConstRefAnalysis(changedSourcePaths)
+        }
     }
 
     /**

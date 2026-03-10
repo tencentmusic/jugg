@@ -168,7 +168,7 @@ class DeployFileManager(
         constRefEngine.setBackgroundTaskRunner(backgroundTaskRunner)
     }
 
-    fun awaitConstRefAnalysis(filePaths: List<String>, timeoutMs: Long = 5000L) {
+    fun awaitConstRefAnalysis(filePaths: List<String>) {
         if (!isConstRefTasksEnabled) {
             return
         }
@@ -179,15 +179,18 @@ class DeployFileManager(
         if (targetPaths.isEmpty()) {
             return
         }
-        logger.info(
-            "Const-ref on-demand analysis start, files=${targetPaths.map { File(it).name }}, " +
-                "legacyTimeoutMs=$timeoutMs"
+        logger.debug("Const-ref on-demand analysis start, " +
+                "files=${targetPaths.map { File(it).name }}"
         )
         val startTime = System.currentTimeMillis()
         val readiness = constRefEngine.analyzeOnDemand(targetPaths)
         val costTime = System.currentTimeMillis() - startTime
         if (readiness.isReady) {
-            logger.info("Const-ref on-demand analysis finish, cost ${costTime}ms")
+            if (costTime < 1_000) {
+                logger.debug("Const-ref on-demand analysis finish, cost ${costTime}ms")
+            } else {
+                logger.info("Const-ref on-demand analysis finish, cost ${costTime}ms")
+            }
         } else {
             logger.warn(
                 "Const-ref on-demand analysis finish with unready files, " +
