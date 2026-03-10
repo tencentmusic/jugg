@@ -69,28 +69,37 @@ public class KuiklyViewResolverTest {
     }
 
     @Test
-    public void resolveText_shouldExtractTextFromTextLayout() {
-        Layout mockLayout = Mockito.mock(Layout.class);
-        Mockito.when(mockLayout.getText()).thenReturn("Hello Kuikly");
-
+    public void resolveText_shouldExtractTextFromRichTextShadowPath() {
+        // Test the primary path: richTextShadow.textProps.text
         KRRichTextView view = new KRRichTextView();
-        view.textLayout = mockLayout;
+        KRRichTextShadow shadow = new KRRichTextShadow();
+        KRTextProps props = new KRTextProps();
+        props.text = "Text from textProps";
+        shadow.textProps = props;
+        view.richTextShadow = shadow;
 
         KuiklyViewResolver.ResolveResult result = KuiklyViewResolver.resolveText(view);
-        Assert.assertEquals("Hello Kuikly", result.text);
+        Assert.assertEquals("Text from textProps", result.text);
         Assert.assertFalse(result.hasError());
     }
 
     @Test
-    public void resolveText_shouldExtractTextFromGradientRichTextView() {
+    public void resolveText_shouldPreferRichTextShadowOverTextLayout() {
+        // When both paths have values, richTextShadow should be preferred
         Layout mockLayout = Mockito.mock(Layout.class);
-        Mockito.when(mockLayout.getText()).thenReturn("Gradient Text");
+        Mockito.when(mockLayout.getText()).thenReturn("Text from Layout");
 
-        KRGradientRichTextView view = new KRGradientRichTextView();
+        KRRichTextView view = new KRRichTextView();
         view.textLayout = mockLayout;
 
+        KRRichTextShadow shadow = new KRRichTextShadow();
+        KRTextProps props = new KRTextProps();
+        props.text = "Text from textProps";
+        shadow.textProps = props;
+        view.richTextShadow = shadow;
+
         KuiklyViewResolver.ResolveResult result = KuiklyViewResolver.resolveText(view);
-        Assert.assertEquals("Gradient Text", result.text);
+        Assert.assertEquals("Text from textProps", result.text);
         Assert.assertFalse(result.hasError());
     }
 
@@ -114,6 +123,20 @@ public class KuiklyViewResolverTest {
 
         KuiklyViewResolver.ResolveResult result = KuiklyViewResolver.resolveText(view);
         Assert.assertEquals("", result.text);
+        Assert.assertFalse(result.hasError());
+    }
+
+    @Test
+    public void resolveText_shouldExtractTextFromGradientRichTextViewWithRichTextShadow() {
+        KRGradientRichTextView view = new KRGradientRichTextView();
+        KRRichTextShadow shadow = new KRRichTextShadow();
+        KRTextProps props = new KRTextProps();
+        props.text = "Gradient from textProps";
+        shadow.textProps = props;
+        view.richTextShadow = shadow;
+
+        KuiklyViewResolver.ResolveResult result = KuiklyViewResolver.resolveText(view);
+        Assert.assertEquals("Gradient from textProps", result.text);
         Assert.assertFalse(result.hasError());
     }
 
@@ -145,10 +168,11 @@ public class KuiklyViewResolverTest {
 
     /**
      * Stub class with simple name "KRRichTextView" to match canResolve() name check.
-     * Contains the textLayout field that KuiklyViewResolver accesses via reflection.
+     * Contains the textLayout field and richTextShadow field that KuiklyViewResolver accesses via reflection.
      */
     static class KRRichTextView extends View {
         Layout textLayout;
+        KRRichTextShadow richTextShadow;
 
         KRRichTextView() {
             super(null);
@@ -157,13 +181,28 @@ public class KuiklyViewResolverTest {
 
     /**
      * Stub class with simple name "KRGradientRichTextView" to match canResolve() name check.
-     * Contains the textLayout field that KuiklyViewResolver accesses via reflection.
+     * Contains the textLayout field and richTextShadow field that KuiklyViewResolver accesses via reflection.
      */
     static class KRGradientRichTextView extends View {
         Layout textLayout;
+        KRRichTextShadow richTextShadow;
 
         KRGradientRichTextView() {
             super(null);
         }
+    }
+
+    /**
+     * Stub class for KRRichTextShadow containing textProps field.
+     */
+    static class KRRichTextShadow {
+        KRTextProps textProps;
+    }
+
+    /**
+     * Stub class for KRTextProps containing text field.
+     */
+    static class KRTextProps {
+        String text;
     }
 }

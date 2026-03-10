@@ -55,40 +55,43 @@ public final class KuiklyViewResolver {
 
     /**
      * Extract text from KRRichTextView / KRGradientRichTextView.
-     *
-     * Field chain:
-     *   view.textLayout (android.text.Layout)
-     *     -> Layout.getText() -> CharSequence
+     * view.richTextShadow.textProps.text
      */
     private static ResolveResult resolveRichTextViewText(View view) {
         try {
-            Field textLayoutField = findField(view.getClass(), "textLayout");
-            if (textLayoutField == null) {
-                String msg = "KuiklyViewResolver: field 'textLayout' not found on "
-                    + view.getClass().getName();
-                LogUtils.w(TAG, msg);
-                return ResolveResult.error(msg);
-            }
-            textLayoutField.setAccessible(true);
-            Object layoutObj = textLayoutField.get(view);
-            if (layoutObj == null) {
-                // textLayout is null, which is a normal state (view not yet laid out)
+            // Step 1: Get richTextShadow field
+            Field richTextShadowField = findField(view.getClass(), "richTextShadow");
+            if (richTextShadowField == null) {
                 return ResolveResult.EMPTY;
             }
-            if (!(layoutObj instanceof Layout)) {
-                String msg = "KuiklyViewResolver: 'textLayout' is not android.text.Layout, "
-                    + "actual type: " + layoutObj.getClass().getName();
-                LogUtils.w(TAG, msg);
-                return ResolveResult.error(msg);
+            richTextShadowField.setAccessible(true);
+            Object richTextShadow = richTextShadowField.get(view);
+            if (richTextShadow == null) {
+                return ResolveResult.EMPTY;
             }
-            Layout layout = (Layout) layoutObj;
-            CharSequence text = layout.getText();
+
+            // Step 2: Get textProps field from richTextShadow
+            Field textPropsField = findField(richTextShadow.getClass(), "textProps");
+            if (textPropsField == null) {
+                return ResolveResult.EMPTY;
+            }
+            textPropsField.setAccessible(true);
+            Object textProps = textPropsField.get(richTextShadow);
+            if (textProps == null) {
+                return ResolveResult.EMPTY;
+            }
+
+            // Step 3: Get text field from textProps
+            Field textField = findField(textProps.getClass(), "text");
+            if (textField == null) {
+                return ResolveResult.EMPTY;
+            }
+            textField.setAccessible(true);
+            Object text = textField.get(textProps);
             return ResolveResult.success(text != null ? text.toString() : "");
         } catch (Throwable t) {
-            String msg = "KuiklyViewResolver: failed to resolve text from "
-                + view.getClass().getName() + ": " + t;
-            LogUtils.e(TAG, msg, t);
-            return ResolveResult.error(msg);
+            LogUtils.d(TAG, "KuiklyViewResolver: richTextShadow path failed: " + t);
+            return ResolveResult.EMPTY;
         }
     }
 
