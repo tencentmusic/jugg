@@ -13,13 +13,12 @@
 ### 1) 新会话首次必读/未读补读
 
 - [00_overview.md](docs/ai_knowledge/00_overview.md)
-- [97_ai_usage.md](docs/ai_knowledge/97_ai_usage.md)
+- [99_index.md](docs/ai_knowledge/99_index.md)
 
 ### 2) 按任务深挖（按需）
 
 - 先查路径/类名： [98_code_map.md](docs/ai_knowledge/98_code_map.md)
-- 需要总导航： [99_index.md](docs/ai_knowledge/99_index.md)
-- 再按 `97_ai_usage.md` 的“推荐检索顺序”展开单个专题文档（禁止一次性全量加载）
+- 再按 `99_index.md` 的”推荐检索顺序”与”专题文档目录”展开单个专题文档（禁止一次性全量加载）
 
 ### 3) 响应用户（必须包含）
 
