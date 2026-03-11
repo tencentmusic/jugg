@@ -226,23 +226,78 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             val items = checks.mapIndexed { index, check ->
                 val targetSelector = resolveCheckTarget(check, legacyTarget)
                     ?: return invalidParams("layout_verify failed: check[${index + 1}] requires valid target")
-                val targetNode = findNodeBySelector(allNodes, targetSelector)
-                    ?: return errorResult(
+
+                val allMatches = findAllNodesBySelector(allNodes, targetSelector)
+                if (allMatches.isEmpty()) {
+                    return errorResult(
                         message = "target not found for check[${index + 1}]: ${selectorDesc(targetSelector)}",
                         candidates = buildCandidates(allNodes, targetSelector),
                         checkIndex = index + 1,
                     )
+                }
+
+                // For "exists" property check, multiple matches are OK (element exists)
+                val property = check["property"] as? String
+                if (allMatches.size > 1 && property != "exists") {
+                    return errorResult(
+                        message = "Multiple elements (${allMatches.size}) match selector for check[${index + 1}]: ${selectorDesc(targetSelector)}",
+                        candidates = allMatches.take(5).map { node ->
+                            CandidateHint(
+                                score = 100.0,
+                                reason = "exact match",
+                                candidate = MatchCandidate(
+                                    text = node.optStringOrNull("text").orEmpty(),
+                                    resourceId = node.optStringOrNull("id").orEmpty(),
+                                    contentDesc = node.optStringOrNull("contentDesc").orEmpty(),
+                                    className = node.optStringOrNull("className").orEmpty(),
+                                    bounds = node.get("bounds")?.takeIf { it.isJsonArray }?.asJsonArray?.map { runCatching { it.asInt }.getOrDefault(0) },
+                                    centerX = -1,
+                                    centerY = -1,
+                                )
+                            )
+                        },
+                        checkIndex = index + 1,
+                    )
+                }
+
+                val targetNode = allMatches.first()
                 val verifyResult = if (isPropertyCheck(check)) {
                     assertDumpNode(targetNode, check, density)
                 } else {
                     val target2Selector = check["target2"] as? Map<String, Any?>
                         ?: return invalidParams("layout_verify failed: relation check requires target2")
-                    val target2Node = findNodeBySelector(allNodes, target2Selector)
-                        ?: return errorResult(
+
+                    val allMatches2 = findAllNodesBySelector(allNodes, target2Selector)
+                    if (allMatches2.isEmpty()) {
+                        return errorResult(
                             message = "target2 not found for check[${index + 1}]: ${selectorDesc(target2Selector)}",
                             candidates = buildCandidates(allNodes, target2Selector),
                             checkIndex = index + 1,
                         )
+                    }
+                    if (allMatches2.size > 1) {
+                        return errorResult(
+                            message = "Multiple elements (${allMatches2.size}) match target2 selector for check[${index + 1}]: ${selectorDesc(target2Selector)}",
+                            candidates = allMatches2.take(5).map { node ->
+                                CandidateHint(
+                                    score = 100.0,
+                                    reason = "exact match",
+                                    candidate = MatchCandidate(
+                                        text = node.optStringOrNull("text").orEmpty(),
+                                        resourceId = node.optStringOrNull("id").orEmpty(),
+                                        contentDesc = node.optStringOrNull("contentDesc").orEmpty(),
+                                        className = node.optStringOrNull("className").orEmpty(),
+                                        bounds = node.get("bounds")?.takeIf { it.isJsonArray }?.asJsonArray?.map { runCatching { it.asInt }.getOrDefault(0) },
+                                        centerX = -1,
+                                        centerY = -1,
+                                    )
+                                )
+                            },
+                            checkIndex = index + 1,
+                        )
+                    }
+
+                    val target2Node = allMatches2.first()
                     relationDumpNodes(targetNode, target2Node, check, density)
                 }
                 VerifyItem(index = index + 1, result = verifyResult.result, message = verifyResult.message)
@@ -288,12 +343,17 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     }
 
     private fun findNodeBySelector(nodes: List<JsonObject>, selector: Map<String, Any?>): JsonObject? {
+        val matches = findAllNodesBySelector(nodes, selector)
+        return matches.firstOrNull()
+    }
+
+    private fun findAllNodesBySelector(nodes: List<JsonObject>, selector: Map<String, Any?>): List<JsonObject> {
         val resourceId = selector["resourceId"] as? String
         val text = selector["text"] as? String
         val contentDesc = selector["contentDesc"] as? String
         val className = selector["className"] as? String
 
-        return nodes.firstOrNull { node ->
+        return nodes.filter { node ->
             val nodeId = node.optStringOrNull("id")
             val nodeText = node.optStringOrNull("text")
             val nodeContentDesc = node.optStringOrNull("contentDesc")

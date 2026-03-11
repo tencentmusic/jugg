@@ -2395,6 +2395,72 @@ class LayoutVerifyMcpToolActionTest {
         dumpFile.delete()
     }
 
+    // ---- Multiple element matching tests ----
+
+    @Test
+    fun testMultipleMatchesWithExistsPropertyShouldPass() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"children":[
+                {"className":"TextView","text":"Suite","id":"com.example:id/text1","bounds":[0,0,200,100]},
+                {"className":"TextView","text":"Suite","id":"com.example:id/text2","bounds":[0,100,200,200]},
+                {"className":"TextView","text":"Suite","id":"com.example:id/text3","bounds":[0,200,200,300]}
+            ]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val action = LayoutVerifyMcpToolAction()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "checks" to listOf(mapOf("type" to "property", "property" to "exists", "target" to mapOf("text" to "Suite"))),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS for exists check with multiple matches: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testMultipleMatchesWithNonExistsPropertyShouldFail() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,1080,1920],"children":[
+                {"className":"TextView","text":"Suite","id":"com.example:id/text1","bounds":[0,0,200,100]},
+                {"className":"TextView","text":"Suite","id":"com.example:id/text2","bounds":[0,100,200,200]}
+            ]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val action = LayoutVerifyMcpToolAction()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "checks" to listOf(mapOf("type" to "property", "property" to "text", "value" to "Suite", "target" to mapOf("text" to "Suite"))),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected error message about multiple matches: ${result.message}", result.message.contains("Multiple elements"))
+        dumpFile.delete()
+    }
+
+    @Test
+    fun testSingleMatchWithAnyPropertyShouldPass() {
+        val dumpFile = writeDumpFile(
+            """{"windows":[{"title":"Main","root":{"className":"TextView","text":"Unique","id":"com.example:id/unique","bounds":[0,0,200,100]}}],"deviceInfo":{"density":3.0}}"""
+        )
+        val action = LayoutVerifyMcpToolAction()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp",
+                "dumpFile" to dumpFile.absolutePath,
+                "checks" to listOf(mapOf("type" to "property", "property" to "text", "value" to "Unique", "target" to mapOf("text" to "Unique"))),
+            ),
+            buildRuntime(null),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue("Expected PASS for single match: ${result.message}", result.message.startsWith("PASS"))
+        dumpFile.delete()
+    }
+
     private fun writeDumpFile(json: String): File {
         val f = File.createTempFile("jugg_verify_dump_", ".json")
         f.writeText(json, StandardCharsets.UTF_8)
