@@ -33,16 +33,19 @@ Reference load rules:
 - Load only files required by current intent.
 - Never bulk-load all `references`.
 
-Intent -> reference file mapping:
+Intent -> reference file mapping (3 categories):
 
-- compile, deploy, or handle compile/deploy failure -> `references/tool_cards_build_deploy.md`
-- interact with running app or collect runtime evidence (tap, layout, screenshot, recording) -> `references/tool_cards_runtime_observe.md`
-- verify UI properties/relations OR convert design intent into layout_verify assertions -> `references/tool_cards_runtime_observe.md` + `references/guide_layout_verify_assertion.md` (load both)
-- convert structured design data (Figma JSON, design tokens) into assertions and produce verification report -> `references/guide_layout_verify_assertion.md` (§6 + §7 required)
-- query single View runtime properties via reflection (eval_view: textColor, textSize, maxLines, ellipsize, custom getters) -> `references/tool_cards_runtime_observe.md`
-- device/project context problem (`MCP_NO_DEVICE`, `MCP_PROJECT_NOT_INITIALIZED`, crash, unknown runtime state) -> `references/tool_cards_troubleshoot.md`
-- changes has no effects, decide whether Jugg incremental compile can handle current change (annotation processors, transforms, unknown bugs) -> `references/policy_incremental_compile_limits.md`
-- match a specific error message/errorCode to a known fix -> `references/error_patterns.md`
+**Build/Deploy**:
+- compile/deploy/failure handling -> `tool_cards_build_deploy.md`
+- incremental compile limits -> `policy_incremental_compile_limits.md`
+- error pattern matching -> `error_patterns.md`
+
+**Runtime Observe**:
+- tap/layout/screenshot/recording -> `tool_cards_runtime_observe.md`
+- UI verification + design-spec assertions -> `tool_cards_runtime_observe.md` + `guide_layout_verify_assertion.md`
+
+**Troubleshoot**:
+- device/project context issues -> `tool_cards_troubleshoot.md`
 
 Skip rule: if no Android source code needs to be compiled, deployed, or verified on device, do not execute the loop or load any reference file. Common non-trigger cases:
 
@@ -69,74 +72,36 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
    - clear `${projectDir}/build/mcp_fetch/final`
    - copy final artifacts as `final_screenshot.png` / `final_record.mp4`
 
-## UI Navigation Prerequisite
-
-When a task involves **UI verification** (runtime observe, screenshot comparison, layout check, etc.), enforce navigation-first verification:
-
-1. Ensure a navigation sequence to target page exists (ask user if missing).
-2. Execute runtime context verification before evidence collection.
-3. Collect final screenshot/recording only after context verification passes.
-
-Detailed rules (context gate, retry policy, no-early-evidence, fast profile) are defined in `references/tool_cards_runtime_observe.md`.
-
-### When This Applies
-
-- Any task that requires observing or verifying UI state on device.
-- Any task where the app will be restarted (deploy implies restart).
-- Does **not** apply to pure code modification tasks without runtime verification.
 
 ## Core Rules
 
-- `projectDir`: use current working directory by default. For multi-module projects, use the root project directory opened in Android Studio.
-- Max autonomous retries for same failure category: `3`.
-- Never claim success without artifact evidence.
-  - **UI verification tasks**: require screenshot or recording artifact as evidence.
-  - **compile_only tasks** (no UI verification): `status=OK` with `isFinal=true` and `logPath` is sufficient evidence; screenshot/recording is not required.
-- **Verify-first strategy**: for UI property/relation acceptance checks (text, visibility, bounds, spacing, alignment, etc.), prefer `layout_verify` over manual `layout_dump` JSON parsing or `screenshot` visual inspection. For properties not supported by `layout_verify` (maxLines, ellipsize, cornerRadius, custom View getters), use `eval_view`. Default flow is `layout_verify` (auto snapshot) → `eval_view` (if needed) → `screenshot`. All numeric values (bounds/padding/spacing) are always in dp — no `unit` parameter needed.
-- **Selector fallback & failure-no-skip**: when `layout_verify` or `eval_view` fails to match an element, walk the fallback chain defined in `guide_layout_verify_assertion.md §1.3.1` (resourceId → resourceId+className → text+className → contentDesc+className → layout_dump manual). Skipping a check or marking it INCONCLUSIVE after a single selector failure is prohibited.
-- **Design-spec-driven verification** (applies when structured design data — Figma JSON, design tokens, annotated spec — is available):
-  1. **Assert-first gate**: before any runtime verification, convert design spec data into a complete set of `layout_verify` checks and `eval_view` expressions. Never skip this step and fall back to ad-hoc `layout_dump` + `screenshot` comparison. See `guide_layout_verify_assertion.md §6` for detailed conversion SOP.
-  2. **Verification report gate**: after all assertions are executed and before making any code changes, produce a structured verification report (see `guide_layout_verify_assertion.md §7`) listing every check with its expected/actual/verdict. Present the report to the user for confirmation. Do not begin code modification until the report is reviewed.
-  3. **Anti-pattern**: using `layout_dump` raw JSON parsing or `screenshot` visual eyeballing as the primary verification method when structured design data is available is explicitly prohibited. These tools remain useful as supplementary evidence, but assertions must be the primary verdict source.
-- Never tap with guessed coordinates; prefer element mode (`resourceId`/`text`/`contentDesc`) over manual coordinates.
-- Runtime interaction strategy: prefer `element tap`; if element mode is not suitable, use `layout_dump + coordinate tap`; use `screenshot + percent tap` only when ViewHierarchy path is clearly unavailable.
+- `projectDir`: use current working directory by default. For multi-module projects, use root project directory.
+- Max autonomous retries: `3` per failure category.
+- Evidence requirement:
+  - UI verification: screenshot/recording artifact required.
+  - compile_only: `status=OK` + `isFinal=true` + `logPath` sufficient.
+- Verification strategy (see reference files for details):
+  - Prefer `layout_verify` over `layout_dump` parsing or `screenshot` inspection.
+  - Use `eval_view` for properties `layout_verify` cannot query (maxLines, ellipsize, custom getters).
+  - Walk selector fallback chain on match failure (see `guide_layout_verify_assertion.md §1.3.1`).
+  - Design-spec-driven: convert spec to assertions first (§6), produce report before code changes (§7).
+- Tap strategy: prefer element mode (`resourceId`/`text`/`contentDesc`) → `layout_dump + coordinate` → `screenshot + percent`.
+- UI verification: ensure navigation sequence exists, run Target Page Context Gate before evidence collection. Any deploy/restart invalidates context; rerun gate immediately.
 - Unknown/high-risk failure: stop and ask user.
-- Any deploy (`compile_and_deploy`) or app restart invalidates previous page context; rerun Target Page Context Gate immediately after deploy completes. If gate confirms same page, continue verification; if page changed, re-execute navigation sequence to return to target page.
-- Reuse validated navigation sequence and page anchors within the same session to avoid repeated user queries.
 
-## Observe Delegation Policy
+## Observe Delegation
 
-`layout_dump` / `screenshot` / `recording` produce large context (layout JSON, images, video). Isolate observation from main agent context when possible.
+Delegate `layout_dump`/`screenshot`/`recording` to MCP-capable sub-agent when:
+- >=2 large context calls, OR
+- Analysis required on heavy output
 
-If runtime supports MCP-capable sub-agents, delegate observation when **any** condition is true:
+Sub-agent returns `{verdict, summary, artifacts, issues}` only, never raw payloads.
 
-1. **>=2 large context tool calls**.
-2. **Analysis required on heavy output**.
-
-Use main-agent direct call when: single tool call **and** result is used as-is without analysis.
-
-If runtime does not support MCP-capable sub-agents, execute in main agent and summarize heavy outputs instead of copying raw payloads.
-
-**Default**: when unsure, prefer delegation if available.
-
-Sub-agent must have MCP tool access. Claude Code example: use `general-purpose` (has MCP access). In other environments, use any agent type that exposes MCP tools.
-
-Sub-agent returns only `{verdict, summary, artifacts, issues}`, never raw layout JSON/image/video.
-
-## Minimal MCP Result Contract
-
-Use these fields for decisions:
-
-- `status`: `OK | ERROR`
-- `message`: concise result/error
-- `data`: tool-specific structured output
-- `artifacts`: produced files
-- `errorCode`: stable failure code or `null`
-
-## Error Handling Gate
+## Error Handling
 
 - Known pattern + low-risk fix: auto apply.
 - Unknown pattern or confidence `< 0.8`: ask user before large changes.
+- MCP result fields: `status` (OK/ERROR), `message`, `data`, `artifacts`, `errorCode`.
 
 ## Response Checklist
 
