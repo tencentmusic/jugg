@@ -1080,13 +1080,11 @@ class ConstRefEngine(
 
     /**
      * Check if a source directory should skip full scan readiness requirement.
-     * Generated directories (build/generated) are exempted because:
-     * 1. They contain compiler-generated files, not user-written source code
-     * 2. Full scan can be slow due to large file count
-     * 3. On-demand analysis is sufficient for generated files
+     * Always returns true because on-demand analysis is sufficient for awaitAnalysis scenarios.
+     * Full scan runs in background for indexing but should not block compilation.
      */
     private fun shouldSkipFullScanRequirement(sourceDir: String): Boolean {
-        return sourceDir.contains("/build/generated/")
+        return true
     }
 
     private fun notifyStateChangedLocked() {
