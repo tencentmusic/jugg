@@ -17,6 +17,26 @@ Use Jugg MCP tools to finish Android tasks with a deterministic loop:
 
 Default to MCP-only flow and avoid raw adb in normal execution.
 
+## ⚠️ Mandatory Execution Rules (violation = task failure)
+
+### Rule 1: Read After LoadDecision
+- If LoadDecision's load field is not none
+- Must immediately Read all declared documents
+- Output `✓ Loaded: [filename]`
+
+### Rule 2: Output Step 0 Table Before Step 3
+- Before code modification, must output suspicious area table
+- Format: | Component | Property | Expected | Selector |
+
+### Rule 3: activity_stack After Deploy
+- After any restart_app / compile_and_deploy
+- Must run activity_stack to confirm page first
+- Direct screenshot is FORBIDDEN
+
+### Rule 4: Tool Priority
+- Page confirmation: activity_stack > layout_dump > screenshot
+- Property verification: layout_verify > eval_view > screenshot
+
 ## Read Gate (Single Source of Truth)
 
 Read only this file first, then output a `LoadDecision` before opening any reference file.

@@ -2,6 +2,16 @@
 
 > Schema: `tool_cards_runtime_observe.md §layout_verify`. Unsupported properties: use `eval_view` (§5).
 
+## ⚠️ Execution Mode
+
+**Sub-Agent Mode** (recommended if available):
+- Spawn sub-agent to execute this document's workflow
+- Output structured Report and exit
+
+**Main Agent Mode** (fallback):
+- Must strictly follow Step 0~7
+- Screenshot inspection MUST NOT replace tool verification
+
 ## Core Principle
 
 **Screenshot spots suspicion → layout_verify reveals truth → code defines expectation.**
