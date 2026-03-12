@@ -1,6 +1,6 @@
 # MCP 使用说明（当前注册工具）
 
-> 最后核对：2026-03-09  
+> 最后核对：2026-03-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -48,6 +48,8 @@
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
 | `layout_verify` | `projectDir`, `checks`（至少 1 条）；可选 `checksFile` | 验证 UI 元素属性或元素间关系（默认自动快照） |
+| `ui_find` | `projectDir`, `target` | 查找单个 UI 元素并返回位置和尺寸（支持模糊匹配） |
+| `figma_layout_verify` | `projectDir`, `figmaJsonPath`, `androidJsonPath`; 可选 `dpr` | 自动提取 Figma 设计稿关系并批量验证 Android 布局 |
 | `eval_view` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
@@ -127,6 +129,28 @@
 - dumpFile 模式下属性不支持时，`message` 会包含 `did you mean` 候选与支持属性列表；若目标元素已匹配，还会附带参考观测值（如 `reference bounds.width = xxxdp`）以便 Agent 直接给出证据。
 - auto_dump 模式的 dp 换算依赖 dump JSON 根节点的 `deviceInfo.density`。
 - `layout_verify`（auto_dump/live）在执行前同样会先等待 App 在线（同 `layout_dump`）。
+
+补充（ui_find 语义）：
+- `ui_find` 用于查找单个 UI 元素并返回其位置和尺寸信息。
+- **target**：元素选择器（`text`/`resourceId`/`contentDesc`，至少提供一个）。
+- 成功时返回 `data.found=true`，包含 `bounds`（`[left,top,right,bottom]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`。
+- 失败时返回 `data.found=false`，`errorCode=ELEMENT_NOT_FOUND`。
+- 所有坐标和尺寸单位为 dp。
+- 内部自动调用 `layout_dump` 获取最新布局快照。
+- 适用场景：需要获取元素位置用于后续计算或验证。
+
+补充（figma_layout_verify 语义）：
+- `figma_layout_verify` 自动从 Figma 设计稿提取间距和对齐关系，并与 Android 实际布局批量对比。
+- **figmaJsonPath**：Figma JSON 文件路径（通过 Figma MCP 的 `get_design_context` 获取）。
+- **androidJsonPath**：Android layout JSON 文件路径（通过 `layout_dump` 获取）。
+- **dpr**（可选，默认 1.0）：设计稿像素倍率。如果 Figma 是 2x 设计稿（如 750px 宽），传 `dpr=2`；如果已是 dp 单位，传 `dpr=1`。
+- 返回 `data.total`（检查总数）、`data.passed`（通过数）、`data.failed`（失败数）、`data.results[]`（详细结果）。
+- 每个 result 包含：`type`（`spacing`/`alignment`）、`description`（关系描述）、`match`（是否匹配）、`expected`（期望值）、`actual`（实际值）、`diff`（差异）。
+- **自动提取关系**：工具内部自动识别 Figma 中相邻元素的间距和对齐关系，无需手动指定期望值。
+- **模糊匹配**：使用 IoU 算法自动匹配 Figma 节点到 Android View，容忍命名差异和轻微位置偏移。
+- **容差标准**：间距验证容差为 ±2dp 或 ±5%；对齐验证容差为 ±2dp。
+- 适用场景：设计稿还原验证、UI 回归测试、批量布局检查。
+- 推荐工作流：`get_design_context` → `layout_dump` → `figma_layout_verify`。
 
 补充（eval_view 语义）：
 - `eval_view` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。

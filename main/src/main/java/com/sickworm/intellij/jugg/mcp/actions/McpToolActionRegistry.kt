@@ -37,6 +37,8 @@ class McpToolActionRegistry(
                 StopRecordMcpToolAction(),
                 LayoutDumpMcpToolAction(),
                 LayoutVerifyMcpToolAction(),
+                FigmaLayoutVerifyMcpToolAction(),
+                UiFindMcpToolAction(),
                 EvalViewMcpToolAction(),
                 ActivityStackMcpToolAction(),
                 CrashReportMcpToolAction(),
