@@ -5,7 +5,6 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import kotlinx.coroutines.*
 import java.io.File
@@ -97,9 +96,14 @@ class GitFileChangesDetector(
     }
 
     fun updateChangedFiles() {
+        updateChangedFiles(emptyList())
+    }
+
+    fun updateChangedFiles(filterFiles: List<File>) {
         logger.debug("updateChangedFiles")
-        val recoverData = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = false)
-        val allChangedFiles = recoverData?.changedFiles ?: emptyList()
+        val recoverData = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = false) ?: return
+        val filterFilesSet = filterFiles.map { it.path }.toSet()
+        val allChangedFiles = recoverData.changedFiles.filter { it.path !in filterFilesSet }
         logger.debug("updateChangedFiles, allChangedFiles size: ${allChangedFiles.size}, names: ${allChangedFiles.map { it.name }}")
 
         listener?.onFileChanges(allChangedFiles, emptyList())

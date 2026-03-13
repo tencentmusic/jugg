@@ -42,7 +42,8 @@ class JuggCompilerHelper(
     private val fileChangesHandler: IFileChangesHandler,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
-    private val gitFileChangesDetector: GitFileChangesDetector,
+    gitFileChangesDetector: GitFileChangesDetector,
+    taskRunnerManager: TaskRunnerManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
 
@@ -64,6 +65,8 @@ class JuggCompilerHelper(
             IncrementalCompileRetryResolver(compileContextManager, gradleProjectInfoLocalFetchManager, logger),
         )
     )
+
+    private val gitChangeChecker = GitChangesCompileChecker(gitFileChangesDetector, deployFileManager, taskRunnerManager, logger)
 
     @Synchronized
     fun compile(
@@ -108,6 +111,18 @@ class JuggCompilerHelper(
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
             incrementalResult = incrementalCompile(uiHandler)
+
+            // Strategy 2: Step2 Wait for async git check and force recompile if new files found
+            val foundResult = gitChangeChecker.getAsyncResultWithTimeout()
+            if (foundResult == null) {
+                logger.warn("Git check after compile timeout, the repository is tooooo big?? File changes may not reliable.")
+            } else if (foundResult.isFoundNewChangedFiles) {
+                logger.info("Git check after compile, found ${foundResult.foundFilesSize} new file(s) after compile success, compile again.")
+                incrementalResult = incrementalCompile(uiHandler)
+            } else {
+                logger.debug("Git check after compile found no new changed files.")
+            }
+
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - startTime)
             juggServer.report {
                 action = "incremental_compile"
@@ -244,9 +259,25 @@ class JuggCompilerHelper(
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
     ): CompileTaskResult? {
-        val isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
+        var isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
         val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
         logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceGradleCompile}, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
+
+        if (isNoFileChangesSinceLastCompile) {
+            // Strategy 1: If no file changes, sync check git changes
+            logger.info("No file changes, Checking git for file changes...")
+            val result = gitChangeChecker.checkUndetectedFiles(deployFileManager.getUndeployedFiles())
+            if (result.isFoundNewChangedFiles) {
+                logger.info("Good! Git check found ${result.foundFilesSize} new changed file(s). Continue compile.")
+                isNoFileChangesSinceLastCompile = false
+            } else {
+                logger.info("Git check found no new changed files.")
+            }
+        } else {
+            // Strategy 2: Step 1 Start async git check before compile if it has file changes
+            gitChangeChecker.checkUndetectedFilesAsync(deployFileManager.getUndeployedFiles())
+        }
+
         if (uiHandler.isForceGradleCompile) {
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }

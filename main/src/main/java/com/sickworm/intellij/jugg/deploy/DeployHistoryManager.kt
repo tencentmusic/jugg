@@ -77,7 +77,7 @@ class DeployHistoryManager(
 
     override fun tryGetContextRecoverInfoFromDb(isOnInit: Boolean): DeployContextRecoverInfo? {
         if (!isRecoverFeatureAvailable) {
-            logger.warn("tryGetContextRecoverInfoFromDb failed, recover feature not available")
+            logger.debug("tryGetContextRecoverInfoFromDb failed, recover feature not available")
             return null
         }
         logger.debug("tryGetContextRecoverInfoFromDb recover feature is available")
