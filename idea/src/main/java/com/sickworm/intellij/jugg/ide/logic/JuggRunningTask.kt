@@ -65,7 +65,7 @@ class JuggRunningTask(
         val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
         var isNeedResetHasRun = false
         try {
-            if (RuntimeMockUtils.isNeedRunTest()) {
+            if (TestModeManager.isRuntimeTestEnabled()) {
                 RuntimeMockUtils.runTest(logger)
                 return
             }

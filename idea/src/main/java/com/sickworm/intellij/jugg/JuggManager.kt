@@ -220,7 +220,7 @@ class JuggManager @TestOnly constructor(
                 )
             } catch (e: Throwable) {
                 logger.warn("Get suggest run configuration failed ", e)
-                if (RuntimeMockUtils.isTestMode) {
+                if (TestModeManager.isTestMode) {
                     throw e
                 }
                 emptyList()

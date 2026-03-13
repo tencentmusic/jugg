@@ -14,7 +14,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.isChild
-import com.sickworm.intellij.jugg.ide.logic.RuntimeMockUtils
+import com.sickworm.intellij.jugg.ide.logic.TestModeManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.*
@@ -320,7 +320,7 @@ class CompileContextManager(
             var ideModuleInfo = try {
                 AsDeployerCompat.getIdeModuleInfo(project, module, logger, false)
             } catch (e: Throwable) {
-                if (RuntimeMockUtils.isTestMode) {
+                if (TestModeManager.isTestMode) {
                     throw e
                 }
                 AsDeployerCompat.getIdeModuleInfo(project, module, logger, true)

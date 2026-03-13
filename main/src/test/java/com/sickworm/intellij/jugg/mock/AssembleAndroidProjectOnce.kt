@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.sickworm.intellij.jugg.ide.logic.TestModeManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
@@ -10,7 +11,7 @@ object AssembleAndroidProjectOnce {
     private var hasAssemble = false
     init {
         // backdoor for convenient testing
-        if (File("${System.getProperty("user.home")}/.jugg_test_do_not_assemble").exists()) {
+        if (TestModeManager.isSkipTestAssemblyEnabled()) {
             hasAssemble = true
         }
     }
