@@ -1,10 +1,14 @@
 ---
 name: jugg-android-dev-loop
 description: >-
-  Use Jugg MCP tools for Android app modify/deploy/verify loop. Trigger ONLY when both (A) and (B) are true:
-  (A) the project artifact is an APK/AAB installed on a device (NOT an IDE plugin, Gradle plugin, library, or tool); 
-  (B) user explicitly mention Jugg, or asks to build/deploy/verify on device, OR app source was just modified and device
-  verification is the next step.
+  Use Jugg MCP tools for Android app modify/deploy/verify loop.
+  PREREQUISITE (must be true for any trigger): the project artifact is an APK/AAB installed on a device —
+  NOT a Gradle plugin, IDE plugin, library, or build tool.
+  Trigger when ANY of the following is true:
+  (1) User explicitly mentions Jugg, or asks to build, deploy, or verify on device.
+  (2) App source code (Java/Kotlin/XML layouts/resources/AndroidManifest) was just modified —
+      immediately run compile_only to confirm the change compiles before considering the task done.
+  (3) App source was modified and device verification is the next logical step.
 ---
 
 # Jugg MCP Android Dev Loop (Compact Router)
@@ -72,6 +76,16 @@ Skip rule: if no Android source code needs to be compiled, deployed, or verified
 - Modifying Gradle plugin, IDE plugin, or build tool source (not app code).
 - Modifying library/SDK source that is not directly installed as APK on device.
 - Code review, documentation, or refactoring tasks without device verification intent.
+
+## Rule 0: Compile Validation After Any Code Change
+
+**Trigger**: Any modification to Android project source files (Java, Kotlin, XML layouts, resources, manifests).
+
+**Action**: After modifying source code, immediately run `compile_only(projectDir)` and poll `get_compile_status(jobId)` until `isFinal=true`.
+
+- If `status=OK`: proceed with next steps.
+- If `status=ERROR`: fix compilation errors first, then re-run `compile_only`. Do NOT skip this step.
+- This rule applies even when device deployment is NOT requested — compilation verification is mandatory.
 
 ## 5-Step Loop
 
