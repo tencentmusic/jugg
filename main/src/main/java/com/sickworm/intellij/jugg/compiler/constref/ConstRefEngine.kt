@@ -507,10 +507,11 @@ class ConstRefEngine(
         // Phase 2: parse references per batch; DB now has all definitions from Phase 1,
         // so no in-memory overlay is needed. Each file's AST is parsed only once.
         //
-        // Lock strategy: per-file lock for read+parse (parseReferencesByDbOnly needs DB/cache
-        // access), then a separate batch lock for DB write + state updates. This reduces max
-        // mutex hold time from O(batchSize * perFileCost) to O(perFileCost), allowing concurrent
-        // analyzeOnDemand calls to interleave between files.
+        // Lock strategy: split per-file work into three steps to keep AST parsing outside the lock.
+        // Step 1 (locked, fast): read previousDefinitions + definitions from DB/cache.
+        // Step 2 (unlocked): AST parse via collectHintsAndParseReferences - CPU-intensive, no shared state.
+        // Step 3 (batch locked, fast): flush analysis to DB and update shared state.
+        // This lets analyzeOnDemand callers acquire analysisMutex between any two files during full scan.
         var phase2ProcessedCount = 0
         changedFiles.chunked(analyzeFilesBatchSize).forEach { batch ->
             val analysisBatch = mutableListOf<ConstRefCacheDatabase.FileAnalysisEntry>()
@@ -522,26 +523,35 @@ class ConstRefEngine(
                 val references: List<ConstReference>,
             )
             val pendingStates = mutableListOf<FilePendingState>()
-            // Per-file lock: read state + parse references, then release lock between files.
+            // Per-file: Step 1 locked (read state), Step 2 unlocked (AST parse).
             batch.forEach { file ->
-                analysisMutex.withLock {
+                // Step 1: read shared state under lock (fast DB/cache reads only).
+                data class Phase2ReadState(
+                    val path: String,
+                    val previousDefinitions: List<ConstDefinition>,
+                    val definitions: List<ConstDefinition>,
+                    val checksum: Long,
+                )
+                val readState = analysisMutex.withLock {
                     val path = file.toStdPath()
                     val previousDefinitions = loadPreviousDefinitionsLocked(path)
-                    val definitions = database.getDefinitionsByFileAndChecksum(
-                        path,
-                        checksumMap[path] ?: calculateChecksum(file),
-                    )
+                    val checksum = checksumMap[path] ?: calculateChecksum(file)
+                    val definitions = database.getDefinitionsByFileAndChecksum(path, checksum)
                     sessionCache.clearLookupCache()
-                    val references = parseReferencesByDbOnly(file)
-                    analysisBatch += ConstRefCacheDatabase.FileAnalysisEntry(
-                        filePath = path,
-                        lastModified = file.lastModified(),
-                        checksum = checksumMap[path] ?: calculateChecksum(file),
-                        definitions = definitions,
-                        references = references,
-                    )
-                    pendingStates += FilePendingState(path, file, previousDefinitions, definitions, references)
+                    Phase2ReadState(path, previousDefinitions, definitions, checksum)
                 }
+                // Step 2: parse references WITHOUT lock (CPU-intensive AST parse, no shared state).
+                val references = parseReferencesByDbOnly(file)
+                analysisBatch += ConstRefCacheDatabase.FileAnalysisEntry(
+                    filePath = readState.path,
+                    lastModified = file.lastModified(),
+                    checksum = readState.checksum,
+                    definitions = readState.definitions,
+                    references = references,
+                )
+                pendingStates += FilePendingState(
+                    readState.path, file, readState.previousDefinitions, readState.definitions, references
+                )
             }
             // Batch lock: flush analysis to DB and update shared state atomically.
             // markAnalyzed is called here so awaitAnalysis observers see consistent data
