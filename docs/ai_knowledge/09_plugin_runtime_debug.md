@@ -136,18 +136,22 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 ```bash
 BACKUP=~/Desktop/jugg_debug_$(date +%Y%m%d_%H%M%S)
 mkdir -p $BACKUP
-cp -r {projectDir}/build/jugg/log/          $BACKUP/log/
-cp -r {projectDir}/build/jugg/database/     $BACKUP/database/
+# -L 解引用 symlink，确保 compile_latest.log / compile_latest-1.log 实体内容被复制
+cp -rL {projectDir}/build/jugg/log/          $BACKUP/log/
+cp -r  {projectDir}/build/jugg/database/     $BACKUP/database/
 ```
+
+> `compile_latest.log` 是 symlink，必须用 `-L` 解引用才能得到实体文件。
+> 单独复制时同理：`cp -L compile_latest.log ~/Desktop/jugg.log`
 
 提交 Bug 时需附带的文件：
 
-| 文件 | 路径 |
-|------|------|
-| 运行日志 | `build/jugg/log/compile_latest.log` |
-| 项目信息 | `build/jugg/database/project_infos.db/project_infos.json` |
-| APK 数据库 | `build/jugg/database/apk/*.db`（DB 状态相关问题） |
-| 部署历史 | `build/jugg/database/deploy_history.db/`（增量状态相关） |
+| 文件 | 路径 | 备注 |
+|------|------|------|
+| 运行日志 | `build/jugg/log/compile_latest.log` | symlink，复制时加 `-L` |
+| 项目信息 | `build/jugg/database/project_infos.db/project_infos.json` | |
+| APK 数据库 | `build/jugg/database/apk/*.db` | DB 状态相关问题 |
+| 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态相关 |
 
 ---
 
