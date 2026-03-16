@@ -98,12 +98,7 @@ class ConstRefAnalyzer(
         }
         return when (sourceFile.extension) {
             "kt" -> kotlinConstParser.collectHintsAndParseReferences(sourceFile, definitionIndexFactory)
-            "java" -> {
-                val hints = collectReferenceLookupHints(sourceFile)
-                if (hints.isEmpty()) return emptyList()
-                val definitionIndex = definitionIndexFactory(hints) ?: return emptyList()
-                javaConstParser.parseReferences(sourceFile, definitionIndex)
-            }
+            "java" -> javaConstParser.collectHintsAndParseReferences(sourceFile, definitionIndexFactory)
             else -> emptyList()
         }
     }

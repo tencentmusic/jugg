@@ -554,4 +554,91 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         File(worktreeGitDir, "commondir").writeText("../../\n")
         File(worktreeDir, ".git").writeText("gitdir: ${worktreeGitDir.absolutePath}\n")
     }
+
+    // ---- simple_class_name index tests ----
+
+    @Test
+    fun `queryClassesBySimpleNames should find outer class by simple name`() {
+        val dbDir = createTempDirectory("const_ref_simple_name")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "test.db"), logger)
+
+        val filePath = File(dbDir, "Constants.java").apply { writeText("class Constants {}") }.toStdPath()
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 1L,
+            checksum = 10L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = filePath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.Constants",
+                    constName = "MAX",
+                    constType = "int",
+                    constValue = "10",
+                )
+            ),
+            references = emptyList(),
+        )
+
+        val result = database.queryClassesBySimpleNames(setOf("Constants"), listOf(filePath))
+        assertEquals(setOf("com.example.Constants"), result["Constants"])
+    }
+
+    @Test
+    fun `queryClassesBySimpleNames should find outer class for nested inner class`() {
+        val dbDir = createTempDirectory("const_ref_inner_simple_name")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "test.db"), logger)
+
+        val filePath = File(dbDir, "Outer.java").apply { writeText("class Outer {}") }.toStdPath()
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 1L,
+            checksum = 10L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = filePath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.Outer.Inner",
+                    constName = "CODE",
+                    constType = "int",
+                    constValue = "42",
+                )
+            ),
+            references = emptyList(),
+        )
+
+        // Import is "import com.example.Outer" -> simpleName="Outer"
+        val result = database.queryClassesBySimpleNames(setOf("Outer"), listOf(filePath))
+        assertEquals(setOf("com.example.Outer.Inner"), result["Outer"])
+    }
+
+    @Test
+    fun `queryClassesBySimpleNames should not return unrelated classes`() {
+        val dbDir = createTempDirectory("const_ref_unrelated_simple_name")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "test.db"), logger)
+
+        val filePath = File(dbDir, "Constants.java").apply { writeText("") }.toStdPath()
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 1L,
+            checksum = 10L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = filePath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.Constants",
+                    constName = "MAX",
+                    constType = "int",
+                    constValue = "10",
+                )
+            ),
+            references = emptyList(),
+        )
+
+        val result = database.queryClassesBySimpleNames(setOf("Unrelated"), listOf(filePath))
+        assertTrue(result.isEmpty())
+    }
 }

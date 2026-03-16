@@ -51,6 +51,46 @@ class JavaConstParser(
         }
         val sourcePath = sourceFile.toStdPath()
         val compilationUnit = parse(sourceFile) ?: return emptyList()
+        return parseReferencesFromCu(sourcePath, compilationUnit, definitionIndex)
+    }
+
+    /**
+     * Single-pass variant: parses the file once, traverses the AST twice in the same call stack.
+     * First pass collects lookup hints via [TrackingDefinitionLookup]; then calls [definitionIndexFactory]
+     * to build the real index; second pass resolves references against it.
+     * Avoids the double-parse overhead of the two-call pattern in [ConstRefAnalyzer].
+     *
+     * @param definitionIndexFactory receives the collected hints and returns the lookup index,
+     *        or null to skip reference parsing (no candidates found).
+     */
+    fun collectHintsAndParseReferences(
+        sourceFile: File,
+        definitionIndexFactory: (ConstReferenceLookupHints) -> ConstDefinitionLookup?,
+    ): List<ConstReference> {
+        if (sourceFile.extension != "java" || !sourceFile.exists()) {
+            return emptyList()
+        }
+        val sourcePath = sourceFile.toStdPath()
+        val compilationUnit = parse(sourceFile) ?: return emptyList()
+
+        // Pass 1: collect hints by traversing AST with a tracking (no-op) lookup
+        val trackingLookup = TrackingDefinitionLookup()
+        parseReferencesFromCu(sourcePath, compilationUnit, trackingLookup)
+        val hints = trackingLookup.buildHints()
+        if (hints.isEmpty()) {
+            return emptyList()
+        }
+
+        // Pass 2: resolve references with the real definition index
+        val definitionIndex = definitionIndexFactory(hints) ?: return emptyList()
+        return parseReferencesFromCu(sourcePath, compilationUnit, definitionIndex)
+    }
+
+    private fun parseReferencesFromCu(
+        sourcePath: String,
+        compilationUnit: CompilationUnit,
+        definitionIndex: ConstDefinitionLookup,
+    ): List<ConstReference> {
         val packageName = compilationUnit.packageDeclaration.map { it.nameAsString }.orElse("")
         val importContext = buildImportContext(compilationUnit)
         val references = linkedSetOf<ConstReference>()
@@ -225,5 +265,66 @@ class JavaConstParser(
             }
         }
         return context
+    }
+
+    /**
+     * Tracks which hints were queried during a no-op AST traversal.
+     * Used in the single-pass path to collect DB query candidates without real definitions.
+     */
+    private class TrackingDefinitionLookup : ConstDefinitionLookup {
+        private val constNames = linkedSetOf<String>()
+        private val classConstKeys = linkedSetOf<Pair<String, String>>()
+        private val packageConstKeys = linkedSetOf<Pair<String, String>>()
+        private val simpleClassNames = linkedSetOf<String>()
+
+        override fun hasConstName(constName: String): Boolean {
+            val normalized = constName.trim()
+            if (normalized.isNotEmpty()) constNames += normalized
+            return true
+        }
+
+        override fun hasClass(fqClassName: String): Boolean = true
+
+        override fun hasDefinition(fqClassName: String, constName: String): Boolean {
+            recordClassConstKey(fqClassName, constName)
+            return true
+        }
+
+        override fun findByClassAndConst(fqClassName: String, constName: String): List<ConstDefinition> {
+            recordClassConstKey(fqClassName, constName)
+            return emptyList()
+        }
+
+        override fun findByPackageAndConst(packageName: String, constName: String): List<ConstDefinition> {
+            val normalizedPackage = packageName.trim()
+            val normalizedConst = constName.trim()
+            if (normalizedPackage.isNotEmpty() && normalizedConst.isNotEmpty()) {
+                packageConstKeys += normalizedPackage to normalizedConst
+            }
+            return emptyList()
+        }
+
+        override fun findClassBySimpleName(simpleName: String): Set<String> {
+            val normalized = simpleName.trim()
+            if (normalized.isNotEmpty()) simpleClassNames += normalized
+            return emptySet()
+        }
+
+        fun buildHints(): ConstReferenceLookupHints {
+            return ConstReferenceLookupHints(
+                constNames = constNames,
+                classConstKeys = classConstKeys,
+                packageConstKeys = packageConstKeys,
+                simpleClassNames = simpleClassNames,
+            )
+        }
+
+        private fun recordClassConstKey(fqClassName: String, constName: String) {
+            val normalizedClass = fqClassName.trim()
+            val normalizedConst = constName.trim()
+            if (normalizedClass.isNotEmpty() && normalizedConst.isNotEmpty()) {
+                classConstKeys += normalizedClass to normalizedConst
+            }
+        }
     }
 }

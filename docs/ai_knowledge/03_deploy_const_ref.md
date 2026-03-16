@@ -178,10 +178,10 @@ Kotlin 引用覆盖：
 - `queryDefinitionsByConstNames(Set<String>)`
 - `queryDefinitionsByClassConstKeys(Set<Pair<class,const>>)`
 - `queryDefinitionsByPackageConstKeys(Set<Pair<pkg,const>>)`
-- `queryClassesBySimpleNames(Set<String>)`
+- `queryClassesBySimpleNames(Set<String>)`：通过 `simple_class_name` 列 + 索引实现点查，避免全表扫描
 - 使用共享 SQLite 长连接（`init()` 创建、`close()` 关闭），避免高频建连与重复 PRAGMA；
 - latest 版本选择在 `analyzed_at/last_access_at` 相同场景下追加 `checksum` 作为稳定 tie-breaker；
-- db schema 使用 `PRAGMA schema_version=3`，不兼容时重建。
+- db schema 使用 `PRAGMA schema_version=4`，不兼容时重建。
 
 ### 5.3 Repo 共享指纹：RepoSharedFingerprintStore
 

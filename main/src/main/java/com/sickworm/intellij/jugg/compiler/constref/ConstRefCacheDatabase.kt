@@ -45,10 +45,21 @@ class ConstRefCacheDatabase(
         }
 
         if (!needRecreate) {
+            runPassiveWalCheckpoint()
             return
         }
         logger.warn("ConstRefCacheDatabase recreate db due to incompatible schema: $recreateReason")
         recreateDatabase()
+    }
+
+    /** Runs a non-blocking WAL checkpoint to merge pending WAL frames into the main db file. */
+    @Synchronized
+    fun runPassiveWalCheckpoint() {
+        withConnection { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA wal_checkpoint(PASSIVE)")
+            }
+        }
     }
 
     @Synchronized
@@ -296,9 +307,9 @@ class ConstRefCacheDatabase(
                 connection.prepareStatement(
                     """
                     INSERT INTO const_definitions(
-                        repo_key, relative_path, checksum, package_name, fq_class_name, const_name, const_type, const_value
+                        repo_key, relative_path, checksum, package_name, fq_class_name, simple_class_name, const_name, const_type, const_value
                     )
-                    VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """.trimIndent()
                 ).use { statement ->
                     definitions.forEach { definition ->
@@ -307,9 +318,10 @@ class ConstRefCacheDatabase(
                         statement.setLong(3, checksum)
                         statement.setString(4, definition.packageName)
                         statement.setString(5, definition.fqClassName)
-                        statement.setString(6, definition.constName)
-                        statement.setString(7, definition.constType)
-                        statement.setString(8, definition.constValue)
+                        statement.setString(6, extractSimpleClassName(definition.packageName, definition.fqClassName))
+                        statement.setString(7, definition.constName)
+                        statement.setString(8, definition.constType)
+                        statement.setString(9, definition.constValue)
                         statement.addBatch()
                     }
                     statement.executeBatch()
@@ -406,9 +418,9 @@ class ConstRefCacheDatabase(
                     connection.prepareStatement(
                         """
                         INSERT INTO const_definitions(
-                            repo_key, relative_path, checksum, package_name, fq_class_name, const_name, const_type, const_value
+                            repo_key, relative_path, checksum, package_name, fq_class_name, simple_class_name, const_name, const_type, const_value
                         )
-                        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent()
                     ).use { statement ->
                         entry.definitions.forEach { definition ->
@@ -417,9 +429,10 @@ class ConstRefCacheDatabase(
                             statement.setLong(3, entry.checksum)
                             statement.setString(4, definition.packageName)
                             statement.setString(5, definition.fqClassName)
-                            statement.setString(6, definition.constName)
-                            statement.setString(7, definition.constType)
-                            statement.setString(8, definition.constValue)
+                            statement.setString(6, extractSimpleClassName(definition.packageName, definition.fqClassName))
+                            statement.setString(7, definition.constName)
+                            statement.setString(8, definition.constType)
+                            statement.setString(9, definition.constValue)
                             statement.addBatch()
                         }
                         statement.executeBatch()
@@ -509,9 +522,9 @@ class ConstRefCacheDatabase(
                     connection.prepareStatement(
                         """
                         INSERT INTO const_definitions(
-                            repo_key, relative_path, checksum, package_name, fq_class_name, const_name, const_type, const_value
+                            repo_key, relative_path, checksum, package_name, fq_class_name, simple_class_name, const_name, const_type, const_value
                         )
-                        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent()
                     ).use { statement ->
                         entry.definitions.forEach { definition ->
@@ -520,9 +533,10 @@ class ConstRefCacheDatabase(
                             statement.setLong(3, entry.checksum)
                             statement.setString(4, definition.packageName)
                             statement.setString(5, definition.fqClassName)
-                            statement.setString(6, definition.constName)
-                            statement.setString(7, definition.constType)
-                            statement.setString(8, definition.constValue)
+                            statement.setString(6, extractSimpleClassName(definition.packageName, definition.fqClassName))
+                            statement.setString(7, definition.constName)
+                            statement.setString(8, definition.constType)
+                            statement.setString(9, definition.constValue)
                             statement.addBatch()
                         }
                         statement.executeBatch()
@@ -942,29 +956,28 @@ class ConstRefCacheDatabase(
         if (scopeRepoKeys.isEmpty()) {
             return emptyMap()
         }
-        return withConnection { connection ->
-            val sql = buildLatestDefinitionsSql(scopeRepoKeys)
-            connection.prepareStatement(sql).use { statement ->
-                var paramIndex = 1
-                scopeRepoKeys.forEach { repoKey ->
-                    statement.setString(paramIndex++, repoKey)
+        val classesBySimpleName = mutableMapOf<String, MutableSet<String>>()
+        normalizedSimpleNames.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
+            val whereClause = "d.simple_class_name IN (${chunk.joinToString(",") { "?" }})"
+            queryLatestDefinitionsByWhere(
+                scopeRepoKeys = scopeRepoKeys,
+                whereClause = whereClause,
+            ) { statement, startIndex ->
+                var paramIndex = startIndex
+                chunk.forEach { simpleName ->
+                    statement.setString(paramIndex++, simpleName)
                 }
-                statement.executeQuery().use { resultSet ->
-                    val classesBySimpleName = mutableMapOf<String, MutableSet<String>>()
-                    while (resultSet.next()) {
-                        val packageName = resultSet.getString("package_name")
-                        val fqClassName = resultSet.getString("fq_class_name")
-                        registerSimpleNameMappings(
-                            packageName = packageName,
-                            fqClassName = fqClassName,
-                            targetSimpleNames = normalizedSimpleNames,
-                            classesBySimpleName = classesBySimpleName,
-                        )
-                    }
-                    classesBySimpleName.mapValues { (_, value) -> value.toSet() }
-                }
+                paramIndex
+            }.forEach { definition ->
+                registerSimpleNameMappings(
+                    packageName = definition.packageName,
+                    fqClassName = definition.fqClassName,
+                    targetSimpleNames = normalizedSimpleNames,
+                    classesBySimpleName = classesBySimpleName,
+                )
             }
         }
+        return classesBySimpleName.mapValues { (_, value) -> value.toSet() }
     }
 
     @Synchronized
@@ -1236,6 +1249,7 @@ class ConstRefCacheDatabase(
                     checksum INTEGER NOT NULL,
                     package_name TEXT NOT NULL,
                     fq_class_name TEXT NOT NULL,
+                    simple_class_name TEXT NOT NULL DEFAULT '',
                     const_name TEXT NOT NULL,
                     const_type TEXT NOT NULL,
                     const_value TEXT,
@@ -1250,6 +1264,8 @@ class ConstRefCacheDatabase(
                     ON const_definitions(repo_key, relative_path, checksum);
                 CREATE INDEX IF NOT EXISTS idx_const_def_repo_package_const
                     ON const_definitions(repo_key, package_name, const_name);
+                CREATE INDEX IF NOT EXISTS idx_const_def_repo_simple_name
+                    ON const_definitions(repo_key, simple_class_name, const_name);
 
                 CREATE TABLE IF NOT EXISTS const_references (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1524,6 +1540,26 @@ class ConstRefCacheDatabase(
         return definitions
     }
 
+    /**
+     * Extracts the simple class name used for DB indexing from a fully-qualified class name.
+     * Matches the lookup logic in [registerSimpleNameMappings]:
+     *   - "com.example.Outer"       → "Outer"
+     *   - "com.example.Outer.Inner" → "Outer"  (outer class, aligns with Java import)
+     *   - "com.example.Outer$Inner" → "Outer"  (dollar-separated inner class)
+     *   - "" / "TopLevel"           → "TopLevel"
+     */
+    private fun extractSimpleClassName(packageName: String, fqClassName: String): String {
+        if (fqClassName.isBlank()) return ""
+        val classPart = if (packageName.isBlank()) {
+            fqClassName
+        } else {
+            fqClassName.removePrefix("$packageName.")
+        }
+        if (classPart.isBlank()) return ""
+        // Take the first segment (outer class name), handling both '.' and '$' separators
+        return classPart.substringBefore('.').substringBefore('$')
+    }
+
     private fun registerSimpleNameMappings(
         packageName: String,
         fqClassName: String,
@@ -1775,7 +1811,7 @@ class ConstRefCacheDatabase(
     )
 
     companion object {
-        private const val DB_SCHEMA_VERSION = 3
+        private const val DB_SCHEMA_VERSION = 4
         private const val MAX_MTIME_QUERY_ROWS_PER_BATCH = 250
         private const val CLEANUP_INTERVAL_MS = 24L * 60L * 60L * 1000L
         private const val MTIME_MAP_TTL_MS = 30L * 24L * 60L * 60L * 1000L
