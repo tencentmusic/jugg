@@ -97,6 +97,10 @@ class JuggCompilerHelper(
                 Thread.sleep(200)
             }
         }
+        if (deployStateManager.hasPendingFileProcessing()) {
+            logger.info("Waiting file processing finish...")
+            deployStateManager.waitForPendingFileProcessing()
+        }
 
         // decide gradle compile or incremental compile
         var incrementalResult: CompileTaskResult? = preprocessIncrementalCompile(options, uiHandler)
@@ -469,7 +473,8 @@ class JuggCompilerHelper(
                     if (!JuggSettings.isConfirmFallbackWhenNoFileChanges) {
                         ConfirmResult.POSITIVE
                     } else {
-                        uiHandler.confirmFallbackWhenNoFileChanges()
+                        val r = uiHandler.confirmFallbackWhenNoFileChanges()
+                        r
                     }
 
                 when (confirmResult) {

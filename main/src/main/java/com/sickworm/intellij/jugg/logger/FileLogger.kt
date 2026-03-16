@@ -68,11 +68,12 @@ class FileLogger(
                 limit, 2, false)
             val formatter = object : SimpleFormatter() {
 
-                private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s%n"
+                private val format: String = "[%1\$tF %1\$tT.%2\$03d] [%3$-7s] %4\$s%n"
 
                 override fun format(lr: LogRecord): String {
                     val string = String.format(Locale.US, format,
                         Date(lr.millis),
+                        lr.millis % 1000,
                         lr.level.name,
                         lr.message
                     )

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
@@ -25,6 +26,9 @@ class TaskRunnerManager(
     var currentIndicator: ProgressIndicator? = null
         private set
     private var retryInitDelayMill = 3_000L
+
+    override val isOnEdt: Boolean
+        get() = ApplicationManager.getApplication().isDispatchThread
 
     override fun runBackgroundSafe(jobName: String, action: Runnable): Job {
         return runBackgroundSafe(jobName, 0L, action)
@@ -113,7 +117,10 @@ class TaskRunnerManager(
                     }
                 }
                 if (isBlockIncrementalCompile) {
+                    val t0 = System.currentTimeMillis()
+                    logger.debug("job <$jobName> waiting for TaskRunnerManager lock, thread=${Thread.currentThread().name}")
                     synchronized(this@TaskRunnerManager) {
+                        logger.debug("job <$jobName> acquired TaskRunnerManager lock, waitCost=${System.currentTimeMillis() - t0}ms")
                         runnable.invoke()
                     }
                 } else {

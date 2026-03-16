@@ -5,6 +5,10 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Manage [JuggDeployState].
@@ -35,6 +39,49 @@ class DeployStateManager(
 
     @Volatile
     var isInitializingIncrementalCompile = false
+
+    /** Count of pending async file-processing tasks. Incremented synchronously before dispatch. */
+    private val pendingFileProcessingCount = AtomicInteger(0)
+    private val fileProcessingLock = ReentrantLock()
+    private val fileProcessingDone = fileProcessingLock.newCondition()
+
+    /**
+     * Must be called synchronously (on the callback thread) before dispatching the async file-processing task.
+     * This guarantees the counter is non-zero before any compile check runs.
+     */
+    fun beginFileProcessing() {
+        pendingFileProcessingCount.incrementAndGet()
+    }
+
+    /**
+     * Must be called in the finally block of the async file-processing task.
+     */
+    fun endFileProcessing() {
+        if (pendingFileProcessingCount.decrementAndGet() == 0) {
+            fileProcessingLock.withLock {
+                fileProcessingDone.signalAll()
+            }
+        }
+    }
+
+    fun hasPendingFileProcessing(): Boolean = pendingFileProcessingCount.get() > 0
+
+    /**
+     * Block until all pending file-processing tasks complete.
+     * Returns immediately if none are pending.
+     * @param timeoutMs maximum wait time in milliseconds (default 30s)
+     */
+    fun waitForPendingFileProcessing(timeoutMs: Long = 30_000L) {
+        if (pendingFileProcessingCount.get() == 0) return
+        fileProcessingLock.withLock {
+            val deadline = System.currentTimeMillis() + timeoutMs
+            while (pendingFileProcessingCount.get() > 0) {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining <= 0) break
+                fileProcessingDone.await(remaining, TimeUnit.MILLISECONDS)
+            }
+        }
+    }
 
     /**
      * Invoke when project need to update [JuggDeployState].

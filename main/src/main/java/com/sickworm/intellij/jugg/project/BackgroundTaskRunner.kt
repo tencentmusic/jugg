@@ -12,6 +12,10 @@ interface IBackgroundTaskRunner {
     val dispatcher: CoroutineDispatcher
         get() = Dispatchers.Default
 
+    /** Returns true if the current thread is the Event Dispatch Thread. */
+    val isOnEdt: Boolean
+        get() = false
+
     fun runBackgroundSafe(jobName: String, action: Runnable): Job
     fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job
 }

@@ -299,6 +299,7 @@ class JuggManager @TestOnly constructor(
         return deployState
     }
 
+    @Synchronized
     private fun processFileChanged(
         changedFiles: List<File>,
         deletedFiles: List<File>,
@@ -553,7 +554,17 @@ class JuggManager @TestOnly constructor(
 
         fileChangesDetector.startListen(object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
-                processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
+                // is on EDT thread, will be stuck when using lock
+                // beginFileProcessing() must be called synchronously here to prevent compile
+                // from starting before the async task below has a chance to run
+                deployStateManager.beginFileProcessing()
+                taskRunnerManager.runBackgroundSafe("Process file changed") {
+                    try {
+                        processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
+                    } finally {
+                        deployStateManager.endFileProcessing()
+                    }
+                }
             }
         })
         gitFileChangesDetector.startListen(object: FileChangesListener {
