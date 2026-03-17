@@ -14,7 +14,7 @@ class DeployFileStateTracker {
     private var compiledFiles = mutableMapOf<String, ChangedFile>()
     private var stagingFiles = mutableMapOf<String, CompileOutput>()
     private val deployedFiles = mutableMapOf<String, CompileOutput>()
-    private val mergedDexFilePathSet = mutableSetOf<String>()
+    private val mergedDexFilePathSet = mutableMapOf<String, Long>()
 
     @Synchronized
     fun clearMergedDexFilePaths() {
@@ -24,7 +24,7 @@ class DeployFileStateTracker {
     @Synchronized
     fun markMergedDexFilePaths(dexFiles: List<CompileOutput>) {
         dexFiles.forEach {
-            mergedDexFilePathSet.add(it.relativeFile.path)
+            mergedDexFilePathSet[it.relativeFile.path] = it.file.lastModified()
         }
     }
 
@@ -113,8 +113,16 @@ class DeployFileStateTracker {
     }
 
     @Synchronized
-    fun getStagingFiles(): List<CompileOutput> {
-        return stagingFiles.values.toList()
+    fun getStagingFiles(isFilterMergedDex: Boolean = false): List<CompileOutput> {
+        return stagingFiles.values.filter {
+            if (isFilterMergedDex) {
+                val mergedTime = mergedDexFilePathSet[it.relativeFile.path]
+                if (mergedTime != null && it.file.lastModified() == mergedTime) {
+                    return@filter false // merged dex file
+                }
+            }
+            return@filter true
+        }
     }
 
     @Synchronized

@@ -36,13 +36,18 @@ class DeployDataPlanner(
         isWarmUp: Boolean,
         isEnableCompatDeploy: Boolean,
     ): JuggDeployData {
-        val stagingOutputs = stateTracker.getStagingFiles()
+        val stagingOutputs = stateTracker.getStagingFiles(isFilterMergedDex = true)
         val notStagingDeployedFiles = stateTracker.getNotStagingDeployedFiles()
         val deployItems = stagingOutputs.map { it.toDeployItem() }
         var deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
 
         val allDex = (stagingOutputs + notStagingDeployedFiles)
             .filter { it.type == CompileOutput.Type.Dex }
+        logger.debug("buildDeployData: " +
+                "allStagingOutputs ${stateTracker.getStagingFiles().size}, " +
+                "stagingOutputs ${stagingOutputs.size}, " +
+                "notStagingDeployedFiles ${notStagingDeployedFiles.size}, " +
+                "allDex ${allDex.size}")
         val stagingDexOutputs = stagingOutputs.filter { it.type == CompileOutput.Type.Dex }
         if (stagingDexOutputs.isNotEmpty() && allDex.size > MAX_DEPLOYED_DEX_COUNT) {
             logger.info("Current dex count(${allDex.size}) exceeds threshold($MAX_DEPLOYED_DEX_COUNT), trigger dex merge.")
