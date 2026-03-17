@@ -46,7 +46,18 @@ public class HotfixLoader {
     public synchronized static void install(final Context base) {
         LogUtils.i(TAG, "installDexPatches start...");
         if (DexPathListFixer.isNoNeedFixFlagExists(base) || DexPathListFixer.isNeedFixFlagExists(base)) {
-            LogUtils.i(TAG, "installDexPatches already load by JVMTI agent, skip.");
+            if (IncrementalApkLoader.isIncrementalApk()) {
+                LogUtils.i(TAG, "installDexPatches already load by JVMTI agent, but is a incremental apk, try precise embedded install.");
+                try {
+                    new DexPatchLoader(base).installEmbeddedClassesOnly();
+                } catch (Throwable e) {
+                    // Fallback: overlay dex will be duplicated but remains functionally stable
+                    LogUtils.w(TAG, "installDexPatches precise install failed, fallback to full install: " + e);
+                    new DexPatchLoader(base).install();
+                }
+            } else {
+                LogUtils.i(TAG, "installDexPatches already load by JVMTI agent, skip.");
+            }
         } else {
             new DexPatchLoader(base).install();
         }
