@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.logger
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ide.logic.TestModeManager
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -39,7 +40,7 @@ open class LogDispatcher(
     }
 
     override fun isTraceEnabled(): Boolean {
-        return false
+        return TestModeManager.isLogVerboseEnabled
     }
 
     override fun trace(message: String?) {

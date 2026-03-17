@@ -10,17 +10,15 @@ import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
-import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.nio.file.Paths
 
 /**
- * Listen file changes in project
+ * Listen file changes in project by Intellij callback
  */
 class FileChangesDetector(
     private val project: Project,
-    private val projectDir: File,
 ) :
     IFileChangesDetector,
     Disposable
@@ -62,19 +60,23 @@ class FileChangesDetector(
         events.forEach { event ->
             when (event) {
                 is VFileMoveEvent -> {
+                    logger.trace("VFileMoveEvent: ${event.path} -> ${event.oldPath}")
                     deletedFiles.add(File(event.oldPath))
                     changedFiles.add(File(event.path))
                 }
                 is VFilePropertyChangeEvent -> {
+                    logger.trace("VFilePropertyChangeEvent: ${event.path} -> ${event.propertyName}")
                     if (event.propertyName == VirtualFile.PROP_NAME) { // rename file
                         deletedFiles.add(File(event.oldPath))
                         changedFiles.add(File(event.path))
                     }
                 }
                 is VFileDeleteEvent -> {
+                    logger.trace("VFileDeleteEvent: ${event.path}")
                     deletedFiles.add(File(event.path))
                 }
                 else -> {
+                    logger.trace("Other VFileEvent: ${event.path}")
                     changedFiles.add(File(event.path))
                 }
             }

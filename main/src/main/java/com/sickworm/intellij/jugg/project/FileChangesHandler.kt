@@ -9,11 +9,10 @@ import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
 /**
- * Manage file changes in project
+ * Filter file changes that is related to source file of this [projectDir]
  */
 class FileChangesHandler(
     private val projectDir: File,

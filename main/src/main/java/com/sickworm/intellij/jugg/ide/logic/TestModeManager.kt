@@ -18,7 +18,8 @@ object TestModeManager {
     private val flags = listOf(
         FlagInfo("test_mode", "Throw exceptions instead of graceful degradation for debugging"),
         FlagInfo("runtime_test", "Test deploy compat layer at runtime"),
-        FlagInfo("skip_assemble", "Skip Gradle assemble in test projects to speed up tests")
+        FlagInfo("skip_assemble", "Skip Gradle assemble in test projects to speed up tests"),
+        FlagInfo("log_verbose", "Enable verbose logging for detailed debug output")
     )
 
     @Volatile
@@ -43,6 +44,10 @@ object TestModeManager {
 
     fun isSkipTestAssemblyEnabled(): Boolean =
         isMasterEnabled && File(flagDir, "skip_assemble").exists()
+
+    val isLogVerboseEnabled: Boolean by lazy {
+        isMasterEnabled && File(flagDir, "log_verbose").exists() // frequently called, use lazy
+    }
 
     private fun writeInfoJson() {
         flagDir.mkdirs()

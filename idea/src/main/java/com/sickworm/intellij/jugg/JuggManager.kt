@@ -48,7 +48,7 @@ class JuggManager @TestOnly constructor(
     private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, logger),
     private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
-    private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
+    private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, JuggLogger.getInstance(project, "DeployHistoryManager")),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
