@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.data
 
+import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
@@ -448,10 +449,13 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
     ): List<EffectedClassNode> {
         val effectClassNodesMap = mutableMapOf<String, EffectedClassNode>()
 
-        // changedMethodRefs and changedMethodRefs of subclasses
+        // changedMethodRefs and changedMethodRefs of subclasses.
+        // Static methods have no subclass dispatch semantics, so exclude them from subclass propagation.
         val changedMethodRefsWithSubclasses = changedMethodRefs.toMutableList()
 
-        var classesToCheckSubclasses = changedMethodRefs.map { it.owner }.toSet()
+        var classesToCheckSubclasses = changedMethodRefs
+            .filter { it.access == MethodNode.MISS_ACCESS || (it.access and DexConstants.ACC_STATIC) == 0 }
+            .map { it.owner }.toSet()
         while (classesToCheckSubclasses.isNotEmpty()) {
             val newToCheck = mutableSetOf<String>()
             classesToCheckSubclasses.forEach { superClassName ->

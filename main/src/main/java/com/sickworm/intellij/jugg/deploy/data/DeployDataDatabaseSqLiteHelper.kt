@@ -823,14 +823,17 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             val refClassIds = mutableMapOf<Int, MutableList<Int>>() // Map<effected class ids, List<effect by class ids>>
 
 
-            // step 2. get all subclasses of [changedMethodRefs] to supports invoke-virtual
+            // step 2. get all subclasses of [changedMethodRefs] to supports invoke-virtual.
+            // Note: changedMethodRefsWithSubclasses is also used by step 3, so ALL methods (including static) must be kept.
+            // Static methods have no subclass dispatch semantics, so only exclude them from the initial subclass traversal set.
             val changedMethodRefsWithSubclasses: MutableList<MethodNodeDb> = changedMethodRefs.mapNotNull {
                 val classId = dbClassNodeMap[it.owner] ?: return@mapNotNull null
                 MethodNodeDb(classId, it.name, it.desc)
             }.toMutableList() // classes and subclasses of [changedMethodRefs]
             runWithTimeCost("doGetSubClassIds") {
-                var currentSuperClassIds = changedMethodRefsWithSubclasses
-                    .map { it.classId }
+                var currentSuperClassIds = changedMethodRefs
+                    .filter { it.access == MethodNode.MISS_ACCESS || (it.access and DexConstants.ACC_STATIC) == 0 }
+                    .mapNotNull { dbClassNodeMap[it.owner] }
                     .toSet()
 
                 while (currentSuperClassIds.isNotEmpty()) {

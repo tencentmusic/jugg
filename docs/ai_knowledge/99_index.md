@@ -26,6 +26,7 @@
 
 | 任务类型 | 最小必读文档 | 代码入口（示例） |
 |----------|--------------|------------------|
+| **单元测试 / TDD / 新增 testcase** | `06_testing.md` | `main/src/test/.../DeployDataGeneratorTest.kt`, `android_demo_project/.../testcase/` |
 | 整体架构理解/模块划分 | `98_code_map.md`, `01_architecture.md` | - |
 | 编译失败/回退策略 | `98_code_map.md`, `02_compile_core.md`, `02_compile_source.md` | `idea/.../JuggCompileHelper.kt`, `main/.../JuggCompiler.kt` |
 | 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest_obfuscation.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
@@ -33,6 +34,7 @@
 | 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md` | `idea/.../JuggDeployerHelper.kt`, `idea/.../JuggDeployer.kt` |
 | 常量变化重编译异常（const ref） | `98_code_map.md`, `03_deploy_const_ref.md`, `02_compile_core.md` | `main/.../compiler/constref/*`, `deploy/DeployFileManager.kt`, `deploy/data/DeployDataGenerator.kt` |
 | 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
+| **修改基类触发子类级联重编译**（static 方法误传播 Bug） | `03_deploy_data_generator.md` 第5节, `docs/task/recompile_cascade_bug_analysis.md` | `DeployDataDatabaseSqLiteHelper.kt` step 2（~826行）, `DeployDataDatabase.kt`（~454行） |
 | JVMTI/运行时 agent 协同 | `98_code_map.md`, `03_runtime_jvmti.md` | `runtime/jvmti/*` |
 | IDE 生命周期/运行配置 | `98_code_map.md`, `04_engineering_ide.md` | `idea/.../JuggManager.kt`, `JuggRunConfiguration.kt` |
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
@@ -67,6 +69,7 @@
 | `04_engineering_ide.md` | IDE 生命周期、运行配置、任务调度 |
 | `04_engineering_compat.md` | AS 版本兼容层与命令行模块 |
 | `05_utilities.md` | apk/git/logger/server/platform 等公共能力 |
+| `06_testing.md` | TDD 单元测试：testcase 类规范、mock 基础设施、DeployDataGeneratorTest 模式 |
 | `08_mcp_design.md` | MCP 协议分层与设计约束 |
 | `08_mcp_usage.md` | MCP 工具清单、参数与排查 |
 | `08_mcp_test_case.md` | MCP 全量测试用例分组执行与验收标准 |

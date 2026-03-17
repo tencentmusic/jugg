@@ -616,6 +616,71 @@ class DeployDataGeneratorTest {
         assertFalse(deployData.constRefEffectedSourcePaths.isNotEmpty())
     }
 
+    /**
+     * Regression test for the static lambda cascade bug.
+     *
+     * When LambdaParent's lambda count changes, D8 renumbers ExternalSyntheticLambda classes
+     * and shifts the $r8$lambda$ / action$lambda$ static methods in LambdaParent itself.
+     * These static methods appear in changedMethodRefs with owner = LambdaParent, which used to
+     * incorrectly propagate to LambdaChild via subclass_refs (step 2 in getEffectedClassNodes).
+     *
+     * LambdaChild does NOT call any of those static methods, so it must NOT be recompiled.
+     *
+     * This test is expected to FAIL before the fix and PASS after the fix.
+     */
+    @Test
+    fun testStaticLambdaMethodChangeDoesNotTriggerSubclassRecompile() {
+        val parentClassName = "com.sickworm.jugg.demo.testcase.lambdaparent.LambdaParent"
+        val parsedDex = getParsedDex(parentClassName)
+        val classNode = parsedDex.classDeployItems[0].classNode
+
+        // Simulate lambda renumbering: remove one $r8$lambda$ static method from LambdaParent.
+        // In the real bug, adding a lambda shifts all subsequent lambda method signatures,
+        // which causes them to appear as "deleted" + "added" in changedMethodRefs.
+        val staticLambdaMethods = classNode.methods.filter { it.name.contains("\$lambda") || it.name.contains("\$r8\$lambda") }
+        assertTrue(staticLambdaMethods.isNotEmpty(), "LambdaParent should have static lambda methods after D8 compilation")
+
+        // Remove one static lambda to simulate a shift in lambda numbering
+        val methodsWithOneLambdaRemoved = classNode.methods - staticLambdaMethods.first()
+        val modifiedParsedDex = parsedDex.updateMethods(methodsWithOneLambdaRemoved)
+
+        val data = generator.buildDeployData(modifiedParsedDex, emptyList())
+
+        assertFalse(
+            data.effectedSourceFileNames.contains("LambdaChild.kt"),
+            "LambdaChild.kt must NOT be recompiled when only LambdaParent static lambda methods shift. " +
+                    "effected: ${data.effectedSourceFileNames}"
+        )
+    }
+
+    /**
+     * Sanity check: when LambdaParent.onAction() virtual method is removed, LambdaInvoker
+     * (which calls onAction via invoke-virtual) SHOULD be recompiled.
+     * This verifies the fix does not suppress legitimate virtual-method propagation.
+     */
+    @Test
+    fun testVirtualMethodChangeInParentStillTriggersInvokerRecompile() {
+        val parentClassName = "com.sickworm.jugg.demo.testcase.lambdaparent.LambdaParent"
+        val parsedDex = getParsedDex(parentClassName)
+        val classNode = parsedDex.classDeployItems[0].classNode
+
+        // Remove onAction() to simulate a virtual method signature change
+        val methodsWithoutOnAction = classNode.methods.filter { it.name != "onAction" }
+        assertTrue(
+            classNode.methods.any { it.name == "onAction" },
+            "LambdaParent should have onAction() method"
+        )
+        val modifiedParsedDex = parsedDex.updateMethods(methodsWithoutOnAction)
+
+        val data = generator.buildDeployData(modifiedParsedDex, emptyList())
+
+        assertTrue(
+            data.effectedSourceFileNames.contains("LambdaInvoker.kt"),
+            "LambdaInvoker.kt should be recompiled when LambdaParent.onAction() changes. " +
+                    "effected: ${data.effectedSourceFileNames}"
+        )
+    }
+
     private val ParsedApk.toParsedDex: ParsedDex
         get() {
             return ParsedDex(
