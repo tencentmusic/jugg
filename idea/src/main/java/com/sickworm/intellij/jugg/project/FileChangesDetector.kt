@@ -19,6 +19,7 @@ import java.nio.file.Paths
  */
 class FileChangesDetector(
     private val project: Project,
+    private val projectDir: File,
 ) :
     IFileChangesDetector,
     Disposable
@@ -54,29 +55,27 @@ class FileChangesDetector(
     }
 
     private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
+        logger.trace("[PERF] FileChangesDetector.notifyFileChanges, thread=${Thread.currentThread().name}, eventSize=${events.size}")
         val changedFiles = mutableListOf<File>()
         val deletedFiles = mutableListOf<File>()
 
         events.forEach { event ->
+            traceFile(event)
             when (event) {
                 is VFileMoveEvent -> {
-                    logger.trace("VFileMoveEvent: ${event.path} -> ${event.oldPath}")
                     deletedFiles.add(File(event.oldPath))
                     changedFiles.add(File(event.path))
                 }
                 is VFilePropertyChangeEvent -> {
-                    logger.trace("VFilePropertyChangeEvent: ${event.path} -> ${event.propertyName}")
                     if (event.propertyName == VirtualFile.PROP_NAME) { // rename file
                         deletedFiles.add(File(event.oldPath))
                         changedFiles.add(File(event.path))
                     }
                 }
                 is VFileDeleteEvent -> {
-                    logger.trace("VFileDeleteEvent: ${event.path}")
                     deletedFiles.add(File(event.path))
                 }
                 else -> {
-                    logger.trace("Other VFileEvent: ${event.path}")
                     changedFiles.add(File(event.path))
                 }
             }
@@ -84,6 +83,31 @@ class FileChangesDetector(
 
         if (changedFiles.isEmpty() && deletedFiles.isEmpty()) return
         listener?.onFileChanges(changedFiles, deletedFiles)
+    }
+
+    private fun traceFile(event: VFileEvent) {
+        val path = event.path
+        if (!path.startsWith(projectDir.path)) {
+            return
+        }
+        if (event.path.contains("build")) {
+            // dong print build/jugg/* e.g. build/jugg/log/compile_latest.log
+            return
+        }
+        when (event) {
+            is VFileMoveEvent -> {
+                logger.trace("VFileMoveEvent: ${event.path} -> ${event.oldPath}")
+            }
+            is VFilePropertyChangeEvent -> {
+                logger.trace("VFilePropertyChangeEvent: ${event.path} -> ${event.propertyName}")
+            }
+            is VFileDeleteEvent -> {
+                logger.trace("VFileDeleteEvent: ${event.path}")
+            }
+            else -> {
+                logger.trace("Modify VFileEvent: ${event.path}")
+            }
+        }
     }
 
     private val String.virtualFile: VirtualFile?

@@ -131,8 +131,12 @@ class DeployHistoryDb(
         }
 
         val gitManager = GitManager.createGitManagerAndTrySearchParent(rootDir)
+        val gitChangedStart = System.currentTimeMillis()
         val changedSinceLastDeployFiles = gitManager.getChangedFiles(lastDeployCommitHash, lastProjectCommitHash)
+        logger.trace("[PERF] gitManager.getChangedFiles for ${rootDir.name}, cost=${System.currentTimeMillis() - gitChangedStart}ms, thread=${Thread.currentThread().name}")
+        val uncommittedStart = System.currentTimeMillis()
         val uncommittedFiles = gitManager.getUncommittedFiles()
+        logger.trace("[PERF] gitManager.getUncommittedFiles for ${rootDir.name}, cost=${System.currentTimeMillis() - uncommittedStart}ms, thread=${Thread.currentThread().name}")
         return changedSinceLastDeployFiles + uncommittedFiles
     }
 

@@ -736,7 +736,10 @@ class JuggDeployerHelper(
     }
 
     private fun isNeedPushResourceApk(device: IDevice, data: JuggDeployData): Boolean {
+        logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy start, thread=${Thread.currentThread().name}")
+        val compatStart = System.currentTimeMillis()
         val isEnableCompatDeploy = CompatDeployHelper(logger).isEnableCompatDeploy(IdeaDeviceAdb(device, logger), data)
+        logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy end, cost=${System.currentTimeMillis() - compatStart}ms, thread=${Thread.currentThread().name}")
         logger.debug("isNeedPushResourceApk: " +
                 "isEnableCompatDeploy: $isEnableCompatDeploy, " +
                 "finalIsEnableCompatibleDeploymentMode: ${JuggSettings.finalIsEnableCompatibleDeploymentMode}, " +

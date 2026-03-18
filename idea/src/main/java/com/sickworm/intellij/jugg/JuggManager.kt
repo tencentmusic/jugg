@@ -48,7 +48,7 @@ class JuggManager @TestOnly constructor(
     private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, logger),
     private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
-    private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
+    private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, JuggLogger.getInstance(project, "DeployHistoryManager")),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
@@ -305,6 +305,7 @@ class JuggManager @TestOnly constructor(
         deletedFiles: List<File>,
         isFromRecover: Boolean,
     ) {
+        logger.trace("[PERF] JuggManager.processFileChanged entered, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}, deletedSize=${deletedFiles.size}")
         // prints file changed info
         if (deletedFiles.isNotEmpty()) {
             // not strict rules, just print it out for debug
@@ -555,10 +556,11 @@ class JuggManager @TestOnly constructor(
         fileChangesDetector.startListen(object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
                 // is on EDT thread, will be stuck when using lock
+                logger.trace("[PERF] fileChangesDetector.onFileChanges callback, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}")
                 // beginFileProcessing() must be called synchronously here to prevent compile
                 // from starting before the async task below has a chance to run
                 deployStateManager.beginFileProcessing()
-                taskRunnerManager.runBackgroundSafe("Process file changed") {
+                taskRunnerManager.runBackgroundSafe("Process file changed", isNeedLog = false) {
                     try {
                         processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
                     } finally {
@@ -569,6 +571,7 @@ class JuggManager @TestOnly constructor(
         })
         gitFileChangesDetector.startListen(object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
+                logger.trace("[PERF] gitFileChangesDetector.onFileChanges callback, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}")
                 processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
             }
         })

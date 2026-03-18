@@ -38,7 +38,10 @@ class DeployDataGenerator(
         constRefChangedSourcePaths: List<String> = emptyList(),
     ): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
+        logger.trace("[PERF] parseDex start, thread=${Thread.currentThread().name}, dexCount=${changedDex.size}")
+        val parseDexStart = System.currentTimeMillis()
         val parsedDex = ApkParser().parseDex(changedDex, isSkipOfficialClass = !isNeedCheckRecompileMinifyRemovedClass) // check official class minify
+        logger.trace("[PERF] parseDex end, cost=${System.currentTimeMillis() - parseDexStart}ms, thread=${Thread.currentThread().name}")
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
         val changedLibs = items.filter { it.type == CompileOutput.Type.NativeLib }
         return buildDeployData(
@@ -66,9 +69,12 @@ class DeployDataGenerator(
         val startTime = System.currentTimeMillis()
 
         val changedClasses = parsedDex.classDeployItems
+        logger.trace("[PERF] getClassNodes start, thread=${Thread.currentThread().name}, classCount=${changedClasses.flatMap { it.classNodes.map(ClassNode::className) }.size}")
+        val getClassNodesStart = System.currentTimeMillis()
         val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.flatMap {
             it.classNodes.map(ClassNode::className)
         })
+        logger.trace("[PERF] getClassNodes end, cost=${System.currentTimeMillis() - getClassNodesStart}ms, thread=${Thread.currentThread().name}, resultSize=${oldClassNodes.size}")
         val newClasses = mutableListOf<ClassDeployItem>()
         val hotReloadModifiedClasses = mutableListOf<ClassDeployItem>()
         val hotFixModifiedClasses = mutableListOf<ClassDeployItem>()
@@ -147,11 +153,14 @@ class DeployDataGenerator(
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
+        logger.trace("[PERF] getEffectedSourceAndClass start, thread=${Thread.currentThread().name}, isNeedCheckRecompile=$isNeedCheckRecompile")
+        val getEffectedStart = System.currentTimeMillis()
         val effectedSourceAndClassNodes = if (isNeedCheckRecompile) {
             val checkMinifiedRemoveClass = if (isNeedCheckRecompileMinifyRemovedClass) parsedDex else null
             val effectedNodes = deployDataDatabase.getEffectedSourceAndClass(
                 changedMethodRef, changedFieldRef, changedAbstractClasses,
                 checkMinifiedRemoveClass).toMutableList()
+            logger.trace("[PERF] getEffectedSourceAndClass db query end, cost=${System.currentTimeMillis() - getEffectedStart}ms, thread=${Thread.currentThread().name}")
 
             // Check for method inlining effects if we're checking minified removed classes
             // for effected source files, no need to detect because logic is not changed, no need to update inlined codes.
@@ -165,9 +174,12 @@ class DeployDataGenerator(
         } else {
             emptyList()
         }
+        logger.trace("[PERF] getEffectedSourceAndClass total end, cost=${System.currentTimeMillis() - getEffectedStart}ms, thread=${Thread.currentThread().name}")
         if (effectedSourceAndClassNodes.isNotEmpty()) {
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }
+        logger.trace("[PERF] constRefEffectProvider start, thread=${Thread.currentThread().name}, isNeedCheckRecompile=$isNeedCheckRecompile")
+        val constRefStart = System.currentTimeMillis()
         val constRefEffectedSourcePaths = if (isNeedCheckRecompile) {
             val readiness = try {
                 constRefEffectProvider.ensureReadyForRecompile(constRefChangedSourcePaths)
@@ -175,6 +187,7 @@ class DeployDataGenerator(
                 logger.warn("const ref readiness check failed, fallback to completed cache only", t)
                 ConstRefReadiness(isReady = false)
             }
+            logger.trace("[PERF] constRefEffectProvider.ensureReadyForRecompile end, cost=${System.currentTimeMillis() - constRefStart}ms, thread=${Thread.currentThread().name}")
             if (!readiness.isReady) {
                 logger.debug(
                     "const ref analysis not ready details, " +
@@ -186,6 +199,7 @@ class DeployDataGenerator(
                         "pendingSourceDirCount=${readiness.pendingSourceDirs.size}"
                 )
             }
+            val getEffectedFilesStart = System.currentTimeMillis()
             try {
                 constRefEffectProvider
                     .getEffectedFiles(constRefChangedSourcePaths)
@@ -194,10 +208,13 @@ class DeployDataGenerator(
             } catch (t: Throwable) {
                 logger.warn("const ref effected files query failed, fallback to empty result", t)
                 emptyList()
+            }.also {
+                logger.trace("[PERF] constRefEffectProvider.getEffectedFiles end, cost=${System.currentTimeMillis() - getEffectedFilesStart}ms, thread=${Thread.currentThread().name}")
             }
         } else {
             emptyList()
         }
+        logger.trace("[PERF] constRefEffectProvider total end, cost=${System.currentTimeMillis() - constRefStart}ms, thread=${Thread.currentThread().name}")
         if (constRefEffectedSourcePaths.isNotEmpty()) {
             logger.debug("const ref effected source files: $constRefEffectedSourcePaths")
         }

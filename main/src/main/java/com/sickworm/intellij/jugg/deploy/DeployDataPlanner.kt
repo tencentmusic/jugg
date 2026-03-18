@@ -36,10 +36,16 @@ class DeployDataPlanner(
         isWarmUp: Boolean,
         isEnableCompatDeploy: Boolean,
     ): JuggDeployData {
+        logger.trace("[PERF] DeployDataPlanner.buildDeployData start, thread=${Thread.currentThread().name}")
+        val plannerStart = System.currentTimeMillis()
         val stagingOutputs = stateTracker.getStagingFiles(isFilterMergedDex = true)
         val notStagingDeployedFiles = stateTracker.getNotStagingDeployedFiles()
+        logger.trace("[PERF] DeployDataPlanner.getStagingFiles end, cost=${System.currentTimeMillis() - plannerStart}ms, thread=${Thread.currentThread().name}")
         val deployItems = stagingOutputs.map { it.toDeployItem() }
+        logger.trace("[PERF] DeployDataPlanner.deployDataGenerator.buildDeployData start, thread=${Thread.currentThread().name}, deployItemsSize=${deployItems.size}")
+        val buildDataStart = System.currentTimeMillis()
         var deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
+        logger.trace("[PERF] DeployDataPlanner.deployDataGenerator.buildDeployData end, cost=${System.currentTimeMillis() - buildDataStart}ms, thread=${Thread.currentThread().name}")
 
         val allDex = (stagingOutputs + notStagingDeployedFiles)
             .filter { it.type == CompileOutput.Type.Dex }

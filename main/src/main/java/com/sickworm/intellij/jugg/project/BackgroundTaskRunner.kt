@@ -16,8 +16,8 @@ interface IBackgroundTaskRunner {
     val isOnEdt: Boolean
         get() = false
 
-    fun runBackgroundSafe(jobName: String, action: Runnable): Job
-    fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job
+    fun runBackgroundSafe(jobName: String, isNeedLog: Boolean = true, action: Runnable): Job
+    fun runBackgroundSafe(jobName: String, delayMs: Long, isNeedLog: Boolean = true, action: Runnable): Job
 }
 
 class CoroutineBackgroundTaskRunner(
@@ -26,11 +26,11 @@ class CoroutineBackgroundTaskRunner(
     override val dispatcher: CoroutineDispatcher
         get() = coroutineScope.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default
 
-    override fun runBackgroundSafe(jobName: String, action: Runnable): Job {
-        return runBackgroundSafe(jobName, 0L, action)
+    override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job {
+        return runBackgroundSafe(jobName, 0L, false, action)
     }
 
-    override fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job {
+    override fun runBackgroundSafe(jobName: String, delayMs: Long, isNeedLog: Boolean, action: Runnable): Job {
         return coroutineScope.launch {
             if (delayMs > 0L) {
                 delay(delayMs)

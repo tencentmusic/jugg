@@ -260,6 +260,7 @@ class DeployFileManager(
 
     @Synchronized
     fun commit(juggDeployData: JuggDeployData) {
+        logger.trace("[PERF] DeployFileManager.commit entered, thread=${Thread.currentThread().name}")
         logger.debug("commit juggDeployData, staging file size: ${stateTracker.getStagingFiles().size}, " +
                 "deployed file size: ${stateTracker.getDeployedFiles()}")
         deployDataGenerator.commitDeployedData(juggDeployData)

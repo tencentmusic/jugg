@@ -81,6 +81,7 @@ class CompileEffectAnalyzer(
         )
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("find recompile files cost: $costTime ms")
+        logger.trace("[PERF] CompileEffectAnalyzer.getRecompileFiles total end, thread=${Thread.currentThread().name}")
         return recompileFiles
     }
 

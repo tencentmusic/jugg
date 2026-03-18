@@ -30,21 +30,21 @@ class TaskRunnerManager(
     override val isOnEdt: Boolean
         get() = ApplicationManager.getApplication().isDispatchThread
 
-    override fun runBackgroundSafe(jobName: String, action: Runnable): Job {
-        return runBackgroundSafe(jobName, 0L, action)
+    override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job {
+        return runBackgroundSafe(jobName, 0L, isNeedLog, action)
     }
 
-    override fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job {
+    override fun runBackgroundSafe(jobName: String, delayMs: Long, isNeedLog: Boolean, action: Runnable): Job {
         return launch {
             try {
                 if (delayMs > 0) {
                     delay(delayMs)
                 }
-                logger.debug("background job <$jobName> start")
+                if (isNeedLog) logger.debug("background job <$jobName> start")
                 val costTime = measureTimeMillis {
                     action.run()
                 }
-                logger.debug("background job <$jobName> finished, cost ${costTime}ms")
+                if (isNeedLog) logger.debug("background job <$jobName> finished, cost ${costTime}ms")
             } catch (e: Throwable) {
                 logger.warn("background job <$jobName> failed", e)
             }

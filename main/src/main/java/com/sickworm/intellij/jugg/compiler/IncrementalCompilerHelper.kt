@@ -96,7 +96,10 @@ class IncrementalCompilerHelper(
             val classObfuscator = compiler.context.mappingFile
                 ?.takeIf { it.exists() }
                 ?.let { ClassObfuscator.fromMappingFile(it) }
+            logger.trace("[PERF] deployFileManager.getRecompileFiles start, thread=${Thread.currentThread().name}")
+            val getRecompileStart = System.currentTimeMillis()
             val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified, !compileLoopStatus.isFirstRoundCompile, classObfuscator)
+            logger.trace("[PERF] deployFileManager.getRecompileFiles end, cost=${System.currentTimeMillis() - getRecompileStart}ms, thread=${Thread.currentThread().name}")
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()

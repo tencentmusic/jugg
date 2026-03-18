@@ -73,6 +73,7 @@ class JuggCompilerHelper(
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
     ): CompileTaskResult {
+        logger.trace("[PERF] JuggCompileHelper.compile entered, thread=${Thread.currentThread().name}")
         val result = doCompile(options, uiHandler)
 
         if (uiHandler.isCanceled) {
@@ -99,7 +100,9 @@ class JuggCompilerHelper(
         }
         if (deployStateManager.hasPendingFileProcessing()) {
             logger.info("Waiting file processing finish...")
+            val waitStart = System.currentTimeMillis()
             deployStateManager.waitForPendingFileProcessing()
+            logger.trace("[PERF] waitForPendingFileProcessing done, cost=${System.currentTimeMillis() - waitStart}ms, thread=${Thread.currentThread().name}")
         }
 
         // decide gradle compile or incremental compile
@@ -117,7 +120,10 @@ class JuggCompilerHelper(
             incrementalResult = incrementalCompile(uiHandler)
 
             // Strategy 2: Step2 Wait for async git check and force recompile if new files found
+            logger.trace("[PERF] gitChangeChecker.getAsyncResultWithTimeout start, thread=${Thread.currentThread().name}")
+            val gitCheckStart = System.currentTimeMillis()
             val foundResult = gitChangeChecker.getAsyncResultWithTimeout()
+            logger.trace("[PERF] gitChangeChecker.getAsyncResultWithTimeout end, cost=${System.currentTimeMillis() - gitCheckStart}ms, thread=${Thread.currentThread().name}")
             if (foundResult == null) {
                 logger.warn("Git check after compile timeout, the repository is tooooo big?? File changes may not reliable.")
             } else if (foundResult.isFoundNewChangedFiles) {
