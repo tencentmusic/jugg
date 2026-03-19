@@ -9,171 +9,137 @@ description: >-
   (2) App source code (Java/Kotlin/XML layouts/resources/AndroidManifest) was just modified —
       immediately run compile_only to confirm the change compiles before considering the task done.
   (3) App source was modified and device verification is the next logical step.
+metadata:
+  pattern: pipeline+inversion
+  steps: "5"
+  toolset: references/
 ---
 
-# Jugg MCP Android Dev Loop (Compact Router)
+# Jugg MCP Android Dev Loop
 
-## Objective
+Deterministic loop: `context-gather → modify → build/deploy → verify → evidence → iterate`. MCP-only; avoid raw adb.
 
-Use Jugg MCP tools to finish Android tasks with a deterministic loop:
+---
 
-`modify -> build/deploy -> runtime verify -> collect evidence -> iterate`
+## Phase 0 — Context Interview
 
-Default to MCP-only flow and avoid raw adb in normal execution.
+Collect all mandatory variables before any code modification or tool invocation.
 
-## ⚠️ Mandatory Execution Rules (violation = task failure)
+| Variable | Source | Fallback |
+|----------|--------|----------|
+| `projectDir` | Working directory or user-specified | Ask user |
+| `targetPage` | User description or Figma ref | Ask user (skip if compile-only) |
+| `navigationSeq` | User-provided tap sequence | Ask user; cache after first run |
+| `designSource` | Figma JSON path/URL, or `none` | Assume `none` if not mentioned |
+| `deviceReady` | `device_list` result | No device → compile-only mode |
 
-### Rule 1: Read After LoadDecision
-- If LoadDecision's load field is not none
-- Must immediately Read all declared documents
-- Output `✓ Loaded: [filename]`
+Auto-resolve: if `projectDir` is unambiguous, fill silently. If compile-only, skip `targetPage`/`navigationSeq`/`designSource`. If unresolvable with no fallback → **stop and ask user**.
 
-### Rule 2: Output Step 0 Table Before Step 3
-- Before code modification, must output suspicious area table
-- Format: | Component | Property | Expected | Selector |
+---
 
-### Rule 3: activity_stack After Deploy
-- After any restart_app / compile_and_deploy
-- Must run activity_stack to confirm page first
-- Direct screenshot is FORBIDDEN
+## Phase 1 — Read Gate
 
-### Rule 4: Tool Priority
-- Page confirmation: activity_stack > layout_dump > screenshot
-- Property verification: figma_layout_verify > ui_find + manual compare > eval_view > screenshot
+Read only this file first. Before opening any reference, output a LoadDecision:
 
-## Read Gate (Single Source of Truth)
+```
+LoadDecision: stage=<plan|execute|troubleshoot> intent=<phrase> load=<files|none> why=<sentence>
+```
 
-Read only this file first, then output a `LoadDecision` before opening any reference file.
+| Keyword Triggers | Reference File |
+|-----------------|----------------|
+| compile, deploy, failure, fallback | `tool_cards_build_deploy.md` |
+| annotation, transform, unsupported | `policy_incremental_compile_limits.md` |
+| error, crash, pattern, fix | `error_patterns.md` |
+| tap, layout, screenshot, recording | `tool_cards_runtime_observe.md` |
+| figma, verify, spacing, alignment | `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md` |
+| device, project, ssh, crash | `tool_cards_troubleshoot.md` |
 
-`LoadDecision` format:
+Load on-demand at the step that needs them, not pre-loaded. After loading: `✓ Loaded: [file]`.
 
-- `stage`: `plan | execute | troubleshoot`
-- `intent`: one short phrase
-- `load`: file path list, or `none`
-- `why`: one sentence
+**Skip Rule**: No APK/AAB compile/deploy/verify intent → do not execute loop or load references.
 
-Reference load rules:
+---
 
-- Load only files required by current intent.
-- Never bulk-load all `references`.
+## Phase 2 — Pipeline (5-Step Loop)
 
-Intent -> reference file mapping (3 categories):
+Each step: **entry gate → action → exit checkpoint**. No advance until checkpoint satisfied.
 
-**Build/Deploy**:
-- compile/deploy/failure handling -> `tool_cards_build_deploy.md`
-- incremental compile limits -> `policy_incremental_compile_limits.md`
-- error pattern matching -> `error_patterns.md`
+### Step 1: Modify
 
-**Runtime Observe**:
-- tap/layout/screenshot/recording -> `tool_cards_runtime_observe.md`
-- UI verification + design-spec assertions -> `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md`
+- **Entry**: Phase 0 complete.
+- **Action**: Edit source files. Output pre-modify table:
 
-**Troubleshoot**:
-- device/project context issues -> `tool_cards_troubleshoot.md`
+  | Component | Property | Expected | Selector |
+  |-----------|----------|----------|----------|
 
-Skip rule: if no Android source code needs to be compiled, deployed, or verified on device, do not execute the loop or load any reference file. Common non-trigger cases:
+- **Checkpoint ✓**: Files saved, table output.
 
-- Modifying Gradle plugin, IDE plugin, or build tool source (not app code).
-- Modifying library/SDK source that is not directly installed as APK on device.
-- Code review, documentation, or refactoring tasks without device verification intent.
+### Step 2: Build & Deploy
 
-## Rule 0: Compile Validation After Any Code Change
+- **Entry**: Step 1 passed.
+- **Action**: `compile_and_deploy(projectDir)` → poll `get_compile_status(jobId)` until `isFinal=true`. Use `compile_only` if no device. → see `tool_cards_build_deploy.md`
+- **On error**: Load `error_patterns.md` → apply Error Reviewer scoring (§below).
+- **Checkpoint ✓**: `status=OK` + `isFinal=true`.
+- **Checkpoint ✗**: Fix → return to Step 1 (not to failed step).
+- **Mandatory**: Any source modification must pass compilation before task is done, even without deploy.
 
-**Trigger**: Any modification to Android project source files (Java, Kotlin, XML layouts, resources, manifests).
+### Step 3: Runtime Verify
 
-**Action**: After modifying source code, immediately run `compile_only(projectDir)` and poll `get_compile_status(jobId)` until `isFinal=true`.
+- **Entry**: Step 2 passed + device available.
+- **Gate** (mandatory before any evidence): `activity_stack` → confirm target page. Direct screenshot without gate is **FORBIDDEN**. On mismatch: `restart_app(projectDir, tap_actions=navigationSeq)` → re-check.
+- **Action by designSource**:
+  - Figma: `figma_layout_verify(figmaJson, dpr)` → see `guide_ui_verify_assertion.md`
+  - No Figma: `ui_find` per element → manual spacing calc → see `guide_ui_verify_assertion.md`
+  - Unsupported props: `eval_view` (maxLines, ellipsize, custom getters)
+- **Checkpoint ✓**: All checks pass or user acceptance.
 
-- If `status=OK`: proceed with next steps.
-- If `status=ERROR`: fix compilation errors first, then re-run `compile_only`. Do NOT skip this step.
-- This rule applies even when device deployment is NOT requested — compilation verification is mandatory.
+### Step 4: Verdict
 
-## 5-Step Loop
+- **Entry**: Step 3 evidence collected.
+- **PASS** → Step 5. **FAIL** → Step 1 (full re-verify, no partial). **INCONCLUSIVE** → gather more or ask user.
+- Retry budget: max `3` per failure category.
 
-1. Modify sources.
-2. Build/deploy (load `references/tool_cards_build_deploy.md` when details are needed).
-3. Runtime actions & evidence (load `references/tool_cards_runtime_observe.md` when details are needed).
-   - **If Figma JSON is available**: use `figma_layout_verify(figmaJson, dpr)` for automated batch verification (see `guide_ui_verify_assertion.md §2`). MCP auto-extracts relations and validates against Android layout.
-   - **If no Figma**: use `ui_find` to query elements, then manually compare values (see `guide_ui_verify_assertion.md §3`).
-   - Run **Target Page Context Gate** first.
-   - Use `eval_view` for properties not covered by ui_find (maxLines, ellipsize, custom getters).
-   - Collect screenshot/recording evidence only after the gate passes.
-4. Verdict:
-   - **If Figma JSON is available**: `figma_layout_verify` returns structured report with summary/results/unmatched. Present to user for review.
-   - **PASS** -> step 5.
-   - **FAIL** -> back to step 1 (fix source), then **re-execute the complete verification flow**. Partial re-checks of only the failed items are not acceptable. Respect retry budget.
-   - **INCONCLUSIVE** -> gather more evidence or ask user when exhausted all available methods.
-5. Final staging:
-   - clear `${projectDir}/build/mcp_fetch/final`
-   - copy final artifacts as `final_screenshot.png` / `final_record.mp4`
+### Step 5: Evidence Staging
 
+- **Entry**: Step 4 = PASS.
+- **Action**: Clear `${projectDir}/build/mcp_fetch/final`, copy `final_screenshot.png` / `final_record.mp4`.
+- **Checkpoint ✓**: Artifacts staged. Output report → see `references/report_template.md`.
+
+---
+
+## Mandatory Rules
+
+| # | Rule | Consequence |
+|---|------|-------------|
+| 1 | Steps execute 1→2→3→4→5; each checkpoint output before advancing; failure loops to Step 1 | No skip, no partial retry |
+| 2 | After any deploy/restart: `activity_stack` before evidence. Direct screenshot without gate = FORBIDDEN | Evidence without gate is invalid |
+| 3 | Tool priority: page=`activity_stack`>`layout_dump`>`screenshot`; verify=`figma_layout_verify`>`ui_find`>`eval_view`>`screenshot`; tap=element>coordinate>percent | Lower-priority only after higher exhausted |
+| 4 | Any deploy/restart invalidates all prior runtime observations; rerun gate immediately | Stale context = wrong verdict |
+| 5 | On self-detected violation of Rules 1-4: stop → output `🚨 VIOLATION: [rule] — [what]` → roll back to last valid checkpoint | Self-correction does not reset retry budget |
+
+---
+
+## Error Reviewer
+
+When build/deploy/runtime error occurs:
+
+1. Match against `error_patterns.md` signatures.
+2. Score: `confidence` (0-1, from pattern) × `scope` (low/med/high, from pattern).
+3. Output diagnosis with **mandatory `evidence` field** (direct quote from log; paraphrasing = invalid match):
+
+```
+🔍 Error: pattern=<id> confidence=<n> scope=<s> auto_apply=<yes|no> evidence="<log quote>"
+```
+
+4. Decision: `confidence≥0.8 AND scope=low` → auto-fix. `confidence≥0.8 AND scope>low` → propose, wait user. `confidence<0.8 OR unknown` → stop, ask user.
+
+---
 
 ## Core Rules
 
-- `projectDir`: use current working directory by default. For multi-module projects, use root project directory.
-- Max autonomous retries: `3` per failure category.
-- Evidence requirement:
-  - UI verification: screenshot/recording artifact required.
-  - compile_only: `status=OK` + `isFinal=true` + `logPath` sufficient.
-- Verification strategy (see reference files for details):
-  - **With Figma JSON**: prefer `figma_layout_verify` — MCP auto-extracts relations and validates with IoU matching.
-  - **Without Figma**: use `ui_find` to query element bounds, then manually calculate and compare values.
-  - Use `eval_view` for properties not covered by ui_find (maxLines, ellipsize, custom getters).
-  - Fixed tolerance: ±2dp absolute or ±5% relative (not configurable).
-- Tap strategy: prefer element mode (`resourceId`/`text`/`contentDesc`) → `layout_dump + coordinate` → `screenshot + percent`.
-- UI verification: ensure navigation sequence exists, run Target Page Context Gate before evidence collection. Any deploy/restart invalidates context; rerun gate immediately.
-- Unknown/high-risk failure: stop and ask user.
-
-## Observe Delegation
-
-Delegate `layout_dump`/`screenshot`/`recording` to MCP-capable sub-agent when:
-- >=2 large context calls, OR
-- Analysis required on heavy output
-
-Sub-agent returns `{verdict, summary, artifacts, issues}` only, never raw payloads.
-
-## Error Handling
-
-- Known pattern + low-risk fix: auto apply.
-- Unknown pattern or confidence `< 0.8`: ask user before large changes.
-- MCP result fields: `status` (OK/ERROR), `message`, `data`, `artifacts`, `errorCode`.
-
-## Response Checklist
-
-Each result summary should include:
-
-- `projectDir` used
-- build path used
-- key steps and statuses
-- artifact absolute paths
-- final pass/fail verdict
-- next action on failure
-
-## Quick Example: Change a TextView Label
-
-Scenario: change button text from "Submit" to "Confirm" in `activity_main.xml`, verify on device.
-
-```
-1. Modify: edit android:text="Submit" → "Confirm" in activity_main.xml.
-2. Build:  compile_and_deploy(projectDir) → poll get_compile_status(jobId) until isFinal=true.
-3. Gate:   restart_app(projectDir, tap_actions=[{text:"Settings"}]) → activity_stack → confirm page.
-4. Verify: ui_find(target={resourceId:"btn_submit"}) → check matched.selector.text == "Confirm" → PASS.
-5. Evidence: screenshot(projectDir) → copy to ${projectDir}/build/mcp_fetch/final/final_screenshot.png.
-```
-
-Verdict: **PASS** — text changed, screenshot artifact collected.
-
-## Quick Example: Verify Against Figma Design
-
-Scenario: verify page layout matches Figma design spec.
-
-```
-1. Gate:   restart_app(projectDir) → activity_stack → confirm page.
-2. Verify: figma_layout_verify(figmaJson="design.json", dpr=1)
-   → Returns: {summary: {total:15, passed:12, failed:3}, results:[...], unmatched:[...]}
-3. Analyze: Check failed items (spacing/alignment mismatches), review unmatched Figma nodes.
-4. Fix:    Modify code to fix spacing/alignment issues.
-5. Re-verify: figma_layout_verify again → all passed.
-6. Evidence: screenshot(projectDir) → copy to final.
-```
-
-Verdict: **PASS** — layout matches design spec.
+- `projectDir`: current working directory by default; multi-module uses root.
+- Max retries: `3` per failure category.
+- Evidence: UI verification needs screenshot/recording artifact; compile-only needs `status=OK` + `isFinal=true`.
+- Tolerance: ±2dp absolute or ±5% relative (fixed, not configurable).
+- Delegate `layout_dump`/`screenshot`/`recording` to sub-agent when ≥2 large context calls or heavy output analysis needed.
+- Report template and examples → see `references/report_template.md`.
