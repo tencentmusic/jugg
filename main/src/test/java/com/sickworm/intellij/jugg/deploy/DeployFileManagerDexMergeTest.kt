@@ -18,12 +18,12 @@ import org.mockito.Mockito
 class DeployFileManagerDexMergeTest {
 
     private val immediateRunner = object : IBackgroundTaskRunner {
-        override fun runBackgroundSafe(jobName: String, action: Runnable): Job {
+        override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job {
             action.run()
             return Job()
         }
 
-        override fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job {
+        override fun runBackgroundSafe(jobName: String, delayMs: Long, isNeedLog: Boolean, action: Runnable): Job {
             action.run()
             return Job()
         }
@@ -53,10 +53,10 @@ class DeployFileManagerDexMergeTest {
             )
 
             deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
-            val historyDex = createDexOutputs(File(testRoot, "history"), 300)
+            val historyDex = createDexOutputs("his", File(testRoot, "history"), 500)
             setDeployedFiles(deployFileManager, historyDex)
 
-            val stagingDex = createDexOutputs(File(testRoot, "staging"), 201)
+            val stagingDex = createDexOutputs("sta", File(testRoot, "staging"), DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT - 500 + 1)
             val manifest = createResOutput(
                 baseDir = File(testRoot, "staging_res"),
                 relativePath = "AndroidManifest.xml",
@@ -101,26 +101,26 @@ class DeployFileManagerDexMergeTest {
             )
 
             deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
-            val historyDex = createDexOutputs(File(testRoot, "history"), 350)
+            val historyDex = createDexOutputs("his", File(testRoot, "history"), 500)
             setDeployedFiles(deployFileManager, historyDex)
 
-            val firstRoundDex = createDexOutputs(File(testRoot, "staging_round_1"), 200)
+            val firstRoundDex = createDexOutputs("first", File(testRoot, "staging_round_1"), DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT - 500 + 50)
             deployFileManager.addStagingFiles(firstRoundDex)
             val firstDeployData = deployFileManager.getDeployData()
             deployFileManager.commit(firstDeployData)
             assertEquals(1, mergeCallCount.get())
 
-            val secondRoundDex = createDexOutputs(File(testRoot, "staging_round_2"), 1)
+            val secondRoundDex = createDexOutputs("sec", File(testRoot, "staging_round_2"), 1)
             deployFileManager.addStagingFiles(secondRoundDex)
             deployFileManager.getDeployData()
             assertEquals(1, mergeCallCount.get())
         }
     }
 
-    private fun createDexOutputs(baseDir: File, count: Int): List<CompileOutput> {
+    private fun createDexOutputs(prefix: String, baseDir: File, count: Int): List<CompileOutput> {
         val dexBytes = getValidDexBytes()
         return (0 until count).map { index ->
-            val file = File(baseDir, "classes_$index.dex").also {
+            val file = File(baseDir, "classes_${prefix}_$index.dex").also {
                 it.parentFile.mkdirs()
                 it.writeBytes(dexBytes)
             }

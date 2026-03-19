@@ -26,7 +26,7 @@ class DeployDataPlanner(
 ) {
     companion object {
         // dex count to trigger dex merge, dex initialize may get OOM if dex count is too large e.g. > 2000
-        private const val MAX_DEPLOYED_DEX_COUNT = 800
+        const val MAX_DEPLOYED_DEX_COUNT = 1000
     }
 
     /**
