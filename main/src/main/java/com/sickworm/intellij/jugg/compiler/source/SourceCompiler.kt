@@ -39,17 +39,26 @@ class SourceCompiler(
         val juggAptGeneratedFiles: List<CompileFile>,
         val trackedJuggAptChangedFiles: List<ChangedFile>,
         val dataBindingJavaFiles: List<CompileFile>,
-    )
+    ) {
+        companion object {
+            fun origin(task: CompileTask) = SourceCompilePreparation(
+                task, emptyList(),
+                emptyList(), emptyList())
+        }
+    }
 
     private data class SourceCompilePreparationResult(
-        val preparation: SourceCompilePreparation? = null,
-        val errorResult: CompileResult? = null,
+        val isSuccess : Boolean,
+        val preparation: SourceCompilePreparation,
+        val errorMsg: String = "",
     )
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val prepareResult = prepareSourceCompile(task, module)
-        val prepared = prepareResult.preparation ?: return prepareResult.errorResult
-            ?: CompileResult(task, emptyList(), emptyList()).failedAll(task, "DataBinding Mapper generation failed")
+        if (!prepareResult.isSuccess) {
+            logger.warn("Generate APT/KAPT/KSP failed, the compile result may not be correct. Error: ${prepareResult.errorMsg}")
+        }
+        val prepared = prepareResult.preparation
         val classCompileResult = compileLanguageStagesWithRetry(
             task = task,
             compileTask = prepared.compileTask,
@@ -146,17 +155,22 @@ class SourceCompiler(
         if (trackedJuggAptChangedFiles.isNotEmpty()) {
             context.addChangedFile(trackedJuggAptChangedFiles)
         }
-        val dataBindingMapperResult = SourceDataBindingProcessor(dataBindingGenMapperCompiler, context, logger)
-            .processDataBindingMapper(task, module)
+        val databindingTask = CompileTask(
+            task.files + juggAptGeneratedFiles.filter { it.type == CompileFile.Type.Kotlin },
+            task.outputDir, task)
+        val dataBindingMapperResult = SourceDataBindingProcessor(dataBindingGenMapperCompiler, kotlinCompiler, context, logger)
+            .processDataBindingMapper(databindingTask, module)
         if (!dataBindingMapperResult.isAllSuccess) {
             return SourceCompilePreparationResult(
-                errorResult = dataBindingMapperResult.failedAll(task, "DataBinding Mapper generation failed"),
-            )
+                isSuccess = false,
+                preparation = SourceCompilePreparation.origin(compileTask),
+                errorMsg = "DataBinding Mapper generation failed")
         }
         val dataBindingJavaFiles = dataBindingMapperResult.outputs
             .filter { it.type == CompileOutput.Type.Java }
             .map { CompileFile(CompileFile.Type.Java, it.file, it.baseDir, module) }
         return SourceCompilePreparationResult(
+            isSuccess = true,
             preparation = SourceCompilePreparation(
                 compileTask = compileTask,
                 juggAptGeneratedFiles = juggAptGeneratedFiles,

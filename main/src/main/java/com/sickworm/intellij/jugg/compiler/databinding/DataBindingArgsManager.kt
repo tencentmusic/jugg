@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.compiler.databinding
 import com.sickworm.intellij.jugg.compiler.CompilerUtils
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import org.jetbrains.annotations.TestOnly
 import java.io.File
 
 /**
@@ -12,7 +11,9 @@ import java.io.File
  */
 class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: ModuleInfo) {
 
-    var isJava = isKaAptRetryAptSuccess || !isUseKaptForDataBinding(moduleInfo)
+    val isFallbackApt = isLastFallbackAptFailed || isLastFallbackAptFailed
+    var isJava = isFallbackApt || !isUseKaptForDataBinding(moduleInfo)
+
     val isUseAndroidX = true // just leave it true
     val isUseViewBinding = isUseViewBinding(moduleInfo)
     val isUseDataBinding = isUseDataBinding(moduleInfo)
@@ -120,7 +121,25 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
 
     companion object {
 
+        /**
+         * True when kapt failed and the subsequent apt fallback succeeded.
+         * Used to decide `isJava` for newly created [DataBindingArgsManager] instances.
+         */
         var isKaAptRetryAptSuccess = false
+            get() {
+                if (isForceUseAptInTest != null) {
+                    return isForceUseAptInTest!!
+                }
+                return field
+            }
+
+        /**
+         * True when kapt failed AND the subsequent apt fallback also failed.
+         * Set in the catch block of the fallback apt call, then the exception is rethrown.
+         * Used by [com.sickworm.intellij.jugg.compiler.source.DataBindingAptRetryStrategy]
+         * to decide whether retry logic should be active.
+         */
+        var isLastFallbackAptFailed = false
             get() {
                 if (isForceUseAptInTest != null) {
                     return isForceUseAptInTest!!

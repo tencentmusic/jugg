@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -19,11 +20,14 @@ import java.io.File
  */
 class SourceDataBindingProcessor(
     private val dataBindingGenMapperCompiler: DataBindingGenMapperCompiler,
+    private val kotlinCompiler: KotlinCompiler,
     private val context: ICompileContext,
     loggerArg: Logger,
 ) {
 
     private val logger: Logger = loggerArg.getInstance("SourceDataBindingProcessor")
+
+    private var isCanRetryAfterKotlinCompile = true
 
     /**
      * Process DataBinding Mapper generation after source code compilation
@@ -72,6 +76,21 @@ class SourceDataBindingProcessor(
             TimeLogger.end("databinding_mapper", logger)
 
             if (!result.isAllSuccess) {
+                if (DataBindingArgsManager.isLastFallbackAptFailed && isCanRetryAfterKotlinCompile) {
+                    logger.info("DataBinding failed with apt, retry with source compilation one time.")
+                    isCanRetryAfterKotlinCompile = false
+                    val kotlinCompileTask = CompileTask(
+                        files = task.files.filter { it.type == CompileFile.Type.Kotlin },
+                        outputDir = File(context.tempCompileDir, "kotlin"),
+                        parentTask = task,
+                    )
+                    val kotlinCompileResult = kotlinCompiler.compile(kotlinCompileTask)
+                    logger.debug("Kotlin compile for databinding retry result: ${kotlinCompileResult.isAllSuccess}")
+                    if (kotlinCompileResult.isAllSuccess) {
+                        // one more time!
+                        return processDataBindingMapper(task, module)
+                    }
+                }
                 logger.warn("Processing data binding failed.")
             }
 

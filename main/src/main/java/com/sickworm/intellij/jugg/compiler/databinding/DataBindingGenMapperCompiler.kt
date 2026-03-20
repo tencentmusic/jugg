@@ -26,8 +26,18 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
     private lateinit var argsManager: DataBindingArgsManager
 
+    private val aptTriggerFile: CompileFile by lazy {
+        DataBindingGenBaseClassesCompiler.generateAnnotationProcessorTrigger(argsManager)
+        return@lazy CompileFile(CompileFile.Type.Java,
+            argsManager.dataBindingAptSourceTrigger,
+            argsManager.dataBindingPreProcessorSources,
+            context.tempModule)
+    }
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         argsManager = DataBindingArgsManager(context, module)
+        DataBindingArgsManager.isLastFallbackAptFailed = false
+
         if (!argsManager.isUseDataBinding) {
             logger.debug("skip for module ${module.name} because it's not use data binding")
             return CompileResult(task, emptyList(), emptyList())
@@ -329,7 +339,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
         // apt compile
         val aptTask = CompileTask(
-            files = source,
+            files = source + (if (argsManager.isFallbackApt) listOf(aptTriggerFile) else emptyList()),
             outputDir = argsManager.dataBindingSourcesOutputDir,
             parentTask = task,
         )
@@ -371,15 +381,18 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 subContext, module, aptTask, logger, options
             )
             if (!aptResult.isAllSuccess) {
-                // TODO detect specific error
                 // allow one retry for kapt
                 logger.warn("Kapt failed, retry with apt once")
                 argsManager.isJava = true
-                DataBindingGenBaseClassesCompiler.generateAnnotationProcessorTrigger(argsManager)
-                val aptTriggerFile = CompileFile(CompileFile.Type.Java,
-                    argsManager.dataBindingAptSourceTrigger, argsManager.dataBindingPreProcessorSources, context.tempModule)
-                val aptTask = CompileTask(task.files + aptTriggerFile, task.outputDir, task)
-                runAnnotationProcessor(aptTask, module) // exception will throw if failed
+                val retryAptTask = CompileTask(task.files + aptTriggerFile, task.outputDir, task)
+                try {
+                    runAnnotationProcessor(retryAptTask, module)
+                } catch (e: Exception) {
+                    // Fallback apt also failed; mark so SourceCompiler can retry
+                    // after language compilation produces .class files.
+                    DataBindingArgsManager.isLastFallbackAptFailed = true
+                    throw e
+                }
                 DataBindingArgsManager.isKaAptRetryAptSuccess = true
                 return
             }

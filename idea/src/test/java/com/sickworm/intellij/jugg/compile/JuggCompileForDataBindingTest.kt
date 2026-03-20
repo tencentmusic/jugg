@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -27,6 +28,14 @@ class JuggCompileForDataBindingTest {
     fun init() {
         clearBuild()
         ResourceCompileTestTask().init()
+        DataBindingArgsManager.isForceUseAptInTest = null
+    }
+
+    @After
+    fun tearDown() {
+        DataBindingArgsManager.isForceUseAptInTest = null
+        DataBindingArgsManager.isKaAptRetryAptSuccess = false
+        DataBindingArgsManager.isLastFallbackAptFailed = false
     }
 
     /**
@@ -634,5 +643,83 @@ class JuggCompileForDataBindingTest {
         ))
 
         println("✓ DataBinding successfully compiled with mixed Java and Kotlin source changes")
+    }
+
+    /**
+     * Test Case 10: DataBinding with Kotlin source in kapt-to-apt fallback mode
+     *
+     * Scenario (reproduces the bug from commit d4e58febe):
+     * - kapt failed on first run and fell back to apt (isKaAptRetryAptSuccess = true)
+     * - User changes a Kotlin data class that is referenced in DataBinding layout XML
+     * - The apt-only annotation processor cannot see Kotlin class fields because .class is not yet compiled
+     * - DataBinding mapper generation fails in prepareSourceCompile, and doModuleCompile should retry:
+     *   1. Skip DataBinding mapper, compile Kotlin/Java sources first
+     *   2. After Kotlin .class files are available, retry DataBinding mapper generation
+     *   3. Compile should succeed
+     *
+     * Before fix: prepareSourceCompile failure caused doModuleCompile to return immediately,
+     * skipping compileLanguageStagesWithRetry entirely.
+     */
+    @Test
+    fun testDataBindingKotlinWithKaptToAptFallback_shouldRetryAfterLanguageCompile() {
+        // Simulate: kapt failed and fell back to apt
+        DataBindingArgsManager.isForceUseAptInTest = true
+
+        // Use the same Kotlin DataBinding scenario as testDataBindingWithSourceFieldNameChange_Kotlin
+        val userSourceFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/java/com/example/myapplication/model/UserKt.kt"
+        )
+        assertTrue(userSourceFile.exists(), "UserKt.kt source file should exist: ${userSourceFile.absolutePath}")
+
+        val layoutFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/res/layout/activity_user_binding_test_kotlin.xml"
+        )
+        assertTrue(layoutFile.exists(), "Layout file should exist: ${layoutFile.absolutePath}")
+
+        val module = context.modules.values.first()
+        val task = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    userSourceFile,
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    module
+                ),
+                CompileFile(
+                    CompileFile.Type.Resource,
+                    layoutFile,
+                    File(assetsAndroidModifySourceDir, "app/src/main/res"),
+                    module
+                )
+            ),
+            outputDir = CompileHelper.outputDir
+        )
+
+        val result = juggCompiler.compile(task)
+
+        result.printCompileErrors()
+        assertTrue(
+            result.isAllSuccess,
+            "DataBinding Kotlin compile with kapt-to-apt fallback should succeed through " +
+                "prepareSourceCompile retry after language compilation"
+        )
+
+        CompileHelper.checkOutputFiles(result, listOf(
+            "com/example/myapplication/model/UserKt.dex",
+            "com/example/myapplication/databinding/ActivityUserBindingTestKotlinBinding.dex",
+            "com/example/myapplication/databinding/ActivityUserBindingTestKotlinBindingImpl.dex",
+            "androidx/databinding/DataBinderMapperImpl.dex",
+            "androidx/databinding/DataBindingComponent.dex",
+            "com/example/myapplication/BR.dex",
+            "com/example/myapplication/DataBinderMapperImpl.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Full.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Inc_1.dex",
+            "res/layout/activity_user_binding_test_kotlin.xml",
+            "resources.arsc",
+        ))
+
+        println("✓ DataBinding Kotlin compile with kapt-to-apt fallback succeeded through retry")
     }
 }
