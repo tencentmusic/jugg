@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.logger
 import org.junit.After
 import org.junit.Test
 import java.io.File
+import java.util.concurrent.BlockingQueue
 import kotlin.io.path.createTempDirectory
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -162,6 +163,24 @@ class FileLoggerTest {
         } finally {
             fileLogger.dispose()
         }
+    }
+
+    @Test
+    fun `handler should use blocking queue for writer thread architecture`() {
+        val hasBlockingQueueField = NoLockRotatingFileHandler::class.java.declaredFields.any {
+            BlockingQueue::class.java.isAssignableFrom(it.type)
+        }
+
+        assertTrue(hasBlockingQueueField)
+    }
+
+    @Test
+    fun `handler should cache current active file size`() {
+        val hasCurrentFileSizeField = NoLockRotatingFileHandler::class.java.declaredFields.any {
+            it.name == "currentFileSize" && (it.type == Int::class.javaPrimitiveType || it.type == Long::class.javaPrimitiveType)
+        }
+
+        assertTrue(hasCurrentFileSizeField)
     }
 
     private fun mainLogFiles(): List<File> {
