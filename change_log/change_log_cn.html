@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.0.3 (2026.02.28)</h2>
+<h2>3.0.4 (2026.03.20)</h2>
 <ol>
     <li>[feature] 支持 mcp 和配套 skills，让 AI coding agent 可以独立快速完成开发到验收闭环</li>
     <li>[feature] 支持 release APK 增量编译，支持 R8 混淆和 AabResGuard 资源混淆</li>
@@ -9,6 +9,7 @@
     <li>[optimize] 大量类部署（>2000) 时自动触发 dex 合并，修复大量类触发启动 OOM 问题</li>
     <li>[optimize] 提高 databinding 部分场景的编译兼容性，如同时修改数据类和 XML 时会编译失败，工程使用 Kotlin 1.7 版本会编译失败等</li>
     <li>[bugfix] 修复首次编译时，文件无法识别未被 git add 的文件的问题</li>
+    <li>[bugfix] 修复多项目同时打开且 Kotlin 版本不一致时，容易出现编译失败。原因：多项目共享了同一个编译器实例</li>
 </ol>
 <h2>2.6.20 (2026.03.04)</h2>
 <ol>
