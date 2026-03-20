@@ -6,18 +6,24 @@ import java.io.PrintStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.text.SimpleDateFormat
-import java.util.*
-import java.util.logging.*
-
+import java.util.Date
+import java.util.Locale
+import java.util.logging.Formatter
+import java.util.logging.Level
+import java.util.logging.LogRecord
+import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 
 /**
- * Logger Logs to jugg/log
+ * Logger logs to jugg/log.
  */
 class FileLogger(
     val dir: File,
+    private val limitBytes: Int = DEFAULT_LIMIT_BYTES,
+    private val fileCount: Int = DEFAULT_FILE_COUNT,
     private var patternName: String = createPatternName(),
-    val logger: Logger = createLogger(dir, patternName),
-    ) {
+    val logger: Logger = createLogger(dir, patternName, limitBytes, fileCount),
+) {
 
     fun recreateIfDeleted() {
         if (!dir.exists()) {
@@ -25,9 +31,33 @@ class FileLogger(
             resetLatestCompileLog()
             return
         }
-        val logFile = File(dir, patternName.replace("%g", "0"))
-        if (!logFile.exists()) {
+        if (!currentMainLogFile().exists()) {
             resetLatestCompileLog()
+        }
+    }
+
+    fun resetLatestCompileLog() {
+        val previousMainLogFile = currentMainLogFile()
+        closeHandlers()
+        updateLastLatestLogFile(dir, previousMainLogFile)
+
+        patternName = createPatternName()
+        logger.addHandler(createFileHandler(dir, patternName, limitBytes, fileCount))
+        removeOldLogFiles(dir)
+    }
+
+    fun dispose() {
+        closeHandlers()
+    }
+
+    private fun currentMainLogFile(): File {
+        return File(dir, patternName.replace("%g", "0"))
+    }
+
+    private fun closeHandlers() {
+        logger.handlers.clone().forEach {
+            logger.removeHandler(it)
+            it.close()
         }
     }
 
@@ -35,14 +65,18 @@ class FileLogger(
 
         private const val LATEST_LOG_NAME = "compile_latest.log"
         private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"
+        private const val DEFAULT_LIMIT_BYTES = 50 * 1024 * 1024
+        private const val DEFAULT_FILE_COUNT = 2
+        private const val MAX_LOG_FILE_AMOUNT = 10
 
+        @JvmField
         var isCreateLastLogLinkFile: Boolean = true
 
         private fun createPatternName(): String {
             return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date()) + ".%g.log"
         }
 
-        private fun createLogger(dir: File, patterName: String): Logger {
+        private fun createLogger(dir: File, patternName: String, limitBytes: Int, fileCount: Int): Logger {
             dir.mkdirs()
             return Logger.getLogger(dir.absolutePath).also {
                 it.useParentHandlers = false
@@ -50,114 +84,119 @@ class FileLogger(
                 if (it.handlers.isNotEmpty()) {
                     it.handlers.clone().forEach { handler ->
                         it.removeHandler(handler)
-                        (handler as? FileHandler)?.close()
+                        handler.close()
                     }
                 }
-                // yyyy-MM-dd_HH-mm-ss.log
-                val loggerHandler = createFileHandler(dir, patterName)
-                it.addHandler(loggerHandler)
+                it.addHandler(createFileHandler(dir, patternName, limitBytes, fileCount))
                 removeOldLogFiles(dir)
             }
         }
 
+        private fun createFileHandler(
+            dir: File,
+            patternName: String,
+            limitBytes: Int,
+            fileCount: Int,
+        ): NoLockRotatingFileHandler {
+            val mainLogFile = File(dir, patternName.replace("%g", "0"))
+            val loggerHandler = NoLockRotatingFileHandler(
+                pattern = File(dir, patternName).absolutePath,
+                limitBytes = limitBytes,
+                fileCount = fileCount,
+                onActiveFileChanged = { updateLatestLogFile(dir, it) },
+            )
+            loggerHandler.level = Level.ALL
+            loggerHandler.formatter = createFormatter()
+            updateLatestLogFile(dir, mainLogFile)
+            return loggerHandler
+        }
 
-        private fun createFileHandler(dir: File, name: String): FileHandler {
-            val limit = 50 * 1024 * 1024 // 100MB
-            val loggerHandler = FileHandler(
-                dir.absolutePath + "/" + name,
-                limit, 2, false)
-            val formatter = object : SimpleFormatter() {
+        private fun createFormatter(): Formatter {
+            return object : SimpleFormatter() {
 
                 private val format: String = "[%1\$tF %1\$tT.%2\$03d] [%3$-7s] %4\$s%n"
 
                 override fun format(lr: LogRecord): String {
-                    val string = String.format(Locale.US, format,
+                    val string = String.format(
+                        Locale.US,
+                        format,
                         Date(lr.millis),
                         lr.millis % 1000,
                         lr.level.name,
-                        lr.message
+                        lr.message,
                     )
                     val outputStream = ByteArrayOutputStream()
                     lr.thrown?.printStackTrace(PrintStream(outputStream))
                     return string + outputStream.toString()
                 }
             }
-            loggerHandler.formatter = formatter
-
-            if (isCreateLastLogLinkFile) {
-                createLastLogFiles(dir, name)
-            }
-
-            return loggerHandler
         }
 
-        private fun createLastLogFiles(dir: File, name: String) {
-            val latestLogFile = File(dir, LATEST_LOG_NAME)
-            val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
+        private fun updateLatestLogFile(dir: File, targetFile: File) {
+            createBestEffortLink(File(dir, LATEST_LOG_NAME), targetFile)
+        }
+
+        private fun updateLastLatestLogFile(dir: File, targetFile: File) {
+            if (!isCreateLastLogLinkFile) {
+                Files.deleteIfExists(File(dir, LAST_LATEST_LOG_NAME).toPath())
+                return
+            }
+            if (!targetFile.exists()) {
+                return
+            }
+            createBestEffortLink(File(dir, LAST_LATEST_LOG_NAME), targetFile)
+        }
+
+        private fun createBestEffortLink(linkFile: File, targetFile: File) {
             try {
-                // link file to compile_latest.log and compile_latest-1.log
-                if (latestLogFile.exists()) {
-                    if (lastLatestLogFile.exists()) {
-                        lastLatestLogFile.delete()
-                    }
-                    val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
-                    Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
-                    latestLogFile.delete()
-                }
-            } catch (e: Exception) {
-                // robust
-                com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
-                    .warn("createFileHandler $lastLatestLogFile error", e)
+                Files.deleteIfExists(linkFile.toPath())
+            } catch (_: Exception) {
+                return
             }
 
-            try {
-                latestLogFile.delete()
-                val source = Path.of(dir.absolutePath, name.replace("%g", "0"))
-                val link = latestLogFile.toPath()
-                val relativePath = link.parent.relativize(source)
-                Files.createSymbolicLink(link, Path.of("./$relativePath")) // "./" is required for finder in macOS to recognize the link
-            } catch (e: Exception) {
-                // robust
-                com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
-                    .warn("createFileHandler $latestLogFile error", e)
+            if (tryCreateSymbolicLink(linkFile, targetFile)) {
+                return
+            }
+            tryCreateHardLink(linkFile, targetFile)
+        }
+
+        private fun tryCreateSymbolicLink(linkFile: File, targetFile: File): Boolean {
+            return try {
+                linkFile.parentFile?.mkdirs()
+                val relativePath = relativeTarget(linkFile, targetFile)
+                Files.createSymbolicLink(linkFile.toPath(), Path.of("./$relativePath"))
+                true
+            } catch (_: Exception) {
+                false
             }
         }
 
-        private const val MAX_LOG_FILE_AMOUNT = 10
+        private fun tryCreateHardLink(linkFile: File, targetFile: File) {
+            if (!targetFile.exists()) {
+                return
+            }
+            try {
+                Files.createLink(linkFile.toPath(), targetFile.toPath())
+            } catch (_: Exception) {
+            }
+        }
+
+        private fun relativeTarget(linkFile: File, targetFile: File): String {
+            return linkFile.toPath().parent.relativize(targetFile.toPath()).toString()
+        }
 
         private fun removeOldLogFiles(dir: File) {
             val files = dir.listFiles()
-            var maxFileAmount = MAX_LOG_FILE_AMOUNT
-            if (File(dir, LATEST_LOG_NAME).exists()) {
-                maxFileAmount += 1
-            }
-            if (File(dir, LAST_LATEST_LOG_NAME).exists()) {
-                maxFileAmount += 1
-            }
-            if (files != null && files.size > maxFileAmount) {
-                files.sortBy { it.lastModified() }
-                for (i in 0 until files.size - maxFileAmount) {
-                    files[i].delete()
-                }
-            }
-        }
-    }
+                ?.filter { it.name.startsWith("compile_") && it.name.endsWith(".log") }
+                ?.filter { it.name != LATEST_LOG_NAME && it.name != LAST_LATEST_LOG_NAME }
+                ?.sortedBy { it.lastModified() }
+                .orEmpty()
 
-    fun resetLatestCompileLog() {
-        logger.handlers.clone().forEach {
-            logger.removeHandler(it)
-            (it as? FileHandler)?.close()
-        }
-        patternName = createPatternName()
-        val newHandler = createFileHandler(dir, patternName)
-        logger.addHandler(newHandler)
-        removeOldLogFiles(dir)
-    }
+            if (files.size <= MAX_LOG_FILE_AMOUNT) {
+                return
+            }
 
-    fun dispose() {
-        logger.handlers.clone().forEach {
-            logger.removeHandler(it)
-            (it as? FileHandler)?.close()
+            files.take(files.size - MAX_LOG_FILE_AMOUNT).forEach { it.delete() }
         }
     }
 }

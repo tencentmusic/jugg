@@ -24,8 +24,8 @@
 ```
 build/jugg/                            # juggRootDir
 ├── log/                               # 日志目录
-│   ├── compile_latest.log             # 软链 → 最新日志
-│   ├── compile_latest-1.log           # 软链 → 上一次日志
+│   ├── compile_latest.log             # 当前主日志的 best-effort 快捷入口
+│   ├── compile_latest-1.log           # 上一份主日志的 best-effort 快捷入口
 │   └── compile_YYYY-MM-DD_HH-mm-ss.0.log
 ├── build/staging/                     # 本次增量编译输出（dex/资源）
 ├── database/
@@ -136,19 +136,18 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 ```bash
 BACKUP=~/Desktop/jugg_debug_$(date +%Y%m%d_%H%M%S)
 mkdir -p $BACKUP
-# -L 解引用 symlink，确保 compile_latest.log / compile_latest-1.log 实体内容被复制
-cp -rL {projectDir}/build/jugg/log/          $BACKUP/log/
+cp -r  {projectDir}/build/jugg/log/          $BACKUP/log/
 cp -r  {projectDir}/build/jugg/database/     $BACKUP/database/
 ```
 
-> `compile_latest.log` 是 symlink，必须用 `-L` 解引用才能得到实体文件。
-> 单独复制时同理：`cp -L compile_latest.log ~/Desktop/jugg.log`
+> `compile_*.log` 是主日志文件。
+> `compile_latest.log` / `compile_latest-1.log` 仅为 best-effort 快捷入口，创建失败时可能不存在。
 
 提交 Bug 时需附带的文件：
 
 | 文件 | 路径 | 备注 |
 |------|------|------|
-| 运行日志 | `build/jugg/log/compile_latest.log` | symlink，复制时加 `-L` |
+| 运行日志 | `build/jugg/log/compile_latest.log` | 快捷入口；若不存在则改传最新的 `compile_*.log` |
 | 项目信息 | `build/jugg/database/project_infos.db/project_infos.json` | |
 | APK 数据库 | `build/jugg/database/apk/*.db` | DB 状态相关问题 |
 | 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态相关 |

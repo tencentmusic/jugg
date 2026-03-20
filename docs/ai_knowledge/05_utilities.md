@@ -28,6 +28,7 @@
 ## 3. 复用建议
 
 - 需要日志：优先用 `JuggLogger` / `TimeLogger`，避免散落 `println`。  
+  `FileLogger` 主日志文件为 `build/jugg/log/compile_*.log`，`compile_latest.log` / `compile_latest-1.log` 为 best-effort 快捷入口。  
 - 需要 APK 变更：优先复用 `ApkFileModifier` 与 `ResourceApkModifier`。  
 - 需要设备平台能力：经 `PlatformApi` 获取，避免直接耦合 IDE 实现。  
 - 需要 Git 变更判断：先看 `GitManager` 与 `WorktreeFileRepository`。
