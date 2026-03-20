@@ -33,7 +33,7 @@ interface IKmModuleMergerForCompilation {
                 return KmModuleMergerCopy(kotlinClassPath)
             }
 
-            logger.debug("kotlin version: $versions")
+            logger.debug("kotlin version in .kotlin_module: $versions")
             val major = versions[0]
             val minor = versions[1]
             return if ((major > 2) || (major == 2 && minor >= 2)) {

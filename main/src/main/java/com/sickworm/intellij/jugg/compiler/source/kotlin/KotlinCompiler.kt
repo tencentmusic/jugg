@@ -24,6 +24,8 @@ class KotlinCompiler(
     override val beforeCompileOrderRange: IntRange = CompileOrder.beforeSource
     override val afterCompileOrderRange: IntRange = CompileOrder.afterSource
 
+    private val invoker = KotlinCompilerInvoker()
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val options = analyzeSource(task.files.map { it.file }, module)
         logger.debug("analyzeSource result: $options")
@@ -53,7 +55,7 @@ class KotlinCompiler(
             javaSourceDirs = options.javaSourceDirs,
         )
         TimeLogger.start("kspCompile")
-        val kspOutput = KotlinCompilerInvoker.currentInstance.compile(context, module, task, logger, kspOptions)
+        val kspOutput = invoker.compile(context, module, task, logger, kspOptions)
         TimeLogger.end("kspCompile", logger)
         logger.debug("kspOutput: $kspOutput")
         if (!kspOutput.isAllSuccess) {
@@ -78,7 +80,7 @@ class KotlinCompiler(
             isEnableKsp = false, // Disable KSP for final compilation
             isKspWithCompilation = false,
         )
-        val kotlinOutput = KotlinCompilerInvoker.currentInstance.compile(context, module, finalTask, logger, finalOptions)
+        val kotlinOutput = invoker.compile(context, module, finalTask, logger, finalOptions)
 
         if (kspOutput.outputs.isEmpty()) {
             // no ksp output, just return kotlinOutput
@@ -110,7 +112,7 @@ class KotlinCompiler(
     }
 
     private fun compile(task: CompileTask, module: ModuleInfo, options: KotlinCompilerInvoker.Options): CompileResult {
-        return KotlinCompilerInvoker.currentInstance.compile(context, module, task, logger, options)
+        return invoker.compile(context, module, task, logger, options)
     }
 
     override fun warmUp() {

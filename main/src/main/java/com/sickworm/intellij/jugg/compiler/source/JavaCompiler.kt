@@ -21,6 +21,8 @@ class JavaCompiler(
     override val beforeCompileOrderRange: IntRange = CompileOrder.beforeSource
     override val afterCompileOrderRange: IntRange = CompileOrder.afterSource
 
+    private val invoker = JavaCompilerInvoker()
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val options = JavaCompilerInvoker.Options(
             isEnableApt = false,
@@ -28,6 +30,6 @@ class JavaCompiler(
             aptOptions = module.javaAnnotationProcessorOptions ?: emptyMap(),
             aptSourcePaths = module.sourceDirs,
         )
-        return JavaCompilerInvoker.currentInstance.compile(context, module, task, logger, options)
+        return invoker.compile(context, module, task, logger, options)
     }
 }

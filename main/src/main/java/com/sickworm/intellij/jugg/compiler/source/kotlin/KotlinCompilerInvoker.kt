@@ -640,13 +640,6 @@ class KotlinCompilerInvoker {
 
     companion object {
 
-        var currentInstance = KotlinCompilerInvoker()
-            private set
-
-        fun reset() {
-            currentInstance = KotlinCompilerInvoker()
-        }
-
         private fun encodeList(options: Map<String, String>): String {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
             val os = ByteArrayOutputStream()

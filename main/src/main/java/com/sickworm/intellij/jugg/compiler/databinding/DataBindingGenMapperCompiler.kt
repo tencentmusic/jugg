@@ -353,7 +353,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 aptOptions = apOptions,
                 aptSourcePaths = listOf(argsManager.dataBindingSourcesOutputDir),
             )
-            aptResult = JavaCompilerInvoker.currentInstance.compile(
+            aptResult = JavaCompilerInvoker().compile(
                 subContext, module, aptTask, logger, options
             )
         } else {
@@ -367,7 +367,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 // from app/build/generated/source/kapt* being compiled again.
                 javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir),
             )
-            aptResult = KotlinCompilerInvoker.currentInstance.compile(
+            aptResult = KotlinCompilerInvoker().compile(
                 subContext, module, aptTask, logger, options
             )
             if (!aptResult.isAllSuccess) {

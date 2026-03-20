@@ -268,7 +268,5 @@ class JuggCompiler(
 
     override fun dispose() {
         logger.debug("dispose")
-        KotlinCompilerInvoker.reset()
-        JavaCompilerInvoker.reset()
     }
 }

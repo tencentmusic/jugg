@@ -276,13 +276,6 @@ class JavaCompilerInvoker {
 
     companion object {
 
-        var currentInstance = JavaCompilerInvoker()
-            private set
-
-        fun reset() {
-            currentInstance = JavaCompilerInvoker()
-        }
-
         fun getJavaCompiler(logger: Logger): JavaCompiler {
             var compiler: JavaCompiler? = ToolProvider.getSystemJavaCompiler()
             if (compiler != null) {
