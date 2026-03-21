@@ -1,3 +1,9 @@
+- version: 3.0.5
+  date: 2026.03.21
+  updates:
+    - 修复 Windows 执行 gradle clean 失败，提示日志文件被占用无法删除。改为无锁写入
+    - 修复使用 ./gradlew clean assembleDebug 时编译失败的问题，原因是 clean 会删除 Jugg 必需的编译产物，现已移至 .gradle/jugg 目录
+
 - version: 3.0.4
   date: 2026.03.20
   updates:

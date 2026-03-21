@@ -1,3 +1,9 @@
+- version: 3.0.5
+  date: 2026.03.21
+  updates:
+    - Remove windows log file lock sickworm Today 上午2:31
+    - Fix compile failed when using ./gradlew clean assembleDebug due to clean removing artifacts required by Jugg
+
 - version: 3.0.4
   date: 2026.03.20
   updates:
