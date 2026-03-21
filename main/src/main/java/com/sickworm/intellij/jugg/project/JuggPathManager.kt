@@ -10,6 +10,7 @@ class JuggPathManager(
     val juggRootDir: File = File("$projectDir/build/jugg"),
     globalJuggRootDir: File = File(System.getProperty("user.home"), ".jugg"),
 ) {
+    val stableGradleDir: File = File(projectDir, ".gradle/jugg")
     val constRefDir: File = File(globalJuggRootDir, "const_ref")
     val constRefSharedDbFile: File = File(constRefDir, "const_ref_shared.db")
     val repoFingerprintDbFile: File = File(constRefDir, "repo_fingerprint.db")
@@ -44,15 +45,16 @@ class JuggPathManager(
 
     val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
 
-    val initGradleFilePath = File(configDir, "readProjectInfo.gradle.kts")
-    val runtimeJarFilePath = File(configDir, "jugg-runtime.jar")
+    val initGradleFilePath = File(stableGradleDir, "readProjectInfo.gradle.kts")
+    val runtimeJarFilePath = File(stableGradleDir, "jugg-runtime.jar")
     val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
 
     val customCompilerDir = File(configDir, "custom_compilers")
 
     companion object {
-        const val RSYNC_PUSH_CONFIG_DIR_ARGUMENTS = "--include='/build' --include='/build/jugg' " +
-                "--include='/build/jugg/config' --include='/build/jugg/config/**' " +
+        const val RSYNC_PUSH_CONFIG_DIR_ARGUMENTS = "--include='/.gradle/' --include='/.gradle/jugg/' --include='/.gradle/jugg/**' --exclude='/.gradle/**' " +
+                "--include='/build/' --include='/build/jugg/' " +
+                "--include='/build/jugg/config/' --include='/build/jugg/config/**' " +
                 "--include='/build/jugg/database/' --include='/build/jugg/database/project_infos.db/' --include='/build/jugg/database/project_infos.db/project_infos.json' " +
                 "--exclude='/build/**'"
         const val RSYNC_FETCH_DIFF_DIR_ARGUMENTS = "--include='build/jugg/tmp/diff/**'"

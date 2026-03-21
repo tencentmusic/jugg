@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileNotFoundException
@@ -22,7 +23,7 @@ object ClientSetupDocExporter {
      * Exports setup guide and bundled skill to the same runtime directory.
      */
     fun export(projectDir: File): File {
-        val targetDir = File(projectDir, "build/jugg/config")
+        val targetDir = JuggPathManager(projectDir).configDir
         val target = File(targetDir, "client_setup.md")
         targetDir.mkdirs()
         exportSkill(targetDir)

@@ -20,7 +20,7 @@ data class JuggGradleCompileOptions(
     val localClasspathStoragePath: LocalClasspathStoragePathManager,
     /**
      * Gradle initial script, use to read project info.
-     * e.g. $projectRootPath/jugg/config/readProjectInfo.gradle.kts
+     * e.g. $projectRootPath/.gradle/jugg/readProjectInfo.gradle.kts
      */
     val initGradleFilePath: String,
     /**

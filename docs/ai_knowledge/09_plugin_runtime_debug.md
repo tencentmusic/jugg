@@ -41,10 +41,14 @@ build/jugg/                            # juggRootDir
 │   ├── apk/                           # APK 文件缓存
 │   └── libraries/                     # 依赖库备份
 ├── config/
-│   ├── readProjectInfo.gradle.kts
-│   ├── jugg-runtime.jar
-│   └── custom_compilers/
+│   ├── custom_compilers/
+│   ├── client_setup.md
+│   └── jugg-android-dev-loop/
 └── tmp/diff/                          # 远程编译 diff 结果
+
+${projectRoot}/.gradle/jugg/
+├── readProjectInfo.gradle.kts
+└── jugg-runtime.jar
 
 ~/.jugg/const_ref/                     # 跨项目常量引用缓存（全局）
 ```

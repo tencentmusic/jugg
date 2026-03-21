@@ -97,11 +97,17 @@ class SyncFileCommand(
             if (buildDirPath.startsWith("//")) {
                 buildDirPath = buildDirPath.substring(1)
             }
+            var dotGradlePath = "/$projectRelativePath/.gradle"
+            if (dotGradlePath.startsWith("//")) {
+                dotGradlePath = dotGradlePath.substring(1)
+            }
 
             val configDirArguments = JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS
+                .replace("--include='/.gradle", "--include='$dotGradlePath")
+                .replace("--exclude='/.gradle", "--exclude='$dotGradlePath")
                 .replace("--include='/build", "--include='$buildDirPath")
                 .replace("--exclude='/build", "--exclude='$buildDirPath")
-            return "-av --delete $configDirArguments --exclude='build/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
+            return "-av --delete $configDirArguments --exclude='build/' --exclude='local.properties' --exclude='.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
         }
     }
 }
