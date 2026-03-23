@@ -1,0 +1,2 @@
+rootProject.name = 'android-app-agp7-fixture'
+include ':app'
