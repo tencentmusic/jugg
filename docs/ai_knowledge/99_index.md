@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-03-11
+> 最后核对：2026-03-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -45,7 +45,7 @@
 | MCP UI 验证评分（评估者专用） | `08_mcp_test_case_ui_verify_answer.md` | - |
 | MCP UI 验证执行规范自检 | `08_mcp_ui_verify_checklist.md` | - |
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
-| **插件运行时排查**（IDE 卡顿/编译异常/DB 问题） | `09_plugin_runtime_debug.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager` |
+| **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`, `04_engineering_ide.md`, `03_deploy_const_ref.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
 
 ---
 
@@ -76,7 +76,7 @@
 | `08_mcp_test_case_ui_verify.md` | UI 验证盲测评估题目（layout_verify 60 题 + eval_view 30 题） |
 | `08_mcp_test_case_ui_verify_answer.md` | UI 验证盲测统一答案表（评估者专用，agent 禁止读取） |
 | `08_mcp_ui_verify_checklist.md` | UI 验证执行规范自检清单 |
-| `09_plugin_runtime_debug.md` | 运行时排查手册：目录结构、日志分析、高频问题根因、TDD 修复流程 |
+| `09_plugin_runtime_debug.md` | 运行时排查手册：目录结构、日志分析、IDE freeze 证据保全、高频问题根因、TDD 修复流程 |
 
 ---
 

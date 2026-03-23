@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -1033,6 +1034,73 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         }
     }
 
+    @Test
+    fun `initializeFullScan should defer first full scan until startup stabilization`() {
+        val rootDir = createTempDirectory("const_ref_deferred_full_scan")
+        File(rootDir, ".git").mkdirs()
+        val sourceDir = File(rootDir, "src").apply { mkdirs() }
+        val constantsFile = File(sourceDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = StartupDelayBackgroundTaskRunner(
+                delegate = CoroutineBackgroundTaskRunner(scope),
+            ),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.initializeFullScan(listOf(sourceDir))
+
+            assertNull(database.getFileCache(constantsFile.toStdPath()))
+            assertFalse(
+                "initial full scan should not run before startup stabilization delay",
+                waitUntil(timeoutMs = 300L, intervalMs = 20L) {
+                    database.getFileCache(constantsFile.toStdPath()) != null
+                },
+            )
+            assertTrue(
+                "full scan should run after startup stabilization delay",
+                waitUntil(timeoutMs = 5_000L) {
+                    database.getFileCache(constantsFile.toStdPath()) != null
+                },
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should use 10 seconds throttle every 50 files by default`() {
+        val rootDir = createTempDirectory("const_ref_default_throttle")
+        File(rootDir, ".git").mkdirs()
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            assertEquals(10_000L, readPrivateLong(engine, "ioThrottleSleepMs"))
+            assertEquals(50, readPrivateInt(engine, "ioThrottleEveryNFiles"))
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
     private inline fun <T> withSystemProperties(properties: Map<String, String>, action: () -> T): T {
         val previousValues = properties.mapValues { (key, _) -> System.getProperty(key) }
         properties.forEach { (key, value) -> System.setProperty(key, value) }
@@ -1048,4 +1116,20 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             }
         }
     }
+
+    private fun readPrivateLong(target: Any, fieldName: String): Long {
+        val field = target.javaClass.getDeclaredField(fieldName)
+        field.isAccessible = true
+        return field.getLong(target)
+    }
+
+    private fun readPrivateInt(target: Any, fieldName: String): Int {
+        val field = target.javaClass.getDeclaredField(fieldName)
+        field.isAccessible = true
+        return field.getInt(target)
+    }
+
+    private class StartupDelayBackgroundTaskRunner(
+        private val delegate: CoroutineBackgroundTaskRunner,
+    ) : IBackgroundTaskRunner by delegate
 }

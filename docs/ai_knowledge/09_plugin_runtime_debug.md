@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-03-16
+> 最后核对：2026-03-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -84,6 +84,11 @@ ${projectRoot}/.gradle/jugg/
 | 编译耗时 | `cost ${costTime}ms` |
 | 回退原因 | `fallback` / `Fallback` |
 | 编译失败 | `incremental compile error` / `SEVERE` |
+| UI freeze 起点 | `uiFreezeStarted` / `InvocationEvent has timed out` |
+| ConstRef 启动延后 | `ConstRefEngine defer initial full scan until startup stabilizes` |
+| ConstRef 限速实值 | `ConstRefEngine io throttle enabled` |
+| ConstRef 全扫进度 | `ConstRefEngine full scan progress` |
+| IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
 
 ---
 
@@ -110,6 +115,29 @@ main/.../deploy/DeployFileManager.kt          # addChangedFile / removeChangedFi
 main/.../project/BackgroundTaskRunner.kt      # IBackgroundTaskRunner.isOnEdt
 idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationManager.isDispatchThread）
 ```
+
+### 4.1.1 启动后长时间卡死（`postInit / InitialVfsRefresh / clangd / ConstRef` 竞争）
+
+**先收集四份证据**：
+1. `build/jugg/log/compile_latest.log` 或最近的 `compile_*.log`
+2. IDE `idea.log`
+3. `threadDumps-freeze-*`
+4. 一份当场 `jcmd <pid> Thread.print -l`
+
+**时间线对齐**：
+- 先用 `idea.log` 中 `uiFreezeStarted` 或用户感知时间做锚点；
+- 再对齐 `compile_*.log` 中 `ConstRefEngine defer initial full scan until startup stabilizes` / `ConstRefEngine io throttle enabled` / `ConstRefEngine full scan progress`；
+- 若 freeze 时间窗与 `FULL_SCAN` 运行区间重叠，再看 worker 栈是否落在 `ConstRefEngine.parseReferencesByDbSessionMode`、`ConstRefCacheDatabase.queryLatestDefinitionsByWhere`、`NativeDB.step`。
+
+**快速分桶**：
+- `ConstRef` 侧高负载：compile log 有活跃 `FULL_SCAN`，worker 热点在 const-ref / SQLite。
+- IDE 启动链：`ApplicationImpl.postInit`、`InitialVfsRefresh`、`clangd` 更活跃，而 Jugg 日志缺少对应重负载信号。
+- EDT 锁竞争：`waitCost=`、`TaskRunnerManager lock`、`dispatching to background` 附近有明显延迟。
+
+**口径校验**：
+- 以当前代码 + 当前运行日志为准；
+- `docs/task` 历史方案用于解释背景，不代表全部已落地；
+- 若源码默认值与运行日志不一致，优先怀疑 IDE 中加载的插件产物未更新，或系统属性覆盖。
 
 ### 4.2 每次都回退全量 Gradle 编译
 
@@ -152,6 +180,9 @@ cp -r  {projectDir}/build/jugg/database/     $BACKUP/database/
 | 文件 | 路径 | 备注 |
 |------|------|------|
 | 运行日志 | `build/jugg/log/compile_latest.log` | 快捷入口；若不存在则改传最新的 `compile_*.log` |
+| IDE 主日志 | `idea.log` | 用于对齐 `uiFreezeStarted`、`InvocationEvent has timed out`、`postInit` 等信号 |
+| freeze thread dump | `threadDumps-freeze-*` | UI freeze 时 IDE 自动抓取的线程快照 |
+| 现场线程栈 | `jcmd <pid> Thread.print -l` 输出 | 补足自动 dump 之外的即时线程状态 |
 | 项目信息 | `build/jugg/database/project_infos.db/project_infos.json` | |
 | APK 数据库 | `build/jugg/database/apk/*.db` | DB 状态相关问题 |
 | 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态相关 |

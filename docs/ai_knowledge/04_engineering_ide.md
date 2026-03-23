@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-02-23  
+> 最后核对：2026-03-23  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -51,7 +51,8 @@
 
 - “插件启动后无运行配置”：看 `JuggManager.tryCreateRunConfigurations`。  
 - “Sync 后状态异常”：看 `JuggManager.onSyncEvent` 与 `CompileContextManager`。  
-- “Run UI 状态错乱”：看 `JuggRunningTask` 中 process handler/indicator 协调。
+- “Run UI 状态错乱”：看 `JuggRunningTask` 中 process handler/indicator 协调。  
+- “IDE 启动后长时间卡死 / `postInit` 阶段卡住”：先读 `09_plugin_runtime_debug.md` 第 4.1.1 节，再联动 `03_deploy_const_ref.md` 第 8.1 节核对 `ConstRefEngine` 的启动期 `FULL_SCAN` 与 throttle 口径。
 
 ---
 

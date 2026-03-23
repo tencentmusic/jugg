@@ -49,6 +49,8 @@ class ConstRefEngine(
     private val analyzedAt = mutableMapOf<String, Long>()
     private val trackedSourceDirs = mutableListOf<String>()
     private val fullScanReadySourceDirs = mutableSetOf<String>()
+    private var delayedInitialFullScanJob: Job? = null
+    private var hasLaunchedInitialFullScan = false
     private val cacheCleaner = ConstRefCacheCleaner(logger)
     private val sceneTaskStates = mutableMapOf(
         AnalyzeScene.FULL_SCAN to SceneTaskState(),
@@ -252,6 +254,8 @@ class ConstRefEngine(
         }
     }
 
+    private val startupStabilizationDelayMs: Long = 10_000
+
     fun initializeFullScan(sourceDirs: List<File>) {
         val normalizedSourceDirs = sourceDirs
             .asSequence()
@@ -264,46 +268,16 @@ class ConstRefEngine(
             trackedSourceDirs.clear()
             trackedSourceDirs += normalizedSourceDirs
             fullScanReadySourceDirs.clear()
+            delayedInitialFullScanJob?.cancel()
+            delayedInitialFullScanJob = null
             if (isSceneActiveLocked(AnalyzeScene.FULL_SCAN)) {
                 return
             }
-            launchSceneTaskLocked(AnalyzeScene.FULL_SCAN) {
-                val progressLogger = FullScanProgressLogger(logger, fullScanLogIntervalMs)
-                normalizedSourceDirs.forEach { sourceDirPath ->
-                    val sourceDir = File(sourceDirPath)
-                    val sourceFiles = sourceDir
-                        .listFilesRecursively()
-                        .asSequence()
-                        .filter { file -> file.isFile && isSourceFile(file.name) }
-                        .distinctBy { it.toStdPath() }
-                        .toList()
-                    if (sourceFiles.isNotEmpty()) {
-                        val reusablePaths = database.findReusablePathsByLastModified(sourceFiles)
-                        reusablePaths.forEach { path ->
-                            markAnalyzed(path)
-                        }
-                        val filesToAnalyze = if (reusablePaths.isEmpty()) {
-                            sourceFiles
-                        } else {
-                            sourceFiles.filter { it.toStdPath() !in reusablePaths }
-                        }
-                        val startTime = System.currentTimeMillis()
-                        analyzeFiles(filesToAnalyze)
-                        val costTime = System.currentTimeMillis() - startTime
-                        progressLogger.onSourceDirFinished(
-                            sourceDirPath = sourceDirPath,
-                            sourceFileCount = sourceFiles.size,
-                            reusedFileCount = reusablePaths.size,
-                            analyzedFileCount = filesToAnalyze.size,
-                            costMs = costTime,
-                        )
-                    }
-                    synchronized(stateLock) {
-                        fullScanReadySourceDirs += sourceDirPath
-                        notifyStateChangedLocked()
-                    }
-                }
-                progressLogger.flush()
+            val startupDelayMs = if (hasLaunchedInitialFullScan) 0L else startupStabilizationDelayMs
+            if (startupDelayMs > 0L) {
+                scheduleDelayedInitialFullScanLocked(normalizedSourceDirs, startupDelayMs)
+            } else {
+                launchFullScanLocked(normalizedSourceDirs)
             }
         }
     }
@@ -324,6 +298,69 @@ class ConstRefEngine(
         )
     }
 
+    private fun scheduleDelayedInitialFullScanLocked(normalizedSourceDirs: List<String>, delayMs: Long) {
+        logger.info(
+            "ConstRefEngine defer initial full scan until startup stabilizes, " +
+                "delayMs=$delayMs, sourceDirCount=${normalizedSourceDirs.size}"
+        )
+        var scheduledJob: Job? = null
+        scheduledJob = backgroundTaskRunner.runBackgroundSafe(
+            jobName = "ConstRefEngine#deferInitialFullScan",
+            delayMs = delayMs,
+            isNeedLog = false,
+        ) {
+            synchronized(stateLock) {
+                if (delayedInitialFullScanJob == scheduledJob && !isSceneActiveLocked(AnalyzeScene.FULL_SCAN)) {
+                    delayedInitialFullScanJob = null
+                    launchFullScanLocked(normalizedSourceDirs)
+                }
+            }
+        }
+        delayedInitialFullScanJob = scheduledJob
+    }
+
+    private fun launchFullScanLocked(normalizedSourceDirs: List<String>) {
+        hasLaunchedInitialFullScan = true
+        launchSceneTaskLocked(AnalyzeScene.FULL_SCAN) {
+            val progressLogger = FullScanProgressLogger(logger, fullScanLogIntervalMs)
+            normalizedSourceDirs.forEach { sourceDirPath ->
+                val sourceDir = File(sourceDirPath)
+                val sourceFiles = sourceDir
+                    .listFilesRecursively()
+                    .asSequence()
+                    .filter { file -> file.isFile && isSourceFile(file.name) }
+                    .distinctBy { it.toStdPath() }
+                    .toList()
+                if (sourceFiles.isNotEmpty()) {
+                    val reusablePaths = database.findReusablePathsByLastModified(sourceFiles)
+                    reusablePaths.forEach { path ->
+                        markAnalyzed(path)
+                    }
+                    val filesToAnalyze = if (reusablePaths.isEmpty()) {
+                        sourceFiles
+                    } else {
+                        sourceFiles.filter { it.toStdPath() !in reusablePaths }
+                    }
+                    val startTime = System.currentTimeMillis()
+                    analyzeFiles(filesToAnalyze)
+                    val costTime = System.currentTimeMillis() - startTime
+                    progressLogger.onSourceDirFinished(
+                        sourceDirPath = sourceDirPath,
+                        sourceFileCount = sourceFiles.size,
+                        reusedFileCount = reusablePaths.size,
+                        analyzedFileCount = filesToAnalyze.size,
+                        costMs = costTime,
+                    )
+                }
+                synchronized(stateLock) {
+                    fullScanReadySourceDirs += sourceDirPath
+                    notifyStateChangedLocked()
+                }
+            }
+            progressLogger.flush()
+        }
+    }
+
     fun setBackgroundTaskRunner(backgroundTaskRunner: IBackgroundTaskRunner) {
         this.backgroundTaskRunner = backgroundTaskRunner
         scheduleCacheCleanup()
@@ -331,6 +368,8 @@ class ConstRefEngine(
 
     fun dispose() {
         synchronized(stateLock) {
+            delayedInitialFullScanJob?.cancel()
+            delayedInitialFullScanJob = null
             sceneTaskStates.values.forEach {
                 it.scheduledJob?.cancel()
                 it.runningJob?.cancel()
@@ -1093,7 +1132,7 @@ class ConstRefEngine(
      * Always returns true because on-demand analysis is sufficient for awaitAnalysis scenarios.
      * Full scan runs in background for indexing but should not block compilation.
      */
-    private fun shouldSkipFullScanRequirement(sourceDir: String): Boolean {
+    private fun shouldSkipFullScanRequirement(@Suppress("UNUSED_PARAMETER") sourceDir: String): Boolean {
         return true
     }
 
@@ -1289,7 +1328,7 @@ class ConstRefEngine(
         private const val SESSION_LOOKUP_CACHE_MAX_PROPERTY = "jugg.constref.session.lookup.cache.max"
         private const val SESSION_CACHE_TTL_MS_PROPERTY = "jugg.constref.session.cache.ttl.ms"
         private const val BATCH_SIZE_PROPERTY = "jugg.constref.batch.size"
-        private const val DEFAULT_IO_THROTTLE_MS = 10L
+        private const val DEFAULT_IO_THROTTLE_MS = 10_000L
         private const val DEFAULT_IO_THROTTLE_EVERY = 50
         private const val DEFAULT_FULL_SCAN_LOG_INTERVAL_MS = 5000L
         private const val DEFAULT_SESSION_FILE_CACHE_MAX = 500

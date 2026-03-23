@@ -1,8 +1,8 @@
 # Jugg 常量引用影响分析（ConstRefEngine / ConstRefAnalyzer）
 
-> 文档版本: v1.3  
+> 文档版本: v1.4  
 > 创建时间: 2026-02-22  
-> 更新时间: 2026-03-01  
+> 更新时间: 2026-03-23  
 > 涵盖模块: `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/*`、`main/src/main/java/com/sickworm/intellij/jugg/deploy/data/*`  
 > 一致性提示: 如文档与代码不一致，以代码为准。
 
@@ -61,12 +61,13 @@
 
 ### 3.2 三个分析场景
 
-- `FULL_SCAN`：模块 sourceDir 初始化后异步全量扫描与落库（命中可复用缓存则跳过解析）；
+- `FULL_SCAN`：模块 `sourceDir` 初始化后异步全量扫描与落库（命中可复用缓存则跳过解析）；当前实现里**首次** `initializeFullScan()` 会先经过启动稳定宽限期，再真正启动扫描。
 - `FILE_CHANGE`：日常保存触发的异步增量分析；
-- `PRE_COMPILE`：`awaitAnalysis()` 内异步触发执行，用于尽量冲刷待分析文件且不阻塞超时预算。
+- `PRE_COMPILE`：`awaitAnalysis()` 内异步触发执行，用于尽量冲刷待分析队列且不阻塞超时预算。
 
 > `FULL_SCAN` 会先按 `(worktree_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新就绪状态，未命中项才进入解析流程。
 > `FULL_SCAN` 使用 `Dispatchers.IO.limitedParallelism(1)` 与默认 dispatcher 隔离，避免挤占 IDE 常规后台任务。
+> 当前主干代码中，启动稳定宽限期由 `ConstRefEngine.startupStabilizationDelayMs` 内部字段提供，默认值 `10000ms`；不是 `TaskRunnerManager` 注入。若历史方案文档与此冲突，以代码为准。
 
 ### 3.3 状态模型（核心字段）
 
@@ -83,9 +84,9 @@
 | API | 行为摘要 |
 |---|---|
 | `onFileSaved(path)` | 仅处理 `.java/.kt`；将“前一个编辑文件”推入待分析队列，当前文件仅标记为 editing。 |
-| `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile` 到待分析；触发 `PRE_COMPILE` 异步分析；在 `timeout` 窗口内等待“目标文件 analyzedAt 达标 + 相关 sourceDir full scan ready”。 |
+| `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile` 到待分析；触发 `PRE_COMPILE` 异步分析；当前代码中 `shouldSkipFullScanRequirement()` 始终返回 `true`，因此等待条件实际只要求目标文件 `analyzedAt` 达标，`FULL_SCAN` 不再阻塞编译就绪。 |
 | `analyzeOnDemand(paths)` | 同步按需分析入口：优先复用已有 checksum 分析结果；缺失或内容变化时立即同步分析并返回，不依赖等待超时窗口。 |
-| `initializeFullScan(sourceDirs)` | 异步扫描目录下所有源码，构建 definitions/references 索引，并设置目录 ready。 |
+| `initializeFullScan(sourceDirs)` | 注册目录后异步扫描源码，构建 definitions/references 索引；首次调用会先记录 `defer initial full scan` 日志并延后 `10000ms` 再启动。 |
 | `onFileDeleted(path)` | 立即清理内存状态与变更跟踪；数据库删除改为后台队列异步执行（含前缀删除），避免在调用线程（如 EDT）上等待 DB 锁。 |
 | `getEffectedFiles(changedPaths)` | 基于 `changedDefinitionKeys` + `removedDefinitionKeys` 查询引用文件；仅返回本地存在且不在 `changedPaths` 的文件。 |
 
@@ -206,11 +207,13 @@ Kotlin 引用覆盖：
    - 未命中才执行 parse definitions/references 并落库。
 
 另外支持 IO 限频（系统属性）：
-- `jugg.constref.io.throttle.ms`：每次节流 `delay` 的毫秒数（默认 `10`）；
+- `jugg.constref.io.throttle.ms`：每次节流 `delay` 的毫秒数（当前代码默认 `10000`）；
 - `jugg.constref.io.throttle.every`：每处理 N 个文件触发一次节流（默认 `50`）；
 - `jugg.constref.session.file.cache.max`：会话文件缓存上限（默认 `500`）；
 - `jugg.constref.session.lookup.cache.max`：会话查询缓存 key 上限（默认 `4000`）；
 - `jugg.constref.session.cache.ttl.ms`：会话缓存 TTL（默认 `900000`ms）。
+
+> 排查时必须同时核对**当前代码常量**与**实际运行日志**。当前仓库保存的 `2026-03-20 ~ 2026-03-23` 历史 `compile_*.log` 仍打印 `sleepMs=10, everyNFiles=50`；若源码默认值与运行日志不一致，优先怀疑 IDE 中加载的插件产物未更新，或被系统属性覆盖。
 
 ---
 
@@ -218,15 +221,15 @@ Kotlin 引用覆盖：
 
 ### 6.1 就绪判定
 
-`awaitAnalysis()` 成功条件：
+`awaitAnalysis()` 当前成功条件：
 
 1. 目标文件存在时，其 `analyzedAt >= 本次等待开始时间`；
-2. 目标文件所属 sourceDir 已完成 full scan（**例外**：`build/generated` 目录跳过此要求）。
+2. `FULL_SCAN` 就绪不再作为硬条件；`shouldSkipFullScanRequirement()` 当前对所有 `sourceDir` 都返回 `true`，因此 `pendingSourceDirs` 通常为空。
 
-**生成目录特殊处理**（2026-03-09 新增）：
-- 对于 `build/generated` 路径下的文件，如果文件本身已分析完成，不强制要求整个目录的 full scan 完成
-- 理由：生成目录包含大量编译产物，full scan 耗时长；按需分析已足够
-- 实现：`ConstRefEngine.shouldSkipFullScanRequirement()` 检查路径是否包含 `/build/generated/`
+**历史口径提醒**（2026-03-23 校准）：
+- 旧文档/历史方案里提到的“仅 `build/generated` 跳过 full scan 要求”已经不是当前实现；
+- 当前代码把 `FULL_SCAN` 定位为后台补索引任务，`awaitAnalysis()` 不再等待任何目录 full scan 完成；
+- 如后续再次恢复目录级等待，请先同步本节与 `ConstRefEngineTest.kt`。
 
 超时或中断时返回：
 
@@ -246,7 +249,7 @@ Kotlin 引用覆盖：
 
 | 测试文件 | 重点验证 |
 |---|---|
-| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用、`db_session` 模式一致性与缓存淘汰一致性、`build/generated` 目录跳过 full scan 要求。 |
+| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用、`db_session` 模式一致性与缓存淘汰一致性、首次 `FULL_SCAN` 延后启动、默认 throttle 配置、`FULL_SCAN` 不阻塞编译就绪。 |
 | `ConstRefIntegrationTest.kt` | 冷启动 full scan 后的命中、companion const 变更命中、无关类变更不误报。 |
 | `JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
 | `KotlinConstParserTest.kt` | Kotlin 定义/引用解析、alias/星号导入、同包解析、忽略注释/字符串。 |
@@ -261,25 +264,39 @@ Kotlin 引用覆盖：
 先确认 `changedSourcePaths` 是否传入（`DeployFileManager.getRecompileFiles`）。
 
 2. 结果疑似滞后  
-确认是否执行过 `awaitAnalysis()`；若日志出现 readiness timeout，检查 `pendingSourceDirs`。
+确认是否执行过 `awaitAnalysis()`；若日志出现 readiness timeout，先看 `unreadyPathCount`，不要再默认把问题归因到 `pendingSourceDirs`。
 
 2.1 增量编译首轮 const-ref 预处理路径
 `DeployFileManager.awaitConstRefAnalysis(...)` 可使用 `analyzeOnDemand(...)` 同步按需分析，不依赖固定 timeout 等待窗口。
 
-2.2 `build/generated` 目录超时警告（2026-03-09 已修复）
-若看到 `pendingSourceDirCount=1` 且路径为 `build/generated`，这是正常的优化行为：生成目录跳过 full scan 要求，只要目标文件本身已分析完成即可。
-
 3. 误以为删除 `const` 不会触发影响  
 `ConstRefEngine` 通过 `removedDefinitionKeys` 回补此场景，需确保变更文件已被重新分析。
-
-6. 常量文件只改空行却触发大量重编译  
-确认 `changedDefinitionKeys` 是否为空；空白改动不应产生 changed keys，`getEffectedFiles` 应返回空列表。
 
 4. 大仓库耗时偏高  
 检查 `RepoSharedFingerprintStore` 是否可写、是否位于 Git 工作树内（否则无法复用共享指纹）。
 
 5. 全局缓存不生效  
 检查 `JuggPathManager.constRefDir` 下两个 db 是否创建；若为升级场景，确认迁移日志是否出现。
+
+6. 常量文件只改空行却触发大量重编译  
+确认 `changedDefinitionKeys` 是否为空；空白改动不应产生 changed keys，`getEffectedFiles` 应返回空列表。
+
+### 8.1 IDE 卡死排查补充（2026-03-23）
+
+先对齐三类证据的时间线：`build/jugg/log/compile_*.log`、`idea.log` / freeze thread dump、当前源码实现。
+
+优先搜索这些日志：
+- `ConstRefEngine defer initial full scan until startup stabilizes`
+- `ConstRefEngine io throttle enabled`
+- `ConstRefEngine full scan progress`
+- `ConstRefEngine.awaitAnalysis timeout`
+- `uiFreezeStarted`
+- `InvocationEvent has timed out`
+
+快速判断：
+- **更像 ConstRef 引起**：freeze 时间窗与 `FULL_SCAN` 重叠，且 worker 栈热点落在 `parseReferencesByDbSessionMode` / `ConstRefCacheDatabase.queryLatestDefinitionsByWhere` / `NativeDB.step`。
+- **更像 IDE 启动链引起**：thread dump / `idea.log` 主要卡在 `ApplicationImpl.postInit`、`InitialVfsRefresh`、`clangd`，同时 `jugg` 日志没有活跃 `FULL_SCAN` 进度。
+- **口径冲突时**：以**当前代码 + 当前运行日志**为准。比如源码默认 throttle 可能是 `10000ms`，但旧日志仍显示 `sleepMs=10`；这通常意味着 IDE 里跑的不是当前源码产物，或有系统属性覆盖。
 
 ---
 
