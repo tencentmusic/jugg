@@ -22,20 +22,235 @@ willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/j
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/compiler/manifest/XmlAndroidManifestInfo.kt"))
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/compiler/manifest/XmlParser.kt"))
 
-// sort order
-willCollectFiles = willCollectFiles.sort { it.absolutePath }
-// order must follow: ProjectInfoSerializerInGradle -> GradleDependencyDiffer -> GradleProjectInfoReaderManager
-// or will get:
-// java.lang.NoSuchMethodError: 'void ReadProjectInfo_gradle$ProjectInfoSerializerInGradle.<init>(java.io.File)'
-// java.lang.NoSuchMethodError: 'void ReadProjectInfo_gradle$GradleDependencyDiffer.<init>(org.gradle.api.Project, ReadProjectInfo_gradle$JuggProjectInfo)'
-// ProjectInfoSerializerInGradle constructors:
-// public ReadProjectInfo_gradle$ProjectInfoSerializerInGradle(ReadProjectInfo_gradle,java.io.File,boolean)
-// public ReadProjectInfo_gradle$ProjectInfoSerializerInGradle(ReadProjectInfo_gradle,java.io.File)
-willCollectFiles.remove(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleDependencyDiffer.kt"))
-willCollectFiles.remove(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt"))
-willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleDependencyDiffer.kt"))
-willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt"))
+def sortWeight = { File file ->
+    String path = file.absolutePath.replace('\\', '/')
+    if (path.contains('/project/data/')) {
+        return 0
+    }
+    if (path.endsWith('/project/JuggPathManager.kt')) {
+        return 1
+    }
+    if (path.endsWith('/project/dependency/DependencyDiffResult.kt')) {
+        return 2
+    }
+    if (path.endsWith('/compiler/manifest/XmlAndroidManifestInfo.kt')) {
+        return 3
+    }
+    if (path.endsWith('/compiler/manifest/XmlParser.kt')) {
+        return 4
+    }
+    if (path.endsWith('/gradle/script/ProjectInfoSerializerInGradle.kt')) {
+        return 5
+    }
+    if (path.endsWith('/gradle/script/GradleDependencyDiffer.kt')) {
+        return 7
+    }
+    if (path.endsWith('/gradle/script/GradleProjectInfoReaderManager.kt')) {
+        return 8
+    }
+    if (path.contains('/gradle/script/')) {
+        return 6
+    }
+    return 9
+}
 
+// sort order
+willCollectFiles = willCollectFiles.sort { File left, File right ->
+    int compareByWeight = sortWeight(left) <=> sortWeight(right)
+    if (compareByWeight != 0) {
+        return compareByWeight
+    }
+    return left.absolutePath <=> right.absolutePath
+}
+
+def countChar = { String value, String target ->
+    int result = 0
+    value.toCharArray().each { current ->
+        if (String.valueOf(current) == target) {
+            result++
+        }
+    }
+    result
+}
+
+def dropCompanionIndent = { String line ->
+    line.startsWith("    ") ? line.substring(4) : line
+}
+
+Set<String> forceQualifiedCompanionMembers = [
+        'createEmpty',
+] as Set<String>
+
+def flatMemberName = { String owner, String memberName ->
+    if (owner == null || !forceQualifiedCompanionMembers.contains(memberName)) {
+        return memberName
+    }
+    return owner + "_" + memberName
+}
+
+def registerRewriteMember = { Map<String, String> rewrites, String owner, String memberName ->
+    if (owner == null || memberName == null) {
+        return
+    }
+    rewrites.put(owner + "." + memberName, flatMemberName.call(owner, memberName))
+}
+
+def mergeRewriteRules = { Map<String, String> target, Map<String, String> source ->
+    source.each { String qualifiedName, String rewrittenName ->
+        target.put(qualifiedName, rewrittenName)
+    }
+}
+
+Set<String> preludeCompanionOwners = [
+        'JuggPathManager',
+] as Set<String>
+
+// Companion objects for these classes must NOT be flattened to top-level.
+// On Kotlin 1.5 (Gradle 7), top-level classes in .kts scripts are non-static inner classes of
+// the script class. A class whose companion is flattened away loses the Kotlin-generated
+// Companion class structure, which causes the Kotlin 1.5 backend to miscompute outer instance
+// references when the class constructs another sibling inner class (e.g. Reflector).
+// Keeping the companion inside the class body ensures correct outer reference propagation.
+Set<String> companionKeepOwners = [
+        'Reflector',
+        'GradleApplicationInjector',
+        'GradleProjectInfoReaderManager',
+] as Set<String>
+
+def transformSourceForInitScript = { List<String> rawLines ->
+    List<String> bodyLines = new ArrayList<>()
+    List<String> preludeLines = new ArrayList<>()
+    List<String> postludeLines = new ArrayList<>()
+    Map<String, String> rewrites = new LinkedHashMap<>()
+    List<Map<String, Object>> classStack = new ArrayList<>()
+    boolean inCompanion = false
+    int companionBraceDepth = 0
+    List<String> companionLines = new ArrayList<>()
+    String companionOwner = null
+    int braceDepth = 0
+    String pendingClassName = null
+
+    rawLines.each { String line ->
+        if (line.startsWith("package") || line.startsWith("@file:Suppress") || line.startsWith("import")) {
+            return
+        }
+
+        if (inCompanion) {
+            int opens = countChar(line, '{')
+            int closes = countChar(line, '}')
+            int nextDepth = companionBraceDepth + opens - closes
+            boolean isPureClosingLine = line.trim() == "}" && nextDepth == 0
+            if (!isPureClosingLine) {
+                companionLines.add(dropCompanionIndent(line))
+            }
+            companionBraceDepth = nextDepth
+            if (companionBraceDepth == 0) {
+                List<String> targetLines = preludeCompanionOwners.contains(companionOwner) ? preludeLines : postludeLines
+                Map<String, String> localMemberRewrites = new LinkedHashMap<>()
+                companionLines.each { String companionLine ->
+                    String transformedLine = companionLine.replaceFirst(/\bconst\s+val\b/, "val")
+                    if (companionOwner == 'ModuleInfo') {
+                        transformedLine = transformedLine.replace('Type.', 'ModuleInfo.Type.')
+                    }
+                    String trimmedLine = transformedLine.trim()
+                    def memberMatcher = trimmedLine =~ /^(?:private|public|internal|protected)?\s*(?:val|fun)\s+([A-Za-z_][A-Za-z0-9_]*)\b/
+                    if (memberMatcher.find()) {
+                        String memberName = memberMatcher.group(1)
+                        String rewrittenName = flatMemberName.call(companionOwner, memberName)
+                        registerRewriteMember(rewrites, companionOwner, memberName)
+                        if (rewrittenName != memberName) {
+                            localMemberRewrites.put(memberName, rewrittenName)
+                        }
+                    }
+                }
+                companionLines.each { String companionLine ->
+                    String transformedLine = companionLine.replaceFirst(/\bconst\s+val\b/, "val")
+                    // private is not allowed on top-level functions/properties in Kotlin 1.5 (Gradle 7)
+                    transformedLine = transformedLine.replaceFirst(/^(\s*)private\s+(fun|val|var)\b/, '$1$2')
+                    if (companionOwner == 'ModuleInfo') {
+                        transformedLine = transformedLine.replace('Type.', 'ModuleInfo.Type.')
+                    }
+                    String trimmedLine = transformedLine.trim()
+                    def memberMatcher = trimmedLine =~ /^(?:private|public|internal|protected)?\s*(?:val|fun)\s+([A-Za-z_][A-Za-z0-9_]*)\b/
+                    if (memberMatcher.find()) {
+                        String memberName = memberMatcher.group(1)
+                        String rewrittenName = localMemberRewrites.get(memberName)
+                        if (rewrittenName != null) {
+                            transformedLine = transformedLine.replaceFirst(/\b${memberName}\b/, rewrittenName)
+                        }
+                    }
+                    localMemberRewrites.entrySet().toList().sort { left, right ->
+                        (right.key as String).length() <=> (left.key as String).length()
+                    }.each { entry ->
+                        transformedLine = transformedLine.replaceAll("(?<!\\.)\\b" + java.util.regex.Pattern.quote(entry.key as String) + "\\b", java.util.regex.Matcher.quoteReplacement(entry.value as String))
+                    }
+                    if (companionOwner == 'Reflector') {
+                        transformedLine = transformedLine.replaceAll("(?<![A-Za-z0-9_.])Value\\b", "Reflector.Value")
+                    }
+                    targetLines.add(transformedLine)
+                }
+                if (!companionLines.isEmpty()) {
+                    targetLines.add("")
+                }
+                companionLines = new ArrayList<>()
+                companionOwner = null
+                inCompanion = false
+            }
+            return
+        }
+
+        if (line.trim().startsWith("companion object")) {
+            String currentOwner = classStack.isEmpty() ? null : classStack.get(classStack.size() - 1).get("name") as String
+            if (companionKeepOwners.contains(currentOwner)) {
+                // Keep this companion object intact inside the class body
+                bodyLines.add(line)
+                braceDepth += countChar(line, '{') - countChar(line, '}')
+            } else {
+                inCompanion = true
+                companionOwner = currentOwner
+                companionBraceDepth = countChar(line, '{') - countChar(line, '}')
+                companionLines = new ArrayList<>()
+            }
+            return
+        }
+
+        bodyLines.add(line)
+
+        def classMatcher = line =~ /^\s*(?:data\s+class|class|enum\s+class|sealed\s+class|object)\s+([A-Za-z_][A-Za-z0-9_]*)\b/
+        if (classMatcher.find()) {
+            pendingClassName = classMatcher.group(1)
+        }
+
+        int opens = countChar(line, '{')
+        int closes = countChar(line, '}')
+        braceDepth += opens - closes
+        if (pendingClassName != null && line.contains("{")) {
+            classStack.add([name: pendingClassName, depth: braceDepth])
+            pendingClassName = null
+        }
+        while (!classStack.isEmpty() && braceDepth < (classStack.get(classStack.size() - 1).get("depth") as int)) {
+            classStack.remove(classStack.size() - 1)
+        }
+    }
+
+    List<String> transformedLines = new ArrayList<>()
+    transformedLines.addAll(bodyLines)
+    if (!postludeLines.isEmpty()) {
+        transformedLines.add("")
+        transformedLines.addAll(postludeLines)
+    }
+    [prelude: preludeLines.join("\n"), content: transformedLines.join("\n"), rewrites: rewrites]
+}
+
+def applyRewriteRules = { String content, Map<String, String> rewrites ->
+    String rewritten = content
+    rewrites.entrySet().toList().sort { left, right ->
+        (right.key as String).length() <=> (left.key as String).length()
+    }.each { entry ->
+        rewritten = rewritten.replace(entry.key, entry.value)
+    }
+    rewritten
+}
 
 tasks.register('buildReadProjectInfoScript') {
 
@@ -47,8 +262,10 @@ tasks.register('buildReadProjectInfoScript') {
         readProjectInfoKtsFile.parentFile.mkdirs()
 
         // start write script
-        List<String> classContents = new ArrayList()
-        Set<String> imports = new ArrayList()
+        List<String> preludeContents = new ArrayList<>()
+        List<String> classContents = new ArrayList<>()
+        Set<String> imports = new LinkedHashSet<>()
+        Map<String, String> rewriteRules = new LinkedHashMap<>()
         willCollectFiles.forEach {
             List<String> lines = it.readLines()
             lines.forEach { String line ->
@@ -57,15 +274,17 @@ tasks.register('buildReadProjectInfoScript') {
                     if (!importClass.startsWith("com.sickworm.intellij.jugg") && !importClass.startsWith("org.gradle.api")) {
                         imports.add(importClass)
                     }
-                } else if (line.startsWith("package")) {
-                    return
-                } else if (line.startsWith("@file:Suppress")) {
-                    return
-                } else {
-                    classContents.add(line)
                 }
             }
+            Map transformed = transformSourceForInitScript(lines)
+            String preludeContent = transformed.prelude as String
+            if (preludeContent) {
+                preludeContents.add(preludeContent)
+                preludeContents.add("\n")
+            }
+            classContents.add(transformed.content as String)
             classContents.add("\n")
+            mergeRewriteRules(rewriteRules, transformed.rewrites as Map<String, String>)
         }
 
         StringBuilder finalContent = new StringBuilder()
@@ -78,6 +297,11 @@ tasks.register('buildReadProjectInfoScript') {
             finalContent.append("\n")
         }
         finalContent.append("\n")
+
+        preludeContents.forEach {
+            finalContent.append(it)
+            finalContent.append("\n")
+        }
 
         classContents.forEach {
             finalContent.append(it)
@@ -92,14 +316,10 @@ gradle.allprojects {
     }
 }
 
-gradle.buildFinished(object : Action<BuildResult> {
-    override fun execute(buildResult: BuildResult) {
-        println("Jugg: build finished for \${rootProject.projectDir}, isSuccess \${buildResult.failure == null}")
-        if (buildResult.failure == null) {
-            GradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
-        }
-    }
-})
+gradle.taskGraph.whenReady {
+    println("Jugg: task graph ready for \${rootProject.projectDir}")
+    GradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
+}
 """)
         finalContent.append("\n")
         String rawFinalContent = finalContent.toString()
@@ -108,8 +328,9 @@ gradle.buildFinished(object : Action<BuildResult> {
         Pattern pattern = Pattern.compile(", *(//.*)?\\n *\\)(.*)")
         Matcher matcher = pattern.matcher(rawFinalContent)
         String parsedFinalContent = matcher.replaceAll(")\$2 \$1")
+        String rewrittenFinalContent = applyRewriteRules(parsedFinalContent, rewriteRules)
 
         // write it!
-        readProjectInfoKtsFile.write(parsedFinalContent)
+        readProjectInfoKtsFile.write(rewrittenFinalContent)
     }
 }

@@ -9,7 +9,6 @@ import java.io.File
 class XmlAndroidManifestInfo {
 
     var packageName: String? = null
-        private set
 
     companion object {
         fun parse(file: File): XmlAndroidManifestInfo {

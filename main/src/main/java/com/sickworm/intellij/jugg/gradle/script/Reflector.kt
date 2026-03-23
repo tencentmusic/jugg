@@ -11,7 +11,7 @@ class Reflector(val value: Any?) {
     fun property(propertyName: String): Reflector? {
         value ?: return null
         try {
-            val getMethodName = if (propertyName.startsWith("is")) propertyName else "get${propertyName.camel}"
+            val getMethodName = if (propertyName.startsWith("is")) propertyName else "get${propertyName.camelCompat}"
             val method = value::class.java.getMethod(getMethodName)
             val result = method.invoke(value)
             return Reflector(result)
@@ -91,19 +91,22 @@ class Reflector(val value: Any?) {
 
     companion object {
 
-        fun newInstance(className: String, vararg args: Any): Reflector? {
-            return doNewInstance(className, false, args.toList().toTypedArray())
+        // Returns the raw constructed object (not wrapped in Reflector) to avoid constructing
+        // Reflector() from a static companion context, which crashes Kotlin 1.5 (Gradle 7)
+        // codegen when Reflector is a non-static inner class of the .kts script.
+        fun newInstanceRaw(className: String, vararg args: Any): Any? {
+            return doNewInstanceRaw(className, false, args.toList().toTypedArray())
         }
 
-        fun newInstanceP(className: String, vararg args: Any): Reflector? {
-            return doNewInstance(className, true, args.toList().toTypedArray())
+        fun newInstanceRawP(className: String, vararg args: Any): Any? {
+            return doNewInstanceRaw(className, true, args.toList().toTypedArray())
         }
 
-        private fun doNewInstance(className: String, isPrivate: Boolean, args: Array<Any>): Reflector? {
+        private fun doNewInstanceRaw(className: String, isPrivate: Boolean, args: Array<Any>): Any? {
             try {
                 val clazz = Class.forName(className)
                 val argsType: Array<Class<*>> = args.map {
-                    if (it is Value) it.clazz else it::class.java
+                    if (it is Reflector.Value) it.clazz else it::class.java
                 }.toTypedArray()
                 val constructor = if (isPrivate) {
                     clazz.getDeclaredConstructor(*argsType)
@@ -111,29 +114,36 @@ class Reflector(val value: Any?) {
                     clazz.getConstructor(*argsType)
                 }
                 constructor.isAccessible = true
-                val result = constructor.newInstance(*args)
-                return Reflector(result)
+                return constructor.newInstance(*args)
             } catch (e: Throwable) {
                 println("Jugg: reflect new instance failed: $e")
                 return null
             }
         }
 
-
-        private val String.camel: String get() {
-            return this.replaceFirstChar { it.uppercaseChar() }
-        }
-
-        private fun String.replaceFirstChar(transform: (Char) -> Char): String {
-            return if (isNotEmpty()) transform(this[0]) + substring(1) else this
-        }
-
-        private fun Char.uppercaseChar(): Char {
-            @Suppress("DEPRECATION")
-            return if (isLowerCase()) toUpperCase() else this
-        }
     }
 }
+
+fun reflectorNewInstance(className: String, vararg args: Any): Reflector? {
+    val raw = Reflector.newInstanceRaw(className, *args) ?: return null
+    return Reflector(raw)
+}
+
+fun reflectorNewInstanceP(className: String, vararg args: Any): Reflector? {
+    val raw = Reflector.newInstanceRawP(className, *args) ?: return null
+    return Reflector(raw)
+}
+
+/**
+ * Top-level factory for constructing Reflector instances from outside the Reflector class.
+ *
+ * On Kotlin 1.5 (Gradle 7), all top-level classes in a .kts script are non-static inner classes
+ * of the script class. When a sibling inner class (e.g. GradleApplicationInjector) directly calls
+ * `Reflector(value)`, the Kotlin 1.5 backend fails to emit the outer instance argument, causing
+ * NoSuchMethodError at runtime. Routing construction through this top-level function ensures the
+ * outer instance is captured correctly from the function's own closure.
+ */
+fun reflector(value: Any?): Reflector = Reflector(value)
 
 operator fun Reflector?.get(propertyName: String): Reflector? {
     return this?.property(propertyName)

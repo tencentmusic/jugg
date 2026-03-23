@@ -3,15 +3,10 @@
 package com.sickworm.intellij.jugg.gradle.script
 
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import groovy.util.Node
-import groovy.util.NodeList
-import groovy.util.XmlNodePrinter
-import groovy.xml.QName
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.provider.Property
 import java.io.File
-import java.io.PrintWriter
 
 /**
  * GradleApplicationInjector wires manifest/runtime dependency hooks into Android application variants.
@@ -43,7 +38,7 @@ class GradleApplicationInjector(
     }
 
     private fun injectManifestTask(project: Project) {
-        val androidExt = Reflector(project.extensions.getByName("android"))
+        val androidExt = reflector(project.extensions.getByName("android"))
         val applicationVariants = androidExt["applicationVariants"]
         val variants = applicationVariants?.value as? Collection<Any?>
         println("Jugg: project ${project.name} applicationVariants: ${variants?.size}")
@@ -58,8 +53,8 @@ class GradleApplicationInjector(
 
     @Suppress("DefaultLocale")
     private fun injectManifestTask(project: Project, variant: Any?) {
-        val name = Reflector(variant)["name"]?.valueString ?: return
-        val capitalizedName = name.capitalize() // compat kotlin 1.4, name.capitalize(Locale.ROOT)
+        val name = reflector(variant)["name"]?.valueString ?: return
+        val capitalizedName = name.camelCompat
         val manifestTaskName = "process${capitalizedName}Manifest"
         val manifestTask = project.tasks.findByName(manifestTaskName)
         println("Jugg inject manifestTask: $manifestTaskName, task instance: $manifestTask")
@@ -78,57 +73,12 @@ class GradleApplicationInjector(
             throw IllegalStateException("Jugg tryReplace: mergedManifest is null or not exists")
         }
 
-        // Jugg has XmlParer too, and it will compile together into readProjectInfo.gradle.kts.
-        // Here we use full name to avoid conflicting.
-        val manifestRoot: Node = groovy.util.XmlParser().parse(mergedManifest)
-        val application = ((manifestRoot.get("application") as? NodeList)?.firstOrNull() as? Node)
-        println("Jugg application node exists: ${application != null}")
-        if (application == null) {
-            throw IllegalStateException("Wrong format in AndroidManifest, no application node is found !")
-        }
-
-        var originApplicationName: String? = null
-        var originAppComponentName: String? = null
-        val attributes = application.attributes() as? MutableMap<Any?, Any?>
-        println("Jugg attributes size: ${attributes?.size}")
-
-        // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
-        val juggApplicationName = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication"  // BuildConfig.INJECT_APPLICATION_NAME
-        val juggAppComponentName = "com.sickworm.intellij.jugg.hotfix.BootstrapAppComponentFactory"  // BuildConfig.INJECT_APP_COMPONENT_FACTORY_NAME
-
-        attributes?.forEach {
-            if((it.key as? QName)?.localPart == "name") {
-                originApplicationName = it.value?.toString()
-                attributes[it.key] = juggApplicationName
-            }
-            if ((it.key as? QName)?.localPart == "appComponentFactory") {
-                originAppComponentName = it.value?.toString()
-                attributes[it.key] = juggAppComponentName
-            }
-        }
-        if (originApplicationName == null) {
-            println("Jugg: originApplicationName is null, add name attribute to application")
-            attributes?.put("android:name", "com.sickworm.intellij.jugg.hotfix.BootstrapApplication")  // BuildConfig.INJECT_APPLICATION_NAME
-        } else if (originApplicationName != juggApplicationName) {
-            application.appendNode("meta-data", mapOf(
-                // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
-                "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.application", // BuildConfig.META_DATA_LABEL_RAW_APPLICATION
-                "android:value" to originApplicationName,
-            ))
-        }
-        if (originAppComponentName == null) {
-            println("Jugg: originAppComponentName is null, no need to handle")
-        } else if (originAppComponentName != juggAppComponentName) {
-            application.appendNode("meta-data", mapOf(
-                "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.appComponentFactory", // BuildConfig.META_DATA_LABEL_RAW_APP_COMPONENT_FACTORY
-                "android:value" to originAppComponentName,
-            ))
-            attributes?.put("android:backupAgent", "com.sickworm.intellij.jugg.hotfix.raw.appComponentFactory") // BuildConfig.INJECT_APP_COMPONENT_FACTORY_NAME
-        }
-
-        val printer = XmlNodePrinter(PrintWriter(mergedManifest.absolutePath, "utf-8"))
-        printer.isPreserveWhitespace = true
-        printer.print(manifestRoot)
+        InitScriptManifestXmlHelper(mergedManifest).replaceApplication(
+            applicationName = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication",
+            rawApplicationMetaDataName = "com.sickworm.intellij.jugg.hotfix.raw.application",
+            appComponentFactoryName = "com.sickworm.intellij.jugg.hotfix.BootstrapAppComponentFactory",
+            rawAppComponentFactoryMetaDataName = "com.sickworm.intellij.jugg.hotfix.raw.appComponentFactory",
+        )
     }
 
     private fun addRuntimeDependency(project: Project) {
@@ -139,7 +89,7 @@ class GradleApplicationInjector(
 
     private fun findMergedManifest(task: Task): List<File> {
         // task: ProcessMultiApkApplicationManifest
-        val dirValue = (Reflector(task)["multiApkManifestOutputDirectory"]?.value as? Property<*>)?.get()
+        val dirValue = (reflector(task)["multiApkManifestOutputDirectory"]?.value as? Property<*>)?.get()
         val mergedManifestDir: File? = (dirValue as? org.gradle.api.file.FileSystemLocation)?.asFile
         if (mergedManifestDir != null) {
             val manifestFile = findMergedManifest(mergedManifestDir)
@@ -147,7 +97,7 @@ class GradleApplicationInjector(
                 return manifestFile
             }
         }
-        val dirValue2 = (Reflector(task)["manifestOutputDirectory"]?.value as? Property<*>)?.get()
+        val dirValue2 = (reflector(task)["manifestOutputDirectory"]?.value as? Property<*>)?.get()
         val mergedManifestDir2: File? = (dirValue2 as? org.gradle.api.file.FileSystemLocation)?.asFile
         if (mergedManifestDir2 != null) {
             val manifestFile2 = findMergedManifest(mergedManifestDir2)
@@ -196,17 +146,17 @@ class GradleApplicationInjector(
 
     @Suppress("DefaultLocale")
     private fun injectProguardKeepRulesForVariant(project: Project) {
-        val androidExt = Reflector(project.extensions.getByName("android"))
+        val androidExt = reflector(project.extensions.getByName("android"))
         val buildTypes = androidExt["buildTypes"]
         val buildTypesValue = buildTypes?.value as? Collection<Any?>
         if (buildTypesValue.isNullOrEmpty()) {
             return
         }
-        val dynamicRulesFile = File(project.buildDir, "jugg/proguard-rules.pro")
+        val dynamicRulesFile = project.layout.buildDirectory.file("jugg/proguard-rules.pro").get().asFile
         generateDynamicKeepRules(dynamicRulesFile)
 
         buildTypesValue.forEach { buildType ->
-            val buildTypeReflector = Reflector(buildType)
+            val buildTypeReflector = reflector(buildType)
             // Check if minification is enabled
             val isMinifyEnabledValue = buildTypeReflector["isMinifyEnabled"]?.value as? Boolean
             val name = buildTypeReflector["name"]?.valueString ?: return@forEach

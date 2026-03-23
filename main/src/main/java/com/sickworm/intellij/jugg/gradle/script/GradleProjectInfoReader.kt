@@ -97,7 +97,7 @@ class GradleProjectInfoReader(
             try {
                 // com.android.build.gradle.AppExtension
                 // com.android.build.gradle.LibraryExtension
-                val androidExt = Reflector(project.extensions.getByName("android"))
+                val androidExt = reflector(project.extensions.getByName("android"))
                 val compileSdkVersion = androidExt["compileSdkVersion"]?.valueString
                 val buildToolsVersion = androidExt["buildToolsVersion"]?.valueString
                 // can not get it in init.gradle.kts
@@ -109,7 +109,7 @@ class GradleProjectInfoReader(
                 // org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
                 val kotlinJvmOptions = extensions?.invoke("getByName", "kotlinOptions")
                 // org.jetbrains.kotlin.gradle.plugin.KaptExtension
-                val kapt = Reflector(project.extensions.findByName("kapt"))
+                val kapt = reflector(project.extensions.findByName("kapt"))
 
                 val isDynamicFeatureInstance = androidExt.value != null &&
                         androidExt.value::class.java.name.startsWith("com.android.build.gradle.internal.dsl.DynamicFeatureExtension")
@@ -175,8 +175,7 @@ class GradleProjectInfoReader(
                 }
 
                 var kotlinPlugins: List<File>? = null
-                @Suppress("DEPRECATION")
-                val buildVariantCapital = moduleInfo.buildVariant[0].toUpperCase() + moduleInfo.buildVariant.substring(1)
+                val buildVariantCapital = moduleInfo.buildVariant.camelCompat
                 val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
                 var kotlinTask: Any? = null
                 try {
@@ -209,9 +208,9 @@ class GradleProjectInfoReader(
                 }
                 if (kotlinTask != null) {
                     // before 2.0, kotlin classpath is in pluginClasspath
-                    kotlinPlugins = (Reflector(kotlinTask)["pluginClasspath"]?.value as? FileCollection)?.toList()
+                    kotlinPlugins = (reflector(kotlinTask)["pluginClasspath"]?.value as? FileCollection)?.toList()
                     // compat for Kotlin 2.0 which kotlin classpath is in not pluginClasspath
-                    val kotlinClasspath20 = (Reflector(kotlinTask)["defaultCompilerClasspath\$kotlin_gradle_plugin_common"]?.value as? FileCollection)?.toList()
+                    val kotlinClasspath20 = (reflector(kotlinTask)["defaultCompilerClasspath\$kotlin_gradle_plugin_common"]?.value as? FileCollection)?.toList()
                     if (kotlinClasspath20 != null) {
                         kotlinPlugins = ((kotlinPlugins ?: emptyList()) + kotlinClasspath20).distinct()
                     }
@@ -319,7 +318,7 @@ class GradleProjectInfoReader(
             // com.android.build.gradle.AbstractAppExtension.applicationVariants
             (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
                 // com.android.build.gradle.api.ApplicationVariant
-                val variant = Reflector(obj)
+                val variant = reflector(obj)
                 variants.add(Variant(
                     variant["name"]?.valueString ?: return@mapNotNull null,
                     variant["signingConfig"]["name"]?.valueString,
@@ -330,7 +329,7 @@ class GradleProjectInfoReader(
             (androidExt["signingConfigs"]?.value as? Collection<*>)?.mapNotNull { obj ->
                 // com.android.builder.model.SigningConfig
                 // com.android.build.gradle.internal.api.ReadOnlySigningConfig
-                val signingConfig = Reflector(obj)
+                val signingConfig = reflector(obj)
                 signingConfigs.add(SigningConfig(
                     signingConfig["name"]?.valueString ?: return@mapNotNull null,
                     signingConfig["storeFile"]?.value as? File,
@@ -350,7 +349,7 @@ class GradleProjectInfoReader(
             // com.android.build.gradle.AbstractAppExtension.applicationVariants
             (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
                 // com.android.build.gradle.api.ApplicationVariant
-                val variant = Reflector(obj)
+                val variant = reflector(obj)
                 variants.add(
                     Variant(
                         variant["name"]?.valueString ?: return@mapNotNull null,
@@ -361,7 +360,7 @@ class GradleProjectInfoReader(
         } else {
             // com.android.build.gradle.api.LibraryVariant
             (androidExt["libraryVariants"]?.value as? Collection<*>)?.forEach { obj ->
-                val variant = Reflector(obj)
+                val variant = reflector(obj)
                 variants.add(Variant(variant["name"]?.valueString ?: return@forEach,  null))
             }
         }
@@ -383,7 +382,7 @@ class GradleProjectInfoReader(
             emptySet()
         }
         val executedVariants = variants.filter {
-            val capitalizedName = it.name.capitalize() // compat kotlin 1.4, name.capitalize(Locale.ROOT)
+            val capitalizedName = it.name.camelCompat
             val manifestTaskName = "process${capitalizedName}Manifest"
             return@filter manifestTaskName in taskNames
         }
@@ -473,7 +472,7 @@ class GradleProjectInfoReader(
                 return listOf(ModuleDependency(dependency.name.standardModuleName))
             }
             is FileCollectionDependency -> {
-                val files = (dependency as SelfResolvingDependency).resolve().toList()
+                val files = dependency.files.toList()
                 return files.map {
                     val cache = dependenciesCrcCache[it.absolutePath]
                     if (cache?.lastModifiedTime == it.lastModified()) {
@@ -598,7 +597,7 @@ class GradleProjectInfoReader(
 
             if (identifier is OpaqueComponentArtifactIdentifier) {
                 // library file in file collection
-                val fileGet = Reflector(identifier).fieldP("file")
+                val fileGet = reflector(identifier).fieldP("file")
                 val file = (fileGet?.value as? File) ?: it.file
                 val dependencyName = file.standardFileCollectionLibraryName
                 if (identifier.toString().endsWith(".jar")) {

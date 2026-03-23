@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project.data
 
+import com.sickworm.intellij.jugg.gradle.script.camelCompat
 import java.io.File
 import java.util.zip.CRC32
 
@@ -130,13 +131,11 @@ data class ModuleBuildPathInfo(
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/$buildVariant/classes")
 
     /** on AGP 3.2.1 has different java class path */
-    @Suppress("DEPRECATION")
     private val javaClassPathOld
-    @Suppress("DefaultLocale") // for kotlin 1.4
-    get() = File(
-        buildDir,
-        "intermediates/javac/$buildVariant/compile${buildVariant.capitalize()}JavaWithJavac/classes"
-    )
+        get() = File(
+            buildDir,
+            "intermediates/javac/$buildVariant/compile${buildVariant.camelCompat}JavaWithJavac/classes"
+        )
     /** java class path */
     val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
     /** after AGP 4.1.1, R.class not storage in buildClassPath */
@@ -148,14 +147,14 @@ data class ModuleBuildPathInfo(
 
     // compatible with gradle 8.x, which path like merged_manifests/debug/processDebugResources/R.jar
     val rFilePath get() = File(rFilePathDir, "R.jar").takeIf(File::exists)
-        ?: File(rFilePathDir, "process${buildVariant.camel}Resources/R.jar").takeIf(File::exists)
+        ?: File(rFilePathDir, "process${buildVariant.camelCompat}Resources/R.jar").takeIf(File::exists)
         ?: rFilePathDir.listFilesRecursively().find { it.name == "R.jar" }
         ?: File(rFilePathDir, "R.jar")
 
     // e.g. AGP 3.4.3 don't have rFilePath, so need use R.jar in library module
     private val libraryRFileDirInLowAgp get() = File(buildDir, "intermediates/compile_only_not_namespaced_r_class_jar/$buildVariant")
 
-    val libraryRFilePathInLowAgp get() = File(libraryRFileDirInLowAgp, "generate${buildVariant.camel}RFile/R.jar").takeIf(File::exists) // AGP 3.4.3
+    val libraryRFilePathInLowAgp get() = File(libraryRFileDirInLowAgp, "generate${buildVariant.camelCompat}RFile/R.jar").takeIf(File::exists) // AGP 3.4.3
         ?: File(libraryRFileDirInLowAgp, "R.jar") // AGP 3.5.4
 
     /** kotlin class path */
@@ -209,7 +208,7 @@ data class ModuleBuildPathInfo(
 
     private fun File.findManifestInDir(): File? {
         return File(this, "AndroidManifest.xml").takeIf(File::exists)
-            ?: File(this, "process${buildVariant.camel}Manifest/AndroidManifest.xml").takeIf(File::exists)
+            ?: File(this, "process${buildVariant.camelCompat}Manifest/AndroidManifest.xml").takeIf(File::exists)
             ?: this.listFilesRecursively().find { it.name == "AndroidManifest.xml" }
     }
 
@@ -237,19 +236,6 @@ data class ModuleBuildPathInfo(
             }
             return null
         }
-
-        private val String.camel: String get() {
-            return this.replaceFirstChar { it.uppercaseChar() }
-        }
-
-        private fun String.replaceFirstChar(transform: (Char) -> Char): String {
-            return if (isNotEmpty()) transform(this[0]) + substring(1) else this
-        }
-
-        private fun Char.uppercaseChar(): Char {
-            @Suppress("DEPRECATION") // build.gradle.kts need this
-            return if (isLowerCase()) toUpperCase() else this
-        }
     }
 }
 
@@ -259,9 +245,14 @@ data class ModuleBuildPathInfo(
 data class LibraryDependency(
     val name: String,
     val file: File,
-    val lastModifiedTime: Long = file.lastModified(),
-    val crc32: Long = file.toCrc32
+    val lastModifiedTime: Long,
+    val crc32: Long
 ) : Dependency {
+
+    // secondary constructor provides defaults to avoid Kotlin 1.5 script codegen crash:
+    // primary constructor default values referencing top-level functions in .kts files
+    // trigger "Error generating constructors" in Kotlin 1.5 (Gradle 7 / AGP 3.5)
+    constructor(name: String, file: File) : this(name, file, file.lastModified(), computeCrc32(file))
 
     val isValid get() = file.exists()
 
@@ -326,16 +317,16 @@ data class LibraryDependency(
         private val crc32Digest = CRC32()
 
         @Suppress("Since15", "RedundantSuppression") // required by build.gradle.kts
-        private val File.toCrc32: Long get() {
-            if (!exists()) {
+        private fun computeCrc32(file: File): Long {
+            if (!file.exists()) {
                 return -1L
             }
-            if (isDirectory) {
+            if (file.isDirectory) {
                 return -2L
             }
             return crc32Digest.run {
                 reset()
-                update(readBytes())
+                update(file.readBytes())
                 value
             }
         }

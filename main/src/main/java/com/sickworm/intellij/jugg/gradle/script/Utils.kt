@@ -31,9 +31,33 @@ object Utils {
         } while (iterator.hasNext())
         return maxElem
     }
+
+    fun uppercaseFirstAsciiCompat(value: String): String {
+        if (value.isEmpty()) {
+            return value
+        }
+        val firstChar = value[0]
+        val first = if (firstChar in 'a'..'z') {
+            firstChar - ('a' - 'A')
+        } else {
+            firstChar
+        }
+        return if (value.length == 1) {
+            first.toString()
+        } else {
+            first + value.substring(1)
+        }
+    }
 }
 
 // for compat with Kotlin 1.4 in readProjectInfo.gradle.kts
 fun <T, R : Comparable<R>> Iterable<T>.maxByOrNullForKt14(selector: (T) -> R): T? {
     return Utils.maxByOrNullForKt14(this, selector)
 }
+
+fun String.uppercaseFirstAsciiCompat(): String {
+    return Utils.uppercaseFirstAsciiCompat(this)
+}
+
+val String.camelCompat: String
+    get() = uppercaseFirstAsciiCompat()

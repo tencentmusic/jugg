@@ -9,8 +9,17 @@ class JuggProjectInfoSerialize(
     val juggProjectInfoExceptModules: JuggProjectInfo,
     val dependencyList: List<LibraryDependency>,
     val modules: List<ModuleInfoSerialize>,
-    val version: Int = VERSION, // gson won't use default value if not exists, so it's ok to write it here
+    val version: Int, // gson won't use default value if not exists, so it's ok to write it here
 ) {
+
+    // secondary constructor provides VERSION default to avoid Kotlin 1.5 script codegen crash:
+    // primary constructor default values referencing top-level vals in .kts files
+    // trigger "Failed to generate expression: KtNameReferenceExpression" in Kotlin 1.5 (Gradle 7 / AGP 3.5)
+    constructor(
+        juggProjectInfoExceptModules: JuggProjectInfo,
+        dependencyList: List<LibraryDependency>,
+        modules: List<ModuleInfoSerialize>
+    ) : this(juggProjectInfoExceptModules, dependencyList, modules, VERSION)
 
     companion object {
 
