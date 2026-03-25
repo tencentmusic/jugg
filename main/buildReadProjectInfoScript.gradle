@@ -24,9 +24,6 @@ willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/j
 
 def sortWeight = { File file ->
     String path = file.absolutePath.replace('\\', '/')
-    if (path.contains('/project/data/')) {
-        return 0
-    }
     if (path.endsWith('/project/JuggPathManager.kt')) {
         return 1
     }
@@ -63,195 +60,6 @@ willCollectFiles = willCollectFiles.sort { File left, File right ->
     return left.absolutePath <=> right.absolutePath
 }
 
-def countChar = { String value, String target ->
-    int result = 0
-    value.toCharArray().each { current ->
-        if (String.valueOf(current) == target) {
-            result++
-        }
-    }
-    result
-}
-
-def dropCompanionIndent = { String line ->
-    line.startsWith("    ") ? line.substring(4) : line
-}
-
-Set<String> forceQualifiedCompanionMembers = [
-        'createEmpty',
-] as Set<String>
-
-def flatMemberName = { String owner, String memberName ->
-    if (owner == null || !forceQualifiedCompanionMembers.contains(memberName)) {
-        return memberName
-    }
-    return owner + "_" + memberName
-}
-
-def registerRewriteMember = { Map<String, String> rewrites, String owner, String memberName ->
-    if (owner == null || memberName == null) {
-        return
-    }
-    rewrites.put(owner + "." + memberName, flatMemberName.call(owner, memberName))
-}
-
-def mergeRewriteRules = { Map<String, String> target, Map<String, String> source ->
-    source.each { String qualifiedName, String rewrittenName ->
-        target.put(qualifiedName, rewrittenName)
-    }
-}
-
-Set<String> preludeCompanionOwners = [
-        'JuggPathManager',
-] as Set<String>
-
-// Companion objects for these classes must NOT be flattened to top-level.
-// On Kotlin 1.5 (Gradle 7), top-level classes in .kts scripts are non-static inner classes of
-// the script class. A class whose companion is flattened away loses the Kotlin-generated
-// Companion class structure, which causes the Kotlin 1.5 backend to miscompute outer instance
-// references when the class constructs another sibling inner class (e.g. Reflector).
-// Keeping the companion inside the class body ensures correct outer reference propagation.
-Set<String> companionKeepOwners = [
-        'Reflector',
-        'GradleApplicationInjector',
-        'GradleProjectInfoReaderManager',
-] as Set<String>
-
-def transformSourceForInitScript = { List<String> rawLines ->
-    List<String> bodyLines = new ArrayList<>()
-    List<String> preludeLines = new ArrayList<>()
-    List<String> postludeLines = new ArrayList<>()
-    Map<String, String> rewrites = new LinkedHashMap<>()
-    List<Map<String, Object>> classStack = new ArrayList<>()
-    boolean inCompanion = false
-    int companionBraceDepth = 0
-    List<String> companionLines = new ArrayList<>()
-    String companionOwner = null
-    int braceDepth = 0
-    String pendingClassName = null
-
-    rawLines.each { String line ->
-        if (line.startsWith("package") || line.startsWith("@file:Suppress") || line.startsWith("import")) {
-            return
-        }
-
-        if (inCompanion) {
-            int opens = countChar(line, '{')
-            int closes = countChar(line, '}')
-            int nextDepth = companionBraceDepth + opens - closes
-            boolean isPureClosingLine = line.trim() == "}" && nextDepth == 0
-            if (!isPureClosingLine) {
-                companionLines.add(dropCompanionIndent(line))
-            }
-            companionBraceDepth = nextDepth
-            if (companionBraceDepth == 0) {
-                List<String> targetLines = preludeCompanionOwners.contains(companionOwner) ? preludeLines : postludeLines
-                Map<String, String> localMemberRewrites = new LinkedHashMap<>()
-                companionLines.each { String companionLine ->
-                    String transformedLine = companionLine.replaceFirst(/\bconst\s+val\b/, "val")
-                    if (companionOwner == 'ModuleInfo') {
-                        transformedLine = transformedLine.replace('Type.', 'ModuleInfo.Type.')
-                    }
-                    String trimmedLine = transformedLine.trim()
-                    def memberMatcher = trimmedLine =~ /^(?:private|public|internal|protected)?\s*(?:val|fun)\s+([A-Za-z_][A-Za-z0-9_]*)\b/
-                    if (memberMatcher.find()) {
-                        String memberName = memberMatcher.group(1)
-                        String rewrittenName = flatMemberName.call(companionOwner, memberName)
-                        registerRewriteMember(rewrites, companionOwner, memberName)
-                        if (rewrittenName != memberName) {
-                            localMemberRewrites.put(memberName, rewrittenName)
-                        }
-                    }
-                }
-                companionLines.each { String companionLine ->
-                    String transformedLine = companionLine.replaceFirst(/\bconst\s+val\b/, "val")
-                    // private is not allowed on top-level functions/properties in Kotlin 1.5 (Gradle 7)
-                    transformedLine = transformedLine.replaceFirst(/^(\s*)private\s+(fun|val|var)\b/, '$1$2')
-                    if (companionOwner == 'ModuleInfo') {
-                        transformedLine = transformedLine.replace('Type.', 'ModuleInfo.Type.')
-                    }
-                    String trimmedLine = transformedLine.trim()
-                    def memberMatcher = trimmedLine =~ /^(?:private|public|internal|protected)?\s*(?:val|fun)\s+([A-Za-z_][A-Za-z0-9_]*)\b/
-                    if (memberMatcher.find()) {
-                        String memberName = memberMatcher.group(1)
-                        String rewrittenName = localMemberRewrites.get(memberName)
-                        if (rewrittenName != null) {
-                            transformedLine = transformedLine.replaceFirst(/\b${memberName}\b/, rewrittenName)
-                        }
-                    }
-                    localMemberRewrites.entrySet().toList().sort { left, right ->
-                        (right.key as String).length() <=> (left.key as String).length()
-                    }.each { entry ->
-                        transformedLine = transformedLine.replaceAll("(?<!\\.)\\b" + java.util.regex.Pattern.quote(entry.key as String) + "\\b", java.util.regex.Matcher.quoteReplacement(entry.value as String))
-                    }
-                    if (companionOwner == 'Reflector') {
-                        transformedLine = transformedLine.replaceAll("(?<![A-Za-z0-9_.])Value\\b", "Reflector.Value")
-                    }
-                    targetLines.add(transformedLine)
-                }
-                if (!companionLines.isEmpty()) {
-                    targetLines.add("")
-                }
-                companionLines = new ArrayList<>()
-                companionOwner = null
-                inCompanion = false
-            }
-            return
-        }
-
-        if (line.trim().startsWith("companion object")) {
-            String currentOwner = classStack.isEmpty() ? null : classStack.get(classStack.size() - 1).get("name") as String
-            if (companionKeepOwners.contains(currentOwner)) {
-                // Keep this companion object intact inside the class body
-                bodyLines.add(line)
-                braceDepth += countChar(line, '{') - countChar(line, '}')
-            } else {
-                inCompanion = true
-                companionOwner = currentOwner
-                companionBraceDepth = countChar(line, '{') - countChar(line, '}')
-                companionLines = new ArrayList<>()
-            }
-            return
-        }
-
-        bodyLines.add(line)
-
-        def classMatcher = line =~ /^\s*(?:data\s+class|class|enum\s+class|sealed\s+class|object)\s+([A-Za-z_][A-Za-z0-9_]*)\b/
-        if (classMatcher.find()) {
-            pendingClassName = classMatcher.group(1)
-        }
-
-        int opens = countChar(line, '{')
-        int closes = countChar(line, '}')
-        braceDepth += opens - closes
-        if (pendingClassName != null && line.contains("{")) {
-            classStack.add([name: pendingClassName, depth: braceDepth])
-            pendingClassName = null
-        }
-        while (!classStack.isEmpty() && braceDepth < (classStack.get(classStack.size() - 1).get("depth") as int)) {
-            classStack.remove(classStack.size() - 1)
-        }
-    }
-
-    List<String> transformedLines = new ArrayList<>()
-    transformedLines.addAll(bodyLines)
-    if (!postludeLines.isEmpty()) {
-        transformedLines.add("")
-        transformedLines.addAll(postludeLines)
-    }
-    [prelude: preludeLines.join("\n"), content: transformedLines.join("\n"), rewrites: rewrites]
-}
-
-def applyRewriteRules = { String content, Map<String, String> rewrites ->
-    String rewritten = content
-    rewrites.entrySet().toList().sort { left, right ->
-        (right.key as String).length() <=> (left.key as String).length()
-    }.each { entry ->
-        rewritten = rewritten.replace(entry.key, entry.value)
-    }
-    rewritten
-}
-
 tasks.register('buildReadProjectInfoScript') {
 
     inputs.files willCollectFiles
@@ -261,32 +69,139 @@ tasks.register('buildReadProjectInfoScript') {
         readProjectInfoKtsFile.delete()
         readProjectInfoKtsFile.parentFile.mkdirs()
 
-        // start write script
-        List<String> preludeContents = new ArrayList<>()
+        // Collect imports, class bodies, and companion members from all source files.
+        // Companion members must be extracted to top level because companion object blocks
+        // cause compilation errors in .kts scripts (Gradle 7: wrong bytecode; Gradle 9: captures script instance).
+        //
+        // EXCEPTION: Classes that use Reflector() in instance methods must KEEP their companion object.
+        // On Kotlin 1.5 (Gradle 7), removing the companion changes bytecode generation for the class,
+        // causing NoSuchMethodError at runtime when constructing sibling inner classes (Reflector).
+        Set<String> keepCompanionClasses = new HashSet<>(["GradleApplicationInjector", "GradleProjectInfoReaderManager", "Reflector"])
+
+        List<String> companionMembers = new ArrayList<>()
         List<String> classContents = new ArrayList<>()
         Set<String> imports = new LinkedHashSet<>()
-        Map<String, String> rewriteRules = new LinkedHashMap<>()
-        willCollectFiles.forEach {
-            List<String> lines = it.readLines()
+
+        willCollectFiles.forEach { File sourceFile ->
+            List<String> lines = sourceFile.readLines()
+
+            // Collect imports (skip jugg and gradle internal imports — already on classpath)
             lines.forEach { String line ->
-                if (line.startsWith("import")) {
-                    String importClass = line.substring("import".length()).trim()
-                    if (!importClass.startsWith("com.sickworm.intellij.jugg") && !importClass.startsWith("org.gradle.api")) {
+                if (line.startsWith("import ")) {
+                    String importClass = line.substring("import ".length()).trim()
+                    if (!importClass.startsWith("com.sickworm.intellij.jugg") &&
+                            !importClass.startsWith("org.gradle.api")) {
                         imports.add(importClass)
                     }
                 }
             }
-            Map transformed = transformSourceForInitScript(lines)
-            String preludeContent = transformed.prelude as String
-            if (preludeContent) {
-                preludeContents.add(preludeContent)
-                preludeContents.add("\n")
+
+            // Extract companion object contents to top level using brace-depth tracking.
+            // Classes in keepCompanionClasses retain their companion object as-is.
+            // Also strips @JvmStatic from extracted members (not valid on top-level declarations).
+            List<String> bodyLines = new ArrayList<>()
+            boolean inCompanion = false
+            boolean keepCompanion = false
+            int companionDepth = 0
+            String currentClass = ""
+            int classDepth = 0  // brace depth relative to file root; currentClass only updated at depth 0
+
+            lines.each { String line ->
+                String trimmed = line.trim()
+
+                // Skip file-level directives
+                if (trimmed.startsWith("package ") || trimmed.startsWith("import ") ||
+                        trimmed.startsWith("@file:Suppress")) {
+                    return
+                }
+
+                // Track current top-level class name (only at depth 0 to avoid inner classes overwriting it)
+                if (classDepth == 0) {
+                    def classMatch = (trimmed =~ /^(?:data |sealed |abstract |open )?class (\w+)/)
+                    if (classMatch.find()) {
+                        currentClass = classMatch.group(1)
+                    }
+                }
+
+                if (!inCompanion) {
+                    if (trimmed.startsWith("companion object")) {
+                        inCompanion = true
+                        keepCompanion = keepCompanionClasses.contains(currentClass)
+                        // Count braces on this line to get initial depth
+                        companionDepth = trimmed.count("{") - trimmed.count("}")
+                        if (companionDepth <= 0) inCompanion = false
+                        if (keepCompanion) {
+                            // Keep companion object wrapper line in class body
+                            bodyLines.add(line)
+                        }
+                        // Update classDepth for non-companion braces on this line (already done above)
+                        classDepth += trimmed.count("{") - trimmed.count("}")
+                        return
+                    }
+                    // Remove 'private' from script-file-level declarations (outside all classes, classDepth == 0).
+                    // In Kotlin 1.5 .kts scripts, private top-level vals/funs require 'access$' bridge methods
+                    // that are not generated by Kotlin 1.5, causing NoSuchMethodError at runtime.
+                    String processedLine = line
+                    if (classDepth == 0 && (trimmed.startsWith("private val ") || trimmed.startsWith("private var ") || trimmed.startsWith("private fun "))) {
+                        processedLine = line.replaceFirst("private ", "")
+                    }
+                    classDepth += trimmed.count("{") - trimmed.count("}")
+                    bodyLines.add(processedLine)
+                } else {
+                    // Inside companion object: track brace depth
+                    companionDepth += trimmed.count("{") - trimmed.count("}")
+
+                    if (companionDepth <= 0) {
+                        // Closing brace of companion object
+                        inCompanion = false
+                        classDepth += trimmed.count("{") - trimmed.count("}")
+                        if (keepCompanion) {
+                            bodyLines.add(line)
+                        }
+                        return
+                    }
+
+                    if (keepCompanion) {
+                        // Keep companion contents inside the class body
+                        bodyLines.add(line)
+                        return
+                    }
+
+                    // Skip @JvmStatic — not valid on top-level declarations
+                    if (trimmed.startsWith("@JvmStatic")) {
+                        return
+                    }
+
+                    // Remove 'const' modifier: const val is not allowed at script top-level (Kotlin 1.5)
+                    // Remove 'private' modifier: private top-level declarations are not allowed in Kotlin 1.5
+                    // Qualify inner enum refs: 'Type.X' inside extracted companion members becomes unresolved at top-level
+                    String memberLine = line
+                        .replace("const val ", "val ")
+                        .replaceAll("(?<![A-Za-z])private (fun |val |var )", "\$1")
+                        .replace("Type.Application", "ModuleInfo.Type.Application")
+                        .replace("Type.Library", "ModuleInfo.Type.Library")
+                        .replace("Type.JavaLibrary", "ModuleInfo.Type.JavaLibrary")
+                        .replace("Type.DynamicFeature", "ModuleInfo.Type.DynamicFeature")
+                        .replace("Type.Unknown", "ModuleInfo.Type.Unknown")
+
+                    // Rename conflicting createEmpty functions
+                    if (trimmed.startsWith("fun createEmpty(") || trimmed.startsWith("fun createEmpty():")) {
+                        if (currentClass == "DependencyDiffResultSet") {
+                            memberLine = line.replace("fun createEmpty(", "fun dependencyDiffResultSetCreateEmpty(")
+                        } else if (currentClass == "DependencyDiffResult") {
+                            memberLine = line.replace("fun createEmpty(", "fun dependencyDiffResultCreateEmpty(")
+                        }
+                    }
+
+                    companionMembers.add(memberLine)
+                }
             }
-            classContents.add(transformed.content as String)
+
+            classContents.add(bodyLines.join("\n"))
             classContents.add("\n")
-            mergeRewriteRules(rewriteRules, transformed.rewrites as Map<String, String>)
         }
 
+        // Build script content: header → imports → companion members (top-level) → class bodies → entry point
         StringBuilder finalContent = new StringBuilder()
         finalContent.append("""// use to read variables in gradle environment
 // usage: ./gradlew :app:assembleDebug -I readProjectInfo.gradle
@@ -298,10 +213,12 @@ tasks.register('buildReadProjectInfoScript') {
         }
         finalContent.append("\n")
 
-        preludeContents.forEach {
+        // Top-level companion members (extracted from companion objects)
+        companionMembers.forEach {
             finalContent.append(it)
             finalContent.append("\n")
         }
+        finalContent.append("\n")
 
         classContents.forEach {
             finalContent.append(it)
@@ -312,25 +229,82 @@ tasks.register('buildReadProjectInfoScript') {
         finalContent.append("""
 gradle.allprojects {
     project.afterEvaluate {
-        GradleApplicationInjector(rootProject).injectApplication(project)
+        gradleApplicationInjector(rootProject).injectApplication(project)
     }
 }
 
 gradle.taskGraph.whenReady {
     println("Jugg: task graph ready for \${rootProject.projectDir}")
-    GradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
+    gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
 }
 """)
         finalContent.append("\n")
-        String rawFinalContent = finalContent.toString()
 
-        // compat with Kotlin 1.4 grammar, remove "," in last arguments
+        String rawContent = finalContent.toString()
+
+        // Rewrite qualified companion member calls (e.g. DependencyDiffResult.create() -> create())
+        // Must run before factory function injection to handle all call sites.
+        String processedContent = rawContent
+            .replace("DependencyDiffResultSet.createEmpty(", "dependencyDiffResultSetCreateEmpty(")
+            .replace("DependencyDiffResult.createEmpty(",    "dependencyDiffResultCreateEmpty(")
+            .replace("DependencyDiffResult.create(",         "create(")
+            .replace("ProjectInfoSerializerInGradle.getJsonGenerator(", "getJsonGenerator(")
+            .replace("JuggProjectInfoSerialize.serialize(",  "serialize(")
+            .replace("JuggProjectInfoSerialize.deserialize(","deserialize(")
+            .replace("XmlAndroidManifestInfo.parse(",        "parse(")
+            .replace("ModuleInfo.virtualModule",             "virtualModule")
+            .replace("ModuleInfo.DEFAULT_BUILD_VARIANT",     "DEFAULT_BUILD_VARIANT")
+            .replace("SigningConfig.EMPTY",                  "EMPTY")
+            // Inline VERSION constant in JuggProjectInfoSerialize secondary constructor delegate call.
+            // The companion was extracted to top level; VERSION became a non-const val.
+            // In Kotlin 1.5 .kts scripts, secondary constructors cannot access script-level non-const vals
+            // (generates NoSuchMethodError). Using the literal value avoids the accessor issue.
+            // Keep in sync with JuggProjectInfoSerialize.VERSION.
+            .replace(") : this(juggProjectInfoExceptModules, dependencyList, modules, VERSION)",
+                     ") : this(juggProjectInfoExceptModules, dependencyList, modules, 5)")
+
+        // Problem B fix: replace direct inner-class construction calls with top-level factory function calls.
+        // Must run BEFORE appending factory function definitions to avoid replacing them too.
+        // Regex (?<!class )(?<![A-Za-z])ClassName( uses two lookbehinds:
+        //   (?<!class ) — prevents replacing class/data class declarations (e.g. "class LibraryDependency(")
+        //   (?<![A-Za-z]) — prevents replacing compound names (e.g. "UpdatedLibraryDependency(" → "LibraryDependency(" part)
+        [
+            'InitScriptManifestXmlHelper',
+            'GradleProjectInfoReader',
+            'GradleDependencyDiffer',
+            'ProjectInfoSerializerInGradle',
+            'JuggPathManager',
+            'ModuleBuildPathInfo',
+            'LibraryDependency',
+            'GradleApplicationInjector',
+            'GradleProjectInfoReaderManager',
+        ].each { String className ->
+            String factoryName = className[0].toLowerCase() + className.substring(1)
+            processedContent = processedContent.replaceAll("(?<!class )(?<![A-Za-z])${className}\\(", "${factoryName}(")
+        }
+
+        // Append factory function definitions AFTER replacement so they are not themselves replaced
+        processedContent += """
+// Top-level factory functions: route inner-class construction through top-level scope to avoid
+// Kotlin 1.5 (Gradle 7) NoSuchMethodError when constructing sibling inner classes from a lambda.
+fun initScriptManifestXmlHelper(manifestFile: File) = InitScriptManifestXmlHelper(manifestFile)
+fun gradleProjectInfoReader(rootProject: Project, lastProjectInfo: JuggProjectInfoSerialize?) = GradleProjectInfoReader(rootProject, lastProjectInfo)
+fun gradleDependencyDiffer(rootProject: Project, projectInfo: JuggProjectInfo) = GradleDependencyDiffer(rootProject, projectInfo)
+fun projectInfoSerializerInGradle(dataFile: File) = ProjectInfoSerializerInGradle(dataFile)
+fun juggPathManager(projectDir: File) = JuggPathManager(projectDir)
+fun moduleBuildPathInfo(projectRootDir: File, moduleRootDir: File, buildVariant: String) = ModuleBuildPathInfo(projectRootDir, moduleRootDir, buildVariant)
+fun libraryDependency(name: String, file: File) = LibraryDependency(name, file)
+fun libraryDependency(name: String, file: File, lastModifiedTime: Long, crc32: Long) = LibraryDependency(name, file, lastModifiedTime, crc32)
+fun gradleApplicationInjector(rootProject: Project) = GradleApplicationInjector(rootProject)
+fun gradleProjectInfoReaderManager(rootProject: Project, includedBuilds: Collection<IncludedBuild>) = GradleProjectInfoReaderManager(rootProject, includedBuilds)
+"""
+
+        // Compat with Kotlin 1.4 grammar: remove trailing "," in last arguments
         Pattern pattern = Pattern.compile(", *(//.*)?\\n *\\)(.*)")
-        Matcher matcher = pattern.matcher(rawFinalContent)
-        String parsedFinalContent = matcher.replaceAll(")\$2 \$1")
-        String rewrittenFinalContent = applyRewriteRules(parsedFinalContent, rewriteRules)
+        Matcher matcher = pattern.matcher(processedContent)
+        String finalResult = matcher.replaceAll(")\$2 \$1")
 
         // write it!
-        readProjectInfoKtsFile.write(rewrittenFinalContent)
+        readProjectInfoKtsFile.write(finalResult)
     }
 }
