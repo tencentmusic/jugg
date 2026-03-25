@@ -40,6 +40,16 @@
     - 优化降级后编译初始化时容易出现 IDE 卡主一段时间的问题，现在改为独立进程完成 APK 字节码解析
     - 修复首次编译时，文件无法识别未被 git add 的文件的问题
 
+- version: 2.6.22
+  date: 2026.03.31
+  updates:
+    - 修复 subDir/gradlew :app:assembleDebug 形式的编译命令，会因为加载不到 runtime 包导致启动 crash
+
+- version: 2.6.20
+  date: 2026.03.25
+  updates:
+    - 修复 subDir/gradlew :app:assembleDebug 形式的编译命令，从 gradle 读取 sourceCompatibility 等信息失败
+
 - version: 2.6.20
   date: 2026.03.04
   updates:
