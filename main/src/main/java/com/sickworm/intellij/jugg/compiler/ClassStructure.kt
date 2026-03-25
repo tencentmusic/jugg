@@ -228,6 +228,7 @@ object ClassStringPool {
 
     fun clear() {
         stringPool = ConcurrentHashMap()
-        System.gc()
+        // Removed explicit System.gc() — it caused a Full STW pause (~300ms) that froze the IDE
+        // UI thread after every parseDex call. Let the JVM decide when to collect.
     }
 }
