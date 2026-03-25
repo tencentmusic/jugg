@@ -108,7 +108,12 @@ open class CompileProjectCommand(
     val isNormalGradleCommand: Boolean = isNormalGradleCommand(compileCommand)
 
     private val injectParam = if (JuggSettings.isEnableInjectGradleCompile) {
-        "-I ${initGradleFileRelativePath.replace("\\", "/")} -P${GradleApplicationInjector.PARAM_ENABLE}=${JuggSettings.finalIsEnableCompatibleDeploymentMode}"
+        // -Pjugg.projectDir passes the IDE project dir so the Gradle script writes to the correct
+        // location when the Gradle root dir differs from the IDE project dir (e.g. android/ subdir).
+        // Quoted to handle paths with spaces.
+        "-I ${initGradleFileRelativePath.replace("\\", "/")} " +
+        "-P${GradleApplicationInjector.PARAM_ENABLE}=${JuggSettings.finalIsEnableCompatibleDeploymentMode} " +
+        "\"-Pjugg.projectDir=$projectPath\""
     } else {
         ""
     }

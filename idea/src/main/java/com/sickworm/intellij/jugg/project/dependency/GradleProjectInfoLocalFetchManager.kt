@@ -142,7 +142,7 @@ class GradleProjectInfoLocalFetchManager(
             val localFetchCommand = CompileProjectCommand(
                 finalCompileCommand,
                 pathManager.projectDir.path,
-                pathManager.initGradleFileRelativePath,
+                pathManager.initGradleFilePath.path,
                 logger = logger,
             )
             logger.debug("runUpdateIfNeeded start")

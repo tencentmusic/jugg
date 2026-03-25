@@ -15,6 +15,8 @@ import java.io.File
 class GradleProjectInfoReader(
     private val rootProject: Project,
     private val lastProjectInfo: JuggProjectInfoSerialize?,
+    /** IDE project dir, may differ from rootProject.projectDir when Gradle root is a subdirectory */
+    private val ideProjectDir: File,
 ) {
 
     private var dependenciesCache: MutableMap<String, List<Dependency>> = mutableMapOf()
@@ -42,7 +44,7 @@ class GradleProjectInfoReader(
             null
         }
         isEnableJetifier = isEnableJetifierValue == "true"
-        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, isEnableJetifierValue: $isEnableJetifierValue")
+        println("Jugg: getProjectInfo ideProjectDir: ${ideProjectDir}, rootPath: ${rootProject.projectDir}, isEnableJetifierValue: $isEnableJetifierValue")
         if (jetifierReadError != null) {
             println("Jugg: got jetifierReadError : $jetifierReadError")
         }
@@ -84,9 +86,9 @@ class GradleProjectInfoReader(
             name = project.standardModuleName,
             moduleType = moduleType,
             moduleRootDir = project.projectDir,
-            projectRootDir = rootProject.projectDir,
+            projectRootDir = ideProjectDir,
             // set defaults to non-android modules, will update later in updateVariantAndSignConfigs for android modules
-            buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, "debug"),
+            buildPathInfo = ModuleBuildPathInfo(ideProjectDir, project.projectDir, "debug"),
             gradleModuleName = project.name,
         )
 
@@ -369,7 +371,7 @@ class GradleProjectInfoReader(
             buildVariant = buildVariant,
             variants = variants,
             signingConfigs = signingConfigs,
-            buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant),
+            buildPathInfo = ModuleBuildPathInfo(ideProjectDir, project.projectDir, buildVariant),
         )
     }
 
@@ -664,7 +666,7 @@ class GradleProjectInfoReader(
     }
 
     private val File.standardFileCollectionLibraryName: String get() {
-        return ".${File.separator}" + relativeTo(rootProject.projectDir).path
+        return ".${File.separator}" + relativeTo(ideProjectDir).path
     }
 
     private val Project.standardModuleName: String get() {
