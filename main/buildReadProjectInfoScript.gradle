@@ -288,8 +288,8 @@ gradle.taskGraph.whenReady {
 // Top-level factory functions: route inner-class construction through top-level scope to avoid
 // Kotlin 1.5 (Gradle 7) NoSuchMethodError when constructing sibling inner classes from a lambda.
 fun initScriptManifestXmlHelper(manifestFile: File) = InitScriptManifestXmlHelper(manifestFile)
-fun gradleProjectInfoReader(rootProject: Project, lastProjectInfo: JuggProjectInfoSerialize?) = GradleProjectInfoReader(rootProject, lastProjectInfo)
-fun gradleDependencyDiffer(rootProject: Project, projectInfo: JuggProjectInfo) = GradleDependencyDiffer(rootProject, projectInfo)
+fun gradleProjectInfoReader(rootProject: Project, lastProjectInfo: JuggProjectInfoSerialize?, ideProjectDir: File) = GradleProjectInfoReader(rootProject, lastProjectInfo, ideProjectDir)
+fun gradleDependencyDiffer(rootProject: Project, projectInfo: JuggProjectInfo, ideProjectDir: File = rootProject.projectDir) = GradleDependencyDiffer(rootProject, projectInfo, ideProjectDir)
 fun projectInfoSerializerInGradle(dataFile: File) = ProjectInfoSerializerInGradle(dataFile)
 fun juggPathManager(projectDir: File) = JuggPathManager(projectDir)
 fun moduleBuildPathInfo(projectRootDir: File, moduleRootDir: File, buildVariant: String) = ModuleBuildPathInfo(projectRootDir, moduleRootDir, buildVariant)

@@ -47,7 +47,6 @@ class JuggPathManager(
 
     val initGradleFilePath = File(stableGradleDir, "readProjectInfo.gradle.kts")
     val runtimeJarFilePath = File(stableGradleDir, "jugg-runtime.jar")
-    val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
 
     val customCompilerDir = File(configDir, "custom_compilers")
 

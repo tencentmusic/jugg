@@ -15,9 +15,11 @@ import java.io.File
 class GradleDependencyDiffer(
     private val rootProject: Project,
     private val projectInfo: JuggProjectInfo,
+    /** IDE project dir, may differ from rootProject.projectDir when Gradle root is a subdirectory */
+    private val ideProjectDir: File = rootProject.projectDir,
 ) {
 
-    private val pathManager = JuggPathManager(rootProject.projectDir)
+    private val pathManager = JuggPathManager(ideProjectDir)
     private val outputDir = pathManager.remoteDiffDir
     private val diffLibraryDir = pathManager.remoteDiffLibraryDir
     private val diffResultFile = pathManager.remoteDiffResultFile

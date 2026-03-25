@@ -16,7 +16,12 @@ class GradleProjectInfoReaderManager(
     private val includeBuildProjects: Collection<IncludedBuild>,
 ) {
 
-    private val juggPathManager = JuggPathManager(rootProject.rootDir)
+    // Prefer jugg.projectDir property to support projects where Gradle root != IDE project dir
+    // (e.g., kugou_like/ project with android/ as Gradle root)
+    private val juggPathManager = JuggPathManager(
+        rootProject.properties["jugg.projectDir"]?.toString()?.let { File(it) }
+            ?: rootProject.rootDir
+    )
 
     fun readAndSave() {
         try {
@@ -26,14 +31,14 @@ class GradleProjectInfoReaderManager(
             readEnvironment()
             val startTime = System.currentTimeMillis()
             val lastProjectInfo = readLastProjectInfo()
-            val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo).getProjectInfo()
+            val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo, juggPathManager.projectDir).getProjectInfo()
 
             if (isDiffMode) {
-                GradleDependencyDiffer(rootProject, projectInfo).outputDiffToDir()
+                GradleDependencyDiffer(rootProject, projectInfo, juggPathManager.projectDir).outputDiffToDir()
             } else {
                 writeProjectInfoFile(projectInfo)
                 writeIncludeProjectsFile()
-                GradleDependencyDiffer(rootProject, projectInfo).deleteTmpProjectInfos()
+                GradleDependencyDiffer(rootProject, projectInfo, juggPathManager.projectDir).deleteTmpProjectInfos()
             }
 
             val costTime = System.currentTimeMillis() - startTime
