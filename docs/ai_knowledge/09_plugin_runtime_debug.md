@@ -89,6 +89,8 @@ ${projectRoot}/.gradle/jugg/
 | ConstRef 限速实值 | `ConstRefEngine io throttle enabled` |
 | ConstRef 全扫进度 | `ConstRefEngine full scan progress` |
 | IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
+| 重混淆结果 | `Obfuscated:` |
+| 重混淆注解问题 | `visitAnnotation` / `mapType` |
 
 ---
 
@@ -158,6 +160,31 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 1. 确认 APK 大小（`build/jugg/classpath/apk/`）
 2. 搜 `APK size exceeds threshold` 确认是否触发了隔离进程解析
 3. 检查 `build/jugg/database/apk/` 下 db 文件大小
+
+### 4.4 release 增量编译后注解类型不匹配 crash
+
+**信号**：runtime crash 报某类 "has no public methods with @Subscribe annotation" 或其他注解查找失败（如 `EventBusException`、Dagger/Hilt 注入失败等注解类型不匹配异常）。
+
+**排查步骤**：
+1. **从 crash log 定位涉及的 Activity/类和注解类型**：例如 `MainTabActivity` 和 `@Subscribe`（`org.greenrobot.eventbus.Subscribe`）
+2. **在 `mapping.txt` 中搜索注解类名**，确认是否被 R8 混淆：
+   - 路径：`build/jugg/classpath/root/.../mapping/release/mapping.txt`
+   - 搜索：`org.greenrobot.eventbus.Subscribe`，若找到如 `→ xxx.gkp` 则注解类已被混淆
+3. **在编译日志中搜索 `Obfuscated:` 确认重混淆是否执行成功**：
+   - 路径：`build/jugg/log/compile_latest.log`
+4. **用 `dexdump -a` 对比 staging DEX 和原始 APK DEX 中方法注解**：
+   - staging DEX 路径：`build/jugg/build/staging/classes/{package}/{ClassName}.dex`
+   - 原始 APK DEX：从 APK 中提取 `classes*.dex`
+   - 命令：`~/Library/Android/sdk/build-tools/<version>/dexdump -a <file.dex> | grep -A5 "onMessageEvent"`（替换为目标方法名）
+5. **对比注解类型描述符是否一致**：若 staging DEX 中为原始名（如 `Lorg/greenrobot/eventbus/Subscribe;`），而原始 APK DEX 中为混淆名（如 `Lxxx/gkp;`），则确认 `DexObfuscator` 未对注解类型做映射
+
+**根因模式**：`DexObfuscator` 的 visitor 链中未对注解类型名做 `mapType()` 映射。具体表现为 `visitMethod()` 返回的 `DexMethodVisitor` 没有重写 `visitAnnotation()`，或 `visitAnnotation()` 的 `name`（注解类型描述符）未调用 `mapType()`。
+
+**关键类**：
+```
+main/.../compiler/obfuscation/DexObfuscator.kt     # visitMethod / visitAnnotation
+main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
+```
 
 ---
 

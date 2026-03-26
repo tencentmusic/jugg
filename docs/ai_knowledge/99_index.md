@@ -45,6 +45,7 @@
 | MCP UI 验证评分（评估者专用） | `08_mcp_test_case_ui_verify_answer.md` | - |
 | MCP UI 验证执行规范自检 | `08_mcp_ui_verify_checklist.md` | - |
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
+| **release 增量编译后注解/反射 crash** | `98_code_map.md`, `02_compile_manifest_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`, `04_engineering_ide.md`, `03_deploy_const_ref.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
 
 ---

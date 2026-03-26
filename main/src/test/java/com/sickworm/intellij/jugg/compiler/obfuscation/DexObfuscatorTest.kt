@@ -1,9 +1,11 @@
 package com.sickworm.intellij.jugg.compiler.obfuscation
 
 import com.googlecode.d2j.DexConstants
+import com.googlecode.d2j.DexType
 import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method
 import com.googlecode.d2j.Proto
+import com.googlecode.d2j.Visibility
 import com.googlecode.d2j.dex.writer.DexFileWriter
 import com.googlecode.d2j.node.DexFileNode
 import com.googlecode.d2j.reader.DexFileReader
@@ -574,6 +576,246 @@ class DexObfuscatorTest {
         // Verify method is renamed
         val method = classNode.methods.find { it.method.name == "m" }
         assertNotNull("Method should be renamed to 'm'", method)
+    }
+
+    // ==================== Annotation remapping tests ====================
+
+    @Test
+    fun testObfuscateMethodAnnotationType() {
+        val mappingContent = """
+            org.greenrobot.eventbus.Subscribe -> xxx.gkp:
+            com.example.TestClass -> a.b:
+                void onEvent() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX with a method that has an annotation
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "onEvent", Proto(emptyArray(), "V"))
+        )
+
+        // Add annotation to the method
+        val annotationVisitor = methodVisitor.visitAnnotation(
+            "Lorg/greenrobot/eventbus/Subscribe;",
+            Visibility.RUNTIME
+        )
+        annotationVisitor.visitEnd()
+
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Verify class is renamed
+        assertEquals("La/b;", classNode.className)
+
+        // Verify method annotation type is remapped
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        val methodAnns = method!!.anns
+        assertNotNull("Method should have annotations", methodAnns)
+        assertEquals(1, methodAnns.size)
+        assertEquals(
+            "Method annotation type should be remapped to obfuscated name",
+            "Lxxx/gkp;",
+            methodAnns[0].type
+        )
+    }
+
+    @Test
+    fun testObfuscateClassAnnotationType() {
+        val mappingContent = """
+            com.example.MyAnnotation -> x.ann:
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX with a class-level annotation
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Add class-level annotation
+        val annotationVisitor = classVisitor.visitAnnotation(
+            "Lcom/example/MyAnnotation;",
+            Visibility.RUNTIME
+        )
+        annotationVisitor.visitEnd()
+
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Verify class is renamed
+        assertEquals("La/b;", classNode.className)
+
+        // Verify class annotation type is remapped
+        val classAnns = classNode.anns
+        assertNotNull("Class should have annotations", classAnns)
+        assertEquals(1, classAnns.size)
+        assertEquals(
+            "Class annotation type should be remapped to obfuscated name",
+            "Lx/ann;",
+            classAnns[0].type
+        )
+    }
+
+    @Test
+    fun testObfuscateMethodAnnotationValue() {
+        val mappingContent = """
+            com.example.Referenced -> x.ref:
+            com.example.MyAnnotation -> x.ann:
+            com.example.TestClass -> a.b:
+                void testMethod() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX with a method annotation that has a DexType value
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "testMethod", Proto(emptyArray(), "V"))
+        )
+
+        // Add annotation with a DexType value
+        val annotationVisitor = methodVisitor.visitAnnotation(
+            "Lcom/example/MyAnnotation;",
+            Visibility.RUNTIME
+        )
+        annotationVisitor.visit("targetClass", DexType("Lcom/example/Referenced;"))
+        annotationVisitor.visitEnd()
+
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Verify method annotation type is remapped
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        val methodAnns = method!!.anns
+        assertNotNull("Method should have annotations", methodAnns)
+        assertEquals(1, methodAnns.size)
+        assertEquals("Lx/ann;", methodAnns[0].type)
+
+        // Verify annotation value DexType is remapped
+        val items = methodAnns[0].items
+        assertNotNull("Annotation should have items", items)
+        val targetClassItem = items.find { it.name == "targetClass" }
+        assertNotNull("Should have 'targetClass' item", targetClassItem)
+        assertTrue("Value should be DexType", targetClassItem!!.value is DexType)
+        assertEquals(
+            "Annotation DexType value should be remapped",
+            "Lx/ref;",
+            (targetClassItem.value as DexType).desc
+        )
+    }
+
+    @Test
+    fun testObfuscateFieldAnnotationType() {
+        val mappingContent = """
+            com.example.MyAnnotation -> x.ann:
+            com.example.TestClass -> a.b:
+                int myField -> f
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX with a field that has an annotation
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Add field with annotation
+        val fieldVisitor = classVisitor.visitField(
+            DexConstants.ACC_PRIVATE,
+            Field("Lcom/example/TestClass;", "myField", "I"),
+            null
+        )
+        val annotationVisitor = fieldVisitor.visitAnnotation(
+            "Lcom/example/MyAnnotation;",
+            Visibility.RUNTIME
+        )
+        annotationVisitor.visitEnd()
+        fieldVisitor.visitEnd()
+
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Verify class is renamed
+        assertEquals("La/b;", classNode.className)
+
+        // Verify field is renamed
+        val field = classNode.fields.find { it.field.name == "f" }
+        assertNotNull("Field should be renamed to 'f'", field)
+
+        // Verify field annotation type is remapped
+        val fieldAnns = field!!.anns
+        assertNotNull("Field should have annotations", fieldAnns)
+        assertEquals(1, fieldAnns.size)
+        assertEquals(
+            "Field annotation type should be remapped to obfuscated name",
+            "Lx/ann;",
+            fieldAnns[0].type
+        )
     }
 
     // ==================== Cache tests ====================

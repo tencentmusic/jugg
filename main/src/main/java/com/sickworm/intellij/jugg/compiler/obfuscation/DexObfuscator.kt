@@ -267,45 +267,11 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                 private val originalClassName = className
 
                 override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
-                    val annotationVisitor = super.visitAnnotation(name, visibility)
-                    return object : DexAnnotationVisitor(annotationVisitor) {
-                        override fun visit(name: String?, value: Any?) {
-                            val mappedValue = when (value) {
-                                is DexType -> {
-                                    val mapped = mapType(value.desc)
-                                    if (mapped != value.desc) {
-                                        hasRemapped = true
-                                        DexType(mapped)
-                                    } else {
-                                        value
-                                    }
-                                }
-                                else -> value
-                            }
-                            super.visit(name, mappedValue)
-                        }
-
-                        override fun visitArray(name: String?): DexAnnotationVisitor {
-                            val arrayVisitor = super.visitArray(name)
-                            return object : DexAnnotationVisitor(arrayVisitor) {
-                                override fun visit(name: String?, value: Any?) {
-                                    val mappedValue = when (value) {
-                                        is DexType -> {
-                                            val mapped = mapType(value.desc)
-                                            if (mapped != value.desc) {
-                                                hasRemapped = true
-                                                DexType(mapped)
-                                            } else {
-                                                value
-                                            }
-                                        }
-                                        else -> value
-                                    }
-                                    super.visit(name, mappedValue)
-                                }
-                            }
-                        }
-                    }
+                    // Fix 1: map annotation type descriptor
+                    val mappedName = name?.let { mapType(it) }
+                    if (mappedName != name) hasRemapped = true
+                    val annotationVisitor = super.visitAnnotation(mappedName, visibility)
+                    return createAnnotationRemapper(annotationVisitor)
                 }
 
                 override fun visitField(accessFlags: Int, field: Field, value: Any?): DexFieldVisitor {
@@ -313,7 +279,16 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                     if (mappedField != field) {
                         hasRemapped = true
                     }
-                    return super.visitField(accessFlags, mappedField, value)
+                    // Fix 3: wrap field visitor to handle field-level annotations
+                    val fieldVisitor = super.visitField(accessFlags, mappedField, value)
+                    return object : DexFieldVisitor(fieldVisitor) {
+                        override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
+                            val mappedName = name?.let { mapType(it) }
+                            if (mappedName != name) hasRemapped = true
+                            val annotationVisitor = super.visitAnnotation(mappedName, visibility)
+                            return createAnnotationRemapper(annotationVisitor)
+                        }
+                    }
                 }
 
                 override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor {
@@ -325,6 +300,14 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                     val methodVisitor = super.visitMethod(accessFlags, mappedMethod)
 
                     return object : DexMethodVisitor(methodVisitor) {
+                        // Fix 2: handle method-level annotations
+                        override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
+                            val mappedName = name?.let { mapType(it) }
+                            if (mappedName != name) hasRemapped = true
+                            val annotationVisitor = super.visitAnnotation(mappedName, visibility)
+                            return createAnnotationRemapper(annotationVisitor)
+                        }
+
                         override fun visitCode(): DexCodeVisitor {
                             val codeVisitor = super.visitCode()
                             return object : DexCodeVisitor(codeVisitor) {
@@ -337,11 +320,11 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                                 }
 
                                 override fun visitMethodStmt(op: com.googlecode.d2j.reader.Op?, args: IntArray?, method: Method) {
-                                    val mappedMethod = mapMethod(method)
-                                    if (mappedMethod != method) {
+                                    val remappedMethod = mapMethod(method)
+                                    if (remappedMethod != method) {
                                         hasRemapped = true
                                     }
-                                    super.visitMethodStmt(op, args, mappedMethod)
+                                    super.visitMethodStmt(op, args, remappedMethod)
                                 }
 
                                 override fun visitTypeStmt(op: com.googlecode.d2j.reader.Op?, a: Int, b: Int, type: String) {
@@ -354,6 +337,35 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        /**
+         * Create a DexAnnotationVisitor that remaps DexType values in annotation elements.
+         * Reused for class-level, method-level, and field-level annotation handling.
+         */
+        private fun createAnnotationRemapper(delegate: DexAnnotationVisitor): DexAnnotationVisitor {
+            return object : DexAnnotationVisitor(delegate) {
+                override fun visit(name: String?, value: Any?) {
+                    val mappedValue = when (value) {
+                        is DexType -> {
+                            val mapped = mapType(value.desc)
+                            if (mapped != value.desc) {
+                                hasRemapped = true
+                                DexType(mapped)
+                            } else {
+                                value
+                            }
+                        }
+                        else -> value
+                    }
+                    super.visit(name, mappedValue)
+                }
+
+                override fun visitArray(name: String?): DexAnnotationVisitor {
+                    val arrayVisitor = super.visitArray(name)
+                    return createAnnotationRemapper(arrayVisitor)
                 }
             }
         }
