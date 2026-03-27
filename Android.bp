@@ -47,10 +47,13 @@ cc_defaults {
         "-Wno-missing-field-initializers",
         "-fno-exceptions",
         "-fno-rtti",
+        "-DENABLE_STRING8_OBSOLETE_METHODS",
+        "-DENABLE_STRING16_OBSOLETE_METHODS",
     ],
     target: {
         windows: {
             enabled: true,
+            compile_multilib: "64",
             cflags: ["-Wno-maybe-uninitialized"],
             ldflags: ["-static"],
         },
