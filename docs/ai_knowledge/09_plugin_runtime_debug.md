@@ -92,6 +92,7 @@ ${projectRoot}/.gradle/jugg/
 | 重混淆结果 | `Obfuscated:` |
 | 重混淆注解问题 | `visitAnnotation` / `mapType` |
 | 重混淆类型引用遗漏 | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
+| 重混淆 access flag 宽化 | `widenAccessFlags` / `IllegalAccessError` / `AbstractMethodError` / `ExternalSyntheticLambda` |
 
 ---
 
@@ -221,6 +222,28 @@ main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 ```
 
 **对比参考**：`ClassObfuscator.kt` 使用 ASM 的 `ClassRemapper` + `Remapper`，自动处理所有类型引用（LDC Type、ANEWARRAY、CHECKCAST、异常表等），无需逐个覆写。`DexObfuscator` 使用 dex2jar visitor 模式，必须手动覆写每个含类型引用的方法。
+
+### 4.6 release 增量编译后 IllegalAccessError / AbstractMethodError（access flag 不匹配）
+
+**信号**：runtime crash 报 `IllegalAccessError: Method '...' is inaccessible to class 'xxx.xxx'`，或 `AbstractMethodError: abstract method "..."`,且 crash 涉及 `ExternalSyntheticLambda` 类或混淆后的接口调用。
+
+**根因模式**：R8 在全量构建时（启用 `-allowaccessmodification`）会将所有 `private`/`protected`/`package-private` 成员宽化为 `public`。Jugg 增量编译的 `javac → D8 → DexObfuscator` 链路不做此宽化，导致增量产物中的方法仍为 `private`，而 APK 中的 `ExternalSyntheticLambda` 等类期望调用 `public` 方法。
+
+**排查步骤**：
+1. **从 crash log 定位涉及的类和方法**：确认是否涉及 lambda 方法（`lambda$...`）或混淆后的接口方法
+2. **确认 `-allowaccessmodification` 启用**：检查 `build/intermediates/default_proguard_files/global/proguard-android-optimize.txt*`
+3. **用 `dexdump -a` 对比 access flags**：检查增量编译产物中方法的 access flags 是否为 `private`，而 APK 中对应方法是否为 `public`
+4. **确认 `DexObfuscator.widenAccessFlags()` 是否正确执行**：搜索编译日志中 `Obfuscated:` 确认重混淆已执行
+
+**修复方案**：`DexObfuscator.widenAccessFlags()` 方法在 `visit()`、`visitField()`、`visitMethod()` 中将所有非 `public` 成员宽化为 `public`。
+
+**关键类**：
+```
+main/.../compiler/obfuscation/DexObfuscator.kt     # widenAccessFlags / visit / visitField / visitMethod
+main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
+```
+
+**关联文档**：`docs/task/release_incremental_access_flag_mismatch.md`
 
 ---
 

@@ -1081,6 +1081,398 @@ class DexObfuscatorTest {
         )
     }
 
+    // ==================== Access flag widening tests (方案 E) ====================
+
+    /**
+     * P0: Private method should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens all private methods to public.
+     * DexObfuscator must replicate this behavior to avoid IllegalAccessError
+     * when ExternalSyntheticLambda classes call the widened method.
+     */
+    @Test
+    fun testPrivateMethodWidenedToPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void lambda${'$'}onResume${'$'}0() -> a
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX with a private lambda method
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PRIVATE,  // javac generates private lambda methods
+            Method("Lcom/example/TestClass;", "lambda\$onResume\$0", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val method = classNode.methods.find { it.method.name == "a" }
+        assertNotNull("Method should be renamed to 'a'", method)
+
+        // Verify access flag: private should be widened to public
+        val access = method!!.access
+        assertTrue(
+            "Method should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Method should NOT have ACC_PRIVATE after widening",
+            access and DexConstants.ACC_PRIVATE != 0
+        )
+    }
+
+    /**
+     * P0: Private field should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens all private fields to public.
+     */
+    @Test
+    fun testPrivateFieldWidenedToPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                int secretField -> x
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        classVisitor.visitField(
+            DexConstants.ACC_PRIVATE,
+            Field("Lcom/example/TestClass;", "secretField", "I"),
+            null
+        ).visitEnd()
+
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val field = classNode.fields.find { it.field.name == "x" }
+        assertNotNull("Field should be renamed to 'x'", field)
+
+        // Verify access flag: private should be widened to public
+        val access = field!!.access
+        assertTrue(
+            "Field should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Field should NOT have ACC_PRIVATE after widening",
+            access and DexConstants.ACC_PRIVATE != 0
+        )
+    }
+
+    /**
+     * P0: Protected method should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens protected to public.
+     */
+    @Test
+    fun testProtectedMethodWidenedToPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void protectedMethod() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PROTECTED,
+            Method("Lcom/example/TestClass;", "protectedMethod", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        val access = method!!.access
+        assertTrue(
+            "Protected method should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Protected method should NOT have ACC_PROTECTED after widening",
+            access and DexConstants.ACC_PROTECTED != 0
+        )
+    }
+
+    /**
+     * P0: Package-private method should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens package-private to public.
+     */
+    @Test
+    fun testPackagePrivateMethodWidenedToPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void packageMethod() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // package-private = no access modifier flags
+        val methodVisitor = classVisitor.visitMethod(
+            0,  // package-private
+            Method("Lcom/example/TestClass;", "packageMethod", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        val access = method!!.access
+        assertTrue(
+            "Package-private method should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+    }
+
+    /**
+     * P1: Public method should remain public (no unnecessary modification).
+     */
+    @Test
+    fun testPublicMethodRemainsPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void publicMethod() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "publicMethod", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        val access = method!!.access
+        assertTrue(
+            "Public method should remain ACC_PUBLIC",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+    }
+
+    /**
+     * P1: Private static method should be widened to public static.
+     * The static flag must be preserved during widening.
+     */
+    @Test
+    fun testPrivateStaticMethodWidenedPreservesOtherFlags() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void staticLambda() -> s
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PRIVATE or DexConstants.ACC_STATIC,
+            Method("Lcom/example/TestClass;", "staticLambda", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val method = classNode.methods.find { it.method.name == "s" }
+        assertNotNull("Method should be renamed to 's'", method)
+
+        val access = method!!.access
+        assertTrue(
+            "Private static method should become public",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Private flag should be removed",
+            access and DexConstants.ACC_PRIVATE != 0
+        )
+        assertTrue(
+            "Static flag should be preserved",
+            access and DexConstants.ACC_STATIC != 0
+        )
+    }
+
+    /**
+     * P1: Private class (inner class) access flag should be widened to public.
+     */
+    @Test
+    fun testPrivateClassWidenedToPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PRIVATE,  // inner class can be private
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        assertEquals("La/b;", classNode.className)
+
+        val access = classNode.access
+        assertTrue(
+            "Private class should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Private class should NOT have ACC_PRIVATE after widening",
+            access and DexConstants.ACC_PRIVATE != 0
+        )
+    }
+
+    /**
+     * P1: Method not in mapping should still have access flags widened.
+     * Even if method name stays the same (no mapping entry), the class IS
+     * in the mapping, so access flags should still be widened.
+     */
+    @Test
+    fun testUnmappedMethodInMappedClassStillWidened() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PRIVATE,
+            Method("Lcom/example/TestClass;", "unmappedMethod", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        // Method name stays the same since it's not in the mapping
+        val method = classNode.methods.find { it.method.name == "unmappedMethod" }
+        assertNotNull("Unmapped method should still exist", method)
+
+        val access = method!!.access
+        assertTrue(
+            "Unmapped method in mapped class should still be widened to public",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Unmapped method should NOT remain private",
+            access and DexConstants.ACC_PRIVATE != 0
+        )
+    }
+
     // ==================== Cache tests ====================
 
     @Test

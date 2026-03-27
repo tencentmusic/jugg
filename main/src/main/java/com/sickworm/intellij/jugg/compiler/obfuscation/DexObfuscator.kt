@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.obfuscation
 
+import com.googlecode.d2j.DexConstants
 import com.googlecode.d2j.DexType
 import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method
@@ -261,7 +262,7 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                 hasRemapped = true
             }
 
-            val classVisitor = super.visit(accessFlags, mappedClassName, mappedSuperClass, mappedInterfaces)
+            val classVisitor = super.visit(widenAccessFlags(accessFlags), mappedClassName, mappedSuperClass, mappedInterfaces)
 
             return object : DexClassVisitor(classVisitor) {
                 private val originalClassName = className
@@ -280,7 +281,7 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                         hasRemapped = true
                     }
                     // Fix 3: wrap field visitor to handle field-level annotations
-                    val fieldVisitor = super.visitField(accessFlags, mappedField, value)
+                    val fieldVisitor = super.visitField(widenAccessFlags(accessFlags), mappedField, value)
                     return object : DexFieldVisitor(fieldVisitor) {
                         override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
                             val mappedName = name?.let { mapType(it) }
@@ -297,7 +298,7 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                         hasRemapped = true
                     }
 
-                    val methodVisitor = super.visitMethod(accessFlags, mappedMethod)
+                    val methodVisitor = super.visitMethod(widenAccessFlags(accessFlags), mappedMethod)
 
                     return object : DexMethodVisitor(methodVisitor) {
                         // Fix 2: handle method-level annotations
@@ -455,6 +456,18 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                     return createAnnotationRemapper(arrayVisitor)
                 }
             }
+        }
+
+        /**
+         * Widen access flags to public.
+         * R8 with -allowaccessmodification unconditionally widens all private/protected/package-private
+         * members to public. Jugg must replicate this to avoid IllegalAccessError / AbstractMethodError
+         * when APK-resident classes (e.g., ExternalSyntheticLambda) call into incrementally-compiled classes.
+         */
+        private fun widenAccessFlags(accessFlags: Int): Int {
+            // Clear private and protected bits, set public bit
+            return (accessFlags and DexConstants.ACC_PRIVATE.inv() and DexConstants.ACC_PROTECTED.inv()) or
+                    DexConstants.ACC_PUBLIC
         }
 
         /**
