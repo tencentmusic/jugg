@@ -48,6 +48,7 @@
 - "release 增量后类找不到"：看 `ClassMinifyCompiler` 是否正确加载 mapping。  
 - "dex 混淆后崩溃"：看 `DexMinifyCompiler` 的输入输出与映射完整性。
 - "release 增量后运行时注解找不到"：检查 `DexObfuscator` 是否正确处理了方法级/字段级注解的类型描述符映射。注解类型描述符（`visitAnnotation` 的 `name` 参数）需要通过 `mapType()` 映射。详见 `09_plugin_runtime_debug.md` §4.4。
+- "release 增量后 NoClassDefFoundError"：检查 `DexObfuscator` 的 `DexCodeVisitor` 是否覆写了所有含类型引用的方法（`visitConstStmt`、`visitFilledNewArrayStmt`、`visitTryCatch` 等）。详见 `09_plugin_runtime_debug.md` §4.5。
 
 ---
 

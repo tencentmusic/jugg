@@ -91,6 +91,7 @@ ${projectRoot}/.gradle/jugg/
 | IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
 | 重混淆结果 | `Obfuscated:` |
 | 重混淆注解问题 | `visitAnnotation` / `mapType` |
+| 重混淆类型引用遗漏 | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
 
 ---
 
@@ -185,6 +186,41 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 main/.../compiler/obfuscation/DexObfuscator.kt     # visitMethod / visitAnnotation
 main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 ```
+
+### 4.5 release 增量编译后 NoClassDefFoundError（字节码级类型引用未映射）
+
+**信号**：runtime crash 报 `NoClassDefFoundError: Failed resolution of: Lcom/xxx/ClassName;`，且该类**未被增量编译和部署**（日志中不出现该类名）。
+
+**排查步骤**：
+1. **确认 crash 中的类名在编译日志中不出现**：搜索日志确认该类未被编译/部署/结构对比
+2. **确认被增量编译的类引用了该类**：从 crash 堆栈找到调用方（通常是被增量编译的 Activity/类），查看其源码中是否使用了 `ClassName.class`（触发 `const-class` 指令）、`new ClassName[]`（触发 `filled-new-array`）或 `try { } catch (ClassName e)`（触发 `try-catch` 异常类型引用）
+3. **在 `mapping.txt` 中搜索该类名**：确认该类已被 R8 混淆
+4. **用 `dexdump -a` 检查 staging DEX 中的字节码**：
+   - 搜索 `const-class` 指令，检查其类型引用是否仍为原始名
+   - 命令：`dexdump -a <file.dex> | grep -B2 -A2 "const-class"`
+
+**根因模式**：`DexObfuscator` 的 `DexCodeVisitor` 中缺少对特定 visitor 方法的覆写，导致这些方法中的类型引用未经 `mapType()` 映射。dex2jar 不像 ASM 的 `ClassRemapper` 那样自动处理所有类型引用，每个 visitor 方法都需要手动覆写。
+
+**需要覆写的 DexCodeVisitor 方法完整清单**：
+
+| 方法 | 类型引用位置 | 典型 DEX 指令 |
+|------|------------|-------------|
+| `visitConstStmt(Op, int, Object)` | value 为 DexType 时 | `const-class` |
+| `visitFieldStmt(Op, int, int, Field)` | Field 的 owner/type | `iget`/`sput` 等 |
+| `visitMethodStmt(Op, int[], Method)` | Method 的 owner/proto | `invoke-*` |
+| `visitMethodStmt(Op, int[], Method, Proto)` | invoke-polymorphic | `invoke-polymorphic` |
+| `visitMethodStmt(Op, int[], String, Proto, MethodHandle, Object...)` | bsmArgs 中 DexType/Method/Proto | `invoke-custom` |
+| `visitFilledNewArrayStmt(Op, int[], String)` | 第三参数为类型描述符 | `filled-new-array` |
+| `visitTryCatch(DexLabel, DexLabel, DexLabel[], String[])` | String[] 为异常类型描述符数组 | `.catch` |
+| `visitTypeStmt(Op, int, int, String)` | 第四参数为类型描述符 | `new-instance`/`check-cast` |
+
+**关键类**：
+```
+main/.../compiler/obfuscation/DexObfuscator.kt     # visitCode() 内的 DexCodeVisitor 覆写
+main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
+```
+
+**对比参考**：`ClassObfuscator.kt` 使用 ASM 的 `ClassRemapper` + `Remapper`，自动处理所有类型引用（LDC Type、ANEWARRAY、CHECKCAST、异常表等），无需逐个覆写。`DexObfuscator` 使用 dex2jar visitor 模式，必须手动覆写每个含类型引用的方法。
 
 ---
 

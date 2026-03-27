@@ -311,6 +311,23 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                         override fun visitCode(): DexCodeVisitor {
                             val codeVisitor = super.visitCode()
                             return object : DexCodeVisitor(codeVisitor) {
+                                override fun visitConstStmt(op: com.googlecode.d2j.reader.Op?, a: Int, value: Any?) {
+                                    // Handle const-class instructions where value is DexType
+                                    val mappedValue = when (value) {
+                                        is DexType -> {
+                                            val mapped = mapType(value.desc)
+                                            if (mapped != value.desc) {
+                                                hasRemapped = true
+                                                DexType(mapped)
+                                            } else {
+                                                value
+                                            }
+                                        }
+                                        else -> value
+                                    }
+                                    super.visitConstStmt(op, a, mappedValue)
+                                }
+
                                 override fun visitFieldStmt(op: com.googlecode.d2j.reader.Op?, a: Int, b: Int, field: Field) {
                                     val mappedField = mapField(field)
                                     if (mappedField != field) {
@@ -325,6 +342,76 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                                         hasRemapped = true
                                     }
                                     super.visitMethodStmt(op, args, remappedMethod)
+                                }
+
+                                override fun visitMethodStmt(op: com.googlecode.d2j.reader.Op?, args: IntArray?, bsm: Method?, proto: Proto?) {
+                                    // invoke-polymorphic: map the bootstrap method and proto
+                                    val mappedBsm = bsm?.let { mapMethod(it) }
+                                    val mappedProto = proto?.let { mapProto(it) }
+                                    if (mappedBsm != bsm || mappedProto != proto) {
+                                        hasRemapped = true
+                                    }
+                                    super.visitMethodStmt(op, args, mappedBsm, mappedProto)
+                                }
+
+                                override fun visitMethodStmt(
+                                    op: com.googlecode.d2j.reader.Op?,
+                                    args: IntArray?,
+                                    name: String?,
+                                    proto: Proto?,
+                                    bsm: com.googlecode.d2j.MethodHandle?,
+                                    vararg bsmArgs: Any?
+                                ) {
+                                    // invoke-custom: map proto and DexType values in bsmArgs
+                                    val mappedProto = proto?.let { mapProto(it) }
+                                    val mappedBsmArgs = bsmArgs.map { arg ->
+                                        when (arg) {
+                                            is DexType -> {
+                                                val mapped = mapType(arg.desc)
+                                                if (mapped != arg.desc) {
+                                                    hasRemapped = true
+                                                    DexType(mapped)
+                                                } else {
+                                                    arg
+                                                }
+                                            }
+                                            is Method -> {
+                                                val mapped = mapMethod(arg)
+                                                if (mapped != arg) hasRemapped = true
+                                                mapped
+                                            }
+                                            is Proto -> {
+                                                val mapped = mapProto(arg)
+                                                if (mapped != arg) hasRemapped = true
+                                                mapped
+                                            }
+                                            else -> arg
+                                        }
+                                    }.toTypedArray()
+                                    if (mappedProto != proto) hasRemapped = true
+                                    super.visitMethodStmt(op, args, name, mappedProto, bsm, *mappedBsmArgs)
+                                }
+
+                                override fun visitFilledNewArrayStmt(op: com.googlecode.d2j.reader.Op?, args: IntArray?, type: String) {
+                                    val mappedType = mapType(type)
+                                    if (mappedType != type) {
+                                        hasRemapped = true
+                                    }
+                                    super.visitFilledNewArrayStmt(op, args, mappedType)
+                                }
+
+                                override fun visitTryCatch(
+                                    start: com.googlecode.d2j.DexLabel?,
+                                    end: com.googlecode.d2j.DexLabel?,
+                                    handler: Array<out com.googlecode.d2j.DexLabel>?,
+                                    types: Array<out String>?
+                                ) {
+                                    val mappedTypes = types?.map { type ->
+                                        val mapped = mapType(type)
+                                        if (mapped != type) hasRemapped = true
+                                        mapped
+                                    }?.toTypedArray()
+                                    super.visitTryCatch(start, end, handler, mappedTypes)
                                 }
 
                                 override fun visitTypeStmt(op: com.googlecode.d2j.reader.Op?, a: Int, b: Int, type: String) {

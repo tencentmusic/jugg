@@ -1,14 +1,19 @@
 package com.sickworm.intellij.jugg.compiler.obfuscation
 
 import com.googlecode.d2j.DexConstants
+import com.googlecode.d2j.DexLabel
 import com.googlecode.d2j.DexType
 import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method
+import com.googlecode.d2j.MethodHandle
 import com.googlecode.d2j.Proto
 import com.googlecode.d2j.Visibility
 import com.googlecode.d2j.dex.writer.DexFileWriter
 import com.googlecode.d2j.node.DexFileNode
+import com.googlecode.d2j.node.insn.ConstStmtNode
+import com.googlecode.d2j.node.insn.FilledNewArrayStmtNode
 import com.googlecode.d2j.reader.DexFileReader
+import com.googlecode.d2j.reader.Op
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.BeforeClass
@@ -815,6 +820,264 @@ class DexObfuscatorTest {
             "Field annotation type should be remapped to obfuscated name",
             "Lx/ann;",
             fieldAnns[0].type
+        )
+    }
+
+    // ==================== const-class / filled-new-array / try-catch remapping tests ====================
+
+    /**
+     * P0: visitConstStmt with DexType value (const-class instruction).
+     * When code does `MainTabViewModel.class`, dex emits const-class with a DexType.
+     * DexObfuscator must map the DexType through mapType().
+     */
+    @Test
+    fun testObfuscateConstClassType() {
+        val mappingContent = """
+            com.example.ViewModel -> x.vm:
+            com.example.TestClass -> a.b:
+                void doOnCreate() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX with a const-class instruction referencing ViewModel
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "doOnCreate", Proto(emptyArray(), "V"))
+        )
+
+        val codeVisitor = methodVisitor.visitCode()
+        // const-class v0, Lcom/example/ViewModel;
+        codeVisitor.visitConstStmt(
+            Op.CONST_CLASS,
+            0,
+            DexType("Lcom/example/ViewModel;")
+        )
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        // Read the obfuscated DEX and verify the const-class type is remapped
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        assertEquals("La/b;", classNode.className)
+
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        // Find the const-class statement and verify DexType is remapped
+        val codeNode = method!!.codeNode
+        assertNotNull("Method should have code", codeNode)
+
+        val constStmt = codeNode.stmts.filterIsInstance<ConstStmtNode>()
+            .firstOrNull { it.value is DexType }
+        assertNotNull("Should have a const-class statement with DexType", constStmt)
+
+        val dexType = constStmt!!.value as DexType
+        assertEquals(
+            "const-class DexType should be remapped to obfuscated name",
+            "Lx/vm;",
+            dexType.desc
+        )
+    }
+
+    /**
+     * P0: visitConstStmt with non-DexType value should pass through unchanged.
+     * e.g., const-string or const integer values.
+     */
+    @Test
+    fun testObfuscateConstStmtNonDexTypePassThrough() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void test() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "test", Proto(emptyArray(), "V"))
+        )
+
+        val codeVisitor = methodVisitor.visitCode()
+        // const-string v0, "hello"
+        codeVisitor.visitConstStmt(Op.CONST_STRING, 0, "hello")
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull(obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull(method)
+
+        val constStmt = method!!.codeNode.stmts.filterIsInstance<ConstStmtNode>()
+            .firstOrNull { it.value is String }
+        assertNotNull("Should have a const-string statement", constStmt)
+        assertEquals("hello", constStmt!!.value)
+    }
+
+    /**
+     * P1: visitFilledNewArrayStmt type descriptor must be remapped.
+     * e.g., filled-new-array {v0, v1}, [Lcom/example/ViewModel;
+     */
+    @Test
+    fun testObfuscateFilledNewArrayType() {
+        val mappingContent = """
+            com.example.Item -> x.it:
+            com.example.TestClass -> a.b:
+                void test() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "test", Proto(emptyArray(), "V"))
+        )
+
+        val codeVisitor = methodVisitor.visitCode()
+        // filled-new-array {v0, v1}, [Lcom/example/Item;
+        codeVisitor.visitFilledNewArrayStmt(
+            Op.FILLED_NEW_ARRAY,
+            intArrayOf(0, 1),
+            "[Lcom/example/Item;"
+        )
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        assertEquals("La/b;", classNode.className)
+
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull(method)
+
+        val filledNewArrayStmt = method!!.codeNode.stmts.filterIsInstance<FilledNewArrayStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a filled-new-array statement", filledNewArrayStmt)
+        assertEquals(
+            "filled-new-array type should be remapped",
+            "[Lx/it;",
+            filledNewArrayStmt!!.type
+        )
+    }
+
+    /**
+     * P1: visitTryCatch exception type descriptors must be remapped.
+     */
+    @Test
+    fun testObfuscateTryCatchExceptionType() {
+        val mappingContent = """
+            com.example.MyException -> x.ex:
+            com.example.TestClass -> a.b:
+                void test() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "test", Proto(emptyArray(), "V"))
+        )
+
+        val codeVisitor = methodVisitor.visitCode()
+        val tryStart = DexLabel()
+        val tryEnd = DexLabel()
+        val handler = DexLabel()
+
+        codeVisitor.visitLabel(tryStart)
+        codeVisitor.visitStmt0R(Op.NOP)
+        codeVisitor.visitLabel(tryEnd)
+        codeVisitor.visitLabel(handler)
+        codeVisitor.visitStmt0R(Op.NOP)
+
+        // Register try-catch with exception type
+        codeVisitor.visitTryCatch(
+            tryStart,
+            tryEnd,
+            arrayOf(handler),
+            arrayOf("Lcom/example/MyException;")
+        )
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        // Read back and check the exception type in the try-catch node
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        assertEquals("La/b;", classNode.className)
+
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull(method)
+
+        val tryCatchNodes = method!!.codeNode.tryStmts
+        assertNotNull("Should have try-catch statements", tryCatchNodes)
+        assertTrue("Should have at least one try-catch", tryCatchNodes.isNotEmpty())
+
+        val types = tryCatchNodes[0].type
+        assertNotNull("Try-catch should have exception types", types)
+        assertTrue("Should have at least one exception type", types.isNotEmpty())
+
+        // Verify exception type is remapped
+        assertEquals(
+            "Exception type in try-catch should be remapped",
+            "Lx/ex;",
+            types[0]
         )
     }
 
