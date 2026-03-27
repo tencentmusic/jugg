@@ -239,7 +239,7 @@ class ConstRefEngine(
                 "${analyzePaths.size} files"
             }
             if (costMs > SLOW_PHASE_THRESHOLD_MS) {
-                logger.info(
+                logger.debug(
                     "ConstRefEngine analyzeOnDemand finished (slow), " +
                         "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, " +
                         "files=$analyzeFileNames, cost=${costMs}ms"
