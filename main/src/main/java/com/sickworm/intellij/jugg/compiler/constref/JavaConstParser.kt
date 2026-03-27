@@ -11,6 +11,7 @@ import com.github.javaparser.ast.expr.FieldAccessExpr
 import com.github.javaparser.ast.expr.NameExpr
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
+import kotlin.system.measureTimeMillis
 
 class JavaConstParser(
     private val logger: Logger,
@@ -71,19 +72,59 @@ class JavaConstParser(
             return emptyList()
         }
         val sourcePath = sourceFile.toStdPath()
-        val compilationUnit = parse(sourceFile) ?: return emptyList()
+        var compilationUnit: CompilationUnit?
+        val parseMs = measureTimeMillis {
+            compilationUnit = parse(sourceFile)
+        }
+        val cu = compilationUnit ?: return emptyList()
 
         // Pass 1: collect hints by traversing AST with a tracking (no-op) lookup
         val trackingLookup = TrackingDefinitionLookup()
-        parseReferencesFromCu(sourcePath, compilationUnit, trackingLookup)
-        val hints = trackingLookup.buildHints()
+        var hints: ConstReferenceLookupHints
+        val pass1Ms = measureTimeMillis {
+            parseReferencesFromCu(sourcePath, cu, trackingLookup)
+            hints = trackingLookup.buildHints()
+        }
         if (hints.isEmpty()) {
+            logger.debug(
+                "JavaConstParser collectHintsAndParseReferences timing, " +
+                    "file=${sourceFile.name}, parseMs=$parseMs, pass1Ms=$pass1Ms, " +
+                    "candidateMs=0, pass2Ms=0, hintsEmpty=true"
+            )
+            return emptyList()
+        }
+
+        // Candidate factory call
+        var definitionIndex: ConstDefinitionLookup?
+        val candidateMs = measureTimeMillis {
+            definitionIndex = definitionIndexFactory(hints)
+        }
+        if (definitionIndex == null) {
+            logger.debug(
+                "JavaConstParser collectHintsAndParseReferences timing, " +
+                    "file=${sourceFile.name}, parseMs=$parseMs, pass1Ms=$pass1Ms, " +
+                    "candidateMs=$candidateMs, pass2Ms=0, noCandidates=true"
+            )
             return emptyList()
         }
 
         // Pass 2: resolve references with the real definition index
-        val definitionIndex = definitionIndexFactory(hints) ?: return emptyList()
-        return parseReferencesFromCu(sourcePath, compilationUnit, definitionIndex)
+        var references: List<ConstReference>
+        val pass2Ms = measureTimeMillis {
+            references = parseReferencesFromCu(sourcePath, cu, definitionIndex!!)
+        }
+        val totalMs = parseMs + pass1Ms + candidateMs + pass2Ms
+        logger.debug(
+            "JavaConstParser collectHintsAndParseReferences timing, " +
+                "file=${sourceFile.name}, totalMs=$totalMs, parseMs=$parseMs, " +
+                "pass1Ms=$pass1Ms, candidateMs=$candidateMs, pass2Ms=$pass2Ms, " +
+                "hintsConstNames=${hints.constNames.size}, " +
+                "hintsClassConstKeys=${hints.classConstKeys.size}, " +
+                "hintsPackageConstKeys=${hints.packageConstKeys.size}, " +
+                "hintsSimpleClassNames=${hints.simpleClassNames.size}, " +
+                "refCount=${references.size}"
+        )
+        return references
     }
 
     private fun parseReferencesFromCu(

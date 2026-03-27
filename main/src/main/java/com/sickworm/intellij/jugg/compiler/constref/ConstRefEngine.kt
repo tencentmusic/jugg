@@ -233,10 +233,23 @@ class ConstRefEngine(
                     analyzeFiles(analyzePaths.map(::File))
                 }
             }
-            logger.debug(
-                "ConstRefEngine analyzeOnDemand finished, " +
-                    "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, cost=${costMs}ms"
-            )
+            val analyzeFileNames = if (analyzePaths.size <= DETAILED_LOG_FILE_THRESHOLD) {
+                analyzePaths.map { File(it).name }.toString()
+            } else {
+                "${analyzePaths.size} files"
+            }
+            if (costMs > SLOW_PHASE_THRESHOLD_MS) {
+                logger.info(
+                    "ConstRefEngine analyzeOnDemand finished (slow), " +
+                        "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, " +
+                        "files=$analyzeFileNames, cost=${costMs}ms"
+                )
+            } else {
+                logger.debug(
+                    "ConstRefEngine analyzeOnDemand finished, " +
+                        "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, cost=${costMs}ms"
+                )
+            }
         }
 
         return synchronized(stateLock) {
@@ -441,43 +454,47 @@ class ConstRefEngine(
         var fingerprintHitCount = 0
         var crcMissCount = 0
         var analysisReuseHitCount = 0
+        var checksumPhaseMs = 0L
         existingFiles.forEachIndexed { index, file ->
-            analysisMutex.withLock {
-                val path = file.toStdPath()
-                val fileLastModified = file.lastModified()
+            val stepMs = measureTimeMillis {
+                analysisMutex.withLock {
+                    val path = file.toStdPath()
+                    val fileLastModified = file.lastModified()
 
-                val checksum = resolveChecksum(
-                    file = file,
-                    fileLastModified = fileLastModified,
-                    onMtimeHit = { mtimeHitCount++ },
-                    onFingerprintHit = { fingerprintHitCount++ },
-                    onCrcMiss = { crcMissCount++ },
-                )
-                val previousMtimeChecksum = database.getMtimeMapChecksum(path)
-                if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
-                    analysisReuseHitCount++
-                    // Reuse hit means file content matches a previously analysed checksum.
-                    // We still need to update changeTracker when the reused definitions
-                    // differ from the in-memory "previous" snapshot (e.g. A→B→A where B
-                    // was the last analysed version but A's cached checksum is now restored).
-                    // When definitions are identical (same content re-saved), we must NOT
-                    // overwrite existing unconsumed changedKeys in changeTracker.
-                    val previousDefinitions = loadPreviousDefinitionsLocked(path, previousMtimeChecksum)
-                    val reusedDefinitions = database.getDefinitionsByFileAndChecksum(path, checksum)
-                    if (!areSameDefinitions(previousDefinitions, reusedDefinitions)) {
-                        changeTracker.updateDefinitionDiff(
-                            filePath = path,
-                            previousDefinitions = previousDefinitions,
-                            currentDefinitions = reusedDefinitions,
-                        )
-                        updatePreviousDefinitionsLocked(path, reusedDefinitions)
+                    val checksum = resolveChecksum(
+                        file = file,
+                        fileLastModified = fileLastModified,
+                        onMtimeHit = { mtimeHitCount++ },
+                        onFingerprintHit = { fingerprintHitCount++ },
+                        onCrcMiss = { crcMissCount++ },
+                    )
+                    val previousMtimeChecksum = database.getMtimeMapChecksum(path)
+                    if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
+                        analysisReuseHitCount++
+                        // Reuse hit means file content matches a previously analysed checksum.
+                        // We still need to update changeTracker when the reused definitions
+                        // differ from the in-memory "previous" snapshot (e.g. A→B→A where B
+                        // was the last analysed version but A's cached checksum is now restored).
+                        // When definitions are identical (same content re-saved), we must NOT
+                        // overwrite existing unconsumed changedKeys in changeTracker.
+                        val previousDefinitions = loadPreviousDefinitionsLocked(path, previousMtimeChecksum)
+                        val reusedDefinitions = database.getDefinitionsByFileAndChecksum(path, checksum)
+                        if (!areSameDefinitions(previousDefinitions, reusedDefinitions)) {
+                            changeTracker.updateDefinitionDiff(
+                                filePath = path,
+                                previousDefinitions = previousDefinitions,
+                                currentDefinitions = reusedDefinitions,
+                            )
+                            updatePreviousDefinitionsLocked(path, reusedDefinitions)
+                        }
+                        markAnalyzed(path)
+                    } else {
+                        checksumMap[path] = checksum
+                        changedFiles += file
                     }
-                    markAnalyzed(path)
-                } else {
-                    checksumMap[path] = checksum
-                    changedFiles += file
                 }
             }
+            checksumPhaseMs += stepMs
             maybeThrottleIo(index + 1)
         }
         if (mtimeHitCount > 0 || fingerprintHitCount > 0 || crcMissCount > 0 || analysisReuseHitCount > 0) {
@@ -488,6 +505,12 @@ class ConstRefEngine(
             )
         }
         if (changedFiles.isEmpty()) {
+            if (checksumPhaseMs > SLOW_PHASE_THRESHOLD_MS) {
+                logger.debug(
+                    "ConstRefEngine analyzeFiles phase breakdown (all reused), " +
+                        "fileCount=${existingFiles.size}, checksumMs=$checksumPhaseMs"
+                )
+            }
             return
         }
 
@@ -500,6 +523,9 @@ class ConstRefEngine(
         // no shared state dependency), then batch-write results under lock. This minimizes mutex
         // hold time so concurrent analyzeOnDemand calls are not blocked by full-scan batches.
         var phase1ProcessedCount = 0
+        var phase1ParseMs = 0L
+        var phase1DbWriteMs = 0L
+        var phase1LockWaitMs = 0L
         changedFiles.chunked(analyzeFilesBatchSize).forEach { batch ->
             data class Phase1FileState(
                 val path: String,
@@ -510,7 +536,10 @@ class ConstRefEngine(
             // Step 1: read previous definitions under lock (fast per-file DB/cache read).
             val pendingFiles = mutableListOf<Phase1FileState>()
             batch.forEach { file ->
+                val lockWaitStart = System.nanoTime()
                 val state = analysisMutex.withLock {
+                    val lockAcquiredAt = System.nanoTime()
+                    phase1LockWaitMs += (lockAcquiredAt - lockWaitStart) / 1_000_000
                     val path = file.toStdPath()
                     val previousDefinitions = loadPreviousDefinitionsLocked(path)
                     Phase1FileState(path, file, previousDefinitions, checksumMap[path] ?: calculateChecksum(file))
@@ -519,22 +548,30 @@ class ConstRefEngine(
             }
             // Step 2: parse definitions WITHOUT lock (CPU-intensive AST parsing, no shared state).
             val definitionsBatch = mutableListOf<ConstRefCacheDatabase.FileDefinitionsEntry>()
+            var batchParseMs = 0L
             pendingFiles.forEach { state ->
-                val definitions = analyzer.parseDefinitions(listOf(state.file))[state.path].orEmpty()
-                definitionsBatch += ConstRefCacheDatabase.FileDefinitionsEntry(
-                    filePath = state.path,
-                    lastModified = state.file.lastModified(),
-                    checksum = state.checksum,
-                    definitions = definitions,
-                )
+                val parseMs = measureTimeMillis {
+                    val definitions = analyzer.parseDefinitions(listOf(state.file))[state.path].orEmpty()
+                    definitionsBatch += ConstRefCacheDatabase.FileDefinitionsEntry(
+                        filePath = state.path,
+                        lastModified = state.file.lastModified(),
+                        checksum = state.checksum,
+                        definitions = definitions,
+                    )
+                }
+                batchParseMs += parseMs
             }
+            phase1ParseMs += batchParseMs
             // Step 3: batch-write results under lock (fast DB upsert + cache update).
-            analysisMutex.withLock {
-                database.upsertBatchDefinitions(definitionsBatch)
-                pendingFiles.forEach { state ->
-                    updatePreviousDefinitionsLocked(state.path, state.previousDefinitions)
+            val dbWriteMs = measureTimeMillis {
+                analysisMutex.withLock {
+                    database.upsertBatchDefinitions(definitionsBatch)
+                    pendingFiles.forEach { state ->
+                        updatePreviousDefinitionsLocked(state.path, state.previousDefinitions)
+                    }
                 }
             }
+            phase1DbWriteMs += dbWriteMs
             // Reset KotlinCoreEnvironment after each batch to release the string-intern table
             // that grows ~200 KB per parsed file. Without this, full-scan peak resident heap
             // scales with total file count; with this, it is bounded by batch size.
@@ -552,6 +589,10 @@ class ConstRefEngine(
         // Step 3 (batch locked, fast): flush analysis to DB and update shared state.
         // This lets analyzeOnDemand callers acquire analysisMutex between any two files during full scan.
         var phase2ProcessedCount = 0
+        var phase2RefParseMs = 0L
+        var phase2DbLookupMs = 0L
+        var phase2DbWriteMs = 0L
+        var phase2LockWaitMs = 0L
         changedFiles.chunked(analyzeFilesBatchSize).forEach { batch ->
             val analysisBatch = mutableListOf<ConstRefCacheDatabase.FileAnalysisEntry>()
             data class FilePendingState(
@@ -571,53 +612,85 @@ class ConstRefEngine(
                     val definitions: List<ConstDefinition>,
                     val checksum: Long,
                 )
+                val lockWaitStart = System.nanoTime()
                 val readState = analysisMutex.withLock {
+                    val lockAcquiredAt = System.nanoTime()
+                    phase2LockWaitMs += (lockAcquiredAt - lockWaitStart) / 1_000_000
                     val path = file.toStdPath()
                     val previousDefinitions = loadPreviousDefinitionsLocked(path)
                     val checksum = checksumMap[path] ?: calculateChecksum(file)
+                    val dbLookupStart = System.nanoTime()
                     val definitions = database.getDefinitionsByFileAndChecksum(path, checksum)
+                    phase2DbLookupMs += (System.nanoTime() - dbLookupStart) / 1_000_000
                     sessionCache.clearLookupCache()
                     Phase2ReadState(path, previousDefinitions, definitions, checksum)
                 }
                 // Step 2: parse references WITHOUT lock (CPU-intensive AST parse, no shared state).
-                val references = parseReferencesByDbOnly(file)
-                analysisBatch += ConstRefCacheDatabase.FileAnalysisEntry(
-                    filePath = readState.path,
-                    lastModified = file.lastModified(),
-                    checksum = readState.checksum,
-                    definitions = readState.definitions,
-                    references = references,
-                )
-                pendingStates += FilePendingState(
-                    readState.path, file, readState.previousDefinitions, readState.definitions, references
-                )
+                val refParseMs = measureTimeMillis {
+                    val references = parseReferencesByDbOnly(file)
+                    analysisBatch += ConstRefCacheDatabase.FileAnalysisEntry(
+                        filePath = readState.path,
+                        lastModified = file.lastModified(),
+                        checksum = readState.checksum,
+                        definitions = readState.definitions,
+                        references = references,
+                    )
+                    pendingStates += FilePendingState(
+                        readState.path, file, readState.previousDefinitions, readState.definitions, references
+                    )
+                }
+                phase2RefParseMs += refParseMs
             }
             // Batch lock: flush analysis to DB and update shared state atomically.
             // markAnalyzed is called here so awaitAnalysis observers see consistent data
             // (references written) when the analyzed timestamp appears.
-            analysisMutex.withLock {
-                database.upsertBatchAnalysis(analysisBatch)
-                pendingStates.forEach { state ->
-                    changeTracker.updateDefinitionDiff(
-                        filePath = state.path,
-                        previousDefinitions = state.previousDefinitions,
-                        currentDefinitions = state.definitions,
-                    )
-                    sessionCache.putFileAnalysis(
-                        filePath = state.path,
-                        lastModified = state.file.lastModified(),
-                        checksum = checksumMap[state.path] ?: 0L,
-                        definitions = state.definitions,
-                        references = state.references,
-                    )
-                    markAnalyzed(state.path)
-                    sessionCache.clearLookupCache()
+            val dbWriteMs = measureTimeMillis {
+                analysisMutex.withLock {
+                    database.upsertBatchAnalysis(analysisBatch)
+                    pendingStates.forEach { state ->
+                        changeTracker.updateDefinitionDiff(
+                            filePath = state.path,
+                            previousDefinitions = state.previousDefinitions,
+                            currentDefinitions = state.definitions,
+                        )
+                        sessionCache.putFileAnalysis(
+                            filePath = state.path,
+                            lastModified = state.file.lastModified(),
+                            checksum = checksumMap[state.path] ?: 0L,
+                            definitions = state.definitions,
+                            references = state.references,
+                        )
+                        markAnalyzed(state.path)
+                        sessionCache.clearLookupCache()
+                    }
                 }
             }
+            phase2DbWriteMs += dbWriteMs
             // Reset KotlinCoreEnvironment after each batch to release string-intern caches.
             analyzer.resetEnvironment()
             phase2ProcessedCount += batch.size
             maybeThrottleIo(phase2ProcessedCount)
+        }
+
+        val totalMs = checksumPhaseMs + phase1ParseMs + phase1DbWriteMs +
+            phase2RefParseMs + phase2DbLookupMs + phase2DbWriteMs
+        if (totalMs > SLOW_PHASE_THRESHOLD_MS || changedFiles.size <= DETAILED_LOG_FILE_THRESHOLD) {
+            val changedFileNames = if (changedFiles.size <= DETAILED_LOG_FILE_THRESHOLD) {
+                changedFiles.joinToString(", ") { it.name }
+            } else {
+                "${changedFiles.size} files"
+            }
+            logger.debug(
+                "ConstRefEngine analyzeFiles phase breakdown, " +
+                    "totalMs=$totalMs, changedFiles=[$changedFileNames], " +
+                    "checksumMs=$checksumPhaseMs, " +
+                    "phase1ParseMs=$phase1ParseMs, phase1DbWriteMs=$phase1DbWriteMs, " +
+                    "phase1LockWaitMs=$phase1LockWaitMs, " +
+                    "phase2RefMs=$phase2RefParseMs, phase2DbLookupMs=$phase2DbLookupMs, " +
+                    "phase2DbWriteMs=$phase2DbWriteMs, phase2LockWaitMs=$phase2LockWaitMs, " +
+                    "reuseCount=$analysisReuseHitCount, changedCount=${changedFiles.size}, " +
+                    "existingCount=${existingFiles.size}"
+            )
         }
     }
 
@@ -737,10 +810,23 @@ class ConstRefEngine(
     private fun parseReferencesByDbOnly(file: File): List<ConstReference> {
         val stdPath = file.toStdPath()
         return analyzer.collectHintsAndParseReferences(file) { hints ->
+            val candidateQueryStart = System.nanoTime()
             val candidateDefinitions = queryCandidateDefinitionsForFile(
                 filePath = stdPath,
                 hints = hints,
             )
+            val candidateQueryMs = (System.nanoTime() - candidateQueryStart) / 1_000_000
+            if (candidateQueryMs > SLOW_PHASE_THRESHOLD_MS) {
+                logger.debug(
+                    "ConstRefEngine parseReferencesByDbOnly candidate query slow, " +
+                        "file=${file.name}, candidateQueryMs=$candidateQueryMs, " +
+                        "candidateCount=${candidateDefinitions.size}, " +
+                        "hintsConstNames=${hints.constNames.size}, " +
+                        "hintsClassConstKeys=${hints.classConstKeys.size}, " +
+                        "hintsPackageConstKeys=${hints.packageConstKeys.size}, " +
+                        "hintsSimpleClassNames=${hints.simpleClassNames.size}"
+                )
+            }
             if (candidateDefinitions.isEmpty()) {
                 null
             } else {
@@ -1335,6 +1421,8 @@ class ConstRefEngine(
         private const val DEFAULT_SESSION_LOOKUP_CACHE_MAX = 4000
         private const val DEFAULT_SESSION_CACHE_TTL_MS = 15L * 60L * 1000L
         private const val DEFAULT_BATCH_SIZE = 50
+        private const val SLOW_PHASE_THRESHOLD_MS = 500L
+        private const val DETAILED_LOG_FILE_THRESHOLD = 5
 
         private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
             return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue

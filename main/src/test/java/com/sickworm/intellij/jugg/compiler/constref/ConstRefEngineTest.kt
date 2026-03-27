@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.constref
 
+import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
@@ -1073,6 +1074,76 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 waitUntil(timeoutMs = 5_000L) {
                     database.getFileCache(constantsFile.toStdPath()) != null
                 },
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `analyzeOnDemand should log per-file phase breakdown for changed files`() {
+        val rootDir = createTempDirectory("const_ref_phase_timing")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class Constants {
+                    public static final int VALUE_A = 1;
+                    public static final String NAME = "hello";
+                }
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class User {
+                    int x = Constants.VALUE_A;
+                    String n = Constants.NAME;
+                }
+                """.trimIndent()
+            )
+        }
+
+        val logOutput = mutableListOf<String>()
+        val capturingLogger = object : StdLogger("ConstRefEngine") {
+            override fun debug(message: String?) {
+                message?.let { logOutput += it }
+                super.debug(message)
+            }
+            override fun info(message: String?) {
+                message?.let { logOutput += it }
+                super.info(message)
+            }
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = capturingLogger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            val readiness = engine.analyzeOnDemand(
+                listOf(constantsFile.absolutePath, userFile.absolutePath)
+            )
+            assertTrue("analysis should be ready", readiness.isReady)
+
+            // Verify phase-level breakdown log is emitted for changed files
+            val hasPhaseBreakdown = logOutput.any { msg ->
+                msg.contains("analyzeFiles phase breakdown") &&
+                    msg.contains("checksumMs=") &&
+                    msg.contains("phase1ParseMs=") &&
+                    msg.contains("phase2RefMs=")
+            }
+            assertTrue(
+                "Expected analyzeFiles phase breakdown log but got: $logOutput",
+                hasPhaseBreakdown,
             )
         } finally {
             engine.dispose()

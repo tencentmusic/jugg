@@ -8,7 +8,7 @@ val logger = StdLogger("JuggTest")
 /**
  * Output log to [System.out].
  */
-class StdLogger(private val category: String): DefaultLogger(category) {
+open class StdLogger(private val category: String): DefaultLogger(category) {
 
     var isEnableDebug = true
     var isEnableInfo = true

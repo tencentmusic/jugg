@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.constref
 
+import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -148,5 +149,59 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
         val definitionIndex = ConstDefinitionIndex(definitions)
         val references = parser.parseReferences(userFile, definitionIndex)
         assertTrue(references.isEmpty())
+    }
+
+    @Test
+    fun `collectHintsAndParseReferences should log per-step timing breakdown`() {
+        val rootDir = createTempDirectory("java_const_timing")
+        val constantsFile = File(rootDir, "Constants.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class Constants {
+                    public static final int MAX = 10;
+                    public static final String NAME = "jugg";
+                }
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class User {
+                    int value = Constants.MAX;
+                    String name = Constants.NAME;
+                }
+                """.trimIndent()
+            )
+        }
+
+        val logOutput = mutableListOf<String>()
+        val capturingLogger = object : StdLogger("JavaConstParser") {
+            override fun debug(message: String?) {
+                message?.let { logOutput += it }
+                super.debug(message)
+            }
+        }
+        val parser = JavaConstParser(capturingLogger)
+        val definitions = parser.parseDefinitions(constantsFile)
+        val definitionIndex = ConstDefinitionIndex(definitions)
+
+        val references = parser.collectHintsAndParseReferences(userFile) { hints ->
+            if (hints.isEmpty()) null else definitionIndex
+        }
+        assertTrue("should find references", references.isNotEmpty())
+
+        val hasTimingLog = logOutput.any { msg ->
+            msg.contains("collectHintsAndParseReferences") &&
+                msg.contains("parseMs=") &&
+                msg.contains("pass1Ms=") &&
+                msg.contains("pass2Ms=")
+        }
+        assertTrue(
+            "Expected per-step timing log but got: $logOutput",
+            hasTimingLog,
+        )
     }
 }

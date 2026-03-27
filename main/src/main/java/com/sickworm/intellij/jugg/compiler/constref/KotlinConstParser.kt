@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.psi.KtReferenceExpression
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
 import java.io.File
+import kotlin.system.measureTimeMillis
 
 /**
  * Not thread-safe. Callers must serialize access externally.
@@ -234,21 +235,59 @@ class KotlinConstParser(
             return emptyList()
         }
         val sourcePath = sourceFile.toStdPath()
-        val ktFile = parseKtFile(sourceFile) ?: return emptyList()
+        var ktFile: KtFile? = null
+        val parseMs = measureTimeMillis {
+            ktFile = parseKtFile(sourceFile)
+        }
+        val parsedFile = ktFile ?: return emptyList()
 
         // Collect hints by replaying the visitor with a no-op lookup that tracks accesses.
         val trackingLookup = HintsTrackingLookup()
-        collectReferencesFromKtFile(ktFile, sourcePath, trackingLookup)
-        val hints = trackingLookup.buildHints()
+        var hints: ConstReferenceLookupHints
+        val pass1Ms = measureTimeMillis {
+            collectReferencesFromKtFile(parsedFile, sourcePath, trackingLookup)
+            hints = trackingLookup.buildHints()
+        }
         if (hints.isEmpty()) {
+            logger.debug(
+                "KotlinConstParser collectHintsAndParseReferences timing, " +
+                    "file=${sourceFile.name}, parseMs=$parseMs, pass1Ms=$pass1Ms, " +
+                    "candidateMs=0, pass2Ms=0, hintsEmpty=true"
+            )
             return emptyList()
         }
 
         // Build the real index using caller-supplied candidates.
-        val definitionIndex = definitionIndexFactory(hints) ?: return emptyList()
+        var definitionIndex: ConstDefinitionLookup?
+        val candidateMs = measureTimeMillis {
+            definitionIndex = definitionIndexFactory(hints)
+        }
+        if (definitionIndex == null) {
+            logger.debug(
+                "KotlinConstParser collectHintsAndParseReferences timing, " +
+                    "file=${sourceFile.name}, parseMs=$parseMs, pass1Ms=$pass1Ms, " +
+                    "candidateMs=$candidateMs, pass2Ms=0, noCandidates=true"
+            )
+            return emptyList()
+        }
 
         // Re-use the same KtFile to parse references — no second file read.
-        return collectReferencesFromKtFile(ktFile, sourcePath, definitionIndex)
+        var references: List<ConstReference>
+        val pass2Ms = measureTimeMillis {
+            references = collectReferencesFromKtFile(parsedFile, sourcePath, definitionIndex!!)
+        }
+        val totalMs = parseMs + pass1Ms + candidateMs + pass2Ms
+        logger.debug(
+            "KotlinConstParser collectHintsAndParseReferences timing, " +
+                "file=${sourceFile.name}, totalMs=$totalMs, parseMs=$parseMs, " +
+                "pass1Ms=$pass1Ms, candidateMs=$candidateMs, pass2Ms=$pass2Ms, " +
+                "hintsConstNames=${hints.constNames.size}, " +
+                "hintsClassConstKeys=${hints.classConstKeys.size}, " +
+                "hintsPackageConstKeys=${hints.packageConstKeys.size}, " +
+                "hintsSimpleClassNames=${hints.simpleClassNames.size}, " +
+                "refCount=${references.size}"
+        )
+        return references
     }
 
     private fun collectDefinitionsFromClassOrObject(

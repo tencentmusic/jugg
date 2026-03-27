@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.constref
 
+import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -225,6 +226,71 @@ class KotlinConstParserTest : ConstRefTempDirCleanupSupport() {
             val references = parser.parseReferences(serviceFile, definitionIndex)
             val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
             assertEquals(setOf("com.example.ConstantsKt.TOP", "com.example.Config.DEFAULT"), keys)
+        } finally {
+            parser.dispose()
+        }
+    }
+
+    @Test
+    fun `collectHintsAndParseReferences should log per-step timing breakdown`() {
+        val rootDir = createTempDirectory("kotlin_const_timing")
+        val constantsFile = File(rootDir, "Config.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                const val TOP = 10
+
+                object Holder {
+                    const val FLAG = true
+                }
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example.user
+
+                import com.example.TOP
+                import com.example.Holder
+
+                fun use(): Int {
+                    val a = TOP
+                    val b = Holder.FLAG
+                    return if (b) a else 0
+                }
+                """.trimIndent()
+            )
+        }
+
+        val logOutput = mutableListOf<String>()
+        val capturingLogger = object : StdLogger("KotlinConstParser") {
+            override fun debug(message: String?) {
+                message?.let { logOutput += it }
+                super.debug(message)
+            }
+        }
+        val parser = KotlinConstParser(capturingLogger)
+        try {
+            val definitions = parser.parseDefinitions(constantsFile)
+            val definitionIndex = ConstDefinitionIndex(definitions)
+
+            val references = parser.collectHintsAndParseReferences(userFile) { hints ->
+                if (hints.isEmpty()) null else definitionIndex
+            }
+            assertTrue("should find references", references.isNotEmpty())
+
+            val hasTimingLog = logOutput.any { msg ->
+                msg.contains("collectHintsAndParseReferences") &&
+                    msg.contains("parseMs=") &&
+                    msg.contains("pass1Ms=") &&
+                    msg.contains("pass2Ms=")
+            }
+            assertTrue(
+                "Expected per-step timing log but got: $logOutput",
+                hasTimingLog,
+            )
         } finally {
             parser.dispose()
         }
