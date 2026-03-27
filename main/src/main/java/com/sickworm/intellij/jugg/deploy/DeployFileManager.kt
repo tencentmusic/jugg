@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
@@ -348,6 +349,15 @@ class DeployFileManager(
             stagingFiles = stateTracker.getStagingFiles(),
             moduleInfos = moduleInfos,
         )
+    }
+
+    /**
+     * Retrieve APK class nodes for access flag alignment during obfuscation.
+     * Delegates to DeployDataDatabase.getClassNodes().
+     */
+    fun getApkClassNodes(classNames: List<String>): Map<String, ClassNode>? {
+        if (classNames.isEmpty()) return null
+        return deployDataGenerator.deployDataDatabase.getClassNodes(classNames).ifEmpty { null }
     }
 
     fun dispose() {

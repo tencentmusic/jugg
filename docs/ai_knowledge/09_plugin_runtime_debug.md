@@ -92,7 +92,7 @@ ${projectRoot}/.gradle/jugg/
 | 重混淆结果 | `Obfuscated:` |
 | 重混淆注解问题 | `visitAnnotation` / `mapType` |
 | 重混淆类型引用遗漏 | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
-| 重混淆 access flag 宽化 | `widenAccessFlags` / `IllegalAccessError` / `AbstractMethodError` / `ExternalSyntheticLambda` |
+| 重混淆 access flag 对齐 | `alignAccessFlags` / `alignClassAccessFlags` / `alignMethodAccessFlags` / `alignFieldAccessFlags` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
 
 ---
 
@@ -227,23 +227,66 @@ main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 
 **信号**：runtime crash 报 `IllegalAccessError: Method '...' is inaccessible to class 'xxx.xxx'`，或 `AbstractMethodError: abstract method "..."`,且 crash 涉及 `ExternalSyntheticLambda` 类或混淆后的接口调用。
 
-**根因模式**：R8 在全量构建时（启用 `-allowaccessmodification`）会将所有 `private`/`protected`/`package-private` 成员宽化为 `public`。Jugg 增量编译的 `javac → D8 → DexObfuscator` 链路不做此宽化，导致增量产物中的方法仍为 `private`，而 APK 中的 `ExternalSyntheticLambda` 等类期望调用 `public` 方法。
+**根因模式**：R8 在全量构建时（启用 `-allowaccessmodification`）会将 `private`/`protected`/`package-private` 成员宽化为 `public`（但对 private 非 static 实例方法存在例外，详见 §4.7）。Jugg 增量编译的 `javac → D8 → DexObfuscator` 链路不做此宽化，导致增量产物中的方法 access flags 与 APK 不一致。
 
 **排查步骤**：
 1. **从 crash log 定位涉及的类和方法**：确认是否涉及 lambda 方法（`lambda$...`）或混淆后的接口方法
 2. **确认 `-allowaccessmodification` 启用**：检查 `build/intermediates/default_proguard_files/global/proguard-android-optimize.txt*`
-3. **用 `dexdump -a` 对比 access flags**：检查增量编译产物中方法的 access flags 是否为 `private`，而 APK 中对应方法是否为 `public`
-4. **确认 `DexObfuscator.widenAccessFlags()` 是否正确执行**：搜索编译日志中 `Obfuscated:` 确认重混淆已执行
+3. **用 `dexdump -a` 对比 access flags**：检查增量编译产物中方法的 access flags 是否与 APK 中对应方法一致
+4. **确认 `DexObfuscator` 的 access flags 对齐逻辑是否正确执行**：搜索编译日志中 `Obfuscated:` 确认重混淆已执行
 
-**修复方案**：`DexObfuscator.widenAccessFlags()` 方法在 `visit()`、`visitField()`、`visitMethod()` 中将所有非 `public` 成员宽化为 `public`。
+**修复方案**：已通过方案 D 修复 — `DexObfuscator` 中使用 `alignClassAccessFlags()`/`alignMethodAccessFlags()`/`alignFieldAccessFlags()` 从 `DeployDataDatabase.getClassNodes()` 查询 APK 中的真实 access flags 并精确对齐。无 APK 数据时 access flags 原样透传。**不可使用无条件宽化**（方案 E 已废弃，会导致 IncompatibleClassChangeError，详见 §4.7）。
+
+**数据流**：`DexMinifyCompiler.queryApkClassNodes()` → `ICompileContext.getApkClassNodes()` → `DeployFileManager.getApkClassNodes()` → `DeployDataDatabase.getClassNodes()` → 传给 `DexObfuscator.obfuscate(bytes, apkClassNodes)`
 
 **关键类**：
 ```
-main/.../compiler/obfuscation/DexObfuscator.kt     # widenAccessFlags / visit / visitField / visitMethod
-main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
+main/.../compiler/obfuscation/DexObfuscator.kt     # access flags 对齐逻辑
+main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度，传入 DB 数据
+main/.../deploy/data/DeployDataDatabase.kt          # APK access flags 数据源
 ```
 
 **关联文档**：`docs/task/release_incremental_access_flag_mismatch.md`
+
+### 4.7 release 增量编译后 IncompatibleClassChangeError（direct/virtual method 分类不匹配）
+
+**信号**：runtime crash 报 `IncompatibleClassChangeError: The method '...' was expected to be of type direct but instead was found to be of type virtual`，crash 涉及 Jugg 增量部署的类。
+
+**根因模式**：DEX 中方法按 access flags 分为 direct methods（`private` 非 static、`static`、`<init>`）和 virtual methods（`public`/`protected`/`package-private` 非 static）。如果增量编译产物中方法的 access flags 与 APK 中不一致，导致方法从 direct 变为 virtual（或反向），APK 中的调用者（使用 `invoke-direct`）会因 dispatch 类型不匹配而抛出此错误。
+
+**DEX 方法分类规则**：
+
+| 方法类型 | DEX 分类 | 调用指令 |
+|---------|----------|---------|
+| `private` (非 static) | direct method | `invoke-direct` |
+| `private static` / `static` | direct method | `invoke-static` |
+| `public`/`protected`/`package-private` (非 static) | virtual method | `invoke-virtual` |
+
+**R8 不总是宽化所有 private 非 static 方法**（三种例外）：
+1. 接口中的 private 方法
+2. synthetic 方法（编译器生成的合成方法）
+3. 命名冲突（继承层级中同签名方法已存在）
+
+**排查步骤**：
+1. **从 crash log 定位方法名和类名**：确认是混淆后的名称（如 `J1()`），说明经过 R8 处理
+2. **用 `dexdump -a` 检查增量 DEX 中方法是否在 virtual methods section**：若是，但 APK 中相同方法在 direct methods section，则是 access flag 不匹配
+3. **确认是否使用了无条件宽化**：无条件将 `private` → `public` 会导致此问题
+4. **确认 DB 查询是否正确返回了 APK 的 access flags**
+
+**修复方案**：同 §4.6 — 使用 `DeployDataDatabase.getClassNodes()` 查询 APK 真实 access flags，在 `DexObfuscator` 中精确对齐，不做任何猜测性宽化。
+
+**历史教训**：
+- 方案 E（无条件 `private → public` 宽化）解决了 §4.6 的 IllegalAccessError/AbstractMethodError，但引入了本条的 IncompatibleClassChangeError
+- 方案 F（不宽化 `private` 非 static）也不安全——如果 R8 确实宽化了某个 private 方法，APK 中的 caller 已用 `invoke-virtual`，但增量 DEX 中方法仍是 `private`（direct），caller 找不到 virtual method
+
+**关键类**：
+```
+main/.../compiler/obfuscation/DexObfuscator.kt     # access flags 对齐逻辑
+main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
+main/.../deploy/data/DeployDataDatabase.kt          # APK access flags 数据源
+```
+
+**关联文档**：`docs/task/release_incremental_access_flag_mismatch.md` §8, §9
 
 ---
 

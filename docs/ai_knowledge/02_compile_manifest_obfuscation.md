@@ -49,7 +49,8 @@
 - "dex 混淆后崩溃"：看 `DexMinifyCompiler` 的输入输出与映射完整性。
 - "release 增量后运行时注解找不到"：检查 `DexObfuscator` 是否正确处理了方法级/字段级注解的类型描述符映射。注解类型描述符（`visitAnnotation` 的 `name` 参数）需要通过 `mapType()` 映射。详见 `09_plugin_runtime_debug.md` §4.4。
 - "release 增量后 NoClassDefFoundError"：检查 `DexObfuscator` 的 `DexCodeVisitor` 是否覆写了所有含类型引用的方法（`visitConstStmt`、`visitFilledNewArrayStmt`、`visitTryCatch` 等）。详见 `09_plugin_runtime_debug.md` §4.5。
-- "release 增量后 IllegalAccessError / AbstractMethodError"：检查 `DexObfuscator` 的 `widenAccessFlags()` 是否正确宽化了 access flags（`private/protected/package-private → public`）。详见 `09_plugin_runtime_debug.md` §4.6。
+- "release 增量后 IllegalAccessError / AbstractMethodError"：检查 `DexObfuscator` 是否正确对齐了 access flags（从 `DeployDataDatabase` 查询 APK 真实 flags）。**不可使用无条件宽化**（会导致 IncompatibleClassChangeError）。详见 `09_plugin_runtime_debug.md` §4.6。
+- "release 增量后 IncompatibleClassChangeError"：增量 DEX 中方法的 direct/virtual 分类与 APK 不一致。需精确对齐 APK access flags。详见 `09_plugin_runtime_debug.md` §4.7。
 
 ---
 

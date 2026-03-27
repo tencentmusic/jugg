@@ -113,10 +113,13 @@ class DexMinifyCompiler(
             }
         }
 
+        // 3. Query APK class nodes for access flag alignment (方案 D)
+        val apkClassNodes = queryApkClassNodes(task.files)
+
         val detailLog = StringBuilder("Obfuscated: ")
         for (compileFile in task.files) {
             try {
-                val result = obfuscateDexFile(compileFile, task.outputDir, obfuscator, minifyInfo)
+                val result = obfuscateDexFile(compileFile, task.outputDir, obfuscator, minifyInfo, apkClassNodes)
                 if (result != null) {
                     details.add(Result.success(compileFile))
                     outputs.add(result)
@@ -142,6 +145,51 @@ class DexMinifyCompiler(
     }
 
     /**
+     * Query APK class nodes for access flag alignment.
+     * Reads each DEX file to extract the original class name, maps it to the obfuscated name,
+     * then batch-queries DeployDataDatabase for the APK's actual ClassNode data.
+     */
+    private fun queryApkClassNodes(files: List<CompileFile>): Map<String, ClassNode>? {
+        if (!context.isMinified) return null
+
+        try {
+            // Collect obfuscated class names from DEX files
+            val obfuscatedClassNames = mutableListOf<String>()
+            for (compileFile in files) {
+                val dexBytes = compileFile.file.readBytes()
+                val dexReader = com.googlecode.d2j.reader.DexFileReader(dexBytes)
+                val dexNode = com.googlecode.d2j.node.DexFileNode()
+                dexReader.accept(dexNode)
+
+                for (classNode in dexNode.clzs) {
+                    // classNode.className is in DEX format (e.g., "Lcom/example/TestClass;")
+                    // Convert to dot notation for obfuscator lookup
+                    val originalDotName = classNode.className
+                        .removePrefix("L").removeSuffix(";").replace('/', '.')
+                    val obfuscatedName = obfuscator.getObfuscatedClassName(originalDotName)
+                    if (obfuscatedName != null) {
+                        // Convert back to DEX format for DB query
+                        val obfuscatedDexName = "L${obfuscatedName.replace('.', '/')};"
+                        obfuscatedClassNames.add(obfuscatedDexName)
+                    }
+                }
+            }
+
+            if (obfuscatedClassNames.isEmpty()) return null
+
+            val result = context.getApkClassNodes(obfuscatedClassNames)
+            if (result != null) {
+                logger.debug("Queried ${result.size} APK class nodes for access flag alignment")
+            }
+            return result
+        } catch (e: Exception) {
+            logger.warn("Failed to query APK class nodes for access flag alignment, " +
+                    "access flags will pass through unchanged", e)
+            return null
+        }
+    }
+
+    /**
      * Obfuscate a class file and write to output directory.
      *
      * @return CompileOutput if obfuscation was applied, null otherwise
@@ -150,7 +198,8 @@ class DexMinifyCompiler(
         compileFile: CompileFile,
         outputDir: File,
         obfuscator: DexObfuscator,
-        minifyInfo: MinifyInfo?
+        minifyInfo: MinifyInfo?,
+        apkClassNodes: Map<String, ClassNode>?
     ): CompileOutput? {
         val inputFile = compileFile.file
         val baseDir = compileFile.baseDir
@@ -161,8 +210,8 @@ class DexMinifyCompiler(
 
         // Read and obfuscate
         val inputBytes = inputFile.readBytes()
-        val outputBytes = if (minifyInfo != null) {
-            obfuscator.obfuscateWithInlineRedirect(inputBytes, minifyInfo)
+        val outputBytes = if (minifyInfo != null || apkClassNodes != null) {
+            obfuscator.obfuscateWithInlineRedirect(inputBytes, minifyInfo, apkClassNodes)
         } else {
             obfuscator.obfuscate(inputBytes)
         }

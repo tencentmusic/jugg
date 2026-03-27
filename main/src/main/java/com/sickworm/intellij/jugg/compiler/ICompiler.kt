@@ -366,6 +366,16 @@ interface ICompileContext {
     fun removeChangedFile(files: List<File>) = Unit
 
     /**
+     * Retrieve APK class nodes (with access flags) for the given obfuscated class names.
+     * Used by DexMinifyCompiler to align incremental DEX access flags with R8-processed APK.
+     * Default no-op returns null; IDE context wires to DeployDataDatabase.
+     *
+     * @param classNames Obfuscated class names in DEX format (e.g., "La/b;")
+     * @return Map of className to ClassNode, or null if not available
+     */
+    fun getApkClassNodes(classNames: List<String>): Map<String, ClassNode>? = null
+
+    /**
      * Scene marks where compile context is built: IDE-run flow or incremental-APK flow.
      */
     enum class Scene {
