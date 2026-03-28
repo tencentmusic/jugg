@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-03-23
+> 最后核对：2026-03-28
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -227,23 +227,20 @@ main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 
 **信号**：runtime crash 报 `IllegalAccessError: Method '...' is inaccessible to class 'xxx.xxx'`，或 `AbstractMethodError: abstract method "..."`,且 crash 涉及 `ExternalSyntheticLambda` 类或混淆后的接口调用。
 
-**根因模式**：R8 在全量构建时（启用 `-allowaccessmodification`）会将 `private`/`protected`/`package-private` 成员宽化为 `public`（但对 private 非 static 实例方法存在例外，详见 §4.7）。Jugg 增量编译的 `javac → D8 → DexObfuscator` 链路不做此宽化，导致增量产物中的方法 access flags 与 APK 不一致。
+**根因模式**：R8 在全量构建时（启用 `-allowaccessmodification`）会将 `private`/`protected`/`package-private` 成员宽化为 `public`。Jugg 增量编译的 `javac → D8 → DexObfuscator` 链路不做此宽化，导致增量产物中的方法 access flags 与 APK 不一致。
 
 **排查步骤**：
 1. **从 crash log 定位涉及的类和方法**：确认是否涉及 lambda 方法（`lambda$...`）或混淆后的接口方法
 2. **确认 `-allowaccessmodification` 启用**：检查 `build/intermediates/default_proguard_files/global/proguard-android-optimize.txt*`
 3. **用 `dexdump -a` 对比 access flags**：检查增量编译产物中方法的 access flags 是否与 APK 中对应方法一致
-4. **确认 `DexObfuscator` 的 access flags 对齐逻辑是否正确执行**：搜索编译日志中 `Obfuscated:` 确认重混淆已执行
+4. **确认 `DexObfuscator` 的宽化逻辑是否正确执行**：搜索编译日志中 `Obfuscated:` 确认重混淆已执行
 
-**修复方案**：已通过方案 D 修复 — `DexObfuscator` 中使用 `alignClassAccessFlags()`/`alignMethodAccessFlags()`/`alignFieldAccessFlags()` 从 `DeployDataDatabase.getClassNodes()` 查询 APK 中的真实 access flags 并精确对齐。无 APK 数据时 access flags 原样透传。**不可使用无条件宽化**（方案 E 已废弃，会导致 IncompatibleClassChangeError，详见 §4.7）。
-
-**数据流**：`DexMinifyCompiler.queryApkClassNodes()` → `ICompileContext.getApkClassNodes()` → `DeployFileManager.getApkClassNodes()` → `DeployDataDatabase.getClassNodes()` → 传给 `DexObfuscator.obfuscate(bytes, apkClassNodes)`
+**修复方案**：已通过方案 E' 修复 — `DexObfuscator` 中使用 `widenAccessFlags()` 无条件将所有 `private`/`protected`/`package-private` 成员宽化为 `public`，同时在 `visitMethodStmt()` 中将本类的非 `<init>` 非 `static` 方法的 `invoke-direct` 改为 `invoke-virtual`，保证 direct/virtual 分类一致。
 
 **关键类**：
 ```
-main/.../compiler/obfuscation/DexObfuscator.kt     # access flags 对齐逻辑
-main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度，传入 DB 数据
-main/.../deploy/data/DeployDataDatabase.kt          # APK access flags 数据源
+main/.../compiler/obfuscation/DexObfuscator.kt     # widenAccessFlags() + invoke-direct → invoke-virtual
+main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 ```
 
 **关联文档**：`docs/task/release_incremental_access_flag_mismatch.md`
@@ -270,14 +267,14 @@ main/.../deploy/data/DeployDataDatabase.kt          # APK access flags 数据源
 **排查步骤**：
 1. **从 crash log 定位方法名和类名**：确认是混淆后的名称（如 `J1()`），说明经过 R8 处理
 2. **用 `dexdump -a` 检查增量 DEX 中方法是否在 virtual methods section**：若是，但 APK 中相同方法在 direct methods section，则是 access flag 不匹配
-3. **确认是否使用了无条件宽化**：无条件将 `private` → `public` 会导致此问题
-4. **确认 DB 查询是否正确返回了 APK 的 access flags**
+3. **确认 `DexObfuscator` 宽化和 invoke 指令修改是否正常执行**
 
-**修复方案**：同 §4.6 — 使用 `DeployDataDatabase.getClassNodes()` 查询 APK 真实 access flags，在 `DexObfuscator` 中精确对齐，不做任何猜测性宽化。
+**修复方案**：同 §4.6 — 方案 E' 通过无条件宽化 + `invoke-direct` → `invoke-virtual` 调用指令同步修改解决。宽化后方法统一进入 virtual section，同时增量 DEX 内部的 `invoke-direct` 也同步改为 `invoke-virtual`，保证自洽性。外部 APK 中的调用者不受影响，因为 private 方法天然不可能被外部类直接调用。
 
 **历史教训**：
-- 方案 E（无条件 `private → public` 宽化）解决了 §4.6 的 IllegalAccessError/AbstractMethodError，但引入了本条的 IncompatibleClassChangeError
-- 方案 F（不宽化 `private` 非 static）也不安全——如果 R8 确实宽化了某个 private 方法，APK 中的 caller 已用 `invoke-virtual`，但增量 DEX 中方法仍是 `private`（direct），caller 找不到 virtual method
+- 方案 E（无条件 `private → public` 宽化，但**不改调用指令**）解决了 §4.6 的 IllegalAccessError/AbstractMethodError，但引入了本条的 IncompatibleClassChangeError
+- 方案 D（精确对齐 APK access flags）正确但过于复杂
+- 方案 E'（宽化 + 改指令）是最终方案——实现简洁且逻辑自洽
 
 **关键类**：
 ```
@@ -287,6 +284,32 @@ main/.../deploy/data/DeployDataDatabase.kt          # APK access flags 数据源
 ```
 
 **关联文档**：`docs/task/release_incremental_access_flag_mismatch.md` §8, §9
+
+### 4.8 release 增量编译后 AbstractMethodError（类不在 mapping 中，方法名未映射）
+
+**信号**：runtime crash 报 `AbstractMethodError: abstract method "..."` 或 `AbstractMethodError: Ljava/lang/Object;.a()V`，crash 涉及新增类、类名变更后的类、匿名类（编号漂移），或 `ExternalSyntheticLambda` 类。
+
+**根因模式**：当一个类不在 `mapping.txt` 中（新增类、类名变更、编号漂移等），`DexObfuscator.mapMethod()` 查不到该类的方法名映射 → 保留原方法名 → 但 APK 中该方法的接口/父类声明已被混淆（如 `run → a`）→ 方法签名不匹配 → `AbstractMethodError`。
+
+**排查步骤**：
+1. **从 crash log 定位涉及的类和方法**：确认该类是否是新增类、匿名类、或 `ExternalSyntheticLambda` 类
+2. **确认该类是否在 `mapping.txt` 中**：如果不在，说明旧 mapping 无法覆盖
+3. **检查该类实现的接口或继承的父类**：确认接口/父类的方法在 mapping 中有映射
+4. **确认增量 DEX 中方法名是否与接口/父类的混淆后方法名一致**
+
+**修复方案**：方案 L — `DexObfuscator` 在 `visitMethod()` 中使用 `mapMethodForCurrentClass()` 实现"接口/父类优先"的方法名映射策略：
+1. 优先从接口和父类的 mapping 条目推导方法名
+2. 未命中时回退到类自身的 mapping 条目
+3. 都未命中时保留原名
+
+该策略对所有类通用，无需区分 lambda 与普通类。
+
+**关键类**：
+```
+main/.../compiler/obfuscation/DexObfuscator.kt     # mapMethodForCurrentClass() / mapMethodNameFromHierarchy()
+```
+
+**关联文档**：`docs/task/release_incremental_access_flag_mismatch.md` §12
 
 ---
 

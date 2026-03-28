@@ -14,9 +14,6 @@ import com.googlecode.d2j.node.insn.ConstStmtNode
 import com.googlecode.d2j.node.insn.FilledNewArrayStmtNode
 import com.googlecode.d2j.reader.DexFileReader
 import com.googlecode.d2j.reader.Op
-import com.sickworm.intellij.jugg.compiler.ClassNode
-import com.sickworm.intellij.jugg.compiler.FieldNode
-import com.sickworm.intellij.jugg.compiler.MethodNode
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.BeforeClass
@@ -1084,23 +1081,92 @@ class DexObfuscatorTest {
         )
     }
 
-    // ==================== Access flag alignment tests (方案 D: APK DB access flags) ====================
-
     /**
-     * Helper: build an APK ClassNode map keyed by obfuscated DEX class name.
-     * Simulates the data from DeployDataDatabase.getClassNodes().
-     */
-    private fun buildApkClassNodes(vararg entries: ClassNode): Map<String, ClassNode> {
-        return entries.associateBy { it.className }
-    }
-
-    /**
-     * P0: When APK says method is public, DexObfuscator should align private -> public.
-     * This is the core IllegalAccessError fix: R8 widened a lambda method to public,
-     * so the incremental DEX must also be public.
+     * P0: visitTryCatch with catch-all handler (null type element) must not crash.
+     * In DEX format, a catch-all handler has null as its exception type in the types array.
+     * mapType() must handle null elements gracefully instead of throwing NPE.
      */
     @Test
-    fun testMethodAccessAlignedToApkPublic() {
+    fun testObfuscateTryCatchWithCatchAllNullType() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void test() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "test", Proto(emptyArray(), "V"))
+        )
+
+        val codeVisitor = methodVisitor.visitCode()
+        val tryStart = DexLabel()
+        val tryEnd = DexLabel()
+        val handler = DexLabel()
+
+        codeVisitor.visitLabel(tryStart)
+        codeVisitor.visitStmt0R(Op.NOP)
+        codeVisitor.visitLabel(tryEnd)
+        codeVisitor.visitLabel(handler)
+        codeVisitor.visitStmt0R(Op.NOP)
+
+        // Register try-catch with catch-all handler (null type element).
+        // This is valid DEX: catch-all uses null as the exception type.
+        val catchAllTypes: Array<String?> = arrayOfNulls(1)
+        codeVisitor.visitTryCatch(
+            tryStart,
+            tryEnd,
+            arrayOf(handler),
+            catchAllTypes
+        )
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+
+        // This should NOT throw NullPointerException
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        // Read back and verify class was renamed
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        assertEquals("La/b;", classNode.className)
+
+        // Verify the try-catch is still present
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull(method)
+
+        val tryCatchNodes = method!!.codeNode.tryStmts
+        assertNotNull("Should have try-catch statements", tryCatchNodes)
+        assertTrue("Should have at least one try-catch", tryCatchNodes.isNotEmpty())
+
+        // catch-all handler should preserve null type
+        val types = tryCatchNodes[0].type
+        assertNotNull("Should have types array", types)
+        assertNull("catch-all type should remain null", types[0])
+    }
+
+    // ==================== Access flag widening tests (方案 E) ====================
+
+    /**
+     * P0: Private method should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens all private methods to public.
+     * DexObfuscator must replicate this behavior to avoid IllegalAccessError
+     * when ExternalSyntheticLambda classes call the widened method.
+     */
+    @Test
+    fun testPrivateMethodWidenedToPublic() {
         val mappingContent = """
             com.example.TestClass -> a.b:
                 void lambda${'$'}onResume${'$'}0() -> a
@@ -1108,15 +1174,7 @@ class DexObfuscatorTest {
 
         val obfuscator = DexObfuscator.fromMappingString(mappingContent)
 
-        // APK data: after R8, the method is public in APK
-        val apkClassNodes = buildApkClassNodes(
-            ClassNode("apk.dex", "La/b;", DexConstants.ACC_PUBLIC,
-                methods = listOf(MethodNode("La/b;", DexConstants.ACC_PUBLIC, "a", "()V")),
-                fields = emptyList(),
-                interfaceNames = emptyList(), superClass = "Ljava/lang/Object;", sourceArg = null)
-        )
-
-        // Create a DEX with a private lambda method (javac output)
+        // Create a DEX with a private lambda method
         val dexWriter = DexFileWriter()
         val classVisitor = dexWriter.visit(
             DexConstants.ACC_PUBLIC,
@@ -1135,7 +1193,7 @@ class DexObfuscatorTest {
         classVisitor.visitEnd()
 
         val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
         assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
 
         val dexNode = readDex(obfuscatedBytes!!)
@@ -1143,97 +1201,30 @@ class DexObfuscatorTest {
         val method = classNode.methods.find { it.method.name == "a" }
         assertNotNull("Method should be renamed to 'a'", method)
 
-        // Verify: aligned to APK's public
+        // Verify access flag: private should be widened to public
         val access = method!!.access
         assertTrue(
-            "Method should have ACC_PUBLIC (aligned to APK)",
+            "Method should have ACC_PUBLIC after widening",
             access and DexConstants.ACC_PUBLIC != 0
         )
         assertFalse(
-            "Method should NOT have ACC_PRIVATE (aligned to APK)",
+            "Method should NOT have ACC_PRIVATE after widening",
             access and DexConstants.ACC_PRIVATE != 0
         )
     }
 
     /**
-     * P0: When APK says method is private (R8 chose NOT to widen), keep private.
-     * This prevents IncompatibleClassChangeError (方案 E's fatal flaw).
+     * P0: Private field should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens all private fields to public.
      */
     @Test
-    fun testMethodAccessAlignedToApkPrivate() {
-        val mappingContent = """
-            com.example.TestClass -> a.b:
-                void syntheticMethod() -> s
-        """.trimIndent()
-
-        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
-
-        // APK data: R8 kept this method private (one of the §6.3 exceptions)
-        val apkClassNodes = buildApkClassNodes(
-            ClassNode("apk.dex", "La/b;", DexConstants.ACC_PUBLIC,
-                methods = listOf(MethodNode("La/b;", DexConstants.ACC_PRIVATE, "s", "()V")),
-                fields = emptyList(),
-                interfaceNames = emptyList(), superClass = "Ljava/lang/Object;", sourceArg = null)
-        )
-
-        val dexWriter = DexFileWriter()
-        val classVisitor = dexWriter.visit(
-            DexConstants.ACC_PUBLIC,
-            "Lcom/example/TestClass;",
-            "Ljava/lang/Object;",
-            null
-        )
-
-        val methodVisitor = classVisitor.visitMethod(
-            DexConstants.ACC_PRIVATE,
-            Method("Lcom/example/TestClass;", "syntheticMethod", Proto(emptyArray(), "V"))
-        )
-        val codeVisitor = methodVisitor.visitCode()
-        codeVisitor.visitEnd()
-        methodVisitor.visitEnd()
-        classVisitor.visitEnd()
-
-        val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
-        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
-
-        val dexNode = readDex(obfuscatedBytes!!)
-        val classNode = dexNode.clzs[0]
-        val method = classNode.methods.find { it.method.name == "s" }
-        assertNotNull("Method should be renamed to 's'", method)
-
-        // Verify: aligned to APK's private (NOT widened, unlike 方案 E)
-        val access = method!!.access
-        assertTrue(
-            "Method should stay ACC_PRIVATE (aligned to APK)",
-            access and DexConstants.ACC_PRIVATE != 0
-        )
-        assertFalse(
-            "Method should NOT have ACC_PUBLIC (APK says private)",
-            access and DexConstants.ACC_PUBLIC != 0
-        )
-    }
-
-    /**
-     * P0: Field access flag should be aligned to APK data.
-     * R8 widens private fields to public; DexObfuscator must match.
-     */
-    @Test
-    fun testFieldAccessAlignedToApk() {
+    fun testPrivateFieldWidenedToPublic() {
         val mappingContent = """
             com.example.TestClass -> a.b:
                 int secretField -> x
         """.trimIndent()
 
         val obfuscator = DexObfuscator.fromMappingString(mappingContent)
-
-        // APK data: R8 widened this field to public
-        val apkClassNodes = buildApkClassNodes(
-            ClassNode("apk.dex", "La/b;", DexConstants.ACC_PUBLIC,
-                methods = emptyList(),
-                fields = listOf(FieldNode("La/b;", DexConstants.ACC_PUBLIC, "x", "I")),
-                interfaceNames = emptyList(), superClass = "Ljava/lang/Object;", sourceArg = null)
-        )
 
         val dexWriter = DexFileWriter()
         val classVisitor = dexWriter.visit(
@@ -1252,7 +1243,7 @@ class DexObfuscatorTest {
         classVisitor.visitEnd()
 
         val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
         assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
 
         val dexNode = readDex(obfuscatedBytes!!)
@@ -1260,174 +1251,27 @@ class DexObfuscatorTest {
         val field = classNode.fields.find { it.field.name == "x" }
         assertNotNull("Field should be renamed to 'x'", field)
 
-        // Verify: aligned to APK's public
+        // Verify access flag: private should be widened to public
         val access = field!!.access
         assertTrue(
-            "Field should have ACC_PUBLIC (aligned to APK)",
+            "Field should have ACC_PUBLIC after widening",
             access and DexConstants.ACC_PUBLIC != 0
         )
         assertFalse(
-            "Field should NOT have ACC_PRIVATE (aligned to APK)",
+            "Field should NOT have ACC_PRIVATE after widening",
             access and DexConstants.ACC_PRIVATE != 0
         )
     }
 
     /**
-     * P0: Class access flag should be aligned to APK data.
-     * R8 may widen private inner classes to public.
+     * P0: Protected method should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens protected to public.
      */
     @Test
-    fun testClassAccessAlignedToApk() {
+    fun testProtectedMethodWidenedToPublic() {
         val mappingContent = """
             com.example.TestClass -> a.b:
-        """.trimIndent()
-
-        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
-
-        // APK data: R8 widened this inner class to public
-        val apkClassNodes = buildApkClassNodes(
-            ClassNode("apk.dex", "La/b;", DexConstants.ACC_PUBLIC,
-                methods = emptyList(), fields = emptyList(),
-                interfaceNames = emptyList(), superClass = "Ljava/lang/Object;", sourceArg = null)
-        )
-
-        val dexWriter = DexFileWriter()
-        val classVisitor = dexWriter.visit(
-            DexConstants.ACC_PRIVATE,  // inner class was private
-            "Lcom/example/TestClass;",
-            "Ljava/lang/Object;",
-            null
-        )
-        classVisitor.visitEnd()
-
-        val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
-        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
-
-        val dexNode = readDex(obfuscatedBytes!!)
-        val classNode = dexNode.clzs[0]
-        assertEquals("La/b;", classNode.className)
-
-        // Verify: aligned to APK's public
-        val access = classNode.access
-        assertTrue(
-            "Class should have ACC_PUBLIC (aligned to APK)",
-            access and DexConstants.ACC_PUBLIC != 0
-        )
-        assertFalse(
-            "Class should NOT have ACC_PRIVATE (aligned to APK)",
-            access and DexConstants.ACC_PRIVATE != 0
-        )
-    }
-
-    /**
-     * P0: New method not in APK should preserve original access flags.
-     * When a method is added in incremental compilation that doesn't exist
-     * in the APK, we keep the original access flags (no alignment needed).
-     */
-    @Test
-    fun testNewMethodNotInApkPreservesOriginalAccess() {
-        val mappingContent = """
-            com.example.TestClass -> a.b:
-        """.trimIndent()
-
-        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
-
-        // APK data: class exists but method "newMethod" is NOT in it
-        val apkClassNodes = buildApkClassNodes(
-            ClassNode("apk.dex", "La/b;", DexConstants.ACC_PUBLIC,
-                methods = listOf(MethodNode("La/b;", DexConstants.ACC_PUBLIC, "existingMethod", "()V")),
-                fields = emptyList(),
-                interfaceNames = emptyList(), superClass = "Ljava/lang/Object;", sourceArg = null)
-        )
-
-        val dexWriter = DexFileWriter()
-        val classVisitor = dexWriter.visit(
-            DexConstants.ACC_PUBLIC,
-            "Lcom/example/TestClass;",
-            "Ljava/lang/Object;",
-            null
-        )
-
-        val methodVisitor = classVisitor.visitMethod(
-            DexConstants.ACC_PRIVATE,
-            Method("Lcom/example/TestClass;", "newMethod", Proto(emptyArray(), "V"))
-        )
-        val codeVisitor = methodVisitor.visitCode()
-        codeVisitor.visitEnd()
-        methodVisitor.visitEnd()
-        classVisitor.visitEnd()
-
-        val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
-        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
-
-        val dexNode = readDex(obfuscatedBytes!!)
-        val classNode = dexNode.clzs[0]
-        val method = classNode.methods.find { it.method.name == "newMethod" }
-        assertNotNull("New method should exist with original name", method)
-
-        // Verify: original private access preserved (no APK data to align to)
-        val access = method!!.access
-        assertTrue(
-            "New method should keep ACC_PRIVATE (not in APK)",
-            access and DexConstants.ACC_PRIVATE != 0
-        )
-        assertFalse(
-            "New method should NOT have ACC_PUBLIC (not in APK)",
-            access and DexConstants.ACC_PUBLIC != 0
-        )
-    }
-
-    /**
-     * P0: Class not in APK data should preserve original access flags.
-     * When apkClassNodes is provided but does not contain this class,
-     * keep the original access flags.
-     */
-    @Test
-    fun testClassNotInApkDataPreservesOriginalAccess() {
-        val mappingContent = """
-            com.example.TestClass -> a.b:
-        """.trimIndent()
-
-        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
-
-        // APK data is empty (class not found in DB)
-        val apkClassNodes = emptyMap<String, ClassNode>()
-
-        val dexWriter = DexFileWriter()
-        val classVisitor = dexWriter.visit(
-            DexConstants.ACC_PRIVATE,
-            "Lcom/example/TestClass;",
-            "Ljava/lang/Object;",
-            null
-        )
-        classVisitor.visitEnd()
-
-        val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
-        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
-
-        val dexNode = readDex(obfuscatedBytes!!)
-        val classNode = dexNode.clzs[0]
-
-        // Verify: original access preserved since class is not in APK data
-        val access = classNode.access
-        assertTrue(
-            "Class should keep ACC_PRIVATE (not in APK data)",
-            access and DexConstants.ACC_PRIVATE != 0
-        )
-    }
-
-    /**
-     * P0: Without APK data (null), access flags should pass through unchanged.
-     * This preserves backward compatibility for non-release builds.
-     */
-    @Test
-    fun testNoApkDataPassesThroughAccessFlags() {
-        val mappingContent = """
-            com.example.TestClass -> a.b:
-                void privateMethod() -> c
+                void protectedMethod() -> c
         """.trimIndent()
 
         val obfuscator = DexObfuscator.fromMappingString(mappingContent)
@@ -1441,8 +1285,8 @@ class DexObfuscatorTest {
         )
 
         val methodVisitor = classVisitor.visitMethod(
-            DexConstants.ACC_PRIVATE,
-            Method("Lcom/example/TestClass;", "privateMethod", Proto(emptyArray(), "V"))
+            DexConstants.ACC_PROTECTED,
+            Method("Lcom/example/TestClass;", "protectedMethod", Proto(emptyArray(), "V"))
         )
         val codeVisitor = methodVisitor.visitCode()
         codeVisitor.visitEnd()
@@ -1450,7 +1294,6 @@ class DexObfuscatorTest {
         classVisitor.visitEnd()
 
         val originalBytes = dexWriter.toByteArray()
-        // No APK data: use the existing obfuscate(dexBytes) overload
         val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
         assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
 
@@ -1459,35 +1302,121 @@ class DexObfuscatorTest {
         val method = classNode.methods.find { it.method.name == "c" }
         assertNotNull("Method should be renamed to 'c'", method)
 
-        // Verify: original private access preserved (no APK data)
         val access = method!!.access
         assertTrue(
-            "Method should keep ACC_PRIVATE when no APK data",
-            access and DexConstants.ACC_PRIVATE != 0
+            "Protected method should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Protected method should NOT have ACC_PROTECTED after widening",
+            access and DexConstants.ACC_PROTECTED != 0
         )
     }
 
     /**
-     * P1: APK method with static flag preserved during alignment.
-     * R8 widens private static -> public static; verify static flag survives.
+     * P0: Package-private method should be widened to public after obfuscation.
+     * R8 with -allowaccessmodification widens package-private to public.
      */
     @Test
-    fun testStaticFlagPreservedDuringAlignment() {
+    fun testPackagePrivateMethodWidenedToPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void packageMethod() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // package-private = no access modifier flags
+        val methodVisitor = classVisitor.visitMethod(
+            0,  // package-private
+            Method("Lcom/example/TestClass;", "packageMethod", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        val access = method!!.access
+        assertTrue(
+            "Package-private method should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+    }
+
+    /**
+     * P1: Public method should remain public (no unnecessary modification).
+     */
+    @Test
+    fun testPublicMethodRemainsPublic() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void publicMethod() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "publicMethod", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val method = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Method should be renamed to 'c'", method)
+
+        val access = method!!.access
+        assertTrue(
+            "Public method should remain ACC_PUBLIC",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+    }
+
+    /**
+     * P1: Private static method should be widened to public static.
+     * The static flag must be preserved during widening.
+     */
+    @Test
+    fun testPrivateStaticMethodWidenedPreservesOtherFlags() {
         val mappingContent = """
             com.example.TestClass -> a.b:
                 void staticLambda() -> s
         """.trimIndent()
 
         val obfuscator = DexObfuscator.fromMappingString(mappingContent)
-
-        // APK data: R8 widened private static -> public static
-        val apkClassNodes = buildApkClassNodes(
-            ClassNode("apk.dex", "La/b;", DexConstants.ACC_PUBLIC,
-                methods = listOf(MethodNode("La/b;",
-                    DexConstants.ACC_PUBLIC or DexConstants.ACC_STATIC, "s", "()V")),
-                fields = emptyList(),
-                interfaceNames = emptyList(), superClass = "Ljava/lang/Object;", sourceArg = null)
-        )
 
         val dexWriter = DexFileWriter()
         val classVisitor = dexWriter.visit(
@@ -1507,7 +1436,7 @@ class DexObfuscatorTest {
         classVisitor.visitEnd()
 
         val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
         assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
 
         val dexNode = readDex(obfuscatedBytes!!)
@@ -1517,40 +1446,70 @@ class DexObfuscatorTest {
 
         val access = method!!.access
         assertTrue(
-            "Method should have ACC_PUBLIC (aligned to APK)",
+            "Private static method should become public",
             access and DexConstants.ACC_PUBLIC != 0
         )
         assertFalse(
-            "Method should NOT have ACC_PRIVATE",
+            "Private flag should be removed",
             access and DexConstants.ACC_PRIVATE != 0
         )
         assertTrue(
-            "Static flag should be preserved from APK",
+            "Static flag should be preserved",
             access and DexConstants.ACC_STATIC != 0
         )
     }
 
     /**
-     * P1: Method with parameters - access flag lookup must match by name+desc.
-     * Ensures the lookup key correctly includes the method descriptor.
+     * P1: Private class (inner class) access flag should be widened to public.
      */
     @Test
-    fun testMethodWithParamsAccessAligned() {
+    fun testPrivateClassWidenedToPublic() {
         val mappingContent = """
             com.example.TestClass -> a.b:
-                void process(java.lang.String,int) -> p
         """.trimIndent()
 
         val obfuscator = DexObfuscator.fromMappingString(mappingContent)
 
-        // APK data: method with params, R8 widened to public
-        val apkClassNodes = buildApkClassNodes(
-            ClassNode("apk.dex", "La/b;", DexConstants.ACC_PUBLIC,
-                methods = listOf(MethodNode("La/b;",
-                    DexConstants.ACC_PUBLIC, "p", "(Ljava/lang/String;I)V")),
-                fields = emptyList(),
-                interfaceNames = emptyList(), superClass = "Ljava/lang/Object;", sourceArg = null)
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PRIVATE,  // inner class can be private
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
         )
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        assertEquals("La/b;", classNode.className)
+
+        val access = classNode.access
+        assertTrue(
+            "Private class should have ACC_PUBLIC after widening",
+            access and DexConstants.ACC_PUBLIC != 0
+        )
+        assertFalse(
+            "Private class should NOT have ACC_PRIVATE after widening",
+            access and DexConstants.ACC_PRIVATE != 0
+        )
+    }
+
+    /**
+     * P1: Method not in mapping should still have access flags widened.
+     * Even if method name stays the same (no mapping entry), the class IS
+     * in the mapping, so access flags should still be widened.
+     */
+    @Test
+    fun testUnmappedMethodInMappedClassStillWidened() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
 
         val dexWriter = DexFileWriter()
         val classVisitor = dexWriter.visit(
@@ -1561,9 +1520,8 @@ class DexObfuscatorTest {
         )
 
         val methodVisitor = classVisitor.visitMethod(
-            DexConstants.ACC_PROTECTED,
-            Method("Lcom/example/TestClass;", "process",
-                Proto(arrayOf("Ljava/lang/String;", "I"), "V"))
+            DexConstants.ACC_PRIVATE,
+            Method("Lcom/example/TestClass;", "unmappedMethod", Proto(emptyArray(), "V"))
         )
         val codeVisitor = methodVisitor.visitCode()
         codeVisitor.visitEnd()
@@ -1571,23 +1529,863 @@ class DexObfuscatorTest {
         classVisitor.visitEnd()
 
         val originalBytes = dexWriter.toByteArray()
-        val obfuscatedBytes = obfuscator.obfuscate(originalBytes, apkClassNodes)
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
         assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
 
         val dexNode = readDex(obfuscatedBytes!!)
         val classNode = dexNode.clzs[0]
-        val method = classNode.methods.find { it.method.name == "p" }
-        assertNotNull("Method should be renamed to 'p'", method)
+        // Method name stays the same since it's not in the mapping
+        val method = classNode.methods.find { it.method.name == "unmappedMethod" }
+        assertNotNull("Unmapped method should still exist", method)
 
         val access = method!!.access
         assertTrue(
-            "Method with params should have ACC_PUBLIC (aligned to APK)",
+            "Unmapped method in mapped class should still be widened to public",
             access and DexConstants.ACC_PUBLIC != 0
         )
         assertFalse(
-            "Method should NOT have ACC_PROTECTED",
-            access and DexConstants.ACC_PROTECTED != 0
+            "Unmapped method should NOT remain private",
+            access and DexConstants.ACC_PRIVATE != 0
         )
+    }
+
+    // ==================== invoke-direct → invoke-virtual tests (方案 E') ====================
+
+    /**
+     * P0: When a private non-static method is widened to public, invoke-direct
+     * calls within the same class must be changed to invoke-virtual.
+     * Otherwise ART sees "expected direct but found virtual" → IncompatibleClassChangeError.
+     */
+    @Test
+    fun testInvokeDirectChangedToInvokeVirtualForWidenedMethod() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void privateHelper() -> h
+                void caller() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX where caller() uses invoke-direct on privateHelper()
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Private non-static method
+        val helperVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PRIVATE,
+            Method("Lcom/example/TestClass;", "privateHelper", Proto(emptyArray(), "V"))
+        )
+        helperVisitor.visitCode().visitEnd()
+        helperVisitor.visitEnd()
+
+        // Caller method that uses invoke-direct on privateHelper
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "caller", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_DIRECT,
+            intArrayOf(0),
+            Method("Lcom/example/TestClass;", "privateHelper", Proto(emptyArray(), "V"))
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Caller method should be renamed to 'c'", callerMethod)
+
+        // Find the method invocation statement
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Verify: invoke-direct should have been changed to invoke-virtual
+        assertEquals(
+            "invoke-direct should be changed to invoke-virtual for widened method",
+            Op.INVOKE_VIRTUAL,
+            methodStmt!!.op
+        )
+    }
+
+    /**
+     * P0: invoke-direct on <init> must NOT be changed to invoke-virtual.
+     * Constructor calls always use invoke-direct regardless of visibility.
+     */
+    @Test
+    fun testInvokeDirectOnInitNotChanged() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void caller() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Caller method that uses invoke-direct on <init>
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "caller", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_DIRECT,
+            intArrayOf(0),
+            Method("Lcom/example/TestClass;", "<init>", Proto(emptyArray(), "V"))
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Caller method should be renamed to 'c'", callerMethod)
+
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Verify: invoke-direct on <init> must remain invoke-direct
+        assertEquals(
+            "invoke-direct on <init> must NOT be changed",
+            Op.INVOKE_DIRECT,
+            methodStmt!!.op
+        )
+    }
+
+    /**
+     * P0: invoke-direct on a method of a DIFFERENT class must NOT be changed.
+     * We only modify invoke-direct for methods owned by the current class.
+     */
+    @Test
+    fun testInvokeDirectOnOtherClassNotChanged() {
+        val mappingContent = """
+            com.example.OtherClass -> x.y:
+                void otherMethod() -> m
+            com.example.TestClass -> a.b:
+                void caller() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Caller method that uses invoke-direct on OtherClass.otherMethod
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "caller", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_DIRECT,
+            intArrayOf(0),
+            Method("Lcom/example/OtherClass;", "otherMethod", Proto(emptyArray(), "V"))
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Caller method should be renamed to 'c'", callerMethod)
+
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Verify: invoke-direct on other class method must remain unchanged
+        assertEquals(
+            "invoke-direct on other class must NOT be changed",
+            Op.INVOKE_DIRECT,
+            methodStmt!!.op
+        )
+    }
+
+    /**
+     * P0: invoke-static must NOT be changed even after widening.
+     * private static → public static still uses invoke-static in direct section.
+     */
+    @Test
+    fun testInvokeStaticNotChanged() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void staticHelper() -> s
+                void caller() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Private static method
+        val staticVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PRIVATE or DexConstants.ACC_STATIC,
+            Method("Lcom/example/TestClass;", "staticHelper", Proto(emptyArray(), "V"))
+        )
+        staticVisitor.visitCode().visitEnd()
+        staticVisitor.visitEnd()
+
+        // Caller uses invoke-static
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "caller", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_STATIC,
+            intArrayOf(),
+            Method("Lcom/example/TestClass;", "staticHelper", Proto(emptyArray(), "V"))
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Caller method should be renamed to 'c'", callerMethod)
+
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Verify: invoke-static must remain invoke-static
+        assertEquals(
+            "invoke-static must NOT be changed",
+            Op.INVOKE_STATIC,
+            methodStmt!!.op
+        )
+    }
+
+    /**
+     * P1: invoke-virtual must NOT be changed.
+     * Already virtual calls should pass through unchanged.
+     */
+    @Test
+    fun testInvokeVirtualNotChanged() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void publicMethod() -> p
+                void caller() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "caller", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_VIRTUAL,
+            intArrayOf(0),
+            Method("Lcom/example/TestClass;", "publicMethod", Proto(emptyArray(), "V"))
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("Caller method should be renamed to 'c'", callerMethod)
+
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Verify: invoke-virtual must remain invoke-virtual
+        assertEquals(
+            "invoke-virtual must remain unchanged",
+            Op.INVOKE_VIRTUAL,
+            methodStmt!!.op
+        )
+    }
+
+    // ==================== Plan L: interface/superclass-first method name mapping tests ====================
+
+    /**
+     * Plan L core scenario: class NOT in mapping, but implements an interface that IS in mapping.
+     * The method name should be derived from the interface mapping.
+     *
+     * Scenario: NewImpl implements IFoo (IFoo.run -> a in mapping),
+     * but NewImpl itself has no mapping entry.
+     * Expected: NewImpl.run should be obfuscated to "a" (from IFoo).
+     */
+    @Test
+    fun testMethodNameFromInterface_classNotInMapping() {
+        val mappingContent = """
+            com.example.IFoo -> com.example.IFoo:
+                void run() -> a
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX for NewImpl which implements IFoo but is NOT in the mapping
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/NewImpl;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/IFoo;")
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/NewImpl;", "run", Proto(emptyArray(), "V"))
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate (method name changed)", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Class name stays the same (not in mapping)
+        assertEquals("Lcom/example/NewImpl;", classNode.className)
+
+        // Method name should be derived from interface: run -> a
+        val method = classNode.methods.find { it.method.name == "a" }
+        assertNotNull("Method 'run' should be renamed to 'a' from interface IFoo mapping", method)
+    }
+
+    /**
+     * Plan L: class IS in mapping AND implements an interface in mapping.
+     * Interface-first should produce the same result as class-own lookup (R8 guarantees consistency).
+     */
+    @Test
+    fun testMethodNameFromInterface_classInMapping() {
+        val mappingContent = """
+            com.example.IFoo -> x.IFoo:
+                void run() -> a
+            com.example.MyImpl -> x.MyImpl:
+                void run() -> a
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/MyImpl;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/IFoo;")
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/MyImpl;", "run", Proto(emptyArray(), "V"))
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull(obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        assertEquals("Lx/MyImpl;", classNode.className)
+
+        // Method should be renamed to 'a' (consistent from both interface and class mappings)
+        val method = classNode.methods.find { it.method.name == "a" }
+        assertNotNull("Method 'run' should be renamed to 'a'", method)
+    }
+
+    /**
+     * Plan L: class NOT in mapping, but extends a superclass that IS in mapping.
+     * The method name should be derived from the superclass mapping.
+     */
+    @Test
+    fun testMethodNameFromSuperClass_classNotInMapping() {
+        val mappingContent = """
+            com.example.BaseClass -> x.Base:
+                void doWork() -> b
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/SubClass;",
+            "Lcom/example/BaseClass;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/SubClass;", "doWork", Proto(emptyArray(), "V"))
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate (method name changed via superclass)", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Class name stays the same (not in mapping)
+        assertEquals("Lcom/example/SubClass;", classNode.className)
+        // Superclass should be mapped
+        assertEquals("Lx/Base;", classNode.superClass)
+
+        // Method should be derived from superclass: doWork -> b
+        val method = classNode.methods.find { it.method.name == "b" }
+        assertNotNull("Method 'doWork' should be renamed to 'b' from superclass mapping", method)
+    }
+
+    /**
+     * Plan L: interface NOT in mapping, but class IS in mapping.
+     * Should fall back to class-own mapping.
+     */
+    @Test
+    fun testMethodNameFromHierarchy_interfaceNotInMapping_fallbackToClass() {
+        val mappingContent = """
+            com.example.MyClass -> x.MC:
+                void execute() -> e
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // MyClass implements UnmappedInterface (not in mapping)
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/MyClass;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/UnmappedInterface;")
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/MyClass;", "execute", Proto(emptyArray(), "V"))
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull(obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        assertEquals("Lx/MC;", classNode.className)
+
+        // Interface not in mapping -> fall back to class mapping: execute -> e
+        val method = classNode.methods.find { it.method.name == "e" }
+        assertNotNull("Method 'execute' should be renamed to 'e' from class mapping", method)
+    }
+
+    /**
+     * Plan L: neither interface, superclass, nor class is in mapping.
+     * Method name should be kept as original.
+     */
+    @Test
+    fun testMethodNameFromHierarchy_neitherInMapping_keepOriginal() {
+        val mappingContent = """
+            com.example.Unrelated -> x.y:
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Unknown;",
+            "Lcom/example/UnknownBase;",
+            arrayOf("Lcom/example/UnknownIface;")
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/Unknown;", "myMethod", Proto(emptyArray(), "V"))
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+
+        // Nothing was in mapping for this class -> no remapping -> null
+        assertNull("Should return null when no remapping applied", obfuscatedBytes)
+    }
+
+    /**
+     * Plan L: class implements multiple interfaces, method is found in second interface.
+     */
+    @Test
+    fun testMethodNameFromHierarchy_multipleInterfaces() {
+        val mappingContent = """
+            com.example.IFirst -> x.IF:
+                void firstMethod() -> f
+            com.example.ISecond -> x.IS:
+                void secondMethod() -> s
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/MultiImpl;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/IFirst;", "Lcom/example/ISecond;")
+        )
+
+        // Method from IFirst
+        val mv1 = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/MultiImpl;", "firstMethod", Proto(emptyArray(), "V"))
+        )
+        mv1.visitCode().visitEnd()
+        mv1.visitEnd()
+
+        // Method from ISecond
+        val mv2 = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/MultiImpl;", "secondMethod", Proto(emptyArray(), "V"))
+        )
+        mv2.visitCode().visitEnd()
+        mv2.visitEnd()
+
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate (method names changed via interfaces)", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Both methods should be renamed from their respective interfaces
+        val m1 = classNode.methods.find { it.method.name == "f" }
+        assertNotNull("firstMethod should be renamed to 'f' from IFirst", m1)
+
+        val m2 = classNode.methods.find { it.method.name == "s" }
+        assertNotNull("secondMethod should be renamed to 's' from ISecond", m2)
+    }
+
+    /**
+     * Plan L: generic interface with erased signature.
+     * mapping.txt records erased signatures, DEX proto is also erased.
+     * They should match precisely.
+     */
+    @Test
+    fun testGenericInterface_erasedSignatureMatch() {
+        // Generic interface Function<T,R> has erased method: Object apply(Object)
+        val mappingContent = """
+            com.example.Function -> x.Fn:
+                java.lang.Object apply(java.lang.Object) -> a
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Lambda class implements Function, method proto is erased: (Object)Object
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Lambda0;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/Function;")
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method(
+                "Lcom/example/Lambda0;",
+                "apply",
+                Proto(arrayOf("Ljava/lang/Object;"), "Ljava/lang/Object;")
+            )
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate (method name derived from generic interface)", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Method should be renamed from interface: apply -> a
+        val method = classNode.methods.find { it.method.name == "a" }
+        assertNotNull("apply(Object) should be renamed to 'a' from generic interface mapping", method)
+    }
+
+    /**
+     * Plan L: a method that is NOT an override (only exists in the class itself)
+     * should still use the class's own mapping.
+     */
+    @Test
+    fun testNonOverrideMethod_usesClassOwnMapping() {
+        val mappingContent = """
+            com.example.IFoo -> x.IFoo:
+                void interfaceMethod() -> a
+            com.example.MyClass -> x.MC:
+                void interfaceMethod() -> a
+                void ownMethod() -> b
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/MyClass;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/IFoo;")
+        )
+
+        // Interface method
+        val mv1 = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/MyClass;", "interfaceMethod", Proto(emptyArray(), "V"))
+        )
+        mv1.visitCode().visitEnd()
+        mv1.visitEnd()
+
+        // Own method (not from interface)
+        val mv2 = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/MyClass;", "ownMethod", Proto(emptyArray(), "V"))
+        )
+        mv2.visitCode().visitEnd()
+        mv2.visitEnd()
+
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull(obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // interfaceMethod -> a (from interface or class, both say 'a')
+        val m1 = classNode.methods.find { it.method.name == "a" }
+        assertNotNull("interfaceMethod should be renamed to 'a'", m1)
+
+        // ownMethod -> b (only from class mapping, interface doesn't have it)
+        val m2 = classNode.methods.find { it.method.name == "b" }
+        assertNotNull("ownMethod should be renamed to 'b' from class mapping", m2)
+    }
+
+    /**
+     * Plan L regression: visitMethodStmt (method call instructions) should NOT be affected
+     * by hierarchy logic. Only visitMethod (class-declared methods) uses hierarchy-first resolution.
+     * Method call instructions should still use the callee's owner to look up the mapping.
+     */
+    @Test
+    fun testMethodStmt_unaffectedByHierarchyLogic() {
+        val mappingContent = """
+            com.example.IFoo -> x.IFoo:
+                void run() -> a
+            com.example.Caller -> x.Caller:
+                void callIt() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Caller;",
+            "Ljava/lang/Object;",
+            null  // Caller does NOT implement IFoo
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/Caller;", "callIt", Proto(emptyArray(), "V"))
+        )
+
+        val codeVisitor = methodVisitor.visitCode()
+        // invoke-interface IFoo.run()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_INTERFACE,
+            intArrayOf(0),
+            Method("Lcom/example/IFoo;", "run", Proto(emptyArray(), "V"))
+        )
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull(obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        val callerMethod = classNode.methods.find { it.method.name == "c" }
+        assertNotNull("callIt should be renamed to 'c'", callerMethod)
+
+        // The invoke-interface should have IFoo.run mapped to x.IFoo.a via normal mapMethod
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull(methodStmt)
+        assertEquals("Lx/IFoo;", methodStmt!!.method.owner)
+        assertEquals("a", methodStmt.method.name)
+    }
+
+    /**
+     * Plan L: ExternalSyntheticLambda scenario (the original motivating case).
+     * Lambda class not in mapping, but implements a functional interface that IS in mapping.
+     * Method name should be derived from the interface.
+     */
+    @Test
+    fun testExternalSyntheticLambda_methodNameFromInterface() {
+        val mappingContent = """
+            com.example.MyCallback -> x.CB:
+                void onCallback(java.lang.String) -> a
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // ExternalSyntheticLambda class: not in mapping, implements MyCallback
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Activity\$\$ExternalSyntheticLambda0;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/MyCallback;")
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method(
+                "Lcom/example/Activity\$\$ExternalSyntheticLambda0;",
+                "onCallback",
+                Proto(arrayOf("Ljava/lang/String;"), "V")
+            )
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate lambda method name via interface", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        // Lambda class name not in mapping -> stays the same
+        assertEquals("Lcom/example/Activity\$\$ExternalSyntheticLambda0;", classNode.className)
+
+        // Method name should be derived from interface: onCallback -> a
+        val method = classNode.methods.find { it.method.name == "a" }
+        assertNotNull("Lambda's onCallback should be renamed to 'a' from interface mapping", method)
+    }
+
+    /**
+     * Plan L: method with parameters - class not in mapping, interface IS in mapping.
+     * Verifies parameter matching works correctly for hierarchy lookup.
+     */
+    @Test
+    fun testMethodNameFromInterface_withParameters() {
+        val mappingContent = """
+            com.example.IProcessor -> x.IP:
+                java.lang.String process(java.lang.String,int) -> p
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/ProcessorImpl;",
+            "Ljava/lang/Object;",
+            arrayOf("Lcom/example/IProcessor;")
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method(
+                "Lcom/example/ProcessorImpl;",
+                "process",
+                Proto(arrayOf("Ljava/lang/String;", "I"), "Ljava/lang/String;")
+            )
+        )
+        methodVisitor.visitCode().visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate (method name derived via interface)", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        val method = classNode.methods.find { it.method.name == "p" }
+        assertNotNull("process(String,int) should be renamed to 'p' from interface", method)
     }
 
     // ==================== Cache tests ====================

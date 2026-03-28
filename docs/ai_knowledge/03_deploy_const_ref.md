@@ -107,6 +107,8 @@
 - Kotlin 走 `KotlinConstParser`；
 - 支持输入去重、只处理存在且扩展名合法的源码文件；
 - 提供 `collectReferenceLookupHints()`，用于收集 constName/class/package/simpleName 线索，支撑 DB 候选查询；
+- 提供 `collectHintsAndParseReferences()` 单趟变体，在同一 AST 上先收集 hints 再解析 references，避免二次解析开销；
+- hints 中的 `simpleClassConstKeys` 记录 AST 中实际出现的 (simpleName, constName) 配对，避免 simpleClassNames × constNames 笛卡尔积导致的 DB 查询爆炸（参见 `docs/task/constref_candidate_query_optimization.md`）；
 - `dispose()` 负责释放 Kotlin PSI 环境资源。
 
 ### 4.1 定义解析（Definition）

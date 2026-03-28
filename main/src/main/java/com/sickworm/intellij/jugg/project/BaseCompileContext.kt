@@ -391,10 +391,6 @@ class BaseCompileContext(
         return deployFileManager.getMinifyInfo()
     }
 
-    override fun getApkClassNodes(classNames: List<String>): Map<String, ClassNode>? {
-        return deployFileManager.getApkClassNodes(classNames)
-    }
-
     private fun findDesugaredLibraryConfigurationWithCache(moduleInfo: ModuleInfo): String? {
         val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
         desugaredLibraryConfigurationCache[apkFile.path]?.let { return it }

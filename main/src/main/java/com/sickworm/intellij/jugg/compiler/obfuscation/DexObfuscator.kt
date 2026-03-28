@@ -8,8 +8,8 @@ import com.googlecode.d2j.Proto
 import com.googlecode.d2j.Visibility
 import com.googlecode.d2j.dex.writer.DexFileWriter
 import com.googlecode.d2j.reader.DexFileReader
+import com.googlecode.d2j.reader.Op
 import com.googlecode.d2j.visitors.*
-import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.deploy.asmSigFormat
 import com.sickworm.intellij.jugg.deploy.classSigName
 import java.io.File
@@ -105,33 +105,6 @@ class DexObfuscator(mappingReader: R8MappingReader) {
     }
 
     /**
-     * Obfuscate DEX bytes with APK access flags alignment.
-     *
-     * When apkClassNodes is provided, the access flags in the output DEX will be aligned
-     * to match the APK's actual access flags (from DeployDataDatabase). This prevents
-     * IllegalAccessError / IncompatibleClassChangeError caused by R8 access flag widening
-     * differences between the APK and incrementally-compiled DEX.
-     *
-     * @param dexBytes The input DEX bytes
-     * @param apkClassNodes Map of obfuscated class name (DEX format, e.g. "La/b;") to APK ClassNode.
-     *                      If null or empty, access flags pass through unchanged.
-     * @return The obfuscated DEX bytes, or null if no remapping was applied
-     */
-    fun obfuscate(dexBytes: ByteArray, apkClassNodes: Map<String, ClassNode>?): ByteArray? {
-        val dexReader = DexFileReader(dexBytes)
-        val dexWriter = DexFileWriter()
-
-        val remapper = ObfuscationDexRemapper(dexWriter, apkClassNodes = apkClassNodes)
-        dexReader.accept(remapper, 0)
-
-        return if (remapper.hasRemapped) {
-            dexWriter.toByteArray()
-        } else {
-            null
-        }
-    }
-
-    /**
      * Obfuscate DEX from input stream.
      *
      * @param inputStream The input stream containing DEX bytes
@@ -156,22 +129,17 @@ class DexObfuscator(mappingReader: R8MappingReader) {
      *
      * @param dexBytes The input DEX bytes
      * @param minifyInfo Optional inline redirect information
-     * @param apkClassNodes Optional APK ClassNode data for access flag alignment
      * @return The obfuscated DEX bytes, or null if no remapping was applied
      */
-    fun obfuscateWithInlineRedirect(
-        dexBytes: ByteArray,
-        minifyInfo: MinifyInfo?,
-        apkClassNodes: Map<String, ClassNode>? = null
-    ): ByteArray? {
-        if (minifyInfo == null && apkClassNodes == null) {
+    fun obfuscateWithInlineRedirect(dexBytes: ByteArray, minifyInfo: MinifyInfo?): ByteArray? {
+        if (minifyInfo == null) {
             return obfuscate(dexBytes)
         }
 
         val dexReader = DexFileReader(dexBytes)
         val dexWriter = DexFileWriter()
 
-        val remapper = ObfuscationDexRemapper(dexWriter, minifyInfo, apkClassNodes)
+        val remapper = ObfuscationDexRemapper(dexWriter, minifyInfo)
         dexReader.accept(remapper, 0)
 
         return if (remapper.hasRemapped) {
@@ -263,8 +231,7 @@ class DexObfuscator(mappingReader: R8MappingReader) {
      */
     private inner class ObfuscationDexRemapper(
         dexWriter: DexFileWriter,
-        private val minifyInfo: MinifyInfo? = null,
-        private val apkClassNodes: Map<String, ClassNode>? = null
+        private val minifyInfo: MinifyInfo? = null
     ) : DexFileVisitor(dexWriter) {
         var hasRemapped = false
             private set
@@ -296,15 +263,14 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                 hasRemapped = true
             }
 
-            // Align class access flags to APK
-            val alignedAccessFlags = alignClassAccessFlags(accessFlags, mappedClassName)
-
-            val classVisitor = super.visit(alignedAccessFlags, mappedClassName, mappedSuperClass, mappedInterfaces)
+            val classVisitor = super.visit(widenAccessFlags(accessFlags), mappedClassName, mappedSuperClass, mappedInterfaces)
 
             return object : DexClassVisitor(classVisitor) {
                 private val originalClassName = className
-                // Cache APK ClassNode lookup for this class
-                private val apkClassNode = apkClassNodes?.get(mappedClassName)
+                private val currentMappedClassName = mappedClassName
+                // Plan L: record original hierarchy for method name resolution
+                private val originalInterfaces: Array<out String> = interfaceNames ?: emptyArray()
+                private val originalSuperClass: String? = superClass
 
                 override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
                     // Fix 1: map annotation type descriptor
@@ -319,10 +285,8 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                     if (mappedField != field) {
                         hasRemapped = true
                     }
-                    // Align field access flags to APK
-                    val alignedAccessFlags = alignFieldAccessFlags(accessFlags, mappedField, apkClassNode)
                     // Fix 3: wrap field visitor to handle field-level annotations
-                    val fieldVisitor = super.visitField(alignedAccessFlags, mappedField, value)
+                    val fieldVisitor = super.visitField(widenAccessFlags(accessFlags), mappedField, value)
                     return object : DexFieldVisitor(fieldVisitor) {
                         override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
                             val mappedName = name?.let { mapType(it) }
@@ -334,15 +298,12 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                 }
 
                 override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor {
-                    val mappedMethod = mapMethod(method)
+                    val mappedMethod = mapMethodForCurrentClass(method)
                     if (mappedMethod != method) {
                         hasRemapped = true
                     }
 
-                    // Align method access flags to APK
-                    val alignedAccessFlags = alignMethodAccessFlags(accessFlags, mappedMethod, apkClassNode)
-
-                    val methodVisitor = super.visitMethod(alignedAccessFlags, mappedMethod)
+                    val methodVisitor = super.visitMethod(widenAccessFlags(accessFlags), mappedMethod)
 
                     return object : DexMethodVisitor(methodVisitor) {
                         // Fix 2: handle method-level annotations
@@ -386,7 +347,21 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                                     if (remappedMethod != method) {
                                         hasRemapped = true
                                     }
-                                    super.visitMethodStmt(op, args, remappedMethod)
+                                    // Plan E': when access flags are widened from private to public,
+                                    // the method moves from the direct section to the virtual section.
+                                    // Callers within the same class still use invoke-direct, which
+                                    // will cause IncompatibleClassChangeError at runtime.
+                                    // Fix: change invoke-direct → invoke-virtual for non-<init>,
+                                    // same-class method calls.
+                                    val finalOp = if (op == Op.INVOKE_DIRECT
+                                        && remappedMethod.owner == currentMappedClassName
+                                        && remappedMethod.name != "<init>") {
+                                        hasRemapped = true
+                                        Op.INVOKE_VIRTUAL
+                                    } else {
+                                        op
+                                    }
+                                    super.visitMethodStmt(finalOp, args, remappedMethod)
                                 }
 
                                 override fun visitMethodStmt(op: com.googlecode.d2j.reader.Op?, args: IntArray?, bsm: Method?, proto: Proto?) {
@@ -451,10 +426,18 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                                     handler: Array<out com.googlecode.d2j.DexLabel>?,
                                     types: Array<out String>?
                                 ) {
+                                    // In DEX format, catch-all handlers have null as the exception
+                                    // type. The Java library may pass arrays containing null elements,
+                                    // so each element must be null-checked before calling mapType().
+                                    @Suppress("SENSELESS_COMPARISON")
                                     val mappedTypes = types?.map { type ->
-                                        val mapped = mapType(type)
-                                        if (mapped != type) hasRemapped = true
-                                        mapped
+                                        if (type == null) {
+                                            null
+                                        } else {
+                                            val mapped = mapType(type)
+                                            if (mapped != type) hasRemapped = true
+                                            mapped
+                                        }
                                     }?.toTypedArray()
                                     super.visitTryCatch(start, end, handler, mappedTypes)
                                 }
@@ -469,6 +452,74 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                             }
                         }
                     }
+                }
+
+                /**
+                 * Plan L: Map a method declared by the current class using hierarchy-first resolution.
+                 * 1. Search interfaces and superclass for method name mapping
+                 * 2. Fall back to the current class's own mapping
+                 * 3. Keep original name if not found anywhere
+                 *
+                 * Only used for visitMethod() (class-declared methods).
+                 * visitMethodStmt() (call instructions) continues to use mapMethod() directly
+                 * because the callee's owner type already points to the declaring class/interface.
+                 */
+                private fun mapMethodForCurrentClass(method: Method): Method {
+                    // Skip special methods
+                    if (method.name == "<init>" || method.name == "<clinit>") {
+                        val ownerMapped = mapType(method.owner)
+                        val protoMapped = mapProto(method.proto)
+                        return if (ownerMapped != method.owner || protoMapped != method.proto) {
+                            Method(ownerMapped, method.name, protoMapped)
+                        } else {
+                            method
+                        }
+                    }
+
+                    val ownerMapped = mapType(method.owner)
+
+                    // Plan L: hierarchy-first method name resolution
+                    val nameMapped = mapMethodNameFromHierarchy(method)
+                        ?: run {
+                            // Fallback: existing class-own lookup
+                            val ownerDot = method.owner.asmSigFormat.replace('/', '.')
+                            val params = protoToParams(method.proto)
+                            val key = "$ownerDot.${method.name}($params)"
+                            methodNameMap[key] ?: method.name
+                        }
+
+                    val protoMapped = mapProto(method.proto)
+
+                    return if (ownerMapped != method.owner || nameMapped != method.name || protoMapped != method.proto) {
+                        Method(ownerMapped, nameMapped, protoMapped)
+                    } else {
+                        method
+                    }
+                }
+
+                /**
+                 * Plan L: Search interfaces and superclass for a method name mapping.
+                 * @return The obfuscated method name if found, null otherwise.
+                 */
+                private fun mapMethodNameFromHierarchy(method: Method): String? {
+                    val methodName = method.name
+                    val params = protoToParams(method.proto)
+
+                    // Step 1: search all interfaces
+                    for (iface in originalInterfaces) {
+                        val ifaceDot = iface.asmSigFormat.replace('/', '.')
+                        val key = "$ifaceDot.$methodName($params)"
+                        methodNameMap[key]?.let { return it }
+                    }
+
+                    // Step 2: search superclass (skip java.lang.Object)
+                    if (originalSuperClass != null && originalSuperClass != "Ljava/lang/Object;") {
+                        val superDot = originalSuperClass.asmSigFormat.replace('/', '.')
+                        val key = "$superDot.$methodName($params)"
+                        methodNameMap[key]?.let { return it }
+                    }
+
+                    return null
                 }
             }
         }
@@ -503,36 +554,15 @@ class DexObfuscator(mappingReader: R8MappingReader) {
         }
 
         /**
-         * Align class access flags to match the APK's actual access flags.
-         * If no APK data, pass through original access flags unchanged.
+         * Widen access flags to public.
+         * R8 with -allowaccessmodification unconditionally widens all private/protected/package-private
+         * members to public. Jugg must replicate this to avoid IllegalAccessError / AbstractMethodError
+         * when APK-resident classes (e.g., ExternalSyntheticLambda) call into incrementally-compiled classes.
          */
-        private fun alignClassAccessFlags(accessFlags: Int, mappedClassName: String): Int {
-            val apkNode = apkClassNodes?.get(mappedClassName) ?: return accessFlags
-            return apkNode.access
-        }
-
-        /**
-         * Align method access flags to match the APK's actual access flags.
-         * Looks up the method in APK ClassNode by name + desc.
-         * If not found (new method), preserves original access flags.
-         */
-        private fun alignMethodAccessFlags(accessFlags: Int, mappedMethod: Method, apkNode: ClassNode?): Int {
-            if (apkNode == null) return accessFlags
-            val apkMethod = apkNode.methods.find { it.name == mappedMethod.name && it.desc == mappedMethod.desc }
-                ?: return accessFlags
-            return apkMethod.access
-        }
-
-        /**
-         * Align field access flags to match the APK's actual access flags.
-         * Looks up the field in APK ClassNode by name + type.
-         * If not found (new field), preserves original access flags.
-         */
-        private fun alignFieldAccessFlags(accessFlags: Int, mappedField: Field, apkNode: ClassNode?): Int {
-            if (apkNode == null) return accessFlags
-            val apkField = apkNode.fields.find { it.name == mappedField.name && it.type == mappedField.type }
-                ?: return accessFlags
-            return apkField.access
+        private fun widenAccessFlags(accessFlags: Int): Int {
+            // Clear private and protected bits, set public bit
+            return (accessFlags and DexConstants.ACC_PRIVATE.inv() and DexConstants.ACC_PROTECTED.inv()) or
+                    DexConstants.ACC_PUBLIC
         }
 
         /**
