@@ -1740,6 +1740,151 @@ class DexObfuscatorTest {
     }
 
     /**
+     * P0: invoke-direct/range must also be changed to invoke-virtual/range
+     * for widened methods in the same class.
+     *
+     * When a method has high register arguments (e.g., {v18, v19}),
+     * dalvik uses invoke-direct/range (INVOKE_DIRECT_RANGE) instead of
+     * invoke-direct (INVOKE_DIRECT). The fix for Plan E' must handle
+     * both opcodes, otherwise IncompatibleClassChangeError still occurs.
+     *
+     * Real-world case: WeMusicDebugFloatWindow.s(Activity) calls
+     * WeMusicDebugFloatWindow.r(Activity) via invoke-direct/range
+     * because registers exceed 4-bit encoding limit.
+     */
+    @Test
+    fun testInvokeDirectRangeChangedToInvokeVirtualRange() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                boolean shouldIgnore(android.app.Activity) -> r
+                void showFloat(android.app.Activity) -> s
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_FINAL,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Private non-static method: shouldIgnore(Activity)Z
+        val helperVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PRIVATE or DexConstants.ACC_FINAL,
+            Method(
+                "Lcom/example/TestClass;", "shouldIgnore",
+                Proto(arrayOf("Landroid/app/Activity;"), "Z")
+            )
+        )
+        helperVisitor.visitCode().visitEnd()
+        helperVisitor.visitEnd()
+
+        // Caller method that uses invoke-direct/range on shouldIgnore
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_FINAL,
+            Method(
+                "Lcom/example/TestClass;", "showFloat",
+                Proto(arrayOf("Landroid/app/Activity;"), "V")
+            )
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        // Use INVOKE_DIRECT_RANGE to simulate high-register invocations
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_DIRECT_RANGE,
+            intArrayOf(18, 19),
+            Method(
+                "Lcom/example/TestClass;", "shouldIgnore",
+                Proto(arrayOf("Landroid/app/Activity;"), "Z")
+            )
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "s" }
+        assertNotNull("Caller method should be renamed to 's'", callerMethod)
+
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Key assertion: invoke-direct/range must be changed to invoke-virtual/range
+        assertEquals(
+            "invoke-direct/range should be changed to invoke-virtual/range for widened method",
+            Op.INVOKE_VIRTUAL_RANGE,
+            methodStmt!!.op
+        )
+
+        // Method name should also be mapped
+        assertEquals("r", methodStmt.method.name)
+    }
+
+    /**
+     * P0: invoke-direct/range on <init> must NOT be changed.
+     */
+    @Test
+    fun testInvokeDirectRangeOnInitNotChanged() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+                void caller() -> c
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestClass;", "caller", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_DIRECT_RANGE,
+            intArrayOf(0),
+            Method("Lcom/example/TestClass;", "<init>", Proto(emptyArray(), "V"))
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "c" }
+        assertNotNull(callerMethod)
+
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull(methodStmt)
+
+        // invoke-direct/range on <init> must remain unchanged
+        assertEquals(
+            "invoke-direct/range on <init> must NOT be changed",
+            Op.INVOKE_DIRECT_RANGE,
+            methodStmt!!.op
+        )
+    }
+
+    /**
      * P0: invoke-static must NOT be changed even after widening.
      * private static → public static still uses invoke-static in direct section.
      */
@@ -2386,6 +2531,395 @@ class DexObfuscatorTest {
 
         val method = classNode.methods.find { it.method.name == "p" }
         assertNotNull("process(String,int) should be renamed to 'p' from interface", method)
+    }
+
+    // ==================== R8 synthesized qualified method name tests ====================
+
+    /**
+     * P0: R8 synthesized methods in facade classes use qualified original names.
+     *
+     * In mapping.txt, Kotlin stdlib facade classes (e.g., CollectionsKt) contain
+     * synthesized method entries with qualified original names like:
+     *   kotlin.collections.CollectionsKt -> xxx.s47:
+     *     1:1:java.util.List xxx.CollectionsKt.listOf(java.lang.Object):0:0 -> e
+     *       # {"id":"com.android.tools.r8.synthesized"}
+     *
+     * R8's ClassNameMapper parses the original method name as "xxx.CollectionsKt.listOf"
+     * (the full qualified name including the obfuscated package prefix).
+     *
+     * When building the methodNameMap key, we must strip the class prefix and
+     * use only the simple method name, otherwise the lookup key won't match
+     * the key used in mapMethod() and the method name won't be remapped.
+     *
+     * This causes NoSuchMethodError at runtime because the incremental DEX calls
+     * xxx.s47.listOf(Object) but the APK has xxx.s47.e(Object).
+     */
+    @Test
+    fun testSynthesizedQualifiedMethodName_facadeClass() {
+        // Simulate R8 mapping for Kotlin stdlib CollectionsKt facade class
+        // The synthesized method has a qualified original name: "xxx.CollectionsKt.listOf"
+        val mappingContent = """
+            kotlin.collections.CollectionsKt -> xxx.s47:
+                1:1:java.util.List xxx.CollectionsKt.listOf(java.lang.Object):0:0 -> e
+                  # {"id":"com.android.tools.r8.synthesized"}
+            kotlin.collections.CollectionsKt__CollectionsJVMKt -> xxx.t47:
+                1:10:java.util.List listOf(java.lang.Object):0:0 -> e
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX that calls CollectionsKt.listOf(Object) via invoke-static
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Caller;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/Caller;", "test", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        // invoke-static CollectionsKt.listOf(Object)List
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_STATIC,
+            intArrayOf(0),
+            Method(
+                "Lkotlin/collections/CollectionsKt;",
+                "listOf",
+                Proto(arrayOf("Ljava/lang/Object;"), "Ljava/util/List;")
+            )
+        )
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        val method = classNode.methods.find { it.method.name == "test" }
+        assertNotNull(method)
+
+        val methodStmt = method!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Key assertion: class name should be mapped to xxx.s47
+        assertEquals(
+            "Owner class should be mapped to obfuscated name",
+            "Lxxx/s47;",
+            methodStmt!!.method.owner
+        )
+
+        // Key assertion: method name MUST be mapped from listOf -> e
+        // This is the core bug: without the fix, listOf stays as "listOf"
+        // causing NoSuchMethodError at runtime
+        assertEquals(
+            "Synthesized qualified method name should be correctly mapped (listOf -> e)",
+            "e",
+            methodStmt.method.name
+        )
+    }
+
+    /**
+     * P0: R8 synthesized methods - non-qualified names should still work.
+     * Regular (non-synthesized) methods in the same facade class use simple names.
+     * Ensure they are not broken by the qualified name handling.
+     */
+    @Test
+    fun testSynthesizedQualifiedMethodName_nonQualifiedStillWorks() {
+        val mappingContent = """
+            kotlin.collections.CollectionsKt__CollectionsKt -> xxx.u47:
+                1:18:java.util.List listOf(java.lang.Object[]):0:0 -> q
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX that calls CollectionsKt__CollectionsKt.listOf(Object[])
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Caller;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/Caller;", "test", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_STATIC,
+            intArrayOf(0),
+            Method(
+                "Lkotlin/collections/CollectionsKt__CollectionsKt;",
+                "listOf",
+                Proto(arrayOf("[Ljava/lang/Object;"), "Ljava/util/List;")
+            )
+        )
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val obfuscatedBytes = obfuscator.obfuscate(dexWriter.toByteArray())
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+
+        val method = classNode.methods.find { it.method.name == "test" }
+        assertNotNull(method)
+
+        val methodStmt = method!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull(methodStmt)
+
+        // Non-qualified method name should still be correctly mapped
+        assertEquals("Lxxx/u47;", methodStmt!!.method.owner)
+        assertEquals("q", methodStmt.method.name)
+    }
+
+    /**
+     * P0: R8 synthesized methods with obfuscated intermediate parameter types.
+     *
+     * In mapping.txt, R8 synthesized methods may use "intermediate form" class names
+     * in parameters — e.g., the obfuscated package + original simple class name:
+     *   kotlin.ranges.RangesKt -> xxx.iul:
+     *     1:1:int xxx.RangesKt.coerceIn(int,xxx.ClosedRange):0:0 -> n
+     *
+     * Here "xxx.ClosedRange" is an intermediate form:
+     *   - Original name: kotlin.ranges.ClosedRange
+     *   - Fully obfuscated name: xxx.z07
+     *   - Intermediate form: xxx.ClosedRange (obfuscated package + original simple name)
+     *
+     * When the incremental DEX references the original method:
+     *   invoke-static Lkotlin/ranges/RangesKt;.coerceIn:(ILkotlin/ranges/ClosedRange;)I
+     *
+     * mapMethod() builds key "kotlin.ranges.RangesKt.coerceIn(int,kotlin.ranges.ClosedRange)"
+     * but init stored key "kotlin.ranges.RangesKt.coerceIn(int,xxx.ClosedRange)" → mismatch!
+     *
+     * Real-world case: WeMusicDebugFloatWindow calling RangesKt.coerceIn with ClosedRange param.
+     */
+    @Test
+    fun testSynthesizedMethodWithIntermediateParamType() {
+        // Simulate R8 mapping with both class mappings and synthesized method
+        val mappingContent = """
+            kotlin.ranges.ClosedRange -> xxx.z07:
+            kotlin.ranges.RangesKt -> xxx.iul:
+                1:1:int xxx.RangesKt.coerceIn(int,int,int):0:0 -> m
+                  # {"id":"com.android.tools.r8.synthesized"}
+                1:1:int xxx.RangesKt.coerceIn(int,xxx.ClosedRange):0:0 -> n
+                  # {"id":"com.android.tools.r8.synthesized"}
+            com.example.TestCaller -> a.b:
+                void showFloat() -> s
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX where TestCaller.showFloat() calls RangesKt.coerceIn(int, ClosedRange)
+        val dexWriter = DexFileWriter()
+
+        // The caller class
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/TestCaller;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/TestCaller;", "showFloat", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        // invoke-static RangesKt.coerceIn(int, ClosedRange) -> int
+        // Using original (unobfuscated) class names as they appear in incremental DEX
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_STATIC,
+            intArrayOf(0, 1),
+            Method(
+                "Lkotlin/ranges/RangesKt;",
+                "coerceIn",
+                Proto(arrayOf("I", "Lkotlin/ranges/ClosedRange;"), "I")
+            )
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val classNode = dexNode.clzs[0]
+        val callerMethod = classNode.methods.find { it.method.name == "s" }
+        assertNotNull("Caller method should be renamed to 's'", callerMethod)
+
+        val methodStmt = callerMethod!!.codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have a method invocation statement", methodStmt)
+
+        // Key assertions:
+        // 1. Owner should be mapped: kotlin.ranges.RangesKt -> xxx.iul
+        assertEquals("Lxxx/iul;", methodStmt!!.method.owner)
+        // 2. Method name should be mapped: coerceIn -> n (NOT left as coerceIn!)
+        assertEquals(
+            "Synthesized method with intermediate param type should be correctly mapped",
+            "n",
+            methodStmt.method.name
+        )
+        // 3. Parameter type should be mapped: kotlin.ranges.ClosedRange -> xxx.z07
+        assertEquals("Lxxx/z07;", methodStmt.method.proto.parameterTypes[1])
+    }
+
+    /**
+     * P0: R8 synthesized methods with intermediate param types — verify overload disambiguation.
+     * When multiple overloads exist (e.g., coerceIn(int,int,int) and coerceIn(int,ClosedRange)),
+     * each must map to its correct obfuscated name (m vs n).
+     */
+    @Test
+    fun testSynthesizedMethodWithIntermediateParamType_overloadDisambiguation() {
+        val mappingContent = """
+            kotlin.ranges.ClosedRange -> xxx.z07:
+            kotlin.ranges.RangesKt -> xxx.iul:
+                1:1:int xxx.RangesKt.coerceIn(int,int,int):0:0 -> m
+                  # {"id":"com.android.tools.r8.synthesized"}
+                1:1:int xxx.RangesKt.coerceIn(int,xxx.ClosedRange):0:0 -> n
+                  # {"id":"com.android.tools.r8.synthesized"}
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create DEX with coerceIn(int, int, int) call
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Caller;",
+            "Ljava/lang/Object;",
+            null
+        )
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/Caller;", "test", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        // Call coerceIn(int, int, int)
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_STATIC,
+            intArrayOf(0, 1, 2),
+            Method(
+                "Lkotlin/ranges/RangesKt;",
+                "coerceIn",
+                Proto(arrayOf("I", "I", "I"), "I")
+            )
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull(obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val methodStmt = dexNode.clzs[0].methods[0].codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull(methodStmt)
+
+        // coerceIn(int,int,int) should map to m, not n
+        assertEquals("Lxxx/iul;", methodStmt!!.method.owner)
+        assertEquals("m", methodStmt.method.name)
+    }
+
+    /**
+     * P0: Synthesized method entry overrides normal method entry in methodNameMap.
+     *
+     * When R8 mapping contains both a normal method mapping and a synthesized method
+     * for the same class/method/params, the synthesized entry's obfuscatedName may
+     * differ (e.g., keep the original name). Because DexObfuscator processes all
+     * methods into a flat map, the last entry wins — the synthesized entry can
+     * overwrite the correct mapping from the normal entry.
+     *
+     * Example mapping:
+     *   com.tencent.component.utils.LogUtil -> com.tencent.component.utils.LogUtil:
+     *       1:10:void d(java.lang.String,java.lang.String):123:132 -> a
+     *       1:1:void com.tencent.component.utils.LogUtil.d(java.lang.String,java.lang.String):0:0 -> d
+     *         # {"id":"com.android.tools.r8.synthesized"}
+     *
+     * After substringAfterLast('.'), both entries produce simpleMethodName="d",
+     * key="com.tencent.component.utils.LogUtil.d(java.lang.String,java.lang.String)".
+     * The synthesized entry (d -> d) overwrites the normal entry (d -> a).
+     *
+     * Result: incremental DEX keeps method name "d", but APK has it renamed to "a"
+     * -> NoSuchMethodError at runtime.
+     */
+    @Test
+    fun testSynthesizedMethodOverridesNormalMethodMapping() {
+        // Simulate R8 mapping with both normal and synthesized entries for same method
+        val mappingContent = """
+            com.tencent.component.utils.LogUtil -> com.tencent.component.utils.LogUtil:
+                1:10:void d(java.lang.String,java.lang.String):123:132 -> a
+                1:1:void com.tencent.component.utils.LogUtil.d(java.lang.String,java.lang.String):0:0 -> d
+                  # {"id":"com.android.tools.r8.synthesized"}
+            com.example.Caller -> xxx.abc:
+        """.trimIndent()
+
+        val obfuscator = DexObfuscator.fromMappingString(mappingContent)
+
+        // Create a DEX calling LogUtil.d(String, String)
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/Caller;",
+            "Ljava/lang/Object;",
+            null
+        )
+        val callerVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("Lcom/example/Caller;", "test", Proto(emptyArray(), "V"))
+        )
+        val codeVisitor = callerVisitor.visitCode()
+        codeVisitor.visitMethodStmt(
+            Op.INVOKE_STATIC,
+            intArrayOf(0, 1),
+            Method(
+                "Lcom/tencent/component/utils/LogUtil;",
+                "d",
+                Proto(arrayOf("Ljava/lang/String;", "Ljava/lang/String;"), "V")
+            )
+        )
+        codeVisitor.visitEnd()
+        callerVisitor.visitEnd()
+        classVisitor.visitEnd()
+
+        val originalBytes = dexWriter.toByteArray()
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the DEX", obfuscatedBytes)
+
+        val dexNode = readDex(obfuscatedBytes!!)
+        val methodStmt = dexNode.clzs[0].methods[0].codeNode.stmts
+            .filterIsInstance<com.googlecode.d2j.node.insn.MethodStmtNode>()
+            .firstOrNull()
+        assertNotNull("Should have method invocation", methodStmt)
+
+        // Key assertion: method name should be mapped to "a" (from normal entry),
+        // NOT kept as "d" (from synthesized entry that overwrites the normal one)
+        assertEquals(
+            "Normal method mapping should not be overridden by synthesized entry",
+            "a",
+            methodStmt!!.method.name
+        )
     }
 
     // ==================== Cache tests ====================

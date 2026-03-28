@@ -42,6 +42,17 @@ class DexObfuscator(mappingReader: R8MappingReader) {
         val methodMap = mutableMapOf<String, String>()
         val invocationMap = mutableMapOf<String, MutableList<String>>()
 
+        // Deferred method entries: collected during first pass, processed after classMap is complete.
+        // Each entry is (classOriginalName, simpleMethodName, parameters, obfuscatedName, invocations).
+        data class DeferredMethod(
+            val classOriginalName: String,
+            val simpleMethodName: String,
+            val parameters: String,
+            val obfuscatedName: String,
+            val invocations: List<R8MappingReader.MethodInvocation>
+        )
+        val deferredMethods = mutableListOf<DeferredMethod>()
+
         mappingReader.forEachClass { _, classMapping ->
             val originalInternal = classMapping.originalName.replace('.', '/')
             val obfuscatedInternal = classMapping.obfuscatedName.replace('.', '/')
@@ -54,18 +65,68 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                 fieldMap[key] = field.obfuscatedName
             }
 
-            // Build method mapping and invocation mapping
+            // Collect method entries for deferred processing
             classMapping.methods.forEach { method ->
-                val key = "${classMapping.originalName}.${method.originalName}(${method.parameters})"
-                methodMap[key] = method.obfuscatedName
+                // R8 synthesized methods in facade classes may have qualified original names
+                // e.g., "xxx.CollectionsKt.listOf" instead of just "listOf".
+                // Extract the simple method name (last segment after '.') for the lookup key,
+                // since mapMethod() always uses "ownerClassName.simpleMethodName(params)".
+                val simpleMethodName = method.originalName.substringAfterLast('.')
+                deferredMethods.add(DeferredMethod(
+                    classOriginalName = classMapping.originalName,
+                    simpleMethodName = simpleMethodName,
+                    parameters = method.parameters,
+                    obfuscatedName = method.obfuscatedName,
+                    invocations = method.invocations
+                ))
+            }
+        }
 
-                // Build invocation map: for each method that has invocations,
-                // record which classes call which methods
-                method.invocations.forEach { invocation ->
-                    val invocationKey = "${invocation.calledClass}.${invocation.calledMethod}"
-                    invocationMap.getOrPut(invocationKey) { mutableListOf() }
-                        .add(classMapping.originalName)
+        // Build intermediate-form-to-original mapping for class names.
+        // R8 synthesized methods may use "intermediate form" class names in parameters:
+        //   e.g., "xxx.ClosedRange" (obfuscated package + original simple name)
+        //   where original is "kotlin.ranges.ClosedRange" and fully obfuscated is "xxx.z07".
+        // This mapping resolves such intermediate forms to the canonical original name.
+        val intermediateToOriginal = mutableMapOf<String, String>()
+        classMap.forEach { (originalInternal, obfuscatedInternal) ->
+            val originalDot = originalInternal.replace('/', '.')
+            val obfuscatedDot = obfuscatedInternal.replace('/', '.')
+            val originalSimpleName = originalDot.substringAfterLast('.')
+            val obfuscatedPackage = obfuscatedDot.substringBeforeLast('.', "")
+            if (obfuscatedPackage.isNotEmpty()) {
+                val intermediateForm = "$obfuscatedPackage.$originalSimpleName"
+                // Only add if intermediate form differs from original (avoids self-mapping)
+                if (intermediateForm != originalDot) {
+                    intermediateToOriginal[intermediateForm] = originalDot
                 }
+            }
+        }
+
+        // Process deferred methods: normalize parameter types and build methodMap
+        // When multiple entries share the same key (e.g., normal + synthesized entries),
+        // prefer the entry that actually renames the method (obfuscatedName != simpleMethodName).
+        // R8 synthesized entries often keep the original name (e.g., d -> d), while the
+        // normal entry contains the real renaming (e.g., d -> a). Without this priority,
+        // the synthesized entry can overwrite the correct mapping.
+        deferredMethods.forEach { deferred ->
+            val normalizedParams = normalizeMethodParams(deferred.parameters, intermediateToOriginal)
+            val key = "${deferred.classOriginalName}.${deferred.simpleMethodName}($normalizedParams)"
+            val existing = methodMap[key]
+            if (existing == null) {
+                // No existing entry; store unconditionally
+                methodMap[key] = deferred.obfuscatedName
+            } else if (existing == deferred.simpleMethodName && deferred.obfuscatedName != deferred.simpleMethodName) {
+                // Existing entry is an identity mapping (name unchanged, e.g., d -> d),
+                // but the new entry is a real rename (e.g., d -> a). Prefer the real rename.
+                methodMap[key] = deferred.obfuscatedName
+            }
+            // Otherwise, keep the existing entry (it is already a real rename).
+
+            // Build invocation map
+            deferred.invocations.forEach { invocation ->
+                val invocationKey = "${invocation.calledClass}.${invocation.calledMethod}"
+                invocationMap.getOrPut(invocationKey) { mutableListOf() }
+                    .add(deferred.classOriginalName)
             }
         }
 
@@ -74,6 +135,34 @@ class DexObfuscator(mappingReader: R8MappingReader) {
         fieldNameMap = fieldMap
         methodNameMap = methodMap
         methodInvocationMap = invocationMap.mapValues { it.value.distinct() }
+    }
+
+    /**
+     * Normalize method parameter types by resolving R8 intermediate-form class names
+     * to their canonical original names.
+     *
+     * R8 synthesized methods may reference class types using an "intermediate form":
+     * the obfuscated package prefix + the original simple class name (e.g., "xxx.ClosedRange"
+     * instead of "kotlin.ranges.ClosedRange"). This method replaces such intermediate forms
+     * with the canonical original name so that mapMethod() lookups match correctly.
+     *
+     * @param params Comma-separated parameter string from mapping (e.g., "int,xxx.ClosedRange")
+     * @param intermediateToOriginal Mapping from intermediate form to canonical original name
+     * @return Normalized parameter string (e.g., "int,kotlin.ranges.ClosedRange")
+     */
+    private fun normalizeMethodParams(
+        params: String,
+        intermediateToOriginal: Map<String, String>
+    ): String {
+        if (params.isEmpty() || intermediateToOriginal.isEmpty()) return params
+        return params.split(",").joinToString(",") { param ->
+            val trimmed = param.trim()
+            // Handle array types: strip [] suffix, normalize base type, re-attach suffix
+            val arraySuffix = trimmed.length - trimmed.trimEnd('[', ']').length
+            val baseType = if (arraySuffix > 0) trimmed.substring(0, trimmed.length - arraySuffix) else trimmed
+            val normalized = intermediateToOriginal[baseType] ?: baseType
+            if (arraySuffix > 0) normalized + trimmed.substring(trimmed.length - arraySuffix) else normalized
+        }
     }
 
     /**
@@ -353,11 +442,13 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                                     // will cause IncompatibleClassChangeError at runtime.
                                     // Fix: change invoke-direct → invoke-virtual for non-<init>,
                                     // same-class method calls.
-                                    val finalOp = if (op == Op.INVOKE_DIRECT
+                                    // Note: must also handle invoke-direct/range (INVOKE_DIRECT_RANGE)
+                                    // which is used when register arguments exceed 4-bit encoding.
+                                    val finalOp = if ((op == Op.INVOKE_DIRECT || op == Op.INVOKE_DIRECT_RANGE)
                                         && remappedMethod.owner == currentMappedClassName
                                         && remappedMethod.name != "<init>") {
                                         hasRemapped = true
-                                        Op.INVOKE_VIRTUAL
+                                        if (op == Op.INVOKE_DIRECT) Op.INVOKE_VIRTUAL else Op.INVOKE_VIRTUAL_RANGE
                                     } else {
                                         op
                                     }
