@@ -37,6 +37,13 @@ data class ConstReferenceLookupHints(
     val classConstKeys: Set<Pair<String, String>>,
     val packageConstKeys: Set<Pair<String, String>>,
     val simpleClassNames: Set<String>,
+    /**
+     * Precise (simpleName, constName) pairs from actual `Owner.CONST` field access expressions.
+     * When non-empty, used instead of the cartesian product simpleClassNames × constNames,
+     * dramatically reducing the number of DB candidate queries for files with many simple names
+     * and many const names.
+     */
+    val simpleClassConstKeys: Set<Pair<String, String>> = emptySet(),
 ) {
     fun isEmpty(): Boolean {
         return constNames.isEmpty() &&
@@ -67,6 +74,18 @@ interface ConstDefinitionLookup {
     fun findByClassAndConst(fqClassName: String, constName: String): List<ConstDefinition>
     fun findByPackageAndConst(packageName: String, constName: String): List<ConstDefinition>
     fun findClassBySimpleName(simpleName: String): Set<String>
+
+    /**
+     * Resolves fully-qualified class names by simple name, with the [constName] that triggered
+     * the lookup. Tracking implementations use this to record precise (simpleName, constName)
+     * pairs for DB candidate queries, avoiding the cartesian product of all simple names
+     * with all const names.
+     *
+     * Default delegates to [findClassBySimpleName] for backward compatibility.
+     */
+    fun findClassBySimpleNameForConst(simpleName: String, constName: String): Set<String> {
+        return findClassBySimpleName(simpleName)
+    }
 }
 
 class ConstDefinitionIndex(
@@ -249,7 +268,7 @@ internal fun resolveOwnerCandidates(
         candidates += ownerText
     } else {
         importContext.explicitClassImports[ownerText]?.let { candidates += it }
-        candidates += definitionIndex.findClassBySimpleName(ownerText)
+        candidates += definitionIndex.findClassBySimpleNameForConst(ownerText, constName)
     }
 
     if (packageName.isNotBlank()) {

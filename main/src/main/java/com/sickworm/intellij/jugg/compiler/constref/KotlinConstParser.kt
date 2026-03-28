@@ -461,6 +461,7 @@ class KotlinConstParser(
         private val classConstKeys = linkedSetOf<Pair<String, String>>()
         private val packageConstKeys = linkedSetOf<Pair<String, String>>()
         private val simpleClassNames = linkedSetOf<String>()
+        private val simpleClassConstKeys = linkedSetOf<Pair<String, String>>()
 
         override fun hasConstName(constName: String): Boolean {
             val n = constName.trim()
@@ -493,11 +494,20 @@ class KotlinConstParser(
             return emptySet()
         }
 
+        override fun findClassBySimpleNameForConst(simpleName: String, constName: String): Set<String> {
+            val s = simpleName.trim()
+            val n = constName.trim()
+            if (s.isNotEmpty()) simpleClassNames += s
+            if (s.isNotEmpty() && n.isNotEmpty()) simpleClassConstKeys += s to n
+            return emptySet()
+        }
+
         fun buildHints() = ConstReferenceLookupHints(
             constNames = constNames,
             classConstKeys = classConstKeys,
             packageConstKeys = packageConstKeys,
             simpleClassNames = simpleClassNames,
+            simpleClassConstKeys = simpleClassConstKeys,
         )
 
         private fun record(fqClassName: String, constName: String) {

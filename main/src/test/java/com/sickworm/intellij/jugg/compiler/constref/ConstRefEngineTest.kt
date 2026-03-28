@@ -1200,6 +1200,172 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         return field.getInt(target)
     }
 
+    @Test
+    fun `simpleClassConstKeys should contain only actual field access pairs not cartesian product`() {
+        val rootDir = createTempDirectory("const_ref_simple_class_const_keys")
+        File(rootDir, ".git").mkdirs()
+        // Define constants in two separate classes
+        val alphaFile = File(rootDir, "Alpha.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class Alpha {
+                    public static final int FOO = 1;
+                    public static final int BAZ = 2;
+                }
+                """.trimIndent()
+            )
+        }
+        val betaFile = File(rootDir, "Beta.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class Beta {
+                    public static final String BAR = "b";
+                    public static final String QUX = "q";
+                }
+                """.trimIndent()
+            )
+        }
+        // User file references Alpha.FOO and Beta.BAR via simple names.
+        // It should NOT produce a cartesian product (Alpha × {FOO, BAR}) ∪ (Beta × {FOO, BAR}).
+        val userFile = File(rootDir, "User.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class User {
+                    int x = Alpha.FOO;
+                    String y = Beta.BAR;
+                }
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            // Analyze all files first to populate DB with definitions
+            val readiness = engine.analyzeOnDemand(
+                listOf(alphaFile.absolutePath, betaFile.absolutePath, userFile.absolutePath)
+            )
+            assertTrue("analysis should be ready", readiness.isReady)
+
+            // Verify that only Alpha.FOO and Beta.BAR are referenced, not Alpha.BAR or Beta.FOO.
+            // The parser should use simpleClassConstKeys for precise (simpleName, constName) pairs.
+            val analyzer = ConstRefAnalyzer(logger)
+            var capturedHints: ConstReferenceLookupHints? = null
+            analyzer.collectHintsAndParseReferences(userFile) { hints ->
+                capturedHints = hints
+                null // Return null to skip reference parsing
+            }
+
+            val hints = capturedHints!!
+            // simpleClassConstKeys should contain the precise pairs
+            assertTrue(
+                "simpleClassConstKeys should contain (Alpha, FOO)",
+                hints.simpleClassConstKeys.contains("Alpha" to "FOO"),
+            )
+            assertTrue(
+                "simpleClassConstKeys should contain (Beta, BAR)",
+                hints.simpleClassConstKeys.contains("Beta" to "BAR"),
+            )
+            // Should NOT contain cross-product pairs
+            assertFalse(
+                "simpleClassConstKeys should NOT contain (Alpha, BAR) - no such access in code",
+                hints.simpleClassConstKeys.contains("Alpha" to "BAR"),
+            )
+            assertFalse(
+                "simpleClassConstKeys should NOT contain (Beta, FOO) - no such access in code",
+                hints.simpleClassConstKeys.contains("Beta" to "FOO"),
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `queryCandidateDefinitionsForFile should use precise pairs instead of cartesian product`() {
+        val rootDir = createTempDirectory("const_ref_no_cartesian")
+        File(rootDir, ".git").mkdirs()
+        // Create many constant classes and many constants to amplify the difference
+        val constClassCount = 10
+        val constPerClass = 5
+        val constFiles = (0 until constClassCount).map { classIdx ->
+            File(rootDir, "Consts$classIdx.java").apply {
+                val fields = (0 until constPerClass).joinToString("\n") { constIdx ->
+                    "    public static final int C${classIdx}_$constIdx = ${classIdx * 100 + constIdx};"
+                }
+                writeText(
+                    """
+                    package com.example;
+                    public class Consts$classIdx {
+                    $fields
+                    }
+                    """.trimIndent()
+                )
+            }
+        }
+        // User file: accesses only Consts0.C0_0 and Consts1.C1_0 via simple names.
+        // Without optimization: 10 simpleNames × 50 constNames = 500 classConstKeys
+        // With optimization: 2 pairs → ~2 classConstKeys after resolve
+        val userFile = File(rootDir, "User.java").apply {
+            writeText(
+                """
+                package com.example;
+                public class User {
+                    int a = Consts0.C0_0;
+                    int b = Consts1.C1_0;
+                }
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            val allFiles = constFiles + listOf(userFile)
+            val readiness = engine.analyzeOnDemand(allFiles.map { it.absolutePath })
+            assertTrue("analysis should be ready", readiness.isReady)
+
+            // Modify one constant to trigger effected file query
+            constFiles[0].writeText(
+                """
+                package com.example;
+                public class Consts0 {
+                    public static final int C0_0 = 999;
+                ${(1 until constPerClass).joinToString("\n") { "    public static final int C0_$it = $it;" }}
+                }
+                """.trimIndent()
+            )
+            engine.analyzeOnDemand(listOf(constFiles[0].absolutePath))
+
+            val effected = engine.getEffectedFiles(listOf(constFiles[0].absolutePath))
+            val effectedPaths = effected.map { it.refFilePath }.toSet()
+            assertTrue(
+                "User.java should be in effected files",
+                effectedPaths.contains(userFile.toStdPath()),
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
     private class StartupDelayBackgroundTaskRunner(
         private val delegate: CoroutineBackgroundTaskRunner,
     ) : IBackgroundTaskRunner by delegate

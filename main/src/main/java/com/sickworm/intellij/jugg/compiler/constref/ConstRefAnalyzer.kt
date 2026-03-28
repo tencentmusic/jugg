@@ -150,6 +150,7 @@ class ConstRefAnalyzer(
         private val classConstKeys = linkedSetOf<Pair<String, String>>()
         private val packageConstKeys = linkedSetOf<Pair<String, String>>()
         private val simpleClassNames = linkedSetOf<String>()
+        private val simpleClassConstKeys = linkedSetOf<Pair<String, String>>()
 
         override fun hasConstName(constName: String): Boolean {
             val normalizedName = constName.trim()
@@ -190,12 +191,25 @@ class ConstRefAnalyzer(
             return emptySet()
         }
 
+        override fun findClassBySimpleNameForConst(simpleName: String, constName: String): Set<String> {
+            val normalizedSimpleName = simpleName.trim()
+            val normalizedConstName = constName.trim()
+            if (normalizedSimpleName.isNotEmpty()) {
+                simpleClassNames += normalizedSimpleName
+            }
+            if (normalizedSimpleName.isNotEmpty() && normalizedConstName.isNotEmpty()) {
+                simpleClassConstKeys += normalizedSimpleName to normalizedConstName
+            }
+            return emptySet()
+        }
+
         fun buildHints(): ConstReferenceLookupHints {
             return ConstReferenceLookupHints(
                 constNames = constNames,
                 classConstKeys = classConstKeys,
                 packageConstKeys = packageConstKeys,
                 simpleClassNames = simpleClassNames,
+                simpleClassConstKeys = simpleClassConstKeys,
             )
         }
 

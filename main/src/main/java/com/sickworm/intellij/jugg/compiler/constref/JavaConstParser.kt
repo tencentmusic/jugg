@@ -317,6 +317,7 @@ class JavaConstParser(
         private val classConstKeys = linkedSetOf<Pair<String, String>>()
         private val packageConstKeys = linkedSetOf<Pair<String, String>>()
         private val simpleClassNames = linkedSetOf<String>()
+        private val simpleClassConstKeys = linkedSetOf<Pair<String, String>>()
 
         override fun hasConstName(constName: String): Boolean {
             val normalized = constName.trim()
@@ -351,12 +352,23 @@ class JavaConstParser(
             return emptySet()
         }
 
+        override fun findClassBySimpleNameForConst(simpleName: String, constName: String): Set<String> {
+            val normalizedSimple = simpleName.trim()
+            val normalizedConst = constName.trim()
+            if (normalizedSimple.isNotEmpty()) simpleClassNames += normalizedSimple
+            if (normalizedSimple.isNotEmpty() && normalizedConst.isNotEmpty()) {
+                simpleClassConstKeys += normalizedSimple to normalizedConst
+            }
+            return emptySet()
+        }
+
         fun buildHints(): ConstReferenceLookupHints {
             return ConstReferenceLookupHints(
                 constNames = constNames,
                 classConstKeys = classConstKeys,
                 packageConstKeys = packageConstKeys,
                 simpleClassNames = simpleClassNames,
+                simpleClassConstKeys = simpleClassConstKeys,
             )
         }
 

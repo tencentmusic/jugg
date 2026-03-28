@@ -919,7 +919,32 @@ class ConstRefEngine(
             candidates[definition.uniqueDefinitionKey()] = definition
         }
 
-        if (hints.simpleClassNames.isNotEmpty() && hints.constNames.isNotEmpty()) {
+        if (hints.simpleClassConstKeys.isNotEmpty()) {
+            // Optimized path: use precise (simpleName, constName) pairs from AST traversal
+            // instead of the cartesian product simpleClassNames × constNames.
+            val simpleNames = hints.simpleClassConstKeys.map { it.first }.toSet()
+            val classNameMap = resolveClassesBySimpleNamesWithCache(
+                simpleClassNames = simpleNames,
+                scopeFilePath = filePath,
+            )
+            val classConstKeys = linkedSetOf<Pair<String, String>>()
+            hints.simpleClassConstKeys.forEach { (simpleName, constName) ->
+                classNameMap[simpleName]?.forEach { fqClassName ->
+                    classConstKeys += fqClassName to constName
+                }
+            }
+            // Exclude keys already queried via hints.classConstKeys to avoid duplicate work.
+            val newClassConstKeys = classConstKeys - hints.classConstKeys
+            if (newClassConstKeys.isNotEmpty()) {
+                resolveDefinitionsByClassConstKeysWithCache(
+                    classConstKeys = newClassConstKeys,
+                    scopeFilePath = filePath,
+                ).forEach { definition ->
+                    candidates[definition.uniqueDefinitionKey()] = definition
+                }
+            }
+        } else if (hints.simpleClassNames.isNotEmpty() && hints.constNames.isNotEmpty()) {
+            // Fallback for callers that don't populate simpleClassConstKeys (e.g. old code paths).
             val classNames = resolveClassesBySimpleNamesWithCache(
                 simpleClassNames = hints.simpleClassNames,
                 scopeFilePath = filePath,
