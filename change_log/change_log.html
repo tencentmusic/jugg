@@ -1,14 +1,15 @@
 <h1>Change Log</h1>
-<h2>3.0.5 (2026.03.21)</h2>
+<h2>3.0.6 (2026.03.29)</h2>
 <ol>
     <li>[feature] Supports MCP and associated skills allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
     <li>[feature] Supports incremental compilation on release APK with R8 minify and AabResGuard</li>
     <li>[feature] Supports KSP(only available for kuikly @Page for now)</li>
     <li>[feature] Supports const reference effect detect</li>
+    <li>[feature] Windows & Linux supports target API 35 in resource compilation</li>
     <li>[optimize] Fixes could cause the IDE to stuck for some time, during initialization after downgrade completion</li>
     <li>[optimize] Introduce automatic dex merge during the deployment stage to fix OOM scenarios triggered when deploying a large number of classes (>2000)</li>
     <li>[optimize] Improve databinding compile compatibility</li>
-    <li>[optimize] Remove windows log file lock sickworm Today 上午2:31</li>
+    <li>[optimize] Remove windows log file lock</li>
     <li>[bugfix] Fix untracked file rollbacks on first time compile</li>
     <li>[bugfix] Fix Kotlin compile may be failed when multiple projects opened with different Kotlin version</li>
     <li>[bugfix] Fix compile failed when using ./gradlew clean assembleDebug due to clean removing artifacts required by Jugg</li>

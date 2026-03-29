@@ -1,7 +1,12 @@
+- version: 3.0.6
+  date: 2026.03.29
+  updates:
+    - Windows & Linux supports target API 35 in resource compilation
+
 - version: 3.0.5
   date: 2026.03.21
   updates:
-    - Remove windows log file lock sickworm Today 上午2:31
+    - Remove windows log file lock
     - Fix compile failed when using ./gradlew clean assembleDebug due to clean removing artifacts required by Jugg
 
 - version: 3.0.4

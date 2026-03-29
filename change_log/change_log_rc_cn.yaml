@@ -1,3 +1,8 @@
+- version: 3.0.6
+  date: 2026.03.29
+  updates:
+    - Windows 和 Linux 支持 target api 35 资源增量编译
+
 - version: 3.0.5
   date: 2026.03.21
   updates:
