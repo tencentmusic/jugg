@@ -1,6 +1,6 @@
 # 编译系统：Manifest 与混淆映射
 
-> 最后核对：2026-03-28  
+> 最后核对：2026-03-30  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -49,6 +49,7 @@
 - "dex 混淆后崩溃"：看 `DexMinifyCompiler` 的输入输出与映射完整性。
 - "release 增量后运行时注解找不到"：检查 `DexObfuscator` 是否正确处理了方法级/字段级注解的类型描述符映射。注解类型描述符（`visitAnnotation` 的 `name` 参数）需要通过 `mapType()` 映射。详见 `09_plugin_runtime_debug.md` §4.4。
 - "release 增量后 NoClassDefFoundError"：检查 `DexObfuscator` 的 `DexCodeVisitor` 是否覆写了所有含类型引用的方法（`visitConstStmt`、`visitFilledNewArrayStmt`、`visitTryCatch` 等）。详见 `09_plugin_runtime_debug.md` §4.5。
+- "release 增量后 NoClassDefFoundError / NoSuchMethodError（minify 移除成员）"：检查 `getEffectedClassNodesForMinify` 是否正确检测到被 R8 移除的类/成员，确认 `effectedType` 为 `MINIFY_MEMBER_REMOVED`（非 `SOURCE` 或 `INLINE_IMPL_CHANGE`）。详见 `03_deploy_data_generator.md` §5.6。
 - "release 增量后 IllegalAccessError / AbstractMethodError"：检查 `DexObfuscator` 是否正确执行了 access flags 宽化（`widenAccessFlags()`）及 `invoke-direct` → `invoke-virtual` 调用指令同步修改。详见 `09_plugin_runtime_debug.md` §4.6。
 - "release 增量后 IncompatibleClassChangeError"：增量 DEX 中方法的 direct/virtual 分类与 APK 不一致。方案 E' 通过宽化 + 改指令同步解决。**注意**：`invoke-direct` 和 `invoke-direct/range`（`INVOKE_DIRECT_RANGE`）均需处理，遗漏 range 变体在高寄存器场景仍会 crash。详见 `09_plugin_runtime_debug.md` §4.7。
 - "release 增量后 AbstractMethodError（类不在 mapping 中）"：新增类/类名变更/匿名类编号漂移时，类自身无 mapping 条目，方法名保留原名导致与 APK 中接口方法名不一致。方案 L 通过"接口/父类优先"的方法名映射策略解决：`DexObfuscator.mapMethodForCurrentClass()` 在 `visitMethod()` 中先从接口/父类 mapping 推导方法名，未命中再查类自身。详见 `docs/task/release_incremental_access_flag_mismatch.md` §12。

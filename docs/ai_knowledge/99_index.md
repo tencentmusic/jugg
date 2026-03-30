@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-03-28
+> 最后核对：2026-03-30
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -34,6 +34,7 @@
 | 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md` | `idea/.../JuggDeployerHelper.kt`, `idea/.../JuggDeployer.kt` |
 | 常量变化重编译异常（const ref） | `98_code_map.md`, `03_deploy_const_ref.md`, `02_compile_core.md` | `main/.../compiler/constref/*`, `deploy/DeployFileManager.kt`, `deploy/data/DeployDataGenerator.kt` |
 | 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
+| **EffectedType 类型/merge 优先级/minify 移除检测** | `03_deploy_data_generator.md` §5.4-§5.7 | `EffectedClassNode.kt`, `DeployDataGenerator.kt`, `DeployDataDatabaseSqLiteHelper.kt`, `CompileEffectAnalyzer.kt` |
 | **修改基类触发子类级联重编译**（static 方法误传播 Bug） | `03_deploy_data_generator.md` 第5节, `docs/task/recompile_cascade_bug_analysis.md` | `DeployDataDatabaseSqLiteHelper.kt` step 2（~826行）, `DeployDataDatabase.kt`（~454行） |
 | JVMTI/运行时 agent 协同 | `98_code_map.md`, `03_runtime_jvmti.md` | `runtime/jvmti/*` |
 | IDE 生命周期/运行配置 | `98_code_map.md`, `04_engineering_ide.md` | `idea/.../JuggManager.kt`, `JuggRunConfiguration.kt` |

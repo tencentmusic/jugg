@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class DeployDataGeneratorReleaseTest {
@@ -122,6 +123,67 @@ class DeployDataGeneratorReleaseTest {
                 effectedByClassName.contains(testClassName)
             }
             assertTrue(isEffectedByMinifyTestActivity, "$className should be effected by MinifyTestActivity (which references it). ")
+        }
+    }
+
+    /**
+     * Verify that classes detected by checkMaybeMinifiedRemoveClass are tagged with
+     * MINIFY_MEMBER_REMOVED (not SOURCE or INLINE_IMPL_CHANGE).
+     *
+     * MinifyTestActivity references many classes whose members are removed by R8.
+     * These should all be MINIFY_MEMBER_REMOVED so they go through the _jugg_fix
+     * bytecode-patching path rather than the source recompilation path.
+     */
+    @Test
+    fun testMinifyRemovedClassNodesHaveMinifyMemberRemovedType() {
+        val sourceCompiler = SourceCompiler(releaseContext, mockParentDisposable)
+
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    type = CompileFile.Type.Kotlin,
+                    file = File(TestGlobal.assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/minify/MinifyTestActivity.kt"),
+                    baseDir = File(TestGlobal.assetsAndroidDir, "app/src/main/java/"),
+                    module = releaseContext.applicationModule,
+                )
+            ),
+            outputDir = stagingDir,
+        )
+
+        val compileResult = sourceCompiler.compile(compileTask)
+        compileResult.printCompileErrors()
+        assertTrue(compileResult.isAllSuccess, "Compilation should succeed")
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val changedDex = deployItems.filter { it.type == com.sickworm.intellij.jugg.compiler.CompileOutput.Type.Dex }
+
+        // Build with minify check but without compiling effected sources
+        // (simulates the getMinifyInfo path where we only need bytecode patching)
+        val deployData = generator.buildDeployData(
+            changedDex,
+            isNeedCheckRecompileMinifyRemovedClass = true,
+            isCompilingEffectedSourceFiles = false,
+        )
+
+        // These classes are detected by checkMaybeMinifiedRemoveClass (removed or partially removed by R8)
+        val minifyDetectedClassNames = listOf(
+            "Lcom/sickworm/jugg/demo/testcase/minify/FullyObfuscated;",
+            "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$InnerClass;",
+            "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder;",
+            "Lcom/sickworm/jugg/demo/testcase/minify/InterfaceImplementor;",
+            "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestEnum;",
+            "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$StaticInnerClass;",
+        )
+
+        minifyDetectedClassNames.forEach { className ->
+            val node = deployData.effectedClassNodes.find { it.className == className }
+            assertTrue(node != null, "$className should be detected as effected")
+            assertEquals(
+                EffectedClassNode.EffectedType.MINIFY_MEMBER_REMOVED,
+                node.effectedType,
+                "$className should have MINIFY_MEMBER_REMOVED type (not ${node.effectedType}), " +
+                    "because it was removed/partially-removed by R8 minification"
+            )
         }
     }
 }

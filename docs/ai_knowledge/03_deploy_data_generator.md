@@ -1,6 +1,6 @@
 # 部署系统：影响分析与部署数据生成
 
-> 最后核对：2026-03-17（补充重编译完整机制）
+> 最后核对：2026-03-30（新增 MINIFY_MEMBER_REMOVED 类型、merge 优先级修复）
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -108,13 +108,41 @@ D8 在 `--file-per-class` 模式下会将 Kotlin lambda 编译为父类的 `$r8$
 
 ---
 
-### 5.4 inline 检测补充（release 场景）
+### 5.4 EffectedType 类型说明
+
+`EffectedClassNode.EffectedType` 枚举标识受影响类的检测来源和处理路径：
+
+| 类型 | 含义 | 检测来源 | 处理路径 |
+|------|------|----------|----------|
+| `SOURCE` | 常规引用变更，需源码重编译 | `getEffectedSourceAndClass` 四步传播 | 源码重编译（`SourceCompiler`） |
+| `INLINE_IMPL_CHANGE` | R8 内联方法实现变更，调用方持有旧副本 | `InlineMethodDetector` 解析 mapping inline 标记 | 字节码补全（`DexMinifyCompiler`） |
+| `MINIFY_MEMBER_REMOVED` | R8/ProGuard 移除了类或其成员，增量 dex 引用缺失成员 | `DeployDataDatabaseSqLiteHelper.getEffectedClassNodesForMinify` | 字节码补全（`DexMinifyCompiler`） |
+
+扩展属性：`Collection<EffectedClassNode>.sources` / `.inlineImplChanges` / `.minifyMemberRemoved` 分别过滤对应类型。
+
+---
+
+### 5.5 inline 检测补充（release 场景）
 
 仅当 `isNeedCheckRecompileMinifyRemovedClass = true`（release 构建）且 `isCompilingEffectedSourceFiles = false` 时，`InlineMethodDetector` 会检查 R8 mapping 中的 inline 链，将内联了被删除方法的调用方也加入受影响列表，`effectedType = INLINE_IMPL_CHANGE`（由 `DexMinifyCompiler` 处理，不触发源码重编译）。
 
 ---
 
-### 5.5 constRef 补充（常量引用）
+### 5.6 minify 移除检测（release 场景）
+
+`getEffectedClassNodesForMinify` 在 release 构建中检测两类问题：
+- **Check 1**：整个类被 R8 移除（APK 数据库中无该类记录），`effectedType = MINIFY_MEMBER_REMOVED`
+- **Check 2**：类存在但部分成员被移除（方法/字段在增量 dex 中被引用但 APK 中不存在），`effectedType = MINIFY_MEMBER_REMOVED`
+
+---
+
+### 5.7 merge 合并优先级
+
+`DeployDataGenerator.merge()` 将 `InlineMethodDetector` 的结果合并到 `effectedNodes` 中。当同一类同时被标记为 `SOURCE`（常规引用检测）和 `INLINE_IMPL_CHANGE`（inline 检测）时，**保留 `SOURCE`**——源码重编译能力严格强于字节码补全（源码重编能解决 inline 问题，反之不行）。
+
+---
+
+### 5.8 constRef 补充（常量引用）
 
 与上述 method/field/abstract 传播并行，`ConstRefEffectProvider.getEffectedFiles()` 独立查询常量引用影响，结果写入 `JuggDeployData.constRefEffectedSourcePaths`（不在 `effectedClassNodes` 中）。详见 `03_deploy_const_ref.md`。
 

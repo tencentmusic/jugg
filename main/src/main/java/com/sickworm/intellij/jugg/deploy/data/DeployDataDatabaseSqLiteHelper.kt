@@ -1122,7 +1122,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                         className = className,
                         sourceFileName = EffectedClassNode.SOURCE_NOT_FOUND, // source file not found, need to found in .class classpath
                         effectedByClasses = referencedBy.toList(),
-                        effectedType = EffectedClassNode.EffectedType.SOURCE
+                        effectedType = EffectedClassNode.EffectedType.MINIFY_MEMBER_REMOVED
                     ))
                 }
 
@@ -1179,7 +1179,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                             className = className,
                             sourceFileName = classNode.source,
                             effectedByClasses = referencedBy.toList(),
-                            effectedType = EffectedClassNode.EffectedType.SOURCE,
+                            effectedType = EffectedClassNode.EffectedType.MINIFY_MEMBER_REMOVED,
                         ))
 
                         logger.debug("checkMaybeMinifiedRemoveClass: class $className has removed members - methods: $removedMethods, fields: $removedFields, referenced by: $referencedBy")

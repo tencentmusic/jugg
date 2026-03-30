@@ -202,7 +202,7 @@ class DexMinifyCompiler(
      * @return List of generated DEX files
      */
     private fun generateJuggFixClasses(minifyInfo: MinifyInfo, outputDir: File): List<CompileOutput> {
-        logger.info("generateJuggFixClasses: Starting with ${minifyInfo.classFiles.size} class files")
+        logger.debug("generateJuggFixClasses: Starting with ${minifyInfo.classFiles.size} class files")
         val outputs = mutableListOf<CompileOutput>()
         val tempDir = File(context.tempCompileDir, "jugg_fix_classes")
         tempDir.deleteRecursively()
@@ -211,8 +211,8 @@ class DexMinifyCompiler(
         // 1. Rename classes using ASM and generate new .class files
         val renamedClassFiles = mutableListOf<File>()
         minifyInfo.classFiles.forEach { (className, classFile) ->
-            logger.info("generateJuggFixClasses: Processing class $className from ${classFile.absolutePath}")
-            logger.info("generateJuggFixClasses: Class file exists: ${classFile.exists()}")
+            logger.debug("generateJuggFixClasses: Processing class $className from ${classFile.absolutePath}")
+            logger.debug("generateJuggFixClasses: Class file exists: ${classFile.exists()}")
             try {
                 val renamedFile = renameClassWithSuffix(classFile, className, tempDir)
                 renamedClassFiles.add(renamedFile)
@@ -249,7 +249,7 @@ class DexMinifyCompiler(
             val dexFiles = dexOutputDir.walkTopDown()
                 .filter { it.isFile && it.extension == "dex" }
                 .toList()
-            logger.info("generateJuggFixClasses: Found ${dexFiles.size} DEX files in ${dexOutputDir.absolutePath}")
+            logger.debug("generateJuggFixClasses: Found ${dexFiles.size} DEX files in ${dexOutputDir.absolutePath}")
             dexFiles.forEach { dexFile ->
                 try {
                     // _jugg_fix classes are not in original mapping, so copy DEX files directly

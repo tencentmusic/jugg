@@ -122,21 +122,21 @@ class CompileEffectAnalyzer(
             isNeedCheckRecompileMinifyRemovedClass = true,
             isCompilingEffectedSourceFiles = false,
         )
-        val inlineEffectedNodes = juggDeployData.effectedClassNodes
-            .filter { it.effectedType == EffectedClassNode.EffectedType.INLINE_IMPL_CHANGE }
-        if (inlineEffectedNodes.isEmpty()) {
-            logger.debug("getMinifyInfo: no inline effected classes")
+        val minifyEffectedNodes = juggDeployData.effectedClassNodes
+            .filter { it.effectedType != EffectedClassNode.EffectedType.SOURCE }
+        if (minifyEffectedNodes.isEmpty()) {
+            logger.debug("getMinifyInfo: no minify effected classes")
             return null
         }
 
-        val inlineEffectedClasses = inlineEffectedNodes.map { node ->
+        val inlineEffectedClasses = minifyEffectedNodes.map { node ->
             com.sickworm.intellij.jugg.compiler.obfuscation.InlineEffectedClass(
                 className = node.className,
                 effectedByClasses = node.effectedByClasses,
             )
         }
         val classFiles = mutableMapOf<String, File>()
-        val originalClassNames = inlineEffectedNodes.map { node ->
+        val originalClassNames = minifyEffectedNodes.map { node ->
             val className = if (node.className.startsWith("L") && node.className.endsWith(";")) {
                 node.className.substring(1, node.className.length - 1).replace('/', '.')
             } else {
@@ -145,7 +145,7 @@ class CompileEffectAnalyzer(
             className
         }
 
-        val missingClassFiles = getMissingMinifiedClassFiles(inlineEffectedNodes, moduleInfos)
+        val missingClassFiles = getMissingMinifiedClassFiles(minifyEffectedNodes, moduleInfos)
         missingClassFiles.forEach { changedFile ->
             originalClassNames.forEach { originalClassName ->
                 val expectedPath = originalClassName.replace('.', '/') + ".class"
@@ -277,6 +277,7 @@ class CompileEffectAnalyzer(
             )
         }
     }
+
 }
 
 /**

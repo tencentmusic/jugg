@@ -256,8 +256,12 @@ class DeployDataGenerator(
             if (existing != null) {
                 val updated = existing.copy(
                     effectedByClasses = (existing.effectedByClasses + inlineNode.effectedByClasses).distinct(),
-                    // Inline impact should be handled by DexMinifyCompiler, not source recompile.
-                    effectedType = EffectedClassNode.EffectedType.INLINE_IMPL_CHANGE,
+                    // SOURCE wins: source recompilation can fix inline issues, but not vice-versa.
+                    effectedType = if (existing.effectedType == EffectedClassNode.EffectedType.SOURCE) {
+                        EffectedClassNode.EffectedType.SOURCE
+                    } else {
+                        EffectedClassNode.EffectedType.INLINE_IMPL_CHANGE
+                    },
                 )
                 effectedNodes[effectedNodes.indexOf(existing)] = updated
             } else {
