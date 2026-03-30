@@ -326,9 +326,10 @@ class DexObfuscator(mappingReader: R8MappingReader) {
             private set
 
         // Build redirect mapping: original class name -> redirect class name
-        // className format: "Lcom/example/MyClass;" (ASM signature format)
+        // Only include classes that have corresponding .class files (effectiveInlineEffectedClasses),
+        // preventing redirection to non-existent _jugg_fix classes (e.g., boot classpath classes).
         private val redirectClassMap: Map<String, String> = minifyInfo?.let { info ->
-            info.inlineEffectedClasses.associate { effectedClass ->
+            info.effectiveInlineEffectedClasses.associate { effectedClass ->
                 // className is already in ASM format (Lcom/example/MyClass;), convert to internal format (com/example/MyClass)
                 val originalInternal = effectedClass.className.asmSigFormat
                 val redirectInternal = originalInternal + SUFFIX

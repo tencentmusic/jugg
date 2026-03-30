@@ -1091,7 +1091,10 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 }
 
                 // Check 1: Find completely removed classes
-                val removedClasses = suspectClassNames - existingClasses
+                // Filter out boot classpath classes (e.g., java/lang/Object, android/view/View)
+                // which are never in the APK DB and would be false positives
+                val removedClasses = (suspectClassNames - existingClasses)
+                    .filterNot { it.isBootClasspathClass }
                 logger.debug("checkMaybeMinifiedRemoveClass: found $removedClasses completely removed classes")
 
                 // Create EffectedClassNode for each completely removed class
@@ -1124,6 +1127,8 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                         effectedByClasses = referencedBy.toList(),
                         effectedType = EffectedClassNode.EffectedType.MINIFY_MEMBER_REMOVED
                     ))
+
+                    logger.debug("checkMaybeMinifiedRemoveClass: class $className has removed classes - referenced by: $referencedBy")
                 }
 
                 // Check 2: Find classes with removed methods or fields

@@ -387,8 +387,8 @@ class BaseCompileContext(
         }
     }
 
-    override fun getMinifyInfo(): MinifyInfo? {
-        return deployFileManager.getMinifyInfo()
+    override fun getMinifyInfo(compileFiles: List<CompileFile>): MinifyInfo? {
+        return deployFileManager.getMinifyInfo(compileFiles)
     }
 
     private fun findDesugaredLibraryConfigurationWithCache(moduleInfo: ModuleInfo): String? {

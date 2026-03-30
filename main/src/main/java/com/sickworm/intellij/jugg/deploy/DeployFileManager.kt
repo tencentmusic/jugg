@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
+import com.sickworm.intellij.jugg.compiler.toCompileOutput
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase
 import com.sickworm.intellij.jugg.compiler.constref.RepoSharedFingerprintStore
@@ -343,9 +344,10 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getMinifyInfo(): MinifyInfo? {
+    fun getMinifyInfo(compileFiles: List<CompileFile>): MinifyInfo? {
+        val stagingFiles = compileFiles.mapNotNull { it.toCompileOutput() }
         return compileEffectAnalyzer.getMinifyInfo(
-            stagingFiles = stateTracker.getStagingFiles(),
+            stagingFiles = stagingFiles,
             moduleInfos = moduleInfos,
         )
     }

@@ -93,7 +93,13 @@ class DexMinifyCompiler(
         val outputs = mutableListOf<CompileOutput>()
 
         // 1. Get inline impact information
-        val minifyInfo = context.getMinifyInfo()
+        // Pre-obfuscate dex files before passing to getMinifyInfo, because task.files
+        // contain un-obfuscated dex (original class names) from DexCompiler, but the
+        // deploy database stores obfuscated class names from the APK. Without this step,
+        // parseDex reads original names that can't match DB entries, causing false
+        // "missing classes" detection.
+        val obfuscatedCompileFiles = preObfuscateForMinifyInfo(task)
+        val minifyInfo = context.getMinifyInfo(obfuscatedCompileFiles)
 
         if (minifyInfo != null) {
             logger.info("Found ${minifyInfo.inlineEffectedClasses.size} inline effected classes")
@@ -139,6 +145,47 @@ class DexMinifyCompiler(
         logger.debug(detailLog.toString())
 
         return CompileResult(task, details, outputs)
+    }
+
+    /**
+     * Pre-obfuscate dex files for getMinifyInfo consumption.
+     *
+     * task.files from DexCompiler contain un-obfuscated dex (original class names).
+     * getMinifyInfo -> parseDex -> DB lookup expects obfuscated class names.
+     * This method applies plain obfuscation (without inline redirect) to produce
+     * temporary dex files with obfuscated content, so class names match the DB.
+     *
+     * @return List of CompileFiles pointing to pre-obfuscated temporary dex files.
+     *         Files that have no mapping are included as-is.
+     */
+    private fun preObfuscateForMinifyInfo(task: CompileTask): List<CompileFile> {
+        val preObfuscateDir = File(context.tempCompileDir, "pre_obfuscate_for_minify")
+        preObfuscateDir.deleteRecursively()
+        preObfuscateDir.mkdirs()
+
+        return task.files.map { compileFile ->
+            if (compileFile.type != CompileFile.Type.Dex) {
+                return@map compileFile
+            }
+            try {
+                val inputBytes = compileFile.file.readBytes()
+                val obfuscatedBytes = obfuscator.obfuscate(inputBytes)
+                if (obfuscatedBytes != null) {
+                    val obfuscatedPath = obfuscator.getObfuscatedDexPath(
+                        compileFile.file, compileFile.baseDir
+                    )
+                    val tempFile = File(preObfuscateDir, obfuscatedPath)
+                    tempFile.parentFile?.mkdirs()
+                    tempFile.writeBytes(obfuscatedBytes)
+                    compileFile.copy(file = tempFile, baseDir = preObfuscateDir)
+                } else {
+                    compileFile
+                }
+            } catch (e: Exception) {
+                logger.debug("Pre-obfuscate failed for ${compileFile.file.name}, using original", e)
+                compileFile
+            }
+        }
     }
 
     /**

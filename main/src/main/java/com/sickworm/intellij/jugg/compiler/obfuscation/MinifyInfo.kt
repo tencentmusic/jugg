@@ -30,6 +30,30 @@ data class MinifyInfo(
      */
     val classFiles: Map<String, File> = emptyMap()
 ) {
+    /**
+     * Filtered list of inlineEffectedClasses that only includes classes with
+     * corresponding .class files in [classFiles].
+     *
+     * This prevents redirect mapping for classes whose _jugg_fix DEX cannot be
+     * generated (e.g., boot classpath classes like java/lang/Object that are
+     * never shipped in the APK and have no .class file in project classpath).
+     */
+    val effectiveInlineEffectedClasses: List<InlineEffectedClass> by lazy {
+        if (classFiles.isEmpty()) {
+            emptyList()
+        } else {
+            inlineEffectedClasses.filter { effectedClass ->
+                // Convert className from sig format (Lcom/example/MyClass;) to dot format (com.example.MyClass)
+                val dotName = if (effectedClass.className.startsWith("L") && effectedClass.className.endsWith(";")) {
+                    effectedClass.className.substring(1, effectedClass.className.length - 1).replace('/', '.')
+                } else {
+                    effectedClass.className.replace('/', '.')
+                }
+                classFiles.containsKey(dotName)
+            }
+        }
+    }
+
     companion object {
         val EMPTY = MinifyInfo(
             inlineEffectedClasses = emptyList(),

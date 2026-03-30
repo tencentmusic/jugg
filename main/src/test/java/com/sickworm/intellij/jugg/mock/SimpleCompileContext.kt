@@ -280,7 +280,7 @@ data class SimpleCompileContext(
         customMinifyInfo = minifyInfo
     }
 
-    override fun getMinifyInfo(): MinifyInfo {
+    override fun getMinifyInfo(compileFiles: List<CompileFile>): MinifyInfo {
         return customMinifyInfo
     }
 }
