@@ -325,14 +325,20 @@ class DexObfuscator(mappingReader: R8MappingReader) {
         var hasRemapped = false
             private set
 
-        // Build redirect mapping: original class name -> redirect class name
+        // Build redirect mapping: original class name -> redirect class name (obfuscated + suffix).
         // Only include classes that have corresponding .class files (effectiveInlineEffectedClasses),
         // preventing redirection to non-existent _jugg_fix classes (e.g., boot classpath classes).
+        //
+        // Plan A: redirect target uses the obfuscated class name + _jugg_fix suffix.
+        // Example: com/example/LogUtil -> a/b/c_jugg_fix (not com/example/LogUtil_jugg_fix).
+        // This ensures incremental DEX call targets match _jugg_fix class declarations
+        // produced by the obfuscate-then-rename pipeline.
         private val redirectClassMap: Map<String, String> = minifyInfo?.let { info ->
             info.effectiveInlineEffectedClasses.associate { effectedClass ->
                 // className is already in ASM format (Lcom/example/MyClass;), convert to internal format (com/example/MyClass)
                 val originalInternal = effectedClass.className.asmSigFormat
-                val redirectInternal = originalInternal + SUFFIX
+                val obfuscatedInternal = classNameMap[originalInternal] ?: originalInternal
+                val redirectInternal = obfuscatedInternal + SUFFIX
                 originalInternal to redirectInternal
             }
         } ?: emptyMap()
@@ -818,6 +824,80 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                 }
             }
         }
+    }
+
+    /**
+     * Rename only the class declaration in a DEX file, preserving all internal references.
+     *
+     * This is the key method for Plan A (obfuscate-then-rename). After obfuscation,
+     * the _jugg_fix class must be a bridge/proxy whose internal method calls still
+     * point to the original obfuscated class (e.g., La/b/c;), NOT to itself
+     * (La/b/c_jugg_fix;). This ensures that when ClassA is updated incrementally,
+     * callers through _jugg_fix still reach the new implementation in ClassA.
+     *
+     * What gets renamed (declaration level):
+     *   - Class declaration (visit() className)
+     *   - Method declaration owners (visitMethod() method.owner)
+     *   - Field declaration owners (visitField() field.owner)
+     *
+     * What is NOT renamed (code body references):
+     *   - Method call owners in visitMethodStmt()
+     *   - Field access owners in visitFieldStmt()
+     *   - Type references in visitTypeStmt(), visitConstStmt(), etc.
+     *   - Super class and interface references
+     *
+     * @param dexBytes The input DEX bytes (already obfuscated)
+     * @param oldClassName The current class name in sig format (e.g., "La/b/c;")
+     * @param newClassName The new class name in sig format (e.g., "La/b/c_jugg_fix;")
+     * @return The DEX bytes with only the class declaration renamed
+     */
+    fun renameDexClassDeclaration(
+        dexBytes: ByteArray,
+        oldClassName: String,
+        newClassName: String
+    ): ByteArray {
+        val dexReader = DexFileReader(dexBytes)
+        val dexWriter = DexFileWriter()
+
+        dexReader.accept(object : DexFileVisitor(dexWriter) {
+            override fun visit(
+                accessFlags: Int,
+                className: String,
+                superClass: String?,
+                interfaceNames: Array<out String>?
+            ): DexClassVisitor {
+                // Rename only the class declaration
+                val renamedClassName = if (className == oldClassName) newClassName else className
+                val classVisitor = super.visit(accessFlags, renamedClassName, superClass, interfaceNames)
+
+                return object : DexClassVisitor(classVisitor) {
+                    override fun visitField(accessFlags: Int, field: Field, value: Any?): DexFieldVisitor {
+                        // Rename field declaration owner
+                        val renamedField = if (field.owner == oldClassName) {
+                            Field(newClassName, field.name, field.type)
+                        } else {
+                            field
+                        }
+                        return super.visitField(accessFlags, renamedField, value)
+                    }
+
+                    override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor {
+                        // Rename method declaration owner
+                        val renamedMethod = if (method.owner == oldClassName) {
+                            Method(newClassName, method.name, method.proto)
+                        } else {
+                            method
+                        }
+                        // Pass through to writer WITHOUT intercepting code body visitors.
+                        // All method call owners, field access owners, and type references
+                        // inside the code body remain unchanged — this is the core design.
+                        return super.visitMethod(accessFlags, renamedMethod)
+                    }
+                }
+            }
+        }, 0)
+
+        return dexWriter.toByteArray()
     }
 
     companion object {

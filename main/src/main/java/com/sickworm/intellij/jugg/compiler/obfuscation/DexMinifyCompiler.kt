@@ -4,10 +4,6 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
-import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
-import com.sickworm.intellij.jugg.org.objectweb.asm.commons.ClassRemapper
-import com.sickworm.intellij.jugg.org.objectweb.asm.commons.Remapper
 import java.io.File
 
 /**
@@ -241,10 +237,14 @@ class DexMinifyCompiler(
     /**
      * Generate _jugg_fix classes for inline-affected classes.
      *
-     * Phase 2: Generate _jugg_fix copies for inline-affected classes
-     * 1. Rename class name (add _jugg_fix suffix)
-     * 2. Convert to DEX
-     * 3. Apply obfuscation mapping
+     * Plan A pipeline (obfuscate-then-rename):
+     *   1. Original .class -> D8 -> DEX (with original class names)
+     *   2. DEX -> obfuscate() -> fully obfuscated DEX (class a.b.c, methods a/b)
+     *   3. obfuscated DEX -> renameDexClassDeclaration() -> _jugg_fix DEX
+     *      (class declaration = a.b.c_jugg_fix, internal refs still point to a.b.c)
+     *
+     * This ensures _jugg_fix is a bridge class: its declared name has the suffix,
+     * but all internal method calls delegate to the original obfuscated class.
      *
      * @return List of generated DEX files
      */
@@ -255,25 +255,17 @@ class DexMinifyCompiler(
         tempDir.deleteRecursively()
         tempDir.mkdirs()
 
-        // 1. Rename classes using ASM and generate new .class files
-        val renamedClassFiles = mutableListOf<File>()
-        minifyInfo.classFiles.forEach { (className, classFile) ->
+        // Step 1: Convert original .class files to DEX (no renaming at this stage)
+        val classFileList = minifyInfo.classFiles.map { (className, classFile) ->
             logger.debug("generateJuggFixClasses: Processing class $className from ${classFile.absolutePath}")
             logger.debug("generateJuggFixClasses: Class file exists: ${classFile.exists()}")
-            try {
-                val renamedFile = renameClassWithSuffix(classFile, className, tempDir)
-                renamedClassFiles.add(renamedFile)
-                logger.info("Renamed class: $className -> ${renamedFile.name}")
-            } catch (e: Exception) {
-                logger.warn("Failed to rename class $className", e)
-            }
+            classFile
         }
 
-        if (renamedClassFiles.isEmpty()) {
+        if (classFileList.isEmpty()) {
             return emptyList()
         }
 
-        // 2. Convert renamed .class files to DEX
         val dexOutputDir = File(tempDir, "dex_output")
         dexOutputDir.mkdirs()
 
@@ -283,7 +275,7 @@ class DexMinifyCompiler(
 
             dexFileMaker.dex(
                 outputDir = dexOutputDir,
-                classFilesOrDir = renamedClassFiles,
+                classFilesOrDir = classFileList,
                 classpath = emptyList(),
                 androidJar = context.androidJar,
                 minApi = minApi,
@@ -291,21 +283,79 @@ class DexMinifyCompiler(
                 desugaredLibraryConfiguration = null
             )
 
-            // 3. Apply obfuscation mapping to generated DEX files (if needed)
             // D8 with --file-per-class puts DEX files in subdirectories, need recursive search
             val dexFiles = dexOutputDir.walkTopDown()
                 .filter { it.isFile && it.extension == "dex" }
                 .toList()
             logger.debug("generateJuggFixClasses: Found ${dexFiles.size} DEX files in ${dexOutputDir.absolutePath}")
+
             dexFiles.forEach { dexFile ->
                 try {
-                    // _jugg_fix classes are not in original mapping, so copy DEX files directly
+                    val inputBytes = dexFile.readBytes()
+
+                    // Step 2: obfuscate() — remap all names to match APK mapping.
+                    // This maps class names, method names, field names, and internal
+                    // references (e.g., inner class LogUtil$1 -> a.b.d).
+                    // The class itself (e.g., LogUtil -> a.b.c) is also fully obfuscated.
+                    val obfuscatedBytes = obfuscator.obfuscate(inputBytes)
+
+                    if (obfuscatedBytes != null) {
+                        // Step 3: renameDexClassDeclaration() — rename only the class
+                        // declaration from a.b.c to a.b.c_jugg_fix. Internal method call
+                        // owners and field access owners remain as a.b.c (the original
+                        // obfuscated class), making _jugg_fix a bridge/proxy.
+                        val className = minifyInfo.classFiles.keys.firstOrNull { className ->
+                            // Match this DEX file to a class name from minifyInfo
+                            dexFile.nameWithoutExtension.replace('.', '/').contains(
+                                className.replace('.', '/')
+                            )
+                        }
+
+                        val finalBytes = if (className != null) {
+                            val originalInternal = className.replace('.', '/')
+                            val obfuscatedInternal = obfuscator.getObfuscatedClassName(className)
+                                ?.replace('.', '/') ?: originalInternal
+                            val oldSig = "L$obfuscatedInternal;"
+                            val newSig = "L${obfuscatedInternal}${DexObfuscator.SUFFIX};"
+                            logger.debug("Renaming class declaration: $oldSig -> $newSig")
+                            obfuscator.renameDexClassDeclaration(obfuscatedBytes, oldSig, newSig)
+                        } else {
+                            obfuscatedBytes
+                        }
+
+                        val outputFile = File(outputDir, dexFile.name)
+                        outputFile.parentFile?.mkdirs()
+                        outputFile.writeBytes(finalBytes)
+                        logger.debug("Generated _jugg_fix DEX (obfuscate+rename): ${dexFile.name}")
+                    } else {
+                        // No mapping applied — class has no obfuscation mapping.
+                        // Still need to rename class declaration with suffix.
+                        val className = minifyInfo.classFiles.keys.firstOrNull { className ->
+                            dexFile.nameWithoutExtension.replace('.', '/').contains(
+                                className.replace('.', '/')
+                            )
+                        }
+
+                        val finalBytes = if (className != null) {
+                            val internalName = className.replace('.', '/')
+                            val oldSig = "L$internalName;"
+                            val newSig = "L${internalName}${DexObfuscator.SUFFIX};"
+                            logger.debug("Renaming class declaration (no mapping): $oldSig -> $newSig")
+                            obfuscator.renameDexClassDeclaration(inputBytes, oldSig, newSig)
+                        } else {
+                            inputBytes
+                        }
+
+                        val outputFile = File(outputDir, dexFile.name)
+                        outputFile.parentFile?.mkdirs()
+                        outputFile.writeBytes(finalBytes)
+                        logger.debug("Generated _jugg_fix DEX (rename only): ${dexFile.name}")
+                    }
+
                     val outputFile = File(outputDir, dexFile.name)
-                    dexFile.copyTo(outputFile, overwrite = true)
                     outputs.add(CompileOutput(CompileOutput.Type.Dex, outputFile, outputDir))
-                    logger.debug("Generated _jugg_fix DEX: ${dexFile.name}")
                 } catch (e: Exception) {
-                    logger.warn("Failed to copy _jugg_fix DEX: ${dexFile.name}", e)
+                    logger.warn("Failed to process _jugg_fix DEX: ${dexFile.name}", e)
                 }
             }
         } catch (e: Exception) {
@@ -313,36 +363,6 @@ class DexMinifyCompiler(
         }
 
         return outputs
-    }
-
-    /**
-     * Rename a class file by adding _jugg_fix suffix using ASM.
-     */
-    private fun renameClassWithSuffix(classFile: File, className: String, outputDir: File): File {
-        val classReader = ClassReader(classFile.readBytes())
-        val classWriter = ClassWriter(0)
-
-        val internalName = className.replace('.', '/')
-        val newInternalName = internalName + com.sickworm.intellij.jugg.deploy.data.EffectedClassNode.SUFFIX
-
-        val remapper = object : Remapper() {
-            override fun map(internalName: String): String {
-                return if (internalName == className.replace('.', '/')) {
-                    newInternalName
-                } else {
-                    internalName
-                }
-            }
-        }
-
-        val remappingAdapter = ClassRemapper(classWriter, remapper)
-        classReader.accept(remappingAdapter, 0)
-
-        val outputFile = File(outputDir, newInternalName + ".class")
-        outputFile.parentFile?.mkdirs()
-        outputFile.writeBytes(classWriter.toByteArray())
-
-        return outputFile
     }
 
 }

@@ -56,6 +56,8 @@
 - "release 增量后 NoSuchMethodError（Kotlin stdlib 方法调用）"：R8 synthesized 方法在 facade 类（如 `CollectionsKt`）中使用 qualified 原始名（如 `xxx.CollectionsKt.listOf`），导致 `methodNameMap` 的 key 构建不一致。修复：`DexObfuscator.init{}` 中使用 `method.originalName.substringAfterLast('.')` 提取简单方法名构建 key。详见 `09_plugin_runtime_debug.md` §4.9。
 - "release 增量后 NoSuchMethodError（带对象类型参数的 synthesized 方法）"：R8 synthesized 方法的 mapping 条目中参数类型使用"中间格式"（混淆包名 + 原始简单类名，如 `xxx.ClosedRange`），与 DEX 中的原始名（`kotlin.ranges.ClosedRange`）不匹配。修复：`DexObfuscator.init{}` 中构建 `intermediateToOriginal` 辅助映射，通过 `normalizeMethodParams()` 将参数类型规范化为原始名。详见 `09_plugin_runtime_debug.md` §4.10。
 - "release 增量后 NoSuchMethodError（synthesized 条目覆盖正常方法映射）"：R8 mapping 中同一方法可能同时有正常条目（`d → a`）和 synthesized 条目（`d → d`），后者覆盖前者导致方法名未被映射。修复：`DexObfuscator.init{}` 中优先保留"真正重命名"的条目，不允许恒等映射覆盖。详见 `09_plugin_runtime_debug.md` §4.11。
+- "release 增量后 NoClassDefFoundError（_jugg_fix 类中的内部类引用）"：`DexMinifyCompiler.generateJuggFixClasses()` 生成的 `_jugg_fix` DEX 包含对原始内部类（如 `LogUtil$1`）的引用，但 APK 中该内部类已被 R8 重命名。修复：在输出前对 `_jugg_fix` DEX 调用 `obfuscator.obfuscate()` 映射内部引用。`_jugg_fix` 类名本身不在 mapping 中所以不受影响。详见 `docs/task/jugg_fix_inner_class_not_obfuscated.md`。
+- "release 增量后 NoSuchMethodError（_jugg_fix 类方法名未混淆）"：`_jugg_fix` DEX 的方法名/字段名未被混淆（如保持原始名 `d`），而增量 DEX 调用方使用混淆名（如 `a`），导致方法签名不匹配。修复：采用方案 A（obfuscate-then-rename），`generateJuggFixClasses()` 流程改为"D8 → `obfuscate()` → `renameDexClassDeclaration()`"。`renameDexClassDeclaration()` 仅重命名类声明（类名、方法声明 owner、字段声明 owner），不修改代码体内的方法调用和字段引用 owner，使 `_jugg_fix` 成为桥接类：声明名带后缀，内部调用仍指向原始混淆类。同时 `redirectClassMap` 的 redirect 目标改为"混淆后类名 + 后缀"（如 `a/b/c_jugg_fix`）。详见 `docs/task/jugg_fix_full_obfuscation_analysis.md`。
 
 ---
 
