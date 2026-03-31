@@ -128,7 +128,13 @@ class GradleApplicationInjector(
     }
 
     private fun addRuntimeDependency(project: Project) {
-        val jarDir = JuggPathManager(rootProject.rootDir).configDir
+        // Prefer jugg.projectDir to support projects where Gradle root != IDE project dir
+        val projectDir = rootProject.properties["jugg.projectDir"]?.toString()?.let { File(it) }
+            ?: rootProject.rootDir
+        val jarDir = JuggPathManager(projectDir).configDir
+        if (!jarDir.exists() || jarDir.listFiles().isNullOrEmpty()) {
+            throw IllegalStateException("Jugg jarDir: $jarDir not exists or has no jar files")
+        }
         val runtimeConfiguration = project.fileTree(mapOf("dir" to jarDir.path, "include" to listOf("*.jar")))
         project.dependencies.add("runtimeOnly", runtimeConfiguration)
     }
