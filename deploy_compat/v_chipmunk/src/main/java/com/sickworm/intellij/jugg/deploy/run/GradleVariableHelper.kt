@@ -33,7 +33,13 @@ class GradleVariableHelper(private val isSafeMode: Boolean) {
     }
 
     private fun readVariable(model: GradleBuildModel, property: ResolvedPropertyModel, isValid: String.() -> Boolean): String? {
-        val value = property.valueAsString()?.trim() ?: return null
+        // compileSdk block syntax (e.g. compileSdk { version = release(36) { ... } }) causes a
+        // ClassCastException inside valueAsString(). Swallow it here for graceful degradation.
+        val value = try {
+            property.valueAsString()?.trim()
+        } catch (_: ClassCastException) {
+            null
+        } ?: return null
         return readVariable(value, model, isValid)
     }
 

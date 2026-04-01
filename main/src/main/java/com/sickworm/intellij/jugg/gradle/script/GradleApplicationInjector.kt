@@ -32,38 +32,80 @@ class GradleApplicationInjector(
 
         injectProguardKeepRulesForVariant(project)
         addRuntimeDependency(project)
+
+        // Pre-collect variant names via androidComponents.onVariants during configuration phase.
+        // onVariants must be registered before projectsEvaluated fires (AGP 9.0+ requirement).
+        val variantNamesFromComponents = mutableListOf<String>()
+        project.extensions.findByName("androidComponents")?.let { androidComponents ->
+            invokeOnVariants(androidComponents) { variant ->
+                val name = reflector(variant)["name"]?.valueString ?: return@invokeOnVariants
+                variantNamesFromComponents.add(name)
+            }
+        }
+
         rootProject.gradle.projectsEvaluated {
-            injectManifestTask(project)
+            // Primary path: applicationVariants reflection (AGP < 9.0).
+            // Falls back to pre-collected androidComponents names (AGP 9.0+).
+            val variantNames = tryGetLegacyVariantNames(project).takeIf { it.isNotEmpty() }
+                ?: variantNamesFromComponents.takeIf { it.isNotEmpty() }
+                ?: throw IllegalStateException(
+                    "Jugg: project ${project.name} could not resolve any application variants. " +
+                    "applicationVariants is not available and androidComponents fallback is empty.",
+                )
+            println("Jugg: project ${project.name} variants: ${variantNames.size}")
+            variantNames.forEach { name -> injectManifestTaskByName(project, name) }
         }
     }
 
-    private fun injectManifestTask(project: Project) {
+
+    /** Returns variant names from the legacy applicationVariants API, or empty list if unavailable (AGP 9.0+). */
+    private fun tryGetLegacyVariantNames(project: Project): List<String> {
         val androidExt = reflector(project.extensions.getByName("android"))
-        val applicationVariants = androidExt["applicationVariants"]
-        val variants = applicationVariants?.value as? Collection<Any?>
-        println("Jugg: project ${project.name} applicationVariants: ${variants?.size}")
+        val variants = androidExt["applicationVariants"]?.value as? Collection<Any?>
         if (variants.isNullOrEmpty()) {
-            throw IllegalStateException("Jugg: project ${project.name} applicationVariants is null or empty")
+            return emptyList()
         }
-
-        variants.forEach { variant ->
-            injectManifestTask(project, variant)
-        }
+        println("Jugg: project ${project.name} applicationVariants: ${variants.size}")
+        return variants.mapNotNull { variant -> reflector(variant)["name"]?.valueString }
     }
 
+    /**
+     * Calls androidComponents.onVariants(selector, Action) via reflection and a dynamic proxy,
+     * keeping zero compile-time AGP dependency in the init script.
+     *
+     * The JVM-level signature is always the two-parameter form:
+     *   onVariants(VariantSelector, Action<VariantT>)
+     * The single-parameter Kotlin overload is a Kotlin extension function and has no JVM method.
+     */
+    private fun invokeOnVariants(androidComponents: Any, callback: (Any?) -> Unit) {
+        // Find onVariants(VariantSelector, Action) — the two-parameter JVM overload.
+        // parameterTypes[1].isInterface skips the Groovy Closure overload injected at runtime.
+        val method = androidComponents::class.java.methods
+            .firstOrNull { m ->
+                m.name == "onVariants" && m.parameterCount == 2 && m.parameterTypes[1].isInterface
+            } ?: return
+        val actionInterface = method.parameterTypes[1]
+        val proxy = java.lang.reflect.Proxy.newProxyInstance(
+            actionInterface.classLoader,
+            arrayOf(actionInterface),
+        ) { _, _, args ->
+            callback(args?.firstOrNull())
+            null
+        }
+        // selector() returns an "all variants" selector
+        val selector = androidComponents::class.java.getMethod("selector").invoke(androidComponents)
+        method.invoke(androidComponents, selector, proxy)
+    }
+
+    /** Registers a doLast hook on the manifest task identified by variant name. */
     @Suppress("DefaultLocale")
-    private fun injectManifestTask(project: Project, variant: Any?) {
-        val name = reflector(variant)["name"]?.valueString ?: return
-        val capitalizedName = name.camelCompat
-        val manifestTaskName = "process${capitalizedName}Manifest"
+    private fun injectManifestTaskByName(project: Project, name: String) {
+        val manifestTaskName = "process${name.camelCompat}Manifest"
         val manifestTask = project.tasks.findByName(manifestTaskName)
         println("Jugg inject manifestTask: $manifestTaskName, task instance: $manifestTask")
-
         manifestTask?.doLast {
             println("Jugg manifestTask replace application variant: $name")
-            findMergedManifest(manifestTask).forEach {
-                tryReplace(it)
-            }
+            findMergedManifest(manifestTask).forEach { tryReplace(it) }
             println("Jugg manifestTask doLast finish")
         }
     }

@@ -120,6 +120,37 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
         )
         assertEquals(0, result.exitCode, "Gradle $gradleVersion manifest task failed.\n${result.output}")
     }
+
+    /**
+     * Verifies that the configuration phase succeeds on AGP 9.0 (which removes applicationVariants)
+     * with `-Pjugg.inject.application.enable=true`. The injector must use androidComponents API.
+     */
+    @Test
+    fun generatedScript_shouldRunOnAgp90WithInjectApplicationEnabled() {
+        val result = assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp90",
+            extraArgs = listOf("-P${PARAM_INJECT_ENABLE}=true"),
+        )
+        assertEquals(0, result.exitCode, "Gradle $gradleVersion AGP 9.0 config phase failed.\n${result.output}")
+    }
+
+    /**
+     * Verifies that processDebugManifest actually transforms the manifest on AGP 9.0,
+     * replacing the application class via the androidComponents artifact transform path.
+     */
+    @Test
+    fun generatedScript_shouldRunManifestTaskOnAgp90WithInjectApplicationEnabled() {
+        val result = assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp90",
+            task = ":app:processDebugManifest",
+            extraArgs = listOf("-P${PARAM_INJECT_ENABLE}=true"),
+        )
+        assertEquals(0, result.exitCode, "Gradle $gradleVersion AGP 9.0 manifest task failed.\n${result.output}")
+        assertTrue(
+            result.output.contains("Jugg manifestTask replace application variant"),
+            "Expected manifest replacement log not found.\n${result.output}",
+        )
+    }
 }
 
 /** Mirrors GradleApplicationInjector.PARAM_ENABLE without pulling in the production class. */

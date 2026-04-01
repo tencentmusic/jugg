@@ -1,0 +1,21 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 35
+    namespace 'com.jugg.fixture.agp90'
+    defaultConfig {
+        applicationId 'com.jugg.fixture.agp90'
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+    buildTypes {
+        debug {}
+        release {
+            minifyEnabled false
+        }
+    }
+}

@@ -33,7 +33,11 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
                 { buildModel.android().buildToolsVersion() },
                 { this.all { it.isDigit() || it == '.' } }
             ),
-            compileVersion = gradleVariableHelper.readVariable(
+            compileVersion = gradleVariableHelper.readVariable("compileVersion") {
+                // Try new compileSdk { } block syntax (AGP 8.x+ / Gradle 9.0)
+                val compileSdkProp = buildModel.android().compileSdkVersion()
+                compileSdkProp.toCompileSdkConfig()?.getVersion()?.toInt()?.toString()
+            } ?: gradleVariableHelper.readVariable(
                 "compileVersion",
                 buildModel,
                 { buildModel.android().compileSdkVersion() },
