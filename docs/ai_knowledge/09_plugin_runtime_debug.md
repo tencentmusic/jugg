@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-03-28
+> 最后核对：2026-04-01
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -92,7 +92,7 @@ ${projectRoot}/.gradle/jugg/
 | 重混淆结果 | `Obfuscated:` |
 | 重混淆注解问题 | `visitAnnotation` / `mapType` |
 | 重混淆类型引用遗漏 | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
-| 重混淆 access flag 对齐 | `alignAccessFlags` / `alignClassAccessFlags` / `alignMethodAccessFlags` / `alignFieldAccessFlags` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
+| 重混淆 access flag 宽化 | `widenAccessFlags` / `invoke-direct` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
 
 ---
 
@@ -223,201 +223,66 @@ main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 
 **对比参考**：`ClassObfuscator.kt` 使用 ASM 的 `ClassRemapper` + `Remapper`，自动处理所有类型引用（LDC Type、ANEWARRAY、CHECKCAST、异常表等），无需逐个覆写。`DexObfuscator` 使用 dex2jar visitor 模式，必须手动覆写每个含类型引用的方法。
 
-### 4.6 release 增量编译后 IllegalAccessError / AbstractMethodError（access flag 不匹配）
+### 4.6 release 增量编译后 IllegalAccessError / AbstractMethodError / IncompatibleClassChangeError（access flag 不匹配）
 
-**信号**：runtime crash 报 `IllegalAccessError: Method '...' is inaccessible to class 'xxx.xxx'`，或 `AbstractMethodError: abstract method "..."`,且 crash 涉及 `ExternalSyntheticLambda` 类或混淆后的接口调用。
+**信号**：runtime crash 报以下之一：
+- `IllegalAccessError: Method '...' is inaccessible to class 'xxx'`
+- `AbstractMethodError: abstract method "..."`（涉及 `ExternalSyntheticLambda` 或混淆后接口调用）
+- `IncompatibleClassChangeError: The method '...' was expected to be of type direct but instead was found to be of type virtual`
 
-**根因模式**：R8 在全量构建时（启用 `-allowaccessmodification`）会将 `private`/`protected`/`package-private` 成员宽化为 `public`。Jugg 增量编译的 `javac → D8 → DexObfuscator` 链路不做此宽化，导致增量产物中的方法 access flags 与 APK 不一致。
+**根因模式**：R8 启用 `-allowaccessmodification` 时会宽化 `private`/`protected`/`package-private` → `public`。Jugg 增量链路（`javac → D8 → DexObfuscator`）不做此宽化，导致增量产物 access flags 与 APK 不一致。具体表现为：方法可见性不足（IllegalAccessError）、方法从 direct section 移到 virtual section 导致 dispatch 类型不匹配（IncompatibleClassChangeError）。
 
 **排查步骤**：
-1. **从 crash log 定位涉及的类和方法**：确认是否涉及 lambda 方法（`lambda$...`）或混淆后的接口方法
-2. **确认 `-allowaccessmodification` 启用**：检查 `build/intermediates/default_proguard_files/global/proguard-android-optimize.txt*`
-3. **用 `dexdump -a` 对比 access flags**：检查增量编译产物中方法的 access flags 是否与 APK 中对应方法一致
-4. **确认 `DexObfuscator` 的宽化逻辑是否正确执行**：搜索编译日志中 `Obfuscated:` 确认重混淆已执行
+1. 从 crash log 定位类和方法，确认是否涉及 lambda（`lambda$...`）或混淆后接口方法
+2. 用 `dexdump -a` 对比增量 DEX 和 APK DEX 中方法的 access flags 及 direct/virtual section 分类
+3. 确认 `DexObfuscator` 宽化和 invoke 指令修改是否正常执行（搜日志 `Obfuscated:`）
 
-**修复方案**：已通过方案 E' 修复 — `DexObfuscator` 中使用 `widenAccessFlags()` 无条件将所有 `private`/`protected`/`package-private` 成员宽化为 `public`，同时在 `visitMethodStmt()` 中将本类的非 `<init>` 非 `static` 方法的 `invoke-direct` 改为 `invoke-virtual`，保证 direct/virtual 分类一致。
+**修复方案（方案 E'）**：
+- `widenAccessFlags()` 无条件将所有非 public 成员宽化为 `public`
+- `visitMethodStmt()` 中将本类非 `<init>` 非 `static` 方法的 `invoke-direct` → `invoke-virtual`（含 `INVOKE_DIRECT_RANGE` → `INVOKE_VIRTUAL_RANGE`）
+- 外部 APK 中 private 方法天然不可能被外部类直接调用，宽化安全
 
-**关键类**：
-```
-main/.../compiler/obfuscation/DexObfuscator.kt     # widenAccessFlags() + invoke-direct → invoke-virtual
-main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
-```
+**关键类**：`DexObfuscator.kt`（`widenAccessFlags()` + `visitMethodStmt()`）
 
 **关联文档**：`docs/task/release_incremental_access_flag_mismatch.md`
 
-### 4.7 release 增量编译后 IncompatibleClassChangeError（direct/virtual method 分类不匹配）
+### 4.7 release 增量编译后 AbstractMethodError（类不在 mapping 中，方法名未映射）
 
-**信号**：runtime crash 报 `IncompatibleClassChangeError: The method '...' was expected to be of type direct but instead was found to be of type virtual`，crash 涉及 Jugg 增量部署的类。
+**信号**：`AbstractMethodError`，涉及新增类、匿名类（编号漂移）、`ExternalSyntheticLambda` 类。
 
-**根因模式**：DEX 中方法按 access flags 分为 direct methods（`private` 非 static、`static`、`<init>`）和 virtual methods（`public`/`protected`/`package-private` 非 static）。如果增量编译产物中方法的 access flags 与 APK 中不一致，导致方法从 direct 变为 virtual（或反向），APK 中的调用者（使用 `invoke-direct`）会因 dispatch 类型不匹配而抛出此错误。
+**根因模式**：类不在 `mapping.txt` 中 → `mapMethod()` 查不到方法名映射 → 保留原方法名 → 但 APK 中接口/父类方法已被混淆 → 签名不匹配。典型场景：D8 `ExternalSyntheticLambda` 编号漂移后，mapping 条目对应的是旧编号的语义类。
 
-**DEX 方法分类规则**：
-
-| 方法类型 | DEX 分类 | 调用指令 |
-|---------|----------|---------|
-| `private` (非 static) | direct method | `invoke-direct` |
-| `private static` / `static` | direct method | `invoke-static` |
-| `public`/`protected`/`package-private` (非 static) | virtual method | `invoke-virtual` |
-
-**R8 不总是宽化所有 private 非 static 方法**（三种例外）：
-1. 接口中的 private 方法
-2. synthetic 方法（编译器生成的合成方法）
-3. 命名冲突（继承层级中同签名方法已存在）
-
-**排查步骤**：
-1. **从 crash log 定位方法名和类名**：确认是混淆后的名称（如 `J1()`），说明经过 R8 处理
-2. **用 `dexdump -a` 检查增量 DEX 中方法是否在 virtual methods section**：若是，但 APK 中相同方法在 direct methods section，则是 access flag 不匹配
-3. **确认 `DexObfuscator` 宽化和 invoke 指令修改是否正常执行**
-
-**修复方案**：同 §4.6 — 方案 E' 通过无条件宽化 + `invoke-direct` → `invoke-virtual` 调用指令同步修改解决。宽化后方法统一进入 virtual section，同时增量 DEX 内部的 `invoke-direct` 也同步改为 `invoke-virtual`，保证自洽性。外部 APK 中的调用者不受影响，因为 private 方法天然不可能被外部类直接调用。
-
-**注意**：DEX 的 invoke 指令有两种变体——`invoke-direct`（`INVOKE_DIRECT`，寄存器 ≤ 4 bit）和 `invoke-direct/range`（`INVOKE_DIRECT_RANGE`，高位寄存器）。修复时必须同时处理 `INVOKE_DIRECT_RANGE` → `INVOKE_VIRTUAL_RANGE`。遗漏 range 变体会导致高寄存器场景仍然 crash。
-
-**历史教训**：
-- 方案 E（无条件 `private → public` 宽化，但**不改调用指令**）解决了 §4.6 的 IllegalAccessError/AbstractMethodError，但引入了本条的 IncompatibleClassChangeError
-- 方案 D（精确对齐 APK access flags）正确但过于复杂
-- 方案 E'（宽化 + 改指令）是最终方案——实现简洁且逻辑自洽
-- 方案 E' 初版仅处理 `INVOKE_DIRECT`，遗漏 `INVOKE_DIRECT_RANGE`，在方法参数寄存器号较大时仍会触发 IncompatibleClassChangeError
-
-**关键类**：
-```
-main/.../compiler/obfuscation/DexObfuscator.kt     # access flags 对齐逻辑
-main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
-main/.../deploy/data/DeployDataDatabase.kt          # APK access flags 数据源
-```
-
-**关联文档**：`docs/task/release_incremental_access_flag_mismatch.md` §8, §9
-
-### 4.8 release 增量编译后 AbstractMethodError（类不在 mapping 中，方法名未映射）
-
-**信号**：runtime crash 报 `AbstractMethodError: abstract method "..."` 或 `AbstractMethodError: Ljava/lang/Object;.a()V`，crash 涉及新增类、类名变更后的类、匿名类（编号漂移），或 `ExternalSyntheticLambda` 类。
-
-**根因模式**：当一个类不在 `mapping.txt` 中（新增类、类名变更、编号漂移等），`DexObfuscator.mapMethod()` 查不到该类的方法名映射 → 保留原方法名 → 但 APK 中该方法的接口/父类声明已被混淆（如 `run → a`）→ 方法签名不匹配 → `AbstractMethodError`。
-
-**排查步骤**：
-1. **从 crash log 定位涉及的类和方法**：确认该类是否是新增类、匿名类、或 `ExternalSyntheticLambda` 类
-2. **确认该类是否在 `mapping.txt` 中**：如果不在，说明旧 mapping 无法覆盖
-3. **检查该类实现的接口或继承的父类**：确认接口/父类的方法在 mapping 中有映射
-4. **确认增量 DEX 中方法名是否与接口/父类的混淆后方法名一致**
-
-**修复方案**：方案 L — `DexObfuscator` 在 `visitMethod()` 中使用 `mapMethodForCurrentClass()` 实现"接口/父类优先"的方法名映射策略：
-1. 优先从接口和父类的 mapping 条目推导方法名
-2. 未命中时回退到类自身的 mapping 条目
+**修复方案（方案 L）**：`DexObfuscator.mapMethodForCurrentClass()` 采用"接口/父类优先"策略：
+1. 先从接口和父类的 mapping 条目推导方法名
+2. 未命中时回退到类自身查找
 3. 都未命中时保留原名
 
-该策略对所有类通用，无需区分 lambda 与普通类。
+对所有类通用，无需区分 lambda 与普通类。
 
-**关键类**：
-```
-main/.../compiler/obfuscation/DexObfuscator.kt     # mapMethodForCurrentClass() / mapMethodNameFromHierarchy()
-```
+**关键类**：`DexObfuscator.kt`（`mapMethodForCurrentClass()` / `mapMethodNameFromHierarchy()`）
 
 **关联文档**：`docs/task/release_incremental_access_flag_mismatch.md` §12
 
 ---
 
-### 4.9 release 增量编译后 NoSuchMethodError（R8 synthesized qualified method name 未映射）
+### 4.8 release 增量编译后 NoSuchMethodError（R8 synthesized 方法映射问题）
 
-**信号**：runtime crash 报 `NoSuchMethodError: No static method xxx(...)` in class `Lxxx/...;`，方法名未被混淆（保留了原名如 `listOf`、`mapOf`、`emptyList` 等），调用目标是 Kotlin stdlib facade 类（如 `CollectionsKt`、`MapsKt`、`SequencesKt`）或其他被 R8 synthesized 处理的类。
+**信号**：runtime crash 报 `NoSuchMethodError: No static method xxx(...)` in class `Lxxx/...;`，方法名保留了原名（未被混淆），调用目标是 Kotlin stdlib facade 类（`CollectionsKt`、`RangesKt` 等）或 keep 类。
 
-**根因模式**：R8 在 `mapping.txt` 中为 facade 类生成的 synthesized 方法条目使用 **qualified 原始方法名**（含混淆后的包名前缀），例如：
-```
-kotlin.collections.CollectionsKt -> xxx.s47:
-    1:1:java.util.List xxx.CollectionsKt.listOf(java.lang.Object):0:0 -> e
-      # {"id":"com.android.tools.r8.synthesized"}
-```
-此处 `R8MappingReader` 解析的 `method.originalName` 为 `xxx.CollectionsKt.listOf`（而非简单的 `listOf`）。
+**根因模式**：`DexObfuscator.init{}` 构建 `methodNameMap` 时，R8 synthesized 方法条目存在三种键不匹配：
 
-`DexObfuscator.init{}` 构建 `methodNameMap` key 时若直接拼接 `classMapping.originalName + "." + method.originalName`，得到：
-```
-kotlin.collections.CollectionsKt.xxx.CollectionsKt.listOf(java.lang.Object)
-```
-但 `mapMethod()` 查找时用的 key 是：
-```
-kotlin.collections.CollectionsKt.listOf(java.lang.Object)
-```
-两者不匹配 → 方法名映射未命中 → 保留原名 → APK 中方法已被混淆 → `NoSuchMethodError`。
+| 子问题 | 现象 | 原因 | 修复 |
+|--------|------|------|------|
+| qualified 方法名 | facade 类方法名未映射（如 `listOf` → 保留原名） | synthesized 条目的 `originalName` 含混淆包名前缀（`xxx.CollectionsKt.listOf`），key 拼接后与查找键不匹配 | `method.originalName.substringAfterLast('.')` 提取简单名 |
+| 参数中间格式 | 带对象类型参数的方法未映射（如 `coerceIn(int,xxx.ClosedRange)`） | synthesized 条目参数使用"混淆包名 + 原始简单类名"中间格式，与 DEX 中原始全名不匹配 | 构建 `intermediateToOriginal` 辅助映射，`normalizeMethodParams()` 规范化参数 |
+| 恒等映射覆盖 | keep 类方法名未映射（如 `d` → 保留为 `d`，但 APK 中为 `a`） | 同一方法同时有正常条目（`d→a`）和 synthesized 条目（`d→d`），恒等映射覆盖了真正重命名 | 优先保留 `obfuscatedName != simpleMethodName` 的条目 |
 
 **排查步骤**：
-1. **从 crash log 确认调用的方法名是否为原名**（如 `listOf`、`mapOf`、`sorted` 等 Kotlin stdlib 方法）
-2. **在 mapping.txt 中搜索该方法**：确认 facade 类下是否有 qualified 形式的 synthesized 条目
-3. **确认该方法在 facade 类下被映射为短名**（如 `listOf -> e`）
+1. 从 crash log 确认方法名是否为原名（未混淆）
+2. 在 mapping.txt 中搜索该方法，确认是否存在 synthesized 条目（含 `com.android.tools.r8.synthesized` 注释）
+3. 对比 mapping 条目的原始名格式和参数格式
 
-**修复方案**：在 `DexObfuscator.init{}` 构建 `methodNameMap` 时，使用 `method.originalName.substringAfterLast('.')` 提取简单方法名构建 key。
-
-**关键类**：
-```
-main/.../compiler/obfuscation/DexObfuscator.kt     # init{} — methodMap key construction
-main/.../compiler/obfuscation/R8MappingReader.kt    # convertClassNaming() — method name parsing
-```
-
-### 4.10 release 增量编译后 NoSuchMethodError（R8 synthesized 方法参数中间格式未映射）
-
-**信号**：runtime crash 报 `NoSuchMethodError: No static method xxx(...)` in class `Lxxx/...;`，方法名未被混淆，调用目标是 Kotlin stdlib facade 类（如 `RangesKt`、`CollectionsKt`）中带有非原始类型参数的 synthesized 方法。
-
-**根因模式**：R8 synthesized 方法的 mapping 条目中，参数类型可能使用**中间格式**（混淆后包名 + 原始简单类名），而非原始全名或完全混淆名。例如：
-```
-kotlin.ranges.ClosedRange -> xxx.z07:
-kotlin.ranges.RangesKt -> xxx.iul:
-    1:1:int xxx.RangesKt.coerceIn(int,xxx.ClosedRange):0:0 -> n
-      # {"id":"com.android.tools.r8.synthesized"}
-```
-此处参数类型 `xxx.ClosedRange` 是中间格式：
-- 原始名：`kotlin.ranges.ClosedRange`
-- 完全混淆名：`xxx.z07`
-- 中间形式：`xxx.ClosedRange`（混淆包名 `xxx` + 原始简单类名 `ClosedRange`）
-
-`DexObfuscator.init{}` 构建 `methodNameMap` key 时直接使用 mapping 中的参数字符串：
-```
-key = "kotlin.ranges.RangesKt.coerceIn(int,xxx.ClosedRange)"
-```
-但 `mapMethod()` 查找时从 DEX 中的 proto 构建 key，参数是原始名：
-```
-key = "kotlin.ranges.RangesKt.coerceIn(int,kotlin.ranges.ClosedRange)"
-```
-两者参数不匹配 → 方法名映射未命中 → 保留原名 `coerceIn` → APK 中方法实际叫 `n` → `NoSuchMethodError`。
-
-**排查步骤**：
-1. **从 crash log 确认调用的方法名是否为原名**（如 `coerceIn`、`rangeTo` 等带对象类型参数的方法）
-2. **在 mapping.txt 中搜索该方法**：确认参数中是否包含中间格式的类名（混淆包名 + 原始简单类名）
-3. **确认该中间格式类名对应的完全混淆名和原始名**
-
-**修复方案**：在 `DexObfuscator.init{}` 中，先完成 `classNameMap` 构建，再构建**中间格式→原始名**的辅助映射（`intermediateToOriginal`），最后构建 `methodNameMap` 时对每个参数类型通过辅助映射规范化为原始名。具体实现通过 `normalizeMethodParams()` 方法完成。
-
-**关键类**：
-```
-main/.../compiler/obfuscation/DexObfuscator.kt     # init{} — deferred method processing, normalizeMethodParams()
-```
-
-### 4.11 release 增量编译后 NoSuchMethodError（R8 synthesized 方法条目覆盖正常方法映射）
-
-**信号**：runtime crash 报 `NoSuchMethodError: No static method xxx(...)` in class `Lcom/xxx/XxxUtil;`，方法名保留了原名（如 `d`），目标类的类名未被混淆（被 keep 保留）或已正确映射，但方法名未被映射。
-
-**根因模式**：R8 mapping 中同一个类的同一个方法可能同时存在两个条目——正常方法条目和 synthesized 方法条目：
-```
-com.tencent.component.utils.LogUtil -> com.tencent.component.utils.LogUtil:
-    1:10:void d(java.lang.String,java.lang.String):123:132 -> a
-    1:1:void com.tencent.component.utils.LogUtil.d(java.lang.String,java.lang.String):0:0 -> d
-      # {"id":"com.android.tools.r8.synthesized"}
-```
-- 正常条目将 `d` 映射为 `a`（真正的重命名）
-- Synthesized 条目将 `d` 映射为 `d`（恒等映射，名字未变）
-
-由于 `substringAfterLast('.')` 将 synthesized 的 qualified 名 `com.tencent.component.utils.LogUtil.d` 提取为简单名 `d`，两个条目在 `methodNameMap` 中产生了相同的 key。如果 synthesized 条目在后面处理，其恒等映射 `d → d` 会覆盖正常条目的 `d → a`。
-
-最终增量 DEX 中方法名保留为 `d`，但 APK 中方法已被 R8 重命名为 `a` → `NoSuchMethodError`。
-
-**排查步骤**：
-1. **从 crash log 确认方法名是否为短原名**（如 `d`、`e`、`i`——常见的日志工具方法名）
-2. **在 mapping.txt 中搜索该方法**：确认是否存在两个条目（正常 + synthesized）
-3. **对比两个条目的 obfuscatedName**：如果一个是恒等映射、另一个是真正重命名，说明存在覆盖问题
-
-**修复方案**：在 `DexObfuscator.init{}` 构建 `methodNameMap` 时，当同一 key 已存在映射时，优先保留"真正重命名"的条目（`obfuscatedName != simpleMethodName`），不允许恒等映射（`obfuscatedName == simpleMethodName`）覆盖真正重命名。
-
-**关键类**：
-```
-main/.../compiler/obfuscation/DexObfuscator.kt     # init{} — methodMap deduplication logic
-```
+**关键类**：`DexObfuscator.kt`（`init{}` — methodNameMap 构建逻辑）
 
 ---
 
