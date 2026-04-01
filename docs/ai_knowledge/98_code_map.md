@@ -15,7 +15,7 @@
 | 资源编译 | `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler`, `Aapt2Invoker` | `compiler/overlay`, `compiler/resource` | res/manifest 编译与 aapt2 link | 稳定 | 2025-01-20 |
 | DataBinding | `DataBindingArgsManager`, `DataBindingGenBaseClassesCompiler`, `DataBindingGenMapperCompiler` | `compiler/databinding` | DataBinding/ViewBinding 增量处理 | 稳定 | 2025-01-20 |
 | Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer`, `ObfuscationCompiler` | `compiler/manifest` | 清单差异合并与混淆 | 稳定 | 2025-01-20 |
-| 混淆映射 | `ClassMinifyCompiler`, `DexMinifyCompiler`, `ClassObfuscator`, `R8MappingReader` | `compiler/obfuscation` | release 混淆映射一致性 | 稳定 | 2025-01-20 |
+| 混淆映射 | `ClassMinifyCompiler`, `DexMinifyCompiler`, `ClassObfuscator`, `R8MappingReader`, `R8UsageReader` | `compiler/obfuscation` | release 混淆映射一致性、`usage.txt` 删除成员读取与 `_jugg_fix` compatibility stub 重写 | 稳定 | 2026-04-01 |
 | 自定义编译器 | `CustomCompilerManager`, `ICompilerCreator`, `CompileUiHandler` | `compiler/custom` | SPI 扩展、远端下载 jar、动态装载；编译交互抽象（供 IDE/CLI） | 稳定 | 2025-01-20 |
 | 常量引用分析 | `ConstRefEngine`, `ConstRefAnalyzer`, `ConstRefChangeTracker`, `ConstRefImpactResolver`, `ConstRefSessionCache` | `compiler/constref` | 编译期常量定义/引用分析；按”真实变更常量 key”定位受影响源码；DB 主导+会话缓存；repo/worktree 共享缓存与过期清理 | 稳定 | 2026-03-04 |
 | 部署文件管理 | `JuggDeployer`, `DeployFileManager`, `DeployFileStateTracker`, `DeployDataPlanner`, `CompileEffectAnalyzer`, `DeployHistoryManager`, `ClassFileLookupHelper` | `deploy/core` | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |

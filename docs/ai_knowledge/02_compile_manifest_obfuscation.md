@@ -1,6 +1,6 @@
 # 编译系统：Manifest 与混淆映射
 
-> 最后核对：2026-03-30  
+> 最后核对：2026-04-01  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -28,16 +28,20 @@
 | 类 | 文件 | 作用 |
 |----|------|------|
 | `ClassMinifyCompiler` | `main/.../compiler/obfuscation/ClassMinifyCompiler.kt` | class 级别映射一致性处理 |
-| `DexMinifyCompiler` | `main/.../compiler/obfuscation/DexMinifyCompiler.kt` | dex 级别映射一致性处理 |
+| `DexMinifyCompiler` | `main/.../compiler/obfuscation/DexMinifyCompiler.kt` | dex 级别映射一致性处理；按 `usage.txt` 将已删方法重写为 compatibility stub |
 | `ClassObfuscator` / `DexObfuscator` | `main/.../compiler/obfuscation/` | 具体重映射实现 |
-| `R8MappingReader` | `main/.../compiler/obfuscation/R8MappingReader.kt` | mapping 读取与查询 |
+| `R8MappingReader` | `main/.../compiler/obfuscation/R8MappingReader.kt` | `mapping.txt` 读取与查询 |
+| `R8UsageReader` | `main/.../compiler/obfuscation/R8UsageReader.kt` | `usage.txt` 读取与查询（整类删除、方法删除、字段删除） |
 
 ---
 
 ## 4. 执行要点
 
 - Manifest 仅在有变更时输出，减少无效重打包。  
-- 混淆处理依赖 `mapping.txt` 是否可用。  
+- 混淆处理依赖 `mapping.txt` 是否可用；`isMinified` 仍只由 `mapping.txt` 存在与否判定。  
+- `usage.txt` 是 release/minify 场景的增强输入：文件存在时在 `DexMinifyCompiler.initIfNeeded()` 中按需加载，缺失或解析失败时退化为“不改写 `_jugg_fix` 已删方法”。  
+- `mapping.txt` 负责类/方法/字段重映射；`usage.txt` 负责描述最终 APK 中哪些类/成员已被 R8 删除。  
+- `_jugg_fix` 生成链路会先对原始 `.class` 做基于 `usage.txt` 的 ASM compatibility stub 重写：保留已删方法的签名，但方法体改为默认返回/空实现，再继续执行 `D8 -> obfuscate() -> renameDexClassDeclaration()`。  
 - release 且 mapping 缺失时，系统会给出告警并按可用路径继续。
 
 ---
@@ -60,6 +64,7 @@
 - "release 增量后 NoSuchMethodError（_jugg_fix 类方法名未混淆）"：`_jugg_fix` DEX 的方法名/字段名未被混淆（如保持原始名 `d`），而增量 DEX 调用方使用混淆名（如 `a`），导致方法签名不匹配。修复：采用方案 A（obfuscate-then-rename），`generateJuggFixClasses()` 流程改为"D8 → `obfuscate()` → `renameDexClassDeclaration()`"。`renameDexClassDeclaration()` 仅重命名类声明（类名、方法声明 owner、字段声明 owner），不修改代码体内的方法调用和字段引用 owner，使 `_jugg_fix` 成为桥接类：声明名带后缀，内部调用仍指向原始混淆类。同时 `redirectClassMap` 的 redirect 目标改为"混淆后类名 + 后缀"（如 `a/b/c_jugg_fix`）。详见 `docs/task/jugg_fix_full_obfuscation_analysis.md`。
 - "release 增量后 ClassNotFoundException（_jugg_fix 产物路径不对）"：`generateJuggFixClasses()` 使用 D8 原始文件名（如 `LogUtil.dex`）作为输出路径，但 DEX 内部类经 obfuscate + renameDexClassDeclaration 后已变为 `La/b/c_jugg_fix;`，导致文件名与 DEX 内容不匹配。同时引发 `checkMaybeMinifiedRemoveClass` 误识别和运行时 ClassNotFoundException。修复：输出文件名改为从实际混淆后的类名推算（如 `a/b/c_jugg_fix.dex`）。详见 `docs/task/jugg_fix_full_obfuscation_analysis.md` §6.4。
 - "release 增量后 IllegalAccessError（_jugg_fix 写入原始类 final field）"：`_jugg_fix` 桥接类不应有 field 声明和 `<clinit>`。`<clinit>` 会写入原始类的 final static field（如 `LogUtil.a`），触发 `IllegalAccessError`。对 keep 类和混淆类都存在此风险。修复：`renameDexClassDeclaration()` 剥离所有 field 声明（`visitField` 返回 null）和 `<clinit>` 方法（`visitMethod` 对 `<clinit>` 返回 null）。详见 `docs/task/jugg_fix_full_obfuscation_analysis.md` §6.5。
+- "release 增量后 NoSuchMethodError（`_jugg_fix` 缺少 usage 已删方法）"：调用点仍被 class-level redirect 到 `_jugg_fix`，但若在 class 阶段直接删除 usage 命中的方法声明，运行时会因找不到静态/实例方法而崩溃。修复：`DexMinifyCompiler` 不再删声明，而是对命中的普通方法生成 compatibility stub，保留签名并把方法体改成默认返回/空实现，避免继续访问 release 已删成员。详见 `docs/task/jugg_fix_usage_txt_deleted_method_plan.md`。
 
 ---
 

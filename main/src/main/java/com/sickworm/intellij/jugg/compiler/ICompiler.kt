@@ -313,6 +313,8 @@ interface ICompileContext {
 
     val mappingFile get() = applicationModule?.buildPathInfo?.mappingFile
 
+    val usageFile get() = applicationModule?.buildPathInfo?.usageFile
+
     val isMinified get() = mappingFile?.exists() == true
 
     val tempModule: ModuleInfo

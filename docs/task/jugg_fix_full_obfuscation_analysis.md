@@ -273,3 +273,43 @@ class LogUtil_jugg_fix (声明)
   方法 a(String,String): 代码体调用 LogUtil.d() → 桥接到原始类
   方法 b(): 代码体调用 LogUtil.e() → 桥接到原始类
 ```
+
+### 6.6 已知限制：R8 接口/类成员移除导致 _jugg_fix NoSuchMethodError（2026-04-01）
+
+**问题现象**：
+```
+java.lang.NoSuchMethodError: No interface method d(Ljava/lang/String;Ljava/lang/String;)V
+in class Lcom/tencent/component/utils/LogUtil$b;
+	at com.tencent.component.utils.LogUtil_jugg_fix.d(LogUtil.java:47)
+```
+
+**分析**：
+
+这里不能简单下结论说“没有任何源码调用 `LogUtil.d()` / `LogUtil.v()`”。相反，源码仓库中可以直接搜到大量 `LogUtil.d(...)` 调用。真正的关键证据来自 **release 优化规则和 APK 产物**：
+
+1. `wemusic/proguard/proguard.cfg` 明确配置了：
+   - `-assumenosideeffects class com.tencent.component.utils.LogUtil { public static void v(...); public static void d(...); }`
+2. Guardsquare 官方手册对 `-assumenosideeffects` 的语义说明是：优化阶段可**直接移除**这类方法调用（如果返回值未被使用），而不是要求做方法内联。
+3. APK 中 `LogUtil` 保留了 `e / i / w / flush / getProxy / setProxy` 等方法，且这些方法的调用链仍是正常的 `invoke-static` / `invoke-interface`，**没有被展平为内联代码**。
+4. APK 中完全找不到对 `LogUtil.d(String,String)` / `LogUtil.v(String,String)` 的直接调用，也找不到对 `LogUtil$b.d(...)` / `LogUtil$b.v(...)` 的接口调用；同时 `LogUtil$b`（`LogProxy`）接口和 `LogUtil$a`（默认实现）里也只剩 `e / i / w / flush`。
+
+结合以上证据，更符合事实的解释是：
+
+- `LogUtil.d()` / `LogUtil.v()` 调用点先被 `-assumenosideeffects` 规则当作“无副作用调用”删除；
+- 调用点消失后，这两条调用链上的成员（`LogUtil.d/v`、`LogProxy.d/v`、默认实现中的 `d/v`）再被 shrink/tree-shaking 一并裁掉；
+- **不是**因为 R8 先把 `d/v` 做了多层内联，再删除方法定义。
+
+`_jugg_fix` 从原始 `.class` 文件（仍然包含完整的 `d`, `v` 方法实现）生成桥接类。这些方法内部调用了 `LogProxy.d()` / `LogProxy.v()` —— 但 release APK 中这些接口方法已被上述规则链删除，所以运行时会触发 `NoSuchMethodError`。
+
+`obfuscate()` 无法修复此问题：mapping 中 `LogProxy` 没有对应的方法映射条目，`mapMethod()` 查不到映射时只能保留原始方法名 `d` / `v`；但问题不是“名字没改对”，而是“APK 里成员已经不存在”。
+
+**根因（架构层面）**：
+
+`_jugg_fix` 桥接类基于**原始源码**生成，保留了源码里的完整方法图；而 release APK 则经过 `-assumenosideeffects + shrink` 后裁掉了整条 `d/v` 日志链。于是 `_jugg_fix` 与 APK 运行时成员集合发生了不兼容：桥接类仍会调用 `LogProxy.d/v()`，但 APK 中这些成员已不存在，最终 crash。
+
+这是 `_jugg_fix` 设计的已知边界——当 release 规则把某些调用链按“无副作用”直接裁掉时，基于原始源码生成的桥接类无法天然兼容该运行时。
+
+**影响范围**：仅影响以下条件同时满足的场景：
+1. 类被标记为 inline effected，需要生成 `_jugg_fix`
+2. 该类的方法调用了其他接口/类的成员
+3. 被调用的成员已被 R8 从 APK 中移除

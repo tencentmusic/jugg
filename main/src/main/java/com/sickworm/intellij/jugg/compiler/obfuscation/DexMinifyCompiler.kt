@@ -3,6 +3,16 @@ package com.sickworm.intellij.jugg.compiler.obfuscation
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.org.objectweb.asm.AnnotationVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
+import com.sickworm.intellij.jugg.org.objectweb.asm.Handle
+import com.sickworm.intellij.jugg.org.objectweb.asm.Label
+import com.sickworm.intellij.jugg.org.objectweb.asm.MethodVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
+import com.sickworm.intellij.jugg.org.objectweb.asm.Type
+import com.sickworm.intellij.jugg.org.objectweb.asm.TypePath
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
@@ -40,6 +50,8 @@ class DexMinifyCompiler(
     override val afterCompileOrderRange: IntRange = CompileOrder.afterMinify
 
     private lateinit var obfuscator: DexObfuscator
+    private var usageReader: R8UsageReader? = null
+    private var usageReaderCacheKey: String? = null
 
     override fun compile(task: CompileTask): CompileResult {
         initIfNeeded(task)?.let { failedResult ->
@@ -81,6 +93,7 @@ class DexMinifyCompiler(
             TimeLogger.end("load mapping file", logger)
         }
 
+        initUsageReader()
         return null
     }
 
@@ -255,11 +268,25 @@ class DexMinifyCompiler(
         tempDir.deleteRecursively()
         tempDir.mkdirs()
 
+        val strippedClassDir = File(tempDir, "stripped_class_input")
+        strippedClassDir.mkdirs()
+
         // Step 1: Convert original .class files to DEX (no renaming at this stage)
         val classFileList = minifyInfo.classFiles.map { (className, classFile) ->
             logger.debug("generateJuggFixClasses: Processing class $className from ${classFile.absolutePath}")
             logger.debug("generateJuggFixClasses: Class file exists: ${classFile.exists()}")
-            classFile
+            val originalBytes = classFile.readBytes()
+            val rewrittenBytes = usageReader?.let { reader ->
+                rewriteDeletedMethodsAsCompatibilityStubs(className, originalBytes, reader)
+            } ?: originalBytes
+            if (!rewrittenBytes.contentEquals(originalBytes)) {
+                val rewrittenClassFile = File(strippedClassDir, className.replace('.', '/') + ".class")
+                rewrittenClassFile.parentFile?.mkdirs()
+                rewrittenClassFile.writeBytes(rewrittenBytes)
+                rewrittenClassFile
+            } else {
+                classFile
+            }
         }
 
         if (classFileList.isEmpty()) {
@@ -382,4 +409,177 @@ class DexMinifyCompiler(
         return outputs
     }
 
+    private fun initUsageReader() {
+        val usageFile = context.usageFile
+        val newKey = usageFile?.takeIf { it.exists() }?.let { "${it.absolutePath}_${it.lastModified()}" }
+        if (newKey == null) {
+            usageReader = null
+            usageReaderCacheKey = null
+            logger.debug("No usage file found, skip _jugg_fix pruning.")
+            return
+        }
+        if (usageReader != null && usageReaderCacheKey == newKey) {
+            return
+        }
+
+        try {
+            TimeLogger.start("load usage file")
+            logger.debug("Loading usage file: ${usageFile.absolutePath}")
+            usageReader = R8UsageReader.fromFile(usageFile)
+            usageReaderCacheKey = newKey
+            TimeLogger.end("load usage file", logger)
+        } catch (e: Exception) {
+            usageReader = null
+            usageReaderCacheKey = null
+            logger.warn("Failed to parse usage file: ${usageFile.absolutePath}", e)
+        }
+    }
+
+    private fun rewriteDeletedMethodsAsCompatibilityStubs(
+        className: String,
+        classBytes: ByteArray,
+        usageReader: R8UsageReader,
+    ): ByteArray {
+        val removedMethods = usageReader.getRemovedMethods(className)
+        if (removedMethods.isEmpty()) {
+            return classBytes
+        }
+
+        var hasStubbedMethod = false
+        val classReader = ClassReader(classBytes)
+        val classWriter = ClassWriter(classReader, 0)
+        val classVisitor = object : ClassVisitor(Opcodes.ASM9, classWriter) {
+            override fun visitMethod(
+                access: Int,
+                name: String,
+                descriptor: String,
+                signature: String?,
+                exceptions: Array<out String>?
+            ): MethodVisitor? {
+                val parameterTypes = Type.getArgumentTypes(descriptor).map { it.toSourceTypeName() }
+                val shouldStub = name != "<init>" && name != "<clinit>" &&
+                    usageReader.isMethodRemoved(className, name, parameterTypes)
+                if (!shouldStub) {
+                    return super.visitMethod(access, name, descriptor, signature, exceptions)
+                }
+
+                hasStubbedMethod = true
+                logger.debug("Stubbed removed method for _jugg_fix input: $className#$name($parameterTypes)")
+                val stubAccess = access and Opcodes.ACC_ABSTRACT.inv() and Opcodes.ACC_NATIVE.inv()
+                val stubVisitor = super.visitMethod(stubAccess, name, descriptor, signature, exceptions)
+                    ?: return null
+                return createCompatibilityStubMethodVisitor(stubVisitor, stubAccess, descriptor)
+            }
+        }
+        classReader.accept(classVisitor, 0)
+        return if (hasStubbedMethod) classWriter.toByteArray() else classBytes
+    }
+
+    private fun createCompatibilityStubMethodVisitor(
+        delegate: MethodVisitor,
+        access: Int,
+        descriptor: String,
+    ): MethodVisitor {
+        return object : MethodVisitor(Opcodes.ASM9, delegate) {
+            override fun visitCode() = Unit
+            override fun visitFrame(type: Int, numLocal: Int, local: Array<out Any>?, numStack: Int, stack: Array<out Any>?) = Unit
+            override fun visitInsn(opcode: Int) = Unit
+            override fun visitIntInsn(opcode: Int, operand: Int) = Unit
+            override fun visitVarInsn(opcode: Int, varIndex: Int) = Unit
+            override fun visitTypeInsn(opcode: Int, type: String?) = Unit
+            override fun visitFieldInsn(opcode: Int, owner: String?, name: String?, descriptor: String?) = Unit
+            override fun visitMethodInsn(opcode: Int, owner: String?, name: String?, descriptor: String?, isInterface: Boolean) = Unit
+
+            @Deprecated("ASM compatibility override")
+            @Suppress("DEPRECATION")
+            override fun visitMethodInsn(opcode: Int, owner: String?, name: String?, descriptor: String?) = Unit
+            override fun visitInvokeDynamicInsn(name: String?, descriptor: String?, bootstrapMethodHandle: Handle?, vararg bootstrapMethodArguments: Any?) = Unit
+            override fun visitJumpInsn(opcode: Int, label: Label?) = Unit
+            override fun visitLabel(label: Label?) = Unit
+            override fun visitLdcInsn(value: Any?) = Unit
+            override fun visitIincInsn(varIndex: Int, increment: Int) = Unit
+            override fun visitTableSwitchInsn(min: Int, max: Int, dflt: Label?, vararg labels: Label?) = Unit
+            override fun visitLookupSwitchInsn(dflt: Label?, keys: IntArray?, labels: Array<out Label>?) = Unit
+            override fun visitMultiANewArrayInsn(descriptor: String?, numDimensions: Int) = Unit
+            override fun visitInsnAnnotation(typeRef: Int, typePath: TypePath?, descriptor: String?, visible: Boolean): AnnotationVisitor? = null
+            override fun visitTryCatchBlock(start: Label?, end: Label?, handler: Label?, type: String?) = Unit
+            override fun visitTryCatchAnnotation(typeRef: Int, typePath: TypePath?, descriptor: String?, visible: Boolean): AnnotationVisitor? = null
+            override fun visitLocalVariable(name: String?, descriptor: String?, signature: String?, start: Label?, end: Label?, index: Int) = Unit
+            override fun visitLocalVariableAnnotation(
+                typeRef: Int,
+                typePath: TypePath?,
+                start: Array<out Label>?,
+                end: Array<out Label>?,
+                index: IntArray?,
+                descriptor: String?,
+                visible: Boolean,
+            ): AnnotationVisitor? = null
+            override fun visitLineNumber(line: Int, start: Label?) = Unit
+            override fun visitMaxs(maxStack: Int, maxLocals: Int) = Unit
+
+            override fun visitEnd() {
+                emitCompatibilityStubBody(delegate, access, descriptor)
+                super.visitEnd()
+            }
+        }
+    }
+
+    private fun emitCompatibilityStubBody(methodVisitor: MethodVisitor, access: Int, descriptor: String) {
+        methodVisitor.visitCode()
+        val returnType = Type.getReturnType(descriptor)
+        when (returnType.sort) {
+            Type.VOID -> methodVisitor.visitInsn(Opcodes.RETURN)
+            Type.BOOLEAN, Type.BYTE, Type.CHAR, Type.SHORT, Type.INT -> {
+                methodVisitor.visitInsn(Opcodes.ICONST_0)
+                methodVisitor.visitInsn(Opcodes.IRETURN)
+            }
+            Type.FLOAT -> {
+                methodVisitor.visitInsn(Opcodes.FCONST_0)
+                methodVisitor.visitInsn(Opcodes.FRETURN)
+            }
+            Type.LONG -> {
+                methodVisitor.visitInsn(Opcodes.LCONST_0)
+                methodVisitor.visitInsn(Opcodes.LRETURN)
+            }
+            Type.DOUBLE -> {
+                methodVisitor.visitInsn(Opcodes.DCONST_0)
+                methodVisitor.visitInsn(Opcodes.DRETURN)
+            }
+            else -> {
+                methodVisitor.visitInsn(Opcodes.ACONST_NULL)
+                methodVisitor.visitInsn(Opcodes.ARETURN)
+            }
+        }
+        methodVisitor.visitMaxs(getCompatibilityStubMaxStack(returnType), getCompatibilityStubLocalCount(access, descriptor))
+    }
+
+    private fun getCompatibilityStubMaxStack(returnType: Type): Int {
+        return when (returnType.sort) {
+            Type.VOID -> 0
+            Type.LONG, Type.DOUBLE -> 2
+            else -> 1
+        }
+    }
+
+    private fun getCompatibilityStubLocalCount(access: Int, descriptor: String): Int {
+        val instanceSlot = if ((access and Opcodes.ACC_STATIC) == 0) 1 else 0
+        return instanceSlot + Type.getArgumentTypes(descriptor).sumOf { it.size }
+    }
+
+    private fun Type.toSourceTypeName(): String {
+        return when (sort) {
+            Type.BOOLEAN -> "boolean"
+            Type.BYTE -> "byte"
+            Type.CHAR -> "char"
+            Type.DOUBLE -> "double"
+            Type.FLOAT -> "float"
+            Type.INT -> "int"
+            Type.LONG -> "long"
+            Type.SHORT -> "short"
+            Type.VOID -> "void"
+            Type.ARRAY -> elementType.toSourceTypeName() + "[]".repeat(dimensions)
+            Type.OBJECT -> className
+            else -> descriptor
+        }
+    }
 }
