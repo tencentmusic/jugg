@@ -150,11 +150,11 @@ com.example.LogUtil${'$'}1 -> a.b.d:
     }
 
     /**
-     * renameDexClassDeclaration should also rename field declarations' owner
-     * but NOT field references in code body.
+     * renameDexClassDeclaration should strip field declarations but preserve
+     * field references in code body pointing to the original class.
      */
     @Test
-    fun `renameDexClassDeclaration should rename field declaration owner but not field refs in code`() {
+    fun `renameDexClassDeclaration should strip field declarations but preserve field refs in code`() {
         val obfuscator = DexObfuscator.fromMappingString(MAPPING_CONTENT)
 
         // Create DEX: class a.b.c with a field and a method that accesses the field
@@ -204,13 +204,10 @@ com.example.LogUtil${'$'}1 -> a.b.d:
         // Class declaration renamed
         assertEquals("La/b/c_jugg_fix;", classNode.className)
 
-        // Field declaration owner should be renamed
-        val field = classNode.fields.find { it.field.name == "c" }
-        assertNotNull("Field 'c' should exist", field)
-        assertEquals(
-            "Field declaration owner should be renamed",
-            "La/b/c_jugg_fix;",
-            field!!.field.owner
+        // Field declarations should be stripped (bridge class has no own fields)
+        assertTrue(
+            "Field declarations should be stripped from bridge class",
+            classNode.fields == null || classNode.fields.isEmpty()
         )
 
         // BUT field reference in code should still point to original class
@@ -595,6 +592,309 @@ com.example.LogUtil${'$'}1 -> a.b.d:
                 declaredMethods.contains(target)
             )
         }
+    }
+
+    // ==================== Bridge class stripping tests ====================
+
+    /**
+     * renameDexClassDeclaration should strip field declarations from _jugg_fix class.
+     *
+     * _jugg_fix is a bridge class: its methods delegate to the original class.
+     * It should NOT have its own field declarations because:
+     *   1. <clinit> would attempt to initialize fields on the original class,
+     *      causing IllegalAccessError for final fields
+     *   2. Bridge methods already reference original class fields via code body
+     *      (which renameDexClassDeclaration preserves as-is)
+     */
+    @Test
+    fun `renameDexClassDeclaration should strip field declarations from bridge class`() {
+        val obfuscator = DexObfuscator.fromMappingString(MAPPING_CONTENT)
+
+        // Create DEX with static final field + instance field
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "La/b/c;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Static final field (like DEFAULT_PROXY in LogUtil)
+        classVisitor.visitField(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_STATIC or DexConstants.ACC_FINAL,
+            Field("La/b/c;", "a", "Ljava/lang/Object;"),
+            null
+        ).visitEnd()
+
+        // Instance field
+        classVisitor.visitField(
+            DexConstants.ACC_PRIVATE,
+            Field("La/b/c;", "c", "Ljava/lang/String;"),
+            null
+        ).visitEnd()
+
+        // Method that accesses the field (should be preserved)
+        val methodVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC,
+            Method("La/b/c;", "a", Proto(arrayOf("Ljava/lang/String;", "Ljava/lang/String;"), "V"))
+        )
+        val codeVisitor = methodVisitor.visitCode()
+        codeVisitor.visitRegister(3)
+        codeVisitor.visitFieldStmt(
+            Op.SGET_OBJECT, 0, 0,
+            Field("La/b/c;", "a", "Ljava/lang/Object;")
+        )
+        codeVisitor.visitStmt0R(Op.RETURN_VOID)
+        codeVisitor.visitEnd()
+        methodVisitor.visitEnd()
+
+        classVisitor.visitEnd()
+        val dexBytes = dexWriter.toByteArray()
+
+        val renamedBytes = obfuscator.renameDexClassDeclaration(
+            dexBytes, "La/b/c;", "La/b/c_jugg_fix;"
+        )
+
+        val dexNode = readDex(renamedBytes)
+        val classNode = dexNode.clzs[0]
+
+        // Class should be renamed
+        assertEquals("La/b/c_jugg_fix;", classNode.className)
+
+        // Fields should be stripped (bridge class has no own fields)
+        assertTrue(
+            "Bridge class should have no field declarations",
+            classNode.fields == null || classNode.fields.isEmpty()
+        )
+
+        // Method should still exist with field reference in code body preserved
+        val method = classNode.methods.find { it.method.name == "a" }
+        assertNotNull("Method should still exist", method)
+    }
+
+    /**
+     * renameDexClassDeclaration should strip <clinit> method from _jugg_fix class.
+     *
+     * <clinit> initializes static fields. Since _jugg_fix has no own fields
+     * (they are stripped), <clinit> would write to the original class's final
+     * fields, causing IllegalAccessError at runtime.
+     *
+     * This test reproduces the exact crash scenario:
+     *   LogUtil_jugg_fix.<clinit> writes to LogUtil.a (a final field)
+     *   → IllegalAccessError
+     */
+    @Test
+    fun `renameDexClassDeclaration should strip clinit from bridge class`() {
+        val obfuscator = DexObfuscator.fromMappingString(MAPPING_CONTENT)
+
+        // Create DEX with <clinit> and regular methods
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "La/b/c;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Static final field
+        classVisitor.visitField(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_STATIC or DexConstants.ACC_FINAL,
+            Field("La/b/c;", "a", "Ljava/lang/Object;"),
+            null
+        ).visitEnd()
+
+        // <clinit> initializes the field
+        val clinitVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_STATIC or DexConstants.ACC_CONSTRUCTOR,
+            Method("La/b/c;", "<clinit>", Proto(emptyArray(), "V"))
+        )
+        val clinitCode = clinitVisitor.visitCode()
+        clinitCode.visitRegister(1)
+        // new-instance + sput-object to La/b/c;.a
+        clinitCode.visitFieldStmt(
+            Op.SPUT_OBJECT, 0, 0,
+            Field("La/b/c;", "a", "Ljava/lang/Object;")
+        )
+        clinitCode.visitStmt0R(Op.RETURN_VOID)
+        clinitCode.visitEnd()
+        clinitVisitor.visitEnd()
+
+        // Regular method "a" (should be preserved)
+        val methodA = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_STATIC,
+            Method("La/b/c;", "a", Proto(arrayOf("Ljava/lang/String;", "Ljava/lang/String;"), "V"))
+        )
+        methodA.visitCode().apply {
+            visitRegister(2)
+            visitStmt0R(Op.RETURN_VOID)
+            visitEnd()
+        }
+        methodA.visitEnd()
+
+        // <init> (should be preserved — constructors are needed)
+        val initVisitor = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_CONSTRUCTOR,
+            Method("La/b/c;", "<init>", Proto(emptyArray(), "V"))
+        )
+        initVisitor.visitCode().apply {
+            visitRegister(1)
+            visitMethodStmt(
+                Op.INVOKE_DIRECT, intArrayOf(0),
+                Method("Ljava/lang/Object;", "<init>", Proto(emptyArray(), "V"))
+            )
+            visitStmt0R(Op.RETURN_VOID)
+            visitEnd()
+        }
+        initVisitor.visitEnd()
+
+        classVisitor.visitEnd()
+        val dexBytes = dexWriter.toByteArray()
+
+        val renamedBytes = obfuscator.renameDexClassDeclaration(
+            dexBytes, "La/b/c;", "La/b/c_jugg_fix;"
+        )
+
+        val dexNode = readDex(renamedBytes)
+        val classNode = dexNode.clzs[0]
+
+        assertEquals("La/b/c_jugg_fix;", classNode.className)
+
+        // <clinit> should be stripped
+        val clinitMethod = classNode.methods.find { it.method.name == "<clinit>" }
+        assertNull(
+            "<clinit> should be stripped from bridge class to prevent " +
+                "IllegalAccessError when writing to original class's final fields",
+            clinitMethod
+        )
+
+        // Regular method "a" should still exist
+        val methodAResult = classNode.methods.find {
+            it.method.name == "a" && it.method.proto.parameterTypes.size == 2
+        }
+        assertNotNull("Regular method 'a' should be preserved", methodAResult)
+
+        // <init> should still exist
+        val initMethod = classNode.methods.find { it.method.name == "<init>" }
+        assertNotNull("<init> should be preserved", initMethod)
+
+        // Fields should be stripped too
+        assertTrue(
+            "Fields should be stripped",
+            classNode.fields == null || classNode.fields.isEmpty()
+        )
+    }
+
+    /**
+     * Full pipeline test for keep class scenario:
+     *   Keep class (LogUtil -> LogUtil) with obfuscated members
+     *   _jugg_fix should have obfuscated methods but NO fields and NO <clinit>
+     */
+    @Test
+    fun `full pipeline for keep class should produce jugg_fix without fields and clinit`() {
+        // Mapping where class name stays the same (keep rule),
+        // but members are obfuscated
+        val keepMapping = """com.example.KeepClass -> com.example.KeepClass:
+    com.example.KeepClass${'$'}Inner DEFAULT -> a
+    1:1:void doWork(java.lang.String,java.lang.String):0:0 -> a
+    1:1:void helper():0:0 -> b
+com.example.KeepClass${'$'}Inner -> com.example.KeepClass${'$'}a:
+    1:1:void run():0:0 -> run"""
+
+        val obfuscator = DexObfuscator.fromMappingString(keepMapping)
+
+        // Create DEX with <clinit>, fields, and methods
+        val dexWriter = DexFileWriter()
+        val classVisitor = dexWriter.visit(
+            DexConstants.ACC_PUBLIC,
+            "Lcom/example/KeepClass;",
+            "Ljava/lang/Object;",
+            null
+        )
+
+        // Static final field
+        classVisitor.visitField(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_STATIC or DexConstants.ACC_FINAL,
+            Field("Lcom/example/KeepClass;", "DEFAULT", "Lcom/example/KeepClass\$Inner;"),
+            null
+        ).visitEnd()
+
+        // <clinit>
+        val clinit = classVisitor.visitMethod(
+            DexConstants.ACC_STATIC or DexConstants.ACC_CONSTRUCTOR,
+            Method("Lcom/example/KeepClass;", "<clinit>", Proto(emptyArray(), "V"))
+        )
+        clinit.visitCode().apply {
+            visitRegister(1)
+            visitFieldStmt(
+                Op.SPUT_OBJECT, 0, 0,
+                Field("Lcom/example/KeepClass;", "DEFAULT", "Lcom/example/KeepClass\$Inner;")
+            )
+            visitStmt0R(Op.RETURN_VOID)
+            visitEnd()
+        }
+        clinit.visitEnd()
+
+        // Method doWork(String,String)V
+        val doWork = classVisitor.visitMethod(
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_STATIC,
+            Method("Lcom/example/KeepClass;", "doWork",
+                Proto(arrayOf("Ljava/lang/String;", "Ljava/lang/String;"), "V"))
+        )
+        doWork.visitCode().apply {
+            visitRegister(3)
+            visitFieldStmt(
+                Op.SGET_OBJECT, 0, 0,
+                Field("Lcom/example/KeepClass;", "DEFAULT", "Lcom/example/KeepClass\$Inner;")
+            )
+            visitStmt0R(Op.RETURN_VOID)
+            visitEnd()
+        }
+        doWork.visitEnd()
+
+        classVisitor.visitEnd()
+        dexWriter.visitEnd()
+        val originalDex = dexWriter.toByteArray()
+
+        // Step 1: obfuscate
+        val obfuscatedBytes = obfuscator.obfuscate(originalDex)
+        assertNotNull("obfuscate should return non-null (inner class reference remapped)", obfuscatedBytes)
+
+        // Step 2: rename class declaration
+        val renamedBytes = obfuscator.renameDexClassDeclaration(
+            obfuscatedBytes!!,
+            "Lcom/example/KeepClass;",
+            "Lcom/example/KeepClass_jugg_fix;"
+        )
+
+        val dexNode = readDex(renamedBytes)
+        val classNode = dexNode.clzs[0]
+
+        // Class should be renamed
+        assertEquals("Lcom/example/KeepClass_jugg_fix;", classNode.className)
+
+        // No fields
+        assertTrue(
+            "Keep-class _jugg_fix should have no fields",
+            classNode.fields == null || classNode.fields.isEmpty()
+        )
+
+        // No <clinit>
+        assertNull(
+            "Keep-class _jugg_fix should have no <clinit>",
+            classNode.methods.find { it.method.name == "<clinit>" }
+        )
+
+        // doWork method should still exist (with obfuscated name 'a')
+        val doWorkMethod = classNode.methods.find {
+            it.method.name == "a" && it.method.proto.parameterTypes.size == 2
+        }
+        assertNotNull("doWork -> 'a' method should exist", doWorkMethod)
+
+        // Method owner should be renamed
+        assertEquals(
+            "Lcom/example/KeepClass_jugg_fix;",
+            doWorkMethod!!.method.owner
+        )
     }
 
     // ==================== Helper methods ====================

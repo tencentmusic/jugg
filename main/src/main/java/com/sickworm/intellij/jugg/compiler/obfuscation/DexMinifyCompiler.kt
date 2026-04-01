@@ -293,67 +293,84 @@ class DexMinifyCompiler(
                 try {
                     val inputBytes = dexFile.readBytes()
 
+                    // Match this DEX file to a class name from minifyInfo.
+                    // D8 --file-per-class output naming varies:
+                    //   - With directory input: com/tencent/utils/LogUtil.dex (relative path)
+                    //   - With single .class file input: LogUtil.dex (simple name only)
+                    // Use relative path from dexOutputDir for full-path match, fallback to
+                    // simple name match (className ends with dex file's simple name).
+                    val dexRelativePath = dexFile.relativeTo(dexOutputDir).path
+                        .removeSuffix(".dex").replace(File.separatorChar, '/')
+                    val dexSimpleName = dexFile.nameWithoutExtension
+
+                    val className = minifyInfo.classFiles.keys.firstOrNull { className ->
+                        val classInternal = className.replace('.', '/')
+                        // Full path match: e.g., dexRelativePath="com/tencent/utils/LogUtil"
+                        // matches className="com.tencent.utils.LogUtil"
+                        classInternal == dexRelativePath
+                    } ?: minifyInfo.classFiles.keys.firstOrNull { className ->
+                        // Fallback: simple name match for single-file D8 output.
+                        // e.g., dexSimpleName="LogUtil" matches className ending with "LogUtil"
+                        val classSimpleName = className.substringAfterLast('.')
+                        classSimpleName == dexSimpleName
+                    }
+                    logger.debug("className match: dexFile=${dexFile.name}, " +
+                        "dexRelativePath=$dexRelativePath, className=$className")
+
                     // Step 2: obfuscate() — remap all names to match APK mapping.
                     // This maps class names, method names, field names, and internal
                     // references (e.g., inner class LogUtil$1 -> a.b.d).
                     // The class itself (e.g., LogUtil -> a.b.c) is also fully obfuscated.
                     val obfuscatedBytes = obfuscator.obfuscate(inputBytes)
+                    logger.debug("obfuscate result: dexFile=${dexFile.name}, " +
+                        "obfuscatedBytes=${if (obfuscatedBytes != null) "${obfuscatedBytes.size} bytes" else "null"}")
 
-                    if (obfuscatedBytes != null) {
+                    // Compute the correct output path based on obfuscated + suffix class name.
+                    // The output file path must reflect the actual DEX class name so that:
+                    //   1. deployed/classes/ stores it at the correct path (e.g., a/b/c_jugg_fix.dex)
+                    //   2. The device ClassLoader can find it at runtime
+                    //   3. Next incremental build's parseDex sees the correct class name
+                    val outputRelativePath: String
+                    val finalBytes: ByteArray
+
+                    if (obfuscatedBytes != null && className != null) {
                         // Step 3: renameDexClassDeclaration() — rename only the class
                         // declaration from a.b.c to a.b.c_jugg_fix. Internal method call
                         // owners and field access owners remain as a.b.c (the original
                         // obfuscated class), making _jugg_fix a bridge/proxy.
-                        val className = minifyInfo.classFiles.keys.firstOrNull { className ->
-                            // Match this DEX file to a class name from minifyInfo
-                            dexFile.nameWithoutExtension.replace('.', '/').contains(
-                                className.replace('.', '/')
-                            )
-                        }
-
-                        val finalBytes = if (className != null) {
-                            val originalInternal = className.replace('.', '/')
-                            val obfuscatedInternal = obfuscator.getObfuscatedClassName(className)
-                                ?.replace('.', '/') ?: originalInternal
-                            val oldSig = "L$obfuscatedInternal;"
-                            val newSig = "L${obfuscatedInternal}${DexObfuscator.SUFFIX};"
-                            logger.debug("Renaming class declaration: $oldSig -> $newSig")
-                            obfuscator.renameDexClassDeclaration(obfuscatedBytes, oldSig, newSig)
-                        } else {
-                            obfuscatedBytes
-                        }
-
-                        val outputFile = File(outputDir, dexFile.name)
-                        outputFile.parentFile?.mkdirs()
-                        outputFile.writeBytes(finalBytes)
-                        logger.debug("Generated _jugg_fix DEX (obfuscate+rename): ${dexFile.name}")
-                    } else {
+                        val originalInternal = className.replace('.', '/')
+                        val obfuscatedInternal = obfuscator.getObfuscatedClassName(className)
+                            ?.replace('.', '/') ?: originalInternal
+                        val oldSig = "L$obfuscatedInternal;"
+                        val newSig = "L${obfuscatedInternal}${DexObfuscator.SUFFIX};"
+                        logger.debug("Renaming class declaration: $oldSig -> $newSig")
+                        finalBytes = obfuscator.renameDexClassDeclaration(obfuscatedBytes, oldSig, newSig)
+                        // Output path uses the obfuscated class name + suffix
+                        outputRelativePath = obfuscatedInternal + DexObfuscator.SUFFIX + ".dex"
+                    } else if (obfuscatedBytes != null) {
+                        // Obfuscated but couldn't match to a class name — use obfuscated bytes as-is
+                        finalBytes = obfuscatedBytes
+                        outputRelativePath = dexFile.name
+                    } else if (className != null) {
                         // No mapping applied — class has no obfuscation mapping.
                         // Still need to rename class declaration with suffix.
-                        val className = minifyInfo.classFiles.keys.firstOrNull { className ->
-                            dexFile.nameWithoutExtension.replace('.', '/').contains(
-                                className.replace('.', '/')
-                            )
-                        }
-
-                        val finalBytes = if (className != null) {
-                            val internalName = className.replace('.', '/')
-                            val oldSig = "L$internalName;"
-                            val newSig = "L${internalName}${DexObfuscator.SUFFIX};"
-                            logger.debug("Renaming class declaration (no mapping): $oldSig -> $newSig")
-                            obfuscator.renameDexClassDeclaration(inputBytes, oldSig, newSig)
-                        } else {
-                            inputBytes
-                        }
-
-                        val outputFile = File(outputDir, dexFile.name)
-                        outputFile.parentFile?.mkdirs()
-                        outputFile.writeBytes(finalBytes)
-                        logger.debug("Generated _jugg_fix DEX (rename only): ${dexFile.name}")
+                        val internalName = className.replace('.', '/')
+                        val oldSig = "L$internalName;"
+                        val newSig = "L${internalName}${DexObfuscator.SUFFIX};"
+                        logger.debug("Renaming class declaration (no mapping): $oldSig -> $newSig")
+                        finalBytes = obfuscator.renameDexClassDeclaration(inputBytes, oldSig, newSig)
+                        // Output path uses the original class name + suffix (no obfuscation)
+                        outputRelativePath = internalName + DexObfuscator.SUFFIX + ".dex"
+                    } else {
+                        finalBytes = inputBytes
+                        outputRelativePath = dexFile.name
                     }
 
-                    val outputFile = File(outputDir, dexFile.name)
+                    val outputFile = File(outputDir, outputRelativePath)
+                    outputFile.parentFile?.mkdirs()
+                    outputFile.writeBytes(finalBytes)
                     outputs.add(CompileOutput(CompileOutput.Type.Dex, outputFile, outputDir))
+                    logger.debug("Generated _jugg_fix DEX: ${dexFile.name} -> $outputRelativePath")
                 } catch (e: Exception) {
                     logger.warn("Failed to process _jugg_fix DEX: ${dexFile.name}", e)
                 }

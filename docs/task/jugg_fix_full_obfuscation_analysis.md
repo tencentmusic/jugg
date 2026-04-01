@@ -193,11 +193,83 @@ Step 3（修改后）: obfuscator.obfuscateAsOriginalClass(dexBytes, "_jugg_fix"
 
 `main/src/test/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexObfuscatorJuggFixFullObfuscationTest.kt`
 
-7 个测试用例覆盖：
+10 个测试用例覆盖：
 1. `renameDexClassDeclaration` 仅重命名类声明，不修改自引用
-2. `renameDexClassDeclaration` 重命名字段声明 owner，不修改代码体字段引用
+2. `renameDexClassDeclaration` 剥离字段声明，但保留代码体字段引用指向原始类
 3. `renameDexClassDeclaration` 不影响对其他类的引用
 4. 完整流水线（D8→obfuscate→rename）产出的 `_jugg_fix` 自引用指向原始混淆类
 5. `obfuscateWithInlineRedirect` 的 redirect 目标为混淆类名 + 后缀
 6. 无 mapping 条目的类使用原始名 + 后缀
 7. 增量 DEX 调用签名与 `_jugg_fix` 声明方法签名一致性验证
+8. `renameDexClassDeclaration` 剥离所有 field 声明（桥接类无自有 field）
+9. `renameDexClassDeclaration` 剥离 `<clinit>` 方法（防止写入原始类 final field）
+10. 完整流水线（keep 类场景）产出的 `_jugg_fix` 无 field、无 `<clinit>`、方法正确混淆
+
+### 6.4 Bug Fix: _jugg_fix 产物输出路径修复（2026-03-30）
+
+**问题现象**：
+1. `checkMaybeMinifiedRemoveClass` 误识别 `_jugg_fix` 类为 removed class
+2. 产物路径 `deployed/classes/LogUtil.dex`，名字和路径都不对（应为 `a/b/c_jugg_fix.dex`）
+3. 运行时 `ClassNotFoundException: com.tencent.component.utils.LogUtil_jugg_fix`
+
+**根因（两层 bug）**：
+
+1. **className 匹配方向反了**：`dexFile.nameWithoutExtension.contains(className)` 中，D8 对单个 .class 文件输入时输出的 DEX 文件名只是简单名（如 `LogUtil.dex`），而 className 是全限定名（如 `com.tencent.component.utils.LogUtil`）。`"LogUtil".contains("com/tencent/component/utils/LogUtil")` 为 false，导致 className 始终匹配失败。
+2. **输出文件名用了 D8 原始文件名**：`File(outputDir, dexFile.name)` 使用 D8 生成的原始文件名（如 `LogUtil.dex`），但 DEX 内部类经过 obfuscate + renameDexClassDeclaration 后已变为 `La/b/c_jugg_fix;`，导致文件名与 DEX 内容不匹配。
+
+由于 className 匹配失败，obfuscate/rename 分支全部跳过，走到 else 兜底分支，输出原始未混淆的 DEX 文件。
+
+**修复**：
+1. className 匹配改为：先用 DEX 文件相对路径精确匹配全限定名，再用简单名回退匹配（`className.substringAfterLast('.') == dexSimpleName`）
+2. 输出文件名改为从实际混淆后的类名推算：
+   - 有 mapping：`obfuscatedInternal + SUFFIX + ".dex"`，如 `a/b/c_jugg_fix.dex`
+   - 无 mapping：`internalName + SUFFIX + ".dex"`，如 `com/example/KeepClass_jugg_fix.dex`
+
+**三个问题均由此修复解决**：
+- 问题 2&3：文件路径正确后，`deployed/classes/` 存储正确，设备上 ClassLoader 可找到类
+- 问题 1：修复后 `_jugg_fix` DEX 内部引用指向 `La/b/c;`（DB 中存在），不再被误识别为 removed class
+
+### 6.5 Bug Fix: _jugg_fix 桥接类 field/clinit 剥离（2026-03-30）
+
+**问题现象**：
+1. `_jugg_fix` 类名未混淆（如 `com/tencent/component/utils/LogUtil_jugg_fix` 而非 `xxx/fjz_jugg_fix`）——这在 keep 类场景下是**正确行为**，因为原始类名本身未被混淆
+2. 方法调用引用了未混淆的类名 `com.tencent.component.utils.LogUtil`——桥接类代码体中引用原始类是**设计意图**
+3. **成员变量声明使用了 `com.tencent.component.utils.LogUtil.a`**（原始类的 final field），`_jugg_fix` 的 `<clinit>` 试图写入该 field → `IllegalAccessError`
+
+**运行时 crash**：
+```
+java.lang.IllegalAccessError: Final field 'com.tencent.component.utils.LogUtil.a' 
+cannot be written to by method 'void com.tencent.component.utils.LogUtil_jugg_fix.<clinit>()'
+```
+
+**根因**：
+
+`renameDexClassDeclaration()` 的设计是将类声明和方法/字段声明 owner 重命名为 `_jugg_fix`，但保留代码体中的引用指向原始类。对于**混淆了类名的场景**（如 `LogUtil -> a.b.c`），这是正确的：
+
+- field 声明 owner: `La/b/c_jugg_fix;`
+- `<clinit>` 中 sput: `La/b/c;.a` — 写入 APK 中真实存在的 `a.b.c` 类的 field（可能仍有问题）
+
+但对于 **keep 住的类**（`LogUtil -> LogUtil`），问题更严重：
+
+- field 声明 owner: `LogUtil_jugg_fix`
+- `<clinit>` 中 sput: `LogUtil.a` — 从 `LogUtil_jugg_fix` 类写入 `LogUtil` 的 `final` field → **IllegalAccessError**
+
+根本原因：`_jugg_fix` 是**桥接类**，不应该有自己的 field 声明和 `<clinit>`：
+- 桥接类的方法通过代码体引用原始类的 field（owner 保持原始类名），这是正确的
+- 桥接类不需要自己拥有 field，也不需要初始化它们
+- `<clinit>` 写入其他类的 final field 在 Android 运行时是非法的
+
+**修复**：修改 `renameDexClassDeclaration()` 在生成桥接类时：
+1. **剥离所有 field 声明**（`visitField` 返回 null）
+2. **剥离 `<clinit>` 方法**（`visitMethod` 对 `<clinit>` 返回 null）
+3. 保留 `<init>` 和所有普通方法
+
+修复后的 `_jugg_fix` DEX 结构：
+```
+class LogUtil_jugg_fix (声明)
+  fields: (无)
+  <clinit>: (无)
+  <init>: 保留（构造器可能仍被需要）
+  方法 a(String,String): 代码体调用 LogUtil.d() → 桥接到原始类
+  方法 b(): 代码体调用 LogUtil.e() → 桥接到原始类
+```

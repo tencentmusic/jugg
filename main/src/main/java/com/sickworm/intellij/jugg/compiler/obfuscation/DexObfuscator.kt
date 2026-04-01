@@ -828,6 +828,7 @@ class DexObfuscator(mappingReader: R8MappingReader) {
 
     /**
      * Rename only the class declaration in a DEX file, preserving all internal references.
+     * Also strips field declarations and <clinit> to produce a valid bridge class.
      *
      * This is the key method for Plan A (obfuscate-then-rename). After obfuscation,
      * the _jugg_fix class must be a bridge/proxy whose internal method calls still
@@ -838,7 +839,12 @@ class DexObfuscator(mappingReader: R8MappingReader) {
      * What gets renamed (declaration level):
      *   - Class declaration (visit() className)
      *   - Method declaration owners (visitMethod() method.owner)
-     *   - Field declaration owners (visitField() field.owner)
+     *
+     * What is stripped (bridge class semantics):
+     *   - Field declarations: _jugg_fix has no own fields; methods access
+     *     the original class's fields via code body references (preserved as-is).
+     *   - <clinit>: static initializer would write to the original class's
+     *     final fields, causing IllegalAccessError at runtime.
      *
      * What is NOT renamed (code body references):
      *   - Method call owners in visitMethodStmt()
@@ -871,17 +877,22 @@ class DexObfuscator(mappingReader: R8MappingReader) {
                 val classVisitor = super.visit(accessFlags, renamedClassName, superClass, interfaceNames)
 
                 return object : DexClassVisitor(classVisitor) {
-                    override fun visitField(accessFlags: Int, field: Field, value: Any?): DexFieldVisitor {
-                        // Rename field declaration owner
-                        val renamedField = if (field.owner == oldClassName) {
-                            Field(newClassName, field.name, field.type)
-                        } else {
-                            field
-                        }
-                        return super.visitField(accessFlags, renamedField, value)
+                    override fun visitField(accessFlags: Int, field: Field, value: Any?): DexFieldVisitor? {
+                        // Strip all field declarations from bridge class.
+                        // _jugg_fix methods access the original class's fields via
+                        // code body references (owner remains the original class).
+                        // Having own field declarations would cause <clinit> to write
+                        // to the original class's final fields -> IllegalAccessError.
+                        return null
                     }
 
-                    override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor {
+                    override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor? {
+                        // Strip <clinit> — static initializer writes to original class's
+                        // final fields which is illegal from a different class.
+                        if (method.name == "<clinit>") {
+                            return null
+                        }
+
                         // Rename method declaration owner
                         val renamedMethod = if (method.owner == oldClassName) {
                             Method(newClassName, method.name, method.proto)
