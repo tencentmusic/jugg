@@ -16,27 +16,37 @@ tasks.withType(Jar).configureEach {
     }
 }
 
+def demoProjectZipTask = tasks.register('demoProjectZip', Zip) {
+    it.group = 'distribution'
+    it.description = 'Zip android_demo_project excluding build dirs'
+    it.archiveFileName.set('demo_project.zip')
+    it.destinationDirectory.set(layout.buildDirectory.dir('demo'))
+    def demoProjectDir = file("${rootProject.projectDir}/android_demo_project")
+    it.from(demoProjectDir) {
+        exclude '**/build/**'
+        into 'demo_project'
+    }
+}
+
 // Customize the distribution:
-// - Include demo scripts and README under demo/
-// - Add demo_project.zip containing the android_demo_project (excluding all build directories)
+// - Include debug demo assets under demo/
+// - Include release demo assets under demo_release/
+// - Add demo_project.zip for both demos so the unpacked distribution can run standalone
 distributions {
     main {
         contents {
             from("${projectDir}/src/demo") {
                 into('demo')
             }
-            from(tasks.register('demoProjectZip', Zip) {
-                it.group = 'distribution'
-                it.description = 'Zip android_demo_project excluding build dirs'
-                it.archiveFileName.set('demo_project.zip')
-                it.destinationDirectory.set(layout.buildDirectory.dir('demo'))
-                def demoProjectDir = file("${rootProject.projectDir}/android_demo_project")
-                it.from(demoProjectDir) {
-                    exclude '**/build/**'
-                    into 'demo_project'
-                }
-            }.flatMap { it.archiveFile }) {
+            from(demoProjectZipTask.flatMap { it.archiveFile }) {
                 into('demo')
+            }
+
+            from("${projectDir}/src/demo_release") {
+                into('demo_release')
+            }
+            from(demoProjectZipTask.flatMap { it.archiveFile }) {
+                into('demo_release')
             }
         }
     }
@@ -65,35 +75,34 @@ def unzipDistTask = tasks.register('unzipDistZip') {
     }
 }
 
-// Post-process: open the demo directory in the unzipped distribution
-def openDemoTask = tasks.register('openDemoDir') {
+// Post-process: open the unzipped distribution root so both demo directories are visible
+def openDistRootTask = tasks.register('openDistRootDir') {
     group = 'distribution'
-    description = 'Open the demo directory of the unzipped distribution'
+    description = 'Open the root directory of the unzipped distribution'
     dependsOn(unzipDistTask)
     doLast {
         def distDir = layout.buildDirectory.dir('distributions').get().asFile
-        def demoDir = new File(distDir, "${project.name}/demo")
-        if (!demoDir.exists()) {
-            throw new GradleException("Demo directory not found: ${demoDir}")
+        def targetDir = new File(distDir, project.name)
+        if (!targetDir.exists()) {
+            throw new GradleException("Distribution directory not found: ${targetDir}")
         }
         def osName = System.getProperty('os.name').toLowerCase()
         if (osName.contains('mac')) {
             project.exec {
-                commandLine 'open', demoDir.absolutePath
+                commandLine 'open', targetDir.absolutePath
             }
         } else if (osName.contains('win')) {
             project.exec {
-                commandLine 'cmd', '/c', 'start', demoDir.absolutePath
+                commandLine 'cmd', '/c', 'start', targetDir.absolutePath
             }
         } else {
-            // Linux and others
             project.exec {
-                commandLine 'xdg-open', demoDir.absolutePath
+                commandLine 'xdg-open', targetDir.absolutePath
             }
         }
-        println("Opened demo directory: ${demoDir.absolutePath}")
+        println("Opened distribution directory: ${targetDir.absolutePath}")
     }
 }
 
-tasks.named('distZip').configure { finalizedBy(unzipDistTask, openDemoTask) }
+tasks.named('distZip').configure { finalizedBy(unzipDistTask, openDistRootTask) }
 // Java compatibility is inherited from the module (11)
