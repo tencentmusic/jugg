@@ -140,13 +140,14 @@ data class ModuleBuildPathInfo(
     val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
     /** after AGP 4.1.1, R.class not storage in buildClassPath */
 
-    private val rFilePathDir get() = File(
-        buildDir,
-        "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$buildVariant"
-    )
+    // AGP 9.0+ uses compile_and_runtime_r_class_jar (without not_namespaced)
+    private val rFilePathDirAgp9 get() = File(buildDir, "intermediates/compile_and_runtime_r_class_jar/$buildVariant")
+    // AGP 8.x and below uses compile_and_runtime_not_namespaced_r_class_jar
+    private val rFilePathDir get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$buildVariant")
 
-    // compatible with gradle 8.x, which path like merged_manifests/debug/processDebugResources/R.jar
-    val rFilePath get() = File(rFilePathDir, "R.jar").takeIf(File::exists)
+    // compatible with AGP 9.0+ (no not_namespaced), gradle 8.x, gradle 7.x
+    val rFilePath get() = rFilePathDirAgp9.listFilesRecursively().find { it.name == "R.jar" }
+        ?: File(rFilePathDir, "R.jar").takeIf(File::exists)
         ?: File(rFilePathDir, "process${buildVariant.camelCompat}Resources/R.jar").takeIf(File::exists)
         ?: rFilePathDir.listFilesRecursively().find { it.name == "R.jar" }
         ?: File(rFilePathDir, "R.jar")
