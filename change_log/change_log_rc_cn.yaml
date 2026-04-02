@@ -1,3 +1,8 @@
+- version: 3.0.7
+  date: 2026.04.02
+  updates:
+    - 支持 Gradle 9.2.1
+
 - version: 3.0.6
   date: 2026.03.29
   updates:

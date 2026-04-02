@@ -1,11 +1,12 @@
 <h1>更新日志</h1>
-<h2>3.0.6 (2026.03.29)</h2>
+<h2>3.0.7 (2026.04.02)</h2>
 <ol>
     <li>[feature] 支持 mcp 和配套 skills，让 AI coding agent 可以独立快速完成开发到验收闭环</li>
     <li>[feature] 支持 release APK 增量编译，支持 R8 混淆和 AabResGuard 资源混淆</li>
     <li>[feature] 支持 KSP（暂时仅对 kuikly @Page 启用）</li>
     <li>[feature] 支持常量扩散编译</li>
     <li>[feature] Windows 和 Linux 支持 target api 35 资源增量编译</li>
+    <li>[feature] 支持 Gradle 9.2.1</li>
     <li>[optimize] 优化降级后编译初始化时容易出现 IDE 卡住一段时间的问题，现在改为独立进程完成 APK 字节码解析</li>
     <li>[optimize] 大量类部署（>2000) 时自动触发 dex 合并，修复大量类触发启动 OOM 问题</li>
     <li>[optimize] 提高 databinding 部分场景的编译兼容性，如同时修改数据类和 XML 时会编译失败，工程使用 Kotlin 1.7 版本会编译失败等</li>
