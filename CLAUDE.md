@@ -25,6 +25,17 @@
 
 **在回答或修改代码前，必须完成以下所有操作，缺一不可。未完成前，禁止读取任何代码文件，禁止调用 Edit/Write 工具。**
 
+> ⚠️ 即使问题涉及外部项目的文件路径（如 `AndroidStudioProjects/` 下的文件），也不得跳过此流程。编译错误（如 R 类找不到、dex merge 失败、Gradle 版本升级后的异常）很可能由 Jugg 增量编译行为引起，必须先读文档确认相关性，再得出结论。
+
+### 0) 编译/运行时错误强制前置流程
+
+**收到任何编译错误、运行时异常、crash 类问题时，必须在步骤 1) 之前先完成以下操作，缺一不可：**
+
+1. **定位项目目录**：调用 `mcp__jugg-mcp__list_projects` 获取当前 IDE 中已初始化的项目目录（`projectDir`）。
+2. **读取排查手册**：读取 `docs/ai_knowledge/09_plugin_runtime_debug.md`，掌握日志结构与常见根因。
+3. **读取最新日志**：根据手册中的路径规则，读取 `{projectDir}/build/jugg/log/compile_latest.log`（若不存在则尝试 `compile_latest-1.log`），获取编译上下文与错误现场。
+4. **结合项目知识定位**：对照日志中的 `[ClassName]` 标签与错误时间戳，结合 Jugg 增量编译知识得出根因，不得只依赖错误信息表面描述。
+
 ### 1) 新会话首次必读/未读补读
 
 - [00_overview.md](docs/ai_knowledge/00_overview.md)

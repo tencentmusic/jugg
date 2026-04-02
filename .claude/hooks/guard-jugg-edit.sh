@@ -14,17 +14,45 @@ MISSING=""
 [ ! -f "$INDEX_MARKER" ]    && MISSING="${MISSING} 99_index.md"
 
 if [ -n "$MISSING" ]; then
-    echo "⛔ Required Jugg knowledge base docs not read. Edit blocked." >&2
-    echo "   Please read the following docs first:${MISSING}" >&2
-    echo "   Path: docs/ai_knowledge/" >&2
+    python3 -c "
+import json
+print(json.dumps({
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'additionalContext': (
+            'Edit/Write BLOCKED: Required Jugg knowledge base docs not read.\n'
+            'You MUST read the following files NOW before retrying:\n'
+            '  - docs/ai_knowledge/00_overview.md\n'
+            '  - docs/ai_knowledge/99_index.md\n'
+            'Then read at least one topic doc from 99_index.md routing table.\n'
+            'Do NOT skip this even if the edited file is outside the Jugg project directory.'
+        )
+    },
+    'decision': 'block',
+    'reason': 'Required knowledge base docs not read: $MISSING'
+}))
+"
     exit 2
 fi
 
 # Check total ai_knowledge docs read >= 3
 DOC_COUNT=$(ls "${MARKER_DIR}/${SESSION_ID}_doc_"* 2>/dev/null | wc -l | tr -d ' ')
 if [ "$DOC_COUNT" -lt 3 ]; then
-    echo "⛔ Insufficient knowledge base docs read (read: ${DOC_COUNT}, required: >= 3)." >&2
-    echo "   Continue reading topic docs per the task routing table in 99_index.md." >&2
+    python3 -c "
+import json
+print(json.dumps({
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'additionalContext': (
+            'Edit/Write BLOCKED: Insufficient knowledge base docs read (required >= 3).\n'
+            'Please read at least one topic doc from the routing table in docs/ai_knowledge/99_index.md\n'
+            'before retrying. Pick the doc most relevant to your current task.'
+        )
+    },
+    'decision': 'block',
+    'reason': 'Insufficient knowledge base docs read (read: $DOC_COUNT, required: >= 3)'
+}))
+"
     exit 2
 fi
 
