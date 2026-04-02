@@ -979,11 +979,32 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 }
             }
 
-            // step 5. get all subclasses of [changedGenericSignatureClasses]
+            // step 5. get all callers and subclasses of [changedGenericSignatureClasses]
             runWithTimeCost("doGetGenericSignatureSubClassIds") {
                 var currentSuperClassIds: List<Int> = changedGenericSignatureClasses.mapNotNull { dbClassNodeMap[it.className] }
                 while (currentSuperClassIds.isNotEmpty()) {
                     val superClassIdsString = currentSuperClassIds.joinToString(",") { "$it" }
+
+                    val getMethodCallersSql = "SELECT class_id, ref_class_id FROM method_refs WHERE class_id IN ($superClassIdsString);"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQueryAndLog(getMethodCallersSql)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            val refClassId = resultSet.getInt(2)
+                            refClassIds.getOrPut(refClassId) { mutableListOf() }.add(classId)
+                        }
+                    }
+
+                    val getFieldCallersSql = "SELECT class_id, ref_class_id FROM field_refs WHERE class_id IN ($superClassIdsString);"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQueryAndLog(getFieldCallersSql)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            val refClassId = resultSet.getInt(2)
+                            refClassIds.getOrPut(refClassId) { mutableListOf() }.add(classId)
+                        }
+                    }
+
                     val getSubclassesSql = "SELECT class_id, ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
                     val newSubclassIds = mutableMapOf<Int, MutableList<Int>>()
                     connection.createStatement().use { statement ->

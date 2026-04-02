@@ -105,7 +105,7 @@ fun clearBuild() {
 
 | 文件 | 被测对象 | 覆盖场景 |
 |------|----------|----------|
-| `DeployDataGeneratorTest.kt` | `DeployDataGenerator`（内存版） | hot reload/hotfix、effectedSource、子类传播、desugar classpath、constRef、**static lambda 误传播 bug 回归**、**generic signature 变更触发子类重编译** |
+| `DeployDataGeneratorTest.kt` | `DeployDataGenerator`（内存版） | hot reload/hotfix、effectedSource、子类传播、desugar classpath、constRef、**static lambda 误传播 bug 回归**、**generic signature 变更触发子类/调用方重编译** |
 | `DeployDataGeneratorReleaseTest.kt` | `DeployDataGenerator`（release/minify） | minify 场景下方法删除/inline 的影响传播 |
 | `DeployDataDatabaseSqLiteHelperTest.kt` | `DeployDataDatabaseSqLiteHelper` | SQLite 持久化：APK 写入、更新、多 APK、表大小验证 |
 | `SourceFileDatabaseSqLiteHelperTest.kt` | `SourceFileDatabaseSqLiteHelper` | 源文件数据库：创建、目录更新、文件更新 |
@@ -279,6 +279,8 @@ android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/
 | `newabstractmethod/` | 新增抽象方法触发实现类重编译 |
 | `newinterfacemethod/` | 新增 interface 方法触发实现类重编译 |
 | `lambdaparent/` | Kotlin lambda 引起的静态方法误传播 bug |
+| `genericcascade/` | 类级 generic signature 变化触发子类重编译 |
+| `genericcaller/` | 具体类绑定的泛型实参变化触发 direct member caller 重编译 |
 | `ktdefaultparam/` | Kotlin 默认参数导致调用方重编译 |
 | `kttopleveloptionalfunction/` | Kotlin top-level 默认参数函数 |
 | `defaultinterface/` | Java 8 default interface 的 desugar classpath |

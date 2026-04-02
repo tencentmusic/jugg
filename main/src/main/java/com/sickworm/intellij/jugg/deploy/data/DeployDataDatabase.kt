@@ -401,10 +401,17 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
     private val methodRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
     private val fieldRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
     private val subclassRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
+    private val methodOwnerRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
+    private val fieldOwnerRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
 
     fun init(deployedItems: List<DeployItem>) {
         deployedClasses.clear()
         deployedOverlays.clear()
+        methodRefs.clear()
+        fieldRefs.clear()
+        subclassRefs.clear()
+        methodOwnerRefs.clear()
+        fieldOwnerRefs.clear()
         val dexDeployItems = deployedItems.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(dexDeployItems)
         parsedDex.classDeployItems.forEach { classDeployItem ->
@@ -414,9 +421,11 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
         }
         parsedDex.methodRefs.forEach {
             methodRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+            methodOwnerRefs.getOrPut(it.key.owner) { mutableListOf() }.addAll(it.value)
         }
         parsedDex.fieldRefs.forEach {
             fieldRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+            fieldOwnerRefs.getOrPut(it.key.owner) { mutableListOf() }.addAll(it.value)
         }
 
         val overlayDeployItems = deployedItems.filter { it.type != CompileOutput.Type.Dex }
@@ -433,9 +442,11 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
         }
         juggDeployData.parsedDex.methodRefs.forEach {
             methodRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+            methodOwnerRefs.getOrPut(it.key.owner) { mutableListOf() }.addAll(it.value)
         }
         juggDeployData.parsedDex.fieldRefs.forEach {
             fieldRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+            fieldOwnerRefs.getOrPut(it.key.owner) { mutableListOf() }.addAll(it.value)
         }
         juggDeployData.parsedDex.subclassRefs.forEach {
             subclassRefs.getOrPut(it.key) { mutableListOf() }.addAll(it.value)
@@ -550,6 +561,30 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
         while (classesToCheckGenericSignature.isNotEmpty()) {
             val newToCheckGenericSignatureClasses = mutableListOf<ClassNode>()
             classesToCheckGenericSignature.forEach { superClassNode ->
+                methodOwnerRefs[superClassNode.className]
+                    ?.distinct()
+                    ?.forEach { className ->
+                        deployedClasses[className]?.let { classNode ->
+                            logger.debug("found effected source ${classNode.source} in class ${classNode.className}, generic signature caller ${superClassNode.className}")
+                            val effectedClassNode = effectClassNodesMap[classNode.className]
+                                ?: EffectedClassNode(classNode.className, classNode.source, emptyList(), EffectedClassNode.EffectedType.SOURCE)
+                            effectClassNodesMap[classNode.className] = effectedClassNode.copy(
+                                effectedByClasses = effectedClassNode.effectedByClasses + superClassNode.className
+                            )
+                        }
+                    }
+                fieldOwnerRefs[superClassNode.className]
+                    ?.distinct()
+                    ?.forEach { className ->
+                        deployedClasses[className]?.let { classNode ->
+                            logger.debug("found effected source ${classNode.source} in class ${classNode.className}, generic signature field caller ${superClassNode.className}")
+                            val effectedClassNode = effectClassNodesMap[classNode.className]
+                                ?: EffectedClassNode(classNode.className, classNode.source, emptyList(), EffectedClassNode.EffectedType.SOURCE)
+                            effectClassNodesMap[classNode.className] = effectedClassNode.copy(
+                                effectedByClasses = effectedClassNode.effectedByClasses + superClassNode.className
+                            )
+                        }
+                    }
                 subclassRefs[superClassNode.className]?.forEach { subclassName ->
                     deployedClasses[subclassName]?.let { subclassNode ->
                         logger.debug("found effected source ${subclassNode.source} in class ${subclassNode.className}, generic signature changed in ${superClassNode.className}")

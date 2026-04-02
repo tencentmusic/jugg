@@ -756,6 +756,40 @@ class DeployDataGeneratorTest {
         )
     }
 
+    @Test
+    fun testGenericConcreteTypeChangeTriggersInvokerRecompile() {
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Java,
+                    File(
+                        assetsAndroidModifySourceDir,
+                        "app/src/main/java/com/sickworm/jugg/demo/testcase/genericcaller/StringHolder.java",
+                    ),
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    context.tempModule,
+                    dependencyPaths = listOf(
+                        File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes").path,
+                    ),
+                )
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+
+        assertTrue(
+            deployData.effectedSourceFileNames.contains("GenericInvoker.java"),
+            "GenericInvoker.java should be recompiled when StringHolder generic type changes. " +
+                "effected: ${deployData.effectedSourceFileNames}",
+        )
+    }
+
     private val ParsedApk.toParsedDex: ParsedDex
         get() {
             return ParsedDex(
