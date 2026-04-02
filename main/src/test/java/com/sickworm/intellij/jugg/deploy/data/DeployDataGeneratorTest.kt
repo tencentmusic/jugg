@@ -721,7 +721,38 @@ class DeployDataGeneratorTest {
         assertTrue(
             data.effectedSourceFileNames.contains("LambdaInvoker.kt"),
             "LambdaInvoker.kt should be recompiled when LambdaParent.onAction() changes. " +
-                    "effected: ${data.effectedSourceFileNames}"
+            "effected: ${data.effectedSourceFileNames}"
+        )
+    }
+
+    @Test
+    fun testGenericBoundChangeTriggersSubclassRecompile() {
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Java,
+                    File(
+                        assetsAndroidModifySourceDir,
+                        "app/src/main/java/com/sickworm/jugg/demo/testcase/genericcascade/GenericParent.java",
+                    ),
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    context.tempModule,
+                )
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+
+        assertTrue(
+            deployData.effectedSourceFileNames.contains("GenericChild.java"),
+            "GenericChild.java should be recompiled when GenericParent generic bound changes. " +
+                "effected: ${deployData.effectedSourceFileNames}",
         )
     }
 
