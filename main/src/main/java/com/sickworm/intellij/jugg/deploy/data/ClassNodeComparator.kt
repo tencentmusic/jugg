@@ -27,6 +27,12 @@ class ClassNodeComparator(
             modifiedParentClass.add(oldClassNode.superClass to newClassNode.superClass)
         }
 
+        val modifiedGenericSignature = if (oldClassNode.genericSignature != newClassNode.genericSignature) {
+            oldClassNode.genericSignature to newClassNode.genericSignature
+        } else {
+            null
+        }
+
         // here, we don't use map or set to diff result, because in most cases,
         // the order of these data is basically the same
 
@@ -54,6 +60,7 @@ class ClassNodeComparator(
         return ClassNodeDiffResult(
             oldClassNode.className,
             modifiedParentClass,
+            modifiedGenericSignature,
             addedInterfaces,
             deletedInterfaces,
             addedFields,
@@ -106,6 +113,7 @@ class ClassNodeDiffResult(
     val className: String,
 
     val modifiedParentClass: List<Pair<String?, String?>>, // Pair<old, new>
+    val modifiedGenericSignature: Pair<String?, String?>?,
 
     val addedInterfaces: List<String>,
     val deletedInterfaces: List<String>,
@@ -123,6 +131,7 @@ class ClassNodeDiffResult(
 
     val isSameStructure
         get() = modifiedParentClass.isEmpty() &&
+                modifiedGenericSignature == null &&
                 addedInterfaces.isEmpty() &&
                 deletedInterfaces.isEmpty() &&
                 addedFields.isEmpty() &&
@@ -133,6 +142,7 @@ class ClassNodeDiffResult(
     @Suppress("RedundantIf")
     val isCanHotReload
         get() = modifiedParentClass.isEmpty() &&
+                modifiedGenericSignature == null &&
                 addedInterfaces.isEmpty() &&
                 deletedInterfaces.isEmpty() &&
                 deletedFields.isEmpty() &&
@@ -158,6 +168,9 @@ class ClassNodeDiffResult(
         }
         if (modifiedParentClass.isNotEmpty()) {
             builder.append("\nmodifiedParentClass: $modifiedParentClass")
+        }
+        if (modifiedGenericSignature != null) {
+            builder.append("\nmodifiedGenericSignature: $modifiedGenericSignature")
         }
         if (addedInterfaces.isNotEmpty()) {
             builder.append("\naddedInterfaces: $addedInterfaces")

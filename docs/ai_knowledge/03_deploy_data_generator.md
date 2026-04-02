@@ -52,6 +52,7 @@
 | `effectMethods` | 结构性变化的方法（删除/签名改变/可见性从 private 变 public 等） | → `changedMethodRef` |
 | `deletedFields` | 被删除的字段 | → `changedFieldRef` |
 | `isAddedAbstractMethodForNonAbstractClass` | 抽象类/接口新增了 abstract 方法 | → `changedAbstractClasses` |
+| `modifiedGenericSignature` | 类级 generic signature 变化（如 `T` → `T extends Number`） | → `changedGenericSignatureClasses` |
 
 **`effectMethods` 的判定规则（`isEffectedChanged`）**：两个 `MethodNode` 满足以下条件则视为"结构未变"（不进入 effectMethods）：
 - `owner`、`name`、`desc` 完全相同
@@ -88,7 +89,7 @@ buildDeployData(
 
 ### 5.3 getEffectedSourceAndClass 四步传播逻辑
 
-`DeployDataDatabase` / `DeployDataDatabaseSqLiteHelper` 中的 `getEffectedSourceAndClass()` 按四步计算受影响类集合：
+`DeployDataDatabase` / `DeployDataDatabaseSqLiteHelper` 中的 `getEffectedSourceAndClass()` 按五步计算受影响类集合：
 
 | 步骤 | 说明 | 设计语义 |
 |------|------|----------|
@@ -96,6 +97,7 @@ buildDeployData(
 | Step 2 | 查 `subclass_refs`，为 **非 static** `changedMethodRefs` 的 owner 找所有子类，生成子类虚拟 method node 写入 `changedMethodRefsWithSubclasses` | 处理 `invokevirtual`/`invokeinterface`：父类虚方法被删改时，调用子类同名方法的调用方也需感知 |
 | Step 3 | 查 `method_refs`，找所有调用了 `changedMethodRefsWithSubclasses`（含 static 方法）的类 | 直接引用关系命中 |
 | Step 4 | 查 `subclass_refs`，找 `changedAbstractClasses` 的所有非抽象子类 | 父类新增 abstract 方法，子类必须重编 |
+| Step 5 | 查 `subclass_refs`，递归找 `changedGenericSignatureClasses` 的所有子类 | 父类 generic signature 改变时，子类声明中的泛型边界/实参校验可能失效，需整体重编 |
 
 **⚠️ Step 2 的 static 过滤（2026-03-17 修复）**
 
@@ -105,6 +107,17 @@ D8 在 `--file-per-class` 模式下会将 Kotlin lambda 编译为父类的 `$r8$
 修复方案：Step 2 while 循环的初始 `currentSuperClassIds`（SQLite 版）/ `classesToCheckSubclasses`（内存版）只取 `access == MISS_ACCESS || (access and ACC_STATIC) == 0` 的方法 owner，`changedMethodRefsWithSubclasses` 本身保留全部方法供 Step 3 使用。
 
 详见 `docs/task/recompile_cascade_bug_analysis.md`。
+
+**⚠️ Step 5 的 generic signature 传播（2026-04-02 修复）**
+
+修复前，`ClassNode` / `ClassNodeComparator` 只比较 DEX 擦除后的 `super/interface/method/field` 结构。像 `class Parent<T>` 改成 `class Parent<T extends Number>` 这类**不改变擦除后 descriptor** 的修改，会被误判为 `isSameStructure = true`，导致 `effectedSource` 为空。
+
+修复方案：
+- `ClassNode` 新增 `genericSignature`，从 DEX 的 `Ldalvik/annotation/Signature;` 注解还原
+- `ClassNodeComparator` 将 `modifiedGenericSignature` 视为结构变化
+- `getEffectedSourceAndClass` 新增 Step 5，递归标记所有子类为 `SOURCE`
+
+当前能力边界：Step 5 只保证**子类级联**重编译；对“直接引用了该泛型父类但不是子类”的源码，现有索引仍无法仅靠 DEX 擦除信息精确识别。
 
 ---
 
@@ -156,6 +169,7 @@ D8 在 `--file-per-class` 模式下会将 Kotlin lambda 编译为父类的 `$r8$
 - **”分析耗时异常”**：关注 SQLite 数据量、索引重建频率与 class 解析规模。
 - **”`Isolated process parsing failed` 且 `ClassNotFoundException: ApkParserProcess`”**：优先检查 `ApkParserProcessLauncher` 的 `-cp` 构建是否包含 URL 编码路径（如 `%20`）。子进程 classpath 必须使用可访问的本地文件路径。
 - **”修改基类 lambda 触发所有子类重编译”**（已修复）：Step 2 static 方法误传播，见第 5.3 节及 `docs/task/recompile_cascade_bug_analysis.md`。
+- **”修改类泛型没有触发子类重编译”**（已修复）：确认 `ClassNodeComparator` 是否输出 `modifiedGenericSignature`，再看 Step 5 是否将子类加入 `effectedSource`。
 
 ---
 

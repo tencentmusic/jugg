@@ -81,6 +81,7 @@ class DeployDataGenerator(
         val changedMethodRef = mutableListOf<MethodNode>()
         val changedFieldRef = mutableListOf<FieldNode>()
         val changedAbstractClasses = mutableListOf<ClassNode>()
+        val changedGenericSignatureClasses = mutableListOf<ClassNode>()
         val deletedNormalMethodClasses = mutableListOf<ClassNode>()
         changedClasses.forEach changedClasses@{
             if (it.isMultipleDex || it.isLibraryDex) {
@@ -131,6 +132,9 @@ class DeployDataGenerator(
                 if (result.isAddedAbstractMethodForNonAbstractClass) {
                     changedAbstractClasses.add(newClassNode)
                 }
+                if (result.modifiedGenericSignature != null) {
+                    changedGenericSignatureClasses.add(newClassNode)
+                }
 
                 val deletedNormalMethod = result.effectMethods.filter { method ->
                     !method.name.contains("$")
@@ -158,7 +162,7 @@ class DeployDataGenerator(
         val effectedSourceAndClassNodes = if (isNeedCheckRecompile) {
             val checkMinifiedRemoveClass = if (isNeedCheckRecompileMinifyRemovedClass) parsedDex else null
             val effectedNodes = deployDataDatabase.getEffectedSourceAndClass(
-                changedMethodRef, changedFieldRef, changedAbstractClasses,
+                changedMethodRef, changedFieldRef, changedAbstractClasses, changedGenericSignatureClasses,
                 checkMinifiedRemoveClass).toMutableList()
             logger.trace("[PERF] getEffectedSourceAndClass db query end, cost=${System.currentTimeMillis() - getEffectedStart}ms, thread=${Thread.currentThread().name}")
 

@@ -25,7 +25,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
     companion object {
-        private const val VERSION = 10
+        private const val VERSION = 11
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -89,6 +89,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                     entry_info_name TEXT NOT NULL,
                     entry_info_id INTEGER NOT NULL,
                     source TEXT,
+                    generic_signature TEXT,
                     super_name TEXT NOT NULL,
                     interface_names TEXT NOT NULL,
                     access INTEGER NOT NULL,
@@ -396,7 +397,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         }
 
         runWithTimeCost("doInsertClassInfo") {
-            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, entry_info_id, access, methods, fields, id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, generic_signature, entry_info_name, entry_info_id, access, methods, fields, id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
             connection.prepareStatement(sql).use { ps ->
                 pairs.forEach { (parsedApk, _) ->
                     val apkId = apkInfoIdByKey[parsedApk.apkFile.apkFileKey]!!
@@ -406,13 +407,14 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                         ps.setString(2, cn.interfaceNames.toInterfaceString())
                         ps.setString(3, cn.superClass)
                         ps.setString(4, cn.source)
-                        ps.setString(5, cn.dexFileName)
-                        ps.setInt(6, idMap[cn.dexFileName] ?: 0)
-                        ps.setInt(7, cn.access)
-                        ps.setString(8, cn.methods.toMethodString())
-                        ps.setString(9, cn.fields.toFieldString())
+                        ps.setString(5, cn.genericSignature)
+                        ps.setString(6, cn.dexFileName)
+                        ps.setInt(7, idMap[cn.dexFileName] ?: 0)
+                        ps.setInt(8, cn.access)
+                        ps.setString(9, cn.methods.toMethodString())
+                        ps.setString(10, cn.fields.toFieldString())
                         val classId = updatedClasses[cn.className] ?: nextClassId++
-                        ps.setInt(10, classId)
+                        ps.setInt(11, classId)
                         ps.addBatch()
                         dbClassNodeMap[cn.className] = classId
                     }
@@ -640,7 +642,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
 
             val dbClasses = mutableMapOf<Int, ClassNode>()
             val classes = mutableMapOf<String, ClassNode>()
-            val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields, id FROM class_info;"
+            val selectClassSQL = "SELECT name, interface_names, super_name, source, generic_signature, entry_info_name, access, methods, fields, id FROM class_info;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
                 while (resultSet.next()) {
@@ -648,12 +650,13 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                     val interfaceNames = resultSet.getString(2).toInterfaceList()
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
-                    val dexFileName = resultSet.getString(5)
-                    val access = resultSet.getInt(6)
-                    val methodInfos = resultSet.getString(7).toMethodList(className)
-                    val fieldInfos = resultSet.getString(8).toFieldList(className)
-                    val id = resultSet.getInt(9)
-                    val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source)
+                    val genericSignature = resultSet.getString(5)
+                    val dexFileName = resultSet.getString(6)
+                    val access = resultSet.getInt(7)
+                    val methodInfos = resultSet.getString(8).toMethodList(className)
+                    val fieldInfos = resultSet.getString(9).toFieldList(className)
+                    val id = resultSet.getInt(10)
+                    val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source, genericSignature)
                     dbClasses[id] = classNode
                     classes[className] = classNode
                 }
@@ -769,18 +772,19 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 // avoid Exception: [SQLITE_TOOBIG] String or BLOB exceeds size limit (statement too long)
                 classNames.chunked(2000).forEach { subClassNames ->
                     val classNamesString = subClassNames.joinToString(",") { "'$it'" }
-                    val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields FROM class_info WHERE name IN ($classNamesString);"
+                    val selectClassSQL = "SELECT name, interface_names, super_name, source, generic_signature, entry_info_name, access, methods, fields FROM class_info WHERE name IN ($classNamesString);"
                     val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
                     while (resultSet.next()) {
                         val className = resultSet.getString(1)
                         val interfaceNames = resultSet.getString(2).toInterfaceList()
                         val superName = resultSet.getString(3)
                         val source = resultSet.getString(4)
-                        val dexFileName = resultSet.getString(5)
-                        val access = resultSet.getInt(6)
-                        val methodInfos = resultSet.getString(7).toMethodList(className)
-                        val fieldInfos = resultSet.getString(8).toFieldList(className)
-                        val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source)
+                        val genericSignature = resultSet.getString(5)
+                        val dexFileName = resultSet.getString(6)
+                        val access = resultSet.getInt(7)
+                        val methodInfos = resultSet.getString(8).toMethodList(className)
+                        val fieldInfos = resultSet.getString(9).toFieldList(className)
+                        val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source, genericSignature)
                         classes[className] = classNode
                     }
                 }
@@ -795,6 +799,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         changedMethodRefs: List<MethodNode>,
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
+        changedGenericSignatureClasses: List<ClassNode>,
     ): List<EffectedClassNode> {
         logger.debug("getEffectedClassNodes changedMethodRefs $changedMethodRefs")
         logger.debug("getEffectedClassNodes changedFieldRefs $changedFieldRefs $changedAbstractClasses")
@@ -808,6 +813,10 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 changedMethodRefs.forEach { classNameList.add(it.owner) }
                 changedFieldRefs.forEach { classNameList.add(it.owner) }
                 changedAbstractClasses.forEach { classNameList.add(it.className) }
+                changedGenericSignatureClasses.forEach { classNameList.add(it.className) }
+                if (classNameList.isEmpty()) {
+                    return@runWithTimeCost
+                }
                 val classNamesString = classNameList.joinToString(",") { "'$it'" }
 
                 val sql = "SELECT name, id FROM class_info WHERE name IN ($classNamesString);"
@@ -970,7 +979,33 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 }
             }
 
-            // step 5. get all effected class nodes by [refClassIds]
+            // step 5. get all subclasses of [changedGenericSignatureClasses]
+            runWithTimeCost("doGetGenericSignatureSubClassIds") {
+                var currentSuperClassIds: List<Int> = changedGenericSignatureClasses.mapNotNull { dbClassNodeMap[it.className] }
+                while (currentSuperClassIds.isNotEmpty()) {
+                    val superClassIdsString = currentSuperClassIds.joinToString(",") { "$it" }
+                    val getSubclassesSql = "SELECT class_id, ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
+                    val newSubclassIds = mutableMapOf<Int, MutableList<Int>>()
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQueryAndLog(getSubclassesSql)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            val refClassId = resultSet.getInt(2)
+                            val effectedBy = newSubclassIds.getOrPut(refClassId) { mutableListOf() }
+                            if (!effectedBy.contains(classId)) {
+                                effectedBy.add(classId)
+                            }
+                        }
+                    }
+
+                    newSubclassIds.forEach { (refClassId, effectByIds) ->
+                        refClassIds.getOrPut(refClassId) { mutableListOf() }.addAll(effectByIds)
+                    }
+                    currentSuperClassIds = newSubclassIds.keys.toList()
+                }
+            }
+
+            // step 6. get all effected class nodes by [refClassIds]
             val effectedClassNodes = mutableListOf<EffectedClassNode>()
             if (refClassIds.isNotEmpty()) {
                 runWithTimeCost("doGetClassNodes") {
@@ -1069,7 +1104,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 // Split into chunks to avoid SQL query too long
                 suspectClassNames.chunked(2000).forEach { chunk ->
                     val classNamesString = chunk.joinToString(",") { "'$it'" }
-                    val sql = "SELECT name, methods, fields, source, super_name, interface_names FROM class_info WHERE name IN ($classNamesString);"
+                    val sql = "SELECT name, methods, fields, source, super_name, interface_names, generic_signature FROM class_info WHERE name IN ($classNamesString);"
                     connection.createStatement().use { statement ->
                         val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                         while (resultSet.next()) {
@@ -1079,12 +1114,13 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                             val source = resultSet.getString(4)
                             val superName = resultSet.getString(5)
                             val interfaceNames = resultSet.getString(6).toInterfaceList()
+                            val genericSignature = resultSet.getString(7)
                             existingClasses.add(className)
 
                             val methods = methodsStr.toMethodList(className)
                             val fields = fieldsStr.toFieldList(className)
                             dbClassInfoMap[className] = ClassNode(
-                                "", className, 0, methods, fields, interfaceNames, superName, source
+                                "", className, 0, methods, fields, interfaceNames, superName, source, genericSignature
                             )
                         }
                     }

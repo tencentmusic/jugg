@@ -44,6 +44,7 @@ interface IDeployDataDatabase {
     fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>,
                                   changedFieldRefs: List<FieldNode>,
                                   changedAbstractClasses: List<ClassNode>,
+                                  changedGenericSignatureClasses: List<ClassNode>,
                                   maybeMinifiedRemoveClasses: ParsedDex?,
                                   ): List<EffectedClassNode>
 
@@ -286,18 +287,34 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         changedMethodRefs: List<MethodNode>,
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
+        changedGenericSignatureClasses: List<ClassNode>,
         maybeMinifiedRemoveClasses: ParsedDex?,
     ): List<EffectedClassNode> {
-        if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty() && changedAbstractClasses.isEmpty() && maybeMinifiedRemoveClasses == null) {
+        if (changedMethodRefs.isEmpty() &&
+            changedFieldRefs.isEmpty() &&
+            changedAbstractClasses.isEmpty() &&
+            changedGenericSignatureClasses.isEmpty() &&
+            maybeMinifiedRemoveClasses == null
+        ) {
             return emptyList()
         }
 
-        val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs, changedAbstractClasses)
+        val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(
+            changedMethodRefs,
+            changedFieldRefs,
+            changedAbstractClasses,
+            changedGenericSignatureClasses,
+        )
         val effectClassNodesMap: MutableMap<String, EffectedClassNode> = incrementalEffectClassNodes.associateBy { it.className }.toMutableMap()
         val minifyEffectClassNodes = mutableMapOf<String, EffectedClassNode>()
         database.values.forEach { helper ->
             try {
-                val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs, changedAbstractClasses)
+                val apkEffectClassNodesMap = helper.getEffectedClassNodes(
+                    changedMethodRefs,
+                    changedFieldRefs,
+                    changedAbstractClasses,
+                    changedGenericSignatureClasses,
+                )
                 apkEffectClassNodesMap.forEach addNode@{
                     // use incremental first
                     val oldNode = effectClassNodesMap[it.className]
@@ -446,6 +463,7 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
     fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>,
                                   changedFieldRefs: List<FieldNode>,
                                   changedAbstractClasses: List<ClassNode>,
+                                  changedGenericSignatureClasses: List<ClassNode>,
     ): List<EffectedClassNode> {
         val effectClassNodesMap = mutableMapOf<String, EffectedClassNode>()
 
@@ -526,6 +544,25 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
                 }
             }
             toCheckChangedAbstractClasses = newToCheckChangedAbstractClasses
+        }
+
+        var classesToCheckGenericSignature = changedGenericSignatureClasses.toMutableList()
+        while (classesToCheckGenericSignature.isNotEmpty()) {
+            val newToCheckGenericSignatureClasses = mutableListOf<ClassNode>()
+            classesToCheckGenericSignature.forEach { superClassNode ->
+                subclassRefs[superClassNode.className]?.forEach { subclassName ->
+                    deployedClasses[subclassName]?.let { subclassNode ->
+                        logger.debug("found effected source ${subclassNode.source} in class ${subclassNode.className}, generic signature changed in ${superClassNode.className}")
+                        val effectedClassNode = effectClassNodesMap[subclassNode.className]
+                            ?: EffectedClassNode(subclassNode.className, subclassNode.source, emptyList(), EffectedClassNode.EffectedType.SOURCE)
+                        effectClassNodesMap[subclassNode.className] = effectedClassNode.copy(
+                            effectedByClasses = effectedClassNode.effectedByClasses + superClassNode.className
+                        )
+                        newToCheckGenericSignatureClasses.add(subclassNode)
+                    }
+                }
+            }
+            classesToCheckGenericSignature = newToCheckGenericSignatureClasses
         }
 
         return effectClassNodesMap.values.toList()

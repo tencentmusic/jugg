@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler
 import com.googlecode.d2j.DexConstants
 import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method
+import com.googlecode.d2j.node.DexAnnotationNode
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
@@ -20,6 +21,7 @@ class ClassNode(
     val interfaceNames: List<String>,
     val superClass: String,
     sourceArg: String?,
+    val genericSignature: String? = null,
 ) {
 
     val source: String = sourceArg ?: NO_SOURCE
@@ -35,11 +37,13 @@ class ClassNode(
         interfaceNames = node.interfaceNames?.map { ClassStringPool[it] }?: emptyList(),
         superClass = ClassStringPool[node.superClass],
         sourceArg = node.source,
+        genericSignature = node.anns.toGenericSignature(),
     )
 
     companion object {
         const val JUGG_DEPLOYED_DEX_FILE_NAME = "jugg_deployed.dex" // virtual dex file name, not really exists
         const val NO_SOURCE = "no_source"
+        private const val DALVIK_SIGNATURE = "Ldalvik/annotation/Signature;"
 
         // e.g. Landroid/support/v4/os/ResultReceiver$1;
         // ->
@@ -53,6 +57,28 @@ class ClassNode(
         // android/support/v4/os/ResultReceiver$1
         private fun String.convertSigFormatToNormal(): String {
             return this.substring(1, this.length - 1)
+        }
+
+        private fun List<DexAnnotationNode>?.toGenericSignature(): String? {
+            val signatureAnnotation = this
+                ?.firstOrNull { it.type == DALVIK_SIGNATURE }
+                ?: return null
+            val value = signatureAnnotation.items
+                .firstOrNull { it.name == "value" }
+                ?.value
+                ?: return null
+            return flattenSignatureValue(value)
+                .takeIf { it.isNotEmpty() }
+                ?.let(ClassStringPool::get)
+        }
+
+        private fun flattenSignatureValue(value: Any?): String {
+            return when (value) {
+                is Array<*> -> value.joinToString(separator = "") { flattenSignatureValue(it) }
+                is String -> value
+                null -> ""
+                else -> value.toString()
+            }
         }
     }
 
