@@ -370,6 +370,50 @@ class DeployDataGeneratorTest {
         assertEquals(listOf("InvokeClass2.kt"), deployData.effectedSourceFileNames.sorted())
     }
 
+    /**
+     * Reproduces: changing Companion object extension function parameter Int -> Int? causes
+     * NoSuchMethodError at runtime because the JVM descriptor changes (I -> Ljava/lang/Integer;)
+     * but Jugg does not detect the call site as effected and skips its recompilation.
+     *
+     * The extension function is defined in a separate file (CompanionExtensions.kt) from the
+     * class definition (CompanionExtClass.kt). Only CompanionExtensions.kt is modified.
+     */
+    @Test
+    fun testEffectSourceByCompanionExtParamTypeChange() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                // Modified extension function file (Int -> Int?)
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/ktcompanionext/CompanionExtensions.kt"),
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    context.tempModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+                // Original class definition file (unchanged, needed for compilation)
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/ktcompanionext/CompanionExtClass.kt"),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    context.tempModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+        assertEquals(listOf("CompanionExtInvoker.kt"), deployData.effectedSourceFileNames.sorted())
+    }
+
     @Test
     fun testEffectSourceByAddingKotlinDefaultParamOnTopLevelFunction2() {
         val generator = DeployDataGenerator(logger, buildDir)
