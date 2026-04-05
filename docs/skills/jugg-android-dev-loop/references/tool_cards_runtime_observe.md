@@ -51,10 +51,10 @@ Three modes (priority: coordinate > percent > element):
 - Input: `projectDir`, `target`, `checks[]`.
 - Multi-match picks first; prefer resourceId.
 - Details: see `guide_layout_verify_assertion.md`.
-- Key points: textColor may omit black; textSizeSp/backgroundColor are live-only; maxLines/ellipsize use eval_view.
+- Key points: textColor may omit black; textSizeSp/backgroundColor are live-only; maxLines/ellipsize use view_inspect.
 - Result: `data.result` (PASS/PARTIAL_FAIL/FAIL/ERROR), `data.checkResults[]`, `data.candidates[]` if not found.
 
-### `eval_view`
+### `view_inspect`
 - Purpose: reflective getter calls for properties layout_verify cannot query.
 - Input: `projectDir`, `target` (must match exactly one), `expressions[]` (1-20, max chain depth 5).
 - Safety: getter-only whitelist (get*/is*/has*/can*/should* + toString/length/name/ordinal/size/isEmpty).

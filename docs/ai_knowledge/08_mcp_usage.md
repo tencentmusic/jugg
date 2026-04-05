@@ -48,9 +48,9 @@
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
 | `layout_verify` | `projectDir`, `checks`（至少 1 条）；可选 `checksFile` | 验证 UI 元素属性或元素间关系（默认自动快照） |
-| `ui_find` | `projectDir`, `target` | 查找单个 UI 元素并返回位置和尺寸（支持模糊匹配） |
+| `view_locate` | `projectDir`, `target` | 查找单个 UI 元素并返回位置和尺寸（支持模糊匹配） |
 | `figma_layout_verify` | `projectDir`, `figmaJsonPath`, `androidJsonPath`; 可选 `dpr` | 自动提取 Figma 设计稿关系并批量验证 Android 布局 |
-| `eval_view` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
+| `view_inspect` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
@@ -130,8 +130,8 @@
 - auto_dump 模式的 dp 换算依赖 dump JSON 根节点的 `deviceInfo.density`。
 - `layout_verify`（auto_dump/live）在执行前同样会先等待 App 在线（同 `layout_dump`）。
 
-补充（ui_find 语义）：
-- `ui_find` 用于查找单个 UI 元素并返回其位置和尺寸信息。
+补充（view_locate 语义）：
+- `view_locate` 用于查找单个 UI 元素并返回其位置和尺寸信息。
 - **target**：元素选择器（`text`/`resourceId`/`contentDesc`，至少提供一个）。
 - 成功时返回 `data.found=true`，包含 `bounds`（`[left,top,right,bottom]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`。
 - 失败时返回 `data.found=false`，`errorCode=ELEMENT_NOT_FOUND`。
@@ -152,8 +152,8 @@
 - 适用场景：设计稿还原验证、UI 回归测试、批量布局检查。
 - 推荐工作流：`get_design_context` → `layout_dump` → `figma_layout_verify`。
 
-补充（eval_view 语义）：
-- `eval_view` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。
+补充（view_inspect 语义）：
+- `view_inspect` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。
 - **target**：元素选择器（同 `layout_verify`/`tap` 元素模式：`resourceId`/`text`/`contentDesc`/`className`，AND 逻辑）。必须唯一匹配一个元素。
 - **expressions**：getter 方法表达式数组（1~20 个）。语法为 `methodName()` 或 `methodName().anotherMethod()`，最大链深度 5。
 - 仅允许 getter/查询方法（`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length`/`name`/`ordinal`/`size`/`isEmpty` 等白名单）。有副作用的方法（`set*`/`remove*`/`add*`/`post*`/`dispatch*`/`perform*` 等）被禁止。
@@ -162,7 +162,7 @@
 - 链中间结果为 null 时返回 `{value: null, type: "null"}` 而非 NPE。
 - 方法不存在时对应表达式返回 `{type: "error", error: "NoSuchMethodException: ..."}`，不影响同批其他表达式。
 - 适用场景：单个 View 的属性查询（textColor、textSize、maxLines、ellipsize、tintColor、cornerRadius、自定义 View getter 等）。
-- 与 `layout_verify` 分工：需要两个 View 坐标计算的场景（spacing/alignment/overlap/containment/order）用 `layout_verify`；查询单个 View 属性用 `eval_view`。
+- 与 `layout_verify` 分工：需要两个 View 坐标计算的场景（spacing/alignment/overlap/containment/order）用 `layout_verify`；查询单个 View 属性用 `view_inspect`。
 - 在执行前同样会先等待 App 在线（同 `layout_dump`）。
 
 补充（tap 三模式语义）：

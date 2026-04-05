@@ -89,8 +89,8 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 - **Gate** (mandatory before any evidence): `activity_stack` → confirm target page. Direct screenshot without gate is **FORBIDDEN**. On mismatch: `restart_app(projectDir, tap_actions=navigationSeq)` → re-check.
 - **Action by designSource**:
   - Figma: `figma_layout_verify(figmaJson, dpr)` → see `guide_ui_verify_assertion.md`
-  - No Figma: `ui_find` per element → manual spacing calc → see `guide_ui_verify_assertion.md`
-  - Unsupported props: `eval_view` (maxLines, ellipsize, custom getters)
+  - No Figma: `view_locate` per element → manual spacing calc → see `guide_ui_verify_assertion.md`
+  - Unsupported props: `view_inspect` (maxLines, ellipsize, custom getters)
 - **Checkpoint ✓**: All checks pass or user acceptance.
 
 ### Step 4: Verdict
@@ -113,7 +113,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 |---|------|-------------|
 | 1 | Steps execute 1→2→3→4→5; each checkpoint output before advancing; failure loops to Step 1 | No skip, no partial retry |
 | 2 | After any deploy/restart: `activity_stack` before evidence. Direct screenshot without gate = FORBIDDEN | Evidence without gate is invalid |
-| 3 | Tool priority: page=`activity_stack`>`layout_dump`>`screenshot`; verify=`figma_layout_verify`>`ui_find`>`eval_view`>`screenshot`; tap=element>coordinate>percent | Lower-priority only after higher exhausted |
+| 3 | Tool priority: page=`activity_stack`>`layout_dump`>`screenshot`; verify=`figma_layout_verify`>`view_locate`>`view_inspect`>`screenshot`; tap=element>coordinate>percent | Lower-priority only after higher exhausted |
 | 4 | Any deploy/restart invalidates all prior runtime observations; rerun gate immediately | Stale context = wrong verdict |
 | 5 | On self-detected violation of Rules 1-4: stop → output `🚨 VIOLATION: [rule] — [what]` → roll back to last valid checkpoint | Self-correction does not reset retry budget |
 

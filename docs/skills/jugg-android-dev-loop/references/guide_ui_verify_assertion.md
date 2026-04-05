@@ -1,6 +1,6 @@
 # Guide: UI Verification Assertion Reference
 
-> Tools: `figma_layout_verify` (batch), `ui_find` (single query), `eval_view` (unsupported properties)
+> Tools: `figma_layout_verify` (batch), `view_locate` (single query), `view_inspect` (unsupported properties)
 
 ## Execution Mode
 
@@ -39,7 +39,7 @@ Verify **relative relations** (spacing/alignment), not absolute positions. Fixed
 
 ## 2. Without Figma: Manual Verification
 
-**Workflow**: `ui_find(target={text:"Element"})` per element → calculate spacing from bounds → compare against spec.
+**Workflow**: `view_locate(target={text:"Element"})` per element → calculate spacing from bounds → compare against spec.
 
 **Spacing calc**: horizontal = `B.bounds[0] - A.bounds[2]`, vertical = `B.bounds[1] - A.bounds[3]`.
 
@@ -57,7 +57,7 @@ Fallback order: `text` → `text+className` → `resourceId` → `resourceId+cla
 
 ## 4. Unsupported Properties
 
-Use `eval_view` for: maxLines, ellipsize, letterSpacing, lineCount, cornerRadius, tint color, custom getters.
+Use `view_inspect` for: maxLines, ellipsize, letterSpacing, lineCount, cornerRadius, tint color, custom getters.
 
 ```json
 {"target": {"text": "Title"}, "expressions": ["getMaxLines()", "getEllipsize().name()"]}
@@ -74,14 +74,14 @@ Complex backgrounds: `screenshot` visual comparison.
 | Grid/List | Column spacing uniformity |
 | Image/Icon | Size matches design |
 | Banner/Card | Margin/padding |
-| Text | Position (use ui_find) |
+| Text | Position (use view_locate) |
 | Container | Child alignment |
 
 ---
 
 ## 6. Deprecated
 
-`layout_verify` → replaced by `figma_layout_verify` + `ui_find`. Do NOT use.
+`layout_verify` → replaced by `figma_layout_verify` + `view_locate`. Do NOT use.
 
 ## 7. Kuikly Notes
 

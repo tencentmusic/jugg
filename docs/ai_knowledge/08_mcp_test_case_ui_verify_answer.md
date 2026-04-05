@@ -252,11 +252,11 @@ Agent 完成所有任务后，使用此模板评分：
 
 ---
 
-## Part B：eval_view 评估答案
+## Part B：view_inspect 评估答案
 
 
 > ⚠️ 本文件是盲测评估的答案表。被测 agent 绝对不能看到此文件。
-> 在 agent 完成 `08_mcp_test_case_ui_verify.md` 中的 eval_view 任务后，使用本文件进行评分。
+> 在 agent 完成 `08_mcp_test_case_ui_verify.md` 中的 view_inspect 任务后，使用本文件进行评分。
 > 最后更新：2026-03-09
 
 ---
@@ -318,7 +318,7 @@ Agent 完成所有任务后，使用此模板评分：
 | EV-EVAL-B-07 | **PASS**（符合） | getText()="MCP Test Page"、getVisibility()=0、isClickable()=false，三项均满足 | 批量查询验证 |
 | EV-EVAL-B-08 | **FAIL**（不符合） | `getWidth()` 返回 px 值，除以 density 远大于 50dp（按钮为 match_parent 全宽） | Agent 必须正确做 px→dp 转换并报告不匹配 |
 | EV-EVAL-B-09 | **PASS**（符合） | `getTextSize()` 返回 px 值，除以 density ≈ 14sp，在 13~15sp 范围内 | Agent 必须正确做 px→sp 转换 |
-| EV-EVAL-B-10 | **ERROR → 不符合** | `btn_nonexistent_magic_element` 不存在，eval_view 返回 ERROR | Agent 应报告元素未找到 |
+| EV-EVAL-B-10 | **ERROR → 不符合** | `btn_nonexistent_magic_element` 不存在，view_inspect 返回 ERROR | Agent 应报告元素未找到 |
 
 **批次 2 预期分布**：5 PASS、4 FAIL、1 ERROR
 

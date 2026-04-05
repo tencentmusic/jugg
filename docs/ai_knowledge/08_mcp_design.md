@@ -20,8 +20,8 @@
 | 工具执行层 | `McpToolInvoker` | 参数校验、工具路由、结果映射 |
 | 校验层 | `McpRequestValidator` | schema 校验、默认值填充、projectDir 授权检查 |
 | 注册层 | `McpToolRegistry`, `McpToolActionRegistry` | 工具定义与 action 注册 |
-| 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout_dump` / `tap` 元素模式 / `eval_view` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
-| 布局验证层 | `mcp/layout/*` | `ui_find` / `figma_layout_verify` 的核心算法模块 |
+| 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout_dump` / `tap` 元素模式 / `view_inspect` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
+| 布局验证层 | `mcp/layout/*` | `view_locate` / `figma_layout_verify` 的核心算法模块 |
 | 运行时适配层 | `IMcpRuntime`, `IdeaMcpRuntime` | 将工具执行连接到 IDE 真实能力 |
 
 ---
@@ -83,11 +83,11 @@
 
 | 工具 | 状态 | 职责 |
 |------|------|------|
-| `ui_find` | **新增** | 根据文本/位置查找元素，返回 bounds + position + size |
+| `view_locate` | **新增** | 根据文本/位置查找元素，返回 bounds + position + size |
 | `figma_layout_verify` | **新增** | 自动提取 Figma 相对关系并批量验证 |
-| `layout_dump` | 保留 | `ui_find` 内部调用 |
-| `layout_verify` | **废弃** | 被 `ui_find` + `figma_layout_verify` 替代 |
-| `eval_view` | 保留 | 颜色验证时可能需要 |
+| `layout_dump` | 保留 | `view_locate` 内部调用 |
+| `layout_verify` | **废弃** | 被 `view_locate` + `figma_layout_verify` 替代 |
+| `view_inspect` | 保留 | 颜色验证时可能需要 |
 
 ### 7.3 核心模块架构
 
@@ -95,7 +95,7 @@
 ┌─────────────────────────────────────────────────────────┐
 │                    MCP Tool Layer                        │
 │  ┌─────────────────┐      ┌──────────────────────┐    │
-│  │   ui_find        │      │ figma_layout_verify  │    │
+│  │   view_locate    │      │ figma_layout_verify  │    │
 │  │  (单点查询)       │      │   (批量验证)          │    │
 │  └────────┬─────────┘      └──────────┬───────────┘    │
 └───────────┼───────────────────────────┼─────────────────┘
@@ -165,7 +165,7 @@ class RelationExtractor(private val dpr: Float) {
 
 ### 7.6 返回格式
 
-#### ui_find 返回
+#### view_locate 返回
 
 ```json
 {
@@ -235,8 +235,8 @@ Agent 流程:
 用户: "Avatar 和 App 按钮之间的间距"
 
 Agent 流程:
-1. 调用 ui_find(target={text:"Avatar"})
-2. 调用 ui_find(target={text:"App"})
+1. 调用 view_locate(target={text:"Avatar"})
+2. 调用 view_locate(target={text:"App"})
 3. 计算间距: spacing = app.bounds[0] - avatar.bounds[2]
 4. 询问: "当前间距 18dp，期望间距是多少?"
 ```
@@ -264,7 +264,7 @@ Agent 流程:
 
 | Phase | 内容 | 状态 |
 |-------|------|------|
-| Phase 1 | `ui_find` 基础功能、Bounds 归一化/匹配/验证 | MVP |
+| Phase 1 | `view_locate` 基础功能、Bounds 归一化/匹配/验证 | MVP |
 | Phase 2 | `figma_layout_verify` 批量验证、returnMode="all" | 进行中 |
 | Phase 3 | 颜色验证（仅纯色）| 待定 |
 

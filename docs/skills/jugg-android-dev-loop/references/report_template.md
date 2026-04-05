@@ -50,7 +50,7 @@ Project:   {{projectDir}}
 Phase 0: projectDir=/path | targetPage=MainActivity | navigationSeq=[] | designSource=none
 Step 1: Edit android:text="Submit" → "Confirm" in activity_main.xml. ✅
 Step 2: compile_and_deploy → poll → OK. ✅
-Step 3: activity_stack → MainActivity. ui_find(btn_submit) → text=="Confirm". ✅
+Step 3: activity_stack → MainActivity. view_locate(btn_submit) → text=="Confirm". ✅
 Step 4: Verdict: PASS.
 Step 5: screenshot → final_screenshot.png. ✅
 ```

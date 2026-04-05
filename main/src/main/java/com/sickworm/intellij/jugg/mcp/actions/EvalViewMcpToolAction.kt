@@ -15,18 +15,21 @@ import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
- * EvalViewMcpToolAction implements MCP tool `eval_view` that evaluates getter method
+ * EvalViewMcpToolAction implements MCP tool `view_inspect` that evaluates getter method
  * expressions on a matched View element via reflective invocation on the app side.
  */
 class EvalViewMcpToolAction : McpToolAction {
-    override val toolName: String = "eval_view"
+    override val toolName: String = "view_inspect"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Evaluate getter method expressions on a matched View element. " +
+        description = "Query internal View properties not available in layout dump, via live reflection " +
+            "(e.g. maxLines, ellipsize, textColor, cornerRadius, custom getters). " +
             "Use Android SDK View/TextView/ImageView public getter methods. " +
             "Returns raw values for the agent to interpret. " +
-            "Only read-only getter methods are allowed (no side effects).",
+            "Only read-only getter methods are allowed (no side effects). " +
+            "✅ Use for: any property that requires calling a getter method on the View object. " +
+            "❌ Do NOT use for: getting element position or size — use view_locate instead.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
@@ -77,7 +80,7 @@ class EvalViewMcpToolAction : McpToolAction {
         if (targetRaw == null || targetRaw !is Map<*, *>) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "eval_view failed. Reason: 'target' is required and must be an object.",
+                message = "view_inspect failed. Reason: 'target' is required and must be an object.",
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
         }
@@ -93,7 +96,7 @@ class EvalViewMcpToolAction : McpToolAction {
         ) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "eval_view failed. Reason: target must have at least one selector " +
+                message = "view_inspect failed. Reason: target must have at least one selector " +
                     "(resourceId, text, contentDesc, or className).",
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
@@ -104,7 +107,7 @@ class EvalViewMcpToolAction : McpToolAction {
         if (expressionsRaw == null || expressionsRaw !is List<*> || expressionsRaw.isEmpty()) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "eval_view failed. Reason: 'expressions' is required and must be a non-empty array.",
+                message = "view_inspect failed. Reason: 'expressions' is required and must be a non-empty array.",
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
         }
@@ -112,14 +115,14 @@ class EvalViewMcpToolAction : McpToolAction {
         if (expressions.isEmpty()) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "eval_view failed. Reason: 'expressions' must contain string values.",
+                message = "view_inspect failed. Reason: 'expressions' must contain string values.",
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
         }
         if (expressions.size > MAX_EXPRESSIONS) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "eval_view failed. Reason: expressions count ${expressions.size} " +
+                message = "view_inspect failed. Reason: expressions count ${expressions.size} " +
                     "exceeds maximum $MAX_EXPRESSIONS.",
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
@@ -128,10 +131,10 @@ class EvalViewMcpToolAction : McpToolAction {
         // Resolve device
         val selected = resolveOnlineDevice(runtime)
             ?: run {
-                logger.warn("eval_view failed: no online device")
+                logger.warn("view_inspect failed: no online device")
                 return McpToolResult(
                     status = McpToolStatus.ERROR,
-                    message = "eval_view failed. Reason: No connected device is available.",
+                    message = "view_inspect failed. Reason: No connected device is available.",
                     errorCode = McpErrorCode.MCP_NO_DEVICE,
                 )
             }
@@ -139,16 +142,16 @@ class EvalViewMcpToolAction : McpToolAction {
         // Wait for app ready
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
         if (!preWaitResult.isReady) {
-            logger.warn("eval_view failed: app not ready")
+            logger.warn("view_inspect failed: app not ready")
             return preWaitResult.errorResult
-                ?: McpToolResult.internalErrorResult("eval_view", "app is not ready")
+                ?: McpToolResult.internalErrorResult("view_inspect", "app is not ready")
         }
 
         val packageName = resolvePackageName(runtime)
             ?: run {
-                logger.warn("eval_view failed: package name is empty")
+                logger.warn("view_inspect failed: package name is empty")
                 return McpToolResult.internalErrorResult(
-                    "eval_view",
+                    "view_inspect",
                     "failed to resolve package name for ViewHierarchy server"
                 )
             }
@@ -158,14 +161,14 @@ class EvalViewMcpToolAction : McpToolAction {
                 val client = ViewHierarchyClient(selected.adb, packageName)
                 val evalResult = client.evalView(text, resourceId, contentDesc, className, expressions)
                     ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
-                        "eval_view",
+                        "view_inspect",
                         "ViewHierarchy server is unavailable or returned invalid response"
                     )
 
                 if (evalResult.errorMessage != null) {
                     return@executeWithRetryIfPreWaited McpToolResult(
                         status = McpToolStatus.ERROR,
-                        message = "eval_view failed. Reason: ${evalResult.errorMessage}",
+                        message = "view_inspect failed. Reason: ${evalResult.errorMessage}",
                         errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
                     )
                 }
@@ -200,9 +203,9 @@ class EvalViewMcpToolAction : McpToolAction {
 
                 val errorCount = evalResult.values.count { it.error != null }
                 val message = if (errorCount == 0) {
-                    "eval_view executed successfully. ${evalResult.values.size} expressions evaluated."
+                    "view_inspect executed successfully. ${evalResult.values.size} expressions evaluated."
                 } else {
-                    "eval_view completed with $errorCount error(s) out of ${evalResult.values.size} expressions."
+                    "view_inspect completed with $errorCount error(s) out of ${evalResult.values.size} expressions."
                 }
 
                 McpToolResult(
@@ -211,8 +214,8 @@ class EvalViewMcpToolAction : McpToolAction {
                     data = data,
                 )
             } catch (e: Exception) {
-                logger.warn("eval_view failed with exception: ${e.message}", e)
-                McpToolResult.internalErrorResult("eval_view", e.message ?: "unknown error")
+                logger.warn("view_inspect failed with exception: ${e.message}", e)
+                McpToolResult.internalErrorResult("view_inspect", e.message ?: "unknown error")
             }
         }
     }

@@ -48,13 +48,13 @@ class EvalViewMcpToolActionTest {
     }
 
     @Test
-    fun toolNameIsEvalView() {
-        Assert.assertEquals("eval_view", action.toolName)
+    fun toolNameIsViewInspect() {
+        Assert.assertEquals("view_inspect", action.toolName)
     }
 
     @Test
     fun definitionNameMatchesToolName() {
-        Assert.assertEquals("eval_view", action.definition.name)
+        Assert.assertEquals("view_inspect", action.definition.name)
     }
 
     @Test

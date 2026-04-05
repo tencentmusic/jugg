@@ -42,7 +42,7 @@
 | 兼容层（AS 版本适配） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt` |
 | MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_usage.md`, `08_mcp_design.md` | `mcp/McpToolInvoker.kt`, `mcp/actions/*` |
 | MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_test_case.md`, `08_mcp_usage.md` | `mcp/actions/McpToolActionRegistry.kt`, `mcp/actions/*` |
-| MCP UI 验证盲测/layout_verify/eval_view | `98_code_map.md`, `08_mcp_test_case_ui_verify.md` | `mcp/actions/*` |
+| MCP UI 验证盲测/layout_verify/view_inspect | `98_code_map.md`, `08_mcp_test_case_ui_verify.md` | `mcp/actions/*` |
 | MCP UI 验证评分（评估者专用） | `08_mcp_test_case_ui_verify_answer.md` | - |
 | MCP UI 验证执行规范自检 | `08_mcp_ui_verify_checklist.md` | - |
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
@@ -75,7 +75,7 @@
 | `08_mcp_design.md` | MCP 协议分层与设计约束 |
 | `08_mcp_usage.md` | MCP 工具清单、参数与排查 |
 | `08_mcp_test_case.md` | MCP 全量测试用例分组执行与验收标准 |
-| `08_mcp_test_case_ui_verify.md` | UI 验证盲测评估题目（layout_verify 60 题 + eval_view 30 题） |
+| `08_mcp_test_case_ui_verify.md` | UI 验证盲测评估题目（layout_verify 60 题 + view_inspect 30 题） |
 | `08_mcp_test_case_ui_verify_answer.md` | UI 验证盲测统一答案表（评估者专用，agent 禁止读取） |
 | `08_mcp_ui_verify_checklist.md` | UI 验证执行规范自检清单 |
 | `09_plugin_runtime_debug.md` | 运行时排查手册：目录结构、日志分析、IDE freeze 证据保全、高频问题根因、TDD 修复流程 |
