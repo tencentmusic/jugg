@@ -21,16 +21,12 @@ class FigmaLayoutVerifyMcpToolAction : McpToolAction {
                     type = "string",
                     description = "Path to Figma JSON file (from get_design_context)."
                 ),
-                "androidJsonPath" to McpJsonSchemaProperty(
-                    type = "string",
-                    description = "Path to Android layout JSON file (from layout_dump)."
-                ),
                 "dpr" to McpJsonSchemaProperty(
                     type = "number",
                     description = "Device pixel ratio for Figma design. Default: 1.0"
                 )
             ),
-            required = listOf("projectDir", "figmaJsonPath", "androidJsonPath"),
+            required = listOf("projectDir", "figmaJsonPath"),
             additionalProperties = false
         ),
         outputSchema = McpToolSchemas.baseOutputSchema
@@ -40,9 +36,16 @@ class FigmaLayoutVerifyMcpToolAction : McpToolAction {
         val logger = runtime.logger.getInstance("FigmaLayoutVerifyMcpToolAction")
         val figmaJsonPath = arguments["figmaJsonPath"] as? String
             ?: return McpToolResult.internalErrorResult(toolName, "figmaJsonPath is required")
-        val androidJsonPath = arguments["androidJsonPath"] as? String
-            ?: return McpToolResult.internalErrorResult(toolName, "androidJsonPath is required")
         val dpr = (arguments["dpr"] as? Number)?.toFloat() ?: 1f
+
+        // Dump android layout internally; passthrough any dump errors directly
+        val dumpResult = LayoutDumpHelper.dump(runtime, toolName)
+        if (dumpResult.status != McpToolStatus.OK) {
+            return dumpResult
+        }
+        @Suppress("UNCHECKED_CAST")
+        val androidJsonPath = (dumpResult.data as Map<String, Any>)["file"] as? String
+            ?: return McpToolResult.internalErrorResult(toolName, "layout_dump did not return a file path")
 
         try {
             // Validate and parse Figma JSON

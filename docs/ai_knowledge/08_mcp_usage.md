@@ -49,7 +49,7 @@
 | `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回 |
 | `layout_verify` | `projectDir`, `checks`（至少 1 条）；可选 `checksFile` | 验证 UI 元素属性或元素间关系（默认自动快照） |
 | `view_locate` | `projectDir`, `target` | 查找单个 UI 元素并返回位置和尺寸（支持模糊匹配） |
-| `figma_layout_verify` | `projectDir`, `figmaJsonPath`, `androidJsonPath`; 可选 `dpr` | 自动提取 Figma 设计稿关系并批量验证 Android 布局 |
+| `figma_layout_verify` | `projectDir`, `figmaJsonPath`; 可选 `dpr` | 自动提取 Figma 设计稿关系并批量验证 Android 布局（内部自动调用 layout_dump） |
 | `view_inspect` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
@@ -142,7 +142,6 @@
 补充（figma_layout_verify 语义）：
 - `figma_layout_verify` 自动从 Figma 设计稿提取间距和对齐关系，并与 Android 实际布局批量对比。
 - **figmaJsonPath**：Figma JSON 文件路径（通过 Figma MCP 的 `get_design_context` 获取）。
-- **androidJsonPath**：Android layout JSON 文件路径（通过 `layout_dump` 获取）。
 - **dpr**（可选，默认 1.0）：设计稿像素倍率。如果 Figma 是 2x 设计稿（如 750px 宽），传 `dpr=2`；如果已是 dp 单位，传 `dpr=1`。
 - 返回 `data.total`（检查总数）、`data.passed`（通过数）、`data.failed`（失败数）、`data.results[]`（详细结果）。
 - 每个 result 包含：`type`（`spacing`/`alignment`）、`description`（关系描述）、`match`（是否匹配）、`expected`（期望值）、`actual`（实际值）、`diff`（差异）。
@@ -150,7 +149,7 @@
 - **模糊匹配**：使用 IoU 算法自动匹配 Figma 节点到 Android View，容忍命名差异和轻微位置偏移。
 - **容差标准**：间距验证容差为 ±2dp 或 ±5%；对齐验证容差为 ±2dp。
 - 适用场景：设计稿还原验证、UI 回归测试、批量布局检查。
-- 推荐工作流：`get_design_context` → `layout_dump` → `figma_layout_verify`。
+- 推荐工作流：`get_design_context` → `figma_layout_verify`。
 
 补充（view_inspect 语义）：
 - `view_inspect` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。
