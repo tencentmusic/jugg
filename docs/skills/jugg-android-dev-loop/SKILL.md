@@ -9,6 +9,8 @@ description: >-
   (2) App source code (Java/Kotlin/XML layouts/resources/AndroidManifest) was just modified —
       immediately run compile_only to confirm the change compiles before considering the task done.
   (3) App source was modified and device verification is the next logical step.
+  OUT OF SCOPE: screenshot / start_record / stop_record are NOT part of this Skill.
+  Do NOT call them when this Skill is active.
 metadata:
   pattern: pipeline+inversion
   steps: "5"
@@ -50,8 +52,8 @@ LoadDecision: stage=<plan|execute|troubleshoot> intent=<phrase> load=<files|none
 | compile, deploy, failure, fallback | `tool_cards_build_deploy.md` |
 | annotation, transform, unsupported | `policy_incremental_compile_limits.md` |
 | error, crash, pattern, fix | `error_patterns.md` |
-| tap, layout, screenshot, recording | `tool_cards_runtime_observe.md` |
-| figma, verify, spacing, alignment | `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md` |
+| tap, recording | `tool_cards_runtime_observe.md` |
+| figma, verify, spacing, alignment, view_locate, view_inspect | `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md` |
 | device, project, ssh, crash | `tool_cards_troubleshoot.md` |
 
 Load on-demand at the step that needs them, not pre-loaded. After loading: `✓ Loaded: [file]`.
@@ -86,11 +88,22 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 ### Step 3: Runtime Verify
 
 - **Entry**: Step 2 passed + device available.
-- **Gate** (mandatory before any evidence): `activity_stack` → confirm target page. Direct screenshot without gate is **FORBIDDEN**. On mismatch: `restart_app(projectDir, tap_actions=navigationSeq)` → re-check.
-- **Action by designSource**:
-  - Figma: `figma_layout_verify(figmaJson, dpr)` → see `guide_ui_verify_assertion.md`
-  - No Figma: `view_locate` per element → manual spacing calc → see `guide_ui_verify_assertion.md`
-  - Unsupported props: `view_inspect` (maxLines, ellipsize, custom getters)
+- **Gate** (mandatory before any verification): call `activity_stack` → confirm target page.
+  - Output mandatory gate result line:
+    ```
+    PageGate: stack=<ActivityName> target=<targetPage> match=<yes|no>
+    ```
+  - Missing this line = gate not executed; do NOT proceed.
+  - On `match=no`: `restart_app(projectDir, tap_actions=navigationSeq)` → re-run gate.
+- **Action by designSource** (all verification delegated to subagent — see Core Rules):
+
+  | Scenario | Tool |
+  |----------|------|
+  | Compare entire screen against design | `figma_layout_verify` |
+  | Locate a specific View's position/bounds | `view_locate` |
+  | Inspect all properties of a specific View | `view_inspect` |
+
+  See `guide_ui_verify_assertion.md` for assertion details.
 - **Checkpoint ✓**: All checks pass or user acceptance.
 
 ### Step 4: Verdict
@@ -102,8 +115,8 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 ### Step 5: Evidence Staging
 
 - **Entry**: Step 4 = PASS.
-- **Action**: Clear `${projectDir}/build/mcp_fetch/final`, copy `final_screenshot.png` / `final_record.mp4`.
-- **Checkpoint ✓**: Artifacts staged. Output report → see `references/report_template.md`.
+- **Action**: Collect subagent verification report. Output structured pass/fail summary.
+- **Checkpoint ✓**: Report output. → see `references/report_template.md`.
 
 ---
 
@@ -112,8 +125,8 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 | # | Rule | Consequence |
 |---|------|-------------|
 | 1 | Steps execute 1→2→3→4→5; each checkpoint output before advancing; failure loops to Step 1 | No skip, no partial retry |
-| 2 | After any deploy/restart: `activity_stack` before evidence. Direct screenshot without gate = FORBIDDEN | Evidence without gate is invalid |
-| 3 | Tool priority: page=`activity_stack`>`layout_dump`>`screenshot`; verify=`figma_layout_verify`>`view_locate`>`view_inspect`>`screenshot`; tap=element>coordinate>percent | Lower-priority only after higher exhausted |
+| 2 | Before any UI verification: call `activity_stack` and output `PageGate:` line. Missing `PageGate:` line = gate not executed; do NOT proceed to verification | Evidence without gate is invalid |
+| 3 | Tool selection is scenario-based: use `figma_layout_verify` for full-screen design comparison; use `view_locate` to find a specific View's position; use `view_inspect` to query a View's properties. `layout_dump` is an internal tool — do NOT call it directly | Wrong tool = invalid result |
 | 4 | Any deploy/restart invalidates all prior runtime observations; rerun gate immediately | Stale context = wrong verdict |
 | 5 | On self-detected violation of Rules 1-4: stop → output `🚨 VIOLATION: [rule] — [what]` → roll back to last valid checkpoint | Self-correction does not reset retry budget |
 
@@ -139,7 +152,7 @@ When build/deploy/runtime error occurs:
 
 - `projectDir`: current working directory by default; multi-module uses root.
 - Max retries: `3` per failure category.
-- Evidence: UI verification needs screenshot/recording artifact; compile-only needs `status=OK` + `isFinal=true`.
+- Evidence: UI verification needs tool-based assertion results; compile-only needs `status=OK` + `isFinal=true`.
 - Tolerance: ±2dp absolute or ±5% relative (fixed, not configurable).
-- Delegate `layout_dump`/`screenshot`/`recording` to sub-agent when ≥2 large context calls or heavy output analysis needed.
+- **All UI verification (Step 3) must be delegated to a subagent**; the main agent only collects the subagent's structured report and produces the Step 4 verdict.
 - Report template and examples → see `references/report_template.md`.

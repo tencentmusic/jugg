@@ -1,20 +1,25 @@
 # Tool Cards: Runtime & Observe
 
-Use when executing runtime interaction or evidence collection.
+Use when executing runtime interaction or UI verification. screenshot / start_record / stop_record are OUT OF SCOPE — do NOT call them when this Skill is active.
 
-## Target Page Context Gate
+## Target Page Gate
 
-Run before final screenshot/recording. Required inputs: navigation sequence, page anchor (resourceId preferred), optional activity name. If missing, ask user.
+Run before any UI verification. Required inputs: navigation sequence, target activity name.
 
 **Steps**:
-1. `restart_app` (use `tap_actions` for restart + navigation in one call)
-2. Verify context: `activity_stack` matches activity OR `layout_dump` contains anchor
-3. On fail: retry within budget, then ask user for corrected navigation/anchor
-4. Only after pass: continue to screenshot/recording and checks
+1. `activity_stack` → read current activity
+2. Output mandatory gate line: `PageGate: stack=<ActivityName> target=<targetPage> match=<yes|no>`
+3. On `match=no`: `restart_app(projectDir, tap_actions=navigationSeq)` → repeat from step 1
+4. On `match=yes`: proceed to verification
 
-**No-early-evidence**: no final screenshot/recording before gate passes (one diagnostic screenshot allowed for navigation failure).
+**Missing `PageGate:` line = gate not executed; do NOT proceed.**
 
 ## Tool Cards
+
+### `activity_stack`
+- Purpose: verify page/activity context.
+- Input: `projectDir`.
+- Use as mandatory gate before any UI verification.
 
 ### `restart_app`
 - Purpose: launch/restart app.
@@ -27,72 +32,51 @@ Three modes (priority: coordinate > percent > element):
 - **Percent** (`xPercent`+`yPercent`, 0-100): proportional position
 - **Element** (text/resourceId/contentDesc, optional className): exact match, taps center if 1 match; multiple matches returns ERROR with candidates
 
-**Usage order**: `layout_dump + element` → `layout_dump + coordinate` → `screenshot + percent` (last resort).
+**Usage order**: element → coordinate → percent (last resort).
 
 **Coordinate Derivation** (mandatory for coordinate mode):
-1. `layout_dump` (use `rootLayout` to scope)
-2. Locate by priority: resource-id → text → content-desc
-3. Parse `bounds: [left,top,right,bottom]`
-4. Tap center: `x=(left+right)/2`, `y=(top+bottom)/2`
+1. `view_locate` to get element bounds
+2. Tap center: `x=(left+right)/2`, `y=(top+bottom)/2`
 
-**Element mode auto-derivation**: sends `find_and_tap` to ViewHierarchy server; exact match AND logic; filters actionable elements (VISIBLE + isShown + non-zero size); if server unavailable due to socket failure, run `force_gradle_compile` once and retry.
+### `figma_layout_verify`
+- Purpose: batch compare entire screen against a Figma design file.
+- Input: `projectDir`, `figmaJsonPath`, optional `dpr`.
+- Use when: comparing overall layout/spacing/alignment against design spec.
+- Output: `data.results[]` with type/match/expected/actual/diff per relation.
 
-### `layout_dump`
-- Purpose: UI hierarchy + coordinate lookup.
-- Input: `projectDir`, optional `rootLayout` (subtree scope).
-- Output: `data.file` + `data.content` (inline JSON) + `artifacts`.
-- Source: ViewHierarchy server (no uiautomator fallback).
-- Compressed: omits defaults; `bounds` is array; `className` strips prefixes.
-
-**Subtree scoping**: for complex pages (deep nesting, RecyclerView with 50+ items), first full dump to get container id, then `rootLayout="id"` for subsequent dumps.
-
-### `layout_verify`
-- Purpose: assert properties/relations without JSON parsing.
-- Input: `projectDir`, `target`, `checks[]`.
-- Multi-match picks first; prefer resourceId.
-- Details: see `guide_layout_verify_assertion.md`.
-- Key points: textColor may omit black; textSizeSp/backgroundColor are live-only; maxLines/ellipsize use view_inspect.
-- Result: `data.result` (PASS/PARTIAL_FAIL/FAIL/ERROR), `data.checkResults[]`, `data.candidates[]` if not found.
+### `view_locate`
+- Purpose: find a single UI element and return its position and size.
+- Input: `projectDir`, `target` (text/resourceId/contentDesc, at least one required).
+- Use when: need a specific View's bounds for spacing calculation or position verification.
+- Output: `data.found`, `bounds([left,top,right,bottom])`, `position({x,y})`, `size({width,height})`. All values in dp.
 
 ### `view_inspect`
-- Purpose: reflective getter calls for properties layout_verify cannot query.
+- Purpose: query all properties of a single View via reflective getter calls.
 - Input: `projectDir`, `target` (must match exactly one), `expressions[]` (1-20, max chain depth 5).
+- Use when: checking maxLines, ellipsize, cornerRadius, tintColor, or any custom getter.
 - Safety: getter-only whitelist (get*/is*/has*/can*/should* + toString/length/name/ordinal/size/isEmpty).
-- Result: `data.values[]` (expression/value/type), `data.density` for px→dp.
-- Use when: maxLines, ellipsize, cornerRadius, custom getters.
+- Output: `data.values[]` (expression/value/type), `data.density` for px→dp.
 
-### `activity_stack`
-- Purpose: verify page/activity context.
-- Input: `projectDir`.
+## Tool Selection by Scenario
 
-### `screenshot`
-- Purpose: final visual proof.
-- Input: `projectDir`.
-- Use after gate passes.
-- **Warning**: may be scaled (≤1440px); never derive tap coords from pixels. Use layout_dump + element/coordinate tap, or percent tap as last resort.
+| Scenario | Tool |
+|----------|------|
+| Compare entire screen against design | `figma_layout_verify` |
+| Locate a specific View's position/bounds | `view_locate` |
+| Inspect all properties of a specific View | `view_inspect` |
 
-### `start_record` / `stop_record`
-- Use when: time-based evidence (animation/async/transient UI), action chain ≥2 steps, or user requests video.
-- Input: `projectDir`; stop_record needs `sessionId`.
-- Recovery: if start_record returns existing sessionId, stop old session first.
+## Verification Profiles
 
-## Profiles
+**With Figma Design** (batch verification):
+1. Target Page Gate → output `PageGate:` line
+2. `figma_layout_verify(figmaJsonPath, dpr)` → analyze results
+3. For any failed item: `view_locate` or `view_inspect` for detail
+4. Fix → re-verify
 
-**Fast UI Verify** (static single-page checks):
-1. Target Page Context Gate
-2. `layout_verify` for each check (auto snapshot, all values in dp)
-3. Final `screenshot` after all pass
-4. Skip recording unless temporal evidence needed
+**Without Figma** (manual verification):
+1. Target Page Gate → output `PageGate:` line
+2. `view_locate` per element → calculate spacing from bounds
+3. `view_inspect` for unsupported properties
 
-**Interaction Proof** (transient/multi-step):
-1. Start record before first action
-2. Resolve tap targets (prefer element mode, fallback to coordinate derivation)
-3. Execute action chain
-4. Stop record + final screenshot
-5. Robustness gate: controls visible (not clipped), not obscured, feedback appears after tap
-
-## Evidence Order
-Prefer lightweight first: `activity_stack` → `layout_dump` → `screenshot`. Add recording when ≥2 actions or animation/async/transient UI.
-
-## Final Artifact Staging
-Clear `${projectDir}/build/mcp_fetch/final`, copy as `final_screenshot.png` / `final_record.mp4`.
+**Spacing calc**: horizontal = `B.bounds[0] - A.bounds[2]`, vertical = `B.bounds[1] - A.bounds[3]`.
+**Alignment check**: centerY = `(bounds[1]+bounds[3])/2`. Aligned if diff ≤ 2dp.
