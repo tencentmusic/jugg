@@ -3,4 +3,9 @@
     <color name="colorPrimary">#008577</color>
     <color name="colorPrimaryDark">#00574B</color>
     <color name="colorAccent">#D81B60</color>
+
+    <!-- MCP Benchmark: style inspect colors -->
+    <color name="mcp_style_title_text">#FF0000</color>
+    <color name="mcp_bg_block">#0000FF</color>
+    <color name="mcp_body_text">#333333</color>
 </resources>

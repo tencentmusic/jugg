@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MCP Benchmark: layout dimensions -->
+    <dimen name="mcp_card_margin">16dp</dimen>
+    <dimen name="mcp_card_padding">12dp</dimen>
+    <dimen name="mcp_card_title_margin_bottom">8dp</dimen>
+    <dimen name="mcp_icon_size">32dp</dimen>
+    <dimen name="mcp_nested_label_padding_left">8dp</dimen>
+    <dimen name="mcp_bg_block_width">120dp</dimen>
+    <dimen name="mcp_bg_block_height">48dp</dimen>
+    <dimen name="mcp_style_title_size">20sp</dimen>
+    <dimen name="mcp_body_text_size">14sp</dimen>
+</resources>

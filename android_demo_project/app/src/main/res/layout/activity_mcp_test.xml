@@ -66,6 +66,84 @@
             android:text="Visibility Tap Target"
             android:visibility="invisible" />
 
+        <!-- Section 2: Style Inspect -->
+        <TextView
+            android:id="@+id/tv_mcp_style_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Style Title"
+            android:textColor="@color/mcp_style_title_text"
+            android:textSize="@dimen/mcp_style_title_size" />
+
+        <View
+            android:id="@+id/view_mcp_bg_block"
+            android:layout_width="@dimen/mcp_bg_block_width"
+            android:layout_height="@dimen/mcp_bg_block_height"
+            android:layout_marginTop="8dp"
+            android:background="@color/mcp_bg_block" />
+
+        <TextView
+            android:id="@+id/tv_mcp_body_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Body Text Sample"
+            android:textColor="@color/mcp_body_text"
+            android:textSize="@dimen/mcp_body_text_size" />
+
+        <!-- Section 3: Card Layout -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_mcp_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="@dimen/mcp_card_margin"
+            android:layout_marginTop="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/mcp_card_padding">
+
+                <TextView
+                    android:id="@+id/tv_card_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/mcp_card_title_margin_bottom"
+                    android:text="Card Title" />
+
+                <TextView
+                    android:id="@+id/tv_card_desc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Card Description" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Section 4: Nested Inspect -->
+        <LinearLayout
+            android:id="@+id/ll_mcp_parent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/iv_mcp_icon"
+                android:layout_width="@dimen/mcp_icon_size"
+                android:layout_height="@dimen/mcp_icon_size"
+                android:contentDescription="mcp icon" />
+
+            <TextView
+                android:id="@+id/tv_mcp_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:paddingLeft="@dimen/mcp_nested_label_padding_left"
+                android:text="Nested Label" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/tv_mcp_swipe_section_title"
             android:layout_width="match_parent"
