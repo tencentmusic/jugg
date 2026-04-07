@@ -367,6 +367,25 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
+    fun testFigmaLayoutVerifyNotRegistered() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 15,
+                params = mapOf(
+                    "name" to "figma_layout_verify",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "figmaJsonPath" to "/tmp/figma.json")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+    }
+
+    @Test
     fun testTapToolCallSuccess() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(

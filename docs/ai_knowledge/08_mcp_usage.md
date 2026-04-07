@@ -46,8 +46,8 @@
 | `screenshot` | `projectDir` | 截图 |
 | `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
+| `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级 JSON（app 内 ViewHierarchy），`data.content` 按固定阈值内联返回 |
 | `view_locate` | `projectDir`, `target` | 查找单个 UI 元素并返回位置和尺寸（支持模糊匹配） |
-| `figma_layout_verify` | `projectDir`, `figmaJsonPath`; 可选 `dpr` | 自动提取 Figma 设计稿关系并批量验证 Android 布局（内部自动调用 layout_dump） |
 | `view_inspect` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
@@ -81,25 +81,14 @@
 
 ---
 
-## 3.1 内部工具（LLM 不应直接调用）
-
-以下工具仅供 MCP 内部调用，不应出现在 LLM 编排的工具调用链中：
-
-| 工具 | 必填参数 | 说明 |
-|------|----------|------|
-| `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON），`data.content` 按固定阈值内联返回；由 `view_locate`、`figma_layout_verify` 等工具内部自动调用 |
-
----
-
 补充（layout_dump 语义）：
-- 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树并落盘为 `.json`。
-- 成功时 `data.file` 返回本地绝对路径，`data.content` 内联返回完整 JSON 数据（无需额外读取文件），`artifacts` 里会包含 `type=json` 的产物。
+- 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树。
+- **输出格式为 HTML**：成功时 `data.file` 指向本地 `.html` 文件，`artifacts` 包含 `type=html` 产物。HTML 格式信息密度更高，适合 LLM 消费。同时 `data.jsonFile` 保留原始 JSON 文件路径供内部工具使用（如 `figma_layout_verify`）。
+- **虚拟节点裁剪（HTML 侧）**：无语义内容的结构性节点（无 `id`/`text`/`contentDesc`、不可点击，且 `alpha=0` 或属于通用容器类如 FrameLayout/LinearLayout 等）在 HTML 生成时自动裁剪，子节点上提。窗口根节点始终保留。`_vir_id_*` 前缀的自动生成 id 不渲染到 HTML 属性中。
+- `data.contentBytes` 表示 HTML 内容的字节大小。
 - 可选参数 `rootLayout`：传入节点 `id` 值（推荐 short id，如 `"content"`），仅返回该节点及其子树。未传或目标节点不存在时，返回完整层级。
 - `topWindowOnly=true`（默认）时，服务端优先使用当前 top resumed Activity 对应窗口，避免误选到后台 Activity 窗口。
-- `data.content` 的内联阈值固定为 16KB，不再接受外部参数调整。
-- Server 可能返回内联 JSON 或远端文件路径，`layout_dump` 会统一拉齐为本地 `.json` 文件输出。
-- 返回中新增 `data.contentBytes`、`data.inlineOmitted`、`data.inlineThresholdKb`。当 `contentBytes > inlineThresholdKb * 1024` 时，`data.content` 被省略，但 `data.file` 仍可读取完整 JSON。
-- `message` 不再固定为 executed successfully，而是摘要信息：窗口数、顶层窗口标题、节点数、是否截断。
+- `message` 为摘要信息：窗口数、顶层窗口标题、节点数、可点击节点数、是否截断。
 - **服务端剪枝**：App 内 ViewHierarchyServer 限制最大深度 `MAX_DEPTH=60`，最大节点数 `MAX_NODE_COUNT=5000`。超限时根节点会包含 `"truncated":true` 字段，被截断的节点自身 `tag` 为 `"truncated:node_limit"` 或 `"truncated:depth_limit"`。
 - **不可见节点**：默认排除 `GONE` 节点以减少体积；设置 `isIncludeGone=true` 可包含 GONE 节点用于诊断。`INVISIBLE` 节点始终包含。注意：元素模式 `tap` 会过滤掉不可见节点（仅匹配 VISIBLE + isShown），因此 GONE/INVISIBLE 的 View 无法通过 `tap(text=...)` 定位，需借助 `layout_dump(isIncludeGone=true)` 诊断。
 - **根 JSON 结构**：`{windows:[{windowType, title, root:<node>}], truncated, deviceInfo:{density, scaledDensity}}`。
@@ -122,18 +111,6 @@
 - 所有坐标和尺寸单位为 dp。
 - 内部自动调用 `layout_dump` 获取最新布局快照。
 - 适用场景：需要获取元素位置用于后续计算或验证。
-
-补充（figma_layout_verify 语义）：
-- `figma_layout_verify` 自动从 Figma 设计稿提取间距和对齐关系，并与 Android 实际布局批量对比。
-- **figmaJsonPath**：Figma JSON 文件路径（通过 Figma MCP 的 `get_design_context` 获取）。
-- **dpr**（可选，默认 1.0）：设计稿像素倍率。如果 Figma 是 2x 设计稿（如 750px 宽），传 `dpr=2`；如果已是 dp 单位，传 `dpr=1`。
-- 返回 `data.total`（检查总数）、`data.passed`（通过数）、`data.failed`（失败数）、`data.results[]`（详细结果）。
-- 每个 result 包含：`type`（`spacing`/`alignment`）、`description`（关系描述）、`match`（是否匹配）、`expected`（期望值）、`actual`（实际值）、`diff`（差异）。
-- **自动提取关系**：工具内部自动识别 Figma 中相邻元素的间距和对齐关系，无需手动指定期望值。
-- **模糊匹配**：使用 IoU 算法自动匹配 Figma 节点到 Android View，容忍命名差异和轻微位置偏移。
-- **容差标准**：间距验证容差为 ±2dp 或 ±5%；对齐验证容差为 ±2dp。
-- 适用场景：设计稿还原验证、UI 回归测试、批量布局检查。
-- 推荐工作流：`get_design_context` → `figma_layout_verify`。
 
 补充（view_inspect 语义）：
 - `view_inspect` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。

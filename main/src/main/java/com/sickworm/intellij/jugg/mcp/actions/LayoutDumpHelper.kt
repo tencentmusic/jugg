@@ -69,6 +69,7 @@ internal object LayoutDumpHelper {
             }
 
         val localJsonFile = File(toolDir, "layout_${System.currentTimeMillis()}.json")
+        val localHtmlFile = File(toolDir, "layout_${System.currentTimeMillis()}.html")
 
         return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
             try {
@@ -103,19 +104,25 @@ internal object LayoutDumpHelper {
                     convertPxToDp(jsonElement, density)
                 }
 
+                // Keep intermediate JSON for internal consumers (e.g. FigmaLayoutVerify).
                 val convertedJson = jsonElement.toString()
                 localJsonFile.writeText(convertedJson, StandardCharsets.UTF_8)
 
+                // Convert to HTML for the MCP artifact (better LLM information density).
+                val htmlContent = LayoutHtmlConverter().convert(jsonElement.asJsonObject)
+                localHtmlFile.writeText(htmlContent, StandardCharsets.UTF_8)
+
                 val summary = buildSummaryMessage(jsonElement)
-                val contentBytes = convertedJson.toByteArray(StandardCharsets.UTF_8).size
+                val contentBytes = htmlContent.toByteArray(StandardCharsets.UTF_8).size
                 McpToolResult(
                     status = McpToolStatus.OK,
                     message = summary,
                     data = mapOf<String, Any>(
-                        "file" to localJsonFile.absolutePath,
+                        "file" to localHtmlFile.absolutePath,
+                        "jsonFile" to localJsonFile.absolutePath,
                         "contentBytes" to contentBytes,
                     ),
-                    artifacts = listOf(McpArtifact(type = "json", path = localJsonFile.absolutePath)),
+                    artifacts = listOf(McpArtifact(type = "html", path = localHtmlFile.absolutePath)),
                     errorCode = null,
                 )
             } catch (e: Exception) {

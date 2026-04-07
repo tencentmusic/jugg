@@ -44,8 +44,8 @@ class FigmaLayoutVerifyMcpToolAction : McpToolAction {
             return dumpResult
         }
         @Suppress("UNCHECKED_CAST")
-        val androidJsonPath = (dumpResult.data as Map<String, Any>)["file"] as? String
-            ?: return McpToolResult.internalErrorResult(toolName, "layout_dump did not return a file path")
+        val androidJsonPath = (dumpResult.data as Map<String, Any>)["jsonFile"] as? String
+            ?: return McpToolResult.internalErrorResult(toolName, "layout_dump did not return a json file path")
 
         try {
             // Validate and parse Figma JSON

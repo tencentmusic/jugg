@@ -38,11 +38,11 @@ Three modes (priority: coordinate > percent > element):
 1. `view_locate` to get element bounds
 2. Tap center: `x=(left+right)/2`, `y=(top+bottom)/2`
 
-### `figma_layout_verify`
-- Purpose: batch compare entire screen against a Figma design file.
-- Input: `projectDir`, `figmaJsonPath`, optional `dpr`.
-- Use when: comparing overall layout/spacing/alignment against design spec.
-- Output: `data.results[]` with type/match/expected/actual/diff per relation.
+### `layout_dump`
+- Purpose: dump full UI hierarchy from App-side ViewHierarchy server to a local JSON artifact.
+- Input: `projectDir`; optional `rootLayout` (subtree node id), `isIncludeGone` (include GONE nodes), `isAllWindows` (all windows).
+- Use when: need the raw view tree for manual inspection, custom analysis, or debugging.
+- Output: `data.file` (local JSON path), `data.content` (inline JSON if ≤16KB), `artifacts[]`.
 
 ### `view_locate`
 - Purpose: find a single UI element and return its position and size.
@@ -59,19 +59,13 @@ Three modes (priority: coordinate > percent > element):
 
 ## Tool Selection by Scenario
 
-| Scenario | Tool |
-|----------|------|
-| Compare entire screen against design | `figma_layout_verify` |
-| Locate a specific View's position/bounds | `view_locate` |
-| Inspect all properties of a specific View | `view_inspect` |
+| Scenario | Tool | Priority |
+|----------|------|----------|
+| Confirm element position in layout | `view_locate` | 1st |
+| Confirm displayed content details | `view_inspect` | 1st |
+| `view_locate` cannot satisfy the need | `layout_dump` | Fallback |
 
 ## Verification Profiles
-
-**With Figma Design** (batch verification):
-1. Target Page Gate → output `PageGate:` line
-2. `figma_layout_verify(figmaJsonPath, dpr)` → analyze results
-3. For any failed item: `view_locate` or `view_inspect` for detail
-4. Fix → re-verify
 
 **Without Figma** (manual verification):
 1. Target Page Gate → output `PageGate:` line

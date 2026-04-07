@@ -53,7 +53,7 @@ LoadDecision: stage=<plan|execute|troubleshoot> intent=<phrase> load=<files|none
 | annotation, transform, unsupported | `policy_incremental_compile_limits.md` |
 | error, crash, pattern, fix | `error_patterns.md` |
 | tap, recording | `tool_cards_runtime_observe.md` |
-| figma, verify, spacing, alignment, view_locate, view_inspect | `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md` |
+| figma, verify, spacing, alignment, view_locate, view_inspect, layout_dump | `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md` |
 | device, project, ssh, crash | `tool_cards_troubleshoot.md` |
 
 Load on-demand at the step that needs them, not pre-loaded. After loading: `✓ Loaded: [file]`.
@@ -97,11 +97,11 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
   - On `match=no`: `restart_app(projectDir, tap_actions=navigationSeq)` → re-run gate.
 - **Action by designSource** (all verification delegated to subagent — see Core Rules):
 
-  | Scenario | Tool |
-  |----------|------|
-  | Compare entire screen against design | `figma_layout_verify` |
-  | Locate a specific View's position/bounds | `view_locate` |
-  | Inspect all properties of a specific View | `view_inspect` |
+  | Scenario | Tool | Priority |
+  |----------|------|----------|
+  | Confirm element position in layout | `view_locate` | 1st |
+  | Confirm displayed content details | `view_inspect` | 1st |
+  | `view_locate` cannot satisfy the need | `layout_dump` | Fallback |
 
   See `guide_ui_verify_assertion.md` for assertion details.
 - **Checkpoint ✓**: All checks pass or user acceptance.
@@ -126,7 +126,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 |---|------|-------------|
 | 1 | Steps execute 1→2→3→4→5; each checkpoint output before advancing; failure loops to Step 1 | No skip, no partial retry |
 | 2 | Before any UI verification: call `activity_stack` and output `PageGate:` line. Missing `PageGate:` line = gate not executed; do NOT proceed to verification | Evidence without gate is invalid |
-| 3 | Tool selection is scenario-based: use `figma_layout_verify` for full-screen design comparison; use `view_locate` to find a specific View's position; use `view_inspect` to query a View's properties. `layout_dump` is an internal tool — do NOT call it directly | Wrong tool = invalid result |
+| 3 | Tool selection is scenario-based with priority: (1) `view_locate` — confirm element position in layout; (2) `view_inspect` — confirm displayed content details; (3) `layout_dump` — fallback only when `view_locate` cannot satisfy the need | Wrong tool = invalid result |
 | 4 | Any deploy/restart invalidates all prior runtime observations; rerun gate immediately | Stale context = wrong verdict |
 | 5 | On self-detected violation of Rules 1-4: stop → output `🚨 VIOLATION: [rule] — [what]` → roll back to last valid checkpoint | Self-correction does not reset retry budget |
 

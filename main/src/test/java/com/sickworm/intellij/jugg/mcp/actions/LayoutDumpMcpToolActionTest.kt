@@ -65,11 +65,11 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertTrue(result.message.contains("nodes"))
             Assert.assertEquals(1, construction.constructed().size)
             Assert.assertEquals(0, setup.adb.pullCount)
-            Assert.assertEquals("json", result.artifacts.firstOrNull()?.type)
+            Assert.assertEquals("html", result.artifacts.firstOrNull()?.type)
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
-            Assert.assertTrue(filePath.endsWith(".json"))
+            Assert.assertTrue(filePath.endsWith(".html"))
             val content = File(filePath).readText(StandardCharsets.UTF_8)
             Assert.assertTrue(content.contains("MainActivity"))
         }
@@ -94,13 +94,13 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertEquals(McpToolStatus.OK, result.status)
             Assert.assertEquals(1, setup.adb.pullCount)
             Assert.assertTrue(setup.adb.pullFromPaths.contains(remotePath))
-            Assert.assertEquals("json", result.artifacts.firstOrNull()?.type)
+            Assert.assertEquals("html", result.artifacts.firstOrNull()?.type)
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
-            Assert.assertTrue(filePath.endsWith(".json"))
+            Assert.assertTrue(filePath.endsWith(".html"))
             val content = File(filePath).readText(StandardCharsets.UTF_8)
-            Assert.assertTrue(content.contains("remote"))
+            Assert.assertTrue(content.contains("<html>"))
         }
     }
 
@@ -198,7 +198,7 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertFalse("inlineOmitted should not be present", data.containsKey("inlineOmitted"))
             Assert.assertFalse("inlineThresholdKb should not be present", data.containsKey("inlineThresholdKb"))
             Assert.assertTrue((data["contentBytes"] as Number).toInt() > 0)
-            Assert.assertTrue((data["file"] as String).endsWith(".json"))
+            Assert.assertTrue((data["file"] as String).endsWith(".html"))
         }
     }
 
@@ -388,8 +388,9 @@ class LayoutDumpMcpToolActionTest {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_dp_")
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
-        // density=3.0, bounds=[0,0,300,600] in px should become [0,0,100,200] in dp (int)
-        val jsonWithPx = """{"windows":[{"title":"MainActivity","root":{"className":"Button","bounds":[0,0,300,600],"padding":[30,60,90,120]}}],"truncated":false,"deviceInfo":{"density":3.0,"scaledDensity":3.0}}"""
+        // density=3.0, bounds=[0,0,300,600] in px should become [0,0,100,200] in dp;
+        // Button is clickable so it appears in the HTML output with the converted bounds.
+        val jsonWithPx = """{"windows":[{"title":"MainActivity","root":{"className":"Button","bounds":[0,0,300,600],"clickable":true}}],"truncated":false,"deviceInfo":{"density":3.0,"scaledDensity":3.0}}"""
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
             Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
@@ -401,29 +402,20 @@ class LayoutDumpMcpToolActionTest {
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
+            Assert.assertTrue("artifact should be HTML", filePath.endsWith(".html"))
             val content = File(filePath).readText(StandardCharsets.UTF_8)
-            val json = com.google.gson.JsonParser.parseString(content).asJsonObject
-            val root = json.getAsJsonArray("windows").get(0).asJsonObject.getAsJsonObject("root")
-            val bounds = root.getAsJsonArray("bounds")
-            Assert.assertEquals(0, bounds.get(0).asInt)
-            Assert.assertEquals(0, bounds.get(1).asInt)
-            Assert.assertEquals(100, bounds.get(2).asInt)
-            Assert.assertEquals(200, bounds.get(3).asInt)
-            val padding = root.getAsJsonArray("padding")
-            Assert.assertEquals(10, padding.get(0).asInt)
-            Assert.assertEquals(20, padding.get(1).asInt)
-            Assert.assertEquals(30, padding.get(2).asInt)
-            Assert.assertEquals(40, padding.get(3).asInt)
+            // Converted bounds [0,0,100,200] should appear in HTML output
+            Assert.assertTrue("HTML should contain converted bounds", content.contains("0,0,100,200"))
         }
     }
 
     @Test
-    fun testLayoutDumpPreservesVirtualIds() {
+    fun testLayoutDumpVirtualIdNodesArePrunedInHtml() {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_virtual_id_")
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
-        // Virtual IDs from app side: _vir_id_0, _vir_id_1
-        val jsonWithVirtualIds = """{"windows":[{"title":"MainActivity","root":{"className":"FrameLayout","id":"_vir_id_0","bounds":[0,0,1080,1920],"children":[{"className":"Button","id":"_vir_id_1","bounds":[0,0,300,100]}]}}],"truncated":false,"deviceInfo":{"density":3.0,"scaledDensity":3.0}}"""
+        // Virtual ID wrapper around a real Button child
+        val jsonWithVirtualIds = """{"windows":[{"title":"MainActivity","root":{"className":"FrameLayout","id":"_vir_id_0","bounds":[0,0,360,640],"children":[{"className":"Button","id":"btn_action","bounds":[0,0,100,50],"text":"OK","clickable":true}]}}],"truncated":false,"deviceInfo":{"density":3.0,"scaledDensity":3.0}}"""
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
             Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
@@ -436,8 +428,8 @@ class LayoutDumpMcpToolActionTest {
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
             val content = File(filePath).readText(StandardCharsets.UTF_8)
-            Assert.assertTrue("Virtual ID _vir_id_0 should be preserved", content.contains("_vir_id_0"))
-            Assert.assertTrue("Virtual ID _vir_id_1 should be preserved", content.contains("_vir_id_1"))
+            Assert.assertFalse("Virtual ID _vir_id_0 should be pruned from HTML", content.contains("_vir_id_0"))
+            Assert.assertTrue("Real child btn_action should appear in HTML", content.contains("btn_action"))
         }
     }
 
@@ -446,8 +438,9 @@ class LayoutDumpMcpToolActionTest {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_nested_dp_")
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
-        // density=2.0, nested structure with multiple levels
-        val jsonWithNested = """{"windows":[{"title":"MainActivity","root":{"className":"FrameLayout","bounds":[0,0,200,400],"children":[{"className":"LinearLayout","bounds":[10,20,190,380],"children":[{"className":"TextView","bounds":[20,30,180,70]}]}]}}],"truncated":false,"deviceInfo":{"density":2.0,"scaledDensity":2.0}}"""
+        // density=2.0; TextView has bounds [20,30,180,70] -> [10,15,90,35] in dp.
+        // FrameLayout has real id so it won't be pruned.
+        val jsonWithNested = """{"windows":[{"title":"MainActivity","root":{"className":"FrameLayout","id":"root_frame","bounds":[0,0,200,400],"children":[{"className":"LinearLayout","id":"inner_ll","bounds":[10,20,190,380],"children":[{"className":"TextView","bounds":[20,30,180,70],"text":"Hello"}]}]}}],"truncated":false,"deviceInfo":{"density":2.0,"scaledDensity":2.0}}"""
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
             Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
@@ -460,22 +453,10 @@ class LayoutDumpMcpToolActionTest {
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
             val content = File(filePath).readText(StandardCharsets.UTF_8)
-            val json = com.google.gson.JsonParser.parseString(content).asJsonObject
-            val root = json.getAsJsonArray("windows").get(0).asJsonObject.getAsJsonObject("root")
-
-            // Check root bounds: [0,0,200,400] / 2.0 = [0,0,100,200]
-            val rootBounds = root.getAsJsonArray("bounds")
-            Assert.assertEquals(100, rootBounds.get(2).asInt)
-            Assert.assertEquals(200, rootBounds.get(3).asInt)
-
-            // Check nested child bounds: [20,30,180,70] / 2.0 = [10,15,90,35]
-            val textView = root.getAsJsonArray("children").get(0).asJsonObject
-                .getAsJsonArray("children").get(0).asJsonObject
-            val textViewBounds = textView.getAsJsonArray("bounds")
-            Assert.assertEquals(10, textViewBounds.get(0).asInt)
-            Assert.assertEquals(15, textViewBounds.get(1).asInt)
-            Assert.assertEquals(90, textViewBounds.get(2).asInt)
-            Assert.assertEquals(35, textViewBounds.get(3).asInt)
+            // Converted root bounds [0,0,100,200] should appear
+            Assert.assertTrue("converted root bounds should appear", content.contains("0,0,100,200"))
+            // Converted TextView bounds [10,15,90,35] should appear
+            Assert.assertTrue("converted TextView bounds should appear", content.contains("10,15,90,35"))
         }
     }
 
