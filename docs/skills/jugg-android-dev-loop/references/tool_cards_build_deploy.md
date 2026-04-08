@@ -4,66 +4,60 @@ Use this file when executing compile/deploy actions or handling compile/deploy f
 
 ## Default Path
 
-1. Default tool: `compile_and_deploy(projectDir)`.
-2. If user asks compile-only or no device is available: `compile_only(projectDir)`.
-3. If incremental path is likely insufficient: `force_gradle_compile(projectDir)`.
+1. Default command: `jugg deploy` (compile + deploy, waits for completion).
+2. If user asks compile-only or no device is available: `jugg compile`.
+3. If incremental path is likely insufficient: `jugg gradle-build`.
 
 ## Async Compile Rule (Mandatory)
 
-For `compile_and_deploy`, `compile_only`, or `force_gradle_compile`:
+The CLI handles polling internally — `jugg deploy` and `jugg gradle-build` block until completion and print progress to stderr. No manual `get_compile_status` polling needed.
 
-- If `isFinal=false`, prefer delegating polling to an `awaiter` sub-agent when runtime supports MCP-capable sub-agents; otherwise poll in main agent.
-- Poll with `get_compile_status(jobId)` and follow `pollIntervalSuggestedMs` when present.
-- Determine result only by terminal compile status.
-- If `status=unknown`, treat as invalid job/context; stop and re-check `jobId` source.
+- Determine result by CLI exit code (0 = success, non-zero = failure) and `status: OK/ERROR` in output.
+- If `status: ERROR` is printed, treat as failure and follow Fallback Chain below.
 
 ## Fallback Chain
 
 Use this order for compile/deploy failures:
 
-1. Parse `status/message/errorCode/data/artifacts`.
-2. Retry `compile_and_deploy` up to 3 times.
-3. If still failing, use `force_gradle_compile` (heavy).
-   - `force_gradle_compile` produces the compiled artifact only (no deploy). After async polling completes, use `compile_and_deploy` to push the artifact to device (compile phase will be skipped because output is already up-to-date).
+1. Parse `status`/`message` from CLI output.
+2. Retry `jugg deploy` up to 3 times.
+3. If still failing, use `jugg gradle-build` (heavy).
+   - `jugg gradle-build` produces the compiled artifact only (no deploy). After it completes, run `jugg deploy` to push the artifact to device (compile phase will be skipped because output is already up-to-date).
    - On final failure, inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-4. Retry `compile_and_deploy` once after `force_gradle_compile`.
+4. Retry `jugg deploy` once after `jugg gradle-build`.
 5. If still broken, inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-6. Only when install-state corruption or signature conflict is likely, run `clean_reinstall_apk` as a post-step.
+6. Only when install-state corruption or signature conflict is likely, run `jugg reinstall` as a post-step.
 7. If still unclear, stop and confirm with user.
-8. Remote troubleshooting (`request_remote_ssh_info`) requires explicit user consent.
+8. Remote troubleshooting (`jugg ssh-info --reason <reason>`) requires explicit user consent.
 
 Important:
 
-- Do not place `clean_reinstall_apk` before `force_gradle_compile`.
-- `clean_reinstall_apk` is conditional recovery, not a general retry.
+- Do not place `jugg reinstall` before `jugg gradle-build`.
+- `jugg reinstall` is conditional recovery, not a general retry.
 
 Special case:
 
-- `MCP_NO_DEVICE`: stop and ask user to connect/start device, or switch to `compile_only`.
+- `MCP_NO_DEVICE` / `No device`: stop and ask user to connect/start device, or switch to `jugg compile`.
 
-## Build Tool Quick Cards
+## Build Command Quick Cards
 
-### `compile_and_deploy`
+### `jugg deploy`
 - Purpose: compile modified code and deploy to device.
-- Required input: `projectDir`.
+- No arguments required; `projectDir` auto-resolved from `$PWD`.
 - Primary path for Android modify+verify loop.
-- Post-deploy: page state may change (app restart or activity recreation). Always rerun Target Page Context Gate after deploy succeeds before continuing verification. If gate confirms same page, continue verification. If page changed, re-execute navigation sequence to return to target page.
+- Post-deploy: page state may change (app restart or activity recreation). Always rerun Target Page Context Gate after deploy succeeds before continuing verification.
 
-### `compile_only`
+### `jugg compile`
 - Purpose: compile modified sources without deployment.
-- Required input: `projectDir`.
+- No arguments required; `projectDir` auto-resolved from `$PWD`.
 - Use for no-device scenarios or compile-only requests.
 
-### `force_gradle_compile`
+### `jugg gradle-build`
 - Purpose: force full Gradle compile fallback.
-- Required input: `projectDir`.
+- No arguments required; `projectDir` auto-resolved from `$PWD`.
 - Use when incremental compile limitations are hit.
 
-### `get_compile_status`
-- Purpose: query async compile/deploy job status.
-- Required input: `projectDir`, `jobId`.
-
-### `clean_reinstall_apk`
+### `jugg reinstall`
 - Purpose: clear app data and reinstall APK.
-- Required input: `projectDir`.
+- No arguments required; `projectDir` auto-resolved from `$PWD`.
 - Use after deploy/install state corruption or signature mismatch issues.

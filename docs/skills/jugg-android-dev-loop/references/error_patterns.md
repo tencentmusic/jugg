@@ -74,7 +74,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
   stage: runtime
   signature: {includes: ["annotation", "not effective", "inject null", "ViewModel not found", "table missing"], regex: "@Inject.*null|@HiltViewModel.*not found|@Entity.*table|@Dao.*not found|@GlideModule"}
   diagnosis: unsupported annotation processor skipped in incremental compile (Dagger/Hilt/Room/Glide)
-  fix_strategy: use_force_gradle_compile_to_regenerate
+  fix_strategy: use_jugg_gradle_build_to_regenerate
   fix_scope: low
   confidence_hint: 0.92
   auto_apply: true
@@ -83,7 +83,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
   stage: runtime
   signature: {includes: ["instrumentation", "transform", "bytecode", "hook not triggered", "init not called"], regex: "ASM|Transform|bytecode.*inject|aspect.*not.*trigger"}
   diagnosis: incremental chain has no Gradle Transform; recompiled files lose instrumentation
-  fix_strategy: use_force_gradle_compile_to_run_transforms
+  fix_strategy: use_jugg_gradle_build_to_run_transforms
   fix_scope: low
   confidence_hint: 0.90
   auto_apply: true
@@ -101,7 +101,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
   stage: observe
   signature: {includes: ["ViewHierarchy server is unavailable", "find_and_tap failed", "layout_dump failed"]}
   diagnosis: app-side ViewHierarchy server unreachable
-  fix_strategy: restart_app_then_one_gradle_compile_for_socket_failures_then_retry
+  fix_strategy: jugg_restart_then_one_gradle_build_for_socket_failures_then_retry
   fix_scope: low
   confidence_hint: 0.93
   auto_apply: true

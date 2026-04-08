@@ -49,8 +49,8 @@ Project:   {{projectDir}}
 ```
 Phase 0: projectDir=/path | targetPage=MainActivity | navigationSeq=[] | designSource=none
 Step 1: Edit android:text="Submit" → "Confirm" in activity_main.xml. ✅
-Step 2: compile_and_deploy → poll → OK. ✅
-Step 3: activity_stack → MainActivity. view_locate(btn_submit) → text=="Confirm". ✅
+Step 2: jugg deploy → OK. ✅
+Step 3: jugg activity-stack → MainActivity. jugg view-locate --id btn_submit → text=="Confirm". ✅
 Step 4: Verdict: PASS.
 Step 5: screenshot → final_screenshot.png. ✅
 ```
@@ -61,10 +61,10 @@ Step 5: screenshot → final_screenshot.png. ✅
 Phase 0: projectDir=/path | targetPage=SettingsPage | navigationSeq=[tap "Settings"] | designSource=design.json (dpr=1)
 Step 1: No changes needed. ⏭ SKIP
 Step 2: No source changes. ⏭ SKIP
-Step 3: restart_app → activity_stack → SettingsActivity.
+Step 3: jugg restart → jugg activity-stack → SettingsActivity.
         figma_layout_verify(design.json, dpr=1) → 15 total, 12 pass, 3 fail. ❌
 Step 4: FAIL → return to Step 1. Fix: Avatar→App spacing 14dp→18dp.
-Step 1 (retry): fix layout XML. Step 2: compile_and_deploy → OK.
+Step 1 (retry): fix layout XML. Step 2: jugg deploy → OK.
 Step 3 (retry): figma_layout_verify → all pass. ✅
 Step 4: PASS. Step 5: screenshot → final. ✅
 ```

@@ -1,15 +1,15 @@
 ---
 name: jugg-android-dev-loop
 description: >-
-  Use Jugg MCP tools for Android app modify/deploy/verify loop.
+  Use Jugg CLI (`jugg <subcommand>`) for Android app modify/deploy/verify loop.
   PREREQUISITE (must be true for any trigger): the project artifact is an APK/AAB installed on a device —
   NOT a Gradle plugin, IDE plugin, library, or build tool.
   Trigger when ANY of the following is true:
   (1) User explicitly mentions Jugg, or asks to build, deploy, or verify on device.
   (2) App source code (Java/Kotlin/XML layouts/resources/AndroidManifest) was just modified —
-      immediately run compile_only to confirm the change compiles before considering the task done.
+      immediately run `jugg compile` to confirm the change compiles before considering the task done.
   (3) App source was modified and device verification is the next logical step.
-  OUT OF SCOPE: screenshot / start_record / stop_record are NOT part of this Skill.
+  OUT OF SCOPE: `jugg screenshot` / `jugg record-start` / `jugg record-stop` are NOT part of this Skill.
   Do NOT call them when this Skill is active.
 metadata:
   pattern: pipeline+inversion
@@ -17,9 +17,9 @@ metadata:
   toolset: references/
 ---
 
-# Jugg MCP Android Dev Loop
+# Jugg CLI Android Dev Loop
 
-Deterministic loop: `context-gather → modify → build/deploy → verify → evidence → iterate`. MCP-only; avoid raw adb.
+Deterministic loop: `context-gather → modify → build/deploy → verify → evidence → iterate`. CLI-only (`jugg <subcommand>`); avoid raw adb.
 
 ---
 
@@ -29,13 +29,13 @@ Collect all mandatory variables before any code modification or tool invocation.
 
 | Variable | Source | Fallback |
 |----------|--------|----------|
-| `projectDir` | Working directory or user-specified | Ask user |
+| `projectDir` | Working directory auto-resolved by CLI | Ask user only if CLI reports "not under any Jugg project" |
 | `targetPage` | User description or Figma ref | Ask user (skip if compile-only) |
 | `navigationSeq` | User-provided tap sequence | Ask user; cache after first run |
 | `designSource` | Figma JSON path/URL, or `none` | Assume `none` if not mentioned |
-| `deviceReady` | `device_list` result | No device → compile-only mode |
+| `deviceReady` | `jugg devices` result | No device → compile-only mode |
 
-Auto-resolve: if `projectDir` is unambiguous, fill silently. If compile-only, skip `targetPage`/`navigationSeq`/`designSource`. If unresolvable with no fallback → **stop and ask user**.
+Auto-resolve: CLI auto-detects `projectDir` from `$PWD`; do not pass it manually. If compile-only, skip `targetPage`/`navigationSeq`/`designSource`. If unresolvable with no fallback → **stop and ask user**.
 
 ---
 
@@ -79,7 +79,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 ### Step 2: Build & Deploy
 
 - **Entry**: Step 1 passed.
-- **Action**: `compile_and_deploy(projectDir)` → poll `get_compile_status(jobId)` until `isFinal=true`. Use `compile_only` if no device. → see `tool_cards_build_deploy.md`
+- **Action**: `jugg deploy` → waits for completion automatically. Use `jugg compile` if no device. → see `tool_cards_build_deploy.md`
 - **On error**: Load `error_patterns.md` → apply Error Reviewer scoring (§below).
 - **Checkpoint ✓**: `status=OK` + `isFinal=true`.
 - **Checkpoint ✗**: Fix → return to Step 1 (not to failed step).
@@ -88,20 +88,20 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 ### Step 3: Runtime Verify
 
 - **Entry**: Step 2 passed + device available.
-- **Gate** (mandatory before any verification): call `activity_stack` → confirm target page.
+- **Gate** (mandatory before any verification): run `jugg activity-stack` → confirm target page.
   - Output mandatory gate result line:
     ```
     PageGate: stack=<ActivityName> target=<targetPage> match=<yes|no>
     ```
   - Missing this line = gate not executed; do NOT proceed.
-  - On `match=no`: `restart_app(projectDir, tap_actions=navigationSeq)` → re-run gate.
+  - On `match=no`: `jugg restart [--tap ...]` with `navigationSeq` → re-run gate.
 - **Action by designSource** (all verification delegated to subagent — see Core Rules):
 
   | Scenario | Tool | Priority |
   |----------|------|----------|
-  | Confirm element position in layout | `view_locate` | 1st |
-  | Confirm displayed content details | `view_inspect` | 1st |
-  | `view_locate` cannot satisfy the need | `layout_dump` | Fallback |
+  | Confirm element position in layout | `jugg view-locate` | 1st |
+  | Confirm displayed content details | `jugg view-inspect` | 1st |
+  | `jugg view-locate` cannot satisfy the need | `jugg layout-dump` | Fallback |
 
   See `guide_ui_verify_assertion.md` for assertion details.
 - **Checkpoint ✓**: All checks pass or user acceptance.
@@ -125,8 +125,8 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 | # | Rule | Consequence |
 |---|------|-------------|
 | 1 | Steps execute 1→2→3→4→5; each checkpoint output before advancing; failure loops to Step 1 | No skip, no partial retry |
-| 2 | Before any UI verification: call `activity_stack` and output `PageGate:` line. Missing `PageGate:` line = gate not executed; do NOT proceed to verification | Evidence without gate is invalid |
-| 3 | Tool selection is scenario-based with priority: (1) `view_locate` — confirm element position in layout; (2) `view_inspect` — confirm displayed content details; (3) `layout_dump` — fallback only when `view_locate` cannot satisfy the need | Wrong tool = invalid result |
+| 2 | Before any UI verification: run `jugg activity-stack` and output `PageGate:` line. Missing `PageGate:` line = gate not executed; do NOT proceed to verification | Evidence without gate is invalid |
+| 3 | Tool selection is scenario-based with priority: (1) `jugg view-locate` — confirm element position in layout; (2) `jugg view-inspect` — confirm displayed content details; (3) `jugg layout-dump` — fallback only when `jugg view-locate` cannot satisfy the need | Wrong tool = invalid result |
 | 4 | Any deploy/restart invalidates all prior runtime observations; rerun gate immediately | Stale context = wrong verdict |
 | 5 | On self-detected violation of Rules 1-4: stop → output `🚨 VIOLATION: [rule] — [what]` → roll back to last valid checkpoint | Self-correction does not reset retry budget |
 
@@ -150,9 +150,9 @@ When build/deploy/runtime error occurs:
 
 ## Core Rules
 
-- `projectDir`: current working directory by default; multi-module uses root.
+- `projectDir`: auto-resolved by CLI from current working directory; multi-module uses root.
 - Max retries: `3` per failure category.
-- Evidence: UI verification needs tool-based assertion results; compile-only needs `status=OK` + `isFinal=true`.
+- Evidence: UI verification needs tool-based assertion results; compile-only needs exit code 0 + `status: OK`.
 - Tolerance: ±2dp absolute or ±5% relative (fixed, not configurable).
 - **All UI verification (Step 3) must be delegated to a subagent**; the main agent only collects the subagent's structured report and produces the Step 4 verdict.
 - Report template and examples → see `references/report_template.md`.
