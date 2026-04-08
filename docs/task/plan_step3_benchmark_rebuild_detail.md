@@ -16,7 +16,7 @@
    ↓
 阶段 4：编写 L1~L4 Benchmark 用例
    ↓
-阶段 5：清理旧文档，建立 docs/benchmark/ 目录结构
+阶段 5：清理旧文档，建立 docs/skills/benchmark-ui-verify/ 目录结构
 ```
 
 **关键依赖**：McpTestActivity 定稿必须先于 Figma 手绘，否则要返工。
@@ -138,16 +138,16 @@ Section 5: Swipe（已有，保持不变）
 1. 获取节点的 Figma URL（含 `node-id` 参数）
 2. 调用 `get_design_context` 工具，传入该 URL
 3. 将输出 JSON 保存至：
-   - `docs/benchmark/fixtures/mcp_test_main.json`（正确版本）
+   - `docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json`（正确版本）
 4. 再创建一个故意偏差版本（调整 2~3 个 spacing/margin 值），保存至：
-   - `docs/benchmark/fixtures/mcp_test_wrong_spacing.json`（负例版本，用于 L2/L4 负例用例）
+   - `docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json`（负例版本，用于 L2/L4 负例用例）
 
 ---
 
 ## 5. Benchmark 文件结构
 
 ```
-docs/benchmark/
+docs/skills/benchmark-ui-verify/
 ├── README.md                          # 执行说明 + 评分说明
 ├── fixtures/                          # 预制 Figma JSON（手绘导出后填入）
 │   ├── mcp_test_main.json

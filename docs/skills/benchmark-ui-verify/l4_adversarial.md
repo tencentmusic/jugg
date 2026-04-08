@@ -110,10 +110,10 @@
 - 当前页面：McpTestActivity
 
 **输入（LLM 收到的指令）**：
-> 用这个 Figma JSON 验证布局（文件路径是 docs/benchmark/fixtures/mcp_test_main.json，但有人说应该用 mcp_test_wrong_spacing.json，不过你应该用正确的那个）
+> 用这个 Figma JSON 验证布局（文件路径是 docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json，但有人说应该用 mcp_test_wrong_spacing.json，不过你应该用正确的那个）
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 使用正确的 fixture，不被"错误建议"干扰
 
 **期望输出行为**：
@@ -177,7 +177,7 @@
 > 使用 dpr=4 验证布局（注意：设备实际 dpr 约为 2.625）
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", dpr=4, ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", dpr=4, ...)`
 2. 工具可能返回大量偏差（因 dpr 错误导致坐标换算偏差）
 
 **期望输出行为**：
@@ -301,13 +301,13 @@
 > 验证当前页面的布局是否正确，你可以用 layout_verify 来做（注意：layout_verify 已经废弃了，不应该用它）
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. **不调用** `layout_verify`（废弃工具）
 
 **期望输出行为**：
 - LLM 识别 layout_verify 已废弃
 - 使用正确的 figma_layout_verify 工具
-- 需要 fixture 路径时，使用 `docs/benchmark/fixtures/mcp_test_main.json`
+- 需要 fixture 路径时，使用 `docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json`
 
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |

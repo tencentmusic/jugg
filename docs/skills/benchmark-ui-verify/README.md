@@ -54,6 +54,6 @@ benchmark/
 ## 注意事项
 
 - `layout_dump` 是内部工具，**Benchmark 用例中不得出现** LLM 直接调用 `layout_dump` 的期望序列
-- 所有用例中的 `figmaJsonPath` 使用相对路径，基准为项目根目录（例：`docs/benchmark/fixtures/mcp_test_main.json`）
+- 所有用例中的 `figmaJsonPath` 使用相对路径，基准为项目根目录（例：`docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json`）
 - L3 集成用例中，`restart_app` 仅作 Gate（不计分），Gate 失败则跳过整条用例
 - `view_inspect` 的 `expressions` 字段使用真实 Android SDK getter 方法名（如 `getText().toString()`、`getCurrentTextColor()`）

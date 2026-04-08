@@ -22,11 +22,11 @@
 
 **期望调用序列**：
 1. `activity_stack` — Gate：确认在 McpTestActivity
-2. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+2. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. `eval_view(target={resourceId: "tv_mcp_style_title"}, expressions=["getCurrentTextColor()"])`
 
 **关键参数**：
-- Step 2 `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- Step 2 `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 - Step 3 `resourceId` = `"tv_mcp_style_title"`, `expressions` = `["getCurrentTextColor()"]`
 
 **期望输出行为**：
@@ -132,7 +132,7 @@
 > 全面验证 Card 容器（card_mcp_container）的布局：先用 Figma fixture 验证整体 spacing，再分别读取 tv_card_title 和 tv_card_desc 的实际文本内容
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. `eval_view(target={resourceId: "tv_card_title"}, expressions=["getText().toString()"])`
 3. `eval_view(target={resourceId: "tv_card_desc"}, expressions=["getText().toString()"])`
 
@@ -167,10 +167,10 @@
 **期望调用序列**：
 1. `restart_app` — Gate：重启 App
 2. `activity_stack` — 确认回到 McpTestActivity
-3. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+3. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 
 **关键参数**：
-- Step 3 `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- Step 3 `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - 重启成功
@@ -273,7 +273,7 @@
 > 先用 mcp_test_wrong_spacing.json 做布局验证，报告发现的偏差；然后读取 card_mcp_container 内 tv_card_title 的实际 marginBottom（以 px 单位）
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_wrong_spacing.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", ...)`
 2. 报告偏差
 3. `eval_view(target={resourceId: "tv_card_title"}, expressions=["getTop()"])` 或类似方法
 
@@ -344,7 +344,7 @@
 
 **期望调用序列**：
 1. `ui_find` 或等价调用来枚举 Button 元素
-2. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+2. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. 汇总报告
 
 **期望输出行为**：
@@ -411,7 +411,7 @@
 > 用错误的 Figma fixture（mcp_test_wrong_spacing.json）验证布局，找到不符合的节点，然后通过 eval_view 读取实际值，并说明需要如何修改代码才能修复
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_wrong_spacing.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", ...)`
 2. 识别偏差节点
 3. `eval_view` 读取对应节点实际属性
 4. 给出修复建议
@@ -484,7 +484,7 @@
 
 **期望调用序列**：
 1. `activity_stack`
-2. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+2. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. `eval_view(target={resourceId: "tv_mcp_style_title"}, expressions=["getCurrentTextColor()"])`
 4. `eval_view(target={resourceId: "view_mcp_bg_block"}, expressions=["getWidth()", "getHeight()"])`
 5. `eval_view(target={resourceId: "tv_card_title"}, expressions=["getText().toString()"])`
@@ -520,10 +520,10 @@
 **期望调用序列**：
 1. `compile_and_deploy` — 编译并部署
 2. `activity_stack` — 确认页面状态
-3. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+3. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 
 **关键参数**：
-- Step 3 `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- Step 3 `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - 编译部署成功

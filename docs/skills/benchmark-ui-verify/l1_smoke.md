@@ -90,17 +90,17 @@
 **前置条件**：
 - 设备已连接
 - 当前页面：McpTestActivity
-- `docs/benchmark/fixtures/mcp_test_main.json` 存在
+- `docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json` 存在
 
 **输入（LLM 收到的指令）**：
-> 使用 docs/benchmark/fixtures/mcp_test_main.json 作为 Figma 设计稿，验证当前页面布局是否符合设计
+> 使用 docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json 作为 Figma 设计稿，验证当前页面布局是否符合设计
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump路径>)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump路径>)`
 2. 返回验证结果
 
 **关键参数**（必须精确匹配）：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **宽松参数**（允许偏差）：
 - `dpr` 参数可缺省（使用默认值）

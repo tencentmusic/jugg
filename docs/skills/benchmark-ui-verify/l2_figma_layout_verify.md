@@ -13,17 +13,17 @@
 **前置条件**：
 - 设备已连接
 - 当前页面：McpTestActivity
-- `docs/benchmark/fixtures/mcp_test_main.json` 已就绪
+- `docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json` 已就绪
 
 **输入（LLM 收到的指令）**：
-> 使用 docs/benchmark/fixtures/mcp_test_main.json 验证当前页面布局是否符合 Figma 设计，给出验证报告
+> 使用 docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json 验证当前页面布局是否符合 Figma 设计，给出验证报告
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump_path>)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump_path>)`
 2. 返回 PASS 或偏差在容忍范围内的报告
 
 **关键参数**：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - 工具返回验证通过
@@ -49,17 +49,17 @@
 **前置条件**：
 - 设备已连接
 - 当前页面：McpTestActivity
-- `docs/benchmark/fixtures/mcp_test_wrong_spacing.json` 已就绪（含故意偏差的 spacing）
+- `docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json` 已就绪（含故意偏差的 spacing）
 
 **输入（LLM 收到的指令）**：
-> 使用 docs/benchmark/fixtures/mcp_test_wrong_spacing.json 验证当前页面布局，报告哪些节点不符合设计规范
+> 使用 docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json 验证当前页面布局，报告哪些节点不符合设计规范
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_wrong_spacing.json", androidJsonPath=<layout_dump_path>)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", androidJsonPath=<layout_dump_path>)`
 2. 工具返回包含 spacing diff 的 FAIL 报告
 
 **关键参数**：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_wrong_spacing.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json"`
 
 **期望输出行为**：
 - LLM 正确识别并报告哪些节点存在 spacing/margin 偏差
@@ -85,17 +85,17 @@
 **前置条件**：
 - 设备已连接
 - 当前页面：McpTestActivity
-- `docs/benchmark/fixtures/mcp_test_main.json` 存在
+- `docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json` 存在
 
 **输入（LLM 收到的指令）**：
 > 验证 Card 容器内 tv_card_title 节点的 spacing 是否符合 Figma 设计稿，特别关注其 marginBottom
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump_path>)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump_path>)`
 2. 从返回结果中查找 `tv_card_title` 的 marginBottom 验证情况
 
 **关键参数**：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - LLM 找到 `tv_card_title` 节点的验证结果
@@ -126,11 +126,11 @@
 > 验证 id 为 card_mcp_container 的 CardView 四边 margin 是否为 16dp
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 查找 `card_mcp_container` 的 margin 验证结果
 
 **关键参数**：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - LLM 从 figma_layout_verify 结果中找到 `card_mcp_container`
@@ -158,14 +158,14 @@
 - 当前页面：McpTestActivity
 
 **输入（LLM 收到的指令）**：
-> 使用 docs/benchmark/fixtures/mcp_test_main.json 验证布局，如果有节点无法匹配，请报告哪些节点未能完成验证
+> 使用 docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json 验证布局，如果有节点无法匹配，请报告哪些节点未能完成验证
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 从返回结果中提取未匹配节点列表
 
 **关键参数**：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - LLM 能识别并报告工具返回中标记为"未匹配"的节点（如有）
@@ -196,11 +196,11 @@
 > 验证 ll_mcp_parent 容器中 iv_mcp_icon 和 tv_mcp_label 的左右对齐关系是否符合设计
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 查找 `iv_mcp_icon` 与 `tv_mcp_label` 之间的 spacing 验证
 
 **关键参数**：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - LLM 找到两个节点的对齐验证结果
@@ -231,11 +231,11 @@
 > 使用正确的 Figma fixture 验证布局，验证通过后明确告诉我哪些节点都符合设计，没有偏差
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. LLM 枚举验证通过的节点列表
 
 **关键参数**：
-- `figmaJsonPath` = `"docs/benchmark/fixtures/mcp_test_main.json"`
+- `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
 
 **期望输出行为**：
 - LLM 列出通过验证的节点（不编造未验证的节点）
@@ -265,8 +265,8 @@
 > 先用正确的 Figma fixture 验证，再用错误的 fixture 验证，对比两次结果的差异
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
-2. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_wrong_spacing.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+2. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", ...)`
 3. 对比两次结果
 
 **关键参数**：
@@ -301,7 +301,7 @@
 > 验证 tv_mcp_style_title 节点的位置和尺寸是否符合 Figma 设计
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 从结果中提取 `tv_mcp_style_title` 的验证信息
 
 **期望输出行为**：
@@ -332,7 +332,7 @@
 > 验证蓝色色块（view_mcp_bg_block）的尺寸是否为 120×48dp
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/benchmark/fixtures/mcp_test_main.json", ...)`
+1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 提取 `view_mcp_bg_block` 的宽高验证结果
 
 **期望输出行为**：
