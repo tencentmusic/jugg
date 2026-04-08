@@ -233,10 +233,10 @@ class CompileContextManager(
                 customSyncFilePath = module.buildPathInfo.customSyncFilePath,
             )
             if (guessedBuildPathInfo.buildDir.exists()) {
-                logger.info("guess build path success: ${guessedBuildPathInfo.buildDir}")
+                logger.debug("guess build path success: ${guessedBuildPathInfo.buildDir}")
                 return@map name to module.copy(buildPathInfo = guessedBuildPathInfo)
             } else {
-                logger.warn("guess build path can't find build path for module $name, " +
+                logger.debug("guess build path can't find build path for module $name, " +
                         "tried: ${guessedBuildPathInfo.buildDir}, " +
                         "use old build path: ${module.buildPathInfo}")
                 return@map name to module
