@@ -152,6 +152,32 @@ class DeployHistoryManagerTest {
         assertTrue(storageFile2.exists())
     }
 
+    /**
+     * When the saved full-compile commit hash no longer exists in the git repo
+     * (e.g. after rebase / gc / force-push), getChangedFilesSinceLastFullCompiled should
+     * gracefully clear the stale history and return null instead of propagating MissingObjectException.
+     */
+    @Test
+    fun testMissingCommitHashShouldClearHistory() {
+        gitManager.init()
+        val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
+
+        gitManager.addAllAndCommit("first commit")
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+        assertTrue(historyManager.hasBeenFullCompiled)
+
+        // Simulate missing commit: delete git history and create a fresh repo with a new commit.
+        // The hash saved in deploy_history.json now no longer exists in the new git repo.
+        gitManager.deleteGit()
+        gitManager.init()
+        gitManager.addAllAndCommit("fresh commit after rebase")
+
+        // should not throw, should return null and clear stale history
+        val result = historyManager.tryGetContextRecoverInfoFromDb()
+        assertNull(result)
+        assertFalse(historyManager.hasBeenFullCompiled)
+    }
+
     @Test
     fun testFilterUnchangedFiles() {
         gitManager.init() // we need init first after GitManager can search parent directory

@@ -132,7 +132,15 @@ class DeployHistoryDb(
 
         val gitManager = GitManager.createGitManagerAndTrySearchParent(rootDir)
         val gitChangedStart = System.currentTimeMillis()
-        val changedSinceLastDeployFiles = gitManager.getChangedFiles(lastDeployCommitHash, lastProjectCommitHash)
+        val changedSinceLastDeployFiles = try {
+            gitManager.getChangedFiles(lastDeployCommitHash, lastProjectCommitHash)
+        } catch (e: Exception) {
+            // Saved commit no longer exists (rebase / gc / force-push). Clear stale history
+            // so the next run triggers a full compile instead of repeatedly failing.
+            logger.warn("Saved commit ${lastDeployCommitHash.take(8)} is missing in ${rootDir.name}, clearing history. ${e.message}")
+            deleteHistory()
+            return null
+        }
         logger.trace("[PERF] gitManager.getChangedFiles for ${rootDir.name}, cost=${System.currentTimeMillis() - gitChangedStart}ms, thread=${Thread.currentThread().name}")
         val uncommittedStart = System.currentTimeMillis()
         val uncommittedFiles = gitManager.getUncommittedFiles()
