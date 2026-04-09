@@ -1,3 +1,8 @@
+- version: 2.6.23
+  date: 2026.04.09
+  updates:
+    - Default don't fallback to gradle when deploy failed
+
 - version: 2.6.22
   date: 2026.03.31
   updates:
