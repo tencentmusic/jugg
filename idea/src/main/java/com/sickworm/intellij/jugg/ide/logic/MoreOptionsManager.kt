@@ -90,6 +90,12 @@ class MoreOptionsManager(
             { JuggSettings.isAlwaysRestartAppAfterDeployment = it }
         )
 
+        createOption(
+            name = "Auto fallback to gradle when deploy error",
+            { JuggSettings.isAutoFallbackToGradleWhenDeployError },
+            { JuggSettings.isAutoFallbackToGradleWhenDeployError = it }
+        )
+
         if (JuggSettings.isEnableInjectGradleCompile) {
             createOption(
                 name = "Embedded to APK(for Android RemoteViews)",
