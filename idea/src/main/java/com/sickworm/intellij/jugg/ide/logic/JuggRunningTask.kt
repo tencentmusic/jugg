@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -211,8 +212,11 @@ class JuggRunningTask(
         if (!isAllSuccess) {
 
             // not all device is success
-            logger.debug("Not all device is deploying success.")
-            if (!deployTaskResultList.all { it.isCanFallback }) {
+            val isErrorCanFallback = deployTaskResultList.all { it.isCanFallback }
+            logger.debug("Not all device is deploying success. isErrorCanFallback $isErrorCanFallback, " +
+                    "isAutoFallbackToGradleWhenDeployError: ${JuggSettings.isAutoFallbackToGradleWhenDeployError}")
+            val isCanFallback = isErrorCanFallback && JuggSettings.isAutoFallbackToGradleWhenDeployError
+            if (!isCanFallback) {
                 // not all device can fall back
                 if (compileTaskResult.isGradleCompile) {
                     initIncrementalCompileTask.invoke()

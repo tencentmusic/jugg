@@ -27,6 +27,8 @@ object JuggSettings {
 
     var isAlwaysRestartAppAfterDeployment: Boolean by propertiesComponent.delegate(defaultValue = false)
 
+    var isAutoFallbackToGradleWhenDeployError: Boolean by propertiesComponent.delegate(defaultValue = false)
+
     var isEmbeddedToApk: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     // Run options end
