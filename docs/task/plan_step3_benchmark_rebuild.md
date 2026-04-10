@@ -34,9 +34,9 @@
 
 ### 覆盖维度
 
-- `view_locate`：文本匹配、resourceId 匹配、多候选、不存在元素
+- `view-locate`：文本匹配、resourceId 匹配、多候选、不存在元素
 - `figma_layout_verify`：正常验证、dpr 不匹配告警、部分节点无法匹配
-- `view_inspect`：基础 getter、链式表达式、自定义 KuiklyView getter
+- `view-inspect`：基础 getter、链式表达式、自定义 KuiklyView getter
 - 集成：页面导航 Gate + 验证 + 结果判定完整流程
 
 ## 验收方向

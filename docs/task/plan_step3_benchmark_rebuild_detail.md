@@ -258,7 +258,7 @@ docs/skills/benchmark-ui-verify/
 McpTestActivity 实现完成后，执行以下操作更新 Figma Spec：
 
 1. 确保设备已连接，App 已启动并停留在 McpTestActivity
-2. 调用 `layout_dump`（内部工具，agent 可直接调用）
+2. 调用 `layout-dump`（内部工具，agent 可直接调用）
 3. 将实测 bounds 与 §4.2 的初始坐标表对比
 4. 若偏差 > 2dp，更新 §4.2 坐标表，并通知人工按更新后的 spec 手绘
 
@@ -266,7 +266,7 @@ McpTestActivity 实现完成后，执行以下操作更新 Figma Spec：
 
 ## 11. 注意事项
 
-- `layout_dump` 是内部工具，Benchmark 用例中不得出现 LLM 直接调用 `layout_dump` 的期望序列
+- `layout-dump` 是内部工具，Benchmark 用例中不得出现 LLM 直接调用 `layout-dump` 的期望序列
 - 所有用例中的 `figmaJsonPath` 使用相对路径，基准为项目根目录
-- L3 集成用例中，`restart_app` 仅作 Gate（不计分），Gate 失败则跳过整条用例
-- `view_inspect` 的 `expressions` 字段测试时使用真实 Android SDK getter 方法名（如 `getText().toString()`，`getCurrentTextColor()`）
+- L3 集成用例中，`restart` 仅作 Gate（不计分），Gate 失败则跳过整条用例
+- `view-inspect` 的 `expressions` 字段测试时使用真实 Android SDK getter 方法名（如 `getText().toString()`，`getCurrentTextColor()`）

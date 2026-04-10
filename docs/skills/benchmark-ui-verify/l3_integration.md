@@ -3,7 +3,7 @@
 > 覆盖多工具组合的完整流程：页面状态确认 Gate + 定位 + 属性读取 + 布局验证 + 结果判断。
 > L3 用例要求 LLM 在没有逐步指引的情况下，自主拆解任务并调用正确的工具序列。
 >
-> **Gate 规则**：每条用例开头的 `activity_stack` / `restart_app` 调用仅作门禁判断，不计入评分。
+> **Gate 规则**：每条用例开头的 `activity-stack` / `restart` 调用仅作门禁判断，不计入评分。
 > Gate 失败（不在 McpTestActivity）则跳过整条用例，不评分。
 
 ---
@@ -21,7 +21,7 @@
 > 确认当前在 McpTestActivity，然后验证布局是否符合设计，并读取 tv_mcp_style_title 的文字颜色
 
 **期望调用序列**：
-1. `activity_stack` — Gate：确认在 McpTestActivity
+1. `activity-stack` — Gate：确认在 McpTestActivity
 2. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. `eval_view(target={resourceId: "tv_mcp_style_title"}, expressions=["getCurrentTextColor()"])`
 
@@ -165,8 +165,8 @@
 > 重启 App，等它重新停留在 McpTestActivity，然后验证布局是否仍然符合设计
 
 **期望调用序列**：
-1. `restart_app` — Gate：重启 App
-2. `activity_stack` — 确认回到 McpTestActivity
+1. `restart` — Gate：重启 App
+2. `activity-stack` — 确认回到 McpTestActivity
 3. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 
 **关键参数**：
@@ -483,7 +483,7 @@
 > 给出最终健康检查报告
 
 **期望调用序列**：
-1. `activity_stack`
+1. `activity-stack`
 2. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. `eval_view(target={resourceId: "tv_mcp_style_title"}, expressions=["getCurrentTextColor()"])`
 4. `eval_view(target={resourceId: "view_mcp_bg_block"}, expressions=["getWidth()", "getHeight()"])`
@@ -518,8 +518,8 @@
 > 执行一次编译部署，部署完成后确认仍在 McpTestActivity，然后验证布局未因编译而发生变化
 
 **期望调用序列**：
-1. `compile_and_deploy` — 编译并部署
-2. `activity_stack` — 确认页面状态
+1. `deploy` — 编译并部署
+2. `activity-stack` — 确认页面状态
 3. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 
 **关键参数**：

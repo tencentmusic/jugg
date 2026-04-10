@@ -6,7 +6,7 @@
 ## 背景
 
 Jugg 当前通过 MCP（Model Context Protocol）为 AI Agent 提供两大能力：
-1. **操控层**：编译部署（`compile_and_deploy`）、应用重启（`restart_app`）、点击/滑动（`tap`/`swipe`）、截图（`screenshot`）、布局树（`layout_dump`）等
+1. **操控层**：编译部署（`deploy`）、应用重启（`restart`）、点击/滑动（`tap`/`swipe`）、截图（`screenshot`）、布局树（`layout-dump`）等
 2. **UI 验证层**：`layout_verify` 提供 property/spacing/alignment/overlap/containment/order 6 种校验类型
 
 设计初衷是让 AI Agent 在完成 UI 开发后，通过 MCP 调用进行界面校验，形成"开发 → 编译 → 验证"闭环。
@@ -98,7 +98,7 @@ AI coding 典型循环：`修改 UI 代码 → 修改/生成测试代码 → 编
 
 - 停止扩展 `layout_verify` 的 assertion 能力
 - `optimization_plan.md` 中只做 bug 修复（如 alpha bug fix），不再投入新特性（如 backgroundColor 支持）
-- 已有的操控层 MCP（`compile_and_deploy`、`tap`、`screenshot` 等）冻结新需求
+- 已有的操控层 MCP（`deploy`、`tap`、`screenshot` 等）冻结新需求
 
 ### 第二步：设计 Hybrid 测试运行方案
 

@@ -1,6 +1,6 @@
 # L1 Smoke 冒烟用例
 
-> 验证三个核心工具（`ui_find` / `view_locate`、`figma_layout_verify`、`eval_view`）
+> 验证三个核心工具（`ui_find` / `view-locate`、`figma_layout_verify`、`eval_view`）
 > 各自能在最基础场景下正常返回结果。L1 通过是 L2–L4 执行的前置门禁。
 
 ---

@@ -90,7 +90,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 
 - id: xml_regex_patch_miss
   stage: compile
-  signature: {includes: ["patch success", "expected view id not found", "layout_dump missing node"]}
+  signature: {includes: ["patch success", "expected view id not found", "layout-dump missing node"]}
   diagnosis: regex patch reported success but UI node change not landed
   fix_strategy: rewrite_target_xml_and_verify_node
   fix_scope: low
@@ -99,7 +99,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 
 - id: viewhierarchy_server_unavailable
   stage: observe
-  signature: {includes: ["ViewHierarchy server is unavailable", "find_and_tap failed", "layout_dump failed"]}
+  signature: {includes: ["ViewHierarchy server is unavailable", "find_and_tap failed", "layout-dump failed"]}
   diagnosis: app-side ViewHierarchy server unreachable
   fix_strategy: jugg_restart_then_one_gradle_build_for_socket_failures_then_retry
   fix_scope: low
@@ -108,7 +108,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 
 - id: layout_dump_json_single_line
   stage: observe
-  signature: {includes: ["layout_dump executed successfully", "json one line", "\"bounds\""]}
+  signature: {includes: ["layout-dump executed successfully", "json one line", "\"bounds\""]}
   diagnosis: layout dump emitted as single-line JSON
   fix_strategy: use_jq_or_grep_by_text_or_resource_id_then_extract_bounds
   fix_scope: low

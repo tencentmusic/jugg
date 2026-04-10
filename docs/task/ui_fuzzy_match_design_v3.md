@@ -884,7 +884,7 @@ Agent 可以直接理解并修复
 
 | 工具 | 状态 | 说明 |
 |------|------|------|
-| `layout_dump` | **保留** | ui_find 内部调用 |
+| `layout-dump` | **保留** | ui_find 内部调用 |
 | `layout_verify` | **废弃** | 被 ui_find 替代 |
 | `eval_view` | **保留** | 颜色验证时可能需要 |
 | `screenshot` | **保留** | 兜底方案 |

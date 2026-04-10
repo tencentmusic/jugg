@@ -12,7 +12,7 @@
 
 ### 1.1 现状问题
 
-当前 `layout_dump` 和 `tap`（元素模式）均依赖 `adb shell uiautomator dump`：
+当前 `layout-dump` 和 `tap`（元素模式）均依赖 `adb shell uiautomator dump`：
 
 - **慢**：每次调用需 3-8 秒（启动独立 uiautomator 进程）
 - **不稳定**：部分设备超时或返回空 XML；动画/过渡期容易失败
@@ -492,7 +492,7 @@ private fun tapByElement(adb, text, resourceId, contentDesc, className): McpTool
 
 - 实现 `ViewHierarchyClient`
 - 改造 `LayoutDumpMcpToolAction`，增加 Server-only 逻辑
-- 验证 `layout_dump` MCP 工具端到端正常
+- 验证 `layout-dump` MCP 工具端到端正常
 
 ### Phase 4: 元素查找 + 点击（Tap 改造）
 

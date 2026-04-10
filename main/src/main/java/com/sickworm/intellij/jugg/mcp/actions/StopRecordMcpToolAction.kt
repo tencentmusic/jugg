@@ -11,10 +11,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import java.io.File
 
 /**
- * StopRecordMcpToolAction stops a running start_record session and fetches the generated video artifact.
+ * StopRecordMcpToolAction stops a running record-start session and fetches the generated video artifact.
  */
 class StopRecordMcpToolAction : McpToolAction {
-    override val toolName: String = "stop_record"
+    override val toolName: String = "record-stop"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

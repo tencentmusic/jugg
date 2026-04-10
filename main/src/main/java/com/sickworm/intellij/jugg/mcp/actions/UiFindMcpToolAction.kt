@@ -9,12 +9,12 @@ import com.sickworm.intellij.jugg.mcp.layout.model.FigmaNode
 import java.io.File
 
 class UiFindMcpToolAction : McpToolAction {
-    override val toolName: String = "view_locate"
+    override val toolName: String = "view-locate"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
         description = "Locate a UI element and return its spatial position and size (bounds, center). " +
-            "Data comes from a layout snapshot (layout_dump). Uses fuzzy matching with IoU algorithm. " +
+            "Data comes from a layout snapshot (layout-dump). Uses fuzzy matching with IoU algorithm. " +
             "✅ Use for: spacing calculation, alignment check, confirming where an element is on screen. " +
             "❌ Do NOT use for: text content, colors, maxLines, ellipsize, or any View-internal property " +
             "not visible in the layout tree — use view_inspect instead.",

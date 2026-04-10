@@ -16,11 +16,11 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 /**
- * CrashReportMcpToolAction implements MCP tool `crash_report` and summarizes latest target-process crash signals.
+ * CrashReportMcpToolAction implements MCP tool `crash-report` and summarizes latest target-process crash signals.
  * Strategy: prefer `logcat -b crash`, then fallback to `-b main` only when no crash signal is found.
  */
 class CrashReportMcpToolAction : McpToolAction {
-    override val toolName: String = "crash_report"
+    override val toolName: String = "crash-report"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -258,7 +258,7 @@ class CrashReportMcpToolAction : McpToolAction {
         mainCollected: Boolean,
     ): String {
         val header = buildString {
-            appendLine("=== crash_report metadata ===")
+            appendLine("=== crash-report metadata ===")
             appendLine("packageName=${packageName.orEmpty()}")
             appendLine("isProcessAlive=${processInfo.isAlive}")
             appendLine("pids=${processInfo.pids.sorted().joinToString(",")}")

@@ -21,8 +21,8 @@ benchmark/
 ## 前置条件
 
 所有用例执行前需满足：
-1. Android 设备已连接并可通过 `device_list` 确认
-2. App 已部署并停留在 **McpTestActivity**（通过 `activity_stack` 确认）
+1. Android 设备已连接并可通过 `devices` 确认
+2. App 已部署并停留在 **McpTestActivity**（通过 `activity-stack` 确认）
 3. `fixtures/mcp_test_main.json` 和 `fixtures/mcp_test_wrong_spacing.json` 已由人工手绘 Figma 并导出
 
 ## 评分说明
@@ -34,7 +34,7 @@ benchmark/
 | 5 | 调用序列完全正确 + 关键参数正确 + 结论正确 |
 | 4 | 调用序列正确，宽松参数有偏差（多余/缺失可选参数）+ 结论正确 |
 | 3 | 调用了正确工具，但顺序/次数有偏差，结论基本正确 |
-| 2 | 调用了非预期工具（如 `layout_dump` 代替 `view_locate`），但结论凑对 |
+| 2 | 调用了非预期工具（如 `layout-dump` 代替 `view-locate`），但结论凑对 |
 | 1 | 工具调用方向性错误（调用已废弃工具，或关键参数完全错误） |
 | 0 | 未调用任何工具，或崩溃，或完全跑偏 |
 
@@ -53,7 +53,7 @@ benchmark/
 
 ## 注意事项
 
-- `layout_dump` 是内部工具，**Benchmark 用例中不得出现** LLM 直接调用 `layout_dump` 的期望序列
+- `layout-dump` 是内部工具，**Benchmark 用例中不得出现** LLM 直接调用 `layout-dump` 的期望序列
 - 所有用例中的 `figmaJsonPath` 使用相对路径，基准为项目根目录（例：`docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json`）
-- L3 集成用例中，`restart_app` 仅作 Gate（不计分），Gate 失败则跳过整条用例
-- `view_inspect` 的 `expressions` 字段使用真实 Android SDK getter 方法名（如 `getText().toString()`、`getCurrentTextColor()`）
+- L3 集成用例中，`restart` 仅作 Gate（不计分），Gate 失败则跳过整条用例
+- `view-inspect` 的 `expressions` 字段使用真实 Android SDK getter 方法名（如 `getText().toString()`、`getCurrentTextColor()`）

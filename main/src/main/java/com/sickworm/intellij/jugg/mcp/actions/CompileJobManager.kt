@@ -42,7 +42,7 @@ object CompileJobManager {
                     status = result.status,
                     message = result.message,
                 )
-                waitAppReadyIfSuccess(runtime, "force_gradle_compile", initialResult)
+                waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
             },
         )
     }
@@ -81,7 +81,7 @@ object CompileJobManager {
                     message = finalMessage,
                     runInvocationResult = runResponse,
                 )
-                waitAppReadyIfSuccess(runtime, "compile_and_deploy", initialResult)
+                waitAppReadyIfSuccess(runtime, "deploy", initialResult)
             },
         )
     }

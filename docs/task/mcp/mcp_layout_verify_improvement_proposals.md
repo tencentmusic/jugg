@@ -121,17 +121,17 @@ ERROR: unsupported property in dumpFile mode: width
 
 ---
 
-## Proposal 5：`restart_app` 增加 `tap_actions` 参数
+## Proposal 5：`restart` 增加 `tap_actions` 参数
 
 **优先级**：P2 易用性
 
 **背景**
 
-交互类测试任务通常需要在 `restart_app` 后立即执行一组固定的导航操作（如点击 "MCP Test Page" 进入子页面），目前每次都需要 agent 单独发起 tap 调用，增加了交互轮次。
+交互类测试任务通常需要在 `restart` 后立即执行一组固定的导航操作（如点击 "MCP Test Page" 进入子页面），目前每次都需要 agent 单独发起 tap 调用，增加了交互轮次。
 
 **期望设计**
 
-`restart_app` 增加可选 `tap_actions` 数组参数，App 启动完成后依次执行：
+`restart` 增加可选 `tap_actions` 数组参数，App 启动完成后依次执行：
 
 ```json
 {

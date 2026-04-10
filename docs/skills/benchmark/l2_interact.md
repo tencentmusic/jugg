@@ -1,6 +1,6 @@
 # L2 Unit: 应用控制与交互
 
-> 覆盖 `restart_app`、`tap` 两个工具的各交互场景，共 ~14 条。
+> 覆盖 `restart`、`tap` 两个工具的各交互场景，共 ~14 条。
 > 执行 INTERACT-4~8 时需先导航到 McpTestActivity（MainActivity → "MCP Test Page"）。
 
 ---
@@ -19,17 +19,17 @@
 ## 五、应用控制与交互
 
 **INTERACT-1: 重启应用 - 默认入口**
-调用 `restart_app`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，应用被成功拉起（可通过后续 `activity_stack` 或 `screenshot` 确认）。
+调用 `restart`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，应用被成功拉起（可通过后续 `activity-stack` 或 `screenshot` 确认）。
 
 **INTERACT-1A: 重启应用并串行导航（tap_actions）**
-调用 `restart_app`，传入 `projectDir` 与：
-`tap_actions=[{"text":"MCP Test Page"},{"resourceId":"btn_some_secondary_entry"}]`，验证返回 `status=OK`，且导航动作按顺序执行（可通过 `activity_stack` 或 `layout_dump` 验证最终页面上下文）。
+调用 `restart`，传入 `projectDir` 与：
+`tap_actions=[{"text":"MCP Test Page"},{"resourceId":"btn_some_secondary_entry"}]`，验证返回 `status=OK`，且导航动作按顺序执行（可通过 `activity-stack` 或 `layout-dump` 验证最终页面上下文）。
 
 **INTERACT-1B: tap_actions 元素未命中重试后成功**
-调用 `restart_app`，传入 `projectDir` 与单步 `tap_actions=[{"text":"MCP Test Page"}]`。在目标元素存在但首帧未渲染的场景下，验证工具会进行短暂重试并最终返回 `status=OK`。
+调用 `restart`，传入 `projectDir` 与单步 `tap_actions=[{"text":"MCP Test Page"}]`。在目标元素存在但首帧未渲染的场景下，验证工具会进行短暂重试并最终返回 `status=OK`。
 
 **INTERACT-1C: tap_actions 中途失败应返回失败步骤**
-调用 `restart_app`，传入 `projectDir` 与多步 `tap_actions`，让第 2 步故意使用不存在的 selector。验证返回 `status=ERROR`，`errorCode` 与失败原因一致，`message` 含 `tap_actions step 2 failed`，且 `data.failedStep=2`。
+调用 `restart`，传入 `projectDir` 与多步 `tap_actions`，让第 2 步故意使用不存在的 selector。验证返回 `status=ERROR`，`errorCode` 与失败原因一致，`message` 含 `tap_actions step 2 failed`，且 `data.failedStep=2`。
 
 **INTERACT-2: 坐标点击**
 调用 `tap`，传入 `projectDir`、`x=540`、`y=960`，验证返回 `status` 为 `OK`。可通过前后截图对比确认点击生效。
@@ -39,27 +39,27 @@
 
 **INTERACT-4: swipe 坐标模式**
 在 `MCP Test Page` 的可滑动组件 `sv_mcp_swipe_target` 上执行：
-1. 先通过 `layout_dump` 确认 `Swipe Start Marker` 可见，`Swipe End Marker` 不可见（或不在当前可见区域）。
+1. 先通过 `layout-dump` 确认 `Swipe Start Marker` 可见，`Swipe End Marker` 不可见（或不在当前可见区域）。
 2. 调用 `tap`，传入 `projectDir`、`action="swipe"`，并使用 `sv_mcp_swipe_target` 区域内坐标作为起终点（例如从区域下半部分向上滑到上半部分，`duration=300`）。
 3. 验证返回 `status` 为 `OK`，`data.action="swipe"`，`mode="coordinate"`，并包含起终点坐标。
-4. 再次 `layout_dump`，验证 `Swipe End Marker` 变为可见（且 `Swipe Start Marker` 不再处于初始位置），证明滑动发生在可滑动组件而非普通容器。
+4. 再次 `layout-dump`，验证 `Swipe End Marker` 变为可见（且 `Swipe Start Marker` 不再处于初始位置），证明滑动发生在可滑动组件而非普通容器。
 
 **INTERACT-5: longPress 百分比模式**
 调用 `tap`，传入 `projectDir`、`action="longPress"`、`xPercent=50`、`yPercent=50`、`duration=800`，验证返回 `status` 为 `OK`，`data.action="longPress"`，`mode="percent"`，`duration=800`。
 
 **INTERACT-6: 元素模式点击 - 按 text 精确匹配**
-通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有**唯一** `text` 属性的可见元素（确认该 text 在当前界面只出现一次），然后调用 `tap`，传入 `projectDir` 和 `text=<该元素的完整 text>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`，`data.matchedElement` 包含对应元素信息（结构化对象，含 `text/className/resourceId/contentDesc/bounds/centerX/centerY`）。注意：text 为精确匹配，子串不会命中。
+通过 `layout-dump` 获取当前 UI 层级 JSON，找到一个有**唯一** `text` 属性的可见元素（确认该 text 在当前界面只出现一次），然后调用 `tap`，传入 `projectDir` 和 `text=<该元素的完整 text>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`，`data.matchedElement` 包含对应元素信息（结构化对象，含 `text/className/resourceId/contentDesc/bounds/centerX/centerY`）。注意：text 为精确匹配，子串不会命中。
 
 **INTERACT-7: 元素模式点击 - 按 resourceId 匹配**
-通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有 `resourceId` 属性的元素，然后调用 `tap`，传入 `projectDir` 和 `resourceId=<该元素的 resourceId>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`。
+通过 `layout-dump` 获取当前 UI 层级 JSON，找到一个有 `resourceId` 属性的元素，然后调用 `tap`，传入 `projectDir` 和 `resourceId=<该元素的 resourceId>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`。
 
 **INTERACT-8: 元素模式点击 - 无匹配返回候选**
 调用 `tap`，传入 `projectDir` 和 `text="ThisElementDoesNotExist_12345"`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INTERNAL_ERROR`，`data.mode` 为 `element`，`data.matchCount` 为 0，且 `message` 中包含 "No matching UI element found" 以及可点击的候选元素列表。
 
 **INTERACT-9: 元素模式点击 - 多匹配返回候选列表**
-通过 `layout_dump` 找到一个在当前界面出现多次的 `text`（如列表项的重复文字），调用 `tap`，传入 `projectDir` 和 `text=<该重复 text>`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`data.matchCount` > 1，`data.matches` 为数组且每个元素包含 `bounds`、`centerX`、`centerY`，`message` 中包含引导使用坐标或百分比模式的提示。Agent 应根据返回的坐标信息用 `tap(x, y)` 进行二次精确点击。
+通过 `layout-dump` 找到一个在当前界面出现多次的 `text`（如列表项的重复文字），调用 `tap`，传入 `projectDir` 和 `text=<该重复 text>`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`data.matchCount` > 1，`data.matches` 为数组且每个元素包含 `bounds`、`centerX`、`centerY`，`message` 中包含引导使用坐标或百分比模式的提示。Agent 应根据返回的坐标信息用 `tap(x, y)` 进行二次精确点击。
 
-补充：若 ViewHierarchy Server 不可用，`layout_dump` / `tap` 元素模式会直接返回 `ERROR`，不再回退到 `uiautomator dump`。
+补充：若 ViewHierarchy Server 不可用，`layout-dump` / `tap` 元素模式会直接返回 `ERROR`，不再回退到 `uiautomator dump`。
 
 **INTERACT-10: 元素模式点击 - 隐藏重复节点不应计入匹配**
 构造同 selector 的两个节点（一个可见、一个 `GONE/INVISIBLE` 或零尺寸），调用 `tap` 元素模式，验证不会返回"多匹配"，仅可见可操作节点会参与命中。
@@ -77,4 +77,4 @@
 调用 `tap`，同时传入 `projectDir`、`x=100`、`y=200`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data.mode` 为 `coordinate`，`data.x` 为 100，`data.y` 为 200（优先使用坐标模式）。
 
 **INTERACT-12: 重启应用（无 tap_actions）**
-调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`message` 包含 "restart_app executed successfully"。未传 `tap_actions` 时，`data` 为空对象。
+调用 `restart`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`message` 包含 "restart_app executed successfully"。未传 `tap_actions` 时，`data` 为空对象。

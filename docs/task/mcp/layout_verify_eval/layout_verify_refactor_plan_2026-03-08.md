@@ -11,14 +11,14 @@
 
 ### 1.1 当前核心痛点
 
-1. 断言前必须手动 `layout_dump`，调用链冗长。
+1. 断言前必须手动 `layout-dump`，调用链冗长。
 2. `dumpFile` 容易复用旧快照导致静默错误。
 3. 多属性验证需要多次 `layout_verify`，token 消耗高且中间状态可能漂移。
 4. 文档与 skill 当前都默认 `layout_dump -> layout_verify(dumpFile)` 三步，成本高。
 
 ### 1.2 本次重构目标
 
-1. `layout_verify` 默认自动获取“最新布局快照”，调用方不再需要先手动 `layout_dump`。
+1. `layout_verify` 默认自动获取“最新布局快照”，调用方不再需要先手动 `layout-dump`。
 2. 新增 `asserts` 批量断言，单次调用返回多项结果与聚合结论。
 3. 保留“指定历史 dump 文件路径”能力用于复现与回放。
 4. 同步 MCP 描述、AI 知识文档、测试用例文档、skill 指南，统一新语义。
@@ -127,7 +127,7 @@
   - 输出：`FetchResult(filePath, contentBytes)`
 - `LayoutDumpMcpToolAction` 与 `LayoutVerifyMcpToolAction` 共用。
 
-备选方案：在 `LayoutVerifyMcpToolAction` 内最小复制 `layout_dump` 逻辑（实现快但重复多）。
+备选方案：在 `LayoutVerifyMcpToolAction` 内最小复制 `layout-dump` 逻辑（实现快但重复多）。
 
 ### 3.4 candidates 相似度排序（与本次一起落地）
 
@@ -201,7 +201,7 @@
 2. `docs/ai_knowledge/08_mcp_design.md`
    - 更新 `layout_verify` 设计说明（auto_dump 模式）
 3. `docs/ai_knowledge/08_mcp_test_case.md`
-   - 更新 VERIFY 小节前置步骤，不再强依赖先 `layout_dump`
+   - 更新 VERIFY 小节前置步骤，不再强依赖先 `layout-dump`
 4. `docs/ai_knowledge/08_mcp_test_case_layout_verify.md`
    - 执行流程/重要说明同步新语义
 
@@ -224,7 +224,7 @@
 
 ### 6.2 更新要点
 
-1. 删除或降级“必须先 `layout_dump` 再 `layout_verify`”规则。
+1. 删除或降级“必须先 `layout-dump` 再 `layout_verify`”规则。
 2. 新默认流程改为：
    - `layout_verify`（自动快照）
    - 仅当要复现历史状态时传 `dumpFile`。

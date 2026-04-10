@@ -12,10 +12,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
 /**
- * RestartAppMcpToolAction implements MCP tool `restart_app` and converts request arguments into tool execution and MCP result payloads.
+ * RestartAppMcpToolAction implements MCP tool `restart` and converts request arguments into tool execution and MCP result payloads.
  */
 class RestartAppMcpToolAction : McpToolAction {
-    override val toolName: String = "restart_app"
+    override val toolName: String = "restart"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -46,7 +46,7 @@ class RestartAppMcpToolAction : McpToolAction {
         if (!isSuccess) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "restart_app failed. Reason: Failed to restart app. Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log\"",
+                message = "restart failed. Reason: Failed to restart app. Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log\"",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -56,7 +56,7 @@ class RestartAppMcpToolAction : McpToolAction {
         if (!waitResult.isReady) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = waitResult.reason ?: "restart_app failed. Reason: app is not ready after restart.",
+                message = waitResult.reason ?: "restart failed. Reason: app is not ready after restart.",
                 data = mapOf("readyChecks" to waitResult.checks),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -71,9 +71,9 @@ class RestartAppMcpToolAction : McpToolAction {
         }
 
         val successMessage = if (tapActions.isEmpty()) {
-            "restart_app executed successfully."
+            "restart executed successfully."
         } else {
-            "restart_app executed successfully. tap_actions executed: ${tapActions.size}."
+            "restart executed successfully. tap_actions executed: ${tapActions.size}."
         }
         return McpToolResult(
             status = McpToolStatus.OK,
@@ -93,9 +93,9 @@ class RestartAppMcpToolAction : McpToolAction {
         runtime: IMcpRuntime,
     ): McpToolResult? {
         val projectDir = arguments["projectDir"] as? String
-            ?: return McpToolResult(
+            ?:             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "restart_app failed. Reason: projectDir is required for tap_actions.",
+                message = "restart failed. Reason: projectDir is required for tap_actions.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
@@ -130,7 +130,7 @@ class RestartAppMcpToolAction : McpToolAction {
             }
             sleepForTapActionRetry(TAP_ACTION_RETRY_DELAY_MS)
         }
-        return lastResult ?: McpToolResult.internalErrorResult("restart_app", "tap_actions failed without result")
+        return lastResult ?: McpToolResult.internalErrorResult("restart", "tap_actions failed without result")
     }
 
     private fun shouldRetryTapAction(result: McpToolResult): Boolean {
@@ -156,7 +156,7 @@ class RestartAppMcpToolAction : McpToolAction {
     private fun tapActionFailedResult(step: Int, tapResult: McpToolResult): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.ERROR,
-            message = "restart_app failed. Reason: tap_actions step $step failed. ${tapResult.message}",
+            message = "restart failed. Reason: tap_actions step $step failed. ${tapResult.message}",
             data = mapOf(
                 "failedStep" to step,
                 "stepMessage" to tapResult.message,
@@ -187,7 +187,7 @@ class RestartAppMcpToolAction : McpToolAction {
     private fun noDeviceResult(): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.ERROR,
-            message = "restart_app failed. Reason: No connected device is available.",
+            message = "restart failed. Reason: No connected device is available.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
             errorCode = McpErrorCode.MCP_NO_DEVICE,

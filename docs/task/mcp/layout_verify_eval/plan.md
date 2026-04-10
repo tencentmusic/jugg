@@ -1,7 +1,7 @@
 # layout_verify 能力评估计划
 
 > 日期：2026-03-07
-> 目标：验证 `layout_verify` 是否能覆盖 95% 的 UI 验证场景，使 agent 无需手动解析 `layout_dump` JSON 或读取 `screenshot` 来完成校验。
+> 目标：验证 `layout_verify` 是否能覆盖 95% 的 UI 验证场景，使 agent 无需手动解析 `layout-dump` JSON 或读取 `screenshot` 来完成校验。
 
 ---
 
@@ -20,12 +20,12 @@
 | 行为 | 判定 |
 |------|------|
 | agent 仅调用 `layout_verify` 即完成判断，给出 PASS/FAIL 结论 | **自治** |
-| agent 调用 `layout_verify` 后又读取 `layout_dump` 的 `data.content` 来二次分析 | **非自治**（verify 结果不够充分） |
+| agent 调用 `layout_verify` 后又读取 `layout-dump` 的 `data.content` 来二次分析 | **非自治**（verify 结果不够充分） |
 | agent 调用 `screenshot` 来做视觉判断（非最终证据用途） | **非自治**（verify 无法覆盖该场景） |
 
 ### 1.3 执行方式
 
-1. Agent 先执行 `restart_app` 导航到 MCP Test Page
+1. Agent 先执行 `restart` 导航到 MCP Test Page
 2. 依次执行下列用例，每条用例给出自然语言指令
 3. 观察 agent 是否仅通过 `layout_verify` 完成校验
 4. 记录每条用例的结果：PASS/FAIL + 是否自治
@@ -590,7 +590,7 @@
 
 ### 4.2 每组执行流程
 
-1. **前置**：`restart_app` → 导航到 McpTestActivity
+1. **前置**：`restart` → 导航到 McpTestActivity
 2. **执行**：逐条下发自然语言指令，agent 自行选择工具完成校验
 3. **记录**：每条用例记录：
    - 用例编号

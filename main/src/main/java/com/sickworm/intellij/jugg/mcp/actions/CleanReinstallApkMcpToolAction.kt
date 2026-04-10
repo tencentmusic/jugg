@@ -7,10 +7,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 
 /**
- * CleanReinstallApkMcpToolAction implements MCP tool `clean_reinstall_apk` and converts request arguments into tool execution and MCP result payloads.
+ * CleanReinstallApkMcpToolAction implements MCP tool `reinstall` and converts request arguments into tool execution and MCP result payloads.
  */
 class CleanReinstallApkMcpToolAction : McpToolAction {
-    override val toolName: String = "clean_reinstall_apk"
+    override val toolName: String = "reinstall"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -31,7 +31,7 @@ class CleanReinstallApkMcpToolAction : McpToolAction {
 
     private fun cleanReinstallAction(runtime: IMcpRuntime): McpToolResult {
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
-        return CompileAndDeployMcpToolAction.deployAction(runtime, "clean_reinstall_apk")
+        return CompileAndDeployMcpToolAction.deployAction(runtime, "reinstall")
     }
 
 }

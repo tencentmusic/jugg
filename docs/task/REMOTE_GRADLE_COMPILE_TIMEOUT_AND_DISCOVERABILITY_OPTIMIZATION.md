@@ -4,7 +4,7 @@
 
 本次真实排障暴露两个核心问题：
 
-1. `force_gradle_compile` 在长编译场景下容易表现为 MCP 请求超时。
+1. `gradle-build` 在长编译场景下容易表现为 MCP 请求超时。
 2. 调用方无法第一时间获知当前是 `local` 还是 `remote` 编译，定位链路成本高。
 
 本任务目标是做最小改动的协议优化：接口尽量少、可观测性足够、无自动修复策略。
@@ -43,9 +43,9 @@
 
 建议仅保留/新增以下能力：
 
-1. `force_gradle_compile`（增强现有）
+1. `gradle-build`（增强现有）
 2. `get_compile_status`（保留/新增，必需）
-3. `request_remote_ssh_info`（新增，低频）
+3. `ssh-info`（新增，低频）
 
 不建议新增：
 
@@ -54,7 +54,7 @@
 3. 自动修复类接口
 4. 错误分类查询接口
 
-## 4.2 `force_gradle_compile` 自适应超时策略（Adaptive Response）
+## 4.2 `gradle-build` 自适应超时策略（Adaptive Response）
 
 在 Tool 内部设置**软超时阈值 25 秒**。
 
@@ -103,7 +103,7 @@
 
 ## 4.4 SSH 信息工具（低频）
 
-工具名示例：`request_remote_ssh_info`。
+工具名示例：`ssh-info`。
 
 行为约束：
 
@@ -114,7 +114,7 @@
 
 ## 4.5 Agent 协作约定
 
-1. 先调用 `force_gradle_compile`，拿到 `jobId`。
+1. 先调用 `gradle-build`，拿到 `jobId`。
 2. 若 `isFinal=false`，轮询 `get_compile_status(jobId)` 直到终态。
 3. 当 `status=failed` 时，读取 `build/jugg/log/compile_latest.log` 进行原因分析。
 4. 若确需远端登录排障，先征求用户同意，再申请 SSH 信息。
@@ -123,7 +123,7 @@
 
 ## 5.1 功能验证
 
-1. 触发 `force_gradle_compile`：
+1. 触发 `gradle-build`：
    - 返回中包含 `jobId`、`executionType`、`logPath`。
 2. 快任务（<=25 秒）：
    - 期望直接返回终态（`isFinal=true`）。
@@ -138,22 +138,22 @@
 
 ## 5.2 SSH 流程验证
 
-1. 未经用户同意时，Agent 不得调用 `request_remote_ssh_info`。
+1. 未经用户同意时，Agent 不得调用 `ssh-info`。
 2. 用户同意后调用工具，IDE 出现确认弹窗。
 3. 用户拒绝时调用失败且可审计。
 4. 用户确认时返回 SSH 信息并记录审计。
 
 ## 5.3 回归验证
 
-1. 不影响现有 `compile_only` / `force_gradle_compile` 主流程。
+1. 不影响现有 `compile` / `gradle-build` 主流程。
 2. local 与 remote 场景都能返回正确 `executionType`。
 3. 旧调用方忽略新增字段仍可继续工作。
 
 ## 6. 交付物
 
-1. `force_gradle_compile` 与 `get_compile_status` 响应字段说明（含 JSON 示例）。
-2. `force_gradle_compile` 25 秒 Adaptive Response 说明（含中间态示例文案）。
-3. `request_remote_ssh_info` 工具说明（授权流程 + IDE 确认 + 审计）。
+1. `gradle-build` 与 `get_compile_status` 响应字段说明（含 JSON 示例）。
+2. `gradle-build` 25 秒 Adaptive Response 说明（含中间态示例文案）。
+3. `ssh-info` 工具说明（授权流程 + IDE 确认 + 审计）。
 4. 最小使用说明：
    - 触发后拿 `jobId`
    - 通过 `get_compile_status(jobId)` 判断成功/失败

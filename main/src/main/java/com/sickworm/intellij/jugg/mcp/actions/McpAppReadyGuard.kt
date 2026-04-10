@@ -130,7 +130,7 @@ object McpAppReadyGuard {
         return McpToolResult(
             status = McpToolStatus.ERROR,
             message = "$toolName failed. Reason: app is not ready $stage after $attempts checks. " +
-                "Next action: run restart_app and retry $toolName.",
+                "Next action: run restart and retry $toolName.",
             data = mapOf("readyChecks" to attempts),
             artifacts = emptyList(),
             errorCode = McpErrorCode.MCP_INTERNAL_ERROR,

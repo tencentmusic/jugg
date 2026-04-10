@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
 class RequestRemoteSshInfoMcpToolAction : McpToolAction {
-    override val toolName: String = "request_remote_ssh_info"
+    override val toolName: String = "ssh-info"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -47,7 +47,7 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
         if (!userConsent) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "request_remote_ssh_info failed. Reason: explicit user consent is required before calling this tool.",
+                message = "ssh-info failed. Reason: explicit user consent is required before calling this tool.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,

@@ -12,20 +12,20 @@
 
 Step 3 Runtime Verify 入口必须有强制 Gate，要求 LLM 输出固定格式后才能继续：
 
-- 先调用 `activity_stack` 确认当前页面
+- 先调用 `activity-stack` 确认当前页面
 - 输出 Gate Result 行（格式固定，缺少此行则不得进入验证）
 - 页面不匹配时通过 `restart_app(tap_actions=...)` 导航，再重新 Gate
 
 ### 核心变更 2：工具优先级重写
 
-旧的优先级提及 `layout_dump`，需完全替换为三工具模型：
-- 验证优先级：`figma_layout_verify` > `view_locate` > `view_inspect` > `screenshot`
-- `layout_dump` 从 Skill 可见工具列表中彻底移除
+旧的优先级提及 `layout-dump`，需完全替换为三工具模型：
+- 验证优先级：`figma_layout_verify` > `view-locate` > `view-inspect` > `screenshot`
+- `layout-dump` 从 Skill 可见工具列表中彻底移除
 
 ### 核心变更 3：Phase 1 Read Gate 触发词对齐
 
 - `figma, verify, spacing, alignment` → 加载 `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md`
-- 移除对 `layout_dump` 的显式触发词
+- 移除对 `layout-dump` 的显式触发词
 
 ### 核心变更 4：软约束改硬 Gate
 
@@ -36,4 +36,4 @@ Mandatory Rules 中的"FORBIDDEN"类规则需配套强制输出格式，让 LLM 
 
 ## 验收方向
 
-按新 Skill 执行的 LLM agent 不会主动调用 `layout_dump`，且在进入验证前必定先确认页面。
+按新 Skill 执行的 LLM agent 不会主动调用 `layout-dump`，且在进入验证前必定先确认页面。

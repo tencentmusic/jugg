@@ -406,7 +406,7 @@ val EVAL_REQUIRED_PROPS = setOf(
 
 | 工具 | 状态 | 说明 |
 |------|------|------|
-| `layout_dump` | **保留** | ui_match 内部调用 |
+| `layout-dump` | **保留** | ui_match 内部调用 |
 | `layout_verify` | **废弃** | 被 ui_match 替代 |
 | `eval_view` | **保留** | ui_match 内部调用 (查询特殊属性) |
 | `screenshot` | **保留** | 兜底方案 (ui_match 失败时) |

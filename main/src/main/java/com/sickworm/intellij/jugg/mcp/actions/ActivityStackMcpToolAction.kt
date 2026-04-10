@@ -16,10 +16,10 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 /**
- * ActivityStackMcpToolAction implements MCP tool `activity_stack` and converts request arguments into tool execution and MCP result payloads.
+ * ActivityStackMcpToolAction implements MCP tool `activity-stack` and converts request arguments into tool execution and MCP result payloads.
  */
 class ActivityStackMcpToolAction : McpToolAction {
-    override val toolName: String = "activity_stack"
+    override val toolName: String = "activity-stack"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -57,10 +57,10 @@ class ActivityStackMcpToolAction : McpToolAction {
 
     private fun activityStackAction(runtime: IMcpRuntime): McpToolResult {
         val selected = resolveOnlineDevice(runtime)
-            ?: return noDeviceResult("activity_stack")
+            ?: return noDeviceResult(toolName)
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
         if (!preWaitResult.isReady) {
-            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult("activity_stack", "app is not ready")
+            return preWaitResult.errorResult ?: McpToolResult.internalErrorResult(toolName, "app is not ready")
         }
         val adb = selected.adb
         val sourceCommand = "dumpsys activity activities"
@@ -69,12 +69,12 @@ class ActivityStackMcpToolAction : McpToolAction {
             try {
                 val dumpOutput = adb.execAdbShellCmd(sourceCommand)
                 if (dumpOutput.isBlank()) {
-                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult("activity_stack", "empty dumpsys output")
+                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(toolName, "empty dumpsys output")
                 }
 
-                val toolDir = ensureToolDir(runtime, "activity_stack")
+                val toolDir = ensureToolDir(runtime, toolName)
                     ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
-                        "activity_stack",
+                        toolName,
                         "failed to prepare artifact directory"
                     )
                 val dumpFile = File(toolDir, "activity_stack_${System.currentTimeMillis()}.txt")
@@ -101,7 +101,7 @@ class ActivityStackMcpToolAction : McpToolAction {
                     errorCode = null,
                 )
             } catch (e: Exception) {
-                McpToolResult.internalErrorResult("activity_stack", e.message ?: "unknown error")
+                McpToolResult.internalErrorResult(toolName, e.message ?: "unknown error")
             }
         }
     }

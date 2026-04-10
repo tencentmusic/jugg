@@ -20,7 +20,7 @@
 
 **影响 TC**: TC-31, TC-32, TC-33, TC-34, TC-37
 
-**现象**: 所有编译类工具（`compile_only` / `compile_and_deploy` / `force_gradle_compile`）在编译失败时：
+**现象**: 所有编译类工具（`compile` / `deploy` / `gradle-build`）在编译失败时：
 1. 外层 `status` 返回 `"OK"` 而非 `"ERROR"`
 2. 不返回出错文件名、行号、错误描述
 
@@ -160,7 +160,7 @@ val logContent = if (logFile.exists()) logFile.readText() else ""
 
 `RecordMcpToolAction` 中 `adb.execAdbShellScript()` 最终调用 `IdeaDeviceAdb.execAdbShellScript()` → `execAdbShellCmdByCli()`，该方法通过 `Runtime.getRuntime().exec(arrayOf(adbBin, ...))` 直接执行系统 adb 二进制。当 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 环境变量不存在时，回退到裸 `"adb"`，导致 `No such file or directory`。
 
-`screenshot`、`layout_dump`、`tap` 等工具正常是因为它们使用的 `execAdbShellCmd()` 走的是 ddmlib 的 `AdbClient.shell()` 内部 API（不依赖系统 PATH）。
+`screenshot`、`layout-dump`、`tap` 等工具正常是因为它们使用的 `execAdbShellCmd()` 走的是 ddmlib 的 `AdbClient.shell()` 内部 API（不依赖系统 PATH）。
 
 **涉及文件**:
 
@@ -191,12 +191,12 @@ override fun execAdbShellScript(cmd: String): String {
 
 **影响 TC**: TC-44, TC-45, TC-46 (FAIL)
 
-**现象**: `compile_and_deploy` / `force_gradle_compile` / `clean_reinstall_apk` 在无设备时不立即返回 `MCP_NO_DEVICE`，而是先开始编译，在部署阶段才失败。
+**现象**: `deploy` / `gradle-build` / `reinstall` 在无设备时不立即返回 `MCP_NO_DEVICE`，而是先开始编译，在部署阶段才失败。
 
 **结论**: 这是**符合预期的行为**，不是 bug。这三个工具支持无设备调用：
-- `compile_and_deploy`：无设备时仍可编译，编译成功后在部署阶段会失败
-- `force_gradle_compile`：纯编译操作，不依赖设备
-- `clean_reinstall_apk`：底层调用 `deployAction()`，行为同 `compile_and_deploy`
+- `deploy`：无设备时仍可编译，编译成功后在部署阶段会失败
+- `gradle-build`：纯编译操作，不依赖设备
+- `reinstall`：底层调用 `deployAction()`，行为同 `deploy`
 
 **修复方案**: 更新 `mcp_test_case.md` 中 TC-44~46 的预期结果，从 `MCP_NO_DEVICE` 改为允许正常编译执行。同步更新附录工具清单中相关工具的"需要设备"标记。
 
@@ -263,7 +263,7 @@ override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToo
 
 **现象**: 成功时 `data` 为空对象 `{}`，缺少 `deviceSerial` 和 `restarted` 字段。
 
-**结论**: `restart_app` 不需要返回额外字段，`data` 保持空对象即可。
+**结论**: `restart` 不需要返回额外字段，`data` 保持空对象即可。
 
 **实际修复**: 更新测试用例 TC-22，移除对 `deviceSerial` 和 `restarted` 的预期。更新 `mcp_test_case.md`。
 
@@ -271,12 +271,12 @@ override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToo
 
 **影响 TC**: TC-23, TC-24 (SKIP)
 
-**现象**: `restart_app` 的 inputSchema 中无 `serial` 参数，但文档 `08_mcp_usage.md` 标注其支持可选 `serial`。
+**现象**: `restart` 的 inputSchema 中无 `serial` 参数，但文档 `08_mcp_usage.md` 标注其支持可选 `serial`。
 
-**结论**: `restart_app` 不需要 `serial` 参数，始终使用 IDE 当前选中设备。
+**结论**: `restart` 不需要 `serial` 参数，始终使用 IDE 当前选中设备。
 
 **实际修复**:
-- 更新 `08_mcp_usage.md`，移除 `restart_app` 的可选 `serial` 标注
+- 更新 `08_mcp_usage.md`，移除 `restart` 的可选 `serial` 标注
 - 更新 `mcp_test_case.md` TC-23/TC-24，标记为不适用
 
 ### 4.3 长耗时 compile_and_deploy 失败时未走降级路径
@@ -309,7 +309,7 @@ override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToo
 
 **影响 TC**: TC-47~54（标记为 PASS，但备注格式问题）
 
-**现象**: `restart_app` / `screenshot` 等工具在无设备时返回的是 MCP 框架级错误字符串，而非标准 JSON `{status, errorCode}`。
+**现象**: `restart` / `screenshot` 等工具在无设备时返回的是 MCP 框架级错误字符串，而非标准 JSON `{status, errorCode}`。
 
 **结论**: 已在 P0 修复中统一解决。`McpToolInvoker.handleToolsCall()` 现在所有业务结果（包括 `McpToolStatus.ERROR`）都通过 `resultMapper.toolSuccess(isError=false)` 返回，客户端通过 `structuredContent.status` 判断成功/失败。
 

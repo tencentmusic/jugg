@@ -9,10 +9,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
 /**
- * ForceGradleCompileMcpToolAction implements MCP tool `force_gradle_compile` and converts request arguments into tool execution and MCP result payloads.
+ * ForceGradleCompileMcpToolAction implements MCP tool `gradle-build` and converts request arguments into tool execution and MCP result payloads.
  */
 class ForceGradleCompileMcpToolAction : McpToolAction {
-    override val toolName: String = "force_gradle_compile"
+    override val toolName: String = "gradle-build"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -73,7 +73,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
                 errorCode = errorCode,
             )
         } catch (e: Exception) {
-            McpToolResult.internalErrorResult("force_gradle_compile", e.message ?: "unknown error")
+            McpToolResult.internalErrorResult("gradle-build", e.message ?: "unknown error")
         }
     }
 }

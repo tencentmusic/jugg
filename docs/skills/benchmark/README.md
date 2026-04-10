@@ -1,7 +1,7 @@
 # Jugg MCP Benchmark（非 UI 验证工具）
 
 本目录包含 Jugg MCP 工具集（UI 验证工具以外部分）的 LLM 能力评测用例。
-UI 验证工具（`layout_verify`、`view_inspect`、`figma_layout_verify`）的评测用例位于 `../benchmark-ui-verify/`。
+UI 验证工具（`layout_verify`、`view-inspect`、`figma_layout_verify`）的评测用例位于 `../benchmark-ui-verify/`。
 
 ## 目录结构
 
@@ -21,30 +21,30 @@ benchmark/
 
 | 工具名称 | 需要设备 | 所在文件 |
 |---------|---------|---------|
-| `request_remote_ssh_info` | 否 | `l2_ssh_conn.md` |
+| `ssh-info` | 否 | `l2_ssh_conn.md` |
 | `list_projects` | 否 | `l2_ssh_conn.md` |
-| `device_list` | 否 | `l2_ssh_conn.md` |
+| `devices` | 否 | `l2_ssh_conn.md` |
 | `screenshot` | 是 | `l2_media.md` |
-| `start_record` | 是 | `l2_media.md` |
-| `stop_record` | 是 | `l2_media.md` |
-| `layout_dump` | 是 | `l2_media.md` |
-| `activity_stack` | 是 | `l2_media.md` |
-| `crash_report` | 是 | `l2_media.md` |
-| `restart_app` | 是 | `l2_interact.md` |
+| `record-start` | 是 | `l2_media.md` |
+| `record-stop` | 是 | `l2_media.md` |
+| `layout-dump` | 是 | `l2_media.md` |
+| `activity-stack` | 是 | `l2_media.md` |
+| `crash-report` | 是 | `l2_media.md` |
+| `restart` | 是 | `l2_interact.md` |
 | `tap` | 是 | `l2_interact.md` |
-| `compile_only` | 否 | `l2_build.md` |
-| `compile_and_deploy` | 否（编译）/是（部署） | `l2_build.md` |
-| `force_gradle_compile` | 否（编译）/是（部署） | `l2_build.md` |
+| `compile` | 否 | `l2_build.md` |
+| `deploy` | 否（编译）/是（部署） | `l2_build.md` |
+| `gradle-build` | 否（编译）/是（部署） | `l2_build.md` |
 | `get_compile_status` | 否 | `l2_build.md` |
-| `clean_reinstall_apk` | 否（编译）/是（重装） | `l2_build.md` |
+| `reinstall` | 否（编译）/是（重装） | `l2_build.md` |
 
-不在本 Benchmark 中的工具（另见 `benchmark-ui-verify/`）：`layout_verify`、`view_inspect`、`figma_layout_verify`（UI 验证专项）；`ui_find` 为内部工具，不在任何 Benchmark 中直接评测。
+不在本 Benchmark 中的工具（另见 `benchmark-ui-verify/`）：`layout_verify`、`view-inspect`、`figma_layout_verify`（UI 验证专项）；`ui_find` 为内部工具，不在任何 Benchmark 中直接评测。
 
 ## 前置条件
 
 所有用例执行前需满足：
-1. Android 设备已连接并可通过 `device_list` 确认
-2. App 已部署（`android_demo_project`），可通过 `activity_stack` 确认
+1. Android 设备已连接并可通过 `devices` 确认
+2. App 已部署（`android_demo_project`），可通过 `activity-stack` 确认
 3. `McpTestActivity` 可通过 MainActivity → "MCP Test Page" 按钮进入
 4. 无设备场景（`l3_nodev.md`）执行前需先通过 `adb emu kill` 关闭所有模拟器
 
@@ -77,7 +77,7 @@ benchmark/
 
 ## 执行说明
 
-- `l2_ssh_conn.md`（SSH 用例）必须最先执行，因为 `request_remote_ssh_info` 会触发 IDE 弹窗，需用户在场
+- `l2_ssh_conn.md`（SSH 用例）必须最先执行，因为 `ssh-info` 会触发 IDE 弹窗，需用户在场
 - 所有用例严格串行执行（MCP 同时只支持一个客户端调用）
 - `l3_nodev.md` 执行前需关闭所有设备，执行后需恢复
 - 用例编号格式：`分类前缀-序号`（如 `SSH-1`、`BUILD-3`）

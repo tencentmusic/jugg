@@ -309,13 +309,13 @@ case "verify":
 验收时按以下顺序执行，满足当前层级即停：
 
 ### 1. 结构验证（必做）
-使用 `layout_dump` 检查：
+使用 `layout-dump` 检查：
 - 目标元素是否存在
 - 父子关系是否正确
 - visibility 是否符合预期
 
 ### 2. 布局验证（按需）
-先调用一次 `layout_dump` 获取 dumpFile 路径，后续所有 verify 复用该文件（无额外 App 通信）：
+先调用一次 `layout-dump` 获取 dumpFile 路径，后续所有 verify 复用该文件（无额外 App 通信）：
 
 - 尺寸：assert.property=bounds.width/height，unit=dp
 - 间距：relation.type=spacing，需 target + target2

@@ -11,17 +11,17 @@
 调用任何需要设备的工具（如 `screenshot`），不传 `serial`，验证返回 `status` 为 `OK`，工具正常执行。注意：`message` 中不包含设备选择说明文案，设备选择细节不暴露在 MCP 响应中。
 
 **SELECT-2: 多设备环境 - 指定 serial**
-在连接了多台设备的环境下，通过 `device_list` 获取非 selected 的设备 serial，调用 `screenshot` 并指定该 serial，验证截图来自指定设备（可通过截图内容区分）。
+在连接了多台设备的环境下，通过 `devices` 获取非 selected 的设备 serial，调用 `screenshot` 并指定该 serial，验证截图来自指定设备（可通过截图内容区分）。
 
 ---
 
 ## 十二、错误处理与边界
 
 **ERR-1: projectDir 缺失**
-对任何需要 `projectDir` 的工具（如 `compile_and_deploy`），不传 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`message` 中包含 "projectDir is required" 或类似提示。
+对任何需要 `projectDir` 的工具（如 `deploy`），不传 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`message` 中包含 "projectDir is required" 或类似提示。
 
 **ERR-2: projectDir 非绝对路径**
-调用 `compile_and_deploy`，传入 `projectDir="relative/path"`（不以 `/` 开头），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`（inputSchema 要求 `pattern: "^/.+"`）。
+调用 `deploy`，传入 `projectDir="relative/path"`（不以 `/` 开头），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`（inputSchema 要求 `pattern: "^/.+"`）。
 
 **ERR-3: 调用不存在的工具**
 通过 JSON-RPC 发送 `tools/call`，`name` 设为 `"nonexistent_tool"`，验证返回 `errorCode` 为 `MCP_TOOL_NOT_FOUND`。
@@ -35,35 +35,35 @@
 
 **E2E-1: 完整开发迭代流程**
 1. 调用 `list_projects` 获取有效 `projectDir`
-2. 调用 `device_list` 确认有设备连接
-3. 调用 `restart_app` 启动应用
+2. 调用 `devices` 确认有设备连接
+3. 调用 `restart` 启动应用
 4. 调用 `screenshot` 截取应用初始状态
 5. 修改一个源码文件
-6. 调用 `compile_and_deploy` 编译部署
+6. 调用 `deploy` 编译部署
 7. 如果是异步，用 `get_compile_status` 轮询直到完成
 8. 调用 `screenshot` 截取部署后状态
 9. 对比前后两次截图，确认修改已生效
 
 **E2E-2: 编译失败后 Gradle 回退流程**
 1. 故意在代码中引入一个编译错误
-2. 调用 `compile_and_deploy`，预期编译失败
+2. 调用 `deploy`，预期编译失败
 3. 验证返回 `status` 为 `ERROR`，包含编译错误信息
 4. 修复代码错误
-5. 调用 `force_gradle_compile` 走 Gradle 回退
+5. 调用 `gradle-build` 走 Gradle 回退
 6. 验证最终编译成功
 
 **E2E-3: UI 自动化操作流程**
-1. 调用 `restart_app` 启动应用
+1. 调用 `restart` 启动应用
 2. 调用 `screenshot` 获取当前界面
-3. 调用 `layout_dump` 获取 UI 层级
-4. 根据 `layout_dump` 结果找到目标按钮坐标
+3. 调用 `layout-dump` 获取 UI 层级
+4. 根据 `layout-dump` 结果找到目标按钮坐标
 5. 调用 `tap` 点击该坐标
 6. 调用 `screenshot` 验证点击后的界面变化
-7. 调用 `activity_stack` 验证当前页面是否跳转
+7. 调用 `activity-stack` 验证当前页面是否跳转
 
 **E2E-4: 两段式录屏验证完整流程**
-1. 调用 `start_record`（仅传 `projectDir`）并获取 `sessionId`
-2. 调用 `restart_app` 启动应用
+1. 调用 `record-start`（仅传 `projectDir`）并获取 `sessionId`
+2. 调用 `restart` 启动应用
 3. 调用 `tap` 点击目标坐标
-4. 等待 2~3 秒后调用 `stop_record`（传 `projectDir`、`sessionId`）
+4. 等待 2~3 秒后调用 `record-stop`（传 `projectDir`、`sessionId`）
 5. 验证返回成功且 mp4 产物存在，播放确认包含启动与点击过程

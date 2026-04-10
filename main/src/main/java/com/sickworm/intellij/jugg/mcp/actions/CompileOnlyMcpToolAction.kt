@@ -6,10 +6,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 
 /**
- * CompileOnlyMcpToolAction implements MCP tool `compile_only` and converts request arguments into tool execution and MCP result payloads.
+ * CompileOnlyMcpToolAction implements MCP tool `compile` and converts request arguments into tool execution and MCP result payloads.
  */
 class CompileOnlyMcpToolAction : McpToolAction {
-    override val toolName: String = "compile_only"
+    override val toolName: String = "compile"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -29,7 +29,7 @@ class CompileOnlyMcpToolAction : McpToolAction {
     }
 
     private fun compileAction(runtime: IMcpRuntime): McpToolResult {
-        return CompileAndDeployMcpToolAction.deployAction(runtime, "compile_only", isSkipDeploy = true)
+        return CompileAndDeployMcpToolAction.deployAction(runtime, "compile", isSkipDeploy = true)
     }
 
 }

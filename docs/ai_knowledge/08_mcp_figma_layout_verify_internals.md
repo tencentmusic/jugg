@@ -124,7 +124,7 @@ normalized[3] = bounds[3] / screenHeight * 1000    // bottom
 ```
 
 - Figma 侧 screenSize：从 Figma JSON 的 `layout[2], layout[3]`（或 `bounds[2], bounds[3]`）读取，即设计稿整体画布尺寸（Figma 像素）
-- Android 侧 screenSize：从 `layout_dump` 产出的 `androidJson.deviceInfo.screenWidth/screenHeight` 读取（dp）
+- Android 侧 screenSize：从 `layout-dump` 产出的 `androidJson.deviceInfo.screenWidth/screenHeight` 读取（dp）
 
 **归一化消除了分辨率和 dpr 差异**，使 Figma 设计稿坐标与实际设备 dp 坐标可直接比较。这也是状态栏/导航栏高度不一致、屏幕尺寸不同时仍能正确匹配元素的原因——元素的**相对位置**在归一化后一致。
 
@@ -143,7 +143,7 @@ iou = intersect_area / (area1 + area2 - intersect_area)
 
 ## 5. 阶段四：关系验证（RelationVerifier）
 
-`AndroidNode.bounds` 单位为 dp（由 `layout_dump` 在 IDE 侧按 `dp = round(px / density)` 转换）。
+`AndroidNode.bounds` 单位为 dp（由 `layout-dump` 在 IDE 侧按 `dp = round(px / density)` 转换）。
 
 ### 5.1 间距验证
 
@@ -200,5 +200,5 @@ maxDiff = max(centers) - min(centers)
 
 1. **仅验证相邻节点对**：`SpacingRelation` 仅产生于 `flattenNodes` 后的相邻下标对，非全量配对，可能遗漏跨层级关系。
 2. **对齐分桶精度**：以 `5 * dpr` 为 bucket 大小，在 2x 设计稿（dpr=2）时容差为 10px，可能将非同行元素错误归为对齐组。
-3. **不检查属性**：颜色、字号、圆角等属性需配合 `view_inspect` 单独验证。
-4. **节点遮挡**：`layout_dump` 返回所有可见节点，若存在重叠布局（如 FrameLayout），IoU > 0.7 可能误匹配。
+3. **不检查属性**：颜色、字号、圆角等属性需配合 `view-inspect` 单独验证。
+4. **节点遮挡**：`layout-dump` 返回所有可见节点，若存在重叠布局（如 FrameLayout），IoU > 0.7 可能误匹配。

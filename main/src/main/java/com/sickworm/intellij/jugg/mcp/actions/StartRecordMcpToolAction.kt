@@ -16,7 +16,7 @@ import java.io.File
  * StartRecordMcpToolAction starts device screen recording asynchronously and returns a sessionId immediately.
  */
 class StartRecordMcpToolAction : McpToolAction {
-    override val toolName: String = "start_record"
+    override val toolName: String = "record-start"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

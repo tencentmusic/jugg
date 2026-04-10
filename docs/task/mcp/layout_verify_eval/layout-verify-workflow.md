@@ -69,7 +69,7 @@ Figma 图层名不可信时，以**文本内容**作为跨系统的映射锚点�
 ### Step 1：建立视觉对应关系
 
 同时给 agent 三样东西：
-1. `layout_dump` JSON（resourceId + bounds + text）
+1. `layout-dump` JSON（resourceId + bounds + text）
 2. 设备截图（实现现状）
 3. Figma 截图（设计意图）
 
@@ -118,7 +118,7 @@ Figma 图层名不可信时，以**文本内容**作为跨系统的映射锚点�
 
 ### 1. 默认流程（推荐）
 
-`layout_verify` 默认自动抓取最新快照，因此常规流程不再强依赖先 `layout_dump`：
+`layout_verify` 默认自动抓取最新快照，因此常规流程不再强依赖先 `layout-dump`：
 
 ```
 restart_app → 导航页面 → layout_verify(asserts/relation) → screenshot（可选）

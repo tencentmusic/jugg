@@ -13,10 +13,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import java.nio.file.Files
 
 /**
- * CompileAndDeployMcpToolAction implements MCP tool `compile_and_deploy` and converts request arguments into tool execution and MCP result payloads.
+ * CompileAndDeployMcpToolAction implements MCP tool `deploy` and converts request arguments into tool execution and MCP result payloads.
  */
 class CompileAndDeployMcpToolAction : McpToolAction {
-    override val toolName: String = "compile_and_deploy"
+    override val toolName: String = "deploy"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -32,7 +32,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return deployAction(runtime, "compile_and_deploy")
+        return deployAction(runtime, "deploy")
     }
 
     companion object {

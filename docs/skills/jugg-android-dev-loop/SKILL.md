@@ -53,7 +53,7 @@ LoadDecision: stage=<plan|execute|troubleshoot> intent=<phrase> load=<files|none
 | annotation, transform, unsupported | `policy_incremental_compile_limits.md` |
 | error, crash, pattern, fix | `error_patterns.md` |
 | tap, recording | `tool_cards_runtime_observe.md` |
-| figma, verify, spacing, alignment, view_locate, view_inspect, layout_dump | `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md` |
+| figma, verify, spacing, alignment, view-locate, view-inspect, layout-dump | `tool_cards_runtime_observe.md` + `guide_ui_verify_assertion.md` |
 | device, project, ssh, crash | `tool_cards_troubleshoot.md` |
 
 Load on-demand at the step that needs them, not pre-loaded. After loading: `✓ Loaded: [file]`.

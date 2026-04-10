@@ -20,8 +20,8 @@
 | 工具执行层 | `McpToolInvoker` | 参数校验、工具路由、结果映射 |
 | 校验层 | `McpRequestValidator` | schema 校验、默认值填充、projectDir 授权检查 |
 | 注册层 | `McpToolRegistry`, `McpToolActionRegistry` | 工具定义与 action 注册 |
-| 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout_dump` / `tap` 元素模式 / `view_inspect` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
-| 布局验证层 | `mcp/layout/*` | `view_locate` / `figma_layout_verify` 的核心算法模块 |
+| 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout-dump` / `tap` 元素模式 / `view-inspect` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
+| 布局验证层 | `mcp/layout/*` | `view-locate` / `figma_layout_verify` 的核心算法模块 |
 | 运行时适配层 | `IMcpRuntime`, `IdeaMcpRuntime` | 将工具执行连接到 IDE 真实能力 |
 
 ---
@@ -33,7 +33,7 @@
 - 统一业务返回：`structuredContent` 内含 `status/message/data/artifacts/errorCode`。  
 - 工具调用前必须经过 schema 校验与项目初始化校验（除 `list_projects`）。
 - 运行态工具在 action 内执行"参数组合校验 -> App ready 校验 -> 业务执行"；其中参数错误优先返回 `MCP_INVALID_PARAMS`，App 未就绪返回 `MCP_INTERNAL_ERROR`，并附带 next action 建议。
-- `restart_app` 支持可选 `tap_actions`，用于在重启后串行执行触控导航；单步参数与 `tap` 工具保持一致（`tap/longPress/swipe` + 坐标/百分比/元素模式，`swipe` 不支持元素模式）。步骤失败会短路并返回失败步骤索引。
+- `restart` 支持可选 `tap_actions`，用于在重启后串行执行触控导航；单步参数与 `tap` 工具保持一致（`tap/longPress/swipe` + 坐标/百分比/元素模式，`swipe` 不支持元素模式）。步骤失败会短路并返回失败步骤索引。
 
 ---
 
@@ -83,11 +83,11 @@
 
 | 工具 | 状态 | 职责 |
 |------|------|------|
-| `view_locate` | **新增** | 根据文本/位置查找元素，返回 bounds + position + size |
+| `view-locate` | **新增** | 根据文本/位置查找元素，返回 bounds + position + size |
 | `figma_layout_verify` | **新增** | 自动提取 Figma 相对关系并批量验证 |
-| `layout_dump` | 保留 | `view_locate` 内部调用 |
-| `layout_verify` | **废弃** | 被 `view_locate` + `figma_layout_verify` 替代 |
-| `view_inspect` | 保留 | 颜色验证时可能需要 |
+| `layout-dump` | 保留 | `view-locate` 内部调用 |
+| `layout_verify` | **废弃** | 被 `view-locate` + `figma_layout_verify` 替代 |
+| `view-inspect` | 保留 | 颜色验证时可能需要 |
 
 ### 7.3 核心模块架构
 
@@ -95,7 +95,7 @@
 ┌─────────────────────────────────────────────────────────┐
 │                    MCP Tool Layer                        │
 │  ┌─────────────────┐      ┌──────────────────────┐    │
-│  │   view_locate    │      │ figma_layout_verify  │    │
+│  │   view-locate    │      │ figma_layout_verify  │    │
 │  │  (单点查询)       │      │   (批量验证)          │    │
 │  └────────┬─────────┘      └──────────┬───────────┘    │
 └───────────┼───────────────────────────┼─────────────────┘
@@ -264,7 +264,7 @@ Agent 流程:
 
 | Phase | 内容 | 状态 |
 |-------|------|------|
-| Phase 1 | `view_locate` 基础功能、Bounds 归一化/匹配/验证 | MVP |
+| Phase 1 | `view-locate` 基础功能、Bounds 归一化/匹配/验证 | MVP |
 | Phase 2 | `figma_layout_verify` 批量验证、returnMode="all" | 进行中 |
 | Phase 3 | 颜色验证（仅纯色）| 待定 |
 

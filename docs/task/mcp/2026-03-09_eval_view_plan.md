@@ -15,7 +15,7 @@
 | # | 痛点 | 依据 |
 |---|------|------|
 | 1 | `layout_verify` schema 持续膨胀但仍无法覆盖足够多的场景 | 25 种属性 + 6 种 check type，每新增一个属性需要改动 3~5 个文件（`LayoutVerifyMcpToolAction.kt`、`LayoutVerifier.java`、MCP schema、Skill 文档、测试用例） |
-| 2 | 通用的 `layout_dump` 消耗大量上下文，且 Agent 需要先学习其结构才能验证 | 完整 dump JSON 可达 2K~10K tokens；Agent 必须解析树结构、理解节点字段 |
+| 2 | 通用的 `layout-dump` 消耗大量上下文，且 Agent 需要先学习其结构才能验证 | 完整 dump JSON 可达 2K~10K tokens；Agent 必须解析树结构、理解节点字段 |
 | 3 | `screenshot` 在属性级别验证上精度有限 | 无法准确判断精确的颜色值、字号大小、padding 值 |
 | 4 | `layout_verify` 的属性覆盖率在真实场景中仅约 72%，已达瓶颈 | `real_scene_analysis_report.md`：Cap-16（自定义属性）、Cap-17（tint/colorFilter）、Cap-22（cornerRadius）均不可达 |
 | 5 | `alignment.direction` 语义反直觉（无 Skill 时错误率 40~60%） | `checks_complexity_eval.md` 风险 #1：`direction:"vertical"` 实际检查的是 X 轴中心对齐 |

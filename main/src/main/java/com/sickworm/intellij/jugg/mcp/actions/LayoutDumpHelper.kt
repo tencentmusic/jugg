@@ -54,7 +54,7 @@ internal object LayoutDumpHelper {
                 ?: McpToolResult.internalErrorResult(callerToolName, "app is not ready")
         }
 
-        val toolDir = ensureToolDir(runtime, "layout_dump")
+        val toolDir = ensureToolDir(runtime, "layout-dump")
             ?: run {
                 logger.warn("$callerToolName: unable to prepare artifact directory")
                 return McpToolResult.internalErrorResult(callerToolName, "failed to prepare artifact directory")

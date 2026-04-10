@@ -8,7 +8,7 @@
 
 ## Overview
 
-Based on evaluation of `layout_dump` and `tap` MCP tools (tested against JOOX_Android), four improvements are adopted:
+Based on evaluation of `layout-dump` and `tap` MCP tools (tested against JOOX_Android), four improvements are adopted:
 
 1. **layout_dump message summary** - Replace generic "executed successfully" with node/window stats
 2. **tap action expansion** - Add `swipe` and `longPress` via `action` parameter
@@ -25,7 +25,7 @@ Two additional decisions are confirmed and must be implemented in this plan.
 
 #### Goal
 
-Prevent large `layout_dump` payloads from inflating model context and token usage.
+Prevent large `layout-dump` payloads from inflating model context and token usage.
 
 #### Rules
 
@@ -52,7 +52,7 @@ This keeps the tool backward compatible: clients still receive `data.file`; only
 
 #### Goal
 
-Eliminate cross-tool mismatch where `layout_dump` exposes short IDs but `tap`/`rootLayout` expect full resource IDs.
+Eliminate cross-tool mismatch where `layout-dump` exposes short IDs but `tap`/`rootLayout` expect full resource IDs.
 
 #### Rules
 
@@ -280,7 +280,7 @@ case "long_press":
 
 ### Problem
 
-`layout_dump` description is ~1000 tokens, `tap` ~600 tokens. Every API call sends these in context. The compression rule details (which fields are omitted when default, className stripping rules) are useful but belong in documentation, not in tool description.
+`layout-dump` description is ~1000 tokens, `tap` ~600 tokens. Every API call sends these in context. The compression rule details (which fields are omitted when default, className stripping rules) are useful but belong in documentation, not in tool description.
 
 ### Solution
 

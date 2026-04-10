@@ -35,44 +35,44 @@
 | 工具 | 必填参数 | 说明 |
 |------|----------|------|
 | `list_projects` | 无 | 列出当前 IDE 已初始化项目 |
-| `restart_app` | `projectDir`; 可选 `tap_actions` | 重启目标 App，并可在启动后串行执行 `tap/longPress/swipe` 导航步骤 |
-| `compile_only` | `projectDir` | 仅编译不部署 |
-| `compile_and_deploy` | `projectDir` | 编译并部署（可能异步） |
-| `clean_reinstall_apk` | `projectDir` | 卸载并重装 APK |
-| `force_gradle_compile` | `projectDir` | 强制 Gradle 构建（可能异步） |
+| `restart` | `projectDir`; 可选 `tap_actions` | 重启目标 App，并可在启动后串行执行 `tap/longPress/swipe` 导航步骤 |
+| `compile` | `projectDir` | 仅编译不部署 |
+| `deploy` | `projectDir` | 编译并部署（可能异步） |
+| `reinstall` | `projectDir` | 卸载并重装 APK |
+| `gradle-build` | `projectDir` | 强制 Gradle 构建（可能异步） |
 | `get_compile_status` | `projectDir`, `jobId` | 查询编译任务状态 |
-| `request_remote_ssh_info` | `projectDir`, `reason`, `userConsent` | 申请远端 SSH 排障信息 |
-| `device_list` | `projectDir` | 列设备并标记 selected |
+| `ssh-info` | `projectDir`, `reason`, `userConsent` | 申请远端 SSH 排障信息 |
+| `devices` | `projectDir` | 列设备并标记 selected |
 | `screenshot` | `projectDir` | 截图 |
-| `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
-| `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
-| `layout_dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级 JSON（app 内 ViewHierarchy），`data.content` 按固定阈值内联返回 |
-| `view_locate` | `projectDir`, `target` | 查找单个 UI 元素并返回位置和尺寸（支持模糊匹配） |
-| `view_inspect` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
-| `activity_stack` | `projectDir` | 读取 Activity 栈 |
-| `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
+| `record-start` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
+| `record-stop` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
+| `layout-dump` | `projectDir`; 可选 `rootLayout`, `isIncludeGone`, `isAllWindows` | 导出 UI 层级 JSON（app 内 ViewHierarchy），`data.content` 按固定阈值内联返回 |
+| `view-locate` | `projectDir`, `target` | 查找单个 UI 元素并返回位置和尺寸（支持模糊匹配） |
+| `view-inspect` | `projectDir`, `target`, `expressions` | 通过反射调用 View getter 方法链查询属性值（返回原始值，Agent 自行判断） |
+| `activity-stack` | `projectDir` | 读取 Activity 栈 |
+| `crash-report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + `action` + 模式参数 | 屏幕触控（`tap`/`longPress`/`swipe`） |
 
 补充（App 在线等待阻塞）：
-- `restart_app`、`compile_and_deploy`、`force_gradle_compile`、`clean_reinstall_apk` 在成功路径会后置等待 App 在线（判断口径：`deployStateManager.updateDeployState().isReadyDeploy`）。
-- `compile_and_deploy` / `force_gradle_compile` 若走异步返回，在线等待会体现在最终 `get_compile_status` 结果里（最终可能因为 App 未就绪而失败）。
-- `activity_stack`、`screenshot`、`tap`、`start_record`、`stop_record` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
+- `restart`、`deploy`、`gradle-build`、`reinstall` 在成功路径会后置等待 App 在线（判断口径：`deployStateManager.updateDeployState().isReadyDeploy`）。
+- `deploy` / `gradle-build` 若走异步返回，在线等待会体现在最终 `get_compile_status` 结果里（最终可能因为 App 未就绪而失败）。
+- `activity-stack`、`screenshot`、`tap`、`record-start`、`record-stop` 在执行前会先等待 App 在线：每 100ms 检查一次，最长等待 10s。
 - 运行态工具执行顺序：参数完整性/组合合法性校验 -> `projectDir` 初始化态校验 -> App 在线校验 -> 业务执行。参数类错误优先返回 `MCP_INVALID_PARAMS`，避免被 `app not ready` 覆盖。
 - 若前置等待过程中发生过实际等待（并非首检即 ready），且本次工具调用返回失败，会自动重试最多 3 次，重试间隔 2s（仅用于内部/瞬时失败）。
-- `restart_app` 传入 `tap_actions` 时，会在 App ready 后按顺序执行步骤：单步参数与 `tap` 工具保持一致（`action=tap|longPress|swipe`，模式支持坐标/百分比/元素；其中 `swipe` 仅支持坐标/百分比）。若步骤为元素模式且遇到 `No matching UI element found`，会做最多 2 次短暂重试；任一步失败会整体返回 `ERROR`，并在 `data.failedStep` 标出失败步骤。
+- `restart` 传入 `tap_actions` 时，会在 App ready 后按顺序执行步骤：单步参数与 `tap` 工具保持一致（`action=tap|longPress|swipe`，模式支持坐标/百分比/元素；其中 `swipe` 仅支持坐标/百分比）。若步骤为元素模式且遇到 `No matching UI element found`，会做最多 2 次短暂重试；任一步失败会整体返回 `ERROR`，并在 `data.failedStep` 标出失败步骤。
 
 > 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
 
 补充（录屏工具容错语义）：
-- `start_record` IDeviceAdb 容易失败，走 ANDROID_HOME 的 `adb shell screenrecord` 进程托管，并由 `stop_record` 回收。
+- `record-start` IDeviceAdb 容易失败，走 ANDROID_HOME 的 `adb shell screenrecord` 进程托管，并由 `record-stop` 回收。
 - 主机侧 `adb` 路径解析优先走 `PlatformApi.getAndroidHomePath(logger)`，再回退 `ANDROID_HOME` / `ANDROID_SDK_ROOT`。
-- `stop_record` 在 `pull` 前会等待远端 mp4 落盘（最长约 10 秒），失败时返回远端文件状态与启动模式，便于定位问题。
+- `record-stop` 在 `pull` 前会等待远端 mp4 落盘（最长约 10 秒），失败时返回远端文件状态与启动模式，便于定位问题。
 
 补充（screenshot 体积优化语义）：
 - 截图拉取后会在本地做上传优化：超过边长/大小阈值时，自动压缩。
 - `data.file` 返回优化后的文件路径，扩展名可能为 `png/jpg/jpeg`。
 
-补充（crash_report 输出语义）：
+补充（crash-report 输出语义）：
 - 目标进程强过滤：`crashLogs` 仅保留目标包名/进程名与目标 PID 相关日志。
 - 采集优先级：先读 `logcat -b crash`，仅当未检测到崩溃信号时再补读 `logcat -b main`。
 - `hasCrash=true` 表示检测到崩溃信号（如 `FATAL EXCEPTION` / `Fatal signal`）。
@@ -81,7 +81,7 @@
 
 ---
 
-补充（layout_dump 语义）：
+补充（layout-dump 语义）：
 - 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树。
 - **输出格式为 HTML**：成功时 `data.file` 指向本地 `.html` 文件，`artifacts` 包含 `type=html` 产物。HTML 格式信息密度更高，适合 LLM 消费。同时 `data.jsonFile` 保留原始 JSON 文件路径供内部工具使用（如 `figma_layout_verify`）。
 - **虚拟节点裁剪（HTML 侧）**：无语义内容的结构性节点（无 `id`/`text`/`contentDesc`、不可点击，且 `alpha=0` 或属于通用容器类如 FrameLayout/LinearLayout 等）在 HTML 生成时自动裁剪，子节点上提。窗口根节点始终保留。`_vir_id_*` 前缀的自动生成 id 不渲染到 HTML 属性中。
@@ -90,7 +90,7 @@
 - `topWindowOnly=true`（默认）时，服务端优先使用当前 top resumed Activity 对应窗口，避免误选到后台 Activity 窗口。
 - `message` 为摘要信息：窗口数、顶层窗口标题、节点数、可点击节点数、是否截断。
 - **服务端剪枝**：App 内 ViewHierarchyServer 限制最大深度 `MAX_DEPTH=60`，最大节点数 `MAX_NODE_COUNT=5000`。超限时根节点会包含 `"truncated":true` 字段，被截断的节点自身 `tag` 为 `"truncated:node_limit"` 或 `"truncated:depth_limit"`。
-- **不可见节点**：默认排除 `GONE` 节点以减少体积；设置 `isIncludeGone=true` 可包含 GONE 节点用于诊断。`INVISIBLE` 节点始终包含。注意：元素模式 `tap` 会过滤掉不可见节点（仅匹配 VISIBLE + isShown），因此 GONE/INVISIBLE 的 View 无法通过 `tap(text=...)` 定位，需借助 `layout_dump(isIncludeGone=true)` 诊断。
+- **不可见节点**：默认排除 `GONE` 节点以减少体积；设置 `isIncludeGone=true` 可包含 GONE 节点用于诊断。`INVISIBLE` 节点始终包含。注意：元素模式 `tap` 会过滤掉不可见节点（仅匹配 VISIBLE + isShown），因此 GONE/INVISIBLE 的 View 无法通过 `tap(text=...)` 定位，需借助 `layout-dump(isIncludeGone=true)` 诊断。
 - **根 JSON 结构**：`{windows:[{windowType, title, root:<node>}], truncated, deviceInfo:{density, scaledDensity}}`。
 - **单位统一为 dp**：所有 `bounds` 和 `padding` 字段已在 IDE 端自动转换为 dp 单位（公式：`dp = (int)(px / density)`，取整），与 `tap` 百分比模式保持一致。原始像素值由 App 端采集，转换在 IDE 端完成。
 - **虚拟 ID 生成**：对于没有 resource id 的控件，自动生成虚拟 id，格式为 `_vir_id_<index>`（如 `_vir_id_0`, `_vir_id_1`）。虚拟 id 按深度优先遍历顺序分配，每次 dump 重新计数。虚拟 id 可直接用于 `tap` 的 `resourceId` 参数，无需依赖 `text` 或 `contentDesc`。
@@ -101,19 +101,19 @@
   - `packageName` 无法解析：先确认 `projectDir` 对应运行配置、应用包名与前台进程一致。
   - 明确是 socket 不可连（如 `ViewHierarchy server is unavailable` / connect failed / forward failed）：高概率是 App 侧 `ViewHierarchyServer` 未成功集成到当前运行包（未安装最新包、构建链路未带上对应集成）。
   - 其他请求失败（超时、返回体非法）：优先看 `build/jugg/log/compile_latest.log` 与 IDE 日志。
-- socket 不可连的推荐动作：`restart_app` 重试一次；若仍失败，执行一次 `force_gradle_compile`（必要时轮询 `get_compile_status` 到终态）-> `compile_and_deploy` -> `restart_app` 后再试 `layout_dump`/元素模式 `tap`。
+- socket 不可连的推荐动作：`restart` 重试一次；若仍失败，执行一次 `gradle-build`（必要时轮询 `get_compile_status` 到终态）-> `deploy` -> `restart` 后再试 `layout-dump`/元素模式 `tap`。
 
-补充（view_locate 语义）：
-- `view_locate` 用于查找单个 UI 元素并返回其位置和尺寸信息。
+补充（view-locate 语义）：
+- `view-locate` 用于查找单个 UI 元素并返回其位置和尺寸信息。
 - **target**：元素选择器（`text`/`resourceId`/`contentDesc`，至少提供一个）。
 - 成功时返回 `data.found=true`，包含 `bounds`（`[left,top,right,bottom]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`。
 - 失败时返回 `data.found=false`，`errorCode=ELEMENT_NOT_FOUND`。
 - 所有坐标和尺寸单位为 dp。
-- 内部自动调用 `layout_dump` 获取最新布局快照。
+- 内部自动调用 `layout-dump` 获取最新布局快照。
 - 适用场景：需要获取元素位置用于后续计算或验证。
 
-补充（view_inspect 语义）：
-- `view_inspect` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。
+补充（view-inspect 语义）：
+- `view-inspect` 通过 App 内 `ViewHierarchyServer` 反射调用 View 上的 getter 方法链，返回原始值。
 - **target**：元素选择器（`resourceId`/`text`/`contentDesc`/`className`，AND 逻辑）。必须唯一匹配一个元素。
 - **expressions**：getter 方法表达式数组（1~20 个）。语法为 `methodName()` 或 `methodName().anotherMethod()`，最大链深度 5。
 - 仅允许 getter/查询方法（`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length`/`name`/`ordinal`/`size`/`isEmpty` 等白名单）。有副作用的方法（`set*`/`remove*`/`add*`/`post*`/`dispatch*`/`perform*` 等）被禁止。
@@ -122,8 +122,8 @@
 - 链中间结果为 null 时返回 `{value: null, type: "null"}` 而非 NPE。
 - 方法不存在时对应表达式返回 `{type: "error", error: "NoSuchMethodException: ..."}`，不影响同批其他表达式。
 - 适用场景：单个 View 的属性查询（textColor、textSize、maxLines、ellipsize、tintColor、cornerRadius、自定义 View getter 等）。
-- 与 `view_locate` 分工：需要两个 View 坐标计算的场景（spacing/alignment/overlap/containment/order）用 `view_locate`；查询单个 View 属性用 `view_inspect`。
-- 在执行前同样会先等待 App 在线（同 `layout_dump`）。
+- 与 `view-locate` 分工：需要两个 View 坐标计算的场景（spacing/alignment/overlap/containment/order）用 `view-locate`；查询单个 View 属性用 `view-inspect`。
+- 在执行前同样会先等待 App 在线（同 `layout-dump`）。
 
 补充（tap 三模式语义）：
 - `action` 支持：`tap`（默认）、`longPress`、`swipe`。
@@ -141,7 +141,7 @@
 - 元素模式成功时 `data.matchedElement` 为结构化对象：`{text, className, resourceId, contentDesc, bounds:[l,t,r,b], centerX, centerY}`。
 - `tap` 在执行点击前会额外检查前台 `topActivity` 稳定性：要求连续 2 次检查结果均为同一 `topActivity` 且状态为 `onResume/RESUMED`，两次检查间隔固定 1 秒；最多等待 5 秒，超时后继续执行点击。若工具最终失败，`message` 会附带当前 `topActivity` 不稳定提示。
 - 参数使用优先级（仅在同一次调用里同时传入多种模式参数时生效）：`coordinate > percent > element`。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
-- 推荐交互顺序（Agent/Skill 指引）：优先 `layout_dump + element tap`；元素模式不适用时使用 `layout_dump + coordinate tap`；仅当 ViewHierarchy 路径明确不可用时，才退回 `screenshot + percent/coordinate tap`。
+- 推荐交互顺序（Agent/Skill 指引）：优先 `layout-dump + element tap`；元素模式不适用时使用 `layout-dump + coordinate tap`；仅当 ViewHierarchy 路径明确不可用时，才退回 `screenshot + percent/coordinate tap`。
 
 补充（`mcp_fetch` 清理机制）：
 - MCP 拉取类工具产物默认落在 `JuggPathManager.mcpFetchDir/<toolName>/`（当前展开为 `build/jugg/mcp_fetch/<toolName>/`）。
@@ -151,7 +151,7 @@
 
 ## 4. 异步编译调用约定
 
-`compile_and_deploy`、`force_gradle_compile` 可能返回：
+`deploy`、`gradle-build` 可能返回：
 - `isFinal=false`：任务仍运行中
 - `jobId`：后续用 `get_compile_status` 查询
 - `logPath`：`build/jugg/log/compile_latest.log`
@@ -175,13 +175,13 @@
 
 ## 6. 连通性与排查
 
-> 仅在"连通性/上下文异常排查"场景使用以下步骤；正常使用无需把 `list_projects` / `device_list` 作为固定 preflight。  
+> 仅在"连通性/上下文异常排查"场景使用以下步骤；正常使用无需把 `list_projects` / `devices` 作为固定 preflight。  
 
 1. 先确认 IDE 已初始化该项目（`list_projects`）。  
 2. 参数异常先对照 `tools/list` 返回的 `inputSchema`。  
-3. 设备类工具失败时再执行 `device_list`。  
+3. 设备类工具失败时再执行 `devices`。  
 4. 编译类异步任务卡住时，用 `get_compile_status` + `compile_latest.log`。
-5. `layout_dump`/元素模式 `tap` 返回 `ViewHierarchy server is unavailable` 时，按"先 `restart_app` 一次 -> 再 `force_gradle_compile` 一次 -> 重试"的顺序处理；若仍失败，再退回 `screenshot + percent/coordinate tap`。
+5. `layout-dump`/元素模式 `tap` 返回 `ViewHierarchy server is unavailable` 时，按"先 `restart` 一次 -> 再 `gradle-build` 一次 -> 重试"的顺序处理；若仍失败，再退回 `screenshot + percent/coordinate tap`。
 
 ---
 

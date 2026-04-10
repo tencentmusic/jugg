@@ -9,7 +9,7 @@
 
 ## 1. 目标
 
-本次仅聚焦 3 个已确认问题，提升 `layout_dump` 与 element-mode `tap` 的可用性和稳定性：
+本次仅聚焦 3 个已确认问题，提升 `layout-dump` 与 element-mode `tap` 的可用性和稳定性：
 
 1. 过滤不可见节点，避免误判多匹配。
 2. 初始化失败后允许重试，避免永久失效。
@@ -64,7 +64,7 @@
 
 建议：
 1. 当前 patch 先保障 `find_and_tap` 稳定性。  
-2. 隐藏节点调试需求由 `layout_dump` 承担，不在本次 patch 引入额外模式开关。
+2. 隐藏节点调试需求由 `layout-dump` 承担，不在本次 patch 引入额外模式开关。
 
 ### TDD 用例（先写测试）
 
@@ -141,7 +141,7 @@
 
 1. 先补测试，再改实现（TDD）。  
 2. 优先修 `P2` 两项，再修 `P3`。  
-3. 最后回归 `tap` 与 `layout_dump` 的现有测试：
+3. 最后回归 `tap` 与 `layout-dump` 的现有测试：
    - `main/src/test/java/com/sickworm/intellij/jugg/mcp/actions/TapMcpToolActionTest.kt`
    - `main/src/test/java/com/sickworm/intellij/jugg/mcp/actions/LayoutDumpMcpToolActionTest.kt`
 
