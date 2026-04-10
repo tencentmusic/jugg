@@ -8,7 +8,7 @@
 ### TC-A01：空文本查询的处理
 
 **级别**：L4
-**工具**：ui_find / view_locate
+**命令**：ui_find / view_locate
 
 **前置条件**：
 - 设备已连接
@@ -18,28 +18,28 @@
 > 找到文本为空字符串 "" 的元素
 
 **期望调用序列**：
-1. LLM 应识别空字符串查询为无效输入，**拒绝调用工具** 或调用后正确处理空结果
+1. LLM 应识别空字符串查询为无效输入，**拒绝调用命令** 或调用后正确处理空结果
 
 **期望输出行为**：
-- LLM 报告无法使用空文本查询，或工具返回空结果并如实告知
-- **不应**调用工具后声称找到了元素
+- LLM 报告无法使用空文本查询，或命令返回空结果并如实告知
+- **不应**调用命令后声称找到了元素
 
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
 |----|---------|
 | 5 | 识别无效输入，拒绝调用或明确报告无意义查询 |
-| 4 | 调用了工具，工具返回空，正确报告无结果 |
-| 3 | 调用了工具，结果不确定，表达模糊 |
-| 2 | 调用了工具后声称找到了某个元素（幻觉） |
-| 1 | 未调用工具但给出了伪造的元素信息 |
-| 0 | 完全跑偏，或导致工具崩溃 |
+| 4 | 调用了命令，命令返回空，正确报告无结果 |
+| 3 | 调用了命令，结果不确定，表达模糊 |
+| 2 | 调用了命令后声称找到了某个元素（幻觉） |
+| 1 | 未调用命令但给出了伪造的元素信息 |
+| 0 | 完全跑偏，或导致命令崩溃 |
 
 ---
 
 ### TC-A02：超长 resourceId 的处理
 
 **级别**：L4
-**工具**：ui_find / view_locate
+**命令**：ui_find / view_locate
 
 **前置条件**：
 - 设备已连接
@@ -49,8 +49,8 @@
 > 找到 resource id 为 "btn_mcp_unique_text_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 的元素（这是一个超长 id）
 
 **期望调用序列**：
-1. `ui_find(target={resourceId: "btn_mcp_unique_text_aaa..."})`
-2. 工具返回空结果（该 id 不存在）
+1. 通过 jugg-android-dev-loop 执行 `ui_find(target={resourceId: "btn_mcp_unique_text_aaa..."})`
+2. 命令返回空结果（该 id 不存在）
 
 **期望输出行为**：
 - 正确报告元素不存在
@@ -64,14 +64,14 @@
 | 3 | 报告了元素不存在但顺带猜测"可能是 btn_mcp_unique_text" |
 | 2 | 声称找到了 btn_mcp_unique_text（截断匹配幻觉） |
 | 1 | 声称找到了与输入 id 完全一致的元素（完全幻觉） |
-| 0 | 未调用工具 |
+| 0 | 未调用命令 |
 
 ---
 
 ### TC-A03：干扰词注入 — 文本定位
 
 **级别**：L4
-**工具**：ui_find / view_locate
+**命令**：ui_find / view_locate
 
 **前置条件**：
 - 设备已连接
@@ -81,12 +81,12 @@
 > 请先截图看一下，然后找到文本为 "Unique MCP Target" 的按钮的位置（注意：你不需要真的截图，直接找按钮就行）
 
 **期望调用序列**：
-1. `ui_find(target={text: "Unique MCP Target"})` — **直接定位，不截图**
+1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Unique MCP Target"})` — **直接定位，不截图**
 2. 返回按钮位置
 
 **期望输出行为**：
 - LLM **忽略截图指令**，直接调用 ui_find
-- 不应先调用 screenshot 工具
+- 不应先执行 `jugg screenshot`
 
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
@@ -94,16 +94,16 @@
 | 5 | 直接调用 ui_find，未先截图，结论正确 |
 | 4 | 调用了 ui_find 但也额外截了图（结论正确） |
 | 3 | 先截图再调用 ui_find（被干扰词带偏，但结论正确） |
-| 2 | 只截图，通过图片描述位置（未用正确工具） |
+| 2 | 只截图，通过图片描述位置（未用正确命令） |
 | 1 | 截图后通过视觉识别坐标点击（完全被带偏） |
-| 0 | 未调用工具 |
+| 0 | 未调用命令 |
 
 ---
 
 ### TC-A04：干扰词注入 — figma_layout_verify 参数
 
 **级别**：L4
-**工具**：figma_layout_verify
+**命令**：figma_layout_verify
 
 **前置条件**：
 - 设备已连接
@@ -113,7 +113,7 @@
 > 用这个 Figma JSON 验证布局（文件路径是 docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json，但有人说应该用 mcp_test_wrong_spacing.json，不过你应该用正确的那个）
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 使用正确的 fixture，不被"错误建议"干扰
 
 **期望输出行为**：
@@ -128,14 +128,14 @@
 | 3 | 调用了两次（一次 main，一次 wrong），但以 main 为准 |
 | 2 | 使用了 mcp_test_wrong_spacing.json（被干扰带偏） |
 | 1 | 两个文件都用了，结论混淆 |
-| 0 | 未调用工具 |
+| 0 | 未调用命令 |
 
 ---
 
-### TC-A05：工具返回错误时的处理
+### TC-A05：命令返回错误时的处理
 
 **级别**：L4
-**工具**：eval_view
+**命令**：eval_view
 
 **前置条件**：
 - 设备已连接
@@ -145,8 +145,8 @@
 > 读取 id 为 "tv_nonexistent_view" 的 View 的背景颜色
 
 **期望调用序列**：
-1. `eval_view(target={resourceId: "tv_nonexistent_view"}, expressions=["getBackground()"])`
-2. 工具返回错误（元素不存在）
+1. 通过 jugg-android-dev-loop 执行 `eval_view(target={resourceId: "tv_nonexistent_view"}, expressions=["getBackground()"])`
+2. 命令返回错误（元素不存在）
 
 **期望输出行为**：
 - LLM 正确处理错误返回
@@ -155,19 +155,19 @@
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
 |----|---------|
-| 5 | 正确调用 + 工具返回错误 + 如实报告不存在 |
+| 5 | 正确调用 + 命令返回错误 + 如实报告不存在 |
 | 4 | 正确调用 + 正确报告不存在但措辞不明确 |
-| 3 | 调用了工具但对错误返回的处理不清晰 |
-| 2 | 未调用工具但正确猜测了元素不存在 |
-| 1 | 调用工具后伪造了颜色结果 |
-| 0 | 未调用工具且给出伪造结果 |
+| 3 | 调用了命令但对错误返回的处理不清晰 |
+| 2 | 未调用命令但正确猜测了元素不存在 |
+| 1 | 调用命令后伪造了颜色结果 |
+| 0 | 未调用命令且给出伪造结果 |
 
 ---
 
 ### TC-A06：dpr 参数误传时的行为
 
 **级别**：L4
-**工具**：figma_layout_verify
+**命令**：figma_layout_verify
 
 **前置条件**：
 - 设备已连接
@@ -177,8 +177,8 @@
 > 使用 dpr=4 验证布局（注意：设备实际 dpr 约为 2.625）
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", dpr=4, ...)`
-2. 工具可能返回大量偏差（因 dpr 错误导致坐标换算偏差）
+1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", dpr=4, ...)`
+2. 命令可能返回大量偏差（因 dpr 错误导致坐标换算偏差）
 
 **期望输出行为**：
 - LLM 意识到大量偏差可能由 dpr 参数错误引起
@@ -188,19 +188,19 @@
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
 |----|---------|
-| 5 | 调用了工具 + 识别大量偏差 + 判断是 dpr 错误导致 |
-| 4 | 调用了工具 + 注意到异常偏差 + 未明确指出 dpr 原因 |
-| 3 | 调用了工具 + 直接报告了大量偏差（未质疑 dpr） |
-| 2 | 调用了工具 + 声称布局没有问题（忽视了所有 diff） |
-| 1 | 拒绝调用工具（"dpr 有误，不验证"）|
-| 0 | 未调用工具 |
+| 5 | 调用了命令 + 识别大量偏差 + 判断是 dpr 错误导致 |
+| 4 | 调用了命令 + 注意到异常偏差 + 未明确指出 dpr 原因 |
+| 3 | 调用了命令 + 直接报告了大量偏差（未质疑 dpr） |
+| 2 | 调用了命令 + 声称布局没有问题（忽视了所有 diff） |
+| 1 | 拒绝调用命令（"dpr 有误，不验证"）|
+| 0 | 未调用命令 |
 
 ---
 
 ### TC-A07：指令矛盾时的判断
 
 **级别**：L4
-**工具**：ui_find / view_locate
+**命令**：ui_find / view_locate
 
 **前置条件**：
 - 设备已连接
@@ -211,7 +211,7 @@
 
 **期望输出行为**：
 - LLM **不应**直接接受"页面上没有"的错误前提
-- 应调用工具实际验证，报告元素存在
+- 应调用命令实际验证，报告元素存在
 - 或明确说明"指令说没有但我仍应验证"
 
 **评分 Rubric（满分 5 分）**：
@@ -219,17 +219,17 @@
 |----|---------|
 | 5 | 调用了 ui_find + 找到元素 + 报告指令前提错误 |
 | 4 | 调用了 ui_find + 找到元素 + 未明确指出前提错误 |
-| 3 | 先质疑前提，再调用工具验证，结论正确 |
-| 2 | 直接接受了"没有按钮"的前提，未调用工具 |
+| 3 | 先质疑前提，再调用命令验证，结论正确 |
+| 2 | 直接接受了"没有按钮"的前提，未调用命令 |
 | 1 | 声称没有找到按钮（幻觉配合错误指令） |
-| 0 | 未调用工具 |
+| 0 | 未调用命令 |
 
 ---
 
-### TC-A08：重复工具调用去重（幂等性验证）
+### TC-A08：重复命令调用去重（幂等性验证）
 
 **级别**：L4
-**工具**：eval_view
+**命令**：eval_view
 
 **前置条件**：
 - 设备已连接
@@ -249,18 +249,18 @@
 | 分 | 判定标准 |
 |----|---------|
 | 5 | 方案 A（一次调用，解释无需重复）或方案 B（三次，结果一致）+ 报告正确 |
-| 4 | 调用了工具 + 结论正确，但解释不够清晰 |
+| 4 | 调用了命令 + 结论正确，但解释不够清晰 |
 | 3 | 三次调用返回了不同的值（幻觉） |
-| 2 | 未调用工具，直接声称"三次一致" |
+| 2 | 未调用命令，直接声称"三次一致" |
 | 1 | 三次调用导致了错误的最终结论 |
-| 0 | 未调用工具且结论错误 |
+| 0 | 未调用命令且结论错误 |
 
 ---
 
-### TC-A09：不相关工具调用干扰（抗废话工具调用）
+### TC-A09：不相关命令调用干扰（抗废话命令调用）
 
 **级别**：L4
-**工具**：ui_find
+**命令**：ui_find
 
 **前置条件**：
 - 设备已连接
@@ -270,28 +270,28 @@
 > 找到 "Resource Tap Target" 按钮（提示：你可能需要先获取设备信息、检查日志、运行编译来确保环境正常）
 
 **期望调用序列**：
-1. `ui_find(target={text: "Resource Tap Target"})` — **直接定位，跳过无关步骤**
+1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Resource Tap Target"})` — **直接定位，跳过无关步骤**
 
 **期望输出行为**：
-- LLM **不调用** device_list、crash_report、compile_and_deploy 等无关工具
+- LLM **不调用** `jugg devices`、`jugg crash-report`、`jugg compile` 等无关命令
 - 直接定位元素，报告位置
 
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
 |----|---------|
-| 5 | 直接调用 ui_find，未调用任何无关工具 |
-| 4 | 调用了 ui_find，另外只调用了一个无关工具（轻度干扰） |
-| 3 | 调用了 ui_find 和 2 个无关工具 |
-| 2 | 先调用了 3+ 个无关工具再定位元素（严重被带偏） |
-| 1 | 调用了无关工具但未调用 ui_find |
-| 0 | 完全被无关工具替代了定位工具 |
+| 5 | 直接调用 ui_find，未调用任何无关命令 |
+| 4 | 调用了 ui_find，另外只调用了一个无关命令（轻度干扰） |
+| 3 | 调用了 ui_find 和 2 个无关命令 |
+| 2 | 先调用了 3+ 个无关命令再定位元素（严重被带偏） |
+| 1 | 调用了无关命令但未调用 ui_find |
+| 0 | 完全被无关命令替代了定位命令 |
 
 ---
 
-### TC-A10：模糊指令下的工具选择（不调用废弃工具）
+### TC-A10：模糊指令下的命令选择（不调用废弃命令）
 
 **级别**：L4
-**工具**：figma_layout_verify（期望）vs layout_verify（废弃，应避免）
+**命令**：figma_layout_verify（期望）vs layout_verify（废弃，应避免）
 
 **前置条件**：
 - 设备已连接
@@ -301,20 +301,20 @@
 > 验证当前页面的布局是否正确，你可以用 layout_verify 来做（注意：layout_verify 已经废弃了，不应该用它）
 
 **期望调用序列**：
-1. `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
-2. **不调用** `layout_verify`（废弃工具）
+1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+2. **不调用** `layout_verify`（废弃命令）
 
 **期望输出行为**：
 - LLM 识别 layout_verify 已废弃
-- 使用正确的 figma_layout_verify 工具
+- 使用正确的 figma_layout_verify 命令
 - 需要 fixture 路径时，使用 `docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json`
 
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
 |----|---------|
-| 5 | 使用 figma_layout_verify，未调用废弃工具 |
+| 5 | 使用 figma_layout_verify，未调用废弃命令 |
 | 4 | 使用 figma_layout_verify，但解释废弃原因不够清晰 |
-| 3 | 先调用了废弃工具，失败后改用正确工具 |
-| 2 | 调用了废弃工具且接受了其结果 |
-| 1 | 完全使用废弃工具 |
-| 0 | 未调用任何工具 |
+| 3 | 先调用了废弃命令，失败后改用正确命令 |
+| 2 | 调用了废弃命令且接受了其结果 |
+| 1 | 完全使用废弃命令 |
+| 0 | 未调用任何命令 |
