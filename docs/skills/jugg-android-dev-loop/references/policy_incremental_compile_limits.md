@@ -30,12 +30,12 @@ Jugg incremental chain is `source -> class -> dex` without Gradle Transform.
 
 ## Decision Rule
 
-Switch to `jugg gradle-build` directly when any condition is true:
+Switch to `gradle-build` directly when any condition is true:
 
 1. Change adds or modifies unsupported annotations.
 2. Changed files depend on Transform/instrumented bytecode behavior.
 
-Then continue the normal loop: `jugg deploy` → runtime verify.
+Then continue the normal loop: `deploy` → runtime verify.
 
 ## Symptom Linkage
 

@@ -116,7 +116,7 @@ for p in projects:
 _jugg_http() {
   local port="$1"
   local body="$2"
-  curl -sf --max-time 30 \
+  curl -sf --max-time 120 \
     -X POST "http://localhost:${port}/jugg-mcp" \
     -H "Content-Type: application/json" \
     -d "$body"

@@ -94,7 +94,7 @@ cmd_restart() {
   port=$(_jugg_resolve_port)
 
   local tap_actions_json
-  tap_actions_json=$(_restart_build_tap_actions "${tap_steps[@]}")
+  tap_actions_json=$(_restart_build_tap_actions "${tap_steps[@]+"${tap_steps[@]}"}")
 
   local params
   params=$(printf '{"projectDir":"%s","tap_actions":%s}' "$project_dir" "$tap_actions_json")

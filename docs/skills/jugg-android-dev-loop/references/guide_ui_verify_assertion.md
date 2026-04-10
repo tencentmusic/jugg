@@ -1,6 +1,6 @@
 # Guide: UI Verification Assertion Reference
 
-> Tools: `jugg view-locate` (element position), `jugg view-inspect` (content details), `jugg layout-dump` (fallback when view-locate insufficient)
+> Tools: `view-locate` (element position), `view-inspect` (content details), `layout-dump` (fallback when view-locate insufficient)
 
 ## Execution Mode
 
@@ -15,13 +15,13 @@ Verify **relative relations** (spacing/alignment), not absolute positions. Fixed
 
 ## 1. Manual Verification
 
-**Workflow**: `jugg view-locate --text "Element"` per element → calculate spacing from bounds → compare against spec.
+**Workflow**: `view-locate --text "Element"` per element → calculate spacing from bounds → compare against spec.
 
 **Spacing calc**: horizontal = `B.bounds[0] - A.bounds[2]`, vertical = `B.bounds[1] - A.bounds[3]`.
 
 **Alignment check**: centerY = `(bounds[1]+bounds[3])/2`. Aligned if diff ≤ 2dp.
 
-**Full hierarchy**: use `jugg layout-dump` as fallback when `jugg view-locate` cannot satisfy the need.
+**Full hierarchy**: use `layout-dump` as fallback when `view-locate` cannot satisfy the need.
 
 ---
 
@@ -35,7 +35,7 @@ Fallback order: `text` → `text+className` → `resourceId` → `resourceId+cla
 
 ## 3. Unsupported Properties
 
-Use `jugg view-inspect` for: maxLines, ellipsize, letterSpacing, lineCount, cornerRadius, tint color, custom getters.
+Use `view-inspect` for: maxLines, ellipsize, letterSpacing, lineCount, cornerRadius, tint color, custom getters.
 
 ```
 jugg view-inspect --text "Title" "getMaxLines()" "getEllipsize().name()"
