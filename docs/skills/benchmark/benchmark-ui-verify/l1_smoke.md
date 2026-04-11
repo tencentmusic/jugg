@@ -1,6 +1,6 @@
 # L1 Smoke 冒烟用例
 
-> 验证三个核心命令（`ui_find` / `view-locate`、`figma_layout_verify`、`eval_view`）
+> 验证三个核心命令（`ui_find` / `view-locate`、`figma-layout-verify`、`eval_view`）
 > 各自能在最基础场景下正常返回结果。L1 通过是 L2–L4 执行的前置门禁。
 
 ---
@@ -82,10 +82,10 @@
 
 ---
 
-### TC-S03：figma_layout_verify 基本验证（正例）
+### TC-S03：figma-layout-verify 基本验证（正例）
 
 **级别**：L1
-**命令**：figma_layout_verify
+**命令**：figma-layout-verify
 
 **前置条件**：
 - 设备已连接
@@ -96,7 +96,7 @@
 > 使用 docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json 作为 Figma 设计稿，验证当前页面布局是否符合设计
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump路径>)`
+1. 通过 jugg-android-dev-loop 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", androidJsonPath=<layout_dump路径>)`
 2. 返回验证结果
 
 **关键参数**（必须精确匹配）：
@@ -116,7 +116,7 @@
 | 5 | 调用序列完全正确 + figmaJsonPath 正确 + 结论正确 |
 | 4 | 路径正确但报告措辞不准确 |
 | 3 | 命令调用正确但对 diff 结果解读有误 |
-| 2 | 使用了 layout_dump 代替 figma_layout_verify |
+| 2 | 使用了 layout_dump 代替 figma-layout-verify |
 | 1 | 方向性错误 |
 | 0 | 未调用命令 |
 

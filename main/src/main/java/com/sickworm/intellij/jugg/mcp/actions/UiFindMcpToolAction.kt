@@ -17,7 +17,7 @@ class UiFindMcpToolAction : McpToolAction {
             "Data comes from a layout snapshot (layout-dump). Uses fuzzy matching with IoU algorithm. " +
             "✅ Use for: spacing calculation, alignment check, confirming where an element is on screen. " +
             "❌ Do NOT use for: text content, colors, maxLines, ellipsize, or any View-internal property " +
-            "not visible in the layout tree — use view_inspect instead.",
+            "not visible in the layout tree — use view-inspect instead.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

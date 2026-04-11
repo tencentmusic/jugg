@@ -1,6 +1,6 @@
 # Fixtures 说明
 
-本目录存放 `figma_layout_verify` 工具所需的 Figma 设计稿 JSON 文件。
+本目录存放 `figma-layout-verify` 工具所需的 Figma 设计稿 JSON 文件。
 
 ## 文件列表
 
@@ -19,6 +19,6 @@
 
 ## Figma 节点命名规范
 
-Figma layer name 必须与 Android `android:id`（去掉 `@+id/` 前缀）完全一致，否则 `figma_layout_verify` 无法匹配节点。
+Figma layer name 必须与 Android `android:id`（去掉 `@+id/` 前缀）完全一致，否则 `figma-layout-verify` 无法匹配节点。
 
 无 resourceId 的节点（如 Repeat Tap Target）使用 `android:text` 的完整文本作为 layer name。

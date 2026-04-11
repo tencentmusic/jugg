@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.mcp.layout.parser.FigmaJsonParser
 import java.io.File
 
 class FigmaLayoutVerifyMcpToolAction : McpToolAction {
-    override val toolName: String = "figma_layout_verify"
+    override val toolName: String = "figma-layout-verify"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

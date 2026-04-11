@@ -42,7 +42,7 @@ class McpAppReadyGuardTest {
             checks >= 3
         }
 
-        val result = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, "layout_dump")
+        val result = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, "layout-dump")
 
         Assert.assertTrue(result.isReady)
         Assert.assertNull(result.errorResult)
@@ -71,7 +71,7 @@ class McpAppReadyGuardTest {
     fun testPostCheckFailsWhenTimeoutReached() {
         val runtime = runtime { false }
 
-        val result = McpAppReadyGuard.waitAfterMutating(runtime, "compile_and_deploy")
+        val result = McpAppReadyGuard.waitAfterMutating(runtime, "deploy")
 
         Assert.assertFalse(result.isReady)
         Assert.assertTrue(result.reason?.contains("not ready") == true)

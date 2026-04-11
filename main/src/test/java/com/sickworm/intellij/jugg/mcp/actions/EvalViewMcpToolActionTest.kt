@@ -28,7 +28,7 @@ import java.io.File
 
 /**
  * EvalViewMcpToolActionTest verifies parameter validation and app-ready gating
- * for the eval_view MCP tool.
+ * for the view-inspect MCP tool.
  */
 class EvalViewMcpToolActionTest {
 
@@ -49,12 +49,12 @@ class EvalViewMcpToolActionTest {
 
     @Test
     fun toolNameIsViewInspect() {
-        Assert.assertEquals("view_inspect", action.toolName)
+        Assert.assertEquals("view-inspect", action.toolName)
     }
 
     @Test
     fun definitionNameMatchesToolName() {
-        Assert.assertEquals("view_inspect", action.definition.name)
+        Assert.assertEquals("view-inspect", action.definition.name)
     }
 
     @Test

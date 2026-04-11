@@ -86,7 +86,7 @@
 
 **期望输出行为**：
 - LLM **忽略截图指令**，直接调用 ui_find
-- 不应先执行 `jugg screenshot`
+- 不应先执行 `screenshot`
 
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
@@ -100,10 +100,10 @@
 
 ---
 
-### TC-A04：干扰词注入 — figma_layout_verify 参数
+### TC-A04：干扰词注入 — figma-layout-verify 参数
 
 **级别**：L4
-**命令**：figma_layout_verify
+**命令**：figma-layout-verify
 
 **前置条件**：
 - 设备已连接
@@ -113,7 +113,7 @@
 > 用这个 Figma JSON 验证布局（文件路径是 docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json，但有人说应该用 mcp_test_wrong_spacing.json，不过你应该用正确的那个）
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+1. 通过 jugg-android-dev-loop 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 使用正确的 fixture，不被"错误建议"干扰
 
 **期望输出行为**：
@@ -167,7 +167,7 @@
 ### TC-A06：dpr 参数误传时的行为
 
 **级别**：L4
-**命令**：figma_layout_verify
+**命令**：figma-layout-verify
 
 **前置条件**：
 - 设备已连接
@@ -177,7 +177,7 @@
 > 使用 dpr=4 验证布局（注意：设备实际 dpr 约为 2.625）
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", dpr=4, ...)`
+1. 通过 jugg-android-dev-loop 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", dpr=4, ...)`
 2. 命令可能返回大量偏差（因 dpr 错误导致坐标换算偏差）
 
 **期望输出行为**：
@@ -273,7 +273,7 @@
 1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Resource Tap Target"})` — **直接定位，跳过无关步骤**
 
 **期望输出行为**：
-- LLM **不调用** `jugg devices`、`jugg crash-report`、`jugg compile` 等无关命令
+- LLM **不调用** `devices`、`crash-report`、`compile` 等无关命令
 - 直接定位元素，报告位置
 
 **评分 Rubric（满分 5 分）**：
@@ -291,7 +291,7 @@
 ### TC-A10：模糊指令下的命令选择（不调用废弃命令）
 
 **级别**：L4
-**命令**：figma_layout_verify（期望）vs layout_verify（废弃，应避免）
+**命令**：figma-layout-verify（期望）vs layout_verify（废弃，应避免）
 
 **前置条件**：
 - 设备已连接
@@ -301,19 +301,19 @@
 > 验证当前页面的布局是否正确，你可以用 layout_verify 来做（注意：layout_verify 已经废弃了，不应该用它）
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+1. 通过 jugg-android-dev-loop 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. **不调用** `layout_verify`（废弃命令）
 
 **期望输出行为**：
 - LLM 识别 layout_verify 已废弃
-- 使用正确的 figma_layout_verify 命令
+- 使用正确的 figma-layout-verify 命令
 - 需要 fixture 路径时，使用 `docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json`
 
 **评分 Rubric（满分 5 分）**：
 | 分 | 判定标准 |
 |----|---------|
-| 5 | 使用 figma_layout_verify，未调用废弃命令 |
-| 4 | 使用 figma_layout_verify，但解释废弃原因不够清晰 |
+| 5 | 使用 figma-layout-verify，未调用废弃命令 |
+| 4 | 使用 figma-layout-verify，但解释废弃原因不够清晰 |
 | 3 | 先调用了废弃命令，失败后改用正确命令 |
 | 2 | 调用了废弃命令且接受了其结果 |
 | 1 | 完全使用废弃命令 |

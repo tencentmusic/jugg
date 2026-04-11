@@ -11,7 +11,7 @@
 ### TC-I01：验证页面布局并读取关键元素属性（综合流程）
 
 **级别**：L3
-**命令**：activity_stack → figma_layout_verify → eval_view
+**命令**：activity-stack → figma-layout-verify → eval_view
 
 **前置条件**：
 - 设备已连接
@@ -22,7 +22,7 @@
 
 **期望调用序列**：
 1. 通过 jugg-android-dev-loop 执行 `activity-stack` — Gate：确认在 McpTestActivity
-2. 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+2. 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. 执行 `eval_view(target={resourceId: "tv_mcp_style_title"}, expressions=["getCurrentTextColor()"])`
 
 **关键参数**：
@@ -113,7 +113,7 @@
 | 5 | 两次调用均正确 + 结论完整（图标+padding 均符合） |
 | 4 | 两次调用正确但验证结论缺少一项 |
 | 3 | 只完成了一次 eval_view |
-| 2 | 使用了 figma_layout_verify 代替 eval_view |
+| 2 | 使用了 figma-layout-verify 代替 eval_view |
 | 1 | resourceId 错误 |
 | 0 | 未调用命令 |
 
@@ -122,7 +122,7 @@
 ### TC-I04：Card 容器布局完整验证
 
 **级别**：L3
-**命令**：figma_layout_verify → eval_view
+**命令**：figma-layout-verify → eval_view
 
 **前置条件**：
 - 设备已连接
@@ -132,7 +132,7 @@
 > 全面验证 Card 容器（card_mcp_container）的布局：先用 Figma fixture 验证整体 spacing，再分别读取 tv_card_title 和 tv_card_desc 的实际文本内容
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+1. 通过 jugg-android-dev-loop 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 2. 执行 `eval_view(target={resourceId: "tv_card_title"}, expressions=["getText().toString()"])`
 3. 执行 `eval_view(target={resourceId: "tv_card_desc"}, expressions=["getText().toString()"])`
 
@@ -147,7 +147,7 @@
 | 5 | 三步全部正确 + 结论完整 |
 | 4 | 三步正确但某个文本报告有误 |
 | 3 | 只完成了 2/3 步 |
-| 2 | 跳过了 figma_layout_verify，只用 eval_view |
+| 2 | 跳过了 figma-layout-verify，只用 eval_view |
 | 1 | 步骤顺序混乱且结论不正确 |
 | 0 | 未调用命令 |
 
@@ -156,7 +156,7 @@
 ### TC-I05：页面重启后状态确认 + 布局验证
 
 **级别**：L3
-**命令**：restart_app → activity_stack → figma_layout_verify
+**命令**：restart → activity-stack → figma-layout-verify
 
 **前置条件**：
 - 设备已连接
@@ -167,7 +167,7 @@
 **期望调用序列**：
 1. 通过 jugg-android-dev-loop 执行 `restart` — Gate：重启 App
 2. 执行 `activity-stack` — 确认回到 McpTestActivity
-3. 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+3. 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 
 **关键参数**：
 - Step 3 `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
@@ -181,7 +181,7 @@
 | 分 | 判定标准 |
 |----|---------|
 | 5 | 三步全部正确 + 结论正确 |
-| 4 | 序列正确但 activity_stack 结果确认步骤缺失 |
+| 4 | 序列正确但 activity-stack 结果确认步骤缺失 |
 | 3 | 跳过了 restart_app，直接验证布局 |
 | 2 | 重启后未确认页面状态直接验证 |
 | 1 | 只调用了 restart_app |
@@ -220,7 +220,7 @@
 | 5 | 三次调用均正确 + 所有属性结论正确 |
 | 4 | 三次调用均正确但某个属性结论有偏差 |
 | 3 | 完成了 2/3 个元素的验证 |
-| 2 | 使用 figma_layout_verify 代替 eval_view |
+| 2 | 使用 figma-layout-verify 代替 eval_view |
 | 1 | 只验证了一个元素 |
 | 0 | 未调用命令 |
 
@@ -263,7 +263,7 @@
 ### TC-I08：错误布局检测 + 读取关键属性（混合验证）
 
 **级别**：L3
-**命令**：figma_layout_verify → eval_view
+**命令**：figma-layout-verify → eval_view
 
 **前置条件**：
 - 设备已连接
@@ -273,7 +273,7 @@
 > 先用 mcp_test_wrong_spacing.json 做布局验证，报告发现的偏差；然后读取 card_mcp_container 内 tv_card_title 的实际 marginBottom（以 px 单位）
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", ...)`
+1. 通过 jugg-android-dev-loop 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", ...)`
 2. 报告偏差
 3. 执行 `eval_view(target={resourceId: "tv_card_title"}, expressions=["getTop()"])` 或类似方法
 
@@ -290,7 +290,7 @@
 |----|---------|
 | 5 | 两步均正确 + 偏差报告准确 + 属性读取正确 |
 | 4 | 两步正确但偏差报告不够详细 |
-| 3 | 只完成了 figma_layout_verify，未读取属性 |
+| 3 | 只完成了 figma-layout-verify，未读取属性 |
 | 2 | 使用了正确 fixture（非 wrong_spacing） |
 | 1 | 方向性错误 |
 | 0 | 未调用命令 |
@@ -333,7 +333,7 @@
 ### TC-I10：页面结构探索 + Figma 验证 + 汇总报告
 
 **级别**：L3
-**命令**：ui_find → figma_layout_verify
+**命令**：ui_find → figma-layout-verify
 
 **前置条件**：
 - 设备已连接
@@ -344,7 +344,7 @@
 
 **期望调用序列**：
 1. 通过 jugg-android-dev-loop 执行 `ui_find` 或等价调用来枚举 Button 元素
-2. 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+2. 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. 汇总报告
 
 **期望输出行为**：
@@ -401,7 +401,7 @@
 ### TC-I12：发现布局问题并给出修复建议
 
 **级别**：L3
-**命令**：figma_layout_verify → eval_view
+**命令**：figma-layout-verify → eval_view
 
 **前置条件**：
 - 设备已连接
@@ -411,7 +411,7 @@
 > 用错误的 Figma fixture（mcp_test_wrong_spacing.json）验证布局，找到不符合的节点，然后通过 eval_view 读取实际值，并说明需要如何修改代码才能修复
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", ...)`
+1. 通过 jugg-android-dev-loop 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_wrong_spacing.json", ...)`
 2. 识别偏差节点
 3. 执行 `eval_view` 读取对应节点实际属性
 4. 给出修复建议
@@ -427,7 +427,7 @@
 | 5 | 四步全部完成 + 偏差识别准确 + 修复建议合理 |
 | 4 | 偏差识别准确但修复建议不够具体 |
 | 3 | 完成了验证和识别但未读取实际值 |
-| 2 | 只完成了 figma_layout_verify 步骤 |
+| 2 | 只完成了 figma-layout-verify 步骤 |
 | 1 | 使用了正确 fixture（未触发偏差） |
 | 0 | 未调用命令 |
 
@@ -469,7 +469,7 @@
 ### TC-I14：完整页面健康检查（综合多命令）
 
 **级别**：L3
-**命令**：activity_stack → figma_layout_verify → eval_view（多次）
+**命令**：activity-stack → figma-layout-verify → eval_view（多次）
 
 **前置条件**：
 - 设备已连接
@@ -484,7 +484,7 @@
 
 **期望调用序列**：
 1. 通过 jugg-android-dev-loop 执行 `activity-stack`
-2. 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+2. 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 3. 执行 `eval_view(target={resourceId: "tv_mcp_style_title"}, expressions=["getCurrentTextColor()"])`
 4. 执行 `eval_view(target={resourceId: "view_mcp_bg_block"}, expressions=["getWidth()", "getHeight()"])`
 5. 执行 `eval_view(target={resourceId: "tv_card_title"}, expressions=["getText().toString()"])`
@@ -508,7 +508,7 @@
 ### TC-I15：异步流程：编译后验证布局未变化
 
 **级别**：L3
-**命令**：compile_and_deploy → activity_stack → figma_layout_verify
+**命令**：compile_and_deploy → activity-stack → figma-layout-verify
 
 **前置条件**：
 - 设备已连接
@@ -518,9 +518,9 @@
 > 执行一次编译部署，部署完成后确认仍在 McpTestActivity，然后验证布局未因编译而发生变化
 
 **期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `jugg deploy` — 编译并部署
+1. 通过 jugg-android-dev-loop 执行 `deploy` — 编译并部署
 2. 执行 `activity-stack` — 确认页面状态
-3. 执行 `figma_layout_verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
+3. 执行 `figma-layout-verify(figmaJsonPath="docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json", ...)`
 
 **关键参数**：
 - Step 3 `figmaJsonPath` = `"docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json"`
@@ -535,7 +535,7 @@
 |----|---------|
 | 5 | 三步全部正确 + 结论正确（无变化） |
 | 4 | 三步正确但对"无变化"的表述不够明确 |
-| 3 | 跳过了 activity_stack 确认步骤 |
+| 3 | 跳过了 activity-stack 确认步骤 |
 | 2 | 只完成了编译部署，未验证布局 |
 | 1 | 编译失败后仍然尝试验证布局 |
 | 0 | 未调用命令 |

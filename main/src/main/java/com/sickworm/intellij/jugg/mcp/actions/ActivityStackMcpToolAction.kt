@@ -95,7 +95,7 @@ class ActivityStackMcpToolAction : McpToolAction {
 
                 McpToolResult(
                     status = McpToolStatus.OK,
-                    message = "activity_stack executed successfully.",
+                    message = "activity-stack executed successfully.",
                     data = data,
                     artifacts = listOf(McpArtifact(type = "text", path = dumpFile.absolutePath)),
                     errorCode = null,

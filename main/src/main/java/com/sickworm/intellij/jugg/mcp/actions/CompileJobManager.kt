@@ -17,7 +17,7 @@ object CompileJobManager {
     private const val DEFAULT_SOFT_TIMEOUT_MILLIS = 25_000L
     const val POLL_INTERVAL_SUGGESTED_MILLIS = 15_000L
     private const val RUNNING_MESSAGE_TEMPLATE =
-        "The task is still running. Please monitor progress via get_compile_status. Job ID is %s."
+        "The task is still running. Please monitor progress via get-compile-status. Job ID is %s."
     const val COMPILE_LATEST_LOG_PATH: String = "build/jugg/log/compile_latest.log"
 
     @Volatile

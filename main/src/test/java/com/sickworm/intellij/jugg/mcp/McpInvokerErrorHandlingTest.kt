@@ -69,7 +69,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 4,
                 params = mapOf(
-                    "name" to "compile_only",
+                    "name" to "compile",
                     "arguments" to emptyMap<String, Any?>(),
                 ),
             )
@@ -89,7 +89,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 5,
                 params = mapOf(
-                    "name" to "compile_only",
+                    "name" to "compile",
                     "arguments" to mapOf("projectDir" to "/tmp/projectB")
                 ),
             )
@@ -109,7 +109,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 7,
                 params = mapOf(
-                    "name" to "restart_app",
+                    "name" to "restart",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -117,7 +117,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
-        Assert.assertTrue(result.content.first().text.contains("restart_app executed successfully"))
+        Assert.assertTrue(result.content.first().text.contains("restart executed successfully"))
     }
 
     @Test
@@ -128,7 +128,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 8,
                 params = mapOf(
-                    "name" to "restart_app",
+                    "name" to "restart",
                     "arguments" to mapOf("projectDir" to "/tmp/projectNoDevice")
                 )
             )
@@ -152,7 +152,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 9,
                 params = mapOf(
-                    "name" to "restart_app",
+                    "name" to "restart",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "serial" to "invalid")
                 )
             )
@@ -172,7 +172,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 10,
                 params = mapOf(
-                    "name" to "restart_app",
+                    "name" to "restart",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "tap_actions" to listOf(
@@ -185,7 +185,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
-        Assert.assertTrue(result.content.first().text.contains("restart_app executed successfully"))
+        Assert.assertTrue(result.content.first().text.contains("restart executed successfully"))
     }
 
     @Test
@@ -196,7 +196,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 11,
                 params = mapOf(
-                    "name" to "restart_app",
+                    "name" to "restart",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "tap_actions" to listOf(
@@ -215,7 +215,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
-        Assert.assertTrue(result.content.first().text.contains("restart_app executed successfully"))
+        Assert.assertTrue(result.content.first().text.contains("restart executed successfully"))
     }
 
     @Test
@@ -226,7 +226,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 12,
                 params = mapOf(
-                    "name" to "restart_app",
+                    "name" to "restart",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "tap_actions" to listOf(

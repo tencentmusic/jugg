@@ -36,10 +36,10 @@ abstract class McpInvokerTestBase {
         fun def(name: String): McpToolDefinition = definitionByName.getValue(name).definition
 
         val fakeActions = listOf(
-            fakeAction("list_projects", def("list_projects")) { _ ->
+            fakeAction("list-projects", def("list-projects")) { _ ->
                 McpToolResult(
                     status = McpToolStatus.OK,
-                    message = "list_projects executed successfully.",
+                    message = "list-projects executed successfully.",
                     data = mapOf(
                         "projects" to listOf(
                             McpProjectInfo(projectDir = "/tmp/projectA", initialized = true)
@@ -49,12 +49,12 @@ abstract class McpInvokerTestBase {
                     errorCode = null,
                 )
             },
-            fakeAction("restart_app", def("restart_app")) { arguments ->
+            fakeAction("restart", def("restart")) { arguments ->
                 val projectDir = arguments["projectDir"] as? String
                 if (projectDir == "/tmp/projectNoDevice") {
                     McpToolResult(
                         status = McpToolStatus.ERROR,
-                        message = "restart_app failed. Reason: No connected device is available.",
+                        message = "restart failed. Reason: No connected device is available.",
                         data = emptyMap<String, Any>(),
                         artifacts = emptyList(),
                         errorCode = McpErrorCode.MCP_NO_DEVICE,
@@ -62,30 +62,30 @@ abstract class McpInvokerTestBase {
                 } else {
                     McpToolResult(
                         status = McpToolStatus.OK,
-                        message = "restart_app executed successfully.",
+                        message = "restart executed successfully.",
                         data = emptyMap<String, Any>(),
                         artifacts = emptyList(),
                         errorCode = null,
                     )
                 }
             },
-            fakeAction("compile_only", def("compile_only")) { _ ->
-                McpToolResult(McpToolStatus.OK, "compile_only executed successfully.", mapOf("isCompileSuccess" to true), emptyList(), null)
+            fakeAction("compile", def("compile")) { _ ->
+                McpToolResult(McpToolStatus.OK, "compile executed successfully.", mapOf("isCompileSuccess" to true), emptyList(), null)
             },
-            fakeAction("compile_and_deploy", def("compile_and_deploy")) { _ ->
-                McpToolResult(McpToolStatus.OK, "compile_and_deploy executed successfully.", mapOf("isDeploySuccess" to true), emptyList(), null)
+            fakeAction("deploy", def("deploy")) { _ ->
+                McpToolResult(McpToolStatus.OK, "deploy executed successfully.", mapOf("isDeploySuccess" to true), emptyList(), null)
             },
-            fakeAction("clean_reinstall_apk", def("clean_reinstall_apk")) { _ ->
-                McpToolResult(McpToolStatus.OK, "clean_reinstall_apk executed successfully.", mapOf("cleanAndReinstall" to true), emptyList(), null)
+            fakeAction("reinstall", def("reinstall")) { _ ->
+                McpToolResult(McpToolStatus.OK, "reinstall executed successfully.", mapOf("cleanAndReinstall" to true), emptyList(), null)
             },
-            fakeAction("force_gradle_compile", def("force_gradle_compile")) { _ ->
-                McpToolResult(McpToolStatus.OK, "force_gradle_compile executed successfully.", mapOf("triggered" to true), emptyList(), null)
+            fakeAction("gradle-build", def("gradle-build")) { _ ->
+                McpToolResult(McpToolStatus.OK, "gradle-build executed successfully.", mapOf("triggered" to true), emptyList(), null)
             },
-            fakeAction("get_compile_status", def("get_compile_status")) { arguments ->
+            fakeAction("get-compile-status", def("get-compile-status")) { arguments ->
                 val jobId = arguments["jobId"] as? String ?: "job-unknown"
                 McpToolResult(
                     McpToolStatus.OK,
-                    "get_compile_status executed successfully.",
+                    "get-compile-status executed successfully.",
                     mapOf(
                         "jobId" to jobId,
                         "status" to "success",
@@ -96,10 +96,10 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("request_remote_ssh_info", def("request_remote_ssh_info")) { _ ->
+            fakeAction("ssh-info", def("ssh-info")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
-                    "request_remote_ssh_info executed successfully.",
+                    "ssh-info executed successfully.",
                     mapOf(
                         "user" to "root",
                         "ip" to "127.0.0.1",
@@ -111,10 +111,10 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("device_list", def("device_list")) { _ ->
+            fakeAction("devices", def("devices")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
-                    "device_list executed successfully.",
+                    "devices executed successfully.",
                     mapOf(
                         "devices" to listOf(
                             mapOf(
@@ -139,10 +139,10 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("start_record", def("start_record")) { _ ->
+            fakeAction("record-start", def("record-start")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
-                    "start_record executed successfully.",
+                    "record-start executed successfully.",
                     mapOf(
                         "sessionId" to "rec_123",
                         "serial" to "emulator-5554",
@@ -153,11 +153,11 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("stop_record", def("stop_record")) { arguments ->
+            fakeAction("record-stop", def("record-stop")) { arguments ->
                 val sessionId = arguments["sessionId"] as? String ?: "rec_123"
                 McpToolResult(
                     McpToolStatus.OK,
-                    "stop_record executed successfully.",
+                    "record-stop executed successfully.",
                     mapOf(
                         "sessionId" to sessionId,
                         "serial" to "emulator-5554",
@@ -167,19 +167,19 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("layout_dump", def("layout_dump")) { _ ->
+            fakeAction("layout-dump", def("layout-dump")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
-                    "layout_dump executed successfully.",
+                    "layout-dump executed successfully.",
                     mapOf("file" to "/tmp/a.xml"),
                     listOf(McpArtifact(type = "xml", path = "/tmp/a.xml")),
                     null,
                 )
             },
-            fakeAction("activity_stack", def("activity_stack")) { _ ->
+            fakeAction("activity-stack", def("activity-stack")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
-                    "activity_stack executed successfully.",
+                    "activity-stack executed successfully.",
                     mapOf(
                         "topActivity" to "com.example.app/.MainActivity",
                         "activities" to listOf("com.example.app/.MainActivity", "com.example.app/.DetailActivity"),
@@ -190,10 +190,10 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("crash_report", def("crash_report")) { _ ->
+            fakeAction("crash-report", def("crash-report")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
-                    "crash_report executed successfully.",
+                    "crash-report executed successfully.",
                     mapOf(
                         "isProcessAlive" to false,
                         "hasCrash" to true,

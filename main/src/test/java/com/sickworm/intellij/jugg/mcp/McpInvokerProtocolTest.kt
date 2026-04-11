@@ -96,7 +96,7 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
 
         Assert.assertNull(response.error)
         val tools = (response.result as McpToolsListResult).tools
-        val compileTool = tools.first { it.name == "compile_only" }
+        val compileTool = tools.first { it.name == "compile" }
         Assert.assertNull(compileTool.outputSchema)
         val projectDirProperty = compileTool.inputSchema.properties["projectDir"]
         Assert.assertNotNull(projectDirProperty)

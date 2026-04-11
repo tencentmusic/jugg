@@ -1,4 +1,4 @@
-# figma_layout_verify 内部算法文档
+# figma-layout-verify 内部算法文档
 
 > 最后更新：2026-04-07  
 > 口径：以代码为准（`FigmaLayoutVerifier.kt`、`RelationExtractor.kt`、`ElementMatcher.kt`、`RelationVerifier.kt`、`FigmaJsonParser.kt`）
@@ -24,7 +24,7 @@ FigmaLayoutVerifyMcpToolAction.execute()
         └─⑤ RelationVerifier.verify*()  → VerifyResult（PASS / FAIL）
 ```
 
-整个算法仅在 IDE 侧（Kotlin）运行。App 侧 `LayoutVerifier.java` 是 `layout_verify` 工具专用，`figma_layout_verify` 不调用它。
+整个算法仅在 IDE 侧（Kotlin）运行。App 侧 `LayoutVerifier.java` 是 `layout_verify` 工具专用，`figma-layout-verify` 不调用它。
 
 ---
 

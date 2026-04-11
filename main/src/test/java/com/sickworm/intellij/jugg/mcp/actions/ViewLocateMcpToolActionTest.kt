@@ -5,7 +5,7 @@ import org.junit.Test
 
 /**
  * ViewLocateMcpToolActionTest verifies that UiFindMcpToolAction exposes the new
- * tool name "view_locate" and contains the expected description keywords after
+ * tool name "view-locate" and contains the expected description keywords after
  * the Plan-A rename.
  */
 class ViewLocateMcpToolActionTest {
@@ -14,12 +14,12 @@ class ViewLocateMcpToolActionTest {
 
     @Test
     fun toolNameIsViewLocate() {
-        Assert.assertEquals("view_locate", action.toolName)
+        Assert.assertEquals("view-locate", action.toolName)
     }
 
     @Test
     fun definitionNameMatchesToolName() {
-        Assert.assertEquals("view_locate", action.definition.name)
+        Assert.assertEquals("view-locate", action.definition.name)
     }
 
     @Test
@@ -41,8 +41,8 @@ class ViewLocateMcpToolActionTest {
     @Test
     fun descriptionMentionsViewInspect() {
         Assert.assertTrue(
-            "description should reference view_inspect as alternative",
-            action.definition.description.contains("view_inspect")
+            "description should reference view-inspect as alternative",
+            action.definition.description.contains("view-inspect")
         )
     }
 }

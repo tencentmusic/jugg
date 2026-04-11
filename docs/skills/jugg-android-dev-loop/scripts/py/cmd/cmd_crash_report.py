@@ -8,4 +8,4 @@ import jugglib
 
 def cmd_crash_report(args: list[str]) -> None:
     json_mode, _ = jugglib.has_json_flag(args)
-    jugglib.simple_call("crash_report", json_mode=json_mode)
+    jugglib.simple_call("crash-report", json_mode=json_mode)

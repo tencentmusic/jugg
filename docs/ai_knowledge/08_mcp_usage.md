@@ -83,7 +83,7 @@
 
 补充（layout-dump 语义）：
 - 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树。
-- **输出格式为 HTML**：成功时 `data.file` 指向本地 `.html` 文件，`artifacts` 包含 `type=html` 产物。HTML 格式信息密度更高，适合 LLM 消费。同时 `data.jsonFile` 保留原始 JSON 文件路径供内部工具使用（如 `figma_layout_verify`）。
+- **输出格式为 HTML**：成功时 `data.file` 指向本地 `.html` 文件，`artifacts` 包含 `type=html` 产物。HTML 格式信息密度更高，适合 LLM 消费。同时 `data.jsonFile` 保留原始 JSON 文件路径供内部工具使用（如 `figma-layout-verify`）。
 - **虚拟节点裁剪（HTML 侧）**：无语义内容的结构性节点（无 `id`/`text`/`contentDesc`、不可点击，且 `alpha=0` 或属于通用容器类如 FrameLayout/LinearLayout 等）在 HTML 生成时自动裁剪，子节点上提。窗口根节点始终保留。`_vir_id_*` 前缀的自动生成 id 不渲染到 HTML 属性中。
 - `data.contentBytes` 表示 HTML 内容的字节大小。
 - 可选参数 `rootLayout`：传入节点 `id` 值（推荐 short id，如 `"content"`），仅返回该节点及其子树。未传或目标节点不存在时，返回完整层级。

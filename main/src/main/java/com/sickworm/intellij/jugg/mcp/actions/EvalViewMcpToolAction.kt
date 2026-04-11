@@ -29,7 +29,7 @@ class EvalViewMcpToolAction : McpToolAction {
             "Returns raw values for the agent to interpret. " +
             "Only read-only getter methods are allowed (no side effects). " +
             "✅ Use for: any property that requires calling a getter method on the View object. " +
-            "❌ Do NOT use for: getting element position or size — use view_locate instead.",
+            "❌ Do NOT use for: getting element position or size — use view-locate instead.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

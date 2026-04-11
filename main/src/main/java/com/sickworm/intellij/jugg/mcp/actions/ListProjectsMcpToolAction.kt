@@ -10,10 +10,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
- * ListProjectsMcpToolAction implements MCP tool `list_projects` and converts request arguments into tool execution and MCP result payloads.
+ * ListProjectsMcpToolAction implements MCP tool `list-projects` and converts request arguments into tool execution and MCP result payloads.
  */
 class ListProjectsMcpToolAction : McpToolAction {
-    override val toolName: String = "list_projects"
+    override val toolName: String = "list-projects"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -55,7 +55,7 @@ class ListProjectsMcpToolAction : McpToolAction {
     fun listProjectsAction(): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.OK,
-            message = "list_projects executed successfully.",
+            message = "list-projects executed successfully.",
             data = mapOf(
                 "projects" to PlatformApi.getInitializedProjectDirs().map {
                     McpProjectInfo(projectDir = it.path, initialized = true)

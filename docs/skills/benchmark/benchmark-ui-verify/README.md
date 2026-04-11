@@ -2,7 +2,7 @@
 
 - 本 benchmark 包含 jugg-android-dev-loop skill 提及的 cli 工具集（UI 验证工具部分）的 LLM 能力评测用例。
 - 本 benchmark 不测试 MCP，仅测试 skill。
-- l2_figma_layout_verify.md 未完成，不执行。
+- l2_figma-layout-verify.md 未完成，不执行。
 
 ## 目录结构
 
@@ -22,8 +22,8 @@ benchmark/
 ## 前置条件
 
 所有用例执行前需满足：
-1. Android 设备已连接并可通过 `jugg devices` 确认
-2. App 已部署并停留在 **McpTestActivity**（通过 `jugg activity-stack` 确认）
+1. Android 设备已连接并可通过 `devices` 确认
+2. App 已部署并停留在 **McpTestActivity**（通过 `activity-stack` 确认）
 3. `fixtures/mcp_test_main.json` 和 `fixtures/mcp_test_wrong_spacing.json` 已由人工手绘 Figma 并导出
 
 ## 评分说明
@@ -53,9 +53,9 @@ benchmark/
 
 ## 注意事项
 
-- `layout-dump` 是内部命令，**Benchmark 用例中不得出现** LLM 直接调用 `jugg layout-dump` 的期望序列
+- `layout-dump` 是内部命令，**Benchmark 用例中不得出现** LLM 直接调用 `layout-dump` 的期望序列
 - 所有用例中的 `figmaJsonPath` 使用相对路径，基准为项目根目录（例：`docs/skills/benchmark-ui-verify/fixtures/mcp_test_main.json`）
-- L3 集成用例中，`jugg restart` 仅作 Gate（不计分），Gate 失败则跳过整条用例，不评分
+- L3 集成用例中，`restart` 仅作 Gate（不计分），Gate 失败则跳过整条用例，不评分
 - `view-inspect` 的 `expressions` 字段使用真实 Android SDK getter 方法名（如 `getText().toString()`、`getCurrentTextColor()`）
 
 ## ⚠️ 评测边界（AI 必读）

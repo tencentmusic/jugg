@@ -31,5 +31,5 @@ def build_params(args: list[str]) -> dict:
 def cmd_ssh_info(args: list[str]) -> None:
     json_mode, remaining = jugglib.has_json_flag(args)
     extra = build_params(remaining)
-    jugglib.simple_call("request_remote_ssh_info", json_mode=json_mode,
+    jugglib.simple_call("ssh-info", json_mode=json_mode,
                         extra_params=extra)

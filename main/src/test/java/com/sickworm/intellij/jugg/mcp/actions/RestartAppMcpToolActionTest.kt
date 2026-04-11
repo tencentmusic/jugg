@@ -30,7 +30,7 @@ import org.mockito.Mockito
 import java.io.File
 
 /**
- * RestartAppMcpToolActionTest verifies restart_app behavior and optional post-restart tap_actions flow.
+ * RestartAppMcpToolActionTest verifies restart behavior and optional post-restart tap_actions flow.
  */
 class RestartAppMcpToolActionTest {
     @Before
@@ -98,7 +98,7 @@ class RestartAppMcpToolActionTest {
             val clients = construction.constructed()
             Mockito.verify(clients[0]).findAndTap("MCP Test Page", null, null, null)
             Mockito.verify(clients[1]).findAndTap(null, "btn_some_secondary_entry", null, null)
-            Assert.assertTrue(result.message.contains("restart_app executed successfully"))
+            Assert.assertTrue(result.message.contains("restart executed successfully"))
         }
     }
 

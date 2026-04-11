@@ -57,7 +57,7 @@ class McpRequestValidator(
         }
         val projectDir = normalizedArgs["projectDir"] as? String
 
-        if (toolName == "list_projects") {
+        if (toolName == "list-projects") {
             return McpValidationResult.ToolsCall(
                 toolName = toolName,
                 arguments = args,

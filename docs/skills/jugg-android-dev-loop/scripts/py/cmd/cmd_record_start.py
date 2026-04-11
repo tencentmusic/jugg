@@ -19,7 +19,7 @@ def cmd_record_start(args: list[str]) -> None:
     port = jugglib.resolve_port()
     params = {"projectDir": project_dir}
 
-    response = jugglib.raw_call(port, "start_record", params)
+    response = jugglib.raw_call(port, "record-start", params)
     structured = jugglib.extract_structured(response)
 
     status = structured.get("status", "")

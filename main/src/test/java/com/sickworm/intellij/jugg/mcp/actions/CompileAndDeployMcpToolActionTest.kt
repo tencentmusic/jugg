@@ -139,7 +139,7 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals(CompileJobManager.COMPILE_LATEST_LOG_PATH, data["logPath"])
         val jobId = data["jobId"] as String
         Assert.assertTrue(jobId.isNotBlank())
-        Assert.assertTrue(result.message.contains("get_compile_status"))
+        Assert.assertTrue(result.message.contains("get-compile-status"))
 
         val finalState = waitUntilTerminal(jobId)
         Assert.assertEquals("success", finalState.status)

@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
 class GetCompileStatusMcpToolAction : McpToolAction {
-    override val toolName: String = "get_compile_status"
+    override val toolName: String = "get-compile-status"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -46,7 +46,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
         if (jobId.isNullOrBlank()) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "get_compile_status failed. Reason: jobId is required.",
+                message = "get-compile-status failed. Reason: jobId is required.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
@@ -68,7 +68,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
         if (state.status == "unknown") {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "get_compile_status failed. Reason: Compile job not found for jobId=$jobId.",
+                message = "get-compile-status failed. Reason: Compile job not found for jobId=$jobId.",
                 data = data,
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
@@ -77,7 +77,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
 
         return McpToolResult(
             status = McpToolStatus.OK,
-            message = "get_compile_status executed successfully.",
+            message = "get-compile-status executed successfully.",
             data = data,
             artifacts = emptyList(),
             errorCode = null,

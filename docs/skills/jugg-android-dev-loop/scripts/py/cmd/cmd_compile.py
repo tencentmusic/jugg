@@ -8,4 +8,4 @@ import jugglib
 
 def cmd_compile(args: list[str]) -> None:
     json_mode, _ = jugglib.has_json_flag(args)
-    jugglib.compile_call("compile_only", json_mode=json_mode)
+    jugglib.compile_call("compile", json_mode=json_mode)

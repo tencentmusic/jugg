@@ -31,7 +31,7 @@ import java.nio.charset.StandardCharsets
  * All numeric values (bounds, padding, spacing) are always in dp.
  */
 class LayoutVerifyMcpToolAction : McpToolAction {
-    override val toolName: String = "layout_verify"
+    override val toolName: String = "layout-verify"
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
@@ -132,31 +132,31 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             try {
                 loadChecksFromFile(checksFile)
             } catch (e: IllegalArgumentException) {
-                return invalidParams(e.message ?: "layout_verify failed: invalid checksFile")
+                return invalidParams(e.message ?: "layout-verify failed: invalid checksFile")
             }
         } else {
             emptyList()
         }
         val checks = if (inlineChecks.isNotEmpty()) inlineChecks else fileChecks
         if (checks.isEmpty()) {
-            return invalidParams("layout_verify failed: checks is required and must be non-empty")
+            return invalidParams("layout-verify failed: checks is required and must be non-empty")
         }
         if (checks.any { (it["type"] as? String).isNullOrBlank() }) {
-            return invalidParams("layout_verify failed: every check requires type")
+            return invalidParams("layout-verify failed: every check requires type")
         }
         if (checks.any { isPropertyCheck(it) && (it["property"] as? String).isNullOrBlank() }) {
-            return invalidParams("layout_verify failed: type=property check requires property")
+            return invalidParams("layout-verify failed: type=property check requires property")
         }
         val invalidTargetIndex = checks.indexOfFirst { !isValidSelector(resolveCheckTarget(it, legacyTarget) ?: emptyMap()) }
         if (invalidTargetIndex >= 0) {
-            return invalidParams("layout_verify failed: check[${invalidTargetIndex + 1}] requires valid target")
+            return invalidParams("layout-verify failed: check[${invalidTargetIndex + 1}] requires valid target")
         }
         if (checks.any { !isPropertyCheck(it) && !isValidSelector((it["target2"] as? Map<String, Any?>) ?: emptyMap()) }) {
-            return invalidParams("layout_verify failed: relation check requires valid target2 selector")
+            return invalidParams("layout-verify failed: relation check requires valid target2 selector")
         }
         if (checks.any { it.containsKey("tolerance") }) {
             return invalidParams(
-                "layout_verify failed: 'tolerance' parameter is no longer supported. " +
+                "layout-verify failed: 'tolerance' parameter is no longer supported. " +
                 "Use 'op' parameter instead (e.g., op=gte/lte for range checks). " +
                 "Result messages include actual values and differences for agent analysis."
             )
@@ -196,7 +196,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 ?: return McpToolResult.internalErrorResult(toolName, "failed to fetch layout dump from ViewHierarchy server")
             executeDumpFileMode(autoDumpFile.absolutePath, checks, legacyTarget, logger)
         } catch (e: Exception) {
-            logger.warn("layout_verify auto dump mode failed: ${e.message}", e)
+            logger.warn("layout-verify auto dump mode failed: ${e.message}", e)
             McpToolResult.internalErrorResult(toolName, e.message ?: "unknown error")
         }
     }
@@ -211,7 +211,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         if (!file.exists()) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "layout_verify failed: dumpFile not found: $dumpFilePath",
+                message = "layout-verify failed: dumpFile not found: $dumpFilePath",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
@@ -225,7 +225,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
 
             val items = checks.mapIndexed { index, check ->
                 val targetSelector = resolveCheckTarget(check, legacyTarget)
-                    ?: return invalidParams("layout_verify failed: check[${index + 1}] requires valid target")
+                    ?: return invalidParams("layout-verify failed: check[${index + 1}] requires valid target")
 
                 val allMatches = findAllNodesBySelector(allNodes, targetSelector)
                 if (allMatches.isEmpty()) {
@@ -265,7 +265,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                     assertDumpNode(targetNode, check, density)
                 } else {
                     val target2Selector = check["target2"] as? Map<String, Any?>
-                        ?: return invalidParams("layout_verify failed: relation check requires target2")
+                        ?: return invalidParams("layout-verify failed: relation check requires target2")
 
                     val allMatches2 = findAllNodesBySelector(allNodes, target2Selector)
                     if (allMatches2.isEmpty()) {
@@ -304,10 +304,10 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             }
             toAggregatedMcpResult(items)
         } catch (e: Exception) {
-            logger.warn("layout_verify dumpFile mode failed: ${e.message}", e)
+            logger.warn("layout-verify dumpFile mode failed: ${e.message}", e)
             McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "layout_verify failed: ${e.message}",
+                message = "layout-verify failed: ${e.message}",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -680,7 +680,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val packageName = resolvePackageName(runtime)
             ?: return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "layout_verify failed: unable to resolve package name",
+                message = "layout-verify failed: unable to resolve package name",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -691,17 +691,17 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             val items = mutableListOf<VerifyItem>()
             checks.forEachIndexed { index, check ->
                 val checkTarget = resolveCheckTarget(check, legacyTarget)
-                    ?: return invalidParams("layout_verify failed: check[${index + 1}] requires valid target")
+                    ?: return invalidParams("layout-verify failed: check[${index + 1}] requires valid target")
                 val verifyResult = client.verify(buildLiveParams(checkTarget, check))
                     ?: return McpToolResult.internalErrorResult(toolName, "ViewHierarchy server unavailable")
                 items.add(VerifyItem(index + 1, verifyResult.result, verifyResult.message))
             }
             toAggregatedMcpResult(items)
         } catch (e: Exception) {
-            logger.warn("layout_verify live mode failed: ${e.message}", e)
+            logger.warn("layout-verify live mode failed: ${e.message}", e)
             McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "layout_verify failed: ${e.message}",
+                message = "layout-verify failed: ${e.message}",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -932,30 +932,30 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         }
         val file = File(checksFilePath)
         if (!file.exists()) {
-            throw IllegalArgumentException("layout_verify failed: checksFile not found: $checksFilePath")
+            throw IllegalArgumentException("layout-verify failed: checksFile not found: $checksFilePath")
         }
         val content = file.readText(StandardCharsets.UTF_8)
         if (content.isBlank()) {
-            throw IllegalArgumentException("layout_verify failed: checksFile is empty: $checksFilePath")
+            throw IllegalArgumentException("layout-verify failed: checksFile is empty: $checksFilePath")
         }
         val root = runCatching { JsonParser.parseString(content) }.getOrElse {
-            throw IllegalArgumentException("layout_verify failed: checksFile is not valid JSON")
+            throw IllegalArgumentException("layout-verify failed: checksFile is not valid JSON")
         }
         return when {
             root.isJsonArray -> parseChecksArray(root)
             root.isJsonObject -> parseChecksObject(root.asJsonObject)
-            else -> throw IllegalArgumentException("layout_verify failed: checksFile must be JSON array or object")
+            else -> throw IllegalArgumentException("layout-verify failed: checksFile must be JSON array or object")
         }
     }
 
     private fun parseChecksObject(root: JsonObject): List<Map<String, Any?>> {
         if (root.has("target")) {
-            throw IllegalArgumentException("layout_verify failed: root target is not supported in checksFile; use checks[i].target")
+            throw IllegalArgumentException("layout-verify failed: root target is not supported in checksFile; use checks[i].target")
         }
         val checksElement = root.get("checks")
         val checks = when {
             checksElement == null -> emptyList()
-            !checksElement.isJsonArray -> throw IllegalArgumentException("layout_verify failed: checksFile.checks must be an array")
+            !checksElement.isJsonArray -> throw IllegalArgumentException("layout-verify failed: checksFile.checks must be an array")
             else -> parseChecksArray(checksElement)
         }
         return checks
@@ -965,7 +965,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         val checksArray = element.asJsonArray
         return checksArray.mapIndexed { index, item ->
             val checkObject = item.asJsonObjectOrNull()
-                ?: throw IllegalArgumentException("layout_verify failed: checksFile checks[$index] must be object")
+                ?: throw IllegalArgumentException("layout-verify failed: checksFile checks[$index] must be object")
             jsonObjectToMap(checkObject)
         }
     }
@@ -1105,7 +1105,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     private fun noDeviceResult(): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.ERROR,
-            message = "layout_verify failed: No connected device is available.",
+            message = "layout-verify failed: No connected device is available.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
             errorCode = McpErrorCode.MCP_NO_DEVICE,

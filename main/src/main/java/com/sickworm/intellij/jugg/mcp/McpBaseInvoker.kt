@@ -38,7 +38,7 @@ class McpBaseInvoker(
     private fun handleToolsCallWithoutRuntime(id: Any?, request: McpValidationResult.ToolsCall): McpJsonRpcResponse {
         logger.debug("[MCP][GLOBAL] tools/call name=${request.toolName}, projectDir=${request.projectDir}")
 
-        if (request.toolName == "list_projects") {
+        if (request.toolName == "list-projects") {
             val toolResult = ListProjectsMcpToolAction().listProjectsAction()
             return if (toolResult.status == McpToolStatus.ERROR) {
                 resultMapper.toolError(

@@ -20,7 +20,7 @@ def cmd_record_stop(args: list[str]) -> None:
     port = jugglib.resolve_port()
     params = {"projectDir": project_dir, "sessionId": session_id}
 
-    response = jugglib.raw_call(port, "stop_record", params)
+    response = jugglib.raw_call(port, "record-stop", params)
     structured = jugglib.extract_structured(response)
 
     status = structured.get("status", "")

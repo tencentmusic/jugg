@@ -21,7 +21,7 @@
 | 校验层 | `McpRequestValidator` | schema 校验、默认值填充、projectDir 授权检查 |
 | 注册层 | `McpToolRegistry`, `McpToolActionRegistry` | 工具定义与 action 注册 |
 | 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout-dump` / `tap` 元素模式 / `view-inspect` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
-| 布局验证层 | `mcp/layout/*` | `view-locate` / `figma_layout_verify` 的核心算法模块 |
+| 布局验证层 | `mcp/layout/*` | `view-locate` / `figma-layout-verify` 的核心算法模块 |
 | 运行时适配层 | `IMcpRuntime`, `IdeaMcpRuntime` | 将工具执行连接到 IDE 真实能力 |
 
 ---
@@ -84,9 +84,9 @@
 | 工具 | 状态 | 职责 |
 |------|------|------|
 | `view-locate` | **新增** | 根据文本/位置查找元素，返回 bounds + position + size |
-| `figma_layout_verify` | **新增** | 自动提取 Figma 相对关系并批量验证 |
+| `figma-layout-verify` | **新增** | 自动提取 Figma 相对关系并批量验证 |
 | `layout-dump` | 保留 | `view-locate` 内部调用 |
-| `layout_verify` | **废弃** | 被 `view-locate` + `figma_layout_verify` 替代 |
+| `layout_verify` | **废弃** | 被 `view-locate` + `figma-layout-verify` 替代 |
 | `view-inspect` | 保留 | 颜色验证时可能需要 |
 
 ### 7.3 核心模块架构
@@ -95,7 +95,7 @@
 ┌─────────────────────────────────────────────────────────┐
 │                    MCP Tool Layer                        │
 │  ┌─────────────────┐      ┌──────────────────────┐    │
-│  │   view-locate    │      │ figma_layout_verify  │    │
+│  │   view-locate    │      │ figma-layout-verify  │    │
 │  │  (单点查询)       │      │   (批量验证)          │    │
 │  └────────┬─────────┘      └──────────┬───────────┘    │
 └───────────┼───────────────────────────┼─────────────────┘
@@ -165,7 +165,7 @@ class RelationExtractor(private val dpr: Float) {
 
 ### 7.6 返回格式
 
-#### view_locate 返回
+#### view-locate 返回
 
 ```json
 {
@@ -182,7 +182,7 @@ class RelationExtractor(private val dpr: Float) {
 }
 ```
 
-#### figma_layout_verify 返回
+#### figma-layout-verify 返回
 
 ```json
 {
@@ -224,7 +224,7 @@ class RelationExtractor(private val dpr: Float) {
 用户: "检查这个页面是否符合 Figma 设计稿"
 
 Agent 流程:
-1. 调用 figma_layout_verify(figmaJson="design.json", dpr=1)
+1. 调用 figma-layout-verify(figmaJson="design.json", dpr=1)
 2. 获取验证报告
 3. 输出差异摘要，根据 diff 修复代码
 ```
@@ -265,7 +265,7 @@ Agent 流程:
 | Phase | 内容 | 状态 |
 |-------|------|------|
 | Phase 1 | `view-locate` 基础功能、Bounds 归一化/匹配/验证 | MVP |
-| Phase 2 | `figma_layout_verify` 批量验证、returnMode="all" | 进行中 |
+| Phase 2 | `figma-layout-verify` 批量验证、returnMode="all" | 进行中 |
 | Phase 3 | 颜色验证（仅纯色）| 待定 |
 
 ### 7.10 设计文档

@@ -13,7 +13,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 1,
                 params = mapOf(
-                    "name" to "start_record",
+                    "name" to "record-start",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "durationSec" to 500)
                 )
             )
@@ -33,7 +33,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 2,
                 params = mapOf(
-                    "name" to "crash_report",
+                    "name" to "crash-report",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "packageName" to "invalid-package-name"
@@ -81,7 +81,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 4,
                 params = mapOf(
-                    "name" to "stop_record",
+                    "name" to "record-stop",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -101,7 +101,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 5,
                 params = mapOf(
-                    "name" to "list_projects",
+                    "name" to "list-projects",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )

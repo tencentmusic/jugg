@@ -245,7 +245,7 @@
 | 5 | 表达式正确 + 换算后报告 8dp |
 | 4 | 表达式正确但未换算 |
 | 3 | 使用了 `getPaddingStart()` 代替，但结论正确 |
-| 2 | 使用了 figma_layout_verify 代替 eval_view |
+| 2 | 使用了 figma-layout-verify 代替 eval_view |
 | 1 | 数值错误 |
 | 0 | 未调用命令 |
 

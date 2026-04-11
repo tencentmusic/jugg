@@ -16,7 +16,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 1,
                 params = mapOf(
-                    "name" to "list_projects",
+                    "name" to "list-projects",
                     "arguments" to emptyMap<String, Any?>(),
                 )
             )
@@ -36,7 +36,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 5,
                 params = mapOf(
-                    "name" to "compile_only",
+                    "name" to "compile",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -45,7 +45,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-        Assert.assertTrue(result.content.first().text.contains("compile_only executed successfully"))
+        Assert.assertTrue(result.content.first().text.contains("compile executed successfully"))
         Assert.assertFalse(result.content.first().text.contains("structuredContent="))
     }
 
@@ -57,7 +57,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 6,
                 params = mapOf(
-                    "name" to "compile_and_deploy",
+                    "name" to "deploy",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -66,7 +66,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-        Assert.assertTrue(result.content.first().text.contains("compile_and_deploy executed successfully"))
+        Assert.assertTrue(result.content.first().text.contains("deploy executed successfully"))
     }
 
     @Test
@@ -77,7 +77,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 7,
                 params = mapOf(
-                    "name" to "clean_reinstall_apk",
+                    "name" to "reinstall",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -86,7 +86,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-        Assert.assertTrue(result.content.first().text.contains("clean_reinstall_apk executed successfully"))
+        Assert.assertTrue(result.content.first().text.contains("reinstall executed successfully"))
     }
 
     @Test
@@ -97,7 +97,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 8,
                 params = mapOf(
-                    "name" to "force_gradle_compile",
+                    "name" to "gradle-build",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -116,7 +116,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 81,
                 params = mapOf(
-                    "name" to "get_compile_status",
+                    "name" to "get-compile-status",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "jobId" to "job-1")
                 )
             )
@@ -135,7 +135,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 82,
                 params = mapOf(
-                    "name" to "request_remote_ssh_info",
+                    "name" to "ssh-info",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "reason" to "manual troubleshooting",
@@ -158,7 +158,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 9,
                 params = mapOf(
-                    "name" to "device_list",
+                    "name" to "devices",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -196,7 +196,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 11,
                 params = mapOf(
-                    "name" to "start_record",
+                    "name" to "record-start",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -215,7 +215,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 111,
                 params = mapOf(
-                    "name" to "stop_record",
+                    "name" to "record-stop",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "sessionId" to "rec_123")
                 )
             )
@@ -234,7 +234,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 12,
                 params = mapOf(
-                    "name" to "layout_dump",
+                    "name" to "layout-dump",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -253,7 +253,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 19,
                 params = mapOf(
-                    "name" to "activity_stack",
+                    "name" to "activity-stack",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -276,7 +276,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 20,
                 params = mapOf(
-                    "name" to "crash_report",
+                    "name" to "crash-report",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -299,7 +299,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 13,
                 params = mapOf(
-                    "name" to "start_app",
+                    "name" to "start-app",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -319,7 +319,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 17,
                 params = mapOf(
-                    "name" to "start_activity",
+                    "name" to "start-activity",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "activity" to ".MainActivity")
                 )
             )
@@ -339,7 +339,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 18,
                 params = mapOf(
-                    "name" to "start_activity",
+                    "name" to "start-activity",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "packageName" to "com.example.myapplication",
@@ -374,7 +374,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 15,
                 params = mapOf(
-                    "name" to "figma_layout_verify",
+                    "name" to "figma-layout-verify",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "figmaJsonPath" to "/tmp/figma.json")
                 )
             )
