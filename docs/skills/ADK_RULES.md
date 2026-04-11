@@ -123,17 +123,21 @@ SKILL.md 的每一次新增，都必须伴随等量或更多的移除/下沉。�
 
 > 用于对比迭代前后的变化，每次重大迭代后更新此节。
 
-| 文件 | 瘦身前 | 瘦身后 | 状态 |
+| 文件 | 重构前 | 重构后 | 状态 |
 |------|--------|--------|------|
-| SKILL.md | 390 | 145 | ✅ (≤200) |
-| error_patterns.md | 170 | 144 | ✅ (≤150) |
-| guide_ui_verify_assertion.md | 265 | 90 | ✅ (≤150) |
-| policy_incremental_compile_limits.md | 43 | 42 | ✅ |
-| report_template.md | — | 70 | ✅ (新增，承接下沉内容) |
-| tool_cards_build_deploy.md | 70 | 69 | ✅ |
-| tool_cards_runtime_observe.md | 99 | 98 | ✅ |
-| tool_cards_troubleshoot.md | 51 | 50 | ✅ |
-| **合计 References** | **698** | **563** | ✅ (≤600) |
-| **SKILL + 峰值(4 ref)** | ~950 | 546 | ⚠️ 略超 (极端场景；常态 2-3 ref ≈ 350-450) |
+| SKILL.md | 145 | 124 | ✅ (≤200) |
+| error_patterns.md | 144 | 144 | ✅ (≤150) |
+| policy_incremental_compile_limits.md | 42 | 42 | ✅ (≤150) |
+| ref_cli_manual.md | — | 90 | ✅ (新增) |
+| ref_flow_no_playground.md | — | 79 | ✅ (新增) |
+| ref_flow_with_playground.md | — | 108 | ✅ (新增) |
+| ref_guide_playground.md | — | 134 | ✅ (新增) |
+| ~~guide_ui_verify_assertion.md~~ | 90 | — | 🗑️ 融入流程文档 |
+| ~~report_template.md~~ | 70 | — | 🗑️ 融入 SKILL.md |
+| ~~tool_cards_build_deploy.md~~ | 69 | — | 🗑️ 融入 ref_cli_manual |
+| ~~tool_cards_runtime_observe.md~~ | 98 | — | 🗑️ 融入 ref_cli_manual |
+| ~~tool_cards_troubleshoot.md~~ | 50 | — | 🗑️ 融入 ref_cli_manual |
+| **合计 References** | **563** | **597** | ✅ (≤600) |
+| **SKILL + 峰值(3 ref)** | 546 | ~456 | ✅ (常态 SKILL+2ref ≈ 330) |
 
-> 快照日期：2026-03-19
+> 快照日期：2026-04-11
