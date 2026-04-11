@@ -19,7 +19,7 @@ Subcommands:
   deploy              Compile and deploy to device (waits for completion)
   gradle-build        Force Gradle build (waits for completion)
   reinstall           Clear app data and reinstall APK
-  restart             Restart the app (optionally with tap navigation)
+  restart             Restart the app
   record-start        Start screen recording
   record-stop         Stop screen recording and output mp4 path
   layout-dump         Export UI hierarchy to HTML file

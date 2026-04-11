@@ -14,7 +14,75 @@ metadata:
 
 CLI-driven development loop for Android: modify → build → deploy → verify → iterate.
 
-CLI reference → see `cli_manual.md`
+---
+
+## CLI Quick Reference
+
+### Entry
+
+```
+python3 scripts/jugg.py <subcommand> [options]
+```
+
+### Output Format
+
+All commands print JSON to stdout:
+
+```json
+{"status": "OK|ERROR", "message": "...", "isFinal": true|false}
+```
+
+- `status: OK` + `isFinal: true` → succeeded, terminal result.
+- `status: OK` + `isFinal: false` → intermediate; re-run same command.
+- `status: ERROR` → failed; read `message` for cause.
+
+### Build & Deploy Commands
+
+All build commands **block** until completion; no polling needed.
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `compile` | Compile modified sources, no deploy | No device, or user requests compile-only |
+| `deploy` | Compile + deploy to device | **Default path** |
+| `gradle-build` | Full Gradle compile fallback | After `deploy` retries exhausted; produces artifact only, follow with `deploy` |
+| `reinstall` | Clear app data + reinstall APK | **Only** for install-state corruption or signature conflict |
+
+```
+python3 scripts/jugg.py compile
+python3 scripts/jugg.py deploy
+python3 scripts/jugg.py gradle-build
+python3 scripts/jugg.py reinstall
+```
+
+### Runtime Basic Commands
+
+```
+python3 scripts/jugg.py restart              # restart app
+python3 scripts/jugg.py activity-stack       # show current Activity stack
+python3 scripts/jugg.py devices              # list connected devices
+python3 scripts/jugg.py crash-report         # collect latest crash report
+```
+
+`crash-report` key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
+- `hasCrash=true` → read `crashLogs` for stack trace.
+- `hasCrash=false` + `isProcessAlive=true` → no crash, skip crash path.
+- `hasCrash=false` + `isProcessAlive=false` → process died without crash log; check `adb logcat`.
+
+### Build Fallback Chain
+
+On compile/deploy failure, follow this order:
+
+1. Parse `status`/`message` from JSON output.
+2. Retry `deploy` up to 3 times.
+3. If still failing → `gradle-build`.
+4. If still failing → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
+5. Only on install-state corruption → `reinstall`.
+6. Still unclear → stop, ask user.
+7. `ssh-info` requires explicit user consent.
+
+### Advanced Commands
+
+For commands with complex parameters (tap, view-locate, view-inspect, layout-dump, screenshot, recording, ssh-info) → see `cli_manual.md`.
 
 ---
 
@@ -25,57 +93,32 @@ Collect mandatory variables before any action.
 | Variable | Source | Fallback |
 |----------|--------|----------|
 | `projectDir` | CLI auto-resolved from `$PWD` | Ask user only if CLI reports "not under any Jugg project" |
-| `hasPlayground` | User explicitly provides playground code/file | Default `false` |
-| `deviceReady` | `devices` result | No device → compile-only mode |
-
-If `hasPlayground=true`, additionally collect:
-
-| Variable | Source | Fallback |
-|----------|--------|----------|
-| `targetPage` | User description of target Activity/page | Ask user |
-| `verifyMethod` | `ui` / `log` / `both` | Default `both` |
+| `hasAutoRunEntry` | Whether project has an **auto-run entry** — a method guaranteed to execute after app launch, where Agent can place debug/verification code. User provides entry code/file, or project already has one configured. | Default `false` |
 
 ---
 
-## Phase 1 — Scenario Router
+## Phase 1 — Scenario Route & Load
 
-Route to the correct flow based on collected context:
+Route based on context, then load primary reference:
 
 ```
 if user says "compile only" or "no deploy":
-  → flow_no_playground.md §compile-only
-elif hasPlayground == false AND user requests verification:
-  → output playground setup guidance (below)
-elif hasPlayground == false:
-  → flow_no_playground.md
-elif hasPlayground == true:
-  → flow_with_playground.md
-```
-
-Playground setup guidance (when verification requested but no playground):
-
-```
-To enable on-device verification, configure a playground.
-→ see guide_playground.md §quick-start
-```
-
----
-
-## Phase 2 — Read Gate
-
-Before opening any reference, output a LoadDecision:
-
-```
-LoadDecision: scenario=<no_playground|with_playground|compile_only> load=<files> why=<sentence>
+  → flow_no_auto_run.md §compile-only
+elif hasAutoRunEntry == false AND user requests verification:
+  → output: "⚠️ Auto-run entry not configured. → see guide_auto_run_entry.md §quick-start"
+elif hasAutoRunEntry == false:
+  → flow_no_auto_run.md
+elif hasAutoRunEntry == true:
+  → flow_with_auto_run.md
 ```
 
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
-| compile-only | `flow_no_playground.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
-| no playground (deploy) | `flow_no_playground.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
-| with playground | `flow_with_playground.md` | `guide_playground.md`, `error_patterns.md` |
+| compile-only | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
+| no auto-run entry (deploy) | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
+| with auto-run entry | `flow_with_auto_run.md` | `guide_auto_run_entry.md`, `error_patterns.md` |
 
-Load on-demand at the step that needs them. After loading: `✓ Loaded: [file]`.
+Supplementary references load on-demand at the step that needs them.
 
 ---
 
@@ -86,39 +129,3 @@ Load on-demand at the step that needs them. After loading: `✓ Loaded: [file]`.
 | 1 | Route by scenario first; do not mix flows |
 | 2 | Any source modification must pass compilation before task is done |
 | 3 | `deploy` invalidates all prior runtime state; rerun verification from scratch |
-| 4 | Retry budget: max 3 per failure category (`compile-error` / `deploy-error` / `verify-fail`) |
-| 5 | Budget exhausted → `🛑 RETRY LIMIT: [category] exhausted after 3 attempts` → ask user |
-| 6 | `MCP_NO_DEVICE` / `No device` → switch to compile-only, do not attempt deploy fix |
-| 7 | On self-detected rule violation: `🚨 VIOLATION: [rule] — [what]` → roll back to last valid state |
-
----
-
-## Error Reviewer
-
-When build/deploy/runtime error occurs:
-
-1. Match against `error_patterns.md` signatures.
-2. Score: `confidence` × `scope` from pattern.
-3. Output: `🔍 Error: pattern=<id> confidence=<n> scope=<s> auto_apply=<yes|no> evidence="<log quote>"`
-4. Decision: `confidence≥0.8 AND scope=low` → auto-fix. Otherwise → propose and wait user.
-
----
-
-## Report Template
-
-At task completion, output structured summary:
-
-```
-# Jugg Dev Loop Report
-Timestamp: {{ISO 8601}}
-Scenario:  {{compile_only | no_playground | with_playground}}
-Project:   {{projectDir}}
-
-## Pipeline Trace
-| Step | Status | Detail |
-|------|--------|--------|
-
-## Verdict: **{{PASS | FAIL | INCONCLUSIVE}}**
-```
-
-Status values: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 RETRY(n)`.

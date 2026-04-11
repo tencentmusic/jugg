@@ -1,12 +1,12 @@
-# Guide: Writing Playground Code
+# Guide: Writing Auto-Run Entry Code
 
-Playground = code that auto-executes after app launch to navigate, reproduce scenarios, and verify behavior.
+Auto-run entry = a method guaranteed to execute after app launch. Agent places debug/verification code here to navigate, reproduce scenarios, and verify behavior automatically.
 
 ---
 
 ## Quick Start {#quick-start}
 
-A playground is a code block placed in a known entry point that the app executes on launch. It should:
+An auto-run entry is a method in a known entry point that the app calls on launch. Code placed here should:
 
 1. Navigate to the target page.
 2. Wait for the page to stabilize.
@@ -15,13 +15,13 @@ A playground is a code block placed in a known entry point that the app executes
 
 ---
 
-## Playground Structure Template
+## Auto-Run Code Structure Template
 
-Every playground follows this 4-phase pattern:
+Every auto-run code block follows this 4-phase pattern:
 
 ```kotlin
 // Phase 1: Navigate
-Log.d(TAG, "[JUGG_PG] START: navigating to TargetActivity")
+Log.d(TAG, "[JUGG_AR] START: navigating to TargetActivity")
 startActivity(Intent(this, TargetActivity::class.java))
 
 // Phase 2: Wait for stability
@@ -31,32 +31,32 @@ var elapsed = 0L
 while (!isPageReady() && elapsed < maxWait) {
     delay(interval)
     elapsed += interval
-    Log.d(TAG, "[JUGG_PG] WAITING: ${elapsed}ms elapsed")
+    Log.d(TAG, "[JUGG_AR] WAITING: ${elapsed}ms elapsed")
 }
 if (elapsed >= maxWait) {
-    Log.e(TAG, "[JUGG_PG] TIMEOUT: page not ready after ${maxWait}ms")
+    Log.e(TAG, "[JUGG_AR] TIMEOUT: page not ready after ${maxWait}ms")
     return  // abort gracefully
 }
-Log.d(TAG, "[JUGG_PG] PAGE_READY: ${elapsed}ms")
+Log.d(TAG, "[JUGG_AR] PAGE_READY: ${elapsed}ms")
 
 // Phase 3: Execute actions
 try {
     val result = performVerification()
-    Log.d(TAG, "[JUGG_PG] RESULT: $result")
+    Log.d(TAG, "[JUGG_AR] RESULT: $result")
 } catch (e: Exception) {
-    Log.e(TAG, "[JUGG_PG] ERROR: ${e.message}", e)
+    Log.e(TAG, "[JUGG_AR] ERROR: ${e.message}", e)
     return  // abort on exception
 }
 
 // Phase 4: Report
-Log.d(TAG, "[JUGG_PG] DONE: all checks completed")
+Log.d(TAG, "[JUGG_AR] DONE: all checks completed")
 ```
 
 ---
 
 ## Mandatory Flows
 
-Every playground must implement these 4 concerns:
+Every auto-run code block must implement these 4 concerns:
 
 ### 1. Wait Flow
 
@@ -73,7 +73,7 @@ while (condition not met AND not timed out):
 
 ```
 if elapsed >= maxWait:
-    log "[JUGG_PG] TIMEOUT: <context>"
+    log "[JUGG_AR] TIMEOUT: <context>"
     abort
 ```
 
@@ -84,7 +84,7 @@ if elapsed >= maxWait:
 
 ```
 try { ... } catch (e: Exception) {
-    log "[JUGG_PG] ERROR: <message>"
+    log "[JUGG_AR] ERROR: <message>"
     abort
 }
 ```
@@ -94,17 +94,17 @@ try { ... } catch (e: Exception) {
 
 ### 4. Logging Flow
 
-All phases must log with the `[JUGG_PG]` prefix. Required markers:
+All phases must log with the `[JUGG_AR]` prefix. Required markers:
 
 | Marker | When | Example |
 |--------|------|---------|
-| `[JUGG_PG] START` | Playground begins | `[JUGG_PG] START: navigating to SettingsActivity` |
-| `[JUGG_PG] WAITING` | Each wait iteration | `[JUGG_PG] WAITING: 1500ms elapsed` |
-| `[JUGG_PG] PAGE_READY` | Page stabilized | `[JUGG_PG] PAGE_READY: 2000ms` |
-| `[JUGG_PG] RESULT` | Verification outcome | `[JUGG_PG] RESULT: text="Confirm" matches expected` |
-| `[JUGG_PG] TIMEOUT` | Wait exceeded limit | `[JUGG_PG] TIMEOUT: list not loaded after 10000ms` |
-| `[JUGG_PG] ERROR` | Exception caught | `[JUGG_PG] ERROR: NullPointerException at line 42` |
-| `[JUGG_PG] DONE` | All checks completed | `[JUGG_PG] DONE: 3/3 checks passed` |
+| `[JUGG_AR] START` | Auto-run begins | `[JUGG_AR] START: navigating to SettingsActivity` |
+| `[JUGG_AR] WAITING` | Each wait iteration | `[JUGG_AR] WAITING: 1500ms elapsed` |
+| `[JUGG_AR] PAGE_READY` | Page stabilized | `[JUGG_AR] PAGE_READY: 2000ms` |
+| `[JUGG_AR] RESULT` | Verification outcome | `[JUGG_AR] RESULT: text="Confirm" matches expected` |
+| `[JUGG_AR] TIMEOUT` | Wait exceeded limit | `[JUGG_AR] TIMEOUT: list not loaded after 10000ms` |
+| `[JUGG_AR] ERROR` | Exception caught | `[JUGG_AR] ERROR: NullPointerException at line 42` |
+| `[JUGG_AR] DONE` | All checks completed | `[JUGG_AR] DONE: 3/3 checks passed` |
 
 ---
 
@@ -121,14 +121,14 @@ All phases must log with the `[JUGG_PG]` prefix. Required markers:
 
 ## Log Collection by Agent
 
-After playground execution, agent collects results:
+After auto-run execution, agent collects results:
 
 ```bash
-# Filter playground logs
-adb logcat -d -s <TAG> | grep -E "\\[JUGG_PG\\]"
+# Filter auto-run logs
+adb logcat -d -s <TAG> | grep -E "\\[JUGG_AR\\]"
 
 # Or with broader regex
-adb logcat -d | grep -E "\\[JUGG_PG\\] (RESULT|ERROR|TIMEOUT|DONE)"
+adb logcat -d | grep -E "\\[JUGG_AR\\] (RESULT|ERROR|TIMEOUT|DONE)"
 ```
 
 Agent parses markers to determine: success (`DONE` + no `ERROR`/`TIMEOUT`) or failure.

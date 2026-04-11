@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# jugg-py — Cross-platform Jugg CLI entry point (Python version)
+# Works on macOS, Linux, and Windows (Git Bash / WSL).
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec python3 "$SCRIPT_DIR/jugg.py" "$@"

@@ -1,6 +1,6 @@
 # Jugg CLI Manual
 
-CLI entry: `jugg <subcommand> [options]`. `projectDir` auto-resolved from `$PWD`.
+CLI entry: `python3 scripts/jugg.py <subcommand> [options]`. `projectDir` auto-resolved from `$PWD`.
 
 ### CLI Output Format
 
@@ -28,10 +28,10 @@ All build commands **block** until completion; no polling needed.
 | `reinstall` | Clear app data + reinstall APK | **Only** for install-state corruption or signature conflict |
 
 ```
-jugg compile
-jugg deploy
-jugg gradle-build
-jugg reinstall
+python3 scripts/jugg.py compile
+python3 scripts/jugg.py deploy
+python3 scripts/jugg.py gradle-build
+python3 scripts/jugg.py reinstall
 ```
 
 ---
@@ -41,7 +41,7 @@ jugg reinstall
 | Command | Purpose |
 |---------|---------|
 | `activity-stack` | Show current Activity stack |
-| `restart` | Restart app, optional post-launch taps |
+| `restart` | Restart app |
 | `tap` | Tap/long-press/swipe on device |
 | `screenshot` | Capture device screenshot |
 | `record-start` | Start screen recording |
@@ -50,29 +50,21 @@ jugg reinstall
 ### `restart`
 
 ```
-jugg restart
-jugg restart --tap "tap:text=Login" --tap "tap:id=btn_next"
-jugg restart --tap "swipe:50%,80%,50%,20%"
+python3 scripts/jugg.py restart
 ```
-
-`--tap` step format: `<action>:<selector>=<value>` or `<action>:<params>`
-- `tap:text=<t>` / `tap:id=<id>` / `tap:desc=<d>` — tap element
-- `swipe:<startX%>,<startY%>,<endX%>,<endY%>` — swipe by percentage
-
-Multiple `--tap` flags execute in order.
 
 ### `tap`
 
 Selector priority: Element → Coordinate → Percent.
 
 ```
-jugg tap --text "Login"                          # element (preferred)
-jugg tap --id btn_submit                         # element by ID
-jugg tap --desc "Close button"                   # element by content-desc
-jugg tap --x 540 --y 960                         # coordinate (px)
-jugg tap --xp 50 --yp 80                         # percent (last resort)
-jugg tap --text "Item" --action long-press        # long-press
-jugg tap --xp 50 --yp 80 --action swipe --end-xp 50 --end-yp 20   # swipe
+python3 scripts/jugg.py tap --text "Login"                          # element (preferred)
+python3 scripts/jugg.py tap --id btn_submit                         # element by ID
+python3 scripts/jugg.py tap --desc "Close button"                   # element by content-desc
+python3 scripts/jugg.py tap --x 540 --y 960                         # coordinate (px)
+python3 scripts/jugg.py tap --xp 50 --yp 80                         # percent (last resort)
+python3 scripts/jugg.py tap --text "Item" --action long-press        # long-press
+python3 scripts/jugg.py tap --xp 50 --yp 80 --action swipe --end-xp 50 --end-yp 20   # swipe
 ```
 
 - `--action {tap|long-press|swipe}` — default: `tap`.
@@ -91,9 +83,9 @@ jugg tap --xp 50 --yp 80 --action swipe --end-xp 50 --end-yp 20   # swipe
 ### `view-locate`
 
 ```
-jugg view-locate --text "Submit"
-jugg view-locate --id btn_confirm
-jugg view-locate --desc "Back"
+python3 scripts/jugg.py view-locate --text "Submit"
+python3 scripts/jugg.py view-locate --id btn_confirm
+python3 scripts/jugg.py view-locate --desc "Back"
 ```
 
 At least one of `--text`/`--id`/`--desc` required.
@@ -102,9 +94,9 @@ Output: `bounds [left,top,right,bottom]`, `position {x,y}`, `size {width,height}
 ### `view-inspect`
 
 ```
-jugg view-inspect --text "Submit" text visibility
-jugg view-inspect --id btn_confirm background.color textSize
-jugg view-inspect --desc "Avatar" width height translationY
+python3 scripts/jugg.py view-inspect --text "Submit" text visibility
+python3 scripts/jugg.py view-inspect --id btn_confirm background.color textSize
+python3 scripts/jugg.py view-inspect --desc "Avatar" width height translationY
 ```
 
 - Selector: `--text`/`--id`/`--desc` (at least one).
@@ -114,10 +106,10 @@ jugg view-inspect --desc "Avatar" width height translationY
 ### `layout-dump`
 
 ```
-jugg layout-dump
-jugg layout-dump --root content_frame          # subtree only (View resource name, not R.id.xxx)
-jugg layout-dump --include-gone                # include GONE views
-jugg layout-dump --all-windows                 # all windows (dialogs, popups)
+python3 scripts/jugg.py layout-dump
+python3 scripts/jugg.py layout-dump --root content_frame          # subtree only (View resource name, not R.id.xxx)
+python3 scripts/jugg.py layout-dump --include-gone                # include GONE views
+python3 scripts/jugg.py layout-dump --all-windows                 # all windows (dialogs, popups)
 ```
 
 Output: HTML file with full UI hierarchy.
@@ -135,7 +127,7 @@ Output: HTML file with full UI hierarchy.
 ### `crash-report`
 
 ```
-jugg crash-report
+python3 scripts/jugg.py crash-report
 ```
 
 Key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
@@ -146,7 +138,7 @@ Key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
 ### `ssh-info`
 
 ```
-jugg ssh-info --reason "deploy fails after 3 retries, gradle-build also fails"
+python3 scripts/jugg.py ssh-info --reason "deploy fails after 3 retries, gradle-build also fails"
 ```
 
 `--reason` is required. Only use after all other fallback steps exhausted and with user consent.
@@ -157,7 +149,7 @@ jugg ssh-info --reason "deploy fails after 3 retries, gradle-build also fails"
 
 ```bash
 adb logcat -d -s <TAG>                       # filter by tag
-adb logcat -d | grep -E "\\[PG\\]"           # filter playground logs
+adb logcat -d | grep -E "\\[JUGG_AR\\]"         # filter auto-run logs
 ```
 
 ---

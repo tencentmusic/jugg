@@ -1,12 +1,12 @@
-# Flow: No Playground
+# Flow: No Auto-Run Entry
 
-Use when `hasPlayground=false`. This flow handles compile and deploy only; no on-device verification.
+Use when `hasAutoRunEntry=false`. This flow handles compile and deploy only; no on-device verification.
 
 ---
 
 ## Compile-Only Mode
 
-Trigger: user explicitly says "compile only" / "no deploy", or `deviceReady=false`.
+Trigger: user explicitly says "compile only" / "no deploy".
 
 ### Steps
 
@@ -24,7 +24,7 @@ Verdict: PASS (compile-only)
 
 ## Deploy Mode (No Verification)
 
-Trigger: `hasPlayground=false` AND `deviceReady=true` AND user did not say compile-only.
+Trigger: `hasAutoRunEntry=false` AND user did not say compile-only.
 
 ### Steps
 
@@ -33,7 +33,7 @@ Trigger: `hasPlayground=false` AND `deviceReady=true` AND user did not say compi
    - On `status: OK` + `isFinal: true` → Step 3.
    - On error → follow Build Fallback Chain (→ see `cli_manual.md` §Build Fallback Chain).
    - On `MCP_NO_DEVICE` / `No device` → switch to Compile-Only Mode above.
-3. **Done** — Output report. Verification steps = `⏭ SKIP (no playground)`.
+3. **Done** — Output report. Verification steps = `⏭ SKIP (no auto-run entry)`.
 
 ```
 Step 1: Modify → [files changed]
@@ -49,13 +49,13 @@ Verdict: PASS (deployed, no verification)
 
 ---
 
-## When User Wants Verification Without Playground
+## When User Wants Verification Without Auto-Run Entry
 
-If user requests on-device verification but has no playground configured:
+If user requests on-device verification but has no auto-run entry configured:
 
 ```
-⚠️ Playground not configured. → see guide_playground.md §quick-start
-Without playground, Jugg can only compile and deploy. Proceed with deploy-only? (y/n)
+⚠️ Auto-run entry not configured. → see guide_auto_run_entry.md §quick-start
+Without an auto-run entry, Jugg can only compile and deploy. Proceed with deploy-only? (y/n)
 ```
 
 ---
@@ -72,7 +72,7 @@ When changes involve unsupported annotation processors or Transform/instrumentat
 Output at task completion. Status: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 RETRY(n)`. Compile-only: verification steps = `⏭ SKIP`.
 
 ```
-# Jugg Dev Loop Report — Timestamp: {{ISO 8601}} | Scenario: {{compile_only|no_playground}} | Project: {{projectDir}}
+# Jugg Dev Loop Report — Timestamp: {{ISO 8601}} | Scenario: {{compile_only|no_auto_run}} | Project: {{projectDir}}
 ## Pipeline Trace
 | Step | Status | Detail |
 ## Verdict: **{{PASS | FAIL | INCONCLUSIVE}}**
