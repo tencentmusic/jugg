@@ -238,6 +238,11 @@ class FileChangesHandler(
             return null
         }
 
+        val gradleJuggDir = JuggPathManager(projectDir).stableGradleDir
+        if (file.isChild(gradleJuggDir)) {
+            return null
+        }
+
         val isMatched = buildFileMatcher.isMatch(file)
         if (!isMatched) {
             return null
