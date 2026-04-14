@@ -265,13 +265,8 @@ class JuggCompilerHelper(
         }
 
         if (JuggSettings.isEmbeddedToApk) {
-            val isStillNeedEmbedded = CommonConfirmDialog.showAndGetResult(
-                "Embedded to APK is Enabled",
-                "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
-                okButtonText = "Yes, embed to APK",
-                cancelButtonText = "No, disable embedded and fallback",
-            )
-            if (!isStillNeedEmbedded) {
+            val isStillNeedEmbedded = uiHandler.confirmEmbeddedToApk()
+            if (isStillNeedEmbedded != ConfirmResult.POSITIVE) {
                 JuggSettings.isEmbeddedToApk = false
             }
         }

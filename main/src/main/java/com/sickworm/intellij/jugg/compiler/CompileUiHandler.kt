@@ -27,6 +27,7 @@ interface CompileUiHandler {
     fun confirmFallbackWhenNoFileChanges(): ConfirmResult
     fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult
     fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?): ConfirmResult
+    fun confirmEmbeddedToApk(): ConfirmResult
 
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
@@ -49,6 +50,7 @@ interface CompileUiHandler {
             override fun confirmFallbackWhenNoFileChanges() = ConfirmResult.NEGATIVE
             override fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>) = BuildChangesConfirmResult.FALLBACK
             override fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?) = ConfirmResult.POSITIVE
+            override fun confirmEmbeddedToApk(): ConfirmResult = ConfirmResult.POSITIVE
 
             override fun updateIndicatorText(text: String) = Unit
             override fun listenCancelAction(listener: (() -> Unit)?) = Unit

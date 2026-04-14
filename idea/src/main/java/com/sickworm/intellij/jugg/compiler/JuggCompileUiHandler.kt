@@ -69,6 +69,18 @@ open class JuggCompileUiHandler(
         return dependencyChangeManager.tryShowChangeConfirmDialog(runResult)
     }
 
+    override fun confirmEmbeddedToApk(): ConfirmResult {
+        if (isRpcMode) {
+            return ConfirmResult.POSITIVE
+        }
+        return CommonConfirmDialog.showAndGetOrCancel(
+            "Embedded to APK is Enabled",
+            "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
+            okButtonText = "Yes, embed to APK",
+            negativeButtonText = "No, disable embedded mode",
+        )
+    }
+
     override fun updateIndicatorText(text: String) {
         progressIndicator.text = text
     }
