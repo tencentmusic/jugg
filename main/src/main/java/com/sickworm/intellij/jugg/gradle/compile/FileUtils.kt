@@ -57,6 +57,10 @@ val File.crc32: Long get() {
     if (isDirectory) {
         return -2L
     }
+    if (length() > 100_000_000) {
+        // compat with large file. don't calculate crc32 for large file > 100MB
+        return length()
+    }
     return crc32Digest.run {
         reset()
         update(readBytes())
