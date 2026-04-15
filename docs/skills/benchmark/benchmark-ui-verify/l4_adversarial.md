@@ -288,6 +288,105 @@
 
 ---
 
+### TC-A11：精确文本匹配 vs 子串包含（防止 contains 误判）
+
+**级别**：L4
+**命令**：eval_view
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity
+- 点击过 `btn_mcp_unique_text`，`tv_mcp_action_state` 的文本已变为 "Clicked: Unique MCP Target"
+
+**输入（LLM 收到的指令）**：
+> 验证 id 为 "tv_mcp_action_state" 的文本是否恰好为 "Clicked"（精确匹配，不是包含）
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `eval_view(target={resourceId: "tv_mcp_action_state"}, expressions=["getText().toString()"])`
+2. 返回 `"Clicked: Unique MCP Target"`
+3. LLM 对比精确匹配，报告不符合（≠ "Clicked"）
+
+**期望输出行为**：
+- LLM **不应**因为文本"包含" "Clicked" 就报告符合
+- 应明确报告精确匹配失败，实际值为 "Clicked: Unique MCP Target"
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 调用正确 + 正确使用精确匹配 + 报告不符合 |
+| 4 | 调用正确 + 报告不符合，但未解释为何精确匹配失败 |
+| 3 | 调用正确但给出了"基本符合"或"包含该文本"的模糊结论 |
+| 2 | 因文本包含 "Clicked" 而错误报告"符合"（严重误判） |
+| 1 | 完全未做对比 |
+| 0 | 未调用命令 |
+
+---
+
+### TC-A12：颜色值 alpha 通道陷阱（#8A000000 vs #FF000000）
+
+**级别**：L4
+**命令**：eval_view
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity
+
+**输入（LLM 收到的指令）**：
+> 读取 id 为 "tv_mcp_title" 的 TextView 的文字颜色，验证是否为纯黑色 #FF000000
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `eval_view(target={resourceId: "tv_mcp_title"}, expressions=["getCurrentTextColor()"])`
+2. 返回颜色 int 值，对应 `#8A000000`（Theme 默认 textColor，带 54% 透明度）
+
+**期望输出行为**：
+- LLM 正确将 int 转换为 `#AARRGGBB` 格式
+- 识别出 alpha 通道为 `8A`（不是 `FF`），报告**不符合**纯黑色 `#FF000000` 的要求
+- **不应**因为 RGB 部分（000000）与黑色一致就报告"符合"
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 正确转换 int→#AARRGGBB + 识别 alpha≠FF + 报告不符合 |
+| 4 | 正确转换但对 alpha 通道的描述不够明确 |
+| 3 | 转换了颜色但忽略了 alpha 通道，报告了"基本是黑色" |
+| 2 | 因 RGB=000000 而错误报告符合纯黑（严重误判，典型陷阱） |
+| 1 | 颜色 int 转换完全错误 |
+| 0 | 未调用命令 |
+
+---
+
+### TC-A13：getMaxLines 返回 MAX_VALUE 时的语义误判
+
+**级别**：L4
+**命令**：eval_view
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity
+
+**输入（LLM 收到的指令）**：
+> 验证 id 为 "tv_mcp_title" 的 TextView 的 maxLines 是否为 1
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `eval_view(target={resourceId: "tv_mcp_title"}, expressions=["getMaxLines()"])`
+2. 返回 `2147483647`（Integer.MAX_VALUE，表示 XML 中未设置 maxLines）
+
+**期望输出行为**：
+- LLM 报告 maxLines = 2147483647，即**未设置 maxLines 限制**，不等于 1
+- 结论：需求不满足
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 正确解读 MAX_VALUE 为"未设置" + 报告不满足需求 |
+| 4 | 报告不满足，但未解释 MAX_VALUE 的含义 |
+| 3 | 识别出数值不等于 1，但将 MAX_VALUE 描述为"很大的行数" |
+| 2 | 将 MAX_VALUE 误解为"无限制=满足任意行数要求=符合"（严重误判） |
+| 1 | 将 MAX_VALUE 解读为 maxLines=1 |
+| 0 | 未调用命令 |
+
+---
+
 ### TC-A10：模糊指令下的命令选择（不调用废弃命令）
 
 **级别**：L4

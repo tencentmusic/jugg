@@ -131,5 +131,122 @@ class HasJsonFlagTest(unittest.TestCase):
         self.assertEqual(remaining, ["--text", "hello"])
 
 
+class NormalizeArgsTest(unittest.TestCase):
+    """normalize_args converts kebab-case flags to camelCase; non-flags pass through."""
+
+    def test_single_word_unchanged(self):
+        self.assertEqual(jugglib.normalize_args(["--text"]), ["--text"])
+
+    def test_kebab_to_camel(self):
+        self.assertEqual(jugglib.normalize_args(["--include-gone"]), ["--includeGone"])
+        self.assertEqual(jugglib.normalize_args(["--all-windows"]), ["--allWindows"])
+        self.assertEqual(jugglib.normalize_args(["--resource-id"]), ["--resourceId"])
+        self.assertEqual(jugglib.normalize_args(["--content-desc"]), ["--contentDesc"])
+        self.assertEqual(jugglib.normalize_args(["--class-name"]), ["--className"])
+        self.assertEqual(jugglib.normalize_args(["--x-percent"]), ["--xPercent"])
+        self.assertEqual(jugglib.normalize_args(["--end-x-percent"]), ["--endXPercent"])
+        self.assertEqual(jugglib.normalize_args(["--root-layout"]), ["--rootLayout"])
+
+    def test_camel_unchanged(self):
+        self.assertEqual(jugglib.normalize_args(["--includeGone"]), ["--includeGone"])
+        self.assertEqual(jugglib.normalize_args(["--resourceId"]), ["--resourceId"])
+
+    def test_non_flag_tokens_unchanged(self):
+        self.assertEqual(jugglib.normalize_args(["btn_login", "value"]), ["btn_login", "value"])
+
+    def test_mixed_args(self):
+        result = jugglib.normalize_args(["--resource-id", "btn_login", "--include-gone"])
+        self.assertEqual(result, ["--resourceId", "btn_login", "--includeGone"])
+
+    def test_json_flag_unchanged(self):
+        self.assertEqual(jugglib.normalize_args(["--json"]), ["--json"])
+
+
+class NormalizeArgsRoundTripTest(unittest.TestCase):
+    """Verify kebab-case input reaches the same MCP params as camelCase input."""
+
+    def setUp(self):
+        from cmd.cmd_tap import build_params as tap_build
+        from cmd.cmd_layout_dump import build_params as dump_build
+        from cmd.cmd_view_locate import build_params as locate_build
+        from cmd.cmd_view_inspect import build_params as inspect_build
+        from cmd.cmd_ssh_info import build_params as ssh_build
+        self.tap = tap_build
+        self.dump = dump_build
+        self.locate = locate_build
+        self.inspect = inspect_build
+        self.ssh = ssh_build
+
+    def _norm(self, args):
+        return jugglib.normalize_args(args)
+
+    def test_tap_kebab_resource_id(self):
+        result = self.tap(self._norm(["--resource-id", "btn_ok"]))
+        self.assertEqual(result["resourceId"], "btn_ok")
+
+    def test_tap_kebab_content_desc(self):
+        result = self.tap(self._norm(["--content-desc", "Close"]))
+        self.assertEqual(result["contentDesc"], "Close")
+
+    def test_tap_kebab_class_name(self):
+        result = self.tap(self._norm(["--text", "Login", "--class-name", "Button"]))
+        self.assertEqual(result["className"], "Button")
+
+    def test_tap_kebab_x_percent(self):
+        result = self.tap(self._norm(["--x-percent", "50", "--y-percent", "80"]))
+        self.assertEqual(result["xPercent"], 50.0)
+        self.assertEqual(result["yPercent"], 80.0)
+
+    def test_tap_kebab_end_x_percent(self):
+        result = self.tap(self._norm([
+            "--x-percent", "50", "--y-percent", "50",
+            "--end-x-percent", "50", "--end-y-percent", "20",
+            "--action", "swipe",
+        ]))
+        self.assertEqual(result["endXPercent"], 50.0)
+        self.assertEqual(result["endYPercent"], 20.0)
+
+    def test_tap_kebab_end_x(self):
+        result = self.tap(self._norm([
+            "--x", "100", "--y", "200",
+            "--end-x", "300", "--end-y", "400",
+            "--action", "swipe",
+        ]))
+        self.assertEqual(result["endX"], 300.0)
+        self.assertEqual(result["endY"], 400.0)
+
+    def test_dump_kebab_include_gone(self):
+        result = self.dump(self._norm(["--include-gone"]))
+        self.assertTrue(result["includeGone"])
+
+    def test_dump_kebab_all_windows(self):
+        result = self.dump(self._norm(["--all-windows"]))
+        self.assertTrue(result["allWindows"])
+
+    def test_dump_kebab_root_layout(self):
+        result = self.dump(self._norm(["--root-layout", "content"]))
+        self.assertEqual(result["rootLayout"], "content")
+
+    def test_locate_kebab_resource_id(self):
+        result = self.locate(self._norm(["--resource-id", "btn_confirm"]))
+        self.assertEqual(result["target"]["resourceId"], "btn_confirm")
+
+    def test_locate_kebab_content_desc(self):
+        result = self.locate(self._norm(["--content-desc", "Back"]))
+        self.assertEqual(result["target"]["contentDesc"], "Back")
+
+    def test_inspect_kebab_resource_id(self):
+        result = self.inspect(self._norm(["--resource-id", "btn_play", "getText()"]))
+        self.assertEqual(result["target"]["resourceId"], "btn_play")
+
+    def test_inspect_kebab_class_name(self):
+        result = self.inspect(self._norm(["--text", "OK", "--class-name", "TextView", "getText()"]))
+        self.assertEqual(result["target"]["className"], "TextView")
+
+    def test_ssh_consent(self):
+        result = self.ssh(self._norm(["--reason", "test", "--consent"]))
+        self.assertTrue(result["consent"])
+
+
 if __name__ == "__main__":
     unittest.main()

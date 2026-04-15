@@ -505,6 +505,126 @@
 
 ---
 
+### TC-I16：复合多属性验证（clickable + text + visible）
+
+**级别**：L3
+**命令**：ui_find → eval_view
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity
+
+**输入（LLM 收到的指令）**：
+> 对 "Resource Tap Target" 按钮进行完整验证：
+> 1. 按钮存在且可见
+> 2. 文本正确（"Resource Tap Target"）
+> 3. 按钮可点击
+> 给出每项的验证结论
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `ui_find(target={resourceId: "btn_mcp_resource_target"})` — 确认存在且可见
+2. 执行 `eval_view(target={resourceId: "btn_mcp_resource_target"}, expressions=["getText().toString()", "isClickable()"])` — 验证文本和可点击性
+
+**关键参数**：
+- Step 1 `resourceId` = `"btn_mcp_resource_target"`
+- Step 2 `expressions` 同时包含 `getText().toString()` 和 `isClickable()`
+
+**期望输出行为**：
+- 存在且可见：✅
+- 文本 = "Resource Tap Target"：✅
+- 可点击：✅
+- 三项均报告符合
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 两步调用均正确 + 三项结论均正确 |
+| 4 | 两步正确但某项结论表述不明确 |
+| 3 | 只完成了一步，两项结论正确 |
+| 2 | 只用 ui_find，未读取文本/clickable 属性 |
+| 1 | 结论有误（如报告不可点击） |
+| 0 | 未调用命令 |
+
+---
+
+### TC-I17：可见性一致性验证（两元素同文本不同可见性）
+
+**级别**：L3
+**命令**：ui_find → eval_view
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity
+
+**输入（LLM 收到的指令）**：
+> 验证以下需求：
+> 1. btn_mcp_visibility_visible 可见性 = VISIBLE
+> 2. btn_mcp_visibility_hidden 可见性 = INVISIBLE
+> 3. 两者文本相同，均为 "Visibility Tap Target"
+> 逐项报告结论
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `eval_view(target={resourceId: "btn_mcp_visibility_visible"}, expressions=["getVisibility()", "getText().toString()"])`
+2. 执行 `eval_view(target={resourceId: "btn_mcp_visibility_hidden"}, expressions=["getVisibility()", "getText().toString()"])`
+
+**关键参数**：
+- 两次调用的 `resourceId` 均正确
+- `expressions` 包含 `getVisibility()` 和 `getText().toString()`
+
+**期望输出行为**：
+- visible 按钮：getVisibility()=0（VISIBLE），文本="Visibility Tap Target" ✅
+- hidden 按钮：getVisibility()=4（INVISIBLE），文本="Visibility Tap Target" ✅
+- 三项需求全部满足
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 两次调用均正确 + 枚举值正确解读 + 三项结论正确 |
+| 4 | 调用正确但枚举值未完整解读（只说"不可见"未引用数字） |
+| 3 | 只完成了一个元素的验证 |
+| 2 | 使用 ui_find 的 visibility 属性代替 eval_view |
+| 1 | 两个元素的可见性结论颠倒 |
+| 0 | 未调用命令 |
+
+---
+
+### TC-I18：重启后双按钮交互状态验证
+
+**级别**：L3
+**命令**：restart → ui_find → tap → eval_view → restart → tap → eval_view
+
+**前置条件**：
+- 设备已连接
+
+**输入（LLM 收到的指令）**：
+> 重启 App 后：
+> 1. 点击 btn_mcp_unique_text，验证 tv_mcp_action_state 变为 "Clicked: Unique MCP Target"
+> 2. 再次重启，点击 btn_mcp_resource_target，验证 tv_mcp_action_state 变为 "Clicked: Resource Tap Target"
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `restart`
+2. 执行 `tap` 点击 `btn_mcp_unique_text`
+3. 执行 `eval_view(target={resourceId: "tv_mcp_action_state"}, expressions=["getText().toString()"])` — 验证第一次点击
+4. 执行 `restart`
+5. 执行 `tap` 点击 `btn_mcp_resource_target`
+6. 执行 `eval_view(...)` — 验证第二次点击
+
+**期望输出行为**：
+- 第一次验证：文本 = "Clicked: Unique MCP Target" ✅
+- 第二次验证：文本 = "Clicked: Resource Tap Target" ✅
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 六步全部正确 + 两次结论均正确 |
+| 4 | 六步正确但第二次重启漏做，状态受第一次影响仍正确 |
+| 3 | 只完成了其中一次完整流程 |
+| 2 | 两次交互共用同一次 restart，状态污染导致结果不确定 |
+| 1 | 未重启直接验证，得到错误结论 |
+| 0 | 未调用命令 |
+
+---
+
 ### TC-I15：异步流程：编译后验证布局未变化
 
 **级别**：L3

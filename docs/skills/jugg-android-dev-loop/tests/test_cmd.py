@@ -26,7 +26,7 @@ class TapBuildParamsTest(unittest.TestCase):
         self.assertEqual(result["y"], 960.0)
 
     def test_percent_mode(self):
-        result = self.build(["--xp", "50", "--yp", "80"])
+        result = self.build(["--xPercent", "50", "--yPercent", "80"])
         self.assertEqual(result["xPercent"], 50.0)
         self.assertEqual(result["yPercent"], 80.0)
 
@@ -37,7 +37,7 @@ class TapBuildParamsTest(unittest.TestCase):
     def test_swipe_with_full_coords(self):
         result = self.build([
             "--x", "540", "--y", "960",
-            "--end-x", "540", "--end-y", "200",
+            "--endX", "540", "--endY", "200",
             "--action", "swipe",
         ])
         self.assertEqual(result["action"], "swipe")
@@ -64,7 +64,7 @@ class ViewLocateBuildParamsTest(unittest.TestCase):
         self.assertEqual(result["target"]["text"], "Avatar")
 
     def test_id_selector(self):
-        result = self.build(["--id", "btn_login"])
+        result = self.build(["--resourceId", "btn_login"])
         self.assertEqual(result["target"]["resourceId"], "btn_login")
 
 
@@ -100,16 +100,16 @@ class LayoutDumpBuildParamsTest(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_root_flag(self):
-        result = self.build(["--root", "my_root_id"])
+        result = self.build(["--rootLayout", "my_root_id"])
         self.assertEqual(result["rootLayout"], "my_root_id")
 
     def test_include_gone(self):
-        result = self.build(["--include-gone"])
-        self.assertTrue(result["isIncludeGone"])
+        result = self.build(["--includeGone"])
+        self.assertTrue(result["includeGone"])
 
     def test_all_windows(self):
-        result = self.build(["--all-windows"])
-        self.assertTrue(result["isAllWindows"])
+        result = self.build(["--allWindows"])
+        self.assertTrue(result["allWindows"])
 
 
 class SshInfoBuildParamsTest(unittest.TestCase):
@@ -123,9 +123,9 @@ class SshInfoBuildParamsTest(unittest.TestCase):
             self.build([])
 
     def test_reason_with_consent(self):
-        result = self.build(["--reason", "investigating crash"])
+        result = self.build(["--reason", "investigating crash", "--consent"])
         self.assertEqual(result["reason"], "investigating crash")
-        self.assertTrue(result["userConsent"])
+        self.assertTrue(result["consent"])
 
 
 if __name__ == "__main__":

@@ -43,13 +43,38 @@ benchmark/
 
 | 级别 | 文件 | 用例数 | 覆盖点 |
 |------|------|--------|--------|
-| L1 Smoke | `l1_smoke.md` | ~5 | 三命令各通一次，基本返回正确 |
-| L2 Unit | `l2_view_locate.md` | ~10 | 文本匹配、resourceId匹配、多候选歧义、不存在元素、深层嵌套 |
-| L2 Unit | `l2_view_inspect.md` | ~10 | 基础getter(text/bounds)、样式getter(textColor/textSizeSp/backgroundColor)、链式表达式、paddingLeft |
-| L3 Integration | `l3_integration.md` | ~15 | 页面导航Gate + 验证 + 结果判定完整流程；多命令组合 |
-| L4 Adversarial | `l4_adversarial.md` | ~10 | 边界输入、错误处理、LLM抗干扰、dpr误传 |
+| L1 Smoke | `l1_smoke.md` | 5 | 三命令各通一次，基本返回正确 |
+| L2 Unit | `l2_view_locate.md` | 13 | 文本匹配、resourceId匹配、contentDesc匹配、多候选歧义、不存在元素、深层嵌套、visibility状态、enabled状态 |
+| L2 Unit | `l2_view_inspect.md` | 18 | 基础getter(text/bounds)、样式getter(textColor/textSizeSp/backgroundColor)、getVisibility枚举、getAlpha、isEnabled、getMaxLines、getLineCount、getEllipsize、getGravity位掩码、链式表达式、paddingLeft、批量多属性 |
+| L2 Unit | `l2_figma_layout_verify.md` | 10 | 正例全量验证、错误fixture检测、节点spacing、margin、对齐关系、未匹配节点 |
+| L3 Integration | `l3_integration.md` | 18 | 页面导航Gate + 验证 + 结果判定完整流程；多命令组合；交互后状态验证；重启隔离；复合多属性验证；可见性一致性 |
+| L4 Adversarial | `l4_adversarial.md` | 13 | 边界输入、错误处理、LLM抗干扰、dpr误传、精确匹配vs包含陷阱、颜色alpha透明度陷阱、maxLines未设置陷阱 |
 
-总计：~60 条
+总计：77 条
+
+### 覆盖的断言/查询类型
+
+| 类型 | 覆盖级别 | 有负例（FAIL场景） |
+|------|---------|----------------|
+| text (getText) | L1/L2/L3 | ✅ L4-A11 精确匹配陷阱 |
+| resourceId exists | L1/L2 | ✅ L2 不存在元素 |
+| contentDesc exists | L2 | ✅ L2-VL03/13 |
+| visibility (getVisibility) | L2/L3 | ✅ L2-VI11 INVISIBLE |
+| clickable (isClickable) | L2/L3 | ❌（均为正例） |
+| enabled (isEnabled) | L2 | ❌（均为正例） |
+| alpha (getAlpha) | L2 | ✅ L4-A12 alpha通道陷阱 |
+| textColor (getCurrentTextColor) | L2 | ✅ L4-A12 |
+| textSize (getTextSize px→sp) | L2 | ❌ |
+| backgroundColor (getBackground) | L2 | ❌ |
+| width/height (getWidth/getHeight px→dp) | L2/L3 | ❌ |
+| paddingLeft (getPaddingLeft px→dp) | L2/L3 | ❌ |
+| maxLines (getMaxLines) | L2 | ✅ L4-A13 MAX_VALUE陷阱 |
+| lineCount (getLineCount) | L2 | ❌ |
+| ellipsize (getEllipsize) | L2 | ❌（null返回正例） |
+| gravity 位掩码 (getGravity) | L2 | ❌ |
+| figma spacing/margin | L2/L3 | ✅ wrong_spacing fixture |
+| figma alignment | L2 | ❌ |
+| 交互后状态变化 | L3 | ✅ I07/I18 |
 
 ## 注意事项
 

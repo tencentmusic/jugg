@@ -18,10 +18,10 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 "reason" to McpJsonSchemaProperty(type = "string", description = "Why remote SSH info is needed."),
-                "userConsent" to McpJsonSchemaProperty(type = "boolean", description = "Must be true if user explicitly agreed."),
+                "consent" to McpJsonSchemaProperty(type = "boolean", description = "Must be true if user explicitly agreed."),
                 "requestedBy" to McpJsonSchemaProperty(type = "string", description = "Requester identity for confirmation display. Default: mcp_agent."),
             ),
-            required = listOf("projectDir", "reason", "userConsent"),
+            required = listOf("projectDir", "reason", "consent"),
             additionalProperties = false,
         ),
         outputSchema = McpToolSchemas.baseOutputSchema.copy(
@@ -43,8 +43,9 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        val userConsent = arguments["userConsent"] as? Boolean ?: false
-        if (!userConsent) {
+        // Accept both new ("consent") and legacy ("userConsent") param names.
+        val consent = (arguments["consent"] ?: arguments["userConsent"]) as? Boolean ?: false
+        if (!consent) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
                 message = "ssh-info failed. Reason: explicit user consent is required before calling this tool.",

@@ -13,16 +13,16 @@ def build_params(args: list[str]) -> dict:
     while i < len(args):
         if args[i] == "--text":
             target["text"] = args[i + 1]; i += 2
-        elif args[i] == "--id":
+        elif args[i] == "--resourceId":
             target["resourceId"] = args[i + 1]; i += 2
-        elif args[i] == "--desc":
+        elif args[i] == "--contentDesc":
             target["contentDesc"] = args[i + 1]; i += 2
         else:
             print(f"Unknown option: {args[i]}", file=sys.stderr)
             sys.exit(1)
 
     if not target:
-        print("view-locate requires at least one selector: --text, --id, or --desc",
+        print("view-locate requires at least one selector: --text, --resourceId, or --contentDesc",
               file=sys.stderr)
         sys.exit(1)
 
@@ -31,5 +31,6 @@ def build_params(args: list[str]) -> dict:
 
 def cmd_view_locate(args: list[str]) -> None:
     json_mode, remaining = jugglib.has_json_flag(args)
+    remaining = jugglib.normalize_args(remaining)
     extra = build_params(remaining)
     jugglib.simple_call("view-locate", json_mode=json_mode, extra_params=extra)

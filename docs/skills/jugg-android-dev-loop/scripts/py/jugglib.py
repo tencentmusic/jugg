@@ -325,3 +325,26 @@ def has_json_flag(args: list[str]) -> tuple[bool, list[str]]:
         remaining = [a for a in args if a != "--json"]
         return True, remaining
     return False, args
+
+
+def normalize_args(args: list[str]) -> list[str]:
+    """Normalize CLI flags: accept both --kebab-case and --camelCase.
+
+    Converts any --kebab-case flag to --camelCase so that subcommand parsers
+    only need to match camelCase names (which equal the MCP parameter names).
+    Non-flag tokens and --json are passed through unchanged.
+
+    Design note: Jugg CLI accepts both kebab-case (POSIX convention for humans)
+    and camelCase (MCP parameter names for AI agents). Internally everything is
+    camelCase to achieve zero-mapping between CLI and MCP.
+    """
+    import re
+    result: list[str] = []
+    for token in args:
+        if token.startswith("--") and "-" in token[2:]:
+            name = token[2:]
+            camel = re.sub(r"-([a-z])", lambda m: m.group(1).upper(), name)
+            result.append(f"--{camel}")
+        else:
+            result.append(token)
+    return result

@@ -26,7 +26,7 @@ def cmd_restart(args: list[str]) -> None:
 
     params = {"projectDir": project_dir}
 
-    response = jugglib.raw_call(port, "restart_app", params)
+    response = jugglib.raw_call(port, "restart", params)
     structured = jugglib.extract_structured(response)
 
     if json_mode:

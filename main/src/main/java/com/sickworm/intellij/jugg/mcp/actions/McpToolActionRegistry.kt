@@ -16,7 +16,7 @@ class McpToolActionRegistry(
         const val RESTART = "restart"
         const val COMPILE = "compile"
         const val DEPLOY = "deploy"
-        const val REINSTALL = "reinstall"
+        const val REINSTALL = "clean-reinstall"
         const val GRADLE_BUILD = "gradle-build"
         const val GET_COMPILE_STATUS = "get-compile-status"
         const val SSH_INFO = "ssh-info"
@@ -60,9 +60,6 @@ class McpToolActionRegistry(
                 GetCompileStatusMcpToolAction(),
                 RequestRemoteSshInfoMcpToolAction(),
                 DeviceListMcpToolAction(),
-                ScreenshotMcpToolAction(),
-                StartRecordMcpToolAction(),
-                StopRecordMcpToolAction(),
                 LayoutDumpMcpToolAction(),
                 LayoutVerifyMcpToolAction(),
                 UiFindMcpToolAction(),

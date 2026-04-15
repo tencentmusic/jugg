@@ -25,7 +25,8 @@ class TapMcpToolAction : McpToolAction {
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
         description = "Tap, long press, or swipe on target device. Modes: coordinate (x/y), percent (xPercent/yPercent), " +
-            "or element selectors (text/resourceId/contentDesc, optional className). Mode priority: coordinate > percent > element.",
+            "or element selectors (text/id/desc, optional class). id=resourceId alias, desc=contentDesc alias, class=className alias. " +
+            "Mode priority: coordinate > percent > element.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf("projectDir" to McpToolSchemas.projectDirProperty) + McpToolSchemas.tapActionProperties,
             required = listOf("projectDir"),
@@ -57,11 +58,11 @@ class TapMcpToolAction : McpToolAction {
         val actionResult = McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
             when (action) {
                 "tap" -> executeTap(arguments, adb, packageName, logger)
-                "longPress" -> executeLongPress(arguments, adb, packageName, logger)
+                "long-press" -> executeLongPress(arguments, adb, packageName, logger)
                 "swipe" -> executeSwipe(arguments, adb, logger)
                 else -> McpToolResult(
                     status = McpToolStatus.ERROR,
-                    message = "tap failed. Reason: Unsupported action: $action. Use tap, longPress, or swipe.",
+                    message = "tap failed. Reason: Unsupported action: $action. Use tap, long-press, or swipe.",
                     data = emptyMap<String, Any>(),
                     artifacts = emptyList(),
                     errorCode = McpErrorCode.MCP_INVALID_PARAMS,
@@ -87,11 +88,11 @@ class TapMcpToolAction : McpToolAction {
         val endXPercent = arguments.numberAsDouble("endXPercent")
         val endYPercent = arguments.numberAsDouble("endYPercent")
         val text = arguments["text"] as? String
-        val resourceId = arguments["resourceId"] as? String
-        val contentDesc = arguments["contentDesc"] as? String
+        val resourceId = arguments.resolveId()
+        val contentDesc = arguments.resolveDesc()
 
         return when (action) {
-            "tap", "longPress" -> {
+            "tap", "long-press" -> {
                 when {
                     x != null && y != null -> null
                     xPercent != null && yPercent != null -> null
@@ -132,7 +133,7 @@ class TapMcpToolAction : McpToolAction {
 
             else -> McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "tap failed. Reason: Unsupported action: $action. Use tap, longPress, or swipe.",
+                message = "tap failed. Reason: Unsupported action: $action. Use tap, long-press, or swipe.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
@@ -151,9 +152,9 @@ class TapMcpToolAction : McpToolAction {
         val xPercent = arguments.numberAsDouble("xPercent")
         val yPercent = arguments.numberAsDouble("yPercent")
         val text = arguments["text"] as? String
-        val resourceId = arguments["resourceId"] as? String
-        val contentDesc = arguments["contentDesc"] as? String
-        val className = arguments["className"] as? String
+        val resourceId = arguments.resolveId()
+        val contentDesc = arguments.resolveDesc()
+        val className = arguments.resolveClass()
 
         return when {
             x != null && y != null -> tapByCoordinate(adb, x, y, logger)
@@ -175,9 +176,9 @@ class TapMcpToolAction : McpToolAction {
         val xPercent = arguments.numberAsDouble("xPercent")
         val yPercent = arguments.numberAsDouble("yPercent")
         val text = arguments["text"] as? String
-        val resourceId = arguments["resourceId"] as? String
-        val contentDesc = arguments["contentDesc"] as? String
-        val className = arguments["className"] as? String
+        val resourceId = arguments.resolveId()
+        val contentDesc = arguments.resolveDesc()
+        val className = arguments.resolveClass()
         val duration = sanitizeDuration(arguments.numberAsInt("duration") ?: DEFAULT_LONG_PRESS_DURATION_MS)
 
         return when {
@@ -203,8 +204,8 @@ class TapMcpToolAction : McpToolAction {
         val endXPercent = arguments.numberAsDouble("endXPercent")
         val endYPercent = arguments.numberAsDouble("endYPercent")
         val text = arguments["text"] as? String
-        val resourceId = arguments["resourceId"] as? String
-        val contentDesc = arguments["contentDesc"] as? String
+        val resourceId = arguments.resolveId()
+        val contentDesc = arguments.resolveDesc()
         val duration = sanitizeDuration(arguments.numberAsInt("duration") ?: DEFAULT_SWIPE_DURATION_MS)
 
         return when {
@@ -322,9 +323,9 @@ class TapMcpToolAction : McpToolAction {
             adb.execAdbShellCmd("input swipe $x $y $x $y $duration")
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "longPress executed successfully.",
+                message = "long-press executed successfully.",
                 data = mapOf(
-                    "action" to "longPress",
+                    "action" to "long-press",
                     "x" to x,
                     "y" to y,
                     "duration" to duration,
@@ -334,7 +335,7 @@ class TapMcpToolAction : McpToolAction {
                 errorCode = null,
             )
         } catch (e: Exception) {
-            logger.warn("longPress coordinate failed: ${e.message}", e)
+            logger.warn("long-press coordinate failed: ${e.message}", e)
             McpToolResult.internalErrorResult("tap", e.message ?: "unknown error")
         }
     }
@@ -354,9 +355,9 @@ class TapMcpToolAction : McpToolAction {
             adb.execAdbShellCmd("input swipe $x $y $x $y $duration")
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "longPress executed successfully.",
+                message = "long-press executed successfully.",
                 data = mapOf(
-                    "action" to "longPress",
+                    "action" to "long-press",
                     "x" to x,
                     "y" to y,
                     "duration" to duration,
@@ -368,7 +369,7 @@ class TapMcpToolAction : McpToolAction {
                 errorCode = null,
             )
         } catch (e: Exception) {
-            logger.warn("longPress percent failed: ${e.message}", e)
+            logger.warn("long-press percent failed: ${e.message}", e)
             McpToolResult.internalErrorResult("tap", e.message ?: "unknown error")
         }
     }
@@ -393,11 +394,11 @@ class TapMcpToolAction : McpToolAction {
                 className = className,
                 duration = duration,
             )
-            ?: return serverUnavailableResult("longPress")
+            ?: return serverUnavailableResult("long-press")
 
         return serverResultToToolResult(
             serverResult = serverResult,
-            action = "longPress",
+            action = "long-press",
             duration = duration,
             selectorContext = ElementSelectorContext.from(text, resourceId, contentDesc, className),
         )
@@ -872,6 +873,21 @@ class TapMcpToolAction : McpToolAction {
     private fun Map<String, Any?>.numberAsInt(key: String): Int? = (this[key] as? Number)?.toInt()
 
     private fun Map<String, Any?>.numberAsDouble(key: String): Double? = (this[key] as? Number)?.toDouble()
+
+    /** Resolve resourceId, accepting both "resourceId" and short alias "id". */
+    private fun Map<String, Any?>.resolveId(): String? =
+        (this["resourceId"] as? String)?.takeIf { it.isNotBlank() }
+            ?: (this["id"] as? String)?.takeIf { it.isNotBlank() }
+
+    /** Resolve contentDesc, accepting both "contentDesc" and short alias "desc". */
+    private fun Map<String, Any?>.resolveDesc(): String? =
+        (this["contentDesc"] as? String)?.takeIf { it.isNotBlank() }
+            ?: (this["desc"] as? String)?.takeIf { it.isNotBlank() }
+
+    /** Resolve className, accepting both "className" and short alias "class". */
+    private fun Map<String, Any?>.resolveClass(): String? =
+        (this["className"] as? String)?.takeIf { it.isNotBlank() }
+            ?: (this["class"] as? String)?.takeIf { it.isNotBlank() }
 
     private data class TopActivitySnapshot(
         val activity: String,

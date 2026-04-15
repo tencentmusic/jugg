@@ -77,7 +77,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 7,
                 params = mapOf(
-                    "name" to "reinstall",
+                    "name" to "clean-reinstall",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
@@ -86,7 +86,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-        Assert.assertTrue(result.content.first().text.contains("reinstall executed successfully"))
+        Assert.assertTrue(result.content.first().text.contains("clean-reinstall executed successfully"))
     }
 
     @Test
@@ -139,7 +139,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "reason" to "manual troubleshooting",
-                        "userConsent" to true,
+                        "consent" to true,
                     )
                 )
             )

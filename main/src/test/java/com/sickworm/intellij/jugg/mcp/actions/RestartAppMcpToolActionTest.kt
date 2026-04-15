@@ -14,11 +14,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
-import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.mcp.viewhierarchy.FindAndTapResult
-import com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchedElementData
-import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
@@ -30,7 +26,7 @@ import org.mockito.Mockito
 import java.io.File
 
 /**
- * RestartAppMcpToolActionTest verifies restart behavior and optional post-restart tap_actions flow.
+ * RestartAppMcpToolActionTest verifies restart basic behavior.
  */
 class RestartAppMcpToolActionTest {
     @Before
@@ -44,209 +40,24 @@ class RestartAppMcpToolActionTest {
     }
 
     @Test
-    fun testInputSchemaShouldExposeTapActionsAsLightweightReference() {
+    fun testInputSchemaShouldNotExposeTapActions() {
         val properties = RestartAppMcpToolAction().definition.inputSchema.properties
-        val tapActions = properties["tap_actions"]
-        Assert.assertNotNull(tapActions)
-        Assert.assertEquals("array", tapActions?.type)
-
-        val item = tapActions?.items
-        Assert.assertNotNull(item)
-        Assert.assertEquals("object", item?.type)
-        // Lightweight variant: no per-field properties, relies on description referencing tool tap.
-        Assert.assertNull("items should not carry expanded properties", item?.properties)
-        Assert.assertNotNull("items description must reference tool tap", item?.description)
-        Assert.assertTrue(item!!.description!!.contains("tool tap"))
+        Assert.assertNull("tap_actions should not be in schema", properties["tap_actions"])
     }
 
     @Test
-    fun testRestartAppShouldExecuteTapActionsSequentially() {
+    fun testRestartAppSucceeds() {
         val (runtime, _) = runtimeWithMocks()
         val action = RestartAppMcpToolAction()
-
-        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.findAndTap("MCP Test Page", null, null, null)).thenReturn(
-                FindAndTapResult.Success(
-                    x = 100,
-                    y = 200,
-                    matchedElement = matchedElement(text = "MCP Test Page", resourceId = "btn_mcp_test_page"),
-                    matchCount = 1,
-                )
-            )
-            Mockito.`when`(mock.findAndTap(null, "btn_some_secondary_entry", null, null)).thenReturn(
-                FindAndTapResult.Success(
-                    x = 300,
-                    y = 400,
-                    matchedElement = matchedElement(text = "Secondary Entry", resourceId = "btn_some_secondary_entry"),
-                    matchCount = 1,
-                )
-            )
-        }.use { construction ->
-            val result = action.execute(
-                mapOf(
-                    "projectDir" to "/tmp/test",
-                    "tap_actions" to listOf(
-                        mapOf("text" to "MCP Test Page"),
-                        mapOf("resourceId" to "btn_some_secondary_entry"),
-                    ),
-                ),
-                runtime,
-            )
-
-            Assert.assertEquals(McpToolStatus.OK, result.status)
-            Assert.assertEquals(2, construction.constructed().size)
-            val clients = construction.constructed()
-            Mockito.verify(clients[0]).findAndTap("MCP Test Page", null, null, null)
-            Mockito.verify(clients[1]).findAndTap(null, "btn_some_secondary_entry", null, null)
-            Assert.assertTrue(result.message.contains("restart executed successfully"))
-        }
-    }
-
-    @Test
-    fun testRestartAppShouldSupportSwipeAndLongPressInTapActions() {
-        val (runtime, adb) = runtimeWithMocksAndAdb()
-        val action = RestartAppMcpToolAction()
-
         val result = action.execute(
-            mapOf(
-                "projectDir" to "/tmp/test",
-                "tap_actions" to listOf(
-                    mapOf(
-                        "action" to "swipe",
-                        "x" to 10,
-                        "y" to 20,
-                        "endX" to 200,
-                        "endY" to 300,
-                        "duration" to 350,
-                    ),
-                    mapOf(
-                        "action" to "longPress",
-                        "x" to 100,
-                        "y" to 120,
-                        "duration" to 700,
-                    ),
-                ),
-            ),
+            mapOf("projectDir" to "/tmp/test"),
             runtime,
         )
-
         Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertTrue(adb.executedCommands.contains("input swipe 10 20 200 300 350"))
-        Assert.assertTrue(adb.executedCommands.contains("input swipe 100 120 100 120 700"))
-    }
-
-    @Test
-    fun testRestartAppShouldRetryTapActionWhenElementNotFoundThenSucceed() {
-        McpAppReadyGuard.sleepForTest = {}
-        val (runtime, _) = runtimeWithMocks()
-        val action = RestartAppMcpToolAction()
-        var attempt = 0
-
-        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            Mockito.`when`(mock.findAndTap("MCP Test Page", null, null, null)).thenAnswer {
-                attempt += 1
-                if (attempt < 3) {
-                    FindAndTapResult.NotFound(
-                        candidates = emptyList(),
-                        message = "not found",
-                    )
-                } else {
-                    FindAndTapResult.Success(
-                        x = 100,
-                        y = 200,
-                        matchedElement = matchedElement(text = "MCP Test Page", resourceId = "btn_mcp_test_page"),
-                        matchCount = 1,
-                    )
-                }
-            }
-        }.use { construction ->
-            val result = action.execute(
-                mapOf(
-                    "projectDir" to "/tmp/test",
-                    "tap_actions" to listOf(
-                        mapOf("text" to "MCP Test Page"),
-                    ),
-                ),
-                runtime,
-            )
-
-            Assert.assertEquals(McpToolStatus.OK, result.status)
-            Assert.assertEquals(3, construction.constructed().size)
-            Assert.assertEquals(3, attempt)
-        }
-    }
-
-    @Test
-    fun testRestartAppShouldReturnStepIndexWhenTapActionFails() {
-        McpAppReadyGuard.sleepForTest = {}
-        val (runtime, _) = runtimeWithMocks()
-        val action = RestartAppMcpToolAction()
-        var step = 0
-
-        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
-            step += 1
-            if (step == 1) {
-                Mockito.`when`(mock.findAndTap("MCP Test Page", null, null, null)).thenReturn(
-                    FindAndTapResult.Success(
-                        x = 100,
-                        y = 200,
-                        matchedElement = matchedElement(text = "MCP Test Page", resourceId = "btn_mcp_test_page"),
-                        matchCount = 1,
-                    )
-                )
-            } else {
-                Mockito.`when`(mock.findAndTap(null, "btn_missing", null, null)).thenReturn(
-                    FindAndTapResult.NotFound(
-                        candidates = emptyList(),
-                        message = "not found",
-                    )
-                )
-            }
-        }.use {
-            val result = action.execute(
-                mapOf(
-                    "projectDir" to "/tmp/test",
-                    "tap_actions" to listOf(
-                        mapOf("text" to "MCP Test Page"),
-                        mapOf("resourceId" to "btn_missing"),
-                    ),
-                ),
-                runtime,
-            )
-
-            Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
-            Assert.assertTrue(result.message.contains("tap_actions step 2 failed"))
-            Assert.assertTrue(result.message.contains("No matching UI element found"))
-            @Suppress("UNCHECKED_CAST")
-            val data = result.data as Map<String, Any>
-            Assert.assertEquals(2, data["failedStep"])
-        }
-    }
-
-    private fun matchedElement(text: String, resourceId: String): MatchedElementData {
-        return MatchedElementData(
-            text = text,
-            className = "Button",
-            resourceId = resourceId,
-            contentDesc = "",
-            bounds = listOf(0, 0, 100, 100),
-            centerX = 50,
-            centerY = 50,
-        )
+        Assert.assertTrue(result.message.contains("restart executed successfully"))
     }
 
     private fun runtimeWithMocks(): Pair<IMcpRuntime, IDeployTargetManager> {
-        val (runtime, deployTargetManager, _) = runtimeWithMocksInternal()
-        return runtime to deployTargetManager
-    }
-
-    private fun runtimeWithMocksAndAdb(): Pair<IMcpRuntime, FakeDeviceAdb> {
-        val (runtime, _, adb) = runtimeWithMocksInternal()
-        return runtime to adb
-    }
-
-    private fun runtimeWithMocksInternal(): Triple<IMcpRuntime, IDeployTargetManager, FakeDeviceAdb> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
         PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
@@ -302,7 +113,7 @@ class RestartAppMcpToolActionTest {
             }
         }
 
-        return Triple(runtime, deployTargetManager, adb)
+        return runtime to deployTargetManager
     }
 
     private class FakeDeviceAdb : IDeviceAdb {

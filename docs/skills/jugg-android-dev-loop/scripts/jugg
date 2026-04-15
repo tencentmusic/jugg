@@ -18,7 +18,7 @@ Subcommands:
   compile             Compile modified sources (no deploy)
   deploy              Compile and deploy to device (waits for completion)
   gradle-build        Force Gradle build (waits for completion)
-  reinstall           Clear app data and reinstall APK
+  clean-reinstall     Clear app data and reinstall APK
   restart             Restart the app
   record-start        Start screen recording
   record-stop         Stop screen recording and output mp4 path
@@ -48,7 +48,7 @@ case "$SUBCOMMAND" in
   compile)         source "$SCRIPT_DIR/../_lib/compile.sh";         cmd_compile         "$@" ;;
   deploy)          source "$SCRIPT_DIR/../_lib/deploy.sh";          cmd_deploy          "$@" ;;
   gradle-build)    source "$SCRIPT_DIR/../_lib/gradle-build.sh";    cmd_gradle_build    "$@" ;;
-  reinstall)       source "$SCRIPT_DIR/../_lib/reinstall.sh";       cmd_reinstall       "$@" ;;
+  clean-reinstall) source "$SCRIPT_DIR/../_lib/clean-reinstall.sh"; cmd_clean_reinstall "$@" ;;
   restart)         source "$SCRIPT_DIR/../_lib/restart.sh";         cmd_restart         "$@" ;;
   record-start)    source "$SCRIPT_DIR/../_lib/record-start.sh";    cmd_record_start    "$@" ;;
   record-stop)     source "$SCRIPT_DIR/../_lib/record-stop.sh";     cmd_record_stop     "$@" ;;

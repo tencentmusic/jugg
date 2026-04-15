@@ -21,7 +21,7 @@ CLI-driven development loop for Android: modify → build → deploy → verify 
 ### Entry
 
 ```
-python3 scripts/jugg.py <subcommand> [options]
+python3 {SKILL_DIR}/scripts/jugg.py <subcommand> [options]
 ```
 
 ### Output Format
@@ -45,22 +45,22 @@ All build commands **block** until completion; no polling needed.
 | `compile` | Compile modified sources, no deploy | No device, or user requests compile-only |
 | `deploy` | Compile + deploy to device | **Default path** |
 | `gradle-build` | Full Gradle compile fallback | After `deploy` retries exhausted; produces artifact only, follow with `deploy` |
-| `reinstall` | Clear app data + reinstall APK | **Only** for install-state corruption or signature conflict |
+| `clean-reinstall` | Clear app data + reinstall APK | **Only** for install-state corruption or signature conflict |
 
 ```
-python3 scripts/jugg.py compile
-python3 scripts/jugg.py deploy
-python3 scripts/jugg.py gradle-build
-python3 scripts/jugg.py reinstall
+python3 {SKILL_DIR}/scripts/jugg.py compile
+python3 {SKILL_DIR}/scripts/jugg.py deploy
+python3 {SKILL_DIR}/scripts/jugg.py gradle-build
+python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
 
 ### Runtime Basic Commands
 
 ```
-python3 scripts/jugg.py restart              # restart app
-python3 scripts/jugg.py activity-stack       # show current Activity stack
-python3 scripts/jugg.py devices              # list connected devices
-python3 scripts/jugg.py crash-report         # collect latest crash report
+python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
+python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
+python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
+python3 {SKILL_DIR}/scripts/jugg.py crash-report         # collect latest crash report
 ```
 
 `crash-report` key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
@@ -76,13 +76,15 @@ On compile/deploy failure, follow this order:
 2. Retry `deploy` up to 3 times.
 3. If still failing → `gradle-build`.
 4. If still failing → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-5. Only on install-state corruption → `reinstall`.
+5. Only on install-state corruption → `clean-reinstall`.
 6. Still unclear → stop, ask user.
 7. `ssh-info` requires explicit user consent.
 
 ### Advanced Commands
 
 For commands with complex parameters (tap, view-locate, view-inspect, layout-dump, screenshot, recording, ssh-info) → see `cli_manual.md`.
+
+**Flag naming**: all flags accept both kebab-case (e.g. `--resource-id`) and camelCase (e.g. `--resourceId`). camelCase = the MCP parameter name. Examples in `cli_manual.md` use kebab-case.
 
 ---
 
@@ -102,7 +104,9 @@ Collect mandatory variables before any action.
 Route based on context, then load primary reference:
 
 ```
-if user says "compile only" or "no deploy":
+if user asks to install jugg CLI (e.g. "install jugg", "add jugg to PATH"):
+  → guide_install_cli.md
+elif user says "compile only" or "no deploy":
   → flow_no_auto_run.md §compile-only
 elif hasAutoRunEntry == false AND user requests verification:
   → output: "⚠️ Auto-run entry not configured. → see guide_auto_run_entry.md §quick-start"
@@ -114,6 +118,7 @@ elif hasAutoRunEntry == true:
 
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
+| install jugg CLI | `guide_install_cli.md` | — |
 | compile-only | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
 | no auto-run entry (deploy) | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
 | with auto-run entry | `flow_with_auto_run.md` | `guide_auto_run_entry.md`, `error_patterns.md` |

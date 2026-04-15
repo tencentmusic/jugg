@@ -269,7 +269,7 @@ class TapMcpToolActionTest {
         val result = action.execute(
             mapOf(
                 "projectDir" to "/tmp/test",
-                "action" to "longPress",
+                "action" to "long-press",
                 "x" to 540,
                 "y" to 960,
             ),
@@ -278,7 +278,7 @@ class TapMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
-        Assert.assertEquals("longPress", data["action"])
+        Assert.assertEquals("long-press", data["action"])
         Assert.assertEquals("coordinate", data["mode"])
         Assert.assertEquals(500, data["duration"])
         Assert.assertTrue(adb.executedCommands.contains("input swipe 540 960 540 960 500"))
@@ -294,7 +294,7 @@ class TapMcpToolActionTest {
         val result = action.execute(
             mapOf(
                 "projectDir" to "/tmp/test",
-                "action" to "longPress",
+                "action" to "long-press",
                 "xPercent" to 50.0,
                 "yPercent" to 50.0,
                 "duration" to 800,
@@ -304,7 +304,7 @@ class TapMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
-        Assert.assertEquals("longPress", data["action"])
+        Assert.assertEquals("long-press", data["action"])
         Assert.assertEquals("percent", data["mode"])
         Assert.assertEquals(800, data["duration"])
         Assert.assertTrue(adb.executedCommands.contains("input swipe 540 1200 540 1200 800"))
@@ -361,7 +361,7 @@ class TapMcpToolActionTest {
             val result = action.execute(
                 mapOf(
                     "projectDir" to "/tmp/test",
-                    "action" to "longPress",
+                    "action" to "long-press",
                     "text" to "Login",
                     "duration" to 900,
                 ),
@@ -371,7 +371,7 @@ class TapMcpToolActionTest {
             Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
-            Assert.assertEquals("longPress", data["action"])
+            Assert.assertEquals("long-press", data["action"])
             Assert.assertEquals("element", data["mode"])
             Assert.assertEquals(900, data["duration"])
             Assert.assertEquals(1, data["matchCount"])
@@ -505,6 +505,129 @@ class TapMcpToolActionTest {
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
             Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
             Assert.assertTrue(result.message.contains("server is unavailable"))
+        }
+    }
+
+    @Test
+    fun testLongPressHyphenActionCoordinateMode() {
+        val (action, adb) = setup()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/tmp/test",
+                "action" to "long-press",
+                "x" to 540,
+                "y" to 960,
+            ),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("long-press", data["action"])
+        Assert.assertEquals("coordinate", data["mode"])
+        Assert.assertEquals(500, data["duration"])
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 540 960 540 960 500"))
+    }
+
+    @Test
+    fun testLongPressHyphenActionElementMode() {
+        val (action, adb) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndLongPress("Login", null, null, null, 500)).thenReturn(
+                FindAndTapResult.Success(
+                    x = 111,
+                    y = 222,
+                    matchedElement = matchedElementData(),
+                    matchCount = 1,
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to "/tmp/test",
+                    "action" to "long-press",
+                    "text" to "Login",
+                ),
+                runtime(),
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals("long-press", data["action"])
+            Assert.assertEquals("element", data["mode"])
+        }
+    }
+
+    @Test
+    fun testIdAliasForResourceId() {
+        val (action, _) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap(null, "btn_login", null, null)).thenReturn(
+                FindAndTapResult.Success(
+                    x = 321,
+                    y = 654,
+                    matchedElement = matchedElementData(),
+                    matchCount = 1,
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "id" to "btn_login"),
+                runtime()
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals("element", data["mode"])
+        }
+    }
+
+    @Test
+    fun testDescAliasForContentDesc() {
+        val (action, _) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap(null, null, "login button", null)).thenReturn(
+                FindAndTapResult.Success(
+                    x = 321,
+                    y = 654,
+                    matchedElement = matchedElementData(),
+                    matchCount = 1,
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "desc" to "login button"),
+                runtime()
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals("element", data["mode"])
+        }
+    }
+
+    @Test
+    fun testClassAliasForClassName() {
+        val (action, _) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Login", null, null, "Button")).thenReturn(
+                FindAndTapResult.Success(
+                    x = 321,
+                    y = 654,
+                    matchedElement = matchedElementData(),
+                    matchCount = 1,
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Login", "class" to "Button"),
+                runtime()
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals("element", data["mode"])
         }
     }
 

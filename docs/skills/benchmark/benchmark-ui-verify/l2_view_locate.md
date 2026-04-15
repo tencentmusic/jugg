@@ -322,6 +322,108 @@
 
 ---
 
+### TC-VL11：通过文本定位并验证 enabled 状态
+
+**级别**：L2
+**命令**：ui_find / view_locate
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity
+
+**输入（LLM 收到的指令）**：
+> 找到文本为 "Unique MCP Target" 的按钮，确认它是否处于启用（enabled）状态
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Unique MCP Target"})`
+2. 从返回的元素属性中读取 `enabled` 字段，确认为 true
+
+**关键参数**：
+- `text` = `"Unique MCP Target"`
+
+**期望输出行为**：
+- LLM 报告按钮处于启用状态
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 命令调用正确 + 正确读取 enabled 字段 + 结论正确 |
+| 4 | 调用正确但对 enabled 的描述不够明确 |
+| 3 | 调用了命令但未读取 enabled 属性 |
+| 2 | 使用 eval_view 的 isEnabled() 代替 ui_find，但结论正确 |
+| 1 | 方向性错误 |
+| 0 | 未调用命令 |
+
+---
+
+### TC-VL12：通过 resourceId 验证元素可见性（INVISIBLE）
+
+**级别**：L2
+**命令**：ui_find / view_locate
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity（`btn_mcp_visibility_hidden` visibility=INVISIBLE）
+
+**输入（LLM 收到的指令）**：
+> 找到 resource id 为 "btn_mcp_visibility_hidden" 的按钮，报告它的可见性状态
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `ui_find(target={resourceId: "btn_mcp_visibility_hidden"})`
+2. 从返回属性中读取 `visibility` 或 `displayed` 字段
+
+**关键参数**：
+- `resourceId` = `"btn_mcp_visibility_hidden"`
+
+**期望输出行为**：
+- LLM 报告该按钮不可见（invisible），而非 visible 或 gone
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 命令调用正确 + 正确报告 invisible |
+| 4 | 调用正确但可见性描述措辞不够精确 |
+| 3 | 找到了元素但未报告可见性状态 |
+| 2 | 使用 eval_view 的 getVisibility() 代替，结论正确 |
+| 1 | 报告该元素可见（结论错误） |
+| 0 | 未调用命令 |
+
+---
+
+### TC-VL13：contentDescription 存在性验证
+
+**级别**：L2
+**命令**：ui_find / view_locate
+
+**前置条件**：
+- 设备已连接
+- 当前页面：McpTestActivity
+
+**输入（LLM 收到的指令）**：
+> 确认页面上是否存在 contentDescription 为 "mcp-resource-target" 的元素，该需求是否满足？
+
+**期望调用序列**：
+1. 通过 jugg-android-dev-loop 执行 `ui_find(target={contentDesc: "mcp-resource-target"})`
+2. 返回元素存在，结论为需求满足
+
+**关键参数**：
+- `contentDesc` = `"mcp-resource-target"`
+
+**期望输出行为**：
+- LLM 确认元素存在，需求满足
+
+**评分 Rubric（满分 5 分）**：
+| 分 | 判定标准 |
+|----|---------|
+| 5 | 正确使用 contentDesc 参数 + 结论正确（需求满足） |
+| 4 | 使用了 resourceId 代替，但结论正确 |
+| 3 | 调用正确命令但未给出"需求是否满足"的明确结论 |
+| 2 | 使用错误命令但结论正确 |
+| 1 | 方向性错误 |
+| 0 | 未调用命令 |
+
+---
+
 ### TC-VL10：ScrollView 内不在屏幕可见区域的元素
 
 **级别**：L2

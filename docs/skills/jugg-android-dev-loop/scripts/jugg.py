@@ -15,15 +15,12 @@ USAGE = """\
 Usage: jugg <subcommand> [options]
 
 Subcommands:
-  screenshot          Capture a device screenshot
   crash-report        Collect latest app crash report
   compile             Compile modified sources (no deploy)
   deploy              Compile and deploy to device (waits for completion)
   gradle-build        Force Gradle build (waits for completion)
-  reinstall           Clear app data and reinstall APK
+  clean-reinstall     Clear app data and reinstall APK
   restart             Restart the app
-  record-start        Start screen recording
-  record-stop         Stop screen recording and output mp4 path
   layout-dump         Export UI hierarchy to HTML file
   view-locate         Find a UI element's position and bounds
   view-inspect        Evaluate getter expressions on a View element
@@ -37,15 +34,12 @@ Run 'jugg <subcommand> --help' for subcommand options.
 
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
-    "screenshot":     ("cmd_screenshot",     "cmd_screenshot"),
     "crash-report":   ("cmd_crash_report",   "cmd_crash_report"),
     "compile":        ("cmd_compile",        "cmd_compile"),
     "deploy":         ("cmd_deploy",         "cmd_deploy"),
     "gradle-build":   ("cmd_gradle_build",   "cmd_gradle_build"),
-    "reinstall":      ("cmd_reinstall",      "cmd_reinstall"),
+    "clean-reinstall": ("cmd_clean_reinstall", "cmd_clean_reinstall"),
     "restart":        ("cmd_restart",        "cmd_restart"),
-    "record-start":   ("cmd_record_start",   "cmd_record_start"),
-    "record-stop":    ("cmd_record_stop",    "cmd_record_stop"),
     "layout-dump":    ("cmd_layout_dump",    "cmd_layout_dump"),
     "view-locate":    ("cmd_view_locate",    "cmd_view_locate"),
     "view-inspect":   ("cmd_view_inspect",   "cmd_view_inspect"),

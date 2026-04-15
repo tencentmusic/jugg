@@ -41,7 +41,7 @@ object McpToolSchemas {
     val tapActionProperties: Map<String, McpJsonSchemaProperty> = mapOf(
         "action" to McpJsonSchemaProperty(
             type = "string",
-            enum = listOf("tap", "longPress", "swipe"),
+            enum = listOf("tap", "long-press", "swipe"),
             description = "Touch action type. Default: tap.",
         ),
         "x" to McpJsonSchemaProperty(
@@ -90,7 +90,7 @@ object McpToolSchemas {
         ),
         "duration" to McpJsonSchemaProperty(
             type = "number",
-            description = "Duration in ms (swipe speed / longPress hold). Defaults: swipe=300, longPress=500.",
+            description = "Duration in ms (swipe speed / long-press hold). Defaults: swipe=300, long-press=500.",
             minimum = 50.0,
         ),
         "text" to McpJsonSchemaProperty(
@@ -99,25 +99,27 @@ object McpToolSchemas {
         ),
         "resourceId" to McpJsonSchemaProperty(
             type = "string",
-            description = "Element resource-id selector (element mode, exact match).",
+            description = "Element resource-id selector (element mode, exact match). Alias: id.",
+        ),
+        "id" to McpJsonSchemaProperty(
+            type = "string",
+            description = "Alias for resourceId. Element resource-id selector (element mode, exact match).",
         ),
         "contentDesc" to McpJsonSchemaProperty(
             type = "string",
-            description = "Element content-desc selector (element mode, exact match).",
+            description = "Element content-desc selector (element mode, exact match). Alias: desc.",
+        ),
+        "desc" to McpJsonSchemaProperty(
+            type = "string",
+            description = "Alias for contentDesc. Element content-desc selector (element mode, exact match).",
         ),
         "className" to McpJsonSchemaProperty(
             type = "string",
-            description = "Class name filter for element mode (AND with other selectors).",
+            description = "Class name filter for element mode (AND with other selectors). Alias: class.",
         ),
-    )
-
-    // Lightweight variant for tap_actions items in restart_app: omits per-field properties
-    // to keep the tools/list payload small.  LLM already sees full field docs in the tap
-    // tool schema; runtime validation happens inside TapMcpToolAction.execute().
-    val tapActionStepProperty = McpJsonSchemaProperty(
-        type = "object",
-        description = "Touch step object. Accepts the same arguments as tool tap " +
-            "(action, x, y, endX, endY, xPercent, yPercent, endXPercent, endYPercent, " +
-            "duration, text, resourceId, contentDesc, className). Refer to tool tap for details.",
+        "class" to McpJsonSchemaProperty(
+            type = "string",
+            description = "Alias for className. Class name filter for element mode (AND with other selectors).",
+        ),
     )
 }

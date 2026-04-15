@@ -75,8 +75,8 @@ abstract class McpInvokerTestBase {
             fakeAction("deploy", def("deploy")) { _ ->
                 McpToolResult(McpToolStatus.OK, "deploy executed successfully.", mapOf("isDeploySuccess" to true), emptyList(), null)
             },
-            fakeAction("reinstall", def("reinstall")) { _ ->
-                McpToolResult(McpToolStatus.OK, "reinstall executed successfully.", mapOf("cleanAndReinstall" to true), emptyList(), null)
+            fakeAction("clean-reinstall", def("clean-reinstall")) { _ ->
+                McpToolResult(McpToolStatus.OK, "clean-reinstall executed successfully.", mapOf("cleanAndReinstall" to true), emptyList(), null)
             },
             fakeAction("gradle-build", def("gradle-build")) { _ ->
                 McpToolResult(McpToolStatus.OK, "gradle-build executed successfully.", mapOf("triggered" to true), emptyList(), null)
