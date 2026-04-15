@@ -46,6 +46,9 @@ class JuggCompilerHelper(
     taskRunnerManager: TaskRunnerManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
+    companion object {
+        private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
+    }
 
     var juggCompiler: JuggCompiler? = null
         set(value) {
@@ -100,9 +103,15 @@ class JuggCompilerHelper(
         }
         if (deployStateManager.hasPendingFileProcessing()) {
             logger.info("Waiting file processing finish...")
-            val waitStart = System.currentTimeMillis()
-            deployStateManager.waitForPendingFileProcessing()
-            logger.trace("[PERF] waitForPendingFileProcessing done, cost=${System.currentTimeMillis() - waitStart}ms, thread=${Thread.currentThread().name}")
+            val waitResult = deployStateManager.waitForPendingFileProcessing(FILE_PROCESSING_WAIT_TIMEOUT_MS)
+            if (waitResult.isTimeout) {
+                logger.debug(
+                    "waitForPendingFileProcessing timeout, timeoutMs=$FILE_PROCESSING_WAIT_TIMEOUT_MS, " +
+                        "pendingCount=${waitResult.pendingCount}, initialPendingCount=${waitResult.initialPendingCount}, " +
+                        "waitedMs=${waitResult.waitedMs}, thread=${Thread.currentThread().name}"
+                )
+            }
+            logger.trace("[PERF] waitForPendingFileProcessing done, cost=${waitResult.waitedMs}ms, thread=${Thread.currentThread().name}")
         }
 
         // decide gradle compile or incremental compile

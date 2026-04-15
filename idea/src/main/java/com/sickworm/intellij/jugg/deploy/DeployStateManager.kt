@@ -50,14 +50,27 @@ class DeployStateManager(
      * This guarantees the counter is non-zero before any compile check runs.
      */
     fun beginFileProcessing() {
-        pendingFileProcessingCount.incrementAndGet()
+        val pendingCount = pendingFileProcessingCount.incrementAndGet()
+        if (pendingCount == 1 || pendingCount % 20 == 0) {
+            logger.debug("begin file processing, pendingCount=$pendingCount")
+        }
     }
 
     /**
      * Must be called in the finally block of the async file-processing task.
      */
     fun endFileProcessing() {
-        if (pendingFileProcessingCount.decrementAndGet() == 0) {
+        var pendingCount = pendingFileProcessingCount.decrementAndGet()
+        if (pendingCount < 0) {
+            logger.warn("pendingFileProcessingCount is negative, value=$pendingCount, reset to 0")
+            pendingFileProcessingCount.set(0)
+            pendingCount = 0
+        }
+        if (pendingCount > 0 && pendingCount % 20 == 0) {
+            logger.debug("end file processing, pendingCount=$pendingCount")
+        }
+        if (pendingCount == 0) {
+            logger.debug("all file processing finished")
             fileProcessingLock.withLock {
                 fileProcessingDone.signalAll()
             }
@@ -69,18 +82,40 @@ class DeployStateManager(
     /**
      * Block until all pending file-processing tasks complete.
      * Returns immediately if none are pending.
-     * @param timeoutMs maximum wait time in milliseconds (default 30s)
+     * @param timeoutMs maximum wait time in milliseconds (default 1s)
      */
-    fun waitForPendingFileProcessing(timeoutMs: Long = 30_000L) {
-        if (pendingFileProcessingCount.get() == 0) return
+    fun waitForPendingFileProcessing(timeoutMs: Long = 1_000L): FileProcessingWaitResult {
+        val initialPendingCount = pendingFileProcessingCount.get()
+        if (initialPendingCount == 0) {
+            return FileProcessingWaitResult(isTimeout = false, pendingCount = 0, waitedMs = 0L, initialPendingCount = 0)
+        }
+        val waitStart = System.currentTimeMillis()
+        var isTimeout = false
         fileProcessingLock.withLock {
             val deadline = System.currentTimeMillis() + timeoutMs
             while (pendingFileProcessingCount.get() > 0) {
                 val remaining = deadline - System.currentTimeMillis()
-                if (remaining <= 0) break
+                if (remaining <= 0) {
+                    isTimeout = true
+                    break
+                }
                 fileProcessingDone.await(remaining, TimeUnit.MILLISECONDS)
             }
         }
+        val waitedMs = System.currentTimeMillis() - waitStart
+        val pendingCount = pendingFileProcessingCount.get()
+        if (isTimeout) {
+            logger.debug(
+                "waitForPendingFileProcessing timeout, timeoutMs=$timeoutMs, " +
+                    "pendingCount=$pendingCount, initialPendingCount=$initialPendingCount, waitedMs=$waitedMs"
+            )
+        }
+        return FileProcessingWaitResult(
+            isTimeout = isTimeout,
+            pendingCount = pendingCount,
+            waitedMs = waitedMs,
+            initialPendingCount = initialPendingCount,
+        )
     }
 
     /**
@@ -149,6 +184,13 @@ class DeployStateManager(
         return JuggDeployState.READY
     }
 }
+
+data class FileProcessingWaitResult(
+    val isTimeout: Boolean,
+    val pendingCount: Int,
+    val waitedMs: Long,
+    val initialPendingCount: Int,
+)
 
 interface IIdeDeployStateHelper {
     fun getIdeDeployState(device: IDevice?, packageName: String?): IdeDeployState
