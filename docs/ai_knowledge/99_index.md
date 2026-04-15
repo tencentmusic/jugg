@@ -41,7 +41,7 @@
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
 | 兼容层（AS 版本适配） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt` |
 | MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `mcp/McpToolInvoker.kt`, `mcp/actions/*` |
-| jugg CLI 子命令使用 | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` |
+| jugg CLI 子命令使用 / **新增或修改 CLI 参数** | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` |
 | MCP UI 布局验证设计（工具原理/算法） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `mcp/layout/*`, `ElementFinder.kt`, `ElementMatcher.kt`, `RelationExtractor.kt`, `RelationVerifier.kt` |
 | MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_tools_list.md` | `mcp/actions/McpToolActionRegistry.kt`, `mcp/actions/*` |
 | MCP UI 验证盲测/layout_verify/view_inspect | `98_code_map.md`, `mcp/actions/*` |
@@ -95,4 +95,5 @@
 
 - 发生类名/路径变更：至少同步 `98_code_map.md`（路径同步规则详见 `98_code_map.md §6`）。
 - **新增专题文档**：必须同时在第3节添加任务类型行、在第4节添加文档描述行。
-- 若暂未同步文档：在结论中标注”以代码为准”。
+- 若暂未同步文档：在结论中标注"以代码为准"。
+- **MCP/CLI 行为变更**：同步规则见 `08_mcp_design.md §9`。

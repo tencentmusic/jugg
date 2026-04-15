@@ -47,13 +47,14 @@ object CompileJobManager {
         )
     }
 
-    fun triggerJuggCompile(runtime: IMcpRuntime, isSkipDeploy: Boolean): CompileJobTriggerResult {
+    fun triggerJuggCompile(runtime: IMcpRuntime, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean = false): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
             runTask = {
                 val runResponse = runtime.juggConfigurationRunner.runFirstConfiguration(
                     isRpcMode = true,
                     isSkipDeploy = isSkipDeploy,
+                    isAlwaysRestartApp = isAlwaysRestartApp,
                 )
                 if (!runResponse.isSuccess) {
                     return@trigger CompileJobExecutionResult(

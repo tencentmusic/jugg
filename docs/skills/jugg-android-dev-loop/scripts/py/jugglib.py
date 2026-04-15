@@ -292,11 +292,14 @@ def simple_call(tool: str, *, json_mode: bool = False,
 
 
 def compile_call(tool: str, *, json_mode: bool = False,
-                 progress_msg: str = "") -> dict:
+                 progress_msg: str = "",
+                 extra_params: Optional[dict] = None) -> dict:
     """Standard pattern for compile-like commands that need polling."""
     project_dir = resolve_project_dir()
     port = resolve_port()
     params = {"projectDir": project_dir}
+    if extra_params:
+        params.update(extra_params)
 
     if progress_msg:
         print(progress_msg, file=sys.stderr)

@@ -82,7 +82,22 @@
 
 ---
 
-## 9. 关联文档
+## 9. MCP/CLI 变更时的 Skill 同步规则
+
+改动 MCP 工具或 CLI 行为后，必须检查并同步 `docs/skills/jugg-android-dev-loop/` 下的对应文档。
+
+| 改动类型 | 需检查/更新的 Skill 文档 |
+|----------|--------------------------|
+| `deploy` / `compile` / `restart` 等命令行为变更（默认参数、重启策略、阻塞/异步等） | `SKILL.md` §Build & Deploy Commands、`flow_no_auto_run.md`、`flow_with_auto_run.md` |
+| MCP/CLI 新增或修改参数 | `SKILL.md` §Advanced Commands、`references/cli_manual.md` |
+| 错误码或错误消息变更 | `references/error_patterns.md` |
+| deploy 后 app 状态变化（是否重启、是否保留 runtime state） | `SKILL.md` §Mandatory Rules、`flow_with_auto_run.md` Step 3 |
+
+**判断方法**：改动完成后，在上表对应 Skill 文档中搜索与旧行为匹配的描述，有则更新或删除。
+
+---
+
+## 10. 关联文档
 
 - 使用说明：`08_mcp_usage.md`
 - 代码定位：`98_code_map.md`

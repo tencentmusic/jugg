@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpArtifact
 import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
+import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
@@ -24,6 +25,11 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "alwaysRestartApp" to McpJsonSchemaProperty(
+                    type = "boolean",
+                    description = "When true (default), always restart the app after deployment (HOT_FIX behavior). " +
+                        "When false, only restart when class structure changes require it (HOT RELOAD is allowed).",
+                ),
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -32,16 +38,18 @@ class CompileAndDeployMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return deployAction(runtime, "deploy")
+        val isAlwaysRestartApp = arguments["alwaysRestartApp"] as? Boolean ?: true
+        return deployAction(runtime, "deploy", isAlwaysRestartApp = isAlwaysRestartApp)
     }
 
     companion object {
         private const val DETAIL_PREVIEW_MAX_CHARS = 1024
 
-        fun deployAction(runtime: IMcpRuntime, toolName: String, isSkipDeploy: Boolean = false): McpToolResult {
+        fun deployAction(runtime: IMcpRuntime, toolName: String, isSkipDeploy: Boolean = false, isAlwaysRestartApp: Boolean = true): McpToolResult {
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
+                isAlwaysRestartApp = isAlwaysRestartApp,
             )
             val jobMetaData = buildJobMetaData(trigger)
             if (!trigger.isFinal) {

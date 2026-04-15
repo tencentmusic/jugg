@@ -128,6 +128,11 @@ class JuggDeployerHelper(
 
         var isNeedRestartApp = data.isNeedRestartApp
 
+        if (compileUiHandler.isAlwaysRestartApp && !isNeedRestartApp && !data.isEmpty) {
+            logger.info("isAlwaysRestartApp=true: forcing app restart after deployment.")
+            isNeedRestartApp = true
+        }
+
         if (JuggSettings.isAlwaysRestartAppAfterDeployment) {
             logger.info("User require always restart app after deployment, restart app.")
             isNeedRestartApp = true

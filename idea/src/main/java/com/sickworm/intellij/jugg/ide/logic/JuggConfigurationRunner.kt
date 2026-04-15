@@ -87,7 +87,7 @@ class JuggConfigurationRunner(
         juggRunningTaskStatusManager.resetHasRun()
     }
 
-    override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean): JuggRunInvocationResult {
+    override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean): JuggRunInvocationResult {
         val currentRunConfigurationList = RunManager.getInstance(project)
             .getConfigurationSettingsList(JuggConfigurationType::class.java)
         @Suppress("UNCHECKED_CAST")
@@ -113,6 +113,7 @@ class JuggConfigurationRunner(
             juggGradleCompileOptions = state.toCompileOptions(pathManager),
             logger = logger,
             isSkipDeploy = isSkipDeploy,
+            isAlwaysRestartApp = isAlwaysRestartApp,
         ) {
             override fun onEnd(runResult: RunResult) {
                 synchronized(waitLock) {

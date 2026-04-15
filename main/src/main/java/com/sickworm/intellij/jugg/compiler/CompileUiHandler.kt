@@ -18,6 +18,8 @@ import java.io.File
 interface CompileUiHandler {
     var isForceGradleCompile: Boolean
     val isSkipDeploy: Boolean
+    /** When true, always restart app after deployment regardless of deploy type (HOT_FIX behavior). */
+    val isAlwaysRestartApp: Boolean
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
     var progressIndicator: ProgressIndicator // injected
@@ -45,6 +47,7 @@ interface CompileUiHandler {
             override var isForceGradleCompile: Boolean = false
             override val isSkipDeploy: Boolean = false
             override val isCanceled: Boolean = false
+            override val isAlwaysRestartApp: Boolean = false
             override var processHandler: IProcessHandler = IProcessHandler.DEFAULT
             override var progressIndicator: ProgressIndicator = DumbProgressIndicator()
 

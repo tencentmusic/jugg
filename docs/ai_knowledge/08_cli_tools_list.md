@@ -43,6 +43,21 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 
 内部实现：`jugglib.normalize_args()` 在解析前将 kebab-case 转为 camelCase，解析器只匹配 camelCase。转换规则为纯机械的 kebab→camelCase，无特例：`to_camel_case(flag) === MCP_key`。
 
+### 1.3 CLI 参数设计强制约束（1:1 透传原则）
+
+> **⚠️ AI 必读：新增或修改 CLI 参数时，必须遵守以下规则，违反即为错误设计。**
+
+**核心约束：CLI 参数与 MCP 参数必须严格 1:1 对应，CLI 不得创造 MCP 不存在的参数语义。**
+
+| 规则 | 正确做法 | 错误做法（禁止） |
+|------|----------|-----------------|
+| boolean 参数只有一个 flag | `--always-restart-app false`（带值透传） | `--no-always-restart-app`（CLI 自造反向 flag，MCP 无对应） |
+| flag 名 = MCP 参数名的 kebab-case | `--always-restart-app` → `alwaysRestartApp` | 自造与 MCP key 无法机械互转的别名 |
+| 默认值由 MCP 端决定，CLI 省略即不传 | 省略 `--always-restart-app` → MCP 用自身默认值 | CLI 硬编码默认值覆盖 MCP 默认值 |
+| 参数透传不做语义转换 | 值原样发给 MCP | CLI 把两个 flag 合并/拆分成不同的 MCP 参数 |
+
+**判断方法**：新增 CLI flag 后，检查 `jugglib.normalize_args()` + `build_params()` 的结果能否与 MCP 参数表完全对齐。若需要在 CLI 侧做任何"翻译"逻辑，即违反本约束。
+
 ---
 
 ## 2. 子命令列表与 CLI 参数
@@ -82,9 +97,13 @@ jugg compile [--json]
 
 #### `deploy`
 ```
-jugg deploy [--json]
+jugg deploy [--always-restart-app <true|false>] [--json]
 ```
 **行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Deploying...`。
+
+| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
+|-----------------------|----------------------------------|----------|------|
+| `--always-restart-app <true\|false>` | `--alwaysRestartApp <true\|false>` | `alwaysRestartApp` | 默认 `true`，部署后强制重启 App；传 `false` 允许 HOT RELOAD |
 
 ---
 

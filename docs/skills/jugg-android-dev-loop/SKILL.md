@@ -133,4 +133,3 @@ Supplementary references load on-demand at the step that needs them.
 |---|------|
 | 1 | Route by scenario first; do not mix flows |
 | 2 | Any source modification must pass compilation before task is done |
-| 3 | `deploy` invalidates all prior runtime state; rerun verification from scratch |

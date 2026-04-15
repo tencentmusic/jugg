@@ -16,7 +16,7 @@ interface IJuggConfigurationRunner {
 
     fun forceReInstallNextTime()
 
-    fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean = false): JuggRunInvocationResult
+    fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean = false, isAlwaysRestartApp: Boolean = false): JuggRunInvocationResult
 }
 
 /**

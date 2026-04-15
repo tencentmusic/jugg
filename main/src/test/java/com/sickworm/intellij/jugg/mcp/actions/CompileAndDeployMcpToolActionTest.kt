@@ -146,6 +146,48 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
+    fun testIsAlwaysRestartAppDefaultsTrue() {
+        var capturedIsAlwaysRestartApp: Boolean? = null
+        val runtime = runtimeWithRunnerCapturing { isAlwaysRestartApp ->
+            capturedIsAlwaysRestartApp = isAlwaysRestartApp
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            )
+        }
+
+        CompileAndDeployMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(true, capturedIsAlwaysRestartApp)
+    }
+
+    @Test
+    fun testIsAlwaysRestartAppFalseIsPassedThrough() {
+        var capturedIsAlwaysRestartApp: Boolean? = null
+        val runtime = runtimeWithRunnerCapturing { isAlwaysRestartApp ->
+            capturedIsAlwaysRestartApp = isAlwaysRestartApp
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            )
+        }
+
+        CompileAndDeployMcpToolAction().execute(mapOf("alwaysRestartApp" to false), runtime)
+
+        Assert.assertEquals(false, capturedIsAlwaysRestartApp)
+    }
+
+    @Test
     fun testCompileSuccessTurnsFailedWhenAppNeverGetsReady() {
         McpAppReadyGuard.postTimeoutOverrideForTest = 5L
         McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
@@ -223,7 +265,7 @@ class CompileAndDeployMcpToolActionTest {
                     throw UnsupportedOperationException("not used in this test")
                 }
 
-                override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean): JuggRunInvocationResult {
+                override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean): JuggRunInvocationResult {
                     return runFirstConfiguration()
                 }
             }
@@ -231,6 +273,55 @@ class CompileAndDeployMcpToolActionTest {
             override fun isAppReadyDeploy(): Boolean {
                 return isAppReadyProvider()
             }
+        }
+    }
+
+    private fun runtimeWithRunnerCapturing(
+        runFirstConfiguration: (isAlwaysRestartApp: Boolean) -> JuggRunInvocationResult,
+        isAppReadyProvider: () -> Boolean = { true },
+    ): IMcpRuntime {
+        return object : IMcpRuntime {
+            override val logger: com.intellij.openapi.diagnostic.Logger
+                get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
+            override val project: Project
+                get() = throw UnsupportedOperationException("not used in this test")
+
+            override val deployTargetManager: IDeployTargetManager
+                get() = throw UnsupportedOperationException("not used in this test")
+
+            override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
+                override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
+                    throw UnsupportedOperationException("not used in this test")
+                }
+
+                override fun executeGradleCompileBlocking(autoConfirm: Boolean, useCleanAndReinstall: Boolean): GradleCompileExecutionResult {
+                    throw UnsupportedOperationException("not used in this test")
+                }
+
+                override fun resolveExecutionType(): String = "local"
+
+                override fun requestRemoteSshInfo(requestedBy: String, reason: String): RemoteSshInfoResult {
+                    return RemoteSshInfoResult(approved = false, message = "not used in this test")
+                }
+            }
+
+            override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
+                override val isCompiling: Boolean = false
+
+                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
+                    throw UnsupportedOperationException("not used in this test")
+                }
+
+                override fun forceReInstallNextTime() {
+                    throw UnsupportedOperationException("not used in this test")
+                }
+
+                override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean): JuggRunInvocationResult {
+                    return runFirstConfiguration(isAlwaysRestartApp)
+                }
+            }
+
+            override fun isAppReadyDeploy(): Boolean = isAppReadyProvider()
         }
     }
 
