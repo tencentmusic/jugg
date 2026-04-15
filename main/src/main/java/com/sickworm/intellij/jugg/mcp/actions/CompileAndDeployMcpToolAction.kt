@@ -16,7 +16,7 @@ import java.nio.file.Files
  * CompileAndDeployMcpToolAction implements MCP tool `deploy` and converts request arguments into tool execution and MCP result payloads.
  */
 class CompileAndDeployMcpToolAction : McpToolAction {
-    override val toolName: String = "deploy"
+    override val toolName: String = McpToolActionRegistry.ToolNames.DEPLOY
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

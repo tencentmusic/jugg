@@ -19,7 +19,7 @@ import com.sickworm.intellij.jugg.platform.PlatformApi
  * expressions on a matched View element via reflective invocation on the app side.
  */
 class EvalViewMcpToolAction : McpToolAction {
-    override val toolName: String = "view-inspect"
+    override val toolName: String = McpToolActionRegistry.ToolNames.VIEW_INSPECT
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

@@ -20,7 +20,7 @@ import java.io.File
  * Strategy: prefer `logcat -b crash`, then fallback to `-b main` only when no crash signal is found.
  */
 class CrashReportMcpToolAction : McpToolAction {
-    override val toolName: String = "crash-report"
+    override val toolName: String = McpToolActionRegistry.ToolNames.CRASH_REPORT
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

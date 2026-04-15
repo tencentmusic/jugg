@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
 class RequestRemoteSshInfoMcpToolAction : McpToolAction {
-    override val toolName: String = "ssh-info"
+    override val toolName: String = McpToolActionRegistry.ToolNames.SSH_INFO
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

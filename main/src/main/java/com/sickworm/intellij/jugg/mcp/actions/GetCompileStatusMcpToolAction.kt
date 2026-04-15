@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
 class GetCompileStatusMcpToolAction : McpToolAction {
-    override val toolName: String = "get-compile-status"
+    override val toolName: String = McpToolActionRegistry.ToolNames.GET_COMPILE_STATUS
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

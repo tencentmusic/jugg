@@ -20,7 +20,7 @@ import kotlin.math.roundToInt
  * TapMcpToolAction implements MCP tool `tap` and supports tap, longPress and swipe actions.
  */
 class TapMcpToolAction : McpToolAction {
-    override val toolName: String = "tap"
+    override val toolName: String = McpToolActionRegistry.ToolNames.TAP
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

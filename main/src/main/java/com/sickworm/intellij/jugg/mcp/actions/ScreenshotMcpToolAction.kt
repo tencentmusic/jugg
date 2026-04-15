@@ -25,7 +25,7 @@ import javax.imageio.stream.FileImageOutputStream
  * ScreenshotMcpToolAction implements MCP tool `screenshot` and converts request arguments into tool execution and MCP result payloads.
  */
 class ScreenshotMcpToolAction : McpToolAction {
-    override val toolName: String = "screenshot"
+    override val toolName: String = McpToolActionRegistry.ToolNames.SCREENSHOT
     private val maxLongEdgePx = 1440
     private val jpegQuality = 0.62f
     private val forceOptimizeSizeBytes = 500_000L

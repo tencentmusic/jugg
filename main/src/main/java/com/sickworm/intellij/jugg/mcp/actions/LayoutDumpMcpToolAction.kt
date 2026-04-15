@@ -11,7 +11,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
  * Core logic lives in LayoutDumpHelper and is shared with FigmaLayoutVerifyMcpToolAction.
  */
 class LayoutDumpMcpToolAction : McpToolAction {
-    override val toolName: String = "layout-dump"
+    override val toolName: String = McpToolActionRegistry.ToolNames.LAYOUT_DUMP
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

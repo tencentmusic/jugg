@@ -31,7 +31,7 @@ import java.nio.charset.StandardCharsets
  * All numeric values (bounds, padding, spacing) are always in dp.
  */
 class LayoutVerifyMcpToolAction : McpToolAction {
-    override val toolName: String = "layout-verify"
+    override val toolName: String = McpToolActionRegistry.ToolNames.LAYOUT_VERIFY
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

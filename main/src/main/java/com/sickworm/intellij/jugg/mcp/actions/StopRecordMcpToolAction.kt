@@ -14,7 +14,7 @@ import java.io.File
  * StopRecordMcpToolAction stops a running record-start session and fetches the generated video artifact.
  */
 class StopRecordMcpToolAction : McpToolAction {
-    override val toolName: String = "record-stop"
+    override val toolName: String = McpToolActionRegistry.ToolNames.RECORD_STOP
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

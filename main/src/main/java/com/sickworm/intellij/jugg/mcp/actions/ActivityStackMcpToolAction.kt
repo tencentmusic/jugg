@@ -19,7 +19,7 @@ import java.io.File
  * ActivityStackMcpToolAction implements MCP tool `activity-stack` and converts request arguments into tool execution and MCP result payloads.
  */
 class ActivityStackMcpToolAction : McpToolAction {
-    override val toolName: String = "activity-stack"
+    override val toolName: String = McpToolActionRegistry.ToolNames.ACTIVITY_STACK
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

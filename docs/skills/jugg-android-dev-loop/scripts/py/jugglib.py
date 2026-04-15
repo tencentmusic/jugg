@@ -171,7 +171,7 @@ def match_project_dir(work_dir: str, projects: list[str]) -> str:
 def resolve_project_dir() -> str:
     """Call list_projects and resolve projectDir from $PWD."""
     port = resolve_port()
-    response = raw_call(port, "list_projects", {})
+    response = raw_call(port, "list-projects", {})
     structured = extract_structured(response)
     projects_list = structured.get("data", {}).get("projects", [])
     project_dirs = [p.get("projectDir", "") for p in projects_list]
@@ -257,7 +257,7 @@ def poll_compile(port: int, structured: dict) -> dict:
             print("ERROR: compile job has no jobId, cannot poll", file=sys.stderr)
             sys.exit(1)
 
-        response = raw_call(port, "get_compile_status", {"jobId": job_id})
+        response = raw_call(port, "get-compile-status", {"jobId": job_id})
         structured = extract_structured(response)
 
     return structured

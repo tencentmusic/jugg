@@ -12,7 +12,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
  * ForceGradleCompileMcpToolAction implements MCP tool `gradle-build` and converts request arguments into tool execution and MCP result payloads.
  */
 class ForceGradleCompileMcpToolAction : McpToolAction {
-    override val toolName: String = "gradle-build"
+    override val toolName: String = McpToolActionRegistry.ToolNames.GRADLE_BUILD
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

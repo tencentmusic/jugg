@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
  * CompileOnlyMcpToolAction implements MCP tool `compile` and converts request arguments into tool execution and MCP result payloads.
  */
 class CompileOnlyMcpToolAction : McpToolAction {
-    override val toolName: String = "compile"
+    override val toolName: String = McpToolActionRegistry.ToolNames.COMPILE
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

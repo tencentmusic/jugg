@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.loader.JuggInitializer
+import com.sickworm.intellij.jugg.mcp.actions.McpToolActionRegistry
 
 class IdeaMcpRuntime(
     override val logger: Logger,
@@ -25,7 +26,7 @@ class IdeaMcpRuntime(
             }
 
             val toolName = (request.params as? Map<*, *>)?.get("name") as? String
-            if (toolName == "list_projects") {
+            if (toolName == McpToolActionRegistry.ToolNames.LIST_PROJECTS) {
                 return McpBaseInvoker.mcpBaseInvoker.invokeMcp(request)
             }
 

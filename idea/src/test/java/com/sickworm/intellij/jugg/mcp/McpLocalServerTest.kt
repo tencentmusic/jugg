@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.mcp
 
 import com.google.gson.Gson
 import com.sickworm.intellij.jugg.ide.logic.IdeaPlatformApi
+import com.sickworm.intellij.jugg.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -97,22 +98,22 @@ class McpLocalServerTest {
                     nameElement.asString
                 }
             }
-            Assert.assertTrue(names.contains("list_projects"))
-            Assert.assertTrue(names.contains("restart_app"))
-            Assert.assertTrue(names.contains("compile_only"))
-            Assert.assertTrue(names.contains("compile_and_deploy"))
-            Assert.assertTrue(names.contains("clean_reinstall_apk"))
-            Assert.assertTrue(names.contains("force_gradle_compile"))
-            Assert.assertTrue(names.contains("get_compile_status"))
-            Assert.assertTrue(names.contains("request_remote_ssh_info"))
-            Assert.assertTrue(names.contains("device_list"))
-            Assert.assertTrue(names.contains("screenshot"))
-            Assert.assertTrue(names.contains("start_record"))
-            Assert.assertTrue(names.contains("stop_record"))
-            Assert.assertTrue(names.contains("layout_dump"))
-            Assert.assertTrue(names.contains("activity_stack"))
-            Assert.assertTrue(names.contains("crash_report"))
-            Assert.assertTrue(names.contains("tap"))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.LIST_PROJECTS))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.RESTART))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.COMPILE))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.DEPLOY))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.REINSTALL))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.GRADLE_BUILD))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.GET_COMPILE_STATUS))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.SSH_INFO))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.DEVICES))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.SCREENSHOT))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.RECORD_START))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.RECORD_STOP))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.LAYOUT_DUMP))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.ACTIVITY_STACK))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.CRASH_REPORT))
+            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.TAP))
         }
     }
 
@@ -151,7 +152,7 @@ class McpLocalServerTest {
               "id": 2,
               "method": "tools/call",
               "params": {
-                "name": "restart_app",
+                "name": "${McpToolActionRegistry.ToolNames.RESTART}",
                 "arguments": {}
               }
             }
@@ -177,6 +178,43 @@ class McpLocalServerTest {
                 Assert.assertEquals("ERROR", resultJson.get("status").asString)
                 Assert.assertEquals("MCP_INVALID_PARAMS", resultJson.get("errorCode").asString)
             }
+        }
+    }
+
+    /**
+     * Verifies that list-projects does NOT require projectDir and returns OK,
+     * ensuring the whitelist in IdeaMcpRuntime bypasses the projectDir guard correctly.
+     */
+    @Test
+    fun testListProjectsNoProjectDirRequired() {
+        McpLocalServer.start()
+        doInitialize()
+        val requestJson = """
+            {
+              "jsonrpc": "2.0",
+              "id": 3,
+              "method": "tools/call",
+              "params": {
+                "name": "${McpToolActionRegistry.ToolNames.LIST_PROJECTS}",
+                "arguments": {}
+              }
+            }
+        """.trimIndent()
+
+        val request = Request.Builder()
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
+            .post(requestJson.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            Assert.assertEquals(200, response.code)
+            val responseBody = response.body?.string().orEmpty()
+            val rpcResponse = gson.fromJson(responseBody, McpJsonRpcResponse::class.java)
+            Assert.assertNull(rpcResponse.error)
+            val resultJson = gson.toJsonTree(rpcResponse.result).asJsonObject
+            val structured = resultJson.getAsJsonObject("structuredContent")
+            // list-projects must succeed without projectDir (whitelist bypass)
+            Assert.assertEquals("OK", structured.get("status").asString)
         }
     }
 

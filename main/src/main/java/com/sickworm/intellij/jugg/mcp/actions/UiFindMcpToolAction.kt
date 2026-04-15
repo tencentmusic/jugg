@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.mcp.layout.model.FigmaNode
 import java.io.File
 
 class UiFindMcpToolAction : McpToolAction {
-    override val toolName: String = "view-locate"
+    override val toolName: String = McpToolActionRegistry.ToolNames.VIEW_LOCATE
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,

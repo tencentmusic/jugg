@@ -15,7 +15,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
  * RestartAppMcpToolAction implements MCP tool `restart` and converts request arguments into tool execution and MCP result payloads.
  */
 class RestartAppMcpToolAction : McpToolAction {
-    override val toolName: String = "restart"
+    override val toolName: String = McpToolActionRegistry.ToolNames.RESTART
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
