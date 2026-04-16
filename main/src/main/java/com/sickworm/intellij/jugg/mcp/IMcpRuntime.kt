@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.mcp
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
+import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
@@ -21,6 +22,14 @@ interface IMcpRuntime {
         get() = null
     val forceGradleCompileHelper: ForceGradleCompileHelper
     val juggConfigurationRunner: IJuggConfigurationRunner
+
+    /**
+     * Checks at status-query time whether incremental compile would fall back to Gradle.
+     * Returns the fallback reason when fallback is required, or null when incremental compile
+     * can proceed.  Defaults to null for runtimes that do not provide this check.
+     */
+    val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker?
+        get() = null
 
     /**
      * Returns whether app process/deploy state is currently ready for runtime tools.

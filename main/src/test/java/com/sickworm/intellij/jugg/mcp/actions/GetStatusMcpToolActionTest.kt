@@ -14,11 +14,10 @@ import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
+import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
-import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert
 import org.junit.Rule
@@ -211,10 +210,62 @@ class GetStatusMcpToolActionTest {
         Assert.assertNotNull(data["stateMessage"])
     }
 
+    @Test
+    fun testStatusNeedFallbackTrueWhenCheckerReturnsReason() {
+        val deployState = JuggDeployState.READY
+        val checker = IIncrementalCompileFallbackChecker { "Build file changed: build.gradle" }
+        val runtime = runtimeWith(deployState = deployState, hasDevice = true, uncompiledFiles = emptyList(), fallbackChecker = checker)
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["needFallback"])
+    }
+
+    @Test
+    fun testStatusFallbackReasonPrependedToDetail() {
+        val deployState = JuggDeployState.READY
+        val checker = IIncrementalCompileFallbackChecker { "Build file changed: build.gradle" }
+        val runtime = runtimeWith(deployState = deployState, hasDevice = true, uncompiledFiles = emptyList(), fallbackChecker = checker)
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        val detail = data["detail"] as String
+        Assert.assertTrue(
+            "detail should start with fallback reason",
+            detail.startsWith("Build file changed: build.gradle"),
+        )
+    }
+
+    @Test
+    fun testStatusFallbackReasonPrependedBeforeTruncationNote() {
+        val projectDir = tempFolder.newFolder("project4")
+        val module = ModuleInfo.virtualModule
+        val uncompiledFiles = (1..25).map { i ->
+            val f = File(projectDir, "File$i.java")
+            ChangedFile(CompileFile.Type.Java, f, projectDir, module)
+        }
+        val checker = IIncrementalCompileFallbackChecker { "Too many changes" }
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = uncompiledFiles, fallbackChecker = checker)
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        val detail = data["detail"] as String
+        Assert.assertTrue("detail should start with fallback reason", detail.startsWith("Too many changes"))
+        Assert.assertTrue("detail should also include truncation note", detail.contains("20") && detail.contains("25"))
+    }
+
     private fun runtimeWith(
         deployState: JuggDeployState,
         hasDevice: Boolean,
         uncompiledFiles: List<ChangedFile>,
+        fallbackChecker: IIncrementalCompileFallbackChecker? = null,
     ): IMcpRuntime {
         val deployStateManager = object : IDeployStateManager {
             override fun updateDeployState(): JuggDeployState = deployState
@@ -249,6 +300,7 @@ class GetStatusMcpToolActionTest {
                 override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean): JuggRunInvocationResult =
                     throw UnsupportedOperationException("not used in this test")
             }
+            override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker? = fallbackChecker
         }
     }
 }

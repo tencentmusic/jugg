@@ -45,7 +45,7 @@ class JuggCompilerHelper(
     gitFileChangesDetector: GitFileChangesDetector,
     taskRunnerManager: TaskRunnerManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
-): Disposable {
+): Disposable, IIncrementalCompileFallbackChecker {
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
     }
@@ -70,6 +70,23 @@ class JuggCompilerHelper(
     )
 
     private val gitChangeChecker = GitChangesCompileChecker(gitFileChangesDetector, deployFileManager, taskRunnerManager, logger)
+
+    /**
+     * Checks whether incremental compile would fall back to Gradle at query time, without
+     * performing any compile operations or triggering git scans.
+     *
+     * Returns the fallback reason when fallback is required, or null when incremental compile
+     * can proceed.
+     */
+    override fun checkFallback(): String? {
+        checkDeviceFallback()?.let { return it.failedReason }
+        checkFilesFallback(deployFileManager.getUncompiledFiles())?.let { return it.failedReason }
+        val deployState = deployStateManager.updateDeployState()
+        if (!deployState.isReadyIncCompile) {
+            return deployState.msg
+        }
+        return null
+    }
 
     @Synchronized
     fun compile(

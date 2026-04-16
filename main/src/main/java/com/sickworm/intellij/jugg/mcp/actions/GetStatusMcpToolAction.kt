@@ -76,6 +76,9 @@ class GetStatusMcpToolAction : McpToolAction {
         val deployFileManager = runtime.deployFileManager
             ?: return McpToolResult.internalErrorResult(toolName, "deploy file manager is unavailable")
 
+        val fallbackReason: String? = runtime.incrementalCompileFallbackChecker?.checkFallback()
+        val needFallback = fallbackReason != null || deployState.state == JuggDeployState.State.READY_FULL_COMPILE
+
         val uncompiledFiles: List<ChangedFile> = deployFileManager.getUncompiledFiles()
 
         val countsByType = uncompiledFiles
@@ -89,15 +92,20 @@ class GetStatusMcpToolAction : McpToolAction {
         val files: List<String> = uncompiledFiles
             .take(MAX_FILE_PATHS)
             .map { it.file.absolutePath }
-        val detail: String = if (total > MAX_FILE_PATHS) {
+        val truncationNote: String = if (total > MAX_FILE_PATHS) {
             "Showing $MAX_FILE_PATHS of $total files. ${total - MAX_FILE_PATHS} more files are not listed."
         } else {
             ""
         }
+        val detail: String = when {
+            fallbackReason != null && truncationNote.isNotEmpty() -> "$fallbackReason\n$truncationNote"
+            fallbackReason != null -> fallbackReason
+            else -> truncationNote
+        }
 
         val data: Map<String, Any> = mapOf(
-            "hasDevice" to (runtime.deployTargetManager?.hasDevice ?: false),
-            "needFallback" to (deployState.state == JuggDeployState.State.READY_FULL_COMPILE),
+            "hasDevice" to (runtime.deployTargetManager.hasDevice),
+            "needFallback" to needFallback,
             "stateMessage" to deployState.msg,
             "fileCounts" to fileCounts,
             "files" to files,
