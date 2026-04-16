@@ -31,6 +31,7 @@ class McpToolActionRegistry(
         const val ACTIVITY_STACK = "activity-stack"
         const val CRASH_REPORT = "crash-report"
         const val TAP = "tap"
+        const val GET_STATUS = "status"
     }
 
     private val actionByName: Map<String, McpToolAction> = actions.associateBy { it.toolName }
@@ -67,6 +68,7 @@ class McpToolActionRegistry(
                 ActivityStackMcpToolAction(),
                 CrashReportMcpToolAction(),
                 TapMcpToolAction(),
+                GetStatusMcpToolAction(),
             )
         }
     }

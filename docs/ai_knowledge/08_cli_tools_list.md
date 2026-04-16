@@ -70,6 +70,7 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 | `gradle-build` | `gradle-build` | Gradle 构建（自动轮询） |
 | `clean-reinstall` | `clean-reinstall` | 清数据并重装 APK |
 | `restart` | `restart` | 重启 App |
+| `status` | `status` | 查看当前部署状态与未编译文件摘要 |
 | `layout-dump` | `layout-dump` | 导出 UI 层级 HTML |
 | `view-locate` | `view-locate` | 查找元素位置 |
 | `view-inspect` | `view-inspect` | 反射查询 View 属性 |
@@ -207,6 +208,13 @@ jugg devices [--json]
 #### `activity-stack`
 ```
 jugg activity-stack [--json]
+```
+
+---
+
+#### `status`
+```
+jugg status [--json]
 ```
 
 ---

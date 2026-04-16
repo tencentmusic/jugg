@@ -32,7 +32,7 @@
 
 ## 3. MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
 
-共 **16 个**注册工具，按注册顺序排列。
+共 **17 个**注册工具，按注册顺序排列。
 
 ### 3.1 `list-projects`
 
@@ -278,6 +278,23 @@
 - 执行前检查 `topActivity` 稳定性（连续 2 次相同且 onResume，最长等待 5s）。
 - 百分比换算结果做边界钳制 `[0, size-1]`。
 - 推荐交互顺序：`layout-dump + element tap` → `layout-dump + coordinate tap` → `screenshot + percent/coordinate tap`。
+
+---
+
+### 3.19 `status`
+
+查询当前 Jugg 部署状态与未编译文件摘要。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `projectDir` | string | **是** | 项目绝对路径 |
+
+**返回 data**：
+- `state`：`JuggDeployState.State` 名称（`NOTHING_CAN_DO` / `GRADLE_BUILDING` / `READY_FULL_COMPILE` / `READY_INCREMENTAL_COMPILE` / `READY_DEPLOY`）
+- `stateMessage`：当前状态的可读原因
+- `fileCounts`：`{ total: number, <Type>: number, ... }`，按 `CompileFile.Type` 分类统计未编译文件数量
+- `files`：未编译文件绝对路径列表，**最多 20 个**
+- `detail`：未截断时为空字符串；截断时为自然语言描述，如 `"Showing 20 of 25 files. 5 more files are not listed."`
 
 ---
 

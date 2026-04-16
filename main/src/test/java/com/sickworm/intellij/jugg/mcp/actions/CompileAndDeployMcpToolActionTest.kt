@@ -148,7 +148,7 @@ class CompileAndDeployMcpToolActionTest {
     @Test
     fun testIsAlwaysRestartAppDefaultsTrue() {
         var capturedIsAlwaysRestartApp: Boolean? = null
-        val runtime = runtimeWithRunnerCapturing { isAlwaysRestartApp ->
+        val runtime = runtimeWithRunnerCapturing(runFirstConfiguration = { isAlwaysRestartApp ->
             capturedIsAlwaysRestartApp = isAlwaysRestartApp
             JuggRunInvocationResult(
                 isSuccess = true,
@@ -159,7 +159,7 @@ class CompileAndDeployMcpToolActionTest {
                     isCancel = false,
                 ),
             )
-        }
+        })
 
         CompileAndDeployMcpToolAction().execute(emptyMap(), runtime)
 
@@ -169,7 +169,7 @@ class CompileAndDeployMcpToolActionTest {
     @Test
     fun testIsAlwaysRestartAppFalseIsPassedThrough() {
         var capturedIsAlwaysRestartApp: Boolean? = null
-        val runtime = runtimeWithRunnerCapturing { isAlwaysRestartApp ->
+        val runtime = runtimeWithRunnerCapturing(runFirstConfiguration = { isAlwaysRestartApp ->
             capturedIsAlwaysRestartApp = isAlwaysRestartApp
             JuggRunInvocationResult(
                 isSuccess = true,
@@ -180,7 +180,7 @@ class CompileAndDeployMcpToolActionTest {
                     isCancel = false,
                 ),
             )
-        }
+        })
 
         CompileAndDeployMcpToolAction().execute(mapOf("alwaysRestartApp" to false), runtime)
 

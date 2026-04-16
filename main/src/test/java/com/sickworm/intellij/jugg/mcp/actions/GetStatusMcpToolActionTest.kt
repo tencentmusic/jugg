@@ -1,0 +1,194 @@
+package com.sickworm.intellij.jugg.mcp.actions
+
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
+import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
+import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.IDeployStateManager
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
+import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
+import com.sickworm.intellij.jugg.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import org.junit.Assert
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.mockito.Mockito
+import java.io.File
+
+/**
+ * GetStatusMcpToolActionTest verifies status tool returns deploy state, file counts, and file path list with detail.
+ */
+class GetStatusMcpToolActionTest {
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    @Test
+    fun testStatusReturnsDeployStateAndEmptyFilesWhenNoChanges() {
+        val deployState = JuggDeployState.READY
+        val runtime = runtimeWith(deployState = deployState, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("READY_DEPLOY", data["state"])
+        @Suppress("UNCHECKED_CAST")
+        val fileCounts = data["fileCounts"] as Map<String, Any>
+        Assert.assertEquals(0, (fileCounts["total"] as Number).toInt())
+        @Suppress("UNCHECKED_CAST")
+        val files = data["files"] as List<*>
+        Assert.assertTrue(files.isEmpty())
+        Assert.assertEquals("", data["detail"])
+    }
+
+    @Test
+    fun testStatusReturnsCorrectCountsByType() {
+        val projectDir = tempFolder.newFolder("project")
+        val javaFile1 = tempFolder.newFile("A.java")
+        val javaFile2 = tempFolder.newFile("B.java")
+        val kotlinFile = tempFolder.newFile("C.kt")
+        val resourceFile = tempFolder.newFile("D.xml")
+
+        val module = ModuleInfo.virtualModule
+        val uncompiledFiles = listOf(
+            ChangedFile(CompileFile.Type.Java, javaFile1, projectDir, module),
+            ChangedFile(CompileFile.Type.Java, javaFile2, projectDir, module),
+            ChangedFile(CompileFile.Type.Kotlin, kotlinFile, projectDir, module),
+            ChangedFile(CompileFile.Type.Resource, resourceFile, projectDir, module),
+        )
+
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, uncompiledFiles = uncompiledFiles)
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val fileCounts = data["fileCounts"] as Map<String, Any>
+        Assert.assertEquals(4, (fileCounts["total"] as Number).toInt())
+        Assert.assertEquals(2, (fileCounts["Java"] as Number).toInt())
+        Assert.assertEquals(1, (fileCounts["Kotlin"] as Number).toInt())
+        Assert.assertEquals(1, (fileCounts["Resource"] as Number).toInt())
+        @Suppress("UNCHECKED_CAST")
+        val files = data["files"] as List<*>
+        Assert.assertEquals(4, files.size)
+        Assert.assertEquals("", data["detail"])
+    }
+
+    @Test
+    fun testStatusTruncatesFilesWhenExceedsTwenty() {
+        val projectDir = tempFolder.newFolder("project2")
+        val module = ModuleInfo.virtualModule
+        val uncompiledFiles = (1..25).map { i ->
+            val f = File(projectDir, "File$i.java")
+            ChangedFile(CompileFile.Type.Java, f, projectDir, module)
+        }
+
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, uncompiledFiles = uncompiledFiles)
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val fileCounts = data["fileCounts"] as Map<String, Any>
+        Assert.assertEquals(25, (fileCounts["total"] as Number).toInt())
+        @Suppress("UNCHECKED_CAST")
+        val files = data["files"] as List<*>
+        Assert.assertEquals(20, files.size)
+        val detail = data["detail"] as String
+        Assert.assertTrue("detail should mention 20 and 25", detail.contains("20") && detail.contains("25"))
+    }
+
+    @Test
+    fun testStatusReturnsAbsolutePaths() {
+        val projectDir = tempFolder.newFolder("project3")
+        val javaFile = tempFolder.newFile("Main.java")
+        val module = ModuleInfo.virtualModule
+        val uncompiledFiles = listOf(
+            ChangedFile(CompileFile.Type.Java, javaFile, projectDir, module),
+        )
+
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, uncompiledFiles = uncompiledFiles)
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val files = data["files"] as List<String>
+        Assert.assertEquals(1, files.size)
+        Assert.assertTrue("path should be absolute", files[0].startsWith("/"))
+        Assert.assertEquals(javaFile.absolutePath, files[0])
+    }
+
+    @Test
+    fun testStatusReturnsNothingCanDoState() {
+        val deployState = JuggDeployState(
+            JuggDeployState.State.NOTHING_CAN_DO,
+            "no device",
+            IdeDeployState.ok,
+        )
+        val runtime = runtimeWith(deployState = deployState, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("NOTHING_CAN_DO", data["state"])
+        Assert.assertNotNull(data["stateMessage"])
+    }
+
+    private fun runtimeWith(deployState: JuggDeployState, uncompiledFiles: List<ChangedFile>): IMcpRuntime {
+        val deployStateManager = object : IDeployStateManager {
+            override fun updateDeployState(): JuggDeployState = deployState
+        }
+        val mockDeployFileManager = Mockito.mock(DeployFileManager::class.java)
+        Mockito.`when`(mockDeployFileManager.getUncompiledFiles()).thenReturn(uncompiledFiles)
+
+        return object : IMcpRuntime {
+            override val logger: Logger
+                get() = Logger.getInstance("TestMcpRuntime")
+            override val project: Project
+                get() = throw UnsupportedOperationException("not used in this test")
+            override val deployTargetManager: IDeployTargetManager
+                get() = throw UnsupportedOperationException("not used in this test")
+            override val deployStateManager: IDeployStateManager = deployStateManager
+            override val deployFileManager: DeployFileManager = mockDeployFileManager
+            override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
+                override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) =
+                    throw UnsupportedOperationException("not used in this test")
+                override fun executeGradleCompileBlocking(autoConfirm: Boolean, useCleanAndReinstall: Boolean): GradleCompileExecutionResult =
+                    throw UnsupportedOperationException("not used in this test")
+                override fun resolveExecutionType(): String = "local"
+                override fun requestRemoteSshInfo(requestedBy: String, reason: String): RemoteSshInfoResult =
+                    RemoteSshInfoResult(approved = false, message = "not used in this test")
+            }
+            override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
+                override val isCompiling: Boolean = false
+                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: com.sickworm.intellij.jugg.compiler.CompileUiHandler): com.intellij.execution.ExecutionResult =
+                    throw UnsupportedOperationException("not used in this test")
+                override fun forceReInstallNextTime() = throw UnsupportedOperationException("not used in this test")
+                override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean): JuggRunInvocationResult =
+                    throw UnsupportedOperationException("not used in this test")
+            }
+        }
+    }
+}

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.mcp
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
@@ -16,6 +17,7 @@ class IdeaMcpRuntime(
     override val deployStateManager: IDeployStateManager,
     override val forceGradleCompileHelper: ForceGradleCompileHelper,
     override val juggConfigurationRunner: IJuggConfigurationRunner,
+    override val deployFileManager: DeployFileManager,
 ) : IMcpRuntime {
 
     companion object {
