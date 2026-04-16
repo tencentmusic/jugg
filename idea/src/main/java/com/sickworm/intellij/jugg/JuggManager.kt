@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
+import com.sickworm.intellij.jugg.ide.ui.InstallMcpAndSkillsDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -482,6 +483,10 @@ class JuggManager @TestOnly constructor(
             deployHistoryManager, deployTargetManager, dependencyChangeManager,
             juggCompilerHelper, juggServer, juggHotUpdateDownloader, logger,
         ).createOptions(options)
+    }
+
+    override fun installSkills() {
+        InstallMcpAndSkillsDialog.installJuggMcpAndSkills(project, pathManager.projectDir, taskRunnerManager, logger)
     }
 
     override fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent {

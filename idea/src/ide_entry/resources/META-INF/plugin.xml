@@ -82,5 +82,12 @@
                 icon="/res/icons/run_configuration.svg"
         >
         </action>
+
+        <action id="jugg.InstallSkillAction"
+                class="com.sickworm.intellij.jugg.ide.ui.InstallSkillAction"
+                text="Install Jugg Skills"
+                description="Install Jugg skills for AI clients (Codex / Claude Code / Gemini)"
+        >
+        </action>
     </actions>
 </idea-plugin>

@@ -29,4 +29,6 @@ interface IJuggManagerCaller: Disposable {
     fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent
 
     fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse
+
+    fun installSkills()
 }

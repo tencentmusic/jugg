@@ -136,7 +136,7 @@ class MoreOptionsManager(
         createSplitLine("Tools")
 
         createOption(
-            name = "Install Jugg MCP and skills",
+            name = "Install Jugg Skills",
             onSet = { installJuggMcpAndSkills() }
         )
 
@@ -353,26 +353,8 @@ class MoreOptionsManager(
         }
     }
 
-    private fun installJuggMcpAndSkills() {
-        val selectedClients = InstallMcpAndSkillsDialog.showAndGetResult(juggManager.project, pathManager.projectDir)
-        if (selectedClients.isEmpty()) {
-            return
-        }
-        taskRunnerManager.runTaskSafe("Install Jugg MCP and skills", {
-            val summary = JuggSkillInstaller.install(pathManager.projectDir, selectedClients, logger)
-            val title: String
-            val balloonMessage: String
-            if (summary.isAllSuccess) {
-                title = "Install Completed"
-                balloonMessage = "Jugg MCP and skills installed successfully."
-            } else {
-                title = "Install Completed with Issues"
-                balloonMessage = "Jugg MCP and skills installation finished with issues."
-            }
-            JuggRunningTask.notifyByBalloon(juggManager.project, balloonMessage)
-            ApplicationManager.getApplication().invokeLater {
-                Messages.showInfoMessage(juggManager.project, summary.toDisplayText(), title)
-            }
-        }, isNeedShowIndicator = true, isBlockIncrementalCompile = false)
+    fun installJuggMcpAndSkills() {
+        InstallMcpAndSkillsDialog.installJuggMcpAndSkills(
+            juggManager.project, pathManager.projectDir, taskRunnerManager, logger)
     }
 }
