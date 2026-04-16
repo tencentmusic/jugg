@@ -290,7 +290,8 @@
 | `projectDir` | string | **是** | 项目绝对路径 |
 
 **返回 data**：
-- `state`：`JuggDeployState.State` 名称（`NOTHING_CAN_DO` / `GRADLE_BUILDING` / `READY_FULL_COMPILE` / `READY_INCREMENTAL_COMPILE` / `READY_DEPLOY`）
+- `hasDevice`：boolean，设备已连接时为 `true`
+- `needFallback`：boolean，需要 Gradle 全量构建时为 `true`
 - `stateMessage`：当前状态的可读原因
 - `fileCounts`：`{ total: number, <Type>: number, ... }`，按 `CompileFile.Type` 分类统计未编译文件数量
 - `files`：未编译文件绝对路径列表，**最多 20 个**
@@ -300,15 +301,18 @@
 
 ## 4. 未注册但存在的 MCP Action
 
-以下 Action 在代码中有实现但**未注册**到默认工具列表：
+以下 Action 在代码中有实现但处于精简考虑，**未注册**到工具列表，外部无法使用：
 
 | Action 文件 | 说明 |
 |-------------|------|
 | `EmulatorListMcpToolAction.kt` | 模拟器列表 |
 | `FigmaLayoutVerifyMcpToolAction.kt` | Figma 布局验证 |
+| `ScreenshotMcpToolAction.kt` | 截图（`screenshot`） |
 | `StartActivityMcpToolAction.kt` | 启动 Activity |
 | `StartAppMcpToolAction.kt` | 启动 App |
 | `StartEmulatorMcpToolAction.kt` | 启动模拟器 |
+| `StartRecordMcpToolAction.kt` | 开始录屏（`record-start`） |
+| `StopRecordMcpToolAction.kt` | 停止录屏（`record-stop`） |
 
 ---
 

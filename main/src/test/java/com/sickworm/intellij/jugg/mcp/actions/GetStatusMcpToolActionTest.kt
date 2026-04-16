@@ -38,14 +38,15 @@ class GetStatusMcpToolActionTest {
     @Test
     fun testStatusReturnsDeployStateAndEmptyFilesWhenNoChanges() {
         val deployState = JuggDeployState.READY
-        val runtime = runtimeWith(deployState = deployState, uncompiledFiles = emptyList())
+        val runtime = runtimeWith(deployState = deployState, hasDevice = true, uncompiledFiles = emptyList())
 
         val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
-        Assert.assertEquals("READY_DEPLOY", data["state"])
+        Assert.assertEquals(true, data["hasDevice"])
+        Assert.assertEquals(false, data["needFallback"])
         @Suppress("UNCHECKED_CAST")
         val fileCounts = data["fileCounts"] as Map<String, Any>
         Assert.assertEquals(0, (fileCounts["total"] as Number).toInt())
@@ -53,6 +54,60 @@ class GetStatusMcpToolActionTest {
         val files = data["files"] as List<*>
         Assert.assertTrue(files.isEmpty())
         Assert.assertEquals("", data["detail"])
+    }
+
+    @Test
+    fun testStatusHasDeviceFalseWhenNoDeviceConnected() {
+        val deployState = JuggDeployState(
+            JuggDeployState.State.NOTHING_CAN_DO,
+            "no device",
+            IdeDeployState.ok,
+        )
+        val runtime = runtimeWith(deployState = deployState, hasDevice = false, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(false, data["hasDevice"])
+        Assert.assertEquals(false, data["needFallback"])
+    }
+
+    @Test
+    fun testStatusNeedFallbackTrueWhenReadyFullCompile() {
+        val deployState = JuggDeployState(
+            JuggDeployState.State.READY_FULL_COMPILE,
+            "need full compile",
+            IdeDeployState.ok,
+        )
+        val runtime = runtimeWith(deployState = deployState, hasDevice = true, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["hasDevice"])
+        Assert.assertEquals(true, data["needFallback"])
+    }
+
+    @Test
+    fun testStatusNeedFallbackFalseWhenReadyIncrementalCompile() {
+        val deployState = JuggDeployState(
+            JuggDeployState.State.READY_INCREMENTAL_COMPILE,
+            "ready for incremental compile",
+            IdeDeployState.ok,
+        )
+        val runtime = runtimeWith(deployState = deployState, hasDevice = true, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["hasDevice"])
+        Assert.assertEquals(false, data["needFallback"])
     }
 
     @Test
@@ -71,7 +126,7 @@ class GetStatusMcpToolActionTest {
             ChangedFile(CompileFile.Type.Resource, resourceFile, projectDir, module),
         )
 
-        val runtime = runtimeWith(deployState = JuggDeployState.READY, uncompiledFiles = uncompiledFiles)
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = uncompiledFiles)
 
         val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
 
@@ -99,7 +154,7 @@ class GetStatusMcpToolActionTest {
             ChangedFile(CompileFile.Type.Java, f, projectDir, module)
         }
 
-        val runtime = runtimeWith(deployState = JuggDeployState.READY, uncompiledFiles = uncompiledFiles)
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = uncompiledFiles)
 
         val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
 
@@ -125,7 +180,7 @@ class GetStatusMcpToolActionTest {
             ChangedFile(CompileFile.Type.Java, javaFile, projectDir, module),
         )
 
-        val runtime = runtimeWith(deployState = JuggDeployState.READY, uncompiledFiles = uncompiledFiles)
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = uncompiledFiles)
 
         val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
 
@@ -145,31 +200,36 @@ class GetStatusMcpToolActionTest {
             "no device",
             IdeDeployState.ok,
         )
-        val runtime = runtimeWith(deployState = deployState, uncompiledFiles = emptyList())
+        val runtime = runtimeWith(deployState = deployState, hasDevice = false, uncompiledFiles = emptyList())
 
         val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
-        Assert.assertEquals("NOTHING_CAN_DO", data["state"])
+        Assert.assertEquals(false, data["hasDevice"])
         Assert.assertNotNull(data["stateMessage"])
     }
 
-    private fun runtimeWith(deployState: JuggDeployState, uncompiledFiles: List<ChangedFile>): IMcpRuntime {
+    private fun runtimeWith(
+        deployState: JuggDeployState,
+        hasDevice: Boolean,
+        uncompiledFiles: List<ChangedFile>,
+    ): IMcpRuntime {
         val deployStateManager = object : IDeployStateManager {
             override fun updateDeployState(): JuggDeployState = deployState
         }
         val mockDeployFileManager = Mockito.mock(DeployFileManager::class.java)
         Mockito.`when`(mockDeployFileManager.getUncompiledFiles()).thenReturn(uncompiledFiles)
+        val mockDeployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(mockDeployTargetManager.hasDevice).thenReturn(hasDevice)
 
         return object : IMcpRuntime {
             override val logger: Logger
                 get() = Logger.getInstance("TestMcpRuntime")
             override val project: Project
                 get() = throw UnsupportedOperationException("not used in this test")
-            override val deployTargetManager: IDeployTargetManager
-                get() = throw UnsupportedOperationException("not used in this test")
+            override val deployTargetManager: IDeployTargetManager = mockDeployTargetManager
             override val deployStateManager: IDeployStateManager = deployStateManager
             override val deployFileManager: DeployFileManager = mockDeployFileManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {

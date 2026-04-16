@@ -1,4 +1,4 @@
-"""cmd_ssh_info — request remote SSH troubleshooting info."""
+"""cmd_ssh_info — request remote SSH troubleshooting info when enable remote compile."""
 
 import sys
 import os

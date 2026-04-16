@@ -4,5 +4,5 @@ REM Place this in PATH or call directly: jugg.cmd compile --json
 
 setlocal
 set "SCRIPT_DIR=%~dp0"
-python "%SCRIPT_DIR%jugg.py" %*
+python3 "%SCRIPT_DIR%jugg.py" %*
 endlocal

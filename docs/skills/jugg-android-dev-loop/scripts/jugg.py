@@ -15,7 +15,6 @@ USAGE = """\
 Usage: jugg <subcommand> [options]
 
 Subcommands:
-  crash-report        Collect latest app crash report
   compile             Compile modified sources (no deploy)
   deploy              Compile and deploy to device (waits for completion)
   gradle-build        Force Gradle build (waits for completion)
@@ -28,7 +27,8 @@ Subcommands:
   tap                 Perform tap/long-press/swipe on device
   devices             List connected devices
   activity-stack      Show current Activity stack
-  ssh-info            Request remote SSH troubleshooting info
+  crash-report        Collect latest app crash report
+  ssh-info            Request remote SSH troubleshooting info when enable remote compile
 
 Run 'jugg <subcommand> --help' for subcommand options.
 """

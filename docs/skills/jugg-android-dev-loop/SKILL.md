@@ -55,13 +55,8 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
 python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
 python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
-python3 {SKILL_DIR}/scripts/jugg.py crash-report         # collect latest crash report
+python3 {SKILL_DIR}/scripts/jugg.py crash-report         # collect latest android device crash log
 ```
-
-`crash-report` key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
-- `hasCrash=true` → read `crashLogs` for stack trace.
-- `hasCrash=false` + `isProcessAlive=true` → no crash, skip crash path.
-- `hasCrash=false` + `isProcessAlive=false` → process died without crash log; check `adb logcat`.
 
 ### Build Fallback Chain
 
@@ -77,7 +72,7 @@ On compile/deploy failure, follow this order:
 
 ### Advanced Commands
 
-For commands with complex parameters (tap, view-locate, view-inspect, layout-dump, screenshot, recording, ssh-info) → see `cli_manual.md`.
+For commands with complex parameters (tap, view-locate, view-inspect, layout-dump, ssh-info) → see `cli_manual.md`.
 
 **Flag naming**: all flags accept both kebab-case (e.g. `--resource-id`) and camelCase (e.g. `--resourceId`). camelCase = the MCP parameter name. Examples in `cli_manual.md` use kebab-case.
 

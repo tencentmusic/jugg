@@ -8,10 +8,10 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 
 ```yaml
 - id: PROJECT_NOT_INITIALIZED
-  stage: compile
+  stage: compile|deploy|runtime|observe
   signature: {includes: ["PROJECT_NOT_INITIALIZED"]}
-  diagnosis: project not initialized in IDE/Jugg runtime
-  fix_strategy: open_project_and_wait_init
+  diagnosis: project not opened in IDE/Jugg runtime
+  fix_strategy: ask_user_open_project
   fix_scope: low
   confidence_hint: 0.98
   auto_apply: false
@@ -59,15 +59,6 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
   fix_strategy: extract_top_stack_and_patch
   fix_scope: medium
   confidence_hint: 0.80
-  auto_apply: false
-
-- id: ide_port_drift_multi_studio
-  stage: compile
-  signature: {includes: ["PROJECT_NOT_INITIALIZED", "list_projects", "project not found"]}
-  diagnosis: multiple IDE instances cause port/project context drift
-  fix_strategy: verify_single_target_ide_and_port_binding
-  fix_scope: low
-  confidence_hint: 0.92
   auto_apply: false
 
 - id: incremental_annotation_not_effective

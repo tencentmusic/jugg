@@ -119,7 +119,7 @@ Output: HTML file with full UI hierarchy.
 | Command | Purpose |
 |---------|---------|
 | `devices` | List connected devices |
-| `crash-report` | Collect latest crash report |
+| `crash-report` | Collect latest android device crash log |
 | `ssh-info` | Remote troubleshooting info (**requires user consent**) |
 
 ### `crash-report`

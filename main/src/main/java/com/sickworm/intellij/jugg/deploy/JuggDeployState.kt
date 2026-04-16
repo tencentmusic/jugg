@@ -17,13 +17,6 @@ data class JuggDeployState(
     val ideDeployState: IdeDeployState,
 ) {
 
-    val isGradleBuilding: Boolean get() = state == State.GRADLE_BUILDING
-
-    /**
-     * We can do assemble app and launch if it's true.
-     */
-    val isReadyRunFullBuild: Boolean get() = state > State.GRADLE_BUILDING
-
     /**
      * We can do incremental compile if it's true.
      */
@@ -51,7 +44,6 @@ data class JuggDeployState(
      */
     enum class State {
         NOTHING_CAN_DO,
-        GRADLE_BUILDING,
         READY_FULL_COMPILE,
         READY_INCREMENTAL_COMPILE,
         READY_DEPLOY,

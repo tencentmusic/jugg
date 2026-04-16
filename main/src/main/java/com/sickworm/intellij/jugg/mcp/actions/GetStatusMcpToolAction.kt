@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mcp.actions
 
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
@@ -33,9 +34,13 @@ class GetStatusMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "state" to McpJsonSchemaProperty(
-                            type = "string",
-                            description = "JuggDeployState.State name, e.g. READY_DEPLOY, NOTHING_CAN_DO.",
+                        "hasDevice" to McpJsonSchemaProperty(
+                            type = "boolean",
+                            description = "True when a device is connected and ready (state is not NOTHING_CAN_DO).",
+                        ),
+                        "needFallback" to McpJsonSchemaProperty(
+                            type = "boolean",
+                            description = "True when a full Gradle build is required (state is READY_FULL_COMPILE).",
                         ),
                         "stateMessage" to McpJsonSchemaProperty(
                             type = "string",
@@ -57,7 +62,7 @@ class GetStatusMcpToolAction : McpToolAction {
                                 "e.g. \"Showing 20 of 25 files. 5 more files are not listed.\"",
                         ),
                     ),
-                    required = listOf("state", "stateMessage", "fileCounts", "files", "detail"),
+                    required = listOf("hasDevice", "needFallback", "stateMessage", "fileCounts", "files", "detail"),
                     additionalProperties = false,
                 )
             )
@@ -91,7 +96,8 @@ class GetStatusMcpToolAction : McpToolAction {
         }
 
         val data: Map<String, Any> = mapOf(
-            "state" to deployState.state.name,
+            "hasDevice" to (runtime.deployTargetManager?.hasDevice ?: false),
+            "needFallback" to (deployState.state == JuggDeployState.State.READY_FULL_COMPILE),
             "stateMessage" to deployState.msg,
             "fileCounts" to fileCounts,
             "files" to files,
