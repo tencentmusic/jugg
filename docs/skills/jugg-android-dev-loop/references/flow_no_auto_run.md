@@ -32,7 +32,7 @@ Trigger: `hasAutoRunEntry=false` AND user did not say compile-only.
 2. **Deploy** — Run `deploy`. Blocks until completion.
    - On `status: OK` + `isFinal: true` → Step 3.
    - On error → follow Build Fallback Chain (→ see `cli_manual.md` §Build Fallback Chain).
-   - On `MCP_NO_DEVICE` / `No device` → switch to Compile-Only Mode above.
+   - On `NO_DEVICE` / `No device` → switch to Compile-Only Mode above.
 3. **Done** — Output report. Verification steps = `⏭ SKIP (no auto-run entry)`.
 
 ```

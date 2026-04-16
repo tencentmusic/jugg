@@ -18,7 +18,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("tools/call params is required"))
     }
 
@@ -37,7 +37,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Tool name is required"))
     }
 
@@ -57,7 +57,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Tool not found"))
     }
 
@@ -77,7 +77,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("projectDir is required"))
     }
 
@@ -97,7 +97,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_PROJECT_NOT_INITIALIZED, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.PROJECT_NOT_INITIALIZED, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("project is not initialized"))
     }
 
@@ -139,7 +139,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         // distinguishing success/failure via structuredContent.
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.NO_DEVICE, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("No connected device is available"))
         Assert.assertFalse(result.content.first().text.contains("structuredContent="))
     }
@@ -160,7 +160,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): serial"))
     }
 
@@ -242,7 +242,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): custom"))
     }
 }

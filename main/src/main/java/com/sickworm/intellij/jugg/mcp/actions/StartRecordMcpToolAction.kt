@@ -63,7 +63,7 @@ class StartRecordMcpToolAction : McpToolAction {
                     "startedAtMs" to existing.startedAtMs,
                 ),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
@@ -124,7 +124,7 @@ class StartRecordMcpToolAction : McpToolAction {
                     message = "$toolName failed. Reason: active session already exists on serial=$serial.",
                     data = emptyMap<String, Any>(),
                     artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                    errorCode = McpErrorCode.INVALID_PARAMS,
                 )
             }
 

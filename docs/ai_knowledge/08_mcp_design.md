@@ -32,7 +32,7 @@
 - 主入口：`/jugg-mcp`。  
 - 统一业务返回：`structuredContent` 内含 `status/message/data/artifacts/errorCode`。  
 - 工具调用前必须经过 schema 校验与项目初始化校验（除 `list_projects`）。
-- 运行态工具在 action 内执行"参数组合校验 -> App ready 校验 -> 业务执行"；其中参数错误优先返回 `MCP_INVALID_PARAMS`，App 未就绪返回 `MCP_INTERNAL_ERROR`，并附带 next action 建议。
+- 运行态工具在 action 内执行"参数组合校验 -> App ready 校验 -> 业务执行"；其中参数错误优先返回 `INVALID_PARAMS`，App 未就绪返回 `INTERNAL_ERROR`，并附带 next action 建议。
 - `restart` 支持可选 `tap_actions`，用于在重启后串行执行触控导航；单步参数与 `tap` 工具保持一致（`tap/longPress/swipe` + 坐标/百分比/元素模式，`swipe` 不支持元素模式）。步骤失败会短路并返回失败步骤索引。
 
 ---

@@ -17,8 +17,8 @@
 ## 关键变更
 
 1. 运行态工具校验顺序
-- 参数组合合法性在 app-ready 校验前执行，参数冲突优先返回 `MCP_INVALID_PARAMS`。
-- App 未就绪时统一返回 `MCP_INTERNAL_ERROR`，并在 message 给出 next action（`restart` + retry）。
+- 参数组合合法性在 app-ready 校验前执行，参数冲突优先返回 `INVALID_PARAMS`。
+- App 未就绪时统一返回 `INTERNAL_ERROR`，并在 message 给出 next action（`restart` + retry）。
 - `record-start` / `record-stop` 纳入前置 app-ready 校验链。
 
 2. `crash-report` 降噪

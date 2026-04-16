@@ -84,7 +84,7 @@ class StartEmulatorMcpToolAction : McpToolAction {
                 message = "start_emulator failed. Reason: unable to list AVDs. $hostErrorSummary",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
 
@@ -99,7 +99,7 @@ class StartEmulatorMcpToolAction : McpToolAction {
                 message = "start_emulator failed. Reason: no AVD found. Please create one in Android Studio Device Manager.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_NO_DEVICE,
+                errorCode = McpErrorCode.NO_DEVICE,
             )
         }
 
@@ -110,7 +110,7 @@ class StartEmulatorMcpToolAction : McpToolAction {
                 message = "start_emulator failed. Reason: AVD '$resolvedAvd' not found.",
                 data = mapOf("availableAvds" to avdNames),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
 
@@ -123,7 +123,7 @@ class StartEmulatorMcpToolAction : McpToolAction {
                 message = "start_emulator failed. Reason: failed to launch emulator process. $hostErrorSummary",
                 data = mapOf("avdName" to resolvedAvd),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
 

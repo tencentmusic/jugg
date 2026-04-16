@@ -65,7 +65,7 @@ class TapMcpToolAction : McpToolAction {
                     message = "tap failed. Reason: Unsupported action: $action. Use tap, long-press, or swipe.",
                     data = emptyMap<String, Any>(),
                     artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                    errorCode = McpErrorCode.INVALID_PARAMS,
                 )
             }
         }
@@ -124,7 +124,7 @@ class TapMcpToolAction : McpToolAction {
                         message = "tap failed. Reason: swipe action does not support element mode.",
                         data = emptyMap<String, Any>(),
                         artifacts = emptyList(),
-                        errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                        errorCode = McpErrorCode.INVALID_PARAMS,
                     )
 
                     else -> invalidModeResult()
@@ -136,7 +136,7 @@ class TapMcpToolAction : McpToolAction {
                 message = "tap failed. Reason: Unsupported action: $action. Use tap, long-press, or swipe.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
     }
@@ -228,7 +228,7 @@ class TapMcpToolAction : McpToolAction {
                 message = "tap failed. Reason: swipe action does not support element mode.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
 
             else -> invalidModeResult()
@@ -528,7 +528,7 @@ class TapMcpToolAction : McpToolAction {
                         "matches" to matchesSummary,
                     ),
                     artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                    errorCode = McpErrorCode.INVALID_PARAMS,
                 )
             }
 
@@ -543,7 +543,7 @@ class TapMcpToolAction : McpToolAction {
                         "mode" to "element",
                     ),
                     artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                    errorCode = McpErrorCode.INTERNAL_ERROR,
                 )
             }
 
@@ -556,7 +556,7 @@ class TapMcpToolAction : McpToolAction {
                         "mode" to "element",
                     ),
                     artifacts = emptyList(),
-                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                    errorCode = McpErrorCode.INTERNAL_ERROR,
                 )
             }
         }
@@ -654,7 +654,7 @@ class TapMcpToolAction : McpToolAction {
             message = "tap failed. Reason: No valid tap mode detected. Provide (x+y), (xPercent+yPercent), or (text/resourceId/contentDesc).",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            errorCode = McpErrorCode.INVALID_PARAMS,
         )
     }
 
@@ -664,7 +664,7 @@ class TapMcpToolAction : McpToolAction {
             message = "tap failed. Reason: swipe requires both start and end coordinates in the same mode.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            errorCode = McpErrorCode.INVALID_PARAMS,
         )
     }
 
@@ -674,7 +674,7 @@ class TapMcpToolAction : McpToolAction {
             message = "tap failed. Reason: Unable to determine screen size from device.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            errorCode = McpErrorCode.INTERNAL_ERROR,
         )
     }
 
@@ -684,7 +684,7 @@ class TapMcpToolAction : McpToolAction {
             message = "tap failed. Reason: Unable to resolve package name for ViewHierarchy server.",
             data = mapOf("mode" to "element"),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            errorCode = McpErrorCode.INTERNAL_ERROR,
         )
     }
 
@@ -697,7 +697,7 @@ class TapMcpToolAction : McpToolAction {
                 "mode" to "element",
             ),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            errorCode = McpErrorCode.INTERNAL_ERROR,
         )
     }
 
@@ -758,7 +758,7 @@ class TapMcpToolAction : McpToolAction {
             message = "$toolName failed. Reason: No connected device is available.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_NO_DEVICE,
+            errorCode = McpErrorCode.NO_DEVICE,
         )
     }
 
@@ -846,7 +846,7 @@ class TapMcpToolAction : McpToolAction {
         if (result.status != McpToolStatus.ERROR) {
             return result
         }
-        if (result.errorCode == McpErrorCode.MCP_INVALID_PARAMS) {
+        if (result.errorCode == McpErrorCode.INVALID_PARAMS) {
             return result
         }
         val hint = " topActivity/state is currently not stable (checks=${notStable.checks}, " +

@@ -158,7 +158,7 @@ internal object LayoutDumpHelper {
         message = "$toolName failed. Reason: No connected device is available.",
         data = emptyMap<String, Any>(),
         artifacts = emptyList(),
-        errorCode = McpErrorCode.MCP_NO_DEVICE,
+        errorCode = McpErrorCode.NO_DEVICE,
     )
 
     private fun buildSummaryMessage(element: JsonElement): String {

@@ -31,7 +31,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 - **Entry**: Step 2 passed.
 - **Action**: Run `deploy`. App launches and auto-run code executes automatically.
   - On error → load `error_patterns.md`, apply Error Reviewer.
-  - On `MCP_NO_DEVICE` → stop, ask user.
+  - On `NO_DEVICE` → stop, ask user.
 - **Checkpoint ✓**: `status=OK` + `isFinal=true`. Auto-run execution started.
 - **Checkpoint ✗**: Fix → return to Step 1.
 - **Post-deploy rule**: All prior runtime state is invalidated.

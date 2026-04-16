@@ -72,7 +72,7 @@ data class McpToolResult(
                 message = "$toolName failed. Reason: $reason.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
     }

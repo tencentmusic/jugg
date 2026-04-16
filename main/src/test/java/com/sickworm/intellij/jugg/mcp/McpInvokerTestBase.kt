@@ -57,7 +57,7 @@ abstract class McpInvokerTestBase {
                         message = "restart failed. Reason: No connected device is available.",
                         data = emptyMap<String, Any>(),
                         artifacts = emptyList(),
-                        errorCode = McpErrorCode.MCP_NO_DEVICE,
+                        errorCode = McpErrorCode.NO_DEVICE,
                     )
                 } else {
                     McpToolResult(

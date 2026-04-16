@@ -51,7 +51,7 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
                 message = "ssh-info failed. Reason: explicit user consent is required before calling this tool.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         val reason = (arguments["reason"] as? String)?.trim().orEmpty()
@@ -61,7 +61,7 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
                 message = "request_remote_ssh_info failed. Reason: reason is required.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         val requestedBy = (arguments["requestedBy"] as? String)?.trim().takeUnless { it.isNullOrEmpty() } ?: "mcp_agent"
@@ -75,7 +75,7 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
                 message = info.message,
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
         return McpToolResult(

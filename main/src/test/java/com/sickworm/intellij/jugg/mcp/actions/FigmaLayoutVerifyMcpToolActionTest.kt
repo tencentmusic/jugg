@@ -77,7 +77,7 @@ class FigmaLayoutVerifyMcpToolActionTest {
 
     @Test
     fun testVerifyPassthroughNoDeviceError() {
-        // When internal layout_dump fails with MCP_NO_DEVICE, the same errorCode must be returned
+        // When internal layout_dump fails with NO_DEVICE, the same errorCode must be returned
         val projectDir = createTempDir(prefix = "jugg_figma_verify_no_dev_")
         PlatformApi.impl = FakePlatformApi(emptyMap())
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
@@ -94,7 +94,7 @@ class FigmaLayoutVerifyMcpToolActionTest {
             buildRuntime(projectDir, deployTargetManager)
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+        Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
     }
 
     @Test

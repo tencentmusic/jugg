@@ -102,7 +102,7 @@ object McpLocalServer {
                         error = McpJsonRpcError(
                             code = McpJsonRpc.ErrorCode.InternalError,
                             message = "Internal Server Error: ${e.message}",
-                            data = mapOf("errorCode" to McpErrorCode.MCP_INTERNAL_ERROR),
+                            data = mapOf("errorCode" to McpErrorCode.INTERNAL_ERROR),
                         )
                     )
                     sendJsonResponse(exchange, 500, errorResponse)
@@ -143,7 +143,7 @@ object McpLocalServer {
                     error = McpJsonRpcError(
                         code = McpJsonRpc.ErrorCode.InvalidRequest,
                         message = "Unsupported MCP protocol version: $protocolVersionHeader",
-                        data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
+                        data = mapOf("errorCode" to McpErrorCode.INVALID_JSON_RPC),
                     )
                 )
                 sendJsonResponse(exchange, 400, errorResponse)
@@ -158,7 +158,7 @@ object McpLocalServer {
                     error = McpJsonRpcError(
                         code = McpJsonRpc.ErrorCode.InvalidRequest,
                         message = "Empty request body",
-                        data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
+                        data = mapOf("errorCode" to McpErrorCode.INVALID_JSON_RPC),
                     )
                 )
                 sendJsonResponse(exchange, 400, errorResponse)
@@ -172,7 +172,7 @@ object McpLocalServer {
                         error = McpJsonRpcError(
                             code = McpJsonRpc.ErrorCode.InvalidRequest,
                             message = "Batch or non-object JSON-RPC payload is not supported",
-                            data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
+                            data = mapOf("errorCode" to McpErrorCode.INVALID_JSON_RPC),
                         )
                     )
                     sendJsonResponse(exchange, 400, errorResponse)
@@ -204,7 +204,7 @@ object McpLocalServer {
                     error = McpJsonRpcError(
                         code = McpJsonRpc.ErrorCode.ParseError,
                         message = "Invalid JSON format: ${e.message}",
-                        data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
+                        data = mapOf("errorCode" to McpErrorCode.INVALID_JSON_RPC),
                     )
                 )
                 sendJsonResponse(exchange, 400, errorResponse)
@@ -214,7 +214,7 @@ object McpLocalServer {
                     error = McpJsonRpcError(
                         code = McpJsonRpc.ErrorCode.InternalError,
                         message = "Error processing request: $e",
-                        data = mapOf("errorCode" to McpErrorCode.MCP_INTERNAL_ERROR),
+                        data = mapOf("errorCode" to McpErrorCode.INTERNAL_ERROR),
                     )
                 )
                 sendJsonResponse(exchange, 500, errorResponse)
@@ -227,7 +227,7 @@ object McpLocalServer {
                 error = McpJsonRpcError(
                     code = McpJsonRpc.ErrorCode.MethodNotFound,
                     message = "Method Not Allowed",
-                    data = mapOf("errorCode" to McpErrorCode.MCP_METHOD_NOT_SUPPORTED),
+                    data = mapOf("errorCode" to McpErrorCode.METHOD_NOT_SUPPORTED),
                 )
             )
             sendJsonResponse(exchange, 405, errorResponse)

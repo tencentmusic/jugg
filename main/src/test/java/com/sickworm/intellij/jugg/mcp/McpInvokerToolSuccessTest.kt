@@ -308,7 +308,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
-        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test
@@ -328,7 +328,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
-        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test
@@ -363,7 +363,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
-        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test
@@ -382,7 +382,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test

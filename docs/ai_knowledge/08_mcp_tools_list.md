@@ -335,13 +335,13 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 
 | 错误码 | 说明 |
 |--------|------|
-| `MCP_INVALID_JSON_RPC` | JSON-RPC 格式错误 |
-| `MCP_METHOD_NOT_SUPPORTED` | 不支持的方法 |
-| `MCP_TOOL_NOT_FOUND` | 工具未注册 |
-| `MCP_INVALID_PARAMS` | 参数错误 |
-| `MCP_PROJECT_NOT_INITIALIZED` | 项目未初始化 |
-| `MCP_NO_DEVICE` | 无可用设备 |
-| `MCP_INTERNAL_ERROR` | 内部错误 |
+| `INVALID_JSON_RPC` | JSON-RPC 格式错误 |
+| `METHOD_NOT_SUPPORTED` | 不支持的方法 |
+| `TOOL_NOT_FOUND` | 工具未注册 |
+| `INVALID_PARAMS` | 参数错误 |
+| `PROJECT_NOT_INITIALIZED` | 项目未初始化 |
+| `NO_DEVICE` | 无可用设备 |
+| `INTERNAL_ERROR` | 内部错误 |
 
 ---
 

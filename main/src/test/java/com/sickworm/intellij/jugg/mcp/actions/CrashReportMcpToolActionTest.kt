@@ -140,7 +140,7 @@ class CrashReportMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+        Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
     }
 
     private fun runtime(projectDir: File, deployTargetManager: IDeployTargetManager): IMcpRuntime {

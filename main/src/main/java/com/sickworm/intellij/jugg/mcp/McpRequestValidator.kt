@@ -14,7 +14,7 @@ class McpRequestValidator(
             McpJsonRpc.Method.ToolsList -> McpValidationResult.ToolsList
             McpJsonRpc.Method.ToolsCall -> validateToolsCall(request)
             else -> McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_METHOD_NOT_SUPPORTED,
+                errorCode = McpErrorCode.METHOD_NOT_SUPPORTED,
                 message = "Method not supported: ${request.method}",
                 isJsonRpcError = true,
                 jsonRpcCode = McpJsonRpc.ErrorCode.MethodNotFound,
@@ -25,19 +25,19 @@ class McpRequestValidator(
     private fun validateToolsCall(request: McpJsonRpcRequest): McpValidationResult {
         val params = request.params as? Map<*, *>
             ?: return McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
                 message = "tools/call params is required",
             )
 
         val toolName = params["name"] as? String
             ?: return McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
                 message = "Tool name is required",
             )
 
         if (!toolRegistry.hasTool(toolName)) {
             return McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_TOOL_NOT_FOUND,
+                errorCode = McpErrorCode.TOOL_NOT_FOUND,
                 message = "Tool not found: $toolName",
             )
         }
@@ -46,7 +46,7 @@ class McpRequestValidator(
         val args = params["arguments"] as? Map<String, Any?> ?: emptyMap()
         val toolDefinition = toolRegistry.getToolDefinition(toolName)
             ?: return McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_TOOL_NOT_FOUND,
+                errorCode = McpErrorCode.TOOL_NOT_FOUND,
                 message = "Tool not found: $toolName",
             )
 
@@ -67,14 +67,14 @@ class McpRequestValidator(
 
         if (projectDir.isNullOrBlank()) {
             return McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
                 message = "$toolName failed. Reason: projectDir is required.",
             )
         }
 
         if (projectDir != currentProjectDir) {
             return McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_PROJECT_NOT_INITIALIZED,
+                errorCode = McpErrorCode.PROJECT_NOT_INITIALIZED,
                 message = "$toolName failed. Reason: project is not initialized.",
             )
         }
@@ -194,7 +194,7 @@ class McpRequestValidator(
 
     private fun invalidParams(toolName: String, reason: String): McpValidationResult.Invalid {
         return McpValidationResult.Invalid(
-            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            errorCode = McpErrorCode.INVALID_PARAMS,
             message = "$toolName failed. Reason: $reason.",
         )
     }

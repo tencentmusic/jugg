@@ -93,7 +93,7 @@ class TapMcpToolActionTest {
             runtime()
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INTERNAL_ERROR, result.errorCode)
         Assert.assertTrue(result.message.contains("currently not stable"))
         Assert.assertTrue(adb.executedCommands.any { it.startsWith("input tap ") })
     }
@@ -243,7 +243,7 @@ class TapMcpToolActionTest {
             runtime(),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("requires both start and end"))
     }
 
@@ -259,7 +259,7 @@ class TapMcpToolActionTest {
             runtime(),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("does not support element mode"))
     }
 
@@ -403,7 +403,7 @@ class TapMcpToolActionTest {
                 runtime()
             )
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+            Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
             Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
@@ -444,7 +444,7 @@ class TapMcpToolActionTest {
                 runtime()
             )
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertEquals(McpErrorCode.INTERNAL_ERROR, result.errorCode)
             Assert.assertTrue(result.message.contains("No matching UI element found"))
             Assert.assertTrue(result.message.contains("Login"))
             Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
@@ -503,7 +503,7 @@ class TapMcpToolActionTest {
                 runtime()
             )
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertEquals(McpErrorCode.INTERNAL_ERROR, result.errorCode)
             Assert.assertTrue(result.message.contains("server is unavailable"))
         }
     }
@@ -639,7 +639,7 @@ class TapMcpToolActionTest {
             runtime(),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("Unsupported action"))
     }
 
@@ -676,7 +676,7 @@ class TapMcpToolActionTest {
             runtime(deployTargetManager)
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+        Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
     }
 
     @Test
@@ -687,7 +687,7 @@ class TapMcpToolActionTest {
             runtime()
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("No valid tap mode"))
     }
 
@@ -710,7 +710,7 @@ class TapMcpToolActionTest {
             ),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("requires both start and end"))
         Assert.assertEquals(0, readyChecks)
     }

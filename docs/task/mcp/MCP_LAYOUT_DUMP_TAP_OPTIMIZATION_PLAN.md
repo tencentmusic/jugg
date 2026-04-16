@@ -156,8 +156,8 @@ Add `action` parameter to `tap` tool: `"tap"` (default) | `"longPress"` | `"swip
 - `swipe`: requires start + end points. Modes:
   - coordinate: `(x,y)` -> `(endX,endY)`
   - percent: `(xPercent,yPercent)` -> `(endXPercent,endYPercent)`
-  - element mode not supported for swipe (return `MCP_INVALID_PARAMS`)
-- `swipe` without end coordinates returns `MCP_INVALID_PARAMS`
+  - element mode not supported for swipe (return `INVALID_PARAMS`)
+- `swipe` without end coordinates returns `INVALID_PARAMS`
 
 ### Files to modify
 
@@ -183,7 +183,7 @@ override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToo
         "tap" -> executeTap(arguments, adb, packageName, logger)       // existing logic extracted
         "longPress" -> executeLongPress(arguments, adb, packageName, logger)
         "swipe" -> executeSwipe(arguments, adb, logger)
-        else -> McpToolResult(status = ERROR, errorCode = MCP_INVALID_PARAMS,
+        else -> McpToolResult(status = ERROR, errorCode = INVALID_PARAMS,
             message = "Unsupported action: $action. Use tap, longPress, or swipe.")
     }
 }
@@ -266,13 +266,13 @@ case "long_press":
 |------|-------------|
 | `testSwipeCoordinateMode` | swipe from (540,1800) to (540,400) with duration=300 |
 | `testSwipePercentMode` | swipe from (50%,80%) to (50%,20%) |
-| `testSwipeWithoutEndCoordinates` | returns MCP_INVALID_PARAMS |
+| `testSwipeWithoutEndCoordinates` | returns INVALID_PARAMS |
 | `testSwipeElementModeReturnsError` | element mode not supported for swipe |
 | `testLongPressCoordinateMode` | longPress at (540,960) with default duration |
 | `testLongPressPercentMode` | longPress at (50%,50%) |
 | `testLongPressElementMode` | longPress by text via ViewHierarchy server |
 | `testDefaultActionIsTap` | omitting action param behaves as tap (backward compat) |
-| `testUnknownActionReturnsError` | action="fling" returns MCP_INVALID_PARAMS |
+| `testUnknownActionReturnsError` | action="fling" returns INVALID_PARAMS |
 
 ---
 

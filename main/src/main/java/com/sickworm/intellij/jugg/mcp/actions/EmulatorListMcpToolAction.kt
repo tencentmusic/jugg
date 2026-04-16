@@ -73,7 +73,7 @@ class EmulatorListMcpToolAction : McpToolAction {
                 message = "emulator_list failed. Reason: unable to list AVDs. $hostErrorSummary",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
 

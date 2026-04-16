@@ -42,7 +42,7 @@ class RestartAppMcpToolAction : McpToolAction {
                 message = "restart failed. Reason: Failed to restart app. Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log\"",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
         val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
@@ -52,7 +52,7 @@ class RestartAppMcpToolAction : McpToolAction {
                 message = waitResult.reason ?: "restart failed. Reason: app is not ready after restart.",
                 data = mapOf("readyChecks" to waitResult.checks),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
         return McpToolResult(
@@ -78,7 +78,7 @@ class RestartAppMcpToolAction : McpToolAction {
             message = "restart failed. Reason: No connected device is available.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_NO_DEVICE,
+            errorCode = McpErrorCode.NO_DEVICE,
         )
     }
 }

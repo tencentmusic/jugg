@@ -51,7 +51,7 @@ class StopRecordMcpToolAction : McpToolAction {
                 message = "$toolName failed. Reason: sessionId is required.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
 
@@ -61,7 +61,7 @@ class StopRecordMcpToolAction : McpToolAction {
                 message = "$toolName failed. Reason: sessionId not found: $sessionId.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
 
         val selected = RecordToolSupport.resolveOnlineDevice(runtime, preferredSerial = session.serial)
@@ -74,7 +74,7 @@ class StopRecordMcpToolAction : McpToolAction {
                 message = "$toolName failed. Reason: session serial mismatch. expected=${session.serial}, actual=${adb.serial}.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)

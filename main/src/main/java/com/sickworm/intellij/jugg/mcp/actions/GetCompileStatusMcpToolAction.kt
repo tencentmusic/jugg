@@ -49,7 +49,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                 message = "get-compile-status failed. Reason: jobId is required.",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         val state = CompileJobManager.getStatus(jobId)
@@ -71,7 +71,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                 message = "get-compile-status failed. Reason: Compile job not found for jobId=$jobId.",
                 data = data,
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
 

@@ -43,7 +43,7 @@ class McpBaseInvoker(
             return if (toolResult.status == McpToolStatus.ERROR) {
                 resultMapper.toolError(
                     id = id,
-                    errorCode = toolResult.errorCode ?: McpErrorCode.MCP_INTERNAL_ERROR,
+                    errorCode = toolResult.errorCode ?: McpErrorCode.INTERNAL_ERROR,
                     message = toolResult.message,
                     data = toolResult.data,
                 )
@@ -53,7 +53,7 @@ class McpBaseInvoker(
         } else {
             return resultMapper.toolError(
                 id = id,
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
                 message = "MCP runtime is not initialized.",
             )
         }
@@ -64,7 +64,7 @@ class McpBaseInvoker(
             logger.debug("[MCP][GLOBAL] invalid jsonrpc version: ${request.jsonrpc}")
             return resultMapper.jsonRpcError(
                 request.id,
-                McpErrorCode.MCP_INVALID_JSON_RPC,
+                McpErrorCode.INVALID_JSON_RPC,
                 "Invalid jsonrpc version",
                 McpJsonRpc.ErrorCode.InvalidRequest,
             )

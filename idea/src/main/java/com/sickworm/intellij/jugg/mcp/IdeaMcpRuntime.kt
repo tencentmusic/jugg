@@ -41,7 +41,7 @@ class IdeaMcpRuntime(
                 ?: run {
                     return McpResultMapper().toolError(
                         id = request.id,
-                        errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                        errorCode = McpErrorCode.INVALID_PARAMS,
                         message = "invoke_mcp failed. Reason: projectDir is required.")
                 }
 
@@ -49,7 +49,7 @@ class IdeaMcpRuntime(
                 ?: run {
                     return McpResultMapper().toolError(
                         id = request.id,
-                        errorCode = McpErrorCode.MCP_PROJECT_NOT_INITIALIZED,
+                        errorCode = McpErrorCode.PROJECT_NOT_INITIALIZED,
                         message = "invoke_mcp failed. Reason: project is not initialized.")
                 }
 

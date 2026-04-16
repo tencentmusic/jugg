@@ -190,7 +190,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 message = message,
                 data = data,
                 artifacts = detailResult.artifacts,
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
 
@@ -216,7 +216,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                     message = message,
                     data = data,
                     artifacts = detailResult.artifacts,
-                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                    errorCode = McpErrorCode.INTERNAL_ERROR,
                 )
             }
 
@@ -239,7 +239,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                     message = message,
                     data = data,
                     artifacts = detailResult.artifacts,
-                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                    errorCode = McpErrorCode.INTERNAL_ERROR,
                 )
             }
 

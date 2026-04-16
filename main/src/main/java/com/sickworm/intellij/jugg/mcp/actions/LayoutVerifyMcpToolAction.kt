@@ -214,7 +214,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 message = "layout-verify failed: dumpFile not found: $dumpFilePath",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         return try {
@@ -310,7 +310,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 message = "layout-verify failed: ${e.message}",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
     }
@@ -683,7 +683,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 message = "layout-verify failed: unable to resolve package name",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
 
         return try {
@@ -704,7 +704,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 message = "layout-verify failed: ${e.message}",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
     }
@@ -767,7 +767,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             message = "$aggregated: $summary",
             data = data,
             artifacts = emptyList(),
-            errorCode = if (aggregated == "ERROR") McpErrorCode.MCP_INTERNAL_ERROR else null,
+            errorCode = if (aggregated == "ERROR") McpErrorCode.INTERNAL_ERROR else null,
         )
     }
 
@@ -811,7 +811,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             message = "ERROR: $message$hint",
             data = data,
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            errorCode = McpErrorCode.INTERNAL_ERROR,
         )
     }
 
@@ -1008,7 +1008,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             message = message,
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            errorCode = McpErrorCode.INVALID_PARAMS,
         )
     }
 
@@ -1108,7 +1108,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
             message = "layout-verify failed: No connected device is available.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_NO_DEVICE,
+            errorCode = McpErrorCode.NO_DEVICE,
         )
     }
 

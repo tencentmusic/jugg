@@ -185,9 +185,9 @@ val expected = when (value) {
 | `resourceId` short/full format | `shortId()` 自动处理 |
 | `className` 全名/短名/子串 | `findNodeBySelector` 做多种匹配 |
 | `textColor` 大小写 | 统一转 uppercase 比较 |
-| `checks` 为空 | 明确返回 `MCP_INVALID_PARAMS` |
-| `type` 缺失 | 明确返回 `MCP_INVALID_PARAMS` |
-| `target` 缺失 | 明确返回 `MCP_INVALID_PARAMS` |
+| `checks` 为空 | 明确返回 `INVALID_PARAMS` |
+| `type` 缺失 | 明确返回 `INVALID_PARAMS` |
+| `target` 缺失 | 明确返回 `INVALID_PARAMS` |
 
 ---
 

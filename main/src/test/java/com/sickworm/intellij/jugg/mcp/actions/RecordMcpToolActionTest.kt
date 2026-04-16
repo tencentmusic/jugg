@@ -41,7 +41,7 @@ class RecordMcpToolActionTest {
             )
 
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertEquals(McpErrorCode.INTERNAL_ERROR, result.errorCode)
             Assert.assertTrue(result.message.contains("app is not ready"))
             Assert.assertNull(RecordSessionRegistry.findBySerial(setup.adb.serial))
         } finally {
@@ -68,7 +68,7 @@ class RecordMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("sessionId is required"))
         Assert.assertEquals(0, readyChecks)
     }
@@ -101,7 +101,7 @@ class RecordMcpToolActionTest {
             )
 
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertEquals(McpErrorCode.INTERNAL_ERROR, result.errorCode)
             Assert.assertTrue(result.message.contains("app is not ready"))
             Assert.assertTrue(readyChecks > 0)
         } finally {

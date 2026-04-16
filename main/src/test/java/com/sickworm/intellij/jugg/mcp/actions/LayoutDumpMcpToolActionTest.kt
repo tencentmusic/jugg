@@ -147,7 +147,7 @@ class LayoutDumpMcpToolActionTest {
             buildRuntime(projectDir, deployTargetManager)
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+        Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
     }
 
     @Test

@@ -71,7 +71,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("target"))
     }
 
@@ -90,7 +90,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("at least one selector"))
     }
 
@@ -108,7 +108,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("expressions"))
     }
 
@@ -127,7 +127,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("expressions"))
     }
 
@@ -147,7 +147,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("exceeds maximum"))
     }
 
@@ -166,7 +166,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INTERNAL_ERROR, result.errorCode)
         Assert.assertTrue(result.message.contains("app is not ready"))
     }
 
@@ -189,7 +189,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertEquals(0, readyChecks)
     }
 
@@ -215,7 +215,7 @@ class EvalViewMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+        Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
     }
 
     // ---- Test infrastructure ----

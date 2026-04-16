@@ -193,7 +193,7 @@ LID_PARAMS + 明确说明"该属性支持的 op
 第三种行为是隐患。tolerance=0 意味着精确匹配，传入
 expected=12 和不传 expected
 的含义完全不同，但工具不区分。建议 spacing 缺少 expected
-时返回 MCP_INVALID_PARAMS，或者在 message 中明确提示"未传
+时返回 INVALID_PARAMS，或者在 message 中明确提示"未传
 expected，默认为 0"。
 
   ---

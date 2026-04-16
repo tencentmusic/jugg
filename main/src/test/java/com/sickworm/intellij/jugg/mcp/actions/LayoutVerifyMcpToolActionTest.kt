@@ -67,7 +67,7 @@ class LayoutVerifyMcpToolActionTest {
             buildRuntime(null),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("target"))
         dumpFile.delete()
     }
@@ -85,7 +85,7 @@ class LayoutVerifyMcpToolActionTest {
             runtime,
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("checks"))
     }
 
@@ -103,7 +103,7 @@ class LayoutVerifyMcpToolActionTest {
             runtime,
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("dumpFile not found"))
     }
 
@@ -118,7 +118,7 @@ class LayoutVerifyMcpToolActionTest {
             buildRuntime(null),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("checksFile not found"))
     }
 
@@ -1178,7 +1178,7 @@ class LayoutVerifyMcpToolActionTest {
             buildRuntime(null),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue("Expected tolerance not supported message: ${result.message}",
             result.message.contains("tolerance", ignoreCase = true) && result.message.contains("no longer supported", ignoreCase = true))
         dumpFile.delete()
@@ -1417,7 +1417,7 @@ class LayoutVerifyMcpToolActionTest {
 
     @Test
     fun testDumpFileModeRelationTarget2MissingForRelation() {
-        // Provide relation but no target2 → MCP_INVALID_PARAMS
+        // Provide relation but no target2 → INVALID_PARAMS
         val dumpFile = writeDumpFile(
             """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
                 "children":[{"className":"View","id":"com.example:id/view_a","bounds":[0,0,100,50]}]
@@ -1429,7 +1429,7 @@ class LayoutVerifyMcpToolActionTest {
             "checks" to listOf(mapOf("type" to "spacing", "axis" to "y", "expected" to 16)),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         dumpFile.delete()
     }
 
@@ -1649,7 +1649,7 @@ class LayoutVerifyMcpToolActionTest {
 
     @Test
     fun testDumpFileModeInvalidJsonReturnsError() {
-        // File content is not valid JSON → MCP_INTERNAL_ERROR
+        // File content is not valid JSON → INTERNAL_ERROR
         val dumpFile = writeDumpFile("this is not json {{{")
         val result = LayoutVerifyMcpToolAction().execute(mapOf(
             "projectDir" to "/tmp", "dumpFile" to dumpFile.absolutePath,
@@ -1657,7 +1657,7 @@ class LayoutVerifyMcpToolActionTest {
             "checks" to listOf(mapOf("type" to "property", "property" to "exists")),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+        Assert.assertEquals(McpErrorCode.INTERNAL_ERROR, result.errorCode)
         dumpFile.delete()
     }
 
@@ -1887,7 +1887,7 @@ class LayoutVerifyMcpToolActionTest {
             buildRuntimeWithDeployManager(projectDir, deployTargetManager),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.errorCode)
+        Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
         projectDir.deleteRecursively()
     }
 

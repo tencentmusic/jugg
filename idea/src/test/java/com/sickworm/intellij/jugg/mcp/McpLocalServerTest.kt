@@ -173,10 +173,10 @@ class McpLocalServerTest {
                 Assert.assertEquals(true, resultJson.get("isError").asBoolean)
                 val structured = resultJson.getAsJsonObject("structuredContent")
                 Assert.assertEquals("ERROR", structured.get("status").asString)
-                Assert.assertEquals("MCP_INVALID_PARAMS", structured.get("errorCode").asString)
+                Assert.assertEquals("INVALID_PARAMS", structured.get("errorCode").asString)
             } else {
                 Assert.assertEquals("ERROR", resultJson.get("status").asString)
-                Assert.assertEquals("MCP_INVALID_PARAMS", resultJson.get("errorCode").asString)
+                Assert.assertEquals("INVALID_PARAMS", resultJson.get("errorCode").asString)
             }
         }
     }

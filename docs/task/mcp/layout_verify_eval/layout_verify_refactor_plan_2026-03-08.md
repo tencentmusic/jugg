@@ -83,7 +83,7 @@
 
 ### 2.5 参数校验规则（新增）
 
-1. `asserts` 与 `relation` 互斥，违反时返回 `MCP_INVALID_PARAMS`。
+1. `asserts` 与 `relation` 互斥，违反时返回 `INVALID_PARAMS`。
 2. `asserts` 必须是非空数组。
 3. `relation` 模式要求 `target2`。
 4. `target` 选择器至少包含 `resourceId/text/contentDesc/className` 之一。
@@ -168,9 +168,9 @@
 
 #### C. 参数约束
 
-1. 同时传 `asserts` + `relation` -> `MCP_INVALID_PARAMS`
-2. `asserts=[]` -> `MCP_INVALID_PARAMS`
-3. `relation` 缺 `target2` -> `MCP_INVALID_PARAMS`
+1. 同时传 `asserts` + `relation` -> `INVALID_PARAMS`
+2. `asserts=[]` -> `INVALID_PARAMS`
+3. `relation` 缺 `target2` -> `INVALID_PARAMS`
 
 #### D. 自动快照稳定性
 

@@ -82,7 +82,7 @@ private fun buildRunToolResult(
             message = message,
             data = data,
             artifacts = detailResult.artifacts,
-            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            errorCode = McpErrorCode.INTERNAL_ERROR,
         )
     }
 
@@ -109,7 +109,7 @@ private fun forceGradleCompileAction(runtime: IMcpRuntime): McpToolResult {
         val isFinalSuccess = trigger.isFinal && trigger.status == "success"
         val isStillRunning = !trigger.isFinal
         val status = if (isFinalSuccess || isStillRunning) McpToolStatus.OK else McpToolStatus.ERROR
-        val errorCode = if (status == McpToolStatus.ERROR) McpErrorCode.MCP_INTERNAL_ERROR else null
+        val errorCode = if (status == McpToolStatus.ERROR) McpErrorCode.INTERNAL_ERROR else null
 
         McpToolResult(
             status = status,
@@ -191,14 +191,14 @@ override fun execAdbShellScript(cmd: String): String {
 
 **影响 TC**: TC-44, TC-45, TC-46 (FAIL)
 
-**现象**: `deploy` / `gradle-build` / `reinstall` 在无设备时不立即返回 `MCP_NO_DEVICE`，而是先开始编译，在部署阶段才失败。
+**现象**: `deploy` / `gradle-build` / `reinstall` 在无设备时不立即返回 `NO_DEVICE`，而是先开始编译，在部署阶段才失败。
 
 **结论**: 这是**符合预期的行为**，不是 bug。这三个工具支持无设备调用：
 - `deploy`：无设备时仍可编译，编译成功后在部署阶段会失败
 - `gradle-build`：纯编译操作，不依赖设备
 - `reinstall`：底层调用 `deployAction()`，行为同 `deploy`
 
-**修复方案**: 更新 `mcp_test_case.md` 中 TC-44~46 的预期结果，从 `MCP_NO_DEVICE` 改为允许正常编译执行。同步更新附录工具清单中相关工具的"需要设备"标记。
+**修复方案**: 更新 `mcp_test_case.md` 中 TC-44~46 的预期结果，从 `NO_DEVICE` 改为允许正常编译执行。同步更新附录工具清单中相关工具的"需要设备"标记。
 
 ### 3.3 无效 jobId 查询返回 status=OK
 
@@ -220,7 +220,7 @@ override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToo
             message = "get_compile_status failed. Reason: jobId is required.",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            errorCode = McpErrorCode.INVALID_PARAMS,
         )
     }
     val state = CompileJobManager.getStatus(jobId)
@@ -239,7 +239,7 @@ override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToo
             message = "get_compile_status failed. Reason: Compile job not found for jobId=$jobId.",
             data = data,
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            errorCode = McpErrorCode.INVALID_PARAMS,
         )
     }
 

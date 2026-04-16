@@ -7,18 +7,18 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 ## Patterns
 
 ```yaml
-- id: mcp_project_not_initialized
+- id: PROJECT_NOT_INITIALIZED
   stage: compile
-  signature: {includes: ["MCP_PROJECT_NOT_INITIALIZED"]}
+  signature: {includes: ["PROJECT_NOT_INITIALIZED"]}
   diagnosis: project not initialized in IDE/Jugg runtime
   fix_strategy: open_project_and_wait_init
   fix_scope: low
   confidence_hint: 0.98
   auto_apply: false
 
-- id: mcp_no_device
+- id: NO_DEVICE
   stage: deploy
-  signature: {includes: ["MCP_NO_DEVICE", "no device"]}
+  signature: {includes: ["NO_DEVICE", "no device"]}
   diagnosis: no online target device
   fix_strategy: ask_user_prepare_device_or_use_compile_only
   fix_scope: low
@@ -63,7 +63,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 
 - id: ide_port_drift_multi_studio
   stage: compile
-  signature: {includes: ["MCP_PROJECT_NOT_INITIALIZED", "list_projects", "project not found"]}
+  signature: {includes: ["PROJECT_NOT_INITIALIZED", "list_projects", "project not found"]}
   diagnosis: multiple IDE instances cause port/project context drift
   fix_strategy: verify_single_target_ide_and_port_binding
   fix_scope: low

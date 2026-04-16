@@ -5,7 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 /**
  * McpToolInvoker validates MCP JSON-RPC requests, dispatches tool actions, and maps execution results to JSON-RPC responses.
  * Collaboration: Uses [McpRequestValidator] for protocol/argument validation, resolves executors from [McpToolRegistry], and serializes success/error payloads through [McpResultMapper].
- * Data Contract: Every request is validated before dispatch; missing tools map to [McpErrorCode.MCP_TOOL_NOT_FOUND]; action results (including [McpToolStatus.ERROR]) are returned via toolSuccess (isError=false) so that structuredContent carries full artifacts and data, while protocol-level errors use toolError (isError=true).
+ * Data Contract: Every request is validated before dispatch; missing tools map to [McpErrorCode.TOOL_NOT_FOUND]; action results (including [McpToolStatus.ERROR]) are returned via toolSuccess (isError=false) so that structuredContent carries full artifacts and data, while protocol-level errors use toolError (isError=true).
  */
 class McpToolInvoker(
     currentProjectDir: String,
@@ -39,7 +39,7 @@ class McpToolInvoker(
         val action = toolRegistry.getAction(request.toolName)
             ?: return resultMapper.toolError(
                 id = id,
-                errorCode = McpErrorCode.MCP_TOOL_NOT_FOUND,
+                errorCode = McpErrorCode.TOOL_NOT_FOUND,
                 message = "Tool not found: ${request.toolName}",
             )
 

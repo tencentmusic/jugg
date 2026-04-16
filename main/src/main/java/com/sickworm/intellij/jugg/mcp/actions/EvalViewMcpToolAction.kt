@@ -81,7 +81,7 @@ class EvalViewMcpToolAction : McpToolAction {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
                 message = "view-inspect failed. Reason: 'target' is required and must be an object.",
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         @Suppress("UNCHECKED_CAST")
@@ -98,7 +98,7 @@ class EvalViewMcpToolAction : McpToolAction {
                 status = McpToolStatus.ERROR,
                 message = "view-inspect failed. Reason: target must have at least one selector " +
                     "(resourceId, text, contentDesc, or className).",
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
 
@@ -108,7 +108,7 @@ class EvalViewMcpToolAction : McpToolAction {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
                 message = "view-inspect failed. Reason: 'expressions' is required and must be a non-empty array.",
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         val expressions = expressionsRaw.filterIsInstance<String>()
@@ -116,7 +116,7 @@ class EvalViewMcpToolAction : McpToolAction {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
                 message = "view-inspect failed. Reason: 'expressions' must contain string values.",
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
         if (expressions.size > MAX_EXPRESSIONS) {
@@ -124,7 +124,7 @@ class EvalViewMcpToolAction : McpToolAction {
                 status = McpToolStatus.ERROR,
                 message = "view_inspect failed. Reason: expressions count ${expressions.size} " +
                     "exceeds maximum $MAX_EXPRESSIONS.",
-                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
 
@@ -135,7 +135,7 @@ class EvalViewMcpToolAction : McpToolAction {
                 return McpToolResult(
                     status = McpToolStatus.ERROR,
                     message = "view-inspect failed. Reason: No connected device is available.",
-                    errorCode = McpErrorCode.MCP_NO_DEVICE,
+                    errorCode = McpErrorCode.NO_DEVICE,
                 )
             }
 
@@ -169,7 +169,7 @@ class EvalViewMcpToolAction : McpToolAction {
                     return@executeWithRetryIfPreWaited McpToolResult(
                         status = McpToolStatus.ERROR,
                         message = "view_inspect failed. Reason: ${evalResult.errorMessage}",
-                        errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                        errorCode = McpErrorCode.INTERNAL_ERROR,
                     )
                 }
 

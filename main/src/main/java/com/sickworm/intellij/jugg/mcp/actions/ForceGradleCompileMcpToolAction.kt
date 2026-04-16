@@ -54,7 +54,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
             val isFinalSuccess = trigger.isFinal && trigger.status == "success"
             val isStillRunning = !trigger.isFinal
             val status = if (isFinalSuccess || isStillRunning) McpToolStatus.OK else McpToolStatus.ERROR
-            val errorCode = if (status == McpToolStatus.ERROR) McpErrorCode.MCP_INTERNAL_ERROR else null
+            val errorCode = if (status == McpToolStatus.ERROR) McpErrorCode.INTERNAL_ERROR else null
 
             McpToolResult(
                 status = status,

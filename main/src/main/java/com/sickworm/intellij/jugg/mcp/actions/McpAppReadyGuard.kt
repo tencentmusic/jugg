@@ -133,7 +133,7 @@ object McpAppReadyGuard {
                 "Next action: run restart and retry $toolName.",
             data = mapOf("readyChecks" to attempts),
             artifacts = emptyList(),
-            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            errorCode = McpErrorCode.INTERNAL_ERROR,
         )
     }
 
@@ -170,7 +170,7 @@ object McpAppReadyGuard {
         if (result.status != McpToolStatus.ERROR) {
             return false
         }
-        return result.errorCode.isNullOrBlank() || result.errorCode == McpErrorCode.MCP_INTERNAL_ERROR
+        return result.errorCode.isNullOrBlank() || result.errorCode == McpErrorCode.INTERNAL_ERROR
     }
 }
 

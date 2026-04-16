@@ -21,7 +21,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): durationSec"))
     }
 
@@ -44,7 +44,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): packageName"))
     }
 
@@ -69,7 +69,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): extra"))
     }
 
@@ -89,7 +89,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("sessionId is required"))
     }
 
@@ -109,7 +109,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): projectDir"))
     }
 }
