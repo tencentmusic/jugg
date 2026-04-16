@@ -170,7 +170,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testScreenshotToolCallSuccess() {
+    fun testScreenshotToolCallNotRegistered() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -184,12 +184,13 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test
-    fun testStartRecordToolCallSuccess() {
+    fun testStartRecordToolCallNotRegistered() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -203,12 +204,13 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test
-    fun testStopRecordToolCallSuccess() {
+    fun testStopRecordToolCallNotRegistered() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -222,8 +224,9 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test

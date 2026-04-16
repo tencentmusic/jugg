@@ -269,19 +269,7 @@ class EvalViewMcpToolActionTest {
                     throw UnsupportedOperationException("not used")
                 }
             }
-            override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
-                override val isCompiling: Boolean = false
-                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler) =
-                    throw UnsupportedOperationException("not used")
-
-                override fun forceReInstallNextTime() {
-                    throw UnsupportedOperationException("not used")
-                }
-
-                override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean): JuggRunInvocationResult {
-                    throw UnsupportedOperationException("not used")
-                }
-            }
+            override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
 
             override fun isAppReadyDeploy(): Boolean {
                 return isAppReadyProvider()

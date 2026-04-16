@@ -165,7 +165,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testRestartAppAcceptTapActionsArgument() {
+    fun testRestartAppRejectTapActionsArgument() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -184,12 +184,13 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertTrue(result.content.first().text.contains("restart executed successfully"))
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): tap_actions"))
     }
 
     @Test
-    fun testRestartAppAcceptTapActionsSwipeFields() {
+    fun testRestartAppRejectTapActionsSwipeFields() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -214,12 +215,13 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertTrue(result.content.first().text.contains("restart executed successfully"))
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): tap_actions"))
     }
 
     @Test
-    fun testRestartAppRejectUnknownTapActionsCustomField() {
+    fun testRestartAppRejectUnknownArgument() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -229,12 +231,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
                     "name" to "restart",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
-                        "tap_actions" to listOf(
-                            mapOf(
-                                "resourceId" to "btn_mcp_test_page",
-                                "custom" to 100,
-                            )
-                        ),
+                        "custom" to 100,
                     ),
                 )
             )

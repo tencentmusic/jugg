@@ -6,26 +6,6 @@ import org.junit.Test
 class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
-    fun testStartRecordRejectUnknownArgument() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 1,
-                params = mapOf(
-                    "name" to "record-start",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "durationSec" to 500)
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): durationSec"))
-    }
-
-    @Test
     fun testCrashReportRejectPackageNameArgument() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
@@ -71,26 +51,6 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): extra"))
-    }
-
-    @Test
-    fun testStopRecordRejectMissingSessionId() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 4,
-                params = mapOf(
-                    "name" to "record-stop",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("sessionId is required"))
     }
 
     @Test

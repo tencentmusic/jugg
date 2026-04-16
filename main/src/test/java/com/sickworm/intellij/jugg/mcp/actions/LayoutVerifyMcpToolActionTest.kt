@@ -33,13 +33,13 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
-    fun testInputSchemaPropertyEnumIncludesCanonicalAndAliasNames() {
+    fun testInputSchemaPropertyEnumIncludesCanonicalNames() {
         val checksProperties = LayoutVerifyMcpToolAction().definition.inputSchema.properties
         val checksItems = checksProperties["checks"]?.items
         val propertyEnum = checksItems?.properties?.get("property")?.`enum`?.mapNotNull { it as? String } ?: emptyList()
-        Assert.assertTrue("property enum should include width alias", propertyEnum.contains("width"))
         Assert.assertTrue("property enum should include bounds.width", propertyEnum.contains("bounds.width"))
         Assert.assertTrue("property enum should include alpha", propertyEnum.contains("alpha"))
+        Assert.assertFalse("property enum should not include width alias", propertyEnum.contains("width"))
     }
 
     @Test
@@ -1626,8 +1626,8 @@ class LayoutVerifyMcpToolActionTest {
     }
 
     @Test
-    fun testDumpFileModeSelectAmbiguousPicksFirst() {
-        // Two nodes with same resourceId and no other selector → firstOrNull picks the first (top=0)
+    fun testDumpFileModeSelectAmbiguousReturnsError() {
+        // Two nodes with same resourceId → ambiguous selector → ERROR with multiple-match message
         val dumpFile = writeDumpFile(
             """{"windows":[{"title":"Main","root":{"className":"FrameLayout","bounds":[0,0,400,400],"id":"root",
                 "children":[
@@ -1640,8 +1640,8 @@ class LayoutVerifyMcpToolActionTest {
             "target" to mapOf("resourceId" to "item"),
             "checks" to listOf(mapOf("type" to "property", "property" to "text", "value" to "First")),
         ), buildRuntime(null))
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertTrue("Expected PASS: ${result.message}", result.message.startsWith("PASS"))
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue("Expected multiple-match error: ${result.message}", result.message.contains("Multiple elements"))
         dumpFile.delete()
     }
 
@@ -1730,7 +1730,7 @@ class LayoutVerifyMcpToolActionTest {
 
     @Test
     fun testDumpFileModeUnsupportedPropertyReturnsSuggestionAndObservedSize() {
-        // Misspelled width should include did-you-mean and a direct observed width hint.
+        // Misspelled property should include supported-properties list and observed bounds hint.
         val dumpFile = writeDumpFile(
             """{"windows":[{"title":"Main","root":{"className":"View","id":"com.example:id/v","bounds":[0,0,300,100]}}],"deviceInfo":{"density":3.0}}"""
         )
@@ -1740,10 +1740,6 @@ class LayoutVerifyMcpToolActionTest {
             "checks" to listOf(mapOf("type" to "property", "property" to "widht", "value" to 50)),
         ), buildRuntime(null))
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue("Expected did-you-mean guidance: ${result.message}",
-            result.message.contains("did you mean", ignoreCase = true))
-        Assert.assertTrue("Expected suggestion to mention width/bounds.width: ${result.message}",
-            result.message.contains("width", ignoreCase = true))
         Assert.assertTrue("Expected observed width hint in message: ${result.message}",
             result.message.contains("reference bounds.width", ignoreCase = true))
         Assert.assertTrue("Expected supported properties list in message: ${result.message}",

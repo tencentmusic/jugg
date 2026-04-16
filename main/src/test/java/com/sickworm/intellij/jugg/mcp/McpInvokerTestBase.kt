@@ -130,43 +130,6 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("screenshot", def("screenshot")) { _ ->
-                McpToolResult(
-                    McpToolStatus.OK,
-                    "screenshot executed successfully.",
-                    mapOf("file" to "/tmp/a.png"),
-                    listOf(McpArtifact(type = "image", path = "/tmp/a.png")),
-                    null,
-                )
-            },
-            fakeAction("record-start", def("record-start")) { _ ->
-                McpToolResult(
-                    McpToolStatus.OK,
-                    "record-start executed successfully.",
-                    mapOf(
-                        "sessionId" to "rec_123",
-                        "serial" to "emulator-5554",
-                        "file" to "/tmp/a.mp4",
-                        "startedAtMs" to 123456789L,
-                    ),
-                    emptyList(),
-                    null,
-                )
-            },
-            fakeAction("record-stop", def("record-stop")) { arguments ->
-                val sessionId = arguments["sessionId"] as? String ?: "rec_123"
-                McpToolResult(
-                    McpToolStatus.OK,
-                    "record-stop executed successfully.",
-                    mapOf(
-                        "sessionId" to sessionId,
-                        "serial" to "emulator-5554",
-                        "file" to "/tmp/a.mp4",
-                    ),
-                    listOf(McpArtifact(type = "video", path = "/tmp/a.mp4")),
-                    null,
-                )
-            },
             fakeAction("layout-dump", def("layout-dump")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
@@ -210,6 +173,33 @@ abstract class McpInvokerTestBase {
                     McpToolStatus.OK,
                     "tap executed successfully.",
                     mapOf("x" to arguments["x"], "y" to arguments["y"]),
+                    emptyList(),
+                    null,
+                )
+            },
+            fakeAction("status", def("status")) { _ ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "status executed successfully.",
+                    mapOf("isReady" to true),
+                    emptyList(),
+                    null,
+                )
+            },
+            fakeAction("view-locate", def("view-locate")) { _ ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "view-locate executed successfully.",
+                    emptyMap<String, Any>(),
+                    emptyList(),
+                    null,
+                )
+            },
+            fakeAction("view-inspect", def("view-inspect")) { _ ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "view-inspect executed successfully.",
+                    emptyMap<String, Any>(),
                     emptyList(),
                     null,
                 )
