@@ -6,7 +6,7 @@ Use when `hasAutoRunEntry=false`. This flow handles compile and deploy only; no 
 
 ## Compile-Only Mode
 
-Trigger: user explicitly says "compile only" / "no deploy".
+Trigger: user explicitly says "compile only" / "no deploy" / "verification code compiles successfully".
 
 ### Steps
 

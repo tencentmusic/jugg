@@ -1,6 +1,6 @@
 # Jugg CLI Manual
 
-CLI entry: `scripts/jugg.py <subcommand> [options]`.
+CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py <subcommand> [options]`.
 
 ### CLI Output Format
 
@@ -25,13 +25,13 @@ All build commands **block** until completion; no polling needed.
 | `compile` | Compile modified sources, no deploy | No device, or user requests compile-only |
 | `deploy` | Compile + deploy to device | **Default path** |
 | `gradle-build` | Full Gradle compile fallback | After `deploy` retries exhausted; produces artifact only, follow with `deploy` |
-| `clean-reinstall` | Clear app data + reinstall APK | **Only** for install-state corruption or signature conflict |
+| `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
 
 ```
-scripts/jugg.py compile
-scripts/jugg.py deploy
-scripts/jugg.py gradle-build
-scripts/jugg.py clean-reinstall
+python3 {SKILL_DIR}/scripts/jugg.py compile
+python3 {SKILL_DIR}/scripts/jugg.py deploy
+python3 {SKILL_DIR}/scripts/jugg.py gradle-build
+python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
 
 ---
@@ -43,14 +43,11 @@ scripts/jugg.py clean-reinstall
 | `activity-stack` | Show current Activity stack |
 | `restart` | Restart app |
 | `tap` | Tap/long-press/swipe on device |
-| `screenshot` | Capture device screenshot |
-| `record-start` | Start screen recording |
-| `record-stop` | Stop recording, output mp4 path |
 
 ### `restart`
 
 ```
-scripts/jugg.py restart
+python3 {SKILL_DIR}/scripts/jugg.py restart
 ```
 
 ### `tap`
@@ -58,13 +55,13 @@ scripts/jugg.py restart
 Selector priority: Element → Coordinate → Percent.
 
 ```
-scripts/jugg.py tap --text "Login"                          # element (preferred)
-scripts/jugg.py tap --resource-id btn_submit                # element by ID
-scripts/jugg.py tap --content-desc "Close button"           # element by content-desc
-scripts/jugg.py tap --x 540 --y 960                         # coordinate (px)
-scripts/jugg.py tap --x-percent 50 --y-percent 80           # percent (last resort)
-scripts/jugg.py tap --text "Item" --action long-press        # long-press
-scripts/jugg.py tap --x-percent 50 --y-percent 80 --action swipe --end-x-percent 50 --end-y-percent 20   # swipe
+python3 {SKILL_DIR}/scripts/jugg.py tap --text "Login"                          # element (preferred)
+python3 {SKILL_DIR}/scripts/jugg.py tap --resource-id btn_submit                # element by ID
+python3 {SKILL_DIR}/scripts/jugg.py tap --content-desc "Close button"           # element by content-desc
+python3 {SKILL_DIR}/scripts/jugg.py tap --x 540 --y 960                         # coordinate (px)
+python3 {SKILL_DIR}/scripts/jugg.py tap --x-percent 50 --y-percent 80           # percent (last resort)
+python3 {SKILL_DIR}/scripts/jugg.py tap --text "Item" --action long-press        # long-press
+python3 {SKILL_DIR}/scripts/jugg.py tap --x-percent 50 --y-percent 80 --action swipe --end-x-percent 50 --end-y-percent 20   # swipe
 ```
 
 - `--action {tap|long-press|swipe}` — default: `tap`.
@@ -84,9 +81,9 @@ scripts/jugg.py tap --x-percent 50 --y-percent 80 --action swipe --end-x-percent
 ### `view-locate`
 
 ```
-scripts/jugg.py view-locate --text "Submit"
-scripts/jugg.py view-locate --resource-id btn_confirm
-scripts/jugg.py view-locate --content-desc "Back"
+python3 {SKILL_DIR}/scripts/jugg.py view-locate --text "Submit"
+python3 {SKILL_DIR}/scripts/jugg.py view-locate --resource-id btn_confirm
+python3 {SKILL_DIR}/scripts/jugg.py view-locate --content-desc "Back"
 ```
 
 At least one of `--text`/`--resource-id`/`--content-desc` required.
@@ -95,9 +92,9 @@ Output: `bounds [left,top,right,bottom]`, `position {x,y}`, `size {width,height}
 ### `view-inspect`
 
 ```
-scripts/jugg.py view-inspect --text "Submit" text visibility
-scripts/jugg.py view-inspect --resource-id btn_confirm background.color textSize
-scripts/jugg.py view-inspect --content-desc "Avatar" width height translationY
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --text "Submit" text visibility
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --resource-id btn_confirm background.color textSize
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --content-desc "Avatar" width height translationY
 ```
 
 - Selector: `--text`/`--resource-id`/`--content-desc` (at least one).
@@ -107,10 +104,10 @@ scripts/jugg.py view-inspect --content-desc "Avatar" width height translationY
 ### `layout-dump`
 
 ```
-scripts/jugg.py layout-dump
-scripts/jugg.py layout-dump --root-layout content_frame   # subtree only (View resource name, not R.id.xxx)
-scripts/jugg.py layout-dump --include-gone                # include GONE views
-scripts/jugg.py layout-dump --all-windows                 # all windows (dialogs, popups)
+python3 {SKILL_DIR}/scripts/jugg.py layout-dump
+python3 {SKILL_DIR}/scripts/jugg.py layout-dump --root-layout content_frame   # subtree only (View resource name, not R.id.xxx)
+python3 {SKILL_DIR}/scripts/jugg.py layout-dump --include-gone                # include GONE views
+python3 {SKILL_DIR}/scripts/jugg.py layout-dump --all-windows                 # all windows (dialogs, popups)
 ```
 
 Output: HTML file with full UI hierarchy.
@@ -128,7 +125,7 @@ Output: HTML file with full UI hierarchy.
 ### `crash-report`
 
 ```
-scripts/jugg.py crash-report
+python3 {SKILL_DIR}/scripts/jugg.py crash-report
 ```
 
 Key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
@@ -139,7 +136,7 @@ Key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
 ### `ssh-info`
 
 ```
-scripts/jugg.py ssh-info --reason "deploy fails after 3 retries, gradle-build also fails"
+python3 {SKILL_DIR}/scripts/jugg.py ssh-info --reason "deploy fails after 3 retries, gradle-build also fails"
 ```
 
 `--reason` is required. Only use after all other fallback steps exhausted and with user consent.

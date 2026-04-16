@@ -1,10 +1,6 @@
 ---
 name: jugg-android-dev-loop
-description: >-
-  Use Jugg for Android app modify/deploy/verify development loop.
-  Trigger when ANY of the following is true:
-  (1) User explicitly mentions Jugg, or asks to build, deploy, or verify Android App on device.
-  (2) Android source code (Java/Kotlin/XML layouts/AndroidManifest) was just modified.
+description: Use Jugg for Android app modify/deploy/verify development loop. Trigger when ANY of the following is true. (1) User explicitly mentions Jugg, or asks to build, deploy, or verify Android App on device. (2) Android source code (Java/Kotlin/XML layouts/AndroidManifest) was modified in current session.
 metadata:
   pattern: scenario-routing
   toolset: references/
@@ -29,11 +25,10 @@ python3 {SKILL_DIR}/scripts/jugg.py <subcommand> [options]
 All commands print JSON to stdout:
 
 ```json
-{"status": "OK|ERROR", "message": "...", "isFinal": true|false}
+{"status": "OK|ERROR", "message": "..."}
 ```
 
-- `status: OK` + `isFinal: true` → succeeded, terminal result.
-- `status: OK` + `isFinal: false` → intermediate; re-run same command.
+- `status: OK` → succeeded.
 - `status: ERROR` → failed; read `message` for cause.
 
 ### Build & Deploy Commands
@@ -42,10 +37,10 @@ All build commands **block** until completion; no polling needed.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `compile` | Compile modified sources, no deploy | No device, or user requests compile-only |
 | `deploy` | Compile + deploy to device | **Default path** |
-| `gradle-build` | Full Gradle compile fallback | After `deploy` retries exhausted; produces artifact only, follow with `deploy` |
-| `clean-reinstall` | Clear app data + reinstall APK | **Only** for install-state corruption or signature conflict |
+| `compile` | Compile modified sources, no deploy | User **explicit** requests compile-only / no deploy / verification code compiles successfully |
+| `gradle-build` | Full Gradle compile fallback | After `deploy` **retries exhausted and still failed** |
+| `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py compile
