@@ -1,15 +1,19 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
-import com.sickworm.intellij.jugg.mock.RequiresDevice
+import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
+import org.junit.ClassRule
 import org.junit.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@RequiresDevice
 class JuggJvmtiAgentManagerTest {
+
+    companion object {
+        @ClassRule @JvmField val deviceRule = RequiresDeviceRule()
+    }
 
     @Test
     fun test() {

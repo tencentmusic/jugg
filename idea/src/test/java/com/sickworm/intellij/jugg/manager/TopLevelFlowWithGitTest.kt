@@ -3,15 +3,19 @@ package com.sickworm.intellij.jugg.manager
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.git.GitManager
-import com.sickworm.intellij.jugg.mock.RequiresDevice
+import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import kotlin.test.*
 
-@RequiresDevice
 class TopLevelFlowWithGitTest {
+
+    companion object {
+        @ClassRule @JvmField val deviceRule = RequiresDeviceRule()
+    }
 
     @Before
     fun resetAllState() {

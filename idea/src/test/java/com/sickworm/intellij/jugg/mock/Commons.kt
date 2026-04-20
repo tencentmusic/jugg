@@ -28,6 +28,8 @@ import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.IdeaPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import org.junit.Assume
+import org.junit.rules.ExternalResource
 import org.mockito.Mockito
 import java.io.File
 import kotlin.test.assertEquals
@@ -158,7 +160,18 @@ val init = run {
 @Suppress("TestFunctionName")
 fun CompileTask(files: List<CompileFile>, outputDir: File) = CompileTask(files, outputDir, CompileStatusHolder.DEFAULT)
 
+
 /**
- * Need an Android device for this test.
+ * JUnit 4 ClassRule that skips the entire test class when no Android device is connected.
+ * Usage: companion object { @ClassRule @JvmField val deviceRule = RequiresDeviceRule() }
  */
-annotation class RequiresDevice
+class RequiresDeviceRule : ExternalResource() {
+    override fun before() {
+        val process = Runtime.getRuntime().exec(arrayOf("adb", "devices"))
+        val output = String(process.inputStream.readAllBytes())
+        process.waitFor()
+        // "adb devices" always prints a header line; a connected device adds at least one more line
+        val hasDevice = output.lines().drop(1).any { it.trim().isNotEmpty() }
+        Assume.assumeTrue("No Android device connected, skipping @RequiresDevice test", hasDevice)
+    }
+}

@@ -1,16 +1,16 @@
 package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
-import com.sickworm.intellij.jugg.mock.RequiresDevice
+import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
-import org.mockito.Mockito
 import kotlin.test.assertEquals
 
-@RequiresDevice
 class TopLevelFlowTest {
 
     companion object {
+        @ClassRule @JvmField val deviceRule = RequiresDeviceRule()
         private val jugg = MockJugg()
     }
 
