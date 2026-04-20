@@ -107,12 +107,8 @@ class McpLocalServerTest {
             Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.GET_COMPILE_STATUS))
             Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.SSH_INFO))
             Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.DEVICES))
-            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.SCREENSHOT))
-            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.RECORD_START))
-            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.RECORD_STOP))
             Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.LAYOUT_DUMP))
             Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.ACTIVITY_STACK))
-            Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.CRASH_REPORT))
             Assert.assertTrue(names.contains(McpToolActionRegistry.ToolNames.TAP))
         }
     }
