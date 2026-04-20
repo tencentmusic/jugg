@@ -33,9 +33,13 @@ object GradleBuildHelper {
         }
     }
 
-    fun appAssembleRelease(initScriptPath: String? = AssembleAndroidProjectOnce.scriptFile.absolutePath) {
+    fun appAssembleRelease(
+        initScriptPath: String? = AssembleAndroidProjectOnce.scriptFile.absolutePath,
+        forceRebuild: Boolean = false,
+    ) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleRelease $initArg", null, TestGlobal.projectRootDir)
+        val forceArg = if (forceRebuild) "--rerun-tasks" else ""
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleRelease $initArg $forceArg", null, TestGlobal.projectRootDir)
         println("\n----------- assembleRelease start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()

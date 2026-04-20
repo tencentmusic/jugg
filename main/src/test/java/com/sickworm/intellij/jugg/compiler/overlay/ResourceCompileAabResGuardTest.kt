@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.mock.GradleBuildHelper
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.TestGlobal
+import com.sickworm.intellij.jugg.mock.clearBuild
 import org.junit.Test
 import java.io.File
 
@@ -14,11 +15,14 @@ open class ResourceCompileAabResGuardTest : ResourceCompileTest() {
     }
 
     override fun build() {
+        // clearBuild() must be called first to trigger AssembleAndroidProjectOnce.ensure()
+        // (clean + assembleDebug) before the bundle release build, so that the subsequent
+        // clean step does not delete the bundle/release/resources-mapping.txt artifact.
+        clearBuild()
         if (!assembleOnce) {
             GradleBuildHelper.appBundleReleaseToApk()
         }
         assembleOnce = true
-        TestGlobal.buildDir.deleteRecursively()
     }
 
     override fun getContext(): SimpleCompileContext {

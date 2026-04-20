@@ -85,6 +85,7 @@ abstract class ReadProjectInfoGradleCompatTestBase {
         val fixtureDir = Files.createTempDirectory("jugg_android_fixture_${gradleVersion.replace('.', '_')}").toFile()
         try {
             assetSource.copyRecursively(fixtureDir, overwrite = true)
+            createMinimalJar(File(fixtureDir, ".gradle/jugg/jugg-runtime.jar"))
             writeSdkLocalProperties(fixtureDir)
             writeWrapper(fixtureDir, gradleVersion)
             val initScript = copyGeneratedInitScript(fixtureDir)

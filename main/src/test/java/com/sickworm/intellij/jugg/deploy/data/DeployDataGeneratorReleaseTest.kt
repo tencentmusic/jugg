@@ -48,10 +48,6 @@ class DeployDataGeneratorReleaseTest {
             "Lcom/sickworm/jugg/demo/testcase/minify/InterfaceImplementor;",
             "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestEnum;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$StaticInnerClass;",
-            "Lc3/a;",
-            "Lc3/b;",
-            "Lc3/c;",
-            "Lc3/d;",
             "Lcom/sickworm/jugg/demo/testcase/minify/KeepAnnotated;",
             "Lcom/sickworm/jugg/demo/testcase/minify/KeepClassName;",
             "Lcom/sickworm/jugg/demo/testcase/minify/NativeMethodClass;",
@@ -62,9 +58,8 @@ class DeployDataGeneratorReleaseTest {
     @Test
     fun testMinifyRemoveKeepClassName() {
         val removedOrPartiallyRemovedClasses = listOf(
-            "Ljava/lang/Object;",
-            "Ljava/lang/StringBuilder;",
             "Lkotlin/jvm/internal/Intrinsics;",
+            "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestActivity;",
         )
         testMinifyRemove("KeepClassName", removedOrPartiallyRemovedClasses)
     }

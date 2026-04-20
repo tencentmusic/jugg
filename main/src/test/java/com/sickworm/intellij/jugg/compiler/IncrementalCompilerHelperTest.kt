@@ -97,7 +97,7 @@ class IncrementalCompilerHelperTest {
     }
 
     @Test
-    fun `should skip const ref await when first round compile failed`() {
+    fun `should skip recompile detection when first round compile failed`() {
         val tempDir = Files.createTempDirectory("inc_compile_helper_failed").toFile()
         val sourceFile = File(tempDir, "src/A.kt").apply {
             parentFile.mkdirs()
@@ -149,7 +149,8 @@ class IncrementalCompilerHelperTest {
             compileStatusHolder = CompileStatusHolder.DEFAULT,
         )
         assertFalse(result.isSuccess)
-        verify(deployFileManager, never()).awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
+        // compile failure must not enter success branch: getRecompileFiles must not be called
+        verify(deployFileManager, never()).getRecompileFiles(any(), any(), any())
     }
 
     @Test

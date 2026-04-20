@@ -1058,6 +1058,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 delegate = CoroutineBackgroundTaskRunner(scope),
             ),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            startupStabilizationDelayMs = 500L,
         )
         try {
             engine.initializeFullScan(listOf(sourceDir))

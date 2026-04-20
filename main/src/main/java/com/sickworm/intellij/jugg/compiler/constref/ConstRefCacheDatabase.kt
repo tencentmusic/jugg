@@ -1580,6 +1580,9 @@ class ConstRefCacheDatabase(
         val candidates = linkedSetOf<String>()
         candidates += classPart
         candidates += classPart.substringAfterLast('.')
+        // Add outer class name so that "import com.example.Outer" resolves to
+        // "com.example.Outer.Inner" (the dot-separated nested inner class).
+        candidates += classPart.substringBefore('.').substringBefore('$')
         candidates
             .filter { it in targetSimpleNames }
             .forEach { simpleName ->

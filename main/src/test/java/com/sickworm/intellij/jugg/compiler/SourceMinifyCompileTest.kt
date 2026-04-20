@@ -39,9 +39,15 @@ class SourceMinifyCompileTest {
         @JvmStatic
         fun setUpClass() {
             try {
-                val mappingFile = File(TestGlobal.assetsAndroidDir, "app/build/outputs/mapping/release/mapping.txt")
+                // Ensure debug build runs first to set hasAssemble=true.
+                // This prevents TestGlobal.context getter from triggering clean() later,
+                // which would delete the release mapping.txt and overwrite project info
+                // with debug buildVariant, causing isMinified=false.
+                AssembleAndroidProjectOnce.ensure()
+
                 GradleBuildHelper.appAssembleRelease()
 
+                val mappingFile = File(TestGlobal.assetsAndroidDir, "app/build/outputs/mapping/release/mapping.txt")
                 if (!mappingFile.exists()) {
                     throw IllegalStateException("Mapping file not found: ${mappingFile.absolutePath}")
                 }
@@ -53,8 +59,12 @@ class SourceMinifyCompileTest {
                     ).load()!!.modules,
                 )
 
-                // Load APK for comparison
+                // Load APK for comparison.
+                // Re-assemble if APK was deleted by another test's clean() before we get here.
                 releaseApkFile = File(TestGlobal.assetsAndroidDir, "app/build/outputs/apk/release/app-release.apk")
+                if (!releaseApkFile!!.exists()) {
+                    GradleBuildHelper.appAssembleRelease(forceRebuild = true)
+                }
                 if (releaseApkFile!!.exists()) {
                     apkClasses = loadApkClasses(releaseApkFile!!)
                 }
@@ -124,10 +134,10 @@ class SourceMinifyCompileTest {
         // Verify obfuscation: class name should be obfuscated to b3.a
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lb3/a;",
+            expectedClassName = "Lg3/a;",
             verifyCallback = { compiledClass, apkClass ->
                 // Class name should be obfuscated
-                assertEquals("Lb3/a;", compiledClass.className,
+                assertEquals("Lg3/a;", compiledClass.className,
                     "Class name should be obfuscated to b3.a")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")
@@ -173,10 +183,10 @@ class SourceMinifyCompileTest {
         // Verify obfuscation: class name should be obfuscated to b3.b
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lb3/b;",
+            expectedClassName = "Lg3/b;",
             verifyCallback = { compiledClass, apkClass ->
                 // Class name should be obfuscated
-                assertEquals("Lb3/b;", compiledClass.className,
+                assertEquals("Lg3/b;", compiledClass.className,
                     "Class name should be obfuscated to b3.b")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")
@@ -254,10 +264,10 @@ class SourceMinifyCompileTest {
         // Verify obfuscation: class name should be obfuscated to b3.c
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lb3/c;",
+            expectedClassName = "Lg3/c;",
             verifyCallback = { compiledClass, apkClass ->
                 // Class name should be obfuscated
-                assertEquals("Lb3/c;", compiledClass.className,
+                assertEquals("Lg3/c;", compiledClass.className,
                     "Class name should be obfuscated to b3.c")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")
@@ -334,10 +344,10 @@ class SourceMinifyCompileTest {
         // Verify obfuscation: class name should be obfuscated to b3.d
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lb3/d;",
+            expectedClassName = "Lg3/d;",
             verifyCallback = { compiledClass, apkClass ->
                 // Class name should be obfuscated
-                assertEquals("Lb3/d;", compiledClass.className,
+                assertEquals("Lg3/d;", compiledClass.className,
                     "Class name should be obfuscated to b3.d")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")

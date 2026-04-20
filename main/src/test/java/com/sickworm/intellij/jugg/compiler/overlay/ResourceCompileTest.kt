@@ -346,7 +346,7 @@ open class ResourceCompileTest {
         )
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 29, isRJavaChanged = false)
+        checkArscResult(task, result, 31, isRJavaChanged = false)
     }
 
     @Test

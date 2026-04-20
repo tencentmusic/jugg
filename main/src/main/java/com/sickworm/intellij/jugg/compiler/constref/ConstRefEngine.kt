@@ -28,6 +28,7 @@ class ConstRefEngine(
     private val logger: Logger,
     private var backgroundTaskRunner: IBackgroundTaskRunner,
     private val repoSharedFingerprintStore: RepoSharedFingerprintStore,
+    private val startupStabilizationDelayMs: Long = 10_000L,
 ) {
     private val maxAnalyzedHistory = 4096
     private val analysisMutex = Mutex()
@@ -266,8 +267,6 @@ class ConstRefEngine(
             }
         }
     }
-
-    private val startupStabilizationDelayMs: Long = 10_000
 
     fun initializeFullScan(sourceDirs: List<File>) {
         val normalizedSourceDirs = sourceDirs

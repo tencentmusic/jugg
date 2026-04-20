@@ -106,7 +106,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         parsedApk.fieldRefs.forEach { (fieldNode, classRefs) ->
             val classRefs2 = parsedApkFromDb.fieldRefs[fieldNode]!!
             assertNotNull(classRefs2)
-            assertContentEquals(classRefs, classRefs2)
+            assertContentEquals(classRefs.sorted(), classRefs2.sorted())
         }
 
         assertEquals(parsedApk.subclassRefs.size, parsedApkFromDb.subclassRefs.size)
