@@ -29,54 +29,6 @@ import java.io.File
 class RuntimeObserveMcpToolActionTest {
 
     @Test
-    fun testCrashReportReturnsCrashSummaryAndArtifact() {
-        val projectDir = createTempDir(prefix = "jugg_mcp_crash_report_")
-        val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb(
-            shellOutputs = mapOf(
-                "dumpsys activity activities" to "topResumedActivity: ActivityRecord{123 t9 com.example.app/.MainActivity}",
-                "pidof com.example.app" to "",
-                "ps | grep com.example.app" to "",
-                "ps -A | grep com.example.app" to "",
-                "logcat -d -b crash -v threadtime" to """
-                    03-06 12:00:00.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main
-                    03-06 12:00:00.010  1234  1234 E AndroidRuntime: Process: com.example.app, PID: 1234
-                    03-06 12:00:00.020  1234  1234 E AndroidRuntime: java.lang.IllegalStateException: boom
-                """.trimIndent(),
-            )
-        )
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
-
-        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
-        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
-        Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
-        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
-        Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenReturn("com.example.app")
-        Mockito.`when`(deployTargetManager.dumpErrorLogs()).thenReturn("")
-
-        val action = CrashReportMcpToolAction()
-        val result = action.execute(
-            mapOf(
-                "projectDir" to projectDir.absolutePath,
-            ),
-            runtime(projectDir, deployTargetManager)
-        )
-
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(true, data["hasCrash"])
-        Assert.assertEquals(false, data["isProcessAlive"])
-        Assert.assertEquals("com.example.app/.MainActivity", data["relatedActivity"])
-        Assert.assertEquals("com.example.app", data["packageName"])
-        val crashLogs = data["crashLogs"] as List<*>
-        Assert.assertFalse(crashLogs.isEmpty())
-        val allErrorLogPath = data["allErrorLogPath"] as String
-        Assert.assertTrue(File(allErrorLogPath).exists())
-        Assert.assertEquals("log", result.artifacts.firstOrNull()?.type)
-    }
-
-    @Test
     fun testLayoutDumpReturnsErrorWhenPackageMissing() {
         val projectDir = createTempDir(prefix = "jugg_mcp_layout_dump_")
         val device = Mockito.mock(IDevice::class.java)

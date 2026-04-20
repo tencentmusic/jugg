@@ -55,19 +55,3 @@
 执行 `activity-stack`，验证 `status=OK`，输出含前台 Activity 名称。
 
 ---
-
-### MEDIA-10: 崩溃报告 - 无崩溃
-
-执行 `crash-report`，验证 `isProcessAlive=true`、`hasCrash=false`。
-
----
-
-### MEDIA-11: 崩溃报告 - 有崩溃
-
-让应用崩溃后执行 `crash-report`，验证 `hasCrash=true`、`crashLogs` 非空（含 `FATAL EXCEPTION`）。
-
----
-
-### MEDIA-12: 崩溃报告 - 应用未启动
-
-应用未启动时执行 `crash-report`，验证 `isProcessAlive=false`。

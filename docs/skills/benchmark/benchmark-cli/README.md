@@ -15,14 +15,14 @@ benchmark-cli/
 └── l4_adversarial_e2e.md             # L4 对抗 + 端到端组合（~10条）
 ```
 
-## 可用子命令（16 个）
+## 可用子命令（15 个）
 
 | 类别 | 子命令 |
 |------|--------|
 | 构建与部署 | `compile`, `deploy`, `gradle-build`, `reinstall` |
 | 运行时与观察 | `restart`, `tap`, `screenshot`, `record-start`, `record-stop`, `activity-stack` |
 | UI 检查 | `layout-dump`, `view-locate`, `view-inspect` |
-| 诊断 | `devices`, `crash-report`, `ssh-info` |
+| 诊断 | `devices`, `ssh-info` |
 
 - ⚠️注意：用例中的命令皆为子命令，agent 自行拼接 `python3 scripts/jugg.py $COMMAND`
 

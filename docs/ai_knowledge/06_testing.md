@@ -126,7 +126,6 @@ fun clearBuild() {
 | 文件 | 被测对象 | 覆盖场景 |
 |------|----------|----------|
 | `CompileAndDeployMcpToolActionTest.kt` | `CompileAndDeployMcpToolAction` | 截断详情/日志 artifact、超时、app not ready |
-| `CrashReportMcpToolActionTest.kt` | `CrashReportMcpToolAction` | crash buffer 优先、无 crash、无设备 |
 | `EvalViewMcpToolActionTest.kt` | `EvalViewMcpToolAction` | View getter 表达式执行 |
 | `LayoutDumpMcpToolActionTest.kt` | `LayoutDumpMcpToolAction` | inline/file 模式、px→dp、大 payload、rootLayout、clickable 计数 |
 | `LayoutVerifyMcpToolActionTest.kt` | `LayoutVerifyMcpToolAction` | schema 校验、property/spacing/overlap 检查、checksFile |

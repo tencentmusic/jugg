@@ -84,8 +84,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 
 On build/deploy error:
 1. Follow Build Fallback Chain → see `cli_manual.md` §Build Fallback Chain.
-2. On runtime crash → run `crash-report` → locate cause → fix → Step 1.
-3. If `crash-report` unavailable → fallback: `adb logcat` (mark: `fallback path used: adb`).
+2. On runtime crash → use `adb logcat` post-mortem recipe (see `logcat_recipes.md` §8) → locate cause → fix → Step 1.
 
 On auto-run execution error:
 1. Check auto-run logs for error/timeout markers.

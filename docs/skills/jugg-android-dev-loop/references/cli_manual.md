@@ -144,19 +144,7 @@ Output: HTML file with full UI hierarchy.
 | Command | Purpose |
 |---------|---------|
 | `devices` | List connected devices |
-| `crash-report` | Collect latest android device crash log |
 | `ssh-info` | Remote troubleshooting info (**requires user consent**) |
-
-### `crash-report`
-
-```
-python3 {SKILL_DIR}/scripts/jugg.py crash-report
-```
-
-Key output fields: `hasCrash`, `crashLogs`, `isProcessAlive`, `relatedActivity`.
-- `hasCrash=true` → read `crashLogs` for stack trace.
-- `hasCrash=false` + `isProcessAlive=true` → no crash, skip crash path.
-- `hasCrash=false` + `isProcessAlive=false` → process died without crash log; check `adb logcat` for ANR/kill.
 
 ### `ssh-info`
 

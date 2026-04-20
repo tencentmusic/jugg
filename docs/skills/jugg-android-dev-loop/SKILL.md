@@ -115,8 +115,9 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
 python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
 python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
-python3 {SKILL_DIR}/scripts/jugg.py crash-report         # collect latest android device crash log
 ```
+
+For live log collection (tag filter, crash auto-stop, marker wait, ANR/native signals) → see `logcat_recipes.md`.
 
 ### Build Fallback Chain
 

@@ -65,7 +65,6 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 | 子命令 | 对应 MCP tool | 说明 |
 |--------|--------------|------|
 | `version` | `version` | 显示 CLI 版本和插件版本（无需 projectDir） |
-| `crash-report` | `crash-report` | 收集崩溃报告 |
 | `compile` | `compile` | 增量编译（自动轮询） |
 | `deploy` | `deploy` | 编译并部署（自动轮询） |
 | `gradle-build` | `gradle-build` | Gradle 构建（自动轮询） |
@@ -104,13 +103,6 @@ plugin version: 1.2.3
 ```
 
 `--json` 模式返回：`{"cliVersion": "...", "plugin": <MCP structuredContent>}`
-
----
-
-#### `crash-report`
-```
-jugg crash-report [--json]
-```
 
 ---
 

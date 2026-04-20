@@ -29,6 +29,28 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
+    fun testVersionAcceptedWithoutProjectDir() {
+        val invoker = newBaseInvoker()
+        PlatformApi.impl = TestPlatformApi()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 2,
+                params = mapOf(
+                    "name" to "version",
+                    "arguments" to emptyMap<String, Any?>(),
+                )
+            )
+        )
+
+        Assert.assertNull(response.error)
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.content.first().text.contains("version executed successfully"))
+    }
+
+    @Test
     fun testCompileToolCallSuccess() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
@@ -269,29 +291,6 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         Assert.assertEquals("com.example.app/.MainActivity", data["topActivity"])
         val activities = data["activities"] as List<*>
         Assert.assertFalse(activities.isEmpty())
-    }
-
-    @Test
-    fun testCrashReportToolCallSuccess() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 20,
-                params = mapOf(
-                    "name" to "crash-report",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-        val data = result.structuredContent["data"] as Map<*, *>
-        Assert.assertEquals(true, data["hasCrash"])
-        val crashLogs = data["crashLogs"] as List<*>
-        Assert.assertFalse(crashLogs.isEmpty())
     }
 
     @Test

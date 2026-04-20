@@ -29,7 +29,6 @@ class McpToolActionRegistry(
         const val VIEW_LOCATE = "view-locate"
         const val VIEW_INSPECT = "view-inspect"
         const val ACTIVITY_STACK = "activity-stack"
-        const val CRASH_REPORT = "crash-report"
         const val TAP = "tap"
         const val GET_STATUS = "status"
         const val VERSION = "version"
@@ -51,6 +50,16 @@ class McpToolActionRegistry(
 
     companion object {
 
+        /**
+         * Tools that do not require a projectDir argument.
+         * Used by routing layers (McpRequestValidator, IdeaMcpRuntime, McpBaseInvoker) as the
+         * single source of truth — add new global tools here instead of updating each router.
+         */
+        val noProjectDirTools: Set<String> = setOf(
+            ToolNames.LIST_PROJECTS,
+            ToolNames.VERSION,
+        )
+
         fun defaultActions(): List<McpToolAction> {
             return listOf(
                 ListProjectsMcpToolAction(),
@@ -67,7 +76,6 @@ class McpToolActionRegistry(
                 UiFindMcpToolAction(),
                 EvalViewMcpToolAction(),
                 ActivityStackMcpToolAction(),
-                CrashReportMcpToolAction(),
                 TapMcpToolAction(),
                 GetStatusMcpToolAction(),
                 VersionMcpToolAction(),

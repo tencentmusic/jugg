@@ -32,7 +32,7 @@
 
 ## 3. MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
 
-共 **18 个**注册工具，按注册顺序排列。
+共 **17 个**注册工具，按注册顺序排列。
 
 ### 3.0 `version`
 
@@ -243,22 +243,6 @@
 | `projectDir` | string | **是** | 项目绝对路径 |
 
 **返回 data**：`topActivity`、`activities[]`、`dumpFile`、`sourceCommand`。
-
----
-
-### 3.18 `crash-report`
-
-收集最近崩溃摘要与完整错误日志。
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-
-**行为要点**：
-- 目标进程强过滤：仅保留目标包名/进程名与目标 PID 相关日志。
-- 采集优先级：先 `logcat -b crash`，仅当未检测到崩溃时再补读 `logcat -b main`。
-- `hasCrash=true` 表示检测到崩溃信号；`hasCrash=false` 时返回 `data.reason`。
-- `allErrorLogPath` 保留原始日志 artifact。
 
 ---
 

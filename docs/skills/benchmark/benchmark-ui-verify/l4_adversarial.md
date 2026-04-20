@@ -273,7 +273,7 @@
 1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Resource Tap Target"})` — **直接定位，跳过无关步骤**
 
 **期望输出行为**：
-- LLM **不调用** `devices`、`crash-report`、`compile` 等无关命令
+- LLM **不调用** `devices`、`compile` 等无关命令
 - 直接定位元素，报告位置
 
 **评分 Rubric（满分 5 分）**：

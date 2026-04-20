@@ -54,12 +54,6 @@
 
 ---
 
-### E2E-6: 崩溃检测与恢复
-
-`restart` → 触发崩溃 → `crash-report`（验证 `hasCrash=true`）→ `restart` → `crash-report`（验证 `hasCrash=false`）。
-
----
-
-### E2E-7: 构建回退链完整演练
+### E2E-6: 构建回退链完整演练
 
 `deploy` 失败（引入错误）→ 修复错误 → `deploy` 再次失败 → `gradle-build`（等完成）→ `deploy` 成功。

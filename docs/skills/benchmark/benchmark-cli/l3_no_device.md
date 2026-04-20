@@ -82,12 +82,6 @@
 
 ---
 
-### NODEV-13: crash-report
-
-`crash-report` → `status=ERROR`。
-
----
-
-### NODEV-14: tap
+### NODEV-13: tap
 
 `tap --xp 50 --yp 50` → `status=ERROR`。

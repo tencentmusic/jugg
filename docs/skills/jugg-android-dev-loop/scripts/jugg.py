@@ -30,7 +30,6 @@ Subcommands:
   tap                 Perform tap/long-press/swipe on device
   devices             List connected devices
   activity-stack      Show current Activity stack
-  crash-report        Collect latest app crash report
   ssh-info            Request remote SSH troubleshooting info when enable remote compile
 
 Run 'jugg <subcommand> --help' for subcommand options.
@@ -39,7 +38,6 @@ Run 'jugg <subcommand> --help' for subcommand options.
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
     "version":        ("cmd_version",        "cmd_version"),
-    "crash-report":   ("cmd_crash_report",   "cmd_crash_report"),
     "compile":        ("cmd_compile",        "cmd_compile"),
     "deploy":         ("cmd_deploy",         "cmd_deploy"),
     "gradle-build":   ("cmd_gradle_build",   "cmd_gradle_build"),

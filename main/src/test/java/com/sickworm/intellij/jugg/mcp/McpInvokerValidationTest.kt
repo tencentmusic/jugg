@@ -6,29 +6,6 @@ import org.junit.Test
 class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
-    fun testCrashReportRejectPackageNameArgument() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 2,
-                params = mapOf(
-                    "name" to "crash-report",
-                    "arguments" to mapOf(
-                        "projectDir" to "/tmp/projectA",
-                        "packageName" to "invalid-package-name"
-                    )
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): packageName"))
-    }
-
-    @Test
     fun testTapRejectUnknownArgument() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(

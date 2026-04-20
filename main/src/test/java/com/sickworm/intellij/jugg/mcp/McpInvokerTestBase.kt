@@ -49,6 +49,15 @@ abstract class McpInvokerTestBase {
                     errorCode = null,
                 )
             },
+            fakeAction("version", def("version")) { _ ->
+                McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "version executed successfully.",
+                    data = mapOf("pluginVersion" to "1.0.0"),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            },
             fakeAction("restart", def("restart")) { arguments ->
                 val projectDir = arguments["projectDir"] as? String
                 if (projectDir == "/tmp/projectNoDevice") {
@@ -150,21 +159,6 @@ abstract class McpInvokerTestBase {
                         "sourceCommand" to "dumpsys activity activities",
                     ),
                     listOf(McpArtifact(type = "text", path = "/tmp/activity_stack.txt")),
-                    null,
-                )
-            },
-            fakeAction("crash-report", def("crash-report")) { _ ->
-                McpToolResult(
-                    McpToolStatus.OK,
-                    "crash-report executed successfully.",
-                    mapOf(
-                        "isProcessAlive" to false,
-                        "hasCrash" to true,
-                        "crashLogs" to listOf("FATAL EXCEPTION: main", "java.lang.IllegalStateException: mock"),
-                        "relatedActivity" to "com.example.app/.MainActivity",
-                        "allErrorLogPath" to "/tmp/crash_report.log",
-                    ),
-                    listOf(McpArtifact(type = "log", path = "/tmp/crash_report.log")),
                     null,
                 )
             },
