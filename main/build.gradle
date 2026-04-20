@@ -149,8 +149,10 @@ tasks.withType(Test).configureEach {
             systemProperty key, value
         }
     }
-    // Increase heap only for external-project benchmark runs to avoid OOM on large source trees.
+    // Increase heap to avoid OOM when running multiple Kotlin compiler instances in-process.
+    maxHeapSize = "4g"
+    // Extra heap for external-project benchmark runs with large source trees.
     if (System.getProperty("benchmark.project.dir")) {
-        maxHeapSize = "4g"
+        maxHeapSize = "6g"
     }
 }

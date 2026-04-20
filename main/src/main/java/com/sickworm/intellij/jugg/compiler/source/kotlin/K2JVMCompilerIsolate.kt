@@ -82,7 +82,13 @@ class K2JVMCompilerIsolate {
         val compileClass = classLoader.loadClass("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
         val compileInstance = compileClass.declaredConstructors[0].newInstance()
         val method = compileClass.getMethod("exec", PrintStream::class.java, Array<String>::class.java)
-        val exitCodeIsolate = method.invoke(compileInstance, printStream, args)
+        val exitCodeIsolate = try {
+            method.invoke(compileInstance, printStream, args)
+        } catch (e: java.lang.reflect.InvocationTargetException) {
+            // Unwrap so the real cause (e.g. OutOfMemoryError) propagates instead of being
+            // hidden behind "unexpected exit code NNN".
+            throw e.cause ?: e
+        }
 
         val exitCodeClass = classLoader.loadClass("org.jetbrains.kotlin.cli.common.ExitCode")
         val exitCodeMethod = exitCodeClass.getDeclaredMethod("getCode")
