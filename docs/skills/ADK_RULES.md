@@ -11,8 +11,7 @@
 |------|---------|------|
 | **SKILL.md** (Agent 入口) | **≤ 200 行** | Agent 首次加载全文，必须在模型单次注意力窗口的高效区内；超 200 行后关键指令遵从率明显下降 |
 | **单个 Reference 文件** | **≤ 150 行** | 按需加载，但加载后与 SKILL.md 共存上下文；单文件过长会稀释主指令权重 |
-| **References 总量** | **≤ 6 个文件，合计 ≤ 600 行** | 极端场景（全流程 + 错误恢复）可能同时加载 4 个文件，需保证峰值上下文可控 |
-| **SKILL.md + 峰值加载** | **≤ 500 行** | 典型峰值 = SKILL.md + 2~3 个 ref；绝对上限 = SKILL.md + 4 个 ref |
+| **SKILL.md + 峰值加载** | **≤ 500 行** | 单次同时加载的 SKILL.md + Reference 总行数；峰值上下文是影响 Agent 决策质量的真实变量 |
 
 > **度量方式**：`wc -l`，空行和注释行计入。Frontmatter 不计入正文行数。
 
@@ -62,7 +61,8 @@
 | **一句话一个规则** | 每条规则/约束用一行表达，禁止段落式描述 |
 | **表格优于段落** | 多维信息用表格，不用列表嵌套 |
 | **代码块必须极短** | SKILL.md 中的代码块 ≤ 5 行；长模板/示例下沉到 Reference |
-| **去除修辞** | 禁止"请注意"/"务必"/"非常重要"等强调词——结构本身传达重要性 |
+| **去除语气修辞** | 禁止"请注意"/"务必"/"非常重要"/"NOTICE"/"IMPORTANT"等语气强调词 |
+| **粗体用于语义** | 粗体仅用于标记操作路径、必填/禁用条件；不用于普通强调 |
 | **不重复说**| 同一规则只出现一次；如果 Pipeline Step 已经说了 gate，Rules 章节只引用不复述 |
 
 ### 3.2 Reference 写作规则
@@ -97,6 +97,7 @@
 1. **这是控制流/决策/护栏吗？** → 是：加到 SKILL.md；否：加到 Reference。
 2. **加完后 SKILL.md 超 200 行吗？** → 是：必须同时精简等量旧内容（零和原则）。
 3. **加完后对应 Reference 超 150 行吗？** → 是：考虑拆分为两个 Reference 或精简旧内容。
+4. **加完后 SKILL.md + 峰值加载超 500 行吗？** → 是：精简加载量最大的 Reference。
 
 ### 5.2 零和原则
 
@@ -109,35 +110,10 @@ SKILL.md 的每一次新增，都必须伴随等量或更多的移除/下沉。�
 ```
 - [ ] SKILL.md 正文 ≤ 200 行
 - [ ] 每个 Reference ≤ 150 行
-- [ ] References 合计 ≤ 600 行且文件数 ≤ 6
+- [ ] SKILL.md + 峰值加载 ≤ 500 行
 - [ ] SKILL.md 中无工具参数细节（应在 Reference）
 - [ ] SKILL.md 中无完整代码示例（应在 Reference）
 - [ ] SKILL.md 中无完整报告模板（应在 Reference）
 - [ ] 同一规则只在一处表述（无重复）
 - [ ] 所有下沉内容有指针引用
 ```
-
----
-
-## 6. 当前体量快照
-
-> 用于对比迭代前后的变化，每次重大迭代后更新此节。
-
-| 文件 | 重构前 | 重构后 | 状态 |
-|------|--------|--------|------|
-| SKILL.md | 145 | 124 | ✅ (≤200) |
-| error_patterns.md | 144 | 144 | ✅ (≤150) |
-| policy_incremental_compile_limits.md | 42 | 42 | ✅ (≤150) |
-| ref_cli_manual.md | — | 90 | ✅ (新增) |
-| ref_flow_no_playground.md | — | 79 | ✅ (新增) |
-| ref_flow_with_playground.md | — | 108 | ✅ (新增) |
-| ref_guide_playground.md | — | 134 | ✅ (新增) |
-| ~~guide_ui_verify_assertion.md~~ | 90 | — | 🗑️ 融入流程文档 |
-| ~~report_template.md~~ | 70 | — | 🗑️ 融入 SKILL.md |
-| ~~tool_cards_build_deploy.md~~ | 69 | — | 🗑️ 融入 ref_cli_manual |
-| ~~tool_cards_runtime_observe.md~~ | 98 | — | 🗑️ 融入 ref_cli_manual |
-| ~~tool_cards_troubleshoot.md~~ | 50 | — | 🗑️ 融入 ref_cli_manual |
-| **合计 References** | **563** | **597** | ✅ (≤600) |
-| **SKILL + 峰值(3 ref)** | 546 | ~456 | ✅ (常态 SKILL+2ref ≈ 330) |
-
-> 快照日期：2026-04-11

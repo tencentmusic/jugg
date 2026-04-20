@@ -1,6 +1,6 @@
 ---
 name: jugg-android-dev-loop
-description: Use Jugg for Android app modify/deploy/verify development loop. Trigger when ANY of the following is true. (1) User explicitly mentions Jugg, or asks to build, deploy, or verify Android App on device. (2) Android source code (Java/Kotlin/XML layouts/AndroidManifest) was modified in current session.
+description: "MANDATORY AUTO-TRIGGER: This skill MUST be invoked automatically after ANY edit to Android source files (Java/Kotlin/XML/AndroidManifest/Gradle), without waiting for user request. Trigger conditions (ANY one is sufficient): (1) user mentions Jugg; (2) user asks to build/deploy/verify Android app; (3) one or more Android source files were just written or modified (Java/Kotlin/XML/layout/AndroidManifest/build.gradle). Do NOT skip this skill after source edits — compile+deploy is required to validate every change."
 metadata:
   pattern: scenario-routing
   toolset: references/
@@ -14,13 +14,9 @@ Jugg CLI-driven development loop for Android: modify → build → deploy → ve
 
 ## Definition - Auto-Run Entry
 
-An **auto-run entry** is a class method that:
+An **auto-run entry** is a user-designated method (e.g. `com.myapp.Test.run`) that runs automatically after app launch. Agent writes verification code into it and inspects logs/UI to confirm behavior. It is the primary verification mechanism in the Jugg dev loop.
 
-- Executes automatically after app launch (no manual trigger needed).
-- Agent can freely write test / verification code into it.
-- Agent confirms whether the code behaves as expected by inspecting logs and UI after execution.
-
-It is the primary mechanism for verifying code changes in the Jugg dev loop.
+> **⚠️ Entry location is NOT auto-discoverable.** The user must declare the fully-qualified method name in the prompt (中文或 English 均可). If not declared and not visible in context, **stop and ask** — do not guess or search the codebase. To author the entry body, see `guide_write_auto_run_entry_code.md`.
 
 ---
 
@@ -31,7 +27,7 @@ Collect mandatory variables before any action.
 | Variable | Source | Fallback |
 |----------|--------|----------|
 | `projectDir` | CLI auto-resolved from `$PWD` | Ask user only if CLI reports "not under any Jugg project" |
-| `hasAutoRunEntry` | `true` when: (1) user explicitly provides the auto-run entry location, OR (2) the entry location is already visible in context. See **§ Auto-Run Entry**. | Default `false` |
+| `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 
 ---
 
@@ -45,7 +41,7 @@ if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH
 elif user says "compile only" or "no deploy":
   → flow_no_auto_run.md §compile-only
 elif hasAutoRunEntry == false AND user requests verification:
-  → output: "⚠️ Auto-run entry not configured. → see guide_auto_run_entry.md §quick-start"
+  → ask user to declare auto-run entry (fully-qualified method, e.g. `com.myapp.Test.run`); then route to flow_with_auto_run.md (see guide_write_auto_run_entry_code.md for entry body)
 elif hasAutoRunEntry == false:
   → flow_no_auto_run.md
 elif hasAutoRunEntry == true:
@@ -57,7 +53,7 @@ elif hasAutoRunEntry == true:
 | install jugg CLI | `guide_install_cli.md` | — |
 | compile-only | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
 | no auto-run entry (deploy) | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
-| with auto-run entry | `flow_with_auto_run.md` | `guide_auto_run_entry.md`, `error_patterns.md` |
+| with auto-run entry | `flow_with_auto_run.md` | `guide_write_auto_run_entry_code.md`, `error_patterns.md` |
 
 Supplementary references load on-demand at the step that needs them.
 
@@ -118,13 +114,14 @@ python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected device
 python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # --marker: Java Pattern regex matched against log message; block until marker/crash/timeout
 ```
 
-For post-mortem crash collection (app already crashed): `adb logcat -d -b crash | grep -A 80 "FATAL EXCEPTION\|Fatal signal"`.
+```
+python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '<regex>' [--tags t1,t2] [--timeout-ms ms]
+# stopReason: marker → parse logs; crash → FAIL; timeout → INCONCLUSIVE → see cli_manual.md §wait-logs for flags
+```
 
-### Advanced Commands
+### UI Commands (low-frequency)
 
-For commands with complex parameters (tap, view-locate, view-inspect, layout-dump, ssh-info) → see `cli_manual.md`.
-
-**Flag naming**: all flags accept both kebab-case (e.g. `--resource-id`) and camelCase (e.g. `--resourceId`). camelCase = the MCP parameter name. Examples in `cli_manual.md` use kebab-case.
+For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → load `cli_manual.md`.
 
 ## Build Fallback Chain
 
@@ -134,5 +131,5 @@ On compile/deploy failure, follow this order:
 2. Modified source and retry `compile`/`deploy` up to 3 times.
 3. If still failing → `gradle-build`.
 4. If still failing → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-5. Call `ssh-info` when `gradle-build` is remote compile and still failing. **NOTICE**: `ssh-info` requires explicit user consent.
+5. Call `ssh-info` (requires explicit user consent) when `gradle-build` is remote compile and still failing.
 6. Still unclear → stop, ask user.

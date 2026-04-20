@@ -2,6 +2,8 @@
 
 Use when `hasAutoRunEntry=true`. Full loop: modify → write auto-run code → deploy → auto-execute → verify.
 
+> 📎 Supplementary reference: all auto-run entry code authoring rules (markers, wait logic, logging, navigation helpers) live in `guide_write_auto_run_entry_code.md`. Load on-demand at Step 2 or whenever auto-run code is edited.
+
 ---
 
 ## Pipeline (5-Step Loop)
@@ -22,7 +24,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 
 - **Entry**: Step 1 passed.
 - **Action**: Write or update code in the auto-run entry to implement the test scenario.
-  - Auto-run code guidelines → see `guide_auto_run_entry.md`.
+  - Auto-run code guidelines → see `guide_write_auto_run_entry_code.md`.
   - Must include: page navigation, wait logic, verification actions, logging.
 - **Checkpoint ✓**: (1) Auto-run code finish writing. (2) Contains `[JUGG_AR] START` and `[JUGG_AR] DONE` markers.
 
@@ -91,8 +93,8 @@ On build/deploy error:
 
 On auto-run execution error:
 1. Check auto-run logs for error/timeout markers.
-2. If timeout → check if wait conditions are too strict → adjust auto-run code → Step 2.
-3. If exception → fix source or auto-run code → Step 1 or Step 2.
+2. If timeout → check if wait conditions are too strict → adjust auto-run code (refer `guide_write_auto_run_entry_code.md` for wait/marker patterns) → Step 2.
+3. If exception → fix source or auto-run code (refer `guide_write_auto_run_entry_code.md` when rewriting entry logic) → Step 1 or Step 2.
 
 ---
 

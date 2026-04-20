@@ -72,13 +72,39 @@ Trigger: `hasAutoRunEntry=false` AND user did not say compile-only.
    - On `status: OK` + `isFinal: true` → Step 3.
    - On error → follow Build Fallback Chain (→ see [Gradle-Build Fallback](#gradle-build-fallback)).
    - On `NO_DEVICE` / `No device` → switch to Compile-Only Mode above.
-3. **Done** — Output report. Verification steps = `⏭ SKIP (no auto-run entry)`.
+3. **Done** — Output report. Verification steps default to `⏭ SKIP (no auto-run entry)`. If optional light-weight check ran, use `ℹ LIGHT-CHECK` status (see [Optional: Light-Weight On-Device Check](#optional-light-weight-on-device-check)).
 
 ```
 Step 1: Modify → [files changed]
 Step 2: deploy → status: OK, isFinal: true ✅
 Verdict: PASS (deployed, no verification)
 ```
+
+### Light-Weight On-Device Check
+
+**Trigger condition: only when the user explicitly requests verification** (e.g. "验证", "verify", "check result"). Without an explicit request, skip this section entirely — the verdict is based on compile + deploy success only.
+
+When triggered, agent uses the read-only / low-interaction tools below for a single pass of confirmation. **Never** a PASS gate — the verdict is still based on compile + deploy success.
+
+| Scenario | Tool (details → `cli_manual.md`) |
+|----------|-----------------------------------|
+| Confirm current page matches the changed one | `activity-stack` |
+| Check a control's position / existence | `view-locate` |
+| Read a control's property (`text` / `visibility` / `width` / `textSize` …) | `view-inspect` |
+| Need a full UI tree when previous tools miss the target | `layout-dump` |
+| Need one simple hop to reach the target page | `tap` (Element → Coordinate → Percent) |
+
+#### Guardrails
+
+- **Per-tool retry budget: at most 2 attempts.** If the second attempt still misses (element not found, wrong Activity, etc.), stop — do not chain into another tool as a fallback loop.
+- **Single-hop navigation only.** If reaching the target page requires more than 1–2 `tap`s, skip the light check instead of scripting multi-step flows. Multi-step or log-dependent verification belongs in `flow_with_auto_run.md`; suggest the user declare an auto-run entry instead.
+- **Not a PASS gate.** A successful light check upgrades the report detail, but a missed / inconclusive one does **not** turn the verdict into FAIL — it degrades to `⏭ SKIP`-equivalent semantics.
+
+#### Report Line
+
+- Did not run the check → keep `⏭ SKIP (no auto-run entry)`.
+- Ran and evidence matched expectation → `ℹ LIGHT-CHECK: passed — <one-line evidence>`.
+- Ran but evidence was missing / ambiguous → `ℹ LIGHT-CHECK: inconclusive — <reason>`.
 
 ### Checkpoint Rules
 
@@ -93,7 +119,7 @@ Verdict: PASS (deployed, no verification)
 If user requests on-device verification but has no auto-run entry configured:
 
 ```
-⚠️ Auto-run entry not configured. → see guide_auto_run_entry.md §quick-start
+⚠️ Auto-run entry not configured. 请在提示词中提供自动调试入口全限定方法名（or declare the auto-run entry, e.g. `com.myapp.Test.run`). 声明后参考 guide_write_auto_run_entry_code.md 编写入口代码。
 Without an auto-run entry, Jugg can only compile and deploy. Proceed with deploy-only? (y/n)
 ```
 
@@ -101,7 +127,7 @@ Without an auto-run entry, Jugg can only compile and deploy. Proceed with deploy
 
 ## Report Template
 
-Output at task completion. Status: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 RETRY(n)`. Compile-only: deploy and verification steps = `⏭ SKIP`.
+Output at task completion. Status: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 RETRY(n)` / `ℹ LIGHT-CHECK` (deploy-mode optional check only). Compile-only: deploy and verification steps = `⏭ SKIP`.
 
 ```
 # Jugg Dev Loop Report — Timestamp: {{ISO 8601}} | Scenario: {{compile_only|no_auto_run}} | Project: {{projectDir}}

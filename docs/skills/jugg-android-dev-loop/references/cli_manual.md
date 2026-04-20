@@ -14,6 +14,8 @@ All commands print JSON to stdout:
 - `status: OK` + `isFinal: false` → intermediate result; re-run same command.
 - `status: ERROR` → failed; read `message` for cause.
 
+All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
+
 ---
 
 ## Version Command
@@ -65,16 +67,34 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 
 | Command | Purpose |
 |---------|---------|
-| `activity-stack` | Show current Activity stack |
 | `restart` | Restart app |
-| `tap` | Tap/long-press/swipe on device |
 | `wait-logs` | Block until app log marker, crash, or timeout |
+| `activity-stack` | Show current Activity stack |
+| `tap` | Tap/long-press/swipe on device |
 
 ### `restart`
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py restart
 ```
+
+### `wait-logs`
+
+Block until a log marker appears, a crash is detected, or the timeout expires.
+Uses the most-recent `deploy`/`restart` timestamp as the log start point.
+
+```
+python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'
+python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE' --tags MyAutoRun,AndroidRuntime --timeout-ms 30000
+```
+
+| Flag | Description |
+|------|-------------|
+| `--marker <regex>` | Java Pattern regex matched against log message. **Required.** |
+| `--tags <t1,t2,...>` | Tag whitelist, comma-separated. Empty = no filter. |
+| `--timeout-ms <ms>` | Hard timeout `[1000, 300000]`, default 30000. |
+
+Output `stopReason`: `marker` → parse `logs`; `crash` → FAIL; `timeout` → INCONCLUSIVE.
 
 ### `tap`
 
@@ -163,25 +183,6 @@ python3 {SKILL_DIR}/scripts/jugg.py ssh-info --reason "deploy fails after 3 retr
 adb logcat -d -s <TAG>                       # filter by tag
 adb logcat -d | grep -E "\\[JUGG_AR\\]"         # filter auto-run logs
 ```
-
-### `wait-logs`
-
-Block until a log marker appears, a crash is detected, or the timeout expires.
-Uses the most-recent `deploy`/`restart` timestamp as the log start point.
-
-```
-python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'
-python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE' --tags MyAutoRun,AndroidRuntime --timeout-ms 30000
-```
-
-- `--marker <regex>`: Java Pattern regex matched against log message part. **Required.**
-- `--tags <t1,t2,...>`: tag whitelist, comma-separated. Empty = no tag filter.
-- `--timeout-ms <ms>`: hard timeout `[1000, 300000]`, default 30000.
-
-Output `stopReason`:
-- `marker` → parse `logs` for expected values.
-- `crash` → FAIL; crash snippet in `logs`.
-- `timeout` → INCONCLUSIVE; check if auto-run hung.
 
 ---
 
