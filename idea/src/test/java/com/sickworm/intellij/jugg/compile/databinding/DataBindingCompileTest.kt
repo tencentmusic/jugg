@@ -388,6 +388,12 @@ open class DataBindingCompileTest {
                 CompileStatusHolder.DEFAULT,
             )
             val result = JuggCompiler(stableContext, mockParentDisposable).compile(sourceTask)
+            if (!result.isAllSuccess) {
+                result.failedFiles.forEach { f ->
+                    println("FAILED FILE: ${f.file.file.name}")
+                    println("ERROR MESSAGES: ${f.getFailure().errorMessages}")
+                }
+            }
             assertTrue(result.isAllSuccess, "expected source-only incremental compile success")
             assertTrue(result.outputs.none { it.file.name.contains("ActivityDataBindingJavaDemoBindingImpl") },
                 "unexpected databinding impl regenerated: ${result.outputs.joinToString { it.file.name }}")
@@ -433,6 +439,12 @@ open class DataBindingCompileTest {
                 CompileStatusHolder.DEFAULT,
             )
             val result = JuggCompiler(stableContext, mockParentDisposable).compile(sourceTask)
+            if (!result.isAllSuccess) {
+                result.failedFiles.forEach { f ->
+                    println("FAILED FILE: ${f.file.file.name}")
+                    println("ERROR MESSAGES: ${f.getFailure().errorMessages}")
+                }
+            }
             assertTrue(result.isAllSuccess, "expected source-only incremental compile success")
             assertTrue(result.outputs.none { it.file.name.contains("ActivityDataBindingKotlinDemoBindingImpl") },
                 "unexpected databinding impl regenerated: ${result.outputs.joinToString { it.file.name }}")

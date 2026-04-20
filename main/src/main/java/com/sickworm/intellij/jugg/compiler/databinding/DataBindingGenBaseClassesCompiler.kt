@@ -27,6 +27,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
     init {
         DataBindingArgsManager.isKaAptRetryAptSuccess = false
+        DataBindingArgsManager.isLastFallbackAptFailed = false
     }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
