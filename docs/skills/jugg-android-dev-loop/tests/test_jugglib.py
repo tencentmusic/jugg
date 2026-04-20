@@ -248,5 +248,52 @@ class NormalizeArgsRoundTripTest(unittest.TestCase):
         self.assertTrue(result["consent"])
 
 
+class CompileCallErrorDetailTest(unittest.TestCase):
+    """compile_call should print data.detail when status is ERROR."""
+
+    def _run_compile_call(self, structured: dict):
+        import io
+        from contextlib import redirect_stderr
+        from unittest.mock import patch, MagicMock
+
+        buf = io.StringIO()
+        with patch("jugglib.resolve_project_dir", return_value="/fake/project"), \
+             patch("jugglib.resolve_port", return_value=12320), \
+             patch("jugglib.raw_call", return_value={"result": {"structuredContent": structured}}), \
+             redirect_stderr(buf):
+            try:
+                jugglib.compile_call("deploy", json_mode=False)
+            except SystemExit:
+                pass
+        return buf.getvalue()
+
+    def test_error_with_data_detail_is_printed(self):
+        structured = {
+            "status": "ERROR",
+            "message": "deploy finished with status=failed.",
+            "data": {"detail": "No connected device found (NO_DEVICE)"},
+        }
+        output = self._run_compile_call(structured)
+        self.assertIn("No connected device found (NO_DEVICE)", output)
+
+    def test_error_without_data_detail_still_works(self):
+        structured = {
+            "status": "ERROR",
+            "message": "Unknown error occurred",
+        }
+        output = self._run_compile_call(structured)
+        self.assertIn("Unknown error occurred", output)
+        self.assertNotIn("detail:", output)
+
+    def test_error_with_empty_data_detail_not_printed(self):
+        structured = {
+            "status": "ERROR",
+            "message": "Some error",
+            "data": {"detail": ""},
+        }
+        output = self._run_compile_call(structured)
+        self.assertNotIn("detail:", output)
+
+
 if __name__ == "__main__":
     unittest.main()

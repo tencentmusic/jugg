@@ -8,17 +8,17 @@ metadata:
 
 # Jugg Android Dev Loop
 
-CLI-driven development loop for Android: modify → build → deploy → verify → iterate.
+Jugg CLI-driven development loop for Android: modify → build → deploy → verify → iterate.
 
 ---
 
-## Auto-Run Entry
+## Definition - Auto-Run Entry
 
 An **auto-run entry** is a class method that:
 
-- Agent can freely write test / verification code into it.
 - Executes automatically after app launch (no manual trigger needed).
-- Agent confirms whether the code behaves as expected by inspecting logs and the UI.
+- Agent can freely write test / verification code into it.
+- Agent confirms whether the code behaves as expected by inspecting logs and UI after execution.
 
 It is the primary mechanism for verifying code changes in the Jugg dev loop.
 
@@ -119,20 +119,19 @@ python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected device
 
 For live log collection (tag filter, crash auto-stop, marker wait, ANR/native signals) → see `logcat_recipes.md`.
 
-### Build Fallback Chain
-
-On compile/deploy failure, follow this order:
-
-1. Parse `status`/`message` from JSON output.
-2. Retry `deploy` up to 3 times.
-3. If still failing → `gradle-build`.
-4. If still failing → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-5. Only on install-state corruption → `clean-reinstall`.
-6. Still unclear → stop, ask user.
-7. `ssh-info` requires explicit user consent.
-
 ### Advanced Commands
 
 For commands with complex parameters (tap, view-locate, view-inspect, layout-dump, ssh-info) → see `cli_manual.md`.
 
 **Flag naming**: all flags accept both kebab-case (e.g. `--resource-id`) and camelCase (e.g. `--resourceId`). camelCase = the MCP parameter name. Examples in `cli_manual.md` use kebab-case.
+
+## Build Fallback Chain
+
+On compile/deploy failure, follow this order:
+
+1. Parse `status`/`message` from JSON output.
+2. Modified source and retry `compile`/`deploy` up to 3 times.
+3. If still failing → `gradle-build`.
+4. If still failing → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
+5. Call `ssh-info` when `gradle-build` is remote compile and still failing. **NOTICE**: `ssh-info` requires explicit user consent.
+6. Still unclear → stop, ask user.

@@ -16,7 +16,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
   | File | Change | Purpose |
   |------|--------|---------|
 
-- **Checkpoint ✓**: Files saved, table output.
+- **Checkpoint ✓**: All sources finish editing, table output.
 
 ### Step 2: Write/Update Auto-Run Code
 
@@ -24,15 +24,15 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 - **Action**: Write or update code in the auto-run entry to implement the test scenario.
   - Auto-run code guidelines → see `guide_auto_run_entry.md`.
   - Must include: page navigation, wait logic, verification actions, logging.
-- **Checkpoint ✓**: (1) Auto-run entry file saved. (2) Contains `[JUGG_AR] START` and `[JUGG_AR] DONE` markers.
+- **Checkpoint ✓**: (1) Auto-run code finish writing. (2) Contains `[JUGG_AR] START` and `[JUGG_AR] DONE` markers.
 
 ### Step 3: Deploy & Auto-Execute
 
 - **Entry**: Step 2 passed.
-- **Action**: Run `deploy`. App launches and auto-run code executes automatically.
+- **Action**: Run `deploy`. App will launches and auto-run code executes automatically.
   - On error → load `error_patterns.md`, apply Error Reviewer.
   - On `NO_DEVICE` → stop, ask user.
-- **Checkpoint ✓**: `status=OK` + `isFinal=true`. Auto-run execution started.
+- **Checkpoint ✓**: `status=OK`. Auto-run execution started.
 - **Checkpoint ✗**: Fix → return to Step 1.
 - **Post-deploy rule**: All prior runtime state is invalidated.
 

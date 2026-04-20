@@ -143,7 +143,11 @@ def jugg_call(tool: str, params: dict, *, json_mode: bool = False) -> dict:
     status = structured.get("status", "")
     if status != "OK":
         msg = structured.get("message", "Unknown error")
-        print(f"status: ERROR\nmessage: {msg}", file=sys.stderr)
+        detail = structured.get("data", {}).get("detail", "")
+        error_output = f"status: ERROR\nmessage: {msg}"
+        if detail:
+            error_output += f"\ndetail: {detail}"
+        print(error_output, file=sys.stderr)
         sys.exit(1)
 
     print_kv(structured)
@@ -315,7 +319,11 @@ def compile_call(tool: str, *, json_mode: bool = False,
     status = structured.get("status", "")
     if status != "OK":
         msg = structured.get("message", "Unknown error")
-        print(f"status: ERROR\nmessage: {msg}", file=sys.stderr)
+        detail = structured.get("data", {}).get("detail", "")
+        error_output = f"status: ERROR\nmessage: {msg}"
+        if detail:
+            error_output += f"\ndetail: {detail}"
+        print(error_output, file=sys.stderr)
         sys.exit(1)
 
     print_kv(structured)

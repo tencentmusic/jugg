@@ -180,11 +180,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             val data = mutableMapOf<String, Any>()
             attachDetailData(data, detailResult)
             data.putAll(extraData)
-            val message = if (detailResult.hasDetail) {
-                "$toolName failed. Reason: $reason. See data.detail and artifacts for logs."
-            } else {
-                "$toolName failed. Reason: $reason"
-            }
+            val message = "$toolName failed. Reason: $reason."
             return McpToolResult(
                 status = McpToolStatus.ERROR,
                 message = message,
@@ -206,11 +202,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 val data = mutableMapOf<String, Any>()
                 attachDetailData(data, detailResult)
                 data.putAll(extraData)
-                val message = if (detailResult.hasDetail) {
-                    "$toolName failed. Reason: invalid run result payload. See data.detail and artifacts for logs."
-                } else {
-                    "$toolName failed. Reason: invalid run result payload."
-                }
+                val message = "$toolName failed. Reason: invalid run result payload."
                 return McpToolResult(
                     status = McpToolStatus.ERROR,
                     message = message,
@@ -229,11 +221,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 val data = mutableMapOf<String, Any>("runResult" to runResultObject)
                 attachDetailData(data, detailResult)
                 data.putAll(extraData)
-                val message = if (detailResult.hasDetail) {
-                    "$toolName finished with status=$jobStatus. See data.detail and artifacts for error info."
-                } else {
-                    "$toolName finished with status=$jobStatus."
-                }
+                val message = "$toolName finished with status=$jobStatus."
                 return McpToolResult(
                     status = McpToolStatus.ERROR,
                     message = message,

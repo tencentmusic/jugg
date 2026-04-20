@@ -51,7 +51,6 @@ class CompileAndDeployMcpToolActionTest {
         val result = action.execute(emptyMap(), runtime)
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue(result.message.contains("See data.detail and artifacts for logs."))
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         val detailPreview = data["detail"] as String
