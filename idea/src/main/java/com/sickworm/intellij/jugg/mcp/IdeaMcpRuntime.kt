@@ -30,7 +30,7 @@ class IdeaMcpRuntime(
             }
 
             val toolName = (request.params as? Map<*, *>)?.get("name") as? String
-            if (toolName == McpToolActionRegistry.ToolNames.LIST_PROJECTS) {
+            if (toolName in McpToolActionRegistry.noProjectDirTools) {
                 return McpBaseInvoker.mcpBaseInvoker.invokeMcp(request)
             }
 

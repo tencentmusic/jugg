@@ -1,7 +1,8 @@
 package com.sickworm.intellij.jugg.mcp
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.mcp.actions.ListProjectsMcpToolAction
+import com.sickworm.intellij.jugg.mcp.actions.GlobalMcpToolAction
+import com.sickworm.intellij.jugg.mcp.actions.McpToolActionRegistry
 
 /**
  * McpBaseInvoker invokes mcp operations and maps outputs/errors.
@@ -38,24 +39,35 @@ class McpBaseInvoker(
     private fun handleToolsCallWithoutRuntime(id: Any?, request: McpValidationResult.ToolsCall): McpJsonRpcResponse {
         logger.debug("[MCP][GLOBAL] tools/call name=${request.toolName}, projectDir=${request.projectDir}")
 
-        if (request.toolName == "list-projects") {
-            val toolResult = ListProjectsMcpToolAction().listProjectsAction()
-            return if (toolResult.status == McpToolStatus.ERROR) {
-                resultMapper.toolError(
-                    id = id,
-                    errorCode = toolResult.errorCode ?: McpErrorCode.INTERNAL_ERROR,
-                    message = toolResult.message,
-                    data = toolResult.data,
-                )
-            } else {
-                resultMapper.toolSuccess(id = id, toolResult = toolResult)
-            }
-        } else {
+        if (request.toolName !in McpToolActionRegistry.noProjectDirTools) {
             return resultMapper.toolError(
                 id = id,
                 errorCode = McpErrorCode.INTERNAL_ERROR,
                 message = "MCP runtime is not initialized.",
             )
+        }
+
+        val action = toolRegistry.getAction(request.toolName) as? GlobalMcpToolAction
+            ?: return resultMapper.toolError(
+                id = id,
+                errorCode = McpErrorCode.TOOL_NOT_FOUND,
+                message = "Tool not found: ${request.toolName}",
+            )
+
+        val toolResult = action.executeGlobal()
+        return toToolResponse(id, toolResult)
+    }
+
+    private fun toToolResponse(id: Any?, toolResult: McpToolResult): McpJsonRpcResponse {
+        return if (toolResult.status == McpToolStatus.ERROR) {
+            resultMapper.toolError(
+                id = id,
+                errorCode = toolResult.errorCode ?: McpErrorCode.INTERNAL_ERROR,
+                message = toolResult.message,
+                data = toolResult.data,
+            )
+        } else {
+            resultMapper.toolSuccess(id = id, toolResult = toolResult)
         }
     }
 

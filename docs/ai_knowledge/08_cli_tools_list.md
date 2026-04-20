@@ -64,6 +64,7 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 
 | 子命令 | 对应 MCP tool | 说明 |
 |--------|--------------|------|
+| `version` | `version` | 显示 CLI 版本和插件版本（无需 projectDir） |
 | `crash-report` | `crash-report` | 收集崩溃报告 |
 | `compile` | `compile` | 增量编译（自动轮询） |
 | `deploy` | `deploy` | 编译并部署（自动轮询） |
@@ -78,6 +79,31 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 | `devices` | `devices` | 列出设备 |
 | `activity-stack` | `activity-stack` | 查看 Activity 栈 |
 | `ssh-info` | `ssh-info` | 申请 SSH 排障信息 |
+
+---
+
+#### `version`
+```
+jugg version [--json]
+```
+**行为说明**：直接调用 MCP `version` 工具（无需 projectDir），同时展示内置 CLI 版本和插件版本。
+
+默认输出示例：
+```
+cli version: 1.0.1
+plugin version: 1.2.3
+```
+
+当各工程版本不一致时，额外输出每个工程的版本 map：
+```
+cli version: 1.0.1
+plugin version: 1.2.3
+  (versions differ across projects)
+  /path/to/projectA: 1.2.3
+  /path/to/projectB: 1.2.0
+```
+
+`--json` 模式返回：`{"cliVersion": "...", "plugin": <MCP structuredContent>}`
 
 ---
 

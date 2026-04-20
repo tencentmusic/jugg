@@ -62,6 +62,26 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
     }
 
     @Test
+    fun testVersionSucceedsWithoutProjectDir() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 13,
+                params = mapOf(
+                    "name" to "version",
+                    "arguments" to emptyMap<String, Any?>(),
+                ),
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.content.first().text.contains("version executed successfully"))
+    }
+
+    @Test
     fun testProjectDirRequiredForNormalTools() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(

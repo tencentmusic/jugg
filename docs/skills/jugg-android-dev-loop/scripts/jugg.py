@@ -17,6 +17,7 @@ USAGE = """\
 Usage: jugg <subcommand> [options]
 
 Subcommands:
+  version             Show CLI version and plugin version from all initialized projects
   compile             Compile modified sources (no deploy)
   deploy              Compile and deploy to device (waits for completion)
   gradle-build        Force Gradle build (waits for completion)
@@ -37,6 +38,7 @@ Run 'jugg <subcommand> --help' for subcommand options.
 
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
+    "version":        ("cmd_version",        "cmd_version"),
     "crash-report":   ("cmd_crash_report",   "cmd_crash_report"),
     "compile":        ("cmd_compile",        "cmd_compile"),
     "deploy":         ("cmd_deploy",         "cmd_deploy"),

@@ -16,6 +16,31 @@ All commands print JSON to stdout:
 
 ---
 
+## Version Command
+
+```
+python3 {SKILL_DIR}/scripts/jugg.py version
+```
+
+Show CLI version and Jugg plugin version from all initialized IDE projects.
+
+Output when all projects share the same version:
+```
+cli version: 1.0.1
+plugin version: 1.2.3
+```
+
+Output when projects have differing versions (highest version shown first):
+```
+cli version: 1.0.1
+plugin version: 1.2.3
+  (versions differ across projects)
+  /path/to/projectA: 1.2.3
+  /path/to/projectB: 1.2.0
+```
+
+---
+
 ## Build & Deploy Commands
 
 All build commands **block** until completion; no polling needed.

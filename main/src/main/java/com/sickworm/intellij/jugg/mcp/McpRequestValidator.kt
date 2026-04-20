@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.mcp
 
+import com.sickworm.intellij.jugg.mcp.actions.McpToolActionRegistry
+
 /**
  * McpRequestValidator validates incoming MCP JSON-RPC requests:
  * method routing, tool existence, schema checks, defaults, and project authorization.
@@ -57,7 +59,8 @@ class McpRequestValidator(
         }
         val projectDir = normalizedArgs["projectDir"] as? String
 
-        if (toolName == "list-projects") {
+        val noProjectDirTools = McpToolActionRegistry.noProjectDirTools
+        if (toolName in noProjectDirTools) {
             return McpValidationResult.ToolsCall(
                 toolName = toolName,
                 arguments = args,
