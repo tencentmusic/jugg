@@ -34,6 +34,7 @@ interface CompileUiHandler {
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
     fun notifyByBalloon(text: String)
+    fun showRunWindow()
 
     fun shouldAutoConfirmDeployPrompt(message: String): Boolean = false
     fun onDeployUiMessage(message: String) = Unit
@@ -61,6 +62,7 @@ interface CompileUiHandler {
             override fun updateIndicatorText(text: String) = Unit
             override fun listenCancelAction(listener: (() -> Unit)?) = Unit
             override fun notifyByBalloon(text: String) = Unit
+            override fun showRunWindow() = Unit
 
             override fun cancel() = Unit
         }

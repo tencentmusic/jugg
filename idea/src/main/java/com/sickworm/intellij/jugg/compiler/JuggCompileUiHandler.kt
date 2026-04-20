@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -16,6 +17,7 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.io.File
+import javax.swing.SwingUtilities
 
 open class JuggCompileUiHandler(
     private val project: Project,
@@ -81,6 +83,16 @@ open class JuggCompileUiHandler(
 
     override fun notifyByBalloon(text: String) {
         JuggRunningTask.notifyByBalloon(project, text)
+    }
+
+    override fun showRunWindow() {
+        if (isRpcMode) {
+            return
+        }
+        SwingUtilities.invokeLater {
+            val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
+            toolWindowManager.getToolWindow("Run")?.activate(null)
+        }
     }
 
     override fun shouldAutoConfirmDeployPrompt(message: String): Boolean {

@@ -117,13 +117,13 @@ class JuggRunningTask(
     }
 
     private fun showGreenDotOnRunToolWindow() {
+        if (statusManager.isFirstTimeRun()) {
+            compileUiHandler.showRunWindow()
+        }
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.let {
                 val icon = ExecutionUtil.getLiveIndicator(it.icon)
-                if (statusManager.isFirstTimeRun()) {
-                    it.activate(null)
-                }
                 it.setIcon(icon)
             }
         }
@@ -338,10 +338,7 @@ class JuggRunningTask(
         if (processHandler.isCanceled) {
             return
         }
-        SwingUtilities.invokeLater {
-            val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
-            toolWindowManager.getToolWindow("Run")?.activate(null)
-        }
+        compileUiHandler.showRunWindow()
     }
 
     private fun stop(indicator: ProgressIndicator) {
