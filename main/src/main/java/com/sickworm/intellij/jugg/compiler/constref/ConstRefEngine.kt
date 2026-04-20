@@ -16,6 +16,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.zip.CRC32
 import kotlin.system.measureTimeMillis
 
@@ -229,9 +233,28 @@ class ConstRefEngine(
         }
 
         if (analyzePaths.isNotEmpty()) {
+            val timeoutMs = analyzePaths.size * PER_FILE_ANALYZE_TIMEOUT_MS
+            var timedOut = false
             val costMs = measureTimeMillis {
-                runBlocking {
-                    analyzeFiles(analyzePaths.map(::File))
+                val executor = Executors.newSingleThreadExecutor()
+                val future = executor.submit {
+                    runBlocking {
+                        analyzeFiles(analyzePaths.map(::File))
+                    }
+                }
+                try {
+                    future.get(timeoutMs, TimeUnit.MILLISECONDS)
+                } catch (e: TimeoutException) {
+                    timedOut = true
+                    future.cancel(true)
+                    logger.warn(
+                        "ConstRefEngine analyzeOnDemand timed out, " +
+                            "fileCount=${analyzePaths.size}, timeoutMs=$timeoutMs"
+                    )
+                } catch (e: ExecutionException) {
+                    logger.warn("ConstRefEngine analyzeOnDemand failed: ${e.cause?.message}")
+                } finally {
+                    executor.shutdownNow()
                 }
             }
             val analyzeFileNames = if (analyzePaths.size <= DETAILED_LOG_FILE_THRESHOLD) {
@@ -239,17 +262,19 @@ class ConstRefEngine(
             } else {
                 "${analyzePaths.size} files"
             }
-            if (costMs > SLOW_PHASE_THRESHOLD_MS) {
-                logger.debug(
-                    "ConstRefEngine analyzeOnDemand finished (slow), " +
-                        "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, " +
-                        "files=$analyzeFileNames, cost=${costMs}ms"
-                )
-            } else {
-                logger.debug(
-                    "ConstRefEngine analyzeOnDemand finished, " +
-                        "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, cost=${costMs}ms"
-                )
+            if (!timedOut) {
+                if (costMs > SLOW_PHASE_THRESHOLD_MS) {
+                    logger.debug(
+                        "ConstRefEngine analyzeOnDemand finished (slow), " +
+                            "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, " +
+                            "files=$analyzeFileNames, cost=${costMs}ms"
+                    )
+                } else {
+                    logger.debug(
+                        "ConstRefEngine analyzeOnDemand finished, " +
+                            "targetPathCount=${targetPaths.size}, analyzedPathCount=${analyzePaths.size}, cost=${costMs}ms"
+                    )
+                }
             }
         }
 
@@ -1447,6 +1472,7 @@ class ConstRefEngine(
         private const val DEFAULT_BATCH_SIZE = 50
         private const val SLOW_PHASE_THRESHOLD_MS = 500L
         private const val DETAILED_LOG_FILE_THRESHOLD = 5
+        private const val PER_FILE_ANALYZE_TIMEOUT_MS = 5_000L
 
         private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
             return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue

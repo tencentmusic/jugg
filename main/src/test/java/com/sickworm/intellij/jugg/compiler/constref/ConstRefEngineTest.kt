@@ -1292,7 +1292,58 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         }
     }
 
-    @Test
+    @Test(timeout = 30_000)
+    fun `analyzeOnDemand should return within per-file timeout when analyzeFiles hangs`() {
+        val rootDir = createTempDirectory("const_ref_analyze_on_demand_timeout")
+        File(rootDir, ".git").mkdirs()
+        val sourceFile = File(rootDir, "Slow.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val SLOW = 1
+                """.trimIndent()
+            )
+        }
+
+        val hangMs = 60_000L
+        val slowAnalyzer = mock<ConstRefAnalyzer>()
+        whenever(slowAnalyzer.parseDefinitions(any())).thenAnswer {
+            Thread.sleep(hangMs)
+            emptyMap<String, List<ConstDefinition>>()
+        }
+        whenever(slowAnalyzer.collectHintsAndParseReferences(any(), any())).thenReturn(emptyList())
+        whenever(slowAnalyzer.parseReferences(any(), any<ConstDefinitionLookup>())).thenReturn(emptyMap())
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = slowAnalyzer,
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.onFileSaved(sourceFile.absolutePath)
+            val perFileTimeoutMs = 5_000L
+            val elapsedMs = measureTimeMillis {
+                val readiness = engine.analyzeOnDemand(listOf(sourceFile.absolutePath))
+                assertFalse(
+                    "analyzeOnDemand should return not-ready when timeout fires",
+                    readiness.isReady,
+                )
+            }
+            // Should complete near perFileTimeoutMs * 1 file, well under hangMs
+            assertTrue(
+                "analyzeOnDemand should not block longer than per-file timeout, elapsedMs=$elapsedMs",
+                elapsedMs < perFileTimeoutMs * 2,
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test(timeout = 30_000)
     fun `queryCandidateDefinitionsForFile should use precise pairs instead of cartesian product`() {
         val rootDir = createTempDirectory("const_ref_no_cartesian")
         File(rootDir, ".git").mkdirs()
