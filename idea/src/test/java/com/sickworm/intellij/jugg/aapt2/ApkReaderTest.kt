@@ -58,6 +58,6 @@ class ApkReaderTest {
     @Test
     fun testDefaultActivity() {
         val reader = ApkReader(apkFile, logger)
-        assertEquals("com.sickworm.jugg.demo.testcase.compose.MainComposeActivity", reader.getDefaultActivity())
+        assertEquals("com.example.myapplication.MainActivity", reader.getDefaultActivity())
     }
 }

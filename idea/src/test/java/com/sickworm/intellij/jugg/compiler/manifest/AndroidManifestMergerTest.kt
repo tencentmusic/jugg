@@ -14,20 +14,10 @@ class AndroidManifestMergerTest : ManifestDifferTest() {
     override fun testFileEquals() {
         val changedManifestFile = ChangedManifestFile(mergedFile, mergedFile)
         val outputFile = File(buildDir, "out/AndroidManifest.xml")
-        AndroidManifestMerger(logger).merge(mergedFile, listOf(changedManifestFile), outputFile)
-
-        val newLines = XmlParser().parse(outputFile).printXml().lines()
-        val oldLines = XmlParser().parse(mergedFile).printXml().lines()
-        newLines.forEachIndexed { index, line ->
-            assertEquals(line, oldLines[index],
-                "Line: $index, context:\n${
-                    newLines
-                        .subListSafe(index - 2, index + 2)
-                        .mapIndexed { contextIndex, string -> "${index - 2 + contextIndex}: $string" }
-                        .joinToString("\n")
-                }")
-        }
-        assertEquals(newLines.size, newLines.size)
+        val hasChanges = AndroidManifestMerger(logger).merge(mergedFile, listOf(changedManifestFile), outputFile)
+        // no diff when merging identical files — merger returns false and does not write outputFile
+        assertEquals(false, hasChanges)
+        assert(!outputFile.exists()) { "outputFile should not be created when there are no changes" }
     }
 
     override fun diff(newXml: String, oldXml: String, expectDiffResult: String): ManifestDiffResult.DiffElement {
@@ -36,7 +26,9 @@ class AndroidManifestMergerTest : ManifestDifferTest() {
         val oldFullNode = XmlParser().parse(mergedFile)
         val newFullNode = XmlParser().parse(mergedFile)
         AndroidManifestMerger(logger).merge(newFullNode, listOf(diffResult))
-        File(buildDir, "out/AndroidManifest.xml").writeText(newFullNode.printXml())
+        val outFile = File(buildDir, "out/AndroidManifest.xml")
+        outFile.parentFile.mkdirs()
+        outFile.writeText(newFullNode.printXml())
         super.diff(newFullNode.printXml(), oldFullNode.printXml(), expectDiffResult)
 
         return diffResult

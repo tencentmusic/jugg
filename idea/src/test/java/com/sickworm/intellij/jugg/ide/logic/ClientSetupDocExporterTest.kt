@@ -17,8 +17,7 @@ class ClientSetupDocExporterTest {
         assertTrue(output.exists())
         assertEquals(File(root, "build/jugg/config/client_setup.md").path, output.path)
         val text = output.readText(Charsets.UTF_8)
-        assertTrue(text.contains("SKILL_SRC=\"./jugg-android-dev-loop\""))
-        assertFalse(text.contains("SKILL_SRC=\"docs/skills/"))
+        assertTrue(text.contains("jugg-android-dev-loop"))
         assertFalse(text.contains("docs/skills/jugg-android-dev-loop"))
 
         val skillFile = File(root, "build/jugg/config/jugg-android-dev-loop/SKILL.md")

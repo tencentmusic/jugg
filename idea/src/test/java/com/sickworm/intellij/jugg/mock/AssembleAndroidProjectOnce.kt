@@ -22,13 +22,18 @@ object AssembleAndroidProjectOnce {
 
     fun ensure(isNeedClean: Boolean = true) {
         logger.debug("ensure assemble, hasAssemble: $hasAssemble")
-        if (!hasAssemble) {
-            if (isNeedClean) {
+        // Also re-assemble if the project info file was deleted externally (e.g. by gradlew clean),
+        // unless the skip-assemble backdoor is active.
+        val isSkipAssembly = TestModeManager.isSkipTestAssemblyEnabled()
+        val needAssemble = !hasAssemble || (!isSkipAssembly && !gradleProjectInfoFile.exists())
+        if (needAssemble) {
+            // Only run clean on the very first assembly, not when the file was unexpectedly deleted.
+            if (isNeedClean && !hasAssemble) {
                 GradleBuildHelper.clean()
             }
             GradleBuildHelper.appAssembleDebug(scriptFile.absolutePath)
+            hasAssemble = true
         }
-        hasAssemble = true
     }
 
     fun forceRecompile(isNeedClean: Boolean) {

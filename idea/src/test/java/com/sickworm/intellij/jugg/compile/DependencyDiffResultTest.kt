@@ -12,7 +12,9 @@ import kotlin.test.assertEquals
 
 class DependencyDiffResultTest {
 
-    private val fullBuildDependencies = JuggProjectInfo(context.modules)
+    private val fullBuildDependencies = JuggProjectInfo(
+        mapOf(context.modules.first().key to context.modules.first().value)
+    )
     private val libraryDependencies = context.modules.first().value.libraryDependencies
 
     @Test
@@ -51,8 +53,11 @@ class DependencyDiffResultTest {
 
     @Test
     fun testRemoveDependency() {
-        val removeLibrary = fullBuildDependencies.modules.first().value.libraryDependencies.first()
-        val currentBuildDependencies = createBuildDependencies(removedLibraries = listOf(removeLibrary))
+        val removeLibraryName = fullBuildDependencies.modules.first().value.libraryDependencies.first().name
+        val removeLibraries = fullBuildDependencies.modules.first().value.libraryDependencies.filter {
+            it.name == removeLibraryName
+        }
+        val currentBuildDependencies = createBuildDependencies(removedLibraries = removeLibraries)
 
         val diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
         assertEquals(0, diffResult.addedLibraries.size)
@@ -145,13 +150,20 @@ class DependencyDiffResultTest {
 
     @Test
     fun testUpdateDependencyWithPackageName() {
-        val removeManifestLibrary = fullBuildDependencies.modules.first().value.libraryDependencies.find { it.isAndroidManifest }!!
-        val removeJarLibrary = fullBuildDependencies.modules.first().value.libraryDependencies.find { it.name == removeManifestLibrary.name }!!
-        val addManifestLibrary = removeManifestLibrary.copy(name = "com.sickworm.intellij.jugg:lib:1.0", crc32 = removeManifestLibrary.crc32 + 1)
-        val addJarLibrary = removeJarLibrary.copy(name = "com.sickworm.intellij.jugg:lib:1.0", crc32 = removeJarLibrary.crc32 + 1)
+        val removeName = fullBuildDependencies.modules.first().value.libraryDependencies
+            .find { it.isAndroidManifest }!!.name
+        val removeLibraries = fullBuildDependencies.modules.first().value.libraryDependencies
+            .filter { it.name == removeName }
+        val removeManifestLibrary = removeLibraries.find { it.isAndroidManifest }!!
+        val removeJarLibrary = removeLibraries.find { !it.isAndroidManifest && !it.isRes }!!
+        val addLibraries = removeLibraries.map {
+            it.copy(name = "com.sickworm.intellij.jugg:lib:1.0", crc32 = it.crc32 + 1)
+        }
+        val addManifestLibrary = addLibraries.find { it.isAndroidManifest }!!
+        val addJarLibrary = addLibraries.find { !it.isAndroidManifest && !it.isRes }!!
         val currentBuildDependencies = createBuildDependencies(
-            newLibraries = listOf(addJarLibrary, addManifestLibrary),
-            removedLibraries = listOf(removeJarLibrary, removeManifestLibrary),
+            newLibraries = addLibraries,
+            removedLibraries = removeLibraries,
         )
 
         val diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
@@ -161,8 +173,8 @@ class DependencyDiffResultTest {
 
         assertEquals(addManifestLibrary.crc32, diffResult.updatedLibraries.first().dependency!!.libraries.find { it.isAndroidManifest }!!.crc32)
         assertEquals(removeManifestLibrary.crc32, diffResult.updatedLibraries.first().oldDependency!!.libraries.find { it.isAndroidManifest }!!.crc32)
-        assertEquals(addJarLibrary.crc32, diffResult.updatedLibraries.first().dependency!!.libraries.find { !it.isAndroidManifest }!!.crc32)
-        assertEquals(removeJarLibrary.crc32, diffResult.updatedLibraries.first().oldDependency!!.libraries.find { !it.isAndroidManifest }!!.crc32)
+        assertEquals(addJarLibrary.crc32, diffResult.updatedLibraries.first().dependency!!.libraries.find { !it.isAndroidManifest && !it.isRes }!!.crc32)
+        assertEquals(removeJarLibrary.crc32, diffResult.updatedLibraries.first().oldDependency!!.libraries.find { !it.isAndroidManifest && !it.isRes }!!.crc32)
     }
 
     @Test

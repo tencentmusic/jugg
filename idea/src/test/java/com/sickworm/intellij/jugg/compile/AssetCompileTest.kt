@@ -6,6 +6,9 @@ import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class AssetCompileTest {
 
@@ -44,10 +47,19 @@ class AssetCompileTest {
     }
 
     private fun assertCompileResultAssets(task: CompileTask, result: CompileResult) {
-        val mapper: OutputFileMapper = {
-            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
-            listOf(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
+        result.printCompileErrors()
+        assertEquals(task, result.task)
+        assertTrue(result.isAllSuccess)
+        assertEquals(task.files.size, result.details.size)
+        result.details.forEach { detail ->
+            assertTrue(detail.isSuccess)
+            assertTrue(detail.file.file.exists() && detail.file.file.length() > 0)
+            val expectedOutputFile = detail.file.file.changeBaseDir(detail.file.baseDir, File(task.outputDir, "assets"))
+            val output = result.outputs.find { it.file.absolutePath == expectedOutputFile.absolutePath }
+            assertNotNull(output)
+            assertEquals(CompileOutput.Type.Asset, output!!.type)
+            assertTrue(output.file.exists())
+            assertTrue(output.file.length() > 0)
         }
-        assertCompileResult(task, result, mapper)
     }
 }

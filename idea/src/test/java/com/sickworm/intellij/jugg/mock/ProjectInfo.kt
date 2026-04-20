@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.mock
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import java.io.File
+import kotlin.io.normalize
 
 @Suppress("MemberVisibilityCanBePrivate")
 class ProjectInfo(
@@ -13,9 +14,9 @@ class ProjectInfo(
     val apkEntryInfo: ApkEntryInfo,
 ) {
 
-    val projectRoot: File get() = File(projectRootDir).absoluteFile
-    val apkFile: File get() = File(projectRoot, apkPath).absoluteFile
-    val modifiedSource: File get() = File(modifiedSourceDir).absoluteFile
+    val projectRoot: File get() = File(projectRootDir).absoluteFile.normalize()
+    val apkFile: File get() = File(projectRoot, apkPath).absoluteFile.normalize()
+    val modifiedSource: File get() = File(modifiedSourceDir).absoluteFile.normalize()
     val apkInfo: ApkInfo get() = ApkInfo(apkFile, androidApkPackage)
     val apkInfos: List<ApkInfo> get() = listOf(apkInfo)
 
