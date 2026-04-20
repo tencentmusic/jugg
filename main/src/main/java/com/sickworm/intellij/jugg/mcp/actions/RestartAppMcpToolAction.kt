@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.mcp.util.LastDeployTimestampRegistry
 
 /**
  * RestartAppMcpToolAction implements MCP tool `restart` and converts request arguments into tool execution and MCP result payloads.
@@ -61,7 +62,12 @@ class RestartAppMcpToolAction : McpToolAction {
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
             errorCode = null,
-        )
+        ).also {
+            // Record restart completion as deploy timestamp baseline for wait-logs.
+            runCatching { runtime.project.basePath }
+                .getOrNull()
+                ?.let { dir -> LastDeployTimestampRegistry.INSTANCE.recordNow(dir) }
+        }
     }
 
     private fun resolveOnlineDevice(runtime: IMcpRuntime): IDevice? {

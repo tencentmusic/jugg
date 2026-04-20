@@ -32,7 +32,7 @@
 
 ## 3. MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
 
-共 **17 个**注册工具，按注册顺序排列。
+共 **18 个**注册工具，按注册顺序排列。
 
 ### 3.0 `version`
 
@@ -294,6 +294,29 @@
 - `fileCounts`：`{ total: number, <Type>: number, ... }`，按 `CompileFile.Type` 分类统计未编译文件数量
 - `files`：未编译文件绝对路径列表，**最多 20 个**
 - `detail`：未截断时为空字符串；截断时为自然语言描述，如 `"Showing 20 of 25 files. 5 more files are not listed."`
+
+---
+
+### 3.20 `wait-logs`
+
+阻塞式等待 App 日志，直到 marker 命中、发生 crash 或超时，返回过滤后的日志窗口。
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|------|------|------|------|------|
+| `projectDir` | string | **是** | — | 项目绝对路径（pattern: `^/.+`） |
+| `marker` | string | **是** | — | 停止条件正则（Java Pattern 方言），匹配日志 message 部分 |
+| `tags` | array[string] | 否 | `[]` | tag 白名单（精确匹配，空 = 不按 tag 过滤） |
+| `timeoutMs` | integer | 否 | `30000` | 硬超时毫秒，范围 `[1000, 300000]` |
+
+**返回 data**：
+- `stopReason`：`marker` / `crash` / `timeout`
+- `startTime`、`endTime`：logcat threadtime 格式 `MM-dd HH:mm:ss.SSS`
+- `targetPids`：停止时枚举的目标进程 PID 列表
+- `logs`：过滤后最多 100 行（`\n` 分割的 logcat threadtime 原生格式）
+- `allLogsPath`：全量原始日志落盘路径
+- `truncated`：`logs` 是否被截断
+
+**错误码**：`INVALID_PARAMS`、`INVALID_REGEX`、`NO_DEPLOY_BASELINE`、`NO_DEVICE`、`INTERNAL_ERROR`
 
 ---
 

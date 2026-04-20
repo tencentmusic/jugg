@@ -134,6 +134,7 @@ fun clearBuild() {
 | `RestartAppMcpToolActionTest.kt` | `RestartAppMcpToolAction` | tap_actions 顺序执行、swipe/longPress、元素查找重试、失败 step index |
 | `RuntimeObserveMcpToolActionTest.kt` | `RuntimeObserveMcpToolAction` | crash summary artifact、package 缺失 |
 | `TapMcpToolActionTest.kt` | `TapMcpToolAction` | coordinate/percent/element 模式、swipe、longPress、多匹配、资源 ID fallback |
+| `WaitLogsMcpToolActionTest.kt` | `WaitLogsMcpToolAction` | marker 命中、crash 命中、timeout、无效正则、缺 marker、无 deploy 基线、多主进程 PID、子进程 marker、tag 过滤、marker 被其它 app 误触发（PID 拦截）、其它 app crash 不误触发、启动前系统 crash 不误触发、子进程 crash 忽略、100 行截断、缓冲区溢出 |
 
 #### mcp/layout — 布局校验子模块
 
@@ -150,8 +151,8 @@ fun clearBuild() {
 |------|----------|----------|
 | `McpInvokerProtocolTest.kt` | `McpInvoker` 协议 | initialize、ping、tools/list、notifications |
 | `McpInvokerErrorHandlingTest.kt` | `McpInvoker` 错误处理 | 参数缺失、工具未找到、project 未初始化 |
-| `McpInvokerToolSuccessTest.kt` | `McpInvoker` 工具成功路径 | 全部工具的正常调用链路 |
-| `McpInvokerValidationTest.kt` | `McpInvoker` 参数校验 | 未知参数拒绝、必填参数缺失 |
+| `McpInvokerToolSuccessTest.kt` | `McpInvoker` 工具成功路径 | 全部工具的正常调用链路（含 `wait-logs`） |
+| `McpInvokerValidationTest.kt` | `McpInvoker` 参数校验 | 未知参数拒绝、必填参数缺失（含 `wait-logs` 缺 marker） |
 | `ViewHierarchyClientTest.kt` | `ViewHierarchyClient` | socket 候选解析、pid fallback、legacy socket、版本不匹配警告 |
 
 #### project

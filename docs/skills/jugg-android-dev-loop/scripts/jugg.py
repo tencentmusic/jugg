@@ -31,6 +31,7 @@ Subcommands:
   devices             List connected devices
   activity-stack      Show current Activity stack
   ssh-info            Request remote SSH troubleshooting info when enable remote compile
+  wait-logs           Block until app log marker, crash, or timeout
 
 Run 'jugg <subcommand> --help' for subcommand options.
 """
@@ -51,6 +52,7 @@ COMMANDS = {
     "devices":        ("cmd_devices",        "cmd_devices"),
     "activity-stack": ("cmd_activity_stack", "cmd_activity_stack"),
     "ssh-info":       ("cmd_ssh_info",       "cmd_ssh_info"),
+    "wait-logs":      ("cmd_wait_logs",      "cmd_wait_logs"),
 }
 
 

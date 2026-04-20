@@ -1,5 +1,7 @@
 # Logcat Recipes
 
+> **优先使用 `wait-logs`**：对于 Jugg auto-run 场景，优先调用 `jugg wait-logs --marker '...'`（参见 `cli_manual.md §wait-logs`）。本文档的食谱适用于 `wait-logs` 无法覆盖的长尾场景（无 deploy 基线、自定义多 tag 采集、纯快照排查等）。
+
 Jugg does not wrap `adb logcat`. Use `adb` directly with the templates below.
 
 ---

@@ -40,7 +40,7 @@
 | IDE 生命周期/运行配置 | `98_code_map.md`, `04_engineering_ide.md` | `idea/.../JuggManager.kt`, `JuggRunConfiguration.kt` |
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
 | 兼容层（AS 版本适配） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt` |
-| MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `mcp/McpToolInvoker.kt`, `mcp/actions/*` |
+| MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `mcp/McpToolInvoker.kt`, `mcp/actions/*`, `mcp/util/CrashDetector.kt`, `mcp/util/LastDeployTimestampRegistry.kt` |
 | jugg CLI 子命令使用 / **新增或修改 CLI 参数** | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` |
 | MCP UI 布局验证设计（工具原理/算法） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `mcp/layout/*`, `ElementFinder.kt`, `ElementMatcher.kt`, `RelationExtractor.kt`, `RelationVerifier.kt` |
 | MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_tools_list.md` | `mcp/actions/McpToolActionRegistry.kt`, `mcp/actions/*` |

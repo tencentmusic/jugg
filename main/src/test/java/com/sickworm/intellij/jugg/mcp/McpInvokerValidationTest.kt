@@ -49,4 +49,24 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
         Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): projectDir"))
     }
+
+    @Test
+    fun testWaitLogsRejectMissingMarker() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 6,
+                params = mapOf(
+                    "name" to "wait-logs",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        // Schema requires "marker" → missing required field → INVALID_PARAMS
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
+    }
 }

@@ -405,4 +405,28 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
     }
+
+    @Test
+    fun testWaitLogsToolCallSuccess() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 20,
+                params = mapOf(
+                    "name" to "wait-logs",
+                    "arguments" to mapOf(
+                        "projectDir" to "/tmp/projectA",
+                        "marker" to "\\[JUGG_AR\\] DONE",
+                    )
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        val data = result.structuredContent["data"] as Map<*, *>
+        Assert.assertEquals("marker", data["stopReason"])
+    }
 }

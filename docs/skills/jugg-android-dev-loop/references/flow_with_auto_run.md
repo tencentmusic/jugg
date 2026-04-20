@@ -56,9 +56,12 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
   4. Tolerance: ±2dp absolute or ±5% relative.
 
   **Log Verification Sub-flow**:
-  1. Run `adb logcat -d -s <TAG>` or `adb logcat -d | grep -E '<regex>'`.
-  2. Parse auto-run log output for expected markers/values.
-  3. Match against expected results.
+  1. Call `wait-logs --marker '\[JUGG_AR\] DONE' --timeout-ms 30000`.
+  2. Branch on stopReason:
+     - `marker`  → parse logs for expected values → match against expected.
+     - `crash`   → FAIL; crash snippet is in logs.
+     - `timeout` → INCONCLUSIVE; check if auto-run hung or missed DONE marker.
+  3. For long-tail scenarios (custom tag, no deploy baseline) fall back to `logcat_recipes.md`.
 
 - **Checkpoint ✓**: All checks pass.
 

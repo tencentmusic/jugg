@@ -198,6 +198,21 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
+            fakeAction("wait-logs", def("wait-logs")) { _ ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "stopped by marker",
+                    mapOf(
+                        "stopReason" to "marker",
+                        "targetPids" to listOf(1234),
+                        "logs" to "04-19 10:00:01.000  1234  1234 I MyTag: [JUGG_AR] DONE",
+                        "allLogsPath" to "/tmp/wait-logs-test.log",
+                        "truncated" to false,
+                    ),
+                    listOf(McpArtifact(type = "file", path = "/tmp/wait-logs-test.log")),
+                    null,
+                )
+            },
         )
 
         return McpToolInvoker(

@@ -78,6 +78,7 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 | `devices` | `devices` | 列出设备 |
 | `activity-stack` | `activity-stack` | 查看 Activity 栈 |
 | `ssh-info` | `ssh-info` | 申请 SSH 排障信息 |
+| `wait-logs` | `wait-logs` | 阻塞等待 App 日志直到 marker/crash/超时 |
 
 ---
 
@@ -247,6 +248,19 @@ jugg ssh-info --reason <reason> --consent [--json]
 |----------|----------|
 | `--reason <str>` | `reason` |
 | `--consent`（必须显式传） | `consent=true` |
+
+---
+
+#### `wait-logs`
+```
+jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>] [--json]
+```
+
+| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
+|-----------------------|----------------------------------|----------|------|
+| `--marker <regex>` | — | `marker` | Java Pattern 正则，必填 |
+| `--tags <t1,t2>` | — | `tags` | 逗号分隔 tag 白名单 |
+| `--timeout-ms <ms>` | `--timeoutMs <ms>` | `timeoutMs` | 硬超时，范围 [1000, 300000]，默认 30000 |
 
 ---
 

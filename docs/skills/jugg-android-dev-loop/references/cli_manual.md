@@ -68,6 +68,7 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 | `activity-stack` | Show current Activity stack |
 | `restart` | Restart app |
 | `tap` | Tap/long-press/swipe on device |
+| `wait-logs` | Block until app log marker, crash, or timeout |
 
 ### `restart`
 
@@ -156,12 +157,31 @@ python3 {SKILL_DIR}/scripts/jugg.py ssh-info --reason "deploy fails after 3 retr
 
 ### Non-CLI: `adb logcat`
 
-`adb logcat` is run directly via shell, not through `jugg`.
+`adb logcat` is run directly via shell, not through `jugg`. Use for long-tail log collection outside Jugg flow.
 
 ```bash
 adb logcat -d -s <TAG>                       # filter by tag
 adb logcat -d | grep -E "\\[JUGG_AR\\]"         # filter auto-run logs
 ```
+
+### `wait-logs`
+
+Block until a log marker appears, a crash is detected, or the timeout expires.
+Uses the most-recent `deploy`/`restart` timestamp as the log start point.
+
+```
+python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'
+python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE' --tags MyAutoRun,AndroidRuntime --timeout-ms 30000
+```
+
+- `--marker <regex>`: Java Pattern regex matched against log message part. **Required.**
+- `--tags <t1,t2,...>`: tag whitelist, comma-separated. Empty = no tag filter.
+- `--timeout-ms <ms>`: hard timeout `[1000, 300000]`, default 30000.
+
+Output `stopReason`:
+- `marker` → parse `logs` for expected values.
+- `crash` → FAIL; crash snippet in `logs`.
+- `timeout` → INCONCLUSIVE; check if auto-run hung.
 
 ---
 

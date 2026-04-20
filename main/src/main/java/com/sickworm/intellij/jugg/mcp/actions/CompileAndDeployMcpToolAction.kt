@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.mcp.util.LastDeployTimestampRegistry
 import java.nio.file.Files
 
 /**
@@ -46,6 +47,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         private const val DETAIL_PREVIEW_MAX_CHARS = 1024
 
         fun deployAction(runtime: IMcpRuntime, toolName: String, isSkipDeploy: Boolean = false, isAlwaysRestartApp: Boolean = true): McpToolResult {
+            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
@@ -79,7 +81,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                     extraData = jobMetaData,
                 )
             }
-            return buildRunToolResult(
+            val result = buildRunToolResult(
                 toolName = toolName,
                 successMessage = if (trigger.status == "success") {
                     "$toolName executed successfully."
@@ -90,6 +92,11 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 detail = runResponse.detail,
                 extraData = jobMetaData,
             )
+            // Record deploy completion timestamp so wait-logs can use it as the log start point.
+            if (result.status == McpToolStatus.OK && projectDir != null) {
+                LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir)
+            }
+            return result
         }
 
         private fun buildJobMetaData(trigger: CompileJobTriggerResult): Map<String, Any> {
