@@ -11,7 +11,8 @@ import java.io.File
  */
 class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: ModuleInfo) {
 
-    val isFallbackApt = isKaAptRetryAptSuccess || isLastFallbackAptFailed
+    // Always use apt (ksp is too slow), so fallback mode is always active
+    val isFallbackApt = true
     var isJava = isFallbackApt || !isUseKaptForDataBinding(moduleInfo)
 
     val isUseAndroidX = true // just leave it true

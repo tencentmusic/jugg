@@ -26,8 +26,6 @@ class SourceCompileDataBindingTest {
     @After
     fun tearDown() {
         DataBindingArgsManager.isForceUseAptInTest = null
-        DataBindingArgsManager.isKaAptRetryAptSuccess = false
-        DataBindingArgsManager.isLastFallbackAptFailed = false
     }
 
     @Test
@@ -79,9 +77,7 @@ class SourceCompileDataBindingTest {
 
     @Test
     fun dataBindingAptRetry_shouldRetryWithoutDataBindingThenRecompile() {
-        // Simulate: kapt failed, fell back to apt, and apt also failed
-        DataBindingArgsManager.isLastFallbackAptFailed = true
-        DataBindingArgsManager.isKaAptRetryAptSuccess = true
+        // isFallbackApt is always true, retry strategy is always active
         DataBindingArgsManager.isForceUseAptInTest = true
 
         val module = TestGlobal.applicationModule
@@ -168,60 +164,8 @@ class SourceCompileDataBindingTest {
     }
 
     @Test
-    fun dataBindingAptRetry_shouldNotRetryWhenNotInAptFallbackMode() {
-        // NOT in kapt fallback mode
-        DataBindingArgsManager.isLastFallbackAptFailed = false
-        DataBindingArgsManager.isKaAptRetryAptSuccess = false
-
-        val module = TestGlobal.applicationModule
-        val sourceBaseDir = module.sourceDirs.first()
-
-        // Create a databinding-related broken file
-        val brokenFile = File(sourceBaseDir, "DataBindingNoRetry.java").apply {
-            parentFile.mkdirs()
-            writeText(
-                """
-                package com.example.myapplication;
-
-                // [databinding] simulated
-                public class DataBindingNoRetry {
-                    public Object getStaleAccessor() {
-                        return DataBindingNonExistentAccessor2.value;
-                    }
-                }
-                """.trimIndent()
-            )
-        }
-
-        try {
-            val task = CompileTask(
-                files = listOf(
-                    CompileFile(
-                        type = CompileFile.Type.Java,
-                        file = brokenFile,
-                        baseDir = sourceBaseDir,
-                        module = module,
-                    ),
-                ),
-                outputDir = File(TestGlobal.buildDir, "staging_no_retry"),
-                compileStatusHolder = CompileStatusHolder.DEFAULT,
-            )
-
-            val result = sourceCompiler.compile(task)
-            result.printCompileErrors()
-
-            // Should NOT retry since we're not in apt fallback mode
-            assertTrue(!result.isAllSuccess, "Should fail without retry")
-        } finally {
-            brokenFile.delete()
-        }
-    }
-
-    @Test
     fun dataBindingAptRetry_shouldGiveUpWhenNonDataBindingFilesAlsoFail() {
-        // In kapt fallback mode, apt also failed
-        DataBindingArgsManager.isLastFallbackAptFailed = true
-        DataBindingArgsManager.isKaAptRetryAptSuccess = true
+        // isFallbackApt is always true, retry strategy is always active
         DataBindingArgsManager.isForceUseAptInTest = true
 
         val module = TestGlobal.applicationModule
@@ -293,8 +237,8 @@ class SourceCompileDataBindingTest {
     }
 
     /**
-     * Verifies that prepareSourceCompile-level DataBinding failure triggers retry
-     * when kapt-to-apt fallback is active.
+     * Verifies that prepareSourceCompile-level DataBinding failure triggers retry.
+     * isFallbackApt is always true, so the retry strategy is always active.
      *
      * Bug scenario (commit d4e58febe):
      * When DataBinding mapper generation fails in prepareSourceCompile (because apt
@@ -308,9 +252,6 @@ class SourceCompileDataBindingTest {
      */
     @Test
     fun dataBindingAptRetry_shouldRetryPrepareSourceCompileWhenMapperGenerationFails() {
-        // Simulate: kapt failed, fell back to apt, and apt also failed
-        DataBindingArgsManager.isLastFallbackAptFailed = true
-        DataBindingArgsManager.isKaAptRetryAptSuccess = true
         DataBindingArgsManager.isForceUseAptInTest = true
 
         val module = TestGlobal.applicationModule
