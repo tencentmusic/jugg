@@ -61,7 +61,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
      - `marker`  → parse logs for expected values → match against expected.
      - `crash`   → FAIL; crash snippet is in logs.
      - `timeout` → INCONCLUSIVE; check if auto-run hung or missed DONE marker.
-  3. For long-tail scenarios (custom tag, no deploy baseline) fall back to `logcat_recipes.md`.
+  3. For long-tail scenarios (custom tag filter, no deploy baseline): run `restart` first (updates log baseline), then call `wait-logs` with appropriate `--tags`, `--marker` and `--timeout-ms`.
 
 - **Checkpoint ✓**: All checks pass.
 
@@ -87,7 +87,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 
 On build/deploy error:
 1. Follow Build Fallback Chain → see `cli_manual.md` §Build Fallback Chain.
-2. On runtime crash → use `adb logcat` post-mortem recipe (see `logcat_recipes.md` §8) → locate cause → fix → Step 1.
+2. On runtime crash → run `adb logcat -d -b crash | grep -A 80 "FATAL EXCEPTION\|Fatal signal"` to collect crash block → locate cause → fix → Step 1.
 
 On auto-run execution error:
 1. Check auto-run logs for error/timeout markers.

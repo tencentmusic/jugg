@@ -40,7 +40,7 @@ Collect mandatory variables before any action.
 Route based on context, then load primary reference:
 
 ```
-if user asks to install jugg CLI (e.g. "install jugg", "add jugg to PATH"):
+if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH"):
   → guide_install_cli.md
 elif user says "compile only" or "no deploy":
   → flow_no_auto_run.md §compile-only
@@ -115,10 +115,10 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
 python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
 python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
-python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # block until marker/crash/timeout
+python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # --marker: Java Pattern regex matched against log message; block until marker/crash/timeout
 ```
 
-For live log collection (tag filter, crash auto-stop, marker wait, ANR/native signals) → see `logcat_recipes.md`.
+For post-mortem crash collection (app already crashed): `adb logcat -d -b crash | grep -A 80 "FATAL EXCEPTION\|Fatal signal"`.
 
 ### Advanced Commands
 
