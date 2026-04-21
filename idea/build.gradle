@@ -130,7 +130,7 @@ dependencies {
     implementation project(':deploy_compat:v_panda')
 
     // backend
-    implementation "com.squareup.okhttp3:okhttp:4.9.1"
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
 
     testImplementation fileTree(dir: '../main/libs', include: ['*.jar'])
     testImplementation "junit:junit:4.12"
@@ -139,7 +139,7 @@ dependencies {
     testImplementation "org.mockito.kotlin:mockito-kotlin:5.0.0"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
     testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4"
-    testImplementation "org.json:json:20230618"
+    testImplementation "org.json:json:20240303"
 
     // uncomment it when we need to debug apt
 //    compileOnly 'com.alibaba:arouter-compiler:1.5.2'
