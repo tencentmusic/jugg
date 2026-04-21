@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
@@ -31,6 +32,7 @@ fun JuggRunConfigurationOptions.toCompileOptions(
         options.httpProxyPort,
         SyncMode.values().find { it.modeName == options.syncMode } ?: SyncMode.IFT,
         options.environmentVariables ?: "",
+        buildTarget = if (options.enableAndroidTest) BuildTarget.ANDROID_TEST else BuildTarget.APP,
     )
 }
 

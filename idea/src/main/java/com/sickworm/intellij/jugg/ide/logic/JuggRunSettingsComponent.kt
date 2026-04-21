@@ -58,6 +58,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val outputApkNameTextField = JTextField()
     private val enableRemoteCompileCheckBox = JCheckBox("Enable remote compile")
     private val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])")
+    private val enableAndroidTestCheckBox = JCheckBox("Enable incremental Android Test (builds app + test APKs via Gradle)")
 
     private val reportIssueActionLink = ActionLink("Report issues")
 
@@ -144,6 +145,9 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 260, isAlignEnd = true)
         add(Box.createVerticalStrut(5))
 
+        addPair(enableAndroidTestCheckBox, null, leftWidth = 0)
+        add(Box.createVerticalStrut(5))
+
         add(remoteCompilePanel)
 
         syncModeComboBox.addActionListener {
@@ -186,6 +190,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
 
     override fun updateUi(settings: JuggRunConfigurationOptions, configName: String) {
         updateUi(settings.toRunConfigurationTemplate(), configName)
+        enableAndroidTestCheckBox.isSelected = settings.enableAndroidTest
     }
 
     private fun updateUi(settings: RunConfigurationTemplate, configName: String) {
@@ -281,6 +286,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             it.compileCommand = component.compileCommandTextField.text
             it.outputApkName = component.outputApkNameTextField.text
             it.isRemoteCompile = component.enableRemoteCompileCheckBox.isSelected
+            it.enableAndroidTest = component.enableAndroidTestCheckBox.isSelected
             it.syncMode = component.syncModeComboBox.selectedItem?.toString()
             it.isSyncAllProjects = component.enableSyncAllProjectsCheckBox.isSelected
             it.remoteSshUser = component.userTextField.text

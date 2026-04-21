@@ -615,7 +615,7 @@ class JuggManager @TestOnly constructor(
             val initIncrementalCompileTask = task@{
                 // do it async
                 fun action() {
-                    BaseBuildCommandHelper(pathManager).recordBaseBuildCmd(options)
+                    BaseBuildCommandHelper(pathManager).recordBaseBuildCmd(options, options.buildTarget)
                     initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
                 }
                 runTaskSafe("Init Incremental Compile", ::action)

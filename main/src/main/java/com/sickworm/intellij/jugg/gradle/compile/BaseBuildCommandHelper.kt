@@ -31,4 +31,14 @@ class BaseBuildCommandHelper(pathManager: JuggPathManager) {
 
     /** Convenience accessor kept for call-sites that only need the raw command string. */
     fun getBaseBuildCmd(): String? = getBaseBuildCmdRecord()?.compileCommand
+
+    /**
+     * Returns true when the [options] build target differs from the last recorded build target,
+     * which means a full Gradle compile is required to switch modes.
+     * Returns false when no record exists (first run), treating it as same-target.
+     */
+    fun isBuildTargetChanged(options: JuggGradleCompileOptions): Boolean {
+        val record = getBaseBuildCmdRecord() ?: return false
+        return record.buildTarget != options.buildTarget
+    }
 }

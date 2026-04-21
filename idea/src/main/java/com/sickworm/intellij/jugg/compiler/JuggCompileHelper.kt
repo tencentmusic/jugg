@@ -206,12 +206,16 @@ class JuggCompilerHelper(
         compileContextManager.ensureInitProjectInfo()
         deployHistoryManager.beforeFullCompiled(deployFileManager.getUndeployedFiles())
 
-        if (options.isRemoteCompile) {
+        // Derive androidTest compile command and APK glob at runtime when target is ANDROID_TEST.
+        // The user's RunConfig is never mutated; the derived options are only used for this compile session.
+        val effectiveOptions = deriveOptionsForBuildTarget(options)
+
+        if (effectiveOptions.isRemoteCompile) {
             // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
             if (!gradleProjectInfoLocalFetchManager.isProjectInfoAvailable) {
                 // project info not fetched, run it during remote gradle compile
                 // local compile will auto run after build finish
-                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true, options.compileCommand)
+                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true, effectiveOptions.compileCommand)
             } else {
                 val changedBuildFiles = deployFileManager.getUndeployedFiles().filter {
                     it.type == CompileFile.Type.BuildFile
@@ -220,14 +224,14 @@ class JuggCompilerHelper(
                 logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
                 if (changedBuildFiles.isNotEmpty()) {
                     gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true, lastBuildModifiedTime)
-                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = false, options.compileCommand)
+                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = false, effectiveOptions.compileCommand)
                 }
             }
         }
 
         GradleScriptWriter(pathManager, logger).writeInitGradleFile()
-        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
-        val task = JuggGradleCompileTask(project, client, options, uiHandler, isOnlyFetchResult)
+        val client = gradleCompileClientManager.getClient(effectiveOptions.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
+        val task = JuggGradleCompileTask(project, client, effectiveOptions, uiHandler, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
             val apkInfos = ApkInfoReader(logger).createApkInfo(result.compileOutputFile)
@@ -237,6 +241,22 @@ class JuggCompilerHelper(
         }
 
         return result
+    }
+
+    /**
+     * Returns a copy of [options] with compile command and APK glob derived for the build target.
+     * For ANDROID_TEST the command is extended to also build the androidTest APK.
+     * For APP the original options are returned unchanged.
+     */
+    private fun deriveOptionsForBuildTarget(options: JuggGradleCompileOptions): JuggGradleCompileOptions {
+        if (options.buildTarget != BuildTarget.ANDROID_TEST) {
+            return options
+        }
+        val derivedCommand = AndroidTestCommandDeriver.deriveCompileCommand(options.compileCommand)
+        val derivedOutputApkName = AndroidTestCommandDeriver.deriveOutputApkName(options.outputApkName)
+        logger.info("AndroidTest mode: derived compile command: $derivedCommand")
+        logger.info("AndroidTest mode: derived outputApkName: $derivedOutputApkName")
+        return options.copy(compileCommand = derivedCommand, outputApkName = derivedOutputApkName)
     }
 
     /**
@@ -316,6 +336,13 @@ class JuggCompilerHelper(
 
         if (uiHandler.isForceGradleCompile) {
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
+        }
+
+        // Build target switch (APP <-> ANDROID_TEST) requires a full Gradle compile to produce correct APKs.
+        val baseBuildCommandHelper = BaseBuildCommandHelper(pathManager)
+        if (baseBuildCommandHelper.isBuildTargetChanged(options)) {
+            logger.info("Build target changed to ${options.buildTarget}, forcing Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, "Build target changed to ${options.buildTarget}")
         }
 
         checkDeviceFallback()?.let {

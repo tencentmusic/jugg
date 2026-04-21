@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide.bean
 
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
@@ -92,6 +93,12 @@ data class JuggGradleCompileOptions(
      * Format: VAR=value; VAR1=value1
      */
     val environmentVariables: String,
+    /**
+     * Compile and launch strategy for this run session.
+     * APP (default) compiles only the app variant and starts with am start.
+     * ANDROID_TEST compiles app + androidTest variants and starts with am instrument.
+     */
+    val buildTarget: BuildTarget = BuildTarget.APP,
 ) {
 
 
