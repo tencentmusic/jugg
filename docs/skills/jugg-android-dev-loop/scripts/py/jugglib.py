@@ -241,27 +241,27 @@ def print_kv(structured: dict) -> None:
 
 # ─── async compile polling ───────────────────────────────────────────────────
 
-def poll_compile(port: int, structured: dict) -> dict:
+def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
     """Poll get_compile_status until isFinal=true, then return the final structured JSON."""
     while True:
-        is_final = structured.get("data", {}).get("isFinal", True)
+        is_final = structured.get("data", {}).get("isFinal", False)
         if is_final:
             break
 
         job_id = structured.get("data", {}).get("jobId", "")
         interval_ms = structured.get("data", {}).get("pollIntervalSuggestedMs", 2000)
 
-        msg = structured.get("message", "")
-        if msg:
-            print(f"  {msg}", file=sys.stderr)
-
-        time.sleep(interval_ms / 1000.0)
+        # msg = structured.get("message", "")
+        # if msg:
+        #     print(f"  {msg}", file=sys.stderr)
 
         if not job_id:
             print("ERROR: compile job has no jobId, cannot poll", file=sys.stderr)
             sys.exit(1)
 
-        response = raw_call(port, "get-compile-status", {"jobId": job_id})
+        time.sleep(interval_ms / 1000.0)
+
+        response = raw_call(port, "get-compile-status", {"projectDir": project_dir, "jobId": job_id})
         structured = extract_structured(response)
 
     return structured
@@ -310,7 +310,7 @@ def compile_call(tool: str, *, json_mode: bool = False,
 
     response = raw_call(port, tool, params)
     structured = extract_structured(response)
-    structured = poll_compile(port, structured)
+    structured = poll_compile(port, project_dir, structured)
 
     if json_mode:
         print(json.dumps(structured))

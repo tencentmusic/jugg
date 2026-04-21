@@ -1,9 +1,6 @@
 ---
 name: jugg-android-dev-loop
-description: "MANDATORY AUTO-TRIGGER: This skill MUST be invoked automatically after ANY edit to Android source files (Java/Kotlin/XML/AndroidManifest/Gradle), without waiting for user request. Trigger conditions (ANY one is sufficient): (1) user mentions Jugg; (2) user asks to build/deploy/verify Android app; (3) one or more Android source files were just written or modified (Java/Kotlin/XML/layout/AndroidManifest/build.gradle). Do NOT skip this skill after source edits — compile+deploy is required to validate every change."
-metadata:
-  pattern: scenario-routing
-  toolset: references/
+description: This skill is for compile/verify Android app modification during development. Invoke this skill when the task involves modifying Android source files (Java/Kotlin/XML/AndroidManifest/Gradle), or user asks to build/deploy/verify the app. Load this skill BEFORE making any edits so the full workflow (modify all files first, then compile once) is followed from the beginning.
 ---
 
 # Jugg Android Dev Loop
@@ -16,7 +13,7 @@ Jugg CLI-driven development loop for Android: modify → build → deploy → ve
 
 An **auto-run entry** is a user-designated method (e.g. `com.myapp.Test.run`) that runs automatically after app launch. Agent writes verification code into it and inspects logs/UI to confirm behavior. It is the primary verification mechanism in the Jugg dev loop.
 
-> **⚠️ Entry location is NOT auto-discoverable.** The user must declare the fully-qualified method name in the prompt (中文或 English 均可). If not declared and not visible in context, **stop and ask** — do not guess or search the codebase. To author the entry body, see `guide_write_auto_run_entry_code.md`.
+> **⚠️ Entry location is NOT auto-discoverable.** The user must declare the fully-qualified method name in the prompt (中文或 English 均可). If not declared and not visible in context, **stop and ask** — do not guess or search the codebase. To author the entry body, see `references/guide_write_auto_run_entry_code.md`.
 
 ---
 
@@ -37,23 +34,23 @@ Route based on context, then load primary reference:
 
 ```
 if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH"):
-  → guide_install_cli.md
+  → references/guide_install_cli.md
 elif user says "compile only" or "no deploy":
-  → flow_no_auto_run.md §compile-only
+  → references/flow_no_auto_run.md §compile-only
 elif hasAutoRunEntry == false AND user requests verification:
-  → ask user to declare auto-run entry (fully-qualified method, e.g. `com.myapp.Test.run`); then route to flow_with_auto_run.md (see guide_write_auto_run_entry_code.md for entry body)
+  → ask user to declare auto-run entry (fully-qualified method, e.g. `com.myapp.Test.run`); then route to references/flow_with_auto_run.md (see references/guide_write_auto_run_entry_code.md for entry body)
 elif hasAutoRunEntry == false:
-  → flow_no_auto_run.md
+  → references/flow_no_auto_run.md
 elif hasAutoRunEntry == true:
-  → flow_with_auto_run.md
+  → references/flow_with_auto_run.md
 ```
 
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
-| install jugg CLI | `guide_install_cli.md` | — |
-| compile-only | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
-| no auto-run entry (deploy) | `flow_no_auto_run.md` | `error_patterns.md`, `policy_incremental_compile_limits.md` |
-| with auto-run entry | `flow_with_auto_run.md` | `guide_write_auto_run_entry_code.md`, `error_patterns.md` |
+| install jugg CLI | `references/guide_install_cli.md` | — |
+| compile-only | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
+| no auto-run entry (deploy) | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
+| with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 
 Supplementary references load on-demand at the step that needs them.
 
@@ -64,7 +61,8 @@ Supplementary references load on-demand at the step that needs them.
 | # | Rule |
 |---|------|
 | 1 | Route by scenario first; do not mix flows |
-| 2 | Any source modification must pass compilation before task is done |
+| 2 | Complete **all** source file edits first, then trigger compile/deploy **once**. Never compile after each individual file edit. |
+| 3 | Any source modification must pass compilation before task is done |
 
 ---
 
@@ -116,12 +114,12 @@ python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # --m
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '<regex>' [--tags t1,t2] [--timeout-ms ms]
-# stopReason: marker → parse logs; crash → FAIL; timeout → INCONCLUSIVE → see cli_manual.md §wait-logs for flags
+# stopReason: marker → parse logs; crash → FAIL; timeout → INCONCLUSIVE → see references/cli_manual.md §wait-logs for flags
 ```
 
 ### UI Commands (low-frequency)
 
-For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → load `cli_manual.md`.
+For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → load `references/cli_manual.md`.
 
 ## Build Fallback Chain
 
