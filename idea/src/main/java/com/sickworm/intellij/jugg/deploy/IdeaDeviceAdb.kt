@@ -53,6 +53,55 @@ class IdeaDeviceAdb(
         }
     }
 
+    /**
+     * Runs [cmd] and delivers each output line to [lineConsumer] as it arrives.
+     * Respects [cancelSignal]: when it returns true the receiver is closed promptly.
+     * Uses ddmlib [IDevice.executeShellCommand] with a custom [IShellOutputReceiver].
+     */
+    override fun execAdbShellCmdStreaming(
+        cmd: String,
+        lineConsumer: (String) -> Unit,
+        cancelSignal: () -> Boolean,
+    ): Int {
+        logger.info("adb streaming in: $cmd")
+        var exitCode = 0
+        val receiver = object : com.android.ddmlib.IShellOutputReceiver {
+            private val buffer = StringBuilder()
+
+            override fun addOutput(data: ByteArray, offset: Int, length: Int) {
+                val chunk = String(data, offset, length, Charsets.UTF_8)
+                buffer.append(chunk)
+                // emit complete lines
+                var newlineIdx = buffer.indexOf('\n')
+                while (newlineIdx >= 0) {
+                    val line = buffer.substring(0, newlineIdx).trimEnd('\r')
+                    lineConsumer(line)
+                    buffer.delete(0, newlineIdx + 1)
+                    newlineIdx = buffer.indexOf('\n')
+                }
+            }
+
+            override fun flush() {
+                // emit any remaining partial line
+                if (buffer.isNotEmpty()) {
+                    lineConsumer(buffer.toString().trimEnd('\r'))
+                    buffer.clear()
+                }
+            }
+
+            override fun isCancelled(): Boolean = cancelSignal()
+        }
+
+        try {
+            // Use a long timeout (1 hour) – the test suite itself governs duration.
+            device.executeShellCommand(cmd, receiver, 3600L, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            logger.warn("execAdbShellCmdStreaming failed: $cmd", e)
+            exitCode = -1
+        }
+        return exitCode
+    }
+
     private fun execAdbShellCmd(cmd: String, retryCount: Int): String {
         try {
             val cmdList = cmd.splitIgnoringQuotes()

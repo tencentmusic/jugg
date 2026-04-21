@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.deploy.instrument.InstrumentCommandBuilder
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
@@ -74,6 +76,23 @@ class AdbCmdHelper(
     fun deleteDeployedDexFile(packageName: String, filePath: String) {
         logger.debug("deleteDeployedDexFile: $packageName, $filePath")
         execAdbShellCmd("run-as $packageName rm -rf /data/data/$packageName/code_cache/.overlay/$filePath")
+    }
+
+    /**
+     * Runs `am instrument` with the given [spec] against [testApk] and streams output line-by-line
+     * to [lineConsumer]. Returns when the instrumentation process finishes or [cancelSignal] fires.
+     *
+     * @return Shell exit code (0 = success).
+     */
+    fun runInstrumentation(
+        spec: AndroidTestRunSpec,
+        testApk: ApkInfo,
+        lineConsumer: (String) -> Unit,
+        cancelSignal: () -> Boolean,
+    ): Int {
+        val cmd = InstrumentCommandBuilder.build(spec, testApk)
+        logger.info("runInstrumentation: $cmd")
+        return adb.execAdbShellCmdStreaming(cmd, lineConsumer, cancelSignal)
     }
 
     private fun execAdbShellCmd(cmd: String): String {

@@ -27,10 +27,13 @@ class ApkInfoSerializer {
 
     /**
      * ApkInfoJsonData is the JSON-friendly form of [ApkInfo] for persistence.
+     * Fields [instrumentationTargetPackage] and [instrumentationRunner] are optional for backwards compatibility.
      */
     private class ApkInfoJsonData(
         val files: List<ApkFileUnitJsonData>,
-        val applicationId: String
+        val applicationId: String,
+        val instrumentationTargetPackage: String? = null,
+        val instrumentationRunner: String? = null,
     ) {
 
         fun toApkInfo(juggRootDir: File): ApkInfo {
@@ -40,15 +43,20 @@ class ApkInfoSerializer {
                 } else {
                     File(juggRootDir, it.apkFilePath)
                 }
-                ApkFileUnit(applicationId, it.moduleName, it.debuggable ?: true,absoluteFile)
+                ApkFileUnit(applicationId, it.moduleName, it.debuggable ?: true, absoluteFile)
             }
-            return ApkInfo(files, applicationId)
+            return ApkInfo(
+                files = files,
+                applicationId = applicationId,
+                instrumentationTargetPackage = instrumentationTargetPackage,
+                instrumentationRunner = instrumentationRunner,
+            )
         }
 
         companion object {
             fun fromApkInfo(juggRootDir: File, apkInfo: ApkInfo): ApkInfoJsonData {
                 return ApkInfoJsonData(
-                    apkInfo.files.map {
+                    files = apkInfo.files.map {
                         val relativePathIfInRoot = if (it.apkFile.isChild(juggRootDir)) {
                             it.apkFile.relativeTo(juggRootDir).path
                         } else {
@@ -56,7 +64,9 @@ class ApkInfoSerializer {
                         }
                         ApkFileUnitJsonData(it.moduleName, it.debuggable, relativePathIfInRoot)
                     },
-                    apkInfo.applicationId,
+                    applicationId = apkInfo.applicationId,
+                    instrumentationTargetPackage = apkInfo.instrumentationTargetPackage,
+                    instrumentationRunner = apkInfo.instrumentationRunner,
                 )
             }
         }

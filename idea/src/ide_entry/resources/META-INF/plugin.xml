@@ -45,6 +45,18 @@
                 id="jugg.JuggConfigurationType"
                 implementation="com.sickworm.intellij.jugg.ide.JuggConfigurationType"
         />
+        <configurationType
+                id="jugg.JuggAndroidTestConfigurationType"
+                implementation="com.sickworm.intellij.jugg.ide.JuggAndroidTestConfigurationType"
+        />
+        <runLineMarkerContributor
+                language="JAVA"
+                implementationClass="com.sickworm.intellij.jugg.ide.JuggAndroidTestLineMarkerContributor"
+        />
+        <runLineMarkerContributor
+                language="kotlin"
+                implementationClass="com.sickworm.intellij.jugg.ide.JuggAndroidTestLineMarkerContributor"
+        />
         <notificationGroup id="Jugg Important Notification"
                            displayType="STICKY_BALLOON"
                            key="notification.group.name"/>

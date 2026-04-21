@@ -5,13 +5,22 @@ import java.security.MessageDigest
 
 /**
  * ApkInfo split APK artifacts under one application id for downstream deploy and analysis steps.
+ *
+ * [instrumentationTargetPackage] and [instrumentationRunner] are only non-null for test APKs
+ * (read from the `<instrumentation>` element in AndroidManifest.xml).
+ * Both fields are null for regular app APKs.
  */
 data class ApkInfo(
     val files: List<ApkFileUnit>,
-    val applicationId: String
+    val applicationId: String,
+    val instrumentationTargetPackage: String? = null,
+    val instrumentationRunner: String? = null,
 ) {
 
     val baseApk: ApkFileUnit? get() = files.find { it.isBaseApk }
+
+    /** Returns true when this APK is an instrumentation test APK. */
+    val isTestApk: Boolean get() = instrumentationTargetPackage != null
 
     constructor(
         file: File,

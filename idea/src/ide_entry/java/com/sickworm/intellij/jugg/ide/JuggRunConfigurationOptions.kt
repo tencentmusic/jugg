@@ -31,6 +31,9 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
     var environmentVariables by string()
 
+    /** When true, Jugg compiles both the app and androidTest APKs using Gradle fallback. */
+    var enableAndroidTest by property(false)
+
     // new options must add to the end because property persist is in order
 
 }

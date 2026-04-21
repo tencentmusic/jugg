@@ -24,9 +24,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ManifestActivityInfo AndroidManifest model focused on package, split, debuggable, and activity entries.
+ * ManifestActivityInfo AndroidManifest model focused on package, split, debuggable, activity entries,
+ * and optional instrumentation metadata (for test APKs).
  * Collaboration: Created by BinaryXmlParser.parseBinaryFromStream, populated via parseNode, and consumed by APK/deploy activity selection logic.
- * Data Contract: packageName defaults to empty string; featureSplit and debuggable may remain null when absent.
+ * Data Contract: packageName defaults to empty string; featureSplit, debuggable, instrumentationTargetPackage,
+ * and instrumentationRunner may remain null when absent.
  */
 public class ManifestActivityInfo {
 
@@ -34,6 +36,8 @@ public class ManifestActivityInfo {
   private String myPackageName;
   private String myFeatureSplit;
   private String myDebuggable;
+  private String myInstrumentationTargetPackage;
+  private String myInstrumentationRunner;
 
   public ManifestActivityInfo() {
     myActivities = new ArrayList<>();
@@ -60,6 +64,16 @@ public class ManifestActivityInfo {
     return myDebuggable;
   }
 
+  @Nullable
+  public String instrumentationTargetPackage() {
+    return myInstrumentationTargetPackage;
+  }
+
+  @Nullable
+  public String instrumentationRunner() {
+    return myInstrumentationRunner;
+  }
+
   public void parseNode(@NotNull XmlNode node) {
     for (String attribute : node.attributes().keySet()) {
       String value = node.attributes().get(attribute);
@@ -74,6 +88,9 @@ public class ManifestActivityInfo {
     for(XmlNode child : node.childs()) {
       if ("application".equals(child.name())) {
         parseApplication(child);
+      }
+      if ("instrumentation".equals(child.name())) {
+        parseInstrumentation(child);
       }
     }
   }
@@ -90,6 +107,18 @@ public class ManifestActivityInfo {
       String value = node.attributes().get(attribute);
       if ("debuggable".equals(attribute)) {
           myDebuggable = value;
+      }
+    }
+  }
+
+  private void parseInstrumentation(@NotNull XmlNode node) {
+    for (String attribute : node.attributes().keySet()) {
+      String value = node.attributes().get(attribute);
+      if ("targetPackage".equals(attribute)) {
+        myInstrumentationTargetPackage = value;
+      }
+      if ("name".equals(attribute)) {
+        myInstrumentationRunner = value;
       }
     }
   }

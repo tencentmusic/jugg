@@ -21,6 +21,22 @@ interface IDeviceAdb {
         return execAdbShellCmd(cmd)
     }
 
+    /**
+     * Runs a long-lived shell command and delivers output line-by-line to [lineConsumer].
+     *
+     * @param cmd         The shell command to execute (e.g. `am instrument -w -r ...`).
+     * @param lineConsumer Called synchronously for each line received from the device.
+     *                     Must not block; short processing is acceptable.
+     * @param cancelSignal Returns true when the caller wants the command to be interrupted.
+     *                     Implementations should stop the shell channel promptly when this returns true.
+     * @return The exit code returned by the shell (implementation-defined; 0 typically means success).
+     */
+    fun execAdbShellCmdStreaming(
+        cmd: String,
+        lineConsumer: (String) -> Unit,
+        cancelSignal: () -> Boolean,
+    ): Int = throw UnsupportedOperationException("execAdbShellCmdStreaming not implemented")
+
     fun push(from: File, to: String): Boolean
 
     fun pull(from: String, to: File): Boolean

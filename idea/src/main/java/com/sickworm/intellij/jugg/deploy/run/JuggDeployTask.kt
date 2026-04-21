@@ -33,6 +33,7 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.sortedForInstall
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -87,7 +88,7 @@ class JuggDeployTask(
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
 
-        val packages: Map<String, List<ApkInfo>> = data.apks.groupBy { it.applicationId }
+        val packages: Map<String, List<ApkInfo>> = data.apks.sortedForInstall().groupBy { it.applicationId }
 
         for ((applicationId, apkInfos) in packages) {
             try {

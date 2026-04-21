@@ -32,20 +32,41 @@ class ApkInfoReader(
     }
 
     fun createApkInfo(apks: List<File>): List<ApkInfo> {
-        val apkFileUnits = mutableListOf<ApkFileUnit>()
-        apks.forEach { apkFile ->
+        // Collect per-file manifest data so we can extract instrumentation info later.
+        data class ApkManifestData(
+            val unit: ApkFileUnit,
+            val instrumentationTargetPackage: String?,
+            val instrumentationRunner: String?,
+        )
+
+        val apkManifestDataList = apks.map { apkFile ->
             val manifestInfo = ApkReader(apkFile, logger).getManifest()
-            val apkFileUnit = ApkFileUnit(
-                applicationId = manifestInfo.packageName(),
-                moduleName = manifestInfo.featureSplit() ?: "",
-                debuggable = manifestInfo.debuggable() == "true",
-                apkFile,
+            ApkManifestData(
+                unit = ApkFileUnit(
+                    applicationId = manifestInfo.packageName(),
+                    moduleName = manifestInfo.featureSplit() ?: "",
+                    debuggable = manifestInfo.debuggable() == "true",
+                    apkFile = apkFile,
+                ),
+                instrumentationTargetPackage = manifestInfo.instrumentationTargetPackage(),
+                instrumentationRunner = manifestInfo.instrumentationRunner(),
             )
-            apkFileUnits.add(apkFileUnit)
         }
-        return apkFileUnits
-            .groupBy { it.applicationId }
-            .map { ApkInfo(it.value, it.key) }
+
+        return apkManifestDataList
+            .groupBy { it.unit.applicationId }
+            .map { (appId, dataList) ->
+                // All files in the group share the same applicationId; take instrumentation info
+                // from the first entry that has it (there should be at most one per applicationId).
+                val instrumentationTarget = dataList.firstNotNullOfOrNull { it.instrumentationTargetPackage }
+                val instrumentationRunner = dataList.firstNotNullOfOrNull { it.instrumentationRunner }
+                ApkInfo(
+                    files = dataList.map { it.unit },
+                    applicationId = appId,
+                    instrumentationTargetPackage = instrumentationTarget,
+                    instrumentationRunner = instrumentationRunner,
+                )
+            }
             .sortedBy { apks.indexOf(it.files.first().apkFile) }
     }
 }

@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -58,6 +59,7 @@ class JuggDeployerHelper(
         data: JuggDeployData,
         isSkipExceptOverlayCheck: Boolean = false,
         compileUiHandler: CompileUiHandler,
+        androidTestRunSpec: AndroidTestRunSpec? = null,
     ): LaunchResult = synchronized(runTaskLock) {
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
@@ -152,7 +154,26 @@ class JuggDeployerHelper(
             }
         }
 
-        if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
+        if (androidTestRunSpec != null) {
+            // AM_INSTRUMENT launch strategy: run instrumentation tests instead of starting the app.
+            val testApk = data.apks.firstOrNull { it.isTestApk }
+            if (testApk == null) {
+                logger.warn("androidTestRunSpec provided but no test APK found in deploy data; skipping test launch.")
+            } else {
+                val launcher = TestLauncher(
+                    devices = listOf(device),
+                    spec = androidTestRunSpec,
+                    testApk = testApk,
+                    consoleOutput = { line -> compileUiHandler.onDeployUiMessage(line) },
+                    cancelSignal = { compileUiHandler.isCanceled },
+                    logger = logger,
+                )
+                val success = launcher.run()
+                if (!success) {
+                    logger.warn("Instrumentation test run reported failures.")
+                }
+            }
+        } else if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
             deployTargetManager.restartApp(device)
         } else if (!deployTargetManager.isAppForeground(device)) {

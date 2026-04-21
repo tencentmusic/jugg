@@ -1,10 +1,13 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.JuggPathManager
 
 /**
  * Persists and reloads the last full-build command used for baseline compile fallback.
+ *
+ * Storage format: JSON [BaseBuildCmdRecord]. Reads legacy plain-text format transparently.
  */
 class BaseBuildCommandHelper(pathManager: JuggPathManager) {
 
@@ -12,16 +15,20 @@ class BaseBuildCommandHelper(pathManager: JuggPathManager) {
 
     val hasBaseBuildCmd: Boolean get() = recordFile.exists()
 
-    fun recordBaseBuildCmd(options: JuggGradleCompileOptions) {
+    /** Records the compile command together with its [buildTarget]. */
+    fun recordBaseBuildCmd(options: JuggGradleCompileOptions, buildTarget: BuildTarget = BuildTarget.APP) {
+        val record = BaseBuildCmdRecord(options.compileCommand, buildTarget)
         recordFile.parentFile.mkdirs()
         recordFile.delete()
-        recordFile.writeText(options.compileCommand)
+        recordFile.writeText(record.toJson())
     }
 
-    fun getBaseBuildCmd(): String? {
-        if (!recordFile.exists()) {
-            return null
-        }
-        return recordFile.readText()
+    /** Returns the persisted [BaseBuildCmdRecord], or null when no record exists. */
+    fun getBaseBuildCmdRecord(): BaseBuildCmdRecord? {
+        if (!recordFile.exists()) return null
+        return BaseBuildCmdRecord.fromJson(recordFile.readText())
     }
+
+    /** Convenience accessor kept for call-sites that only need the raw command string. */
+    fun getBaseBuildCmd(): String? = getBaseBuildCmdRecord()?.compileCommand
 }
