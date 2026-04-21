@@ -66,6 +66,39 @@ class GradleProjectInfoReader(
         rootProject.subprojects.forEach { project: Project ->
             val moduleInfo = getModuleInfo(project)
             modules[moduleInfo.name] = moduleInfo
+
+            // Generate androidTest ModuleInfo for Application modules
+            if (moduleInfo.moduleType == ModuleInfo.Type.Application) {
+                try {
+                    val androidExt = reflector(project.extensions.getByName("android"))
+                    val sourceDirs = mutableListOf<File>()
+                    androidExt["sourceSets"]?.invoke("findByName", "androidTest")?.let { atSourceSet ->
+                        (atSourceSet.invoke("getJavaDirectories")?.value as? Collection<File>)
+                            ?.let { sourceDirs.addAll(it) }
+                        (atSourceSet.invoke("getKotlinDirectories")?.value as? Collection<File>)
+                            ?.let { sourceDirs.addAll(it) }
+                    }
+                    val testAppId = androidExt["defaultConfig"]["testApplicationId"]?.valueString
+                    val atDependencies = getDependenciesByConfig(
+                        project,
+                        "${moduleInfo.buildVariant}AndroidTestCompileClasspath",
+                        isAndroidDepend = true,
+                    ).filterIsInstance<LibraryDependency>()
+                    val androidTestModuleInfo = buildAndroidTestModuleInfo(
+                        appModuleInfo = moduleInfo,
+                        sourceDirs = sourceDirs.filter { it.exists() },
+                        libraryDependencies = atDependencies,
+                        testApplicationId = testAppId,
+                    )
+                    if (androidTestModuleInfo != null) {
+                        modules[androidTestModuleInfo.name] = androidTestModuleInfo
+                        println("Jugg: generated androidTest ModuleInfo for ${moduleInfo.name}: ${androidTestModuleInfo.name}")
+                    }
+                } catch (e: Throwable) {
+                    println("Jugg: get androidTest info for ${moduleInfo.name} failed: $e")
+                    println(e.stackTraceToString())
+                }
+            }
         }
 
         println("totalReadArtifacts $totalReadArtifacts, resolveArtifacts: $resolveArtifacts")
@@ -745,6 +778,48 @@ class GradleProjectInfoReader(
                     attributeContainer.attribute(Attribute.of("artifactType", String::class.java), artifactType)
                 }
             })
+        }
+    }
+
+    companion object {
+
+        /**
+         * Builds a synthetic ModuleInfo representing the androidTest source set of [appModuleInfo].
+         * Returns null if [sourceDirs] is empty (project has no androidTest sources).
+         */
+        fun buildAndroidTestModuleInfo(
+            appModuleInfo: ModuleInfo,
+            sourceDirs: List<File>,
+            libraryDependencies: List<LibraryDependency>,
+            testApplicationId: String?,
+        ): ModuleInfo? {
+            if (sourceDirs.isEmpty()) return null
+            val appId = appModuleInfo.applicationId ?: return null
+            val resolvedTestAppId = testApplicationId ?: "$appId.test"
+            return appModuleInfo.copy(
+                name = "${appModuleInfo.name}.androidTest",
+                moduleType = ModuleInfo.Type.Library,
+                buildVariant = "debugAndroidTest",
+                buildPathInfo = ModuleBuildPathInfo(
+                    appModuleInfo.projectRootDir,
+                    appModuleInfo.moduleRootDir,
+                    "debugAndroidTest",
+                ),
+                applicationId = resolvedTestAppId,
+                instrumentationTargetPackage = appId,
+                sourceDirs = sourceDirs,
+                resourceDirs = emptyList(),
+                assetsDirs = emptyList(),
+                manifestFile = null,  // androidTest manifest not needed for incremental compile in Phase 2
+                manifestPlaceHolders = null,
+                libraryDependencies = libraryDependencies,
+                runtimeLibraryDependencies = emptyList(),
+                annotationProcessorDependencies = emptyList(),
+                kaptDependencies = emptyList(),
+                moduleDependencies = listOf(ModuleDependency(appModuleInfo.name)),
+                variants = emptyList(),
+                signingConfigs = null,
+            )
         }
     }
 

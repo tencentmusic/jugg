@@ -52,6 +52,7 @@ data class ModuleInfo(
     val isUseViewBinding: Boolean? = null,
     val isUseDataBinding: Boolean? = null,
     val kspDependencies: List<LibraryDependency>? = null,
+    val instrumentationTargetPackage: String? = null,
 ) {
     // do not add unnecessary content before ") {", for kotlin 1.3 compat: buildReadProjectInfoScript.gradle
     // if adds new fields, also updates:
@@ -60,6 +61,9 @@ data class ModuleInfo(
     // :(
 
     val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")
+
+    /** Returns true when this module represents an androidTest source set. */
+    val isAndroidTestModule: Boolean get() = instrumentationTargetPackage != null
 
     /**
      * Type enumerates supported Gradle module categories.

@@ -87,6 +87,28 @@ object ModuleApkBelongsUtils {
         } else {
             logger.debug("getModuleApkBelongs: base apk: $baseApk")
         }
+        // Step 0: androidTest modules map directly to the matching test ApkFileUnit.
+        // This must run before all other routing so test modules are never
+        // accidentally routed to the base or dynamic-feature APK.
+        val testApkByTargetPkg: Map<String, ApkFileUnit> = apkInfo
+            .filter { it.isTestApk }
+            .mapNotNull { info ->
+                val unit = info.files.firstOrNull() ?: return@mapNotNull null
+                val pkg = info.instrumentationTargetPackage ?: return@mapNotNull null
+                pkg to unit
+            }
+            .toMap()
+
+        modules.values
+            .filter { it.isAndroidTestModule }
+            .forEach { testModule ->
+                val unit = testApkByTargetPkg[testModule.instrumentationTargetPackage]
+                if (unit != null) {
+                    moduleApkBelongs[testModule] = unit
+                }
+                // if no test apk found, fall through to normal routing below (will land on base apk)
+            }
+
         moduleApkBelongs[tempModule] = baseApk
         val modulesInBaseApk = findAllDependModules(applicationModules, modules)
         apkModuleBelongsData.forEach {
@@ -95,6 +117,10 @@ object ModuleApkBelongsUtils {
             }
         }
         modules.values.forEach { moduleInfo ->
+            // skip modules already routed (e.g. androidTest modules resolved in Step 0)
+            if (moduleInfo in moduleApkBelongs) {
+                return@forEach
+            }
             // if module is dependent on application module, then it's belong to base apk
             if (moduleInfo in modulesInBaseApk) {
                 moduleApkBelongs[moduleInfo] = baseApk

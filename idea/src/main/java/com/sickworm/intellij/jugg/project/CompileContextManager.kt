@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.logic.TestModeManager
@@ -290,6 +291,11 @@ class CompileContextManager(
         TimeLogger.start("initModuleRoots")
         logger.debug("Start init module roots")
 
+        val currentBuildTarget: BuildTarget = run {
+            val helper = BaseBuildCommandHelper(pathManager)
+            helper.getBaseBuildCmdRecord()?.buildTarget ?: BuildTarget.APP
+        }
+
         // use old cache to speed up library info reading
         val dependencyCacheMap = run {
             val result = mutableMapOf<String, LibraryDependency>()
@@ -343,9 +349,10 @@ class CompileContextManager(
             }
 
             val stdModuleName = module.name.replace(Regex("~\\d+$"), "")
+            val isAndroidTestModule = stdModuleName.endsWith(".androidTest")
             if (stdModuleName.endsWith(".test") ||
-                stdModuleName.endsWith(".androidTest") ||
-                stdModuleName.endsWith(".unitTest")) {
+                stdModuleName.endsWith(".unitTest") ||
+                (isAndroidTestModule && currentBuildTarget != BuildTarget.ANDROID_TEST)) {
                 testModules.add(module.name)
                 return@forEach
             }

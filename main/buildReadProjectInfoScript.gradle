@@ -178,11 +178,13 @@ tasks.register('buildReadProjectInfoScript') {
                     String memberLine = line
                         .replace("const val ", "val ")
                         .replaceAll("(?<![A-Za-z])private (fun |val |var )", "\$1")
-                        .replace("Type.Application", "ModuleInfo.Type.Application")
-                        .replace("Type.Library", "ModuleInfo.Type.Library")
-                        .replace("Type.JavaLibrary", "ModuleInfo.Type.JavaLibrary")
-                        .replace("Type.DynamicFeature", "ModuleInfo.Type.DynamicFeature")
-                        .replace("Type.Unknown", "ModuleInfo.Type.Unknown")
+                        // Qualify unqualified Type.X enum refs extracted from companion to top level.
+                        // Use negative lookbehind to avoid double-qualifying already-prefixed ModuleInfo.Type.X.
+                        .replaceAll("(?<!ModuleInfo\\.)Type\\.Application", "ModuleInfo.Type.Application")
+                        .replaceAll("(?<!ModuleInfo\\.)Type\\.Library", "ModuleInfo.Type.Library")
+                        .replaceAll("(?<!ModuleInfo\\.)Type\\.JavaLibrary", "ModuleInfo.Type.JavaLibrary")
+                        .replaceAll("(?<!ModuleInfo\\.)Type\\.DynamicFeature", "ModuleInfo.Type.DynamicFeature")
+                        .replaceAll("(?<!ModuleInfo\\.)Type\\.Unknown", "ModuleInfo.Type.Unknown")
 
                     // Rename conflicting createEmpty functions
                     if (trimmed.startsWith("fun createEmpty(") || trimmed.startsWith("fun createEmpty():")) {

@@ -49,6 +49,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         moduleRootDir = File(module["moduleRootDir"] as String),
                         projectRootDir = File(module["projectRootDir"] as String),
                         moduleType = ModuleInfo.Type.valueOf(module["moduleType"] as String),
+                        instrumentationTargetPackage = module["instrumentationTargetPackage"] as? String,
                     )
                     ModuleInfoSerialize(
                         moduleInfo,
