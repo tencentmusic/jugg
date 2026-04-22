@@ -381,7 +381,19 @@ def compile_call(tool: str, *, json_mode: bool = False,
     if data_message:
         structured["message"] = data_message
 
-    print_kv(structured)
+    # Print only the fields relevant to the user: status, message, runResult.
+    status = structured.get("status", "")
+    if status:
+        print(f"status: {status}")
+    message = structured.get("message", "")
+    if message:
+        print(f"message: {message}")
+    run_result = structured.get("data", {}).get("runResult")
+    if run_result is not None:
+        if isinstance(run_result, (dict, list)):
+            print(f"runResult: {json.dumps(run_result)}")
+        else:
+            print(f"runResult: {run_result}")
     return structured
 
 

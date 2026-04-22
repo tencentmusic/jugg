@@ -240,14 +240,12 @@ jugg status [--json]
 
 #### `ssh-info`
 ```
-jugg ssh-info --reason <reason> --consent [--json]
+jugg ssh-info --reason <reason> [--json]
 ```
-**行为差异**：`--consent` 为必须显式传入的 flag，省略则报错退出；传入后透传 `consent=true` 给 MCP。
 
 | CLI flag | MCP 参数 |
 |----------|----------|
 | `--reason <str>` | `reason` |
-| `--consent`（必须显式传） | `consent=true` |
 
 ---
 

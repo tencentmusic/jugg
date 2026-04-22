@@ -13,15 +13,14 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Request remote SSH login info for troubleshooting. Requires explicit user consent.",
+        description = "Request remote SSH login info for troubleshooting.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 "reason" to McpJsonSchemaProperty(type = "string", description = "Why remote SSH info is needed."),
-                "consent" to McpJsonSchemaProperty(type = "boolean", description = "Must be true if user explicitly agreed."),
                 "requestedBy" to McpJsonSchemaProperty(type = "string", description = "Requester identity for confirmation display. Default: mcp_agent."),
             ),
-            required = listOf("projectDir", "reason", "consent"),
+            required = listOf("projectDir", "reason"),
             additionalProperties = false,
         ),
         outputSchema = McpToolSchemas.baseOutputSchema.copy(
@@ -43,17 +42,6 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        // Accept both new ("consent") and legacy ("userConsent") param names.
-        val consent = (arguments["consent"] ?: arguments["userConsent"]) as? Boolean ?: false
-        if (!consent) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "ssh-info failed. Reason: explicit user consent is required before calling this tool.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.INVALID_PARAMS,
-            )
-        }
         val reason = (arguments["reason"] as? String)?.trim().orEmpty()
         if (reason.isBlank()) {
             return McpToolResult(

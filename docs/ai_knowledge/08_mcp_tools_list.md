@@ -136,7 +136,6 @@
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
 | `reason` | string | **是** | 需要 SSH 信息的原因 |
-| `consent` | boolean | **是** | 用户是否已显式同意（必须为 `true`） |
 | `requestedBy` | string | 否 | 请求者身份，默认 `mcp_agent` |
 
 ---

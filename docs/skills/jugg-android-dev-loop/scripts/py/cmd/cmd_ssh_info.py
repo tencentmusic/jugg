@@ -9,7 +9,6 @@ import jugglib
 def build_params(args: list[str]) -> dict:
     """Parse ssh-info flags."""
     reason = ""
-    consent = False
     i = 0
     while i < len(args):
         if args[i] == "--reason":
@@ -18,9 +17,6 @@ def build_params(args: list[str]) -> dict:
                 sys.exit(1)
             reason = args[i + 1]
             i += 2
-        elif args[i] == "--consent":
-            consent = True
-            i += 1
         else:
             print(f"Unknown option: {args[i]}", file=sys.stderr)
             sys.exit(1)
@@ -28,11 +24,8 @@ def build_params(args: list[str]) -> dict:
     if not reason:
         print("ssh-info requires --reason <reason>", file=sys.stderr)
         sys.exit(1)
-    if not consent:
-        print("ssh-info requires --consent (explicit user consent)", file=sys.stderr)
-        sys.exit(1)
 
-    return {"reason": reason, "consent": True}
+    return {"reason": reason}
 
 
 def cmd_ssh_info(args: list[str]) -> None:

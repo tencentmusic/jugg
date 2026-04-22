@@ -1,6 +1,6 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.1
+version: 1.0.2
 date: 2026-04-22
 description: This skill is for compile/verify Android app modification during development. Invoke this skill when the task involves modifying Android source files (Java/Kotlin/XML/AndroidManifest/Gradle), or user asks to build/deploy/verify the app. Load this skill BEFORE making any edits so the full workflow (modify all files first, then compile once) is followed from the beginning.
 ---

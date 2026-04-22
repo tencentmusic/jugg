@@ -161,7 +161,6 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "reason" to "manual troubleshooting",
-                        "consent" to true,
                     )
                 )
             )
