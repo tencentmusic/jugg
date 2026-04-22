@@ -133,6 +133,7 @@ object CompileJobManager {
                 status = normalizedStatus,
                 message = normalizedResult.message,
                 finishedAt = if (normalizedStatus == "running") null else Instant.now().toString(),
+                detail = normalizedResult.runInvocationResult?.detail ?: "",
             )
         }
 
@@ -257,4 +258,5 @@ data class CompileJobStatus(
     val executionType: String,
     val message: String,
     val finishedAt: String?,
+    val detail: String = "",
 )

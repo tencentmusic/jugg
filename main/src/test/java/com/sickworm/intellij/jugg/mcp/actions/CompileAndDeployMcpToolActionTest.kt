@@ -324,6 +324,81 @@ class CompileAndDeployMcpToolActionTest {
         }
     }
 
+    @Test
+    fun testAsyncFailureDetailIsReturnedByGetCompileStatus() {
+        CompileJobManager.softTimeoutMillisOverrideForTest = 10L
+        val errorDetail = "error: unresolved reference: Foo"
+        val action = CompileAndDeployMcpToolAction()
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                Thread.sleep(80L)
+                JuggRunInvocationResult(
+                    isSuccess = false,
+                    errorMessage = "compile failed",
+                    detail = errorDetail,
+                )
+            },
+        )
+
+        val triggerResult = action.execute(emptyMap(), runtime)
+        Assert.assertEquals(McpToolStatus.OK, triggerResult.status)
+        @Suppress("UNCHECKED_CAST")
+        val triggerData = triggerResult.data as Map<String, Any>
+        val jobId = triggerData["jobId"] as String
+        Assert.assertEquals("running", triggerData["status"])
+
+        val finalState = waitUntilTerminal(jobId)
+        Assert.assertEquals("failed", finalState.status)
+
+        val getStatusAction = GetCompileStatusMcpToolAction()
+        val statusResult = getStatusAction.execute(
+            mapOf("projectDir" to "/fake/project", "jobId" to jobId),
+            runtimeWithResult(JuggRunInvocationResult(isSuccess = true)),
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, statusResult.status)
+        @Suppress("UNCHECKED_CAST")
+        val statusData = statusResult.data as Map<String, Any>
+        Assert.assertEquals("failed", statusData["status"])
+        Assert.assertEquals(errorDetail, statusData["detail"])
+    }
+
+    @Test
+    fun testAsyncFailureLongDetailIsTruncatedByGetCompileStatus() {
+        CompileJobManager.softTimeoutMillisOverrideForTest = 10L
+        val longDetail = buildString { repeat(5200) { append('x') } }
+        val action = CompileAndDeployMcpToolAction()
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                Thread.sleep(80L)
+                JuggRunInvocationResult(
+                    isSuccess = false,
+                    errorMessage = "compile failed",
+                    detail = longDetail,
+                )
+            },
+        )
+
+        val triggerResult = action.execute(emptyMap(), runtime)
+        @Suppress("UNCHECKED_CAST")
+        val jobId = (triggerResult.data as Map<String, Any>)["jobId"] as String
+        waitUntilTerminal(jobId)
+
+        val getStatusAction = GetCompileStatusMcpToolAction()
+        val statusResult = getStatusAction.execute(
+            mapOf("projectDir" to "/fake/project", "jobId" to jobId),
+            runtimeWithResult(JuggRunInvocationResult(isSuccess = true)),
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val statusData = statusResult.data as Map<String, Any>
+        val detailPreview = statusData["detail"] as String
+        Assert.assertTrue(detailPreview.contains("[truncated"))
+        Assert.assertEquals(5200.0, (statusData["detailLength"] as Number).toDouble(), 0.0)
+        Assert.assertEquals(true, statusData["detailTruncated"])
+        Assert.assertFalse(statusResult.artifacts.isEmpty())
+    }
+
     private fun waitUntilTerminal(jobId: String): CompileJobStatus {
         val deadline = System.currentTimeMillis() + 1_500L
         while (System.currentTimeMillis() <= deadline) {

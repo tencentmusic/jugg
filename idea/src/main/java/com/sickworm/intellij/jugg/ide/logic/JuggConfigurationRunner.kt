@@ -146,10 +146,14 @@ class JuggConfigurationRunner(
         }
         JuggLogger.stopListenProjectLog(project, logCollector)
 
+        val runResult = runResultFinal
+        val isSuccess = runResult?.isInvocationSuccess(isSkipDeploy) ?: false
+        val detail = logCollector.getAllLogs()
         return JuggRunInvocationResult(
-            isSuccess = true,
-            runResult = runResultFinal,
-            detail = logCollector.getAllLogs(),
+            isSuccess = isSuccess,
+            runResult = runResult,
+            detail = detail,
+            errorMessage = if (!isSuccess) runResult?.let { "compile failed" } else null,
         )
     }
 }

@@ -75,12 +75,25 @@ class GetCompileStatusMcpToolAction : McpToolAction {
             )
         }
 
+        // Attach detail when compile job finished with failure.
+        val isFailed = state.status == "failed" || state.status == "canceled"
+        val artifacts = mutableListOf<com.sickworm.intellij.jugg.mcp.McpArtifact>()
+        if (isFailed && state.detail.isNotBlank()) {
+            CompileAndDeployMcpToolAction.attachDetailToData(
+                toolName = toolName,
+                detail = state.detail,
+                data = data,
+                artifacts = artifacts,
+            )
+        }
+
         return McpToolResult(
-            status = McpToolStatus.OK,
-            message = "get-compile-status executed successfully.",
+            status = if (isFailed) McpToolStatus.ERROR else McpToolStatus.OK,
+            message = if (isFailed) "get-compile-status: compile job finished with status=${state.status}."
+                      else "get-compile-status executed successfully.",
             data = data,
-            artifacts = emptyList(),
-            errorCode = null,
+            artifacts = artifacts,
+            errorCode = if (isFailed) McpErrorCode.INTERNAL_ERROR else null,
         )
     }
 }

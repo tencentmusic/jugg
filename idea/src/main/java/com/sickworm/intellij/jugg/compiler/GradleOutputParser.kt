@@ -18,6 +18,8 @@ class GradleOutputParser(
     override val possibleErrorLog = mutableListOf<String>()
     private var isCollectingTaskErrorMsg = false
     private var isCollectingExceptionErrorMsg = false
+    // True while collecting indented context lines after a Java "error:" line
+    private var isCollectingJavaErrorContext = false
 
     private var startCompileTime = System.currentTimeMillis()
     private var currentIndicatorText = ""
@@ -64,7 +66,20 @@ class GradleOutputParser(
             possibleErrorLog.add(parsedOutput)
         } else if (parsedOutput.startsWith("e:")) {
             // Kotlin compile error, which may not output in order
+            isCollectingJavaErrorContext = false
             possibleErrorLog.add(parsedOutput)
+        } else if (parsedOutput.contains(": error:")) {
+            // Java compiler error: "/path/Foo.java:10: error: cannot find symbol"
+            // Collect this line, then continue collecting indented context lines
+            possibleErrorLog.add(parsedOutput)
+            isCollectingJavaErrorContext = true
+        } else if (isCollectingJavaErrorContext) {
+            if (parsedOutput.isNotEmpty() && (parsedOutput[0] == ' ' || parsedOutput[0] == '\t')) {
+                possibleErrorLog.add(parsedOutput)
+            } else {
+                // Non-indented line terminates Java error context
+                isCollectingJavaErrorContext = false
+            }
         }
     }
 

@@ -194,7 +194,8 @@ class JuggCompilerHelper(
             isCanFallback = false,
             costTime = System.currentTimeMillis() - startTime,
             failedReason = result.failedReason,
-            incrementalFailedReason = incrementalResult?.failedReason
+            incrementalFailedReason = incrementalResult?.failedReason,
+            errorLog = result.errorLog,
         )
     }
 

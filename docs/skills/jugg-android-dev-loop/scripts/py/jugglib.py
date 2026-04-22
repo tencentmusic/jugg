@@ -245,12 +245,21 @@ def print_kv(structured: dict) -> None:
 _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
 
-def _run_spinner(stop_event: threading.Event, label: str) -> None:
-    """Animate a braille spinner in stderr until stop_event is set.
+# Disabled by default; set to True via --spinner global flag (parsed in jugg.py).
+# Direct `python3 jugg.py` calls and agent calls leave this False → no spinner output.
+spinner_enabled: bool = False
 
-    Silent when stderr is not a TTY (e.g. CI pipelines).
+
+def _run_spinner(stop_event: threading.Event, label: str) -> None:
+    """Animate a braille spinner written to stderr.
+
+    Disabled by default; only runs when jugglib.spinner_enabled is True.
+    This prevents captured output (e.g. agent `2>&1`) from producing
+    hundreds of spinner lines in logs.
+    The jugg shell/cmd wrappers pass --spinner so human users still
+    see the spinner; direct python3 calls and agent calls do not.
     """
-    if not sys.stderr.isatty():
+    if not spinner_enabled or not sys.stderr.isatty():
         return
     i = 0
     while not stop_event.is_set():
@@ -358,11 +367,19 @@ def compile_call(tool: str, *, json_mode: bool = False,
         # Prefer data.message (actual compile error) over top-level message (always "executed successfully")
         msg = structured.get("data", {}).get("message") or structured.get("message", "Unknown error")
         detail = structured.get("data", {}).get("detail", "")
+        log_path = structured.get("data", {}).get("logPath", "")
         error_output = f"status: ERROR\nmessage: {msg}"
         if detail:
             error_output += f"\ndetail:\n{detail}"
+        if log_path:
+            error_output += f"\nfull log: {log_path}"
         print(error_output, file=sys.stderr)
         sys.exit(1)
+
+    # Prefer data.message (compile job result) over top-level message (tool-call boilerplate).
+    data_message = structured.get("data", {}).get("message")
+    if data_message:
+        structured["message"] = data_message
 
     print_kv(structured)
     return structured

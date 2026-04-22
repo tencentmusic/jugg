@@ -161,7 +161,8 @@ class JuggRunningTask(
         if (!compileTaskResult.isSuccess) {
             failedAndActiveRunWindowIfNotCanceled()
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile,
-                isCompileSuccess = false, isDeploySuccess = false, isCancel = processHandler.isCanceled)
+                isCompileSuccess = false, isDeploySuccess = false, isCancel = processHandler.isCanceled,
+                errorLog = compileTaskResult.errorLog)
         }
 
         if (compileUiHandler.isSkipDeploy) {

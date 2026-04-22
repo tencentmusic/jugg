@@ -44,7 +44,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
     }
 
     companion object {
-        private const val DETAIL_PREVIEW_MAX_CHARS = 1024
+        private const val DETAIL_PREVIEW_MAX_CHARS = 4096
 
         fun deployAction(runtime: IMcpRuntime, toolName: String, isSkipDeploy: Boolean = false, isAlwaysRestartApp: Boolean = true): McpToolResult {
             val projectDir = runCatching { runtime.project.basePath }.getOrNull()
@@ -125,10 +125,17 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 return DetailResult()
             }
 
+            // Strip log-level prefixes (e.g. "[INFO] ", "[WARN] ", "[ERROR] ") for cleaner output.
+            val filteredDetail = detail.lines()
+                .map { it.replace(Regex("^\\[(INFO|WARN|ERROR|DEBUG)\\] "), "") }
+                .filter { !it.startsWith("[Jugg]") && !it.startsWith("[MCP]") }
+                .joinToString("\n")
+                .trim()
             val detailLength = detail.length
-            if (detailLength <= DETAIL_PREVIEW_MAX_CHARS) {
+
+            if (filteredDetail.length <= DETAIL_PREVIEW_MAX_CHARS) {
                 return DetailResult(
-                    detailPreview = detail,
+                    detailPreview = filteredDetail,
                     detailLength = detailLength,
                     isTruncated = false,
                     artifacts = emptyList(),
@@ -137,10 +144,10 @@ class CompileAndDeployMcpToolAction : McpToolAction {
 
             val preview = buildString {
                 append("...[truncated ")
-                append(detailLength - DETAIL_PREVIEW_MAX_CHARS)
+                append(filteredDetail.length - DETAIL_PREVIEW_MAX_CHARS)
                 append(" chars from beginning; showing tail]")
                 append("\n")
-                append(detail.takeLast(DETAIL_PREVIEW_MAX_CHARS))
+                append(filteredDetail.takeLast(DETAIL_PREVIEW_MAX_CHARS))
             }
 
             val artifacts = listOfNotNull(writeFullLogArtifact(toolName, detail))
@@ -164,7 +171,18 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             }
         }
 
-        private fun attachDetailData(data: MutableMap<String, Any>, detailResult: DetailResult) {
+        internal fun attachDetailToData(
+            toolName: String,
+            detail: String,
+            data: MutableMap<String, Any?>,
+            artifacts: MutableList<McpArtifact>,
+        ) {
+            val detailResult = resolveDetailResult(toolName, detail)
+            attachDetailData(data, detailResult)
+            artifacts.addAll(detailResult.artifacts)
+        }
+
+        private fun attachDetailData(data: MutableMap<String, Any?>, detailResult: DetailResult) {
             val preview = detailResult.detailPreview
             if (preview.isNullOrBlank()) {
                 return
@@ -184,7 +202,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         ): McpToolResult {
             val detailResult = resolveDetailResult(toolName, detail)
             val reason = runErrorMessage ?: "unknown run error"
-            val data = mutableMapOf<String, Any>()
+            val data = mutableMapOf<String, Any?>()
             attachDetailData(data, detailResult)
             data.putAll(extraData)
             val message = "$toolName failed. Reason: $reason."
@@ -206,7 +224,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         ): McpToolResult {
             if (runResultObject == null) {
                 val detailResult = resolveDetailResult(toolName, detail)
-                val data = mutableMapOf<String, Any>()
+                val data = mutableMapOf<String, Any?>()
                 attachDetailData(data, detailResult)
                 data.putAll(extraData)
                 val message = "$toolName failed. Reason: invalid run result payload."
@@ -225,7 +243,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             // Compilation failed: returns ERROR with details
             if (!isRealSuccess) {
                 val detailResult = resolveDetailResult(toolName, detail)
-                val data = mutableMapOf<String, Any>("runResult" to runResultObject)
+                val data = mutableMapOf<String, Any?>("runResult" to runResultObject)
                 attachDetailData(data, detailResult)
                 data.putAll(extraData)
                 val message = "$toolName finished with status=$jobStatus."
@@ -238,7 +256,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 )
             }
 
-            val data = mutableMapOf<String, Any>(
+            val data = mutableMapOf<String, Any?>(
                 "runResult" to runResultObject,
             )
             data.putAll(extraData)

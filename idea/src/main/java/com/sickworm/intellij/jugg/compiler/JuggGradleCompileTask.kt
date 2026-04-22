@@ -84,7 +84,12 @@ class JuggGradleCompileTask(
 
         compileClient.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
         uiHandler.listenCancelAction(null)
-        return result
+        // Attach collected error lines to the result so callers can use a compact error summary.
+        return if (!result.isSuccess && !isCanceled && outputParser.possibleErrorLog.isNotEmpty()) {
+            result.copy(errorLog = outputParser.possibleErrorLog.toList())
+        } else {
+            result
+        }
     }
 
 }

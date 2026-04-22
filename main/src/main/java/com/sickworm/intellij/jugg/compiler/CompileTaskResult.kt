@@ -14,6 +14,8 @@ data class CompileTaskResult(
     val incrementalFailedReason: String? = null,
     /** Not null if isGradleCompile=false and isSuccess=true */
     val incrementalCompileResult: CompileResult? = null,
+    /** Compiler error lines from a failed Gradle build; empty for incremental or success. */
+    val errorLog: List<String> = emptyList(),
 ) {
     companion object {
 

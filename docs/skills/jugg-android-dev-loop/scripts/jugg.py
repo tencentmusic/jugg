@@ -14,7 +14,10 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 
 USAGE = """\
-Usage: jugg <subcommand> [options]
+Usage: jugg [--spinner] <subcommand> [options]
+
+Global options:
+  --spinner           Enable progress spinner (set by shell wrappers for human use)
 
 Subcommands:
   version             Show CLI version and plugin version from all initialized projects
@@ -57,12 +60,20 @@ COMMANDS = {
 
 
 def main() -> None:
-    if len(sys.argv) < 2 or sys.argv[1] in ("--help", "-h", "help"):
+    args = sys.argv[1:]
+
+    # Extract global --spinner flag before subcommand dispatch
+    if "--spinner" in args:
+        import jugglib
+        jugglib.spinner_enabled = True
+        args = [a for a in args if a != "--spinner"]
+
+    if not args or args[0] in ("--help", "-h", "help"):
         print(USAGE, file=sys.stderr)
         sys.exit(1)
 
-    subcmd = sys.argv[1]
-    args = sys.argv[2:]
+    subcmd = args[0]
+    args = args[1:]
 
     if subcmd not in COMMANDS:
         print(f"jugg: unknown subcommand '{subcmd}'", file=sys.stderr)

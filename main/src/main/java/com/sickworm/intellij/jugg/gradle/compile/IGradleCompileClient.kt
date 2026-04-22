@@ -17,6 +17,8 @@ data class GradleCompileResult(
     val isCanceled: Boolean,
     val compileOutputFile: List<File>,
     val failedReason: String? = null,
+    /** Compiler error lines collected during a failed build; empty on success or when unavailable. */
+    val errorLog: List<String> = emptyList(),
 ) {
     companion object {
         fun failed(isCanceled: Boolean, failedReason: String) = GradleCompileResult(
