@@ -19,7 +19,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
-import com.sickworm.intellij.jugg.ide.ui.InstallMcpAndSkillsDialog
+import com.sickworm.intellij.jugg.ide.ui.InstallJuggSkillsDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -96,9 +96,6 @@ class JuggManager @TestOnly constructor(
             IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             deployHistoryManager.checkProjectDirChanged()
-            taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
-                McpFetchCleaner.cleanupExpiredFiles(pathManager.mcpFetchDir, logger.getInstance("McpFetchCleaner"))
-            }
             logger.info("Start jugg finished.")
 
             // init project info async
@@ -115,6 +112,13 @@ class JuggManager @TestOnly constructor(
                 checkUpdateHandler.handle(it)
                 loadCustomConfig()
                 juggHotUpdateDownloader.init(project)
+            }
+
+            taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000) {
+                JuggCliAutoUpdater.checkAndUpdate(logger.getInstance("JuggCliAutoUpdater"))
+            }
+            taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
+                McpFetchCleaner.cleanupExpiredFiles(pathManager.mcpFetchDir, logger.getInstance("McpFetchCleaner"))
             }
         })
     }
@@ -486,7 +490,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun installSkills() {
-        InstallMcpAndSkillsDialog.installJuggMcpAndSkills(project, pathManager.projectDir, taskRunnerManager, logger)
+        InstallJuggSkillsDialog.installJuggMcpAndSkills(project, pathManager.projectDir, taskRunnerManager, logger)
     }
 
     override fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent {

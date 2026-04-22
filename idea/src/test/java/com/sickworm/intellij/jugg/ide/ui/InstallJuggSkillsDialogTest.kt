@@ -8,7 +8,7 @@ import org.mockito.Mockito.mock
 import java.io.File
 import java.nio.file.Files
 
-class InstallMcpAndSkillsDialogTest {
+class InstallJuggSkillsDialogTest {
 
     @Test
     fun exportAndInstallSkills_shouldInstallSkillToClientConfigDir() {
@@ -16,7 +16,7 @@ class InstallMcpAndSkillsDialogTest {
         val userHome = Files.createTempDirectory("jugg-home-manual").toFile()
         val logger = mock(Logger::class.java)
 
-        InstallMcpAndSkillsDialog.exportAndInstallSkills(
+        InstallJuggSkillsDialog.exportAndInstallSkills(
             projectDir = projectDir,
             selectedClients = setOf(InstallClient.CLAUDE),
             logger = logger,
@@ -33,7 +33,7 @@ class InstallMcpAndSkillsDialogTest {
         val userHome = Files.createTempDirectory("jugg-home-manual-empty").toFile()
         val logger = mock(Logger::class.java)
 
-        InstallMcpAndSkillsDialog.exportAndInstallSkills(
+        InstallJuggSkillsDialog.exportAndInstallSkills(
             projectDir = projectDir,
             selectedClients = emptySet(),
             logger = logger,

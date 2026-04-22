@@ -7,6 +7,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 /**
@@ -63,13 +64,31 @@ object JuggSkillInstaller {
         unzipSkillResource(skillDir)
     }
 
+    /**
+     * Returns the skill directories that will be written for the given client.
+     * The primary directory is always included; internal directories are only
+     * included when they already exist on disk.
+     */
+    fun getInstallDirs(client: InstallClient, userHome: File): List<File> {
+        val primary = File(skillRootDirNoCreate(client, userHome), SKILL_NAME)
+        val internals = internalDirsForClient(client, userHome)
+            .filter { it.exists() }
+            .map { File(it, "skills/$SKILL_NAME") }
+        return listOf(primary) + internals
+    }
+
     private fun skillRootForClient(client: InstallClient, userHome: File): File {
+        return skillRootDirNoCreate(client, userHome).also { it.mkdirs() }
+    }
+
+    private fun skillRootDirNoCreate(client: InstallClient, userHome: File): File {
         return when (client) {
             InstallClient.CODEX -> File(codexHomeDir(userHome), "skills")
             InstallClient.CLAUDE -> File(claudeHomeDir(userHome), "skills")
             InstallClient.GEMINI -> File(geminiHomeDir(userHome), "skills")
             InstallClient.CODEBUDDY -> File(userHome, ".codebuddy/skills")
-        }.also { it.mkdirs() }
+            InstallClient.CURSOR -> File(userHome, ".cursor/skills")
+        }
     }
 
     private fun internalDirsForClient(client: InstallClient, userHome: File): List<File> {
@@ -78,6 +97,7 @@ object JuggSkillInstaller {
             InstallClient.CLAUDE -> listOf(File(userHome, ".claude-internal"))
             InstallClient.GEMINI -> listOf(File(userHome, ".gemini-internal"))
             InstallClient.CODEBUDDY -> emptyList()
+            InstallClient.CURSOR -> emptyList()
         }
     }
 
@@ -129,6 +149,66 @@ object JuggSkillInstaller {
     private fun Throwable.safeReason(): String {
         return (message ?: javaClass.simpleName).replace(Regex("\\s+"), "_")
     }
+
+    /**
+     * Installs the jugg CLI to ~/.jugg/bin by extracting the bundled scripts/ directory.
+     * On macOS/Linux, also sets executable permissions and creates a symlink in ~/.local/bin.
+     * Returns Result.success on success, Result.failure on error.
+     */
+    fun installCli(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
+        return runCatching {
+            val binDir = File(userHome, ".jugg/bin")
+            extractScriptsToBinDir(binDir)
+            if (!isWindows()) {
+                setExecutable(binDir)
+                createSymlink(userHome, binDir)
+            }
+            logger.info("[Install Jugg CLI] installed to ${binDir.path}")
+        }
+    }
+
+    private fun extractScriptsToBinDir(binDir: File) {
+        binDir.deleteRecursively()
+        binDir.mkdirs()
+        val stream = JuggSkillInstaller::class.java.classLoader.getResourceAsStream(SKILL_ZIP_RESOURCE)
+            ?: throw FileNotFoundException("resource_not_found_$SKILL_ZIP_RESOURCE")
+        val scriptsPrefix = "scripts/"
+        ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (entry.name.startsWith(scriptsPrefix) && !entry.isDirectory) {
+                    val relativePath = entry.name.removePrefix(scriptsPrefix)
+                    val outFile = File(binDir, relativePath)
+                    val canonicalParent = binDir.canonicalPath + File.separator
+                    if (!outFile.canonicalPath.startsWith(canonicalParent)) {
+                        throw IOException("invalid_zip_entry_path")
+                    }
+                    outFile.parentFile?.mkdirs()
+                    FileOutputStream(outFile).use { zip.copyTo(it) }
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+    }
+
+    private fun setExecutable(binDir: File) {
+        File(binDir, "jugg").takeIf { it.exists() }?.setExecutable(true, false)
+        File(binDir, "jugg.py").takeIf { it.exists() }?.setExecutable(true, false)
+    }
+
+    private fun createSymlink(userHome: File, binDir: File) {
+        val localBin = File(userHome, ".local/bin").also { it.mkdirs() }
+        val symlinkFile = File(localBin, "jugg")
+        val target = File(binDir, "jugg.py").toPath()
+        // Remove existing symlink or file, then create new symlink
+        if (symlinkFile.exists() || Files.isSymbolicLink(symlinkFile.toPath())) {
+            symlinkFile.delete()
+        }
+        Files.createSymbolicLink(symlinkFile.toPath(), target)
+    }
+
+    private fun isWindows() = System.getProperty("os.name")?.lowercase()?.contains("windows") == true
 }
 
 enum class InstallClient(val cliName: String) {
@@ -136,6 +216,15 @@ enum class InstallClient(val cliName: String) {
     CLAUDE("claude"),
     GEMINI("gemini"),
     CODEBUDDY("codebuddy"),
+    CURSOR("cursor"),
+}
+
+/** Holds the full selection from the install dialog. */
+data class InstallOptions(
+    val clients: Set<InstallClient>,
+    val installCli: Boolean,
+) {
+    val isEmpty: Boolean get() = clients.isEmpty() && !installCli
 }
 
 data class InstallAgentResult(

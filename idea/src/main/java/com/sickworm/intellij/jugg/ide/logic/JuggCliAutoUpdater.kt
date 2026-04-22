@@ -1,0 +1,207 @@
+package com.sickworm.intellij.jugg.ide.logic
+
+import com.intellij.openapi.diagnostic.Logger
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.util.zip.ZipInputStream
+
+/**
+ * Auto-updates the Jugg CLI (~/.jugg/bin) and installed skill directories
+ * when the plugin bundles a newer skill version. Skips if bin dir does not exist.
+ * Version is tracked via ~/.jugg/skills/jugg-android-dev-loop/SKILL.md.
+ */
+object JuggCliAutoUpdater {
+
+    private const val SKILL_ZIP_RESOURCE = "docs/skills/jugg-android-dev-loop.zip"
+    private const val SKILL_MD_ENTRY = "SKILL.md"
+    private const val SCRIPTS_PREFIX = "scripts/"
+    private const val SKILL_NAME = "jugg-android-dev-loop"
+    private val SKILL_VERSION_REGEX = Regex("""^version:\s*([^\s]+)""", RegexOption.MULTILINE)
+    private var isNeedCheckAndUpdate = false
+
+    internal fun resetForTest() {
+        isNeedCheckAndUpdate = false
+    }
+
+    @Synchronized
+    fun checkAndUpdate(logger: Logger, userHome: File = File(System.getProperty("user.home"))) {
+        if (isNeedCheckAndUpdate) {
+            logger.debug("Already auto-update check")
+            return
+        }
+        isNeedCheckAndUpdate = true
+
+        val binDir = File(userHome, ".jugg/bin")
+        if (!binDir.exists()) {
+            logger.info("Jugg CLI bin dir not found, skipping auto-update")
+            return
+        }
+        val juggSkillDir = File(userHome, ".jugg/skills/$SKILL_NAME")
+        val bundledVersion = readVersionFromZip()
+        if (bundledVersion == null) {
+            logger.warn("Failed to read bundled skill version, skipping auto-update")
+            return
+        }
+        val localVersion = readVersionFromLocal(juggSkillDir) ?: "0.0.0"
+        if (PluginVersionComparator.compare(bundledVersion, localVersion) <= 0) {
+            logger.info("Jugg CLI is up to date (local=$localVersion, bundled=$bundledVersion)")
+            return
+        }
+        logger.info("Updating Jugg CLI: $localVersion -> $bundledVersion")
+        updateBinDir(binDir)
+        setExecutable(binDir)
+        updateJuggSkillDir(juggSkillDir)
+
+        val installedClients = detectInstalledClients(userHome)
+        if (installedClients.isNotEmpty()) {
+            JuggSkillInstaller.install(File("."), installedClients, logger, userHome)
+        }
+        logger.info("Jugg CLI auto-update completed")
+    }
+
+    /** Reads version from SKILL.md in the bundled zip resource. */
+    internal fun readVersionFromZip(): String? {
+        val stream = JuggCliAutoUpdater::class.java.classLoader
+            .getResourceAsStream(SKILL_ZIP_RESOURCE) ?: return null
+        return ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (entry.name == SKILL_MD_ENTRY) {
+                    return@use extractSkillVersion(zip.readBytes().toString(Charsets.UTF_8))
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+            null
+        }
+    }
+
+    /** Reads version from SKILL.md in the local skill dir. */
+    internal fun readVersionFromLocal(skillDir: File): String? {
+        val skillMd = File(skillDir, SKILL_MD_ENTRY)
+        if (!skillMd.exists()) return null
+        return extractSkillVersion(skillMd.readText())
+    }
+
+    private fun extractSkillVersion(content: String): String? {
+        return SKILL_VERSION_REGEX.find(content)?.groupValues?.get(1)
+    }
+
+    /**
+     * Detects which AI clients already have the skill installed,
+     * by checking existence of their skill directories.
+     */
+    internal fun detectInstalledClients(userHome: File): Set<InstallClient> {
+        return InstallClient.values().filter { client ->
+            skillDirsForClient(client, userHome).any { it.exists() }
+        }.toSet()
+    }
+
+    private fun skillDirsForClient(client: InstallClient, userHome: File): List<File> {
+        val dirs = mutableListOf(File(skillRootDir(client, userHome), SKILL_NAME))
+        val internalDir = internalSkillDir(client, userHome)
+        if (internalDir != null) dirs.add(internalDir)
+        return dirs
+    }
+
+    private fun skillRootDir(client: InstallClient, userHome: File): File {
+        return when (client) {
+            InstallClient.CODEX -> File(codexHomeDir(userHome), "skills")
+            InstallClient.CLAUDE -> File(claudeHomeDir(userHome), "skills")
+            InstallClient.GEMINI -> File(geminiHomeDir(userHome), "skills")
+            InstallClient.CODEBUDDY -> File(userHome, ".codebuddy/skills")
+            InstallClient.CURSOR -> File(userHome, ".cursor/skills")
+        }
+    }
+
+    private fun internalSkillDir(client: InstallClient, userHome: File): File? {
+        val internalBase = when (client) {
+            InstallClient.CODEX -> File(userHome, ".codex-internal")
+            InstallClient.CLAUDE -> File(userHome, ".claude-internal")
+            InstallClient.GEMINI -> File(userHome, ".gemini-internal")
+            InstallClient.CODEBUDDY -> null
+            InstallClient.CURSOR -> null
+        }
+        return internalBase?.let { File(it, "skills/$SKILL_NAME") }
+    }
+
+    private fun codexHomeDir(userHome: File): File {
+        val envHome = System.getenv("CODEX_HOME")
+        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".codex")
+    }
+
+    private fun claudeHomeDir(userHome: File): File {
+        val dotClaude = File(userHome, ".claude")
+        val configClaude = File(userHome, ".config/claude")
+        return when {
+            dotClaude.exists() -> dotClaude
+            configClaude.exists() -> configClaude
+            else -> dotClaude
+        }
+    }
+
+    private fun geminiHomeDir(userHome: File): File {
+        val envHome = System.getenv("GEMINI_HOME")
+        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".gemini")
+    }
+
+    private fun setExecutable(binDir: File) {
+        File(binDir, "jugg").takeIf { it.exists() }?.setExecutable(true, false)
+        File(binDir, "jugg.py").takeIf { it.exists() }?.setExecutable(true, false)
+    }
+
+    /**
+     * Overwrites binDir with scripts/ content from the bundled zip.
+     */
+    private fun updateBinDir(binDir: File) {
+        binDir.deleteRecursively()
+        binDir.mkdirs()
+        val stream = JuggCliAutoUpdater::class.java.classLoader
+            .getResourceAsStream(SKILL_ZIP_RESOURCE)
+            ?: throw IOException("Bundled zip resource not found: $SKILL_ZIP_RESOURCE")
+        ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (entry.name.startsWith(SCRIPTS_PREFIX) && !entry.isDirectory) {
+                    val outFile = File(binDir, entry.name.removePrefix(SCRIPTS_PREFIX))
+                    val canonicalParent = binDir.canonicalPath + File.separator
+                    if (!outFile.canonicalPath.startsWith(canonicalParent)) {
+                        throw IOException("Invalid zip entry path: ${entry.name}")
+                    }
+                    outFile.parentFile?.mkdirs()
+                    FileOutputStream(outFile).use { zip.copyTo(it) }
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+    }
+
+    /** Overwrites ~/.jugg/skills/jugg-android-dev-loop/ with full skill content from bundled zip. */
+    private fun updateJuggSkillDir(skillDir: File) {
+        skillDir.deleteRecursively()
+        skillDir.mkdirs()
+        val stream = JuggCliAutoUpdater::class.java.classLoader
+            .getResourceAsStream(SKILL_ZIP_RESOURCE)
+            ?: throw IOException("Bundled zip resource not found: $SKILL_ZIP_RESOURCE")
+        ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                val outFile = File(skillDir, entry.name)
+                val canonicalParent = skillDir.canonicalPath + File.separator
+                if (!outFile.canonicalPath.startsWith(canonicalParent)) {
+                    throw IOException("Invalid zip entry path: ${entry.name}")
+                }
+                if (entry.isDirectory) {
+                    outFile.mkdirs()
+                } else {
+                    outFile.parentFile?.mkdirs()
+                    FileOutputStream(outFile).use { zip.copyTo(it) }
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+    }
+}

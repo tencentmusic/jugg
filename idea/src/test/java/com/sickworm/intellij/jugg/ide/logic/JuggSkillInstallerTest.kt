@@ -172,5 +172,68 @@ class JuggSkillInstallerTest {
         assertTrue(File(userHome, ".gemini/skills/jugg-android-dev-loop/SKILL.md").exists())
         assertTrue(File(userHome, ".gemini-internal/skills/jugg-android-dev-loop/SKILL.md").exists())
     }
+
+    @Test
+    fun install_cursor_shouldInstallSkillToDir() {
+        val userHome = Files.createTempDirectory("jugg-home-cursor").toFile()
+        val logger = mock(Logger::class.java)
+        val summary = JuggSkillInstaller.install(
+            projectDir = Files.createTempDirectory("jugg-project-cursor").toFile(),
+            selectedClients = setOf(InstallClient.CURSOR),
+            logger = logger,
+            userHome = userHome,
+        )
+        assertTrue(summary.isAllSuccess)
+        assertTrue(File(userHome, ".cursor/skills/jugg-android-dev-loop/SKILL.md").exists())
+    }
+
+    @Test
+    fun install_cursor_shouldRemainStableAfterRepeatedInstall() {
+        val userHome = Files.createTempDirectory("jugg-home-cursor-repeat").toFile()
+        val logger = mock(Logger::class.java)
+        repeat(2) {
+            JuggSkillInstaller.install(
+                projectDir = Files.createTempDirectory("jugg-project-cursor-repeat").toFile(),
+                selectedClients = setOf(InstallClient.CURSOR),
+                logger = logger,
+                userHome = userHome,
+            )
+        }
+        assertTrue(File(userHome, ".cursor/skills/jugg-android-dev-loop/SKILL.md").exists())
+    }
+
+    @Test
+    fun installCli_shouldCopyScriptsToBinDir() {
+        val userHome = Files.createTempDirectory("jugg-home-cli").toFile()
+        val logger = mock(Logger::class.java)
+
+        val result = JuggSkillInstaller.installCli(logger, userHome)
+
+        assertTrue("CLI install should succeed", result.isSuccess)
+        val binDir = File(userHome, ".jugg/bin")
+        assertTrue("jugg.py should exist in bin", File(binDir, "jugg.py").exists())
+        assertTrue("py/cmd dir should exist in bin", File(binDir, "py/cmd").isDirectory)
+    }
+
+    @Test
+    fun installCli_shouldBeIdempotent() {
+        val userHome = Files.createTempDirectory("jugg-home-cli-idem").toFile()
+        val logger = mock(Logger::class.java)
+
+        repeat(2) { JuggSkillInstaller.installCli(logger, userHome) }
+
+        assertTrue(File(userHome, ".jugg/bin/jugg.py").exists())
+    }
+
+    @Test
+    fun installCli_shouldCreateSymlinkInLocalBin() {
+        val userHome = Files.createTempDirectory("jugg-home-cli-symlink").toFile()
+        val logger = mock(Logger::class.java)
+
+        JuggSkillInstaller.installCli(logger, userHome)
+
+        val symlink = File(userHome, ".local/bin/jugg")
+        assertTrue("Symlink should be created in ~/.local/bin", symlink.exists())
+    }
 }
 

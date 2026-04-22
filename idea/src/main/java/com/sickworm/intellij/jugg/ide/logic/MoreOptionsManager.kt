@@ -6,7 +6,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
-import com.intellij.openapi.ui.Messages
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
@@ -17,7 +16,7 @@ import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdatesProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.ide.ui.InstallMcpAndSkillsDialog
+import com.sickworm.intellij.jugg.ide.ui.InstallJuggSkillsDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -354,7 +353,7 @@ class MoreOptionsManager(
     }
 
     fun installJuggMcpAndSkills() {
-        InstallMcpAndSkillsDialog.installJuggMcpAndSkills(
+        InstallJuggSkillsDialog.installJuggMcpAndSkills(
             juggManager.project, pathManager.projectDir, taskRunnerManager, logger)
     }
 }
