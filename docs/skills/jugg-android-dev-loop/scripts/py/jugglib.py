@@ -7,6 +7,7 @@ Provides: port detection, projectDir resolution, record session management,
 import json
 import os
 import sys
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -239,21 +240,46 @@ def print_kv(structured: dict) -> None:
                 print(f"{k}: {v}")
 
 
+# ─── terminal spinner ───────────────────────────────────────────────────────
+
+_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+
+def _run_spinner(stop_event: threading.Event, label: str) -> None:
+    """Animate a braille spinner in stderr until stop_event is set.
+
+    Silent when stderr is not a TTY (e.g. CI pipelines).
+    """
+    if not sys.stderr.isatty():
+        return
+    i = 0
+    while not stop_event.is_set():
+        frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
+        sys.stderr.write(f"\r{frame} {label}...")
+        sys.stderr.flush()
+        time.sleep(0.08)
+        i += 1
+    # Clear spinner line
+    sys.stderr.write(f"\r{' ' * (len(label) + 6)}\r")
+    sys.stderr.flush()
+
+
 # ─── async compile polling ───────────────────────────────────────────────────
 
 def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
-    """Poll get_compile_status until isFinal=true, then return the final structured JSON."""
+    """Poll get_compile_status until status is no longer 'running'.
+
+    The initial structured dict (from compile/deploy/gradle-build) contains isFinal + status.
+    Subsequent dicts (from get-compile-status) contain only status, no isFinal.
+    Use data.status != 'running' as the universal termination condition.
+    """
     while True:
-        is_final = structured.get("data", {}).get("isFinal", False)
-        if is_final:
+        status = structured.get("data", {}).get("status", "")
+        if status != "running":
             break
 
         job_id = structured.get("data", {}).get("jobId", "")
         interval_ms = structured.get("data", {}).get("pollIntervalSuggestedMs", 2000)
-
-        # msg = structured.get("message", "")
-        # if msg:
-        #     print(f"  {msg}", file=sys.stderr)
 
         if not job_id:
             print("ERROR: compile job has no jobId, cannot poll", file=sys.stderr)
@@ -305,24 +331,36 @@ def compile_call(tool: str, *, json_mode: bool = False,
     if extra_params:
         params.update(extra_params)
 
-    if progress_msg:
-        print(progress_msg, file=sys.stderr)
-
-    response = raw_call(port, tool, params)
-    structured = extract_structured(response)
-    structured = poll_compile(port, project_dir, structured)
+    label = progress_msg or "Compiling"
+    stop_event = threading.Event()
+    spinner_thread = threading.Thread(
+        target=_run_spinner, args=(stop_event, label), daemon=True
+    )
+    spinner_thread.start()
+    try:
+        response = raw_call(port, tool, params)
+        structured = extract_structured(response)
+        structured = poll_compile(port, project_dir, structured)
+    finally:
+        stop_event.set()
+        spinner_thread.join()
 
     if json_mode:
         print(json.dumps(structured))
         return structured
 
-    status = structured.get("status", "")
-    if status != "OK":
-        msg = structured.get("message", "Unknown error")
+    mcp_status = structured.get("status", "")
+    data_status = structured.get("data", {}).get("status", "")
+    # Compile failure: top-level MCP status may be OK (from get-compile-status polling),
+    # but data.status will be "failed" or "canceled".
+    is_compile_failed = data_status in ("failed", "canceled", "unknown")
+    if mcp_status != "OK" or is_compile_failed:
+        # Prefer data.message (actual compile error) over top-level message (always "executed successfully")
+        msg = structured.get("data", {}).get("message") or structured.get("message", "Unknown error")
         detail = structured.get("data", {}).get("detail", "")
         error_output = f"status: ERROR\nmessage: {msg}"
         if detail:
-            error_output += f"\ndetail: {detail}"
+            error_output += f"\ndetail:\n{detail}"
         print(error_output, file=sys.stderr)
         sys.exit(1)
 
