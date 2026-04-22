@@ -36,7 +36,7 @@ INSTALL_DIR="$HOME/.jugg/bin"
 mkdir -p "$HOME/.local/bin"
 # avoid ~/.local/bin/jugg is a directory and symlink created inside directory
 [ -d "$HOME/.local/bin/jugg" ] && rm -rf "$HOME/.local/bin/jugg"
-ln -sf "$INSTALL_DIR/jugg.py" "$HOME/.local/bin/jugg"
+ln -sf "$INSTALL_DIR/jugg" "$HOME/.local/bin/jugg"
 ```
 
 Then check if `~/.local/bin` is on your PATH:
