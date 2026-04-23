@@ -30,7 +30,7 @@ class ConstRefEngine(
     private val analyzer: ConstRefAnalyzer,
     private val database: ConstRefCacheDatabase,
     private val logger: Logger,
-    private var backgroundTaskRunner: IBackgroundTaskRunner,
+    private val backgroundTaskRunner: IBackgroundTaskRunner,
     private val repoSharedFingerprintStore: RepoSharedFingerprintStore,
     private val startupStabilizationDelayMs: Long = 10_000L,
 ) {
@@ -396,11 +396,6 @@ class ConstRefEngine(
             }
             progressLogger.flush()
         }
-    }
-
-    fun setBackgroundTaskRunner(backgroundTaskRunner: IBackgroundTaskRunner) {
-        this.backgroundTaskRunner = backgroundTaskRunner
-        scheduleCacheCleanup()
     }
 
     fun dispose() {

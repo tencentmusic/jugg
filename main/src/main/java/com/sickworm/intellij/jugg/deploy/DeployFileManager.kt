@@ -163,12 +163,6 @@ class DeployFileManager(
         }
     }
 
-    @Synchronized
-    fun setBackgroundTaskRunner(backgroundTaskRunner: IBackgroundTaskRunner) {
-        this.backgroundTaskRunner = backgroundTaskRunner
-        constRefEngine.setBackgroundTaskRunner(backgroundTaskRunner)
-    }
-
     fun awaitConstRefAnalysis(filePaths: List<String>) {
         if (!isConstRefTasksEnabled) {
             return

@@ -82,10 +82,6 @@ class JuggManager @TestOnly constructor(
         pathManager: JuggPathManager,
     ): this(project = project2, pathManager)
 
-    init {
-        deployFileManager.setBackgroundTaskRunner(taskRunnerManager)
-    }
-
     override fun init() {
         Disposer.register(this, juggCompilerHelper)
         Disposer.register(this, gradleProjectInfoLocalFetchManager)
