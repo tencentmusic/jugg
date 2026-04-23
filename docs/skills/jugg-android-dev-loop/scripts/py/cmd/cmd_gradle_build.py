@@ -7,6 +7,4 @@ import jugglib
 
 
 def cmd_gradle_build(args: list[str]) -> None:
-    json_mode, _ = jugglib.has_json_flag(args)
-    jugglib.compile_call("gradle-build", json_mode=json_mode,
-                         progress_msg="Running Gradle build...")
+    jugglib.compile_call("gradle-build", progress_msg="Running Gradle build...")

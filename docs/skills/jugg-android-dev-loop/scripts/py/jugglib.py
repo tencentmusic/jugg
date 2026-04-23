@@ -245,9 +245,11 @@ def print_kv(structured: dict) -> None:
 _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
 
-# Disabled by default; set to True via --spinner global flag (parsed in jugg.py).
-# Direct `python3 jugg.py` calls and agent calls leave this False → no spinner output.
+# Controlled by --console global flag (parsed in jugg.py).
+# spinner_enabled: True only for --console=rich (human terminal use).
+# json_mode: True only for --console=json (structured output for agents/scripts).
 spinner_enabled: bool = False
+json_mode: bool = False
 
 
 def _run_spinner(stop_event: threading.Event, label: str) -> None:
@@ -304,9 +306,10 @@ def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
 
 # ─── standard subcommand helpers ─────────────────────────────────────────────
 
-def simple_call(tool: str, *, json_mode: bool = False,
+def simple_call(tool: str, *, json_mode: Optional[bool] = None,
                 extra_params: Optional[dict] = None) -> dict:
     """Standard pattern: resolve project + port, call tool, handle output."""
+    _json_mode = json_mode if json_mode is not None else globals()["json_mode"]
     project_dir = resolve_project_dir()
     port = resolve_port()
     params = {"projectDir": project_dir}
@@ -316,7 +319,7 @@ def simple_call(tool: str, *, json_mode: bool = False,
     response = raw_call(port, tool, params)
     structured = extract_structured(response)
 
-    if json_mode:
+    if _json_mode:
         print(json.dumps(structured))
         return structured
 
@@ -330,10 +333,11 @@ def simple_call(tool: str, *, json_mode: bool = False,
     return structured
 
 
-def compile_call(tool: str, *, json_mode: bool = False,
+def compile_call(tool: str, *, json_mode: Optional[bool] = None,
                  progress_msg: str = "",
                  extra_params: Optional[dict] = None) -> dict:
     """Standard pattern for compile-like commands that need polling."""
+    _json_mode = json_mode if json_mode is not None else globals()["json_mode"]
     project_dir = resolve_project_dir()
     port = resolve_port()
     params = {"projectDir": project_dir}
@@ -354,7 +358,7 @@ def compile_call(tool: str, *, json_mode: bool = False,
         stop_event.set()
         spinner_thread.join()
 
-    if json_mode:
+    if _json_mode:
         print(json.dumps(structured))
         return structured
 
@@ -397,20 +401,11 @@ def compile_call(tool: str, *, json_mode: bool = False,
     return structured
 
 
-def has_json_flag(args: list[str]) -> tuple[bool, list[str]]:
-    """Extract --json flag from args, return (is_json, remaining_args)."""
-    if "--json" in args:
-        remaining = [a for a in args if a != "--json"]
-        return True, remaining
-    return False, args
-
-
 def normalize_args(args: list[str]) -> list[str]:
     """Normalize CLI flags: accept both --kebab-case and --camelCase.
 
     Converts any --kebab-case flag to --camelCase so that subcommand parsers
     only need to match camelCase names (which equal the MCP parameter names).
-    Non-flag tokens and --json are passed through unchanged.
 
     Design note: Jugg CLI accepts both kebab-case (POSIX convention for humans)
     and camelCase (MCP parameter names for AI agents). Internally everything is

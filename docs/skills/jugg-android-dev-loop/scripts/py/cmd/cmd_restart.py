@@ -8,28 +8,19 @@ import jugglib
 
 
 def cmd_restart(args: list[str]) -> None:
-    json_mode = False
-    i = 0
-    while i < len(args):
-        if args[i] == "--json":
-            json_mode = True
-            i += 1
-        elif args[i] == "--help":
+    for arg in args:
+        if arg == "--help":
             print("Usage: jugg restart")
             return
-        else:
-            print(f"Unknown option: {args[i]}", file=sys.stderr)
-            sys.exit(1)
+        print(f"Unknown option: {arg}", file=sys.stderr)
+        sys.exit(1)
 
     project_dir = jugglib.resolve_project_dir()
     port = jugglib.resolve_port()
-
-    params = {"projectDir": project_dir}
-
-    response = jugglib.raw_call(port, "restart", params)
+    response = jugglib.raw_call(port, "restart", {"projectDir": project_dir})
     structured = jugglib.extract_structured(response)
 
-    if json_mode:
+    if jugglib.json_mode:
         print(json.dumps(structured))
         return
 

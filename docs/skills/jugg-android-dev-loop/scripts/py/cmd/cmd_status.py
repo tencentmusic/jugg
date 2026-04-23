@@ -8,14 +8,12 @@ import jugglib
 
 
 def cmd_status(args: list[str]) -> None:
-    json_mode, _ = jugglib.has_json_flag(args)
-
     project_dir = jugglib.resolve_project_dir()
     port = jugglib.resolve_port()
     response = jugglib.raw_call(port, "status", {"projectDir": project_dir})
     structured = jugglib.extract_structured(response)
 
-    if json_mode:
+    if jugglib.json_mode:
         print(json.dumps(structured))
         return
 

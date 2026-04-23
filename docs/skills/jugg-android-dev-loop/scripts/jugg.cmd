@@ -1,8 +1,8 @@
 @echo off
 REM jugg.cmd — Windows wrapper for Jugg CLI (Python version)
-REM Place this in PATH or call directly: jugg.cmd compile --json
+REM Place this in PATH or call directly: jugg.cmd compile --console=json
 
 setlocal
 set "SCRIPT_DIR=%~dp0"
-python3 "%SCRIPT_DIR%jugg.py" --spinner %*
+python3 "%SCRIPT_DIR%jugg.py" --console=rich %*
 endlocal

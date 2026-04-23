@@ -4,15 +4,18 @@ CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py <subcommand> [options]`.
 
 ### CLI Output Format
 
-All commands print JSON to stdout:
+Controlled by the global `--console` flag (must appear before the subcommand):
 
-```json
-{"status": "OK|ERROR", "message": "...", "isFinal": true|false}
+| Value | Spinner | Output style | Typical use |
+|-------|---------|--------------|-------------|
+| `plain` | off | human-readable key: value (default) | agent / script |
+| `rich` | on | human-readable key: value | human terminal (set by shell wrappers) |
+| `json` | off | raw JSON `{status, message, data, ...}` | agent needing structured data |
+
+Example:
 ```
-
-- `status: OK` + `isFinal: true` → command succeeded, terminal result.
-- `status: OK` + `isFinal: false` → intermediate result; re-run same command.
-- `status: ERROR` → failed; read `message` for cause.
+python3 {SKILL_DIR}/scripts/jugg.py --console=json deploy
+```
 
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
 

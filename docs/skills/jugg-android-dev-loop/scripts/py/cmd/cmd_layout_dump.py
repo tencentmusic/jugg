@@ -1,6 +1,5 @@
 """cmd_layout_dump — export UI hierarchy to HTML file."""
 
-import json
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,7 +30,6 @@ def build_params(args: list[str]) -> dict:
 
 
 def cmd_layout_dump(args: list[str]) -> None:
-    json_mode, remaining = jugglib.has_json_flag(args)
-    remaining = jugglib.normalize_args(remaining)
+    remaining = jugglib.normalize_args(args)
     extra = build_params(remaining)
-    jugglib.simple_call("layout-dump", json_mode=json_mode, extra_params=extra)
+    jugglib.simple_call("layout-dump", extra_params=extra)

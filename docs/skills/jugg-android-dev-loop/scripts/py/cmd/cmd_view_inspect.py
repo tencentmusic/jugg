@@ -39,7 +39,6 @@ def build_params(args: list[str]) -> dict:
 
 
 def cmd_view_inspect(args: list[str]) -> None:
-    json_mode, remaining = jugglib.has_json_flag(args)
-    remaining = jugglib.normalize_args(remaining)
+    remaining = jugglib.normalize_args(args)
     extra = build_params(remaining)
-    jugglib.simple_call("view-inspect", json_mode=json_mode, extra_params=extra)
+    jugglib.simple_call("view-inspect", extra_params=extra)

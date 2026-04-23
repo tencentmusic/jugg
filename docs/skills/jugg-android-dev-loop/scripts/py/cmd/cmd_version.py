@@ -6,22 +6,16 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import jugglib
 
-CLI_VERSION = "1.0.2"
+CLI_VERSION = "1.0.4"
 
 
 def cmd_version(args: list[str]) -> None:
-    json_mode, _ = jugglib.has_json_flag(args)
-
     port = jugglib.resolve_port()
     response = jugglib.raw_call(port, "version", {})
     structured = jugglib.extract_structured(response)
 
-    if json_mode:
-        output = {
-            "cliVersion": CLI_VERSION,
-            "plugin": structured,
-        }
-        print(json.dumps(output))
+    if jugglib.json_mode:
+        print(json.dumps({"cliVersion": CLI_VERSION, "plugin": structured}))
         return
 
     plugin_status = structured.get("status", "")

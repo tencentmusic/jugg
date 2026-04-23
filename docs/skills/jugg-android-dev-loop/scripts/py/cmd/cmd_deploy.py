@@ -28,8 +28,6 @@ def build_params(args: list[str]) -> dict:
 
 
 def cmd_deploy(args: list[str]) -> None:
-    json_mode, remaining = jugglib.has_json_flag(args)
-    remaining = jugglib.normalize_args(remaining)
+    remaining = jugglib.normalize_args(args)
     extra = build_params(remaining)
-    jugglib.compile_call("deploy", json_mode=json_mode,
-                         progress_msg="Deploying...", extra_params=extra or None)
+    jugglib.compile_call("deploy", progress_msg="Deploying...", extra_params=extra or None)

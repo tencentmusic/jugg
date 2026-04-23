@@ -14,10 +14,12 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 
 USAGE = """\
-Usage: jugg [--spinner] <subcommand> [options]
+Usage: jugg [--console=plain|rich|json] <subcommand> [options]
 
 Global options:
-  --spinner           Enable progress spinner (set by shell wrappers for human use)
+  --console=rich      Enable progress spinner; human-readable output (default for shell wrapper)
+  --console=plain     No spinner; plain text output (default for direct python3 calls)
+  --console=json      Structured JSON output; implies no spinner
 
 Subcommands:
   version             Show CLI version and plugin version from all initialized projects
@@ -38,6 +40,8 @@ Subcommands:
 
 Run 'jugg <subcommand> --help' for subcommand options.
 """
+
+_CONSOLE_VALUES = ("plain", "rich", "json")
 
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
@@ -62,11 +66,24 @@ COMMANDS = {
 def main() -> None:
     args = sys.argv[1:]
 
-    # Extract global --spinner flag before subcommand dispatch
-    if "--spinner" in args:
-        import jugglib
-        jugglib.spinner_enabled = True
-        args = [a for a in args if a != "--spinner"]
+    # Extract global --console=<value> flag before subcommand dispatch.
+    import jugglib
+    console = "plain"
+    remaining = []
+    for a in args:
+        if a.startswith("--console="):
+            val = a[len("--console="):]
+            if val not in _CONSOLE_VALUES:
+                print(f"jugg: invalid --console value '{val}' (choose: plain, rich, json)",
+                      file=sys.stderr)
+                sys.exit(1)
+            console = val
+        else:
+            remaining.append(a)
+    args = remaining
+
+    jugglib.spinner_enabled = (console == "rich")
+    jugglib.json_mode = (console == "json")
 
     if not args or args[0] in ("--help", "-h", "help"):
         print(USAGE, file=sys.stderr)

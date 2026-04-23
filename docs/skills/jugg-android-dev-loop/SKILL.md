@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.3
-date: 2026-04-22
+version: 1.0.4
+date: 2026-04-23
 description: >-
   MANDATORY AUTO-TRIGGER after ANY edit to Android source files(Java/Kotlin/XML/layout/AndroidManifest/Gradle).
   Also trigger when user mentions Jugg; user asks to build/deploy/verify Android app.
