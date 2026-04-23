@@ -100,12 +100,6 @@ When triggered, agent uses the read-only / low-interaction tools below for a sin
 - **Single-hop navigation only.** If reaching the target page requires more than 1–2 `tap`s, skip the light check instead of scripting multi-step flows. Multi-step or log-dependent verification belongs in `flow_with_auto_run.md`; suggest the user declare an auto-run entry instead.
 - **Not a PASS gate.** A successful light check upgrades the report detail, but a missed / inconclusive one does **not** turn the verdict into FAIL — it degrades to `⏭ SKIP`-equivalent semantics.
 
-#### Report Line
-
-- Did not run the check → keep `⏭ SKIP (no auto-run entry)`.
-- Ran and evidence matched expectation → `ℹ LIGHT-CHECK: passed — <one-line evidence>`.
-- Ran but evidence was missing / ambiguous → `ℹ LIGHT-CHECK: inconclusive — <reason>`.
-
 ### Checkpoint Rules
 
 - Each step must complete before advancing.
@@ -114,23 +108,20 @@ When triggered, agent uses the read-only / low-interaction tools below for a sin
 
 ---
 
-## When User Wants Verification Without Auto-Run Entry
+#### Report Line
 
-If user requests on-device verification but has no auto-run entry configured:
-
-```
-⚠️ Auto-run entry not configured. 请在提示词中提供自动调试入口全限定方法名（or declare the auto-run entry, e.g. `com.myapp.Test.run`). 声明后参考 guide_write_auto_run_entry_code.md 编写入口代码。
-Without an auto-run entry, Jugg can only compile and deploy. Proceed with deploy-only? (y/n)
-```
-
----
+- Did not run the check → keep `⏭ SKIP (no auto-run entry)`.
+- Ran and evidence matched expectation → `ℹ LIGHT-CHECK: passed — <one-line evidence>`.
+- Ran but evidence was missing / ambiguous → `ℹ LIGHT-CHECK: inconclusive — <reason>`.
 
 ## Report Template
 
 Output at task completion. Status: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 RETRY(n)` / `ℹ LIGHT-CHECK` (deploy-mode optional check only). Compile-only: deploy and verification steps = `⏭ SKIP`.
 
+Translate to user taget language if user is not using English.
+
 ```
-# Jugg Dev Loop Report — Timestamp: {{ISO 8601}} | Scenario: {{compile_only|no_auto_run}} | Project: {{projectDir}}
+# Jugg Dev Loop Report | Scenario: {{compile_only|no_auto_run}}
 ## Pipeline Trace
 | Step | Status | Detail |
 ## Verdict: **{{PASS | FAIL | INCONCLUSIVE}}**

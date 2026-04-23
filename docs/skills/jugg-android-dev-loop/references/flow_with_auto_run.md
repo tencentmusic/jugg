@@ -102,11 +102,11 @@ On auto-run execution error:
 
 Output at task completion. Status: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 RETRY(n)`.
 
+Translate to user taget language if user is not using English.
+
 ```
-# Jugg Dev Loop Report — Timestamp: {{ISO 8601}} | Scenario: with_auto_run | Project: {{projectDir}}
+# Jugg Dev Loop Report | Scenario: {{compile_only|no_auto_run}}
 ## Pipeline Trace
 | Step | Status | Detail |
-## Verification Evidence
-| Method | Result | Detail |
 ## Verdict: **{{PASS | FAIL | INCONCLUSIVE}}**
 ```

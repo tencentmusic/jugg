@@ -1,17 +1,20 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.4
+version: 1.0.5
 date: 2026-04-23
 description: >-
-  MANDATORY AUTO-TRIGGER after ANY edit to Android source files(Java/Kotlin/XML/layout/AndroidManifest/Gradle).
-  Also trigger when user mentions Jugg; user asks to build/deploy/verify Android app.
-  Load BEFORE starting edits so the full workflow (edit all files first, then compile once) applies from the beginning.
-  Do NOT skip — every source change must be compiled to be considered done.
+  Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
+  in a Android project, or when user asks to build/deploy/verify an Android app.
+  Trigger before starting any edits.
+  Also trigger when the user says phrases like "go ahead", "start coding", "开始", "开始实现", "动手",
+  "implement it", "实现", "fix", "修复", "modify", "修改", "create", "add", "新增", "refactor", "重构".
 ---
 
 # Jugg Android Dev Loop
 
-Jugg CLI-driven development loop for Android: modify → build → deploy → verify → iterate.
+**What is Jugg?** Jugg is an Android tools that bypasses full Gradle builds via incremental compilation and deployment, reducing build frequency while preserving Gradle artifacts.
+
+This skill use Jugg CLI to drive development loop for Android: modify → build → deploy → verify → iterate.
 
 ---
 
@@ -41,7 +44,7 @@ Route based on context, then load primary reference:
 ```
 if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH"):
   → references/guide_install_cli.md
-elif user says "compile only" or "no deploy":
+elif user says "no deploy":
   → references/flow_no_auto_run.md §compile-only
 elif hasAutoRunEntry == false AND user requests verification:
   → ask user to declare auto-run entry (fully-qualified method, e.g. `com.myapp.Test.run`); then route to references/flow_with_auto_run.md (see references/guide_write_auto_run_entry_code.md for entry body)
@@ -54,7 +57,7 @@ elif hasAutoRunEntry == true:
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
 | install jugg CLI | `references/guide_install_cli.md` | — |
-| compile-only | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
+| no-deploy | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
 | no auto-run entry (deploy) | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
 | with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 
@@ -98,7 +101,7 @@ All build commands **block** until completion; no polling needed.
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `deploy` | Compile + deploy to device | **Default path** |
-| `compile` | Compile modified sources, no deploy | User **explicit** requests compile-only / no deploy / verification code compiles successfully |
+| `compile` | Compile modified sources, no deploy | **Only** when user **explicitly** says "no deploy", "don't deploy", "compile only", or equivalent — never inferred by agent |
 | `gradle-build` | Full Gradle compile fallback | After `deploy` **retries exhausted and still failed** |
 | `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
 
@@ -131,9 +134,8 @@ For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → 
 
 On compile/deploy failure, follow this order:
 
-1. Parse `status`/`message` from JSON output.
-2. Modified source and retry `compile`/`deploy` up to 3 times.
+1. Read error detail.
+2. Modified source and retry `deploy` up to 3 times.
 3. If still failing → `gradle-build`.
-4. If still failing → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-5. Call `ssh-info` (requires explicit user consent) when `gradle-build` is remote compile and still failing.
-6. Still unclear → stop, ask user.
+4. Call `ssh-info` (requires explicit user consent) when `gradle-build` is remote compile and still failing.
+5. Still unclear → stop, ask user.
