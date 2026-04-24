@@ -243,6 +243,7 @@ def print_kv(structured: dict) -> None:
 # ─── terminal spinner ───────────────────────────────────────────────────────
 
 _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+COMPILE_STATUS_WAIT_TIMEOUT_MS = 3000
 
 
 # Controlled by --console global flag (parsed in jugg.py).
@@ -290,15 +291,19 @@ def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
             break
 
         job_id = structured.get("data", {}).get("jobId", "")
-        interval_ms = structured.get("data", {}).get("pollIntervalSuggestedMs", 2000)
-
         if not job_id:
             print("ERROR: compile job has no jobId, cannot poll", file=sys.stderr)
             sys.exit(1)
 
-        time.sleep(interval_ms / 1000.0)
-
-        response = raw_call(port, "get-compile-status", {"projectDir": project_dir, "jobId": job_id})
+        response = raw_call(
+            port,
+            "get-compile-status",
+            {
+                "projectDir": project_dir,
+                "jobId": job_id,
+                "waitTimeoutMs": COMPILE_STATUS_WAIT_TIMEOUT_MS,
+            },
+        )
         structured = extract_structured(response)
 
     return structured

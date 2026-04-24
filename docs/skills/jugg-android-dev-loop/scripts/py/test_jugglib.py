@@ -92,5 +92,27 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
         self.assertIn("Compile succeeded immediately.", output)
 
 
+class TestPollCompileWaitTimeout(unittest.TestCase):
+    """poll_compile should call get-compile-status immediately with waitTimeoutMs."""
+
+    def test_poll_compile_calls_get_status_with_wait_timeout(self):
+        initial = _make_compile_response("running", "Compile started.")
+        final = _make_poll_response("success")
+
+        with (
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": final}}) as mock_raw_call,
+            patch.object(jugglib.time, "sleep") as mock_sleep,
+        ):
+            structured = jugglib.poll_compile(12320, "/proj", initial)
+
+        self.assertEqual("success", structured.get("data", {}).get("status"))
+        mock_raw_call.assert_called_once_with(
+            12320,
+            "get-compile-status",
+            {"projectDir": "/proj", "jobId": "job-123", "waitTimeoutMs": 3000},
+        )
+        mock_sleep.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

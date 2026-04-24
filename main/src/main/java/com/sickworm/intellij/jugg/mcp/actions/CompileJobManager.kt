@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 object CompileJobManager {
     private const val DEFAULT_SOFT_TIMEOUT_MILLIS = 25_000L
+    private const val STATUS_WAIT_POLL_INTERVAL_MILLIS = 50L
     const val POLL_INTERVAL_SUGGESTED_MILLIS = 15_000L
     private const val RUNNING_MESSAGE_TEMPLATE =
         "The task is still running. Please monitor progress via get-compile-status. Job ID is %s."
@@ -88,14 +89,28 @@ object CompileJobManager {
         )
     }
 
-    fun getStatus(jobId: String): CompileJobStatus {
-        return jobs[jobId] ?: CompileJobStatus(
-            jobId = jobId,
-            status = "unknown",
-            executionType = "local",
-            message = "Compile job not found.",
-            finishedAt = null,
-        )
+    fun getStatus(jobId: String, waitTimeoutMillis: Long = 0L): CompileJobStatus {
+        var state = jobs[jobId] ?: return unknownStatus(jobId)
+        if (waitTimeoutMillis <= 0L || state.status != "running") {
+            return state
+        }
+
+        val start = System.currentTimeMillis()
+        while (state.status == "running") {
+            val elapsed = System.currentTimeMillis() - start
+            val remaining = waitTimeoutMillis - elapsed
+            if (remaining <= 0L) {
+                break
+            }
+            try {
+                Thread.sleep(minOf(remaining, STATUS_WAIT_POLL_INTERVAL_MILLIS))
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                break
+            }
+            state = jobs[jobId] ?: return unknownStatus(jobId)
+        }
+        return state
     }
 
     internal fun resetForTest() {
@@ -232,6 +247,16 @@ object CompileJobManager {
     fun buildPollSuggestionData(): Map<String, Any> {
         return mapOf(
             "pollIntervalSuggestedMs" to POLL_INTERVAL_SUGGESTED_MILLIS,
+        )
+    }
+
+    private fun unknownStatus(jobId: String): CompileJobStatus {
+        return CompileJobStatus(
+            jobId = jobId,
+            status = "unknown",
+            executionType = "local",
+            message = "Compile job not found.",
+            finishedAt = null,
         )
     }
 }

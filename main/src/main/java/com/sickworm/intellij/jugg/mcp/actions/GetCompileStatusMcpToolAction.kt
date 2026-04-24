@@ -9,6 +9,11 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
 class GetCompileStatusMcpToolAction : McpToolAction {
+    companion object {
+        private const val WAIT_TIMEOUT_MIN_MS = 0
+        private const val WAIT_TIMEOUT_MAX_MS = 10_000
+    }
+
     override val toolName: String = McpToolActionRegistry.ToolNames.GET_COMPILE_STATUS
 
     override val definition: McpToolDefinition = McpToolDefinition(
@@ -18,6 +23,12 @@ class GetCompileStatusMcpToolAction : McpToolAction {
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 "jobId" to McpJsonSchemaProperty(type = "string", description = "Compile job ID returned by async compile tools."),
+                "waitTimeoutMs" to McpJsonSchemaProperty(
+                    type = "integer",
+                    description = "Optional blocking wait timeout in milliseconds before returning running status. Range [0, 10000]. Default: 0.",
+                    minimum = WAIT_TIMEOUT_MIN_MS.toDouble(),
+                    maximum = WAIT_TIMEOUT_MAX_MS.toDouble(),
+                ),
             ),
             required = listOf("projectDir", "jobId"),
             additionalProperties = false,
@@ -52,7 +63,14 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                 errorCode = McpErrorCode.INVALID_PARAMS,
             )
         }
-        val state = CompileJobManager.getStatus(jobId)
+        val waitTimeoutMs = parseWaitTimeoutMs(arguments["waitTimeoutMs"]) ?: return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "get-compile-status failed. Reason: waitTimeoutMs must be an integer in [0, 10000].",
+            data = emptyMap<String, Any>(),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.INVALID_PARAMS,
+        )
+        val state = CompileJobManager.getStatus(jobId, waitTimeoutMs.toLong())
         val data = mutableMapOf<String, Any?>(
             "jobId" to state.jobId,
             "status" to state.status,
@@ -95,5 +113,20 @@ class GetCompileStatusMcpToolAction : McpToolAction {
             artifacts = artifacts,
             errorCode = if (isFailed) McpErrorCode.INTERNAL_ERROR else null,
         )
+    }
+
+    private fun parseWaitTimeoutMs(raw: Any?): Int? {
+        if (raw == null) {
+            return WAIT_TIMEOUT_MIN_MS
+        }
+        val number = raw as? Number ?: return null
+        val value = number.toInt()
+        if (value.toDouble() != number.toDouble()) {
+            return null
+        }
+        if (value < WAIT_TIMEOUT_MIN_MS || value > WAIT_TIMEOUT_MAX_MS) {
+            return null
+        }
+        return value
     }
 }

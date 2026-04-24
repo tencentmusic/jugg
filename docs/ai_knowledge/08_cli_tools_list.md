@@ -21,7 +21,7 @@
 |--------|------|
 | **自动推断 projectDir** | 所有命令均不需要传 `--project-dir`，通过调用 `list-projects` 后与 `$PWD` 做最长前缀匹配自动确定 |
 | **端口自动发现** | 先读本地缓存文件，不命中则扫描 `12320..12329`，命中后写缓存 |
-| **异步编译自动轮询** | `compile`/`deploy`/`gradle-build` 自动调用 `get-compile-status` 轮询到 `isFinal=true`，无需手动调用 |
+| **异步编译自动轮询** | `compile`/`deploy`/`gradle-build` 自动调用 `get-compile-status` 到终态；返回 `running` 后立即再次请求，并附带 `waitTimeoutMs=3000` 进行短阻塞等待，减少尾部等待窗口 |
 | **`--json` 模式** | 所有命令支持 `--json` flag，输出原始 structuredContent JSON 供脚本消费；默认以 `key: value` 格式输出 |
 
 **端口/session 缓存文件位置**（可被环境变量覆盖）：
