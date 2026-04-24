@@ -82,7 +82,8 @@ object CompileJobManager {
                     message = finalMessage,
                     runInvocationResult = runResponse,
                 )
-                waitAppReadyIfSuccess(runtime, "deploy", initialResult)
+                // Skip app-ready check when deployment was intentionally skipped (compile-only mode).
+                if (isSkipDeploy) initialResult else waitAppReadyIfSuccess(runtime, "deploy", initialResult)
             },
         )
     }
