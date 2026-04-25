@@ -298,6 +298,7 @@
 - `fileCounts`：`{ total: number, <Type>: number, ... }`，按 `CompileFile.Type` 分类统计未编译文件数量
 - `files`：未编译文件绝对路径列表，**最多 20 个**
 - `detail`：未截断时为空字符串；截断时为自然语言描述，如 `"Showing 20 of 25 files. 5 more files are not listed."`
+- `lastFileModifiedTime`：最近未编译文件的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无文件时为空字符串）
 
 ---
 

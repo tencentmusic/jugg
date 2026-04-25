@@ -235,5 +235,27 @@ class JuggSkillInstallerTest {
         val symlink = File(userHome, ".local/bin/jugg")
         assertTrue("Symlink should be created in ~/.local/bin", symlink.exists())
     }
-}
 
+    @Test
+    fun installHooks_shouldCopyHookScriptsToJuggHooksDir() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-copy").toFile()
+        val logger = mock(Logger::class.java)
+
+        val result = JuggSkillInstaller.installHooks(logger, userHome)
+
+        assertTrue("Hook install should succeed", result.isSuccess)
+        assertTrue(File(userHome, ".jugg/hooks/start.py").exists())
+        assertTrue(File(userHome, ".jugg/hooks/stop.py").exists())
+    }
+
+    @Test
+    fun installHooks_shouldBeIdempotent() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-idem").toFile()
+        val logger = mock(Logger::class.java)
+
+        repeat(2) { JuggSkillInstaller.installHooks(logger, userHome) }
+
+        assertTrue(File(userHome, ".jugg/hooks/start.py").exists())
+        assertTrue(File(userHome, ".jugg/hooks/stop.py").exists())
+    }
+}

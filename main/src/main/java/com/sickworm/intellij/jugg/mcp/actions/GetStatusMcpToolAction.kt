@@ -8,8 +8,12 @@ import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.project.ChangedFile
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private const val MAX_FILE_PATHS = 20
+private val READABLE_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
 /**
  * GetStatusMcpToolAction implements MCP tool `status` and returns current deploy state,
@@ -61,8 +65,20 @@ class GetStatusMcpToolAction : McpToolAction {
                             description = "Empty when all files are listed. Natural-language note when the list is truncated, " +
                                 "e.g. \"Showing 20 of 25 files. 5 more files are not listed.\"",
                         ),
+                        "lastFileModifiedTime" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Readable local timestamp (yyyy-MM-dd HH:mm:ss) of latest uncompiled file modification. Empty when none.",
+                        ),
                     ),
-                    required = listOf("hasDevice", "needFallback", "stateMessage", "fileCounts", "files", "detail"),
+                    required = listOf(
+                        "hasDevice",
+                        "needFallback",
+                        "stateMessage",
+                        "fileCounts",
+                        "files",
+                        "detail",
+                        "lastFileModifiedTime",
+                    ),
                     additionalProperties = false,
                 )
             )
@@ -102,6 +118,18 @@ class GetStatusMcpToolAction : McpToolAction {
             fallbackReason != null -> fallbackReason
             else -> truncationNote
         }
+        val maxLastModifiedMillis: Long = uncompiledFiles
+            .asSequence()
+            .map { changedFile -> changedFile.file.takeIf { it.exists() }?.lastModified() ?: 0L }
+            .maxOrNull()
+            ?: 0L
+        val lastFileModifiedTime: String = if (maxLastModifiedMillis > 0L) {
+            Instant.ofEpochMilli(maxLastModifiedMillis)
+                .atZone(ZoneId.systemDefault())
+                .format(READABLE_TIME_FORMATTER)
+        } else {
+            ""
+        }
 
         val data: Map<String, Any> = mapOf(
             "hasDevice" to (runtime.deployTargetManager.hasDevice),
@@ -110,6 +138,7 @@ class GetStatusMcpToolAction : McpToolAction {
             "fileCounts" to fileCounts,
             "files" to files,
             "detail" to detail,
+            "lastFileModifiedTime" to lastFileModifiedTime,
         )
 
         return McpToolResult(

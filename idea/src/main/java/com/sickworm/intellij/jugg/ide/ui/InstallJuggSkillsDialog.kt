@@ -14,6 +14,8 @@ import com.sickworm.intellij.jugg.ide.logic.ClientSetupDocExporter
 import com.sickworm.intellij.jugg.ide.logic.InstallClient
 import com.sickworm.intellij.jugg.ide.logic.InstallOptions
 import com.sickworm.intellij.jugg.ide.logic.InstallSummary
+import com.sickworm.intellij.jugg.ide.logic.HookInstallSummary
+import com.sickworm.intellij.jugg.ide.logic.JuggHookInstaller
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.logic.JuggSkillInstaller
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
@@ -45,7 +47,8 @@ class InstallJuggSkillsDialog(
     private val geminiCheckBox = JBCheckBox("Gemini").applyDefaultCheck(InstallClient.GEMINI)
     private val codebuddyCheckBox = JBCheckBox("CodeBuddy").applyDefaultCheck(InstallClient.CODEBUDDY)
     private val cursorCheckBox = JBCheckBox("Cursor").applyDefaultCheck(InstallClient.CURSOR)
-    private val installCliCheckBox = JBCheckBox("Install CLI to PATH").apply { isSelected = true }
+    private val installCliCheckBox = JBCheckBox("Install CLI to \$PATH").apply { isSelected = true }
+    private val installHooksCheckBox = JBCheckBox("Install agent hooks").apply { isSelected = true }
     private val panel = JPanel(GridBagLayout())
 
     init {
@@ -57,16 +60,13 @@ class InstallJuggSkillsDialog(
             anchor = GridBagConstraints.WEST
             insets = JBUI.emptyInsets()
         }
-        val descLabel = JLabel("<html><body style='width:360px'>" +
-            "Jugg Skills use Jugg CLI to enable AI agents (Claude Code, Codex, etc.) to drive the full " +
-            "Android dev loop: edit → incremental compile → deploy → verify, without manual intervention. " +
-            "</body></html>")
+        val descLabel = JLabel(descriptionHtml())
         descLabel.foreground = Color(100, 100, 100)
         panel.add(descLabel, constraints)
 
         constraints.gridy++
         constraints.insets = Insets(8, 0, 0, 0)
-        panel.add(JLabel("Select clients to install:"), constraints)
+        panel.add(JLabel(selectAgentsTitle()), constraints)
 
         val clientRows = listOf(
             claudeCheckBox to InstallClient.CLAUDE,
@@ -82,8 +82,27 @@ class InstallJuggSkillsDialog(
         }
 
         constraints.gridy++
-        constraints.insets = Insets(6, 0, 0, 0)
+        constraints.insets = Insets(8, 0, 0, 0)
+        panel.add(JLabel(additionalOptionsTitle()), constraints)
+
+        constraints.gridy++
+        constraints.insets = Insets(2, 0, 0, 0)
         panel.add(buildCliRow(), constraints)
+
+        constraints.gridy++
+        constraints.insets = Insets(4, 0, 0, 0)
+        panel.add(buildHooksRow(), constraints)
+
+        constraints.gridy++
+        constraints.insets = Insets(2, 0, 0, 0)
+        val hookDesc = JLabel(
+            "<html><body style='width:360px;color:#808080'>" +
+                "Injects command hooks to run on SessionStart and Stop. " +
+                "Stop will blocked when Android changes are detected " +
+                "without jugg-android-dev-loop compile verification." +
+                "</body></html>"
+        )
+        panel.add(hookDesc, constraints)
 
         init()
     }
@@ -98,6 +117,14 @@ class InstallJuggSkillsDialog(
     /** Builds the CLI install row with a fixed path hint. */
     private fun buildCliRow(): JPanel {
         return rowPanel(installCliCheckBox, "~/.jugg/bin")
+    }
+
+    /** Builds the hook install row with target Claude settings paths. */
+    private fun buildHooksRow(): JPanel {
+        return rowPanel(
+            installHooksCheckBox,
+            "~/.jugg/hooks",
+        )
     }
 
     private fun rowPanel(checkBox: JBCheckBox, hintText: String): JPanel {
@@ -127,8 +154,8 @@ class InstallJuggSkillsDialog(
     override fun createCenterPanel(): JComponent = panel
 
     override fun doValidate(): ValidationInfo? {
-        return if (selectedClients().isEmpty() && !installCliCheckBox.isSelected) {
-            ValidationInfo("Select at least one client or enable CLI install.", panel)
+        return if (selectedClients().isEmpty() && !installCliCheckBox.isSelected && !installHooksCheckBox.isSelected) {
+            ValidationInfo("Select at least one install target (client, CLI, or hooks).", panel)
         } else {
             null
         }
@@ -139,7 +166,7 @@ class InstallJuggSkillsDialog(
             override fun actionPerformed(e: ActionEvent?) {
                 try {
                     val logger = Logger.getInstance(InstallJuggSkillsDialog::class.java)
-                    val outputFile = exportAndInstallSkills(projectDir, selectedClients(), logger)
+                    val outputFile = exportAndInstallSkills(projectDir, selectedOptions(), logger)
                     val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(outputFile)
                         ?: throw IllegalStateException("Failed to locate exported guide file.")
                     FileEditorManager.getInstance(project).openFile(virtualFile, true)
@@ -162,12 +189,27 @@ class InstallJuggSkillsDialog(
     }
 
     fun selectedOptions(): InstallOptions {
-        return InstallOptions(selectedClients(), installCliCheckBox.isSelected)
+        return InstallOptions(
+            selectedClients(),
+            installCliCheckBox.isSelected,
+            installHooksCheckBox.isSelected,
+        )
     }
 
     companion object {
+        internal fun descriptionHtml(): String {
+            return "<html><body>" +
+                "Jugg Skills use Jugg CLI to enable AI agents (Claude Code, Codex, etc.) to drive the full " +
+                "Android dev loop: edit → incremental compile → deploy → verify, without manual intervention." +
+                "</body></html>"
+        }
+
+        internal fun selectAgentsTitle(): String = "Select agents to install:"
+
+        internal fun additionalOptionsTitle(): String = "Additional options:"
+
         fun showAndGetResult(project: Project, projectDir: File): InstallOptions {
-            var result = InstallOptions(emptySet(), false)
+            var result = InstallOptions(emptySet(), installCli = false, installHooks = false)
             ApplicationManager.getApplication().invokeAndWait {
                 val dialog = InstallJuggSkillsDialog(project, projectDir)
                 dialog.setOKButtonText("Install")
@@ -180,11 +222,21 @@ class InstallJuggSkillsDialog(
 
         fun exportAndInstallSkills(
             projectDir: File,
-            selectedClients: Set<InstallClient>,
+            options: InstallOptions,
             logger: Logger,
             userHome: File = File(System.getProperty("user.home")),
         ): File {
-            JuggSkillInstaller.install(projectDir, selectedClients, logger, userHome)
+            val shouldInstallCli = options.installCli || options.installHooks
+            if (shouldInstallCli) {
+                JuggSkillInstaller.installCli(logger, userHome)
+            }
+            if (options.clients.isNotEmpty()) {
+                JuggSkillInstaller.install(projectDir, options.clients, logger, userHome)
+            }
+            if (options.installHooks) {
+                JuggSkillInstaller.installHooks(logger, userHome)
+                JuggHookInstaller.installForClaude(userHome, logger)
+            }
             return ClientSetupDocExporter.export(projectDir)
         }
 
@@ -194,28 +246,44 @@ class InstallJuggSkillsDialog(
                 return
             }
             taskRunnerManager.runTaskSafe("Install Jugg Skills", {
-                if (options.installCli) {
+                val shouldInstallCli = options.installCli || options.installHooks
+                if (shouldInstallCli) {
                     JuggSkillInstaller.installCli(logger)
                 }
-                val summary = if (options.clients.isNotEmpty()) {
+                val skillSummary = if (options.clients.isNotEmpty()) {
                     JuggSkillInstaller.install(projectDir, options.clients, logger)
                 } else {
                     InstallSummary(emptyList())
                 }
+                val hookSummary = if (options.installHooks) {
+                    JuggSkillInstaller.installHooks(logger)
+                    JuggHookInstaller.installForClaude(logger = logger)
+                } else {
+                    HookInstallSummary(emptyList())
+                }
                 val title: String
                 val balloonMessage: String
-                if (summary.results.isEmpty() || summary.isAllSuccess) {
+                if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
+                    (hookSummary.results.isEmpty() || hookSummary.isAllSuccess)
+                ) {
                     title = "Install Completed"
                     balloonMessage = "Jugg installation completed successfully."
                 } else {
                     title = "Install Completed with Issues"
                     balloonMessage = "Jugg installation finished with issues."
                 }
-                JuggRunningTask.notifyByBalloon(project, balloonMessage)
                 ApplicationManager.getApplication().invokeLater {
                     val displayText = buildString {
-                        if (options.installCli) appendLine("Jugg CLI installed. Try \"jugg -h\" in terminal.")
-                        if (summary.results.isNotEmpty()) append(summary.toDisplayText())
+                        if (shouldInstallCli) {
+                            val reason = if (options.installHooks && !options.installCli) {
+                                " (installed automatically for hooks)"
+                            } else {
+                                ""
+                            }
+                            appendLine("Jugg CLI installed$reason. Try \"jugg -h\" in terminal.")
+                        }
+                        if (skillSummary.results.isNotEmpty()) appendLine(skillSummary.toDisplayText())
+                        if (hookSummary.results.isNotEmpty()) append(hookSummary.toDisplayText())
                     }
                     Messages.showInfoMessage(project, displayText, title)
                 }

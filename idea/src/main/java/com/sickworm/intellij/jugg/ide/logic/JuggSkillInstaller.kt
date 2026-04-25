@@ -17,6 +17,8 @@ object JuggSkillInstaller {
 
     private const val SKILL_NAME = "jugg-android-dev-loop"
     private const val SKILL_ZIP_RESOURCE = "docs/skills/jugg-android-dev-loop.zip"
+    private const val SCRIPTS_PREFIX = "scripts/"
+    private const val HOOKS_PREFIX = "hooks/"
 
     /**
      * Installs skill for selected clients by extracting bundled skill files.
@@ -158,7 +160,7 @@ object JuggSkillInstaller {
     fun installCli(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
         return runCatching {
             val binDir = File(userHome, ".jugg/bin")
-            extractScriptsToBinDir(binDir)
+            extractPrefixToDir(prefix = SCRIPTS_PREFIX, targetDir = binDir)
             if (!isWindows()) {
                 setExecutable(binDir)
                 createSymlink(userHome, binDir)
@@ -167,19 +169,33 @@ object JuggSkillInstaller {
         }
     }
 
-    private fun extractScriptsToBinDir(binDir: File) {
-        binDir.deleteRecursively()
-        binDir.mkdirs()
+    /**
+     * Installs hook scripts to ~/.jugg/hooks from the bundled skill zip.
+     */
+    fun installHooks(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
+        return runCatching {
+            val hooksDir = File(userHome, ".jugg/hooks")
+            extractPrefixToDir(prefix = HOOKS_PREFIX, targetDir = hooksDir)
+            if (!isWindows()) {
+                File(hooksDir, "start.py").takeIf { it.exists() }?.setExecutable(true, false)
+                File(hooksDir, "stop.py").takeIf { it.exists() }?.setExecutable(true, false)
+            }
+            logger.info("[Install Jugg Hooks] installed to ${hooksDir.path}")
+        }
+    }
+
+    private fun extractPrefixToDir(prefix: String, targetDir: File) {
+        targetDir.deleteRecursively()
+        targetDir.mkdirs()
         val stream = JuggSkillInstaller::class.java.classLoader.getResourceAsStream(SKILL_ZIP_RESOURCE)
             ?: throw FileNotFoundException("resource_not_found_$SKILL_ZIP_RESOURCE")
-        val scriptsPrefix = "scripts/"
         ZipInputStream(stream).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
-                if (entry.name.startsWith(scriptsPrefix) && !entry.isDirectory) {
-                    val relativePath = entry.name.removePrefix(scriptsPrefix)
-                    val outFile = File(binDir, relativePath)
-                    val canonicalParent = binDir.canonicalPath + File.separator
+                if (entry.name.startsWith(prefix) && !entry.isDirectory) {
+                    val relativePath = entry.name.removePrefix(prefix)
+                    val outFile = File(targetDir, relativePath)
+                    val canonicalParent = targetDir.canonicalPath + File.separator
                     if (!outFile.canonicalPath.startsWith(canonicalParent)) {
                         throw IOException("invalid_zip_entry_path")
                     }
@@ -223,8 +239,9 @@ enum class InstallClient(val cliName: String) {
 data class InstallOptions(
     val clients: Set<InstallClient>,
     val installCli: Boolean,
+    val installHooks: Boolean = false,
 ) {
-    val isEmpty: Boolean get() = clients.isEmpty() && !installCli
+    val isEmpty: Boolean get() = clients.isEmpty() && !installCli && !installHooks
 }
 
 data class InstallAgentResult(

@@ -37,11 +37,13 @@ def _print_status(structured: dict) -> None:
     file_counts: dict = data.get("fileCounts", {})
     files: list = data.get("files", [])
     detail: str = data.get("detail", "")
+    last_file_modified_time: str = data.get("lastFileModifiedTime", "")
 
     print(f"hasDevice: {str(has_device).lower()}")
     print(f"needFallback: {str(need_fallback).lower()}")
     if state_message:
         print(f"stateMessage: {state_message}")
+    print(f"lastFileModifiedTime: {last_file_modified_time}")
 
     total = file_counts.get("total", 0)
     print(f"fileCounts: {json.dumps(file_counts)}")

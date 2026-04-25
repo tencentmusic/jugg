@@ -53,6 +53,8 @@ class GetStatusMcpToolActionTest {
         val files = data["files"] as List<*>
         Assert.assertTrue(files.isEmpty())
         Assert.assertEquals("", data["detail"])
+        Assert.assertEquals("", data["lastFileModifiedTime"])
+        Assert.assertFalse(data.containsKey("lastFileModifiedTimeMillis"))
     }
 
     @Test
@@ -116,6 +118,10 @@ class GetStatusMcpToolActionTest {
         val javaFile2 = tempFolder.newFile("B.java")
         val kotlinFile = tempFolder.newFile("C.kt")
         val resourceFile = tempFolder.newFile("D.xml")
+        javaFile1.setLastModified(1_000L)
+        javaFile2.setLastModified(2_000L)
+        kotlinFile.setLastModified(3_000L)
+        resourceFile.setLastModified(4_000L)
 
         val module = ModuleInfo.virtualModule
         val uncompiledFiles = listOf(
@@ -142,6 +148,8 @@ class GetStatusMcpToolActionTest {
         val files = data["files"] as List<*>
         Assert.assertEquals(4, files.size)
         Assert.assertEquals("", data["detail"])
+        Assert.assertTrue((data["lastFileModifiedTime"] as String).isNotBlank())
+        Assert.assertFalse(data.containsKey("lastFileModifiedTimeMillis"))
     }
 
     @Test
