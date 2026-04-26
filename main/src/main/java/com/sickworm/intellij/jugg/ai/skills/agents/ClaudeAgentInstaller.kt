@@ -24,10 +24,20 @@ object ClaudeAgentInstaller : IAgentInstaller {
         return listOf(File(userHome, ".claude-internal"))
     }
 
-    override fun resolveHookSettingsFiles(userHome: File): List<File> {
+    override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
         return listOf(
-            File(userHome, ".claude/settings.json"),
-            File(userHome, ".claude-internal/settings.json"),
+            AgentHookTarget(
+                settingsFile = File(userHome, ".claude/settings.json"),
+                style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                startEventName = "SessionStart",
+                stopEventName = "Stop",
+            ),
+            AgentHookTarget(
+                settingsFile = File(userHome, ".claude-internal/settings.json"),
+                style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                startEventName = "SessionStart",
+                stopEventName = "Stop",
+            ),
         )
     }
 }

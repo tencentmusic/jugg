@@ -18,4 +18,15 @@ object CodexAgentInstaller : IAgentInstaller {
     override fun resolveInternalSkillHomes(userHome: File): List<File> {
         return listOf(File(userHome, ".codex-internal"))
     }
+
+    override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        return listOf(
+            AgentHookTarget(
+                settingsFile = File(userHome, ".codex/hooks.json"),
+                style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                startEventName = "SessionStart",
+                stopEventName = "Stop",
+            ),
+        )
+    }
 }

@@ -12,4 +12,15 @@ object CursorAgentInstaller : IAgentInstaller {
     override fun resolvePrimarySkillRoot(userHome: File): File {
         return File(userHome, ".cursor/skills")
     }
+
+    override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        return listOf(
+            AgentHookTarget(
+                settingsFile = File(userHome, ".cursor/hooks.json"),
+                style = AgentHookConfigStyle.FLAT_EVENT_COMMANDS,
+                startEventName = "sessionStart",
+                stopEventName = "sessionEnd",
+            ),
+        )
+    }
 }

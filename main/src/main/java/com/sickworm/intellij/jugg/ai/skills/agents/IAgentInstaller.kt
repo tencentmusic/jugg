@@ -14,5 +14,8 @@ interface IAgentInstaller {
 
     fun resolveInternalSkillHomes(userHome: File): List<File> = emptyList()
 
-    fun resolveHookSettingsFiles(userHome: File): List<File> = emptyList()
+    /**
+     * Returns all hook config targets with client-specific config semantics.
+     */
+    fun resolveHookTargets(userHome: File): List<AgentHookTarget> = emptyList()
 }

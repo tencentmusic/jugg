@@ -12,4 +12,21 @@ object CodebuddyAgentInstaller : IAgentInstaller {
     override fun resolvePrimarySkillRoot(userHome: File): File {
         return File(userHome, ".codebuddy/skills")
     }
+
+    override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        return listOf(
+            AgentHookTarget(
+                settingsFile = File(userHome, ".codebuddy/settings.json"),
+                style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                startEventName = "SessionStart",
+                stopEventName = "Stop",
+            ),
+            AgentHookTarget(
+                settingsFile = File(userHome, ".codebuddy/settings.local.json"),
+                style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                startEventName = "SessionStart",
+                stopEventName = "Stop",
+            ),
+        )
+    }
 }

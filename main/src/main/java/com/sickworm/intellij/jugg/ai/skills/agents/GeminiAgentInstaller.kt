@@ -18,4 +18,15 @@ object GeminiAgentInstaller : IAgentInstaller {
     override fun resolveInternalSkillHomes(userHome: File): List<File> {
         return listOf(File(userHome, ".gemini-internal"))
     }
+
+    override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        return listOf(
+            AgentHookTarget(
+                settingsFile = File(userHome, ".gemini/settings.json"),
+                style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                startEventName = "SessionStart",
+                stopEventName = "SessionEnd",
+            ),
+        )
+    }
 }

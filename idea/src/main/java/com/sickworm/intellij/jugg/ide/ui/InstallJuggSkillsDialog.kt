@@ -16,8 +16,10 @@ import com.sickworm.intellij.jugg.ai.skills.InstallClient
 import com.sickworm.intellij.jugg.ai.skills.InstallOptions
 import com.sickworm.intellij.jugg.ai.skills.InstallSummary
 import com.sickworm.intellij.jugg.ai.skills.HookInstallSummary
+import com.sickworm.intellij.jugg.ai.skills.HookInstallResult
 import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
 import com.sickworm.intellij.jugg.ai.skills.JuggSkillInstaller
+import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
@@ -235,7 +237,7 @@ class InstallJuggSkillsDialog(
             }
             if (options.installHooks) {
                 JuggSkillInstaller.installHooks(logger, userHome)
-                JuggHookInstaller.installForClaude(userHome, logger)
+                JuggHookInstaller.installForClients(options.clients, userHome, logger)
             }
             return ClientSetupDocExporter.export(projectDir, userHome)
         }
@@ -257,7 +259,7 @@ class InstallJuggSkillsDialog(
                 }
                 val hookSummary = if (options.installHooks) {
                     JuggSkillInstaller.installHooks(logger)
-                    JuggHookInstaller.installForClaude(logger = logger)
+                    JuggHookInstaller.installForClients(options.clients, logger = logger)
                 } else {
                     HookInstallSummary(emptyList())
                 }
@@ -269,21 +271,127 @@ class InstallJuggSkillsDialog(
                     "Install Completed with Issues"
                 }
                 ApplicationManager.getApplication().invokeLater {
-                    val displayText = buildString {
-                        if (shouldInstallCli) {
-                            val reason = if (options.installHooks && !options.installCli) {
-                                " (installed automatically for hooks)"
-                            } else {
-                                ""
-                            }
-                            appendLine("Jugg CLI installed$reason. Try \"jugg -h\" in terminal.")
-                        }
-                        if (skillSummary.results.isNotEmpty()) appendLine(skillSummary.toDisplayText())
-                        if (hookSummary.results.isNotEmpty()) append(hookSummary.toDisplayText())
-                    }
+                    val displayText = buildInstallResultText(options, shouldInstallCli, skillSummary, hookSummary)
                     Messages.showInfoMessage(project, displayText, title)
                 }
             }, isNeedShowIndicator = true, isBlockIncrementalCompile = false)
         }
+
+        internal fun buildInstallResultText(
+            options: InstallOptions,
+            shouldInstallCli: Boolean,
+            skillSummary: InstallSummary,
+            hookSummary: HookInstallSummary,
+            userHome: File = File(System.getProperty("user.home")),
+        ): String {
+            val effectiveHookClients = when {
+                !options.installHooks -> emptyList()
+                options.clients.isEmpty() -> listOf(InstallClient.CLAUDE)
+                else -> options.clients.toList()
+            }
+            val hookPathToAgent = effectiveHookClients
+                .flatMap { client ->
+                    InstallAgents.resolveAgentInstaller(client)
+                        .resolveHookTargets(userHome)
+                        .map { target -> target.settingsFile.path to client.cliName }
+                }
+                .toMap()
+            val hookStatusByAgent = aggregateHookStatus(hookSummary.results, hookPathToAgent)
+            val skillResultByAgent = skillSummary.results.associateBy { it.agent }
+
+            val agents = linkedSetOf<String>()
+            effectiveHookClients.forEach { agents.add(it.cliName) }
+            skillSummary.results.forEach { agents.add(it.agent) }
+            hookStatusByAgent.keys.forEach { agents.add(it) }
+
+            val resultLines = agents.map { agent ->
+                val skillResult = skillResultByAgent[agent]
+                val skillStatus = skillResult?.skillStatus ?: "skip"
+                val skillReason = skillResult?.reasons.orEmpty().filter { it.isNotBlank() }.joinToString(",")
+                val hookStatus = hookStatusByAgent[agent]
+                val hookStatusText: String
+                val hookReason: String
+                if (options.installHooks) {
+                    if (hookStatus == null) {
+                        hookStatusText = "SKIP"
+                        hookReason = ""
+                    } else {
+                        hookStatusText = formatDisplayStatus(hookStatus.status)
+                        hookReason = hookStatus.reason
+                    }
+                } else {
+                    hookStatusText = ""
+                    hookReason = ""
+                }
+                val reasonParts = mutableListOf<String>()
+                if (skillReason.isNotBlank()) {
+                    reasonParts.add("skill=$skillReason")
+                }
+                if (hookReason.isNotBlank()) {
+                    reasonParts.add("hook=$hookReason")
+                }
+                val reasonText = if (reasonParts.isEmpty()) {
+                    ""
+                } else {
+                    " | reason: ${reasonParts.joinToString(" ; ")}"
+                }
+                val hookSegment = if (options.installHooks) " | hook: $hookStatusText" else ""
+                "- $agent | skill: ${formatDisplayStatus(skillStatus)}$hookSegment$reasonText"
+            }
+
+            return buildString {
+                if (shouldInstallCli) {
+                    val reason = if (options.installHooks && !options.installCli) {
+                        " (installed automatically for hooks)"
+                    } else {
+                        ""
+                    }
+                    appendLine("CLI: installed$reason. Try \"jugg -h\" in terminal.")
+                }
+                if (resultLines.isNotEmpty()) {
+                    if (isNotEmpty()) {
+                        appendLine()
+                    }
+                    val suffix = if (resultLines.size == 1) "agent" else "agents"
+                    appendLine("Install summary (${resultLines.size} $suffix):")
+                    resultLines.forEach { line -> appendLine(line) }
+                }
+            }.trimEnd()
+        }
+
+        private fun formatDisplayStatus(raw: String): String {
+            return when (raw.lowercase()) {
+                "ok", "already_installed", "success" -> "OK"
+                "skip", "skipped" -> "SKIP"
+                "fail", "failed", "error" -> "FAIL"
+                else -> raw.uppercase()
+            }
+        }
+
+        private fun aggregateHookStatus(
+            results: List<HookInstallResult>,
+            pathToAgent: Map<String, String>,
+        ): Map<String, AgentHookStatus> {
+            if (results.isEmpty()) {
+                return emptyMap()
+            }
+            val grouped = linkedMapOf<String, MutableList<HookInstallResult>>()
+            results.forEach { result ->
+                val agent = pathToAgent[result.path]
+                    ?: pathToAgent.entries.firstOrNull { result.path.endsWith(it.key) }?.value
+                    ?: "unknown"
+                grouped.getOrPut(agent) { mutableListOf() }.add(result)
+            }
+            return grouped.mapValues { (_, hookResults) ->
+                val hasFailure = hookResults.any { it.status == "fail" }
+                val reason = hookResults.mapNotNull { it.reason }.filter { it.isNotBlank() }.distinct().joinToString(",")
+                AgentHookStatus(status = if (hasFailure) "fail" else "ok", reason = reason)
+            }
+        }
+
+        private data class AgentHookStatus(
+            val status: String,
+            val reason: String,
+        )
     }
 }

@@ -36,23 +36,87 @@ class InstallAgentsTest {
     @Test
     fun claudeAgentInstaller_shouldReturnTwoHookSettingsTargets() {
         val userHome = Files.createTempDirectory("jugg-home-claude-hook-agent").toFile()
-        val targets = ClaudeAgentInstaller.resolveHookSettingsFiles(userHome)
+        val targets = ClaudeAgentInstaller.resolveHookTargets(userHome)
 
         assertEquals(
             listOf(
-                File(userHome, ".claude/settings.json"),
-                File(userHome, ".claude-internal/settings.json"),
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".claude/settings.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "SessionStart",
+                    stopEventName = "Stop",
+                ),
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".claude-internal/settings.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "SessionStart",
+                    stopEventName = "Stop",
+                ),
             ),
             targets,
         )
     }
 
     @Test
-    fun codebuddyAndCursorInstallers_shouldNotExposeInternalHomesAndHooks() {
+    fun codebuddyAndCursorInstallers_shouldExposeExpectedHookTargets() {
         val userHome = Files.createTempDirectory("jugg-home-agent-internals").toFile()
         assertTrue(CodebuddyAgentInstaller.resolveInternalSkillHomes(userHome).isEmpty())
         assertTrue(CursorAgentInstaller.resolveInternalSkillHomes(userHome).isEmpty())
-        assertTrue(CodebuddyAgentInstaller.resolveHookSettingsFiles(userHome).isEmpty())
-        assertTrue(CursorAgentInstaller.resolveHookSettingsFiles(userHome).isEmpty())
+        assertEquals(
+            listOf(
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".codebuddy/settings.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "SessionStart",
+                    stopEventName = "Stop",
+                ),
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".codebuddy/settings.local.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "SessionStart",
+                    stopEventName = "Stop",
+                ),
+            ),
+            CodebuddyAgentInstaller.resolveHookTargets(userHome),
+        )
+        assertEquals(
+            listOf(
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".cursor/hooks.json"),
+                    style = AgentHookConfigStyle.FLAT_EVENT_COMMANDS,
+                    startEventName = "sessionStart",
+                    stopEventName = "sessionEnd",
+                ),
+            ),
+            CursorAgentInstaller.resolveHookTargets(userHome),
+        )
+    }
+
+    @Test
+    fun codexAndGeminiInstallers_shouldExposeHookTargetsWithOwnEventSemantics() {
+        val userHome = Files.createTempDirectory("jugg-home-agent-hooks-others").toFile()
+
+        assertEquals(
+            listOf(
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".codex/hooks.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "SessionStart",
+                    stopEventName = "Stop",
+                ),
+            ),
+            CodexAgentInstaller.resolveHookTargets(userHome),
+        )
+        assertEquals(
+            listOf(
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".gemini/settings.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "SessionStart",
+                    stopEventName = "SessionEnd",
+                ),
+            ),
+            GeminiAgentInstaller.resolveHookTargets(userHome),
+        )
     }
 }

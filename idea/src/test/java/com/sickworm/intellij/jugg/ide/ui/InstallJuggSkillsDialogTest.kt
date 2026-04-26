@@ -2,7 +2,12 @@ package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ai.skills.InstallClient
+import com.sickworm.intellij.jugg.ai.skills.InstallSummary
+import com.sickworm.intellij.jugg.ai.skills.InstallAgentResult
 import com.sickworm.intellij.jugg.ai.skills.InstallOptions
+import com.sickworm.intellij.jugg.ai.skills.HookInstallSummary
+import com.sickworm.intellij.jugg.ai.skills.HookInstallResult
+import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -87,5 +92,131 @@ class InstallJuggSkillsDialogTest {
         assertTrue(File(userHome, ".jugg/skills/hooks/stop.py").exists())
         assertFalse(File(userHome, ".jugg/hooks").exists())
         assertTrue(File(userHome, ".claude/settings.json").exists())
+    }
+
+    @Test
+    fun buildInstallResultText_whenSkillAndHooksInstalled_shouldRenderHookInSameAgentLine() {
+        val userHome = Files.createTempDirectory("jugg-home-format-merged").toFile()
+        val display = InstallJuggSkillsDialog.buildInstallResultText(
+            options = InstallOptions(
+                clients = setOf(InstallClient.CLAUDE),
+                installCli = false,
+                installHooks = true,
+            ),
+            shouldInstallCli = true,
+            skillSummary = InstallSummary(
+                listOf(
+                    InstallAgentResult(
+                        agent = "claude",
+                        skillStatus = "ok",
+                        reasons = emptyList(),
+                    ),
+                ),
+            ),
+            hookSummary = HookInstallSummary(
+                listOf(
+                    HookInstallResult(
+                        path = File(userHome, ".claude/settings.json").path,
+                        status = "ok",
+                        reason = null,
+                    ),
+                ),
+            ),
+            userHome = userHome,
+        )
+
+        assertTrue(display.contains("Install summary (1 agent):"))
+        assertTrue(display.contains("- claude | skill: OK | hook: OK"))
+        assertFalse(display.contains("agent="))
+        assertFalse(display.contains("hook=" + File(userHome, ".claude/settings.json").path))
+    }
+
+    @Test
+    fun buildInstallResultText_whenHooksOnly_shouldKeepReadableAgentSummary() {
+        val userHome = Files.createTempDirectory("jugg-home-format-hooks-only").toFile()
+        val display = InstallJuggSkillsDialog.buildInstallResultText(
+            options = InstallOptions(
+                clients = emptySet(),
+                installCli = false,
+                installHooks = true,
+            ),
+            shouldInstallCli = true,
+            skillSummary = InstallSummary(emptyList()),
+            hookSummary = HookInstallSummary(
+                listOf(
+                    HookInstallResult(
+                        path = File(userHome, ".claude/settings.json").path,
+                        status = "ok",
+                        reason = null,
+                    ),
+                    HookInstallResult(
+                        path = File(userHome, ".claude-internal/settings.json").path,
+                        status = "already_installed",
+                        reason = null,
+                    ),
+                ),
+            ),
+            userHome = userHome,
+        )
+
+        assertTrue(display.contains("Install summary (1 agent):"))
+        assertTrue(display.contains("- claude | skill: SKIP | hook: OK"))
+    }
+
+    @Test
+    fun buildInstallResultText_whenCliInstalled_shouldUseReadableCliPrefix() {
+        val display = InstallJuggSkillsDialog.buildInstallResultText(
+            options = InstallOptions(
+                clients = emptySet(),
+                installCli = true,
+                installHooks = false,
+            ),
+            shouldInstallCli = true,
+            skillSummary = InstallSummary(emptyList()),
+            hookSummary = HookInstallSummary(emptyList()),
+        )
+
+        assertTrue(display.contains("CLI: installed. Try \"jugg -h\" in terminal."))
+    }
+
+    @Test
+    fun buildInstallResultText_whenMultipleAgentsWithHooks_shouldRenderOneLinePerAgent() {
+        val userHome = Files.createTempDirectory("jugg-home-format-multi-agent").toFile()
+        val claudeHookPath = InstallAgents.resolveAgentInstaller(InstallClient.CLAUDE)
+            .resolveHookTargets(userHome)
+            .first()
+            .settingsFile
+            .path
+        val codexHookPath = InstallAgents.resolveAgentInstaller(InstallClient.CODEX)
+            .resolveHookTargets(userHome)
+            .first()
+            .settingsFile
+            .path
+        val display = InstallJuggSkillsDialog.buildInstallResultText(
+            options = InstallOptions(
+                clients = setOf(InstallClient.CLAUDE, InstallClient.CODEX),
+                installCli = false,
+                installHooks = true,
+            ),
+            shouldInstallCli = true,
+            skillSummary = InstallSummary(
+                listOf(
+                    InstallAgentResult(agent = "claude", skillStatus = "ok", reasons = emptyList()),
+                    InstallAgentResult(agent = "codex", skillStatus = "ok", reasons = emptyList()),
+                ),
+            ),
+            hookSummary = HookInstallSummary(
+                listOf(
+                    HookInstallResult(path = claudeHookPath, status = "ok", reason = null),
+                    HookInstallResult(path = codexHookPath, status = "ok", reason = null),
+                ),
+            ),
+            userHome = userHome,
+        )
+
+        assertTrue(display.contains("Install summary (2 agents):"))
+        assertTrue(display.contains("- claude | skill: OK | hook: OK"))
+        assertTrue(display.contains("- codex | skill: OK | hook: OK"))
+        assertFalse(display.contains("\nhook="))
     }
 }
