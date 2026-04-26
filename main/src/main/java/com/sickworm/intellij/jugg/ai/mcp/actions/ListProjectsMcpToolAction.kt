@@ -1,0 +1,70 @@
+package com.sickworm.intellij.jugg.ai.mcp.actions
+
+import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
+import com.sickworm.intellij.jugg.ai.mcp.McpProjectInfo
+import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
+import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
+import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.platform.PlatformApi
+
+/**
+ * ListProjectsMcpToolAction implements MCP tool `list-projects` and converts request arguments into tool execution and MCP result payloads.
+ */
+class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
+    override val toolName: String = McpToolActionRegistry.ToolNames.LIST_PROJECTS
+
+    override val definition: McpToolDefinition = McpToolDefinition(
+        name = toolName,
+        description = "List projects initialized in current IDE process.",
+        inputSchema = McpJsonSchemaObject(
+            description = "No arguments required.",
+            properties = emptyMap(),
+            additionalProperties = false,
+        ),
+        outputSchema = McpToolSchemas.baseOutputSchema.copy(
+            properties = McpToolSchemas.baseOutputSchema.properties + mapOf(
+                "data" to McpJsonSchemaProperty(
+                    type = "object",
+                    properties = mapOf(
+                        "projects" to McpJsonSchemaProperty(
+                            type = "array",
+                            items = McpJsonSchemaProperty(
+                                type = "object",
+                                properties = mapOf(
+                                    "projectDir" to McpJsonSchemaProperty(type = "string"),
+                                    "initialized" to McpJsonSchemaProperty(type = "boolean"),
+                                ),
+                                required = listOf("projectDir", "initialized"),
+                                additionalProperties = false,
+                            )
+                        )
+                    ),
+                    required = listOf("projects"),
+                    additionalProperties = false,
+                )
+            )
+        )
+    )
+
+    override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
+        return listProjectsAction()
+    }
+
+    override fun executeGlobal(): McpToolResult = listProjectsAction()
+
+    fun listProjectsAction(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.OK,
+            message = "list-projects executed successfully.",
+            data = mapOf(
+                "projects" to PlatformApi.getInitializedProjectDirs().map {
+                    McpProjectInfo(projectDir = it.path, initialized = true)
+                }
+            ),
+            artifacts = emptyList(),
+            errorCode = null,
+        )
+    }
+}

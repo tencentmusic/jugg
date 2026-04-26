@@ -15,13 +15,13 @@ import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.mcp.IdeaMcpRuntime
+import com.sickworm.intellij.jugg.ai.mcp.IdeaMcpRuntime
 import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {

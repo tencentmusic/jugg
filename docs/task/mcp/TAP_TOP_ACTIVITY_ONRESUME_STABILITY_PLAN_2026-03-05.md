@@ -17,4 +17,4 @@
 ## 测试
 - 新增通过用例：稳定两次后执行点击。
 - 新增失败用例：状态不稳定时拒绝点击。
-- 运行：`./gradlew :main:test --tests com.sickworm.intellij.jugg.mcp.actions.TapMcpToolActionTest`
+- 运行：`./gradlew :main:test --tests com.sickworm.intellij.jugg.ai.mcp.actions.TapMcpToolActionTest`

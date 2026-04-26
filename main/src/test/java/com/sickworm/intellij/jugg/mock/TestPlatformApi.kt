@@ -5,8 +5,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import java.io.File

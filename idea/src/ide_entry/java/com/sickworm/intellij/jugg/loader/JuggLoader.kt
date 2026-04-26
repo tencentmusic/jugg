@@ -130,8 +130,8 @@ class JuggLoader(val project: Project, val projectDir: File) {
             // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, kotlin.jvm.functions.Function1)
             "kotlin.jvm.internal.DefaultConstructorMarker",
             "kotlin.jvm.functions.Function1",
-            "com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest",
-            "com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse"
+            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest",
+            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse"
         )
 
         private var isFirstTimeLoad = true

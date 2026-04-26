@@ -37,7 +37,7 @@
 
 ## 回归结果
 
-- 运行 `:main:test --tests 'com.sickworm.intellij.jugg.mcp.actions.*'` 通过。
+- 运行 `:main:test --tests 'com.sickworm.intellij.jugg.ai.mcp.actions.*'` 通过。
 - 新增/调整测试覆盖：
   - `TapMcpToolActionTest`（参数错误优先）
   - `RecordMcpToolActionTest`（`record-start`/`record-stop` app-ready 与参数优先级）

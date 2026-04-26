@@ -25,10 +25,10 @@
 | 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency` | 依赖变更检测策略 | 稳定 | 2025-01-20 |
 | Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script` | 通过 Gradle 反射读取模块信息 | 稳定 | 2025-01-20 |
 | Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile` | 本地/远端 Gradle 构建执行 | 稳定 | 2025-01-20 |
-| MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `mcp/` | MCP HTTP + JSON-RPC 处理 | 稳定 | 2026-02-09 |
-| MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner`, `LayoutDumpHelper`, `LayoutHtmlConverter`, `WaitLogsMcpToolAction`, `CrashDetector`, `LastDeployTimestampRegistry` | `mcp/actions`, `mcp/util` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理；`LayoutDumpHelper` 封装 layout_dump 核心逻辑（设备解析、px→dp、HTML+JSON 双文件写出），`LayoutHtmlConverter` 将 JSON 视图树转为精简 HTML（含虚拟节点裁剪）；`WaitLogsMcpToolAction` 阻塞式等待 App 日志（marker/crash/timeout 判停）；`CrashDetector` 复用 crash 信号识别；`LastDeployTimestampRegistry` 记录 deploy/restart 时刻作为日志起点 | 稳定 | 2026-04-19 |
+| MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `ai/mcp/` | MCP HTTP + JSON-RPC 处理 | 稳定 | 2026-04-26 |
+| MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner`, `LayoutDumpHelper`, `LayoutHtmlConverter`, `WaitLogsMcpToolAction`, `CrashDetector`, `LastDeployTimestampRegistry` | `ai/mcp/actions`, `ai/mcp/util` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理；`LayoutDumpHelper` 封装 layout_dump 核心逻辑（设备解析、px→dp、HTML+JSON 双文件写出），`LayoutHtmlConverter` 将 JSON 视图树转为精简 HTML（含虚拟节点裁剪）；`WaitLogsMcpToolAction` 阻塞式等待 App 日志（marker/crash/timeout 判停）；`CrashDetector` 复用 crash 信号识别；`LastDeployTimestampRegistry` 记录 deploy/restart 时刻作为日志起点 | 稳定 | 2026-04-19 |
 | AI 技能安装 | `JuggSkillInstaller`, `JuggHookInstaller`, `JuggCliAutoUpdater`, `ClientSetupDocExporter` | `ai/skills` | 安装/更新 `jugg-android-dev-loop` skill、CLI 与 hooks（资源来源 `docs/skills/*.zip`），并导出 `agent_setup.md` | 稳定 | 2026-04-26 |
-| MCP ViewHierarchy 通信 | `ViewHierarchyClient`, `ViewHierarchyRequest`, `ViewHierarchyResponse` | `mcp/viewhierarchy` | `layout-dump` / `tap` 元素模式 / `view-inspect` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） | 稳定 | 2026-03-09 |
+| MCP ViewHierarchy 通信 | `ViewHierarchyClient`, `ViewHierarchyRequest`, `ViewHierarchyResponse` | `ai/mcp/viewhierarchy` | `layout-dump` / `tap` 元素模式 / `view-inspect` 的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） | 稳定 | 2026-03-09 |
 | 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 | 稳定 | 2025-01-20 |
 
 ---
@@ -65,11 +65,11 @@
 
 ## 4. MCP 工具定位（代码入口）
 
-- 工具注册：`main/src/main/java/com/sickworm/intellij/jugg/mcp/actions/McpToolActionRegistry.kt`  
-- schema 复用：`main/src/main/java/com/sickworm/intellij/jugg/mcp/actions/McpToolSchemas.kt`  
-- 协议入口：`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpLocalServer.kt`  
-- 校验与分发：`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpRequestValidator.kt`、`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpToolInvoker.kt`
-- ViewHierarchy 客户端：`main/src/main/java/com/sickworm/intellij/jugg/mcp/viewhierarchy/ViewHierarchyClient.kt`
+- 工具注册：`main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt`  
+- schema 复用：`main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolSchemas.kt`  
+- 协议入口：`main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/McpLocalServer.kt`  
+- 校验与分发：`main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/McpRequestValidator.kt`、`main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/McpToolInvoker.kt`
+- ViewHierarchy 客户端：`main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt`
 
 ---
 

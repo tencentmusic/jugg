@@ -9,8 +9,8 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import java.io.File
 

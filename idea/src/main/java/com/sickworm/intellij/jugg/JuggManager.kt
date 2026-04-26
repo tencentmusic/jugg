@@ -26,8 +26,8 @@ import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.mcp.*
-import com.sickworm.intellij.jugg.mcp.actions.McpFetchCleaner
+import com.sickworm.intellij.jugg.ai.mcp.*
+import com.sickworm.intellij.jugg.ai.mcp.actions.McpFetchCleaner
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager

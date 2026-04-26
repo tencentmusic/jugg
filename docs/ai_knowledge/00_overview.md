@@ -59,7 +59,7 @@
 
 - Jugg 旁路编译不等价于完整 Gradle pipeline。
 - 涉及注解处理、字节码插桩、复杂构建脚本改动时，通常需要 Gradle 回退验证。
-- MCP 工具能力以 `tools/list` 返回的 schema 与 `mcp/actions` 实现为准。
+- MCP 工具能力以 `tools/list` 返回的 schema 与 `ai/mcp/actions` 实现为准。
 
 ---
 

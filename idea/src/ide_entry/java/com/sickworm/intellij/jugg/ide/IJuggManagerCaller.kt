@@ -4,8 +4,8 @@ import com.intellij.execution.ExecutionResult
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 
 /**
  * API that IDE will call to interact with JuggManager.

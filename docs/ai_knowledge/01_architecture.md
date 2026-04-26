@@ -47,7 +47,7 @@
 
 1. `McpLocalServer` 提供 `/jugg-mcp` HTTP 入口。  
 2. `McpBaseInvoker` 处理 initialize/ping/tools/list 等通用方法。  
-3. `McpToolInvoker` 校验参数并路由到 `mcp/actions/*`。  
+3. `McpToolInvoker` 校验参数并路由到 `ai/mcp/actions/*`。  
 4. 业务结果统一映射为 `structuredContent`。
 
 ---
@@ -75,7 +75,7 @@
 - “为什么回退 Gradle”：`idea/.../JuggCompileHelper.kt`。  
 - “为什么部署失败”：`idea/.../JuggDeployerHelper.kt`。  
 - “为什么类热更失败”：`idea/.../JuggDeployer.kt` + `main/.../deploy/JuggJvmtiAgentManagerHelper.kt`。  
-- “为什么 MCP 参数错误”：`main/.../mcp/McpRequestValidator.kt`。
+- “为什么 MCP 参数错误”：`main/.../ai/mcp/McpRequestValidator.kt`。
 
 ---
 

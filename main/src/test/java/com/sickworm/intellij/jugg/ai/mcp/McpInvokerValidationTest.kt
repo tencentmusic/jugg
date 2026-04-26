@@ -1,0 +1,72 @@
+package com.sickworm.intellij.jugg.ai.mcp
+
+import org.junit.Assert
+import org.junit.Test
+
+class McpInvokerValidationTest : McpInvokerTestBase() {
+
+    @Test
+    fun testTapRejectUnknownArgument() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 3,
+                params = mapOf(
+                    "name" to "tap",
+                    "arguments" to mapOf(
+                        "projectDir" to "/tmp/projectA",
+                        "x" to 100,
+                        "y" to 200,
+                        "extra" to true,
+                    )
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): extra"))
+    }
+
+    @Test
+    fun testListProjectsRejectUnknownArgument() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 5,
+                params = mapOf(
+                    "name" to "list-projects",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): projectDir"))
+    }
+
+    @Test
+    fun testWaitLogsRejectMissingMarker() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 6,
+                params = mapOf(
+                    "name" to "wait-logs",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        // Schema requires "marker" → missing required field → INVALID_PARAMS
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
+    }
+}

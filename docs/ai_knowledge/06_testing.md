@@ -121,7 +121,7 @@ fun clearBuild() {
 | `DeployHistoryManagerTest.kt` | `DeployHistoryManager` | 历史 DB、部署 DB、未变更文件过滤 |
 | `JuggJvmtiAgentManagerTest.kt` | `JuggJvmtiAgentManager` | JVMTI agent 管理 |
 
-#### mcp/actions — MCP 工具 action
+#### ai/mcp/actions — MCP 工具 action
 
 | 文件 | 被测对象 | 覆盖场景 |
 |------|----------|----------|
@@ -136,7 +136,7 @@ fun clearBuild() {
 | `TapMcpToolActionTest.kt` | `TapMcpToolAction` | coordinate/percent/element 模式、swipe、longPress、多匹配、资源 ID fallback |
 | `WaitLogsMcpToolActionTest.kt` | `WaitLogsMcpToolAction` | marker 命中、crash 命中、timeout、无效正则、缺 marker、无 deploy 基线、多主进程 PID、子进程 marker、tag 过滤、marker 被其它 app 误触发（PID 拦截）、其它 app crash 不误触发、启动前系统 crash 不误触发、子进程 crash 忽略、100 行截断、缓冲区溢出 |
 
-#### mcp/layout — 布局校验子模块
+#### ai/mcp/layout — 布局校验子模块
 
 | 文件 | 被测对象 | 覆盖场景 |
 |------|----------|----------|
