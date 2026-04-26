@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import java.io.FileOutputStream
@@ -18,7 +19,6 @@ import java.nio.file.StandardCopyOption
  * SessionStart/Stop command hooks.
  */
 object JuggHookInstaller {
-    private const val SETTINGS_FILE_NAME = "settings.json"
     private const val BACKUP_SUFFIX = ".bak"
     private const val MATCHER_ALL = "*"
     private const val START_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/start.py"
@@ -34,16 +34,10 @@ object JuggHookInstaller {
     ): HookInstallSummary {
         val startCommand = File(userHome, START_HOOK_RELATIVE_PATH).absolutePath
         val stopCommand = File(userHome, STOP_HOOK_RELATIVE_PATH).absolutePath
-        val targets = listOf(
-            HookInstallTarget(
-                File(userHome, ".claude/$SETTINGS_FILE_NAME"),
-                ClaudeSettingsJsonHookConfigAdapter(startCommand = startCommand, stopCommand = stopCommand),
-            ),
-            HookInstallTarget(
-                File(userHome, ".claude-internal/$SETTINGS_FILE_NAME"),
-                ClaudeSettingsJsonHookConfigAdapter(startCommand = startCommand, stopCommand = stopCommand),
-            ),
-        )
+        val adapter = ClaudeSettingsJsonHookConfigAdapter(startCommand = startCommand, stopCommand = stopCommand)
+        val targets = InstallAgents.resolveAgentInstaller(InstallClient.CLAUDE)
+            .resolveHookSettingsFiles(userHome)
+            .map { settingsFile -> HookInstallTarget(settingsFile, adapter) }
         val results = targets.map { target ->
             runCatching { installTarget(target) }
                 .onFailure { error ->

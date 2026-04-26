@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ai.skills
 
+import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import java.io.FileOutputStream
@@ -99,51 +100,15 @@ object JuggCliAutoUpdater {
     }
 
     private fun skillDirsForClient(client: InstallClient, userHome: File): List<File> {
-        val dirs = mutableListOf(File(skillRootDir(client, userHome), SKILL_NAME))
-        val internalDir = internalSkillDir(client, userHome)
-        if (internalDir != null) dirs.add(internalDir)
+        val agent = InstallAgents.resolveAgentInstaller(client)
+        val dirs = mutableListOf(
+            File(agent.resolvePrimarySkillRoot(userHome), SKILL_NAME)
+        )
+        dirs.addAll(
+            agent.resolveInternalSkillHomes(userHome)
+                .map { internalHome -> File(internalHome, "skills/$SKILL_NAME") }
+        )
         return dirs
-    }
-
-    private fun skillRootDir(client: InstallClient, userHome: File): File {
-        return when (client) {
-            InstallClient.CODEX -> File(codexHomeDir(userHome), "skills")
-            InstallClient.CLAUDE -> File(claudeHomeDir(userHome), "skills")
-            InstallClient.GEMINI -> File(geminiHomeDir(userHome), "skills")
-            InstallClient.CODEBUDDY -> File(userHome, ".codebuddy/skills")
-            InstallClient.CURSOR -> File(userHome, ".cursor/skills")
-        }
-    }
-
-    private fun internalSkillDir(client: InstallClient, userHome: File): File? {
-        val internalBase = when (client) {
-            InstallClient.CODEX -> File(userHome, ".codex-internal")
-            InstallClient.CLAUDE -> File(userHome, ".claude-internal")
-            InstallClient.GEMINI -> File(userHome, ".gemini-internal")
-            InstallClient.CODEBUDDY -> null
-            InstallClient.CURSOR -> null
-        }
-        return internalBase?.let { File(it, "skills/$SKILL_NAME") }
-    }
-
-    private fun codexHomeDir(userHome: File): File {
-        val envHome = System.getenv("CODEX_HOME")
-        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".codex")
-    }
-
-    private fun claudeHomeDir(userHome: File): File {
-        val dotClaude = File(userHome, ".claude")
-        val configClaude = File(userHome, ".config/claude")
-        return when {
-            dotClaude.exists() -> dotClaude
-            configClaude.exists() -> configClaude
-            else -> dotClaude
-        }
-    }
-
-    private fun geminiHomeDir(userHome: File): File {
-        val envHome = System.getenv("GEMINI_HOME")
-        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".gemini")
     }
 
     private fun setExecutable(binDir: File) {

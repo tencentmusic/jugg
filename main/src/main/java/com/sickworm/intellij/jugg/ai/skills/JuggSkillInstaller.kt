@@ -2,6 +2,8 @@
 
 package com.sickworm.intellij.jugg.ai.skills
 
+import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
+import com.sickworm.intellij.jugg.ai.skills.agents.IAgentInstaller
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import java.io.FileNotFoundException
@@ -54,11 +56,12 @@ object JuggSkillInstaller {
 
     private fun installSkill(client: InstallClient, userHome: File) {
         val bundledSkillsHome = ensureBundledSkillsHome(userHome)
+        val agent = InstallAgents.resolveAgentInstaller(client)
         installSkillToDir(
             sourceSkillDir = File(bundledSkillsHome, SKILL_NAME),
-            targetSkillDir = File(skillRootForClient(client, userHome), SKILL_NAME),
+            targetSkillDir = File(skillRootForClient(agent, userHome), SKILL_NAME),
         )
-        internalDirsForClient(client, userHome)
+        agent.resolveInternalSkillHomes(userHome)
             .filter { it.exists() }
             .forEach { internalHome ->
                 installSkillToDir(
@@ -78,35 +81,20 @@ object JuggSkillInstaller {
      * included when they already exist on disk.
      */
     fun getInstallDirs(client: InstallClient, userHome: File): List<File> {
-        val primary = File(skillRootDirNoCreate(client, userHome), SKILL_NAME)
-        val internals = internalDirsForClient(client, userHome)
+        val agent = InstallAgents.resolveAgentInstaller(client)
+        val primary = File(skillRootDirNoCreate(agent, userHome), SKILL_NAME)
+        val internals = agent.resolveInternalSkillHomes(userHome)
             .filter { it.exists() }
             .map { File(it, "skills/$SKILL_NAME") }
         return listOf(primary) + internals
     }
 
-    private fun skillRootForClient(client: InstallClient, userHome: File): File {
-        return skillRootDirNoCreate(client, userHome).also { it.mkdirs() }
+    private fun skillRootForClient(agent: IAgentInstaller, userHome: File): File {
+        return skillRootDirNoCreate(agent, userHome).also { it.mkdirs() }
     }
 
-    private fun skillRootDirNoCreate(client: InstallClient, userHome: File): File {
-        return when (client) {
-            InstallClient.CODEX -> File(codexHomeDir(userHome), "skills")
-            InstallClient.CLAUDE -> File(claudeHomeDir(userHome), "skills")
-            InstallClient.GEMINI -> File(geminiHomeDir(userHome), "skills")
-            InstallClient.CODEBUDDY -> File(userHome, ".codebuddy/skills")
-            InstallClient.CURSOR -> File(userHome, ".cursor/skills")
-        }
-    }
-
-    private fun internalDirsForClient(client: InstallClient, userHome: File): List<File> {
-        return when (client) {
-            InstallClient.CODEX -> listOf(File(userHome, ".codex-internal"))
-            InstallClient.CLAUDE -> listOf(File(userHome, ".claude-internal"))
-            InstallClient.GEMINI -> listOf(File(userHome, ".gemini-internal"))
-            InstallClient.CODEBUDDY -> emptyList()
-            InstallClient.CURSOR -> emptyList()
-        }
+    private fun skillRootDirNoCreate(agent: IAgentInstaller, userHome: File): File {
+        return agent.resolvePrimarySkillRoot(userHome)
     }
 
     fun ensureBundledSkillsHome(userHome: File): File {
@@ -176,26 +164,6 @@ object JuggSkillInstaller {
                 }
             }
         }
-    }
-
-    private fun codexHomeDir(userHome: File): File {
-        val envHome = System.getenv("CODEX_HOME")
-        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".codex")
-    }
-
-    private fun claudeHomeDir(userHome: File): File {
-        val dotClaude = File(userHome, ".claude")
-        val configClaude = File(userHome, ".config/claude")
-        return when {
-            dotClaude.exists() -> dotClaude
-            configClaude.exists() -> configClaude
-            else -> dotClaude
-        }
-    }
-
-    private fun geminiHomeDir(userHome: File): File {
-        val envHome = System.getenv("GEMINI_HOME")
-        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".gemini")
     }
 
     private fun Throwable.safeReason(): String {
