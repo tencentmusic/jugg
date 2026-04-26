@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.ai.skills.InstallOptions
+import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
 import com.intellij.openapi.diagnostic.Logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide.logic
+package com.sickworm.intellij.jugg.ai.skills
 
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
@@ -20,7 +20,7 @@ object JuggCliAutoUpdater {
     private val SKILL_VERSION_REGEX = Regex("""^version:\s*([^\s]+)""", RegexOption.MULTILINE)
     private var isNeedCheckAndUpdate = false
 
-    internal fun resetForTest() {
+    fun resetForTest() {
         isNeedCheckAndUpdate = false
     }
 
@@ -44,7 +44,7 @@ object JuggCliAutoUpdater {
             return
         }
         val localVersion = readVersionFromLocal(juggSkillDir) ?: "0.0.0"
-        if (PluginVersionComparator.compare(bundledVersion, localVersion) <= 0) {
+        if (compareVersion(bundledVersion, localVersion) <= 0) {
             logger.info("Jugg CLI is up to date (local=$localVersion, bundled=$bundledVersion)")
             return
         }
@@ -61,7 +61,7 @@ object JuggCliAutoUpdater {
     }
 
     /** Reads version from SKILL.md in the bundled zip resource. */
-    internal fun readVersionFromZip(): String? {
+    fun readVersionFromZip(): String? {
         val stream = JuggCliAutoUpdater::class.java.classLoader
             .getResourceAsStream(SKILL_ZIP_RESOURCE) ?: return null
         return ZipInputStream(stream).use { zip ->
@@ -78,7 +78,7 @@ object JuggCliAutoUpdater {
     }
 
     /** Reads version from SKILL.md in the local skill dir. */
-    internal fun readVersionFromLocal(skillDir: File): String? {
+    fun readVersionFromLocal(skillDir: File): String? {
         val skillMd = File(skillDir, SKILL_MD_ENTRY)
         if (!skillMd.exists()) return null
         return extractSkillVersion(skillMd.readText())
@@ -92,7 +92,7 @@ object JuggCliAutoUpdater {
      * Detects which AI clients already have the skill installed,
      * by checking existence of their skill directories.
      */
-    internal fun detectInstalledClients(userHome: File): Set<InstallClient> {
+    fun detectInstalledClients(userHome: File): Set<InstallClient> {
         return InstallClient.values().filter { client ->
             skillDirsForClient(client, userHome).any { it.exists() }
         }.toSet()
@@ -202,6 +202,67 @@ object JuggCliAutoUpdater {
                 zip.closeEntry()
                 entry = zip.nextEntry
             }
+        }
+    }
+
+    private fun compareVersion(a: String, b: String): Int {
+        val cleanA = a.replace("-SNAPSHOT", "")
+        val cleanB = b.replace("-SNAPSHOT", "")
+
+        val (versionA, suffixA) = parseVersionAndSuffix(cleanA)
+        val (versionB, suffixB) = parseVersionAndSuffix(cleanB)
+
+        val versionResult = compareVersionNumbers(versionA, versionB)
+        if (versionResult != 0) {
+            return versionResult
+        }
+        return compareSuffix(suffixA, suffixB)
+    }
+
+    private fun parseVersionAndSuffix(version: String): Pair<String, String> {
+        val parts = version.split("-", limit = 2)
+        return if (parts.size == 2) {
+            parts[0] to parts[1]
+        } else {
+            parts[0] to ""
+        }
+    }
+
+    private fun compareVersionNumbers(a: String, b: String): Int {
+        val partsA = a.split(".").map { it.toIntOrNull() ?: 0 }
+        val partsB = b.split(".").map { it.toIntOrNull() ?: 0 }
+        val maxLength = maxOf(partsA.size, partsB.size)
+        for (index in 0 until maxLength) {
+            val partA = if (index < partsA.size) partsA[index] else 0
+            val partB = if (index < partsB.size) partsB[index] else 0
+            if (partA != partB) {
+                return partA.compareTo(partB)
+            }
+        }
+        return 0
+    }
+
+    private fun compareSuffix(a: String, b: String): Int {
+        val priorityA = suffixPriority(a)
+        val priorityB = suffixPriority(b)
+        if (priorityA != priorityB) {
+            return priorityA.compareTo(priorityB)
+        }
+        return if (a.startsWith("rc") && b.startsWith("rc")) {
+            val rcNumA = a.substring(2).toIntOrNull() ?: 0
+            val rcNumB = b.substring(2).toIntOrNull() ?: 0
+            rcNumA.compareTo(rcNumB)
+        } else {
+            a.compareTo(b)
+        }
+    }
+
+    private fun suffixPriority(suffix: String): Int {
+        return when {
+            suffix.isEmpty() -> 3
+            suffix.startsWith("rc") -> 2
+            suffix.startsWith("feature") -> 1
+            else -> 0
         }
     }
 }

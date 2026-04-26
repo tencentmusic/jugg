@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide.logic
+package com.sickworm.intellij.jugg.ai.skills
 
 import java.io.File
 import java.io.FileNotFoundException

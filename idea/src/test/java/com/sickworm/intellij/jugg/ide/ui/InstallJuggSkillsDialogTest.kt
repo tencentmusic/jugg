@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.ide.logic.InstallClient
-import com.sickworm.intellij.jugg.ide.logic.InstallOptions
+import com.sickworm.intellij.jugg.ai.skills.InstallClient
+import com.sickworm.intellij.jugg.ai.skills.InstallOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

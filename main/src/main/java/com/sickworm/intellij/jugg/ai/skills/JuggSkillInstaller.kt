@@ -1,6 +1,6 @@
 @file:Suppress("SameParameterValue")
 
-package com.sickworm.intellij.jugg.ide.logic
+package com.sickworm.intellij.jugg.ai.skills
 
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
@@ -109,7 +109,7 @@ object JuggSkillInstaller {
         }
     }
 
-    internal fun ensureBundledSkillsHome(userHome: File): File {
+    fun ensureBundledSkillsHome(userHome: File): File {
         val bundledSkillsHome = File(userHome, ".jugg/skills")
         extractBundledSkills(targetDir = bundledSkillsHome)
         return bundledSkillsHome

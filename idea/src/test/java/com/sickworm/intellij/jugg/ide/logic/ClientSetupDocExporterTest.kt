@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.sickworm.intellij.jugg.ai.skills.ClientSetupDocExporter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

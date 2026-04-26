@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide.logic
+package com.sickworm.intellij.jugg.ai.skills
 
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
