@@ -21,7 +21,8 @@ class InstallJuggSkillsDialogTest {
     @Test
     fun sectionTitles_shouldExposeAdditionalOptionsTitle() {
         assertEquals("Select agents to install:", InstallJuggSkillsDialog.selectAgentsTitle())
-        assertEquals("Additional options:", InstallJuggSkillsDialog.additionalOptionsTitle())
+        assertEquals("Additional options: (Recommended)", InstallJuggSkillsDialog.additionalOptionsTitle())
+        assertEquals("~/.jugg/skills/hooks", InstallJuggSkillsDialog.hooksInstallPathHint())
     }
 
     @Test
@@ -51,7 +52,7 @@ class InstallJuggSkillsDialogTest {
         val userHome = Files.createTempDirectory("jugg-home-manual-empty").toFile()
         val logger = mock(Logger::class.java)
 
-        InstallJuggSkillsDialog.exportAndInstallSkills(
+        val setupGuide = InstallJuggSkillsDialog.exportAndInstallSkills(
             projectDir = projectDir,
             options = InstallOptions(
                 clients = emptySet(),
@@ -61,11 +62,11 @@ class InstallJuggSkillsDialogTest {
             logger = logger,
             userHome = userHome,
         )
-        // no exception expected
+        assertEquals(File(userHome, ".jugg/skills/install/agent_setup.md").path, setupGuide.path)
     }
 
     @Test
-    fun exportAndInstallSkills_whenHooksSelected_shouldInstallCliAndHookScripts() {
+    fun exportAndInstallSkills_whenHooksSelected_shouldInstallCliAndUseBundledHookScripts() {
         val projectDir = Files.createTempDirectory("jugg-project-manual-hooks").toFile()
         val userHome = Files.createTempDirectory("jugg-home-manual-hooks").toFile()
         val logger = mock(Logger::class.java)
@@ -82,8 +83,9 @@ class InstallJuggSkillsDialogTest {
         )
 
         assertTrue(File(userHome, ".jugg/bin/jugg.py").exists())
-        assertTrue(File(userHome, ".jugg/hooks/start.py").exists())
-        assertTrue(File(userHome, ".jugg/hooks/stop.py").exists())
+        assertTrue(File(userHome, ".jugg/skills/hooks/start.py").exists())
+        assertTrue(File(userHome, ".jugg/skills/hooks/stop.py").exists())
+        assertFalse(File(userHome, ".jugg/hooks").exists())
         assertTrue(File(userHome, ".claude/settings.json").exists())
     }
 }

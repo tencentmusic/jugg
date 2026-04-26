@@ -30,6 +30,9 @@ class JuggSkillInstallerTest {
 
         val skillFile = File(userHome, ".codex/skills/jugg-android-dev-loop/SKILL.md")
         assertTrue(skillFile.exists())
+        assertFalse(File(userHome, ".codex/skills/jugg-android-dev-loop/hooks").exists())
+        assertTrue(File(userHome, ".jugg/skills/jugg-android-dev-loop/SKILL.md").exists())
+        assertTrue(File(userHome, ".jugg/skills/hooks/start.py").exists())
     }
 
     @Test
@@ -237,15 +240,16 @@ class JuggSkillInstallerTest {
     }
 
     @Test
-    fun installHooks_shouldCopyHookScriptsToJuggHooksDir() {
+    fun installHooks_shouldUseBundledHookScriptsUnderJuggSkillsDir() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-copy").toFile()
         val logger = mock(Logger::class.java)
 
         val result = JuggSkillInstaller.installHooks(logger, userHome)
 
         assertTrue("Hook install should succeed", result.isSuccess)
-        assertTrue(File(userHome, ".jugg/hooks/start.py").exists())
-        assertTrue(File(userHome, ".jugg/hooks/stop.py").exists())
+        assertTrue(File(userHome, ".jugg/skills/hooks/start.py").exists())
+        assertTrue(File(userHome, ".jugg/skills/hooks/stop.py").exists())
+        assertFalse(File(userHome, ".jugg/hooks").exists())
     }
 
     @Test
@@ -255,7 +259,8 @@ class JuggSkillInstallerTest {
 
         repeat(2) { JuggSkillInstaller.installHooks(logger, userHome) }
 
-        assertTrue(File(userHome, ".jugg/hooks/start.py").exists())
-        assertTrue(File(userHome, ".jugg/hooks/stop.py").exists())
+        assertTrue(File(userHome, ".jugg/skills/hooks/start.py").exists())
+        assertTrue(File(userHome, ".jugg/skills/hooks/stop.py").exists())
+        assertFalse(File(userHome, ".jugg/hooks").exists())
     }
 }

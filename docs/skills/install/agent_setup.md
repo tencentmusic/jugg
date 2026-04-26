@@ -1,4 +1,4 @@
-# Client Setup Guide (Human Manual)
+# Agent Setup Guide (Human Manual)
 
 The `jugg-android-dev-loop` skill directory is located next to this file.
 

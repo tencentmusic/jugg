@@ -10,20 +10,18 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.JBUI
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.ui.Gray
 import com.sickworm.intellij.jugg.ide.logic.ClientSetupDocExporter
 import com.sickworm.intellij.jugg.ide.logic.InstallClient
 import com.sickworm.intellij.jugg.ide.logic.InstallOptions
 import com.sickworm.intellij.jugg.ide.logic.InstallSummary
 import com.sickworm.intellij.jugg.ide.logic.HookInstallSummary
 import com.sickworm.intellij.jugg.ide.logic.JuggHookInstaller
-import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.logic.JuggSkillInstaller
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
-import java.awt.Color
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import java.awt.Insets
 import java.awt.event.ActionEvent
 import java.io.File
 import javax.swing.AbstractAction
@@ -61,11 +59,11 @@ class InstallJuggSkillsDialog(
             insets = JBUI.emptyInsets()
         }
         val descLabel = JLabel(descriptionHtml())
-        descLabel.foreground = Color(100, 100, 100)
+        descLabel.foreground = Gray._100
         panel.add(descLabel, constraints)
 
         constraints.gridy++
-        constraints.insets = Insets(8, 0, 0, 0)
+        constraints.insets = JBUI.insetsTop(8)
         panel.add(JLabel(selectAgentsTitle()), constraints)
 
         val clientRows = listOf(
@@ -77,27 +75,27 @@ class InstallJuggSkillsDialog(
         )
         for ((checkBox, client) in clientRows) {
             constraints.gridy++
-            constraints.insets = Insets(2, 0, 0, 0)
+            constraints.insets = JBUI.insetsTop(2)
             panel.add(buildClientRow(checkBox, client), constraints)
         }
 
         constraints.gridy++
-        constraints.insets = Insets(8, 0, 0, 0)
+        constraints.insets = JBUI.insetsTop(8)
         panel.add(JLabel(additionalOptionsTitle()), constraints)
 
         constraints.gridy++
-        constraints.insets = Insets(2, 0, 0, 0)
+        constraints.insets = JBUI.insetsTop(2)
         panel.add(buildCliRow(), constraints)
 
         constraints.gridy++
-        constraints.insets = Insets(4, 0, 0, 0)
+        constraints.insets = JBUI.insetsTop(4)
         panel.add(buildHooksRow(), constraints)
 
         constraints.gridy++
-        constraints.insets = Insets(2, 0, 0, 0)
+        constraints.insets = JBUI.insetsTop(2)
         val hookDesc = JLabel(
-            "<html><body style='width:360px;color:#808080'>" +
-                "Injects command hooks to run on SessionStart and Stop. " +
+            "<html><body style='width:640px;color:#808080'>" +
+                "↑ Injects command hooks to run on SessionStart and Stop. " +
                 "Stop will blocked when Android changes are detected " +
                 "without jugg-android-dev-loop compile verification." +
                 "</body></html>"
@@ -107,7 +105,7 @@ class InstallJuggSkillsDialog(
         init()
     }
 
-    /** Builds a row: [checkbox] [grey path hint] for a skill client. */
+    /** Builds a row: \[checkbox] [gray path hint] for a skill client. */
     private fun buildClientRow(checkBox: JBCheckBox, client: InstallClient): JPanel {
         val dirs = JuggSkillInstaller.getInstallDirs(client, userHome)
         val hintText = dirs.joinToString("  ") { toTildePath(it, userHome) }
@@ -123,7 +121,7 @@ class InstallJuggSkillsDialog(
     private fun buildHooksRow(): JPanel {
         return rowPanel(
             installHooksCheckBox,
-            "~/.jugg/hooks",
+            hooksInstallPathHint(),
         )
     }
 
@@ -132,7 +130,7 @@ class InstallJuggSkillsDialog(
         row.add(checkBox)
         if (hintText.isNotEmpty()) {
             val hint = JLabel("  $hintText")
-            hint.foreground = Color(128, 128, 128)
+            hint.foreground = Gray._128
             row.add(hint)
         }
         return row
@@ -172,7 +170,7 @@ class InstallJuggSkillsDialog(
                     FileEditorManager.getInstance(project).openFile(virtualFile, true)
                     close(CLOSE_EXIT_CODE)
                 } catch (t: Throwable) {
-                    Messages.showErrorDialog("Failed to create guide file: ${t.message}", "Client Setup Guide")
+                    Messages.showErrorDialog("Failed to create guide file: ${t.message}", "Agent Setup Guide")
                 }
             }
         })
@@ -198,7 +196,7 @@ class InstallJuggSkillsDialog(
 
     companion object {
         internal fun descriptionHtml(): String {
-            return "<html><body>" +
+            return "<html><body style='width:640px;color:#808080'>" +
                 "Jugg Skills use Jugg CLI to enable AI agents (Claude Code, Codex, etc.) to drive the full " +
                 "Android dev loop: edit → incremental compile → deploy → verify, without manual intervention." +
                 "</body></html>"
@@ -206,7 +204,9 @@ class InstallJuggSkillsDialog(
 
         internal fun selectAgentsTitle(): String = "Select agents to install:"
 
-        internal fun additionalOptionsTitle(): String = "Additional options:"
+        internal fun additionalOptionsTitle(): String = "Additional options: (Recommended)"
+
+        internal fun hooksInstallPathHint(): String = "~/.jugg/skills/hooks"
 
         fun showAndGetResult(project: Project, projectDir: File): InstallOptions {
             var result = InstallOptions(emptySet(), installCli = false, installHooks = false)
@@ -237,7 +237,7 @@ class InstallJuggSkillsDialog(
                 JuggSkillInstaller.installHooks(logger, userHome)
                 JuggHookInstaller.installForClaude(userHome, logger)
             }
-            return ClientSetupDocExporter.export(projectDir)
+            return ClientSetupDocExporter.export(projectDir, userHome)
         }
 
         fun installJuggMcpAndSkills(project: Project, projectDir: File, taskRunnerManager: TaskRunnerManager, logger: Logger) {
@@ -261,16 +261,12 @@ class InstallJuggSkillsDialog(
                 } else {
                     HookInstallSummary(emptyList())
                 }
-                val title: String
-                val balloonMessage: String
-                if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
+                val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
                     (hookSummary.results.isEmpty() || hookSummary.isAllSuccess)
                 ) {
-                    title = "Install Completed"
-                    balloonMessage = "Jugg installation completed successfully."
+                    "Install Completed"
                 } else {
-                    title = "Install Completed with Issues"
-                    balloonMessage = "Jugg installation finished with issues."
+                    "Install Completed with Issues"
                 }
                 ApplicationManager.getApplication().invokeLater {
                     val displayText = buildString {

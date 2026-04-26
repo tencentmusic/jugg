@@ -41,17 +41,17 @@ class JuggHookInstallerTest {
             {
               "hooks": {
                 "Stop": [
-                  {
-                    "matcher": "*",
-                    "hooks": [
-                      {"type": "command", "command": "${File(userHome, ".jugg/hooks/stop.py").absolutePath}"}
-                    ]
-                  }
-                ],
+                      {
+                        "matcher": "*",
+                        "hooks": [
+                      {"type": "command", "command": "${File(userHome, ".jugg/skills/hooks/stop.py").absolutePath}"}
+                        ]
+                      }
+                    ],
                 "SessionStart": [
                   {
                     "hooks": [
-                      {"type": "command", "command": "${File(userHome, ".jugg/hooks/start.py").absolutePath}"}
+                      {"type": "command", "command": "${File(userHome, ".jugg/skills/hooks/start.py").absolutePath}"}
                     ]
                   }
                 ]
@@ -172,7 +172,7 @@ class JuggHookInstallerTest {
             file = file,
             eventName = "Stop",
             matcher = "*",
-            commandSuffix = "${File.separator}.jugg${File.separator}hooks${File.separator}stop.py",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
         )
     }
 
@@ -181,7 +181,7 @@ class JuggHookInstallerTest {
             file = file,
             eventName = "SessionStart",
             matcher = null,
-            commandSuffix = "${File.separator}.jugg${File.separator}hooks${File.separator}start.py",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
         )
     }
 

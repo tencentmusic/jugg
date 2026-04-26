@@ -41,8 +41,8 @@
 - 运行配置与设置：`ide/logic/JuggRunSettingsComponent.kt`、`JuggRunConfigurationOptionsExt.kt`。  
 - More Options 下拉与工具入口：`ide/logic/MoreOptionsManager.kt`、`ide/ui/InstallJuggSkillsDialog.kt`。  
   - `Tools` 分组首项支持 `Install Jugg Skills`，可多选 `Codex / Claude Code / Gemini / CodeBuddy / Cursor`，并触发 `ide/logic/JuggSkillInstaller.kt` 通过代码直接完成 skill 安装（内置 zip 资源）与 CLI 安装。  
-  - 安装弹窗默认开启 agent hooks 安装，注入 `SessionStart`/`Stop` command hooks：`SessionStart` 调用 `~/.jugg/hooks/start.py` 记录 `jugg status` 基线，`Stop` 调用 `~/.jugg/hooks/stop.py` 对比基线并在检测到 Android 改动且未完成验证时阻断停止。选择安装 hooks 时会强制同步安装 CLI 到 `~/.jugg/bin` 并拷贝 hooks 到 `~/.jugg/hooks`（`ide/ui/InstallJuggSkillsDialog.kt`、`ide/logic/JuggSkillInstaller.kt`、`ide/logic/JuggHookInstaller.kt`）。  
-  - 安装弹窗提供 `Manual Setup Guide`，运行时从插件资源 `docs/skills/install/client_setup.md` 导出到 `build/jugg/config/client_setup.md`，并将内置 `docs/skills/jugg-android-dev-loop.zip` 同步解压到同级目录 `build/jugg/config/jugg-android-dev-loop/`；导出时会将文档内 skill 源路径改写为同级相对路径（`./jugg-android-dev-loop`），随后使用 IDE 文件编辑器直接打开导出文件（`ide/logic/ClientSetupDocExporter.kt`）。  
+  - 安装弹窗默认开启 agent hooks 安装，注入 `SessionStart`/`Stop` command hooks：`SessionStart` 调用 `~/.jugg/skills/hooks/start.py` 记录 `jugg status` 基线，`Stop` 调用 `~/.jugg/skills/hooks/stop.py` 对比基线并在检测到 Android 改动且未完成验证时阻断停止。安装流程会先将统一资源包 `docs/skills/docs-skills.zip` 解压到 `~/.jugg/skills`，再从该目录安装 CLI（`jugg-android-dev-loop/scripts`）并复用 hooks（`hooks/start.py`、`hooks/stop.py`）（`ide/ui/InstallJuggSkillsDialog.kt`、`ide/logic/JuggSkillInstaller.kt`、`ide/logic/JuggHookInstaller.kt`）。  
+  - 安装弹窗提供 `Manual Setup Guide`，运行时直接复用 `~/.jugg/skills/install/agent_setup.md`，并复用同目录下的 `~/.jugg/skills/jugg-android-dev-loop/`；不再导出到 `build/jugg/config`（`ide/logic/ClientSetupDocExporter.kt`）。  
 - 操作入口：`ide/ui/GradleCompileAction.kt`、`RestartAppAction.kt` 等。  
 - 通知与对话框：`JuggCommonNotification.kt`、`BuildChangesConfirmDialog.kt`、`Report*Dialog.kt`。
 

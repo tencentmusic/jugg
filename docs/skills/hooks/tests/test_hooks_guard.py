@@ -6,7 +6,7 @@ import unittest
 
 
 def _load_stop_module():
-    base = os.path.join(os.path.dirname(__file__), "..", "hooks", "stop.py")
+    base = os.path.join(os.path.dirname(__file__), "..", "stop.py")
     spec = importlib.util.spec_from_file_location("jugg_stop_hook", base)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load stop hook module")

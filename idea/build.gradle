@@ -65,17 +65,14 @@ sourceSets {
 patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log/change_log.html").getText('UTF-8')
 FileUtils.copyDirectory(file("${rootProject.rootDir}/change_log") , file("src/main/resources/change_log"))
 new File("src/main/resources/docs/skills").mkdirs()
-ant.zip(
-        destfile: "src/main/resources/docs/skills/jugg-android-dev-loop.zip",
-        basedir: "${rootProject.rootDir}/docs/skills/jugg-android-dev-loop"
-)
-
-// copy mcp client_setup.md
-new File("src/main/resources/docs/skills/install").mkdirs()
-FileUtils.copyFile(
-        file("${rootProject.rootDir}/docs/skills/install/client_setup.md"),
-        file("src/main/resources/docs/skills/install/client_setup.md")
-)
+def skillsBundleZipFile = file("src/main/resources/docs/skills/docs-skills.zip")
+skillsBundleZipFile.delete()
+ant.zip(destfile: skillsBundleZipFile) {
+    zipfileset(
+            dir: "${rootProject.rootDir}/docs/skills",
+            excludes: "ADK_RULES.md,README.md,benchmark/**"
+    )
+}
 
 runIde {
     // default 11_0_11b1341.57 and will get Access Denied

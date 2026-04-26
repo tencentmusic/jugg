@@ -16,9 +16,10 @@ import java.util.zip.ZipInputStream
 object JuggSkillInstaller {
 
     private const val SKILL_NAME = "jugg-android-dev-loop"
-    private const val SKILL_ZIP_RESOURCE = "docs/skills/jugg-android-dev-loop.zip"
-    private const val SCRIPTS_PREFIX = "scripts/"
-    private const val HOOKS_PREFIX = "hooks/"
+    private const val SKILLS_BUNDLE_ZIP_RESOURCE = "docs/skills/docs-skills.zip"
+    private const val BUNDLED_HOOKS_DIR = "hooks"
+    private const val BUNDLED_INSTALL_DOC_PATH = "install/agent_setup.md"
+    private val HOOK_SCRIPT_FILES = setOf("start.py", "stop.py")
 
     /**
      * Installs skill for selected clients by extracting bundled skill files.
@@ -52,18 +53,23 @@ object JuggSkillInstaller {
     }
 
     private fun installSkill(client: InstallClient, userHome: File) {
-        installSkillToDir(File(skillRootForClient(client, userHome), SKILL_NAME))
+        val bundledSkillsHome = ensureBundledSkillsHome(userHome)
+        installSkillToDir(
+            sourceSkillDir = File(bundledSkillsHome, SKILL_NAME),
+            targetSkillDir = File(skillRootForClient(client, userHome), SKILL_NAME),
+        )
         internalDirsForClient(client, userHome)
             .filter { it.exists() }
-            .forEach { internalHome -> installSkillToDir(File(internalHome, "skills/$SKILL_NAME")) }
+            .forEach { internalHome ->
+                installSkillToDir(
+                    sourceSkillDir = File(bundledSkillsHome, SKILL_NAME),
+                    targetSkillDir = File(internalHome, "skills/$SKILL_NAME"),
+                )
+            }
     }
 
-    private fun installSkillToDir(skillDir: File) {
-        if (skillDir.exists()) {
-            skillDir.deleteRecursively()
-        }
-        skillDir.mkdirs()
-        unzipSkillResource(skillDir)
+    private fun installSkillToDir(sourceSkillDir: File, targetSkillDir: File) {
+        copyDirectory(sourceDir = sourceSkillDir, targetDir = targetSkillDir)
     }
 
     /**
@@ -103,9 +109,17 @@ object JuggSkillInstaller {
         }
     }
 
-    private fun unzipSkillResource(targetDir: File) {
-        val stream = JuggSkillInstaller::class.java.classLoader.getResourceAsStream(SKILL_ZIP_RESOURCE)
-            ?: throw FileNotFoundException("resource_not_found_$SKILL_ZIP_RESOURCE")
+    internal fun ensureBundledSkillsHome(userHome: File): File {
+        val bundledSkillsHome = File(userHome, ".jugg/skills")
+        extractBundledSkills(targetDir = bundledSkillsHome)
+        return bundledSkillsHome
+    }
+
+    private fun extractBundledSkills(targetDir: File) {
+        targetDir.deleteRecursively()
+        targetDir.mkdirs()
+        val stream = JuggSkillInstaller::class.java.classLoader.getResourceAsStream(SKILLS_BUNDLE_ZIP_RESOURCE)
+            ?: throw FileNotFoundException("resource_not_found_$SKILLS_BUNDLE_ZIP_RESOURCE")
         ZipInputStream(stream).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
@@ -118,12 +132,48 @@ object JuggSkillInstaller {
                     outFile.mkdirs()
                 } else {
                     outFile.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { output ->
-                        zip.copyTo(output)
-                    }
+                    FileOutputStream(outFile).use { output -> zip.copyTo(output) }
                 }
                 zip.closeEntry()
                 entry = zip.nextEntry
+            }
+        }
+        val bundledSkillDir = File(targetDir, SKILL_NAME)
+        if (!bundledSkillDir.isDirectory) {
+            throw FileNotFoundException("resource_missing_dir_${SKILL_NAME}")
+        }
+        val bundledHooksDir = File(targetDir, BUNDLED_HOOKS_DIR)
+        if (!bundledHooksDir.isDirectory) {
+            throw FileNotFoundException("resource_missing_dir_${BUNDLED_HOOKS_DIR}")
+        }
+        if (!File(targetDir, BUNDLED_INSTALL_DOC_PATH).isFile) {
+            throw FileNotFoundException("resource_missing_file_${BUNDLED_INSTALL_DOC_PATH}")
+        }
+    }
+
+    private fun copyDirectory(sourceDir: File, targetDir: File) {
+        if (!sourceDir.isDirectory) {
+            throw FileNotFoundException("source_dir_not_found_${sourceDir.path}")
+        }
+        targetDir.deleteRecursively()
+        targetDir.mkdirs()
+        val targetCanonicalPrefix = targetDir.canonicalPath + File.separator
+        sourceDir.walkTopDown().forEach { source ->
+            val relativePath = source.relativeTo(sourceDir).path
+            if (relativePath.isEmpty()) {
+                return@forEach
+            }
+            val outFile = File(targetDir, relativePath)
+            if (!outFile.canonicalPath.startsWith(targetCanonicalPrefix)) {
+                throw IOException("invalid_relative_path")
+            }
+            if (source.isDirectory) {
+                outFile.mkdirs()
+            } else {
+                outFile.parentFile?.mkdirs()
+                source.inputStream().use { input ->
+                    FileOutputStream(outFile).use { output -> input.copyTo(output) }
+                }
             }
         }
     }
@@ -159,8 +209,9 @@ object JuggSkillInstaller {
      */
     fun installCli(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
         return runCatching {
+            val bundledScriptsDir = File(ensureBundledSkillsHome(userHome), "$SKILL_NAME/scripts")
             val binDir = File(userHome, ".jugg/bin")
-            extractPrefixToDir(prefix = SCRIPTS_PREFIX, targetDir = binDir)
+            copyDirectory(sourceDir = bundledScriptsDir, targetDir = binDir)
             if (!isWindows()) {
                 setExecutable(binDir)
                 createSymlink(userHome, binDir)
@@ -170,41 +221,22 @@ object JuggSkillInstaller {
     }
 
     /**
-     * Installs hook scripts to ~/.jugg/hooks from the bundled skill zip.
+     * Makes bundled hook scripts available from ~/.jugg/skills/hooks.
      */
     fun installHooks(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
         return runCatching {
-            val hooksDir = File(userHome, ".jugg/hooks")
-            extractPrefixToDir(prefix = HOOKS_PREFIX, targetDir = hooksDir)
-            if (!isWindows()) {
-                File(hooksDir, "start.py").takeIf { it.exists() }?.setExecutable(true, false)
-                File(hooksDir, "stop.py").takeIf { it.exists() }?.setExecutable(true, false)
-            }
-            logger.info("[Install Jugg Hooks] installed to ${hooksDir.path}")
-        }
-    }
-
-    private fun extractPrefixToDir(prefix: String, targetDir: File) {
-        targetDir.deleteRecursively()
-        targetDir.mkdirs()
-        val stream = JuggSkillInstaller::class.java.classLoader.getResourceAsStream(SKILL_ZIP_RESOURCE)
-            ?: throw FileNotFoundException("resource_not_found_$SKILL_ZIP_RESOURCE")
-        ZipInputStream(stream).use { zip ->
-            var entry = zip.nextEntry
-            while (entry != null) {
-                if (entry.name.startsWith(prefix) && !entry.isDirectory) {
-                    val relativePath = entry.name.removePrefix(prefix)
-                    val outFile = File(targetDir, relativePath)
-                    val canonicalParent = targetDir.canonicalPath + File.separator
-                    if (!outFile.canonicalPath.startsWith(canonicalParent)) {
-                        throw IOException("invalid_zip_entry_path")
-                    }
-                    outFile.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { zip.copyTo(it) }
+            val bundledHooksDir = File(ensureBundledSkillsHome(userHome), BUNDLED_HOOKS_DIR)
+            HOOK_SCRIPT_FILES.forEach { fileName ->
+                val sourceFile = File(bundledHooksDir, fileName)
+                if (!sourceFile.isFile) {
+                    throw FileNotFoundException("source_file_not_found_${sourceFile.path}")
                 }
-                zip.closeEntry()
-                entry = zip.nextEntry
             }
+            if (!isWindows()) {
+                File(bundledHooksDir, "start.py").takeIf { it.exists() }?.setExecutable(true, false)
+                File(bundledHooksDir, "stop.py").takeIf { it.exists() }?.setExecutable(true, false)
+            }
+            logger.info("[Install Jugg Hooks] installed to ${bundledHooksDir.path}")
         }
     }
 

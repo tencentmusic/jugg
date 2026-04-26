@@ -21,8 +21,8 @@ object JuggHookInstaller {
     private const val SETTINGS_FILE_NAME = "settings.json"
     private const val BACKUP_SUFFIX = ".bak"
     private const val MATCHER_ALL = "*"
-    private const val START_HOOK_RELATIVE_PATH = ".jugg/hooks/start.py"
-    private const val STOP_HOOK_RELATIVE_PATH = ".jugg/hooks/stop.py"
+    private const val START_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/start.py"
+    private const val STOP_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/stop.py"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
 
     /**

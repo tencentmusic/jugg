@@ -60,7 +60,7 @@
 - **仅修改测试文件**：`AssetCompileTest.kt:46-61`
 
 #### §A.7 ClientSetupDocExporterTest（P2）
-- **根因**：`client_setup.md` 内容已重写（从旧的 bash script 格式改为新的安装指南格式），不再包含 `SKILL_SRC="./jugg-android-dev-loop"` 字符串，但测试断言仍检查该旧字符串。
+- **根因**：`agent_setup.md` 内容已重写（从旧的 bash script 格式改为新的安装指南格式），不再包含 `SKILL_SRC="./jugg-android-dev-loop"` 字符串，但测试断言仍检查该旧字符串。
 - **修复**：更新测试断言为检查新文件中确实存在的内容（`jugg-android-dev-loop`），保留 `assertFalse(text.contains("docs/skills/jugg-android-dev-loop"))` 确保路径替换逻辑。
 - **仅修改测试文件**：`ClientSetupDocExporterTest.kt`
 
@@ -241,7 +241,7 @@ idea 合计：37 类，256 用例，**118 失败**。
 - `testFetchLibraryChanges`：`NullPointerException @ LocalGradleCompileClientTest.kt:407`
 - `testFetchLocalLibraryAarChanges`：`AssertionError expected:<true> but was:<false>`
 - `AssetCompileTest.multiFileCompile` / `singleFileCompile`：`expected:<Asset:logo.png> but was:<null>`（资源未扫描到）
-- `ClientSetupDocExporterTest.export_shouldCopyClientSetupFileToBuildConfig`：`AssertionError`（未复制）
+- `ClientSetupDocExporterTest.export_shouldCopyAgentSetupFileToBuildConfig`：`AssertionError`（未复制）
 - 需单个排查，可能与测试 fixture 或 `android_demo_project` 资源配置相关。
 
 ### 3.7 特例：`ApkReaderTest.testDefaultActivity`

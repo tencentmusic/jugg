@@ -25,7 +25,7 @@
 | `DependencyDiffResultTest.testUpdateDependencyWithPackageName` | 按 name 过滤全量 libraries（含 res），断言 jar 时补充 `!it.isRes` 条件 |
 | `AssetCompileTest.singleFileCompile` | 自定义断言，按 `outputDir/assets/xxx` 路径验证，跳过 apkPath 全字段比较 |
 | `AssetCompileTest.multiFileCompile` | 同上 |
-| `ClientSetupDocExporterTest.export_shouldCopyClientSetupFileToBuildConfig` | 更新断言为检查新版 `client_setup.md` 中实际存在的内容 |
+| `ClientSetupDocExporterTest.export_shouldCopyAgentSetupFileToBuildConfig` | 更新断言为检查新版 `agent_setup.md` 中实际存在的内容 |
 | `ApkReaderTest.testDefaultActivity` | 更新期望值为实际 LAUNCHER activity `com.example.myapplication.MainActivity` |
 
 ---

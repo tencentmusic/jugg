@@ -220,7 +220,7 @@
 
 1. `docs/skills/jugg-android-dev-loop/SKILL.md`
 2. `docs/skills/jugg-android-dev-loop/references/tool_cards_runtime_observe.md`
-3. 如涉及安装说明：`docs/skills/install/client_setup.md`
+3. 如涉及安装说明：`docs/skills/install/agent_setup.md`
 
 ### 6.2 更新要点
 

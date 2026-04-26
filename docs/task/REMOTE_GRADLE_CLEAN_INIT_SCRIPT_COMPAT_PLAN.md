@@ -28,7 +28,7 @@
 - **常规运行时配置目录（继续放在 `build/jugg/config`）**
   - `build/jugg/config/`
     - `custom_compilers/`
-    - `client_setup.md`
+    - `agent_setup.md`
     - `jugg-android-dev-loop/`
     - `custom_config.json`
 

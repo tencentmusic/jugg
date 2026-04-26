@@ -42,7 +42,7 @@ build/jugg/                            # juggRootDir
 │   └── libraries/                     # 依赖库备份
 ├── config/
 │   ├── custom_compilers/
-│   ├── client_setup.md
+│   ├── agent_setup.md
 │   └── jugg-android-dev-loop/
 └── tmp/diff/                          # 远程编译 diff 结果
 

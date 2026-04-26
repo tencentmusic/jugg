@@ -10,17 +10,17 @@ import java.nio.file.Files
 class ClientSetupDocExporterTest {
 
     @Test
-    fun export_shouldCopyClientSetupFileToBuildConfig() {
+    fun export_shouldReuseAgentSetupFileFromBundledSkillsDir() {
         val root = Files.createTempDirectory("jugg-client-setup-test").toFile()
-        val output = ClientSetupDocExporter.export(root)
+        val userHome = Files.createTempDirectory("jugg-home-client-setup-test").toFile()
+        val output = ClientSetupDocExporter.export(root, userHome)
 
         assertTrue(output.exists())
-        assertEquals(File(root, "build/jugg/config/client_setup.md").path, output.path)
+        assertEquals(File(userHome, ".jugg/skills/install/agent_setup.md").path, output.path)
         val text = output.readText(Charsets.UTF_8)
         assertTrue(text.contains("jugg-android-dev-loop"))
-        assertFalse(text.contains("docs/skills/jugg-android-dev-loop"))
-
-        val skillFile = File(root, "build/jugg/config/jugg-android-dev-loop/SKILL.md")
-        assertTrue(skillFile.exists())
+        assertTrue(text.contains("./jugg-android-dev-loop"))
+        assertTrue(File(userHome, ".jugg/skills/jugg-android-dev-loop/SKILL.md").exists())
+        assertFalse(File(root, "build/jugg/config").exists())
     }
 }
