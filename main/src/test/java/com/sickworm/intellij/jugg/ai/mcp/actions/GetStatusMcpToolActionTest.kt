@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert
@@ -54,7 +55,26 @@ class GetStatusMcpToolActionTest {
         Assert.assertTrue(files.isEmpty())
         Assert.assertEquals("", data["detail"])
         Assert.assertEquals("", data["lastFileModifiedTime"])
+        Assert.assertEquals("", data["lastCompileTime"])
         Assert.assertFalse(data.containsKey("lastFileModifiedTimeMillis"))
+    }
+
+    @Test
+    fun testStatusReturnsRecordedLastCompileTime() {
+        val deployState = JuggDeployState.READY
+        val runtime = runtimeWith(deployState = deployState, hasDevice = true, uncompiledFiles = emptyList())
+        val projectDir = "/fake/project"
+        val lastCompileRegistry = LastCompileTimestampRegistry().apply {
+            setTimestamp(projectDir, "2026-04-26 10:00:00")
+        }
+
+        val result = GetStatusMcpToolAction(lastCompileTimestampRegistry = lastCompileRegistry)
+            .execute(mapOf("projectDir" to projectDir), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("2026-04-26 10:00:00", data["lastCompileTime"])
     }
 
     @Test

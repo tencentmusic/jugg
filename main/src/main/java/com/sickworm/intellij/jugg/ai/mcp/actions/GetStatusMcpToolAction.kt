@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.time.Instant
 import java.time.ZoneId
@@ -19,7 +20,9 @@ private val READABLE_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPat
  * GetStatusMcpToolAction implements MCP tool `status` and returns current deploy state,
  * uncompiled file counts by type, and up to 20 absolute file paths.
  */
-class GetStatusMcpToolAction : McpToolAction {
+class GetStatusMcpToolAction(
+    private val lastCompileTimestampRegistry: LastCompileTimestampRegistry = LastCompileTimestampRegistry.INSTANCE,
+) : McpToolAction {
     override val toolName: String = McpToolActionRegistry.ToolNames.GET_STATUS
 
     override val definition: McpToolDefinition = McpToolDefinition(
@@ -69,6 +72,10 @@ class GetStatusMcpToolAction : McpToolAction {
                             type = "string",
                             description = "Readable local timestamp (yyyy-MM-dd HH:mm:ss) of latest uncompiled file modification. Empty when none.",
                         ),
+                        "lastCompileTime" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Readable local timestamp (yyyy-MM-dd HH:mm:ss) of latest compile/deploy/gradle-build invocation. Empty when none.",
+                        ),
                     ),
                     required = listOf(
                         "hasDevice",
@@ -78,6 +85,7 @@ class GetStatusMcpToolAction : McpToolAction {
                         "files",
                         "detail",
                         "lastFileModifiedTime",
+                        "lastCompileTime",
                     ),
                     additionalProperties = false,
                 )
@@ -130,6 +138,9 @@ class GetStatusMcpToolAction : McpToolAction {
         } else {
             ""
         }
+        val projectDir = (arguments["projectDir"] as? String)
+            ?: runCatching { runtime.project.basePath }.getOrNull()
+        val lastCompileTime = projectDir?.let { lastCompileTimestampRegistry.getTimestamp(it) } ?: ""
 
         val data: Map<String, Any> = mapOf(
             "hasDevice" to (runtime.deployTargetManager.hasDevice),
@@ -139,6 +150,7 @@ class GetStatusMcpToolAction : McpToolAction {
             "files" to files,
             "detail" to detail,
             "lastFileModifiedTime" to lastFileModifiedTime,
+            "lastCompileTime" to lastCompileTime,
         )
 
         return McpToolResult(

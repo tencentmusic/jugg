@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
@@ -93,6 +94,8 @@ class JuggCompilerHelper(
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
     ): CompileTaskResult {
+        // Record compile-tool invocation baseline for MCP status/hook gating.
+        LastCompileTimestampRegistry.INSTANCE.recordNow(pathManager.projectDir.absolutePath)
         logger.trace("[PERF] JuggCompileHelper.compile entered, thread=${Thread.currentThread().name}")
         val result = doCompile(options, uiHandler)
 

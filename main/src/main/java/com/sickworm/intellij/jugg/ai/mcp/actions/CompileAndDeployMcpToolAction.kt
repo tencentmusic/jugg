@@ -40,14 +40,22 @@ class CompileAndDeployMcpToolAction : McpToolAction {
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val isAlwaysRestartApp = arguments["alwaysRestartApp"] as? Boolean ?: true
-        return deployAction(runtime, "deploy", isAlwaysRestartApp = isAlwaysRestartApp)
+        return deployAction(
+            runtime = runtime,
+            toolName = toolName,
+            isAlwaysRestartApp = isAlwaysRestartApp,
+        )
     }
 
     companion object {
         private const val DETAIL_PREVIEW_MAX_CHARS = 4096
 
-        fun deployAction(runtime: IMcpRuntime, toolName: String, isSkipDeploy: Boolean = false, isAlwaysRestartApp: Boolean = true): McpToolResult {
-            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
+        fun deployAction(
+            runtime: IMcpRuntime,
+            toolName: String,
+            isSkipDeploy: Boolean = false,
+            isAlwaysRestartApp: Boolean = true,
+        ): McpToolResult {
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
@@ -93,6 +101,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 extraData = jobMetaData,
             )
             // Record deploy completion timestamp so wait-logs can use it as the log start point.
+            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
             if (result.status == McpToolStatus.OK && projectDir != null) {
                 LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir)
             }

@@ -35,6 +35,7 @@ def _extract_snapshot(structured: dict[str, Any]) -> dict[str, Any]:
     return {
         "cwd": os.getcwd(),
         "lastFileModifiedTime": str(data.get("lastFileModifiedTime", "")),
+        "lastCompileTime": str(data.get("lastCompileTime", "")),
         "fileCounts": file_counts,
     }
 

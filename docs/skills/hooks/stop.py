@@ -15,7 +15,7 @@ from typing import Any
 STATE_DIR_NAME = ".state"
 STOP_BLOCK_MESSAGE = (
     "Android code changes were detected in this session. "
-    "Before stopping, you must enable the jugg-android-dev-loop skill and complete compile verification."
+    "Before stopping, you must enable the jugg-android-dev-loop skill and complete verification."
 )
 
 
@@ -46,6 +46,7 @@ def _extract_snapshot(structured: dict[str, Any]) -> dict[str, Any]:
     return {
         "cwd": os.getcwd(),
         "lastFileModifiedTime": str(data.get("lastFileModifiedTime", "")),
+        "lastCompileTime": str(data.get("lastCompileTime", "")),
         "fileCounts": file_counts,
     }
 
@@ -77,6 +78,10 @@ def _is_snapshot_changed(previous: dict[str, Any], current: dict[str, Any]) -> b
     return str(previous.get("lastFileModifiedTime", "")) != str(current.get("lastFileModifiedTime", ""))
 
 
+def _is_compile_invoked(previous: dict[str, Any], current: dict[str, Any]) -> bool:
+    return str(previous.get("lastCompileTime", "")) != str(current.get("lastCompileTime", ""))
+
+
 def _has_pending_files(file_counts: dict[str, Any]) -> bool:
     total = _safe_int(file_counts.get("total", 0))
     if total > 0:
@@ -88,6 +93,8 @@ def _has_pending_files(file_counts: dict[str, Any]) -> bool:
 
 
 def should_block_stop(previous: dict[str, Any], current: dict[str, Any]) -> bool:
+    if _is_compile_invoked(previous, current):
+        return False
     if not _is_snapshot_changed(previous, current):
         return False
     file_counts = current.get("fileCounts", {})

@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -213,6 +214,30 @@ class CompileAndDeployMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals("failed", data["status"])
+    }
+
+    @Test
+    fun testDeployDoesNotRecordLastCompileTimeDirectly() {
+        val projectDir = "/fake/project/deploy"
+        val registry = LastCompileTimestampRegistry.INSTANCE
+        registry.setTimestamp(projectDir, "2000-01-01 00:00:00")
+        val action = CompileAndDeployMcpToolAction()
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+                detail = "",
+            ),
+        )
+
+        action.execute(mapOf("projectDir" to projectDir), runtime)
+
+        Assert.assertEquals("2000-01-01 00:00:00", registry.getTimestamp(projectDir))
     }
 
     private fun runtimeWithResult(result: JuggRunInvocationResult): IMcpRuntime {

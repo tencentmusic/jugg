@@ -22,6 +22,7 @@ class CmdStatusPrintTest(unittest.TestCase):
                 "files": ["/tmp/A.java"],
                 "detail": "",
                 "lastFileModifiedTime": "2026-04-25 10:30:00",
+                "lastCompileTime": "2026-04-25 10:29:00",
             }
         }
         buf = io.StringIO()
@@ -29,6 +30,7 @@ class CmdStatusPrintTest(unittest.TestCase):
             _print_status(structured)
         output = buf.getvalue()
         self.assertIn("lastFileModifiedTime: 2026-04-25 10:30:00", output)
+        self.assertIn("lastCompileTime: 2026-04-25 10:29:00", output)
 
 
 if __name__ == "__main__":

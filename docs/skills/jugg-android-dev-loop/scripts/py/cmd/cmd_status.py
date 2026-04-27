@@ -38,12 +38,14 @@ def _print_status(structured: dict) -> None:
     files: list = data.get("files", [])
     detail: str = data.get("detail", "")
     last_file_modified_time: str = data.get("lastFileModifiedTime", "")
+    last_compile_time: str = data.get("lastCompileTime", "")
 
     print(f"hasDevice: {str(has_device).lower()}")
     print(f"needFallback: {str(need_fallback).lower()}")
     if state_message:
         print(f"stateMessage: {state_message}")
     print(f"lastFileModifiedTime: {last_file_modified_time}")
+    print(f"lastCompileTime: {last_compile_time}")
 
     total = file_counts.get("total", 0)
     print(f"fileCounts: {json.dumps(file_counts)}")

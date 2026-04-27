@@ -5,8 +5,7 @@ date: 2026-04-23
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
-  Trigger before starting any edits.
-  Also trigger when the user says phrases like "go ahead", "start coding", "开始", "开始实现", "动手",
+  Also trigger when the user says phrases like "start coding", "开始实现",
   "implement it", "实现", "fix", "修复", "modify", "修改", "create", "add", "新增", "refactor", "重构".
 ---
 
@@ -101,7 +100,7 @@ All build commands **block** until completion; no polling needed.
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `deploy` | Compile + deploy to device | **Default path** |
-| `compile` | Compile modified sources, no deploy | **Only** when user **explicitly** says "no deploy", "don't deploy", "compile only", or equivalent — never inferred by agent |
+| `compile` | Compile modified sources, no deploy | Should always use `deploy` by default. Use `compile` **Only** when user **explicitly** says "no deploy", "don't deploy", "compile only" — never inferred by agent |
 | `gradle-build` | Full Gradle compile fallback | After `deploy` **retries exhausted and still failed** |
 | `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
 
