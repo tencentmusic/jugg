@@ -20,13 +20,24 @@ object CodexAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
-        return listOf(
+        val targets = mutableListOf(
             AgentHookTarget(
                 settingsFile = File(userHome, ".codex/hooks.json"),
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
-                startEventName = "SessionStart",
+                startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",
             ),
         )
+        resolveInternalSkillHomes(userHome)
+            .filter { it.exists() }
+            .forEach { internalHome ->
+                targets += AgentHookTarget(
+                    settingsFile = File(internalHome, "hooks.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "UserPromptSubmit",
+                    stopEventName = "Stop",
+                )
+            }
+        return targets
     }
 }

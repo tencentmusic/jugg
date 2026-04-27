@@ -5,8 +5,6 @@ date: 2026-04-23
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
-  Also trigger when the user says phrases like "start coding", "开始实现",
-  "implement it", "实现", "fix", "修复", "modify", "修改", "create", "add", "新增", "refactor", "重构".
 ---
 
 # Jugg Android Dev Loop

@@ -350,6 +350,38 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
+    fun testCompileSuccessDeployFailedMessageSaysDeploy() {
+        // When compile succeeds but deploy fails (e.g. no device), errorMessage should say
+        // "deploy failed", not "compile failed".
+        val action = CompileAndDeployMcpToolAction()
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = false,
+                errorMessage = "deploy failed",
+                detail = "No device found. Stop deploying.",
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = false,
+                    isCancel = false,
+                ),
+            )
+        )
+
+        val result = action.execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(
+            "message should say 'deploy failed', got: ${result.message}",
+            result.message.contains("deploy failed"),
+        )
+        Assert.assertFalse(
+            "message should NOT say 'compile failed', got: ${result.message}",
+            result.message.contains("compile failed"),
+        )
+    }
+
+    @Test
     fun testAsyncFailureDetailIsReturnedByGetCompileStatus() {
         CompileJobManager.softTimeoutMillisOverrideForTest = 10L
         val errorDetail = "error: unresolved reference: Foo"

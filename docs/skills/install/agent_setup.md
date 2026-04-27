@@ -23,11 +23,76 @@ You can ask the AI agent to install it to your PATH — see `jugg-android-dev-lo
 
 ---
 
+## Hook Setup (Manual)
+
+If you do not use the in-app installer, you can configure hooks manually.
+
+1. Ensure the hook scripts exist at:
+   - `~/.jugg/skills/hooks/start.py`
+   - `~/.jugg/skills/hooks/stop.py`
+2. Edit your client hook config file(s) and add hook entries.
+3. Use absolute script paths in `command` (do not use relative paths).
+
+Event mapping by client:
+
+| Client | Start event | Stop event | Hook style |
+|--------|-------------|------------|------------|
+| Codex / Claude Code / CodeBuddy | `UserPromptSubmit` | `Stop` | nested event hooks |
+| Gemini CLI | `BeforeAgent` | `AfterAgent` | nested event hooks |
+| Cursor | `beforeSubmitPrompt` | `stop` | flat event commands |
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/start.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/stop.py"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Cursor example (`~/.cursor/hooks.json`):
+
+```json
+{
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/start.py",
+        "matcher": "*"
+      }
+    ],
+    "stop": [
+      {
+        "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/stop.py",
+        "matcher": "*"
+      }
+    ]
+  }
+}
+```
+
 ## MCP Setup (Not Recommended)
 
 > **Not recommended.** The `jugg-android-dev-loop` skill already bundles the `jugg` CLI, which
-> covers all build and deploy operations without requiring MCP. MCP is only useful if you want
-> to call Jugg tools directly from the client's tool-call interface, bypassing the skill workflow.
+> covers all build and deploy operations without requiring MCP.
 
 MCP server config (add to your client's MCP config):
 
@@ -37,9 +102,3 @@ MCP server config (add to your client's MCP config):
   "url": "http://127.0.0.1:12320/jugg-mcp"
 }
 ```
-
-| Client      | Config location                                                    | Key name    |
-|-------------|--------------------------------------------------------------------|-------------|
-| Codex       | `~/.codex/config.toml` — `[mcp_servers."jugg-mcp"]`, `url = ...`  | `jugg-mcp`  |
-| Claude Code | `claude mcp add --transport http --scope user jugg-mcp <url>`      | `jugg-mcp`  |
-| Gemini CLI  | `~/.gemini/settings.json` — `mcpServers.jugg-mcp.httpUrl`          | `jugg-mcp`  |

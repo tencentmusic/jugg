@@ -153,7 +153,9 @@ class JuggConfigurationRunner(
             isSuccess = isSuccess,
             runResult = runResult,
             detail = detail,
-            errorMessage = if (!isSuccess) runResult?.let { "compile failed" } else null,
+            errorMessage = if (!isSuccess) runResult?.let { r ->
+                if (r.isCompileSuccess) "deploy failed" else "compile failed"
+            } else null,
         )
     }
 }

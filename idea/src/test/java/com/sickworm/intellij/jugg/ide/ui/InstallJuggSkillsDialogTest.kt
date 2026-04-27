@@ -31,6 +31,29 @@ class InstallJuggSkillsDialogTest {
     }
 
     @Test
+    fun defaultClientSelection_shouldTreatCursorHomeAsInstalledWithoutSkillsDir() {
+        val userHome = Files.createTempDirectory("jugg-home-cursor-default").toFile()
+        assertTrue(File(userHome, ".cursor").mkdirs())
+        assertTrue(InstallJuggSkillsDialog.shouldDefaultCheck(InstallClient.CURSOR, userHome))
+    }
+
+    @Test
+    fun defaultClientSelection_shouldTreatAllAgentRootsAsInstalledWithoutSkillsDir() {
+        val userHome = Files.createTempDirectory("jugg-home-all-agent-roots").toFile()
+        InstallClient.values().forEach { client ->
+            val agentRoot = InstallAgents.resolveAgentInstaller(client).resolvePrimarySkillRoot(userHome).parentFile
+                ?: throw AssertionError("missing_agent_root_for_${client.name}")
+            if (!agentRoot.exists()) {
+                assertTrue("failed_to_create_agent_root_${client.name}", agentRoot.mkdirs())
+            }
+            assertTrue(
+                "agent_${client.name}_should_be_default_checked_when_root_exists",
+                InstallJuggSkillsDialog.shouldDefaultCheck(client, userHome)
+            )
+        }
+    }
+
+    @Test
     fun exportAndInstallSkills_shouldInstallSkillToClientConfigDir() {
         val projectDir = Files.createTempDirectory("jugg-project-manual").toFile()
         val userHome = Files.createTempDirectory("jugg-home-manual").toFile()

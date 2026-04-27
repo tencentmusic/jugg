@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SessionStart hook: record Jugg status baseline for the current project."""
+"""Start-phase hook: record Jugg status baseline for the current project."""
 
 from __future__ import annotations
 

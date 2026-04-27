@@ -41,8 +41,8 @@
 - 运行配置与设置：`ide/logic/JuggRunSettingsComponent.kt`、`JuggRunConfigurationOptionsExt.kt`。  
 - More Options 下拉与工具入口：`ide/logic/MoreOptionsManager.kt`、`ide/ui/InstallJuggSkillsDialog.kt`。  
   - `Tools` 分组首项支持 `Install Jugg Skills`，可多选 `Codex / Claude Code / Gemini / CodeBuddy / Cursor`，并触发 `JuggSkillInstaller.kt` 通过代码直接完成 skill 安装（内置 zip 资源）与 CLI 安装。  
-  - 安装弹窗默认开启 agent hooks 安装，注入 `SessionStart`/`Stop` command hooks：`SessionStart` 调用 `~/.jugg/skills/hooks/start.py` 记录 `jugg status` 基线；`Stop` 调用 `~/.jugg/skills/hooks/stop.py` 对比基线，若 `lastCompileTime` 已变化则放行，否则在检测到 Android 改动且仍有 pending files 时阻断停止。。  
-  - 安装弹窗提供 `Manual Setup Guide`，运行时直接复用 `~/.jugg/skills/install/agent_setup.md`，并复用同目录下的 `~/.jugg/skills/jugg-android-dev-loop/`；不再导出到 `build/jugg/config`（`main/ai/skills/ClientSetupDocExporter.kt`）。  
+  - 安装弹窗默认开启 agent hooks 安装，按客户端注入对应事件名 `UserPromptSubmit` + `Stop`，在检测到 Android 改动且没有调用过编译时阻断停止。  
+  - 安装弹窗提供 `Manual Setup Guide`，运行时复用 `~/.jugg/skills/install/agent_setup.md`（`main/ai/skills/ClientSetupDocExporter.kt`）。  
 - 操作入口：`ide/ui/GradleCompileAction.kt`、`RestartAppAction.kt` 等。  
 - 通知与对话框：`JuggCommonNotification.kt`、`BuildChangesConfirmDialog.kt`、`Report*Dialog.kt`。
 

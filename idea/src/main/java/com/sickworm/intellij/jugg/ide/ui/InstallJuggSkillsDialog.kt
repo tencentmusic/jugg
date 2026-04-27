@@ -147,7 +147,7 @@ class InstallJuggSkillsDialog(
 
     /** Checks the box by default if any install dir for this client already exists on disk. */
     private fun JBCheckBox.applyDefaultCheck(client: InstallClient): JBCheckBox {
-        isSelected = JuggSkillInstaller.getInstallDirs(client, userHome).any { it.exists() }
+        isSelected = shouldDefaultCheck(client, userHome)
         return this
     }
 
@@ -209,6 +209,21 @@ class InstallJuggSkillsDialog(
         internal fun additionalOptionsTitle(): String = "Additional options: (Recommended)"
 
         internal fun hooksInstallPathHint(): String = "~/.jugg/skills/hooks"
+
+        /**
+         * Controls default checked state in install dialog.
+         * A client is considered installed when its home root exists, even if
+         * "skills" is not created yet.
+         */
+        internal fun shouldDefaultCheck(client: InstallClient, userHome: File): Boolean {
+            val agentRoot = InstallAgents.resolveAgentInstaller(client)
+                .resolvePrimarySkillRoot(userHome)
+                .parentFile
+            if (agentRoot?.exists() == true) {
+                return true
+            }
+            return JuggSkillInstaller.getInstallDirs(client, userHome).any { it.exists() }
+        }
 
         fun showAndGetResult(project: Project, projectDir: File): InstallOptions {
             var result = InstallOptions(emptySet(), installCli = false, installHooks = false)

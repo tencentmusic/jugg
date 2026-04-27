@@ -19,6 +19,9 @@ class JuggHookInstallerMultiAgentTest {
     @Test
     fun installForClients_shouldInjectHooksForEachClientWithItsOwnConfigStyle() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-multi").toFile()
+        // Pre-create internal dirs so that the installer recognises them and injects hooks
+        File(userHome, ".gemini-internal").mkdirs()
+        File(userHome, ".codex-internal").mkdirs()
 
         val summary = JuggHookInstaller.installForClients(
             clients = setOf(
@@ -31,40 +34,54 @@ class JuggHookInstallerMultiAgentTest {
             logger = logger,
         )
 
-        assertEquals(5, summary.results.size)
+        assertEquals(7, summary.results.size)
         assertTrue(summary.results.all { it.status == "ok" })
 
         assertNestedHookCommands(
             settingsFile = File(userHome, ".codex/hooks.json"),
-            startEventName = "SessionStart",
+            startEventName = "UserPromptSubmit",
+            stopEventName = "Stop",
+            startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
+            stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+        )
+        assertNestedHookCommands(
+            settingsFile = File(userHome, ".codex-internal/hooks.json"),
+            startEventName = "UserPromptSubmit",
             stopEventName = "Stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
         )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".codebuddy/settings.json"),
-            startEventName = "SessionStart",
+            startEventName = "UserPromptSubmit",
             stopEventName = "Stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
         )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".gemini/settings.json"),
-            startEventName = "SessionStart",
-            stopEventName = "SessionEnd",
+            startEventName = "BeforeAgent",
+            stopEventName = "AfterAgent",
+            startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
+            stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+        )
+        assertNestedHookCommands(
+            settingsFile = File(userHome, ".gemini-internal/hooks.json"),
+            startEventName = "BeforeAgent",
+            stopEventName = "AfterAgent",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
         )
         assertFlatHookCommands(
             settingsFile = File(userHome, ".cursor/hooks.json"),
-            startEventName = "sessionStart",
-            stopEventName = "sessionEnd",
+            startEventName = "beforeSubmitPrompt",
+            stopEventName = "stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
         )
         assertNestedCommandUsesPython3(
             settingsFile = File(userHome, ".codebuddy/settings.json"),
-            eventName = "SessionStart",
+            eventName = "UserPromptSubmit",
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
         )
         assertNestedCommandUsesPython3(
@@ -74,14 +91,62 @@ class JuggHookInstallerMultiAgentTest {
         )
         assertFlatCommandUsesPython3(
             settingsFile = File(userHome, ".cursor/hooks.json"),
-            eventName = "sessionStart",
+            eventName = "beforeSubmitPrompt",
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
         )
         assertFlatCommandUsesPython3(
             settingsFile = File(userHome, ".cursor/hooks.json"),
-            eventName = "sessionEnd",
+            eventName = "stop",
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
         )
+    }
+
+    @Test
+    fun installForClients_claude_whenInternalDirAbsent_shouldSkipInternalHooks() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-claude-no-internal").toFile()
+
+        val summary = JuggHookInstaller.installForClients(
+            clients = setOf(InstallClient.CLAUDE),
+            userHome = userHome,
+            logger = logger,
+        )
+
+        // Only the primary .claude/settings.json should be written; .claude-internal must not be created
+        assertEquals(1, summary.results.size)
+        assertTrue(summary.results.all { it.status == "ok" })
+        assertFalse(File(userHome, ".claude-internal/settings.json").exists())
+    }
+
+    @Test
+    fun installForClients_gemini_whenInternalDirAbsent_shouldSkipInternalHooks() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-gemini-no-internal").toFile()
+
+        val summary = JuggHookInstaller.installForClients(
+            clients = setOf(InstallClient.GEMINI),
+            userHome = userHome,
+            logger = logger,
+        )
+
+        // Only the primary .gemini/settings.json should be written; .gemini-internal must not be created
+        assertEquals(1, summary.results.size)
+        assertTrue(summary.results.all { it.status == "ok" })
+        assertFalse(File(userHome, ".gemini-internal/hooks.json").exists())
+    }
+
+    @Test
+    fun installForClients_codex_whenInternalDirAbsent_shouldSkipInternalHooks() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-codex-no-internal").toFile()
+
+        val summary = JuggHookInstaller.installForClients(
+            clients = setOf(InstallClient.CODEX),
+            userHome = userHome,
+            logger = logger,
+        )
+
+        // Only the primary .codex/hooks.json should be written; .codex-internal must not be created
+        assertEquals(1, summary.results.size)
+        assertTrue(summary.results.all { it.status == "ok" })
+        assertFalse(File(userHome, ".codex-internal/hooks.json").exists())
     }
 
     @Test

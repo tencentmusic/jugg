@@ -50,7 +50,7 @@ class JuggHookInstallerTest {
                         ]
                       }
                     ],
-                "SessionStart": [
+                "UserPromptSubmit": [
                   {
                     "hooks": [
                       {"type": "command", "command": "${File(userHome, ".jugg/skills/hooks/start.py").absolutePath}"}
@@ -66,7 +66,7 @@ class JuggHookInstallerTest {
         JuggHookInstaller.installForClaude(userHome, logger)
 
         assertEquals(1, countStopCommandHooks(settingsFile))
-        assertEquals(1, countSessionStartCommandHooks(settingsFile))
+        assertEquals(1, countStartCommandHooks(settingsFile))
     }
 
     @Test
@@ -165,8 +165,8 @@ class JuggHookInstallerTest {
     }
 
     private fun assertStartCommandHookExists(file: File) {
-        val count = countSessionStartCommandHooks(file)
-        assertTrue("missing SessionStart command hook in ${file.path}\n${file.readText()}", count >= 1)
+        val count = countStartCommandHooks(file)
+        assertTrue("missing UserPromptSubmit command hook in ${file.path}\n${file.readText()}", count >= 1)
     }
 
     private fun countStopCommandHooks(file: File): Int {
@@ -178,10 +178,10 @@ class JuggHookInstallerTest {
         )
     }
 
-    private fun countSessionStartCommandHooks(file: File): Int {
+    private fun countStartCommandHooks(file: File): Int {
         return countCommandHooks(
             file = file,
-            eventName = "SessionStart",
+            eventName = "UserPromptSubmit",
             matcher = null,
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
         )

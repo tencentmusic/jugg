@@ -20,13 +20,24 @@ object GeminiAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
-        return listOf(
+        val targets = mutableListOf(
             AgentHookTarget(
                 settingsFile = File(userHome, ".gemini/settings.json"),
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
-                startEventName = "SessionStart",
-                stopEventName = "SessionEnd",
+                startEventName = "BeforeAgent",
+                stopEventName = "AfterAgent",
             ),
         )
+        resolveInternalSkillHomes(userHome)
+            .filter { it.exists() }
+            .forEach { internalHome ->
+                targets += AgentHookTarget(
+                    settingsFile = File(internalHome, "hooks.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "BeforeAgent",
+                    stopEventName = "AfterAgent",
+                )
+            }
+        return targets
     }
 }

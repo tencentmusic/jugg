@@ -167,7 +167,7 @@ def main() -> int:
         f"currentFileCounts={current.get('fileCounts')!r}"
     )
     if should_block:
-        print(STOP_BLOCK_MESSAGE)
+        print(STOP_BLOCK_MESSAGE, file=sys.stderr)
         _debug_log("exit: blocked stop because Android changes are pending")
         return 2
     _debug_log("exit: allow stop")

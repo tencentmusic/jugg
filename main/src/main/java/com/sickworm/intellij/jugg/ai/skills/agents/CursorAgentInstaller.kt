@@ -18,8 +18,8 @@ object CursorAgentInstaller : IAgentInstaller {
             AgentHookTarget(
                 settingsFile = File(userHome, ".cursor/hooks.json"),
                 style = AgentHookConfigStyle.FLAT_EVENT_COMMANDS,
-                startEventName = "sessionStart",
-                stopEventName = "sessionEnd",
+                startEventName = "beforeSubmitPrompt",
+                stopEventName = "stop",
             ),
         )
     }
