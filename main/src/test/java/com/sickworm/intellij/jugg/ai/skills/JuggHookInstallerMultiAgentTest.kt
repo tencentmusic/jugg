@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.openapi.diagnostic.Logger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.mock
@@ -61,10 +62,30 @@ class JuggHookInstallerMultiAgentTest {
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
         )
+        assertNestedCommandUsesPython3(
+            settingsFile = File(userHome, ".codebuddy/settings.json"),
+            eventName = "SessionStart",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
+        )
+        assertNestedCommandUsesPython3(
+            settingsFile = File(userHome, ".codebuddy/settings.json"),
+            eventName = "Stop",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+        )
+        assertFlatCommandUsesPython3(
+            settingsFile = File(userHome, ".cursor/hooks.json"),
+            eventName = "sessionStart",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
+        )
+        assertFlatCommandUsesPython3(
+            settingsFile = File(userHome, ".cursor/hooks.json"),
+            eventName = "sessionEnd",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+        )
     }
 
     @Test
-    fun installForClients_whenEmptySelection_shouldFallbackToClaude() {
+    fun installForClients_whenEmptySelection_shouldSkipHookConfigInjection() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-empty").toFile()
 
         val summary = JuggHookInstaller.installForClients(
@@ -73,9 +94,9 @@ class JuggHookInstallerMultiAgentTest {
             logger = logger,
         )
 
-        assertEquals(2, summary.results.size)
-        assertTrue(File(userHome, ".claude/settings.json").exists())
-        assertTrue(File(userHome, ".claude-internal/settings.json").exists())
+        assertTrue(summary.results.isEmpty())
+        assertFalse(File(userHome, ".claude/settings.json").exists())
+        assertFalse(File(userHome, ".claude-internal/settings.json").exists())
     }
 
     private fun assertNestedHookCommands(
@@ -139,5 +160,51 @@ class JuggHookInstallerMultiAgentTest {
             }
         }
         return false
+    }
+
+    private fun assertNestedCommandUsesPython3(
+        settingsFile: File,
+        eventName: String,
+        commandSuffix: String,
+    ) {
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
+        for (item in eventArray) {
+            if (!item.isJsonObject) {
+                continue
+            }
+            val hooks = item.asJsonObject.getAsJsonArray("hooks")
+            for (hook in hooks) {
+                if (!hook.isJsonObject) {
+                    continue
+                }
+                val command = hook.asJsonObject.get("command")?.asString ?: continue
+                if (command.endsWith(commandSuffix)) {
+                    assertTrue("command should start with python3: $command", command.startsWith("python3 "))
+                    return
+                }
+            }
+        }
+        throw AssertionError("missing command with suffix $commandSuffix in ${settingsFile.path}")
+    }
+
+    private fun assertFlatCommandUsesPython3(
+        settingsFile: File,
+        eventName: String,
+        commandSuffix: String,
+    ) {
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
+        for (item in eventArray) {
+            if (!item.isJsonObject) {
+                continue
+            }
+            val command = item.asJsonObject.get("command")?.asString ?: continue
+            if (command.endsWith(commandSuffix)) {
+                assertTrue("command should start with python3: $command", command.startsWith("python3 "))
+                return
+            }
+        }
+        throw AssertionError("missing command with suffix $commandSuffix in ${settingsFile.path}")
     }
 }

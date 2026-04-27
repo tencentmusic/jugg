@@ -23,6 +23,7 @@ import java.nio.file.StandardCopyOption
 object JuggHookInstaller {
     private const val BACKUP_SUFFIX = ".bak"
     private const val MATCHER_ALL = "*"
+    private const val PYTHON3_PREFIX = "python3 "
     private const val START_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/start.py"
     private const val STOP_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/stop.py"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
@@ -39,15 +40,17 @@ object JuggHookInstaller {
 
     /**
      * Installs hook config for selected clients.
-     * If no client is selected, default to Claude for compatibility.
+     * If no client is selected, no hook config is injected.
      */
     fun installForClients(
         clients: Set<InstallClient>,
         userHome: File = File(System.getProperty("user.home")),
         logger: Logger,
     ): HookInstallSummary {
-        val startCommand = File(userHome, START_HOOK_RELATIVE_PATH).absolutePath
-        val stopCommand = File(userHome, STOP_HOOK_RELATIVE_PATH).absolutePath
+        val startScriptPath = File(userHome, START_HOOK_RELATIVE_PATH).absolutePath
+        val stopScriptPath = File(userHome, STOP_HOOK_RELATIVE_PATH).absolutePath
+        val startCommand = "$PYTHON3_PREFIX$startScriptPath"
+        val stopCommand = "$PYTHON3_PREFIX$stopScriptPath"
         val targets = resolveTargets(clients, userHome, startCommand, stopCommand)
         val results = targets.map { target ->
             runCatching { installTarget(target) }
@@ -71,12 +74,10 @@ object JuggHookInstaller {
         startCommand: String,
         stopCommand: String,
     ): List<HookInstallTarget> {
-        val effectiveClients = if (clients.isEmpty()) {
-            setOf(InstallClient.CLAUDE)
-        } else {
-            clients
+        if (clients.isEmpty()) {
+            return emptyList()
         }
-        return effectiveClients.toList()
+        return clients.toList()
             .sortedBy { it.name }
             .flatMap { client ->
                 InstallAgents.resolveAgentInstaller(client)
@@ -244,13 +245,20 @@ object JuggHookInstaller {
         }
 
         private fun ensureNestedCommandHook(hookArray: JsonArray, command: String): Boolean {
+            val legacyCommand = toLegacyScriptCommand(command)
             hookArray.forEach { element ->
                 if (!element.isJsonObject) return@forEach
                 val obj = element.asJsonObject
-                if (obj.get("type")?.asString == "command" &&
-                    obj.get("command")?.asString == command
-                ) {
+                if (obj.get("type")?.asString != "command") {
+                    return@forEach
+                }
+                val existingCommand = obj.get("command")?.asString ?: return@forEach
+                if (existingCommand == command) {
                     return false
+                }
+                if (existingCommand == legacyCommand) {
+                    obj.addProperty("command", command)
+                    return true
                 }
             }
             val commandObj = JsonObject().apply {
@@ -292,13 +300,19 @@ object JuggHookInstaller {
         }
 
         private fun ensureFlatCommandEntry(eventHooks: JsonArray, command: String, matcher: String?): Boolean {
+            val legacyCommand = toLegacyScriptCommand(command)
             eventHooks.forEach { element ->
                 if (!element.isJsonObject) return@forEach
                 val obj = element.asJsonObject
-                if (obj.get("command")?.asString != command) {
+                val existingCommand = obj.get("command")?.asString ?: return@forEach
+                if (existingCommand != command && existingCommand != legacyCommand) {
                     return@forEach
                 }
                 if (matcher == null || obj.get("matcher")?.asString == matcher) {
+                    if (existingCommand == legacyCommand) {
+                        obj.addProperty("command", command)
+                        return true
+                    }
                     return false
                 }
             }
@@ -344,6 +358,14 @@ object JuggHookInstaller {
             throw IOException("${key}_must_be_array")
         }
         return current.asJsonArray to false
+    }
+
+    private fun toLegacyScriptCommand(command: String): String {
+        return if (command.startsWith(PYTHON3_PREFIX)) {
+            command.removePrefix(PYTHON3_PREFIX).trim()
+        } else {
+            command
+        }
     }
 }
 
