@@ -94,6 +94,8 @@ class GetStatusMcpToolAction(
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
+        runtime.refreshChangedFilesForStatus()
+
         val deployState = runtime.deployStateManager?.updateDeployState()
             ?: return McpToolResult.internalErrorResult(toolName, "deploy state manager is unavailable")
 

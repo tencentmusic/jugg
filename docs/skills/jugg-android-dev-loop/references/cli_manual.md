@@ -167,8 +167,15 @@ Output: HTML file with full UI hierarchy.
 
 | Command | Purpose |
 |---------|---------|
+| `status` | Show deploy readiness and pending changed-file summary |
 | `devices` | List connected devices |
 | `ssh-info` | Remote troubleshooting info (**requires user consent**) |
+
+### `status`
+
+```
+python3 {SKILL_DIR}/scripts/jugg.py status
+```
 
 ### `ssh-info`
 

@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
+import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 
 class IdeaMcpRuntime(
     override val logger: Logger,
@@ -20,7 +21,12 @@ class IdeaMcpRuntime(
     override val juggConfigurationRunner: IJuggConfigurationRunner,
     override val deployFileManager: DeployFileManager,
     override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker,
+    private val gitFileChangesDetector: GitFileChangesDetector,
 ) : IMcpRuntime {
+
+    override fun refreshChangedFilesForStatus() {
+        gitFileChangesDetector.updateChangedFiles()
+    }
 
     companion object {
         fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {

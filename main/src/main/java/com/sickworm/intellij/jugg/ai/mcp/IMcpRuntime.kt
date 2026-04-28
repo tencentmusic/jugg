@@ -32,6 +32,12 @@ interface IMcpRuntime {
         get() = null
 
     /**
+     * Refreshes file-change state before status snapshots are read.
+     * Default no-op keeps non-IDE runtimes and tests backward-compatible.
+     */
+    fun refreshChangedFilesForStatus() = Unit
+
+    /**
      * Returns whether app process/deploy state is currently ready for runtime tools.
      * Default keeps backward compatibility for tests that do not provide deploy state.
      */

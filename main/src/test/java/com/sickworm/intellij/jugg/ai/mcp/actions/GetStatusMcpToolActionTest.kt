@@ -78,6 +78,35 @@ class GetStatusMcpToolActionTest {
     }
 
     @Test
+    fun testStatusRefreshesChangedFilesBeforeReadingUncompiledFiles() {
+        val projectDir = tempFolder.newFolder("project-refresh")
+        val javaFile = File(projectDir, "ExternalEdit.java")
+        javaFile.writeText("class ExternalEdit {}")
+        javaFile.setLastModified(1_000L)
+        val module = ModuleInfo.virtualModule
+        var refreshedFiles = emptyList<ChangedFile>()
+        val runtime = runtimeWith(
+            deployState = JuggDeployState.READY,
+            hasDevice = true,
+            uncompiledFiles = emptyList(),
+            uncompiledFilesProvider = { refreshedFiles },
+            statusRefresh = {
+                refreshedFiles = listOf(ChangedFile(CompileFile.Type.Java, javaFile, projectDir, module))
+            },
+        )
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val fileCounts = data["fileCounts"] as Map<String, Any>
+        Assert.assertEquals(1, (fileCounts["total"] as Number).toInt())
+        Assert.assertEquals(1, (fileCounts["Java"] as Number).toInt())
+    }
+
+    @Test
     fun testStatusHasDeviceFalseWhenNoDeviceConnected() {
         val deployState = JuggDeployState(
             JuggDeployState.State.NOTHING_CAN_DO,
@@ -294,12 +323,15 @@ class GetStatusMcpToolActionTest {
         hasDevice: Boolean,
         uncompiledFiles: List<ChangedFile>,
         fallbackChecker: IIncrementalCompileFallbackChecker? = null,
+        uncompiledFilesProvider: (() -> List<ChangedFile>)? = null,
+        statusRefresh: () -> Unit = {},
     ): IMcpRuntime {
         val deployStateManager = object : IDeployStateManager {
             override fun updateDeployState(): JuggDeployState = deployState
         }
         val mockDeployFileManager = Mockito.mock(DeployFileManager::class.java)
-        Mockito.`when`(mockDeployFileManager.getUncompiledFiles()).thenReturn(uncompiledFiles)
+        val filesProvider = uncompiledFilesProvider ?: { uncompiledFiles }
+        Mockito.`when`(mockDeployFileManager.getUncompiledFiles()).thenAnswer { filesProvider() }
         val mockDeployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(mockDeployTargetManager.hasDevice).thenReturn(hasDevice)
 
@@ -329,6 +361,7 @@ class GetStatusMcpToolActionTest {
                     throw UnsupportedOperationException("not used in this test")
             }
             override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker? = fallbackChecker
+            override fun refreshChangedFilesForStatus() = statusRefresh()
         }
     }
 }
