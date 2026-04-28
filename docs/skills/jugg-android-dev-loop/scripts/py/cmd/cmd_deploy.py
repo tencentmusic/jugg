@@ -30,4 +30,4 @@ def build_params(args: list[str]) -> dict:
 def cmd_deploy(args: list[str]) -> None:
     remaining = jugglib.normalize_args(args)
     extra = build_params(remaining)
-    jugglib.compile_call("deploy", progress_msg="Deploying...", extra_params=extra or None)
+    jugglib.compile_call("deploy", progress_msg="Deploying", extra_params=extra or None)

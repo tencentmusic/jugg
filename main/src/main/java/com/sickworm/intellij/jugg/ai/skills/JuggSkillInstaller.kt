@@ -216,7 +216,7 @@ object JuggSkillInstaller {
     private fun createSymlink(userHome: File, binDir: File) {
         val localBin = File(userHome, ".local/bin").also { it.mkdirs() }
         val symlinkFile = File(localBin, "jugg")
-        val target = File(binDir, "jugg.py").toPath()
+        val target = File(binDir, "jugg").toPath()
         // Remove existing symlink or file, then create new symlink
         if (symlinkFile.exists() || Files.isSymbolicLink(symlinkFile.toPath())) {
             symlinkFile.delete()

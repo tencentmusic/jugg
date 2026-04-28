@@ -7,4 +7,4 @@ import jugglib
 
 
 def cmd_gradle_build(args: list[str]) -> None:
-    jugglib.compile_call("gradle-build", progress_msg="Running Gradle build...")
+    jugglib.compile_call("gradle-build", progress_msg="Running Gradle build")

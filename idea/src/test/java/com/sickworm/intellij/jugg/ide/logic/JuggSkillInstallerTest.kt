@@ -239,6 +239,28 @@ class JuggSkillInstallerTest {
 
         val symlink = File(userHome, ".local/bin/jugg")
         assertTrue("Symlink should be created in ~/.local/bin", symlink.exists())
+        assertEquals(
+            File(userHome, ".jugg/bin/jugg").toPath(),
+            Files.readSymbolicLink(symlink.toPath()),
+        )
+    }
+
+    @Test
+    fun installCli_shouldKeepWindowsEntryWithoutUnixSymlink() {
+        val userHome = Files.createTempDirectory("jugg-home-cli-windows").toFile()
+        val logger = mock(Logger::class.java)
+        val originalOsName = System.getProperty("os.name")
+
+        try {
+            System.setProperty("os.name", "Windows 11")
+            val result = JuggSkillInstaller.installCli(logger, userHome)
+
+            assertTrue("CLI install should succeed", result.isSuccess)
+            assertTrue(File(userHome, ".jugg/bin/jugg.cmd").exists())
+            assertFalse(File(userHome, ".local/bin/jugg").exists())
+        } finally {
+            System.setProperty("os.name", originalOsName)
+        }
     }
 
     @Test

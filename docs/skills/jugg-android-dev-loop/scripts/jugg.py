@@ -9,7 +9,7 @@ import os
 
 # Ensure the py/ subdirectory is on the path so jugglib and cmd can be imported
 # Use realpath to resolve symlinks so the py/ directory is found correctly
-# when this script is invoked via a symlink (e.g. ~/.local/bin/jugg -> ~/.jugg/bin/jugg.py)
+# when this script is invoked via the wrapper symlink (e.g. ~/.local/bin/jugg -> ~/.jugg/bin/jugg)
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 
