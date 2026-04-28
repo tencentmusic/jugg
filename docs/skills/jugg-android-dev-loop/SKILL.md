@@ -98,8 +98,8 @@ All build commands **block** until completion; no polling needed.
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `deploy` | Compile + deploy to device | **Default path** |
-| `compile` | Compile modified sources, no deploy | Should always use `deploy` by default. Use `compile` **Only** when user **explicitly** says "no deploy", "don't deploy", "compile only" — never inferred by agent |
-| `gradle-build` | Full Gradle compile fallback | After `deploy` **retries exhausted and still failed** |
+| `compile` | Compile modified sources, skip deploy | Always use `deploy` instead of `compile` unless user **explicitly** says "no deploy" — agent should always call `deploy` by default |
+| `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
 | `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
 
 ```
