@@ -72,6 +72,50 @@ class StopHookDecisionTest(unittest.TestCase):
         }
         self.assertFalse(mod.should_block_stop(baseline, current))
 
+    def test_parse_nested_state_round_trip(self):
+        mod = _load_stop_module()
+        raw = {
+            "stopBlockCount": 1,
+            "snapshot": {
+                "cwd": "/tmp",
+                "lastFileModifiedTime": "a",
+                "lastCompileTime": "b",
+                "fileCounts": {"total": 0},
+            },
+        }
+        snapshot, count = mod.parse_stored_state(raw)
+        self.assertEqual(count, 1)
+        self.assertEqual(snapshot["lastFileModifiedTime"], "a")
+
+    def test_parse_legacy_flat_state(self):
+        mod = _load_stop_module()
+        raw = {
+            "lastFileModifiedTime": "x",
+            "lastCompileTime": "y",
+            "fileCounts": {"total": 1},
+        }
+        snapshot, count = mod.parse_stored_state(raw)
+        self.assertEqual(count, 0)
+        self.assertEqual(snapshot["lastFileModifiedTime"], "x")
+
+    def test_compute_stop_hook_result_first_block_then_allow(self):
+        mod = _load_stop_module()
+        code, persist, msg = mod.compute_stop_hook_result(True, 0)
+        self.assertEqual(code, 2)
+        self.assertEqual(persist, 1)
+        self.assertIsNotNone(msg)
+        code2, persist2, msg2 = mod.compute_stop_hook_result(True, 1)
+        self.assertEqual(code2, 0)
+        self.assertIsNone(persist2)
+        self.assertIsNotNone(msg2)
+
+    def test_compute_stop_hook_resets_count_when_no_longer_blocked(self):
+        mod = _load_stop_module()
+        code, persist, msg = mod.compute_stop_hook_result(False, 1)
+        self.assertEqual(code, 0)
+        self.assertEqual(persist, 0)
+        self.assertIsNone(msg)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,6 +18,12 @@ STOP_BLOCK_MESSAGE = (
     "Android code changes were detected in this session. "
     "Before stopping, you must enable the jugg-android-dev-loop skill and complete verification."
 )
+STOP_BLOCK_RETRY_WARNING = (
+    "Warning: pending Android changes remain; allowing session stop after a repeated stop attempt. "
+    "Run deploy/verification when you continue."
+)
+STATE_SNAPSHOT_KEY = "snapshot"
+STATE_STOP_BLOCK_COUNT_KEY = "stopBlockCount"
 DEBUG_LOG_ENV = "JUGG_HOOK_DEBUG_LOG"
 DEFAULT_DEBUG_LOG_PATH = Path.home() / ".jugg" / "skills" / "hooks" / "jugg-hook-debug.log"
 
@@ -134,6 +140,47 @@ def should_block_stop(previous: dict[str, Any], current: dict[str, Any]) -> bool
     return _has_pending_files(file_counts)
 
 
+def parse_stored_state(raw: dict[str, Any]) -> tuple[dict[str, Any], int]:
+    """Split persisted JSON into baseline snapshot and stopBlockCount (legacy flat files supported)."""
+    nested = raw.get(STATE_SNAPSHOT_KEY)
+    if isinstance(nested, dict):
+        return nested, _safe_int(raw.get(STATE_STOP_BLOCK_COUNT_KEY, 0))
+    legacy = {
+        key: value
+        for key, value in raw.items()
+        if key not in (STATE_STOP_BLOCK_COUNT_KEY, STATE_SNAPSHOT_KEY)
+    }
+    return legacy, _safe_int(raw.get(STATE_STOP_BLOCK_COUNT_KEY, 0))
+
+
+def write_hook_state(state_file: Path, snapshot: dict[str, Any], stop_block_count: int) -> None:
+    """Persist baseline snapshot and stopBlockCount in the canonical nested shape."""
+    payload: dict[str, Any] = {
+        STATE_STOP_BLOCK_COUNT_KEY: stop_block_count,
+        STATE_SNAPSHOT_KEY: snapshot,
+    }
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def compute_stop_hook_result(
+    should_block: bool, stop_block_count: int
+) -> tuple[int, int | None, str | None]:
+    """
+    Decide hook exit behavior and whether stopBlockCount must be persisted.
+
+    Returns (exit_code, new_stop_block_count_or_none, stderr_message_or_none).
+    exit_code 2 blocks stop; 0 allows. When the second value is int, caller must persist it.
+    """
+    if not should_block:
+        if stop_block_count > 0:
+            return 0, 0, None
+        return 0, None, None
+    if stop_block_count == 0:
+        return 2, 1, STOP_BLOCK_MESSAGE
+    return 0, None, STOP_BLOCK_RETRY_WARNING
+
+
 def main() -> int:
     _debug_log(f"hook triggered cwd={os.getcwd()}")
     home = Path.home()
@@ -143,35 +190,47 @@ def main() -> int:
         return 0
 
     try:
-        previous = json.loads(state_file.read_text(encoding="utf-8"))
+        raw_state = json.loads(state_file.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         _debug_log(f"exit: invalid state json file={state_file}")
         return 0
-    if not isinstance(previous, dict):
+    if not isinstance(raw_state, dict):
         _debug_log(f"exit: state payload is not object file={state_file}")
         return 0
+
+    previous_snapshot, stop_block_count = parse_stored_state(raw_state)
 
     current = _read_status_snapshot(home)
     if current is None:
         _debug_log("exit: no current snapshot generated")
         return 0
 
-    should_block = should_block_stop(previous, current)
+    should_block = should_block_stop(previous_snapshot, current)
     _debug_log(
         "decision computed "
-        f"shouldBlock={should_block} "
-        f"previousLast={previous.get('lastFileModifiedTime')!r} "
-        f"previousCompile={previous.get('lastCompileTime')!r} "
+        f"shouldBlock={should_block} stopBlockCount={stop_block_count} "
+        f"previousLast={previous_snapshot.get('lastFileModifiedTime')!r} "
+        f"previousCompile={previous_snapshot.get('lastCompileTime')!r} "
         f"currentLast={current.get('lastFileModifiedTime')!r} "
         f"currentCompile={current.get('lastCompileTime')!r} "
         f"currentFileCounts={current.get('fileCounts')!r}"
     )
-    if should_block:
-        print(STOP_BLOCK_MESSAGE, file=sys.stderr)
+    exit_code, new_count, stderr_message = compute_stop_hook_result(should_block, stop_block_count)
+    if stderr_message:
+        print(stderr_message, file=sys.stderr)
+    if new_count is not None:
+        try:
+            write_hook_state(state_file, previous_snapshot, new_count)
+        except OSError as error:
+            _debug_log(f"exit: failed to persist stop state file={state_file} error={error}")
+            return 0
+    if exit_code == 2:
         _debug_log("exit: blocked stop because Android changes are pending")
-        return 2
-    _debug_log("exit: allow stop")
-    return 0
+    elif should_block and stop_block_count > 0:
+        _debug_log("exit: allow stop after repeated block (pending changes remain)")
+    else:
+        _debug_log("exit: allow stop")
+    return exit_code
 
 
 if __name__ == "__main__":

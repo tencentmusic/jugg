@@ -15,6 +15,7 @@ IgnoreLexer.java~
 .gradle
 .DS_Store
 local.properties
+*.pyc
 
 /verification
 

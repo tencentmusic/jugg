@@ -103,9 +103,10 @@ def main() -> int:
         return 0
 
     state_file = _state_file_path(home, os.getcwd())
+    payload: dict[str, Any] = {"stopBlockCount": 0, "snapshot": snapshot}
     try:
         state_file.parent.mkdir(parents=True, exist_ok=True)
-        state_file.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+        state_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     except OSError as error:
         _debug_log(f"exit: failed to persist snapshot file={state_file} error={error}")
         return 0
