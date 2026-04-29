@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -49,6 +50,7 @@ class JuggRunningTask(
     private val juggDeployHelper: JuggDeployerHelper,
     private val initIncrementalCompileTask: () -> Unit,
     private val compileUiHandler: CompileUiHandler,
+    private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg..."), IJuggRunningTask {
 
@@ -296,6 +298,7 @@ class JuggRunningTask(
                 indicator = indicator,
                 isInstall = compileTaskResult.isGradleCompile,
                 compileUiHandler = compileUiHandler,
+                androidTestRunSpec = androidTestRunSpec,
             )
         )
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""

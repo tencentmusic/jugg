@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 
 /**
@@ -9,4 +10,10 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
  */
 interface IJuggRunningTaskCreator {
     fun createAndRun(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): IJuggRunningTask
+
+    fun createAndRun(
+        options: JuggGradleCompileOptions,
+        compileUiHandler: CompileUiHandler,
+        androidTestRunSpec: AndroidTestRunSpec?,
+    ): IJuggRunningTask = createAndRun(options, compileUiHandler)
 }

@@ -354,7 +354,7 @@ class GetStatusMcpToolActionTest {
             }
             override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
                 override val isCompiling: Boolean = false
-                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: com.sickworm.intellij.jugg.compiler.CompileUiHandler): com.intellij.execution.ExecutionResult =
+                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: com.sickworm.intellij.jugg.compiler.CompileUiHandler, androidTestRunSpec: com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec?): com.intellij.execution.ExecutionResult =
                     throw UnsupportedOperationException("not used in this test")
                 override fun forceReInstallNextTime() = throw UnsupportedOperationException("not used in this test")
                 override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean): JuggRunInvocationResult =

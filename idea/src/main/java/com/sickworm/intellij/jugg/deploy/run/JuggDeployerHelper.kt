@@ -171,6 +171,7 @@ class JuggDeployerHelper(
                 val success = launcher.run()
                 if (!success) {
                     logger.warn("Instrumentation test run reported failures.")
+                    return LaunchResult(false, 1, "Instrumentation test run reported failures.", emptyMap())
                 }
             }
         } else if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
@@ -283,7 +284,20 @@ class JuggDeployerHelper(
                     logger.info("Installing APK...\n${apkFiles.joinToString("\n")}")
                 }
                 deployData = JuggDeployData.forInstall(apks)
-                val launchResult = runTask(deployOptions.device, deployData, compileUiHandler = deployOptions.compileUiHandler)
+                val launchResult = runTask(
+                    deployOptions.device,
+                    deployData,
+                    compileUiHandler = deployOptions.compileUiHandler,
+                    androidTestRunSpec = deployOptions.androidTestRunSpec,
+                )
+                if (!launchResult.success) {
+                    return DeployTaskResult(
+                        isSuccess = false,
+                        costTime = costTime(),
+                        deployType = deployData.deployType,
+                        failedReason = launchResult.consoleError,
+                    )
+                }
                 if (deployOptions.isLastDevice) {
                     logger.debug("Installing finished, update info after install.")
                     deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
@@ -363,7 +377,22 @@ class JuggDeployerHelper(
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
                 val finalIsSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck || isRecoverWithReinstall
-                val launchResult = runTask(device, deployData, finalIsSkipExceptOverlayCheck, compileUiHandler = deployOptions.compileUiHandler)
+                val launchResult = runTask(
+                    device,
+                    deployData,
+                    finalIsSkipExceptOverlayCheck,
+                    compileUiHandler = deployOptions.compileUiHandler,
+                    androidTestRunSpec = deployOptions.androidTestRunSpec,
+                )
+                if (!launchResult.success) {
+                    return DeployTaskResult(
+                        isSuccess = false,
+                        isCanFallback = false,
+                        costTime = costTime(),
+                        deployType = deployData.deployType,
+                        failedReason = launchResult.consoleError,
+                    )
+                }
 
                 if (deployOptions.isLastDevice) {
                     logger.debug("Deploying finished, update info after deploy.")

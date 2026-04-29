@@ -24,6 +24,16 @@ class TestLauncher(
     private val consoleOutput: (String) -> Unit,
     private val cancelSignal: () -> Boolean,
     private val logger: Logger,
+    private val runInstrumentation: (
+        device: IDevice,
+        runSpec: AndroidTestRunSpec,
+        runTestApk: ApkInfo,
+        lineConsumer: (String) -> Unit,
+        isCanceled: () -> Boolean,
+    ) -> Int = { device, runSpec, runTestApk, lineConsumer, isCanceled ->
+        AdbCmdHelper(IdeaDeviceAdb(device, logger), logger)
+            .runInstrumentation(runSpec, runTestApk, lineConsumer, isCanceled)
+    },
 ) {
 
     /** Returns true when all tests on all devices passed. */
@@ -33,9 +43,9 @@ class TestLauncher(
         var globalIgnored = 0
         var anyFailure = false
 
-        devices.forEachIndexed { index, device ->
+        devices.forEach { device ->
             val adb = IdeaDeviceAdb(device, logger)
-            val deviceName = adb.displayName ?: device.serialNumber
+            val deviceName = adb.displayName
             consoleOutput("[Device: $deviceName] Running tests...")
 
             val parser = InstrumentationOutputParser()
@@ -52,13 +62,23 @@ class TestLauncher(
                         deviceFailed = event.failed
                         deviceIgnored = event.ignored
                     }
+                    is InstrumentationEvent.TestFinished -> {
+                        if (event.result != InstrumentationEvent.TestResult.OK &&
+                            event.result != InstrumentationEvent.TestResult.IGNORED) {
+                            anyFailure = true
+                        }
+                    }
                     is InstrumentationEvent.Aborted -> anyFailure = true
                     else -> Unit
                 }
             }
 
             try {
-                AdbCmdHelper(adb, logger).runInstrumentation(spec, testApk, parser::feed, cancelSignal)
+                val exitCode = runInstrumentation(device, spec, testApk, parser::feed, cancelSignal)
+                if (exitCode != 0) {
+                    consoleOutput("[Device: $deviceName] Instrumentation command failed with exit code $exitCode")
+                    anyFailure = true
+                }
             } catch (e: Exception) {
                 consoleOutput("[Device: $deviceName] Device disconnected during test run: ${e.message}")
                 anyFailure = true

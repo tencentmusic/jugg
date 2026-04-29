@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 
@@ -16,7 +17,7 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 open class FakeJuggConfigurationRunner : IJuggConfigurationRunner {
     override val isCompiling: Boolean = false
 
-    override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult =
+    override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler, androidTestRunSpec: AndroidTestRunSpec?): ExecutionResult =
         throw UnsupportedOperationException("not used in this test")
 
     override fun forceReInstallNextTime() {

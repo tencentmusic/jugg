@@ -10,6 +10,7 @@ import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import javax.swing.BoxLayout
 import javax.swing.JComponent
@@ -84,6 +85,13 @@ class JuggAndroidTestConfigurationType : ConfigurationTypeBase(
             override fun getOptionsClass() = JuggAndroidTestRunConfigurationOptions::class.java
         })
     }
+
+    companion object {
+        @JvmStatic
+        fun getInstance(): JuggAndroidTestConfigurationType {
+            return ConfigurationTypeUtil.findConfigurationType(JuggAndroidTestConfigurationType::class.java)
+        }
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -132,6 +140,36 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// RunSpec Factory
+// ──────────────────────────────────────────────────────────────────────────────
+
+object JuggAndroidTestRunSpecFactory {
+    fun fromOptions(options: JuggAndroidTestRunConfigurationOptions): AndroidTestRunSpec {
+        return AndroidTestRunSpec(
+            testClass = options.testClass.normalizeBlank(),
+            testMethod = options.testMethod.normalizeBlank(),
+            extraArgs = parseExtraArgs(options.extraArgs),
+            runnerOverride = options.instrumentationRunner.normalizeBlank(),
+        )
+    }
+
+    private fun parseExtraArgs(raw: String?): List<Pair<String, String>> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && it.contains("=") }
+            .map {
+                val key = it.substringBefore("=").trim()
+                val value = it.substringAfter("=").trim()
+                key to value
+            }
+            .filter { it.first.isNotEmpty() && it.second.isNotEmpty() }
+    }
+
+    private fun String?.normalizeBlank(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // RunProfileState (execution entry point)
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -147,9 +185,18 @@ class JuggAndroidTestRunProfileState(
 ) : RunProfileState {
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
-        // Validation and actual launch is handled by JuggManager integration (wired in Phase 1 plan).
-        // For now this is a placeholder that will be completed when JuggManager.runTask overload
-        // accepting AndroidTestRunSpec is added (§7.8 / §8.8).
-        return DefaultExecutionResult()
+        val juggManager = JuggInitializer.getManager(project) ?: return DefaultExecutionResult()
+        val appRunConfigOptions = findAppRunConfigurationOptions(project) ?: return DefaultExecutionResult()
+        val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
+        return juggManager.runTask(appRunConfigOptions, spec)
+    }
+
+    private fun findAppRunConfigurationOptions(project: Project): JuggRunConfigurationOptions? {
+        return com.intellij.execution.RunManager.getInstance(project)
+            .getConfigurationSettingsList(JuggConfigurationType::class.java)
+            .firstOrNull()
+            ?.configuration
+            ?.let { it as? JuggRunConfiguration }
+            ?.state
     }
 }

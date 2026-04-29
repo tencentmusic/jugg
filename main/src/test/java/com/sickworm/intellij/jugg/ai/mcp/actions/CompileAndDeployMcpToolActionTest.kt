@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ai.mcp.actions
 import com.intellij.execution.ExecutionResult
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
@@ -281,7 +282,7 @@ class CompileAndDeployMcpToolActionTest {
             override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
                 override val isCompiling: Boolean = false
 
-                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
+                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler, androidTestRunSpec: AndroidTestRunSpec?): ExecutionResult {
                     throw UnsupportedOperationException("not used in this test")
                 }
 
@@ -332,7 +333,7 @@ class CompileAndDeployMcpToolActionTest {
             override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
                 override val isCompiling: Boolean = false
 
-                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
+                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler, androidTestRunSpec: AndroidTestRunSpec?): ExecutionResult {
                     throw UnsupportedOperationException("not used in this test")
                 }
 

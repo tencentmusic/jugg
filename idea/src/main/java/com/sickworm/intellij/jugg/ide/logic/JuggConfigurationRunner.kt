@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -46,7 +47,12 @@ class JuggConfigurationRunner(
     @Volatile
     private var currentTask: IJuggRunningTask? = null
 
-    override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
+
+    override fun runTask(
+        options: JuggGradleCompileOptions,
+        compileUiHandler: CompileUiHandler,
+        androidTestRunSpec: AndroidTestRunSpec?,
+    ): ExecutionResult {
         if (ForceGradleCompileHelper.isCleanAndReinstallNextTime) {
             forceReInstallNextTime()
         }
@@ -57,7 +63,7 @@ class JuggConfigurationRunner(
         compileUiHandler.processHandler = processHandler
 
         cancelCurrentTask(processHandler) {
-            currentTask = juggRunningTaskCreator.createAndRun(options, compileUiHandler)
+            currentTask = juggRunningTaskCreator.createAndRun(options, compileUiHandler, androidTestRunSpec)
         }
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = false
         ForceGradleCompileHelper.isForceGradleCompileNextTime = false

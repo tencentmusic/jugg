@@ -6,6 +6,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 
 /**
  * API that IDE will call to interact with JuggManager.
@@ -16,7 +17,10 @@ interface IJuggManagerCaller: Disposable {
 
     fun onSyncEvent(syncEvent: SyncEvent)
 
-    fun runTask(options: JuggRunConfigurationOptions): ExecutionResult
+    fun runTask(
+        options: JuggRunConfigurationOptions,
+        androidTestRunSpec: AndroidTestRunSpec? = null,
+    ): ExecutionResult
 
     fun gradleCompile()
 

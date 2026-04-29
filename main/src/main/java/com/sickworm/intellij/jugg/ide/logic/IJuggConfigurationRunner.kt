@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide.logic
 import com.intellij.execution.ExecutionResult
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 
 /**
@@ -12,7 +13,11 @@ interface IJuggConfigurationRunner {
 
     val isCompiling: Boolean
 
-    fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult
+    fun runTask(
+        options: JuggGradleCompileOptions,
+        compileUiHandler: CompileUiHandler,
+        androidTestRunSpec: AndroidTestRunSpec? = null,
+    ): ExecutionResult
 
     fun forceReInstallNextTime()
 

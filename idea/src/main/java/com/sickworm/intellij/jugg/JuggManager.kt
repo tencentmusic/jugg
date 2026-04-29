@@ -12,6 +12,7 @@ import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.ide.*
@@ -363,14 +364,17 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
+    override fun runTask(
+        options: JuggRunConfigurationOptions,
+        androidTestRunSpec: AndroidTestRunSpec?,
+    ): ExecutionResult {
         val compileUiHandler = JuggCompileUiHandler(project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = false,
             options.toCompileOptions(pathManager),
             logger
         )
-        return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler)
+        return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler, androidTestRunSpec)
     }
 
     @TestOnly
@@ -610,6 +614,14 @@ class JuggManager @TestOnly constructor(
             options: JuggGradleCompileOptions,
             compileUiHandler: CompileUiHandler
         ): IJuggRunningTask {
+            return createAndRun(options, compileUiHandler, androidTestRunSpec = null)
+        }
+
+        override fun createAndRun(
+            options: JuggGradleCompileOptions,
+            compileUiHandler: CompileUiHandler,
+            androidTestRunSpec: AndroidTestRunSpec?,
+        ): IJuggRunningTask {
             logger.debug("Create running task: ${options.toSafeString()}")
 
             val startCompileTime = System.currentTimeMillis()
@@ -623,7 +635,7 @@ class JuggManager @TestOnly constructor(
             }
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-                compileUiHandler,
+                compileUiHandler, androidTestRunSpec,
             )
 
             // try reload custom config if changed
