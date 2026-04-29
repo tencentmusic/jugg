@@ -12,6 +12,8 @@
 1. **【最高优先级】同测试对象复用已有文件**：先查第3节索引，若已有覆盖同一被测类/模块的文件，必须在该文件中追加用例，不得新建。
 2. **【次优先级】优先 main 模块**：若同被测对象在 main 和 idea 都没有测试，优先在 `main` 模块新建测试，仅当 main 模块无法覆盖（如需要 IDE API、JuggCompiler 端到端流程、Git 集成）时才在 `idea` 模块新建。
 
+> app androidTest / instrumentation 支持的实现链路与定向测试入口见 [`06_android_test.md`](06_android_test.md)。
+
 ---
 
 ## 2. 测试基础设施
