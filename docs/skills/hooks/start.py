@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -94,8 +95,16 @@ def _read_status_snapshot(home: Path) -> dict[str, Any] | None:
     return snapshot
 
 
+def _parse_args() -> Any:
+    parser = ArgumentParser(description="Jugg start hook.")
+    parser.add_argument("--client", default="", help="Agent client name passed by hook installer.")
+    return parser.parse_args()
+
+
 def main() -> int:
-    _debug_log(f"hook triggered cwd={os.getcwd()}")
+    args = _parse_args()
+    client_part = f" client={args.client}" if args.client else ""
+    _debug_log(f"hook triggered cwd={os.getcwd()}{client_part}")
     home = Path.home()
     snapshot = _read_status_snapshot(home)
     if snapshot is None:

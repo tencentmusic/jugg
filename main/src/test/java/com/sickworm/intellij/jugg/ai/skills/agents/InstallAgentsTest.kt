@@ -36,6 +36,7 @@ class InstallAgentsTest {
     @Test
     fun claudeAgentInstaller_shouldReturnTwoHookSettingsTargets() {
         val userHome = Files.createTempDirectory("jugg-home-claude-hook-agent").toFile()
+        File(userHome, ".claude-internal").mkdirs()
         val targets = ClaudeAgentInstaller.resolveHookTargets(userHome)
 
         assertEquals(
@@ -45,12 +46,14 @@ class InstallAgentsTest {
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = "claude",
                 ),
                 AgentHookTarget(
                     settingsFile = File(userHome, ".claude-internal/settings.json"),
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = "claude",
                 ),
             ),
             targets,
@@ -69,12 +72,14 @@ class InstallAgentsTest {
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = "codebuddy",
                 ),
                 AgentHookTarget(
                     settingsFile = File(userHome, ".codebuddy/settings.local.json"),
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = "codebuddy",
                 ),
             ),
             CodebuddyAgentInstaller.resolveHookTargets(userHome),
@@ -86,6 +91,7 @@ class InstallAgentsTest {
                     style = AgentHookConfigStyle.FLAT_EVENT_COMMANDS,
                     startEventName = "beforeSubmitPrompt",
                     stopEventName = "stop",
+                    clientArgument = "cursor",
                 ),
             ),
             CursorAgentInstaller.resolveHookTargets(userHome),
@@ -95,6 +101,8 @@ class InstallAgentsTest {
     @Test
     fun codexAndGeminiInstallers_shouldExposeHookTargetsWithOwnEventSemantics() {
         val userHome = Files.createTempDirectory("jugg-home-agent-hooks-others").toFile()
+        File(userHome, ".codex-internal").mkdirs()
+        File(userHome, ".gemini-internal").mkdirs()
 
         assertEquals(
             listOf(
@@ -103,12 +111,14 @@ class InstallAgentsTest {
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = "codex",
                 ),
                 AgentHookTarget(
                     settingsFile = File(userHome, ".codex-internal/hooks.json"),
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = "codex",
                 ),
             ),
             CodexAgentInstaller.resolveHookTargets(userHome),
@@ -120,12 +130,14 @@ class InstallAgentsTest {
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "BeforeAgent",
                     stopEventName = "AfterAgent",
+                    clientArgument = "gemini",
                 ),
                 AgentHookTarget(
                     settingsFile = File(userHome, ".gemini-internal/hooks.json"),
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "BeforeAgent",
                     stopEventName = "AfterAgent",
+                    clientArgument = "gemini",
                 ),
             ),
             GeminiAgentInstaller.resolveHookTargets(userHome),

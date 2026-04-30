@@ -30,6 +30,7 @@ object ClaudeAgentInstaller : IAgentInstaller {
             style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
             startEventName = "UserPromptSubmit",
             stopEventName = "Stop",
+            clientArgument = client.cliName,
         )
         val targets = mutableListOf(primary)
         resolveInternalSkillHomes(userHome)
@@ -40,6 +41,7 @@ object ClaudeAgentInstaller : IAgentInstaller {
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = client.cliName,
                 )
             }
         return targets

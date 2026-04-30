@@ -10,6 +10,7 @@ data class AgentHookTarget(
     val style: AgentHookConfigStyle,
     val startEventName: String,
     val stopEventName: String,
+    val clientArgument: String,
 )
 
 /**

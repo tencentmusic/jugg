@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -181,8 +182,16 @@ def compute_stop_hook_result(
     return 0, None, STOP_BLOCK_RETRY_WARNING
 
 
+def _parse_args() -> Any:
+    parser = ArgumentParser(description="Jugg stop hook.")
+    parser.add_argument("--client", default="", help="Agent client name passed by hook installer.")
+    return parser.parse_args()
+
+
 def main() -> int:
-    _debug_log(f"hook triggered cwd={os.getcwd()}")
+    args = _parse_args()
+    client_part = f" client={args.client}" if args.client else ""
+    _debug_log(f"hook triggered cwd={os.getcwd()}{client_part}")
     home = Path.home()
     state_file = _state_file_path(home, os.getcwd())
     if not state_file.exists():
@@ -217,7 +226,7 @@ def main() -> int:
     )
     exit_code, new_count, stderr_message = compute_stop_hook_result(should_block, stop_block_count)
     if stderr_message:
-        print(stderr_message, file=sys.stderr)
+        sys.stderr.write(f"{stderr_message}\n")
     if new_count is not None:
         try:
             write_hook_state(state_file, previous_snapshot, new_count)

@@ -20,12 +20,14 @@ object CodebuddyAgentInstaller : IAgentInstaller {
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                 startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",
+                clientArgument = client.cliName,
             ),
             AgentHookTarget(
                 settingsFile = File(userHome, ".codebuddy/settings.local.json"),
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                 startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",
+                clientArgument = client.cliName,
             ),
         )
     }

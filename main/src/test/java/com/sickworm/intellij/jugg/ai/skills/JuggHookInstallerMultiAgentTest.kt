@@ -43,6 +43,7 @@ class JuggHookInstallerMultiAgentTest {
             stopEventName = "Stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "codex",
         )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".codex-internal/hooks.json"),
@@ -50,6 +51,7 @@ class JuggHookInstallerMultiAgentTest {
             stopEventName = "Stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "codex",
         )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".codebuddy/settings.json"),
@@ -57,6 +59,7 @@ class JuggHookInstallerMultiAgentTest {
             stopEventName = "Stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "codebuddy",
         )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".gemini/settings.json"),
@@ -64,6 +67,7 @@ class JuggHookInstallerMultiAgentTest {
             stopEventName = "AfterAgent",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "gemini",
         )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".gemini-internal/hooks.json"),
@@ -71,6 +75,7 @@ class JuggHookInstallerMultiAgentTest {
             stopEventName = "AfterAgent",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "gemini",
         )
         assertFlatHookCommands(
             settingsFile = File(userHome, ".cursor/hooks.json"),
@@ -78,6 +83,7 @@ class JuggHookInstallerMultiAgentTest {
             stopEventName = "stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "cursor",
         )
         assertNestedCommandUsesPython3(
             settingsFile = File(userHome, ".codebuddy/settings.json"),
@@ -170,13 +176,14 @@ class JuggHookInstallerMultiAgentTest {
         stopEventName: String,
         startCommandSuffix: String,
         stopCommandSuffix: String,
+        clientArgument: String,
     ) {
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val hooks = root.getAsJsonObject("hooks")
         val startEvent = hooks.getAsJsonArray(startEventName)
         val stopEvent = hooks.getAsJsonArray(stopEventName)
-        assertTrue(findNestedCommand(startEvent, startCommandSuffix))
-        assertTrue(findNestedCommand(stopEvent, stopCommandSuffix))
+        assertTrue(findNestedCommand(startEvent, startCommandSuffix, clientArgument))
+        assertTrue(findNestedCommand(stopEvent, stopCommandSuffix, clientArgument))
     }
 
     private fun assertFlatHookCommands(
@@ -185,16 +192,17 @@ class JuggHookInstallerMultiAgentTest {
         stopEventName: String,
         startCommandSuffix: String,
         stopCommandSuffix: String,
+        clientArgument: String,
     ) {
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val hooks = root.getAsJsonObject("hooks")
         val startEvent = hooks.getAsJsonArray(startEventName)
         val stopEvent = hooks.getAsJsonArray(stopEventName)
-        assertTrue(findFlatCommand(startEvent, startCommandSuffix))
-        assertTrue(findFlatCommand(stopEvent, stopCommandSuffix))
+        assertTrue(findFlatCommand(startEvent, startCommandSuffix, clientArgument))
+        assertTrue(findFlatCommand(stopEvent, stopCommandSuffix, clientArgument))
     }
 
-    private fun findNestedCommand(eventArray: JsonArray, commandSuffix: String): Boolean {
+    private fun findNestedCommand(eventArray: JsonArray, commandSuffix: String, clientArgument: String): Boolean {
         for (item in eventArray) {
             if (!item.isJsonObject) {
                 continue
@@ -205,7 +213,7 @@ class JuggHookInstallerMultiAgentTest {
                     continue
                 }
                 val command = hook.asJsonObject.get("command")?.asString ?: continue
-                if (command.endsWith(commandSuffix)) {
+                if (command.contains(commandSuffix) && command.endsWith("--client $clientArgument")) {
                     return true
                 }
             }
@@ -213,14 +221,14 @@ class JuggHookInstallerMultiAgentTest {
         return false
     }
 
-    private fun findFlatCommand(eventArray: JsonArray, commandSuffix: String): Boolean {
+    private fun findFlatCommand(eventArray: JsonArray, commandSuffix: String, clientArgument: String): Boolean {
         for (item in eventArray) {
             if (!item.isJsonObject) {
                 continue
             }
             val itemObject: JsonObject = item.asJsonObject
             val command = itemObject.get("command")?.asString ?: continue
-            if (command.endsWith(commandSuffix)) {
+            if (command.contains(commandSuffix) && command.endsWith("--client $clientArgument")) {
                 return true
             }
         }
@@ -244,7 +252,7 @@ class JuggHookInstallerMultiAgentTest {
                     continue
                 }
                 val command = hook.asJsonObject.get("command")?.asString ?: continue
-                if (command.endsWith(commandSuffix)) {
+                if (command.contains(commandSuffix)) {
                     assertTrue("command should start with python3: $command", command.startsWith("python3 "))
                     return
                 }
@@ -265,7 +273,7 @@ class JuggHookInstallerMultiAgentTest {
                 continue
             }
             val command = item.asJsonObject.get("command")?.asString ?: continue
-            if (command.endsWith(commandSuffix)) {
+            if (command.contains(commandSuffix)) {
                 assertTrue("command should start with python3: $command", command.startsWith("python3 "))
                 return
             }

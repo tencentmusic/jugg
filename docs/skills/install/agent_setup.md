@@ -41,6 +41,10 @@ Event mapping by client:
 | Gemini CLI | `BeforeAgent` | `AfterAgent` | nested event hooks |
 | Cursor | `beforeSubmitPrompt` | `stop` | flat event commands |
 
+Use the matching client value in hook commands: `claude`, `cursor`, `codebuddy` or others.
+
+Example:
+
 ```json
 {
   "hooks": {
@@ -49,7 +53,7 @@ Event mapping by client:
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/start.py"
+            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/start.py --client claude"
           }
         ]
       }
@@ -59,30 +63,9 @@ Event mapping by client:
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/stop.py"
+            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/stop.py --client claude"
           }
         ]
-      }
-    ]
-  }
-}
-```
-
-Cursor example (`~/.cursor/hooks.json`):
-
-```json
-{
-  "hooks": {
-    "beforeSubmitPrompt": [
-      {
-        "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/start.py",
-        "matcher": "*"
-      }
-    ],
-    "stop": [
-      {
-        "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/stop.py",
-        "matcher": "*"
       }
     ]
   }

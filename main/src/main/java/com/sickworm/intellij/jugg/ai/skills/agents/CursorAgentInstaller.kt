@@ -20,6 +20,7 @@ object CursorAgentInstaller : IAgentInstaller {
                 style = AgentHookConfigStyle.FLAT_EVENT_COMMANDS,
                 startEventName = "beforeSubmitPrompt",
                 stopEventName = "stop",
+                clientArgument = client.cliName,
             ),
         )
     }

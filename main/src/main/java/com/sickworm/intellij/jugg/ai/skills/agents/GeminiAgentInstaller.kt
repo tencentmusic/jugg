@@ -26,6 +26,7 @@ object GeminiAgentInstaller : IAgentInstaller {
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                 startEventName = "BeforeAgent",
                 stopEventName = "AfterAgent",
+                clientArgument = client.cliName,
             ),
         )
         resolveInternalSkillHomes(userHome)
@@ -36,6 +37,7 @@ object GeminiAgentInstaller : IAgentInstaller {
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "BeforeAgent",
                     stopEventName = "AfterAgent",
+                    clientArgument = client.cliName,
                 )
             }
         return targets

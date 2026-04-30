@@ -26,6 +26,7 @@ object CodexAgentInstaller : IAgentInstaller {
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                 startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",
+                clientArgument = client.cliName,
             ),
         )
         resolveInternalSkillHomes(userHome)
@@ -36,6 +37,7 @@ object CodexAgentInstaller : IAgentInstaller {
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
+                    clientArgument = client.cliName,
                 )
             }
         return targets

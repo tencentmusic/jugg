@@ -24,6 +24,7 @@ object JuggHookInstaller {
     private const val BACKUP_SUFFIX = ".bak"
     private const val MATCHER_ALL = "*"
     private const val PYTHON3_PREFIX = "python3 "
+    private const val CLIENT_OPTION = "--client"
     private const val START_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/start.py"
     private const val STOP_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/stop.py"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
@@ -49,9 +50,7 @@ object JuggHookInstaller {
     ): HookInstallSummary {
         val startScriptPath = File(userHome, START_HOOK_RELATIVE_PATH).absolutePath
         val stopScriptPath = File(userHome, STOP_HOOK_RELATIVE_PATH).absolutePath
-        val startCommand = "$PYTHON3_PREFIX$startScriptPath"
-        val stopCommand = "$PYTHON3_PREFIX$stopScriptPath"
-        val targets = resolveTargets(clients, userHome, startCommand, stopCommand)
+        val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath)
         val results = targets.map { target ->
             runCatching { installTarget(target) }
                 .onFailure { error ->
@@ -71,8 +70,8 @@ object JuggHookInstaller {
     private fun resolveTargets(
         clients: Set<InstallClient>,
         userHome: File,
-        startCommand: String,
-        stopCommand: String,
+        startScriptPath: String,
+        stopScriptPath: String,
     ): List<HookInstallTarget> {
         if (clients.isEmpty()) {
             return emptyList()
@@ -85,10 +84,18 @@ object JuggHookInstaller {
                     .map { target ->
                         HookInstallTarget(
                             file = target.settingsFile,
-                            adapter = buildAdapter(target, startCommand, stopCommand),
+                            adapter = buildAdapter(
+                                target = target,
+                                startCommand = buildHookCommand(startScriptPath, target.clientArgument),
+                                stopCommand = buildHookCommand(stopScriptPath, target.clientArgument),
+                            ),
                         )
                     }
             }
+    }
+
+    private fun buildHookCommand(scriptPath: String, clientArgument: String): String {
+        return "$PYTHON3_PREFIX$scriptPath $CLIENT_OPTION $clientArgument"
     }
 
     private fun buildAdapter(target: AgentHookTarget, startCommand: String, stopCommand: String): HookConfigAdapter {
@@ -245,7 +252,7 @@ object JuggHookInstaller {
         }
 
         private fun ensureNestedCommandHook(hookArray: JsonArray, command: String): Boolean {
-            val legacyCommand = toLegacyScriptCommand(command)
+            val legacyCommands = toLegacyScriptCommands(command)
             hookArray.forEach { element ->
                 if (!element.isJsonObject) return@forEach
                 val obj = element.asJsonObject
@@ -256,7 +263,7 @@ object JuggHookInstaller {
                 if (existingCommand == command) {
                     return false
                 }
-                if (existingCommand == legacyCommand) {
+                if (existingCommand in legacyCommands) {
                     obj.addProperty("command", command)
                     return true
                 }
@@ -300,16 +307,16 @@ object JuggHookInstaller {
         }
 
         private fun ensureFlatCommandEntry(eventHooks: JsonArray, command: String, matcher: String?): Boolean {
-            val legacyCommand = toLegacyScriptCommand(command)
+            val legacyCommands = toLegacyScriptCommands(command)
             eventHooks.forEach { element ->
                 if (!element.isJsonObject) return@forEach
                 val obj = element.asJsonObject
                 val existingCommand = obj.get("command")?.asString ?: return@forEach
-                if (existingCommand != command && existingCommand != legacyCommand) {
+                if (existingCommand != command && existingCommand !in legacyCommands) {
                     return@forEach
                 }
                 if (matcher == null || obj.get("matcher")?.asString == matcher) {
-                    if (existingCommand == legacyCommand) {
+                    if (existingCommand in legacyCommands) {
                         obj.addProperty("command", command)
                         return true
                     }
@@ -360,12 +367,10 @@ object JuggHookInstaller {
         return current.asJsonArray to false
     }
 
-    private fun toLegacyScriptCommand(command: String): String {
-        return if (command.startsWith(PYTHON3_PREFIX)) {
-            command.removePrefix(PYTHON3_PREFIX).trim()
-        } else {
-            command
-        }
+    private fun toLegacyScriptCommands(command: String): Set<String> {
+        val pythonCommand = command.substringBefore(" $CLIENT_OPTION ")
+        val bareScriptCommand = pythonCommand.removePrefix(PYTHON3_PREFIX).trim()
+        return setOf(pythonCommand, bareScriptCommand)
     }
 }
 
