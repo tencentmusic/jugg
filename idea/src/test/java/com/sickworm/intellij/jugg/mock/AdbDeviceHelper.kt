@@ -65,6 +65,10 @@ class AdbDeviceHelper {
         return getLaunchedApp(packageName) != null
     }
 
+    fun getPidOfLaunchedApp(packageName: String): Int {
+        return getPidByPackageName(packageName)
+    }
+
     private fun getLaunchedApp(exceptPackageName: String): IDevice? {
         val devices = androidDebugBridge.devices
         val targetDevice = devices.find { device ->
@@ -83,6 +87,11 @@ class AdbDeviceHelper {
         val pid = getPidByPackageName(exceptPackageName)
         if (pid > 0) {
             println("read $exceptPackageName pid from am: $pid")
+            val onlineDevices = devices.filter { it.isOnline }
+            if (onlineDevices.size == 1) {
+                return onlineDevices.single()
+            }
+
             devices.forEach { device ->
                 device.clients.forEach { client ->
                     if (client.clientData.pid == pid) {

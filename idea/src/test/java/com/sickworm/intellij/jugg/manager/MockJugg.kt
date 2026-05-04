@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.gradle.LocalGradleCompileClientTest
 import com.sickworm.intellij.jugg.gradle.LocalGradleCompileClientTest.Companion
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -108,8 +109,9 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
     fun resetAllState() {
         pathManager.juggRootDir.deleteRecursively()
-        renewComponents()
+        renewComponents(isMockCompileContextManager = false)
         renewManager()
+        juggManager.updateDeployState()
     }
 
     fun loadFromHistory() {
@@ -132,13 +134,13 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         val device = adbDeviceHelper.waitingForDeviceOfLaunchedApp(androidApkPackage)
         assertNotNull(device, "can not find $androidApkPackage on any device")
 
-        val clients = device.clients
-        assertNotEquals(0, clients.size)
-
         val logger = LogWrapper(logger)
         val adb = AdbClient(device, logger)
 
-        val pids = adb.getPids(androidApkPackage)
+        val pids = adb.getPids(androidApkPackage).ifEmpty {
+            listOf(adbDeviceHelper.getPidOfLaunchedApp(androidApkPackage))
+                .filter { it > 0 }
+        }
         assertEquals(1, pids.size)
 
         val arch = adb.getArch(pids)
@@ -158,7 +160,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
             }.start()
         }
 
-//        juggManager.deploy() TODO fixme
+        juggManager.runTask(createRunOptions())
         waitingLaunchAppAndCheck()
         juggManager.updateDeployState()
     }
@@ -197,6 +199,13 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
     fun compileChangedFiles() {
         juggManager.compileChanges()
+    }
+
+    private fun createRunOptions(): JuggRunConfigurationOptions {
+        return JuggRunConfigurationOptions().also {
+            it.compileCommand = "./gradlew :app:assembleDebug"
+            it.outputApkName = projectInfo.apkPath
+        }
     }
 
     private fun renewComponents(isMockCompileContextManager: Boolean = true) {

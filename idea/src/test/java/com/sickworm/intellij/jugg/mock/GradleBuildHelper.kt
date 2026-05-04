@@ -21,7 +21,7 @@ object GradleBuildHelper {
 
     fun appAssembleDebug(initScriptPath: String? = null) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug $initArg", null, assetsAndroidDir)
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug --no-daemon $initArg", null, assetsAndroidDir)
         println("\n----------- assembleDebug start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()
@@ -35,7 +35,7 @@ object GradleBuildHelper {
 
     fun appAssembleRelease(initScriptPath: String? = null) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleRelease $initArg", null, assetsAndroidDir)
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleRelease --no-daemon $initArg", null, assetsAndroidDir)
         println("\n----------- assembleRelease start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()

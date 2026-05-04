@@ -5,6 +5,7 @@ date: 2026-04-23
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
+  Don't trigger on a non-Android project e.g. IntelliJ plugin project or common java/kotlin project.
 ---
 
 # Jugg Android Dev Loop

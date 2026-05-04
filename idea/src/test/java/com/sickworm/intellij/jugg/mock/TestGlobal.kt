@@ -4,8 +4,16 @@ import com.android.tools.idea.gradle.dsl.api.GradleModelProvider
 import com.android.tools.idea.gradle.dsl.model.GradleModelSource
 import com.google.gson.JsonSyntaxException
 import com.intellij.execution.configurations.ConfigurationType
+import com.intellij.execution.filters.Filter
+import com.intellij.execution.filters.HyperlinkInfo
+import com.intellij.execution.filters.TextConsoleBuilder
+import com.intellij.execution.filters.TextConsoleBuilderFactory
+import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.ui.ConsoleView
+import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.impl.ApplicationInfoImpl
@@ -14,8 +22,10 @@ import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.ui.messages.MessagesService
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.registerExtension
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
@@ -26,6 +36,8 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.mockito.Mockito
 import java.io.File
+import javax.swing.JComponent
+import javax.swing.JPanel
 
 object TestGlobal {
 
@@ -91,6 +103,7 @@ object TestGlobal {
 
         application.registerService(GradleModelProvider::class.java, GradleModelSource())
         application.registerService(MessagesService::class.java, Mockito.mock(MessagesService::class.java))
+        application.registerService(TextConsoleBuilderFactory::class.java, MockTextConsoleBuilderFactory())
 
         val mockProgressManager = Mockito.mock(ProgressManager::class.java)
         Mockito.doAnswer {
@@ -114,4 +127,78 @@ object TestGlobal {
         // already do in init block
     }
 
+}
+
+private class MockTextConsoleBuilderFactory : TextConsoleBuilderFactory() {
+    override fun createBuilder(project: Project): TextConsoleBuilder {
+        return MockTextConsoleBuilder()
+    }
+
+    override fun createBuilder(project: Project, scope: GlobalSearchScope): TextConsoleBuilder {
+        return MockTextConsoleBuilder()
+    }
+}
+
+private class MockTextConsoleBuilder : TextConsoleBuilder() {
+    override fun getConsole(): ConsoleView {
+        return MockConsoleView()
+    }
+
+    override fun addFilter(filter: Filter) {
+    }
+
+    override fun setViewer(isViewer: Boolean) {
+    }
+}
+
+private class MockConsoleView : ConsoleView {
+    private val component = JPanel()
+
+    override fun print(text: String, contentType: ConsoleViewContentType) {
+    }
+
+    override fun clear() {
+    }
+
+    override fun scrollTo(offset: Int) {
+    }
+
+    override fun attachToProcess(processHandler: ProcessHandler) {
+    }
+
+    override fun setOutputPaused(value: Boolean) {
+    }
+
+    override fun isOutputPaused(): Boolean = false
+
+    override fun hasDeferredOutput(): Boolean = false
+
+    override fun performWhenNoDeferredOutput(runnable: Runnable) {
+        runnable.run()
+    }
+
+    override fun setHelpId(helpId: String) {
+    }
+
+    override fun addMessageFilter(filter: Filter) {
+    }
+
+    override fun printHyperlink(hyperlinkText: String, info: HyperlinkInfo?) {
+    }
+
+    override fun getContentSize(): Int = 0
+
+    override fun canPause(): Boolean = false
+
+    override fun createConsoleActions(): Array<AnAction> = emptyArray()
+
+    override fun allowHeavyFilters() {
+    }
+
+    override fun getComponent(): JComponent = component
+
+    override fun getPreferredFocusableComponent(): JComponent = component
+
+    override fun dispose() {
+    }
 }

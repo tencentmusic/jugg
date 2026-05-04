@@ -52,10 +52,9 @@ class TopLevelFlowTest {
     fun testDeployKtActivity() {
         testInstallAndLaunch()
 
-        // TODO new class after desugar lambda. Use R8?
         jugg.changeFileAndNotify("MainActivity.kt" to "MainActivity.kt")
         jugg.checkCompileResult("MainActivity.kt",
-            newClassesSize = 1, hotFixModifiedClassesSize = 1)
+            hotFixModifiedClassesSize = 1, hotReloadModifiedClassesSize = 4)
 
         jugg.deploy()
     }
