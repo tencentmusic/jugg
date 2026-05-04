@@ -139,6 +139,7 @@ gutter 约束：
 
 - 只支持路径包含 `/app/src/androidTest/` 的测试。
 - 识别 `org.junit.Test` 与 `org.junit.jupiter.api.Test`。
+- Java / Kotlin PSI 都支持，gutter 通过测试注解 owner 判定，不依赖单一 PSI 类型。
 - 未开启 `enableAndroidTest` 时只弹 Notification，引导用户打开 App RunConfig，不自动修改配置。
 
 ### 4.2 AndroidTestRunSpec 传递
@@ -265,6 +266,7 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 1. 文件路径是否在 `/app/src/androidTest/` 下。
 2. test 方法或类是否有 `org.junit.Test` / `org.junit.jupiter.api.Test`。
 3. 当前是否为 app 模块 androidTest；library androidTest 当前不支持。
+4. 如果是 Kotlin 文件，确认 PSI 能正确识别注解 owner；当前实现同时兼容 `getAnnotations()` 与 `getAnnotationEntries()`。
 
 ### 7.2 点击 gutter 后没有真正跑 test
 

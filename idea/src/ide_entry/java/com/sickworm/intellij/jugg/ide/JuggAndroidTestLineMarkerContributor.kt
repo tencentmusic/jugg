@@ -8,9 +8,11 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.diagnostic.Logger
-import com.intellij.icons.AllIcons
+import com.intellij.ui.IconManager
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.intellij.psi.PsiElement
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import javax.swing.Icon
 
 private const val JUNIT_TEST_FQN = "org.junit.Test"
 private const val JUNIT5_TEST_FQN = "org.junit.jupiter.api.Test"
@@ -30,55 +32,47 @@ private const val APP_ANDROID_TEST_PATH_SEGMENT = "/app/src/androidTest/"
  */
 class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
 
-    private val logger = Logger.getInstance(JuggAndroidTestLineMarkerContributor::class.java)
-
     /**
      * Returns a [RunLineMarkerContributor.Info] when the element is a @Test method/class inside
      * `src/androidTest/`, otherwise returns null.
      */
     override fun getInfo(element: PsiElement): Info? {
+        val logger = JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
         val containingFile = element.containingFile ?: return null
 
         // Hard constraint: PSI file must be under src/androidTest/
         val filePath = containingFile.virtualFile?.path ?: return null
-        if (!isSupportedAndroidTestPath(filePath)) return null
+        if (!isSupportedAndroidTestPath(filePath)) {
+            logger.debug("Skip Jugg androidTest gutter: unsupported path=$filePath, element=${element::class.java.name}")
+            return null
+        }
 
-        val annotatedElement = findAnnotatedElement(element) ?: return null
+        val annotatedElement = findAnnotatedElement(element)
+        if (annotatedElement == null) {
+            logger.debug("Skip Jugg androidTest gutter: no junit test annotation, " +
+                    "path=$filePath, element=${element::class.java.name}, parent=${element.parent?.javaClass?.name}")
+            return null
+        }
+
+        logger.info("Show Jugg androidTest gutter: " +
+                "path=$filePath, element=${element::class.java.name}, owner=${annotatedElement.javaClass.name}")
 
         return Info(
-            AllIcons.RunConfigurations.TestState.Run,
+            lineMarkerIcon(),
             arrayOf(createRunAction(annotatedElement)),
         ) { "Run Android Test with Jugg" }
     }
 
-    /**
-     * Checks whether [element]'s parent (method or class) carries a JUnit @Test annotation.
-     * Works for both Java and Kotlin PSI because we use reflection to call getQualifiedName()
-     * without a hard dependency on java/kotlin PSI APIs.
-     */
-    private fun hasJUnitTestAnnotation(element: PsiElement): Boolean {
-        return findAnnotatedElement(element) != null
-    }
-
     private fun findAnnotatedElement(element: PsiElement): PsiElement? {
-        val parent = element.parent ?: return null
-        return try {
-            val annotationsMethod = parent::class.java.getMethod("getAnnotations")
-            @Suppress("UNCHECKED_CAST")
-            val annotations = annotationsMethod.invoke(parent) as? Array<*> ?: return null
-            val hasTestAnnotation = annotations.any { anno ->
-                val qnMethod = anno!!::class.java.getMethod("getQualifiedName")
-                val qn = qnMethod.invoke(anno) as? String ?: return@any false
-                qn == JUNIT_TEST_FQN || qn == JUNIT5_TEST_FQN
-            }
-            if (hasTestAnnotation) parent else null
-        } catch (_: Exception) {
-            null
-        }
+        val owner = findAnnotatedElementOwner(
+            element,
+            ownerParent = { current -> (current as? PsiElement)?.parent },
+        ) as? PsiElement ?: return null
+        return owner.takeIf { isAndroidTestEntryNameIdentifier(element, it, ::readNameIdentifier) }
     }
 
     private fun createRunAction(annotatedElement: PsiElement): AnAction {
-        return object : AnAction("Run Jugg Android Test") {
+        return object : AnAction("Run Test by Jugg", null, lineMarkerIcon()) {
             override fun actionPerformed(e: AnActionEvent) {
                 val project = annotatedElement.project
                 val appOptions = findAppRunConfigurationOptions(project)
@@ -90,7 +84,10 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 val runManager = RunManager.getInstance(project)
                 val factory = JuggAndroidTestConfigurationType.getInstance().configurationFactories.first()
                 val configuration = factory.createTemplateConfiguration(project) as JuggAndroidTestRunConfiguration
-                val target = resolveTarget(annotatedElement)
+                val target = resolveAndroidTestTarget(
+                    annotatedElement,
+                    ownerParent = { current -> (current as? PsiElement)?.parent },
+                )
                 configuration.name = target.displayName
                 configuration.state?.testClass = target.testClass
                 configuration.state?.testMethod = target.testMethod
@@ -110,42 +107,186 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
             ?.state
     }
 
-    private fun resolveTarget(element: PsiElement): AndroidTestTarget {
-        val testMethod = readName(element)
-        val testClass = readContainingClassName(element)
-        val displayName = listOfNotNull(testClass, testMethod).joinToString("#").ifEmpty { "Jugg Android Test" }
-        return AndroidTestTarget(testClass, testMethod, displayName)
-    }
-
-    private fun readName(element: PsiElement): String? {
-        return try {
-            element::class.java.getMethod("getName").invoke(element) as? String
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun readContainingClassName(element: PsiElement): String? {
-        return try {
-            val containingClass = element::class.java.getMethod("getContainingClass").invoke(element) ?: return null
-            containingClass::class.java.getMethod("getQualifiedName").invoke(containingClass) as? String
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private data class AndroidTestTarget(
-        val testClass: String?,
-        val testMethod: String?,
-        val displayName: String,
-    )
-
     companion object {
+        internal fun isOwnerNameIdentifier(
+            element: Any,
+            owner: Any,
+            readNameIdentifier: (Any) -> Any?,
+        ): Boolean {
+            return readNameIdentifier(owner) == element
+        }
+
+        internal fun isAndroidTestEntryNameIdentifier(
+            element: Any,
+            owner: Any,
+            readNameIdentifier: (Any) -> Any?,
+        ): Boolean {
+            return isOwnerNameIdentifier(element, owner, readNameIdentifier) &&
+                    (hasJUnitTestAnnotation(owner) || containsJUnitTestAnnotation(owner))
+        }
+
+        internal fun lineMarkerIcon(
+            icon: Icon = IconManager.getInstance().getIcon("/res/icons/run_configuration.svg", JuggInitializer::class.java),
+        ): Icon = icon
+
+        internal fun createRunAction(icon: Icon): AnAction {
+            return object : AnAction("Run Test by Jugg", null, icon) {
+                override fun actionPerformed(e: AnActionEvent) = Unit
+            }
+        }
+
+        internal fun findAnnotatedElementOwner(
+            start: Any,
+            ownerParent: (Any) -> Any?,
+        ): Any? {
+            var current: Any? = start
+            while (current != null) {
+                if (hasJUnitTestAnnotation(current) || containsJUnitTestAnnotation(current)) return current
+                current = ownerParent(current)
+            }
+            return null
+        }
+
+        private fun containsJUnitTestAnnotation(owner: Any): Boolean {
+            return readChildren(owner).any { child ->
+                hasJUnitTestAnnotation(child) || containsJUnitTestAnnotation(child)
+            }
+        }
+
+        internal fun resolveAndroidTestTarget(
+            owner: Any,
+            ownerParent: (Any) -> Any?,
+        ): AndroidTestTarget {
+            val ownerClassName = readClassName(owner)
+            val testMethod = ownerClassName?.let { null } ?: readName(owner)
+            val testClass = ownerClassName ?: readContainingClassName(owner, ownerParent)
+            val displayName = listOfNotNull(testClass, testMethod).joinToString("#").ifEmpty { "Jugg Android Test" }
+            return AndroidTestTarget(testClass, testMethod, displayName)
+        }
+
+        /**
+         * Checks whether a Java or Kotlin PSI owner carries a JUnit test annotation.
+         * The helper supports both `getAnnotations()` and `getAnnotationEntries()`.
+         */
+        internal fun hasJUnitTestAnnotation(owner: Any): Boolean {
+            val annotations = readAnnotations(owner) ?: return false
+            return annotations.any { annotation ->
+                readAnnotationName(annotation)?.let { normalizeAnnotationName(it) } in setOf(
+                    "Test",
+                    "org.junit.Test",
+                    "org.junit.jupiter.api.Test",
+                )
+            }
+        }
+
         fun isSupportedAndroidTestPath(filePath: String): Boolean {
             val normalized = filePath.replace('\\', '/')
             return normalized.contains(APP_ANDROID_TEST_PATH_SEGMENT) &&
                     normalized.contains(ANDROID_TEST_PATH_SEGMENT)
         }
+
+        private fun readName(owner: Any): String? {
+            return readStringByNoArgMethod(owner, "getName")
+        }
+
+        private fun readNameIdentifier(owner: Any): Any? {
+            return readObjectByNoArgMethod(owner, "getNameIdentifier")
+                ?: readObjectByNoArgMethod(owner, "getNameIdentifierKt")
+        }
+
+        private fun readContainingClassName(owner: Any, ownerParent: (Any) -> Any?): String? {
+            readObjectByNoArgMethod(owner, "getContainingClass")?.let { containingClass ->
+                readClassName(containingClass)?.let { return it }
+            }
+
+            var current = ownerParent(owner)
+            while (current != null) {
+                readClassName(current)?.let { return it }
+                current = ownerParent(current)
+            }
+            return null
+        }
+
+        private fun readClassName(owner: Any): String? {
+            return readStringByNoArgMethod(owner, "getQualifiedName")
+                ?: readStringByNoArgMethod(owner, "getFqName")
+                ?: readObjectByNoArgMethod(owner, "getFqName")?.let { fqName ->
+                    readStringByNoArgMethod(fqName, "asString") ?: fqName.toString()
+                }
+        }
+
+        private fun readAnnotations(owner: Any): Array<*>? {
+            return try {
+                val annotations = owner::class.java.methods.filter {
+                    it.name == "getAnnotations" || it.name == "getAnnotationEntries"
+                }.flatMap { method ->
+                    when (val value = method.invoke(owner)) {
+                        is Array<*> -> value.asList()
+                        is Collection<*> -> value.toList()
+                        else -> emptyList()
+                    }
+                }
+                annotations.takeIf { it.isNotEmpty() }?.toTypedArray()
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        private fun readChildren(owner: Any): List<Any> {
+            return try {
+                val value = owner::class.java.methods.firstOrNull {
+                    it.name == "getChildren" && it.parameterCount == 0
+                }?.invoke(owner) ?: return emptyList()
+                when (value) {
+                    is Array<*> -> value.filterNotNull()
+                    is Collection<*> -> value.filterNotNull()
+                    else -> emptyList()
+                }
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
+        private fun readAnnotationName(annotation: Any?): String? {
+            if (annotation == null) return null
+            return try {
+                val qnMethod = annotation::class.java.methods.firstOrNull {
+                    it.name == "getQualifiedName" || it.name == "getShortName" || it.name == "getText"
+                } ?: return null
+                val value = qnMethod.invoke(annotation) ?: return null
+                if (value is String) return value
+                value::class.java.methods.firstOrNull { it.name == "asString" }?.invoke(value) as? String
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        private fun normalizeAnnotationName(rawName: String): String {
+            return rawName
+                .trim()
+                .removePrefix("@")
+                .substringBefore("(")
+                .substringAfterLast(".")
+        }
+
+        private fun readObjectByNoArgMethod(owner: Any, methodName: String): Any? {
+            return try {
+                owner::class.java.methods.firstOrNull { it.name == methodName && it.parameterCount == 0 }
+                    ?.invoke(owner)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        private fun readStringByNoArgMethod(owner: Any, methodName: String): String? {
+            return readObjectByNoArgMethod(owner, methodName) as? String
+        }
+
+        internal data class AndroidTestTarget(
+            val testClass: String?,
+            val testMethod: String?,
+            val displayName: String,
+        )
 
         /**
          * Shows the "enableAndroidTest not configured" notification.
