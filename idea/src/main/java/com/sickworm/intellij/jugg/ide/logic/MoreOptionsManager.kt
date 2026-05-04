@@ -270,7 +270,7 @@ class MoreOptionsManager(
             }
 
             // re-init compiler and mark all compiled
-            juggManager.initIncrementalCompileAfterFullBuild(System.currentTimeMillis(), compileOptions.isRemoteCompile)
+            juggManager.initIncrementalCompileAfterFullBuild(System.currentTimeMillis(), compileOptions)
         })
     }
 

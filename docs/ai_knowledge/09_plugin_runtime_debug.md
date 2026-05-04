@@ -32,9 +32,9 @@ build/jugg/                            # juggRootDir
 │   ├── apk/                           # APK 解析后的 SQLite DB（*.db）
 │   ├── project_infos.db/              # 模块/APK 配置快照
 │   │   ├── project_infos.json
-│   │   ├── gradle_project_infos.json
-│   │   └── base_build_cmd.txt
+│   │   └── gradle_project_infos.json
 │   ├── compile_context.db/            # classpath、模块信息
+│   │   ├── full_build_info.json        # Gradle full build 命令、BuildTarget、写入时间
 │   └── deploy_history.db/             # 部署历史（增量恢复）
 ├── classpath/
 │   ├── root/                          # classpath jar

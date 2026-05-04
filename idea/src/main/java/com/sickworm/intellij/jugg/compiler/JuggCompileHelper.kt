@@ -343,8 +343,7 @@ class JuggCompilerHelper(
         }
 
         // Build target switch (APP <-> ANDROID_TEST) requires a full Gradle compile to produce correct APKs.
-        val baseBuildCommandHelper = BaseBuildCommandHelper(pathManager)
-        if (baseBuildCommandHelper.isBuildTargetChanged(options)) {
+        if (deployHistoryManager.isBuildTargetChanged(options)) {
             logger.info("Build target changed to ${options.buildTarget}, forcing Gradle full compile.")
             return CompileTaskResult.incrementalFailed(true, "Build target changed to ${options.buildTarget}")
         }

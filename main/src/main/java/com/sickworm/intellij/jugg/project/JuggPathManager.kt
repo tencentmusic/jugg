@@ -38,7 +38,6 @@ class JuggPathManager(
     val gradleIncludeBuildsFile = File(projectInfosDir, "gradle_include_builds.txt")
     val markProjectInfoNeedUpdateFlagFile = File(projectInfosDir, "is_dirty")
     val historyProjectDirFile = File(projectInfosDir, "history_project_dir.txt")
-    val baseBuildCmdFile = File(projectInfosDir, "base_build_cmd.txt")
 
     val compileContextDbDir = File(databaseDir, "compile_context.db")
     val deployHistoryDbDir = File(databaseDir, "deploy_history.db")

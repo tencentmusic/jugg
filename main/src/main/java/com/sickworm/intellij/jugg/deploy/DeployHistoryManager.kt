@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.gradle.compile.pathEquals
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
@@ -125,15 +126,25 @@ class DeployHistoryManager(
 
     @Synchronized
     override fun reInitAfterFullCompiled(
+        fullBuildInfo: FullBuildInfo,
         apkInfos: List<ApkInfo>,
         modules: Map<String, ModuleInfo>,
         startCompileTime: Long,
     ): CompileContextInfo {
         logger.debug("reInitAfterFullCompiled, apkInfos: ${apkInfos.size}")
-        val compileContextInfo = compileContextDb.saveCompileContext(apkInfos, modules)
+        val compileContextInfo = compileContextDb.saveCompileContext(fullBuildInfo, apkInfos, modules)
         deployHistoryDb.resetHistoryAfterFullCompiled(modules, startCompileTime)
         hasBeenFullCompiledRuntime = true
         return compileContextInfo
+    }
+
+    override fun getFullBuildInfo(): FullBuildInfo? {
+        return compileContextDb.getFullBuildInfoFromDb()
+    }
+
+    override fun isBuildTargetChanged(options: JuggGradleCompileOptions): Boolean {
+        val fullBuildInfo = getFullBuildInfo() ?: return false
+        return fullBuildInfo.buildTarget != options.buildTarget
     }
 
     override fun beforeIncrementalCompile(sourceFiles: List<ChangedFile>) {

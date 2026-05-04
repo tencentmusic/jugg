@@ -5,7 +5,9 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataDatabase
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
@@ -194,6 +196,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         val startCompileTime = System.currentTimeMillis()
         deployHistoryManager.checkProjectDirChanged()
         deployHistoryManager.reInitAfterFullCompiled(
+            FullBuildInfo(params.gradleCompileTask, BuildTarget.APP, System.currentTimeMillis()),
             apkInfos,
             gradleProjectInfo.modules,
             startCompileTime,

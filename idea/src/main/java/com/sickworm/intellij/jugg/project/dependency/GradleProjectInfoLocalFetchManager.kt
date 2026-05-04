@@ -7,12 +7,12 @@ import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
-import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import java.text.SimpleDateFormat
 import java.util.*
@@ -27,6 +27,7 @@ class GradleProjectInfoLocalFetchManager(
     private val compileContextManager: CompileContextManager,
     private val taskRunnerManager: TaskRunnerManager,
     private val dependencyChangeManager: IDependencyChangeManager,
+    private val deployHistoryManager: IDeployHistoryManager,
     loggerArg: Logger,
 ): Disposable {
 
@@ -47,7 +48,7 @@ class GradleProjectInfoLocalFetchManager(
         }
 
     val isProjectInfoAvailable: Boolean get() = pathManager.gradleProjectInfoFile.exists()
-            && BaseBuildCommandHelper(pathManager).hasBaseBuildCmd
+            && deployHistoryManager.getFullBuildInfo()?.compileCommand != null
 
     @Volatile
     private var isUpdating: Boolean = false
@@ -114,16 +115,15 @@ class GradleProjectInfoLocalFetchManager(
 
             // cannot use --dry-run only on Gradle 8.x, it cannot get kotlin task
             // use real command to detect build variant correctly
-            var finalCompileCommand = ""
-            if (specificCompileCommand.isNullOrEmpty()) {
-                val baseBuildCommand = BaseBuildCommandHelper(pathManager).getBaseBuildCmd()
+            var finalCompileCommand = if (specificCompileCommand.isNullOrEmpty()) {
+                val baseBuildCommand = deployHistoryManager.getFullBuildInfo()?.compileCommand
                 if (baseBuildCommand == null) {
                     logger.debug("cannot get standard base build command, can not update")
                     return false
                 }
-                finalCompileCommand = baseBuildCommand
+                baseBuildCommand
             } else {
-                finalCompileCommand = specificCompileCommand
+                specificCompileCommand
             }
             if (!CompileProjectCommand.isNormalGradleCommand(finalCompileCommand)) {
                 logger.debug("finalCompileCommand: $finalCompileCommand is not normal gradle command, can not update")

@@ -14,7 +14,6 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.*
-import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -61,7 +60,7 @@ class JuggManager @TestOnly constructor(
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager, customCompilerManager),
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
-    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, logger),
+    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, logger),
     private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, taskRunnerManager, logger),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, taskRunnerManager),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, gitFileChangesDetector, taskRunnerManager),
@@ -383,12 +382,13 @@ class JuggManager @TestOnly constructor(
     }
 
     @TestOnly
-    fun initIncrementalCompileAfterFullBuild(startCompileTime: Long, isRemoteCompile: Boolean = false) {
+    fun initIncrementalCompileAfterFullBuild(startCompileTime: Long, options: JuggGradleCompileOptions) {
         JuggLogger.resetLatestCompileLog(project)
         juggServer.afterFullCompile()
         pathManager.stagingDir.deleteRecursively()
         compileContextManager.compileContext.tempCompileDir.deleteRecursively()
 
+        val isRemoteCompile = options.isRemoteCompile
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
         if (!isRemoteCompile) {
             compileContextManager.updateCompileContextAfterLocalFetch()
@@ -420,6 +420,7 @@ class JuggManager @TestOnly constructor(
             return
         }
         val compileContextInfo = deployHistoryManager.reInitAfterFullCompiled(
+            FullBuildInfo(options.compileCommand, options.buildTarget, System.currentTimeMillis()),
             apkInfos,
             projectInfo.modules,
             startCompileTime,
@@ -628,8 +629,7 @@ class JuggManager @TestOnly constructor(
             val initIncrementalCompileTask = task@{
                 // do it async
                 fun action() {
-                    BaseBuildCommandHelper(pathManager).recordBaseBuildCmd(options, options.buildTarget)
-                    initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
+                    initIncrementalCompileAfterFullBuild(startCompileTime, options)
                 }
                 runTaskSafe("Init Incremental Compile", ::action)
             }

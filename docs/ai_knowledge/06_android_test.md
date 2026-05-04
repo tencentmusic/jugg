@@ -86,7 +86,7 @@ Jugg 目前支持 **app 模块的 androidTest**：
 入口：
 
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/AndroidTestCommandDeriver.kt`
-- `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/BaseBuildCommandHelper.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/FullBuildInfo.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt`
 
 `AndroidTestCommandDeriver` 基于用户 App RunConfig 中已有的 app 编译命令派生 androidTest 命令，不回写 RunConfig。
@@ -98,7 +98,7 @@ Jugg 目前支持 **app 模块的 androidTest**：
 | `:app:assembleDebug` | `:app:assembleDebug :app:assembleDebugAndroidTest` |
 | `app/build/outputs/apk/debug/*.apk` | 追加 `app/build/outputs/apk/androidTest/debug/*.apk` |
 
-`base_build_cmd.txt` 已升级为 `BaseBuildCmdRecord{compileCommand, buildTarget}`。旧单行文本兼容解析为 `BuildTarget.APP`。当当前 target 与记录 target 不一致时，必须触发 Gradle full compile，避免 app/test 模式复用错误产物。
+`full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`。当当前 target 与记录 target 不一致时，必须触发 Gradle full compile，避免 app/test 模式复用错误产物。缺失该文件时按首次运行处理。
 
 ### 3.2 增量编译
 
@@ -217,7 +217,7 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 | 测试文件 | 覆盖点 |
 |----------|--------|
 | `main/src/test/java/com/sickworm/intellij/jugg/gradle/compile/AndroidTestCommandDeriverTest.kt` | Gradle 命令与 APK glob 派生 |
-| `main/src/test/java/com/sickworm/intellij/jugg/gradle/compile/BaseBuildCmdRecordTest.kt` | target 记录与旧格式兼容 |
+| `main/src/test/java/com/sickworm/intellij/jugg/deploy/FullBuildInfoSerializerTest.kt` | target 记录序列化与容错 |
 | `main/src/test/java/com/sickworm/intellij/jugg/apk/ApkInfoInstrumentationTest.kt` | test APK instrumentation manifest 读取 |
 | `main/src/test/java/com/sickworm/intellij/jugg/project/data/ModuleInfoAndroidTestTest.kt` | `isAndroidTestModule` |
 | `main/src/test/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfoSerializerAndroidTestTest.kt` | project info 新字段序列化兼容 |
@@ -281,7 +281,7 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 
 优先确认：
 
-1. 当前 `BaseBuildCmdRecord.buildTarget` 是否为 `ANDROID_TEST`。
+1. 当前 `FullBuildInfo.buildTarget` 是否为 `ANDROID_TEST`。
 2. `CompileContextManager` 是否纳入 `.androidTest` module。
 3. `ModuleInfo.instrumentationTargetPackage` 是否非空。
 4. `ModuleApkBelongsUtils` 是否把 androidTest module 路由到 test APK。

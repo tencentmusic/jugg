@@ -20,6 +20,7 @@ class CompileContextDb(
     private val lastFullCompileFailedFlag = File(dbDir, "last_full_compile_failed_flag")
     private val apkDirFile = File(dbDir, "apks")
     private val apkInfoFile = File(apkDirFile, "apks.json")
+    private val fullBuildInfoFile = File(dbDir, "full_build_info.json")
     private val moduleBuildPathDatFile = File(dbDir, "module_builds.json")
 
     private val deployedDir = File(dbDir, "deployed")
@@ -45,11 +46,15 @@ class CompileContextDb(
     }
 
     fun saveCompileContext(
+        fullBuildInfo: FullBuildInfo,
         apkInfos: List<ApkInfo>,
         modules: Map<String, ModuleInfo>
     ): CompileContextInfo {
         // remove complete flag first
         deleteCompileContext()
+
+        // save full build info
+        saveFullBuildInfo(fullBuildInfo)
 
         // save apk info
         apkInfoFile.parentFile?.mkdirs()
@@ -66,6 +71,24 @@ class CompileContextDb(
             apkInfos,
             modules.mapValues { it.value.buildPathInfo },
         )
+    }
+
+
+    fun saveFullBuildInfo(fullBuildInfo: FullBuildInfo) {
+        fullBuildInfoFile.parentFile?.mkdirs()
+        fullBuildInfoFile.writeText(FullBuildInfoSerializer().serialize(fullBuildInfo), Charsets.UTF_8)
+    }
+
+    fun getFullBuildInfoFromDb(): FullBuildInfo? {
+        if (!fullBuildInfoFile.exists()) {
+            return null
+        }
+        return try {
+            FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText())
+        } catch (e: Exception) {
+            logger.warn("Failed to load full build info from ${fullBuildInfoFile.absolutePath}", e)
+            null
+        }
     }
 
     fun deleteCompileContext() {

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.clearDir
@@ -48,7 +49,7 @@ class DeployHistoryManagerTest {
         assertFalse(historyManager.hasBeenFullCompiled)
         assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+        historyManager.reInitAfterFullCompiled(FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, System.currentTimeMillis()), projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
         assertTrue(historyManager.hasBeenFullCompiled)
         val recoverInfo1 = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo1)
@@ -116,7 +117,7 @@ class DeployHistoryManagerTest {
         gitManager.deleteGit()
         gitManager.init()
         gitManager.addAllAndCommit("first commit")
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+        historyManager.reInitAfterFullCompiled(FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, System.currentTimeMillis()), projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
 
         val deployedFile = File(buildDir, "com/A.dex").let {
             it.parentFile.mkdirs()
@@ -163,7 +164,7 @@ class DeployHistoryManagerTest {
         val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
 
         gitManager.addAllAndCommit("first commit")
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+        historyManager.reInitAfterFullCompiled(FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, System.currentTimeMillis()), projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
         assertTrue(historyManager.hasBeenFullCompiled)
 
         // Simulate missing commit: delete git history and create a fresh repo with a new commit.
@@ -186,7 +187,7 @@ class DeployHistoryManagerTest {
         gitManager.deleteGit()
         gitManager.init()
         gitManager.addAllAndCommit("first commit")
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+        historyManager.reInitAfterFullCompiled(FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, System.currentTimeMillis()), projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
 
         val targetFile = File(projectInfo.projectRoot, "app/src/main/java/com/example/myapplication/MainActivity2.java")
         var result = historyManager.filterUnchangedFiles(listOf(targetFile))

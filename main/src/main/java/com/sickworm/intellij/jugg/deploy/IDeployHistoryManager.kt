@@ -1,10 +1,12 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import java.io.File
 
 /**
@@ -63,7 +65,11 @@ interface IDeployHistoryManager {
      * 1. Clear deploy history
      * 2. Collect incremental compile dependencies after full build.
      */
-    fun reInitAfterFullCompiled(apkInfos: List<ApkInfo>, modules: Map<String, ModuleInfo>, startCompileTime: Long): CompileContextInfo
+    fun reInitAfterFullCompiled(fullBuildInfo: FullBuildInfo, apkInfos: List<ApkInfo>, modules: Map<String, ModuleInfo>, startCompileTime: Long): CompileContextInfo
+
+    fun getFullBuildInfo(): FullBuildInfo?
+
+    fun isBuildTargetChanged(options: JuggGradleCompileOptions): Boolean
 
     /**
      * Invoke this method to cache changed files
