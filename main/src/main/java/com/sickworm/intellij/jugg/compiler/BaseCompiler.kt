@@ -102,7 +102,7 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
 
         var results = CompileResult(task, emptyList(), emptyList())
         moduleCompileOrder.forEach { moduleInfo ->
-            val files = fileGroups[moduleInfo.moduleRootDir.absolutePath] ?: emptyList()
+            val files = fileGroups[moduleInfo.compileGroupKey] ?: emptyList()
             if (task.isShouldCancel) {
                 return task.toCancelResult()
             }
@@ -119,15 +119,14 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     private fun getModuleCompileOrder(task: CompileTask): Pair<List<ModuleInfo>,Map<String, List<CompileFile>>> {
         val modulesWithOrder = context.modulesWithOrder
         // split by module
-        // the module info in ChangedFile maybe not the latest for compilation
-        // we should only use moduleRootDir to detect
-        val fileGroups: Map<String, List<CompileFile>> = task.files.groupBy { it.module.moduleRootDir.path }
+        // Source sets like app and app.androidTest can share moduleRootDir, so include module name in the key.
+        val fileGroups: Map<String, List<CompileFile>> = task.files.groupBy { it.module.compileGroupKey }
         val fileGroupNames = fileGroups.keys.toSet()
         val moduleCompileOrder = modulesWithOrder.filter { module ->
             fileGroupNames.any {
-                module.moduleRootDir.path == it
+                module.compileGroupKey == it
             }
-        }.distinctBy { it.moduleRootDir.path }
+        }.distinctBy { it.compileGroupKey }
         if (moduleCompileOrder.size != fileGroups.size) {
             logger.debug("Find compile order fails, all modules: size ${context.modules.size}, ${context.modules.map { it.value.moduleRootDir }}")
             logger.debug("Find compile order fails, modulesWithOrder: size ${modulesWithOrder.size}, ${modulesWithOrder.map { it.moduleRootDir }}")
@@ -149,7 +148,7 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         val apkGroups = mutableMapOf<ApkFileUnit, MutableList<CompileFile>>()
         val apkCompileOrder = mutableListOf<ApkFileUnit>()
         moduleCompileOrder.forEach {
-            val files = fileGroups[it.moduleRootDir.absolutePath] ?: emptyList()
+            val files = fileGroups[it.compileGroupKey] ?: emptyList()
             val apkFile = context.moduleBelongsApkMap[it]!!
             if (apkFile !in apkCompileOrder) {
                 apkCompileOrder.add(apkFile)
@@ -183,6 +182,8 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     }
 
     override fun dispose() = Unit
+
+    private val ModuleInfo.compileGroupKey: String get() = "$name@${moduleRootDir.path}"
 
     private fun checkTypesCanCompile(task: CompileTask) {
         val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }

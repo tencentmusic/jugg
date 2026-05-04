@@ -44,7 +44,6 @@ object AndroidTestCommandDeriver {
      * Segments are separated by `;`.
      */
     fun deriveOutputApkName(appOutputApkName: String): String {
-        val apkOutputPattern = Regex("""([\w/.\-*]+/build/outputs/apk/)(\w+/)?(\w+/\*\.apk)""")
         val segments = appOutputApkName.split(";").map { it.trim() }.filter { it.isNotEmpty() }
 
         val allSegments = mutableListOf<String>()
@@ -53,12 +52,8 @@ object AndroidTestCommandDeriver {
         for (segment in segments) {
             if (segment.contains("androidTest")) continue
 
-            val match = apkOutputPattern.find(segment)
-            if (match != null) {
-                val prefix = match.groupValues[1]     // e.g. "app/build/outputs/apk/"
-                val flavorPart = match.groupValues[2] // e.g. "development/" or ""
-                val variantFile = match.groupValues[3] // e.g. "debug/*.apk"
-                val testGlob = "${prefix}androidTest/${flavorPart}${variantFile}"
+            val testGlob = deriveTestApkGlob(segment)
+            if (testGlob != null) {
                 if (!allSegments.contains(testGlob)) {
                     allSegments.add(testGlob)
                 }
@@ -72,5 +67,22 @@ object AndroidTestCommandDeriver {
         }
 
         return allSegments.joinToString(";")
+    }
+
+    private fun deriveTestApkGlob(segment: String): String? {
+        val apkOutputMarker = "/build/outputs/apk/"
+        val markerIndex = segment.indexOf(apkOutputMarker)
+        if (markerIndex < 0) {
+            return null
+        }
+
+        val prefix = segment.substring(0, markerIndex + apkOutputMarker.length)
+        val outputParts = segment.substring(prefix.length).split("/").filter { it.isNotEmpty() }
+        if (outputParts.size < 2) {
+            return null
+        }
+
+        val variantDirs = outputParts.dropLast(1)
+        return "${prefix}androidTest/${variantDirs.joinToString("/")}/*.apk"
     }
 }

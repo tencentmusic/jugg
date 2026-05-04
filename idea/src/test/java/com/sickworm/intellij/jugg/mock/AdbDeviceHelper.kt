@@ -30,10 +30,20 @@ class AdbDeviceHelper {
         @Suppress("DEPRECATION") // deprecated for non-test usages
         AndroidDebugBridge.initIfNeeded(true)
         androidDebugBridge = AndroidDebugBridge.createBridge(Long.MAX_VALUE, TimeUnit.MILLISECONDS)
+        waitForInitialDeviceList()
     }
 
     fun getDeviceList(): List<IDevice> {
         return androidDebugBridge.devices.toList()
+    }
+
+    private fun waitForInitialDeviceList(maxWaitingMills: Int = 10_000) {
+        var remainWaitingMills = maxWaitingMills
+        val waitingGap = 200
+        while (remainWaitingMills >= 0 && !androidDebugBridge.hasInitialDeviceList()) {
+            Thread.sleep(waitingGap.toLong())
+            remainWaitingMills -= waitingGap
+        }
     }
 
     fun waitingForDeviceOfLaunchedApp(exceptPackageName: String, maxWaitingMills: Int = 10_000): IDevice? {

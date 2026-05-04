@@ -51,6 +51,13 @@ class AndroidTestCommandDeriverTest {
     }
 
     @Test
+    fun `concrete apk output path gets androidTest glob appended`() {
+        val result = AndroidTestCommandDeriver.deriveOutputApkName("app/build/outputs/apk/debug/app-debug.apk")
+        assertTrue("Should contain original apk path", result.contains("app/build/outputs/apk/debug/app-debug.apk"))
+        assertTrue("Should append androidTest glob", result.contains("app/build/outputs/apk/androidTest/debug/*.apk"))
+    }
+
+    @Test
     fun `flavor output path gets correct androidTest path`() {
         val result = AndroidTestCommandDeriver.deriveOutputApkName("app/build/outputs/apk/development/debug/*.apk")
         assertTrue(result.contains("app/build/outputs/apk/development/debug/*.apk"))

@@ -75,6 +75,7 @@ fun MockJugg.checkCompileResult(
     hotFixModifiedClassesSize: Int = 0,
     hotReloadModifiedClassesSize: Int = 0,
     overlaysSize: Int = 0,
+    apksSize: Int = 1,
 ) {
     fileNames.forEach { fileName ->
         val relativePath = filePackageName.replace('.', '/')
@@ -86,7 +87,7 @@ fun MockJugg.checkCompileResult(
 
     assertEquals(0, deployFileManager.getUncompiledFiles().size)
     val deployData = deployFileManager.getDeployData()
-    assertEquals(1, deployData.apks.size)
+    assertEquals(apksSize, deployData.apks.size)
     assertEquals(
         listOf(newClassesSize, hotFixModifiedClassesSize, hotReloadModifiedClassesSize).joinToString(),
         listOf(deployData.newClasses.size, deployData.hotFixModifiedClasses.size, deployData.hotReloadModifiedClasses.size).joinToString()
