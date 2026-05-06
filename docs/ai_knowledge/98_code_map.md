@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-04-29
+> 最后核对：2026-05-06
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -21,7 +21,7 @@
 | 部署文件管理 | `JuggDeployer`, `DeployFileManager`, `DeployFileStateTracker`, `DeployDataPlanner`, `CompileEffectAnalyzer`, `DeployHistoryManager`, `ClassFileLookupHelper` | `deploy/core` | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |
 | 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `IncrementalDeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data` | 类结构变更传播和部署数据生成；双层数据库与引用索引；内联方法影响检测 | 稳定 | 2026-02-01 |
 | 部署数据模型 | `JuggDeployData`, `LaunchResult` | `deploy/run` | 下发设备的部署数据结构 | 稳定 | 2025-01-20 |
-| AndroidTest 运行模型 | `AndroidTestRunSpec`, `InstrumentCommandBuilder`, `InstrumentationOutputParser`, `InstrumentationConsoleRenderer` | `deploy/instrument` | androidTest instrumentation 参数、`am instrument` 命令构造、输出解析与 console 渲染 | 开发中 | 2026-04-29 |
+| AndroidTest 运行模型 | `AndroidTestRunSpec`, `TestFilter`, `InstrumentCommandBuilder`, `InstrumentationOutputParser`, `InstrumentationConsoleRenderer`, `InstrumentationSmRunnerBridge` | `deploy/instrument` | androidTest instrumentation 参数、`am instrument` 命令构造、输出解析、文本 console 渲染与 SM Test Runner service message 映射 | 开发中 | 2026-05-06 |
 | 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo`, `JuggPathManager`, `ModuleApkBelongs` | `project/data`, `project` | 模块、路径、依赖等快照；项目信息读取/序列化；统一路径管理；模块到 APK 归属封装 | 稳定 | 2026-05-06 |
 | 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency` | 依赖变更检测策略 | 稳定 | 2025-01-20 |
 | Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script` | 通过 Gradle 反射读取模块信息 | 稳定 | 2025-01-20 |
@@ -47,7 +47,7 @@
 | 插件加载 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 类加载隔离与桥接 |
 | 初始化器 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | 插件生命周期入口 |
 | 运行配置 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggRunConfiguration.kt` | run config 定义 |
-| androidTest 运行入口 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunConfiguration.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributor.kt` | app `src/androidTest` gutter 与临时 RunConfig，生成 `AndroidTestRunSpec` 后进入 Jugg run pipeline |
+| androidTest 运行入口 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunConfiguration.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributor.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsoleProperties.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsAction.kt` | app `src/androidTest` gutter 与临时 RunConfig，生成 `AndroidTestRunSpec` 后进入 Jugg run pipeline；androidTest run 使用 SM Test Runner console，支持 Test Results 树、source navigation 与 rerun failed |
 | More Options 工具菜单 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More options 下拉分组与工具项（含 MCP/skill 安装入口） |
 | Gradle Sync 监听 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncListener.kt` | Sync 事件上报 Jugg |
 

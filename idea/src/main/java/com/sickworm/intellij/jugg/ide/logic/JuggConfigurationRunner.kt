@@ -1,12 +1,17 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.execution.DefaultExecutionResult
+import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.RunConfigurationBase
+import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.filters.TextConsoleBuilderFactory
+import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
+import com.intellij.execution.testframework.sm.SMTestRunnerConnectionUtil
+import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.RunContentDescriptor
 import com.intellij.execution.ui.RunContentManager
 import com.intellij.openapi.diagnostic.Logger
@@ -18,6 +23,9 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationSmRunnerBridge
+import com.sickworm.intellij.jugg.ide.JuggAndroidTestConsoleProperties
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -51,16 +59,32 @@ class JuggConfigurationRunner(
     override fun runTask(
         options: JuggGradleCompileOptions,
         compileUiHandler: CompileUiHandler,
+        executor: Executor?,
+        runProfile: RunProfile?,
         androidTestRunSpec: AndroidTestRunSpec?,
     ): ExecutionResult {
         if (ForceGradleCompileHelper.isCleanAndReinstallNextTime) {
             forceReInstallNextTime()
         }
-        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
         val processHandler = SimpleProcessHandler()
-        consoleView.attachToProcess(processHandler)
+        val consoleView = createConsole(processHandler, androidTestRunSpec, executor, runProfile)
         processHandler.startNotify()
         compileUiHandler.processHandler = processHandler
+        if (androidTestRunSpec != null) {
+            compileUiHandler.testEventSinkFactory = { deviceName ->
+                val bridge = InstrumentationSmRunnerBridge { message ->
+                    processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
+                }
+                bridge.startDevice(deviceName)
+                val sink: (InstrumentationEvent) -> Unit = { event ->
+                    bridge.onEvent(event)
+                    if (event is InstrumentationEvent.SuiteFinished) {
+                        bridge.finishDevice()
+                    }
+                }
+                sink
+            }
+        }
 
         cancelCurrentTask(processHandler) {
             currentTask = juggRunningTaskCreator.createAndRun(options, compileUiHandler, androidTestRunSpec)
@@ -68,6 +92,26 @@ class JuggConfigurationRunner(
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = false
         ForceGradleCompileHelper.isForceGradleCompileNextTime = false
         return DefaultExecutionResult(consoleView, processHandler)
+    }
+
+
+    private fun createConsole(
+        processHandler: ProcessHandler,
+        androidTestRunSpec: AndroidTestRunSpec?,
+        executor: Executor?,
+        runProfile: RunProfile?,
+    ): ConsoleView {
+        if (androidTestRunSpec == null || executor == null || runProfile == null) {
+            val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
+            consoleView.attachToProcess(processHandler)
+            return consoleView
+        }
+        val properties = JuggAndroidTestConsoleProperties(project, runProfile, executor, androidTestRunSpec)
+        return SMTestRunnerConnectionUtil.createAndAttachConsole(
+            JuggAndroidTestConsoleProperties.TEST_FRAMEWORK_NAME,
+            processHandler,
+            properties,
+        )
     }
 
     private fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit) {
@@ -137,7 +181,7 @@ class JuggConfigurationRunner(
 
         SwingUtilities.invokeLater {
             val executor = DefaultRunExecutor.getRunExecutorInstance()
-            val executionResult = runTask(state.toCompileOptions(pathManager), compileUiHandler)
+            val executionResult = runTask(state.toCompileOptions(pathManager), compileUiHandler, null, null, null)
             val descriptor = RunContentDescriptor(
                 executionResult.executionConsole,
                 executionResult.processHandler,

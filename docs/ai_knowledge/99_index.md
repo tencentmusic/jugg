@@ -27,7 +27,7 @@
 | 任务类型 | 最小必读文档 | 代码入口（示例） |
 |----------|--------------|------------------|
 | **单元测试 / TDD / 新增 testcase** | `06_testing.md` | `main/src/test/.../DeployDataGeneratorTest.kt`, `android_demo_project/.../testcase/` |
-| **app androidTest 支持 / instrumentation 运行链路** | `06_android_test.md`, `06_testing.md` | `JuggAndroidTestRunConfiguration.kt`, `JuggAndroidTestLineMarkerContributor.kt`, `AndroidTestCommandDeriver.kt`, `ModuleApkBelongsUtils.kt`, `TestLauncher.kt` |
+| **app androidTest 支持 / instrumentation 运行链路** | `06_android_test.md`, `06_testing.md` | `JuggAndroidTestRunConfiguration.kt`, `JuggAndroidTestLineMarkerContributor.kt`, `JuggAndroidTestConsoleProperties.kt`, `JuggAndroidTestRerunFailedTestsAction.kt`, `InstrumentationSmRunnerBridge.kt`, `TestLauncher.kt` |
 | 整体架构理解/模块划分 | `98_code_map.md`, `01_architecture.md` | - |
 | 编译失败/回退策略 | `98_code_map.md`, `02_compile_core.md`, `02_compile_source.md` | `idea/.../JuggCompileHelper.kt`, `main/.../JuggCompiler.kt` |
 | 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest_obfuscation.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
@@ -74,7 +74,7 @@
 | `04_engineering_compat.md` | AS 版本兼容层与命令行模块 |
 | `05_utilities.md` | apk/git/logger/server/platform 等公共能力 |
 | `06_testing.md` | TDD 单元测试：testcase 类规范、mock 基础设施、DeployDataGeneratorTest 模式 |
-| `06_android_test.md` | app androidTest 支持：BuildTarget、test APK 识别、synthetic ModuleInfo、增量编译、gutter/RunConfig、`am instrument` 与定向测试 |
+| `06_android_test.md` | app androidTest 支持：BuildTarget、test APK 识别、synthetic ModuleInfo、增量编译、gutter/RunConfig、`am instrument`、SM Test Runner、rerun failed 与定向测试 |
 | `08_mcp_design.md` | MCP 协议分层与设计约束（§7 引用 `08_mcp_layout_verify_design.md`） |
 | `08_mcp_layout_verify_design.md` | UI 布局验证设计：工具体系、IoU 匹配算法、容差标准、dpr 处理、返回格式 |
 | `08_mcp_tools_list.md` | MCP 工具完整参数清单（19 个注册工具、通用行为、错误码） |

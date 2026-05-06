@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.intellij.execution.ExecutionResult
+import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunConfigurationBase
+import com.intellij.execution.configurations.RunProfile
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
@@ -19,7 +21,9 @@ interface IJuggManagerCaller: Disposable {
 
     fun runTask(
         options: JuggRunConfigurationOptions,
-        androidTestRunSpec: AndroidTestRunSpec? = null,
+        executor: Executor?,
+        runProfile: RunProfile?,
+        androidTestRunSpec: AndroidTestRunSpec?,
     ): ExecutionResult
 
     fun gradleCompile()

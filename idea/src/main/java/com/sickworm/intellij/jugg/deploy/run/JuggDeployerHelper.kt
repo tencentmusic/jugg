@@ -165,6 +165,7 @@ class JuggDeployerHelper(
                     spec = androidTestRunSpec,
                     testApk = testApk,
                     consoleOutput = { line -> compileUiHandler.onDeployUiMessage(line) },
+                    testEventSinkFactory = { deviceName -> compileUiHandler.testEventSinkFactory?.invoke(deviceName) },
                     cancelSignal = { compileUiHandler.isCanceled },
                     logger = logger,
                 )

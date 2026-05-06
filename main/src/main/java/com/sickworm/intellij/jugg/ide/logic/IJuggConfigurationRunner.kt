@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.execution.ExecutionResult
+import com.intellij.execution.Executor
+import com.intellij.execution.configurations.RunProfile
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
@@ -16,7 +18,9 @@ interface IJuggConfigurationRunner {
     fun runTask(
         options: JuggGradleCompileOptions,
         compileUiHandler: CompileUiHandler,
-        androidTestRunSpec: AndroidTestRunSpec? = null,
+        executor: Executor?,
+        runProfile: RunProfile?,
+        androidTestRunSpec: AndroidTestRunSpec?,
     ): ExecutionResult
 
     fun forceReInstallNextTime()

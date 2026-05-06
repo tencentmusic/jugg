@@ -8,9 +8,6 @@ private const val DEFAULT_RUNNER = "androidx.test.runner.AndroidJUnitRunner"
 /**
  * InstrumentCommandBuilder assembles the `am instrument` shell command from a [AndroidTestRunSpec]
  * and the test APK metadata.
- *
- * Output format:
- *   am instrument -w -r [-e class <fqn>[#<method>]] [-e <k> <v>]* <testPkg>/<runner>
  */
 object InstrumentCommandBuilder {
 
@@ -27,14 +24,7 @@ object InstrumentCommandBuilder {
         return buildString {
             append("am instrument -w -r")
 
-            if (spec.testClass != null) {
-                val classArg = if (spec.testMethod != null) {
-                    "${spec.testClass}#${spec.testMethod}"
-                } else {
-                    spec.testClass
-                }
-                append(" -e class $classArg")
-            }
+            buildClassArg(spec)?.let { append(" -e class $it") }
 
             for ((key, value) in spec.extraArgs) {
                 when {
@@ -48,5 +38,13 @@ object InstrumentCommandBuilder {
 
             append(" ${testApk.applicationId}/$runner")
         }
+    }
+
+    private fun buildClassArg(spec: AndroidTestRunSpec): String? {
+        if (spec.testFilters.isNotEmpty()) {
+            return spec.testFilters.joinToString(",") { it.toClassArgument() }
+        }
+        val testClass = spec.testClass ?: return null
+        return if (spec.testMethod != null) "$testClass#${spec.testMethod}" else testClass
     }
 }

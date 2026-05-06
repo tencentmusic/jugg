@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg
 
+import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
+import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
@@ -68,7 +70,7 @@ class JuggManager @TestOnly constructor(
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
-    private val juggConfigurationRunner: IJuggConfigurationRunner = JuggConfigurationRunner(project, pathManager,
+    private val juggConfigurationRunner: JuggConfigurationRunner = JuggConfigurationRunner(project, pathManager,
         deployHistoryManager, juggRunningTaskStatusManager,
         JuggRunningTaskCreator(), gitFileChangesDetector,
         logger)
@@ -365,6 +367,8 @@ class JuggManager @TestOnly constructor(
 
     override fun runTask(
         options: JuggRunConfigurationOptions,
+        executor: Executor?,
+        runProfile: RunProfile?,
         androidTestRunSpec: AndroidTestRunSpec?,
     ): ExecutionResult {
         val compileUiHandler = JuggCompileUiHandler(project,
@@ -373,7 +377,7 @@ class JuggManager @TestOnly constructor(
             options.toCompileOptions(pathManager),
             logger
         )
-        return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler, androidTestRunSpec)
+        return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler, executor, runProfile, androidTestRunSpec)
     }
 
     @TestOnly

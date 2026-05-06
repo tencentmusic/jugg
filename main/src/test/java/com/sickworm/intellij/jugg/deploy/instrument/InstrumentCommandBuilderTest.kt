@@ -96,3 +96,56 @@ class InstrumentCommandBuilderTest {
         assertTrue(cmd.contains("androidx.test.runner.AndroidJUnitRunner"))
     }
 }
+
+class InstrumentCommandBuilderTestFilterTest {
+
+    private val testApk = ApkInfo(
+        files = listOf(ApkFileUnit("com.example.app.test", "", true, File("test.apk"))),
+        applicationId = "com.example.app.test",
+        instrumentationTargetPackage = "com.example.app",
+        instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner",
+    )
+
+    @Test
+    fun `single testFilter generates class method argument`() {
+        val spec = AndroidTestRunSpec(
+            testClass = null,
+            testMethod = null,
+            testFilters = listOf(TestFilter("com.example.FooTest", "testBar")),
+        )
+
+        val cmd = InstrumentCommandBuilder.build(spec, testApk)
+
+        assertTrue(cmd.contains("-e class com.example.FooTest#testBar"))
+    }
+
+    @Test
+    fun `multiple testFilters generate comma separated class argument`() {
+        val spec = AndroidTestRunSpec(
+            testClass = null,
+            testMethod = null,
+            testFilters = listOf(
+                TestFilter("com.example.FooTest", "testBar"),
+                TestFilter("com.example.OtherTest", "testBaz"),
+            ),
+        )
+
+        val cmd = InstrumentCommandBuilder.build(spec, testApk)
+
+        assertTrue(cmd.contains("-e class com.example.FooTest#testBar,com.example.OtherTest#testBaz"))
+    }
+
+    @Test
+    fun `testFilters take precedence over legacy testClass and testMethod`() {
+        val spec = AndroidTestRunSpec(
+            testClass = "com.example.LegacyTest",
+            testMethod = "legacy",
+            testFilters = listOf(TestFilter("com.example.FooTest", "testBar")),
+        )
+
+        val cmd = InstrumentCommandBuilder.build(spec, testApk)
+
+        assertTrue(cmd.contains("-e class com.example.FooTest#testBar"))
+        assertFalse(cmd.contains("LegacyTest"))
+    }
+}

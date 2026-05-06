@@ -5,6 +5,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -23,6 +24,7 @@ interface CompileUiHandler {
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
     var progressIndicator: ProgressIndicator // injected
+    var testEventSinkFactory: ((String) -> ((InstrumentationEvent) -> Unit)?)?
 
     fun createCompileStatusHolder(): CompileStatusHolder
     fun createOutputParser(): IGradleCompileClient.TerminalOutputListener
@@ -51,6 +53,7 @@ interface CompileUiHandler {
             override val isAlwaysRestartApp: Boolean = false
             override var processHandler: IProcessHandler = IProcessHandler.DEFAULT
             override var progressIndicator: ProgressIndicator = DumbProgressIndicator()
+            override var testEventSinkFactory: ((String) -> ((InstrumentationEvent) -> Unit)?)? = null
 
             override fun createCompileStatusHolder(): CompileStatusHolder = CompileStatusHolder.DEFAULT
             override fun createOutputParser(): IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT

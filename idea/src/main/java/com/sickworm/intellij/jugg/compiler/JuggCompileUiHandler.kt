@@ -6,6 +6,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
+import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -27,6 +28,7 @@ open class JuggCompileUiHandler(
     logger: Logger,
     override var processHandler: IProcessHandler = IProcessHandler.DEFAULT,
     override var progressIndicator: ProgressIndicator = DumbProgressIndicator.INSTANCE,
+    override var testEventSinkFactory: ((String) -> ((InstrumentationEvent) -> Unit)?)? = null,
     override val isSkipDeploy: Boolean = false,
     override val isAlwaysRestartApp: Boolean = false,
 ) : CompileUiHandler {

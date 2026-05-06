@@ -58,7 +58,7 @@ class JuggAndroidTestRunConfiguration(
         JuggAndroidTestSettingsEditor()
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState =
-        JuggAndroidTestRunProfileState(project, state!!)
+        JuggAndroidTestRunProfileState(project, state!!, runProfile = this)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -182,13 +182,17 @@ object JuggAndroidTestRunSpecFactory {
 class JuggAndroidTestRunProfileState(
     private val project: Project,
     private val options: JuggAndroidTestRunConfigurationOptions,
+    private val explicitSpec: AndroidTestRunSpec? = null,
+    private val runProfile: RunProfile? = null,
+    private val stateExecutor: Executor? = null,
 ) : RunProfileState {
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
         val juggManager = JuggInitializer.getManager(project) ?: return DefaultExecutionResult()
         val appRunConfigOptions = findAppRunConfigurationOptions(project) ?: return DefaultExecutionResult()
-        val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
-        return juggManager.runTask(appRunConfigOptions, spec)
+        val spec = explicitSpec ?: JuggAndroidTestRunSpecFactory.fromOptions(options)
+        val actualExecutor = executor ?: stateExecutor
+        return juggManager.runTask(appRunConfigOptions, actualExecutor, runProfile, spec)
     }
 
     private fun findAppRunConfigurationOptions(project: Project): JuggRunConfigurationOptions? {

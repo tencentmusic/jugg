@@ -203,7 +203,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
             }.start()
         }
 
-        juggManager.runTask(createRunOptions(androidTestRunSpec != null), androidTestRunSpec)
+        juggManager.runTask(createRunOptions(androidTestRunSpec != null), null, null, androidTestRunSpec)
         if (androidTestRunSpec == null) {
             waitingLaunchAppAndCheck()
         }

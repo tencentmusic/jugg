@@ -9,19 +9,16 @@ import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationConsoleRenderer
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationOutputParser
-import com.sickworm.intellij.jugg.logger.JuggLogger
 
 /**
- * TestLauncher runs `am instrument` against a list of devices sequentially and aggregates results.
- *
- * Each device gets a labelled section in the console output. The overall run fails if any test on
- * any device fails. Phase 1 uses pure log-stream output; Phase 3 will extend this to SM Test Runner.
+ * TestLauncher runs `am instrument` against devices and forwards structured test events to optional UI sinks.
  */
 class TestLauncher(
     private val devices: List<IDevice>,
     private val spec: AndroidTestRunSpec,
     private val testApk: ApkInfo,
     private val consoleOutput: (String) -> Unit,
+    private val testEventSinkFactory: (String) -> ((InstrumentationEvent) -> Unit)? = { null },
     private val cancelSignal: () -> Boolean,
     private val logger: Logger,
     private val runInstrumentation: (
@@ -50,11 +47,13 @@ class TestLauncher(
 
             val parser = InstrumentationOutputParser()
             val renderer = InstrumentationConsoleRenderer(consoleOutput)
+            val testEventSink = testEventSinkFactory(deviceName)
             var devicePassed = 0
             var deviceFailed = 0
             var deviceIgnored = 0
 
             parser.onEvent = { event ->
+                testEventSink?.invoke(event)
                 renderer.render(event)
                 when (event) {
                     is InstrumentationEvent.SuiteFinished -> {

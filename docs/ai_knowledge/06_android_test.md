@@ -1,6 +1,6 @@
 # androidTest 支持指南
 
-> 最后核对：2026-04-29
+> 最后核对：2026-05-06
 > 对应提交：`793d0a0f`、`0bd78f20`、`e36bfdac`、`39b54ba3`
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -15,13 +15,14 @@ Jugg 目前支持 **app 模块的 androidTest**：
 - 后续 app 源码与 `app/src/androidTest` 源码变更都可以进入 Jugg 增量编译。
 - 部署阶段不引入 test APK 专用协议，继续复用当前 `install / code swap / full swap` 策略。
 - 部署成功后执行 `am instrument`，并把 instrumentation 输出渲染到 Jugg console。
+- androidTest Run 面板接入 SM Test Runner，显示 `Test Results` 树，支持测试节点源码跳转与 rerun failed tests。
 
 当前不覆盖：
 
 - library 模块 androidTest。
 - androidTest resource 增量编译。
 - `androidTestAnnotationProcessor` / `androidTestKapt`。
-- SM Test Runner 面板、Debug Executor、rerun failed tests。
+- Debug Executor。
 - 常驻 test harness 或保活 test 进程内 redefine。
 
 ---
@@ -135,7 +136,7 @@ Jugg 目前支持 **app 模块的 androidTest**：
 | 配置 | 职责 |
 |------|------|
 | `JuggRunConfiguration.enableAndroidTest` | 控制 app RunConfig 是否允许 androidTest 编译与运行 |
-| `JuggAndroidTestRunConfiguration` | 承载 `testClass` / `testMethod` / `instrumentationRunner` / `extraArgs` |
+| `JuggAndroidTestRunConfiguration` | 承载 `testClass` / `testMethod` / `testFilters` / `instrumentationRunner` / `extraArgs` |
 | `JuggAndroidTestLineMarkerContributor` | 在 app `src/androidTest` 的 JUnit test 上提供 Jugg gutter |
 
 gutter 约束：
@@ -161,7 +162,7 @@ gutter 约束：
 JuggAndroidTestLineMarkerContributor
   -> JuggAndroidTestRunConfiguration
   -> JuggAndroidTestRunSpecFactory
-  -> JuggManager.runTask(appOptions, androidTestRunSpec)
+  -> JuggManager.runTask(appOptions, androidTestRunSpec, executor, runProfile)
   -> JuggConfigurationRunner
   -> JuggRunningTask
   -> DeployOptions(androidTestRunSpec)
@@ -169,6 +170,38 @@ JuggAndroidTestLineMarkerContributor
 ```
 
 普通 app run 的 `androidTestRunSpec = null`，行为不变。
+
+### 4.3 Test Results UI
+
+入口：
+
+- `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsoleProperties.kt`
+- `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsAction.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggConfigurationRunner.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridge.kt`
+
+androidTest run 会在 `JuggConfigurationRunner` 中创建 SM Test Runner console；普通 app run 仍使用普通 text console。SM Runner 只负责 UI，不接管 Jugg 的编译、部署和 instrumentation 执行。
+
+UI 事件链路：
+
+```text
+InstrumentationOutputParser
+  -> InstrumentationEvent
+  -> InstrumentationSmRunnerBridge
+  -> TeamCity service messages
+  -> SMTestRunnerConnectionUtil
+  -> Test Results tree
+```
+
+节点约定：
+
+| 节点 | name | locationHint |
+|------|------|--------------|
+| device suite | 设备展示名 | 空 |
+| class suite | FQCN | `java:suite://FQCN` |
+| method test | methodName | `java:test://FQCN/methodName` |
+
+`JuggAndroidTestConsoleProperties` 使用 IntelliJ `JavaTestLocator` 处理 source navigation，并通过 `JuggAndroidTestRerunFailedTestsAction` 把 failed leaf tests 转回 `AndroidTestRunSpec.testFilters` 后重跑。rerun failed 会保留原 `runnerOverride` 与 `extraArgs`。
 
 ---
 
@@ -207,12 +240,15 @@ JuggAndroidTestLineMarkerContributor
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentCommandBuilder.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationOutputParser.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationConsoleRenderer.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridge.kt`
 
 `InstrumentCommandBuilder` 输出形态：
 
 ```text
-am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <testPkg>/<runner>
+am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMethod>...]] [-e <key> <value>]* <testPkg>/<runner>
 ```
+
+`AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用 `testClass` / `testMethod`。
 
 `TestLauncher` 对每台设备串行执行 instrumentation。任一设备出现以下情况，整体 Run 失败：
 
@@ -241,6 +277,7 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 | `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentCommandBuilderTest.kt` | `am instrument` 命令构造 |
 | `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationOutputParserTest.kt` | instrumentation 输出解析 |
 | `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationConsoleRendererTest.kt` | console 渲染 |
+| `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridgeTest.kt` | SM Test Runner service message 映射 |
 | `main/src/test/java/com/sickworm/intellij/jugg/deploy/run/ApkInstallOrderTest.kt` | app/test APK install 顺序 |
 | `main/src/test/java/com/sickworm/intellij/jugg/ide/logic/AndroidTestRunSpecPropagationTest.kt` | spec 传递链路 |
 
@@ -251,7 +288,10 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 | `idea/src/test/java/com/sickworm/intellij/jugg/project/CompileContextManagerAndroidTestFilterTest.kt` | `.androidTest` module 过滤规则 |
 | `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributorTest.kt` | gutter 路径与入口边界 |
 | `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunSpecFactoryTest.kt` | RunConfig options 到 spec |
+| `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsolePropertiesTest.kt` | SM Test Runner locator |
+| `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsActionTest.kt` | failed leaf tests 到 `testFilters` |
 | `idea/src/test/java/com/sickworm/intellij/jugg/deploy/run/DeployOptionsAndroidTestSpecTest.kt` | DeployOptions 携带 spec |
+| `idea/src/test/java/com/sickworm/intellij/jugg/deploy/run/TestLauncherResultTest.kt` | parser event sink 与结果语义 |
 
 ### 6.3 常用定向命令
 
@@ -259,9 +299,13 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 ./gradlew :main:test --tests "com.sickworm.intellij.jugg.gradle.compile.AndroidTestCommandDeriverTest"
 ./gradlew :main:test --tests "com.sickworm.intellij.jugg.ModuleApkBelongsUtilsAndroidTestTest"
 ./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.instrument.InstrumentationOutputParserTest"
+./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.instrument.InstrumentationSmRunnerBridgeTest"
 ./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.run.ApkInstallOrderTest"
 ./gradlew :idea:test --tests "com.sickworm.intellij.jugg.project.CompileContextManagerAndroidTestFilterTest"
 ./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.JuggAndroidTestRunSpecFactoryTest"
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.JuggAndroidTestConsolePropertiesTest"
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.JuggAndroidTestRerunFailedTestsActionTest"
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.deploy.run.TestLauncherSmEventSinkTest"
 ```
 
 必要时可做编译验证：
@@ -309,8 +353,18 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 2. `InstrumentCommandBuilder` 生成的 `<testPkg>/<runner>` 是否正确。
 3. `InstrumentationOutputParser` 是否解析到了 `ABORTED`、`FAILURE`、`ERROR` 或 `ASSUMPTION_FAILURE`。
 
+### 7.5 Test Results 树或 rerun failed 异常
+
+优先确认：
+
+1. `JuggConfigurationRunner` 是否收到了非空 `androidTestRunSpec`、`executor` 与 `runProfile`。
+2. `JuggAndroidTestConsoleProperties.TEST_FRAMEWORK_NAME` 是否与 `SMTestRunnerConnectionUtil.createAndAttachConsole()` 的 framework name 一致。
+3. `InstrumentationSmRunnerBridge` 是否输出了 `java:suite://FQCN` 与 `java:test://FQCN/method` locationHint。
+4. rerun failed 生成的 `AndroidTestRunSpec.testFilters` 是否非空，且 `InstrumentCommandBuilder` 是否优先使用 `testFilters`。
+
 ---
 
 ## 8. 变更历史
 
+- 2026-05-06：接入 SM Test Runner Test Results UI，补充 `JavaTestLocator` source navigation 与 rerun failed tests。
 - 2026-04-29：新增正式知识库文档，沉淀 androidTest 支持的当前实现、边界、链路和测试入口。

@@ -33,7 +33,7 @@ class JuggRunConfiguration(
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        return JuggRunProfileState(project, state!!)
+        return JuggRunProfileState(project, state!!, runProfile = this, stateExecutor = executor)
     }
 
     override fun <T : Any?> getUserData(key: Key<T>): T? {
@@ -129,11 +129,13 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 class JuggRunProfileState(
     private val project: Project,
     private val options: JuggRunConfigurationOptions,
+    private val runProfile: RunProfile? = null,
+    private val stateExecutor: Executor? = null,
 ) : RunProfileState {
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
         val juggManager = JuggInitializer.getManager(project) ?: return DefaultExecutionResult()
-        val executionResult = juggManager.runTask(options)
-        return executionResult
+        val actualExecutor = executor ?: stateExecutor
+        return juggManager.runTask(options, actualExecutor, runProfile, null)
     }
 }
