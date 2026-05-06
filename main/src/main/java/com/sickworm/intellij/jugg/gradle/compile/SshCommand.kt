@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.script.GradleApplicationInjector
 import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -121,6 +122,7 @@ open class CompileProjectCommand(
     private val initGradleFileRelativePath: String,
     private val localProjectPath: String = projectPath,
     private val logger: Logger? = null,
+    private val buildTarget: BuildTarget = BuildTarget.APP,
 ) : BaseSshCommand() {
 
     val isNormalGradleCommand: Boolean = isNormalGradleCommand(compileCommand)
@@ -144,6 +146,7 @@ open class CompileProjectCommand(
             }
             suffix += ConfigurationCacheCompatHelper.getDisableArgsIfEnabled(
                 File(localProjectPath), compileCommand, logger)
+            suffix += buildTarget.gradlePropertyArgument()
             suffix += " $injectParam"
         }
         return@run "$compileCommand$suffix"
@@ -162,6 +165,13 @@ open class CompileProjectCommand(
         }
 
         return command
+    }
+
+    private fun BuildTarget.gradlePropertyArgument(): String {
+        return when (this) {
+            BuildTarget.APP -> ""
+            BuildTarget.ANDROID_TEST -> " -Pjugg.buildTarget=ANDROID_TEST"
+        }
     }
 
     companion object {

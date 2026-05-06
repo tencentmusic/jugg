@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -51,6 +52,7 @@ class LocalGradleCompileClient(
                 projectDir.path,
                 juggGradleCompileOptions.initGradleFilePath,
                 logger = logger,
+                buildTarget = juggGradleCompileOptions.buildTarget,
             )
             val compileProjectResult = invoke(compileProjectCommand)
             if (compileProjectResult != 0) {
@@ -59,16 +61,22 @@ class LocalGradleCompileClient(
             }
         }
 
-        val lookingApkPaths = juggGradleCompileOptions.outputApkName.split(";")
-        val findApks = mutableListOf<File>()
+        val lookingApkPaths = juggGradleCompileOptions.outputApkName.split(";").map { it.trim() }.filter { it.isNotEmpty() }
+        val findApks = mutableListOf<FoundApk>()
         val failedApkPaths = mutableListOf<String>()
-        val isSingleApk = lookingApkPaths.size == 1
+        val shouldIndexAppApk = lookingApkPaths.size > 1 || juggGradleCompileOptions.buildTarget == BuildTarget.ANDROID_TEST
         lookingApkPaths.forEachIndexed { index, it ->
-            val apkFile = findApk(it, juggGradleCompileOptions, if (isSingleApk) null else index)
+            val apkFile = findApk(it, juggGradleCompileOptions, if (shouldIndexAppApk) index else null)
             if (apkFile != null) {
                 findApks.add(apkFile)
             } else {
                 failedApkPaths.add(it)
+            }
+        }
+        findAndroidTestApks(findApks, juggGradleCompileOptions).let { testApks ->
+            findApks.addAll(testApks)
+            if (juggGradleCompileOptions.buildTarget == BuildTarget.ANDROID_TEST && testApks.isEmpty()) {
+                failedApkPaths.add("androidTest APK for ${juggGradleCompileOptions.outputApkName}")
             }
         }
 
@@ -78,13 +86,13 @@ class LocalGradleCompileClient(
                     ", please make sure your run configuration is right.")
             return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
         } else {
-            logger.debug("Find apk: $findApks")
+            logger.debug("Find apk: ${findApks.map { it.outputFile }}")
         }
 
-        return GradleCompileResult.success(findApks)
+        return GradleCompileResult.success(findApks.map { it.outputFile })
     }
 
-    private fun findApk(outputApkNameOrPath: String, juggGradleCompileOptions: JuggGradleCompileOptions, index: Int?): File? {
+    private fun findApk(outputApkNameOrPath: String, juggGradleCompileOptions: JuggGradleCompileOptions, index: Int?): FoundApk? {
         val findOutputCommand = FindOutputCommand(projectDir.path, outputApkNameOrPath)
 
         var apkFiles: List<File>? = null
@@ -142,10 +150,37 @@ class LocalGradleCompileClient(
 
         if (apkFile.length() != outputApkFile.length()) {
             logger.warn("Copy apk failed, length not match: ${apkFile.length()} != ${outputApkFile.length()}")
-            return apkFile
+            return FoundApk(apkFile, apkFile)
         }
-        return outputApkFile
+        return FoundApk(apkFile, outputApkFile)
     }
+
+
+    private fun findAndroidTestApks(appApks: List<FoundApk>, options: JuggGradleCompileOptions): List<FoundApk> {
+        if (options.buildTarget != BuildTarget.ANDROID_TEST) {
+            return emptyList()
+        }
+        val testApks = mutableListOf<FoundApk>()
+        appApks.forEachIndexed { index, appApk ->
+            val testApk = findAndroidTestApk(appApk.sourceFile, options, appApks.size + index)
+            if (testApk != null) {
+                testApks.add(testApk)
+            } else {
+                logger.warn("AndroidTest mode: cannot find test APK for ${appApk.sourceFile.absolutePath}")
+            }
+        }
+        return testApks
+    }
+
+    private fun findAndroidTestApk(appApk: File, options: JuggGradleCompileOptions, index: Int): FoundApk? {
+        val projectRoot = File(options.projectRootPath)
+        val relativeAppApk = appApk.relativeToOrNull(projectRoot) ?: appApk
+        val testApkPattern = deriveAndroidTestApkPattern(relativeAppApk.path) ?: return null
+        return findApk(testApkPattern, options, index)
+    }
+
+    private data class FoundApk(val sourceFile: File, val outputFile: File)
+
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
         isCanceled = false
@@ -273,6 +308,22 @@ class LocalGradleCompileClient(
     }
 
     companion object {
+        fun deriveAndroidTestApkPattern(appApkPath: String): String? {
+            val normalized = appApkPath.replace('\\', '/')
+            val marker = "/build/outputs/apk/"
+            val markerIndex = normalized.indexOf(marker)
+            if (markerIndex < 0 || normalized.contains("/androidTest/")) {
+                return null
+            }
+            val prefix = normalized.substring(0, markerIndex + marker.length)
+            val outputParts = normalized.substring(prefix.length).split("/").filter { it.isNotEmpty() }
+            if (outputParts.size < 2) {
+                return null
+            }
+            val variantDirs = outputParts.dropLast(1)
+            return "${prefix}androidTest/${variantDirs.joinToString("/")}/*.apk"
+        }
+
 
         fun parseDiffSet(juggPathManager: JuggPathManager, logger: Logger): DependencyDiffResultSet? {
             val lastDiffResult = parseDiffFile(juggPathManager.remoteDiffResultFile, juggPathManager.remoteDiffLibraryDir, logger)

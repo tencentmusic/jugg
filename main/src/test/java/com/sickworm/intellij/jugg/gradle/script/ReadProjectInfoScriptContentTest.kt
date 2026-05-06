@@ -136,6 +136,20 @@ class ReadProjectInfoScriptContentTest {
         assertFalse(readerText.contains("dependency.files.files.toList()"))
     }
 
+    @Test
+    fun generatedScript_shouldInjectAndroidTestTaskBeforeTaskGraphReady() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        assertTrue(scriptText.contains("PARAM_BUILD_TARGET = \"jugg.buildTarget\""))
+        assertTrue(scriptText.contains("fun injectAndroidTestTaskIfNeeded()"))
+        assertTrue(scriptText.contains("gradle.projectsEvaluated"))
+        assertTrue(scriptText.contains("assemble${'$'}{variantName.camelCompat}AndroidTest"))
+        assertTrue(scriptText.contains("guessBuildVariant(project.toStandardModuleName(), variants, requestTasks.toSet(), requestTasks)"))
+        assertTrue(scriptText.contains("task.dependsOn(testTask)"))
+        assertTrue(scriptText.indexOf("injectAndroidTestTaskIfNeeded()") < scriptText.indexOf("gradle.taskGraph.whenReady"))
+    }
+
     private fun readSource(relativePath: String): String {
         return java.io.File(System.getProperty("user.dir"), relativePath).readText()
     }

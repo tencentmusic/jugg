@@ -210,9 +210,7 @@ class JuggCompilerHelper(
         compileContextManager.ensureInitProjectInfo()
         deployHistoryManager.beforeFullCompiled(deployFileManager.getUndeployedFiles())
 
-        // Derive androidTest compile command and APK glob at runtime when target is ANDROID_TEST.
-        // The user's RunConfig is never mutated; the derived options are only used for this compile session.
-        val effectiveOptions = deriveOptionsForBuildTarget(options)
+        val effectiveOptions = prepareOptionsForBuildTarget(options)
 
         if (effectiveOptions.isRemoteCompile) {
             // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
@@ -248,19 +246,13 @@ class JuggCompilerHelper(
     }
 
     /**
-     * Returns a copy of [options] with compile command and APK glob derived for the build target.
-     * For ANDROID_TEST the command is extended to also build the androidTest APK.
-     * For APP the original options are returned unchanged.
+     * Keeps RunConfig Gradle options unchanged while tagging androidTest full builds for the Gradle init script and compile clients.
      */
-    private fun deriveOptionsForBuildTarget(options: JuggGradleCompileOptions): JuggGradleCompileOptions {
-        if (options.buildTarget != BuildTarget.ANDROID_TEST) {
-            return options
+    private fun prepareOptionsForBuildTarget(options: JuggGradleCompileOptions): JuggGradleCompileOptions {
+        if (options.buildTarget == BuildTarget.ANDROID_TEST) {
+            logger.info("AndroidTest mode: keep compile command/output APK unchanged: ${options.compileCommand}")
         }
-        val derivedCommand = AndroidTestCommandDeriver.deriveCompileCommand(options.compileCommand)
-        val derivedOutputApkName = AndroidTestCommandDeriver.deriveOutputApkName(options.outputApkName)
-        logger.info("AndroidTest mode: derived compile command: $derivedCommand")
-        logger.info("AndroidTest mode: derived outputApkName: $derivedOutputApkName")
-        return options.copy(compileCommand = derivedCommand, outputApkName = derivedOutputApkName)
+        return options
     }
 
     /**

@@ -81,6 +81,62 @@ class GradleProjectInfoReaderManager(
         }
     }
 
+
+    private fun Project.toStandardModuleName(): String {
+        return path.replace(":", ".").substring(1)
+    }
+
+    /**
+     * Injects androidTest assemble task before Gradle finalizes the task graph.
+     */
+    fun injectAndroidTestTaskIfNeeded() {
+        if (rootProject.properties[PARAM_BUILD_TARGET] != BUILD_TARGET_ANDROID_TEST) {
+            return
+        }
+
+        rootProject.subprojects.forEach { project ->
+            if (!project.plugins.hasPlugin("com.android.application")) {
+                return@forEach
+            }
+            val variants = readApplicationVariants(project)
+            val requestTasks = project.gradle.startParameter.taskRequests.flatMap { it.args }
+            val variantName = guessBuildVariant(project.toStandardModuleName(), variants, requestTasks.toSet(), requestTasks) ?: "debug"
+            val testTaskName = "assemble${variantName.camelCompat}AndroidTest"
+            val testTask = project.tasks.findByName(testTaskName) ?: run {
+                println("Jugg: androidTest task $testTaskName not found in ${project.path}")
+                return@forEach
+            }
+            val requestedTaskSet = requestTasks.toSet()
+            val targetTasks = rootProject.allprojects.flatMap { candidateProject ->
+                candidateProject.tasks.filter { task -> task.name in requestedTaskSet || task.path in requestedTaskSet }
+            }
+            if (targetTasks.isEmpty()) {
+                println("Jugg: no requested task found for androidTest injection, requested: $requestedTaskSet")
+                return@forEach
+            }
+            targetTasks.forEach { task ->
+                if (task != testTask) {
+                    task.dependsOn(testTask)
+                    println("Jugg: inject ${testTask.path} before ${task.path}")
+                }
+            }
+        }
+    }
+
+    private fun readApplicationVariants(project: Project): List<Variant> {
+        val androidExt = try {
+            reflector(project.extensions.getByName("android"))
+        } catch (e: Throwable) {
+            return emptyList()
+        }
+        val variants = mutableListOf<Variant>()
+        (androidExt["applicationVariants"]?.value as? Collection<*>)?.forEach { obj ->
+            val variant = reflector(obj)
+            variants.add(Variant(variant["name"]?.valueString ?: return@forEach, null))
+        }
+        return variants
+    }
+
     /**
      * We need this to determined build variant, the info is from IDE
      */
@@ -126,5 +182,7 @@ class GradleProjectInfoReaderManager(
     companion object {
         const val PARAM_DIFF_MODE = "jugg.diffMode"
         const val PARAM_INC_DEPLOY_TIMES = "jugg.incDeployTimes"
+        const val PARAM_BUILD_TARGET = "jugg.buildTarget"
+        const val BUILD_TARGET_ANDROID_TEST = "ANDROID_TEST"
     }
 }

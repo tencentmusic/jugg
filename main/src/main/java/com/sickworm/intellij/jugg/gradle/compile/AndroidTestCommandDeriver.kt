@@ -8,9 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
  * is never mutated.
  *
  * Rules:
- *  - compileCommand: appends `:<module>:assemble<Variant>AndroidTest` for every assemble task found.
- *    Falls back to appending `:app:assembleDebugAndroidTest` for non-assemble commands (e.g. bundle).
- *    Idempotent: already-present AndroidTest tasks are not duplicated.
+ *  - compileCommand: no longer modified here; readProjectInfo.gradle.kts injects androidTest tasks.
  *  - outputApkName: for each `<module>/build/outputs/apk/<variant>/&#42;.apk` segment appends
  *    `<module>/build/outputs/apk/androidTest/<variant>/&#42;.apk`. Idempotent. Segments are `;`-separated.
  */
@@ -18,25 +16,8 @@ object AndroidTestCommandDeriver {
 
     private val logger: Logger by lazy { Logger.getInstance(AndroidTestCommandDeriver::class.java) }
 
-    private val assembleTaskRegex = Regex(""":(\w+):assemble(\w+)""")
-
     fun deriveCompileCommand(appCompileCommand: String): String {
-        if (appCompileCommand.contains("AndroidTest")) {
-            return appCompileCommand
-        }
-
-        val matches = assembleTaskRegex.findAll(appCompileCommand).toList()
-        if (matches.isEmpty()) {
-            logger.warn("AndroidTestCommandDeriver: no assemble task found in '$appCompileCommand'; appending :app:assembleDebugAndroidTest as fallback")
-            return "$appCompileCommand :app:assembleDebugAndroidTest"
-        }
-
-        val testTasks = matches.joinToString(" ") { m ->
-            val module = m.groupValues[1]
-            val variant = m.groupValues[2]
-            ":$module:assemble${variant}AndroidTest"
-        }
-        return "$appCompileCommand $testTasks"
+        return appCompileCommand
     }
 
     /**

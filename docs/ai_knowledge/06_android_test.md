@@ -89,14 +89,16 @@ Jugg 目前支持 **app 模块的 androidTest**：
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/FullBuildInfo.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt`
 
-`AndroidTestCommandDeriver` 基于用户 App RunConfig 中已有的 app 编译命令派生 androidTest 命令，不回写 RunConfig。
+`CompileProjectCommand` 在 `BuildTarget.ANDROID_TEST` 时向 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`。`readProjectInfo.gradle.kts` 在 `projectsEvaluated` 阶段复用 `GradleProjectInfoReader` 的 variant guess 规则，按 app variant 查找 `assemble<Variant>AndroidTest`，并通过 `dependsOn` 挂到用户请求的 Gradle task 前执行；因此不再要求用户命令必须是 `assemble`。
+
+`JuggCompileHelper` 不再改写 RunConfig 中的 compile command 或 output APK 配置。`LocalGradleCompileClient` / `RemoteGradleCompileClient` 先按用户配置找到 app APK，再基于实际命中的 app APK 路径派生同 variant 的 `androidTest` APK glob 并追加到结果列表。
 
 典型规则：
 
 | app 配置 | androidTest 运行时派生 |
 |----------|------------------------|
-| `:app:assembleDebug` | `:app:assembleDebug :app:assembleDebugAndroidTest` |
-| `app/build/outputs/apk/debug/*.apk` | 追加 `app/build/outputs/apk/androidTest/debug/*.apk` |
+| `:app:assembleDebug` / 自定义 app task | 原命令保持不变，init script 注入 `:app:assembleDebugAndroidTest` 作为依赖 |
+| `app/build/outputs/apk/debug/app-debug.apk` | client 命中 app APK 后追加查找 `app/build/outputs/apk/androidTest/debug/*.apk` |
 
 `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`。当当前 target 与记录 target 不一致时，必须触发 Gradle full compile，避免 app/test 模式复用错误产物。缺失该文件时按首次运行处理。
 
@@ -216,7 +218,7 @@ am instrument -w -r [-e class <testClass>[#<testMethod>]] [-e <key> <value>]* <t
 
 | 测试文件 | 覆盖点 |
 |----------|--------|
-| `main/src/test/java/com/sickworm/intellij/jugg/gradle/compile/AndroidTestCommandDeriverTest.kt` | Gradle 命令与 APK glob 派生 |
+| `main/src/test/java/com/sickworm/intellij/jugg/gradle/compile/AndroidTestCommandDeriverTest.kt` | Gradle 命令保持不变与 client 侧 test APK 查找路径派生 |
 | `main/src/test/java/com/sickworm/intellij/jugg/deploy/FullBuildInfoSerializerTest.kt` | target 记录序列化与容错 |
 | `main/src/test/java/com/sickworm/intellij/jugg/apk/ApkInfoInstrumentationTest.kt` | test APK instrumentation manifest 读取 |
 | `main/src/test/java/com/sickworm/intellij/jugg/project/data/ModuleInfoAndroidTestTest.kt` | `isAndroidTestModule` |

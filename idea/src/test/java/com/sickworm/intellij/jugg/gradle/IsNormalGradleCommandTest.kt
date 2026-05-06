@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle
 
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import kotlin.test.Test
@@ -30,4 +31,17 @@ class IsNormalGradleCommandTest {
             assertEquals(isNormalGradleCommand, compileProjectCommand.isNormalGradleCommand, "command: $command")
         }
     }
+    @Test
+    fun androidTestBuildTarget_shouldInjectGradleProperty() {
+        val command = CompileProjectCommand(
+            "./gradlew :app:customDebugTask",
+            "/root/projects/projectABC",
+            "readProjectInfo.gradle",
+            buildTarget = BuildTarget.ANDROID_TEST,
+        ).baseCommand
+
+        assertEquals(true, command.contains("-Pjugg.buildTarget=ANDROID_TEST"), command)
+        assertEquals(false, command.contains("assembleDebugAndroidTest"), command)
+    }
+
 }

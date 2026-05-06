@@ -235,6 +235,10 @@ gradle.allprojects {
     }
 }
 
+gradle.projectsEvaluated {
+    gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).injectAndroidTestTaskIfNeeded()
+}
+
 gradle.taskGraph.whenReady {
     println("Jugg: task graph ready for \${rootProject.projectDir}")
     gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()

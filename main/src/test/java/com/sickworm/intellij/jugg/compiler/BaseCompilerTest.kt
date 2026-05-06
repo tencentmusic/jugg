@@ -61,6 +61,76 @@ class BaseCompilerTest {
         )
     }
 
+    @Test
+    fun compile_shouldCompileAndroidTestModulesAfterNonTestModules() {
+        val moduleRoot = File(testRoot, "app")
+        val libraryRoot = File(testRoot, "library")
+        val libraryModule = createModule("library", libraryRoot, "debug")
+        val appModule = createModule("app", moduleRoot, "debug", moduleDependencies = listOf(ModuleDependency("library")))
+        val androidTestModule = createModule(
+            name = "app.androidTest",
+            moduleRootDir = moduleRoot,
+            buildVariant = "debugAndroidTest",
+            moduleDependencies = listOf(ModuleDependency("app")),
+            instrumentationTargetPackage = "com.example.myapplication",
+        )
+        val context = createContext(libraryModule, appModule, androidTestModule)
+        val compiler = RecordingCompiler(context)
+
+        val librarySourceDir = File(libraryRoot, "src/main/java").apply { mkdirs() }
+        val appSourceDir = File(moduleRoot, "src/main/java").apply { mkdirs() }
+        val androidTestSourceDir = File(moduleRoot, "src/androidTest/java").apply { mkdirs() }
+        val libraryFile = File(librarySourceDir, "LibraryFile.kt").apply { writeText("class LibraryFile") }
+        val appFile = File(appSourceDir, "AppFile.kt").apply { writeText("class AppFile") }
+        val androidTestFile = File(androidTestSourceDir, "AndroidTestFile.kt").apply { writeText("class AndroidTestFile") }
+
+        val task = CompileTask(
+            files = listOf(
+                CompileFile(CompileFile.Type.Kotlin, androidTestFile, androidTestSourceDir, androidTestModule),
+                CompileFile(CompileFile.Type.Kotlin, appFile, appSourceDir, appModule),
+                CompileFile(CompileFile.Type.Kotlin, libraryFile, librarySourceDir, libraryModule),
+            ),
+            outputDir = File(testRoot, "staging"),
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        compiler.compile(task)
+
+        assertEquals(
+            listOf(
+                "library" to listOf("LibraryFile.kt"),
+                "app" to listOf("AppFile.kt"),
+                "app.androidTest" to listOf("AndroidTestFile.kt"),
+            ),
+            compiler.moduleCompileRecords,
+        )
+    }
+
+    @Test
+    fun compile_shouldKeepRootDirFallbackForNonTestModules() {
+        val moduleRoot = File(testRoot, "renamed_app")
+        val currentModule = createModule("currentApp", moduleRoot, "debug")
+        val staleModule = createModule("staleApp", moduleRoot, "debug")
+        val context = createContext(currentModule)
+        val compiler = RecordingCompiler(context)
+
+        val appSourceDir = File(moduleRoot, "src/main/java").apply { mkdirs() }
+        val appFile = File(appSourceDir, "AppFile.kt").apply { writeText("class AppFile") }
+
+        val task = CompileTask(
+            files = listOf(CompileFile(CompileFile.Type.Kotlin, appFile, appSourceDir, staleModule)),
+            outputDir = File(testRoot, "staging"),
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        compiler.compile(task)
+
+        assertEquals(
+            listOf("currentApp" to listOf("AppFile.kt")),
+            compiler.moduleCompileRecords,
+        )
+    }
+
     private fun createContext(vararg modules: ModuleInfo): SimpleCompileContext {
         val moduleMap = linkedMapOf<String, ModuleInfo>()
         modules.forEach { moduleMap[it.name] = it }

@@ -12,6 +12,7 @@ import org.junit.runner.RunWith
 class AppLogicInstrumentedTest {
     @Test
     fun targetContextUsesAppPackage() {
+        Log.i("AppLogicInstrumentedTest", "[targetContextUsesAppPackage] in")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
 
         assertEquals("com.example.myapplication", context.packageName)
@@ -19,6 +20,7 @@ class AppLogicInstrumentedTest {
 
     @Test
     fun appNameComesFromTargetResources() {
+        Log.i("AppLogicInstrumentedTest", "[appNameComesFromTargetResources] in")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val appName = context.getString(R.string.app_name)
 

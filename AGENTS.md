@@ -21,11 +21,20 @@
 编译验证仍可用 `./gradlew :idea:compileKotlin`。
 
 ## commit 规范
-根据以下规则编写提交信息：
+_根据以下规则编写提交信息：
 1. 必须用英文
-2. 根据修改内容使用前缀[feature][optimize][bugfix][refactor][docs][other]。[optimize] 不适用于工程构建优化，仅适用代码性能优化和交互体验优化
+2. 根据修改内容使用前缀[feature]/[optimize]/[bugfix]/[refactor]/[docs]/[other]。[optimize] 不适用于工程构建优化，仅适用代码性能优化和交互体验优化
 3. 不包含任何代码块
 4. 前缀之后开头小写，结尾不用句号
+5. 每次完成任务后，将改动直接 git commit，但不要 commit 非本次改动的文件（有可能是其他并行 agent 的改动）
+
+## 问题排查流程
+
+**收到插件运行时问题排查任务时如，增量编译失败，Android runtime crash，部署失败，流程不符合预期等，按照以下流程指引排查：**
+
+1. **读取排查手册**：读取 `docs/ai_knowledge/09_plugin_runtime_debug.md`，掌握日志结构与常见根因。
+2. **读取最新日志**：根据手册中的路径规则，读取 `{projectDir}/build/jugg/log/compile_latest.log`，获取编译上下文与错误现场。
+3. **结合项目知识定位**：对照日志中的 `[ClassName]` 标签与错误时间戳，结合 Jugg 增量编译知识得出根因，不得只依赖错误信息表面描述。
 
 ## ⚠️ AI 必读：强制工作流
 

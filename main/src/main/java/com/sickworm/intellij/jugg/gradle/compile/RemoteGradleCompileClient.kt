@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.project.Project
 import com.jcraft.jsch.*
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient.Companion.parseDiffSet
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -305,6 +306,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.remoteInitGradleFilePath,
                 localProjectPath = project.basePath,
                 logger = logger,
+                buildTarget = gradleCompileSettings.buildTarget,
             )
             val compileProjectResult = invoke(channel, compileProjectCommand)
             if (compileProjectResult != 0) {
@@ -314,16 +316,23 @@ class RemoteGradleCompileClient(
         }
 
         // 3. find and fetch apk
-        val lookingApkPaths = gradleCompileSettings.outputApkName.split(";")
-        val findApks = mutableListOf<File>()
+        val lookingApkPaths = gradleCompileSettings.outputApkName.split(";").map { it.trim() }.filter { it.isNotEmpty() }
+        val findApks = mutableListOf<RemoteApk>()
         val failedApkPaths = mutableListOf<String>()
+        val shouldIndexAppApk = lookingApkPaths.size > 1 || gradleCompileSettings.buildTarget == BuildTarget.ANDROID_TEST
         lookingApkPaths.forEachIndexed { index, apkPath ->
-            val finalIndex = if (lookingApkPaths.size > 1) index else -1
+            val finalIndex = if (shouldIndexAppApk) index else -1
             val apkFile = findApk(finalIndex, apkPath, channel, gradleCompileSettings)
             if (apkFile != null) {
                 findApks.add(apkFile)
             } else {
                 failedApkPaths.add(apkPath)
+            }
+        }
+        findAndroidTestApks(findApks, channel, gradleCompileSettings).let { testApks ->
+            findApks.addAll(testApks)
+            if (gradleCompileSettings.buildTarget == BuildTarget.ANDROID_TEST && testApks.isEmpty()) {
+                failedApkPaths.add("androidTest APK for ${gradleCompileSettings.outputApkName}")
             }
         }
 
@@ -332,13 +341,13 @@ class RemoteGradleCompileClient(
                     "total: \"${gradleCompileSettings.outputApkName}\"")
             return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
         } else {
-            logger.debug("Find apk: $findApks")
+            logger.debug("Find apk: ${findApks.map { it.localFile }}")
         }
 
-        return GradleCompileResult.success(findApks)
+        return GradleCompileResult.success(findApks.map { it.localFile })
     }
 
-    private fun findApk(index: Int, outputApkName: String, channel: Channel, gradleCompileSettings: JuggGradleCompileOptions): File? {
+    private fun findApk(index: Int, outputApkName: String, channel: Channel, gradleCompileSettings: JuggGradleCompileOptions): RemoteApk? {
         // find apk path
         val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, outputApkName)
         val findOutputResult = invoke(channel, findOutputCommand)
@@ -402,11 +411,31 @@ class RemoteGradleCompileClient(
         if (index >= 0) {
             val indexApkFile = apkFile.parentFile.resolve("${index}_${apkFileName}")
             apkFile.renameTo(indexApkFile)
-            return indexApkFile
+            return RemoteApk(apkPath, indexApkFile)
         }
 
-        return apkFile
+        return RemoteApk(apkPath, apkFile)
     }
+
+    private fun findAndroidTestApks(
+        appApks: List<RemoteApk>,
+        channel: Channel,
+        gradleCompileSettings: JuggGradleCompileOptions,
+    ): List<RemoteApk> {
+        if (gradleCompileSettings.buildTarget != BuildTarget.ANDROID_TEST) {
+            return emptyList()
+        }
+        return appApks.mapIndexedNotNull { index, appApk ->
+            val testApkPattern = LocalGradleCompileClient.deriveAndroidTestApkPattern(appApk.remotePath)
+            if (testApkPattern == null) {
+                logger.warn("AndroidTest mode: cannot derive test APK pattern from ${appApk.remotePath}")
+                return@mapIndexedNotNull null
+            }
+            findApk(appApks.size + index, testApkPattern, channel, gradleCompileSettings)
+        }
+    }
+
+    private data class RemoteApk(val remotePath: String, val localFile: File)
 
     private fun checkLoginOnStart(): Pair<Channel, JuggGradleCompileOptions> {
         isCanceled = false

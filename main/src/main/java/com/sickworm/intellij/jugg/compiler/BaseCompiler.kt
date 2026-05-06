@@ -95,6 +95,28 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     }
 
     private fun splitModuleAndCompile(task: CompileTask): CompileResult {
+        val nonTestTask = CompileTask(task.files.filter { !it.module.isAndroidTestModule }, task.outputDir, task)
+        val testTask = CompileTask(task.files.filter { it.module.isAndroidTestModule }, task.outputDir, task)
+        var results = CompileResult.empty(task)
+
+        if (nonTestTask.files.isNotEmpty()) {
+            results += splitModuleAndCompileOnePass(nonTestTask)
+            if (!results.isAllSuccess) {
+                return results.quickFailedOthers(task)
+            }
+        }
+
+        if (testTask.files.isNotEmpty()) {
+            results += splitModuleAndCompileOnePass(testTask)
+            if (!results.isAllSuccess) {
+                return results.quickFailedOthers(task)
+            }
+        }
+
+        return results
+    }
+
+    private fun splitModuleAndCompileOnePass(task: CompileTask): CompileResult {
         val (moduleCompileOrder, fileGroups) = getModuleCompileOrder(task)
         if (moduleCompileOrder.size > 1) {
             logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
@@ -119,7 +141,7 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     private fun getModuleCompileOrder(task: CompileTask): Pair<List<ModuleInfo>,Map<String, List<CompileFile>>> {
         val modulesWithOrder = context.modulesWithOrder
         // split by module
-        // Source sets like app and app.androidTest can share moduleRootDir, so include module name in the key.
+        // Only androidTest source-set modules need name-level grouping; other modules keep root-dir fallback for stale ChangedFile.module.
         val fileGroups: Map<String, List<CompileFile>> = task.files.groupBy { it.module.compileGroupKey }
         val fileGroupNames = fileGroups.keys.toSet()
         val moduleCompileOrder = modulesWithOrder.filter { module ->
@@ -183,7 +205,8 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
 
     override fun dispose() = Unit
 
-    private val ModuleInfo.compileGroupKey: String get() = "$name@${moduleRootDir.path}"
+    private val ModuleInfo.compileGroupKey: String
+        get() = if (isAndroidTestModule) "$name@${moduleRootDir.path}" else moduleRootDir.path
 
     private fun checkTypesCanCompile(task: CompileTask) {
         val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }

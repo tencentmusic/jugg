@@ -416,34 +416,8 @@ class GradleProjectInfoReader(
                     "Most likely the module is not in compilation")
             emptySet()
         }
-        val executedVariants = variants.filter {
-            val capitalizedName = it.name.camelCompat
-            val manifestTaskName = "process${capitalizedName}Manifest"
-            return@filter manifestTaskName in taskNames
-        }
-
         val startTaskNames: List<String>? = project.gradle.startParameter.taskRequests.getOrNull(0)?.args
-        val isRelease = startTaskNames?.any { it.contains("release", ignoreCase = true) } ?: false
-        val priorityVariant = if (isRelease) "release" else "debug"
-
-        if (executedVariants.size == 1) {
-            return executedVariants[0].name
-        } else if (executedVariants.isEmpty()) {
-            // this module may not be compiled, just return the first variant
-            val guessVariant = variants.firstOrNull {
-                it.name.contains(priorityVariant, ignoreCase = true)
-            }
-            println("Jugg: ${project.standardModuleName} has no executedVariants, " +
-                    "variants $variants, startTaskNames: $startTaskNames, guessVariant: $guessVariant")
-            return guessVariant?.name
-        } else {
-            val guessVariant = executedVariants.firstOrNull {
-                it.name.contains(priorityVariant, ignoreCase = true)
-            } ?: executedVariants.firstOrNull()
-            println("Jugg: ${project.standardModuleName} has multiple executedVariants: $executedVariants, " +
-                    "startTaskNames: $startTaskNames, guessVariant: $guessVariant")
-            return guessVariant?.name
-        }
+        return guessBuildVariant(project.standardModuleName, variants, taskNames, startTaskNames)
     }
 
     private fun getDependenciesByConfig(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true, isGetByNewWay: Boolean = false): List<Dependency> {
