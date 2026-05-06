@@ -154,9 +154,9 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
             owner: Any,
             ownerParent: (Any) -> Any?,
         ): AndroidTestTarget {
-            val ownerClassName = readClassName(owner)
-            val testMethod = ownerClassName?.let { null } ?: readName(owner)
-            val testClass = ownerClassName ?: readContainingClassName(owner, ownerParent)
+            val containingClassName = readContainingClassName(owner, ownerParent)
+            val testClass = containingClassName ?: readClassName(owner)
+            val testMethod = if (containingClassName == null) null else readName(owner)
             val displayName = listOfNotNull(testClass, testMethod).joinToString("#").ifEmpty { "Jugg Android Test" }
             return AndroidTestTarget(testClass, testMethod, displayName)
         }

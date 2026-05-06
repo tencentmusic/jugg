@@ -208,8 +208,42 @@ class JuggAndroidTestLineMarkerContributorTest {
     }
 
     @Test
+    fun `kotlin function fq name does not replace containing class name`() {
+        val owner = FakeKotlinFunction(
+            name = "targetContextUsesAppPackage",
+            parent = FakeClassBody(
+                parent = FakeKotlinClass(name = "com.example.myapplication.AppLogicInstrumentedTest")
+            ),
+            fqName = "com.example.myapplication.AppLogicInstrumentedTest.targetContextUsesAppPackage",
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
+            owner,
+            ownerParent = { current ->
+                when (current) {
+                    is FakeLeaf -> current.parent
+                    else -> null
+                }
+            },
+        )
+
+        assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
+        assertTrue(target.testMethod == "targetContextUsesAppPackage")
+        assertTrue(target.displayName == "com.example.myapplication.AppLogicInstrumentedTest#targetContextUsesAppPackage")
+    }
+
+    @Test
     fun `kotlin class target runs all tests in class`() {
-        val owner = FakeKotlinClass(name = "com.example.myapplication.AppLogicInstrumentedTest")
+        val owner = FakeKotlinClass(
+            name = "com.example.myapplication.AppLogicInstrumentedTest",
+            children = listOf(
+                FakeKotlinFunction(
+                    name = "targetContextUsesAppPackage",
+                    parent = null,
+                    annotations = listOf(KotlinTestAnnotation()),
+                ),
+            ),
+        )
 
         val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
             owner,
@@ -263,10 +297,14 @@ class JuggAndroidTestLineMarkerContributorTest {
     private class FakeKotlinFunction(
         private val name: String,
         parent: Any?,
+        private val fqName: String? = null,
         private val annotations: List<KotlinTestAnnotation> = emptyList(),
     ) : FakeLeaf(parent) {
         @Suppress("unused")
         fun getName(): String = name
+
+        @Suppress("unused")
+        fun getFqName(): String? = fqName
 
         @Suppress("unused")
         fun getAnnotationEntries(): List<KotlinTestAnnotation> = annotations

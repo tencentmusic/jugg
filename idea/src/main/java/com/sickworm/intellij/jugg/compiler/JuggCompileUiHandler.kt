@@ -49,6 +49,10 @@ open class JuggCompileUiHandler(
         if (isRpcMode) {
             return ConfirmResult.NEGATIVE
         }
+        // androidTest scenario: skip dialog, proceed without gradle fallback
+        if (testEventSinkFactory != null) {
+            return ConfirmResult.NEGATIVE
+        }
         return CommonConfirmDialog.showAndGetOrCancel(
             title = "Confirm Fallback to Gradle",
             content = "No file changes, do you want to fallback to gradle?",
