@@ -18,6 +18,7 @@ class TestLauncher(
     private val spec: AndroidTestRunSpec,
     private val testApk: ApkInfo,
     private val consoleOutput: (String) -> Unit,
+    private val showDeviceSuite: Boolean = true,
     private val testEventSinkFactory: (String) -> ((InstrumentationEvent) -> Unit)? = { null },
     private val cancelSignal: () -> Boolean,
     private val logger: Logger,

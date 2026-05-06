@@ -10,14 +10,16 @@ class InstrumentationSmRunnerBridge(
     private val openedClasses = linkedSetOf<String>()
     private var started = false
 
-    fun startDevice(deviceName: String) {
+    fun startDevice(deviceName: String, showDeviceSuite: Boolean = true) {
         if (!started) {
             output(serviceMessage("enteredTheMatrix"))
             started = true
         }
         currentDevice = deviceName
         openedClasses.clear()
-        output(serviceMessage("testSuiteStarted", "name" to deviceName))
+        if (showDeviceSuite) {
+            output(serviceMessage("testSuiteStarted", "name" to deviceName))
+        }
     }
 
     fun onEvent(event: InstrumentationEvent) {

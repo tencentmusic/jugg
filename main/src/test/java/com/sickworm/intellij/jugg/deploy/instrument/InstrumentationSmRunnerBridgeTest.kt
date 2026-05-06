@@ -27,6 +27,21 @@ class InstrumentationSmRunnerBridgeTest {
     }
 
     @Test
+    fun `single device can hide device suite`() {
+        val output = mutableListOf<String>()
+        val bridge = InstrumentationSmRunnerBridge(output::add)
+
+        bridge.startDevice("Pixel_9", showDeviceSuite = false)
+        bridge.onEvent(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
+        bridge.onEvent(InstrumentationEvent.TestFinished("com.example.FooTest", "testBar", InstrumentationEvent.TestResult.OK, null))
+        bridge.finishDevice()
+
+        assertFalse(output.any { it.contains("testSuiteStarted") && it.contains("name='Pixel_9'") })
+        assertFalse(output.any { it.contains("testSuiteFinished") && it.contains("name='Pixel_9'") })
+        assertTrue(output.any { it.contains("testSuiteStarted") && it.contains("name='com.example.FooTest'") })
+    }
+
+    @Test
     fun `failed test emits failure details before finish`() {
         val output = mutableListOf<String>()
         val bridge = InstrumentationSmRunnerBridge(output::add)

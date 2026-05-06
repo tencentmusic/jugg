@@ -165,6 +165,7 @@ class JuggDeployerHelper(
                     spec = androidTestRunSpec,
                     testApk = testApk,
                     consoleOutput = { line -> compileUiHandler.onDeployUiMessage(line) },
+                    showDeviceSuite = false,
                     testEventSinkFactory = { deviceName -> compileUiHandler.testEventSinkFactory?.invoke(deviceName) },
                     cancelSignal = { compileUiHandler.isCanceled },
                     logger = logger,
@@ -871,4 +872,3 @@ data class DeployTaskResult(
     val failedReason: String? = null,
     val costTimeExceptCheck: Long = costTime,
 )
-
