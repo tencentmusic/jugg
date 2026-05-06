@@ -22,7 +22,7 @@
 | 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `IncrementalDeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data` | 类结构变更传播和部署数据生成；双层数据库与引用索引；内联方法影响检测 | 稳定 | 2026-02-01 |
 | 部署数据模型 | `JuggDeployData`, `LaunchResult` | `deploy/run` | 下发设备的部署数据结构 | 稳定 | 2025-01-20 |
 | AndroidTest 运行模型 | `AndroidTestRunSpec`, `InstrumentCommandBuilder`, `InstrumentationOutputParser`, `InstrumentationConsoleRenderer` | `deploy/instrument` | androidTest instrumentation 参数、`am instrument` 命令构造、输出解析与 console 渲染 | 开发中 | 2026-04-29 |
-| 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo`, `JuggPathManager` | `project/data`, `project` | 模块、路径、依赖等快照；项目信息读取/序列化；统一路径管理 | 稳定 | 2026-02-22 |
+| 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo`, `JuggPathManager`, `ModuleApkBelongs` | `project/data`, `project` | 模块、路径、依赖等快照；项目信息读取/序列化；统一路径管理；模块到 APK 归属封装 | 稳定 | 2026-05-06 |
 | 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency` | 依赖变更检测策略 | 稳定 | 2025-01-20 |
 | Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script` | 通过 Gradle 反射读取模块信息 | 稳定 | 2025-01-20 |
 | Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile` | 本地/远端 Gradle 构建执行 | 稳定 | 2025-01-20 |

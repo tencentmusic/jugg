@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.project
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ModuleApkBelongs
 import com.sickworm.intellij.jugg.ModuleApkBelongsUtils
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
@@ -202,7 +203,7 @@ class BaseCompileContext(
 
     override var modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
-    override var moduleBelongsApkMap: Map<ModuleInfo, ApkFileUnit> = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkInfos, modules, tempModule, logger)
+    override var moduleBelongsApkMap: ModuleApkBelongs = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkInfos, modules, tempModule, logger)
 
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = getAndroidJarPath(moduleInfo)
@@ -377,7 +378,7 @@ class BaseCompileContext(
     private var desugaredLibraryConfigurationCache: MutableMap<String, String?> = mutableMapOf()
 
     override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
-        val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
+        val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)!!.apkFile // should not be null
         val incompleteInfo = deployFileManager.getDesugarInfo(compileFiles, moduleInfo, toDir, apkFile)
 
         return if (incompleteInfo.isNeedRewriteCoreLibrary) {
@@ -392,7 +393,7 @@ class BaseCompileContext(
     }
 
     private fun findDesugaredLibraryConfigurationWithCache(moduleInfo: ModuleInfo): String? {
-        val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
+        val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)!!.apkFile // should not be null
         desugaredLibraryConfigurationCache[apkFile.path]?.let { return it }
 
         val targetModule = findRelativeApkModule(moduleInfo) ?: moduleInfo
@@ -401,13 +402,13 @@ class BaseCompileContext(
     }
 
     private fun findRelativeApkModule(moduleInfo: ModuleInfo): ModuleInfo {
-        val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
+        val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)!!.apkFile // should not be null
         val applicationModule = applicationModule
-        if (applicationModule != null && moduleBelongsApkMap[applicationModule]?.apkFile == apkFile) {
+        if (applicationModule != null && moduleBelongsApkMap.getBelongsApk(applicationModule)?.apkFile == apkFile) {
             return applicationModule
         }
         dynamicFeatureModules.forEach {
-            if (moduleBelongsApkMap[it]?.apkFile == apkFile) {
+            if (moduleBelongsApkMap.getBelongsApk(it)?.apkFile == apkFile) {
                 return it
             }
         }

@@ -108,6 +108,7 @@ Jugg 目前支持 **app 模块的 androidTest**：
 
 - `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongsUtils.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongs.kt`
 
 `CompileContextManager` 的过滤规则：
 
@@ -115,7 +116,7 @@ Jugg 目前支持 **app 模块的 androidTest**：
 - `BuildTarget.ANDROID_TEST`：纳入 `.androidTest` module。
 - `.test` / `.unitTest` 在两种 target 下都继续过滤。
 
-`ModuleApkBelongsUtils` 增加 Step 0：`isAndroidTestModule` 优先路由到匹配 `instrumentationTargetPackage` 的 test APK。只有找不到 test APK 时才落回普通 base APK 兜底。
+`ModuleApkBelongsUtils` 现在返回 `ModuleApkBelongs` 封装类，默认通过 `getBelongsApk()` 保留现有单 APK 语义，同时用 `getAllBelongsApk()` 预留多 APK 归属视图。当前 Step 0 仍是 `isAndroidTestModule` 优先路由到匹配 `instrumentationTargetPackage` 的 test APK；找不到 test APK 时才落回普通 base APK 兜底。
 
 ---
 

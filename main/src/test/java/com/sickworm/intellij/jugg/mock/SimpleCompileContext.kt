@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.sickworm.intellij.jugg.ModuleApkBelongs
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
@@ -45,7 +46,10 @@ data class SimpleCompileContext(
 
     override val modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
-    override val moduleBelongsApkMap: Map<ModuleInfo, ApkFileUnit> = (modules.values + tempModule).associateWith { apkInfos.first().files.first() }
+    override val moduleBelongsApkMap: ModuleApkBelongs = ModuleApkBelongs(
+        (modules.values + tempModule).associateWith { apkInfos.first().files.first() },
+        (modules.values + tempModule).associateWith { listOf(apkInfos.first().files.first()) },
+    )
 
     override val cmdCompileEnv: List<String> = emptyList()
 

@@ -5,6 +5,7 @@ package com.sickworm.intellij.jugg.compiler
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ModuleApkBelongs
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -327,7 +328,7 @@ interface ICompileContext {
 
     val modulesWithOrder: List<ModuleInfo>
 
-    val moduleBelongsApkMap: Map<ModuleInfo, ApkFileUnit>
+    val moduleBelongsApkMap: ModuleApkBelongs
 
     val cmdCompileEnv: List<String>
 

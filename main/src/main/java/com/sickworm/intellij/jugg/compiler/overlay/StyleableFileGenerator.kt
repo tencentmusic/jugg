@@ -30,7 +30,7 @@ class StyleableFileGenerator(
         val modules: List<ModuleInfo> = if (context.isSingleApk || apkFileUnit.isBaseApk) {
             listOf(selectedApplicationModule)
         } else {
-            context.moduleBelongsApkMap.entries
+            context.moduleBelongsApkMap.entries()
                 .filter { it.value.apkFile.path == apkFileUnit.apkFile.path }
                 .map { it.key }
         }

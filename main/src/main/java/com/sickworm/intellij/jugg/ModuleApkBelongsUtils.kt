@@ -22,13 +22,14 @@ object ModuleApkBelongsUtils {
         modules: Map<String, ModuleInfo>,
         tempModule: ModuleInfo,
         logger: Logger,
-    ): Map<ModuleInfo, ApkFileUnit> {
+    ): ModuleApkBelongs {
         val apkFiles = apkInfo.flatMap { it.files }
         if (apkFiles.isEmpty()) {
-            return emptyMap()
+            return ModuleApkBelongs(emptyMap(), emptyMap())
         }
         if (apkFiles.size == 1) {
-            return (modules.values + tempModule).associateWith { apkFiles.first() }
+            val singleMap = (modules.values + tempModule).associateWith { apkFiles.first() }
+            return ModuleApkBelongs(singleMap, singleMap.mapValues { listOf(it.value) })
         }
 
         TimeLogger.start("getModuleApkBelongs")
@@ -78,6 +79,7 @@ object ModuleApkBelongsUtils {
         // 3. find out the module belongs to which apk.
         // If module is dependent on application module, then it's belong to base apk
         val moduleApkBelongs = mutableMapOf<ModuleInfo, ApkFileUnit>()
+        val allModuleApkBelongs = mutableMapOf<ModuleInfo, MutableList<ApkFileUnit>>()
         var baseApk = apkModuleBelongsData.find { it.isBaseApk }?.apkFileUnit
         if (baseApk == null) {
             // it should not happen, but it's better to ignore it and see what will happen in the future
@@ -105,11 +107,19 @@ object ModuleApkBelongsUtils {
                 val unit = testApkByTargetPkg[testModule.instrumentationTargetPackage]
                 if (unit != null) {
                     moduleApkBelongs[testModule] = unit
+                    allModuleApkBelongs.getOrPut(testModule) { mutableListOf() }.add(unit)
                 }
                 // if no test apk found, fall through to normal routing below (will land on base apk)
             }
 
         moduleApkBelongs[tempModule] = baseApk
+        val tempBelongs = allModuleApkBelongs.getOrPut(tempModule) { mutableListOf() }
+        tempBelongs.add(baseApk)
+        testApkByTargetPkg.values.forEach { unit ->
+            if (unit !in tempBelongs) {
+                tempBelongs.add(unit)
+            }
+        }
         val modulesInBaseApk = findAllDependModules(applicationModules, modules)
         apkModuleBelongsData.forEach {
             if (it.isFeatureApk && it.featureGeneratedModule != null) {
@@ -124,17 +134,20 @@ object ModuleApkBelongsUtils {
             // if module is dependent on application module, then it's belong to base apk
             if (moduleInfo in modulesInBaseApk) {
                 moduleApkBelongs[moduleInfo] = baseApk
+                allModuleApkBelongs.getOrPut(moduleInfo) { mutableListOf() }.add(baseApk)
                 return@forEach
             }
             // if module is dependent on dynamic feature module, then it's belong to dynamic feature apk
             apkModuleBelongsData.forEach inner@{
                 if (it.featureGeneratedModule != null && (moduleInfo in it.subModules)) {
                     moduleApkBelongs[moduleInfo] = it.apkFileUnit
+                    allModuleApkBelongs.getOrPut(moduleInfo) { mutableListOf() }.add(it.apkFileUnit)
                     return@forEach
                 }
             }
             // if module is not dependent on any module, then it's belong to base apk for fallback
             moduleApkBelongs[moduleInfo] = baseApk
+            allModuleApkBelongs.getOrPut(moduleInfo) { mutableListOf() }.add(baseApk)
         }
 
         @Suppress("NestedLambdaShadowedImplicitParameter")
@@ -143,7 +156,10 @@ object ModuleApkBelongsUtils {
             .entries.joinToString { "${it.key} -> [${it.value.joinToString { it.key.name } }]" }
         logger.debug("moduleApkBelongs result: $resultLogString")
         TimeLogger.end("getModuleApkBelongs", logger)
-        return moduleApkBelongs
+        return ModuleApkBelongs(
+            moduleApkBelongs,
+            allModuleApkBelongs.mapValues { it.value.distinct() },
+        )
     }
 
     private fun ModuleInfo.getSplitFeature(): String? {

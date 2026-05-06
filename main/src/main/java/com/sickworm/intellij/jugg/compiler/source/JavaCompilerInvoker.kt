@@ -171,7 +171,7 @@ class JavaCompilerInvoker {
                     // e.g. META-INF/service/xxx
                     // Note: accessing context.moduleBelongsApkMap might be risky if context is abstracted, 
                     // but following KotlinInvoker pattern, we assume correct context.
-                    val apkPath = context.moduleBelongsApkMap[module]?.apkFile?.path ?: ""
+                    val apkPath = context.moduleBelongsApkMap.getBelongsApk(module)?.apkFile?.path ?: ""
                     CompileOutput(CompileOutput.Type.Res, it, task.outputDir, apkPath)
                 }
             }

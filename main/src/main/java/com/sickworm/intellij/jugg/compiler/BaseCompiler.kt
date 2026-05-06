@@ -171,7 +171,7 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         val apkCompileOrder = mutableListOf<ApkFileUnit>()
         moduleCompileOrder.forEach {
             val files = fileGroups[it.compileGroupKey] ?: emptyList()
-            val apkFile = context.moduleBelongsApkMap[it]!!
+            val apkFile = context.moduleBelongsApkMap.getBelongsApk(it)!!
             if (apkFile !in apkCompileOrder) {
                 apkCompileOrder.add(apkFile)
                 apkGroups[apkFile] = files.toMutableList()

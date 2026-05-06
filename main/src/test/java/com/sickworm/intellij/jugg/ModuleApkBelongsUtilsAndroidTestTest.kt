@@ -68,7 +68,8 @@ class ModuleApkBelongsUtilsAndroidTestTest {
             com.intellij.openapi.diagnostic.Logger.getInstance("test"))
 
         val testApkUnit = apkInfos.first { it.isTestApk }.files.first()
-        assertEquals(testApkUnit, result[testMod])
+        assertEquals(testApkUnit, result.getBelongsApk(testMod))
+        assertEquals(listOf(testApkUnit), result.getAllBelongsApk(testMod))
     }
 
     @Test
@@ -83,7 +84,8 @@ class ModuleApkBelongsUtilsAndroidTestTest {
             com.intellij.openapi.diagnostic.Logger.getInstance("test"))
 
         val appApkUnit = apkInfos.first { !it.isTestApk }.files.first()
-        assertEquals(appApkUnit, result[appMod])
+        assertEquals(appApkUnit, result.getBelongsApk(appMod))
+        assertEquals(listOf(appApkUnit), result.getAllBelongsApk(appMod))
     }
 
     @Test
@@ -97,7 +99,7 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         val result = ModuleApkBelongsUtils.getModuleApkBelongs(appMod, apkInfos, modules, tempModule,
             com.intellij.openapi.diagnostic.Logger.getInstance("test"))
 
-        assertNotEquals(result[appMod], result[testMod])
+        assertNotEquals(result.getBelongsApk(appMod), result.getBelongsApk(testMod))
     }
 
     @Test
@@ -112,7 +114,8 @@ class ModuleApkBelongsUtilsAndroidTestTest {
             com.intellij.openapi.diagnostic.Logger.getInstance("test"))
 
         val baseApkUnit = apkInfos.first().files.first()
-        assertEquals(baseApkUnit, result[testMod])
+        assertEquals(baseApkUnit, result.getBelongsApk(testMod))
+        assertEquals(listOf(baseApkUnit), result.getAllBelongsApk(testMod))
     }
 
     @Test
@@ -133,6 +136,24 @@ class ModuleApkBelongsUtilsAndroidTestTest {
             com.intellij.openapi.diagnostic.Logger.getInstance("test"))
 
         val baseApkUnit = apkInfos.first { !it.isTestApk }.files.first()
-        assertEquals(baseApkUnit, result[testMod])
+        assertEquals(baseApkUnit, result.getBelongsApk(testMod))
+        assertEquals(listOf(baseApkUnit), result.getAllBelongsApk(testMod))
+    }
+
+    @Test
+    fun `temp module exposes both base and test ApkFileUnits`() {
+        val appMod = appModule()
+        val testMod = androidTestModule()
+        val modules = mapOf(appMod.name to appMod, testMod.name to testMod)
+        val apkInfos = listOf(appApkInfo(), testApkInfo())
+        val tempModule = ModuleInfo.virtualModule
+
+        val result = ModuleApkBelongsUtils.getModuleApkBelongs(appMod, apkInfos, modules, tempModule,
+            com.intellij.openapi.diagnostic.Logger.getInstance("test"))
+
+        val baseApkUnit = apkInfos.first { !it.isTestApk }.files.first()
+        val testApkUnit = apkInfos.first { it.isTestApk }.files.first()
+        assertEquals(baseApkUnit, result.getBelongsApk(tempModule))
+        assertEquals(listOf(baseApkUnit, testApkUnit), result.getAllBelongsApk(tempModule))
     }
 }
