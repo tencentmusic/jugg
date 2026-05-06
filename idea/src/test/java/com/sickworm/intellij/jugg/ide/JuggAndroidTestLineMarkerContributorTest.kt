@@ -190,6 +190,7 @@ class JuggAndroidTestLineMarkerContributorTest {
             parent = FakeClassBody(
                 parent = FakeKotlinClass(name = "com.example.myapplication.AppLogicInstrumentedTest")
             ),
+            annotations = listOf(KotlinTestAnnotation()),
         )
 
         val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
@@ -215,6 +216,7 @@ class JuggAndroidTestLineMarkerContributorTest {
                 parent = FakeKotlinClass(name = "com.example.myapplication.AppLogicInstrumentedTest")
             ),
             fqName = "com.example.myapplication.AppLogicInstrumentedTest.targetContextUsesAppPackage",
+            annotations = listOf(KotlinTestAnnotation()),
         )
 
         val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
@@ -225,6 +227,25 @@ class JuggAndroidTestLineMarkerContributorTest {
                     else -> null
                 }
             },
+        )
+
+        assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
+        assertTrue(target.testMethod == "targetContextUsesAppPackage")
+        assertTrue(target.displayName == "com.example.myapplication.AppLogicInstrumentedTest#targetContextUsesAppPackage")
+    }
+
+    @Test
+    fun `kotlin function fq name with method suffix is trimmed to class name`() {
+        val owner = FakeKotlinFunction(
+            name = "targetContextUsesAppPackage",
+            parent = null,
+            fqName = "com.example.myapplication.AppLogicInstrumentedTest.targetContextUsesAppPackage",
+            annotations = listOf(KotlinTestAnnotation()),
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
+            owner,
+            ownerParent = { null },
         )
 
         assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
@@ -253,6 +274,89 @@ class JuggAndroidTestLineMarkerContributorTest {
         assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
         assertTrue(target.testMethod == null)
         assertTrue(target.displayName == "com.example.myapplication.AppLogicInstrumentedTest")
+    }
+
+    @Test
+    fun `class owner with getName returns null testMethod regardless of hasChildren`() {
+        // Regression: real KtClass has getName(), which must not leak into testMethod
+        val owner = FakeKotlinClass(
+            name = "com.example.myapplication.AppLogicInstrumentedTest",
+            children = emptyList(), // no children ensures hasChildren is false
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
+            owner,
+            ownerParent = { null },
+        )
+
+        assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
+        assertTrue(target.testMethod == null)
+    }
+
+    @Test
+    fun `class owner with self-referencing getContainingClass keeps testMethod null`() {
+        val owner = FakeKotlinClassWithSelfContainingClass(
+            name = "com.example.myapplication.AppLogicInstrumentedTest",
+            children = listOf(
+                FakeKotlinFunction(
+                    name = "targetContextUsesAppPackage",
+                    parent = null,
+                    annotations = listOf(KotlinTestAnnotation()),
+                ),
+            ),
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
+            owner,
+            ownerParent = { null },
+        )
+
+        assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
+        assertTrue(target.testMethod == null)
+    }
+
+    @Test
+    fun `method owner with self-referencing getContainingClass uses parent chain fallback`() {
+        val owner = FakeKotlinFunctionWithSelfContainingClass(
+            name = "targetContextUsesAppPackage",
+            parent = FakeClassBody(
+                parent = FakeKotlinClass(name = "com.example.myapplication.AppLogicInstrumentedTest")
+            ),
+            fqName = "com.example.myapplication.AppLogicInstrumentedTest.targetContextUsesAppPackage",
+            annotations = listOf(KotlinTestAnnotation()),
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
+            owner,
+            ownerParent = { current ->
+                when (current) {
+                    is FakeLeaf -> current.parent
+                    else -> null
+                }
+            },
+        )
+
+        assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
+        assertTrue(target.testMethod == "targetContextUsesAppPackage")
+    }
+
+    @Test
+    fun `method owner without containing class falls back to fq name derivation`() {
+        // Regression: method owner where parent chain fails, must derive class from fqName
+        val owner = FakeKotlinFunction(
+            name = "targetContextUsesAppPackage",
+            parent = null,
+            fqName = "com.example.myapplication.AppLogicInstrumentedTest.targetContextUsesAppPackage",
+            annotations = listOf(KotlinTestAnnotation()),
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(
+            owner,
+            ownerParent = { null },
+        )
+
+        assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
+        assertTrue(target.testMethod == "targetContextUsesAppPackage")
     }
 
     private class JavaTestOwner {
@@ -318,6 +422,9 @@ class JuggAndroidTestLineMarkerContributorTest {
     ) : FakeLeaf(null) {
         @Suppress("unused")
         fun getFqName(): String = name
+
+        @Suppress("unused")
+        fun getName(): String = name.substringAfterLast(".")
 
         @Suppress("unused")
         fun getChildren(): Array<Any> = children.toTypedArray()
