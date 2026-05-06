@@ -90,18 +90,12 @@ Jugg 目前支持 **app 模块的 androidTest**：
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/FullBuildInfo.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt`
 
-`CompileProjectCommand` 在 `BuildTarget.ANDROID_TEST` 时向 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`。`readProjectInfo.gradle.kts` 在 `projectsEvaluated` 阶段复用 `GradleProjectInfoReader` 的 variant guess 规则，按 app variant 查找 `assemble<Variant>AndroidTest`，并通过 `dependsOn` 挂到用户请求的 Gradle task 前执行；因此不再要求用户命令必须是 `assemble`。
+关键不变式：
 
-`JuggCompileHelper` 不再改写 RunConfig 中的 compile command 或 output APK 配置。`LocalGradleCompileClient` / `RemoteGradleCompileClient` 先按用户配置找到 app APK，再基于实际命中的 app APK 路径派生同 variant 的 `androidTest` APK glob 并追加到结果列表。
-
-典型规则：
-
-| app 配置 | androidTest 运行时派生 |
-|----------|------------------------|
-| `:app:assembleDebug` / 自定义 app task | 原命令保持不变，init script 注入 `:app:assembleDebugAndroidTest` 作为依赖 |
-| `app/build/outputs/apk/debug/app-debug.apk` | client 命中 app APK 后追加查找 `app/build/outputs/apk/androidTest/debug/*.apk` |
-
-`full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`。当当前 target 与记录 target 不一致时，必须触发 Gradle full compile，避免 app/test 模式复用错误产物。缺失该文件时按首次运行处理。
+- 不改写用户 RunConfig 中的 compile command 或 output APK 配置。
+- `BuildTarget.ANDROID_TEST` 通过 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`，并把同 variant 的 `assemble<Variant>AndroidTest` 挂到用户请求的 Gradle task 前执行。
+- Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径派生同 variant 的 `app/build/outputs/apk/androidTest/<variant>/*.apk`。
+- `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
 
 ### 3.2 增量编译
 
@@ -156,20 +150,7 @@ gutter 约束：
 - `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/DeployOptions.kt`
 
-主链路：
-
-```text
-JuggAndroidTestLineMarkerContributor
-  -> JuggAndroidTestRunConfiguration
-  -> JuggAndroidTestRunSpecFactory
-  -> JuggManager.runTask(appOptions, androidTestRunSpec, executor, runProfile)
-  -> JuggConfigurationRunner
-  -> JuggRunningTask
-  -> DeployOptions(androidTestRunSpec)
-  -> JuggDeployerHelper
-```
-
-普通 app run 的 `androidTestRunSpec = null`，行为不变。
+gutter 触发后由 `JuggAndroidTestRunSpecFactory` 生成 `AndroidTestRunSpec`，再经 `JuggManager.runTask(...)`、`JuggConfigurationRunner`、`JuggRunningTask` 写入 `DeployOptions.androidTestRunSpec`。普通 app run 的 `androidTestRunSpec = null`，行为不变。
 
 ### 4.3 Test Results UI
 
@@ -182,18 +163,9 @@ JuggAndroidTestLineMarkerContributor
 
 androidTest run 会在 `JuggConfigurationRunner` 中创建 SM Test Runner console；普通 app run 仍使用普通 text console。SM Runner 只负责 UI，不接管 Jugg 的编译、部署和 instrumentation 执行。
 
-UI 事件链路：
+UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `InstrumentationEvent`，`InstrumentationSmRunnerBridge` 转成 TeamCity service message，最终由 `SMTestRunnerConnectionUtil` 驱动 Test Results tree。
 
-```text
-InstrumentationOutputParser
-  -> InstrumentationEvent
-  -> InstrumentationSmRunnerBridge
-  -> TeamCity service messages
-  -> SMTestRunnerConnectionUtil
-  -> Test Results tree
-```
-
-节点约定：
+关键节点约定：
 
 | 节点 | name | locationHint |
 |------|------|--------------|
@@ -215,21 +187,12 @@ InstrumentationOutputParser
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/ApkInstallOrder.kt`
 
-部署阶段继续按 `applicationId` 分组，install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。
-
-**关键差异**（2026-05-06 优化）：
+部署阶段继续按 `applicationId` 分组，install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。2026-05-06 后的关键差异：
 
 - **base APK**：继续走完整部署策略（install / code swap / full swap），参与 JVMTI agent push/attach 与 compat 检测。
 - **test APK**：只走 **INSTALL**（完整 APK 安装），不走 code swap / full swap 增量部署。
 
-原因：`am instrument` 在主 APK 进程内运行测试代码（test APK 无独立进程），主 apk 和 test APK 共享 JVMTI Agent。`am instrument` 只启动主 APK 的 application。因此：
-
-- test APK 不参与 `JuggJvmtiAgentManagerHelper` 的 agent push/attach/compat 检测。
-- test APK 在非 INSTALL 场景下仍强制走 `AndroidDeployType.INSTALL`。
-- `JuggDeployerHelper.removeLibraryDexFiles` 跳过 test APK。
-- `CompatDeployHelper.isEnableCompatDeploy` 跳过 test APK 的 applicationId。
-
-详见 `docs/task/androidtest_testapk_deploy_optimization.md`。
+原因：`am instrument` 在主 APK 进程内运行测试代码，test APK 无独立进程，不应参与 JVMTI agent push/attach、compat 检测或 library dex 清理。详见 `docs/task/androidtest_testapk_deploy_optimization.md`。
 
 ### 5.2 am instrument
 
@@ -263,49 +226,17 @@ am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMetho
 
 禁止运行完整测试套件。androidTest 支持相关回归优先跑定向测试。
 
-### 6.1 main 模块
-
-| 测试文件 | 覆盖点 |
-|----------|--------|
-| `main/src/test/java/com/sickworm/intellij/jugg/gradle/compile/AndroidTestCommandDeriverTest.kt` | Gradle 命令保持不变与 client 侧 test APK 查找路径派生 |
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/FullBuildInfoSerializerTest.kt` | target 记录序列化与容错 |
-| `main/src/test/java/com/sickworm/intellij/jugg/apk/ApkInfoInstrumentationTest.kt` | test APK instrumentation manifest 读取 |
-| `main/src/test/java/com/sickworm/intellij/jugg/project/data/ModuleInfoAndroidTestTest.kt` | `isAndroidTestModule` |
-| `main/src/test/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfoSerializerAndroidTestTest.kt` | project info 新字段序列化兼容 |
-| `main/src/test/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderAndroidTestTest.kt` | Gradle 侧 synthetic module 生成 |
-| `main/src/test/java/com/sickworm/intellij/jugg/ModuleApkBelongsUtilsAndroidTestTest.kt` | androidTest module 到 test APK 路由 |
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentCommandBuilderTest.kt` | `am instrument` 命令构造 |
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationOutputParserTest.kt` | instrumentation 输出解析 |
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationConsoleRendererTest.kt` | console 渲染 |
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridgeTest.kt` | SM Test Runner service message 映射 |
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/run/ApkInstallOrderTest.kt` | app/test APK install 顺序 |
-| `main/src/test/java/com/sickworm/intellij/jugg/ide/logic/AndroidTestRunSpecPropagationTest.kt` | spec 传递链路 |
-
-### 6.2 idea 模块
-
-| 测试文件 | 覆盖点 |
-|----------|--------|
-| `idea/src/test/java/com/sickworm/intellij/jugg/project/CompileContextManagerAndroidTestFilterTest.kt` | `.androidTest` module 过滤规则 |
-| `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributorTest.kt` | gutter 路径与入口边界 |
-| `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunSpecFactoryTest.kt` | RunConfig options 到 spec |
-| `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsolePropertiesTest.kt` | SM Test Runner locator |
-| `idea/src/test/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsActionTest.kt` | failed leaf tests 到 `testFilters` |
-| `idea/src/test/java/com/sickworm/intellij/jugg/deploy/run/DeployOptionsAndroidTestSpecTest.kt` | DeployOptions 携带 spec |
-| `idea/src/test/java/com/sickworm/intellij/jugg/deploy/run/TestLauncherResultTest.kt` | parser event sink 与结果语义 |
-
-### 6.3 常用定向命令
+按能力域搜索测试，避免维护易漂移的静态文件清单：
 
 ```bash
-./gradlew :main:test --tests "com.sickworm.intellij.jugg.gradle.compile.AndroidTestCommandDeriverTest"
-./gradlew :main:test --tests "com.sickworm.intellij.jugg.ModuleApkBelongsUtilsAndroidTestTest"
-./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.instrument.InstrumentationOutputParserTest"
-./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.instrument.InstrumentationSmRunnerBridgeTest"
-./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.run.ApkInstallOrderTest"
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.project.CompileContextManagerAndroidTestFilterTest"
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.JuggAndroidTestRunSpecFactoryTest"
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.JuggAndroidTestConsolePropertiesTest"
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.JuggAndroidTestRerunFailedTestsActionTest"
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.deploy.run.TestLauncherSmEventSinkTest"
+rg --files main/src/test idea/src/test | rg 'AndroidTest|Instrumentation|ApkInstallOrder|TestLauncher|RunSpec'
+```
+
+常用跑法：先用上面的 `rg` 定位目标测试类，再替换 `--tests` 参数。
+
+```bash
+./gradlew :main:test --tests "com.sickworm.intellij.jugg.<MainModuleTestClass>"
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.<IdeaModuleTestClass>"
 ```
 
 必要时可做编译验证：
