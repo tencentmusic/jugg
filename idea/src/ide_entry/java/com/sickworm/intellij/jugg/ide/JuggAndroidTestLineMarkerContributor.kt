@@ -37,24 +37,21 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
      * `src/androidTest/`, otherwise returns null.
      */
     override fun getInfo(element: PsiElement): Info? {
-        val logger = JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
         val containingFile = element.containingFile ?: return null
 
         // Hard constraint: PSI file must be under src/androidTest/
         val filePath = containingFile.virtualFile?.path ?: return null
         if (!isSupportedAndroidTestPath(filePath)) {
-            logger.debug("Skip Jugg androidTest gutter: unsupported path=$filePath, element=${element::class.java.name}")
             return null
         }
 
         val annotatedElement = findAnnotatedElement(element)
         if (annotatedElement == null) {
-            logger.debug("Skip Jugg androidTest gutter: no junit test annotation, " +
-                    "path=$filePath, element=${element::class.java.name}, parent=${element.parent?.javaClass?.name}")
             return null
         }
 
-        logger.info("Show Jugg androidTest gutter: " +
+        JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
+            .info("Show Jugg androidTest gutter: " +
                 "path=$filePath, element=${element::class.java.name}, owner=${annotatedElement.javaClass.name}")
 
         return Info(
