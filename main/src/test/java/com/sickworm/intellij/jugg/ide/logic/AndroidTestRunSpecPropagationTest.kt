@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.execution.ExecutionResult
+import com.intellij.execution.Executor
+import com.intellij.execution.configurations.RunProfile
 import com.intellij.openapi.progress.ProgressIndicator
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
@@ -49,6 +51,8 @@ class AndroidTestRunSpecPropagationTest {
             override fun runTask(
                 options: JuggGradleCompileOptions,
                 compileUiHandler: CompileUiHandler,
+                executor: Executor?,
+                runProfile: RunProfile?,
                 androidTestRunSpec: AndroidTestRunSpec?,
             ): ExecutionResult {
                 calls++
@@ -64,7 +68,7 @@ class AndroidTestRunSpecPropagationTest {
             ): JuggRunInvocationResult = JuggRunInvocationResult(isSuccess = true)
         }
 
-        assertSame(result, runner.runTask(options, CompileUiHandler.DEFAULT, spec))
+        assertSame(result, runner.runTask(options, CompileUiHandler.DEFAULT, null, null, spec))
         assertEquals(1, runner.calls)
     }
 

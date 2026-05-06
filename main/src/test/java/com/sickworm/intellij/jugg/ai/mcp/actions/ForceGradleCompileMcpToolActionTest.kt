@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.intellij.execution.ExecutionResult
+import com.intellij.execution.Executor
+import com.intellij.execution.configurations.RunProfile
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
@@ -87,7 +89,7 @@ class ForceGradleCompileMcpToolActionTest {
             override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
                 override val isCompiling: Boolean = false
 
-                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler, androidTestRunSpec: AndroidTestRunSpec?): ExecutionResult {
+                override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler, executor: Executor?, runProfile: RunProfile?, androidTestRunSpec: AndroidTestRunSpec?): ExecutionResult {
                     throw UnsupportedOperationException("not used in this test")
                 }
 
