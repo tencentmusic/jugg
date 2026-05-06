@@ -22,6 +22,13 @@ data class ApkInfo(
     /** Returns true when this APK is an instrumentation test APK. */
     val isTestApk: Boolean get() = instrumentationTargetPackage != null
 
+    /**
+     * True when this test APK targets a different package (app androidTest pattern).
+     * These run in the target app's process and don't need their own JVMTI agent or
+     * incremental deploy. False for self-targeting test APKs (library androidTest).
+     */
+    val isOtherTargetingTestApk: Boolean get() = isTestApk && instrumentationTargetPackage != applicationId
+
     constructor(
         file: File,
         applicationId: String,

@@ -182,9 +182,21 @@ JuggAndroidTestLineMarkerContributor
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/ApkInstallOrder.kt`
 
-部署阶段继续按 `applicationId` 分组。app APK 和 test APK 都走现有 `JuggDeployTask.perform()`，不新增 test APK 专用 deploy type。
+部署阶段继续按 `applicationId` 分组，install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。
 
-install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。
+**关键差异**（2026-05-06 优化）：
+
+- **base APK**：继续走完整部署策略（install / code swap / full swap），参与 JVMTI agent push/attach 与 compat 检测。
+- **test APK**：只走 **INSTALL**（完整 APK 安装），不走 code swap / full swap 增量部署。
+
+原因：`am instrument` 在主 APK 进程内运行测试代码（test APK 无独立进程），主 apk 和 test APK 共享 JVMTI Agent。`am instrument` 只启动主 APK 的 application。因此：
+
+- test APK 不参与 `JuggJvmtiAgentManagerHelper` 的 agent push/attach/compat 检测。
+- test APK 在非 INSTALL 场景下仍强制走 `AndroidDeployType.INSTALL`。
+- `JuggDeployerHelper.removeLibraryDexFiles` 跳过 test APK。
+- `CompatDeployHelper.isEnableCompatDeploy` 跳过 test APK 的 applicationId。
+
+详见 `docs/task/androidtest_testapk_deploy_optimization.md`。
 
 ### 5.2 am instrument
 

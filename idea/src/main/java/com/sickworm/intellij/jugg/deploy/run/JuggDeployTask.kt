@@ -94,7 +94,15 @@ class JuggDeployTask(
             try {
                 launchContext.launchApp = shouldTaskLaunchApp()
                 val apkFiles = apkInfos.flatMap { it.files }.map { it.apkFile }
-                val result = perform(device, deployer, applicationId, apkFiles)
+                // Other-targeting test APKs (app androidTest) run inside the main app
+                // process and don't benefit from incremental deploy; force INSTALL.
+                val isOtherTargeting = apkInfos.all { it.isOtherTargetingTestApk }
+                val effectiveType = if (isOtherTargeting && type != AndroidDeployType.INSTALL) {
+                    AndroidDeployType.INSTALL
+                } else {
+                    type
+                }
+                val result = perform(device, deployer, applicationId, apkFiles, effectiveType)
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId)
                 }
@@ -134,9 +142,10 @@ class JuggDeployTask(
 
     @Throws(DeployerException::class)
     private fun perform(
-        device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>
+        device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>,
+        effectiveType: AndroidDeployType = type,
     ): JuggDeployer.Result {
-        when (type) {
+        when (effectiveType) {
             AndroidDeployType.INSTALL -> {
                 // default install argument has: -t -r --full --dont-kill
                 val options = InstallOptions.builder().setAllowDebuggable()

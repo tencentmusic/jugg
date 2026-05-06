@@ -33,6 +33,45 @@ class ApkInfoInstrumentationTest {
         assertEquals("com.example.app", apkInfo.instrumentationTargetPackage)
         assertEquals("androidx.test.runner.AndroidJUnitRunner", apkInfo.instrumentationRunner)
     }
+
+    @Test
+    fun `isOtherTargetingTestApk false for app apk`() {
+        val apkInfo = ApkInfo(
+            files = listOf(ApkFileUnit("com.example.app", "", true, File("app.apk"))),
+            applicationId = "com.example.app"
+        )
+        assertEquals(false, apkInfo.isOtherTargetingTestApk)
+    }
+
+    @Test
+    fun `isOtherTargetingTestApk true for app-style test apk targeting different package`() {
+        val apkInfo = ApkInfo(
+            files = listOf(ApkFileUnit("com.example.app.test", "", true, File("app-debug-androidTest.apk"))),
+            applicationId = "com.example.app.test",
+            instrumentationTargetPackage = "com.example.app",
+        )
+        assertEquals(true, apkInfo.isOtherTargetingTestApk)
+    }
+
+    @Test
+    fun `isOtherTargetingTestApk false for library-style test apk targeting itself`() {
+        val apkInfo = ApkInfo(
+            files = listOf(ApkFileUnit("com.example.lib.test", "", true, File("lib-debug-androidTest.apk"))),
+            applicationId = "com.example.lib.test",
+            instrumentationTargetPackage = "com.example.lib.test",
+        )
+        assertEquals(false, apkInfo.isOtherTargetingTestApk)
+    }
+
+    @Test
+    fun `isOtherTargetingTestApk false when test apk has null target package`() {
+        val apkInfo = ApkInfo(
+            files = listOf(ApkFileUnit("com.example.app.test", "", true, File("app-debug-androidTest.apk"))),
+            applicationId = "com.example.app.test",
+            instrumentationTargetPackage = null,
+        )
+        assertEquals(false, apkInfo.isOtherTargetingTestApk)
+    }
 }
 
 class ApkInfoSerializerCompatTest {

@@ -62,7 +62,9 @@ class CompatDeployHelper(
         if (!record.applications.isNullOrEmpty()) {
             // record records applications, so only compat deploy when application match
             val isMatchApplication = record.applications.any { compatApplication ->
-                data.apks.any { it.applicationId == compatApplication }
+                data.apks
+                    .filter { !it.isOtherTargetingTestApk }
+                    .any { it.applicationId == compatApplication }
             }
             return isMatchApplication
         }

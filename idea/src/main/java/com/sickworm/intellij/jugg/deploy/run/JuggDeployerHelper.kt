@@ -241,8 +241,10 @@ class JuggDeployerHelper(
             logger.info("Before deploy, need to delete reverted libraries dex:\n" +
                     removedDexFiles.joinToString("\n    ", prefix = "    "))
             removedDexFiles.forEach { dexFileName ->
-                data.apks.forEach {
-                    val packageName = it.applicationId
+                data.apks
+                    .filter { !it.isOtherTargetingTestApk }
+                    .forEach {
+                        val packageName = it.applicationId
                     logger.debug("delete $packageName - $dexFileName")
                     try {
                         AdbCmdHelper(device, logger).deleteDeployedDexFile(packageName, dexFileName)

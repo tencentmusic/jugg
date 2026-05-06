@@ -21,7 +21,9 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
                 // install has no incremental deploy files, no need push agent
                 return false
             }
-            data.apks.forEach {
+            data.apks
+                .filter { !it.isOtherTargetingTestApk }
+                .forEach {
                 if (isNeedPushAfterDeploy(adb, it.applicationId)) {
                     // any App need push agent, do it all (they are always push together)
                     return true
@@ -60,9 +62,11 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
             return
         }
         TimeLogger.start("pushAgentToApps")
-        data.apks.forEach {
-            JuggJvmtiAgentManager(adb, logger).pushAgentToApp(it.applicationId)
-        }
+        data.apks
+            .filter { !it.isOtherTargetingTestApk }
+            .forEach {
+                JuggJvmtiAgentManager(adb, logger).pushAgentToApp(it.applicationId)
+            }
         TimeLogger.end("pushAgentToApps", logger)
     }
 
@@ -73,9 +77,11 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
             return
         }
         TimeLogger.start("attachAgentToApps")
-        data.apks.forEach {
-            JuggJvmtiAgentManager(adb, logger).attachAgentToApp(it.applicationId)
-        }
+        data.apks
+            .filter { !it.isOtherTargetingTestApk }
+            .forEach {
+                JuggJvmtiAgentManager(adb, logger).attachAgentToApp(it.applicationId)
+            }
         TimeLogger.end("attachAgentToApps", logger)
     }
 
@@ -103,7 +109,9 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
             Thread.sleep(waitGapMillSecond)
             waitedTimeMillSecond += waitGapMillSecond
 
-            val isJvmtiAvailableResults = data.apks.map {
+            val isJvmtiAvailableResults = data.apks
+                .filter { !it.isOtherTargetingTestApk }
+                .map {
                 val result = isJvmtiAvailable(adb, it.applicationId)
                 logger.debug("isJvmtiAvailable=$result for ${it.applicationId}")
                 if (result == true) {
