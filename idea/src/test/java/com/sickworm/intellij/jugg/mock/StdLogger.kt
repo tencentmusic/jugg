@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.mock
 
 import com.intellij.openapi.diagnostic.DefaultLogger
 import org.jetbrains.annotations.NonNls
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 /**
  * Output log to [System.out].
@@ -10,6 +12,9 @@ class StdLogger(private val category: String): DefaultLogger(category) {
 
     var isEnableDebug = true
     var isEnableInfo = true
+
+    private fun timestamp(): String =
+        LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS"))
 
     override fun isTraceEnabled(): Boolean {
         return false
@@ -33,42 +38,42 @@ class StdLogger(private val category: String): DefaultLogger(category) {
 
     override fun debug(message: String?) {
         if (isEnableDebug) {
-            println("[FINE   ] [$category] $message")
+            println("[${timestamp()}] [FINE   ] [$category] $message")
         }
     }
 
     override fun debug(t: Throwable?) {
         if (isEnableDebug) {
-            dumpExceptionsToStderr("[FINE   ] [$category]", t)
+            dumpExceptionsToStderr("[${timestamp()}] [FINE   ] [$category]", t)
         }
     }
 
     override fun debug(@NonNls message: String?, t: Throwable?) {
         if (isEnableDebug) {
-            dumpExceptionsToStderr("[FINE   ] [$category] $message", t)
+            dumpExceptionsToStderr("[${timestamp()}] [FINE   ] [$category] $message", t)
         }
 
     }
 
     override fun info(message: String?) {
         if (isEnableInfo) {
-            println("[INFO   ] [$category] $message")
+            println("[${timestamp()}] [INFO   ] [$category] $message")
         }
     }
 
     override fun info(message: String?, t: Throwable?) {
         if (isEnableInfo) {
-            dumpExceptionsToStderr("[INFO   ] [$category] $message", t)
+            dumpExceptionsToStderr("[${timestamp()}] [INFO   ] [$category] $message", t)
         }
     }
 
     override fun warn(message: String?, t: Throwable?) {
-        println("[WARN   ] [$category] $message")
+        println("[${timestamp()}] [WARN   ] [$category] $message")
         t?.printStackTrace(System.err)
     }
 
     override fun error(message: String?, t: Throwable?, vararg details: String?) {
-        println("[ERROR  ] [$category] $message")
+        println("[${timestamp()}] [ERROR  ] [$category] $message")
         t?.printStackTrace(System.err)
     }
 }

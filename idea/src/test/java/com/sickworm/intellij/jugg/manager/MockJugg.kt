@@ -206,28 +206,34 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         juggManager.runTask(createRunOptions(androidTestRunSpec != null), androidTestRunSpec)
         if (androidTestRunSpec == null) {
             waitingLaunchAppAndCheck()
-        } else {
-            waitIncrementalCompileReady()
         }
         juggManager.updateDeployState()
     }
 
-    private fun waitIncrementalCompileReady() {
-        repeat(100) {
-            juggManager.updateDeployState()
-            if (deployStateManager.deployState.state == JuggDeployState.State.READY_DEPLOY) {
-                return
+    /** Cached device-to-host clock offset in seconds (deviceTime - hostTime). */
+    private val deviceTimeOffset: Long by lazy {
+        try {
+            val cmd = if (isWindows) {
+                arrayOf("cmd", "/C", "adb", "shell", "date", "+%s")
+            } else {
+                arrayOf("adb", "shell", "date", "+%s")
             }
-            Thread.sleep(300)
+            val process = Runtime.getRuntime().exec(cmd)
+            val deviceTime = String(process.inputStream.readBytes()).trim().toLong()
+            process.waitFor()
+            deviceTime - System.currentTimeMillis() / 1000
+        } catch (_: Exception) {
+            0L
         }
     }
 
     fun readLogcatSince(timestamp: Long, vararg filters: String): String {
+        val correctedTimestamp = timestamp + deviceTimeOffset
         val filterArgs = filters.flatMap { listOf("-s", it) }.toTypedArray()
         val command = if (isWindows) {
-            arrayOf("cmd", "/C", "adb", "logcat", "-d", "-v", "epoch", "-T", timestamp.toString(), *filterArgs)
+            arrayOf("cmd", "/C", "adb", "logcat", "-d", "-v", "epoch", "-T", correctedTimestamp.toString(), *filterArgs)
         } else {
-            arrayOf("adb", "logcat", "-d", "-v", "epoch", "-T", timestamp.toString(), *filterArgs)
+            arrayOf("adb", "logcat", "-d", "-v", "epoch", "-T", correctedTimestamp.toString(), *filterArgs)
         }
         val process = Runtime.getRuntime().exec(command)
         val output = String(process.inputStream.readBytes())

@@ -51,15 +51,12 @@ class AndroidTestTopLevelFlowTest {
 
         jugg.deployCompiledAndroidTest(incrementalSpec)
 
-        // Verify incremental deploy test marker
-        val incLogs = jugg.readLogcatSince(logStart, "JuggAndroidTest")
-        assertTrue(incLogs.contains(MARKER), "Updated androidTest marker not found in logcat:\n$incLogs")
-
-        // Verify full deploy test also ran and produced expected logcat output
-        val fullDeployLogs = jugg.readLogcatSince(logStart, "AppLogicInstrumentedTest")
+        // Verify both full deploy and incremental deploy tests ran via a single logcat read
+        val logcat = jugg.readLogcatSince(logStart, "AppLogicInstrumentedTest")
+        assertTrue(logcat.contains(MARKER), "Updated androidTest marker not found in logcat:\n$logcat")
         assertTrue(
-            fullDeployLogs.contains("[targetContextUsesAppPackage]"),
-            "Full deploy androidTest log not found in logcat, deploy may not have taken effect:\n$fullDeployLogs",
+            logcat.contains("[targetContextUsesAppPackage]"),
+            "Full deploy androidTest log not found in logcat, deploy may not have taken effect:\n$logcat",
         )
 
         val projectLog = jugg.readLatestProjectLog()

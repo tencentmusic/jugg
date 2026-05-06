@@ -29,6 +29,6 @@ class AppLogicInstrumentedTest {
 
     @Test
     fun incrementalAndroidTestMarker() {
-        Log.i("JuggAndroidTest", "JUGG_ANDROID_TEST_INCREMENTAL_MARKER_V2")
+        Log.i("AppLogicInstrumentedTest", "JUGG_ANDROID_TEST_INCREMENTAL_MARKER_V2")
     }
 }
