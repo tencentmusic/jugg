@@ -26,12 +26,11 @@ class JuggHookInstallerTest {
         val summary = JuggHookInstaller.installForClaude(userHome, logger)
 
         assertTrue(summary.results.all { it.status == "ok" })
+        assertEquals(1, summary.results.size)
         assertTrue(File(userHome, ".claude/settings.json").exists())
-        assertTrue(File(userHome, ".claude-internal/settings.json").exists())
+        assertFalse(File(userHome, ".claude-internal/settings.json").exists())
         assertStartCommandHookExists(File(userHome, ".claude/settings.json"))
         assertStopCommandHookExists(File(userHome, ".claude/settings.json"))
-        assertStartCommandHookExists(File(userHome, ".claude-internal/settings.json"))
-        assertStopCommandHookExists(File(userHome, ".claude-internal/settings.json"))
     }
 
     @Test
@@ -46,14 +45,14 @@ class JuggHookInstallerTest {
                       {
                         "matcher": "*",
                         "hooks": [
-                      {"type": "command", "command": "${File(userHome, ".jugg/skills/hooks/stop.py").absolutePath}"}
+                      {"type": "command", "command": "python3 ${File(userHome, ".jugg/skills/hooks/stop.py").absolutePath} --client claude"}
                         ]
                       }
                     ],
                 "UserPromptSubmit": [
                   {
                     "hooks": [
-                      {"type": "command", "command": "${File(userHome, ".jugg/skills/hooks/start.py").absolutePath}"}
+                      {"type": "command", "command": "python3 ${File(userHome, ".jugg/skills/hooks/start.py").absolutePath} --client claude"}
                     ]
                   }
                 ]
@@ -174,7 +173,8 @@ class JuggHookInstallerTest {
             file = file,
             eventName = "Stop",
             matcher = "*",
-            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            commandScript = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "claude",
         )
     }
 
@@ -183,7 +183,8 @@ class JuggHookInstallerTest {
             file = file,
             eventName = "UserPromptSubmit",
             matcher = null,
-            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
+            commandScript = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
+            clientArgument = "claude",
         )
     }
 
@@ -207,11 +208,19 @@ class JuggHookInstallerTest {
         return count
     }
 
+    private fun isExpectedCommand(command: String?, commandScript: String, clientArgument: String): Boolean {
+        if (command == null) {
+            return false
+        }
+        return command.contains(commandScript) && command.endsWith(" --client $clientArgument")
+    }
+
     private fun countCommandHooks(
         file: File,
         eventName: String,
         matcher: String?,
-        commandSuffix: String,
+        commandScript: String,
+        clientArgument: String,
     ): Int {
         val root = JsonParser.parseString(file.readText()).asJsonObject
         val hooksByEvent = root
@@ -227,7 +236,7 @@ class JuggHookInstallerTest {
             hooks.forEach { hook ->
                 val hookObj = hook.asJsonObject
                 if (hookObj.get("type")?.asString == "command" &&
-                    hookObj.get("command")?.asString?.endsWith(commandSuffix) == true
+                    isExpectedCommand(hookObj.get("command")?.asString, commandScript, clientArgument)
                 ) {
                     count++
                 }

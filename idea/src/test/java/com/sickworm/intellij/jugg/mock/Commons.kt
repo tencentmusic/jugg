@@ -2,35 +2,9 @@
 
 package com.sickworm.intellij.jugg.mock
 
-import com.android.tools.idea.gradle.dsl.api.GradleModelProvider
-import com.android.tools.idea.gradle.dsl.model.GradleModelSource
-import com.intellij.execution.configurations.ConfigurationType
-import com.intellij.ide.util.PropertiesComponent
-import com.intellij.mock.MockApplication
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.ApplicationInfo
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.impl.ApplicationInfoImpl
-import com.intellij.openapi.extensions.ExtensionPoint
-import com.intellij.openapi.extensions.ExtensionPointName
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
-import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.ui.messages.MessagesService
-import com.intellij.testFramework.registerExtension
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.ide.JuggConfigurationType
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.ide.logic.IdeaPlatformApi
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import org.junit.Assume
-import org.junit.rules.ExternalResource
-import org.mockito.Mockito
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -152,26 +126,9 @@ fun CompileTask.Companion.singleJavaFile(filePath: File, outputDir: File, baseDi
 val String.systemBasedPath get() = File(this).path
 
 
-@Suppress("unused", "UnstableApiUsage")
+@Suppress("unused")
 val init = run {
     TestGlobal.init()
 }
 
-@Suppress("TestFunctionName")
 fun CompileTask(files: List<CompileFile>, outputDir: File) = CompileTask(files, outputDir, CompileStatusHolder.DEFAULT)
-
-
-/**
- * JUnit 4 ClassRule that skips the entire test class when no Android device is connected.
- * Usage: companion object { @ClassRule @JvmField val deviceRule = RequiresDeviceRule() }
- */
-class RequiresDeviceRule : ExternalResource() {
-    override fun before() {
-        val process = Runtime.getRuntime().exec(arrayOf("adb", "devices"))
-        val output = String(process.inputStream.readAllBytes())
-        process.waitFor()
-        // "adb devices" always prints a header line; a connected device adds at least one more line
-        val hasDevice = output.lines().drop(1).any { it.trim().isNotEmpty() }
-        Assume.assumeTrue("No Android device connected, skipping @RequiresDevice test", hasDevice)
-    }
-}

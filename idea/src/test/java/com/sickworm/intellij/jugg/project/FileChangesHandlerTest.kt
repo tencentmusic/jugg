@@ -47,21 +47,23 @@ class FileChangesHandlerTest {
 
     @Test
     fun testBuild() {
-        val buildTestCase = listOf(
-            "build.gradle" to true,
-            "local.properties" to true,
-            "gradle.properties" to true,
-            "settings.gradle" to true,
-            "app/build.gradle" to true,
-            "app/src/main/aidl/ITest.aidl" to true,
-            "${projectInfo.projectRootDir}/build.gradle" to false, // only detect file in project
-            "app_other/build.gradle" to false, // ignore if not exists
-        )
+        withTemporaryFile("app/src/main/aidl/ITest.aidl") {
+            val buildTestCase = listOf(
+                "build.gradle" to true,
+                "local.properties" to true,
+                "gradle.properties" to true,
+                "settings.gradle" to true,
+                "app/build.gradle" to true,
+                "app/src/main/aidl/ITest.aidl" to true,
+                "../build.gradle" to true, // root build file is part of the IDE project
+                "app_other/build.gradle" to false, // ignore if not exists
+            )
 
-        buildTestCase.forEach { (path, result) ->
-            val file = pathManager.projectDir.resolve(path)
-            val isMatch = handler.filter(listOf(file)).isNotEmpty()
-            assertEquals(result, isMatch, "file: $path")
+            buildTestCase.forEach { (path, result) ->
+                val file = pathManager.projectDir.resolve(path)
+                val isMatch = handler.filter(listOf(file)).isNotEmpty()
+                assertEquals(result, isMatch, "file: $path")
+            }
         }
     }
 
@@ -122,4 +124,22 @@ class FileChangesHandlerTest {
             }
         }
     }
+
+    private fun withTemporaryFile(path: String, block: () -> Unit) {
+        val file = pathManager.projectDir.resolve(path)
+        val existed = file.exists()
+        if (!existed) {
+            file.parentFile.mkdirs()
+            file.createNewFile()
+        }
+        try {
+            block()
+        } finally {
+            if (!existed) {
+                file.delete()
+                file.parentFile?.takeIf { it.listFiles().isNullOrEmpty() }?.delete()
+            }
+        }
+    }
+
 }

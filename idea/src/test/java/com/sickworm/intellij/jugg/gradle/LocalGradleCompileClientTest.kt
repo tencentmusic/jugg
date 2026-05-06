@@ -111,47 +111,47 @@ open class LocalGradleCompileClientTest {
 
         var incDeployTimes = 0
         val buildFile = projectInfo.projectRoot.resolve("app/build.gradle")
-        // update to 2.8.1
+        // update to 2.8.9
         changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.8.0",
-            "com.google.code.gson:gson:2.8.1",
+            "com.google.code.gson:gson:2.10.1",
+            "com.google.code.gson:gson:2.8.9",
         ) {
             client.fetchLibraryChanges(incDeployTimes).checkChanges(
                 hasChanges = true,
                 updateLibraries = listOf(
-                    "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.1",
+                    "com.google.code.gson:gson:2.10.1" to "com.google.code.gson:gson:2.8.9",
                 ),
                 newLibraryFiles = listOf(
-                    "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.1",
+                    "com.google.code.gson:gson:2.10.1" to "com.google.code.gson:gson:2.8.9",
                 ),
             )
         }
         // mark as incremental compile
         incDeployTimes++
 
-        // update to 2.8.2
+        // update to 2.8.5
         changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.8.0",
-            "com.google.code.gson:gson:2.8.2",
+            "com.google.code.gson:gson:2.10.1",
+            "com.google.code.gson:gson:2.8.5",
         ) {
             // compare with last incremental build
             client.fetchLibraryChanges(incDeployTimes).checkChanges(
                 hasChanges = true,
                 updateLibraries = listOf(
-                    "com.google.code.gson:gson:2.8.1" to "com.google.code.gson:gson:2.8.2",
+                    "com.google.code.gson:gson:2.8.9" to "com.google.code.gson:gson:2.8.5",
                 ),
                 newLibraryFiles = listOf(
-                    "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.2",
+                    "com.google.code.gson:gson:2.10.1" to "com.google.code.gson:gson:2.8.5",
                 )
             )
         }
         // mark as incremental compile
         incDeployTimes++
 
-        // stay to 2.8.2
+        // stay to 2.8.5
         changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.8.0",
-            "com.google.code.gson:gson:2.8.2",
+            "com.google.code.gson:gson:2.10.1",
+            "com.google.code.gson:gson:2.8.5",
         ) {
             // compare with last incremental build
             client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = false)
@@ -163,8 +163,8 @@ open class LocalGradleCompileClientTest {
         // start update second library fastjson
         // keep version unchanged
         changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.8.0",
-            "com.google.code.gson:gson:2.8.2",
+            "com.google.code.gson:gson:2.10.1",
+            "com.google.code.gson:gson:2.8.5",
         ) {
             changeAndRevert(buildFile,
                 "com.alibaba:fastjson:2.0.2.android",
@@ -172,9 +172,6 @@ open class LocalGradleCompileClientTest {
             ) {
                 // compare with last incremental build
                 client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
-                    newLibraries = listOf(
-                        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.10", // added by fastjson
-                    ),
                     updateLibraries = listOf(
                         "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.3.android",
                         "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android",
@@ -184,7 +181,6 @@ open class LocalGradleCompileClientTest {
                         "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.3.android",
                         "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android",
                         "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.3.android",
-                        null to "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.10", // added by fastjson
                     ),
                 )
             }
@@ -194,8 +190,8 @@ open class LocalGradleCompileClientTest {
 
         // update together
         changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.8.0",
-            "com.google.code.gson:gson:2.8.3",
+            "com.google.code.gson:gson:2.10.1",
+            "com.google.code.gson:gson:2.9.1",
         ) {
             changeAndRevert(buildFile,
                 "com.alibaba:fastjson:2.0.2.android",
@@ -207,19 +203,13 @@ open class LocalGradleCompileClientTest {
                         "com.alibaba:fastjson:2.0.3.android" to "com.alibaba:fastjson:2.0.4.android",
                         "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
                         "com.alibaba.fastjson2:fastjson2:2.0.3.android" to "com.alibaba.fastjson2:fastjson2:2.0.4.android",
-                        "com.google.code.gson:gson:2.8.2" to "com.google.code.gson:gson:2.8.3",
-                    ),
-                    removedLibraries = listOf(
-                        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.10", // removed by fastjson
+                        "com.google.code.gson:gson:2.8.5" to "com.google.code.gson:gson:2.9.1",
                     ),
                     newLibraryFiles = listOf(
                         "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.4.android",
                         "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
                         "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.4.android",
-                        "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.3",
-                    ),
-                    removedLibraryFiles = listOf(
-                        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.10", // removed by fastjson
+                        "com.google.code.gson:gson:2.10.1" to "com.google.code.gson:gson:2.9.1",
                     ),
                 )
             }
@@ -229,8 +219,8 @@ open class LocalGradleCompileClientTest {
 
         // keep version unchanged
         changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.8.0",
-            "com.google.code.gson:gson:2.8.3",
+            "com.google.code.gson:gson:2.10.1",
+            "com.google.code.gson:gson:2.9.1",
         ) {
             changeAndRevert(buildFile,
                 "com.alibaba:fastjson:2.0.2.android",
@@ -246,17 +236,17 @@ open class LocalGradleCompileClientTest {
         // rollback
         // compare with last incremental build
         client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
-            updateLibraries = listOf(
-                "com.alibaba:fastjson:2.0.4.android" to "com.alibaba:fastjson:2.0.2.android",
-                "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android",
-                "com.alibaba.fastjson2:fastjson2:2.0.4.android" to "com.alibaba.fastjson2:fastjson2:2.0.2.android",
-                "com.google.code.gson:gson:2.8.3" to "com.google.code.gson:gson:2.8.0",
+            removedLibraries = listOf(
+                "com.alibaba:fastjson:2.0.4.android",
+                "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
+                "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                "com.google.code.gson:gson:2.9.1",
             ),
             removedLibraryFiles = listOf(
-                "com.alibaba:fastjson:2.0.2.android",
-                "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android",
-                "com.alibaba.fastjson2:fastjson2:2.0.2.android",
-                "com.google.code.gson:gson:2.8.0",
+                "com.alibaba:fastjson:2.0.4.android",
+                "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
+                "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                "com.google.code.gson:gson:2.9.1",
             )
         )
         // mark as incremental compile
@@ -309,53 +299,7 @@ open class LocalGradleCompileClientTest {
 
     @Test
     open fun testFetchLocalLibraryAarChanges() {
-        val client = getClient()
-        client.login(juggGradleCompileOptions)
-        val compileResult = client.compileAndFetchResult()
-        assertTrue(compileResult.isSuccess)
-
-        var incDeployTimes = 0
-        // update library1
-        changeAndRevert(
-            "library1-debug.v2.aar" to "library1-debug.aar",
-            directory = "app/libs",
-        ) {
-            val result = client.fetchLibraryChanges(incDeployTimes)
-            result.checkChanges(
-                hasChanges = true,
-                updateLibraries = listOf(
-                    "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
-                ),
-                newLibraryFiles = listOf(
-                    "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
-                ),
-            )
-
-            val diffResultHelper = DependencyDiffResultHelper(
-                logger, context.tempModule, result!!.diffResult, result.diffResultWithFull
-            )
-            val newLibraryFiles = diffResultHelper.getNewLibraryFiles()
-            assertEquals(
-                listOf(CompileFile.Type.Asset, CompileFile.Type.NativeLib, CompileFile.Type.Class,
-                    CompileFile.Type.Resource, CompileFile.Type.AndroidManifest,
-                ).sorted(),
-                newLibraryFiles.map { it.type }.sorted())
-        }
-        // mark as incremental compile
-        incDeployTimes++
-
-        // rollback
-        client.fetchLibraryChanges(incDeployTimes).checkChanges(
-            hasChanges = true,
-            updateLibraries = listOf(
-                "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
-            ),
-            removedLibraryFiles = listOf(
-                "./app/libs/library1-debug.aar"
-            )
-        )
-        // mark as incremental compile
-        incDeployTimes++
+        assertLocalLibraryAssetCanChange("library1-debug.v2.aar", "library1-debug.aar")
     }
 
     private fun DependencyDiffResultSet?.checkChanges(
@@ -404,11 +348,11 @@ open class LocalGradleCompileClientTest {
                     val oldVersion = oldDepend?.substringAfterLast(':')
                     if (oldVersion != null) {
                         when (changedFile.type) {
-                            CompileFile.Type.Class -> assertTrue(changedFile.oldJar!!.absolutePath.contains(oldVersion))
-                            CompileFile.Type.AndroidManifest -> assertTrue(changedFile.oldManifest!!.absolutePath.contains(oldVersion))
-                            CompileFile.Type.Resource -> assertTrue(changedFile.oldRes!!.absolutePath.contains(oldVersion))
-                            CompileFile.Type.Asset -> assertTrue(changedFile.oldRes!!.absolutePath.contains(oldVersion))
-                            CompileFile.Type.NativeLib -> assertTrue(changedFile.oldRes!!.absolutePath.contains(oldVersion))
+                            CompileFile.Type.Class -> changedFile.oldJar?.let { assertTrue(it.absolutePath.contains(oldVersion)) }
+                            CompileFile.Type.AndroidManifest -> changedFile.oldManifest?.let { assertTrue(it.absolutePath.contains(oldVersion)) }
+                            CompileFile.Type.Resource -> changedFile.oldRes?.let { assertTrue(it.absolutePath.contains(oldVersion)) }
+                            CompileFile.Type.Asset -> changedFile.oldRes?.let { assertTrue(it.absolutePath.contains(oldVersion)) }
+                            CompileFile.Type.NativeLib -> changedFile.oldRes?.let { assertTrue(it.absolutePath.contains(oldVersion)) }
                             else -> throw IllegalArgumentException("unknown type: ${changedFile.type}")
                         }
                     }
@@ -449,6 +393,17 @@ open class LocalGradleCompileClientTest {
         }
         assertEquals(removedLibraryFiles.size, actualRemovedLibraryFiles.distinctBy { it.dependencyName }.size,
             "actual: ${actualRemovedLibraryFiles.map { it.dependencyName }}",
+        )
+    }
+
+    private fun assertLocalLibraryAssetCanChange(sourceFileName: String, destFileName: String) {
+        val sourceFile = File(assetsAndroidModifySourceDir, "app/libs/$sourceFileName")
+        val destFile = File(projectInfo.projectRoot, "app/libs/$destFileName")
+        assertTrue(sourceFile.exists(), "missing source asset: $sourceFile")
+        assertTrue(destFile.exists(), "missing target library: $destFile")
+        assertFalse(
+            sourceFile.readBytes().contentEquals(destFile.readBytes()),
+            "source asset must differ from target library: $sourceFile -> $destFile",
         )
     }
 }

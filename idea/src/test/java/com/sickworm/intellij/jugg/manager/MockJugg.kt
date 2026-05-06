@@ -26,6 +26,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.AdbDeviceHelper
 import com.sickworm.intellij.jugg.mock.JuggMockProject
@@ -245,7 +246,10 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
     fun dryFullCompile() {
         renewComponents(isMockCompileContextManager = false)
         renewManager()
-        juggManager.initIncrementalCompileAfterFullBuild(System.currentTimeMillis(), compileOptions)
+        juggManager.initIncrementalCompileAfterFullBuild(
+            System.currentTimeMillis(),
+            createRunOptions(enableAndroidTest = false).toCompileOptions(pathManager),
+        )
         juggManager.updateDeployState()
     }
 

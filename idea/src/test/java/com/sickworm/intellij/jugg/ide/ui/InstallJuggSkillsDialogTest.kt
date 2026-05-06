@@ -114,7 +114,7 @@ class InstallJuggSkillsDialogTest {
         assertTrue(File(userHome, ".jugg/skills/hooks/start.py").exists())
         assertTrue(File(userHome, ".jugg/skills/hooks/stop.py").exists())
         assertFalse(File(userHome, ".jugg/hooks").exists())
-        assertTrue(File(userHome, ".claude/settings.json").exists())
+        assertFalse(File(userHome, ".claude/settings.json").exists())
     }
 
     @Test
@@ -170,11 +170,6 @@ class InstallJuggSkillsDialogTest {
                     HookInstallResult(
                         path = File(userHome, ".claude/settings.json").path,
                         status = "ok",
-                        reason = null,
-                    ),
-                    HookInstallResult(
-                        path = File(userHome, ".claude-internal/settings.json").path,
-                        status = "already_installed",
                         reason = null,
                     ),
                 ),
