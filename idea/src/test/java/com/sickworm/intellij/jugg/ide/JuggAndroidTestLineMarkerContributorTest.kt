@@ -359,6 +359,54 @@ class JuggAndroidTestLineMarkerContributorTest {
         assertTrue(target.testMethod == "targetContextUsesAppPackage")
     }
 
+
+    @Test
+    fun `class target maps to class scope`() {
+        val owner = FakeKotlinClass(
+            name = "com.example.FooTest",
+            children = listOf(FakeKotlinFunction("testBar", null, annotations = listOf(KotlinTestAnnotation()))),
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(owner) { null }
+
+        assertTrue(target.toScope() == AndroidTestScope.CLASS)
+    }
+
+    @Test
+    fun `method target maps to method scope`() {
+        val owner = FakeKotlinFunction(
+            name = "testBar",
+            parent = FakeClassBody(FakeKotlinClass("com.example.FooTest")),
+            annotations = listOf(KotlinTestAnnotation()),
+        )
+
+        val target = JuggAndroidTestLineMarkerContributor.resolveAndroidTestTarget(owner) { current ->
+            when (current) {
+                is FakeLeaf -> current.parent
+                else -> null
+            }
+        }
+
+        assertTrue(target.toScope() == AndroidTestScope.METHOD)
+    }
+
+    @Test
+    fun `gutter options persist selected app run config name`() {
+        val target = JuggAndroidTestLineMarkerContributor.Companion.AndroidTestTarget(
+            testClass = "com.example.FooTest",
+            testMethod = "testBar",
+            displayName = "com.example.FooTest#testBar",
+        )
+        val options = JuggAndroidTestRunConfigurationOptions()
+
+        JuggAndroidTestLineMarkerContributor.Companion.applyTargetOptions(options, target, "appDebug")
+
+        assertTrue(options.testScope == AndroidTestScope.METHOD)
+        assertTrue(options.testClass == "com.example.FooTest")
+        assertTrue(options.testMethod == "testBar")
+        assertTrue(options.appRunConfigurationName == "appDebug")
+    }
+
     private class JavaTestOwner {
         @Suppress("unused")
         fun getAnnotations(): Array<JavaTestAnnotation> = arrayOf(JavaTestAnnotation())
@@ -428,6 +476,43 @@ class JuggAndroidTestLineMarkerContributorTest {
 
         @Suppress("unused")
         fun getChildren(): Array<Any> = children.toTypedArray()
+    }
+
+
+    private class FakeKotlinClassWithSelfContainingClass(
+        private val name: String,
+        private val children: List<Any> = emptyList(),
+    ) : FakeLeaf(null) {
+        @Suppress("unused")
+        fun getFqName(): String = name
+
+        @Suppress("unused")
+        fun getName(): String = name.substringAfterLast(".")
+
+        @Suppress("unused")
+        fun getContainingClass(): Any = this
+
+        @Suppress("unused")
+        fun getChildren(): Array<Any> = children.toTypedArray()
+    }
+
+    private class FakeKotlinFunctionWithSelfContainingClass(
+        private val name: String,
+        parent: Any?,
+        private val fqName: String? = null,
+        private val annotations: List<KotlinTestAnnotation> = emptyList(),
+    ) : FakeLeaf(parent) {
+        @Suppress("unused")
+        fun getName(): String = name
+
+        @Suppress("unused")
+        fun getFqName(): String? = fqName
+
+        @Suppress("unused")
+        fun getContainingClass(): Any = this
+
+        @Suppress("unused")
+        fun getAnnotationEntries(): List<KotlinTestAnnotation> = annotations
     }
 
     private class FakeIcon : Icon {

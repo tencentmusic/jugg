@@ -14,8 +14,6 @@ import com.intellij.psi.PsiElement
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import javax.swing.Icon
 
-private const val JUNIT_TEST_FQN = "org.junit.Test"
-private const val JUNIT5_TEST_FQN = "org.junit.jupiter.api.Test"
 private const val ANDROID_TEST_PATH_SEGMENT = "/src/androidTest/"
 private const val APP_ANDROID_TEST_PATH_SEGMENT = "/app/src/androidTest/"
 
@@ -24,11 +22,11 @@ private const val APP_ANDROID_TEST_PATH_SEGMENT = "/app/src/androidTest/"
  * that reside under `src/androidTest/`. It is registered twice in plugin.xml – once for Java
  * PSI and once for Kotlin PSI.
  *
- * Phase 1 behaviour:
+ * Behaviour:
  *  - If enableAndroidTest is not configured: shows a Notification directing the user to the
  *    App RunConfig; does NOT auto-modify any config.
  *  - If enableAndroidTest is configured: creates a temporary JuggAndroidTestRunConfiguration
- *    and triggers execution (wired through JuggManager; full wiring is Phase 1 follow-up).
+ *    and triggers execution through JuggManager.
  */
 class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
 
@@ -72,8 +70,8 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         return object : AnAction("Run Test by Jugg", null, lineMarkerIcon()) {
             override fun actionPerformed(e: AnActionEvent) {
                 val project = annotatedElement.project
-                val appOptions = findAppRunConfigurationOptions(project)
-                if (appOptions?.enableAndroidTest != true) {
+                val appSettings = JuggAndroidTestAppRunConfigurationSelector.firstEnabledAndroidTestSettings(project)
+                if (appSettings == null) {
                     notifyEnableAndroidTestRequired(project)
                     return
                 }
@@ -86,8 +84,9 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                     ownerParent = { current -> (current as? PsiElement)?.parent },
                 )
                 configuration.name = target.displayName
-                configuration.state?.testClass = target.testClass
-                configuration.state?.testMethod = target.testMethod
+                configuration.state?.let { options ->
+                    applyTargetOptions(options, target, appSettings.name)
+                }
                 val settings = runManager.createConfiguration(configuration, factory)
                 runManager.setTemporaryConfiguration(settings)
                 ProgramRunnerUtil.executeConfiguration(settings, DefaultRunExecutor.getRunExecutorInstance())
@@ -95,14 +94,6 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         }
     }
 
-    private fun findAppRunConfigurationOptions(project: com.intellij.openapi.project.Project): JuggRunConfigurationOptions? {
-        return RunManager.getInstance(project)
-            .getConfigurationSettingsList(JuggConfigurationType::class.java)
-            .firstOrNull()
-            ?.configuration
-            ?.let { it as? JuggRunConfiguration }
-            ?.state
-    }
 
     companion object {
         internal fun isOwnerNameIdentifier(
@@ -212,7 +203,9 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
 
         private fun readContainingClassName(owner: Any, ownerParent: (Any) -> Any?): String? {
             readObjectByNoArgMethod(owner, "getContainingClass")?.let { containingClass ->
-                readClassName(containingClass)?.let { return it }
+                if (containingClass !== owner) {
+                    readClassName(containingClass)?.let { return it }
+                }
             }
 
             var current = ownerParent(owner)
@@ -298,11 +291,24 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
             return readObjectByNoArgMethod(owner, methodName) as? String
         }
 
+        internal fun applyTargetOptions(
+            options: JuggAndroidTestRunConfigurationOptions,
+            target: AndroidTestTarget,
+            appRunConfigurationName: String,
+        ) {
+            options.testClass = target.testClass
+            options.testMethod = target.testMethod
+            options.testScope = target.toScope()
+            options.appRunConfigurationName = appRunConfigurationName
+        }
+
         internal data class AndroidTestTarget(
             val testClass: String?,
             val testMethod: String?,
             val displayName: String,
-        )
+        ) {
+            fun toScope(): AndroidTestScope = if (testMethod == null) AndroidTestScope.CLASS else AndroidTestScope.METHOD
+        }
 
         /**
          * Shows the "enableAndroidTest not configured" notification.

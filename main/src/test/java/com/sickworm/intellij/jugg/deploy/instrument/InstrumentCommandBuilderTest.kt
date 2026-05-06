@@ -77,6 +77,28 @@ class InstrumentCommandBuilderTest {
     }
 
     @Test
+    fun `package argument is appended as native runner package filter`() {
+        val spec = AndroidTestRunSpec(
+            testClass = null,
+            testMethod = null,
+            extraArgs = listOf("package" to "com.example.tests"),
+        )
+        val cmd = InstrumentCommandBuilder.build(spec, testApk)
+        assertTrue(cmd.contains("-e package com.example.tests"))
+    }
+
+    @Test
+    fun `tests regex argument is appended as native runner regex filter`() {
+        val spec = AndroidTestRunSpec(
+            testClass = null,
+            testMethod = null,
+            extraArgs = listOf("tests_regex" to "Foo.*#bar"),
+        )
+        val cmd = InstrumentCommandBuilder.build(spec, testApk)
+        assertTrue(cmd.contains("-e tests_regex Foo.*#bar"))
+    }
+
+    @Test
     fun `runnerOverride replaces manifest runner`() {
         val spec = AndroidTestRunSpec(
             testClass = null,
