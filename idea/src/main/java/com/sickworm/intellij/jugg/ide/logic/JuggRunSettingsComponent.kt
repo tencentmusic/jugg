@@ -326,6 +326,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         jPanel.run {
             border = JBUI.Borders.empty(0, marginHorizontal)
             layout = BoxLayout(this, BoxLayout.X_AXIS)
+            alignmentX = LEFT_ALIGNMENT
             left?.let {
                 add(left)
                 val realLeftWidth = if (right == null) {
