@@ -71,18 +71,8 @@ class JuggConfigurationRunner(
         processHandler.startNotify()
         compileUiHandler.processHandler = processHandler
         if (androidTestRunSpec != null) {
-            compileUiHandler.testEventSinkFactory = { deviceName ->
-                val bridge = InstrumentationSmRunnerBridge { message ->
-                    processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
-                }
-                bridge.startDevice(deviceName)
-                val sink: (InstrumentationEvent) -> Unit = { event ->
-                    bridge.onEvent(event)
-                    if (event is InstrumentationEvent.SuiteFinished) {
-                        bridge.finishDevice()
-                    }
-                }
-                sink
+            compileUiHandler.testEventSinkFactory = { deviceName, showDeviceSuite ->
+                createAndroidTestEventSink(processHandler, deviceName, showDeviceSuite)
             }
         }
 
@@ -207,5 +197,25 @@ class JuggConfigurationRunner(
                 if (r.isCompileSuccess) "deploy failed" else "compile failed"
             } else null,
         )
+    }
+}
+
+/**
+ * Creates the instrumentation sink used by androidTest runs.
+ */
+internal fun createAndroidTestEventSink(
+    processHandler: IProcessHandler,
+    deviceName: String,
+    showDeviceSuite: Boolean,
+): (InstrumentationEvent) -> Unit {
+    val bridge = InstrumentationSmRunnerBridge { message ->
+        processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
+    }
+    bridge.startDevice(deviceName, showDeviceSuite = showDeviceSuite)
+    return { event ->
+        bridge.onEvent(event)
+        if (event is InstrumentationEvent.SuiteFinished) {
+            bridge.finishDevice()
+        }
     }
 }

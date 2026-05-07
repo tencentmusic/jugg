@@ -7,6 +7,7 @@ class InstrumentationSmRunnerBridge(
     private val output: (String) -> Unit,
 ) {
     private var currentDevice: String? = null
+    private var isCurrentDeviceSuiteShown: Boolean = true
     private val openedClasses = linkedSetOf<String>()
     private var started = false
 
@@ -16,6 +17,7 @@ class InstrumentationSmRunnerBridge(
             started = true
         }
         currentDevice = deviceName
+        isCurrentDeviceSuiteShown = showDeviceSuite
         openedClasses.clear()
         if (showDeviceSuite) {
             output(serviceMessage("testSuiteStarted", "name" to deviceName))
@@ -42,8 +44,11 @@ class InstrumentationSmRunnerBridge(
         openedClasses.toList().asReversed().forEach { className ->
             output(serviceMessage("testSuiteFinished", "name" to className))
         }
-        currentDevice?.let { output(serviceMessage("testSuiteFinished", "name" to it)) }
+        if (isCurrentDeviceSuiteShown) {
+            currentDevice?.let { output(serviceMessage("testSuiteFinished", "name" to it)) }
+        }
         currentDevice = null
+        isCurrentDeviceSuiteShown = true
         openedClasses.clear()
     }
 

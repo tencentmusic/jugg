@@ -24,7 +24,7 @@ interface CompileUiHandler {
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
     var progressIndicator: ProgressIndicator // injected
-    var testEventSinkFactory: ((String) -> ((InstrumentationEvent) -> Unit)?)?
+    var testEventSinkFactory: ((String, Boolean) -> ((InstrumentationEvent) -> Unit)?)?
 
     fun createCompileStatusHolder(): CompileStatusHolder
     fun createOutputParser(): IGradleCompileClient.TerminalOutputListener
@@ -53,7 +53,7 @@ interface CompileUiHandler {
             override val isAlwaysRestartApp: Boolean = false
             override var processHandler: IProcessHandler = IProcessHandler.DEFAULT
             override var progressIndicator: ProgressIndicator = DumbProgressIndicator()
-            override var testEventSinkFactory: ((String) -> ((InstrumentationEvent) -> Unit)?)? = null
+            override var testEventSinkFactory: ((String, Boolean) -> ((InstrumentationEvent) -> Unit)?)? = null
 
             override fun createCompileStatusHolder(): CompileStatusHolder = CompileStatusHolder.DEFAULT
             override fun createOutputParser(): IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT

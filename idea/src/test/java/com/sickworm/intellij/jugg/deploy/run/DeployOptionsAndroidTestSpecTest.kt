@@ -30,4 +30,16 @@ class DeployOptionsAndroidTestSpecTest {
 
         assertEquals(spec, options.androidTestRunSpec)
     }
+
+    @Test
+    fun `deploy options mark when running on multiple devices`() {
+        val options = DeployOptions(
+            device = mock(IDevice::class.java),
+            isLastDevice = false,
+            isMultipleDevices = true,
+        )
+
+        assertEquals(true, options.isMultipleDevices)
+        assertEquals(false, options.isLastDevice)
+    }
 }

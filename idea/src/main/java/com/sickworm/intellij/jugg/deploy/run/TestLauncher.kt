@@ -19,7 +19,7 @@ class TestLauncher(
     private val testApk: ApkInfo,
     private val consoleOutput: (String) -> Unit,
     private val showDeviceSuite: Boolean = true,
-    private val testEventSinkFactory: (String) -> ((InstrumentationEvent) -> Unit)? = { null },
+    private val testEventSinkFactory: (String, Boolean) -> ((InstrumentationEvent) -> Unit)? = { _, _ -> null },
     private val cancelSignal: () -> Boolean,
     private val logger: Logger,
     private val runInstrumentation: (
@@ -48,7 +48,7 @@ class TestLauncher(
 
             val parser = InstrumentationOutputParser()
             val renderer = InstrumentationConsoleRenderer(consoleOutput)
-            val testEventSink = testEventSinkFactory(deviceName)
+            val testEventSink = testEventSinkFactory(deviceName, showDeviceSuite)
             var devicePassed = 0
             var deviceFailed = 0
             var deviceIgnored = 0

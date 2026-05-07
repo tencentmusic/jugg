@@ -294,6 +294,7 @@ class JuggRunningTask(
             DeployOptions(
                 device = device,
                 isLastDevice = isLastDevice,
+                isMultipleDevices = isMultipleDevices,
                 processHandler = processHandler,
                 indicator = indicator,
                 isInstall = compileTaskResult.isGradleCompile,

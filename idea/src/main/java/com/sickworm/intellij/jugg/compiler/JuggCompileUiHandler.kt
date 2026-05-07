@@ -28,7 +28,7 @@ open class JuggCompileUiHandler(
     logger: Logger,
     override var processHandler: IProcessHandler = IProcessHandler.DEFAULT,
     override var progressIndicator: ProgressIndicator = DumbProgressIndicator.INSTANCE,
-    override var testEventSinkFactory: ((String) -> ((InstrumentationEvent) -> Unit)?)? = null,
+    override var testEventSinkFactory: ((String, Boolean) -> ((InstrumentationEvent) -> Unit)?)? = null,
     override val isSkipDeploy: Boolean = false,
     override val isAlwaysRestartApp: Boolean = false,
 ) : CompileUiHandler {

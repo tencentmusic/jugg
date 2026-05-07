@@ -97,7 +97,7 @@ class TestLauncherSmEventSinkTest {
             spec = spec,
             testApk = testApk,
             consoleOutput = {},
-            testEventSinkFactory = { deviceName ->
+            testEventSinkFactory = { deviceName, _ ->
                 events.add(InstrumentationEvent.TestStarted("device", deviceName))
                 val sink: (InstrumentationEvent) -> Unit = { event -> events.add(event) }
                 sink

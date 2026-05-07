@@ -186,6 +186,11 @@ UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `Instrumentation
 | class suite | FQCN | `java:suite://FQCN` |
 | method test | methodName | `java:test://FQCN/methodName` |
 
+设备 suite 展示规则（2026-05-07）：
+
+- **单设备运行**：隐藏 device suite，仅展示 class/method 节点，减少一层无效树层级。
+- **多设备运行**：展示 device suite，按设备分组 class/method 节点，避免不同设备结果混在同一层。
+
 `JuggAndroidTestConsoleProperties` 使用 IntelliJ `JavaTestLocator` 处理 source navigation，并通过 `JuggAndroidTestRerunFailedTestsAction` 把 failed leaf tests 转回 `AndroidTestRunSpec.testFilters` 后重跑。rerun failed 会保留原 `runnerOverride` 与 `extraArgs`。
 
 ---

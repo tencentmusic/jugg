@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 data class DeployOptions(
     val device: IDevice,
     val isLastDevice: Boolean,
+    val isMultipleDevices: Boolean = false,
     val processHandler: IProcessHandler? = null,
     val indicator: ProgressIndicator? = null,
     val isInstall: Boolean = false,
