@@ -205,7 +205,7 @@ class JuggAndroidTestLineMarkerContributorTest {
 
         assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
         assertTrue(target.testMethod == "targetContextUsesAppPackage")
-        assertTrue(target.displayName == "com.example.myapplication.AppLogicInstrumentedTest#targetContextUsesAppPackage")
+        assertTrue(target.displayName == "targetContextUsesAppPackage()")
     }
 
     @Test
@@ -231,7 +231,7 @@ class JuggAndroidTestLineMarkerContributorTest {
 
         assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
         assertTrue(target.testMethod == "targetContextUsesAppPackage")
-        assertTrue(target.displayName == "com.example.myapplication.AppLogicInstrumentedTest#targetContextUsesAppPackage")
+        assertTrue(target.displayName == "targetContextUsesAppPackage()")
     }
 
     @Test
@@ -250,7 +250,7 @@ class JuggAndroidTestLineMarkerContributorTest {
 
         assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
         assertTrue(target.testMethod == "targetContextUsesAppPackage")
-        assertTrue(target.displayName == "com.example.myapplication.AppLogicInstrumentedTest#targetContextUsesAppPackage")
+        assertTrue(target.displayName == "targetContextUsesAppPackage()")
     }
 
     @Test
@@ -273,7 +273,7 @@ class JuggAndroidTestLineMarkerContributorTest {
 
         assertTrue(target.testClass == "com.example.myapplication.AppLogicInstrumentedTest")
         assertTrue(target.testMethod == null)
-        assertTrue(target.displayName == "com.example.myapplication.AppLogicInstrumentedTest")
+        assertTrue(target.displayName == "AppLogicInstrumentedTest")
     }
 
     @Test
