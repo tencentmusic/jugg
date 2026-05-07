@@ -28,6 +28,7 @@ Subcommands:
   gradle-build        Force Gradle build (waits for completion)
   clean-reinstall     Clear app data and reinstall APK
   restart             Restart the app
+  instrument          Run androidTest with am instrument-like arguments
   status              Show current deploy state and uncompiled file summary
   layout-dump         Export UI hierarchy to HTML file
   view-locate         Find a UI element's position and bounds
@@ -51,6 +52,7 @@ COMMANDS = {
     "gradle-build":   ("cmd_gradle_build",   "cmd_gradle_build"),
     "clean-reinstall": ("cmd_clean_reinstall", "cmd_clean_reinstall"),
     "restart":        ("cmd_restart",        "cmd_restart"),
+    "instrument":     ("cmd_instrument",     "cmd_instrument"),
     "status":         ("cmd_status",         "cmd_status"),
     "layout-dump":    ("cmd_layout_dump",    "cmd_layout_dump"),
     "view-locate":    ("cmd_view_locate",    "cmd_view_locate"),

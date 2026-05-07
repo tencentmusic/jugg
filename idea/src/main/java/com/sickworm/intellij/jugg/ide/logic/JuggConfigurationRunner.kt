@@ -17,6 +17,7 @@ import com.intellij.execution.ui.RunContentManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
@@ -129,6 +130,22 @@ class JuggConfigurationRunner(
     }
 
     override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean): JuggRunInvocationResult {
+        return runFirstConfigurationWithSpec(
+            isRpcMode = isRpcMode,
+            isSkipDeploy = isSkipDeploy,
+            isAlwaysRestartApp = isAlwaysRestartApp,
+            androidTestRunSpec = null,
+            buildTargetOverride = null,
+        )
+    }
+
+    override fun runFirstConfigurationWithSpec(
+        isRpcMode: Boolean,
+        isSkipDeploy: Boolean,
+        isAlwaysRestartApp: Boolean,
+        androidTestRunSpec: AndroidTestRunSpec?,
+        buildTargetOverride: BuildTarget?,
+    ): JuggRunInvocationResult {
         val currentRunConfigurationList = RunManager.getInstance(project)
             .getConfigurationSettingsList(JuggConfigurationType::class.java)
         @Suppress("UNCHECKED_CAST")
@@ -144,6 +161,9 @@ class JuggConfigurationRunner(
                 isSuccess = false,
                 errorMessage = "Run configuration state is null.",
             )
+        val compileOptions = state.toCompileOptions(pathManager).let { options ->
+            if (buildTargetOverride == null) options else options.copy(buildTarget = buildTargetOverride)
+        }
 
         var runResultFinal: RunResult? = null
         val waitLock = Object()
@@ -151,7 +171,7 @@ class JuggConfigurationRunner(
             project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = isRpcMode,
-            juggGradleCompileOptions = state.toCompileOptions(pathManager),
+            juggGradleCompileOptions = compileOptions,
             logger = logger,
             isSkipDeploy = isSkipDeploy,
             isAlwaysRestartApp = isAlwaysRestartApp,
@@ -172,7 +192,7 @@ class JuggConfigurationRunner(
 
         SwingUtilities.invokeLater {
             val executor = DefaultRunExecutor.getRunExecutorInstance()
-            val executionResult = runTask(state.toCompileOptions(pathManager), compileUiHandler, null, null, null)
+            val executionResult = runTask(compileOptions, compileUiHandler, null, null, androidTestRunSpec)
             val descriptor = RunContentDescriptor(
                 executionResult.executionConsole,
                 executionResult.processHandler,

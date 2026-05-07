@@ -19,7 +19,8 @@ class InstrumentationSmRunnerBridgeTest {
 
         assertEquals("##teamcity[enteredTheMatrix]", output[0])
         assertTrue(output.any { it.contains("testSuiteStarted") && it.contains("name='Pixel_9'") })
-        assertTrue(output.any { it.contains("testSuiteStarted") && it.contains("name='com.example.FooTest'") })
+        assertTrue(output.any { it.contains("testSuiteStarted") && it.contains("name='FooTest'") })
+        assertTrue(output.any { it.contains("testSuiteStarted") && it.contains("locationHint='java:suite://com.example.FooTest'") })
         assertTrue(output.any { it.contains("testStarted") && it.contains("name='testBar'") })
         assertTrue(output.any { it.contains("locationHint='java:test://com.example.FooTest/testBar'") })
         assertTrue(output.any { it.contains("testFinished") && it.contains("name='testBar'") })
@@ -38,7 +39,7 @@ class InstrumentationSmRunnerBridgeTest {
 
         assertFalse(output.any { it.contains("testSuiteStarted") && it.contains("name='Pixel_9'") })
         assertFalse(output.any { it.contains("testSuiteFinished") && it.contains("name='Pixel_9'") })
-        assertTrue(output.any { it.contains("testSuiteStarted") && it.contains("name='com.example.FooTest'") })
+        assertTrue(output.any { it.contains("testSuiteStarted") && it.contains("name='FooTest'") })
     }
 
     @Test
@@ -90,8 +91,8 @@ class InstrumentationSmRunnerBridgeTest {
         bridge.onEvent(InstrumentationEvent.TestFinished("com.example.SecondTest", "b", InstrumentationEvent.TestResult.OK, null))
         bridge.finishDevice()
 
-        assertTrue(output.any { it.contains("testSuiteFinished") && it.contains("name='com.example.FirstTest'") })
-        assertTrue(output.any { it.contains("testSuiteFinished") && it.contains("name='com.example.SecondTest'") })
+        assertTrue(output.any { it.contains("testSuiteFinished") && it.contains("name='FirstTest'") })
+        assertTrue(output.any { it.contains("testSuiteFinished") && it.contains("name='SecondTest'") })
         assertTrue(output.last().contains("testSuiteFinished") && output.last().contains("name='Pixel_9'"))
     }
 
@@ -121,7 +122,7 @@ class InstrumentationSmRunnerBridgeTest {
         bridge.finishDevice()
 
         val abortIndex = output.indexOfFirst { it.contains("testFailed") && it.contains("Instrumentation aborted") }
-        val classCloseIndex = output.indexOfFirst { it.contains("testSuiteFinished") && it.contains("com.example.FooTest") }
+        val classCloseIndex = output.indexOfFirst { it.contains("testSuiteFinished") && it.contains("FooTest") }
         val deviceCloseIndex = output.indexOfFirst { it.contains("testSuiteFinished") && it.contains("Pixel_9") }
         assertTrue(abortIndex >= 0)
         assertTrue(classCloseIndex > abortIndex)

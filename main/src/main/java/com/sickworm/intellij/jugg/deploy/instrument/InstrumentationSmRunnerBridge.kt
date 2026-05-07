@@ -42,7 +42,7 @@ class InstrumentationSmRunnerBridge(
 
     fun finishDevice() {
         openedClasses.toList().asReversed().forEach { className ->
-            output(serviceMessage("testSuiteFinished", "name" to className))
+            output(serviceMessage("testSuiteFinished", "name" to className.substringAfterLast('.')))
         }
         if (isCurrentDeviceSuiteShown) {
             currentDevice?.let { output(serviceMessage("testSuiteFinished", "name" to it)) }
@@ -84,7 +84,7 @@ class InstrumentationSmRunnerBridge(
         if (openedClasses.add(className)) {
             output(serviceMessage(
                 "testSuiteStarted",
-                "name" to className,
+                "name" to className.substringAfterLast('.'),
                 "locationHint" to suiteLocation(className),
             ))
         }

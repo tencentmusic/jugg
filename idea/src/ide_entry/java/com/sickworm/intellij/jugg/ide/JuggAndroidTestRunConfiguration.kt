@@ -8,13 +8,19 @@ import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.*
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.loader.JuggInitializer
+import com.intellij.util.ui.JBUI
+import java.awt.Component
 import javax.swing.BoxLayout
+import javax.swing.Box
 import javax.swing.ButtonGroup
 import javax.swing.JRadioButton
 import javax.swing.JComponent
@@ -100,6 +106,11 @@ class JuggAndroidTestRunConfiguration(
     name: String,
 ) : RunConfigurationBase<JuggAndroidTestRunConfigurationOptions>(project, factory, name) {
 
+    override fun <T : Any?> getUserData(key: Key<T>): T? {
+        ensureSetAllowSelectDevice()
+        return super.getUserData(key)
+    }
+
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> =
         JuggAndroidTestSettingsEditor()
 
@@ -108,6 +119,19 @@ class JuggAndroidTestRunConfiguration(
 
     override fun checkConfiguration() {
         JuggAndroidTestRunSpecFactory.validateOptions(state ?: return)
+    }
+
+    private var lastSetObj: Any? = null
+
+    private fun ensureSetAllowSelectDevice() {
+        try {
+            if (lastSetObj !== userMap) {
+                AsDeployerCompat.setAllowSelectDevice(this)
+                lastSetObj = userMap
+            }
+        } catch (e: Throwable) {
+            Logger.getInstance("JuggAndroidTestRunConfiguration").warn("ensureSetAllowSelectDevice", e)
+        }
     }
 }
 
@@ -164,13 +188,12 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
     private val scopeFieldsPanel = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS) }
     private val moduleField = JTextField(40).apply { isEditable = false }
     private val runnerField = JTextField(40)
-    private val extraArgsField = JTextField(40)
+    private val extraArgsField = JTextField(40).apply { toolTipText = "k1=v1,k2=v2" }
 
     override fun createEditor(): JComponent {
         val panel = JPanel()
         panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
-        panel.add(JLabel("Module:"))
-        panel.add(moduleField)
+        panel.border = JBUI.Borders.empty(12)
         val buttonRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
         ButtonGroup().apply {
             add(allInModuleButton)
@@ -182,13 +205,10 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
             button.addActionListener { updateScopeFields() }
             buttonRow.add(button)
         }
-        panel.add(JLabel("Test:"))
-        panel.add(buttonRow)
+        panel.add(createRowPanel("Test:", buttonRow))
         panel.add(scopeFieldsPanel)
-        panel.add(JLabel("Instrumentation class:"))
-        panel.add(runnerField)
-        panel.add(JLabel("Extra args (k1=v1,k2=v2)"))
-        panel.add(extraArgsField)
+        panel.add(createRowPanel("Extra args:", extraArgsField))
+        updateScopeFields()
         return panel
     }
 
@@ -252,8 +272,18 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
     }
 
     private fun addLabeledField(panel: JPanel, label: String, field: JTextField) {
-        panel.add(JLabel(label))
-        panel.add(field)
+        panel.add(createRowPanel(label, field))
+    }
+
+    private fun createRowPanel(label: String, content: JComponent): JPanel {
+        return JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            alignmentX = Component.LEFT_ALIGNMENT
+            border = JBUI.Borders.emptyBottom(8)
+            add(JLabel(label))
+            add(Box.createHorizontalStrut(8))
+            add(content)
+        }
     }
 
 }

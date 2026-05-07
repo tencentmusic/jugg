@@ -128,5 +128,41 @@ class SshInfoBuildParamsTest(unittest.TestCase):
         self.assertTrue(result["consent"])
 
 
+class InstrumentBuildParamsTest(unittest.TestCase):
+
+    def setUp(self):
+        from cmd.cmd_instrument import build_params
+        self.build = build_params
+
+    def test_empty_args_ok(self):
+        self.assertEqual(self.build([]), {})
+
+    def test_class_package_regex_runner(self):
+        result = self.build([
+            "--class", "com.example.FooTest#bar,com.example.BarTest",
+            "--package", "com.example.pkg",
+            "--testsRegex", "Login.*",
+            "--runner", "androidx.test.runner.AndroidJUnitRunner",
+        ])
+        self.assertEqual(result["class"], "com.example.FooTest#bar,com.example.BarTest")
+        self.assertEqual(result["package"], "com.example.pkg")
+        self.assertEqual(result["testsRegex"], "Login.*")
+        self.assertEqual(result["runner"], "androidx.test.runner.AndroidJUnitRunner")
+
+    def test_e_pairs(self):
+        result = self.build(["-e", "size=large", "-e", "clearPackageData=true"])
+        self.assertEqual(result["extras"]["size"], "large")
+        self.assertEqual(result["extras"]["clearPackageData"], "true")
+
+    def test_extras_semicolon_pairs(self):
+        result = self.build(["--extras", "size=medium;clearPackageData=true"])
+        self.assertEqual(result["extras"]["size"], "medium")
+        self.assertEqual(result["extras"]["clearPackageData"], "true")
+
+    def test_missing_e_value_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build(["-e"])
+
+
 if __name__ == "__main__":
     unittest.main()

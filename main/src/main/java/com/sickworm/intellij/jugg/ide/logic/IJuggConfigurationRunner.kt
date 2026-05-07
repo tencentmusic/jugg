@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide.logic
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunProfile
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
@@ -26,6 +27,24 @@ interface IJuggConfigurationRunner {
     fun forceReInstallNextTime()
 
     fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean = false, isAlwaysRestartApp: Boolean = false): JuggRunInvocationResult
+
+    /**
+     * Optional overload for MCP-side invocations that need explicit androidTest filters
+     * or BuildTarget override without mutating persisted run configuration.
+     */
+    fun runFirstConfigurationWithSpec(
+        isRpcMode: Boolean,
+        isSkipDeploy: Boolean = false,
+        isAlwaysRestartApp: Boolean = false,
+        androidTestRunSpec: AndroidTestRunSpec? = null,
+        buildTargetOverride: BuildTarget? = null,
+    ): JuggRunInvocationResult {
+        return runFirstConfiguration(
+            isRpcMode = isRpcMode,
+            isSkipDeploy = isSkipDeploy,
+            isAlwaysRestartApp = isAlwaysRestartApp,
+        )
+    }
 }
 
 /**

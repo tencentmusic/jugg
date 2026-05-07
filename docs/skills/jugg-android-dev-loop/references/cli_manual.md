@@ -56,6 +56,9 @@ All build commands **block** until completion; no polling needed.
 | `deploy` | Compile + deploy to device | **Default path** |
 | `gradle-build` | Full Gradle compile fallback | After `deploy` retries exhausted; produces artifact only, follow with `deploy` |
 | `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
+| `instrument` | Run androidTest with am instrument-like args |
+
+### `compile`/`deploy`/`gradle-build`/`clean-reinstall`
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py compile
@@ -63,6 +66,27 @@ python3 {SKILL_DIR}/scripts/jugg.py deploy
 python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
+
+### `instrument`
+
+Runs androidTest through Jugg compile/deploy chain, while keeping parameter style close to `am instrument`.
+
+```
+python3 {SKILL_DIR}/scripts/jugg.py instrument
+python3 {SKILL_DIR}/scripts/jugg.py instrument --class 'com.example.FooTest#bar,com.example.BarTest'
+python3 {SKILL_DIR}/scripts/jugg.py instrument --package com.example.pkg --tests-regex 'Login.*'
+python3 {SKILL_DIR}/scripts/jugg.py instrument --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
+```
+
+| Flag | Description |
+|------|-------------|
+| `--class <filters>` | class filter, supports comma-separated `Class` or `Class#method`. |
+| `--package <pkg>` | maps to `-e package <pkg>`. |
+| `--tests-regex <regex>` | maps to `-e tests_regex <regex>`. |
+| `--runner <fqn>` | instrumentation runner override. |
+| `-e <k=v>` | extra `-e key value` pair, repeatable. |
+| `--extras <k=v;k2=v2>` | batch extras format. |
+
 
 ---
 

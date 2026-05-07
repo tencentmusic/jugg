@@ -16,6 +16,7 @@ class McpToolActionRegistry(
         const val RESTART = "restart"
         const val COMPILE = "compile"
         const val DEPLOY = "deploy"
+        const val INSTRUMENT = "instrument"
         const val REINSTALL = "clean-reinstall"
         const val GRADLE_BUILD = "gradle-build"
         const val GET_COMPILE_STATUS = "get-compile-status"
@@ -67,6 +68,7 @@ class McpToolActionRegistry(
                 RestartAppMcpToolAction(),
                 CompileOnlyMcpToolAction(),
                 CompileAndDeployMcpToolAction(),
+                InstrumentMcpToolAction(),
                 CleanReinstallApkMcpToolAction(),
                 ForceGradleCompileMcpToolAction(),
                 GetCompileStatusMcpToolAction(),

@@ -12,6 +12,8 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
+import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import java.nio.file.Files
 
 /**
@@ -55,11 +57,15 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             toolName: String,
             isSkipDeploy: Boolean = false,
             isAlwaysRestartApp: Boolean = true,
+            androidTestRunSpec: AndroidTestRunSpec? = null,
+            buildTargetOverride: BuildTarget? = null,
         ): McpToolResult {
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
                 isAlwaysRestartApp = isAlwaysRestartApp,
+                androidTestRunSpec = androidTestRunSpec,
+                buildTargetOverride = buildTargetOverride,
             )
             val jobMetaData = buildJobMetaData(trigger)
             if (!trigger.isFinal) {

@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import java.time.Instant
@@ -48,14 +50,22 @@ object CompileJobManager {
         )
     }
 
-    fun triggerJuggCompile(runtime: IMcpRuntime, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean = false): CompileJobTriggerResult {
+    fun triggerJuggCompile(
+        runtime: IMcpRuntime,
+        isSkipDeploy: Boolean,
+        isAlwaysRestartApp: Boolean = false,
+        androidTestRunSpec: AndroidTestRunSpec? = null,
+        buildTargetOverride: BuildTarget? = null,
+    ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
             runTask = {
-                val runResponse = runtime.juggConfigurationRunner.runFirstConfiguration(
+                val runResponse = runtime.juggConfigurationRunner.runFirstConfigurationWithSpec(
                     isRpcMode = true,
                     isSkipDeploy = isSkipDeploy,
                     isAlwaysRestartApp = isAlwaysRestartApp,
+                    androidTestRunSpec = androidTestRunSpec,
+                    buildTargetOverride = buildTargetOverride,
                 )
                 if (!runResponse.isSuccess) {
                     return@trigger CompileJobExecutionResult(

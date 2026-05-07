@@ -70,6 +70,7 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 | `gradle-build` | `gradle-build` | Gradle 构建（自动轮询） |
 | `clean-reinstall` | `clean-reinstall` | 清数据并重装 APK |
 | `restart` | `restart` | 重启 App |
+| `instrument` | `instrument` | 运行 androidTest（参数风格接近 `am instrument`） |
 | `status` | `status` | 查看当前部署状态与未编译文件摘要 |
 | `layout-dump` | `layout-dump` | 导出 UI 层级 HTML |
 | `view-locate` | `view-locate` | 查找元素位置 |
@@ -146,6 +147,24 @@ jugg clean-reinstall [--json]
 ```
 jugg restart [--json]
 ```
+
+---
+
+#### `instrument`
+```
+jugg instrument [--class <Class[#method][,Class2[#method2]...]>]
+                [--package <pkg>] [--tests-regex <regex>] [--runner <runnerFqn>]
+                [-e <k=v>]... [--extras <k=v;k2=v2>] [--json]
+```
+
+| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
+|-----------------------|----------------------------------|----------|------|
+| `--class <value>` | `--class <value>` | `class` | class filter，支持逗号分隔和 `#method` |
+| `--package <value>` | `--package <value>` | `package` | 映射到 `-e package` |
+| `--tests-regex <value>` | `--testsRegex <value>` | `testsRegex` | 映射到 `-e tests_regex` |
+| `--runner <value>` | `--runner <value>` | `runner` | instrumentation runner override |
+| `-e <k=v>` | `--e <k=v>` | `extras` | 额外 `-e key value`（可重复） |
+| `--extras <k=v;k2=v2>` | `--extras <k=v;k2=v2>` | `extras` | 批量 extras |
 
 ---
 

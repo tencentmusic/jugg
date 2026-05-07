@@ -5,7 +5,7 @@
 
 ---
 
-## 1. MCP 服务信息
+## MCP 服务信息
 
 - 端口范围：`12320..12329`
 - 路径：`/jugg-mcp`
@@ -14,7 +14,7 @@
 
 ---
 
-## 2. MCP 返回约定
+## MCP 返回约定
 
 `tools/call` 的 `structuredContent` 统一字段：
 
@@ -30,11 +30,11 @@
 
 ---
 
-## 3. MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
+## MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
 
-共 **18 个**注册工具，按注册顺序排列。
+共 **19 个**注册工具，按注册顺序排列。
 
-### 3.0 `version`
+### `version`
 
 返回所有已初始化项目的 Jugg 插件版本。
 
@@ -48,7 +48,7 @@
 
 ---
 
-### 3.1 `list-projects`
+### `list-projects`
 
 列出当前 IDE 已初始化项目。
 
@@ -58,7 +58,7 @@
 
 ---
 
-### 3.2 `restart`
+### `restart`
 
 重启目标 App。
 
@@ -70,7 +70,7 @@
 
 ---
 
-### 3.3 `compile`
+### `compile`
 
 仅编译不部署。
 
@@ -80,7 +80,7 @@
 
 ---
 
-### 3.4 `deploy`
+### `deploy`
 
 编译并部署（可能异步）。
 
@@ -93,7 +93,7 @@
 
 ---
 
-### 3.5 `clean-reinstall`
+### `clean-reinstall`
 
 卸载并重装 APK（清除数据 + 重新部署）。
 
@@ -103,7 +103,7 @@
 
 ---
 
-### 3.6 `gradle-build`
+### `gradle-build`
 
 强制 Gradle 构建（可能异步）。
 
@@ -113,9 +113,31 @@
 
 **异步返回**：同 `deploy`。
 
+### `instrument`
+
+运行 androidTest（参数风格贴近 `am instrument`），内部复用 Jugg compile/deploy 流程。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `projectDir` | string | **是** | 项目绝对路径 |
+| `class` | string | 否 | class filter，支持 `Class#method,Class2` 逗号分隔 |
+| `clazz` | string | 否 | `class` 别名 |
+| `package` | string | 否 | 透传为 `-e package <value>` |
+| `testPackage` | string | 否 | `package` 别名 |
+| `testsRegex` | string | 否 | 透传为 `-e tests_regex <value>` |
+| `regex` | string | 否 | `testsRegex` 别名 |
+| `runner` | string | 否 | instrumentation runner override |
+| `instrumentationRunner` | string | 否 | `runner` 别名 |
+| `extras` | object | 否 | 额外 `-e key value` 参数，value 必须是 string |
+| `e` | object | 否 | `extras` 别名（同 schema） |
+
+**行为补充**：
+- MCP 层只做参数归一化与调用封装，不实现测试业务逻辑。
+- 内部会以 `BuildTarget.ANDROID_TEST` 运行，并将参数映射到 `AndroidTestRunSpec`。
+
 ---
 
-### 3.7 `get-compile-status`
+### `get-compile-status`
 
 查询异步编译任务状态。
 
@@ -133,7 +155,7 @@
 
 ---
 
-### 3.8 `ssh-info`
+### `ssh-info`
 
 申请远端 SSH 排障信息（需用户显式同意）。
 
@@ -145,7 +167,7 @@
 
 ---
 
-### 3.9 `devices`
+### `devices`
 
 列出已连接设备并标记 selected。
 
@@ -155,7 +177,7 @@
 
 ---
 
-### 3.10 `layout-dump`
+### `layout-dump`
 
 导出 UI 层级。输出 HTML 格式（`data.file`），同时 `data.jsonFile` 保留原始 JSON。
 
@@ -178,7 +200,7 @@
 
 ---
 
-### 3.11 `layout-verify`
+### `layout-verify`
 
 批量验证 UI 元素属性或关系。自动获取布局快照。
 
@@ -206,7 +228,7 @@
 
 ---
 
-### 3.15 `view-locate`
+### `view-locate`
 
 查找单个 UI 元素，返回位置和尺寸。
 
@@ -220,7 +242,7 @@
 
 ---
 
-### 3.13 `view-inspect`
+### `view-inspect`
 
 通过反射查询 View getter 方法链，返回原始值。
 
@@ -238,7 +260,7 @@
 
 ---
 
-### 3.17 `activity-stack`
+### `activity-stack`
 
 读取 Activity 栈。
 
@@ -250,7 +272,7 @@
 
 ---
 
-### 3.16 `tap`
+### `tap`
 
 屏幕触控（tap/long-press/swipe）。
 
@@ -283,7 +305,7 @@
 
 ---
 
-### 3.19 `status`
+### `status`
 
 查询当前 Jugg 部署状态与未编译文件摘要。
 
@@ -303,7 +325,7 @@
 
 ---
 
-### 3.20 `wait-logs`
+### `wait-logs`
 
 阻塞式等待 App 日志，直到 marker 命中、发生 crash 或超时，返回过滤后的日志窗口。
 
@@ -326,7 +348,7 @@
 
 ---
 
-## 4. 未注册但存在的 MCP Action
+## 未注册但存在的 MCP Action
 
 以下 Action 在代码中有实现但处于精简考虑，**未注册**到工具列表，外部无法使用：
 
@@ -343,26 +365,26 @@
 
 ---
 
-## 5. MCP 通用行为
+## MCP 通用行为
 
-### 5.1 App 在线等待
+### App 在线等待
 
 - `restart`、`deploy`、`gradle-build`、`clean-reinstall` 成功路径后置等待 App 在线。
 - `activity-stack`、`tap`、`layout-dump`、`view-locate`、`view-inspect` 执行前等待 App 在线（每 100ms 检查，最长 10s）。
 - 若前置等待过程中发生过实际等待且工具调用返回失败，自动重试最多 3 次，间隔 2s。
 - 运行态工具执行顺序：参数校验 → `projectDir` 初始化态校验 → App 在线校验 → 业务执行。
 
-### 5.2 异步编译调用
+### 异步编译调用
 
 `deploy`、`gradle-build` 可能返回 `isFinal=false` + `jobId`。用 `get-compile-status` 轮询，按 `pollIntervalSuggestedMs` 间隔。
 
-### 5.3 产物清理
+### 产物清理
 
 MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动后后台清理超过 30 天的文件。
 
 ---
 
-## 6. 常见错误码
+## 常见错误码
 
 | 错误码 | 说明 |
 |--------|------|
@@ -376,7 +398,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 
 ---
 
-## 7. 连通性与排查
+## 连通性与排查
 
 > 仅在"连通性/上下文异常排查"场景使用以下步骤；正常使用无需把 `list-projects` / `devices` 作为固定 preflight。
 
@@ -388,7 +410,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 
 ---
 
-## 8. 关联文档
+## 关联文档
 
 - CLI 封装层：`08_cli_tools_list.md`
 - 设计说明：`08_mcp_design.md`

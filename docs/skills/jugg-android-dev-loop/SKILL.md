@@ -110,6 +110,13 @@ python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
 
+```
+python3 {SKILL_DIR}/scripts/jugg.py instrument
+python3 {SKILL_DIR}/scripts/jugg.py instrument --class 'com.example.FooTest#bar,com.example.BarTest'
+python3 {SKILL_DIR}/scripts/jugg.py instrument --package com.example.pkg --tests-regex 'Login.*'
+python3 {SKILL_DIR}/scripts/jugg.py instrument --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
+```
+
 ### Runtime Basic Commands
 
 ```

@@ -2,11 +2,15 @@ package com.sickworm.intellij.jugg.ide
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.awt.Component
 import java.awt.Container
 import java.lang.reflect.Method
 import javax.swing.AbstractButton
+import javax.swing.BoxLayout
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JTextField
 
@@ -34,28 +38,53 @@ class JuggAndroidTestSettingsEditorTest {
     }
 
     @Test
-    fun `instrumentation runner field is editable and extra args label is preserved`() {
+    fun `module and instrumentation rows are hidden`() {
         val editor = JuggAndroidTestSettingsEditor()
 
-        val children = editor.editorComponent().allChildren()
-        val labels = children.filterIsInstance<JLabel>().map { it.text }
-        val runnerLabelIndex = labels.indexOf("Instrumentation class:")
-        val extraArgsLabelIndex = labels.indexOf("Extra args (k1=v1,k2=v2)")
+        val labels = editor.editorComponent().allChildren().filterIsInstance<JLabel>().map { it.text }
 
-        assertTrue(runnerLabelIndex >= 0)
-        assertTrue(extraArgsLabelIndex > runnerLabelIndex)
-        assertTrue(children.asContainer().fieldAfterLabel("Instrumentation class:").isEditable)
+        assertFalse(labels.contains("Module:"))
+        assertFalse(labels.contains("Instrumentation class:"))
     }
 
     @Test
-    fun `module row does not claim a fake app module`() {
+    fun `scope rows keep titles on the same left aligned line`() {
         val editor = JuggAndroidTestSettingsEditor()
+        val component = editor.editorComponent()
 
-        assertTrue(editor.editorComponent().fieldAfterLabel("Module:").text.isBlank())
+        component.radioButton("Method").doClick()
+
+        assertHorizontalRow(component.containerWithLabel("Test:"))
+        assertHorizontalRow(component.containerWithLabel("Class:"))
+        assertHorizontalRow(component.containerWithLabel("Method:"))
+        assertHorizontalRow(component.containerWithLabel("Extra args:"))
     }
 
     @Test
-    fun `apply persists selected scope fields and runner options`() {
+    fun `editor uses larger spacing and extra args hint`() {
+        val editor = JuggAndroidTestSettingsEditor()
+        val root = editor.editorComponent()
+
+        assertEquals("Expected larger top padding", 12, root.insets.top)
+        assertEquals("Expected larger left padding", 12, root.insets.left)
+        assertEquals("Expected larger bottom padding", 12, root.insets.bottom)
+        assertEquals("Expected larger right padding", 12, root.insets.right)
+
+        val rootRows = root.components.filterIsInstance<JComponent>()
+        val rowInsets = rootRows
+            .filter { it.layout is BoxLayout }
+            .map { it.border?.getBorderInsets(it)?.bottom ?: 0 }
+        assertTrue("Expected row spacing to increase", rowInsets.any { it >= 8 })
+
+        val extraField = root.fieldAfterLabel("Extra args:")
+        val extraFieldFromPrivate = readPrivateField<JTextField>(editor, "extraArgsField")
+        val extraHint = extraFieldFromPrivate.toolTipText
+        assertEquals("k1=v1,k2=v2", extraHint)
+        assertTrue(extraField === extraFieldFromPrivate)
+    }
+
+    @Test
+    fun `apply persists selected scope fields and extra args`() {
         val config = androidTestConfig()
         val editor = JuggAndroidTestSettingsEditor()
         val component = editor.editorComponent()
@@ -63,15 +92,13 @@ class JuggAndroidTestSettingsEditorTest {
         component.radioButton("Method").doClick()
         component.fieldAfterLabel("Class:").text = "com.example.FooTest"
         component.fieldAfterLabel("Method:").text = "testBar"
-        component.fieldAfterLabel("Instrumentation class:").text = "com.example.CustomRunner"
-        component.fieldAfterLabel("Extra args (k1=v1,k2=v2)").text = "clearPackageData=true"
+        component.fieldAfterLabel("Extra args:").text = "clearPackageData=true"
 
         editor.applyTo(config)
 
         assertEquals(AndroidTestScope.METHOD, config.state?.testScope)
         assertEquals("com.example.FooTest", config.state?.testClass)
         assertEquals("testBar", config.state?.testMethod)
-        assertEquals("com.example.CustomRunner", config.state?.instrumentationRunner)
         assertEquals("clearPackageData=true", config.state?.extraArgs)
     }
 
@@ -89,8 +116,7 @@ class JuggAndroidTestSettingsEditorTest {
 
         assertTrue(component.radioButton("All in Package").isSelected)
         assertEquals("com.example.tests", component.fieldByExactText("com.example.tests").text)
-        assertEquals("com.example.Runner", component.fieldAfterLabel("Instrumentation class:").text)
-        assertEquals("size=medium", component.fieldAfterLabel("Extra args (k1=v1,k2=v2)").text)
+        assertEquals("size=medium", component.fieldAfterLabel("Extra args:").text)
     }
 
     private fun androidTestConfig(): JuggAndroidTestRunConfiguration {
@@ -136,6 +162,19 @@ class JuggAndroidTestSettingsEditorTest {
         }
     }
 
+    private fun Container.containerWithLabel(label: String): Container {
+        val found = allChildren().firstOrNull { it is JLabel && it.text == label }
+            ?: error("Missing label: $label")
+        return found.parent ?: error("Missing parent container for label: $label")
+    }
+
+    private fun assertHorizontalRow(container: Container) {
+        val layout = container.layout
+        assertNotNull(layout)
+        assertTrue("Expected a BoxLayout row", layout is BoxLayout)
+        assertEquals("Expected left-aligned row", Component.LEFT_ALIGNMENT, container.alignmentX, 0.0f)
+    }
+
     private fun Container.allChildren(): List<java.awt.Component> {
         val direct = components.toList()
         return direct + direct.filterIsInstance<Container>().flatMap { it.allChildren() }
@@ -153,5 +192,12 @@ class JuggAndroidTestSettingsEditorTest {
         val children = allChildren()
         val labelIndex = children.indexOfFirst { it is JLabel && it.text == label }
         return children.drop(labelIndex + 1).filterIsInstance<JTextField>().first()
+    }
+
+    private fun <T> readPrivateField(target: Any, fieldName: String): T {
+        val field = target.javaClass.getDeclaredField(fieldName)
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        return field.get(target) as T
     }
 }
