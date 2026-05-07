@@ -18,6 +18,8 @@ sealed interface InstrumentationEvent {
 
     data class Aborted(val reason: String) : InstrumentationEvent
 
+    data class TestOutput(val className: String, val testName: String, val text: String) : InstrumentationEvent
+
     enum class TestResult {
         OK, FAILURE, ERROR, IGNORED, ASSUMPTION_FAILURE
     }

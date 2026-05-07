@@ -63,6 +63,28 @@ class InstrumentationSmRunnerBridgeTest {
     }
 
     @Test
+    fun `test output emits stdout service message for active test`() {
+        val output = mutableListOf<String>()
+        val bridge = InstrumentationSmRunnerBridge(output::add)
+
+        bridge.startDevice("Pixel_9")
+        bridge.onEvent(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
+        bridge.onEvent(InstrumentationEvent.TestOutput(
+            "com.example.FooTest",
+            "testBar",
+            "05-07 15:31:58.756 1234 1234 I Foo: line 1",
+        ))
+        bridge.onEvent(InstrumentationEvent.TestFinished("com.example.FooTest", "testBar", InstrumentationEvent.TestResult.OK, null))
+        bridge.finishDevice()
+
+        val stdoutIndex = output.indexOfFirst { it.contains("testStdOut") && it.contains("name='testBar'") }
+        val finishIndex = output.indexOfFirst { it.contains("testFinished") && it.contains("name='testBar'") }
+        assertTrue(stdoutIndex >= 0)
+        assertTrue(finishIndex > stdoutIndex)
+        assertTrue(output[stdoutIndex].contains("Foo: line 1"))
+    }
+
+    @Test
     fun `ignored and assumption failure emit ignored test events`() {
         val output = mutableListOf<String>()
         val bridge = InstrumentationSmRunnerBridge(output::add)

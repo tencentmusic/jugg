@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationConsoleRenderer
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationOutputParser
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * TestLauncher runs `am instrument` against devices and forwards structured test events to optional UI sinks.
@@ -30,6 +31,7 @@ class TestLauncher(
     },
     private val resultModel: AndroidTestResultModel = AndroidTestResultModel(),
     private val printAggregatedResult: Boolean = devices.size > 1,
+    private val logcatSource: TestLogcatSource = AdbTestLogcatSource(),
     private val runInstrumentation: (
         device: IDevice,
         runSpec: AndroidTestRunSpec,
@@ -62,12 +64,17 @@ class TestLauncher(
             var devicePassed = 0
             var deviceFailed = 0
             var deviceIgnored = 0
+            val activeTestLock = Any()
+            var activeTest: ActiveTest? = null
 
             parser.onEvent = { event ->
                 resultModel.recordEvent(deviceName, event)
                 testEventSink?.invoke(event)
                 renderer.render(event)
                 when (event) {
+                    is InstrumentationEvent.TestStarted -> synchronized(activeTestLock) {
+                        activeTest = ActiveTest(event.className, event.testName)
+                    }
                     is InstrumentationEvent.SuiteFinished -> {
                         devicePassed = event.passed
                         deviceFailed = event.failed
@@ -78,12 +85,30 @@ class TestLauncher(
                             event.result != InstrumentationEvent.TestResult.IGNORED) {
                             anyFailure = true
                         }
+                        synchronized(activeTestLock) {
+                            if (activeTest?.matches(event.className, event.testName) == true) {
+                                activeTest = null
+                            }
+                        }
                     }
-                    is InstrumentationEvent.Aborted -> anyFailure = true
+                    is InstrumentationEvent.Aborted -> {
+                        anyFailure = true
+                        synchronized(activeTestLock) {
+                            activeTest = null
+                        }
+                    }
                     else -> Unit
                 }
             }
 
+            val logcatSession = logcatSource.start(device, logger, { line ->
+                resultModel.recordLog(deviceName, line)
+                val test = synchronized(activeTestLock) { activeTest }
+                if (test != null) {
+                    resultModel.recordTestLog(deviceName, test.className, test.testName, line)
+                    testEventSink?.invoke(InstrumentationEvent.TestOutput(test.className, test.testName, line))
+                }
+            }, cancelSignal)
             try {
                 val exitCode = runInstrumentation(device, spec, testApk, { line ->
                     resultModel.recordLog(deviceName, line)
@@ -96,6 +121,11 @@ class TestLauncher(
             } catch (e: Exception) {
                 consoleOutput("[Device: $deviceName] Device disconnected during test run: ${e.message}")
                 anyFailure = true
+            } finally {
+                synchronized(activeTestLock) {
+                    activeTest = null
+                }
+                logcatSession.close()
             }
 
             if (deviceFailed > 0) anyFailure = true
@@ -118,6 +148,47 @@ class TestLauncher(
         }
 
         return !anyFailure
+    }
+}
+
+/**
+ * TestLogcatSource starts one logcat stream for a device and reports device log lines to the caller.
+ */
+interface TestLogcatSource {
+    fun start(
+        device: IDevice,
+        logger: Logger,
+        lineConsumer: (String) -> Unit,
+        cancelSignal: () -> Boolean,
+    ): AutoCloseable
+}
+
+private class AdbTestLogcatSource : TestLogcatSource {
+    override fun start(
+        device: IDevice,
+        logger: Logger,
+        lineConsumer: (String) -> Unit,
+        cancelSignal: () -> Boolean,
+    ): AutoCloseable {
+        val closed = AtomicBoolean(false)
+        val thread = Thread({
+            IdeaDeviceAdb(device, logger).execAdbShellCmdStreaming(
+                "logcat -v threadtime",
+                lineConsumer,
+            ) { closed.get() || cancelSignal() }
+        }, "Jugg AndroidTest logcat ${device.serialNumber}")
+        thread.isDaemon = true
+        thread.start()
+        return AutoCloseable {
+            closed.set(true)
+            thread.interrupt()
+        }
+    }
+}
+
+private data class ActiveTest(val className: String, val testName: String) {
+    fun matches(className: String, testName: String): Boolean {
+        return this.className == className && this.testName == testName
     }
 }
 

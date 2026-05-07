@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.getInstance
 import java.io.File
+import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
 
 class IdeaDeviceAdb(
@@ -96,7 +97,11 @@ class IdeaDeviceAdb(
             // Use a long timeout (1 hour) – the test suite itself governs duration.
             device.executeShellCommand(cmd, receiver, 3600L, TimeUnit.SECONDS)
         } catch (e: Exception) {
-            logger.warn("execAdbShellCmdStreaming failed: $cmd", e)
+            if (isExpectedStreamingStop(e, cancelSignal)) {
+                logger.debug("execAdbShellCmdStreaming stopped: $cmd", e)
+            } else {
+                logger.warn("execAdbShellCmdStreaming failed: $cmd", e)
+            }
             exitCode = -1
         }
         return exitCode
@@ -283,6 +288,25 @@ class IdeaDeviceAdb(
 
             return result
         }
+    }
+}
+
+internal fun isExpectedStreamingStop(error: Throwable, cancelSignal: () -> Boolean): Boolean {
+    if (runCatching { cancelSignal() }.getOrDefault(false)) {
+        return true
+    }
+    return error.causeChain().any { cause ->
+        cause is InterruptedException ||
+            cause is InterruptedIOException ||
+            cause.message?.contains("Operation interrupted", ignoreCase = true) == true
+    }
+}
+
+private fun Throwable.causeChain(): Sequence<Throwable> = sequence {
+    var current: Throwable? = this@causeChain
+    while (current != null) {
+        yield(current)
+        current = current.cause
     }
 }
 

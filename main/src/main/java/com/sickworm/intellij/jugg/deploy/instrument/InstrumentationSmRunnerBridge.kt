@@ -35,6 +35,11 @@ class InstrumentationSmRunnerBridge(
                 ))
             }
             is InstrumentationEvent.TestFinished -> renderTestFinished(event)
+            is InstrumentationEvent.TestOutput -> output(serviceMessage(
+                "testStdOut",
+                "name" to event.testName,
+                "out" to event.text,
+            ))
             is InstrumentationEvent.Aborted -> renderAborted(event)
             is InstrumentationEvent.SuiteFinished -> Unit
         }

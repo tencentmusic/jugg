@@ -26,6 +26,8 @@ class InstrumentationConsoleRenderer(private val lineOutput: (String) -> Unit) {
             is InstrumentationEvent.Aborted -> {
                 lineOutput("${RED}Test process aborted: ${event.reason}${RESET}")
             }
+
+            is InstrumentationEvent.TestOutput -> Unit
         }
     }
 

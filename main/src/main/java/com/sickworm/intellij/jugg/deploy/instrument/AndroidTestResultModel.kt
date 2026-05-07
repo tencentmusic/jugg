@@ -6,6 +6,7 @@ package com.sickworm.intellij.jugg.deploy.instrument
 class AndroidTestResultModel {
     private val devices = linkedMapOf<String, AndroidTestDeviceInfo>()
     private val logs = linkedMapOf<String, MutableList<String>>()
+    private val testLogs = linkedMapOf<TestKey, LinkedHashMap<String, MutableList<String>>>()
     private val results = linkedMapOf<TestKey, LinkedHashMap<String, AndroidTestCell>>()
 
     fun startDevice(info: AndroidTestDeviceInfo) {
@@ -15,6 +16,12 @@ class AndroidTestResultModel {
 
     fun recordLog(deviceName: String, line: String) {
         logs.getOrPut(deviceName) { mutableListOf() }.add(line)
+    }
+
+    fun recordTestLog(deviceName: String, className: String, testName: String, line: String) {
+        val key = TestKey(className, testName)
+        val deviceLogs = testLogs.getOrPut(key) { linkedMapOf() }
+        deviceLogs.getOrPut(deviceName) { mutableListOf() }.add(line)
     }
 
     fun recordEvent(deviceName: String, event: InstrumentationEvent) {
@@ -40,7 +47,8 @@ class AndroidTestResultModel {
                 AndroidTestCellStatus.FAIL,
                 event.reason,
             )
-            is InstrumentationEvent.SuiteFinished -> Unit
+            is InstrumentationEvent.SuiteFinished,
+            is InstrumentationEvent.TestOutput -> Unit
         }
     }
 
@@ -65,6 +73,21 @@ class AndroidTestResultModel {
                 val cell = deviceCells[deviceName]
                 appendLine("$deviceName: ${cell?.status?.label ?: AndroidTestCellStatus.NOT_RUN.label}")
                 cell?.stack?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
+            }
+        }.trimEnd()
+    }
+
+    fun testLogDetail(className: String, testName: String): String {
+        val key = TestKey(className, testName)
+        val deviceCells = results[key].orEmpty()
+        val deviceLogs = testLogs[key].orEmpty()
+        return buildString {
+            appendLine("$className#$testName")
+            (devices.keys + deviceLogs.keys).distinct().forEach { deviceName ->
+                val cell = deviceCells[deviceName]
+                appendLine("$deviceName: ${cell?.status?.label ?: AndroidTestCellStatus.NOT_RUN.label}")
+                cell?.stack?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
+                deviceLogs[deviceName].orEmpty().forEach { appendLine(it) }
             }
         }.trimEnd()
     }

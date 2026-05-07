@@ -49,6 +49,80 @@ class AndroidTestResultModelTest {
     }
 
     @Test
+    fun `test detail includes method scoped logcat`() {
+        val model = AndroidTestResultModel()
+
+        model.startDevice(AndroidTestDeviceInfo("emulator-5554", "Pixel_9 API 35", 35))
+        model.recordTestLog(
+            "Pixel_9 API 35",
+            "com.example.FooTest",
+            "testBar",
+            "05-07 15:31:58.756 1234 1234 I Foo: line 1",
+        )
+
+        val detail = model.testLogDetail("com.example.FooTest", "testBar")
+
+        assertTrue(detail.contains("Foo: line 1"))
+    }
+
+    @Test
+    fun `method scoped logs stay within their own test name`() {
+        val model = AndroidTestResultModel()
+
+        model.startDevice(AndroidTestDeviceInfo("emulator-5554", "Pixel_9 API 35", 35))
+        model.recordTestLog("Pixel_9 API 35", "com.example.FooTest", "testA", "05-07 15:31:58.756 1234 1234 I Foo: a")
+        model.recordTestLog("Pixel_9 API 35", "com.example.FooTest", "testB", "05-07 15:31:59.756 1234 1234 I Foo: b")
+
+        val detailA = model.testLogDetail("com.example.FooTest", "testA")
+        val detailB = model.testLogDetail("com.example.FooTest", "testB")
+
+        assertTrue(detailA.contains("Foo: a"))
+        assertTrue(detailB.contains("Foo: b"))
+        assertTrue(!detailA.contains("Foo: b"))
+        assertTrue(!detailB.contains("Foo: a"))
+    }
+
+    @Test
+    fun `method scoped logs stay within their own device`() {
+        val model = AndroidTestResultModel()
+
+        model.startDevice(AndroidTestDeviceInfo("emulator-5554", "Pixel_9 API 35", 35))
+        model.startDevice(AndroidTestDeviceInfo("xiaomi-1234", "Xiaomi 2509 API 36", 36))
+        model.recordTestLog("Pixel_9 API 35", "com.example.FooTest", "testA", "05-07 15:31:58.756 1234 1234 I Foo: pixel")
+        model.recordTestLog("Xiaomi 2509 API 36", "com.example.FooTest", "testA", "05-07 15:31:58.756 1234 1234 I Foo: xiaomi")
+
+        val detail = model.testLogDetail("com.example.FooTest", "testA")
+
+        assertTrue(detail.contains("Pixel_9 API 35"))
+        assertTrue(detail.contains("Xiaomi 2509 API 36"))
+        assertTrue(detail.contains("Foo: pixel"))
+        assertTrue(detail.contains("Foo: xiaomi"))
+        assertTrue(detail.indexOf("Foo: pixel") < detail.indexOf("Foo: xiaomi"))
+    }
+
+    @Test
+    fun `unrecorded method detail is deterministic and isolated`() {
+        val model = AndroidTestResultModel()
+
+        model.startDevice(AndroidTestDeviceInfo("emulator-5554", "Pixel_9 API 35", 35))
+        model.recordTestLog("Pixel_9 API 35", "com.example.FooTest", "testA", "05-07 15:31:58.756 1234 1234 I Foo: a")
+
+        val first = model.testLogDetail("com.example.FooTest", "testB")
+        val second = model.testLogDetail("com.example.FooTest", "testB")
+
+        assertEquals(first, second)
+        assertTrue(first.contains("com.example.FooTest#testB"))
+        assertTrue(!first.contains("Foo: a"))
+        assertEquals(
+            listOf(
+                "com.example.FooTest#testB",
+                "Pixel_9 API 35: -",
+            ),
+            first.lines(),
+        )
+    }
+
+    @Test
     fun `matrix groups test rows by device columns`() {
         val model = AndroidTestResultModel()
 

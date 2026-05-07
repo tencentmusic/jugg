@@ -236,6 +236,8 @@ am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMetho
 
 `AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用当前 scope 映射出的 `testClass` / `testMethod`。All in Package 与 All in Module regex 通过 `extraArgs` 透传为 AndroidJUnitRunner 原生 `package` / `tests_regex` 参数。
 
+`TestLauncher` 会为每台设备启动独立 `logcat -v threadtime` 流。logcat 采集与 instrumentation 协议解析分离：`InstrumentationOutputParser` 只负责生成 `TestStarted` / `TestFinished` 等事件，`TestLauncher` 根据当前设备的 active method 把窗口内 logcat 写入 `AndroidTestResultModel.recordTestLog(...)`，method 外日志只保留在设备详情中。多设备各自维护 active method，避免设备间日志串台。
+
 `TestLauncher` 对每台设备串行执行 instrumentation。任一设备出现以下情况，整体 Run 失败：
 
 - instrumentation command 非 0 退出。
@@ -320,6 +322,7 @@ rg --files main/src/test idea/src/test | rg 'AndroidTest|Instrumentation|ApkInst
 
 ## 8. 变更历史
 
+- 2026-05-07：`TestLauncher` 增加 per-device logcat 采集，并按 `TestStarted` / `TestFinished` 窗口把 logcat 归档到 active method。
 - 2026-05-07：RunConfig General 页对齐 Android Instrumented Tests 四 scope，补充 runner override、严格校验与 `tests_regex` / `package` 原生参数映射。
 - 2026-05-06：接入 SM Test Runner Test Results UI，补充 `JavaTestLocator` source navigation 与 rerun failed tests。
 - 2026-04-29：新增正式知识库文档，沉淀 androidTest 支持的当前实现、边界、链路和测试入口。

@@ -21,7 +21,7 @@
 | 部署文件管理 | `JuggDeployer`, `DeployFileManager`, `DeployFileStateTracker`, `DeployDataPlanner`, `CompileEffectAnalyzer`, `DeployHistoryManager`, `ClassFileLookupHelper` | `deploy/core` | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |
 | 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `IncrementalDeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data` | 类结构变更传播和部署数据生成；双层数据库与引用索引；内联方法影响检测 | 稳定 | 2026-02-01 |
 | 部署数据模型 | `JuggDeployData`, `LaunchResult` | `deploy/run` | 下发设备的部署数据结构 | 稳定 | 2025-01-20 |
-| AndroidTest 运行模型 | `AndroidTestRunSpec`, `TestFilter`, `InstrumentCommandBuilder`, `InstrumentationOutputParser`, `InstrumentationConsoleRenderer`, `InstrumentationSmRunnerBridge` | `deploy/instrument` | androidTest instrumentation 参数、`am instrument` 命令构造、输出解析、文本 console 渲染与 SM Test Runner service message 映射 | 开发中 | 2026-05-06 |
+| AndroidTest 运行模型 | `AndroidTestRunSpec`, `TestFilter`, `InstrumentCommandBuilder`, `InstrumentationOutputParser`, `InstrumentationConsoleRenderer`, `InstrumentationSmRunnerBridge`, `AndroidTestResultModel` | `deploy/instrument` | androidTest instrumentation 参数、`am instrument` 命令构造、输出解析、文本 console 渲染、SM Test Runner service message 映射与按 method 归档 logcat | 开发中 | 2026-05-07 |
 | 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo`, `JuggPathManager`, `ModuleApkBelongs` | `project/data`, `project` | 模块、路径、依赖等快照；项目信息读取/序列化；统一路径管理；模块到 APK 归属封装 | 稳定 | 2026-05-06 |
 | 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency` | 依赖变更检测策略 | 稳定 | 2025-01-20 |
 | Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script` | 通过 Gradle 反射读取模块信息 | 稳定 | 2025-01-20 |
