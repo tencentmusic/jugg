@@ -127,4 +127,27 @@ class InstrumentationSmRunnerBridgeTest {
         assertTrue(classCloseIndex > abortIndex)
         assertTrue(deviceCloseIndex > classCloseIndex)
     }
+
+    @Test
+    fun `multiple devices share one test session and keep device suites separated`() {
+        val output = mutableListOf<String>()
+        val bridge = InstrumentationSmRunnerBridge(output::add)
+
+        bridge.startDevice("Pixel_9 API 35")
+        bridge.onEvent(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
+        bridge.onEvent(InstrumentationEvent.TestFinished("com.example.FooTest", "testBar", InstrumentationEvent.TestResult.OK, null))
+        bridge.finishDevice()
+        bridge.startDevice("Xiaomi 2509 API 36")
+        bridge.onEvent(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
+        bridge.onEvent(InstrumentationEvent.TestFinished("com.example.FooTest", "testBar", InstrumentationEvent.TestResult.OK, null))
+        bridge.finishDevice()
+
+        assertEquals(1, output.count { it == "##teamcity[enteredTheMatrix]" })
+        val firstDeviceStart = output.indexOfFirst { it.contains("testSuiteStarted") && it.contains("Pixel_9 API 35") }
+        val firstDeviceFinish = output.indexOfFirst { it.contains("testSuiteFinished") && it.contains("Pixel_9 API 35") }
+        val secondDeviceStart = output.indexOfFirst { it.contains("testSuiteStarted") && it.contains("Xiaomi 2509 API 36") }
+        assertTrue(firstDeviceStart >= 0)
+        assertTrue(firstDeviceFinish > firstDeviceStart)
+        assertTrue(secondDeviceStart > firstDeviceFinish)
+    }
 }

@@ -5,6 +5,7 @@ import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.execution.process.ProcessOutputType
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
@@ -113,7 +114,9 @@ open class JuggCompileUiHandler(
     override fun onDeployUiMessage(message: String) {
         if (isRpcMode) {
             logger.debug("MCP deploy ui message: $message")
+            return
         }
+        processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
     }
 
     override fun cancel() {

@@ -178,6 +178,8 @@ androidTest run 会在 `JuggConfigurationRunner` 中创建 SM Test Runner consol
 
 UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `InstrumentationEvent`，`InstrumentationSmRunnerBridge` 转成 TeamCity service message，最终由 `SMTestRunnerConnectionUtil` 驱动 Test Results tree。
 
+一次 androidTest run 只创建一个 `InstrumentationSmRunnerBridge`；多设备按设备顺序创建 sink，但共享同一个 SM runner session，避免每台设备各自输出一段独立 `enteredTheMatrix`。
+
 关键节点约定：
 
 | 节点 | name | locationHint |
@@ -190,6 +192,9 @@ UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `Instrumentation
 
 - **单设备运行**：隐藏 device suite，仅展示 class/method 节点，减少一层无效树层级。
 - **多设备运行**：展示 device suite，按设备分组 class/method 节点，避免不同设备结果混在同一层。
+- **设备展示名**：由 `TestLauncher` 统一生成，优先使用设备品牌/型号，并追加 `API xx`，用于对齐 Android Test 的设备维度可读信息。
+- **设备详情**：右侧详情面板展示设备 Serial、Name、API 和该设备的 instrumentation 原始日志。
+- **结果矩阵**：多设备运行时会补一段矩阵文本，按 `Test | device1 | device2 ...` 展示每个测试在各设备上的 `Pass / Fail / Ignored / Running / -` 状态。
 
 `JuggAndroidTestConsoleProperties` 使用 IntelliJ `JavaTestLocator` 处理 source navigation，并通过 `JuggAndroidTestRerunFailedTestsAction` 把 failed leaf tests 转回 `AndroidTestRunSpec.testFilters` 后重跑。rerun failed 会保留原 `runnerOverride` 与 `extraArgs`。
 

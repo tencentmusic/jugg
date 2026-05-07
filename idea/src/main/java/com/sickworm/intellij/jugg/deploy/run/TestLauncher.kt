@@ -5,6 +5,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestDeviceInfo
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationConsoleRenderer
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
@@ -22,6 +24,12 @@ class TestLauncher(
     private val testEventSinkFactory: (String, Boolean) -> ((InstrumentationEvent) -> Unit)? = { _, _ -> null },
     private val cancelSignal: () -> Boolean,
     private val logger: Logger,
+    private val deviceDisplayName: (IDevice, IdeaDeviceAdb) -> String = { device, adb ->
+        val api = safeApiLevel(adb)
+        withApiLevel(adb.displayName.orEmpty().ifBlank { device.serialNumber }, api)
+    },
+    private val resultModel: AndroidTestResultModel = AndroidTestResultModel(),
+    private val printAggregatedResult: Boolean = devices.size > 1,
     private val runInstrumentation: (
         device: IDevice,
         runSpec: AndroidTestRunSpec,
@@ -43,7 +51,9 @@ class TestLauncher(
 
         devices.forEach { device ->
             val adb = IdeaDeviceAdb(device, logger)
-            val deviceName = adb.displayName
+            val deviceName = deviceDisplayName(device, adb)
+            val api = safeApiLevel(adb)
+            resultModel.startDevice(AndroidTestDeviceInfo(adb.serial, deviceName, api.takeIf { it > 0 }))
             consoleOutput("[Device: $deviceName] Running tests...")
 
             val parser = InstrumentationOutputParser()
@@ -54,6 +64,7 @@ class TestLauncher(
             var deviceIgnored = 0
 
             parser.onEvent = { event ->
+                resultModel.recordEvent(deviceName, event)
                 testEventSink?.invoke(event)
                 renderer.render(event)
                 when (event) {
@@ -74,7 +85,10 @@ class TestLauncher(
             }
 
             try {
-                val exitCode = runInstrumentation(device, spec, testApk, parser::feed, cancelSignal)
+                val exitCode = runInstrumentation(device, spec, testApk, { line ->
+                    resultModel.recordLog(deviceName, line)
+                    parser.feed(line)
+                }, cancelSignal)
                 if (exitCode != 0) {
                     consoleOutput("[Device: $deviceName] Instrumentation command failed with exit code $exitCode")
                     anyFailure = true
@@ -92,10 +106,25 @@ class TestLauncher(
             consoleOutput("[Device: $deviceName] Tests summary: $devicePassed passed, $deviceFailed failed, $deviceIgnored ignored")
         }
 
-        if (devices.size > 1) {
-            consoleOutput("All devices: ${devices.size} devices, $globalPassed passed, $globalFailed failed, $globalIgnored ignored.")
+        if (printAggregatedResult) {
+            val matrix = resultModel.matrix()
+            consoleOutput("All devices: ${matrix.devices.size} devices, $globalPassed passed, $globalFailed failed, $globalIgnored ignored.")
+            consoleOutput(resultModel.matrixText())
+            matrix.devices.forEach { device ->
+                val detail = resultModel.deviceDetail(device.name)
+                consoleOutput("Device Detail - ${device.name}")
+                consoleOutput(detail.deviceInfo)
+            }
         }
 
         return !anyFailure
     }
+}
+
+private fun withApiLevel(name: String, api: Int): String {
+    return if (api > 0 && !name.contains("API ")) "$name API $api" else name
+}
+
+private fun safeApiLevel(adb: IdeaDeviceAdb): Int {
+    return runCatching { adb.api }.getOrDefault(-1)
 }

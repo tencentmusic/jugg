@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -60,7 +61,9 @@ class JuggDeployerHelper(
         isSkipExceptOverlayCheck: Boolean = false,
         compileUiHandler: CompileUiHandler,
         isMultipleDevices: Boolean = false,
+        isLastDevice: Boolean = false,
         androidTestRunSpec: AndroidTestRunSpec? = null,
+        androidTestResultModel: AndroidTestResultModel? = null,
     ): LaunchResult = synchronized(runTaskLock) {
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
@@ -172,6 +175,8 @@ class JuggDeployerHelper(
                     },
                     cancelSignal = { compileUiHandler.isCanceled },
                     logger = logger,
+                    resultModel = androidTestResultModel ?: AndroidTestResultModel(),
+                    printAggregatedResult = isLastDevice && isMultipleDevices,
                 )
                 val success = launcher.run()
                 if (!success) {
@@ -296,7 +301,9 @@ class JuggDeployerHelper(
                     deployData,
                     compileUiHandler = deployOptions.compileUiHandler,
                     isMultipleDevices = deployOptions.isMultipleDevices,
+                    isLastDevice = deployOptions.isLastDevice,
                     androidTestRunSpec = deployOptions.androidTestRunSpec,
+                    androidTestResultModel = deployOptions.androidTestResultModel,
                 )
                 if (!launchResult.success) {
                     return DeployTaskResult(
@@ -391,7 +398,9 @@ class JuggDeployerHelper(
                     finalIsSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
                     isMultipleDevices = deployOptions.isMultipleDevices,
+                    isLastDevice = deployOptions.isLastDevice,
                     androidTestRunSpec = deployOptions.androidTestRunSpec,
+                    androidTestResultModel = deployOptions.androidTestResultModel,
                 )
                 if (!launchResult.success) {
                     return DeployTaskResult(
@@ -492,6 +501,7 @@ class JuggDeployerHelper(
             deployData,
             compileUiHandler = deployOptions.compileUiHandler,
             isMultipleDevices = deployOptions.isMultipleDevices,
+            isLastDevice = deployOptions.isLastDevice,
         )
         if (deployOptions.isLastDevice) {
             logger.debug("Installing finished, update info after install.")

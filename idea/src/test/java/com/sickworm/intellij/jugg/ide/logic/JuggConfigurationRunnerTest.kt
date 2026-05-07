@@ -12,7 +12,8 @@ class JuggConfigurationRunnerTest {
     @Test
     fun `androidTest sink hides device suite`() {
         val processHandler = CapturingProcessHandler()
-        val sink = createAndroidTestEventSink(processHandler, "Pixel_9", showDeviceSuite = false)
+        val bridge = createAndroidTestBridge(processHandler)
+        val sink = createAndroidTestEventSink(bridge, "Pixel_9", showDeviceSuite = false)
 
         sink(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
         sink(InstrumentationEvent.TestFinished("com.example.FooTest", "testBar", InstrumentationEvent.TestResult.OK, null))
@@ -25,7 +26,8 @@ class JuggConfigurationRunnerTest {
     @Test
     fun `androidTest sink shows device suite when enabled`() {
         val processHandler = CapturingProcessHandler()
-        val sink = createAndroidTestEventSink(processHandler, "Pixel_9", showDeviceSuite = true)
+        val bridge = createAndroidTestBridge(processHandler)
+        val sink = createAndroidTestEventSink(bridge, "Pixel_9", showDeviceSuite = true)
 
         sink(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
         sink(InstrumentationEvent.TestFinished("com.example.FooTest", "testBar", InstrumentationEvent.TestResult.OK, null))
