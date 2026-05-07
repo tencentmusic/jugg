@@ -19,7 +19,7 @@ Jugg 目前支持 **app 模块的 androidTest**：
 
 当前不覆盖：
 
-- library 模块 androidTest。
+- library Test APK 懒加载补齐与多 APK 归属完整部署（当前只完成 sourcePath class/method 解析、target 解析与 APK 精确选择）。
 - androidTest resource 增量编译。
 - `androidTestAnnotationProcessor` / `androidTestKapt`。
 - Debug Executor。
@@ -131,24 +131,22 @@ Jugg 目前支持 **app 模块的 androidTest**：
 |------|------|
 | `JuggRunConfiguration.enableAndroidTest` | 控制 app RunConfig 是否允许 androidTest 编译与运行 |
 | `JuggAndroidTestRunConfiguration` | General 页对齐 Android Instrumented Tests：Module 行、四种 Test scope、动态字段、可编辑 Instrumentation class 与原有 Instrumentation arguments |
-| `JuggAndroidTestLineMarkerContributor` | 在 app `src/androidTest` 的 JUnit test 上提供 Jugg gutter |
+| `JuggAndroidTestLineMarkerContributor` | 在 `src/androidTest` 的 JUnit test 上提供 Jugg gutter，并把测试文件路径写入 `sourcePath` |
 
-`JuggAndroidTestRunConfiguration` 当前四种 scope：
+`JuggAndroidTestRunConfiguration` 当前两种 scope：
 
 | Scope | 配置字段 | 运行映射 | 校验 |
 |-------|----------|----------|------|
-| `ALL_IN_MODULE` | `regex` | 空 regex 跑当前 app module 全量 androidTest；非空 regex 追加 `-e tests_regex <regex>` | regex 可空 |
-| `ALL_IN_PACKAGE` | `packageName` | 追加 `-e package <packageName>` | packageName 必填 |
 | `CLASS` | `testClass` | 追加 `-e class <testClass>` | testClass 必填 |
 | `METHOD` | `testClass` + `testMethod` | 追加 `-e class <testClass>#<testMethod>` | testClass/testMethod 必填 |
 
-Regex 口径来自本地 `androidx.test:runner` sources：`RunnerArgs.ARGUMENT_TESTS_REGEX = "tests_regex"`，`TestsRegExFilter` 对 `className#methodName` 使用 `Pattern.matcher(...).find()`。Jugg 不实现自定义匹配，只透传 AndroidJUnitRunner 原生参数。`instrumentationRunner` 为空时使用 test APK manifest runner/default runner；非空时覆盖为 `<testPkg>/<instrumentationRunner>`。非当前 scope 字段不参与校验，也不影响运行。
+`sourcePath` 是目标锚点，用于解析测试 class/method、androidTest module 与 test APK；package / regex 不再作为 target 入口。`instrumentationRunner` 为空时使用 test APK manifest runner/default runner；非空时覆盖为 `<testPkg>/<instrumentationRunner>`。
 
-gutter 默认值：class gutter 生成 `CLASS + testClass`，method gutter 生成 `METHOD + testClass/testMethod`。rerun failed 仍使用 `AndroidTestRunSpec.testFilters`，不会反写 General 页 scope。
+gutter 默认值：class gutter 生成 `sourcePath + CLASS + testClass`，method gutter 生成 `sourcePath + METHOD + testClass/testMethod`。rerun failed 仍使用 `AndroidTestRunSpec.testFilters`，不会反写 General 页 scope。
 
 gutter 约束：
 
-- 只支持路径包含 `/app/src/androidTest/` 的测试。
+- 支持路径包含 `/src/androidTest/` 的测试；library test APK 通过 `sourcePath` 进入后续 target resolver。
 - 识别 `org.junit.Test` 与 `org.junit.jupiter.api.Test`。
 - Java / Kotlin PSI 都支持，gutter 通过测试注解 owner 判定，不依赖单一 PSI 类型。
 - 未开启 `enableAndroidTest` 时只弹 Notification，引导用户打开 App RunConfig，不自动修改配置。
@@ -231,10 +229,10 @@ UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `Instrumentation
 `InstrumentCommandBuilder` 输出形态：
 
 ```text
-am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMethod>...]] [-e package <packageName>] [-e tests_regex <regex>] [-e <key> <value>]* <testPkg>/<runner>
+am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMethod>...]] [-e <key> <value>]* <testPkg>/<runner>
 ```
 
-`AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用当前 scope 映射出的 `testClass` / `testMethod`。All in Package 与 All in Module regex 通过 `extraArgs` 透传为 AndroidJUnitRunner 原生 `package` / `tests_regex` 参数。
+`AndroidTestRunSpec.sourcePath` 非空时，MCP 会先用 source file 解析单 class/多 class 与 method 有效性，部署阶段再用 source file 精确解析 androidTest module 与 test APK；无 `sourcePath` 的旧 app androidTest 路径仍回退到首个 test APK。`AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用 `testClass` / `testMethod`。
 
 `TestLauncher` 会为每台设备启动独立 `logcat -v threadtime` 流。logcat 采集与 instrumentation 协议解析分离：`InstrumentationOutputParser` 只负责生成 `TestStarted` / `TestFinished` 等事件，`TestLauncher` 根据当前设备的 active method 把窗口内 logcat 写入 `AndroidTestResultModel.recordTestLog(...)`，method 外日志只保留在设备详情中。多设备各自维护 active method，避免设备间日志串台。
 
@@ -317,12 +315,3 @@ rg --files main/src/test idea/src/test | rg 'AndroidTest|Instrumentation|ApkInst
 2. `JuggAndroidTestConsoleProperties.TEST_FRAMEWORK_NAME` 是否与 `SMTestRunnerConnectionUtil.createAndAttachConsole()` 的 framework name 一致。
 3. `InstrumentationSmRunnerBridge` 是否输出了 `java:suite://FQCN` 与 `java:test://FQCN/method` locationHint。
 4. rerun failed 生成的 `AndroidTestRunSpec.testFilters` 是否非空，且 `InstrumentCommandBuilder` 是否优先使用 `testFilters`。
-
----
-
-## 8. 变更历史
-
-- 2026-05-07：`TestLauncher` 增加 per-device logcat 采集，并按 `TestStarted` / `TestFinished` 窗口把 logcat 归档到 active method。
-- 2026-05-07：RunConfig General 页对齐 Android Instrumented Tests 四 scope，补充 runner override、严格校验与 `tests_regex` / `package` 原生参数映射。
-- 2026-05-06：接入 SM Test Runner Test Results UI，补充 `JavaTestLocator` source navigation 与 rerun failed tests。
-- 2026-04-29：新增正式知识库文档，沉淀 androidTest 支持的当前实现、边界、链路和测试入口。

@@ -137,17 +137,23 @@ class InstrumentBuildParamsTest(unittest.TestCase):
     def test_empty_args_ok(self):
         self.assertEqual(self.build([]), {})
 
-    def test_class_package_regex_runner(self):
+    def test_source_class_method_runner(self):
         result = self.build([
-            "--class", "com.example.FooTest#bar,com.example.BarTest",
-            "--package", "com.example.pkg",
-            "--testsRegex", "Login.*",
+            "--source-path", "library1/src/androidTest/kotlin/com/example/FooTest.kt",
+            "--class", "com.example.FooTest",
+            "--method", "bar",
             "--runner", "androidx.test.runner.AndroidJUnitRunner",
         ])
-        self.assertEqual(result["class"], "com.example.FooTest#bar,com.example.BarTest")
-        self.assertEqual(result["package"], "com.example.pkg")
-        self.assertEqual(result["testsRegex"], "Login.*")
+        self.assertEqual(result["sourcePath"], "library1/src/androidTest/kotlin/com/example/FooTest.kt")
+        self.assertEqual(result["class"], "com.example.FooTest")
+        self.assertEqual(result["method"], "bar")
         self.assertEqual(result["runner"], "androidx.test.runner.AndroidJUnitRunner")
+
+    def test_package_and_regex_are_rejected(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--package", "com.example.pkg"])
+        with self.assertRaises(SystemExit):
+            self.build(["--testsRegex", "Login.*"])
 
     def test_e_pairs(self):
         result = self.build(["-e", "size=large", "-e", "clearPackageData=true"])

@@ -74,15 +74,16 @@ Runs androidTest through Jugg compile/deploy chain, while keeping parameter styl
 ```
 python3 {SKILL_DIR}/scripts/jugg.py instrument
 python3 {SKILL_DIR}/scripts/jugg.py instrument --class 'com.example.FooTest#bar,com.example.BarTest'
-python3 {SKILL_DIR}/scripts/jugg.py instrument --package com.example.pkg --tests-regex 'Login.*'
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest --method testSomething
 python3 {SKILL_DIR}/scripts/jugg.py instrument --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--class <filters>` | class filter, supports comma-separated `Class` or `Class#method`. |
-| `--package <pkg>` | maps to `-e package <pkg>`. |
-| `--tests-regex <regex>` | maps to `-e tests_regex <regex>`. |
+| `--source-path <path>` | test source file under `src/androidTest`; required by the MCP tool. |
+| `--class <fqcn>` | optional test class in the source file. |
+| `--method <name>` | optional test method in the resolved class. |
 | `--runner <fqn>` | instrumentation runner override. |
 | `-e <k=v>` | extra `-e key value` pair, repeatable. |
 | `--extras <k=v;k2=v2>` | batch extras format. |

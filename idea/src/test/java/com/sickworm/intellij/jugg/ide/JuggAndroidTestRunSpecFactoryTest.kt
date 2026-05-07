@@ -12,6 +12,7 @@ class JuggAndroidTestRunSpecFactoryTest {
     fun `build spec keeps class method runner and extra args`() {
         val options = JuggAndroidTestRunConfigurationOptions().apply {
             testScope = AndroidTestScope.METHOD
+            sourcePath = "library1/src/androidTest/kotlin/com/example/FooTest.kt"
             testClass = "com.example.FooTest"
             testMethod = "testBar"
             instrumentationRunner = "com.example.CustomRunner"
@@ -22,6 +23,7 @@ class JuggAndroidTestRunSpecFactoryTest {
 
         assertEquals("com.example.FooTest", spec.testClass)
         assertEquals("testBar", spec.testMethod)
+        assertEquals("library1/src/androidTest/kotlin/com/example/FooTest.kt", spec.sourcePath)
         assertEquals("com.example.CustomRunner", spec.runnerOverride)
         assertEquals(listOf("clearPackageData" to "true", "size" to "medium"), spec.extraArgs)
     }
@@ -44,57 +46,11 @@ class JuggAndroidTestRunSpecFactoryTest {
     }
 
     @Test
-    fun `manual template defaults to all in module`() {
-        val options = JuggAndroidTestRunConfigurationOptions()
-
-        val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
-
-        assertEquals(AndroidTestScope.ALL_IN_MODULE, options.testScope)
-        assertNull(spec.testClass)
-        assertNull(spec.testMethod)
-        assertEquals(emptyList<Pair<String, String>>(), spec.extraArgs)
-    }
-
-    @Test
-    fun `all in module regex maps to tests regex argument`() {
-        val options = JuggAndroidTestRunConfigurationOptions().apply {
-            testScope = AndroidTestScope.ALL_IN_MODULE
-            regex = "Foo.*#bar"
-            packageName = ""
-            testClass = ""
-            testMethod = ""
-        }
-
-        val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
-
-        assertNull(spec.testClass)
-        assertNull(spec.testMethod)
-        assertEquals(listOf("tests_regex" to "Foo.*#bar"), spec.extraArgs)
-    }
-
-    @Test
-    fun `all in package maps package argument and ignores class fields`() {
-        val options = JuggAndroidTestRunConfigurationOptions().apply {
-            testScope = AndroidTestScope.ALL_IN_PACKAGE
-            packageName = " com.example.tests "
-            testClass = ""
-            testMethod = ""
-        }
-
-        val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
-
-        assertNull(spec.testClass)
-        assertNull(spec.testMethod)
-        assertEquals(listOf("package" to "com.example.tests"), spec.extraArgs)
-    }
-
-    @Test
     fun `class scope maps only test class`() {
         val options = JuggAndroidTestRunConfigurationOptions().apply {
             testScope = AndroidTestScope.CLASS
             testClass = "com.example.FooTest"
             testMethod = "ignored"
-            packageName = ""
         }
 
         val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
@@ -119,19 +75,6 @@ class JuggAndroidTestRunSpecFactoryTest {
 
     @Test
     fun `required fields are validated only for current scope`() {
-        JuggAndroidTestRunSpecFactory.fromOptions(JuggAndroidTestRunConfigurationOptions().apply {
-            testScope = AndroidTestScope.ALL_IN_MODULE
-            packageName = ""
-            testClass = ""
-            testMethod = ""
-        })
-
-        assertThrows(RuntimeConfigurationError::class.java) {
-            JuggAndroidTestRunSpecFactory.fromOptions(JuggAndroidTestRunConfigurationOptions().apply {
-                testScope = AndroidTestScope.ALL_IN_PACKAGE
-                packageName = ""
-            })
-        }
         assertThrows(RuntimeConfigurationError::class.java) {
             JuggAndroidTestRunSpecFactory.fromOptions(JuggAndroidTestRunConfigurationOptions().apply {
                 testScope = AndroidTestScope.CLASS
@@ -155,16 +98,16 @@ class JuggAndroidTestRunSpecFactoryTest {
     }
 
     @Test
-    fun `unknown stored scope falls back to all in module`() {
+    fun `unknown stored scope falls back to class`() {
         val options = JuggAndroidTestRunConfigurationOptions().apply {
             testScopeId = "REMOVED_SCOPE"
-            regex = "Foo.*"
+            testClass = "com.example.FooTest"
         }
 
         val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
 
-        assertEquals(AndroidTestScope.ALL_IN_MODULE, options.testScope)
-        assertEquals(listOf("tests_regex" to "Foo.*"), spec.extraArgs)
+        assertEquals(AndroidTestScope.CLASS, options.testScope)
+        assertEquals("com.example.FooTest", spec.testClass)
     }
 
     @Test

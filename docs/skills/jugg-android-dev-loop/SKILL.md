@@ -111,10 +111,9 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py instrument
-python3 {SKILL_DIR}/scripts/jugg.py instrument --class 'com.example.FooTest#bar,com.example.BarTest'
-python3 {SKILL_DIR}/scripts/jugg.py instrument --package com.example.pkg --tests-regex 'Login.*'
-python3 {SKILL_DIR}/scripts/jugg.py instrument --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest --method testSomething
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
 ```
 
 ### Runtime Basic Commands

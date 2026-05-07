@@ -24,6 +24,7 @@ import org.junit.After
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
+import java.nio.file.Files
 
 class InstrumentMcpToolActionTest {
 
@@ -40,7 +41,7 @@ class InstrumentMcpToolActionTest {
     }
 
     @Test
-    fun testExecuteBuildsRunSpecAndForcesAndroidTestTarget() {
+    fun testExecuteBuildsSourceAnchoredRunSpecAndForcesAndroidTestTarget() {
         var capturedSpec: AndroidTestRunSpec? = null
         var capturedBuildTarget: BuildTarget? = null
         val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, buildTarget ->
@@ -60,9 +61,9 @@ class InstrumentMcpToolActionTest {
         val result = InstrumentMcpToolAction().execute(
             mapOf(
                 "projectDir" to "/fake/project",
-                "class" to "com.example.FooTest#bar,com.example.BarTest",
-                "package" to "com.example.pkg",
-                "testsRegex" to "Login.*",
+                "sourcePath" to "library1/src/androidTest/kotlin/com/example/FooTest.kt",
+                "class" to "com.example.FooTest",
+                "method" to "bar",
                 "runner" to "androidx.test.runner.AndroidJUnitRunner",
                 "extras" to mapOf("size" to "large", "clearPackageData" to "true"),
             ),
@@ -74,41 +75,61 @@ class InstrumentMcpToolActionTest {
 
         val spec = capturedSpec
         Assert.assertNotNull(spec)
-        Assert.assertEquals(
-            listOf(
-                TestFilter("com.example.FooTest", "bar"),
-                TestFilter("com.example.BarTest", null),
-            ),
-            spec?.testFilters,
-        )
+        Assert.assertEquals("library1/src/androidTest/kotlin/com/example/FooTest.kt", spec?.sourcePath)
+        Assert.assertEquals("com.example.FooTest", spec?.testClass)
+        Assert.assertEquals("bar", spec?.testMethod)
+        Assert.assertEquals(emptyList<TestFilter>(), spec?.testFilters)
         Assert.assertEquals("androidx.test.runner.AndroidJUnitRunner", spec?.runnerOverride)
-        Assert.assertTrue(spec?.extraArgs?.contains("package" to "com.example.pkg") == true)
-        Assert.assertTrue(spec?.extraArgs?.contains("tests_regex" to "Login.*") == true)
         Assert.assertTrue(spec?.extraArgs?.contains("size" to "large") == true)
         Assert.assertTrue(spec?.extraArgs?.contains("clearPackageData" to "true") == true)
     }
 
     @Test
-    fun testExecuteWithoutClassRunsWholeModule() {
-        var capturedSpec: AndroidTestRunSpec? = null
+    fun testExecuteRequiresSourcePath() {
         val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
-            capturedSpec = androidTestRunSpec
-            JuggRunInvocationResult(
-                isSuccess = true,
-                runResult = RunResult(
-                    isGradleCompile = false,
-                    isCompileSuccess = true,
-                    isDeploySuccess = true,
-                    isCancel = false,
-                ),
-            )
+            throw AssertionError("runner should not be invoked when sourcePath is missing: $androidTestRunSpec")
         }
 
         val result = InstrumentMcpToolAction().execute(mapOf("projectDir" to "/fake/project"), runtime)
 
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertEquals(emptyList<TestFilter>(), capturedSpec?.testFilters)
-        Assert.assertEquals(emptyList<Pair<String, String>>(), capturedSpec?.extraArgs)
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("sourcePath is required"))
+    }
+
+    @Test
+    fun testSchemaDoesNotExposePackageOrRegexTargeting() {
+        val schema = InstrumentMcpToolAction().definition.inputSchema
+
+        Assert.assertTrue(schema.properties.containsKey("sourcePath"))
+        Assert.assertFalse(schema.properties.containsKey("package"))
+        Assert.assertFalse(schema.properties.containsKey("testPackage"))
+        Assert.assertFalse(schema.properties.containsKey("testsRegex"))
+        Assert.assertFalse(schema.properties.containsKey("regex"))
+        Assert.assertTrue(schema.required.contains("sourcePath"))
+    }
+
+    @Test
+    fun testExecuteRejectsRemovedPackageAndRegexArguments() {
+        val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
+            throw AssertionError("runner should not be invoked for removed params: $androidTestRunSpec")
+        }
+
+        val packageResult = InstrumentMcpToolAction().execute(
+            mapOf("projectDir" to "/fake/project", "sourcePath" to "FooTest.kt", "package" to "com.example.pkg"),
+            runtime,
+        )
+        val regexResult = InstrumentMcpToolAction().execute(
+            mapOf("projectDir" to "/fake/project", "sourcePath" to "FooTest.kt", "testsRegex" to "Login.*"),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, packageResult.status)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, packageResult.errorCode)
+        Assert.assertTrue(packageResult.message.contains("package is not supported"))
+        Assert.assertEquals(McpToolStatus.ERROR, regexResult.status)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, regexResult.errorCode)
+        Assert.assertTrue(regexResult.message.contains("testsRegex is not supported"))
     }
 
     @Test
@@ -120,6 +141,7 @@ class InstrumentMcpToolActionTest {
         val result = InstrumentMcpToolAction().execute(
             mapOf(
                 "projectDir" to "/fake/project",
+                "sourcePath" to "library1/src/androidTest/kotlin/com/example/FooTest.kt",
                 "extras" to mapOf("size" to 1),
             ),
             runtime,
@@ -128,6 +150,116 @@ class InstrumentMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
         Assert.assertTrue(result.message.contains("extras.size"))
+    }
+
+    @Test
+    fun testExecuteInfersSingleKotlinTestClassFromSourcePath() {
+        val projectDir = Files.createTempDirectory("jugg-instrument").toFile()
+        val sourceFile = projectDir.resolve("library1/src/androidTest/kotlin/com/example/FooTest.kt")
+        sourceFile.parentFile.mkdirs()
+        sourceFile.writeText(
+            """
+            package com.example
+
+            class FooTest {
+                @org.junit.Test
+                fun bar() {
+                }
+            }
+            """.trimIndent()
+        )
+        var capturedSpec: AndroidTestRunSpec? = null
+        val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
+            capturedSpec = androidTestRunSpec
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(false, isCompileSuccess = true, isDeploySuccess = true, isCancel = false),
+            )
+        }
+
+        val result = InstrumentMcpToolAction().execute(
+            mapOf(
+                "projectDir" to projectDir.path,
+                "sourcePath" to "library1/src/androidTest/kotlin/com/example/FooTest.kt",
+                "method" to "bar",
+            ),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertEquals("com.example.FooTest", capturedSpec?.testClass)
+        Assert.assertEquals("bar", capturedSpec?.testMethod)
+    }
+
+    @Test
+    fun testExecuteRequiresClassWhenSourcePathContainsMultipleTestClasses() {
+        val projectDir = Files.createTempDirectory("jugg-instrument").toFile()
+        val sourceFile = projectDir.resolve("library1/src/androidTest/java/com/example/FooTest.java")
+        sourceFile.parentFile.mkdirs()
+        sourceFile.writeText(
+            """
+            package com.example;
+
+            public class FooTest {
+                @org.junit.Test
+                public void foo() {}
+            }
+
+            class BarTest {
+                @org.junit.jupiter.api.Test
+                void bar() {}
+            }
+            """.trimIndent()
+        )
+        val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
+            throw AssertionError("runner should not be invoked for ambiguous source: $androidTestRunSpec")
+        }
+
+        val result = InstrumentMcpToolAction().execute(
+            mapOf("projectDir" to projectDir.path, "sourcePath" to sourceFile.path),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("multiple test classes found in sourcePath"))
+        Assert.assertTrue(result.message.contains("com.example.FooTest"))
+        Assert.assertTrue(result.message.contains("com.example.BarTest"))
+    }
+
+    @Test
+    fun testExecuteRejectsMissingMethodInResolvedSourceClass() {
+        val projectDir = Files.createTempDirectory("jugg-instrument").toFile()
+        val sourceFile = projectDir.resolve("library1/src/androidTest/kotlin/com/example/FooTest.kt")
+        sourceFile.parentFile.mkdirs()
+        sourceFile.writeText(
+            """
+            package com.example
+
+            class FooTest {
+                @Test
+                fun existing() {
+                }
+            }
+            """.trimIndent()
+        )
+        val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
+            throw AssertionError("runner should not be invoked for missing method: $androidTestRunSpec")
+        }
+
+        val result = InstrumentMcpToolAction().execute(
+            mapOf(
+                "projectDir" to projectDir.path,
+                "sourcePath" to sourceFile.path,
+                "class" to "com.example.FooTest",
+                "method" to "missing",
+            ),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("method is not found in sourcePath"))
     }
 
     private fun runtimeWithRunner(

@@ -1,4 +1,4 @@
-"""cmd_instrument — run androidTest with am instrument-like parameters."""
+"""cmd_instrument — run androidTest from a source file anchor."""
 
 import sys
 import os
@@ -26,24 +26,27 @@ def build_params(args: list[str]) -> dict:
     i = 0
     while i < len(args):
         arg = args[i]
-        if arg in ("--class", "--clazz"):
+        if arg in ("--source-path", "--sourcePath"):
+            if i + 1 >= len(args):
+                print(f"{arg} requires a value", file=sys.stderr)
+                sys.exit(1)
+            params["sourcePath"] = args[i + 1]
+            i += 2
+        elif arg in ("--class", "--clazz"):
             if i + 1 >= len(args):
                 print(f"{arg} requires a value", file=sys.stderr)
                 sys.exit(1)
             params["class"] = args[i + 1]
             i += 2
-        elif arg in ("--package", "--testPackage"):
+        elif arg == "--method":
             if i + 1 >= len(args):
                 print(f"{arg} requires a value", file=sys.stderr)
                 sys.exit(1)
-            params["package"] = args[i + 1]
+            params["method"] = args[i + 1]
             i += 2
-        elif arg in ("--testsRegex", "--regex"):
-            if i + 1 >= len(args):
-                print(f"{arg} requires a value", file=sys.stderr)
-                sys.exit(1)
-            params["testsRegex"] = args[i + 1]
-            i += 2
+        elif arg in ("--package", "--testPackage", "--testsRegex", "--regex"):
+            print(f"{arg} is not supported. Use --source-path with optional --class/--method.", file=sys.stderr)
+            sys.exit(1)
         elif arg in ("--runner", "--instrumentationRunner"):
             if i + 1 >= len(args):
                 print(f"{arg} requires a value", file=sys.stderr)

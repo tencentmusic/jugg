@@ -152,16 +152,16 @@ jugg restart [--json]
 
 #### `instrument`
 ```
-jugg instrument [--class <Class[#method][,Class2[#method2]...]>]
-                [--package <pkg>] [--tests-regex <regex>] [--runner <runnerFqn>]
+jugg instrument --source-path <src/androidTest/.../FooTest.kt>
+                [--class <Fqcn>] [--method <method>] [--runner <runnerFqn>]
                 [-e <k=v>]... [--extras <k=v;k2=v2>] [--json]
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
 |-----------------------|----------------------------------|----------|------|
-| `--class <value>` | `--class <value>` | `class` | class filter，支持逗号分隔和 `#method` |
-| `--package <value>` | `--package <value>` | `package` | 映射到 `-e package` |
-| `--tests-regex <value>` | `--testsRegex <value>` | `testsRegex` | 映射到 `-e tests_regex` |
+| `--source-path <value>` | `--sourcePath <value>` | `sourcePath` | androidTest 源文件路径，用于解析 module 与 test APK |
+| `--class <value>` | `--class <value>` | `class` | 文件内测试类，单 class 文件可省略 |
+| `--method <value>` | `--method <value>` | `method` | 测试方法，需已唯一确定 class |
 | `--runner <value>` | `--runner <value>` | `runner` | instrumentation runner override |
 | `-e <k=v>` | `--e <k=v>` | `extras` | 额外 `-e key value`（可重复） |
 | `--extras <k=v;k2=v2>` | `--extras <k=v;k2=v2>` | `extras` | 批量 extras |

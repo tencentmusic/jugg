@@ -15,7 +15,6 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import javax.swing.Icon
 
 private const val ANDROID_TEST_PATH_SEGMENT = "/src/androidTest/"
-private const val APP_ANDROID_TEST_PATH_SEGMENT = "/app/src/androidTest/"
 
 /**
  * JuggAndroidTestLineMarkerContributor displays a gutter icon on @Test methods and classes
@@ -82,7 +81,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 val target = resolveAndroidTestTarget(
                     annotatedElement,
                     ownerParent = { current -> (current as? PsiElement)?.parent },
-                )
+                ).copy(sourcePath = annotatedElement.containingFile?.virtualFile?.path)
                 configuration.name = target.displayName
                 configuration.state?.let { options ->
                     applyTargetOptions(options, target, appSettings.name)
@@ -196,8 +195,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
 
         fun isSupportedAndroidTestPath(filePath: String): Boolean {
             val normalized = filePath.replace('\\', '/')
-            return normalized.contains(APP_ANDROID_TEST_PATH_SEGMENT) &&
-                    normalized.contains(ANDROID_TEST_PATH_SEGMENT)
+            return normalized.contains(ANDROID_TEST_PATH_SEGMENT)
         }
 
         private fun readName(owner: Any): String? {
@@ -306,6 +304,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         ) {
             options.testClass = target.testClass
             options.testMethod = target.testMethod
+            options.sourcePath = target.sourcePath
             options.testScope = target.toScope()
             options.appRunConfigurationName = appRunConfigurationName
         }
@@ -314,6 +313,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
             val testClass: String?,
             val testMethod: String?,
             val displayName: String,
+            val sourcePath: String? = null,
         ) {
             fun toScope(): AndroidTestScope = if (testMethod == null) AndroidTestScope.CLASS else AndroidTestScope.METHOD
         }

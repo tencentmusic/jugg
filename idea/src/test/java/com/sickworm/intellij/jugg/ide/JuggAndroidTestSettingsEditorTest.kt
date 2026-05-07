@@ -17,13 +17,13 @@ import javax.swing.JTextField
 class JuggAndroidTestSettingsEditorTest {
 
     @Test
-    fun `editor contains four test scope radio choices`() {
+    fun `editor contains class and method scope radio choices`() {
         val editor = JuggAndroidTestSettingsEditor()
 
         val buttons = editor.editorComponent().allChildren().filterIsInstance<AbstractButton>()
 
         assertEquals(
-            listOf("All in Module", "All in Package", "Class", "Method"),
+            listOf("Class", "Method"),
             buttons.map { it.text },
         )
     }
@@ -58,6 +58,14 @@ class JuggAndroidTestSettingsEditorTest {
         assertHorizontalRow(component.containerWithLabel("Class:"))
         assertHorizontalRow(component.containerWithLabel("Method:"))
         assertHorizontalRow(component.containerWithLabel("Extra args:"))
+    }
+
+    @Test
+    fun `module and source path rows do not claim fake values`() {
+        val editor = JuggAndroidTestSettingsEditor()
+
+        assertTrue(editor.editorComponent().fieldAfterLabel("Module:").text.isBlank())
+        assertTrue(editor.editorComponent().fieldAfterLabel("Source path:").text.isBlank())
     }
 
     @Test
@@ -105,8 +113,9 @@ class JuggAndroidTestSettingsEditorTest {
     @Test
     fun `reset shows selected scope fields and stored values`() {
         val config = androidTestConfig()
-        config.state?.testScope = AndroidTestScope.ALL_IN_PACKAGE
-        config.state?.packageName = "com.example.tests"
+        config.state?.testScope = AndroidTestScope.CLASS
+        config.state?.testClass = "com.example.FooTest"
+        config.state?.sourcePath = "library1/src/androidTest/kotlin/com/example/FooTest.kt"
         config.state?.instrumentationRunner = "com.example.Runner"
         config.state?.extraArgs = "size=medium"
         val editor = JuggAndroidTestSettingsEditor()
@@ -114,8 +123,12 @@ class JuggAndroidTestSettingsEditorTest {
         editor.resetFrom(config)
         val component = editor.component as Container
 
-        assertTrue(component.radioButton("All in Package").isSelected)
-        assertEquals("com.example.tests", component.fieldByExactText("com.example.tests").text)
+        assertTrue(component.radioButton("Class").isSelected)
+        assertEquals(
+            "library1/src/androidTest/kotlin/com/example/FooTest.kt",
+            component.fieldAfterLabel("Source path:").text,
+        )
+        assertEquals("com.example.FooTest", component.fieldByExactText("com.example.FooTest").text)
         assertEquals("size=medium", component.fieldAfterLabel("Extra args:").text)
     }
 

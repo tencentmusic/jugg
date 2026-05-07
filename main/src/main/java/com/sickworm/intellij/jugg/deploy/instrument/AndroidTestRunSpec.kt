@@ -12,6 +12,7 @@ data class AndroidTestRunSpec(
     val testFilters: List<TestFilter> = emptyList(),
     val extraArgs: List<Pair<String, String>> = emptyList(),
     val runnerOverride: String? = null,
+    val sourcePath: String? = null,
 )
 
 /** Describes one instrumentation class or class#method filter. */

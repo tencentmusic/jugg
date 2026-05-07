@@ -27,8 +27,8 @@ class JuggAndroidTestLineMarkerContributorTest {
     }
 
     @Test
-    fun `library androidTest path is not supported in phase three`() {
-        assertFalse(
+    fun `library androidTest path is supported`() {
+        assertTrue(
             JuggAndroidTestLineMarkerContributor.isSupportedAndroidTestPath(
                 "/project/library1/src/androidTest/java/com/example/FooTest.kt"
             )

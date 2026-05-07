@@ -9,47 +9,42 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
-import com.sickworm.intellij.jugg.deploy.instrument.TestFilter
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParseException
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParser
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceSelection
+import java.io.File
 
 /**
  * InstrumentMcpToolAction implements MCP tool `instrument`.
  *
- * This tool only translates `am instrument`-style arguments into [AndroidTestRunSpec],
- * then reuses the existing Jugg compile/deploy pipeline.
+ * The tool is source-file anchored: [AndroidTestRunSpec.sourcePath] identifies
+ * the androidTest source set and target test APK, while class/method only filter
+ * tests inside that source file.
  */
 class InstrumentMcpToolAction : McpToolAction {
     override val toolName: String = McpToolActionRegistry.ToolNames.INSTRUMENT
 
-    // Keep aliases close to adb/am wording so agents can map arguments with lower cognitive load.
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Run androidTest with am instrument-like arguments via Jugg compile/deploy pipeline.",
+        description = "Run androidTest from a source file anchor via Jugg compile/deploy pipeline.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "sourcePath" to McpJsonSchemaProperty(
+                    type = "string",
+                    description = "Test source file path under src/androidTest. Relative paths are resolved against projectDir.",
+                ),
                 "class" to McpJsonSchemaProperty(
                     type = "string",
-                    description = "Class filter in am instrument format. Supports comma-separated values and class#method entries.",
+                    description = "Fully-qualified test class in sourcePath. Optional when the file has one test class.",
                 ),
                 "clazz" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Alias for class.",
                 ),
-                "package" to McpJsonSchemaProperty(
+                "method" to McpJsonSchemaProperty(
                     type = "string",
-                    description = "Equivalent to am instrument -e package <package>.",
-                ),
-                "testPackage" to McpJsonSchemaProperty(
-                    type = "string",
-                    description = "Alias for package.",
-                ),
-                "testsRegex" to McpJsonSchemaProperty(
-                    type = "string",
-                    description = "Equivalent to am instrument -e tests_regex <regex>.",
-                ),
-                "regex" to McpJsonSchemaProperty(
-                    type = "string",
-                    description = "Alias for testsRegex.",
+                    description = "Test method inside the resolved class.",
                 ),
                 "runner" to McpJsonSchemaProperty(
                     type = "string",
@@ -70,7 +65,7 @@ class InstrumentMcpToolAction : McpToolAction {
                     additionalProperties = true,
                 ),
             ),
-            required = listOf("projectDir"),
+            required = listOf("projectDir", "sourcePath"),
             additionalProperties = false,
         ),
         outputSchema = McpToolSchemas.baseOutputSchema,
@@ -96,20 +91,34 @@ class InstrumentMcpToolAction : McpToolAction {
     }
 
     private fun parseSpec(arguments: Map<String, Any?>): ParseSpecResult {
+        val sourcePath = firstNonBlankString(arguments, "sourcePath")
+        if (sourcePath.isEmpty()) {
+            return ParseSpecResult(error = invalidParams(
+                "sourcePath is required for Jugg instrument. " +
+                    "Pass a test file under src/androidTest, for example: " +
+                    "jugg instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt"
+            ))
+        }
+        for (key in listOf("package", "testPackage", "testsRegex", "regex")) {
+            if (arguments.containsKey(key)) {
+                return ParseSpecResult(error = invalidParams("$key is not supported. Use sourcePath plus class/method"))
+            }
+        }
         val classArg = firstNonBlankString(arguments, "class", "clazz")
-        val packageArg = firstNonBlankString(arguments, "package", "testPackage")
-        val testsRegexArg = firstNonBlankString(arguments, "testsRegex", "regex")
+        val methodArg = firstNonBlankString(arguments, "method").ifEmpty { null }
         val runner = firstNonBlankString(arguments, "runner", "instrumentationRunner").ifEmpty { null }
-
-        val filters = parseClassFilters(classArg)
+        val selection = try {
+            resolveSourceSelection(
+                projectDir = firstNonBlankString(arguments, "projectDir"),
+                sourcePath = sourcePath,
+                requestedClass = classArg.ifEmpty { null },
+                requestedMethod = methodArg,
+            )
+        } catch (e: AndroidTestSourceParseException) {
+            return ParseSpecResult(error = invalidParams(e.message.orEmpty()))
+        }
 
         val extras = mutableListOf<Pair<String, String>>()
-        if (packageArg.isNotEmpty()) {
-            extras += "package" to packageArg
-        }
-        if (testsRegexArg.isNotEmpty()) {
-            extras += "tests_regex" to testsRegexArg
-        }
 
         @Suppress("UNCHECKED_CAST")
         val rawExtras = arguments["extras"] as? Map<String, Any?>
@@ -133,28 +142,29 @@ class InstrumentMcpToolAction : McpToolAction {
 
         return ParseSpecResult(
             spec = AndroidTestRunSpec(
-                testClass = null,
-                testMethod = null,
-                testFilters = filters,
+                testClass = selection.testClass,
+                testMethod = selection.testMethod,
                 extraArgs = extras,
                 runnerOverride = runner,
+                sourcePath = sourcePath,
             ),
         )
     }
 
-    private fun parseClassFilters(raw: String): List<TestFilter> {
-        if (raw.isBlank()) {
-            return emptyList()
+    private fun resolveSourceSelection(
+        projectDir: String,
+        sourcePath: String,
+        requestedClass: String?,
+        requestedMethod: String?,
+    ): AndroidTestSourceSelection {
+        val sourceFile = File(sourcePath).let { if (it.isAbsolute) it else File(projectDir, sourcePath) }
+        if (!sourceFile.exists()) {
+            return AndroidTestSourceSelection(
+                testClass = requestedClass,
+                testMethod = requestedMethod,
+            )
         }
-        return raw.split(",")
-            .mapNotNull { item ->
-                val token = item.trim()
-                if (token.isEmpty()) return@mapNotNull null
-                val className = token.substringBefore("#").trim()
-                if (className.isEmpty()) return@mapNotNull null
-                val methodName = token.substringAfter("#", "").trim().ifEmpty { null }
-                TestFilter(className = className, methodName = methodName)
-            }
+        return AndroidTestSourceParser.resolve(sourceFile, requestedClass, requestedMethod)
     }
 
     private fun firstNonBlankString(arguments: Map<String, Any?>, vararg keys: String): String {

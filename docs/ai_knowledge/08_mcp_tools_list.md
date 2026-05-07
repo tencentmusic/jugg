@@ -115,24 +115,23 @@
 
 ### `instrument`
 
-运行 androidTest（参数风格贴近 `am instrument`），内部复用 Jugg compile/deploy 流程。
+按 androidTest 源文件锚点运行 class/method 级测试，内部复用 Jugg compile/deploy 流程。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
-| `class` | string | 否 | class filter，支持 `Class#method,Class2` 逗号分隔 |
+| `sourcePath` | string | **是** | androidTest 源文件路径，用于解析 module 与 test APK |
+| `class` | string | 否 | 文件内测试类，单 class 文件可省略 |
 | `clazz` | string | 否 | `class` 别名 |
-| `package` | string | 否 | 透传为 `-e package <value>` |
-| `testPackage` | string | 否 | `package` 别名 |
-| `testsRegex` | string | 否 | 透传为 `-e tests_regex <value>` |
-| `regex` | string | 否 | `testsRegex` 别名 |
+| `method` | string | 否 | 测试方法，需已唯一确定 class |
 | `runner` | string | 否 | instrumentation runner override |
 | `instrumentationRunner` | string | 否 | `runner` 别名 |
 | `extras` | object | 否 | 额外 `-e key value` 参数，value 必须是 string |
 | `e` | object | 否 | `extras` 别名（同 schema） |
 
 **行为补充**：
-- MCP 层只做参数归一化与调用封装，不实现测试业务逻辑。
+- `package` / `testsRegex` 不再作为 target 入口；多 test APK 场景必须用 `sourcePath` 确定目标。
+- MCP 层只做参数归一化与调用封装，目标解析在 androidTest source resolver 中完成。
 - 内部会以 `BuildTarget.ANDROID_TEST` 运行，并将参数映射到 `AndroidTestRunSpec`。
 
 ---

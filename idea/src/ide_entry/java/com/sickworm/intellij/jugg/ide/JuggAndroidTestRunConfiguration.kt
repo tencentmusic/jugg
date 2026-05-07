@@ -33,10 +33,12 @@ import java.awt.FlowLayout
 // Options bean
 // ──────────────────────────────────────────────────────────────────────────────
 
-enum class AndroidTestScope { ALL_IN_MODULE, ALL_IN_PACKAGE, CLASS, METHOD }
+enum class AndroidTestScope { CLASS, METHOD }
 
 /** Stores Jugg Android instrumentation test launch parameters. */
 class JuggAndroidTestRunConfigurationOptions : RunConfigurationOptions() {
+    /** Test source file path used to resolve the owning androidTest module and test APK. */
+    var sourcePath by string()
     /** Fully-qualified test class name; null/empty = run all tests in the package. */
     var testClass by string()
     /** Test method name; only effective when [testClass] is set. */
@@ -47,14 +49,10 @@ class JuggAndroidTestRunConfigurationOptions : RunConfigurationOptions() {
     var extraArgs by string()
 
     /** Stored enum name used by the IntelliJ options delegate. */
-    internal var testScopeId by string(AndroidTestScope.ALL_IN_MODULE.name)
+    internal var testScopeId by string(AndroidTestScope.CLASS.name)
     var testScope: AndroidTestScope
-        get() = AndroidTestScope.values().firstOrNull { it.name == testScopeId } ?: AndroidTestScope.ALL_IN_MODULE
+        get() = AndroidTestScope.values().firstOrNull { it.name == testScopeId } ?: AndroidTestScope.CLASS
         set(value) { testScopeId = value.name }
-    /** Regex passed to AndroidJUnitRunner as tests_regex in All in Module scope. */
-    var regex by string()
-    /** Test package passed to AndroidJUnitRunner as package in All in Package scope. */
-    var packageName by string()
     /** Name of the Jugg app run configuration used before instrumentation. */
     var appRunConfigurationName by string()
 
@@ -177,12 +175,9 @@ class JuggAndroidTestConfigurationType : ConfigurationTypeBase(
  */
 class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfiguration>() {
 
-    private val allInModuleButton = JRadioButton("All in Module")
-    private val allInPackageButton = JRadioButton("All in Package")
     private val classButton = JRadioButton("Class")
     private val methodButton = JRadioButton("Method")
-    private val regexField = JTextField(40)
-    private val packageField = JTextField(40)
+    private val sourcePathField = JTextField(40).apply { isEditable = false }
     private val testClassField = JTextField(40)
     private val testMethodField = JTextField(40)
     private val scopeFieldsPanel = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS) }
@@ -196,15 +191,14 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
         panel.border = JBUI.Borders.empty(12)
         val buttonRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
         ButtonGroup().apply {
-            add(allInModuleButton)
-            add(allInPackageButton)
             add(classButton)
             add(methodButton)
         }
-        listOf(allInModuleButton, allInPackageButton, classButton, methodButton).forEach { button ->
+        listOf(classButton, methodButton).forEach { button ->
             button.addActionListener { updateScopeFields() }
             buttonRow.add(button)
         }
+        panel.add(createRowPanel("Source path:", sourcePathField))
         panel.add(createRowPanel("Test:", buttonRow))
         panel.add(scopeFieldsPanel)
         panel.add(createRowPanel("Extra args:", extraArgsField))
@@ -219,9 +213,8 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
                 .selectedName(config.project, opts.appRunConfigurationName)
         }
         moduleField.text = opts.appRunConfigurationName.orEmpty()
+        sourcePathField.text = opts.sourcePath ?: ""
         selectScope(opts.testScope)
-        regexField.text = opts.regex ?: ""
-        packageField.text = opts.packageName ?: ""
         testClassField.text = opts.testClass ?: ""
         testMethodField.text = opts.testMethod ?: ""
         updateScopeFields()
@@ -232,8 +225,6 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
     override fun applyEditorTo(config: JuggAndroidTestRunConfiguration) {
         val opts = config.state ?: return
         opts.testScope = selectedScope()
-        opts.regex = regexField.text.takeIf { it.isNotBlank() }
-        opts.packageName = packageField.text.takeIf { it.isNotBlank() }
         opts.testClass = testClassField.text.takeIf { it.isNotBlank() }
         opts.testMethod = testMethodField.text.takeIf { it.isNotBlank() }
         opts.instrumentationRunner = runnerField.text.takeIf { it.isNotBlank() }
@@ -241,16 +232,12 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
     }
 
     private fun selectedScope(): AndroidTestScope = when {
-        allInPackageButton.isSelected -> AndroidTestScope.ALL_IN_PACKAGE
-        classButton.isSelected -> AndroidTestScope.CLASS
         methodButton.isSelected -> AndroidTestScope.METHOD
-        else -> AndroidTestScope.ALL_IN_MODULE
+        else -> AndroidTestScope.CLASS
     }
 
     private fun selectScope(scope: AndroidTestScope) {
         when (scope) {
-            AndroidTestScope.ALL_IN_MODULE -> allInModuleButton.isSelected = true
-            AndroidTestScope.ALL_IN_PACKAGE -> allInPackageButton.isSelected = true
             AndroidTestScope.CLASS -> classButton.isSelected = true
             AndroidTestScope.METHOD -> methodButton.isSelected = true
         }
@@ -259,8 +246,6 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
     private fun updateScopeFields() {
         scopeFieldsPanel.removeAll()
         when (selectedScope()) {
-            AndroidTestScope.ALL_IN_MODULE -> addLabeledField(scopeFieldsPanel, "Regex:", regexField)
-            AndroidTestScope.ALL_IN_PACKAGE -> addLabeledField(scopeFieldsPanel, "Package:", packageField)
             AndroidTestScope.CLASS -> addLabeledField(scopeFieldsPanel, "Class:", testClassField)
             AndroidTestScope.METHOD -> {
                 addLabeledField(scopeFieldsPanel, "Class:", testClassField)
@@ -295,30 +280,21 @@ class JuggAndroidTestSettingsEditor : SettingsEditor<JuggAndroidTestRunConfigura
 object JuggAndroidTestRunSpecFactory {
     fun fromOptions(options: JuggAndroidTestRunConfigurationOptions): AndroidTestRunSpec {
         validateOptions(options)
-        val scopeArgs = when (options.testScope) {
-            AndroidTestScope.ALL_IN_MODULE -> {
-                options.regex.normalizeBlank()?.let { listOf("tests_regex" to it) } ?: emptyList()
-            }
-            AndroidTestScope.ALL_IN_PACKAGE -> listOf("package" to options.packageName.normalizeBlank()!!)
-            else -> emptyList()
-        }
         val testClass = when (options.testScope) {
             AndroidTestScope.CLASS, AndroidTestScope.METHOD -> options.testClass.normalizeBlank()
-            else -> null
         }
         val testMethod = if (options.testScope == AndroidTestScope.METHOD) options.testMethod.normalizeBlank() else null
         return AndroidTestRunSpec(
             testClass = testClass,
             testMethod = testMethod,
-            extraArgs = scopeArgs + parseExtraArgs(options.extraArgs),
+            extraArgs = parseExtraArgs(options.extraArgs),
             runnerOverride = options.instrumentationRunner.normalizeBlank(),
+            sourcePath = options.sourcePath.normalizeBlank(),
         )
     }
 
     fun validateOptions(options: JuggAndroidTestRunConfigurationOptions) {
         when (options.testScope) {
-            AndroidTestScope.ALL_IN_MODULE -> Unit
-            AndroidTestScope.ALL_IN_PACKAGE -> requireNotBlank(options.packageName, "Package is required")
             AndroidTestScope.CLASS -> requireNotBlank(options.testClass, "Class is required")
             AndroidTestScope.METHOD -> {
                 requireNotBlank(options.testClass, "Class is required")

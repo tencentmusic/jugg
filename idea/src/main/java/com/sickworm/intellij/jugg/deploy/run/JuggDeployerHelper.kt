@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
@@ -160,7 +161,15 @@ class JuggDeployerHelper(
 
         if (androidTestRunSpec != null) {
             // AM_INSTRUMENT launch strategy: run instrumentation tests instead of starting the app.
-            val testApk = data.apks.firstOrNull { it.isTestApk }
+            val projectInfo = compileContextManager.getProjectInfo()
+            val testApk = AndroidTestApkSelector.select(
+                spec = androidTestRunSpec,
+                apks = data.apks,
+                projectDir = projectInfo.modules.values.firstOrNull()?.projectRootDir
+                    ?: File(androidTestRunSpec.sourcePath.orEmpty()).parentFile
+                    ?: File("."),
+                modules = projectInfo.modules.values,
+            )
             if (testApk == null) {
                 logger.warn("androidTestRunSpec provided but no test APK found in deploy data; skipping test launch.")
             } else {
