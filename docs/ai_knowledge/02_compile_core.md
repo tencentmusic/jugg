@@ -31,6 +31,13 @@
 4. 若检测到受影响源码/类，继续下一轮增量编译。  
 5. 结果写入 `DeployFileManager` staging，用于后续部署。
 
+编译输出模型支持多 APK 归属语义：
+
+- `CompileOutput.apkPath` 保留旧的单 APK 锚点。
+- `CompileOutput.targetApkPaths` 表示该输出实际影响的所有 APK；当 `apkPath` 是真实 APK 路径时，构造期会保证 target 列表至少包含它。
+- `BaseCompiler.splitApkAndCompile()` 会按 `getAllBelongsApk()` 将同一 module 的资源/manifest/asset 输入分发到多个 APK 组，并对每个 APK 调用 `doApkCompile()`。
+- `doApkCompile()` 是 APK-scoped hook，子类输出应保留当前 APK 的归属信息。
+
 ---
 
 ## 4. 阶段顺序（`CompileOrder`）

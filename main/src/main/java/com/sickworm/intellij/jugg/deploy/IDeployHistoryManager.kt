@@ -69,6 +69,11 @@ interface IDeployHistoryManager {
 
     fun getFullBuildInfo(): FullBuildInfo?
 
+    /**
+     * Updates only the persisted APK list and in-memory compile context view without rewriting full build metadata.
+     */
+    fun updateApkInfos(apkInfos: List<ApkInfo>)
+
     fun isBuildTargetChanged(options: JuggGradleCompileOptions): Boolean
 
     /**

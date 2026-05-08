@@ -24,13 +24,13 @@ fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem 
     }
     when (type) {
         CompileOutput.Type.Dex -> {
-            return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_CLASS)
+            return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_CLASS, targetApkPaths)
         }
         CompileOutput.Type.Res, CompileOutput.Type.Asset, CompileOutput.Type.NativeLib -> {
             if (apkPath == null) {
                 throw JuggInternalException.outputDidNotSpecificApkPath(this.toString())
             }
-            return DeployItem(deployName, type, crc, bytes, apkPath)
+            return DeployItem(deployName, type, crc, bytes, apkPath, targetApkPaths)
         }
         else -> {
             return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_BASE_APK) // will not apply to device

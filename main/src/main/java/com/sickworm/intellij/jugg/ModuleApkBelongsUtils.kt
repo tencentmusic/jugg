@@ -150,6 +150,29 @@ object ModuleApkBelongsUtils {
             allModuleApkBelongs.getOrPut(moduleInfo) { mutableListOf() }.add(baseApk)
         }
 
+        val selfTargetingTestApkByTargetPkg = apkInfo
+            .filter { it.isTestApk && !it.isOtherTargetingTestApk }
+            .mapNotNull { info ->
+                val unit = info.files.firstOrNull() ?: return@mapNotNull null
+                val pkg = info.instrumentationTargetPackage ?: return@mapNotNull null
+                pkg to unit
+            }
+            .toMap()
+        modules.values
+            .filter { it.isAndroidTestModule }
+            .forEach { testModule ->
+                val unit = selfTargetingTestApkByTargetPkg[testModule.instrumentationTargetPackage]
+                    ?: return@forEach
+                findAllDependModules(setOf(testModule), modules)
+                    .filter { !it.isAndroidTestModule }
+                    .forEach { dependencyModule ->
+                        val belongs = allModuleApkBelongs.getOrPut(dependencyModule) { mutableListOf() }
+                        if (unit !in belongs) {
+                            belongs.add(unit)
+                        }
+                    }
+            }
+
         @Suppress("NestedLambdaShadowedImplicitParameter")
         val resultLogString = moduleApkBelongs.entries
             .groupBy { it.value.apkFile.name }

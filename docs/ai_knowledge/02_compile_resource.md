@@ -32,6 +32,12 @@
 4. `ArscCompiler` link 产出 overlay 资源与 arsc。  
 5. 过滤无效或不应输出项（如未变更 manifest 场景）。
 
+资源链路支持多 APK 归属部署：
+
+- 资源、manifest、asset 仍按 APK 维度生成输出，因为不同 APK 的资源表、manifest 与 package 信息不能直接复用。
+- `BaseCompiler.splitApkAndCompile()` 会把同一 module 的资源输入分发到 `getAllBelongsApk()` 返回的每个 APK，子编译器通过 `doApkCompile(task, apkFileUnit)` 生成 APK-scoped 输出。
+- 下游部署优先读取 `targetApkPaths`，因此资源输出转换为 `DeployItem` 时也要保留 target 归属。
+
 ---
 
 ## 4. 与源码编译的衔接

@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.*
 import com.intellij.openapi.vfs.VfsUtil
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
@@ -117,6 +118,10 @@ class CompileContextManager(
     fun updateTempLibraries(addedTempLibraries: List<LibraryDependency>?, removedTempLibraries: List<LibraryDependency>?) {
         logger.debug("updateTempLibraries addedTempLibraries: $addedTempLibraries, removedTempLibraries: $removedTempLibraries")
         compileContextInside.update(addedTempLibraries = addedTempLibraries, removedTempLibraries = removedTempLibraries)
+    }
+
+    fun updateApkInfos(apkInfos: List<ApkInfo>) {
+        compileContextInside.update(apkInfos = apkInfos)
     }
 
     /**

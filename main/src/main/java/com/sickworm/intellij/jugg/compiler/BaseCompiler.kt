@@ -171,12 +171,18 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         val apkCompileOrder = mutableListOf<ApkFileUnit>()
         moduleCompileOrder.forEach {
             val files = fileGroups[it.compileGroupKey] ?: emptyList()
-            val apkFile = context.moduleBelongsApkMap.getBelongsApk(it)!!
-            if (apkFile !in apkCompileOrder) {
-                apkCompileOrder.add(apkFile)
-                apkGroups[apkFile] = files.toMutableList()
-            } else {
-                apkGroups[apkFile]!!.addAll(files)
+            // A module may now belong to multiple APKs. Compile once per APK so resource/manifest/asset
+            // stages can emit APK-scoped outputs without losing the original apkPath anchor.
+            val apkFiles = context.moduleBelongsApkMap.getAllBelongsApk(it).ifEmpty {
+                listOf(context.moduleBelongsApkMap.getBelongsApk(it)!!)
+            }
+            apkFiles.forEach { apkFile ->
+                if (apkFile !in apkCompileOrder) {
+                    apkCompileOrder.add(apkFile)
+                    apkGroups[apkFile] = files.toMutableList()
+                } else {
+                    apkGroups[apkFile]!!.addAll(files)
+                }
             }
         }
         if (apkCompileOrder.size > 1) {
@@ -200,6 +206,8 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     }
 
     open fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
+        // Subclasses use this hook to emit APK-scoped outputs.
+        // When a module belongs to multiple APKs, [splitApkAndCompile] will call this once per APK.
         throw JuggInternalException.methodNotImplemented("doApkCompile")
     }
 

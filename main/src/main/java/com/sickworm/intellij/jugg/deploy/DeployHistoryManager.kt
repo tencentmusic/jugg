@@ -142,6 +142,10 @@ class DeployHistoryManager(
         return compileContextDb.getFullBuildInfoFromDb()
     }
 
+    override fun updateApkInfos(apkInfos: List<ApkInfo>) {
+        compileContextDb.updateApkInfos(apkInfos)
+    }
+
     override fun isBuildTargetChanged(options: JuggGradleCompileOptions): Boolean {
         val fullBuildInfo = getFullBuildInfo() ?: return false
         return fullBuildInfo.buildTarget != options.buildTarget

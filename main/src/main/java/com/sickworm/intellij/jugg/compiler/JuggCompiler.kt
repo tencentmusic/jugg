@@ -131,7 +131,13 @@ class JuggCompiler(
                             outputFile.delete()
                         }
                         it.file.renameTo(outputFile)
-                        CompileOutput(CompileOutput.Type.Res, outputFile, overlayOutputDir, it.apkPath)
+                        CompileOutput(
+                            CompileOutput.Type.Res,
+                            outputFile,
+                            overlayOutputDir,
+                            apkPath = it.apkPath,
+                            targetApkPaths = it.targetApkPaths,
+                        )
                     }
 
                 // compile R.java, it will only be one file
@@ -225,7 +231,13 @@ class JuggCompiler(
                         destFile.delete()
                     }
                     it.file.renameTo(destFile)
-                    CompileOutput(it.type, destFile, overlayOutputDir, it.apkPath)
+                    CompileOutput(
+                        it.type,
+                        destFile,
+                        overlayOutputDir,
+                        apkPath = it.apkPath,
+                        targetApkPaths = it.targetApkPaths,
+                    )
                 } else {
                     it
                 }

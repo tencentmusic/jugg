@@ -39,6 +39,18 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debugAndroidTest"),
     )
 
+    private fun libraryModule(
+        name: String = "library1",
+        appId: String = "com.example.library1",
+    ) = ModuleInfo.virtualModule.copy(
+        name = name,
+        moduleType = ModuleInfo.Type.Library,
+        moduleRootDir = File("/project/$name"),
+        projectRootDir = projectDir,
+        applicationId = appId,
+        buildPathInfo = ModuleBuildPathInfo(projectDir, File("/project/$name"), "debug"),
+    )
+
     private fun apkFileUnit(id: String, file: String = "$id.apk") =
         ApkFileUnit(id, "", true, File(file))
 
@@ -155,5 +167,32 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         val testApkUnit = apkInfos.first { it.isTestApk }.files.first()
         assertEquals(baseApkUnit, result.getBelongsApk(tempModule))
         assertEquals(listOf(baseApkUnit, testApkUnit), result.getAllBelongsApk(tempModule))
+    }
+
+    @Test
+    fun `library module exposes base apk and matching self targeting test apk`() {
+        val appMod = appModule()
+        val libraryMod = libraryModule()
+        val testMod = androidTestModule(
+            name = "library1.androidTest",
+            testAppId = "com.example.library1.test",
+            targetPkg = "com.example.library1.test",
+        ).copy(
+            moduleDependencies = listOf(com.sickworm.intellij.jugg.project.data.ModuleDependency("library1")),
+        )
+        val modules = mapOf(appMod.name to appMod, libraryMod.name to libraryMod, testMod.name to testMod)
+        val apkInfos = listOf(
+            appApkInfo(),
+            testApkInfo(testId = "com.example.library1.test", targetPkg = "com.example.library1.test"),
+        )
+        val tempModule = ModuleInfo.virtualModule
+
+        val result = ModuleApkBelongsUtils.getModuleApkBelongs(appMod, apkInfos, modules, tempModule,
+            com.intellij.openapi.diagnostic.Logger.getInstance("test"))
+
+        val baseApkUnit = apkInfos.first { !it.isTestApk }.files.first()
+        val testApkUnit = apkInfos.first { it.isTestApk }.files.first()
+        assertEquals(baseApkUnit, result.getBelongsApk(libraryMod))
+        assertEquals(listOf(baseApkUnit, testApkUnit), result.getAllBelongsApk(libraryMod))
     }
 }

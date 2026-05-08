@@ -244,6 +244,12 @@ class DeployFileManager(
         return deployDataPlanner.buildDeployData(isWarmUp, isEnableCompatDeploy)
     }
 
+    @Synchronized
+    fun updateApks(apks: List<ApkInfo>) {
+        val deployItems = stateTracker.getDeployedFiles().map { it.toDeployItem() }
+        deployDataGenerator.init(apks, deployItems)
+    }
+
     fun appendCompatDeployFiles(deployData: JuggDeployData): JuggDeployData {
         return deployDataPlanner.appendCompatDeployFiles(deployData, stateTracker.getNotStagingDeployedFiles())
     }

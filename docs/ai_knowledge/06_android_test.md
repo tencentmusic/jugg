@@ -1,27 +1,28 @@
 # androidTest 支持指南
 
-> 最后核对：2026-05-06
-> 对应提交：`793d0a0f`、`0bd78f20`、`e36bfdac`、`39b54ba3`
+> 最后核对：2026-05-08
+> 对应提交：`793d0a0f`、`0bd78f20`、`e36bfdac`、`39b54ba3`、`当前工作区`
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
 ## 1. 能力范围
 
-Jugg 目前支持 **app 模块的 androidTest**：
+Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style self-targeting Test APK** 的 sourcePath 精确选择、缺失 APK 懒加载补齐与多 APK 归属部署：
 
 - app RunConfig 开启 `enableAndroidTest` 后，编译目标切到 `BuildTarget.ANDROID_TEST`。
 - Gradle full compile 会同时产出 app APK 与 app test APK。
 - 后续 app 源码与 `app/src/androidTest` 源码变更都可以进入 Jugg 增量编译。
-- 部署阶段不引入 test APK 专用协议，继续复用当前 `install / code swap / full swap` 策略。
+- 部署阶段不引入 test APK 专用协议，继续复用当前 `install / code swap / full swap` 策略，并按 applicationId 拆分 scoped deploy data。
 - 部署成功后执行 `am instrument`，并把 instrumentation 输出渲染到 Jugg console。
 - androidTest Run 面板接入 SM Test Runner，显示 `Test Results` 树，支持测试节点源码跳转与 rerun failed tests。
+- library-style Test APK 缺失时，只对当前 `sourcePath` 命中的 androidTest module 派生并执行 `:<module>:assemble<Variant>AndroidTest`，再把新增 Test APK 合入本轮 APK 列表。
 
 当前不覆盖：
 
-- library Test APK 懒加载补齐与多 APK 归属完整部署（当前只完成 sourcePath class/method 解析、target 解析与 APK 精确选择）。
 - androidTest resource 增量编译。
 - `androidTestAnnotationProcessor` / `androidTestKapt`。
+- app-style other-targeting test APK 的懒加载补齐。
 - Debug Executor。
 - 常驻 test harness 或保活 test 进程内 redefine。
 
@@ -111,7 +112,9 @@ Jugg 目前支持 **app 模块的 androidTest**：
 - `BuildTarget.ANDROID_TEST`：纳入 `.androidTest` module。
 - `.test` / `.unitTest` 在两种 target 下都继续过滤。
 
-`ModuleApkBelongsUtils` 现在返回 `ModuleApkBelongs` 封装类，默认通过 `getBelongsApk()` 保留现有单 APK 语义，同时用 `getAllBelongsApk()` 预留多 APK 归属视图。当前 Step 0 仍是 `isAndroidTestModule` 优先路由到匹配 `instrumentationTargetPackage` 的 test APK；找不到 test APK 时才落回普通 base APK 兜底。
+`ModuleApkBelongsUtils` 返回 `ModuleApkBelongs` 封装类，默认通过 `getBelongsApk()` 保留现有单 APK 语义，同时用 `getAllBelongsApk()` 暴露多 APK 归属视图。当前 androidTest module 优先路由到匹配 `instrumentationTargetPackage` 的 test APK；普通 library module 在存在 self-targeting library Test APK 时，`getAllBelongsApk()` 会同时包含 base APK 与 library Test APK。
+
+`CompileOutput.targetApkPaths` 与 `DeployItem.targetApkPaths` 会把多 APK 归属传到部署层，并保证在有真实 `apkPath` 时至少包含它；Dex merge、resource APK、APK 内嵌更新和 overlay update 都必须优先读取 target paths，旧的 `allTargetApkPaths` 视图已经删除。
 
 ---
 
@@ -206,14 +209,25 @@ UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `Instrumentation
 
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployTask.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/LibraryTestApkBackfillHelper.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/ApkInstallOrder.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt`
 
 部署阶段继续按 `applicationId` 分组，install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。2026-05-06 后的关键差异：
 
 - **base APK**：继续走完整部署策略（install / code swap / full swap），参与 JVMTI agent push/attach 与 compat 检测。
 - **test APK**：只走 **INSTALL**（完整 APK 安装），不走 code swap / full swap 增量部署。
+- **multi APK scoped data**：每个 applicationId 部署前调用 `JuggDeployData.filterForApks(...)`，只保留属于当前 APK 集合的 class / overlay / updateApkFiles，避免 base/test APK 互相错投。
 
 原因：`am instrument` 在主 APK 进程内运行测试代码，test APK 无独立进程，不应参与 JVMTI agent push/attach、compat 检测或 library dex 清理。详见 `docs/task/androidtest_testapk_deploy_optimization.md`。
+
+library-style self-targeting Test APK 是例外：它有自己的 runtime package 和安装目标。`LibraryTestApkBackfillHelper` 只在以下条件同时满足时补齐缺失 APK：
+
+- `sourcePath` 已唯一命中某个 androidTest `ModuleInfo`。
+- 当前 APK 列表中无法解析出该 module 对应的 test APK。
+- `module.applicationId == module.instrumentationTargetPackage`，即 self-targeting / library-style Test APK。
+
+补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，再同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
 
 ### 5.2 am instrument
 

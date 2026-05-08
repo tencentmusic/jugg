@@ -73,6 +73,12 @@ class CompileContextDb(
         )
     }
 
+    fun updateApkInfos(apkInfos: List<ApkInfo>) {
+        apkInfoFile.parentFile?.mkdirs()
+        apkInfoFile.writeText(ApkInfoSerializer().serialize(juggRootDir, apkInfos), Charsets.UTF_8)
+        apkInfosCache = apkInfos
+    }
+
 
     fun saveFullBuildInfo(fullBuildInfo: FullBuildInfo) {
         fullBuildInfoFile.parentFile?.mkdirs()

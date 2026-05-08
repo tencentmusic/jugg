@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.ModuleApkBelongs
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
@@ -131,7 +133,45 @@ class BaseCompilerTest {
         )
     }
 
-    private fun createContext(vararg modules: ModuleInfo): SimpleCompileContext {
+    @Test
+    fun splitApkAndCompile_shouldCompileAllBelongsApksForOneModule() {
+        val moduleRoot = File(testRoot, "library1")
+        val libraryModule = createModule("library1", moduleRoot, "debug")
+        val baseUnit = ApkFileUnit("com.example.app", "", true, File("/base.apk"))
+        val testUnit = ApkFileUnit("com.example.library1.test", "", true, File("/test.apk"))
+        val context = createContext(
+            libraryModule,
+            apkInfos = listOf(
+                ApkInfo(listOf(baseUnit), "com.example.app"),
+                ApkInfo(listOf(testUnit), "com.example.library1.test"),
+            ),
+            moduleBelongsApkMap = ModuleApkBelongs(
+                primaryApkMap = mapOf(libraryModule to baseUnit),
+                allApkMap = mapOf(libraryModule to listOf(baseUnit, testUnit)),
+            ),
+        )
+        val compiler = RecordingApkCompiler(context)
+        val assetDir = File(moduleRoot, "src/main/assets").apply { mkdirs() }
+        val assetFile = File(assetDir, "config.json").apply { writeText("{}") }
+        val task = CompileTask(
+            files = listOf(CompileFile(CompileFile.Type.Asset, assetFile, assetDir, libraryModule)),
+            outputDir = File(testRoot, "staging"),
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        compiler.splitApkAndCompile(task)
+
+        assertEquals(
+            listOf("/base.apk" to listOf("config.json"), "/test.apk" to listOf("config.json")),
+            compiler.apkCompileRecords,
+        )
+    }
+
+    private fun createContext(
+        vararg modules: ModuleInfo,
+        apkInfos: List<ApkInfo>? = null,
+        moduleBelongsApkMap: ModuleApkBelongs? = null,
+    ): SimpleCompileContext {
         val moduleMap = linkedMapOf<String, ModuleInfo>()
         modules.forEach { moduleMap[it.name] = it }
         return SimpleCompileContext(
@@ -141,10 +181,11 @@ class BaseCompilerTest {
             androidHome = TestGlobal.androidHome,
             androidJar = TestGlobal.androidJar,
             modules = moduleMap,
-            apkInfos = listOf(ApkInfo(File(testRoot, "app.apk"), "com.example.myapplication")),
+            apkInfos = apkInfos ?: listOf(ApkInfo(File(testRoot, "app.apk"), "com.example.myapplication")),
             projectDir = testRoot,
             incrementalDataDir = File(testRoot, "incremental"),
             deployedFiles = mutableListOf(),
+            customModuleBelongsApkMap = moduleBelongsApkMap,
         )
     }
 
@@ -174,6 +215,21 @@ class BaseCompilerTest {
 
         override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
             moduleCompileRecords.add(module.name to task.files.map { it.file.name })
+            return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+        }
+    }
+
+    private class RecordingApkCompiler(context: ICompileContext) : BaseCompiler(context, TestGlobal.mockParentDisposable) {
+        val apkCompileRecords = mutableListOf<Pair<String, List<String>>>()
+
+        override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Asset)
+
+        override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+            return CompileResult(task, emptyList(), emptyList())
+        }
+
+        override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
+            apkCompileRecords.add(apkFileUnit.apkFile.path to task.files.map { it.file.name })
             return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
         }
     }

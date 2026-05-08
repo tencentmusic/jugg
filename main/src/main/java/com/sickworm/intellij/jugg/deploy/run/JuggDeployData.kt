@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
+import com.sickworm.intellij.jugg.deploy.sortedForInstall
 import com.sickworm.intellij.jugg.deploy.outerClassName
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 
@@ -78,6 +79,30 @@ data class JuggDeployData(
             hotReloadModifiedClasses = emptyList(),
             isPushOverlayOnly = true,
         )
+    }
+
+    /**
+     * Creates an APK-scoped payload for one deployer transport call.
+     * Do not use the returned value for lifecycle state commits, retry state, or deploy history updates.
+     */
+    fun filterForApks(apkInfos: List<ApkInfo>): JuggDeployData {
+        val apkPaths = apkInfos.flatMap { it.files }.map { it.apkFile.path }.toSet()
+        return this.copy(
+            apks = apkInfos,
+            newClasses = newClasses.filter { it.deployItem.belongsToAny(apkPaths) },
+            hotFixModifiedClasses = hotFixModifiedClasses.filter { it.deployItem.belongsToAny(apkPaths) },
+            hotReloadModifiedClasses = hotReloadModifiedClasses.filter { it.deployItem.belongsToAny(apkPaths) },
+            overlays = overlays.filter { it.belongsToAny(apkPaths) },
+            updateApkFiles = updateApkFiles.filter { it.belongsToAny(apkPaths) },
+        )
+    }
+
+    fun groupByApplicationId(): List<Triple<String, List<ApkInfo>, JuggDeployData>> {
+        return apks.sortedForInstall()
+            .groupBy { it.applicationId }
+            .map { (applicationId, apkInfos) ->
+                Triple(applicationId, apkInfos, filterForApks(apkInfos))
+            }
     }
 
     private fun toString(isFull: Boolean): String {
@@ -215,7 +240,24 @@ open class DeployItem(
     val checksum: Long, // crc
     val content: ByteArray,
     val apkPath: String, // resource belongs to which apk
+    var targetApkPaths: List<String> = emptyList(),
 ) {
+    init {
+        targetApkPaths = normalizeTargetApkPaths(apkPath, targetApkPaths)
+    }
+
+    fun belongsTo(apkPath: String): Boolean {
+        return when {
+            this.apkPath == FLAG_BASE_APK -> true
+            targetApkPaths.isNotEmpty() -> apkPath in targetApkPaths
+            this.apkPath == FLAG_CLASS -> true
+            else -> this.apkPath == apkPath
+        }
+    }
+
+    fun belongsToAny(apkPaths: Collection<String>): Boolean {
+        return apkPaths.any { belongsTo(it) }
+    }
 
     fun toIncompleteOverlay(apk: Apk): Pair<ApkEntry, ByteString> {
         val apkEntry = ApkEntry(name, checksum, apk)

@@ -56,6 +56,12 @@
 - 中间产物：`Class`、部分 generated Java/Kotlin。  
 - 输出：`CompileOutput.Type.Dex`（及少量非 class 附属产物）。
 
+源码链路的可部署输出需要保留多 APK target：
+
+- `DexCompiler` 输出 Dex 时，`apkPath` 继续使用旧单值锚点，`targetApkPaths` 写入 module 的所有归属 APK。
+- `JavaCompilerInvoker` 产生的可部署 generated 输出也要传递 `targetApkPaths`，避免后续转成 `DeployItem` 时丢失 base/test APK 归属。
+- Dex merge 会合并输入 Dex 的 `targetApkPaths` 并保留并集。
+
 ---
 
 ## 6. 常见问题定位

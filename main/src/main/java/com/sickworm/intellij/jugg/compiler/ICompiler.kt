@@ -7,6 +7,8 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ModuleApkBelongs
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.normalizeTargetApkPaths
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -133,7 +135,12 @@ data class CompileOutput(
     val baseDir: File,
     val apkPath: String? = null,
     val relativeModule: ModuleInfo? = null, // optional, now only use for generated java class of databinding
+    var targetApkPaths: List<String> = emptyList(),
 ) {
+    init {
+        targetApkPaths = normalizeTargetApkPaths(apkPath, targetApkPaths)
+    }
+
 
     val relativeFile get() = file.absoluteFile.relativeTo(baseDir)
 
@@ -273,6 +280,14 @@ interface ICompiler: Disposable {
     companion object {
         const val NO_ORDER = 0
     }
+}
+
+fun ICompileContext.getBelongsApkPath(moduleInfo: ModuleInfo): String? {
+    return moduleBelongsApkMap.getBelongsApk(moduleInfo)?.apkFile?.path
+}
+
+fun ICompileContext.getAllBelongsApkPaths(moduleInfo: ModuleInfo): List<String> {
+    return moduleBelongsApkMap.getAllBelongsApk(moduleInfo).map { it.apkFile.path }
 }
 
 /**

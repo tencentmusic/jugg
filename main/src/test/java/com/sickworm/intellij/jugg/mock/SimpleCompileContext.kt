@@ -25,6 +25,7 @@ data class SimpleCompileContext(
     override val projectDir: File,
     override val deployedFiles: MutableList<CompileOutput>,
     override val incrementalDataDir: File,
+    private val customModuleBelongsApkMap: ModuleApkBelongs? = null,
 ) : ICompileContext {
 
     override val scene: ICompileContext.Scene = ICompileContext.Scene.IDE
@@ -46,7 +47,7 @@ data class SimpleCompileContext(
 
     override val modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
-    override val moduleBelongsApkMap: ModuleApkBelongs = ModuleApkBelongs(
+    override val moduleBelongsApkMap: ModuleApkBelongs = customModuleBelongsApkMap ?: ModuleApkBelongs(
         (modules.values + tempModule).associateWith { apkInfos.first().files.first() },
         (modules.values + tempModule).associateWith { listOf(apkInfos.first().files.first()) },
     )

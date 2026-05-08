@@ -1,7 +1,7 @@
 # Library Test APK 多归属增量编译部署方案
 
 > 创建时间：2026-05-06  
-> 状态：待开发  
+> 状态：已落地（2026-05-08，见“11. 落地记录”）
 > 适用范围：本方案只处理 Jugg 增量编译 / 部署阶段的 APK 归属正确性，不扩大到完整 Gradle androidTest 能力、gutter、RunConfig、test runner UI。  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -207,12 +207,11 @@ data class CompileOutput(
     val baseDir: File,
     val apkPath: String? = null,
     val relativeModule: ModuleInfo? = null,
-    val targetApkPaths: List<String> = apkPath?.let { listOf(it) } ?: emptyList(),
+    var targetApkPaths: List<String> = emptyList(),
 ) {
-    val allTargetApkPaths: List<String>
-        get() = targetApkPaths.ifEmpty {
-            apkPath?.let { listOf(it) } ?: emptyList()
-        }
+    init {
+        targetApkPaths = normalizeTargetApkPaths(apkPath, targetApkPaths)
+    }
 }
 ```
 
@@ -220,7 +219,7 @@ data class CompileOutput(
 
 - 字段追加到构造函数尾部，减少现有命名参数和位置参数调用的破坏面。
 - `apkPath` 继续表示旧单值语义。
-- `allTargetApkPaths` 用于统一读取，避免调用方重复写 fallback。
+- `targetApkPaths` 现在在构造期自动补齐 `apkPath`，旧的 `allTargetApkPaths` 已删除。
 
 ### 5.2 扩展 `DeployItem`
 
@@ -235,17 +234,17 @@ open class DeployItem(
     val checksum: Long,
     val content: ByteArray,
     val apkPath: String,
-    val targetApkPaths: List<String> = if (apkPath == FLAG_CLASS || apkPath == FLAG_BASE_APK) {
-        emptyList()
-    } else {
-        listOf(apkPath)
-    },
+    var targetApkPaths: List<String> = emptyList(),
 ) {
+    init {
+        targetApkPaths = normalizeTargetApkPaths(apkPath, targetApkPaths)
+    }
+
     fun belongsTo(apkPath: String): Boolean {
         return when {
             this.apkPath == FLAG_BASE_APK -> true
-            this.apkPath == FLAG_CLASS && targetApkPaths.isEmpty() -> true
             targetApkPaths.isNotEmpty() -> apkPath in targetApkPaths
+            this.apkPath == FLAG_CLASS -> true
             else -> this.apkPath == apkPath
         }
     }
@@ -261,6 +260,7 @@ open class DeployItem(
 - 对旧 Dex 的 `FLAG_CLASS` 保持“作用于 base”的兼容语义。
 - 对新 Dex，`apkPath` 仍可为 `FLAG_CLASS`，但 `targetApkPaths` 表示真实目标。
 - 对资源类输出，`apkPath` 是旧单值，`targetApkPaths` 可以是单个或多个目标。
+- 现在 `targetApkPaths` 统一在构造期归一化，不再保留 `allTargetApkPaths`。
 
 ### 5.3 修改 `CompileOutput.toDeployItem()`
 
@@ -268,8 +268,8 @@ open class DeployItem(
 
 目标行为：
 
-- Dex：保留 `apkPath = FLAG_CLASS`，但把 `CompileOutput.allTargetApkPaths` 写到 `DeployItem.targetApkPaths`。
-- Res / Asset / NativeLib：保留 `apkPath` 校验，同时把 `allTargetApkPaths` 写入。
+- Dex：保留 `apkPath = FLAG_CLASS`，但把 `CompileOutput.targetApkPaths` 写到 `DeployItem.targetApkPaths`。
+- Res / Asset / NativeLib：保留 `apkPath` 校验，同时把 `targetApkPaths` 写入。
 - 其他类型：继续不可部署。
 
 示意：
@@ -282,11 +282,11 @@ when (type) {
         crc,
         bytes,
         DeployItem.FLAG_CLASS,
-        targetApkPaths = allTargetApkPaths,
+        targetApkPaths = targetApkPaths,
     )
     CompileOutput.Type.Res, CompileOutput.Type.Asset, CompileOutput.Type.NativeLib -> {
         if (apkPath == null) throw JuggInternalException.outputDidNotSpecificApkPath(toString())
-        DeployItem(deployName, type, crc, bytes, apkPath, targetApkPaths = allTargetApkPaths)
+        DeployItem(deployName, type, crc, bytes, apkPath, targetApkPaths = targetApkPaths)
     }
     else -> DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_BASE_APK)
 }
@@ -524,7 +524,7 @@ val nameSet = changedOverlays
 
 改动：
 
-- `CompileOutput` 增加 `targetApkPaths` 和 `allTargetApkPaths`。
+- `CompileOutput` 增加 `targetApkPaths`。
 - `DeployItem` 增加 `targetApkPaths`、`belongsTo()`、`belongsToAny()`。
 - `toDeployItem()` 传递 target 信息。
 
@@ -692,3 +692,21 @@ val nameSet = changedOverlays
 
 这个顺序可以保证每一步都能通过定向单测验证，并且前两步不依赖真实 library test APK 产物即可先验证数据不丢失。
 
+---
+
+## 11. 落地记录
+
+2026-05-08 已按本方案完成核心链路：
+
+- `CompileOutput` / `DeployItem` 增加 `targetApkPaths`，并通过 `toDeployItem()` 保留多 APK 归属。
+- `ModuleApkBelongsUtils` 对 self-targeting library Test APK 建立 base + test APK all-view。
+- `DexCompiler`、`JavaCompilerInvoker`、`JuggCompiler`、`BaseCompiler.splitApkAndCompile()` 已传递或分发 all targets。
+- `JuggDeployData.filterForApks()` 与 `JuggDeployTask.groupByApplicationId()` 已按 applicationId 使用 scoped deploy data。
+- `OverlayUpdateBuilder`、`IncrementalDeployHelper`、`ResourceApkGenerator`、`DeployDataDatabase.addFullRes()` 已改为优先使用 `targetApkPaths`。
+- Dex merge 和 export incremental APK 已保留 target 并集。
+- 新增 `LibraryTestApkBackfillPlanner` / `LibraryTestApkBackfillHelper`，当 `sourcePath` 命中 self-targeting androidTest module 且 APK 缺失时，只执行当前 module 的 `assemble<Variant>AndroidTest` 并把新增 Test APK 合入本轮 APK 列表。
+
+仍不包含：
+
+- app-style other-targeting test APK 懒加载补齐。
+- package-scoped parsedDex / class DB 拆分；当前阶段只保证部署数据归属正确。

@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -49,6 +50,26 @@ class JuggDeployerHelper(
     private val juggServer: JuggServer,
     private val taskRunnerManager: TaskRunnerManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
+    private val pathManager: JuggPathManager = JuggPathManager(File(project.basePath ?: ".")),
+    private val libraryTestApkBackfillHelper: LibraryTestApkBackfillHelper = LibraryTestApkBackfillHelper(
+        project = project,
+        pathManager = pathManager,
+        deployHistoryManager = deployHistoryManager,
+        compileContextManager = compileContextManager,
+        compileClientFactory = {
+            LocalGradleCompileClient(
+                pathManager.projectDir,
+                pathManager.localClasspathStoragePathManager.classpathDir,
+                LocalGradleCompileClient.buildCompileEnv(project, logger),
+                logger,
+            )
+        },
+        logger = logger,
+        onApksBackfilled = { apks ->
+            deployTargetManager.setApks(apks)
+            deployFileManager.updateApks(apks)
+        },
+    ),
     private var installPathProvider: Computable<String> = Computable<String> {
         CopyEmbeddedDistributionPaths().get()
     },
@@ -344,6 +365,25 @@ class JuggDeployerHelper(
                 }
 
                 deployData = deployOptions.retryDeployData ?: deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, deployData))
+                deployData = libraryTestApkBackfillHelper.backfillIfNeeded(
+                    spec = deployOptions.androidTestRunSpec,
+                    data = deployData,
+                    uiHandler = deployOptions.compileUiHandler,
+                    installBackfilledApks = { backfilledApks ->
+                        val installData = JuggDeployData.forInstall(backfilledApks)
+                        val launchResult = runTask(
+                            device = device,
+                            data = installData,
+                            isSkipExceptOverlayCheck = true,
+                            compileUiHandler = deployOptions.compileUiHandler,
+                            isMultipleDevices = deployOptions.isMultipleDevices,
+                            isLastDevice = deployOptions.isLastDevice,
+                        )
+                        if (!launchResult.success) {
+                            throw JuggException.applyChangesFailed(launchResult)
+                        }
+                    },
+                )
 
                 var isNeedReinstallApk = false
                 val isRetry = deployOptions.retryReason != null // retry means we have already resigned the apk

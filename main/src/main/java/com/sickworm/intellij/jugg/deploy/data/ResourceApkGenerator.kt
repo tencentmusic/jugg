@@ -23,7 +23,9 @@ class ResourceApkGenerator(
 
     fun getResourceApkDeployItem(changedOverlays: List<DeployItem>, notStagingDeployedFiles: List<CompileOutput>): List<DeployItem> {
         resourceApkDir.mkdirs()
-        val changedOverlaysMap = changedOverlays.groupBy { it.apkPath }
+        val changedOverlaysMap = changedOverlays.flatMap { item ->
+            item.targetApkPaths.ifEmpty { listOf(item.apkPath) }.map { it to item }
+        }.groupBy({ it.first }, { it.second })
         return changedOverlaysMap.flatMap { (apkPath, deployItems) ->
             if (apkPath == DeployItem.FLAG_BASE_APK || apkPath == DeployItem.FLAG_CLASS) {
                 throw JuggInternalException.flagApkPathNotAllowed(deployItems.joinToString { it.name })

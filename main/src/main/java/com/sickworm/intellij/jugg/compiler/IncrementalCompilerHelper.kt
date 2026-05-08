@@ -225,7 +225,7 @@ class IncrementalCompilerHelper(
 
                 dexOutputDir.deleteRecursively()
                 dexOutputDir.mkdirs()
-                val mergedDexFiles = doMergeDex(logger, dexFiles, dexOutputDir)
+                val mergedDexFiles = doMergeDex(logger, compileResult.outputs.filter { it.type == CompileOutput.Type.Dex }, dexOutputDir)
                 if (mergedDexFiles.isEmpty()) {
                     logger.warn("Merge dex failed, no dex files found")
                     return null
@@ -242,12 +242,23 @@ class IncrementalCompilerHelper(
             }
         }
 
-        private fun doMergeDex(logger: Logger, dexFiles: List<File>, outputDir: File): List<CompileOutput> {
+        private fun doMergeDex(logger: Logger, dexOutputs: List<CompileOutput>, outputDir: File): List<CompileOutput> {
             val dexMerger = DexFileMerger(logger)
+            val dexFiles = dexOutputs.map { it.file }
             dexMerger.merge(dexFiles, outputDir)
+            val apkPath = dexOutputs.firstNotNullOfOrNull { it.apkPath }
+            val targetApkPaths = dexOutputs.flatMap { it.targetApkPaths }.distinct()
             val mergedDexFiles = outputDir.listFiles()!!
                 .filter { it.extension == "dex" }
-                .map { CompileOutput(CompileOutput.Type.Dex, it, outputDir) }
+                .map {
+                    CompileOutput(
+                        CompileOutput.Type.Dex,
+                        it,
+                        outputDir,
+                        apkPath = apkPath,
+                        targetApkPaths = targetApkPaths,
+                    )
+                }
             return mergedDexFiles
         }
     }

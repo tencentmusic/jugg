@@ -217,7 +217,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
                 logger.debug("addFullRes for $apkFile, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, " +
                         "isNeedAsset: $isNeedAsset, overlayInfos: ${overlayInfos.size}")
                 val nameSet = changedOverlays
-                    .filter { it.apkPath == apkFile.path }
+                    .filter { it.belongsTo(apkFile.path) }
                     .map { it.name }
                     .toSet()
                 overlayInfos.forEach {

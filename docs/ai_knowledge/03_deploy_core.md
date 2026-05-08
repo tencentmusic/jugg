@@ -46,6 +46,13 @@
 4. 必要时处理 JVMTI agent push/attach 与 app 重启。  
 5. 回写 overlayId、部署历史与状态。
 
+部署数据支持多 APK 归属：
+
+- `DeployItem.apkPath` 保留旧单 APK 锚点；`DeployItem.targetApkPaths` 表示真实部署目标，并在真实 `apkPath` 存在时自动包含它。
+- `JuggDeployTask` 按 `applicationId` 分组部署前，会使用 `JuggDeployData.filterForApks(...)` 得到 scoped data，避免 base/test APK 互相错投。
+- `OverlayUpdateBuilder`、`IncrementalDeployHelper`、`ResourceApkGenerator`、`DeployDataDatabase.addFullRes()` 都应优先按 `targetApkPaths` 判断目标 APK。
+- library Test APK 懒加载补齐后，只通过 compile context 的 APK 列表更新接口写回 `apks.json`，不改写 `full_build_info.json`。
+
 ---
 
 ## 5. 关键防护逻辑

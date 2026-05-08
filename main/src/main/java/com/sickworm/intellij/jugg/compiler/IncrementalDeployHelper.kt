@@ -35,8 +35,7 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
             val modifier = ApkFileModifier(apkFile, signingConfig, context.androidHome, logger, context.cmdCompileEnv)
             val deployItems = mutableListOf<DeployItem>()
             allDeployItems.forEach {
-                val isBaseOutput = it.apkPath == DeployItem.FLAG_CLASS || it.apkPath == DeployItem.FLAG_BASE_APK
-                if ((isBaseApk && isBaseOutput) || (it.apkPath == apkFile.path)) {
+                if (it.belongsTo(apkFile.path) || (isBaseApk && it.apkPath == DeployItem.FLAG_BASE_APK)) {
                     deployItems.add(it)
                 }
             }
@@ -86,7 +85,7 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
             return apkInfos.map { apkInfo ->
                 ApkInfo(apkInfo.files.map {
                     ApkFileUnit(it.applicationId, it.moduleName, it.debuggable, apkFileMapper(it.apkFile))
-                }, apkInfo.applicationId)
+                }, apkInfo.applicationId, apkInfo.instrumentationTargetPackage, apkInfo.instrumentationRunner)
             }
         }
 
@@ -96,11 +95,19 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
             tempApkFile
         }
         val tempDeployItems = deployItems.map {
-            if (!File(it.apkPath).exists()) {
-                return@map it
+            val tempApkPath = if (File(it.apkPath).exists()) {
+                mapToTempApkFile(File(it.apkPath)).path
+            } else {
+                it.apkPath
             }
-            val tempApkPath = mapToTempApkFile(File(it.apkPath)).path
-            return@map DeployItem(it.name, it.type, it.checksum, it.content, tempApkPath)
+            val tempTargetApkPaths = it.targetApkPaths.map { targetPath ->
+                if (File(targetPath).exists()) {
+                    mapToTempApkFile(File(targetPath)).path
+                } else {
+                    targetPath
+                }
+            }
+            return@map DeployItem(it.name, it.type, it.checksum, it.content, tempApkPath, tempTargetApkPaths)
         }
 
         val (isSuccess, failedReason) = updateApk(apkInfos, tempDeployItems)

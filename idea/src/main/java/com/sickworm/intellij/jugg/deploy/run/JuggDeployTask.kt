@@ -33,7 +33,6 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
-import com.sickworm.intellij.jugg.deploy.sortedForInstall
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -88,9 +87,11 @@ class JuggDeployTask(
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
 
-        val packages: Map<String, List<ApkInfo>> = data.apks.sortedForInstall().groupBy { it.applicationId }
+        // Only the deployer transport receives APK-scoped data. Lifecycle state is still committed
+        // by JuggDeployerHelper with the original full JuggDeployData after the whole deploy succeeds.
+        val packages = data.groupByApplicationId()
 
-        for ((applicationId, apkInfos) in packages) {
+        for ((applicationId, apkInfos, scopedData) in packages) {
             try {
                 launchContext.launchApp = shouldTaskLaunchApp()
                 val apkFiles = apkInfos.flatMap { it.files }.map { it.apkFile }
@@ -102,7 +103,7 @@ class JuggDeployTask(
                 } else {
                     type
                 }
-                val result = perform(device, deployer, applicationId, apkFiles, effectiveType)
+                val result = perform(device, deployer, applicationId, apkFiles, scopedData, effectiveType)
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId)
                 }
@@ -127,7 +128,7 @@ class JuggDeployTask(
                 String.format("%s successfully finished in %s.", deployType, StringUtil.formatDuration(duration))
             val content = type.createSkippedApkInstallMessage(
                 idsSkippedInstall,
-                idsSkippedInstall.size == packages.size
+                    idsSkippedInstall.size == packages.size
             )
             logger.info("%s. %s", title, content)
         }
@@ -143,6 +144,7 @@ class JuggDeployTask(
     @Throws(DeployerException::class)
     private fun perform(
         device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>,
+        scopedData: JuggDeployData,
         effectiveType: AndroidDeployType = type,
     ): JuggDeployer.Result {
         when (effectiveType) {
@@ -175,14 +177,14 @@ class JuggDeployTask(
             }
             AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 logger.debug("Applying changes to application $applicationId...")
-                return deployer.fullSwap(getPathsToInstall(files), data)
+                return deployer.fullSwap(getPathsToInstall(files), scopedData)
             }
             AndroidDeployType.APPLY_CHANGES -> {
                 logger.debug("Applying changes to application $applicationId...")
                 val fastRerunOnSwapFailure = false
 
                 var debuggerRedefiners = emptyMap<Int, ClassRedefiner>()
-                if (!data.isNeedRestartApp) {
+                if (!scopedData.isNeedRestartApp) {
                     // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
                     // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
                     // because we don't need debuggerRedefiners on restart case
@@ -190,7 +192,7 @@ class JuggDeployTask(
                         project, device, fastRerunOnSwapFailure && deployer.supportsNewPipeline()
                     )
                 }
-                return deployer.codeSwap(getPathsToInstall(files), debuggerRedefiners, data)
+                return deployer.codeSwap(getPathsToInstall(files), debuggerRedefiners, scopedData)
             }
         }
     }
@@ -257,5 +259,3 @@ class LaunchContext(
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
 }
-
-

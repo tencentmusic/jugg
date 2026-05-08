@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.CompileResult
+import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
+import com.sickworm.intellij.jugg.compiler.IncrementalCompilerHelper
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
@@ -114,6 +117,41 @@ class DeployFileManagerDexMergeTest {
             deployFileManager.addStagingFiles(secondRoundDex)
             deployFileManager.getDeployData()
             assertEquals(1, mergeCallCount.get())
+        }
+    }
+
+    @Test
+    fun testMergedDexKeepsUnionTargetApkPaths() {
+        val testRoot = Files.createTempDirectory("deploy-dex-merge-test-3").toFile()
+        Mockito.mockConstruction(DexFileMerger::class.java) { mock, _ ->
+            Mockito.doAnswer { invocation ->
+                val outputDir = invocation.arguments[1] as File
+                outputDir.mkdirs()
+                File(outputDir, "classes_merged.dex").writeBytes(byteArrayOf(0x64, 0x65, 0x78))
+                null
+            }.`when`(mock).merge(
+                ArgumentMatchers.anyList<File>() ?: emptyList(),
+                ArgumentMatchers.any(File::class.java) ?: File(""),
+            )
+        }.use {
+            val outputDir = File(testRoot, "merged")
+            val dexOutputs = createDexOutputs("target", File(testRoot, "dex"), 2)
+                .mapIndexed { index, output ->
+                    output.copy(
+                        apkPath = "/base.apk",
+                        targetApkPaths = if (index == 0) {
+                            listOf("/base.apk")
+                        } else {
+                            listOf("/test.apk")
+                        },
+                    )
+                }
+            val compileResult = CompileResult.empty(CompileStatusHolder.DEFAULT).copy(outputs = dexOutputs)
+
+            val mergedOutputs = IncrementalCompilerHelper.mergeDex(logger, compileResult, outputDir)!!.outputs
+
+            assertEquals(listOf("/base.apk", "/test.apk"), mergedOutputs.single().targetApkPaths)
+            assertEquals("/base.apk", mergedOutputs.single().apkPath)
         }
     }
 

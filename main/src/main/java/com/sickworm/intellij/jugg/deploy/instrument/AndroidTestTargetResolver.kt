@@ -15,6 +15,24 @@ object AndroidTestTargetResolver {
         modules: Collection<ModuleInfo>,
         apks: List<ApkInfo>,
     ): AndroidTestTarget {
+        val module = resolveModule(sourcePath, projectDir, modules)
+        val testApk = resolveTestApk(module, apks)
+            ?: throw AndroidTestTargetResolveException(
+                buildString {
+                    appendLine("unable to resolve test APK for androidTest module.")
+                    appendLine("module: ${module.name}")
+                    appendLine("applicationId: ${module.applicationId.orEmpty()}")
+                }.trimEnd()
+            )
+
+        return AndroidTestTarget(module, testApk)
+    }
+
+    fun resolveModule(
+        sourcePath: String,
+        projectDir: File,
+        modules: Collection<ModuleInfo>,
+    ): ModuleInfo {
         val sourceFile = File(sourcePath).let { if (it.isAbsolute) it else File(projectDir, sourcePath) }
             .canonicalFile
         if (!sourceFile.exists() || !sourceFile.isFile) {
@@ -43,17 +61,7 @@ object AndroidTestTargetResolver {
                 }.trimEnd()
             )
         }
-
-        val testApk = resolveTestApk(module, apks)
-            ?: throw AndroidTestTargetResolveException(
-                buildString {
-                    appendLine("unable to resolve test APK for androidTest module.")
-                    appendLine("module: ${module.name}")
-                    appendLine("applicationId: ${module.applicationId.orEmpty()}")
-                }.trimEnd()
-            )
-
-        return AndroidTestTarget(module, testApk)
+        return module
     }
 
     private fun resolveTestApk(module: ModuleInfo, apks: List<ApkInfo>): ApkInfo? {

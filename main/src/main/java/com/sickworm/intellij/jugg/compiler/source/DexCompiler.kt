@@ -172,7 +172,15 @@ class DexCompiler(
             Result.success(it)
         }
         val outputs: List<CompileOutput> = dexFiles.map {
-            CompileOutput(CompileOutput.Type.Dex, it, tempOutput)
+            // Dex outputs can fan out to multiple APKs.
+            // Keep the legacy apkPath as the primary anchor and carry every target APK explicitly.
+            CompileOutput(
+                CompileOutput.Type.Dex,
+                it,
+                tempOutput,
+                apkPath = context.getBelongsApkPath(module),
+                targetApkPaths = context.getAllBelongsApkPaths(module),
+            )
         }
 
         val finalOutputs = outputs.map {
@@ -182,7 +190,13 @@ class DexCompiler(
                 outputFile.delete()
             }
             it.file.renameTo(outputFile)
-            CompileOutput(CompileOutput.Type.Dex, outputFile, task.outputDir)
+            CompileOutput(
+                CompileOutput.Type.Dex,
+                outputFile,
+                task.outputDir,
+                apkPath = it.apkPath,
+                targetApkPaths = it.targetApkPaths,
+            )
         }
 
         return CompileResult(task, details, finalOutputs)
