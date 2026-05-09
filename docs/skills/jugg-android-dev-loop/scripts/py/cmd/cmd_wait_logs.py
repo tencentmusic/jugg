@@ -36,6 +36,9 @@ def build_params(args: list[str]) -> dict:
         else:
             print(f"Unknown option: {arg}", file=sys.stderr)
             sys.exit(1)
+    if not params.get("marker"):
+        print("wait-logs requires --marker <regex>", file=sys.stderr)
+        sys.exit(1)
     return params
 
 

@@ -14,10 +14,12 @@ import java.util.zip.ZipInputStream
  */
 object JuggCliAutoUpdater {
 
-    private const val SKILL_ZIP_RESOURCE = "docs/skills/jugg-android-dev-loop.zip"
-    private const val SKILL_MD_ENTRY = "SKILL.md"
-    private const val SCRIPTS_PREFIX = "scripts/"
     private const val SKILL_NAME = "jugg-android-dev-loop"
+    private const val SKILLS_BUNDLE_ZIP_RESOURCE = "docs/skills/docs-skills.zip"
+    private const val SKILL_ROOT_PREFIX = "$SKILL_NAME/"
+    private const val LOCAL_SKILL_MD_ENTRY = "SKILL.md"
+    private const val BUNDLED_SKILL_MD_ENTRY = "${SKILL_ROOT_PREFIX}SKILL.md"
+    private const val SCRIPTS_PREFIX = "${SKILL_ROOT_PREFIX}scripts/"
     private val SKILL_VERSION_REGEX = Regex("""^version:\s*([^\s]+)""", RegexOption.MULTILINE)
     private var isNeedCheckAndUpdate = false
 
@@ -64,11 +66,11 @@ object JuggCliAutoUpdater {
     /** Reads version from SKILL.md in the bundled zip resource. */
     fun readVersionFromZip(): String? {
         val stream = JuggCliAutoUpdater::class.java.classLoader
-            .getResourceAsStream(SKILL_ZIP_RESOURCE) ?: return null
+            .getResourceAsStream(SKILLS_BUNDLE_ZIP_RESOURCE) ?: return null
         return ZipInputStream(stream).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
-                if (entry.name == SKILL_MD_ENTRY) {
+                if (entry.name == BUNDLED_SKILL_MD_ENTRY) {
                     return@use extractSkillVersion(zip.readBytes().toString(Charsets.UTF_8))
                 }
                 zip.closeEntry()
@@ -80,7 +82,7 @@ object JuggCliAutoUpdater {
 
     /** Reads version from SKILL.md in the local skill dir. */
     fun readVersionFromLocal(skillDir: File): String? {
-        val skillMd = File(skillDir, SKILL_MD_ENTRY)
+        val skillMd = File(skillDir, LOCAL_SKILL_MD_ENTRY)
         if (!skillMd.exists()) return null
         return extractSkillVersion(skillMd.readText())
     }
@@ -123,8 +125,8 @@ object JuggCliAutoUpdater {
         binDir.deleteRecursively()
         binDir.mkdirs()
         val stream = JuggCliAutoUpdater::class.java.classLoader
-            .getResourceAsStream(SKILL_ZIP_RESOURCE)
-            ?: throw IOException("Bundled zip resource not found: $SKILL_ZIP_RESOURCE")
+            .getResourceAsStream(SKILLS_BUNDLE_ZIP_RESOURCE)
+            ?: throw IOException("Bundled zip resource not found: $SKILLS_BUNDLE_ZIP_RESOURCE")
         ZipInputStream(stream).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
@@ -148,21 +150,26 @@ object JuggCliAutoUpdater {
         skillDir.deleteRecursively()
         skillDir.mkdirs()
         val stream = JuggCliAutoUpdater::class.java.classLoader
-            .getResourceAsStream(SKILL_ZIP_RESOURCE)
-            ?: throw IOException("Bundled zip resource not found: $SKILL_ZIP_RESOURCE")
+            .getResourceAsStream(SKILLS_BUNDLE_ZIP_RESOURCE)
+            ?: throw IOException("Bundled zip resource not found: $SKILLS_BUNDLE_ZIP_RESOURCE")
         ZipInputStream(stream).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
-                val outFile = File(skillDir, entry.name)
-                val canonicalParent = skillDir.canonicalPath + File.separator
-                if (!outFile.canonicalPath.startsWith(canonicalParent)) {
-                    throw IOException("Invalid zip entry path: ${entry.name}")
-                }
-                if (entry.isDirectory) {
-                    outFile.mkdirs()
-                } else {
-                    outFile.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { zip.copyTo(it) }
+                if (entry.name.startsWith(SKILL_ROOT_PREFIX)) {
+                    val relativePath = entry.name.removePrefix(SKILL_ROOT_PREFIX)
+                    if (relativePath.isNotEmpty()) {
+                        val outFile = File(skillDir, relativePath)
+                        val canonicalParent = skillDir.canonicalPath + File.separator
+                        if (!outFile.canonicalPath.startsWith(canonicalParent)) {
+                            throw IOException("Invalid zip entry path: ${entry.name}")
+                        }
+                        if (entry.isDirectory) {
+                            outFile.mkdirs()
+                        } else {
+                            outFile.parentFile?.mkdirs()
+                            FileOutputStream(outFile).use { zip.copyTo(it) }
+                        }
+                    }
                 }
                 zip.closeEntry()
                 entry = zip.nextEntry

@@ -83,14 +83,11 @@ python3 {SKILL_DIR}/scripts/jugg.py <subcommand> [options]
 
 ### Output Format
 
-All commands print JSON to stdout:
+Default output is plain `key: value` lines. Use `--console=json` before the subcommand when structured output is needed:
 
-```json
-{"status": "OK|ERROR", "message": "..."}
+```bash
+python3 {SKILL_DIR}/scripts/jugg.py --console=json deploy
 ```
-
-- `status: OK` → succeeded.
-- `status: ERROR` → failed; read `message` for cause.
 
 ### Build & Deploy Commands
 

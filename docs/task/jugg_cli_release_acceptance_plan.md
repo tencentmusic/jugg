@@ -92,7 +92,9 @@
 
 ```bash
 python3 -m unittest docs/skills/jugg-android-dev-loop/scripts/py/test_jugglib.py
-python3 -m unittest discover docs/skills/jugg-android-dev-loop/tests
+python3 docs/skills/jugg-android-dev-loop/tests/test_cmd.py
+python3 docs/skills/jugg-android-dev-loop/tests/test_cmd_status.py
+python3 docs/skills/jugg-android-dev-loop/tests/test_jugglib.py
 python3 -m unittest discover docs/skills/hooks/tests
 ```
 

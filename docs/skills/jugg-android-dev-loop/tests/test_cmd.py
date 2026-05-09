@@ -48,6 +48,10 @@ class TapBuildParamsTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.build([])
 
+    def test_missing_x_value_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--x"])
+
 
 class ViewLocateBuildParamsTest(unittest.TestCase):
 
@@ -58,6 +62,10 @@ class ViewLocateBuildParamsTest(unittest.TestCase):
     def test_no_selector_fails(self):
         with self.assertRaises(SystemExit):
             self.build([])
+
+    def test_missing_text_value_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--text"])
 
     def test_text_selector(self):
         result = self.build(["--text", "Avatar"])
@@ -77,6 +85,10 @@ class ViewInspectBuildParamsTest(unittest.TestCase):
     def test_no_selector_fails(self):
         with self.assertRaises(SystemExit):
             self.build([])
+
+    def test_missing_text_value_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--text"])
 
     def test_no_expression_fails(self):
         with self.assertRaises(SystemExit):
@@ -175,6 +187,21 @@ class InstrumentBuildParamsTest(unittest.TestCase):
     def test_missing_e_value_fails(self):
         with self.assertRaises(SystemExit):
             self.build(["-e"])
+
+
+class WaitLogsBuildParamsTest(unittest.TestCase):
+
+    def setUp(self):
+        from cmd.cmd_wait_logs import build_params
+        self.build = build_params
+
+    def test_no_marker_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build([])
+
+    def test_marker(self):
+        result = self.build(["--marker", "DONE"])
+        self.assertEqual(result["marker"], "DONE")
 
 
 if __name__ == "__main__":

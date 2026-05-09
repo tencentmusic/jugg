@@ -6,6 +6,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import jugglib
 
 
+def _require_value(args: list[str], index: int) -> str:
+    if index + 1 >= len(args):
+        print(f"{args[index]} requires a value", file=sys.stderr)
+        sys.exit(1)
+    return args[index + 1]
+
+
 def build_params(args: list[str]) -> dict:
     """Parse tap subcommand arguments into MCP params."""
     action = "tap"
@@ -17,20 +24,20 @@ def build_params(args: list[str]) -> dict:
     i = 0
     while i < len(args):
         a = args[i]
-        if a == "--action":       action = args[i + 1];       i += 2
-        elif a == "--x":          x = float(args[i + 1]);     i += 2
-        elif a == "--y":          y = float(args[i + 1]);     i += 2
-        elif a == "--endX":       end_x = float(args[i + 1]); i += 2
-        elif a == "--endY":       end_y = float(args[i + 1]); i += 2
-        elif a == "--xPercent":   xp = float(args[i + 1]);    i += 2
-        elif a == "--yPercent":   yp = float(args[i + 1]);    i += 2
-        elif a == "--endXPercent": end_xp = float(args[i + 1]); i += 2
-        elif a == "--endYPercent": end_yp = float(args[i + 1]); i += 2
-        elif a == "--text":       text = args[i + 1];          i += 2
-        elif a == "--resourceId": resource_id = args[i + 1];   i += 2
-        elif a == "--contentDesc": content_desc = args[i + 1]; i += 2
-        elif a == "--className":  class_name = args[i + 1];    i += 2
-        elif a == "--duration":   duration = float(args[i + 1]); i += 2
+        if a == "--action":       action = _require_value(args, i);       i += 2
+        elif a == "--x":          x = float(_require_value(args, i));     i += 2
+        elif a == "--y":          y = float(_require_value(args, i));     i += 2
+        elif a == "--endX":       end_x = float(_require_value(args, i)); i += 2
+        elif a == "--endY":       end_y = float(_require_value(args, i)); i += 2
+        elif a == "--xPercent":   xp = float(_require_value(args, i));    i += 2
+        elif a == "--yPercent":   yp = float(_require_value(args, i));    i += 2
+        elif a == "--endXPercent": end_xp = float(_require_value(args, i)); i += 2
+        elif a == "--endYPercent": end_yp = float(_require_value(args, i)); i += 2
+        elif a == "--text":       text = _require_value(args, i);          i += 2
+        elif a == "--resourceId": resource_id = _require_value(args, i);   i += 2
+        elif a == "--contentDesc": content_desc = _require_value(args, i); i += 2
+        elif a == "--className":  class_name = _require_value(args, i);    i += 2
+        elif a == "--duration":   duration = float(_require_value(args, i)); i += 2
         else:
             print(f"Unknown option: {a}", file=sys.stderr)
             sys.exit(1)
