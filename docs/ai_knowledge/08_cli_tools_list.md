@@ -1,6 +1,6 @@
 # jugg CLI 参数清单
 
-> 最后核对：2026-04-15
+> 最后核对：2026-05-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 > **相关文档**：MCP 工具完整参数清单见 [`08_mcp_tools_list.md`](08_mcp_tools_list.md)
@@ -22,7 +22,7 @@
 | **自动推断 projectDir** | 所有命令均不需要传 `--project-dir`，通过调用 `list-projects` 后与 `$PWD` 做最长前缀匹配自动确定 |
 | **端口自动发现** | 先读本地缓存文件，不命中则扫描 `12320..12329`，命中后写缓存 |
 | **异步编译自动轮询** | `compile`/`deploy`/`gradle-build` 自动调用 `get-compile-status` 到终态；返回 `running` 后立即再次请求，并附带 `waitTimeoutMs=3000` 进行短阻塞等待，减少尾部等待窗口 |
-| **`--json` 模式** | 所有命令支持 `--json` flag，输出原始 structuredContent JSON 供脚本消费；默认以 `key: value` 格式输出 |
+| **`--console=json` 模式** | 通过全局参数 `--console=json` 输出原始 structuredContent JSON 供脚本消费；默认以 `key: value` 格式输出 |
 
 **端口/session 缓存文件位置**（可被环境变量覆盖）：
 
@@ -83,9 +83,18 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 
 ---
 
+#### JSON 输出
+```
+jugg --console=json <subcommand> [options]
+```
+
+`--console` 是全局参数，必须放在子命令前。
+
+---
+
 #### `version`
 ```
-jugg version [--json]
+jugg version
 ```
 **行为说明**：直接调用 MCP `version` 工具（无需 projectDir），同时展示内置 CLI 版本和插件版本。
 
@@ -104,13 +113,13 @@ plugin version: 1.2.3
   /path/to/projectB: 1.2.0
 ```
 
-`--json` 模式返回：`{"cliVersion": "...", "plugin": <MCP structuredContent>}`
+`--console=json` 模式返回：`{"cliVersion": "...", "plugin": <MCP structuredContent>}`
 
 ---
 
 #### `compile`
 ```
-jugg compile [--json]
+jugg compile
 ```
 **行为优化**：自动轮询到 `isFinal=true`。
 
@@ -118,7 +127,7 @@ jugg compile [--json]
 
 #### `deploy`
 ```
-jugg deploy [--always-restart-app <true|false>] [--json]
+jugg deploy [--always-restart-app <true|false>]
 ```
 **行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Deploying...`。
 
@@ -130,7 +139,7 @@ jugg deploy [--always-restart-app <true|false>] [--json]
 
 #### `gradle-build`
 ```
-jugg gradle-build [--json]
+jugg gradle-build
 ```
 **行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Running Gradle build...`。
 
@@ -138,14 +147,14 @@ jugg gradle-build [--json]
 
 #### `clean-reinstall`
 ```
-jugg clean-reinstall [--json]
+jugg clean-reinstall
 ```
 
 ---
 
 #### `restart`
 ```
-jugg restart [--json]
+jugg restart
 ```
 
 ---
@@ -154,7 +163,7 @@ jugg restart [--json]
 ```
 jugg instrument --source-path <src/androidTest/.../FooTest.kt>
                 [--class <Fqcn>] [--method <method>] [--runner <runnerFqn>]
-                [-e <k=v>]... [--extras <k=v;k2=v2>] [--json]
+                [-e <k=v>]... [--extras <k=v;k2=v2>]
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
@@ -170,7 +179,7 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 
 #### `layout-dump`
 ```
-jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows] [--json]
+jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
@@ -183,7 +192,7 @@ jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows] [--js
 
 #### `view-locate`
 ```
-jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>) [--json]
+jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 |
@@ -197,7 +206,7 @@ jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>) [--js
 #### `view-inspect`
 ```
 jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>) [--class-name <cls>]
-                  <expr1> [<expr2> ...] [--json]
+                  <expr1> [<expr2> ...]
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 |
@@ -216,7 +225,7 @@ jugg tap [--action tap|long-press|swipe]
          ( --x <n> --y <n> [--end-x <n> --end-y <n>]                          # 坐标模式
          | --x-percent <n> --y-percent <n> [--end-x-percent <n> --end-y-percent <n>]  # 百分比模式
          | --text <t> | --resource-id <id> | --content-desc <desc> [--class-name <cls>] )  # 元素模式
-         [--duration <ms>] [--json]
+         [--duration <ms>]
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
@@ -238,28 +247,28 @@ jugg tap [--action tap|long-press|swipe]
 
 #### `devices`
 ```
-jugg devices [--json]
+jugg devices
 ```
 
 ---
 
 #### `activity-stack`
 ```
-jugg activity-stack [--json]
+jugg activity-stack
 ```
 
 ---
 
 #### `status`
 ```
-jugg status [--json]
+jugg status
 ```
 
 ---
 
 #### `ssh-info`
 ```
-jugg ssh-info --reason <reason> [--json]
+jugg ssh-info --reason <reason>
 ```
 
 | CLI flag | MCP 参数 |
@@ -270,7 +279,7 @@ jugg ssh-info --reason <reason> [--json]
 
 #### `wait-logs`
 ```
-jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>] [--json]
+jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |

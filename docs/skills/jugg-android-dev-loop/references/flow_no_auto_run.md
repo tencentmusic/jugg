@@ -15,7 +15,7 @@ This flow handles compile and deploy only; no on-device verification.
 Before compiling, check whether the project can use incremental compile (i.e., will NOT require `gradle-build`):
 
 ```bash
-python3 {SKILL_DIR}/scripts/jugg.py status --json | python3 -c "
+python3 {SKILL_DIR}/scripts/jugg.py --console=json status | python3 -c "
 import sys, json
 data = json.load(sys.stdin).get('data', {})
 print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')

@@ -118,19 +118,6 @@ class PrintKvTest(unittest.TestCase):
         self.assertIn("items: [1, 2, 3]", out)
 
 
-class HasJsonFlagTest(unittest.TestCase):
-
-    def test_with_json_flag(self):
-        is_json, remaining = jugglib.has_json_flag(["--json", "--text", "hello"])
-        self.assertTrue(is_json)
-        self.assertEqual(remaining, ["--text", "hello"])
-
-    def test_without_json_flag(self):
-        is_json, remaining = jugglib.has_json_flag(["--text", "hello"])
-        self.assertFalse(is_json)
-        self.assertEqual(remaining, ["--text", "hello"])
-
-
 class NormalizeArgsTest(unittest.TestCase):
     """normalize_args converts kebab-case flags to camelCase; non-flags pass through."""
 
@@ -157,10 +144,6 @@ class NormalizeArgsTest(unittest.TestCase):
     def test_mixed_args(self):
         result = jugglib.normalize_args(["--resource-id", "btn_login", "--include-gone"])
         self.assertEqual(result, ["--resourceId", "btn_login", "--includeGone"])
-
-    def test_json_flag_unchanged(self):
-        self.assertEqual(jugglib.normalize_args(["--json"]), ["--json"])
-
 
 class NormalizeArgsRoundTripTest(unittest.TestCase):
     """Verify kebab-case input reaches the same MCP params as camelCase input."""
