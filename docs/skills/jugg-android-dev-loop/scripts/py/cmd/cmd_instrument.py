@@ -73,6 +73,9 @@ def build_params(args: list[str]) -> dict:
 
     if extras:
         params["extras"] = extras
+    if not params.get("sourcePath"):
+        print("--source-path is required", file=sys.stderr)
+        sys.exit(1)
     return params
 
 

@@ -72,15 +72,14 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 Runs androidTest through Jugg compile/deploy chain, while keeping parameter style close to `am instrument`.
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py instrument
-python3 {SKILL_DIR}/scripts/jugg.py instrument --class 'com.example.FooTest#bar,com.example.BarTest'
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest
 python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest --method testSomething
-python3 {SKILL_DIR}/scripts/jugg.py instrument --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
 ```
 
 | Flag | Description |
 |------|-------------|
-| `--class <filters>` | class filter, supports comma-separated `Class` or `Class#method`. |
 | `--source-path <path>` | test source file under `src/androidTest`; required by the MCP tool. |
 | `--class <fqcn>` | optional test class in the source file. |
 | `--method <name>` | optional test method in the resolved class. |
