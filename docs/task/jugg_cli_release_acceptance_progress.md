@@ -31,7 +31,7 @@
 | F1 | UI observe | `layout-dump` / `view-locate` / `view-inspect` | Pending | 需要已启动 app 和可见 UI |
 | F2 | UI interaction | `tap` 元素/百分比/swipe | Pending | 需要已启动 app 和安全页面 |
 | G1 | skill 审计 | `SKILL.md` 路由、默认动作、fallback、预算检查 | Needs Review | `SKILL.md` 143 行 OK；`cli_manual.md` 233 行、`guide_install_cli.md` 155 行超 150 行预算 |
-| G2 | skill 审计 | references 示例命令可被 parser 接受 | In Progress | 已修 `SKILL.md` 输出格式；复杂示例尚未全部自动验证 |
+| G2 | skill 审计 | references 示例命令可被 parser 接受 | Done | `skill_example_parser_check.md`：`SKILL.md`/`cli_manual.md` 可执行示例均被 parser 接受；仅跳过含 `[...]` 的用法模板 |
 | H1 | 分发 | skill zip/installer 输出与仓库内容一致 | Done | 修复 auto updater 读取 `docs/skills/docs-skills.zip`；installer 定向测试通过 |
 
 ## 进展日志
@@ -42,6 +42,7 @@
 - 2026-05-10：B4 初跑失败 3 个 `JuggCliAutoUpdaterTest`，根因为 auto updater 仍读取旧 `jugg-android-dev-loop.zip`；已改为当前 `docs-skills.zip` bundle 结构并重跑通过。
 - 2026-05-10：完成 C1/C2 无设备 smoke：MCP port 12320 可用，`version`/json version、`devices`、`status` 均可执行。
 - 2026-05-10：错误体验探针发现缺值 `IndexError` 与 `wait-logs` 缺 marker 未本地拦截；已补测试并修复，`error_probe.md` 全部 SystemExit + 明确错误。
+- 2026-05-10：完成 G2 示例 parser 校验；`SKILL.md` 与 `cli_manual.md` 的可执行示例全部通过，含 `[...]` 的用法模板跳过。
 
 ## 阻塞/待人工确认
 
