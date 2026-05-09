@@ -7,7 +7,10 @@ import com.sickworm.intellij.jugg.ai.mcp.McpProjectInfo
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.io.File
 
 /**
  * ListProjectsMcpToolAction implements MCP tool `list-projects` and converts request arguments into tool execution and MCP result payloads.
@@ -35,8 +38,12 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
                                 properties = mapOf(
                                     "projectDir" to McpJsonSchemaProperty(type = "string"),
                                     "initialized" to McpJsonSchemaProperty(type = "boolean"),
+                                    "hasCompiledBefore" to McpJsonSchemaProperty(
+                                        type = "boolean",
+                                        description = "True when Jugg has persisted at least one full-build baseline for this project.",
+                                    ),
                                 ),
-                                required = listOf("projectDir", "initialized"),
+                                required = listOf("projectDir", "initialized", "hasCompiledBefore"),
                                 additionalProperties = false,
                             )
                         )
@@ -60,11 +67,27 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
             message = "list-projects executed successfully.",
             data = mapOf(
                 "projects" to PlatformApi.getInitializedProjectDirs().map {
-                    McpProjectInfo(projectDir = it.path, initialized = true)
+                    McpProjectInfo(
+                        projectDir = it.path,
+                        initialized = true,
+                        hasCompiledBefore = hasCompiledBefore(it),
+                    )
                 }
             ),
             artifacts = emptyList(),
             errorCode = null,
         )
+    }
+
+    private fun hasCompiledBefore(projectDir: File): Boolean {
+        val pathManager = JuggPathManager(projectDir)
+        val fullBuildInfoFile = File(pathManager.compileContextDbDir, "full_build_info.json")
+        if (!fullBuildInfoFile.exists()) {
+            return false
+        }
+        return runCatching {
+            FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8))
+            true
+        }.getOrDefault(false)
     }
 }

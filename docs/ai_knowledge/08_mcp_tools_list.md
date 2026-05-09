@@ -56,6 +56,12 @@
 |------|------|------|------|
 | （无） | — | — | — |
 
+**返回 data**：
+- `projects`：项目数组，每项包含：
+  - `projectDir`：项目绝对路径
+  - `initialized`：是否已完成 Jugg 初始化（当前列表内项目固定为 `true`）
+  - `hasCompiledBefore`：是否存在 Jugg 全量编译基线记录（可用于判定“从未用 Jugg 编译过”）
+
 ---
 
 ### `restart`
