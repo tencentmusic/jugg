@@ -327,6 +327,7 @@
 - `detail`：未截断时为空字符串；截断时为自然语言描述，如 `"Showing 20 of 25 files. 5 more files are not listed."`
 - `lastFileModifiedTime`：最近未编译文件的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无文件时为空字符串）
 - `lastCompileTime`：最近一次调用 `compile` / `deploy` / `gradle-build` 的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无记录时为空字符串）
+- `enabledAndroidTest`：最近一次 full build 基线是否以 AndroidTest target 初始化（`true` 表示当时开启了 `enableAndroidTest`）
 
 ---
 

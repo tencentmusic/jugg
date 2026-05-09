@@ -5,8 +5,11 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.FullBuildInfo
+import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
@@ -19,6 +22,7 @@ import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert
 import org.junit.Rule
@@ -75,6 +79,33 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals("2026-04-26 10:00:00", data["lastCompileTime"])
+    }
+
+    @Test
+    fun testStatusEnabledAndroidTestTrueWhenLastFullBuildTargetIsAndroidTest() {
+        val projectDir = tempFolder.newFolder("project-android-test")
+        writeFullBuildInfo(projectDir, BuildTarget.ANDROID_TEST)
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(mapOf("projectDir" to projectDir.absolutePath), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["enabledAndroidTest"])
+    }
+
+    @Test
+    fun testStatusEnabledAndroidTestFalseWhenNoFullBuildInfo() {
+        val projectDir = tempFolder.newFolder("project-no-full-build")
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(mapOf("projectDir" to projectDir.absolutePath), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(false, data["enabledAndroidTest"])
     }
 
     @Test
@@ -363,5 +394,21 @@ class GetStatusMcpToolActionTest {
             override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker? = fallbackChecker
             override fun refreshChangedFilesForStatus() = statusRefresh()
         }
+    }
+
+    private fun writeFullBuildInfo(projectDir: File, buildTarget: BuildTarget) {
+        val pathManager = JuggPathManager(projectDir)
+        val fullBuildInfoFile = File(pathManager.compileContextDbDir, "full_build_info.json")
+        fullBuildInfoFile.parentFile?.mkdirs()
+        fullBuildInfoFile.writeText(
+            FullBuildInfoSerializer().serialize(
+                FullBuildInfo(
+                    compileCommand = "./gradlew :app:assembleDebug",
+                    buildTarget = buildTarget,
+                    createdAt = 123L,
+                )
+            ),
+            Charsets.UTF_8,
+        )
     }
 }

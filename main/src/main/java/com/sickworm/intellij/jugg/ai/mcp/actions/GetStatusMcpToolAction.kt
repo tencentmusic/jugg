@@ -7,8 +7,12 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -76,6 +80,10 @@ class GetStatusMcpToolAction(
                             type = "string",
                             description = "Readable local timestamp (yyyy-MM-dd HH:mm:ss) of latest compile/deploy/gradle-build invocation. Empty when none.",
                         ),
+                        "enabledAndroidTest" to McpJsonSchemaProperty(
+                            type = "boolean",
+                            description = "True when the last persisted full-build baseline was built with AndroidTest target.",
+                        ),
                     ),
                     required = listOf(
                         "hasDevice",
@@ -86,6 +94,7 @@ class GetStatusMcpToolAction(
                         "detail",
                         "lastFileModifiedTime",
                         "lastCompileTime",
+                        "enabledAndroidTest",
                     ),
                     additionalProperties = false,
                 )
@@ -143,6 +152,7 @@ class GetStatusMcpToolAction(
         val projectDir = (arguments["projectDir"] as? String)
             ?: runCatching { runtime.project.basePath }.getOrNull()
         val lastCompileTime = projectDir?.let { lastCompileTimestampRegistry.getTimestamp(it) } ?: ""
+        val enabledAndroidTest = projectDir?.let { isAndroidTestEnabledAtLastFullBuild(it) } ?: false
 
         val data: Map<String, Any> = mapOf(
             "hasDevice" to (runtime.deployTargetManager.hasDevice),
@@ -153,6 +163,7 @@ class GetStatusMcpToolAction(
             "detail" to detail,
             "lastFileModifiedTime" to lastFileModifiedTime,
             "lastCompileTime" to lastCompileTime,
+            "enabledAndroidTest" to enabledAndroidTest,
         )
 
         return McpToolResult(
@@ -162,5 +173,15 @@ class GetStatusMcpToolAction(
             artifacts = emptyList(),
             errorCode = null,
         )
+    }
+
+    private fun isAndroidTestEnabledAtLastFullBuild(projectDir: String): Boolean {
+        val fullBuildInfoFile = File(JuggPathManager(File(projectDir)).compileContextDbDir, "full_build_info.json")
+        if (!fullBuildInfoFile.exists()) {
+            return false
+        }
+        return runCatching {
+            FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8)).buildTarget == BuildTarget.ANDROID_TEST
+        }.getOrDefault(false)
     }
 }

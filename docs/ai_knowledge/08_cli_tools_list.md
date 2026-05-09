@@ -264,6 +264,8 @@ jugg activity-stack
 jugg status
 ```
 
+返回包含 `enabledAndroidTest`（基于最近 full build 基线）用于判定当时是否开启 Android Test 增量模式。
+
 ---
 
 #### `ssh-info`
