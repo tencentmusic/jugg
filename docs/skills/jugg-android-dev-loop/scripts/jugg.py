@@ -17,6 +17,7 @@ USAGE = """\
 Usage: jugg [--console=plain|rich|json] <subcommand> [options]
 
 Global options:
+  --json              Alias for --console=json; may appear before or after subcommand
   --console=rich      Enable progress spinner; human-readable output (default for shell wrapper)
   --console=plain     No spinner; plain text output (default for direct python3 calls)
   --console=json      Structured JSON output; implies no spinner
@@ -68,8 +69,9 @@ COMMANDS = {
 def main() -> None:
     args = sys.argv[1:]
 
-    # Extract global --console=<value> flag before subcommand dispatch.
     import jugglib
+    has_json, args = jugglib.has_json_flag(args)
+    # Extract global --console=<value> flag before subcommand dispatch.
     console = "plain"
     remaining = []
     for a in args:
@@ -84,6 +86,8 @@ def main() -> None:
             remaining.append(a)
     args = remaining
 
+    if has_json:
+        console = "json"
     jugglib.spinner_enabled = (console == "rich")
     jugglib.json_mode = (console == "json")
 

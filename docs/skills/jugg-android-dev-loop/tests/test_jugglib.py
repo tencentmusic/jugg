@@ -243,9 +243,9 @@ class NormalizeArgsRoundTripTest(unittest.TestCase):
         result = self.inspect(self._norm(["--text", "OK", "--class-name", "TextView", "getText()"]))
         self.assertEqual(result["target"]["className"], "TextView")
 
-    def test_ssh_consent(self):
-        result = self.ssh(self._norm(["--reason", "test", "--consent"]))
-        self.assertTrue(result["consent"])
+    def test_ssh_reason(self):
+        result = self.ssh(self._norm(["--reason", "test"]))
+        self.assertEqual(result["reason"], "test")
 
 
 class CompileCallErrorDetailTest(unittest.TestCase):

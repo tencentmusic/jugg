@@ -122,10 +122,9 @@ class SshInfoBuildParamsTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.build([])
 
-    def test_reason_with_consent(self):
-        result = self.build(["--reason", "investigating crash", "--consent"])
+    def test_reason(self):
+        result = self.build(["--reason", "investigating crash"])
         self.assertEqual(result["reason"], "investigating crash")
-        self.assertTrue(result["consent"])
 
 
 class InstrumentBuildParamsTest(unittest.TestCase):

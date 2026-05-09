@@ -240,6 +240,18 @@ def print_kv(structured: dict) -> None:
                 print(f"{k}: {v}")
 
 
+def has_json_flag(args: list[str]) -> tuple[bool, list[str]]:
+    """Return whether --json is present and remove it from the argument list."""
+    remaining = []
+    found = False
+    for arg in args:
+        if arg == "--json":
+            found = True
+        else:
+            remaining.append(arg)
+    return found, remaining
+
+
 # ─── terminal spinner ───────────────────────────────────────────────────────
 
 _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]

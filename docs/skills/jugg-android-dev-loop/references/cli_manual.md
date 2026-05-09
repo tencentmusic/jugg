@@ -15,6 +15,7 @@ Controlled by the global `--console` flag (must appear before the subcommand):
 Example:
 ```
 python3 {SKILL_DIR}/scripts/jugg.py --console=json deploy
+python3 {SKILL_DIR}/scripts/jugg.py deploy --json
 ```
 
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
