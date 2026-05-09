@@ -11,6 +11,10 @@ data class AgentHookTarget(
     val startEventName: String,
     val stopEventName: String,
     val clientArgument: String,
+    val editEventName: String? = null,
+    val commandEventName: String? = null,
+    val editMatcher: String? = null,
+    val commandMatcher: String? = null,
 )
 
 /**

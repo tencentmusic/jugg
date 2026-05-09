@@ -10,7 +10,7 @@ object CodexAgentInstaller : IAgentInstaller {
     override val client: InstallClient = InstallClient.CODEX
 
     override fun resolvePrimarySkillRoot(userHome: File): File {
-        val envHome = System.getenv("CODEX_HOME")
+        val envHome = System.getenv("CODEX_HOME").takeIf { userHome.isDefaultUserHome() }
         val codexHome = if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".codex")
         return File(codexHome, "skills")
     }
@@ -20,6 +20,7 @@ object CodexAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        // https://developers.openai.com/codex/hooks
         val targets = mutableListOf(
             AgentHookTarget(
                 settingsFile = File(userHome, ".codex/hooks.json"),
@@ -27,6 +28,10 @@ object CodexAgentInstaller : IAgentInstaller {
                 startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",
                 clientArgument = client.cliName,
+                editEventName = "PostToolUse",
+                commandEventName = "PreToolUse",
+                editMatcher = "*",
+                commandMatcher = "*",
             ),
         )
         resolveInternalSkillHomes(userHome)
@@ -38,8 +43,16 @@ object CodexAgentInstaller : IAgentInstaller {
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
                     clientArgument = client.cliName,
+                    editEventName = "PostToolUse",
+                    commandEventName = "PreToolUse",
+                    editMatcher = "*",
+                    commandMatcher = "*",
                 )
             }
         return targets
+    }
+
+    private fun File.isDefaultUserHome(): Boolean {
+        return absoluteFile == File(System.getProperty("user.home")).absoluteFile
     }
 }

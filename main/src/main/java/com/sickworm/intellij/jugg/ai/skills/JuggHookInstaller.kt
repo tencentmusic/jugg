@@ -27,6 +27,8 @@ object JuggHookInstaller {
     private const val CLIENT_OPTION = "--client"
     private const val START_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/start.py"
     private const val STOP_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/stop.py"
+    private const val EDIT_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/edit.py"
+    private const val COMMAND_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/command.py"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
 
     /**
@@ -50,7 +52,9 @@ object JuggHookInstaller {
     ): HookInstallSummary {
         val startScriptPath = File(userHome, START_HOOK_RELATIVE_PATH).absolutePath
         val stopScriptPath = File(userHome, STOP_HOOK_RELATIVE_PATH).absolutePath
-        val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath)
+        val editScriptPath = File(userHome, EDIT_HOOK_RELATIVE_PATH).absolutePath
+        val commandScriptPath = File(userHome, COMMAND_HOOK_RELATIVE_PATH).absolutePath
+        val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath, editScriptPath, commandScriptPath)
         val results = targets.map { target ->
             runCatching { installTarget(target) }
                 .onFailure { error ->
@@ -72,6 +76,8 @@ object JuggHookInstaller {
         userHome: File,
         startScriptPath: String,
         stopScriptPath: String,
+        editScriptPath: String,
+        commandScriptPath: String,
     ): List<HookInstallTarget> {
         if (clients.isEmpty()) {
             return emptyList()
@@ -88,6 +94,8 @@ object JuggHookInstaller {
                                 target = target,
                                 startCommand = buildHookCommand(startScriptPath, target.clientArgument),
                                 stopCommand = buildHookCommand(stopScriptPath, target.clientArgument),
+                                editCommand = buildHookCommand(editScriptPath, target.clientArgument),
+                                commandCommand = buildHookCommand(commandScriptPath, target.clientArgument),
                             ),
                         )
                     }
@@ -98,16 +106,28 @@ object JuggHookInstaller {
         return "$PYTHON3_PREFIX$scriptPath $CLIENT_OPTION $clientArgument"
     }
 
-    private fun buildAdapter(target: AgentHookTarget, startCommand: String, stopCommand: String): HookConfigAdapter {
+    private fun buildAdapter(
+        target: AgentHookTarget,
+        startCommand: String,
+        stopCommand: String,
+        editCommand: String,
+        commandCommand: String,
+    ): HookConfigAdapter {
         return when (target.style) {
             AgentHookConfigStyle.NESTED_EVENT_HOOKS -> {
                 NestedEventHooksAdapter(
                     startCommand = startCommand,
                     stopCommand = stopCommand,
+                    editCommand = editCommand,
+                    commandCommand = commandCommand,
                     startEventName = target.startEventName,
                     stopEventName = target.stopEventName,
+                    editEventName = target.editEventName,
+                    commandEventName = target.commandEventName,
                     startMatcher = null,
                     stopMatcher = MATCHER_ALL,
+                    editMatcher = target.editMatcher,
+                    commandMatcher = target.commandMatcher,
                 )
             }
 
@@ -115,10 +135,16 @@ object JuggHookInstaller {
                 FlatEventHooksAdapter(
                     startCommand = startCommand,
                     stopCommand = stopCommand,
+                    editCommand = editCommand,
+                    commandCommand = commandCommand,
                     startEventName = target.startEventName,
                     stopEventName = target.stopEventName,
+                    editEventName = target.editEventName,
+                    commandEventName = target.commandEventName,
                     startMatcher = MATCHER_ALL,
                     stopMatcher = MATCHER_ALL,
+                    editMatcher = target.editMatcher,
+                    commandMatcher = target.commandMatcher,
                 )
             }
         }
@@ -200,10 +226,16 @@ object JuggHookInstaller {
     private class NestedEventHooksAdapter(
         private val startCommand: String,
         private val stopCommand: String,
+        private val editCommand: String,
+        private val commandCommand: String,
         private val startEventName: String,
         private val stopEventName: String,
+        private val editEventName: String?,
+        private val commandEventName: String?,
         private val startMatcher: String?,
         private val stopMatcher: String?,
+        private val editMatcher: String?,
+        private val commandMatcher: String?,
     ) : HookConfigAdapter {
 
         override fun merge(existingContent: String?): HookMergeResult {
@@ -222,8 +254,28 @@ object JuggHookInstaller {
             val stopHookArray = stopEntry.ensureArray("hooks").also { changed = changed || it.second }.first
             val stopCommandAdded = ensureNestedCommandHook(stopHookArray, stopCommand)
             changed = changed || stopCommandAdded
+            val editCommandAdded = ensureOptionalNestedCommand(hooks, editEventName, editMatcher, editCommand)
+            val commandCommandAdded = ensureOptionalNestedCommand(hooks, commandEventName, commandMatcher, commandCommand)
+            changed = changed || editCommandAdded || commandCommandAdded
 
             return HookMergeResult(gson.toJson(root), changed)
+        }
+
+        private fun ensureOptionalNestedCommand(
+            hooks: JsonObject,
+            eventName: String?,
+            matcher: String?,
+            command: String,
+        ): Boolean {
+            if (eventName.isNullOrBlank()) {
+                return false
+            }
+            var changed = false
+            val event = hooks.ensureArray(eventName).also { changed = changed || it.second }.first
+            val entry = findOrCreateMatcherEntry(event, matcher).also { changed = changed || it.second }.first
+            val hookArray = entry.ensureArray("hooks").also { changed = changed || it.second }.first
+            val commandAdded = ensureNestedCommandHook(hookArray, command)
+            return changed || commandAdded
         }
 
         private fun findOrCreateMatcherEntry(eventHooks: JsonArray, matcherValue: String?): Pair<JsonObject, Boolean> {
@@ -284,10 +336,16 @@ object JuggHookInstaller {
     private class FlatEventHooksAdapter(
         private val startCommand: String,
         private val stopCommand: String,
+        private val editCommand: String,
+        private val commandCommand: String,
         private val startEventName: String,
         private val stopEventName: String,
+        private val editEventName: String?,
+        private val commandEventName: String?,
         private val startMatcher: String?,
         private val stopMatcher: String?,
+        private val editMatcher: String?,
+        private val commandMatcher: String?,
     ) : HookConfigAdapter {
 
         override fun merge(existingContent: String?): HookMergeResult {
@@ -302,8 +360,26 @@ object JuggHookInstaller {
             val stopEvent = hooks.ensureArray(stopEventName).also { changed = changed || it.second }.first
             val stopCommandAdded = ensureFlatCommandEntry(stopEvent, stopCommand, stopMatcher)
             changed = changed || stopCommandAdded
+            val editCommandAdded = ensureOptionalFlatCommand(hooks, editEventName, editMatcher, editCommand)
+            val commandCommandAdded = ensureOptionalFlatCommand(hooks, commandEventName, commandMatcher, commandCommand)
+            changed = changed || editCommandAdded || commandCommandAdded
 
             return HookMergeResult(gson.toJson(root), changed)
+        }
+
+        private fun ensureOptionalFlatCommand(
+            hooks: JsonObject,
+            eventName: String?,
+            matcher: String?,
+            command: String,
+        ): Boolean {
+            if (eventName.isNullOrBlank()) {
+                return false
+            }
+            var changed = false
+            val event = hooks.ensureArray(eventName).also { changed = changed || it.second }.first
+            val commandAdded = ensureFlatCommandEntry(event, command, matcher)
+            return changed || commandAdded
         }
 
         private fun ensureFlatCommandEntry(eventHooks: JsonArray, command: String, matcher: String?): Boolean {

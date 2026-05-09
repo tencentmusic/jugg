@@ -10,7 +10,7 @@ object GeminiAgentInstaller : IAgentInstaller {
     override val client: InstallClient = InstallClient.GEMINI
 
     override fun resolvePrimarySkillRoot(userHome: File): File {
-        val envHome = System.getenv("GEMINI_HOME")
+        val envHome = System.getenv("GEMINI_HOME").takeIf { userHome.isDefaultUserHome() }
         val geminiHome = if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".gemini")
         return File(geminiHome, "skills")
     }
@@ -20,6 +20,7 @@ object GeminiAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        // https://geminicli.com/docs/hooks/
         val targets = mutableListOf(
             AgentHookTarget(
                 settingsFile = File(userHome, ".gemini/settings.json"),
@@ -27,6 +28,10 @@ object GeminiAgentInstaller : IAgentInstaller {
                 startEventName = "BeforeAgent",
                 stopEventName = "AfterAgent",
                 clientArgument = client.cliName,
+                editEventName = "AfterTool",
+                commandEventName = "BeforeTool",
+                editMatcher = "*",
+                commandMatcher = "*",
             ),
         )
         resolveInternalSkillHomes(userHome)
@@ -38,8 +43,16 @@ object GeminiAgentInstaller : IAgentInstaller {
                     startEventName = "BeforeAgent",
                     stopEventName = "AfterAgent",
                     clientArgument = client.cliName,
+                    editEventName = "AfterTool",
+                    commandEventName = "BeforeTool",
+                    editMatcher = "*",
+                    commandMatcher = "*",
                 )
             }
         return targets
+    }
+
+    private fun File.isDefaultUserHome(): Boolean {
+        return absoluteFile == File(System.getProperty("user.home")).absoluteFile
     }
 }

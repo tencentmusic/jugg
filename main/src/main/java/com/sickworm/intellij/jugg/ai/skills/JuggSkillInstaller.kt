@@ -21,7 +21,7 @@ object JuggSkillInstaller {
     private const val SKILLS_BUNDLE_ZIP_RESOURCE = "docs/skills/docs-skills.zip"
     private const val BUNDLED_HOOKS_DIR = "hooks"
     private const val BUNDLED_INSTALL_DOC_PATH = "install/agent_setup.md"
-    private val HOOK_SCRIPT_FILES = setOf("start.py", "stop.py")
+    private val HOOK_SCRIPT_FILES = setOf("start.py", "stop.py", "edit.py", "command.py", "hook_common.py")
 
     /**
      * Installs skill for selected clients by extracting bundled skill files.
@@ -201,8 +201,11 @@ object JuggSkillInstaller {
                 }
             }
             if (!isWindows()) {
-                File(bundledHooksDir, "start.py").takeIf { it.exists() }?.setExecutable(true, false)
-                File(bundledHooksDir, "stop.py").takeIf { it.exists() }?.setExecutable(true, false)
+                HOOK_SCRIPT_FILES
+                    .filter { it != "hook_common.py" }
+                    .forEach { fileName ->
+                        File(bundledHooksDir, fileName).takeIf { it.exists() }?.setExecutable(true, false)
+                    }
             }
             logger.info("[Install Jugg Hooks] installed to ${bundledHooksDir.path}")
         }

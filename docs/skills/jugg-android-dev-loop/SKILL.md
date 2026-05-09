@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.5
-date: 2026-04-23
+version: 1.0.6
+date: 2026-05-09
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -112,8 +112,9 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest
 python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest --method testSomething
-python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt -e size=large -e clearPackageData=true
 ```
 
 ### Runtime Basic Commands

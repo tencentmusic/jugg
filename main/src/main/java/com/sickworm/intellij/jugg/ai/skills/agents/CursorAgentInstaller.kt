@@ -14,6 +14,7 @@ object CursorAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        // https://cursor.com/cn/docs/hooks
         return listOf(
             AgentHookTarget(
                 settingsFile = File(userHome, ".cursor/hooks.json"),
@@ -21,6 +22,10 @@ object CursorAgentInstaller : IAgentInstaller {
                 startEventName = "beforeSubmitPrompt",
                 stopEventName = "stop",
                 clientArgument = client.cliName,
+                editEventName = "afterFileEdit",
+                commandEventName = "beforeShellExecution",
+                editMatcher = "*",
+                commandMatcher = "*",
             ),
         )
     }

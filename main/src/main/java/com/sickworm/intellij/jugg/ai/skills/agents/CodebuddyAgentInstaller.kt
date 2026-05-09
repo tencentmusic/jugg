@@ -14,6 +14,7 @@ object CodebuddyAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        // https://www.codebuddy.ai/docs/cli/hooks
         return listOf(
             AgentHookTarget(
                 settingsFile = File(userHome, ".codebuddy/settings.json"),
@@ -21,6 +22,10 @@ object CodebuddyAgentInstaller : IAgentInstaller {
                 startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",
                 clientArgument = client.cliName,
+                editEventName = "PostToolUse",
+                commandEventName = "PreToolUse",
+                editMatcher = "*",
+                commandMatcher = "*",
             ),
             AgentHookTarget(
                 settingsFile = File(userHome, ".codebuddy/settings.local.json"),
@@ -28,6 +33,10 @@ object CodebuddyAgentInstaller : IAgentInstaller {
                 startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",
                 clientArgument = client.cliName,
+                editEventName = "PostToolUse",
+                commandEventName = "PreToolUse",
+                editMatcher = "*",
+                commandMatcher = "*",
             ),
         )
     }

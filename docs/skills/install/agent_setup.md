@@ -30,16 +30,19 @@ If you do not use the in-app installer, you can configure hooks manually.
 1. Ensure the hook scripts exist at:
    - `~/.jugg/skills/hooks/start.py`
    - `~/.jugg/skills/hooks/stop.py`
+   - `~/.jugg/skills/hooks/edit.py`
+   - `~/.jugg/skills/hooks/command.py`
+   - `~/.jugg/skills/hooks/hook_common.py`
 2. Edit your client hook config file(s) and add hook entries.
 3. Use absolute script paths in `command` (do not use relative paths).
 
 Event mapping by client:
 
-| Client | Start event | Stop event | Hook style |
-|--------|-------------|------------|------------|
-| Codex / Claude Code / CodeBuddy | `UserPromptSubmit` | `Stop` | nested event hooks |
-| Gemini CLI | `BeforeAgent` | `AfterAgent` | nested event hooks |
-| Cursor | `beforeSubmitPrompt` | `stop` | flat event commands |
+| Client | Start event | Stop event | Edit event | Command event | Hook style |
+|--------|-------------|------------|------------|---------------|------------|
+| Codex / Claude Code / CodeBuddy | `UserPromptSubmit` | `Stop` | `PostToolUse` | `PreToolUse` | nested event hooks |
+| Gemini CLI | `BeforeAgent` | `AfterAgent` | `AfterTool` | `BeforeTool` | nested event hooks |
+| Cursor | `beforeSubmitPrompt` | `stop` | `afterFileEdit` | `beforeShellExecution` | flat event commands |
 
 Use the matching client value in hook commands: `claude`, `cursor`, `codebuddy` or others.
 
@@ -64,6 +67,28 @@ Example:
           {
             "type": "command",
             "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/stop.py --client claude"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/edit.py --client claude"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/command.py --client claude"
           }
         ]
       }

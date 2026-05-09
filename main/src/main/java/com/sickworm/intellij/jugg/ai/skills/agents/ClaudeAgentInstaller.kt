@@ -25,12 +25,17 @@ object ClaudeAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
+        // https://code.claude.com/docs/en/hooks
         val primary = AgentHookTarget(
             settingsFile = File(userHome, ".claude/settings.json"),
             style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
             startEventName = "UserPromptSubmit",
             stopEventName = "Stop",
             clientArgument = client.cliName,
+            editEventName = "PostToolUse",
+            commandEventName = "PreToolUse",
+            editMatcher = "*",
+            commandMatcher = "*",
         )
         val targets = mutableListOf(primary)
         resolveInternalSkillHomes(userHome)
@@ -42,6 +47,10 @@ object ClaudeAgentInstaller : IAgentInstaller {
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
                     clientArgument = client.cliName,
+                    editEventName = "PostToolUse",
+                    commandEventName = "PreToolUse",
+                    editMatcher = "*",
+                    commandMatcher = "*",
                 )
             }
         return targets

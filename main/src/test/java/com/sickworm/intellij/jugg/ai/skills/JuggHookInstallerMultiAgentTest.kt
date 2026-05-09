@@ -22,9 +22,11 @@ class JuggHookInstallerMultiAgentTest {
         // Pre-create internal dirs so that the installer recognises them and injects hooks
         File(userHome, ".gemini-internal").mkdirs()
         File(userHome, ".codex-internal").mkdirs()
+        File(userHome, ".claude-internal").mkdirs()
 
         val summary = JuggHookInstaller.installForClients(
             clients = setOf(
+                InstallClient.CLAUDE,
                 InstallClient.CODEX,
                 InstallClient.CODEBUDDY,
                 InstallClient.CURSOR,
@@ -34,15 +36,39 @@ class JuggHookInstallerMultiAgentTest {
             logger = logger,
         )
 
-        assertEquals(7, summary.results.size)
+        assertEquals(9, summary.results.size)
         assertTrue(summary.results.all { it.status == "ok" })
 
+        assertNestedHookCommands(
+            settingsFile = File(userHome, ".claude/settings.json"),
+            startEventName = "UserPromptSubmit",
+            stopEventName = "Stop",
+            startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
+            stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "claude",
+        )
+        assertNestedToolHookCommands(
+            settingsFile = File(userHome, ".claude/settings.json"),
+            editEventName = "PostToolUse",
+            commandEventName = "PreToolUse",
+            editCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            commandCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}command.py",
+            clientArgument = "claude",
+        )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".codex/hooks.json"),
             startEventName = "UserPromptSubmit",
             stopEventName = "Stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "codex",
+        )
+        assertNestedToolHookCommands(
+            settingsFile = File(userHome, ".codex/hooks.json"),
+            editEventName = "PostToolUse",
+            commandEventName = "PreToolUse",
+            editCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            commandCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}command.py",
             clientArgument = "codex",
         )
         assertNestedHookCommands(
@@ -61,12 +87,28 @@ class JuggHookInstallerMultiAgentTest {
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
             clientArgument = "codebuddy",
         )
+        assertNestedToolHookCommands(
+            settingsFile = File(userHome, ".codebuddy/settings.json"),
+            editEventName = "PostToolUse",
+            commandEventName = "PreToolUse",
+            editCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            commandCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}command.py",
+            clientArgument = "codebuddy",
+        )
         assertNestedHookCommands(
             settingsFile = File(userHome, ".gemini/settings.json"),
             startEventName = "BeforeAgent",
             stopEventName = "AfterAgent",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "gemini",
+        )
+        assertNestedToolHookCommands(
+            settingsFile = File(userHome, ".gemini/settings.json"),
+            editEventName = "AfterTool",
+            commandEventName = "BeforeTool",
+            editCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            commandCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}command.py",
             clientArgument = "gemini",
         )
         assertNestedHookCommands(
@@ -83,6 +125,14 @@ class JuggHookInstallerMultiAgentTest {
             stopEventName = "stop",
             startCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}start.py",
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "cursor",
+        )
+        assertFlatToolHookCommands(
+            settingsFile = File(userHome, ".cursor/hooks.json"),
+            editEventName = "afterFileEdit",
+            commandEventName = "beforeShellExecution",
+            editCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            commandCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}command.py",
             clientArgument = "cursor",
         )
         assertNestedCommandUsesPython3(
@@ -200,6 +250,34 @@ class JuggHookInstallerMultiAgentTest {
         val stopEvent = hooks.getAsJsonArray(stopEventName)
         assertTrue(findFlatCommand(startEvent, startCommandSuffix, clientArgument))
         assertTrue(findFlatCommand(stopEvent, stopCommandSuffix, clientArgument))
+    }
+
+    private fun assertNestedToolHookCommands(
+        settingsFile: File,
+        editEventName: String,
+        commandEventName: String,
+        editCommandSuffix: String,
+        commandCommandSuffix: String,
+        clientArgument: String,
+    ) {
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val hooks = root.getAsJsonObject("hooks")
+        assertTrue(findNestedCommand(hooks.getAsJsonArray(editEventName), editCommandSuffix, clientArgument))
+        assertTrue(findNestedCommand(hooks.getAsJsonArray(commandEventName), commandCommandSuffix, clientArgument))
+    }
+
+    private fun assertFlatToolHookCommands(
+        settingsFile: File,
+        editEventName: String,
+        commandEventName: String,
+        editCommandSuffix: String,
+        commandCommandSuffix: String,
+        clientArgument: String,
+    ) {
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val hooks = root.getAsJsonObject("hooks")
+        assertTrue(findFlatCommand(hooks.getAsJsonArray(editEventName), editCommandSuffix, clientArgument))
+        assertTrue(findFlatCommand(hooks.getAsJsonArray(commandEventName), commandCommandSuffix, clientArgument))
     }
 
     private fun findNestedCommand(eventArray: JsonArray, commandSuffix: String, clientArgument: String): Boolean {
