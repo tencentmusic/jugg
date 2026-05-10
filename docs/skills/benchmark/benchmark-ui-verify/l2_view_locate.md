@@ -1,458 +1,83 @@
-# L2 Unit：view_locate / ui_find
+# L2 Unit: view-locate
 
-> 覆盖元素定位的各类场景：精确文本匹配、resourceId 匹配、contentDesc 匹配、
-> 多候选歧义处理、不存在元素、深层嵌套元素定位。
+目标：验证 Agent 能用 `view-locate` 完成元素定位，并正确处理多匹配、不存在、不可见和 contentDescription 场景。
 
----
+## LOC-1: 文本精确定位
 
-### TC-VL01：精确文本匹配（唯一元素）
+Prompt：在 McpTestActivity 找到文本为 `Unique MCP Target` 的按钮。
 
-**级别**：L2
-**命令**：ui_find / view_locate
+期望：
+- 选择 `view-locate --text "Unique MCP Target"`。
+- 返回唯一元素的 bounds/中心点。
 
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
+## LOC-2: resourceId 定位
 
-**输入（LLM 收到的指令）**：
-> 找到文本为 "Unique MCP Target" 的按钮
+Prompt：找到 resource id 为 `btn_mcp_resource_target` 的按钮。
 
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Unique MCP Target"})`
-2. 返回唯一匹配元素，bounds=[16, 368, 395, 416]
+期望：
+- 选择 `view-locate --resource-id btn_mcp_resource_target`。
+- 不使用旧参数 `--id`。
 
-**关键参数**（必须精确匹配）：
-- `text` = `"Unique MCP Target"`
+## LOC-3: contentDescription 定位
 
-**宽松参数**（允许偏差）：
-- `className`、`resourceId` 可附加
+Prompt：找到 content description 为 `mcp-resource-target` 的元素。
 
-**期望输出行为**：
-- 返回一个元素，bounds 正确
-- LLM 报告元素位置
+期望：
+- 选择 `view-locate --content-desc mcp-resource-target`。
+- 不把 contentDescription 当成 text。
 
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 命令调用正确 + 文本参数正确 + 报告位置 |
-| 4 | 参数正确但额外做了不必要的调用 |
-| 3 | 调用了正确命令但文本有轻微偏差 |
-| 2 | 使用了 layout_dump 但结论正确 |
-| 1 | 方向性错误 |
-| 0 | 未调用命令 |
+## LOC-4: 多匹配文本
 
----
+Prompt：定位文本为 `Repeat Tap Target` 的元素。
 
-### TC-VL02：resourceId 精确匹配
+期望：
+- 选择 `view-locate --text "Repeat Tap Target"`。
+- 如果返回多匹配或候选列表，应报告歧义，不随机选一个。
 
-**级别**：L2
-**命令**：ui_find / view_locate
+## LOC-5: 不存在元素
 
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
+Prompt：确认页面上不存在文本为 `NonExistentElementXYZ` 的元素。
 
-**输入（LLM 收到的指令）**：
-> 通过 resource id "btn_mcp_resource_target" 找到对应元素并报告其 contentDescription
+期望：
+- 选择 `view-locate --text "NonExistentElementXYZ"`。
+- 未找到是预期结果；不得改成模糊匹配。
 
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={resourceId: "btn_mcp_resource_target"})`
-2. 返回元素，contentDesc = "mcp-resource-target"
+## LOC-6: 可见元素优先
 
-**关键参数**（必须精确匹配）：
-- `resourceId` = `"btn_mcp_resource_target"`
+Prompt：定位文本为 `Visibility Tap Target` 的可见按钮。
 
-**宽松参数**：
-- 完整包名前缀可省略
+期望：
+- 选择 `view-locate --text "Visibility Tap Target"`。
+- 隐藏的 `btn_mcp_visibility_hidden` 不应被当作可点击目标。
 
-**期望输出行为**：
-- 返回元素，LLM 报告 contentDesc 为 "mcp-resource-target"
+## LOC-7: 深层嵌套文本
 
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 正确调用 + resourceId 正确 + 正确报告 contentDesc |
-| 4 | 调用正确但未报告 contentDesc，只报告位置 |
-| 3 | 使用 text 匹配代替 resourceId 匹配，但结论正确 |
-| 2 | 使用错误命令但结论正确 |
-| 1 | 方向性错误 |
-| 0 | 未调用命令 |
+Prompt：找到文本为 `Nested Label` 的元素。
 
----
+期望：
+- 选择 `view-locate --text "Nested Label"`。
+- 记录它在父容器中的实际位置。
 
-### TC-VL03：contentDescription 匹配
+## LOC-8: 图标 contentDescription
 
-**级别**：L2
-**命令**：ui_find / view_locate
+Prompt：找到 content description 为 `mcp icon` 的图标。
 
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
+期望：
+- 选择 `view-locate --content-desc "mcp icon"`。
+- 如果当前滚动位置不可见，应先说明需要页面状态或使用 `layout-dump` 取证。
 
-**输入（LLM 收到的指令）**：
-> 找到 contentDescription 为 "mcp-resource-target" 的元素
+## LOC-9: 屏幕外元素
 
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={contentDesc: "mcp-resource-target"})`
-2. 返回匹配元素
+Prompt：找到文本为 `Swipe End Marker` 的元素。
 
-**关键参数**：
-- `contentDesc` = `"mcp-resource-target"`
+期望：
+- 先尝试 `view-locate --text "Swipe End Marker"`。
+- 如果不可见，应报告当前视口未命中；不能假造坐标。
 
-**宽松参数**：
-- `className` 可缺省
+## LOC-10: selector 缺失
 
-**期望输出行为**：
-- 返回元素，LLM 确认找到该元素
+Prompt：验证元素定位命令没有 selector 时不会成功。
 
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 正确使用 contentDesc 参数 + 结论正确 |
-| 4 | 使用了 resourceId 代替 contentDesc 但结论正确 |
-| 3 | 调用正确命令但参数字段名有偏差 |
-| 2 | 使用错误命令但结论正确 |
-| 1 | 方向性错误 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL04：多候选歧义处理（同文本两元素）
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity（页面上有两个文本均为 "Repeat Tap Target" 的按钮）
-
-**输入（LLM 收到的指令）**：
-> 找到文本为 "Repeat Tap Target" 的按钮，共有几个？分别在什么位置？
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Repeat Tap Target"})` 或等价调用
-2. 返回两个匹配元素
-
-**关键参数**：
-- `text` = `"Repeat Tap Target"`
-
-**期望输出行为**：
-- LLM 报告找到 **2** 个元素
-- 分别报告两个元素的位置（bounds 不同）
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 命令调用正确 + 报告了 2 个元素 + 位置均正确 |
-| 4 | 报告了 2 个元素但位置有轻微偏差 |
-| 3 | 只报告了 1 个元素（漏报） |
-| 2 | 使用错误命令但结论部分正确 |
-| 1 | 认为元素不存在或只返回一个并声称唯一 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL05：不存在元素的处理
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
-
-**输入（LLM 收到的指令）**：
-> 找到文本为 "NonExistentElementXYZ" 的元素
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "NonExistentElementXYZ"})`
-2. 命令返回空结果或找不到元素
-
-**关键参数**：
-- `text` = `"NonExistentElementXYZ"`
-
-**期望输出行为**：
-- LLM 正确报告元素不存在，**不应伪造结果**
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 命令调用正确 + 正确报告不存在 |
-| 4 | 调用正确但报告措辞不明确 |
-| 3 | 调用了命令但未明确报告不存在 |
-| 2 | 没调用命令但猜测了元素不存在 |
-| 1 | 声称元素存在（幻觉） |
-| 0 | 未调用命令且给出错误结论 |
-
----
-
-### TC-VL06：visibility=GONE 元素不可见验证
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity（`btn_mcp_visibility_hidden` 为 invisible）
-
-**输入（LLM 收到的指令）**：
-> 页面上有两个文本为 "Visibility Tap Target" 的按钮。请告诉我哪个是可见的，哪个是不可见的？
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Visibility Tap Target"})` 获取所有匹配元素
-2. 分析 visibility 属性
-
-**关键参数**：
-- `text` = `"Visibility Tap Target"`
-
-**期望输出行为**：
-- LLM 报告一个可见（`btn_mcp_visibility_visible`），一个不可见（`btn_mcp_visibility_hidden`）
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 正确区分可见/不可见两个元素 |
-| 4 | 正确区分但混淆了哪个 id 对应哪种状态 |
-| 3 | 只找到一个元素，未报告另一个 |
-| 2 | 找到了两个但未区分可见性 |
-| 1 | 声称只有一个按钮 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL07：嵌套结构内元素定位
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
-
-**输入（LLM 收到的指令）**：
-> 在 id 为 "ll_mcp_parent" 的 LinearLayout 内，找到文本为 "Nested Label" 的 TextView
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Nested Label"})` 或带 resourceId 的调用
-2. 返回嵌套在 `ll_mcp_parent` 内的 `tv_mcp_label` 元素
-
-**关键参数**：
-- `text` = `"Nested Label"` 或 `resourceId` = `"tv_mcp_label"`
-
-**期望输出行为**：
-- LLM 找到 `tv_mcp_label`，确认其父容器为 `ll_mcp_parent`
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 正确找到元素 + 确认层级关系 |
-| 4 | 找到元素但未确认父容器 |
-| 3 | 找到了正确元素但路径描述有偏差 |
-| 2 | 先找父容器再找子元素（额外调用），但结论正确 |
-| 1 | 找到了错误元素 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL08：CardView 内部元素定位
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
-
-**输入（LLM 收到的指令）**：
-> 找到 Card 容器内文本为 "Card Description" 的 TextView
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Card Description"})`
-2. 返回 `tv_card_desc` 元素
-
-**关键参数**：
-- `text` = `"Card Description"`
-
-**期望输出行为**：
-- LLM 找到 `tv_card_desc`，报告其在 `card_mcp_container` 内
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 正确找到 + 报告父容器关系 |
-| 4 | 找到元素但未报告容器关系 |
-| 3 | 找到元素但容器描述有误 |
-| 2 | 使用错误命令但结论正确 |
-| 1 | 找到错误元素 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL09：ImageView 通过 contentDesc 定位
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
-
-**输入（LLM 收到的指令）**：
-> 找到 contentDescription 为 "mcp icon" 的图标元素，报告其大小
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={contentDesc: "mcp icon"})`
-2. 返回 `iv_mcp_icon`，bounds 宽高均为 32dp
-
-**关键参数**：
-- `contentDesc` = `"mcp icon"`
-
-**期望输出行为**：
-- LLM 报告 32×32dp 的图标
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 正确通过 contentDesc 找到 + 尺寸正确 |
-| 4 | 找到了但尺寸报告有轻微偏差 |
-| 3 | 通过文本或 id 找到，未使用 contentDesc |
-| 2 | 使用错误命令但结论正确 |
-| 1 | 找不到元素 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL11：通过文本定位并验证 enabled 状态
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
-
-**输入（LLM 收到的指令）**：
-> 找到文本为 "Unique MCP Target" 的按钮，确认它是否处于启用（enabled）状态
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Unique MCP Target"})`
-2. 从返回的元素属性中读取 `enabled` 字段，确认为 true
-
-**关键参数**：
-- `text` = `"Unique MCP Target"`
-
-**期望输出行为**：
-- LLM 报告按钮处于启用状态
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 命令调用正确 + 正确读取 enabled 字段 + 结论正确 |
-| 4 | 调用正确但对 enabled 的描述不够明确 |
-| 3 | 调用了命令但未读取 enabled 属性 |
-| 2 | 使用 eval_view 的 isEnabled() 代替 ui_find，但结论正确 |
-| 1 | 方向性错误 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL12：通过 resourceId 验证元素可见性（INVISIBLE）
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity（`btn_mcp_visibility_hidden` visibility=INVISIBLE）
-
-**输入（LLM 收到的指令）**：
-> 找到 resource id 为 "btn_mcp_visibility_hidden" 的按钮，报告它的可见性状态
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={resourceId: "btn_mcp_visibility_hidden"})`
-2. 从返回属性中读取 `visibility` 或 `displayed` 字段
-
-**关键参数**：
-- `resourceId` = `"btn_mcp_visibility_hidden"`
-
-**期望输出行为**：
-- LLM 报告该按钮不可见（invisible），而非 visible 或 gone
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 命令调用正确 + 正确报告 invisible |
-| 4 | 调用正确但可见性描述措辞不够精确 |
-| 3 | 找到了元素但未报告可见性状态 |
-| 2 | 使用 eval_view 的 getVisibility() 代替，结论正确 |
-| 1 | 报告该元素可见（结论错误） |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL13：contentDescription 存在性验证
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity
-
-**输入（LLM 收到的指令）**：
-> 确认页面上是否存在 contentDescription 为 "mcp-resource-target" 的元素，该需求是否满足？
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={contentDesc: "mcp-resource-target"})`
-2. 返回元素存在，结论为需求满足
-
-**关键参数**：
-- `contentDesc` = `"mcp-resource-target"`
-
-**期望输出行为**：
-- LLM 确认元素存在，需求满足
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 正确使用 contentDesc 参数 + 结论正确（需求满足） |
-| 4 | 使用了 resourceId 代替，但结论正确 |
-| 3 | 调用正确命令但未给出"需求是否满足"的明确结论 |
-| 2 | 使用错误命令但结论正确 |
-| 1 | 方向性错误 |
-| 0 | 未调用命令 |
-
----
-
-### TC-VL10：ScrollView 内不在屏幕可见区域的元素
-
-**级别**：L2
-**命令**：ui_find / view_locate
-
-**前置条件**：
-- 设备已连接
-- 当前页面：McpTestActivity（页面停留在顶部，Swipe 区域在 ScrollView 底部）
-
-**输入（LLM 收到的指令）**：
-> 找到文本为 "Swipe End Marker" 的元素，它是否在当前可见区域内？
-
-**期望调用序列**：
-1. 通过 jugg-android-dev-loop 执行 `ui_find(target={text: "Swipe End Marker"})`
-2. 返回元素信息
-
-**关键参数**：
-- `text` = `"Swipe End Marker"`
-
-**期望输出行为**：
-- LLM 找到该元素
-- 能正确判断其是否在当前屏幕可见范围内（根据 bounds 判断）
-
-**评分 Rubric（满分 5 分）**：
-| 分 | 判定标准 |
-|----|---------|
-| 5 | 找到元素 + 正确判断可见性 |
-| 4 | 找到元素但未判断可见性 |
-| 3 | 找到元素但可见性判断有误 |
-| 2 | 使用错误命令但结论基本正确 |
-| 1 | 找不到元素 |
-| 0 | 未调用命令 |
+期望：
+- Agent 应知道 `view-locate` 需要 `--text`、`--resource-id` 或 `--content-desc`。
+- 若执行缺参命令，应把参数错误判为预期失败。
