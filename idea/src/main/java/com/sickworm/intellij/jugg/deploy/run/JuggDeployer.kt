@@ -10,7 +10,6 @@ import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.deploy.AdbTransientOffline
-import java.util.concurrent.TimeUnit
 
 /**
  * @see com.android.tools.deployer.Deployer
@@ -264,22 +263,20 @@ class JuggDeployer(
                 if (!AdbTransientOffline.isOffline(e)) {
                     throw e
                 }
-                logger.info("Device ${adb.serial} went offline during $phase, wait up to ${AdbTransientOffline.DEFAULT_WAIT_MILLIS}ms.", e)
-                if (!waitAdbTransportReady(adb)) {
+                if (!waitAdbTransportReady(phase, adb, logger)) {
                     throw AdbTransientOffline.toException(phase, e)
                 }
                 block()
             }
         }
 
-        private fun waitAdbTransportReady(adb: AdbClient): Boolean {
-            return AdbTransientOffline.waitUntilReady {
-                try {
-                    adb.shell(arrayOf("true"), null, 5L, TimeUnit.SECONDS)
-                    true
-                } catch (e: Exception) {
-                    false
-                }
+        private fun waitAdbTransportReady(phase: String, adb: AdbClient, logger: AdbLogWrapper): Boolean {
+            return AdbTransientOffline.waitForAdbTransport(
+                serial = adb.serial,
+                phase = phase,
+                adb = adb,
+            ) {
+                logger.info(it)
             }
         }
     }

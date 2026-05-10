@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.android.tools.deployer.AdbClient
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 internal object AdbTransientOffline {
 
@@ -52,6 +54,28 @@ internal object AdbTransientOffline {
             }
         }
         return false
+    }
+
+    fun waitForAdbTransport(
+        serial: String,
+        phase: String,
+        adb: AdbClient,
+        isDeviceOnline: () -> Boolean = { true },
+        logWait: (String) -> Unit,
+    ): Boolean {
+        logWait("Device $serial went offline during $phase, wait up to ${DEFAULT_WAIT_MILLIS}ms.")
+        return waitUntilReady {
+            isDeviceOnline() && isAdbShellReady(adb)
+        }
+    }
+
+    private fun isAdbShellReady(adb: AdbClient): Boolean {
+        return try {
+            adb.shell(arrayOf("true"), null, 5L, TimeUnit.SECONDS)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun isOfflineClass(throwable: Throwable): Boolean {

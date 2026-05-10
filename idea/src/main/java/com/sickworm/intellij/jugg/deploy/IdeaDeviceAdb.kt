@@ -130,7 +130,7 @@ class IdeaDeviceAdb(
         } catch (e: Exception) {
             logger.debug("invoke execAdbShellCmd failed, retry count $retryCount ", e)
             if (AdbTransientOffline.isOffline(e)) {
-                if (retryCount == 0 && waitDeviceOnline(cmd)) {
+                if (retryCount == 0 && waitAdbTransportReady(cmd)) {
                     return execAdbShellCmd(cmd, retryCount = 1)
                 }
                 throw AdbTransientOffline.toException("adb shell $cmd", e)
@@ -164,7 +164,7 @@ class IdeaDeviceAdb(
             return try {
                 execAdbShellCmdByCli(cmd)
             } catch (offline: AdbTransientOfflineException) {
-                if (retryCount == 0 && waitDeviceOnline(cmd)) {
+                if (retryCount == 0 && waitAdbTransportReady(cmd)) {
                     return execAdbShellCmd(cmd, retryCount = 1)
                 }
                 throw offline
@@ -172,22 +172,14 @@ class IdeaDeviceAdb(
         }
     }
 
-    private fun waitDeviceOnline(cmd: String): Boolean {
-        logger.warn("Device $serial went offline during adb shell $cmd, wait up to ${AdbTransientOffline.DEFAULT_WAIT_MILLIS}ms.")
-        return AdbTransientOffline.waitUntilReady {
-            isAdbTransportReady()
-        }
-    }
-
-    private fun isAdbTransportReady(): Boolean {
-        if (!device.isOnline) {
-            return false
-        }
-        return try {
-            adb.shell(arrayOf("true"), null, 5L, TimeUnit.SECONDS)
-            true
-        } catch (e: Exception) {
-            false
+    private fun waitAdbTransportReady(cmd: String): Boolean {
+        return AdbTransientOffline.waitForAdbTransport(
+            serial = serial,
+            phase = "adb shell $cmd",
+            adb = adb,
+            isDeviceOnline = { device.isOnline },
+        ) {
+            logger.warn(it)
         }
     }
 
