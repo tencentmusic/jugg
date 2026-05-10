@@ -193,12 +193,7 @@ class JuggConfigurationRunner(
         SwingUtilities.invokeLater {
             val executor = DefaultRunExecutor.getRunExecutorInstance()
             val executionResult = runTask(compileOptions, compileUiHandler, null, null, androidTestRunSpec)
-            val descriptor = RunContentDescriptor(
-                executionResult.executionConsole,
-                executionResult.processHandler,
-                executionResult.executionConsole.component,
-                runConfiguration.name,
-            )
+            val descriptor = createRunContentDescriptor(executionResult, runConfiguration.name)
             RunContentManager.getInstance(project).showRunContent(executor, descriptor)
         }
 
@@ -218,6 +213,20 @@ class JuggConfigurationRunner(
                 if (r.isCompileSuccess) "deploy failed" else "compile failed"
             } else null,
         )
+    }
+}
+
+internal fun createRunContentDescriptor(
+    executionResult: ExecutionResult,
+    displayName: String,
+): RunContentDescriptor {
+    return RunContentDescriptor(
+        executionResult.executionConsole,
+        executionResult.processHandler,
+        executionResult.executionConsole.component,
+        displayName,
+    ).apply {
+        isActivateToolWindowWhenAdded = false
     }
 }
 

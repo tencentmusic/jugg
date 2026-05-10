@@ -45,6 +45,7 @@
   - 安装弹窗提供 `Manual Setup Guide`，运行时复用 `~/.jugg/skills/install/agent_setup.md`（`main/ai/skills/ClientSetupDocExporter.kt`）。  
 - 操作入口：`ide/ui/GradleCompileAction.kt`、`RestartAppAction.kt` 等。  
 - 通知与对话框：`JuggCommonNotification.kt`、`BuildChangesConfirmDialog.kt`、`Report*Dialog.kt`。
+- CLI/MCP/RPC 触发的 `runFirstConfigurationWithSpec` 仍会通过 `RunContentManager.showRunContent` 创建 Run content，保证 console/tab 可用；但 `RunContentDescriptor.isActivateToolWindowWhenAdded=false`，避免创建 content 时自动切到 Run 工具窗口。任务首次开始时 `JuggRunningTask` 通过 `CompileUiHandler.ensureRunWindowCreated()` 只创建 Run 工具窗口基础设施，不激活窗口；显式弹出仍由失败等场景调用 `CompileUiHandler.showRunWindow()` 控制。
 
 ---
 

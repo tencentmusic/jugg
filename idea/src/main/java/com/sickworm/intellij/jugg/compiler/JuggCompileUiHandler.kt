@@ -1,11 +1,14 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.intellij.execution.Executor
+import com.intellij.execution.executors.DefaultRunExecutor
+import com.intellij.execution.process.ProcessOutputType
+import com.intellij.execution.ui.RunContentManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
-import com.intellij.execution.process.ProcessOutputType
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
@@ -102,6 +105,31 @@ open class JuggCompileUiHandler(
 
     override fun notifyByBalloon(text: String) {
         JuggRunningTask.notifyByBalloon(project, text)
+    }
+
+    override fun ensureRunWindowCreated() {
+        if (isRpcMode) {
+            return
+        }
+        SwingUtilities.invokeLater {
+            val manager = RunContentManager.getInstance(project)
+            val executor = DefaultRunExecutor.getRunExecutorInstance()
+            runCatching {
+                val method = manager.javaClass
+                    .methods
+                    .firstOrNull { method ->
+                        method.name == "registerToolWindow" &&
+                            method.parameterTypes.contentEquals(arrayOf(Executor::class.java))
+                    }
+                if (method == null) {
+                    logger.warn("RunContentManager does not expose registerToolWindow.")
+                } else {
+                    method.invoke(manager, executor)
+                }
+            }.onFailure {
+                logger.warn("Failed to create Run tool window without activation.", it)
+            }
+        }
     }
 
     override fun showRunWindow() {

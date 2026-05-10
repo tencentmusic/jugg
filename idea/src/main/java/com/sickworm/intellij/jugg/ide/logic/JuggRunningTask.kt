@@ -122,7 +122,7 @@ class JuggRunningTask(
 
     private fun showGreenDotOnRunToolWindow() {
         if (statusManager.isFirstTimeRun()) {
-            compileUiHandler.showRunWindow()
+            compileUiHandler.ensureRunWindowCreated()
         }
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)

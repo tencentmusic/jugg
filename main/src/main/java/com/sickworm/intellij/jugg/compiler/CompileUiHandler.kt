@@ -37,6 +37,8 @@ interface CompileUiHandler {
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
     fun notifyByBalloon(text: String)
+    /** Ensures the Run tool window infrastructure exists without requesting focus. */
+    fun ensureRunWindowCreated()
     fun showRunWindow()
 
     fun shouldAutoConfirmDeployPrompt(message: String): Boolean = false
@@ -67,6 +69,7 @@ interface CompileUiHandler {
             override fun updateIndicatorText(text: String) = Unit
             override fun listenCancelAction(listener: (() -> Unit)?) = Unit
             override fun notifyByBalloon(text: String) = Unit
+            override fun ensureRunWindowCreated() = Unit
             override fun showRunWindow() = Unit
 
             override fun cancel() = Unit
