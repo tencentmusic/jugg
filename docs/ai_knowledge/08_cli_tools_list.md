@@ -98,6 +98,15 @@ jugg --project-dir=<path> <subcommand> [options]
 
 `--project-dir` 是全局参数，用于跳过 `$PWD` 自动匹配，直接把传入路径作为 MCP `projectDir` 发送给对应工具。`version` 仍不需要 `projectDir`。
 
+#### Help 输出
+```
+jugg --help
+jugg help <subcommand>
+jugg <subcommand> --help
+```
+
+`--help` / `help` 只打印本地帮助信息，不连接 MCP、不解析 `projectDir`、不触发编译或部署。顶层 help 展示全局参数和子命令列表；子命令 help 展示 usage、参数、MCP 参数映射和示例。
+
 ---
 
 #### `version`

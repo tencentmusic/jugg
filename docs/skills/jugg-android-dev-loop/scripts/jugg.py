@@ -13,34 +13,17 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 
-USAGE = """\
+from help_registry import COMMAND_HELP, format_command_help
+
+USAGE_HEAD = """\
 Usage: jugg [--console=plain|rich|json] [--project-dir <path>] <subcommand> [options]
+       jugg help <subcommand>
 
 Global options:
   --console=rich      Enable progress spinner; human-readable output (default for shell wrapper)
   --console=plain     No spinner; plain text output (default for direct python3 calls)
   --console=json      Structured JSON output; implies no spinner
   --project-dir PATH   Use this projectDir instead of resolving it from the current directory
-
-Subcommands:
-  version             Show CLI version and plugin version from all initialized projects
-  compile             Compile modified sources (no deploy)
-  deploy              Compile and deploy to device (waits for completion)
-  gradle-build        Force Gradle build (waits for completion)
-  clean-reinstall     Clear app data and reinstall APK
-  restart             Restart the app
-  instrument          Run androidTest with am instrument-like arguments
-  status              Show current deploy state and uncompiled file summary
-  layout-dump         Export UI hierarchy to HTML file
-  view-locate         Find a UI element's position and bounds
-  view-inspect        Evaluate getter expressions on a View element
-  tap                 Perform tap/long-press/swipe on device
-  devices             List connected devices
-  activity-stack      Show current Activity stack
-  ssh-info            Request remote SSH troubleshooting info when enable remote compile
-  wait-logs           Block until app log marker, crash, or timeout
-
-Run 'jugg <subcommand> --help' for subcommand options.
 """
 
 _CONSOLE_VALUES = ("plain", "rich", "json")
@@ -64,6 +47,18 @@ COMMANDS = {
     "ssh-info":       ("cmd_ssh_info",       "cmd_ssh_info"),
     "wait-logs":      ("cmd_wait_logs",      "cmd_wait_logs"),
 }
+
+
+def top_usage() -> str:
+    lines = [USAGE_HEAD, "Subcommands:"]
+    for name in COMMANDS:
+        lines.append(f"  {name:<18} {COMMAND_HELP[name].summary}")
+    lines.extend([
+        "",
+        "Run 'jugg help <subcommand>' or 'jugg <subcommand> --help' for subcommand options.",
+        "",
+    ])
+    return "\n".join(lines)
 
 
 def main() -> None:
@@ -104,9 +99,24 @@ def main() -> None:
     jugglib.json_mode = (console == "json")
     jugglib.set_project_dir_override(project_dir)
 
-    if not args or args[0] in ("--help", "-h", "help"):
-        print(USAGE, file=sys.stderr)
-        sys.exit(1)
+    if not args or args[0] in ("--help", "-h"):
+        print(top_usage(), file=sys.stderr, end="")
+        sys.exit(0)
+
+    if args[0] == "help":
+        if len(args) == 1:
+            print(top_usage(), file=sys.stderr, end="")
+            sys.exit(0)
+        if len(args) > 2:
+            print("jugg: help accepts at most one subcommand", file=sys.stderr)
+            sys.exit(1)
+        help_item = COMMAND_HELP.get(args[1])
+        if help_item is None:
+            print(f"jugg: unknown subcommand '{args[1]}'", file=sys.stderr)
+            print("Run 'jugg help' for a list of available subcommands.", file=sys.stderr)
+            sys.exit(1)
+        print(format_command_help(help_item), file=sys.stderr, end="")
+        sys.exit(0)
 
     subcmd = args[0]
     args = args[1:]
@@ -115,6 +125,10 @@ def main() -> None:
         print(f"jugg: unknown subcommand '{subcmd}'", file=sys.stderr)
         print("Run 'jugg' for a list of available subcommands.", file=sys.stderr)
         sys.exit(1)
+
+    if "--help" in args or "-h" in args:
+        print(format_command_help(COMMAND_HELP[subcmd]), file=sys.stderr, end="")
+        sys.exit(0)
 
     module_name, func_name = COMMANDS[subcmd]
 

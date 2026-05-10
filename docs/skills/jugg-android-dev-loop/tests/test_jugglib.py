@@ -120,6 +120,56 @@ class JuggGlobalProjectDirTest(unittest.TestCase):
         self.assertEqual(jugglib.project_dir_override, "/manual/project")
 
 
+class JuggHelpTest(unittest.TestCase):
+
+    def _run_main(self, argv):
+        import io
+        from contextlib import redirect_stderr, redirect_stdout
+        import jugg
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch.object(sys, "argv", argv), \
+             redirect_stdout(stdout), \
+             redirect_stderr(stderr):
+            try:
+                jugg.main()
+            except SystemExit as exc:
+                return exc.code, stdout.getvalue(), stderr.getvalue()
+        return 0, stdout.getvalue(), stderr.getvalue()
+
+    def test_top_level_help_exits_zero(self):
+        code, _, stderr = self._run_main(["jugg.py", "--help"])
+
+        self.assertEqual(code, 0)
+        self.assertIn("Usage: jugg", stderr)
+        self.assertIn("jugg help <subcommand>", stderr)
+
+    def test_help_subcommand_prints_options_without_importing_command(self):
+        with patch("importlib.import_module") as mock_import:
+            code, _, stderr = self._run_main(["jugg.py", "help", "instrument"])
+
+        self.assertEqual(code, 0)
+        mock_import.assert_not_called()
+        self.assertIn("Usage: jugg instrument --source-path", stderr)
+        self.assertIn("--source-path", stderr)
+        self.assertIn("MCP: sourcePath", stderr)
+
+    def test_subcommand_help_is_side_effect_free(self):
+        with patch("importlib.import_module") as mock_import:
+            code, _, stderr = self._run_main(["jugg.py", "compile", "--help"])
+
+        self.assertEqual(code, 0)
+        mock_import.assert_not_called()
+        self.assertIn("Usage: jugg compile", stderr)
+
+    def test_help_registry_covers_all_commands(self):
+        import jugg
+        from help_registry import COMMAND_HELP
+
+        self.assertEqual(set(COMMAND_HELP.keys()), set(jugg.COMMANDS.keys()))
+
+
 class RecordSessionTest(unittest.TestCase):
 
     def setUp(self):

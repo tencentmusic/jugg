@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.6
-date: 2026-05-09
+version: 1.0.8
+date: 2026-05-10
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -79,6 +79,7 @@ Supplementary references load on-demand at the step that needs them.
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] <subcommand> [options]
+python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 ```
 
 ### Output Format

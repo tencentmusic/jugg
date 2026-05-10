@@ -25,6 +25,13 @@ python3 {SKILL_DIR}/scripts/jugg.py --project-dir=/path/to/project --console=jso
 
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
 
+Print local help without connecting to MCP:
+```
+python3 {SKILL_DIR}/scripts/jugg.py --help
+python3 {SKILL_DIR}/scripts/jugg.py help deploy
+python3 {SKILL_DIR}/scripts/jugg.py deploy --help
+```
+
 ---
 
 ## Version Command
