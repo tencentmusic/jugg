@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""Export prompt-only benchmark packs for tested agents."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "android_demo_project" / "build" / "benchmark-packs"
+
+BENCHMARKS = {
+    "cli": {
+        "title": "Jugg CLI Benchmark Prompt Pack",
+        "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-cli",
+    },
+    "ui-verify": {
+        "title": "Jugg UI Verify Benchmark Prompt Pack",
+        "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-ui-verify",
+    },
+}
+
+
+@dataclass(frozen=True)
+class Case:
+    source_file: str
+    case_id: str
+    title: str
+    prompt: str
+
+
+def parse_case_heading(line: str) -> tuple[str, str] | None:
+    match = re.match(r"^##\s+([^:：]+)[:：]\s*(.+?)\s*$", line)
+    if not match:
+        return None
+    return match.group(1).strip(), match.group(2).strip()
+
+
+def extract_prompt(lines: list[str], start: int) -> str:
+    prompt_lines: list[str] = []
+    i = start
+    while i < len(lines):
+        line = lines[i]
+        if line.startswith("期望：") or line.startswith("## "):
+            break
+        if line.startswith("Prompt："):
+            prompt_lines.append(line.removeprefix("Prompt：").strip())
+        elif prompt_lines:
+            prompt_lines.append(line.strip())
+        i += 1
+    return "\n".join(line for line in prompt_lines if line).strip()
+
+
+def parse_cases(markdown_file: Path, source_root: Path) -> list[Case]:
+    lines = markdown_file.read_text(encoding="utf-8").splitlines()
+    cases: list[Case] = []
+    for index, line in enumerate(lines):
+        heading = parse_case_heading(line)
+        if not heading:
+            continue
+        case_id, title = heading
+        prompt = extract_prompt(lines, index + 1)
+        if not prompt:
+            raise ValueError(f"Missing prompt for {case_id} in {markdown_file}")
+        cases.append(
+            Case(
+                source_file=str(markdown_file.relative_to(source_root)),
+                case_id=case_id,
+                title=title,
+                prompt=prompt,
+            )
+        )
+    return cases
+
+
+def collect_cases(source_root: Path) -> list[Case]:
+    cases: list[Case] = []
+    for markdown_file in sorted(source_root.glob("*.md")):
+        if markdown_file.name == "README.md":
+            continue
+        cases.extend(parse_cases(markdown_file, source_root))
+    return cases
+
+
+def render_cases(title: str, cases: list[Case]) -> str:
+    lines = [
+        f"# {title}",
+        "",
+        "这些是给被测 Agent 的 prompt-only 用例。",
+        "",
+        "重要约束：",
+        "- 不要修改 `README.md`、`cases.md`、`manifest.json`。",
+        "- 只允许把执行结果写入同目录 `report.md`。",
+        "- 不要读取 `docs/skills/benchmark`，不要读取母版答案。",
+        "",
+        "执行要求：",
+        "- 在 `android_demo_project` 或其子目录执行。",
+        "- 使用 `docs/skills/jugg-android-dev-loop` 提供的 Jugg CLI。",
+        "- 条件不足时写明 `SKIP` 原因。",
+        "- 结果写入同目录 `report.md`。",
+        "",
+    ]
+    current_file: str | None = None
+    for case in cases:
+        if case.source_file != current_file:
+            current_file = case.source_file
+            lines.extend([f"## {current_file}", ""])
+        lines.extend(
+            [
+                f"### {case.case_id}: {case.title}",
+                "",
+                case.prompt,
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_readme(title: str, case_count: int) -> str:
+    return f"""# {title}
+
+这是被测 Agent 可见的 prompt-only 题目包。本文件是执行说明，不是待补全文档。
+
+## 被测 Agent 必须遵守
+
+- 不要修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
+- 只允许修改 `report.md`。
+- 你的任务是执行 `cases.md` 中的用例并填写 `report.md`，不是补全说明文档。
+- 不要读取 `docs/skills/benchmark`，那里是母版和验收用 oracle。
+
+## 运行约束
+
+- 当前工作目录必须是 `android_demo_project` 或其子目录。
+- 只执行 `cases.md` 中的用例。
+- 不要直接调用 MCP；使用 `jugg-android-dev-loop` skill 中的 Jugg CLI。
+- 所有证据写入 `report.md`，不要只在对话里总结。
+
+## 文件
+
+- `cases.md`: 被测用例，共 {case_count} 条。
+- `PROMPT.md`: 可直接发给被测 Agent 的启动 prompt。
+- `report.md`: 结果模板，被测 Agent 需要填写。
+- `manifest.json`: 导出元数据。
+
+## 报告格式
+
+每条用例追加：
+
+```markdown
+### CASE-ID: 用例标题
+- Prompt:
+- Working dir:
+- CLI sequence:
+  1. `subcommand [args]`
+- Evidence:
+- Verdict: PASS / FAIL / SKIP
+- Notes:
+```
+
+完成后追加汇总：
+
+```markdown
+## Summary
+
+| Case | Verdict | Notes |
+|------|---------|-------|
+
+Blockers:
+```
+"""
+
+
+def render_prompt(title: str, case_count: int) -> str:
+    return f"""# {title} Agent Prompt
+
+你是被测 Agent。请在当前 `android_demo_project` 工作区执行 benchmark。
+
+请阅读当前目录的 `README.md` 和 `cases.md`，按 `cases.md` 顺序执行全部 {case_count} 条用例。
+
+硬性约束：
+
+- 禁止修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
+- 只允许把执行结果写入同目录 `report.md`。
+- 不要读取 `docs/skills/benchmark`。
+- 不要直接调用 MCP；使用 `jugg-android-dev-loop` skill 中的 Jugg CLI。
+- 条件不足时写 `SKIP`，并说明具体原因。
+- 每条用例都必须在 `report.md` 中留下 `CLI sequence`、`Evidence` 和 `Verdict`。
+
+完成后在 `report.md` 末尾填写 `Summary` 和 `Blockers`。
+"""
+
+
+def render_report(title: str, cases: list[Case]) -> str:
+    lines = [
+        f"# {title} Report",
+        "",
+        "## Environment",
+        "",
+        "- Working dir:",
+        "- Agent:",
+        "- Date:",
+        "",
+        "## Results",
+        "",
+    ]
+    for case in cases:
+        lines.extend(
+            [
+                f"### {case.case_id}: {case.title}",
+                "- Prompt:",
+                case.prompt,
+                "- Working dir:",
+                "- CLI sequence:",
+                "- Evidence:",
+                "- Verdict: PASS / FAIL / SKIP",
+                "- Notes:",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## Summary",
+            "",
+            "| Case | Verdict | Notes |",
+            "|------|---------|-------|",
+            "",
+            "Blockers:",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def export_pack(kind: str, output_root: Path) -> Path:
+    config = BENCHMARKS[kind]
+    source_root = config["source"]
+    title = config["title"]
+    cases = collect_cases(source_root)
+    if not cases:
+        raise ValueError(f"No cases found in {source_root}")
+
+    output_dir = output_root / kind
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "README.md").write_text(render_readme(title, len(cases)), encoding="utf-8")
+    (output_dir / "PROMPT.md").write_text(render_prompt(title, len(cases)), encoding="utf-8")
+    (output_dir / "cases.md").write_text(render_cases(title, cases), encoding="utf-8")
+    (output_dir / "report.md").write_text(render_report(title, cases), encoding="utf-8")
+    manifest = {
+        "kind": kind,
+        "title": title,
+        "caseCount": len(cases),
+        "files": sorted({case.source_file for case in cases}),
+    }
+    (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return output_dir
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("benchmark", choices=["all", *BENCHMARKS.keys()])
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Output root for generated prompt packs.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    kinds = BENCHMARKS.keys() if args.benchmark == "all" else [args.benchmark]
+    for kind in kinds:
+        output_dir = export_pack(kind, args.output_root)
+        print(output_dir.relative_to(REPO_ROOT))
+
+
+if __name__ == "__main__":
+    main()
