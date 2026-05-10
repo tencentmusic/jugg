@@ -38,7 +38,10 @@ class AdbLogWrapper(val logger: Logger) : LogWrapper(logger) {
     private fun checkMessage(msgFormat: String?, vararg args: Any?) {
         msgFormat ?: return
         val message = String.format(msgFormat, *args)
-        if (message.contains("MessagePipeWrapper read() timeout")) {
+        val installFailureReason = parseInstallFailureReason(message)
+        if (installFailureReason != null) {
+            realErrorMessage = installFailureReason
+        } else if (message.contains("MessagePipeWrapper read() timeout")) {
             realErrorMessage = message
         } else if (message.contains("device") && message.contains("not found")) {
             realErrorMessage = message
@@ -47,5 +50,23 @@ class AdbLogWrapper(val logger: Logger) : LogWrapper(logger) {
             // Occurs when base APK is an incremental-embedded APK. Because incremental-embedded APK will create .overlay folder
             realErrorMessage = message
         }
+    }
+
+    private fun parseInstallFailureReason(message: String): String? {
+        if (!message.contains("Installation Failure:")) {
+            return null
+        }
+        val prefixes = listOf(
+            "Caused by: java.io.IOException:",
+            "android.os.ParcelableException: java.io.IOException:",
+            "java.io.IOException:",
+        )
+        return message.lineSequence()
+            .map { it.trim().trim('\'', '"') }
+            .firstNotNullOfOrNull { line ->
+                prefixes.firstOrNull { line.startsWith(it) }
+                    ?.let { line.removePrefix(it).trim() }
+                    ?.takeIf { it.isNotBlank() }
+            }
     }
 }
