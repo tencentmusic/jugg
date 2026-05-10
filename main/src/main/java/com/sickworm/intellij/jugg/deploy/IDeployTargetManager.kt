@@ -33,6 +33,11 @@ interface IDeployTargetManager {
 
     fun isAppForeground(device: IDevice): Boolean
 
+    /**
+     * Returns null when install state cannot be determined cheaply.
+     */
+    fun isAppInstalled(device: IDevice): Boolean? = null
+
     fun getPackageName(): String
 
     fun dumpErrorLogs(): String = ""

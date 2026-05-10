@@ -62,6 +62,7 @@
 - 部署失败时可回退 Gradle 路径。  
 - 兼容模式设备记录与清理（JVMTI 兼容性问题）。
 - `DeployFileManager#getDeployData` 在“本轮 dex + 历史 dex（排除已 merge 记录）> 500”时触发 dex merge，减少设备加载 dex 数量，缓解 dex 加载 OOM 风险。
+- recover 增量部署状态时，dry deploy 前会通过 `pm path <package>` 快速检测目标 App 是否已安装，并打印检测耗时；未安装时跳过 app 启动与 3s deployable 等待，直接进入 `App not installed, start reinstalling app...` 的重装分支。
 
 ---
 

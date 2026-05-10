@@ -759,7 +759,7 @@ class JuggDeployerHelper(
         val reinstallTips = if (isCleanAndReinstall) {
             "User triggered, start clean and reinstalling app..."
         } else {
-            "Deploy state not match, start reinstalling app..."
+            DEPLOY_STATE_NOT_MATCH_REINSTALL_TIPS
         }
 
         if (isCleanAndReinstall) {
@@ -770,14 +770,19 @@ class JuggDeployerHelper(
 
         // dry deploy first, if success, no need to reinstall and recover
         if (isNeedTryDeyDeployFirst && !isCleanAndReinstall) {
-            val isSuccess = tryDryDeploy(device, isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
-            if (isSuccess) {
+            val dryDeployResult = tryDryDeploy(device, isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
+            if (dryDeployResult == DryDeployResult.SUCCESS) {
                 logger.info("Deploy state matched, no need reinstall app.")
                 return true to false
             } else {
-                logger.warn(reinstallTips)
+                val tips = when (dryDeployResult) {
+                    DryDeployResult.APP_NOT_INSTALLED -> APP_NOT_INSTALLED_REINSTALL_TIPS
+                    DryDeployResult.SUCCESS -> error("unreachable")
+                    DryDeployResult.FAILED -> reinstallTips
+                }
+                logger.warn(tips)
                 indicator?.text = "Reinstalling app..."
-                JuggRunningTask.notifyByBalloon(project, reinstallTips)
+                JuggRunningTask.notifyByBalloon(project, tips)
             }
         } else if (isInstallUpdateApk) {
             logger.info("App updated, start reinstalling app...")
@@ -817,32 +822,36 @@ class JuggDeployerHelper(
         device: IDevice,
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
-    ): Boolean {
+    ): DryDeployResult {
+        if (deployTargetManager.isAppInstalled(device) == false) {
+            return DryDeployResult.APP_NOT_INSTALLED
+        }
+
         logger.info("Start app and waiting app deployable.")
         if (!deployTargetManager.restartApp(device)) {
             logger.debug("Try start app failed")
-            return false
+            return DryDeployResult.FAILED
         }
 
         val isDeviceDeployable = waitingForDeployable(device)
         if (!isDeviceDeployable) {
             logger.info("Dry deploy failed for app not launched.")
-            return false
+            return DryDeployResult.FAILED
         }
 
         logger.info("Device online, try dry deploy.")
         return try {
             val dryDeployData = JuggDeployData.forDryDeploy(deployTargetManager.getApks())
             runTask(device, dryDeployData, isSkipExceptOverlayCheck = isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
-            true
+            DryDeployResult.SUCCESS
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
             if (reason.contains(REDEPLOY_WITH_COMPAT_MESSAGE)) {
                 logger.debug("ignore \"$REDEPLOY_WITH_COMPAT_MESSAGE\" on dry deploy, will handle it later")
-                return true
+                return DryDeployResult.SUCCESS
             }
             logger.debug("Dry deploy failed, reason: $reason")
-            false
+            DryDeployResult.FAILED
         }
     }
 
@@ -888,7 +897,15 @@ class JuggDeployerHelper(
 
         const val DO_NOT_RETRY = "DO_NOT_RETRY"
         private const val REDEPLOY_WITH_COMPAT_MESSAGE = "Detect JVMTI compatibility issue, need to fallback to compat deploy."
+        private const val APP_NOT_INSTALLED_REINSTALL_TIPS = "App not installed, start reinstalling app..."
+        private const val DEPLOY_STATE_NOT_MATCH_REINSTALL_TIPS = "Deploy state not match, start reinstalling app..."
     }
+}
+
+private enum class DryDeployResult {
+    SUCCESS,
+    APP_NOT_INSTALLED,
+    FAILED,
 }
 
 /**

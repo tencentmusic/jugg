@@ -103,6 +103,18 @@ class DeployTargetManager(
         }
     }
 
+    override fun isAppInstalled(device: IDevice): Boolean? {
+        val startTime = System.currentTimeMillis()
+        val result = try {
+            AdbCmdHelper(device, logger).isAppInstalled(getPackageName())
+        } catch (e: Exception) {
+            logger.warn("Check app installed failed", e)
+            null
+        }
+        logger.debug("Check app installed finished, installed=$result, cost ${System.currentTimeMillis() - startTime}ms.")
+        return result
+    }
+
     override fun getPackageName(): String {
         val apks = getApks()
         if (apks.isEmpty()) {

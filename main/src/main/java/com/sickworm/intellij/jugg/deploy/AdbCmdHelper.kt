@@ -68,6 +68,11 @@ class AdbCmdHelper(
         return false
     }
 
+    fun isAppInstalled(packageName: String): Boolean {
+        val result = execAdbShellCmd("pm path $packageName")
+        return result.lineSequence().any { it.startsWith("package:") }
+    }
+
     fun dumpErrorLog(limit: Int = 100000): String {
         logger.debug("dumpErrorLog: $limit")
         return execAdbShellCmd("logcat -t$limit")
