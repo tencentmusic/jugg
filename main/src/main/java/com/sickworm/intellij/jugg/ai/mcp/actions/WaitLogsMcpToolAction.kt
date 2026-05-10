@@ -17,6 +17,9 @@ import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
 
@@ -244,8 +247,8 @@ class WaitLogsMcpToolAction(
             message = message,
             data = mutableMapOf<String, Any>().apply {
                 put("stopReason", stopReason)
-                if (startTime != null) put("startTime", startTime!!)
-                if (endTime != null) put("endTime", endTime!!)
+                startTime?.let { put("startTime", it) }
+                endTime?.let { put("endTime", it) }
                 put("targetPids", finalTargetPids.toList())
                 put("logs", logsStr)
                 put("allLogsPath", allLogsPath)
@@ -359,19 +362,22 @@ private class RealAdbLogcatSource(
     private val sinceTime: String,
 ) : AdbLogcatSource {
 
-    private val queue = java.util.concurrent.LinkedBlockingQueue<String>()
-    @Volatile private var running = true
+    private val queue = LinkedBlockingQueue<String>()
+    private val cancelled = AtomicBoolean(false)
     private val thread: Thread
 
     init {
         thread = Thread({
             try {
-                // Run logcat via adb shell, outputting threadtime format starting from sinceTime.
-                val output = adb.execAdbShellCmd("logcat -T \"$sinceTime\" -v threadtime")
-                output.lineSequence().forEach { line ->
-                    if (!running) return@forEach
-                    queue.offer(line)
-                }
+                adb.execAdbShellCmdStreaming(
+                    cmd = "logcat -T \"$sinceTime\" -v threadtime",
+                    lineConsumer = { line ->
+                        if (!cancelled.get()) {
+                            queue.offer(line)
+                        }
+                    },
+                    cancelSignal = { cancelled.get() },
+                )
             } catch (_: Exception) {
                 // Swallow — caller handles via timeout
             }
@@ -380,10 +386,11 @@ private class RealAdbLogcatSource(
     }
 
     override fun nextLine(pollTimeoutMs: Long): String? =
-        queue.poll(pollTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+        queue.poll(pollTimeoutMs, TimeUnit.MILLISECONDS)
 
     override fun close() {
-        running = false
+        cancelled.set(true)
         thread.interrupt()
+        thread.join(200L)
     }
 }

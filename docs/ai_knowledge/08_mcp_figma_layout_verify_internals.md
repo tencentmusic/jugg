@@ -13,7 +13,7 @@ get_design_context (Figma API)
         ▼
 FigmaLayoutVerifyMcpToolAction.execute()
         │
-        ├─① LayoutDumpHelper.dump()  → 内部调用 layout_dump，获取 androidJsonPath
+        ├─① LayoutDumpHelper.dumpInternal()  → 内部调用 layout_dump，获取 androidJsonPath
         │
         ├─② FigmaJsonParser.parse()  → FigmaNode 树
         │

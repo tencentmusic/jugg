@@ -30,7 +30,7 @@ internal object LayoutDumpHelper {
 
     /**
      * Execute a layout dump and return an MCP result.
-     * On success, result.data["file"] contains the absolute path to the written JSON file.
+     * On success, result.data["file"] contains the absolute path to the written HTML file.
      */
     fun dump(
         runtime: IMcpRuntime,
@@ -39,39 +39,62 @@ internal object LayoutDumpHelper {
         isIncludeGone: Boolean = false,
         isAllWindows: Boolean = false,
     ): McpToolResult {
+        return when (val output = dumpInternal(runtime, callerToolName, rootLayout, isIncludeGone, isAllWindows)) {
+            is DumpInternalResult.Failure -> output.result
+            is DumpInternalResult.Success -> output.toPublicResult()
+        }
+    }
+
+    /**
+     * Executes layout dump and keeps the structured JSON file available for internal tools.
+     * Public MCP output should use [dump] so agents only see the compact HTML artifact.
+     */
+    fun dumpInternal(
+        runtime: IMcpRuntime,
+        callerToolName: String,
+        rootLayout: String? = null,
+        isIncludeGone: Boolean = false,
+        isAllWindows: Boolean = false,
+    ): DumpInternalResult {
         val logger = runtime.logger.getInstance("LayoutDumpHelper")
 
         val selected = resolveOnlineDevice(runtime)
             ?: run {
                 logger.warn("$callerToolName: no online device")
-                return noDeviceResult(callerToolName)
+                return DumpInternalResult.Failure(noDeviceResult(callerToolName))
             }
 
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, callerToolName)
         if (!preWaitResult.isReady) {
             logger.warn("$callerToolName: app not ready after pre-check retries")
-            return preWaitResult.errorResult
+            return DumpInternalResult.Failure(preWaitResult.errorResult
                 ?: McpToolResult.internalErrorResult(callerToolName, "app is not ready")
+            )
         }
 
         val toolDir = ensureToolDir(runtime, "layout-dump")
             ?: run {
                 logger.warn("$callerToolName: unable to prepare artifact directory")
-                return McpToolResult.internalErrorResult(callerToolName, "failed to prepare artifact directory")
+                return DumpInternalResult.Failure(
+                    McpToolResult.internalErrorResult(callerToolName, "failed to prepare artifact directory")
+                )
             }
 
         val packageName = resolvePackageName(runtime)
             ?: run {
                 logger.warn("$callerToolName: package name is empty")
-                return McpToolResult.internalErrorResult(
-                    callerToolName, "failed to resolve package name for ViewHierarchy server"
+                return DumpInternalResult.Failure(
+                    McpToolResult.internalErrorResult(
+                        callerToolName, "failed to resolve package name for ViewHierarchy server"
+                    )
                 )
             }
 
         val localJsonFile = File(toolDir, "layout_${System.currentTimeMillis()}.json")
         val localHtmlFile = File(toolDir, "layout_${System.currentTimeMillis()}.html")
 
-        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+        var successOutput: DumpInternalResult.Success? = null
+        val result = McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
             try {
                 val client = ViewHierarchyClient(selected.adb, packageName)
                 val excludeGone = !isIncludeGone
@@ -114,22 +137,44 @@ internal object LayoutDumpHelper {
 
                 val summary = buildSummaryMessage(jsonElement)
                 val contentBytes = htmlContent.toByteArray(StandardCharsets.UTF_8).size
-                McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = summary,
-                    data = mapOf<String, Any>(
-                        "file" to localHtmlFile.absolutePath,
-                        "jsonFile" to localJsonFile.absolutePath,
-                        "contentBytes" to contentBytes,
-                    ),
-                    artifacts = listOf(McpArtifact(type = "html", path = localHtmlFile.absolutePath)),
-                    errorCode = null,
+                val output = DumpInternalResult.Success(
+                    summary = summary,
+                    jsonFile = localJsonFile,
+                    htmlFile = localHtmlFile,
+                    contentBytes = contentBytes,
                 )
+                successOutput = output
+                output.toPublicResult()
             } catch (e: Exception) {
                 logger.warn("$callerToolName layout dump failed: ${e.message}", e)
                 McpToolResult.internalErrorResult(callerToolName, e.message ?: "unknown error")
             }
         }
+        return successOutput ?: DumpInternalResult.Failure(result)
+    }
+
+    internal sealed class DumpInternalResult {
+        data class Success(
+            val summary: String,
+            val jsonFile: File,
+            val htmlFile: File,
+            val contentBytes: Int,
+        ) : DumpInternalResult()
+
+        data class Failure(val result: McpToolResult) : DumpInternalResult()
+    }
+
+    private fun DumpInternalResult.Success.toPublicResult(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.OK,
+            message = summary,
+            data = mapOf<String, Any>(
+                "file" to htmlFile.absolutePath,
+                "contentBytes" to contentBytes,
+            ),
+            artifacts = listOf(McpArtifact(type = "html", path = htmlFile.absolutePath)),
+            errorCode = null,
+        )
     }
 
     // --- Internal utilities ---

@@ -227,6 +227,29 @@ class WaitLogsMcpToolActionTest {
         assertEquals("timeout", result.dataMap()["stopReason"])
     }
 
+    @Test
+    fun testRealLogcatSourceCancelsStreamingOnTimeout() {
+        val streamingAdb = FakeCancelableStreamingAdb()
+        streamingAdb.packageName = "com.example.app"
+        streamingAdb.mainPids = setOf(1234)
+        val streamingRuntime = buildRuntime(streamingAdb, projectDir)
+
+        val action = WaitLogsMcpToolAction(registry)
+        val result = action.execute(
+            mapOf(
+                "projectDir" to projectDir.absolutePath,
+                "marker" to "NEVER_MATCH_XYZ",
+                "timeoutMs" to 1000,
+            ),
+            streamingRuntime,
+        )
+
+        assertEquals(McpToolStatus.OK, result.status)
+        assertEquals("timeout", result.dataMap()["stopReason"])
+        assertTrue(streamingAdb.streamingCommand?.startsWith("logcat -T") == true)
+        assertTrue("streaming adb should observe cancellation", streamingAdb.cancelObserved)
+    }
+
     // --- param validation ---
 
     @Test
@@ -473,7 +496,7 @@ class WaitLogsMcpToolActionTest {
 
     // --- helpers ---
 
-    private fun buildRuntime(fakeAdb: FakeStreamingAdb, dir: File): IMcpRuntime {
+    private fun buildRuntime(fakeAdb: IDeviceAdb, dir: File): IMcpRuntime {
         val device = Mockito.mock(IDevice::class.java)
         PlatformApi.impl = object : IPlatformApi {
             override fun showDialog(
@@ -515,8 +538,8 @@ class WaitLogsMcpToolActionTest {
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
-        Mockito.`when`(deployTargetManager.getPackageName()).thenAnswer { fakeAdb.packageName }
-        Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenAnswer { fakeAdb.packageName }
+        Mockito.`when`(deployTargetManager.getPackageName()).thenAnswer { resolvePackageName(fakeAdb) }
+        Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenAnswer { resolvePackageName(fakeAdb) }
 
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn(dir.absolutePath)
@@ -527,6 +550,14 @@ class WaitLogsMcpToolActionTest {
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = FakeForceGradleCompileHelper()
             override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
+        }
+    }
+
+    private fun resolvePackageName(adb: IDeviceAdb): String {
+        return when (adb) {
+            is FakeStreamingAdb -> adb.packageName
+            is FakeCancelableStreamingAdb -> adb.packageName
+            else -> "com.example.app"
         }
     }
 
@@ -583,6 +614,55 @@ class WaitLogsMcpToolActionTest {
                 }
                 else -> ""
             }
+        }
+
+        override fun push(from: File, to: String) = true
+        override fun pull(from: String, to: File) = true
+        override fun getDefaultLaunchActivity(apkFile: File): String? = null
+        override fun getArch(packageName: String) = "ARCH_64_BIT"
+        override fun getProperty(name: String): String? = null
+    }
+
+    class FakeCancelableStreamingAdb : IDeviceAdb {
+        var packageName: String = "com.example.app"
+        var mainPids: Set<Int> = emptySet()
+        var streamingCommand: String? = null
+            private set
+        @Volatile var cancelObserved: Boolean = false
+            private set
+
+        override val displayName: String? = "fake_device"
+        override val api: Int = 34
+        override val serial: String = "emulator-5554"
+        override val isOnline: Boolean = true
+
+        override fun execAdbShellCmd(cmd: String): String {
+            return when {
+                cmd.startsWith("pidof") -> mainPids.joinToString(" ")
+                cmd.contains("ps") && cmd.contains(packageName) -> {
+                    mainPids.joinToString("\n") { pid ->
+                        "u0_a123    $pid  1234 1234 S $packageName"
+                    }
+                }
+                else -> ""
+            }
+        }
+
+        override fun execAdbShellCmdStreaming(
+            cmd: String,
+            lineConsumer: (String) -> Unit,
+            cancelSignal: () -> Boolean,
+        ): Int {
+            streamingCommand = cmd
+            try {
+                while (!cancelSignal()) {
+                    Thread.sleep(20)
+                }
+            } catch (_: InterruptedException) {
+                // Treat interruption after close() as observing the cancellation path.
+            }
+            cancelObserved = cancelSignal()
+            return -1
         }
 
         override fun push(from: File, to: String) = true

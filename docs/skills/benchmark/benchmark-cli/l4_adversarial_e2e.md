@@ -86,9 +86,9 @@ Prompt：运行 demo 工程中一个已存在的 androidTest，并记录结果�
 
 ## E2E-4: 日志验证闭环
 
-Prompt：重启 app 后等待 `[JUGG_AR] DONE` 日志，最多 5 秒，并根据结果判断验证是否完成。
+Prompt：重启 app 后等待 `[JUGG_BENCH] MAIN_ACTIVITY_READY` 日志，最多 5 秒，并根据结果判断验证是否完成。
 
 期望：
 - 先 `restart`。
-- 再 `wait-logs --marker '\[JUGG_AR\] DONE' --timeout-ms 5000`。
+- 再 `wait-logs --marker '\[JUGG_BENCH\] MAIN_ACTIVITY_READY' --timeout-ms 5000`。
 - marker 为通过，crash 为失败，timeout 为不确定；三者都要记录证据。

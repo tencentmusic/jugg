@@ -3,6 +3,7 @@ package com.example.myapplication
 import android.content.Intent
 import android.util.Log
 import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
@@ -27,6 +28,15 @@ class AppUiInstrumentedTest {
         Log.i("AppUiInstrumentedTest", "[mainActivityShowsNavigationButton] in")
         launchMainActivity().use {
             onView(withId(R.id.button)).check(matches(withText("MainActivity2")))
+        }
+    }
+
+    @Test
+    fun mainActivityOpensMcpTestPage() {
+        Log.i("AppUiInstrumentedTest", "[mainActivityOpensMcpTestPage] in")
+        launchMainActivity().use {
+            onView(withId(R.id.btn_mcp_test_page)).perform(click())
+            onView(withText("Unique MCP Target")).check(matches(isDisplayed()))
         }
     }
 

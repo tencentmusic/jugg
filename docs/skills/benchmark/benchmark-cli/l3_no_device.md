@@ -89,7 +89,7 @@ Prompt：无设备环境下运行一个存在的 androidTest source。
 
 ## NODEV-11: wait-logs
 
-Prompt：无设备环境下等待 `[JUGG_AR] DONE` 日志。
+Prompt：无设备环境下等待 `[JUGG_BENCH] MAIN_ACTIVITY_READY` 日志。
 
 期望：
 - 选择 `wait-logs --marker ... --timeout-ms ...`。

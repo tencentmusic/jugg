@@ -15,8 +15,8 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Dump UI hierarchy from app-side ViewHierarchy server to a local JSON artifact. " +
-            "Returns data.file and optional inline data.content. Supports rootLayout subtree dump and includeGone.",
+        description = "Dump UI hierarchy from app-side ViewHierarchy server to a local HTML artifact. " +
+            "Returns data.file for the HTML file. Supports rootLayout subtree dump and includeGone.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

@@ -85,6 +85,38 @@ class InstrumentMcpToolActionTest {
     }
 
     @Test
+    fun testExecuteDoesNotRequireAppReadyAfterInstrumentationSuccess() {
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = { _, _, _, _, _ ->
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = true,
+                        isCancel = false,
+                    ),
+                )
+            },
+            isAppReadyProvider = { false },
+        )
+
+        val result = InstrumentMcpToolAction().execute(
+            mapOf(
+                "projectDir" to "/fake/project",
+                "sourcePath" to "library1/src/androidTest/kotlin/com/example/FooTest.kt",
+                "class" to "com.example.FooTest",
+            ),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("success", data["status"])
+    }
+
+    @Test
     fun testExecuteRequiresSourcePath() {
         val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
             throw AssertionError("runner should not be invoked when sourcePath is missing: $androidTestRunSpec")
@@ -293,6 +325,7 @@ class InstrumentMcpToolActionTest {
     }
 
     private fun runtimeWithRunner(
+        isAppReadyProvider: () -> Boolean = { true },
         runFirstConfiguration: (
             isRpcMode: Boolean,
             isSkipDeploy: Boolean,
@@ -367,7 +400,7 @@ class InstrumentMcpToolActionTest {
                 }
             }
 
-            override fun isAppReadyDeploy(): Boolean = true
+            override fun isAppReadyDeploy(): Boolean = isAppReadyProvider()
         }
     }
 }

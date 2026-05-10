@@ -197,6 +197,7 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertFalse("data.content should not be present", data.containsKey("content"))
             Assert.assertFalse("inlineOmitted should not be present", data.containsKey("inlineOmitted"))
             Assert.assertFalse("inlineThresholdKb should not be present", data.containsKey("inlineThresholdKb"))
+            Assert.assertFalse("data.jsonFile should stay internal", data.containsKey("jsonFile"))
             Assert.assertTrue((data["contentBytes"] as Number).toInt() > 0)
             Assert.assertTrue((data["file"] as String).endsWith(".html"))
         }

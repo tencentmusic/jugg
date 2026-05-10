@@ -74,6 +74,7 @@ class InstrumentMcpToolAction : McpToolAction {
             isAlwaysRestartApp = false,
             androidTestRunSpec = spec,
             buildTargetOverride = BuildTarget.ANDROID_TEST,
+            waitAppReadyAfterSuccess = false,
         )
     }
 

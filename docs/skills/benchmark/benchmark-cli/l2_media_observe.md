@@ -64,11 +64,11 @@ Prompt：确认页面上不存在文本为 `NonExistentElementXYZ` 的元素。
 
 ## LOG-1: 等待日志 marker
 
-Prompt：等待 app 日志中出现 `[JUGG_AR] DONE`，最多等 3 秒。
+Prompt：重启 app 后等待日志中出现 `[JUGG_BENCH] MAIN_ACTIVITY_READY`，最多等 3 秒。
 
 期望：
-- 选择 `wait-logs`。
-- 使用 `--marker '\[JUGG_AR\] DONE'` 和 `--timeout-ms 3000`。
+- 先执行 `restart`。
+- 再执行 `wait-logs --marker '\[JUGG_BENCH\] MAIN_ACTIVITY_READY' --timeout-ms 3000`。
 - marker、crash、timeout 都是有效结构化结果；命令不能无限等待。
 
 ## LOG-2: wait-logs 缺少 marker

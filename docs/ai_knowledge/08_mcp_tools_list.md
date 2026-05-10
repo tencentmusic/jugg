@@ -181,7 +181,7 @@
 
 ### `layout-dump`
 
-导出 UI 层级。输出 HTML 格式（`data.file`），同时 `data.jsonFile` 保留原始 JSON。
+导出 UI 层级。公开输出为 HTML 格式（`data.file`）；结构化 JSON 仅保留为 `LayoutDumpHelper.dumpInternal()` 的工具内部实现细节，不暴露给 Agent。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|

@@ -103,6 +103,7 @@ def benchmark_lines(mode: str) -> list[str]:
             "- 在仓库根目录执行。",
             "- 只执行 `cases.md` 中给出的 hook 验证步骤。",
             "- 不修改 hook 源码、不启动 Android Studio、不使用真实 `~/.jugg`。",
+            "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
             "- 条件不足时写明 `SKIP` 原因。",
             "- 结果写入同目录 `report.md`。",
         ]
@@ -111,6 +112,7 @@ def benchmark_lines(mode: str) -> list[str]:
         "- 在 `android_demo_project` 或其子目录执行。",
         "- 使用 `docs/skills/jugg-android-dev-loop` 提供的 Jugg CLI。",
         "- 不要直接调用 MCP。",
+        "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
         "- 条件不足时写明 `SKIP` 原因。",
         "- 结果写入同目录 `report.md`。",
     ]
@@ -189,6 +191,7 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
 - {command_label}:
 - Evidence:
 - Verdict: PASS / FAIL / SKIP
+- Score: N / 5
 - Notes:
 ```
 
@@ -197,8 +200,11 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
 ```markdown
 ## Summary
 
-| Case | Verdict | Notes |
-|------|---------|-------|
+| File | Case | Verdict | Score | Notes |
+|------|------|---------|-------|-------|
+
+Total: XX / YY
+Skipped: Z
 
 Blockers:
 ```
@@ -214,17 +220,33 @@ def render_prompt(title: str, case_count: int, mode: str) -> str:
 你是被测 Agent。{intro}
 
 请阅读当前目录的 `README.md` 和 `cases.md`，按 `cases.md` 顺序执行全部 {case_count} 条用例。
+如果上层用户消息是“完成 .../PROMPT.md”或“执行这个 PROMPT”，这表示让你执行本 benchmark，
+不是让你改写 `PROMPT.md`。
 
 硬性约束：
 
 - 禁止修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
 - 只允许把执行结果写入同目录 `report.md`。
 - 不要读取 `docs/skills/benchmark`。
-- 每条用例都必须在 `report.md` 中留下 `{command_label}`、`Evidence` 和 `Verdict`。
+- 不允许只输出计划、推理或模板；必须真实执行命令。
+- 不允许提前结束；未处理完 {case_count} 条用例前不得宣布完成。
+- 每条用例都必须在 `report.md` 中留下：`Prompt`、`Working dir`、`{command_label}`、`Evidence`、`Verdict`、`Score`、`Notes`。
 
 {requirements}
 
-完成后在 `report.md` 末尾填写 `Summary` 和 `Blockers`。
+执行流程（逐条循环）：
+1. 读取当前 case 的 `Prompt`。
+2. 执行必要命令。
+3. 立刻把 `{command_label}` 与 `Evidence` 写入 `report.md`。
+4. 基于证据给出 `Verdict` 与 `Score`。
+5. 继续下一条 case。
+
+判定规则：
+- `PASS`/`FAIL` 必须附带真实命令输出证据。
+- 无法执行时才允许 `SKIP`，并写明阻塞原因与已尝试动作。
+- `{command_label}` 为空视为该 case 未执行。
+
+完成后在 `report.md` 末尾填写 `Summary` 和 `Blockers`，并给出总分与跳过数量。
 """
 
 
@@ -252,6 +274,7 @@ def render_report(title: str, cases: list[Case], mode: str) -> str:
                 f"- {command_label}:",
                 "- Evidence:",
                 "- Verdict: PASS / FAIL / SKIP",
+                "- Score: N / 5",
                 "- Notes:",
                 "",
             ]
@@ -260,8 +283,11 @@ def render_report(title: str, cases: list[Case], mode: str) -> str:
         [
             "## Summary",
             "",
-            "| Case | Verdict | Notes |",
-            "|------|---------|-------|",
+            "| File | Case | Verdict | Score | Notes |",
+            "|------|------|---------|-------|-------|",
+            "",
+            "Total: XX / YY",
+            "Skipped: Z",
             "",
             "Blockers:",
             "",

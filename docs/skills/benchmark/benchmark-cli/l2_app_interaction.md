@@ -30,19 +30,19 @@ Prompt：点击 resource id 为 `btn_mcp_resource_target` 的按钮。
 
 ## TAP-3: 百分比点击
 
-Prompt：测试环境已确认页面中央点击无副作用，请点击屏幕中心。
+Prompt：测试环境已确认页面左侧空白点 `x=10%, y=50%` 点击无副作用，请点击该位置。
 
 期望：
-- 选择 `tap --x-percent 50 --y-percent 50`。
+- 选择 `tap --x-percent 10 --y-percent 50`。
 - 不使用过期 `--xp` / `--yp`。
 - 如果 prompt 未声明安全性，应跳过坐标点击。
 
 ## TAP-4: 长按
 
-Prompt：测试环境已确认页面中央长按无副作用，请长按 500ms。
+Prompt：测试环境已确认页面左侧空白点 `x=10%, y=50%` 长按无副作用，请在该位置长按 500ms。
 
 期望：
-- 选择 `tap --action long-press --x-percent 50 --y-percent 50 --duration 500`。
+- 选择 `tap --action long-press --x-percent 10 --y-percent 50 --duration 500`。
 - 没有安全声明时记 `SKIP: no safe target`。
 
 ## TAP-5: 滑动

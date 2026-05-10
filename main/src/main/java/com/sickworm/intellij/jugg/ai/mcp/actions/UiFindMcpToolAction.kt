@@ -47,18 +47,11 @@ class UiFindMcpToolAction : McpToolAction {
             ?: return McpToolResult.internalErrorResult(toolName, "target is required")
 
         try {
-            val dumpAction = LayoutDumpMcpToolAction()
-            val dumpResult = dumpAction.execute(arguments, runtime)
-
-            if (dumpResult.status != McpToolStatus.OK) {
-                return dumpResult
+            val dumpResult = LayoutDumpHelper.dumpInternal(runtime, toolName)
+            if (dumpResult is LayoutDumpHelper.DumpInternalResult.Failure) {
+                return dumpResult.result
             }
-
-            val dataMap = dumpResult.data as? Map<*, *>
-                ?: return McpToolResult.internalErrorResult(toolName, "layout_dump returned invalid data")
-            val layoutFilePath = dataMap["file"] as? String
-                ?: return McpToolResult.internalErrorResult(toolName, "layout_dump did not return file path")
-            val layoutFile = File(layoutFilePath)
+            val layoutFile = (dumpResult as LayoutDumpHelper.DumpInternalResult.Success).jsonFile
             val layoutJson = JsonParser.parseString(layoutFile.readText()).asJsonObject
             val androidNodes = parseAndroidNodes(layoutJson)
 
@@ -69,7 +62,7 @@ class UiFindMcpToolAction : McpToolAction {
             val matched = androidNodes.find { node ->
                 (text != null && node.text == text) ||
                 (resourceId != null && node.id == resourceId) ||
-                (contentDesc != null && node.id == contentDesc)
+                (contentDesc != null && node.contentDesc == contentDesc)
             }
 
             if (matched != null) {
@@ -120,10 +113,11 @@ class UiFindMcpToolAction : McpToolAction {
         val className = node.get("className")?.asString ?: ""
         val id = node.get("id")?.asString
         val text = node.get("text")?.asString
+        val contentDesc = node.get("contentDesc")?.asString
         val boundsArray = node.getAsJsonArray("bounds")
         val bounds = IntArray(4) { boundsArray[it].asInt }
 
-        result.add(AndroidNode(className, id, text, bounds))
+        result.add(AndroidNode(className, id, text, bounds, contentDesc))
 
         node.getAsJsonArray("children")?.forEach { child ->
             collectNodes(child.asJsonObject, result)

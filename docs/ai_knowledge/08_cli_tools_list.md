@@ -81,6 +81,7 @@ tools/export_benchmark_prompt_packs.sh hooks
 - `cli` / `ui-verify` benchmark 在 `android_demo_project` 或其子目录启动被测 Agent。
 - `hooks` benchmark 在仓库根目录启动被测 Agent；它验证 `docs/skills/hooks` 脚本本身，不属于 `jugg` CLI 子命令。
 - prompt pack 内的 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json` 是被测 Agent 可见输入；被测 Agent 只应填写同目录 `report.md`。
+- 导出的 `report.md` 模板要求每条用例填写 `Score: N / 5`，汇总表包含 `File / Case / Verdict / Score / Notes`；所有路径证据应写相对路径，避免把本机绝对路径写入报告。
 
 ---
 
@@ -222,6 +223,12 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 ```
 
+输出：
+- `message`：窗口数、top window、节点数、clickable 数、是否截断。
+- `data.file`：HTML 文件路径。
+- `data.contentBytes`：HTML 内容字节数。
+- `artifacts[0]`：`type=html`，路径同 `data.file`。
+
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
 |-----------------------|----------------------------------|----------|------|
 | `--root-layout <id>` | `--rootLayout <id>` | `rootLayout` | 只导出指定节点子树 |
@@ -234,6 +241,11 @@ jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 ```
 jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
 ```
+
+输出：
+- 成功：`data.found=true`、`data.bounds`、`data.position`、`data.size`、`data.className`。
+- 失败：`status=ERROR`、`errorCode=ELEMENT_NOT_FOUND`、`data.found=false`。
+- 不输出 layout 文件；内部复用 `layout-dump` 的结构化结果定位元素。
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 |
 |-----------------------|----------------------------------|----------|

@@ -56,6 +56,7 @@ object CompileJobManager {
         isAlwaysRestartApp: Boolean = false,
         androidTestRunSpec: AndroidTestRunSpec? = null,
         buildTargetOverride: BuildTarget? = null,
+        waitAppReadyAfterSuccess: Boolean = true,
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
@@ -93,8 +94,12 @@ object CompileJobManager {
                     message = finalMessage,
                     runInvocationResult = runResponse,
                 )
-                // Skip app-ready check when deployment was intentionally skipped (compile-only mode).
-                if (isSkipDeploy) initialResult else waitAppReadyIfSuccess(runtime, "deploy", initialResult)
+                // Skip app-ready check when deployment was intentionally skipped or the caller owns readiness validation.
+                if (isSkipDeploy || !waitAppReadyAfterSuccess) {
+                    initialResult
+                } else {
+                    waitAppReadyIfSuccess(runtime, "deploy", initialResult)
+                }
             },
         )
     }

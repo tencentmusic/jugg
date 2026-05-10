@@ -59,6 +59,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             isAlwaysRestartApp: Boolean = true,
             androidTestRunSpec: AndroidTestRunSpec? = null,
             buildTargetOverride: BuildTarget? = null,
+            waitAppReadyAfterSuccess: Boolean = true,
         ): McpToolResult {
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
@@ -66,6 +67,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 isAlwaysRestartApp = isAlwaysRestartApp,
                 androidTestRunSpec = androidTestRunSpec,
                 buildTargetOverride = buildTargetOverride,
+                waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
             )
             val jobMetaData = buildJobMetaData(trigger)
             if (!trigger.isFinal) {
