@@ -58,6 +58,30 @@ jugg layout-dump --includeGone           # camelCase（= MCP param name）
 
 **判断方法**：新增 CLI flag 后，检查 `jugglib.normalize_args()` + `build_params()` 的结果能否与 MCP 参数表完全对齐。若需要在 CLI 侧做任何"翻译"逻辑，即违反本约束。
 
+### 1.4 Agent benchmark prompt pack
+
+`docs/skills/benchmark/` 维护给被测 Agent 使用的 prompt-only benchmark 母版，默认通过仓库根目录脚本导出：
+
+```bash
+tools/export_benchmark_prompt_packs.sh all
+tools/export_benchmark_prompt_packs.sh cli
+tools/export_benchmark_prompt_packs.sh ui-verify
+tools/export_benchmark_prompt_packs.sh hooks
+```
+
+导出脚本实际转发到 `docs/skills/benchmark/runner/export_prompt_pack.py`。默认输出目录为 `android_demo_project/build/benchmark-packs/`，包含：
+
+| kind | 母版目录 | 输出目录 | 定位 |
+|------|----------|----------|------|
+| `cli` | `docs/skills/benchmark/benchmark-cli` | `android_demo_project/build/benchmark-packs/cli` | 验证 Agent 是否正确选择和使用 Jugg CLI |
+| `ui-verify` | `docs/skills/benchmark/benchmark-ui-verify` | `android_demo_project/build/benchmark-packs/ui-verify` | 验证 Agent 是否正确使用 UI 观察、定位与交互链路 |
+| `hooks` | `docs/skills/benchmark/benchmark-hooks` | `android_demo_project/build/benchmark-packs/hooks` | 验证 Agent hooks 的软提醒、硬阻断、二次放行与未全量编译放行 |
+
+注意：
+- `cli` / `ui-verify` benchmark 在 `android_demo_project` 或其子目录启动被测 Agent。
+- `hooks` benchmark 在仓库根目录启动被测 Agent；它验证 `docs/skills/hooks` 脚本本身，不属于 `jugg` CLI 子命令。
+- prompt pack 内的 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json` 是被测 Agent 可见输入；被测 Agent 只应填写同目录 `report.md`。
+
 ---
 
 ## 2. 子命令列表与 CLI 参数

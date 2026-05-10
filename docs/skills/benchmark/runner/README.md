@@ -5,29 +5,32 @@
 母版仍保留在：
 
 - `docs/skills/benchmark/benchmark-cli`
+- `docs/skills/benchmark/benchmark-hooks`
 - `docs/skills/benchmark/benchmark-ui-verify`
 
 导出物默认写入：
 
 - `android_demo_project/build/benchmark-packs/cli`
+- `android_demo_project/build/benchmark-packs/hooks`
 - `android_demo_project/build/benchmark-packs/ui-verify`
 
 ## 导出
 
 ```bash
-python3 docs/skills/benchmark/runner/export_prompt_pack.py all
+tools/export_benchmark_prompt_packs.sh all
 ```
 
 也可以只导出一份：
 
 ```bash
-python3 docs/skills/benchmark/runner/export_prompt_pack.py cli
-python3 docs/skills/benchmark/runner/export_prompt_pack.py ui-verify
+tools/export_benchmark_prompt_packs.sh cli
+tools/export_benchmark_prompt_packs.sh hooks
+tools/export_benchmark_prompt_packs.sh ui-verify
 ```
 
 ## 被测 Agent 启动方式
 
-在 `android_demo_project` 中启动被测 Agent，只给它 prompt pack：
+CLI benchmark 在 `android_demo_project` 中启动被测 Agent，只给它 prompt pack：
 
 ```text
 请执行 build/benchmark-packs/cli/cases.md 中的用例。
@@ -36,6 +39,14 @@ python3 docs/skills/benchmark/runner/export_prompt_pack.py ui-verify
 ```
 
 UI benchmark 同理，把路径换成 `build/benchmark-packs/ui-verify`。
+
+Hooks benchmark 在仓库根目录启动被测 Agent，只给它 prompt pack：
+
+```text
+请执行 android_demo_project/build/benchmark-packs/hooks/cases.md 中的用例。
+按 android_demo_project/build/benchmark-packs/hooks/README.md 的格式把结果写入 android_demo_project/build/benchmark-packs/hooks/report.md。
+不要读取 docs/skills/benchmark。
+```
 
 ## 验收方式
 

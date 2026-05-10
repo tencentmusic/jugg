@@ -17,10 +17,17 @@ BENCHMARKS = {
     "cli": {
         "title": "Jugg CLI Benchmark Prompt Pack",
         "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-cli",
+        "mode": "cli",
     },
     "ui-verify": {
         "title": "Jugg UI Verify Benchmark Prompt Pack",
         "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-ui-verify",
+        "mode": "cli",
+    },
+    "hooks": {
+        "title": "Jugg Agent Hooks Benchmark Prompt Pack",
+        "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-hooks",
+        "mode": "hooks",
     },
 }
 
@@ -42,15 +49,18 @@ def parse_case_heading(line: str) -> tuple[str, str] | None:
 
 def extract_prompt(lines: list[str], start: int) -> str:
     prompt_lines: list[str] = []
+    in_code_block = False
     i = start
     while i < len(lines):
         line = lines[i]
-        if line.startswith("期望：") or line.startswith("## "):
+        if not in_code_block and (line.startswith("期望：") or line.startswith("## ")):
             break
         if line.startswith("Prompt："):
             prompt_lines.append(line.removeprefix("Prompt：").strip())
         elif prompt_lines:
-            prompt_lines.append(line.strip())
+            if line.startswith("```"):
+                in_code_block = not in_code_block
+            prompt_lines.append(line if in_code_block else line.strip())
         i += 1
     return "\n".join(line for line in prompt_lines if line).strip()
 
@@ -86,7 +96,31 @@ def collect_cases(source_root: Path) -> list[Case]:
     return cases
 
 
-def render_cases(title: str, cases: list[Case]) -> str:
+def benchmark_lines(mode: str) -> list[str]:
+    if mode == "hooks":
+        return [
+            "执行要求：",
+            "- 在仓库根目录执行。",
+            "- 只执行 `cases.md` 中给出的 hook 验证步骤。",
+            "- 不修改 hook 源码、不启动 Android Studio、不使用真实 `~/.jugg`。",
+            "- 条件不足时写明 `SKIP` 原因。",
+            "- 结果写入同目录 `report.md`。",
+        ]
+    return [
+        "执行要求：",
+        "- 在 `android_demo_project` 或其子目录执行。",
+        "- 使用 `docs/skills/jugg-android-dev-loop` 提供的 Jugg CLI。",
+        "- 不要直接调用 MCP。",
+        "- 条件不足时写明 `SKIP` 原因。",
+        "- 结果写入同目录 `report.md`。",
+    ]
+
+
+def sequence_label(mode: str) -> str:
+    return "Command sequence" if mode == "hooks" else "CLI sequence"
+
+
+def render_cases(title: str, cases: list[Case], mode: str) -> str:
     lines = [
         f"# {title}",
         "",
@@ -97,11 +131,7 @@ def render_cases(title: str, cases: list[Case]) -> str:
         "- 只允许把执行结果写入同目录 `report.md`。",
         "- 不要读取 `docs/skills/benchmark`，不要读取母版答案。",
         "",
-        "执行要求：",
-        "- 在 `android_demo_project` 或其子目录执行。",
-        "- 使用 `docs/skills/jugg-android-dev-loop` 提供的 Jugg CLI。",
-        "- 条件不足时写明 `SKIP` 原因。",
-        "- 结果写入同目录 `report.md`。",
+        *benchmark_lines(mode),
         "",
     ]
     current_file: str | None = None
@@ -120,7 +150,9 @@ def render_cases(title: str, cases: list[Case]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_readme(title: str, case_count: int) -> str:
+def render_readme(title: str, case_count: int, mode: str) -> str:
+    command_label = sequence_label(mode)
+    requirements = "\n".join(benchmark_lines(mode))
     return f"""# {title}
 
 这是被测 Agent 可见的 prompt-only 题目包。本文件是执行说明，不是待补全文档。
@@ -134,10 +166,10 @@ def render_readme(title: str, case_count: int) -> str:
 
 ## 运行约束
 
-- 当前工作目录必须是 `android_demo_project` 或其子目录。
 - 只执行 `cases.md` 中的用例。
-- 不要直接调用 MCP；使用 `jugg-android-dev-loop` skill 中的 Jugg CLI。
 - 所有证据写入 `report.md`，不要只在对话里总结。
+
+{requirements}
 
 ## 文件
 
@@ -154,8 +186,7 @@ def render_readme(title: str, case_count: int) -> str:
 ### CASE-ID: 用例标题
 - Prompt:
 - Working dir:
-- CLI sequence:
-  1. `subcommand [args]`
+- {command_label}:
 - Evidence:
 - Verdict: PASS / FAIL / SKIP
 - Notes:
@@ -174,10 +205,13 @@ Blockers:
 """
 
 
-def render_prompt(title: str, case_count: int) -> str:
+def render_prompt(title: str, case_count: int, mode: str) -> str:
+    intro = "请在当前仓库根目录执行 benchmark。" if mode == "hooks" else "请在当前 `android_demo_project` 工作区执行 benchmark。"
+    requirements = "\n".join(benchmark_lines(mode))
+    command_label = sequence_label(mode)
     return f"""# {title} Agent Prompt
 
-你是被测 Agent。请在当前 `android_demo_project` 工作区执行 benchmark。
+你是被测 Agent。{intro}
 
 请阅读当前目录的 `README.md` 和 `cases.md`，按 `cases.md` 顺序执行全部 {case_count} 条用例。
 
@@ -186,15 +220,16 @@ def render_prompt(title: str, case_count: int) -> str:
 - 禁止修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
 - 只允许把执行结果写入同目录 `report.md`。
 - 不要读取 `docs/skills/benchmark`。
-- 不要直接调用 MCP；使用 `jugg-android-dev-loop` skill 中的 Jugg CLI。
-- 条件不足时写 `SKIP`，并说明具体原因。
-- 每条用例都必须在 `report.md` 中留下 `CLI sequence`、`Evidence` 和 `Verdict`。
+- 每条用例都必须在 `report.md` 中留下 `{command_label}`、`Evidence` 和 `Verdict`。
+
+{requirements}
 
 完成后在 `report.md` 末尾填写 `Summary` 和 `Blockers`。
 """
 
 
-def render_report(title: str, cases: list[Case]) -> str:
+def render_report(title: str, cases: list[Case], mode: str) -> str:
+    command_label = sequence_label(mode)
     lines = [
         f"# {title} Report",
         "",
@@ -214,7 +249,7 @@ def render_report(title: str, cases: list[Case]) -> str:
                 "- Prompt:",
                 case.prompt,
                 "- Working dir:",
-                "- CLI sequence:",
+                f"- {command_label}:",
                 "- Evidence:",
                 "- Verdict: PASS / FAIL / SKIP",
                 "- Notes:",
@@ -239,16 +274,17 @@ def export_pack(kind: str, output_root: Path) -> Path:
     config = BENCHMARKS[kind]
     source_root = config["source"]
     title = config["title"]
+    mode = config["mode"]
     cases = collect_cases(source_root)
     if not cases:
         raise ValueError(f"No cases found in {source_root}")
 
     output_dir = output_root / kind
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "README.md").write_text(render_readme(title, len(cases)), encoding="utf-8")
-    (output_dir / "PROMPT.md").write_text(render_prompt(title, len(cases)), encoding="utf-8")
-    (output_dir / "cases.md").write_text(render_cases(title, cases), encoding="utf-8")
-    (output_dir / "report.md").write_text(render_report(title, cases), encoding="utf-8")
+    (output_dir / "README.md").write_text(render_readme(title, len(cases), mode), encoding="utf-8")
+    (output_dir / "PROMPT.md").write_text(render_prompt(title, len(cases), mode), encoding="utf-8")
+    (output_dir / "cases.md").write_text(render_cases(title, cases, mode), encoding="utf-8")
+    (output_dir / "report.md").write_text(render_report(title, cases, mode), encoding="utf-8")
     manifest = {
         "kind": kind,
         "title": title,
@@ -279,7 +315,10 @@ def main() -> None:
     kinds = BENCHMARKS.keys() if args.benchmark == "all" else [args.benchmark]
     for kind in kinds:
         output_dir = export_pack(kind, args.output_root)
-        print(output_dir.relative_to(REPO_ROOT))
+        try:
+            print(output_dir.relative_to(REPO_ROOT))
+        except ValueError:
+            print(output_dir)
 
 
 if __name__ == "__main__":
