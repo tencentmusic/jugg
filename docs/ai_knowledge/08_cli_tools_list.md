@@ -19,7 +19,7 @@
 
 | 优化点 | 说明 |
 |--------|------|
-| **自动推断 projectDir** | 所有命令均不需要传 `--project-dir`，通过调用 `list-projects` 后与 `$PWD` 做最长前缀匹配自动确定 |
+| **projectDir 解析** | 默认通过调用 `list-projects` 后与 `$PWD` 做最长前缀匹配自动确定；传入全局参数 `--project-dir <path>` 时直接使用该路径 |
 | **端口自动发现** | 先读本地缓存文件，不命中则扫描 `12320..12329`，命中后写缓存 |
 | **异步编译自动轮询** | `compile`/`deploy`/`gradle-build` 自动调用 `get-compile-status` 到终态；返回 `running` 后立即再次请求，并附带 `waitTimeoutMs=3000` 进行短阻塞等待，减少尾部等待窗口 |
 | **`--console=json` 模式** | 通过全局参数 `--console=json` 输出原始 structuredContent JSON 供脚本消费；默认以 `key: value` 格式输出 |
@@ -89,6 +89,14 @@ jugg --console=json <subcommand> [options]
 ```
 
 `--console` 是全局参数，必须放在子命令前。
+
+#### 手动指定 projectDir
+```
+jugg --project-dir <path> <subcommand> [options]
+jugg --project-dir=<path> <subcommand> [options]
+```
+
+`--project-dir` 是全局参数，用于跳过 `$PWD` 自动匹配，直接把传入路径作为 MCP `projectDir` 发送给对应工具。`version` 仍不需要 `projectDir`。
 
 ---
 

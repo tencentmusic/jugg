@@ -4,10 +4,14 @@ import json
 import os
 import sys
 import tempfile
+import types
 import unittest
+from unittest.mock import patch
 
 # Ensure jugglib is importable
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "py"))
+SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
+sys.path.insert(0, SCRIPTS_DIR)
+sys.path.insert(0, os.path.join(SCRIPTS_DIR, "py"))
 import jugglib
 
 
@@ -65,6 +69,55 @@ class ProjectDirMatchTest(unittest.TestCase):
         projects = ["C:\\Users\\dev\\project"]
         result = jugglib.match_project_dir("C:\\Users\\dev\\project\\src", projects)
         self.assertEqual(result, "C:\\Users\\dev\\project")
+
+
+class ProjectDirOverrideTest(unittest.TestCase):
+
+    def tearDown(self):
+        jugglib.set_project_dir_override("")
+
+    def test_resolve_project_dir_uses_explicit_value_without_list_projects(self):
+        jugglib.set_project_dir_override("/manual/project")
+
+        with patch.object(jugglib, "resolve_port") as mock_resolve_port, \
+             patch.object(jugglib, "raw_call") as mock_raw_call:
+            result = jugglib.resolve_project_dir()
+
+        self.assertEqual(result, "/manual/project")
+        mock_resolve_port.assert_not_called()
+        mock_raw_call.assert_not_called()
+
+
+class JuggGlobalProjectDirTest(unittest.TestCase):
+
+    def tearDown(self):
+        jugglib.set_project_dir_override("")
+
+    def test_project_dir_global_flag_sets_override_and_does_not_reach_subcommand(self):
+        import jugg
+
+        captured_args = []
+        fake_module = types.SimpleNamespace(
+            cmd_status=lambda args: captured_args.append(args)
+        )
+
+        with patch.object(sys, "argv", ["jugg.py", "--project-dir", "/manual/project", "status"]), \
+             patch("importlib.import_module", return_value=fake_module):
+            jugg.main()
+
+        self.assertEqual(jugglib.project_dir_override, "/manual/project")
+        self.assertEqual(captured_args, [[]])
+
+    def test_project_dir_global_flag_accepts_equals_form(self):
+        import jugg
+
+        fake_module = types.SimpleNamespace(cmd_status=lambda args: None)
+
+        with patch.object(sys, "argv", ["jugg.py", "--project-dir=/manual/project", "status"]), \
+             patch("importlib.import_module", return_value=fake_module):
+            jugg.main()
+
+        self.assertEqual(jugglib.project_dir_override, "/manual/project")
 
 
 class RecordSessionTest(unittest.TestCase):

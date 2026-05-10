@@ -30,7 +30,7 @@ Collect mandatory variables before any action.
 
 | Variable | Source | Fallback |
 |----------|--------|----------|
-| `projectDir` | CLI auto-resolved from `$PWD` | Ask user only if CLI reports "not under any Jugg project" |
+| `projectDir` | CLI auto-resolved from `$PWD`, or explicit `--project-dir <path>` when provided | Ask user only if neither current directory nor provided path identifies the target project |
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 
 ---
@@ -78,7 +78,7 @@ Supplementary references load on-demand at the step that needs them.
 ### Entry
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py <subcommand> [options]
+python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] <subcommand> [options]
 ```
 
 ### Output Format

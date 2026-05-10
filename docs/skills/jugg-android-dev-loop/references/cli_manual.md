@@ -1,6 +1,6 @@
 # Jugg CLI Manual
 
-CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py <subcommand> [options]`.
+CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py [global options] <subcommand> [options]`.
 
 ### CLI Output Format
 
@@ -15,6 +15,12 @@ Controlled by the global `--console` flag (must appear before the subcommand):
 Example:
 ```
 python3 {SKILL_DIR}/scripts/jugg.py --console=json deploy
+```
+
+Use `--project-dir <path>` when the command must target a project different from the current working directory:
+```
+python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project status
+python3 {SKILL_DIR}/scripts/jugg.py --project-dir=/path/to/project --console=json deploy
 ```
 
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).

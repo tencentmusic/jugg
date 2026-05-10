@@ -157,6 +157,9 @@ def jugg_call(tool: str, params: dict, *, json_mode: bool = False) -> dict:
 
 # ─── projectDir resolution ───────────────────────────────────────────────────
 
+project_dir_override: str = ""
+
+
 def match_project_dir(work_dir: str, projects: list[str]) -> str:
     """Given a working directory and a list of projectDirs,
     return the longest prefix match (slash-boundary-aware)."""
@@ -173,8 +176,17 @@ def match_project_dir(work_dir: str, projects: list[str]) -> str:
     return best
 
 
+def set_project_dir_override(project_dir: str) -> None:
+    """Set an explicit projectDir passed by the CLI global option."""
+    global project_dir_override
+    project_dir_override = project_dir
+
+
 def resolve_project_dir() -> str:
     """Call list_projects and resolve projectDir from $PWD."""
+    if project_dir_override:
+        return project_dir_override
+
     port = resolve_port()
     response = raw_call(port, "list-projects", {})
     structured = extract_structured(response)

@@ -14,12 +14,13 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 
 USAGE = """\
-Usage: jugg [--console=plain|rich|json] <subcommand> [options]
+Usage: jugg [--console=plain|rich|json] [--project-dir <path>] <subcommand> [options]
 
 Global options:
   --console=rich      Enable progress spinner; human-readable output (default for shell wrapper)
   --console=plain     No spinner; plain text output (default for direct python3 calls)
   --console=json      Structured JSON output; implies no spinner
+  --project-dir PATH   Use this projectDir instead of resolving it from the current directory
 
 Subcommands:
   version             Show CLI version and plugin version from all initialized projects
@@ -69,10 +70,13 @@ def main() -> None:
     args = sys.argv[1:]
 
     import jugglib
-    # Extract global --console=<value> flag before subcommand dispatch.
+    # Extract global flags before subcommand dispatch.
     console = "plain"
+    project_dir = ""
     remaining = []
-    for a in args:
+    i = 0
+    while i < len(args):
+        a = args[i]
         if a.startswith("--console="):
             val = a[len("--console="):]
             if val not in _CONSOLE_VALUES:
@@ -80,12 +84,25 @@ def main() -> None:
                       file=sys.stderr)
                 sys.exit(1)
             console = val
+        elif a == "--project-dir":
+            if i + 1 >= len(args):
+                print("jugg: --project-dir requires a path", file=sys.stderr)
+                sys.exit(1)
+            project_dir = args[i + 1]
+            i += 1
+        elif a.startswith("--project-dir="):
+            project_dir = a[len("--project-dir="):]
+            if not project_dir:
+                print("jugg: --project-dir requires a path", file=sys.stderr)
+                sys.exit(1)
         else:
             remaining.append(a)
+        i += 1
     args = remaining
 
     jugglib.spinner_enabled = (console == "rich")
     jugglib.json_mode = (console == "json")
+    jugglib.set_project_dir_override(project_dir)
 
     if not args or args[0] in ("--help", "-h", "help"):
         print(USAGE, file=sys.stderr)
