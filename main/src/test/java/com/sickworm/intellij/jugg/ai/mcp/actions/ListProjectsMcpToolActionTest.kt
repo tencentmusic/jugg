@@ -1,9 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.compiler.BuildTarget
-import com.sickworm.intellij.jugg.deploy.FullBuildInfo
-import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
+import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -17,7 +15,7 @@ import org.mockito.Mockito
 import java.io.File
 
 /**
- * ListProjectsMcpToolActionTest verifies list-projects returns per-project compile history flags.
+ * ListProjectsMcpToolActionTest verifies list-projects returns per-project full-compile flags.
  */
 class ListProjectsMcpToolActionTest {
 
@@ -37,9 +35,9 @@ class ListProjectsMcpToolActionTest {
     }
 
     @Test
-    fun listProjectsReturnsHasCompiledBeforeFlag() {
+    fun listProjectsReturnsHasBeenFullCompiledFlag() {
         val compiledProject = tempFolder.newFolder("compiled")
-        writeFullBuildInfo(compiledProject)
+        writeFullCompileState(compiledProject)
         val neverCompiledProject = tempFolder.newFolder("never_compiled")
 
         PlatformApi.impl = FakePlatformApi(
@@ -55,20 +53,48 @@ class ListProjectsMcpToolActionTest {
         val projects = data["projects"] as List<Any>
         val byDir = projects.associateBy { readStringProperty(it, "projectDir") }
 
-        Assert.assertEquals(true, readBooleanProperty(byDir[compiledProject.absolutePath], "hasCompiledBefore"))
-        Assert.assertEquals(false, readBooleanProperty(byDir[neverCompiledProject.absolutePath], "hasCompiledBefore"))
+        Assert.assertEquals(true, readBooleanProperty(byDir[compiledProject.absolutePath], "hasBeenFullCompiled"))
+        Assert.assertEquals(false, readBooleanProperty(byDir[neverCompiledProject.absolutePath], "hasBeenFullCompiled"))
     }
 
-    private fun writeFullBuildInfo(projectDir: File) {
-        val pathManager = JuggPathManager(projectDir)
-        val fullBuildInfo = FullBuildInfo(
-            compileCommand = "./gradlew :app:assembleDebug",
-            buildTarget = BuildTarget.APP,
-            createdAt = 123L,
+    @Test
+    fun listProjectsDoesNotTreatPartialFullBuildInfoAsFullCompiled() {
+        val partialProject = tempFolder.newFolder("partial")
+        writeOnlyFullBuildInfo(partialProject)
+
+        PlatformApi.impl = FakePlatformApi(
+            initializedProjectDirs = listOf(partialProject),
         )
-        val fullBuildInfoFile = File(pathManager.compileContextDbDir, "full_build_info.json")
+
+        val result = ListProjectsMcpToolAction().executeGlobal()
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val projects = data["projects"] as List<Any>
+
+        Assert.assertEquals(false, readBooleanProperty(projects.first(), "hasBeenFullCompiled"))
+    }
+
+    private fun writeFullCompileState(projectDir: File) {
+        val pathManager = JuggPathManager(projectDir)
+        writeOnlyFullBuildInfo(projectDir)
+        File(pathManager.compileContextDbDir, "complete_flag").createNewFile()
+        DeployHistoryData(
+            fullCompileGitCommitHash = "abcdef",
+            subModulesFullCompileGitCommitHash = null,
+            incDeployTimes = 0,
+            changedFiles = emptyMap(),
+        ).save(File(pathManager.deployHistoryDbDir, "deploy_history.json"))
+    }
+
+    private fun writeOnlyFullBuildInfo(projectDir: File) {
+        val fullBuildInfoFile = File(JuggPathManager(projectDir).compileContextDbDir, "full_build_info.json")
         fullBuildInfoFile.parentFile?.mkdirs()
-        fullBuildInfoFile.writeText(FullBuildInfoSerializer().serialize(fullBuildInfo), Charsets.UTF_8)
+        fullBuildInfoFile.writeText(
+            """{"version":1,"compileCommand":"./gradlew :app:assembleDebug","buildTarget":"APP","createdAt":123}""",
+            Charsets.UTF_8,
+        )
     }
 
     private fun readStringProperty(target: Any?, propertyName: String): String {

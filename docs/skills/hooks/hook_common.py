@@ -102,6 +102,35 @@ def jugg_cli_path(home: Path) -> Path:
     return home / ".jugg" / "bin" / "jugg.py"
 
 
+def match_project_info(cwd: str, projects: list[Any]) -> dict[str, Any] | None:
+    normalized_cwd = cwd.replace("\\", "/")
+    best: dict[str, Any] | None = None
+    best_length = -1
+    for project in projects:
+        if not isinstance(project, dict):
+            continue
+        project_dir = project.get("projectDir")
+        if not isinstance(project_dir, str) or not project_dir:
+            continue
+        normalized_project_dir = project_dir.replace("\\", "/")
+        is_match = normalized_cwd == normalized_project_dir or normalized_cwd.startswith(normalized_project_dir + "/")
+        if is_match and len(project_dir) > best_length:
+            best = project
+            best_length = len(project_dir)
+    return best
+
+
+def project_allows_hooks(project_info: dict[str, Any]) -> bool:
+    return project_info.get("hasBeenFullCompiled") is not False
+
+
+def status_allows_hooks(structured: dict[str, Any]) -> bool:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return True
+    return project_allows_hooks(data)
+
+
 def read_status_snapshot(home: Path, cwd: str) -> dict[str, Any] | None:
     jugg_cli = jugg_cli_path(home)
     if not jugg_cli.exists():
@@ -130,6 +159,9 @@ def read_status_snapshot(home: Path, cwd: str) -> dict[str, Any] | None:
             "JUGG-HOOK",
             f"skip: jugg status not OK status={structured.get('status')!r} message={structured.get('message')!r}",
         )
+        return None
+    if not status_allows_hooks(structured):
+        debug_log("JUGG-HOOK", "skip: project has not been full compiled by Jugg")
         return None
     return structured if isinstance(structured, dict) else None
 

@@ -84,6 +84,10 @@ class GetStatusMcpToolAction(
                             type = "boolean",
                             description = "True when the last persisted full-build baseline was built with AndroidTest target.",
                         ),
+                        "hasBeenFullCompiled" to McpJsonSchemaProperty(
+                            type = "boolean",
+                            description = "True when Jugg has persisted a complete full-build baseline for this project.",
+                        ),
                     ),
                     required = listOf(
                         "hasDevice",
@@ -95,6 +99,7 @@ class GetStatusMcpToolAction(
                         "lastFileModifiedTime",
                         "lastCompileTime",
                         "enabledAndroidTest",
+                        "hasBeenFullCompiled",
                     ),
                     additionalProperties = false,
                 )
@@ -153,6 +158,7 @@ class GetStatusMcpToolAction(
             ?: runCatching { runtime.project.basePath }.getOrNull()
         val lastCompileTime = projectDir?.let { lastCompileTimestampRegistry.getTimestamp(it) } ?: ""
         val enabledAndroidTest = projectDir?.let { isAndroidTestEnabledAtLastFullBuild(it) } ?: false
+        val hasBeenFullCompiled = projectDir?.let { hasBeenFullCompiled(File(it)) } ?: false
 
         val data: Map<String, Any> = mapOf(
             "hasDevice" to (runtime.deployTargetManager.hasDevice),
@@ -164,6 +170,7 @@ class GetStatusMcpToolAction(
             "lastFileModifiedTime" to lastFileModifiedTime,
             "lastCompileTime" to lastCompileTime,
             "enabledAndroidTest" to enabledAndroidTest,
+            "hasBeenFullCompiled" to hasBeenFullCompiled,
         )
 
         return McpToolResult(
@@ -184,4 +191,5 @@ class GetStatusMcpToolAction(
             FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8)).buildTarget == BuildTarget.ANDROID_TEST
         }.getOrDefault(false)
     }
+
 }

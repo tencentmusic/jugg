@@ -40,9 +40,11 @@ def _print_status(structured: dict) -> None:
     last_file_modified_time: str = data.get("lastFileModifiedTime", "")
     last_compile_time: str = data.get("lastCompileTime", "")
     enabled_android_test: bool = data.get("enabledAndroidTest", False)
+    has_been_full_compiled: bool = data.get("hasBeenFullCompiled", False)
 
     print(f"hasDevice: {str(has_device).lower()}")
     print(f"needFallback: {str(need_fallback).lower()}")
+    print(f"hasBeenFullCompiled: {str(has_been_full_compiled).lower()}")
     print(f"enabledAndroidTest: {str(enabled_android_test).lower()}")
     if state_message:
         print(f"stateMessage: {state_message}")

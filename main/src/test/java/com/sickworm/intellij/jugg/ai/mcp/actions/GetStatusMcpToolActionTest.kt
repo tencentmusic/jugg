@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
@@ -106,6 +107,32 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals(false, data["enabledAndroidTest"])
+    }
+
+    @Test
+    fun testStatusReturnsHasBeenFullCompiledWhenCompleteBaselineExists() {
+        val projectDir = tempFolder.newFolder("project-full-compiled")
+        writeFullCompileState(projectDir, BuildTarget.APP)
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(mapOf("projectDir" to projectDir.absolutePath), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["hasBeenFullCompiled"])
+    }
+
+    @Test
+    fun testStatusDoesNotTreatPartialFullBuildInfoAsFullCompiled() {
+        val projectDir = tempFolder.newFolder("project-partial-full-build")
+        writeFullBuildInfo(projectDir, BuildTarget.APP)
+        val runtime = runtimeWith(deployState = JuggDeployState.READY, hasDevice = true, uncompiledFiles = emptyList())
+
+        val result = GetStatusMcpToolAction().execute(mapOf("projectDir" to projectDir.absolutePath), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(false, data["hasBeenFullCompiled"])
     }
 
     @Test
@@ -410,5 +437,17 @@ class GetStatusMcpToolActionTest {
             ),
             Charsets.UTF_8,
         )
+    }
+
+    private fun writeFullCompileState(projectDir: File, buildTarget: BuildTarget) {
+        val pathManager = JuggPathManager(projectDir)
+        writeFullBuildInfo(projectDir, buildTarget)
+        File(pathManager.compileContextDbDir, "complete_flag").createNewFile()
+        DeployHistoryData(
+            fullCompileGitCommitHash = "abcdef",
+            subModulesFullCompileGitCommitHash = null,
+            incDeployTimes = 0,
+            changedFiles = emptyMap(),
+        ).save(File(pathManager.deployHistoryDbDir, "deploy_history.json"))
     }
 }

@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpProjectInfo
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
+import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
@@ -38,12 +38,12 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
                                 properties = mapOf(
                                     "projectDir" to McpJsonSchemaProperty(type = "string"),
                                     "initialized" to McpJsonSchemaProperty(type = "boolean"),
-                                    "hasCompiledBefore" to McpJsonSchemaProperty(
+                                    "hasBeenFullCompiled" to McpJsonSchemaProperty(
                                         type = "boolean",
-                                        description = "True when Jugg has persisted at least one full-build baseline for this project.",
+                                        description = "True when Jugg has persisted a complete full-build baseline for this project.",
                                     ),
                                 ),
-                                required = listOf("projectDir", "initialized", "hasCompiledBefore"),
+                                required = listOf("projectDir", "initialized", "hasBeenFullCompiled"),
                                 additionalProperties = false,
                             )
                         )
@@ -70,7 +70,7 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
                     McpProjectInfo(
                         projectDir = it.path,
                         initialized = true,
-                        hasCompiledBefore = hasCompiledBefore(it),
+                        hasBeenFullCompiled = hasBeenFullCompiled(it),
                     )
                 }
             ),
@@ -78,16 +78,15 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
             errorCode = null,
         )
     }
+}
 
-    private fun hasCompiledBefore(projectDir: File): Boolean {
-        val pathManager = JuggPathManager(projectDir)
-        val fullBuildInfoFile = File(pathManager.compileContextDbDir, "full_build_info.json")
-        if (!fullBuildInfoFile.exists()) {
-            return false
-        }
-        return runCatching {
-            FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8))
-            true
-        }.getOrDefault(false)
+internal fun hasBeenFullCompiled(projectDir: File): Boolean {
+    val pathManager = JuggPathManager(projectDir)
+    val completeFlagFile = File(pathManager.compileContextDbDir, "complete_flag")
+    if (!completeFlagFile.exists()) {
+        return false
     }
+    val deployHistoryFile = File(pathManager.deployHistoryDbDir, "deploy_history.json")
+    val deployHistoryData = DeployHistoryData.load(deployHistoryFile, isUseCache = false)
+    return deployHistoryData?.fullCompileGitCommitHash != null
 }

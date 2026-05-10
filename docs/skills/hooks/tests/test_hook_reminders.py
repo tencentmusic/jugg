@@ -71,6 +71,32 @@ class HookReminderDecisionTest(unittest.TestCase):
 
         self.assertFalse(mod.should_block_gradle_command(payload, {}))
 
+    def test_hook_common_skips_project_without_full_compile_baseline(self):
+        mod = _load_hook_module("hook_common.py")
+
+        self.assertFalse(mod.project_allows_hooks({"hasBeenFullCompiled": False}))
+
+    def test_hook_common_allows_project_with_full_compile_baseline(self):
+        mod = _load_hook_module("hook_common.py")
+
+        self.assertTrue(mod.project_allows_hooks({"hasBeenFullCompiled": True}))
+
+    def test_hook_common_allows_legacy_project_when_flag_is_missing(self):
+        mod = _load_hook_module("hook_common.py")
+
+        self.assertTrue(mod.project_allows_hooks({"projectDir": "/repo"}))
+
+    def test_hook_common_matches_longest_project_dir(self):
+        mod = _load_hook_module("hook_common.py")
+        projects = [
+            {"projectDir": "/repo"},
+            {"projectDir": "/repo/app"},
+        ]
+
+        matched = mod.match_project_info("/repo/app/module", projects)
+
+        self.assertEqual("/repo/app", matched["projectDir"])
+
 
 if __name__ == "__main__":
     unittest.main()
