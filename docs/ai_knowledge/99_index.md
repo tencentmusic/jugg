@@ -45,7 +45,7 @@
 | jugg CLI 子命令使用 / **新增或修改 CLI 参数** | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` |
 | MCP UI 布局验证设计（工具原理/算法） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `ai/mcp/layout/*`, `ElementFinder.kt`, `ElementMatcher.kt`, `RelationExtractor.kt`, `RelationVerifier.kt` |
 | MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_tools_list.md` | `ai/mcp/actions/McpToolActionRegistry.kt`, `ai/mcp/actions/*` |
-| MCP UI 验证盲测/layout_verify/view_inspect | `98_code_map.md`, `ai/mcp/actions/*` |
+| MCP UI 验证盲测/view_inspect | `98_code_map.md`, `ai/mcp/actions/*` |
 | figma-layout-verify 内部算法（关系提取/IoU 匹配/容差） | `08_mcp_figma_layout_verify_internals.md` | `ai/mcp/layout/RelationExtractor.kt`, `ElementMatcher.kt`, `RelationVerifier.kt` |
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
 | **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_manifest_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |

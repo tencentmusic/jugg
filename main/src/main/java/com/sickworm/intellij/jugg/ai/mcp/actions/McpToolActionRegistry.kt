@@ -75,7 +75,6 @@ class McpToolActionRegistry(
                 RequestRemoteSshInfoMcpToolAction(),
                 DeviceListMcpToolAction(),
                 LayoutDumpMcpToolAction(),
-                LayoutVerifyMcpToolAction(),
                 UiFindMcpToolAction(),
                 EvalViewMcpToolAction(),
                 ActivityStackMcpToolAction(),

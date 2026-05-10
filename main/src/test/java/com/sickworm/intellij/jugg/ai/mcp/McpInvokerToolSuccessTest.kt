@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
+import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.mock.TestPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import org.junit.Assert
@@ -384,6 +385,43 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+    }
+
+    @Test
+    fun testLayoutVerifyNotRegistered() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 19,
+                params = mapOf(
+                    "name" to "layout-verify",
+                    "arguments" to mapOf(
+                        "projectDir" to "/tmp/projectA",
+                        "checks" to listOf(
+                            mapOf(
+                                "target" to mapOf("text" to "Submit"),
+                                "type" to "property",
+                                "property" to "exists",
+                                "value" to true,
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
+        Assert.assertEquals(McpErrorCode.TOOL_NOT_FOUND, result.structuredContent["errorCode"])
+    }
+
+    @Test
+    fun testDefaultRegistryDoesNotExposeLayoutVerify() {
+        val toolNames = McpToolActionRegistry.defaultActions().map { it.toolName }
+
+        Assert.assertFalse(toolNames.contains(McpToolActionRegistry.ToolNames.LAYOUT_VERIFY))
     }
 
     @Test

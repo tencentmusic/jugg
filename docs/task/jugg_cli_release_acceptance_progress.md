@@ -16,7 +16,7 @@
 |----|------|------|------|-----------|
 | A1 | 静态清单 | 从 CLI parser 生成子命令、flags、required、choices、默认值 inventory | Done | `build/reports/jugg-cli-acceptance/cli_inventory.json` / `.md`，共 16 个命令 |
 | A2 | 静态清单 | 从 MCP schema/registry 生成 tool 参数 inventory | Done | live MCP `tools/list` on port 12320；`schema_inventory.json` / `.md`，共 19 个工具 |
-| A3 | 静态清单 | 对比 CLI flag 与 MCP 参数 1:1 映射 | Needs Review | `cli_schema_diff.md`：`instrument` alias 映射、`layout-verify` 无 CLI、部分 MCP optional 未暴露 |
+| A3 | 静态清单 | 对比 CLI flag 与 MCP 参数 1:1 映射 | In Progress | `layout-verify` 决策为从 MCP 取消注册，已处理；`instrument` alias 与部分 MCP optional 未暴露仍需说明/后续决策 |
 | A4 | 静态清单 | 对比 `08_cli_tools_list.md`、`cli_manual.md`、`SKILL.md` 命令/参数示例 | Needs Review | 发现 `SKILL.md` 默认 JSON 描述错误，已修；`cli_manual.md`/`guide_install_cli.md` 超 ADK 行数预算 |
 | B1 | 单元测试 | 运行 `python3 -m unittest docs/skills/jugg-android-dev-loop/scripts/py/test_jugglib.py` | Done | 4 tests OK |
 | B2 | 单元测试 | 运行 jugg-android-dev-loop parser tests | Done | `test_cmd.py` 29 tests OK；`test_cmd_status.py` 1 test OK；`test_jugglib.py` 37 tests OK。原 discover 命令有同名模块冲突，计划已改逐文件 |
@@ -43,10 +43,11 @@
 - 2026-05-10：完成 C1/C2 无设备 smoke：MCP port 12320 可用，`version`/json version、`devices`、`status` 均可执行。
 - 2026-05-10：错误体验探针发现缺值 `IndexError` 与 `wait-logs` 缺 marker 未本地拦截；已补测试并修复，`error_probe.md` 全部 SystemExit + 明确错误。
 - 2026-05-10：完成 G2 示例 parser 校验；`SKILL.md` 与 `cli_manual.md` 的可执行示例全部通过，含 `[...]` 的用法模板跳过。
+- 2026-05-10：按用户确认，`layout-verify` 不再作为 MCP tool 暴露；从 `McpToolActionRegistry.defaultActions()` 移除，并同步 MCP 工具文档。
 
 ## 阻塞/待人工确认
 
 - A3：`instrument` 的 `--clazz`/`--instrumentationRunner`/`--e`/`-e` 等 alias 是否保留，需要后续决策；先不改实现。
-- A3：`layout-verify` MCP tool 是否应暴露 CLI，需产品决策；先标记为 Review。
+- A3：`layout-verify` MCP tool 已按决策从 MCP 默认注册表移除，保持与 CLI 命令面一致。
 - G1：`cli_manual.md` 233 行、`guide_install_cli.md` 155 行超过 ADK reference 150 行预算；是否现在压缩需要人工确认或另开文档治理任务。
 - D/E/F：需要在线设备、已启动 app、可运行 androidTest source 或已知 marker；当前先保持 Pending。

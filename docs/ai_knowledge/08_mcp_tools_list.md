@@ -32,7 +32,7 @@
 
 ## MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
 
-共 **19 个**注册工具，按注册顺序排列。
+共 **18 个**注册工具，按注册顺序排列。
 
 ### `version`
 
@@ -205,34 +205,6 @@
 
 ---
 
-### `layout-verify`
-
-批量验证 UI 元素属性或关系。自动获取布局快照。
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `checksFile` | string | 否 | checks JSON 文件绝对路径（`checks` 为空时使用） |
-| `checks` | array | 否 | 批量检查数组（与 `checksFile` 二选一） |
-
-**checks 数组 item schema**：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `target` | object | 元素选择器：`resourceId`/`text`/`contentDesc`/`className` |
-| `type` | string | `property`/`spacing`/`alignment`/`overlap`/`containment`/`order` |
-| `property` | string | type=property 时使用。枚举：`exists`/`visibility`/`clickable`/`enabled`/`text`/`textColor`/`backgroundColor`/`alpha`/`bounds.width`/`bounds.height`/`bounds.left`/`bounds.top`/`bounds.right`/`bounds.bottom`/`padding.left`/`padding.top`/`padding.right`/`padding.bottom`/`textSizeSp` |
-| `op` | string | 比较运算符，默认 `eq`。枚举：`eq`/`neq`/`gte`/`lte`/`gt`/`lt`/`contains`/`matches` |
-| `value` | string | 期望值。textColor 格式：`#AARRGGBB` |
-| `target2` | object | 关系检查的第二个元素选择器（同 `target`） |
-| `axis` | string | `x`=水平/`y`=垂直（用于 spacing/alignment/order） |
-| `expected` | number | 期望值 dp（用于 spacing/alignment/order） |
-| `expectOverlap` | boolean | type=overlap 时使用。默认 `false`（PASS=无重叠）；`true`（PASS=有重叠） |
-
-**live-only 属性**：`textSizeSp`、`backgroundColor` 自动走 live query。
-
----
-
 ### `view-locate`
 
 查找单个 UI 元素，返回位置和尺寸。
@@ -363,6 +335,7 @@
 |-------------|------|
 | `EmulatorListMcpToolAction.kt` | 模拟器列表 |
 | `FigmaLayoutVerifyMcpToolAction.kt` | Figma 布局验证 |
+| `LayoutVerifyMcpToolAction.kt` | 旧 UI 批量验证（已从 MCP 注册表移除，外部不可用） |
 | `ScreenshotMcpToolAction.kt` | 截图（`screenshot`） |
 | `StartActivityMcpToolAction.kt` | 启动 Activity |
 | `StartAppMcpToolAction.kt` | 启动 App |
