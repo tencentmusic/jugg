@@ -129,6 +129,12 @@ class IdeaDeviceAdb(
             return ""
         } catch (e: Exception) {
             logger.debug("invoke execAdbShellCmd failed, retry count $retryCount ", e)
+            if (AdbTransientOffline.isOffline(e)) {
+                if (retryCount == 0 && waitDeviceOnline(cmd)) {
+                    return execAdbShellCmd(cmd, retryCount = 1)
+                }
+                throw AdbTransientOffline.toException("adb shell $cmd", e)
+            }
             // java.nio.channels.InterruptedByTimeoutException
             // com.android.ddmlib.TimeoutException
             val timeoutException = listOf("InterruptedByTimeoutException", "TimeoutException")
@@ -155,7 +161,33 @@ class IdeaDeviceAdb(
                 }
             }
             logger.warn("invoke execAdbShellCmd failed, fallback to adb cli", e)
-            return execAdbShellCmdByCli(cmd)
+            return try {
+                execAdbShellCmdByCli(cmd)
+            } catch (offline: AdbTransientOfflineException) {
+                if (retryCount == 0 && waitDeviceOnline(cmd)) {
+                    return execAdbShellCmd(cmd, retryCount = 1)
+                }
+                throw offline
+            }
+        }
+    }
+
+    private fun waitDeviceOnline(cmd: String): Boolean {
+        logger.warn("Device $serial went offline during adb shell $cmd, wait up to ${AdbTransientOffline.DEFAULT_WAIT_MILLIS}ms.")
+        return AdbTransientOffline.waitUntilReady {
+            isAdbTransportReady()
+        }
+    }
+
+    private fun isAdbTransportReady(): Boolean {
+        if (!device.isOnline) {
+            return false
+        }
+        return try {
+            adb.shell(arrayOf("true"), null, 5L, TimeUnit.SECONDS)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -175,6 +207,9 @@ class IdeaDeviceAdb(
             }
         }.trim()
         logger.debug("adb(cli) out: $merged")
+        if (AdbTransientOffline.isOfflineMessage(merged)) {
+            throw AdbTransientOfflineException("ADB device offline during adb cli shell $cmd: $merged")
+        }
         return merged
     }
 

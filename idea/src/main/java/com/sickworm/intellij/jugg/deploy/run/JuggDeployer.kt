@@ -9,6 +9,8 @@ import com.android.tools.tracer.Trace
 import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
+import com.sickworm.intellij.jugg.deploy.AdbTransientOffline
+import java.util.concurrent.TimeUnit
 
 /**
  * @see com.android.tools.deployer.Deployer
@@ -163,7 +165,7 @@ class JuggDeployer(
 
         // On an on-host verification of the dump first.
         val dumper = ApplicationDumper(installer)
-        val verifyDump = verifyCache(speculativeDump, dumper, logger)
+        val verifyDump = verifyCache(speculativeDump, dumper, logger, adb)
 
         // covert to adt deploy data.
         val builder = OverlayUpdateBuilder()
@@ -172,12 +174,14 @@ class JuggDeployer(
         // Perform the swap.
         val startTime = System.currentTimeMillis()
         try {
-            val overlayId = AsDeployerCompat.optimisticSwap(
-                installer, redefiners, packageName,
-                argRestart, pids, arch, overlayUpdate,
-                adb, logger,
-                data.isPushOverlayOnly,
-            )
+            val overlayId = runWithOfflineRetry("optimistic swap", adb, logger) {
+                AsDeployerCompat.optimisticSwap(
+                    installer, redefiners, packageName,
+                    argRestart, pids, arch, overlayUpdate,
+                    adb, logger,
+                    data.isPushOverlayOnly,
+                )
+            }
             val costTime = System.currentTimeMillis() - startTime
             logger.info("after deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
             deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
@@ -205,7 +209,7 @@ class JuggDeployer(
 
         @Throws(DeployerException::class)
         private fun verifyCache(
-            entry: DeploymentCacheDatabase.Entry?, dumper: ApplicationDumper, logger: AdbLogWrapper
+            entry: DeploymentCacheDatabase.Entry?, dumper: ApplicationDumper, logger: AdbLogWrapper, adb: AdbClient
         ): DeploymentCacheDatabase.Entry {
             if (entry == null) {
                 throw DeployerException.remoteApkNotFound()
@@ -220,18 +224,8 @@ class JuggDeployer(
             // If we have an install without OID file, we are going to the classic dump to
             // verify that we are actually looking at the same APK cached in the database.
             val cachedResults = entry.apks
-            val actualResults = try {
+            val actualResults = runWithOfflineRetry("verify cache", adb, logger) {
                 dumper.dump(entry.apks).apks
-            } catch (e: Exception) {
-                // com.android.ddmlib.AdbCommandRejectedException: device offline
-                logger.info("dumping failed, retry later.", e)
-                if (e.message?.contains("device offline") == true) {
-                    // retry once after 2s
-                    Thread.sleep(2000)
-                    dumper.dump(entry.apks).apks
-                } else {
-                    throw e
-                }
             }
             if (cachedResults.size != actualResults.size) {
                 logger.info("throw overlayIdMismatch: cached size: ${cachedResults.size}, actual size: ${actualResults.size}")
@@ -256,6 +250,37 @@ class JuggDeployer(
             }
             logger.info("verifyCache success")
             return entry
+        }
+
+        private fun <T> runWithOfflineRetry(
+            phase: String,
+            adb: AdbClient,
+            logger: AdbLogWrapper,
+            block: () -> T,
+        ): T {
+            return try {
+                block()
+            } catch (e: Exception) {
+                if (!AdbTransientOffline.isOffline(e)) {
+                    throw e
+                }
+                logger.info("Device ${adb.serial} went offline during $phase, wait up to ${AdbTransientOffline.DEFAULT_WAIT_MILLIS}ms.", e)
+                if (!waitAdbTransportReady(adb)) {
+                    throw AdbTransientOffline.toException(phase, e)
+                }
+                block()
+            }
+        }
+
+        private fun waitAdbTransportReady(adb: AdbClient): Boolean {
+            return AdbTransientOffline.waitUntilReady {
+                try {
+                    adb.shell(arrayOf("true"), null, 5L, TimeUnit.SECONDS)
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            }
         }
     }
 }

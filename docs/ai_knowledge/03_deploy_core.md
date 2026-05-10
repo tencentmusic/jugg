@@ -63,6 +63,7 @@
 - 兼容模式设备记录与清理（JVMTI 兼容性问题）。
 - `DeployFileManager#getDeployData` 在“本轮 dex + 历史 dex（排除已 merge 记录）> 500”时触发 dex merge，减少设备加载 dex 数量，缓解 dex 加载 OOM 风险。
 - recover 增量部署状态时，dry deploy 前会通过 `pm path <package>` 快速检测目标 App 是否已安装，并打印检测耗时；未安装时跳过 app 启动与 3s deployable 等待，直接进入 `App not installed, start reinstalling app...` 的重装分支。
+- 部署过程中遇到模拟器/设备短暂 offline 时，会统一识别 `AdbCommandRejectedException: device offline`、`adb: device offline` 以及 deployer channel 的 `InvalidProtocolBufferException: Protocol message contained an invalid tag (zero)`；具体失败点原地等待 ADB transport 恢复，最长 5s，恢复后只重试当前 ADB/deployer 操作一次，避免把一次短暂 offline 扩散成整轮 hotfix/fallback/recover 误判。
 
 ---
 
