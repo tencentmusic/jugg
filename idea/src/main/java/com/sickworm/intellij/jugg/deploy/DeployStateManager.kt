@@ -52,7 +52,7 @@ class DeployStateManager(
     fun beginFileProcessing() {
         val pendingCount = pendingFileProcessingCount.incrementAndGet()
         if (pendingCount == 1 || pendingCount % 20 == 0) {
-            logger.debug("begin file processing, pendingCount=$pendingCount")
+            logger.trace("begin file processing, pendingCount=$pendingCount")
         }
     }
 
@@ -67,10 +67,10 @@ class DeployStateManager(
             pendingCount = 0
         }
         if (pendingCount > 0 && pendingCount % 20 == 0) {
-            logger.debug("end file processing, pendingCount=$pendingCount")
+            logger.trace("end file processing, pendingCount=$pendingCount")
         }
         if (pendingCount == 0) {
-            logger.debug("all file processing finished")
+            logger.trace("all file processing finished")
             fileProcessingLock.withLock {
                 fileProcessingDone.signalAll()
             }

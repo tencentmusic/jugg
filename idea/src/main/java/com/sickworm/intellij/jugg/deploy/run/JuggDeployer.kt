@@ -88,9 +88,9 @@ class JuggDeployer(
             return result
         } catch (e: Exception) {
             val realErrorMessage = logger.realErrorMessage
-            logger.info("Install failed, error: \"${realErrorMessage}\"", e)
+            logger.info("Install failed, error: \"${realErrorMessage}\".", e)
             if (realErrorMessage != null) {
-                throw IllegalStateException("Install failed, error: \"${realErrorMessage}\"", e)
+                throw IllegalStateException("Install failed, error: \"${realErrorMessage}\".", e)
             } else {
                 throw e
             }
