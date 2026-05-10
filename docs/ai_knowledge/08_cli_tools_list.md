@@ -163,7 +163,7 @@ jugg restart
 ```
 jugg instrument --source-path <src/androidTest/.../FooTest.kt>
                 [--class <Fqcn>] [--method <method>] [--runner <runnerFqn>]
-                [-e <k=v>]... [--extras <k=v;k2=v2>]
+                [--extras <k=v;k2=v2>]
 ```
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
@@ -172,7 +172,6 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 | `--class <value>` | `--class <value>` | `class` | 文件内测试类，单 class 文件可省略 |
 | `--method <value>` | `--method <value>` | `method` | 测试方法，需已唯一确定 class |
 | `--runner <value>` | `--runner <value>` | `runner` | instrumentation runner override |
-| `-e <k=v>` | `--e <k=v>` | `extras` | 额外 `-e key value`（可重复） |
 | `--extras <k=v;k2=v2>` | `--extras <k=v;k2=v2>` | `extras` | 批量 extras |
 
 ---

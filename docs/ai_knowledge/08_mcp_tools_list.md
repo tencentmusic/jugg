@@ -128,12 +128,9 @@
 | `projectDir` | string | **是** | 项目绝对路径 |
 | `sourcePath` | string | **是** | androidTest 源文件路径，用于解析 module 与 test APK |
 | `class` | string | 否 | 文件内测试类，单 class 文件可省略 |
-| `clazz` | string | 否 | `class` 别名 |
 | `method` | string | 否 | 测试方法，需已唯一确定 class |
 | `runner` | string | 否 | instrumentation runner override |
-| `instrumentationRunner` | string | 否 | `runner` 别名 |
 | `extras` | object | 否 | 额外 `-e key value` 参数，value 必须是 string |
-| `e` | object | 否 | `extras` 别名（同 schema） |
 
 **行为补充**：
 - `package` / `testsRegex` 不再作为 target 入口；多 test APK 场景必须用 `sourcePath` 确定目标。

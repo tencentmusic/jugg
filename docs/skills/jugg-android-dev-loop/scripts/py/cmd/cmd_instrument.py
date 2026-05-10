@@ -15,7 +15,7 @@ def _append_extra(extra_map: dict, token: str) -> None:
         key = token.strip()
         value = ""
     if not key:
-        print("Invalid -e pair: key is empty", file=sys.stderr)
+        print("Invalid extras pair: key is empty", file=sys.stderr)
         sys.exit(1)
     extra_map[key] = value
 
@@ -26,13 +26,13 @@ def build_params(args: list[str]) -> dict:
     i = 0
     while i < len(args):
         arg = args[i]
-        if arg in ("--source-path", "--sourcePath"):
+        if arg == "--sourcePath":
             if i + 1 >= len(args):
                 print(f"{arg} requires a value", file=sys.stderr)
                 sys.exit(1)
             params["sourcePath"] = args[i + 1]
             i += 2
-        elif arg in ("--class", "--clazz"):
+        elif arg == "--class":
             if i + 1 >= len(args):
                 print(f"{arg} requires a value", file=sys.stderr)
                 sys.exit(1)
@@ -47,17 +47,14 @@ def build_params(args: list[str]) -> dict:
         elif arg in ("--package", "--testPackage", "--testsRegex", "--regex"):
             print(f"{arg} is not supported. Use --source-path with optional --class/--method.", file=sys.stderr)
             sys.exit(1)
-        elif arg in ("--runner", "--instrumentationRunner"):
+        elif arg in ("--clazz", "--instrumentationRunner", "-e", "--e"):
+            print(f"{arg} is not supported. Use --class/--runner/--extras.", file=sys.stderr)
+            sys.exit(1)
+        elif arg == "--runner":
             if i + 1 >= len(args):
                 print(f"{arg} requires a value", file=sys.stderr)
                 sys.exit(1)
             params["runner"] = args[i + 1]
-            i += 2
-        elif arg in ("-e", "--e"):
-            if i + 1 >= len(args):
-                print(f"{arg} requires a key=value pair", file=sys.stderr)
-                sys.exit(1)
-            _append_extra(extras, args[i + 1])
             i += 2
         elif arg == "--extras":
             if i + 1 >= len(args):

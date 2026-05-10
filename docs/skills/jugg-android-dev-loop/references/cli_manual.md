@@ -75,7 +75,7 @@ Runs androidTest through Jugg compile/deploy chain, while keeping parameter styl
 python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt
 python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest
 python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --class com.example.FooTest --method testSomething
-python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --runner androidx.test.runner.AndroidJUnitRunner -e size=large -e clearPackageData=true
+python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt --runner androidx.test.runner.AndroidJUnitRunner --extras 'size=large;clearPackageData=true'
 ```
 
 | Flag | Description |
@@ -84,7 +84,6 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 | `--class <fqcn>` | optional test class in the source file. |
 | `--method <name>` | optional test method in the resolved class. |
 | `--runner <fqn>` | instrumentation runner override. |
-| `-e <k=v>` | extra `-e key value` pair, repeatable. |
 | `--extras <k=v;k2=v2>` | batch extras format. |
 
 

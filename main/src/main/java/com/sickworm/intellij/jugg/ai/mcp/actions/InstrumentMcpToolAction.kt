@@ -38,10 +38,6 @@ class InstrumentMcpToolAction : McpToolAction {
                     type = "string",
                     description = "Fully-qualified test class in sourcePath. Optional when the file has one test class.",
                 ),
-                "clazz" to McpJsonSchemaProperty(
-                    type = "string",
-                    description = "Alias for class.",
-                ),
                 "method" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Test method inside the resolved class.",
@@ -49,15 +45,6 @@ class InstrumentMcpToolAction : McpToolAction {
                 "runner" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Instrumentation runner override.",
-                ),
-                "instrumentationRunner" to McpJsonSchemaProperty(
-                    type = "string",
-                    description = "Alias for runner.",
-                ),
-                "e" to McpJsonSchemaProperty(
-                    type = "object",
-                    description = "Alias for extras.",
-                    additionalProperties = true,
                 ),
                 "extras" to McpJsonSchemaProperty(
                     type = "object",
@@ -104,9 +91,14 @@ class InstrumentMcpToolAction : McpToolAction {
                 return ParseSpecResult(error = invalidParams("$key is not supported. Use sourcePath plus class/method"))
             }
         }
-        val classArg = firstNonBlankString(arguments, "class", "clazz")
+        for (key in listOf("clazz", "instrumentationRunner", "e")) {
+            if (arguments.containsKey(key)) {
+                return ParseSpecResult(error = invalidParams("$key is not supported. Use class/runner/extras"))
+            }
+        }
+        val classArg = firstNonBlankString(arguments, "class")
         val methodArg = firstNonBlankString(arguments, "method").ifEmpty { null }
-        val runner = firstNonBlankString(arguments, "runner", "instrumentationRunner").ifEmpty { null }
+        val runner = firstNonBlankString(arguments, "runner").ifEmpty { null }
         val selection = try {
             resolveSourceSelection(
                 projectDir = firstNonBlankString(arguments, "projectDir"),
@@ -122,10 +114,7 @@ class InstrumentMcpToolAction : McpToolAction {
 
         @Suppress("UNCHECKED_CAST")
         val rawExtras = arguments["extras"] as? Map<String, Any?>
-        @Suppress("UNCHECKED_CAST")
-        val rawExtrasAlias = arguments["e"] as? Map<String, Any?>
         val mergedExtras = linkedMapOf<String, Any?>()
-        rawExtrasAlias?.let { mergedExtras.putAll(it) }
         rawExtras?.let { mergedExtras.putAll(it) }
         if (mergedExtras.isNotEmpty()) {
             for ((key, value) in mergedExtras) {

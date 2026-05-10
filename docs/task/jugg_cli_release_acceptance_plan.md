@@ -75,7 +75,7 @@
 
 - parser 中每个公开命令都有文档和测试覆盖。
 - 文档中每个命令都能在 parser 中找到。
-- 除 `-e` 这种明确映射到 `extras` 的兼容入口外，不存在无法机械映射到 MCP 参数的 CLI flag。
+- 不存在无法机械映射到 MCP 参数的 CLI flag；历史 alias 不作为推广期公开参数保留。
 - boolean 参数没有 `--no-*` 这类 CLI-only 反向语义。
 
 建议产物：
@@ -105,7 +105,7 @@ python3 -m unittest discover docs/skills/hooks/tests
 | 全局参数 | `--console=json` 必须放在子命令前；plain/rich/json 输出差异符合文档。 |
 | kebab/camel | `--always-restart-app` 与 `--alwaysRestartApp` 等价。 |
 | required | 缺 `instrument --source-path`、`ssh-info --reason`、`wait-logs --marker` 时错误明确。 |
-| extras | `instrument -e a=b -e c=d` 与 `--extras a=b;c=d` 最终参数一致。 |
+| extras | `instrument --extras a=b;c=d` 最终转成 instrumentation extras；`-e`/`--e` 等历史 alias 必须拒绝。 |
 | selector | `view-locate`/`view-inspect` 至少需要一个 selector。 |
 | tap mode | 坐标、百分比、元素模式互斥或优先级符合文档。 |
 | json output | 每个命令在 `--console=json` 下都能输出可解析 JSON，错误也保持结构化。 |
@@ -179,7 +179,7 @@ python3 docs/skills/jugg-android-dev-loop/scripts/jugg.py wait-logs --marker '<k
 python3 docs/skills/jugg-android-dev-loop/scripts/jugg.py instrument --source-path app/src/androidTest/java/.../FooTest.java
 python3 docs/skills/jugg-android-dev-loop/scripts/jugg.py instrument --source-path app/src/androidTest/java/.../FooTest.java --class com.example.FooTest
 python3 docs/skills/jugg-android-dev-loop/scripts/jugg.py instrument --source-path app/src/androidTest/java/.../FooTest.java --class com.example.FooTest --method testSomething
-python3 docs/skills/jugg-android-dev-loop/scripts/jugg.py instrument --source-path app/src/androidTest/java/.../FooTest.java -e size=large -e clearPackageData=true
+python3 docs/skills/jugg-android-dev-loop/scripts/jugg.py instrument --source-path app/src/androidTest/java/.../FooTest.java --extras 'size=large;clearPackageData=true'
 ```
 
 通过标准：

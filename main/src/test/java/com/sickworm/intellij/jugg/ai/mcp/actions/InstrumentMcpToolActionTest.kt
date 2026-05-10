@@ -110,6 +110,18 @@ class InstrumentMcpToolActionTest {
     }
 
     @Test
+    fun testSchemaDoesNotExposeLegacyAliases() {
+        val schema = InstrumentMcpToolAction().definition.inputSchema
+
+        Assert.assertFalse(schema.properties.containsKey("clazz"))
+        Assert.assertFalse(schema.properties.containsKey("instrumentationRunner"))
+        Assert.assertFalse(schema.properties.containsKey("e"))
+        Assert.assertTrue(schema.properties.containsKey("class"))
+        Assert.assertTrue(schema.properties.containsKey("runner"))
+        Assert.assertTrue(schema.properties.containsKey("extras"))
+    }
+
+    @Test
     fun testExecuteRejectsRemovedPackageAndRegexArguments() {
         val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
             throw AssertionError("runner should not be invoked for removed params: $androidTestRunSpec")
@@ -130,6 +142,24 @@ class InstrumentMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.ERROR, regexResult.status)
         Assert.assertEquals(McpErrorCode.INVALID_PARAMS, regexResult.errorCode)
         Assert.assertTrue(regexResult.message.contains("testsRegex is not supported"))
+    }
+
+    @Test
+    fun testExecuteRejectsLegacyAliasArguments() {
+        val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
+            throw AssertionError("runner should not be invoked for legacy aliases: $androidTestRunSpec")
+        }
+
+        for (legacyArg in listOf("clazz", "instrumentationRunner", "e")) {
+            val result = InstrumentMcpToolAction().execute(
+                mapOf("projectDir" to "/fake/project", "sourcePath" to "FooTest.kt", legacyArg to "legacy"),
+                runtime,
+            )
+
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+            Assert.assertTrue(result.message.contains("$legacyArg is not supported"))
+        }
     }
 
     @Test

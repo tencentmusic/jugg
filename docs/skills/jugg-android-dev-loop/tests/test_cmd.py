@@ -151,7 +151,7 @@ class InstrumentBuildParamsTest(unittest.TestCase):
 
     def test_source_class_method_runner(self):
         result = self.build([
-            "--source-path", "library1/src/androidTest/kotlin/com/example/FooTest.kt",
+            "--sourcePath", "library1/src/androidTest/kotlin/com/example/FooTest.kt",
             "--class", "com.example.FooTest",
             "--method", "bar",
             "--runner", "androidx.test.runner.AndroidJUnitRunner",
@@ -167,26 +167,27 @@ class InstrumentBuildParamsTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.build(["--testsRegex", "Login.*"])
 
-    def test_e_pairs(self):
-        result = self.build([
-            "--source-path", "library1/src/androidTest/kotlin/com/example/FooTest.kt",
-            "-e", "size=large",
-            "-e", "clearPackageData=true",
-        ])
-        self.assertEqual(result["extras"]["size"], "large")
-        self.assertEqual(result["extras"]["clearPackageData"], "true")
+    def test_legacy_aliases_are_rejected(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--sourcePath", "FooTest.kt", "--clazz", "com.example.FooTest"])
+        with self.assertRaises(SystemExit):
+            self.build(["--sourcePath", "FooTest.kt", "--instrumentationRunner", "Runner"])
+        with self.assertRaises(SystemExit):
+            self.build(["--sourcePath", "FooTest.kt", "-e", "size=large"])
+        with self.assertRaises(SystemExit):
+            self.build(["--sourcePath", "FooTest.kt", "--e", "size=large"])
 
     def test_extras_semicolon_pairs(self):
         result = self.build([
-            "--source-path", "library1/src/androidTest/kotlin/com/example/FooTest.kt",
+            "--sourcePath", "library1/src/androidTest/kotlin/com/example/FooTest.kt",
             "--extras", "size=medium;clearPackageData=true",
         ])
         self.assertEqual(result["extras"]["size"], "medium")
         self.assertEqual(result["extras"]["clearPackageData"], "true")
 
-    def test_missing_e_value_fails(self):
+    def test_missing_extras_value_fails(self):
         with self.assertRaises(SystemExit):
-            self.build(["-e"])
+            self.build(["--sourcePath", "FooTest.kt", "--extras"])
 
 
 class WaitLogsBuildParamsTest(unittest.TestCase):
