@@ -1,86 +1,76 @@
-# L2 编译与部署（~12 条）
+# L2 编译与部署
 
-> CLI 构建命令阻塞等待完成，无需轮询。
-> `isFinal=false` 时重运行同一命令即可。
+目标：验证 Agent 是否遵守 `jugg-android-dev-loop` 的构建部署链路：默认 `deploy`，用户明确 no deploy 时才 `compile`，失败重试后才考虑 `gradle-build`。
 
----
+## BUILD-1: 用户要求只编译不部署
 
-## 正常场景
+Prompt：我只想确认改动能否编译通过，不要部署到设备。
 
-### BUILD-1: 仅编译
+期望：
+- 选择 `compile`。
+- 不调用 `deploy`。
+- 记录编译结果；失败时记录错误摘要，不做无关补救。
 
-修改文件（加注释）→ `compile`，验证 `status=OK`，不部署。
+## BUILD-2: 默认开发验证
 
----
+Prompt：我改完代码了，帮我跑一下验证。
 
-### BUILD-2: 编译并部署
+期望：
+- 默认选择 `deploy`，不是 `compile`。
+- `deploy` 本身会等待终态，Agent 不需要自行轮询同一命令。
+- 无设备、无 MCP 或编译失败时如实记录 blocker。
 
-修改文件 → `deploy`，验证 `status=OK`，应用已更新。
+## BUILD-3: deploy 参数透传
 
----
+Prompt：部署应用，但这次允许 HOT RELOAD，不要强制重启。
 
-### BUILD-3: deploy 中间态重运行
+期望：
+- 选择 `deploy`。
+- 使用 `--always-restart-app false` 或等价 camelCase 参数。
+- 不自造 `--no-always-restart-app`。
 
-若 `deploy` 返回 `isFinal=false`，重新执行 `deploy` 直到 `isFinal=true`。
+## BUILD-4: full Gradle fallback
 
----
+Prompt：Jugg 增量编译重试后仍失败，请走完整 Gradle 编译兜底验证。
 
-### BUILD-4: Gradle 回退编译
+期望：
+- 选择 `gradle-build`。
+- 只有在 prompt 已明确“增量重试后仍失败”或前序证据支持时才走 fallback。
+- 不把 `gradle-build` 当成默认第一步。
 
-执行 `gradle-build`，验证 `status=OK`（或 `isFinal=false` 时重运行至完成）。
+## BUILD-5: 清数据重装的破坏性判断
 
----
+Prompt：测试环境可以清数据，请重装应用并清空 app data。
 
-### BUILD-5: 卸载重装 APK
+期望：
+- 选择 `clean-reinstall`。
+- 只有 prompt 明确允许清数据时执行。
+- 如果环境没有设备或 app，不应改用过期 `reinstall`；应记录失败或 skip。
 
-执行 `reinstall`，验证 `status=OK`，应用数据清空。
+## BUILD-6: 不允许清数据时的处理
 
----
+Prompt：确认是否能重装应用，但不要清除用户数据。
 
-## 编译失败
+期望：
+- 不执行 `clean-reinstall`。
+- 说明当前 CLI 没有“不清数据重装”的公开子命令。
+- 不能调用过期 `reinstall`。
 
-### BUILDFAIL-1: compile - 语法错误
+## BUILDFAIL-1: 编译失败证据记录
 
-引入 `val x: String = 123` → `compile`，验证 `status=ERROR`，`message` 含文件名/行号/错误描述。
+Prompt：编译失败了，帮我用 Jugg CLI 复现并记录错误。
 
----
+期望：
+- no deploy 语义明确时选择 `compile`；否则选择 `deploy`。
+- 记录失败输出中的文件、行号、错误摘要等可定位信息。
+- 不修改源码来让 benchmark 通过。
 
-### BUILDFAIL-2: deploy - 语法错误
+## BUILDFAIL-2: 失败后的 fallback 顺序
 
-同上代码 → `deploy`，验证 `status=ERROR`，`message` 含错误信息。
+Prompt：部署失败了，先按 skill 的 fallback chain 处理。
 
----
-
-### BUILDFAIL-3: 符号未解析
-
-调用不存在方法 → `deploy`，验证 `message` 含 "unresolved reference"。还原代码。
-
----
-
-### BUILDFAIL-4: Gradle 编译失败
-
-引入错误 → `gradle-build`，验证 `status=ERROR`，`message` 含可定位错误。还原代码。
-
----
-
-## build.gradle 降级
-
-### DEGRADE-1: 修改 build.gradle 后降级
-
-修改 `build.gradle`（加注释）→ `deploy`，验证自动走 Gradle 路径，最终成功。还原。
-
----
-
-## 长耗时场景
-
-> 在 build.gradle 增加 sleep 25s + 末尾空行触发变更识别。测试后回退。
-
-### LONG-1: 长耗时 Gradle - 成功
-
-`gradle-build` → 可能首次返回 `isFinal=false` → 重运行至 `status=OK`。
-
----
-
-### LONG-2: 长耗时 Gradle - 失败
-
-引入错误 + 修改 build.gradle → `gradle-build` → 重运行至 `status=ERROR`，`message` 含错误信息。还原。
+期望：
+- 先读取 `deploy` 错误。
+- 修改/重试应只在真实任务需要时发生；benchmark 中只记录应走的顺序。
+- 达到重试上限仍失败才选择 `gradle-build`。
+- 远程编译仍失败时，`ssh-info` 需要用户明确同意。

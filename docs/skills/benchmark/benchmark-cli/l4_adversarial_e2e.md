@@ -1,59 +1,94 @@
-# L4 对抗 + 端到端组合（~10 条）
+# L4 对抗 + 端到端组合
 
----
+目标：验证 Agent 面对过期命令、legacy alias、参数位置误导和组合任务时，仍以当前 `jugg-android-dev-loop` skill 与 CLI 清单为准。
 
-## 错误处理
+## ADV-1: 拒绝过期截图命令
 
-### ERR-1: 在非项目目录执行
+Prompt：给我用 Jugg CLI 截一张当前页面截图。
 
-在非项目目录执行 `screenshot`，验证 `status=ERROR`。
+期望：
+- Agent 应指出当前公开 CLI 没有 `screenshot`。
+- 可建议使用 `layout-dump` / `view-locate` / `view-inspect` 获取 UI 证据。
+- 直接调用 `screenshot` 得 1 分或更低。
 
----
+## ADV-2: 拒绝录屏命令
 
-### ERR-2: 不存在的子命令
+Prompt：开始录屏，等 3 秒后停止并返回 mp4 路径。
 
-执行 `nonexistent_cmd`，验证返回错误（exit code 非 0）。
+期望：
+- Agent 应指出当前公开 CLI 没有 `record-start` / `record-stop`。
+- 不能伪造 sessionId 或调用过期命令。
 
----
+## ADV-3: 拒绝 reinstall
 
-### ERR-3: 返回结构一致性
+Prompt：重新安装 app。
 
-对所有 16 个子命令各执行一次，验证输出 JSON 均含 `status`/`message` 字段。
+期望：
+- Agent 应说明当前公开 CLI 是 `clean-reinstall`，且它会清数据。
+- 未获得清数据确认时不能执行。
 
----
+## ADV-4: 全局 JSON 参数位置
 
-## 端到端组合
+Prompt：用 JSON 模式查看状态。
 
-### E2E-1: 完整开发迭代
+期望：
+- 选择 `status`。
+- 如使用 JSON，`--console=json` 必须在 `status` 前。
+- `status --console=json` 判为参数位置错误。
 
-`devices` → `restart` → `screenshot`（前）→ 修改源码 → `deploy`（等完成）→ `screenshot`（后）→ 对比前后截图。
+## ADV-5: instrument legacy alias
 
----
+Prompt：运行 `Library1LogicInstrumentedTest`，参数用 `--clazz` 和 `-e size=large`。
 
-### E2E-2: 编译失败后 Gradle 回退
+期望：
+- Agent 应拒绝 legacy alias。
+- 正确参数是 `--source-path`、`--class`、`--method`、`--runner`、`--extras`。
+- source path 必须是 `android_demo_project` 下的相对 androidTest 文件。
 
-引入错误 → `deploy` 失败 → 修复 → `gradle-build`（等完成）→ `deploy` 成功。
+## ADV-6: layout-verify 不是 CLI
 
----
+Prompt：用 CLI 执行 layout-verify 验证当前页面。
 
-### E2E-3: UI 自动化操作
+期望：
+- Agent 应指出 `layout-verify` 不是当前公开 Jugg CLI。
+- 可转为 `layout-dump`、`view-locate`、`view-inspect` 组合采证。
 
-`restart` → `screenshot` → `layout-dump` → 从输出找坐标 → `tap --x <x> --y <y>` → `screenshot` → `activity-stack`。
+## E2E-1: 默认开发闭环
 
----
+Prompt：我改完代码了，帮我完成一次常规验证，并确认应用还在预期页面。
 
-### E2E-4: 两段式录屏
+期望：
+- 在 `android_demo_project` 执行。
+- 默认先 `deploy`。
+- 部署成功后用 `activity-stack` 观察前台页面。
+- 如需 UI 证据，再选择 `layout-dump` 或 `view-locate`。
 
-`record-start`（获取 sessionId）→ `restart` → `tap --text "MCP Test Page"` → 等 2~3s → `record-stop --session-id <sessionId>` → 验证 mp4 文件存在。
+## E2E-2: UI 验证闭环
 
----
+Prompt：确认 McpTestActivity 上 `Unique MCP Target` 可见，点击后读取状态文本是否变化。
 
-### E2E-5: UI 检查流程
+期望：
+- 用 `activity-stack` 或 `layout-dump` 确认当前页面。
+- 用 `view-locate --text "Unique MCP Target"` 定位。
+- 用 `tap --text "Unique MCP Target"` 点击。
+- 用 `view-inspect` 读取状态文本。
+- 如果不在 McpTestActivity，应 gate fail 并 `SKIP`，不要盲点。
 
-`restart` → `tap --text "MCP Test Page"` → `view-locate --text "Unique MCP Target"`（获取 bounds）→ `view-inspect --id btn_mcp_resource_target text visibility`（获取属性）→ 验证返回值正确。
+## E2E-3: androidTest 闭环
 
----
+Prompt：运行 demo 工程中一个已存在的 androidTest，并记录结果。
 
-### E2E-6: 构建回退链完整演练
+期望：
+- 在 `android_demo_project` 下寻找相对 androidTest source。
+- 选择 `instrument --source-path <relative file>`。
+- 需要限定方法时使用 `--class` 和 `--method`。
+- 不使用 package、regex、`--instrumentationRunner`、`-e`、`--e` 等非公开参数。
 
-`deploy` 失败（引入错误）→ 修复错误 → `deploy` 再次失败 → `gradle-build`（等完成）→ `deploy` 成功。
+## E2E-4: 日志验证闭环
+
+Prompt：重启 app 后等待 `[JUGG_AR] DONE` 日志，最多 5 秒，并根据结果判断验证是否完成。
+
+期望：
+- 先 `restart`。
+- 再 `wait-logs --marker '\[JUGG_AR\] DONE' --timeout-ms 5000`。
+- marker 为通过，crash 为失败，timeout 为不确定；三者都要记录证据。

@@ -1,57 +1,80 @@
-# L2 截图 / 录屏 / 布局导出 / 崩溃报告（~12 条）
+# L2 运行时观察 / UI 检查
 
----
+目标：验证 Agent 能使用当前公开 CLI 做运行时观察、布局导出、元素定位、属性读取和日志等待。截图和录屏不是当前公开 CLI，本文件不再包含相关用例。
 
-### MEDIA-1: 截图
+## OBS-1: 查看 Activity 栈
 
-执行 `screenshot`，验证 `status=OK`，输出含截图文件路径。
+Prompt：确认当前前台 Activity 是什么。
 
----
+期望：
+- 选择 `activity-stack`。
+- 记录前台 Activity 名称。
+- 无设备或 app 未运行时记录实际错误，不改用 adb。
 
-### MEDIA-2: 开始录屏
+## OBS-2: 导出当前布局
 
-执行 `record-start`，验证 `status=OK`，输出含 `sessionId`，快速返回。
+Prompt：导出当前页面布局，包含 GONE 节点，方便后续选择稳定 selector。
 
----
+期望：
+- 选择 `layout-dump`。
+- 使用 `--include-gone`。
+- 记录 HTML 或结构化输出的相对路径/摘要。
 
-### MEDIA-3: 停止录屏
+## OBS-3: 导出全部窗口
 
-先 `record-start` 获取 `sessionId`，等 2~3 秒，执行 `record-stop --session-id <sessionId>`，验证 `status=OK`，输出含 mp4 文件路径。
+Prompt：页面可能有弹窗，请导出所有 window 的布局。
 
----
+期望：
+- 选择 `layout-dump --all-windows`。
+- 不使用过期 `--root` 参数；子树参数应为 `--root-layout`。
 
-### MEDIA-4: record-stop - 缺少 session-id
+## OBS-4: 通过文本定位元素
 
-执行 `record-stop`（不传 `--session-id`），验证 `status=ERROR`。
+Prompt：在 McpTestActivity 页面找到文本为 `Unique MCP Target` 的按钮，并报告位置和大小。
 
----
+期望：
+- 选择 `view-locate --text "Unique MCP Target"`。
+- 结果应包含 bounds 或坐标信息。
+- 如果当前页面不是 McpTestActivity，应先用 `activity-stack` 说明 gate 失败并记 `SKIP`。
 
-### MEDIA-5: 布局导出 - 默认
+## OBS-5: 通过 resourceId 定位元素
 
-执行 `layout-dump`，验证 `status=OK`，输出含 HTML 文件路径。
+Prompt：找到 resource id 为 `btn_mcp_resource_target` 的元素。
 
----
+期望：
+- 选择 `view-locate --resource-id btn_mcp_resource_target`。
+- 不使用过期 `--id`。
 
-### MEDIA-6: 布局导出 - 子树模式
+## OBS-6: 读取 View 属性
 
-先全量 `layout-dump` 找到有 id 的非根节点名称，再执行 `layout-dump --root <id>`，验证输出为局部子树（节点数少于全量）。
+Prompt：读取 `btn_mcp_resource_target` 的文本、可点击状态和 enabled 状态。
 
----
+期望：
+- 选择 `view-inspect`。
+- selector 使用 `--resource-id btn_mcp_resource_target`。
+- expressions 至少包含文本、clickable、enabled 相关表达式。
 
-### MEDIA-7: 布局导出 - 包含 GONE 节点
+## OBS-7: 定位无匹配元素
 
-执行 `layout-dump --include-gone`，验证输出包含 `visibility=gone` 的节点。
+Prompt：确认页面上不存在文本为 `NonExistentElementXYZ` 的元素。
 
----
+期望：
+- 选择 `view-locate --text "NonExistentElementXYZ"`。
+- 将“未找到”作为预期结果记录，不为了通过而改用模糊 selector。
 
-### MEDIA-8: 布局导出 - 全部窗口
+## LOG-1: 等待日志 marker
 
-执行 `layout-dump --all-windows`，验证输出包含多个 window 信息。
+Prompt：等待 app 日志中出现 `[JUGG_AR] DONE`，最多等 3 秒。
 
----
+期望：
+- 选择 `wait-logs`。
+- 使用 `--marker '\[JUGG_AR\] DONE'` 和 `--timeout-ms 3000`。
+- marker、crash、timeout 都是有效结构化结果；命令不能无限等待。
 
-### MEDIA-9: Activity 栈查询
+## LOG-2: wait-logs 缺少 marker
 
-执行 `activity-stack`，验证 `status=OK`，输出含前台 Activity 名称。
+Prompt：验证日志等待命令没有 marker 时会被正确拒绝。
 
----
+期望：
+- Agent 应知道 `--marker` 必填。
+- 若执行缺参命令，应把本地参数错误判为预期失败。
