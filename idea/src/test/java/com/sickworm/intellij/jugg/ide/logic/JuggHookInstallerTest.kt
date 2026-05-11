@@ -122,7 +122,7 @@ class JuggHookInstallerTest {
     }
 
     @Test
-    fun installForClaude_shouldBackupExistingFileBeforeWrite() {
+    fun installForClaude_shouldNotCreateBackupFileForSuccessfulWrite() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-backup").toFile()
         val settingsFile = File(userHome, ".claude/settings.json").also { it.parentFile.mkdirs() }
         settingsFile.writeText("{\"hooks\":{}}")
@@ -130,8 +130,7 @@ class JuggHookInstallerTest {
         JuggHookInstaller.installForClaude(userHome, logger)
 
         val backupFile = File(userHome, ".claude/settings.json.bak")
-        assertTrue(backupFile.exists())
-        assertEquals("{\"hooks\":{}}", backupFile.readText())
+        assertFalse(backupFile.exists())
     }
 
     @Test

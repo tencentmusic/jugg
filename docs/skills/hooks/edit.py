@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -28,14 +30,64 @@ REMINDER_MESSAGE = (
     "jugg-android-dev-loop skill and use Jugg CLI compile/deploy/gradle-build "
     "instead of running Gradle directly."
 )
+PATCH_FILE_PATTERN = re.compile(r"^\*\*\* (?:Update|Add|Delete) File:\s+(.+)$")
+PATCH_MOVE_TO_PATTERN = re.compile(r"^\*\*\* Move to:\s+(.+)$")
+GIT_STATUS_PATTERN = re.compile(r"^(?:M|A|D|R|C|U|MM|AM|RM|MD|AD|AA|UU|\?\?)\s+(.+)$")
+
+
+def extract_path_candidates(value: str) -> list[str]:
+    candidates = [value]
+    for line in value.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        patch_match = PATCH_FILE_PATTERN.match(stripped)
+        if patch_match:
+            candidates.append(patch_match.group(1).strip())
+            continue
+        move_match = PATCH_MOVE_TO_PATTERN.match(stripped)
+        if move_match:
+            candidates.append(move_match.group(1).strip())
+            continue
+        status_match = GIT_STATUS_PATTERN.match(stripped)
+        if status_match:
+            candidates.append(status_match.group(1).strip())
+            continue
+        if stripped.startswith("git diff -- "):
+            tail = stripped[len("git diff -- ") :].strip()
+            candidates.extend(part for part in tail.split() if part)
+    return candidates
+
+
+def normalize_path_candidate(candidate: str) -> str:
+    stripped = candidate.strip()
+    patch_match = PATCH_FILE_PATTERN.match(stripped)
+    if patch_match:
+        return patch_match.group(1).strip()
+    move_match = PATCH_MOVE_TO_PATTERN.match(stripped)
+    if move_match:
+        return move_match.group(1).strip()
+    status_match = GIT_STATUS_PATTERN.match(stripped)
+    if status_match:
+        return status_match.group(1).strip()
+    return stripped
 
 
 def collect_android_source_paths(payload: dict[str, Any]) -> list[str]:
     paths: list[str] = []
     for value in collect_strings(payload):
-        if is_android_source_path(value) and value not in paths:
-            paths.append(value)
+        for candidate in extract_path_candidates(value):
+            normalized = normalize_path_candidate(candidate)
+            if is_android_source_path(normalized) and normalized not in paths:
+                paths.append(normalized)
     return paths
+
+
+def payload_debug_text(payload: dict[str, Any]) -> str:
+    try:
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    except TypeError:
+        return repr(payload)
 
 
 def _parse_args() -> Any:
@@ -47,8 +99,12 @@ def _parse_args() -> Any:
 def main() -> int:
     args = _parse_args()
     payload = read_json_payload()
+    payload_text = payload_debug_text(payload)
     paths = collect_android_source_paths(payload)
-    debug_log("JUGG-EDIT", f"hook triggered cwd={Path.cwd()} client={args.client} paths={paths!r}")
+    debug_log(
+        "JUGG-EDIT",
+        f"hook triggered cwd={Path.cwd()} client={args.client} payload={payload_text} paths={paths!r}",
+    )
     if not paths:
         emit_cursor_empty_response(args.client)
         return 0

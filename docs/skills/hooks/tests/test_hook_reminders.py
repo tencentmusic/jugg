@@ -40,6 +40,44 @@ class HookReminderDecisionTest(unittest.TestCase):
 
         self.assertEqual([], mod.collect_android_source_paths(payload))
 
+    def test_edit_hook_collects_android_path_from_apply_patch_payload(self):
+        mod = _load_hook_module("edit.py")
+        payload = {
+            "tool_name": "apply_patch",
+            "tool_input": {
+                "command": (
+                    "*** Begin Patch\n"
+                    "*** Update File: /repo/android_demo_project/app/src/main/java/com/example/HookTrigger.kt\n"
+                    "@@\n"
+                    " object HookTrigger {\n"
+                    "+    const val marker = \"x\"\n"
+                    " }\n"
+                    "*** End Patch\n"
+                ),
+            },
+        }
+
+        paths = mod.collect_android_source_paths(payload)
+
+        self.assertEqual(
+            ["/repo/android_demo_project/app/src/main/java/com/example/HookTrigger.kt"],
+            paths,
+        )
+
+    def test_edit_hook_collects_android_path_from_git_status_short_line(self):
+        mod = _load_hook_module("edit.py")
+        payload = {
+            "tool_name": "Bash",
+            "tool_response": "?? hook_benchmark_scratch/app/src/main/java/com/example/HookTrigger.kt\n",
+        }
+
+        paths = mod.collect_android_source_paths(payload)
+
+        self.assertEqual(
+            ["hook_benchmark_scratch/app/src/main/java/com/example/HookTrigger.kt"],
+            paths,
+        )
+
     def test_command_hook_blocks_raw_gradle_after_android_edit(self):
         mod = _load_hook_module("command.py")
         payload = {

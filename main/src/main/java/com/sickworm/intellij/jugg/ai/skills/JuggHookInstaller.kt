@@ -21,7 +21,6 @@ import java.nio.file.StandardCopyOption
  * start/stop command hooks.
  */
 object JuggHookInstaller {
-    private const val BACKUP_SUFFIX = ".bak"
     private const val MATCHER_ALL = "*"
     private const val PYTHON3_PREFIX = "python3 "
     private const val CLIENT_OPTION = "--client"
@@ -160,11 +159,11 @@ object JuggHookInstaller {
         if (!mergeResult.changed) {
             return HookInstallResult(path = target.file.path, status = "already_installed", reason = null)
         }
-        writeAtomicallyWithBackup(target.file, mergeResult.mergedContent)
+        writeAtomically(target.file, mergeResult.mergedContent)
         return HookInstallResult(path = target.file.path, status = "ok", reason = null)
     }
 
-    private fun writeAtomicallyWithBackup(targetFile: File, content: String) {
+    private fun writeAtomically(targetFile: File, content: String) {
         val parent = targetFile.parentFile ?: throw IOException("missing_parent_dir")
         parent.mkdirs()
 
@@ -173,10 +172,6 @@ object JuggHookInstaller {
             FileOutputStream(tempFile).use { output ->
                 output.write(content.toByteArray(StandardCharsets.UTF_8))
                 output.fd.sync()
-            }
-            if (targetFile.exists()) {
-                val backupFile = File(parent, "${targetFile.name}$BACKUP_SUFFIX")
-                targetFile.copyTo(backupFile, overwrite = true)
             }
             moveFile(tempFile, targetFile)
         } finally {

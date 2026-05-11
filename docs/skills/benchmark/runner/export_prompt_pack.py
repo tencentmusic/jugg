@@ -100,11 +100,12 @@ def benchmark_lines(mode: str) -> list[str]:
     if mode == "hooks":
         return [
             "执行要求：",
-            "- 在仓库根目录执行。",
-            "- 只执行 `cases.md` 中给出的 hook 验证步骤。",
-            "- 不修改 hook 源码、不启动 Android Studio、不使用真实 `~/.jugg`。",
+            "- 在当前 CWD 执行。",
+            "- 只执行 `cases.md` 中给出的 hook 验证步骤，必须通过 Agent 自己的编辑、命令和结束会话动作触发 hooks。",
+            "- 不修改 hook 源码、不启动 Android Studio。",
+            "- 允许按 case 要求修改隔离的 hook 触发文件；不要修改真实业务代码。",
             "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
-            "- 条件不足时写明 `SKIP` 原因。",
+            "- 本 benchmark 用于验证 hooks 是否正确配置；hook 未触发或收不到反馈时记 `FAIL`，不要记 `SKIP`。",
             "- 结果写入同目录 `report.md`。",
         ]
     return [
@@ -122,7 +123,16 @@ def sequence_label(mode: str) -> str:
     return "Command sequence" if mode == "hooks" else "CLI sequence"
 
 
+def verdict_label(mode: str) -> str:
+    return "PASS / FAIL" if mode == "hooks" else "PASS / FAIL / SKIP"
+
+
 def render_cases(title: str, cases: list[Case], mode: str) -> str:
+    allowed_changes = (
+        "- 只允许把执行结果写入同目录 `report.md`；除此之外，只能修改 case 明确要求的隔离 hook 触发文件。"
+        if mode == "hooks"
+        else "- 只允许把执行结果写入同目录 `report.md`。"
+    )
     lines = [
         f"# {title}",
         "",
@@ -130,7 +140,7 @@ def render_cases(title: str, cases: list[Case], mode: str) -> str:
         "",
         "重要约束：",
         "- 不要修改 `README.md`、`cases.md`、`manifest.json`。",
-        "- 只允许把执行结果写入同目录 `report.md`。",
+        allowed_changes,
         "- 不要读取 `docs/skills/benchmark`，不要读取母版答案。",
         "",
         *benchmark_lines(mode),
@@ -155,6 +165,15 @@ def render_cases(title: str, cases: list[Case], mode: str) -> str:
 def render_readme(title: str, case_count: int, mode: str) -> str:
     command_label = sequence_label(mode)
     requirements = "\n".join(benchmark_lines(mode))
+    verdicts = verdict_label(mode)
+    allowed_changes = (
+        "- 只允许修改 `report.md`；除此之外，只能修改 case 明确要求的隔离 hook 触发文件。"
+        if mode == "hooks"
+        else "- 只允许修改 `report.md`。"
+    )
+    skipped_summary = (
+        "Skipped: 0（hooks benchmark 不使用 SKIP）" if mode == "hooks" else "Skipped: Z"
+    )
     return f"""# {title}
 
 这是被测 Agent 可见的 prompt-only 题目包。本文件是执行说明，不是待补全文档。
@@ -162,7 +181,7 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
 ## 被测 Agent 必须遵守
 
 - 不要修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
-- 只允许修改 `report.md`。
+{allowed_changes}
 - 你的任务是执行 `cases.md` 中的用例并填写 `report.md`，不是补全说明文档。
 - 不要读取 `docs/skills/benchmark`，那里是母版和验收用 oracle。
 
@@ -190,7 +209,7 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
 - Working dir:
 - {command_label}:
 - Evidence:
-- Verdict: PASS / FAIL / SKIP
+- Verdict: {verdicts}
 - Score: N / 5
 - Notes:
 ```
@@ -204,7 +223,7 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
 |------|------|---------|-------|-------|
 
 Total: XX / YY
-Skipped: Z
+{skipped_summary}
 
 Blockers:
 ```
@@ -212,9 +231,25 @@ Blockers:
 
 
 def render_prompt(title: str, case_count: int, mode: str) -> str:
-    intro = "请在当前仓库根目录执行 benchmark。" if mode == "hooks" else "请在当前 `android_demo_project` 工作区执行 benchmark。"
+    intro = "请在当前 CWD 执行 benchmark。" if mode == "hooks" else "请在当前 `android_demo_project` 工作区执行 benchmark。"
     requirements = "\n".join(benchmark_lines(mode))
     command_label = sequence_label(mode)
+    verdicts = verdict_label(mode)
+    allowed_changes = (
+        "- 只允许把执行结果写入同目录 `report.md`；除此之外，只能修改 case 明确要求的隔离 hook 触发文件。"
+        if mode == "hooks"
+        else "- 只允许把执行结果写入同目录 `report.md`。"
+    )
+    skip_rule = (
+        "- hooks benchmark 中，hook 未触发、收不到反馈或无法完成触发动作时必须记 `FAIL`，不要记 `SKIP`。"
+        if mode == "hooks"
+        else "- 无法执行时才允许 `SKIP`，并写明阻塞原因与已尝试动作。"
+    )
+    completion_summary = (
+        "总分；hooks benchmark 不填写跳过数量。"
+        if mode == "hooks"
+        else "总分与跳过数量。"
+    )
     return f"""# {title} Agent Prompt
 
 你是被测 Agent。{intro}
@@ -226,7 +261,7 @@ def render_prompt(title: str, case_count: int, mode: str) -> str:
 硬性约束：
 
 - 禁止修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
-- 只允许把执行结果写入同目录 `report.md`。
+{allowed_changes}
 - 不要读取 `docs/skills/benchmark`。
 - 不允许只输出计划、推理或模板；必须真实执行命令。
 - 不允许提前结束；未处理完 {case_count} 条用例前不得宣布完成。
@@ -242,16 +277,21 @@ def render_prompt(title: str, case_count: int, mode: str) -> str:
 5. 继续下一条 case。
 
 判定规则：
-- `PASS`/`FAIL` 必须附带真实命令输出证据。
-- 无法执行时才允许 `SKIP`，并写明阻塞原因与已尝试动作。
+- `PASS`/`FAIL` 必须附带真实执行证据；hooks benchmark 必须包含 Agent 实际看到的 hook 反馈原文。
+- 可选 verdict：`{verdicts}`。
+{skip_rule}
 - `{command_label}` 为空视为该 case 未执行。
 
-完成后在 `report.md` 末尾填写 `Summary` 和 `Blockers`，并给出总分与跳过数量。
+完成后在 `report.md` 末尾填写 `Summary` 和 `Blockers`，并给出{completion_summary}
 """
 
 
 def render_report(title: str, cases: list[Case], mode: str) -> str:
     command_label = sequence_label(mode)
+    verdicts = verdict_label(mode)
+    skipped_summary = (
+        "Skipped: 0（hooks benchmark 不使用 SKIP）" if mode == "hooks" else "Skipped: Z"
+    )
     lines = [
         f"# {title} Report",
         "",
@@ -273,7 +313,7 @@ def render_report(title: str, cases: list[Case], mode: str) -> str:
                 "- Working dir:",
                 f"- {command_label}:",
                 "- Evidence:",
-                "- Verdict: PASS / FAIL / SKIP",
+                f"- Verdict: {verdicts}",
                 "- Score: N / 5",
                 "- Notes:",
                 "",
@@ -287,7 +327,7 @@ def render_report(title: str, cases: list[Case], mode: str) -> str:
             "|------|------|---------|-------|-------|",
             "",
             "Total: XX / YY",
-            "Skipped: Z",
+            skipped_summary,
             "",
             "Blockers:",
             "",

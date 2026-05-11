@@ -79,8 +79,9 @@ tools/export_benchmark_prompt_packs.sh hooks
 
 注意：
 - `cli` / `ui-verify` benchmark 在 `android_demo_project` 或其子目录启动被测 Agent。
-- `hooks` benchmark 在仓库根目录启动被测 Agent；它验证 `docs/skills/hooks` 脚本本身，不属于 `jugg` CLI 子命令。
-- prompt pack 内的 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json` 是被测 Agent 可见输入；被测 Agent 只应填写同目录 `report.md`。
+- `hooks` benchmark 在当前 CWD 启动被测 Agent；它验证 Agent hooks 是否正确配置和真实触发，不属于 `jugg` CLI 子命令。
+- `hooks` L3 用例必须通过被测 Agent 自己的文件编辑、命令执行和结束会话动作触发 hooks；不得直接调用 hook 脚本，也不得使用不存在的 `jugg stop` 子命令。
+- prompt pack 内的 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json` 是被测 Agent 可见输入；被测 Agent 只应填写同目录 `report.md`。`hooks` 用例例外允许按 case 要求修改当前 CWD 下隔离的 `hook_benchmark_scratch/` 触发文件。
 - 导出的 `report.md` 模板要求每条用例填写 `Score: N / 5`，汇总表包含 `File / Case / Verdict / Score / Notes`；所有路径证据应写相对路径，避免把本机绝对路径写入报告。
 
 ---
