@@ -30,8 +30,8 @@ object CodexAgentInstaller : IAgentInstaller {
                 clientArgument = client.cliName,
                 editEventName = "PostToolUse",
                 commandEventName = "PreToolUse",
-                editMatcher = "*",
-                commandMatcher = "*",
+                editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                commandMatcher = "Bash",
             ),
         )
         resolveInternalSkillHomes(userHome)
@@ -45,8 +45,8 @@ object CodexAgentInstaller : IAgentInstaller {
                     clientArgument = client.cliName,
                     editEventName = "PostToolUse",
                     commandEventName = "PreToolUse",
-                    editMatcher = "*",
-                    commandMatcher = "*",
+                    editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                    commandMatcher = "Bash",
                 )
             }
         return targets

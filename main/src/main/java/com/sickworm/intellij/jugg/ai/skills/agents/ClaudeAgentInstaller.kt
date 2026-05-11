@@ -34,8 +34,8 @@ object ClaudeAgentInstaller : IAgentInstaller {
             clientArgument = client.cliName,
             editEventName = "PostToolUse",
             commandEventName = "PreToolUse",
-            editMatcher = "*",
-            commandMatcher = "*",
+            editMatcher = "Edit|Write|MultiEdit|apply_patch",
+            commandMatcher = "Bash",
         )
         val targets = mutableListOf(primary)
         resolveInternalSkillHomes(userHome)
@@ -49,8 +49,8 @@ object ClaudeAgentInstaller : IAgentInstaller {
                     clientArgument = client.cliName,
                     editEventName = "PostToolUse",
                     commandEventName = "PreToolUse",
-                    editMatcher = "*",
-                    commandMatcher = "*",
+                    editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                    commandMatcher = "Bash",
                 )
             }
         return targets

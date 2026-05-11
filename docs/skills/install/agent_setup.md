@@ -46,7 +46,13 @@ Event mapping by client:
 
 Use the matching client value in hook commands: `claude`, `cursor`, `codebuddy` or others.
 
-Example:
+Tool matcher recommendations:
+
+- Codex / Claude Code / CodeBuddy: tool hooks should use matcher `Edit|Write|MultiEdit|apply_patch` for edit events and `Bash` for command events.
+- Gemini CLI: tool hooks should use matcher `write_file|replace` for `AfterTool`, and `run_shell_command` for `BeforeTool`.
+- Cursor: keep `afterFileEdit` and `beforeShellExecution` with matcher `*`.
+
+Example (Claude Code):
 
 ```json
 {
@@ -73,7 +79,7 @@ Example:
     ],
     "PostToolUse": [
       {
-        "matcher": "*",
+        "matcher": "Edit|Write|MultiEdit|apply_patch",
         "hooks": [
           {
             "type": "command",
@@ -84,7 +90,7 @@ Example:
     ],
     "PreToolUse": [
       {
-        "matcher": "*",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",

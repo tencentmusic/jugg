@@ -24,8 +24,8 @@ object CodebuddyAgentInstaller : IAgentInstaller {
                 clientArgument = client.cliName,
                 editEventName = "PostToolUse",
                 commandEventName = "PreToolUse",
-                editMatcher = "*",
-                commandMatcher = "*",
+                editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                commandMatcher = "Bash",
             ),
             AgentHookTarget(
                 settingsFile = File(userHome, ".codebuddy/settings.local.json"),
@@ -35,8 +35,8 @@ object CodebuddyAgentInstaller : IAgentInstaller {
                 clientArgument = client.cliName,
                 editEventName = "PostToolUse",
                 commandEventName = "PreToolUse",
-                editMatcher = "*",
-                commandMatcher = "*",
+                editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                commandMatcher = "Bash",
             ),
         )
     }

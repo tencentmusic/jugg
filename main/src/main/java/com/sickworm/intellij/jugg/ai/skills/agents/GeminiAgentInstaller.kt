@@ -30,8 +30,8 @@ object GeminiAgentInstaller : IAgentInstaller {
                 clientArgument = client.cliName,
                 editEventName = "AfterTool",
                 commandEventName = "BeforeTool",
-                editMatcher = "*",
-                commandMatcher = "*",
+                editMatcher = "write_file|replace",
+                commandMatcher = "run_shell_command",
             ),
         )
         resolveInternalSkillHomes(userHome)
@@ -45,8 +45,8 @@ object GeminiAgentInstaller : IAgentInstaller {
                     clientArgument = client.cliName,
                     editEventName = "AfterTool",
                     commandEventName = "BeforeTool",
-                    editMatcher = "*",
-                    commandMatcher = "*",
+                    editMatcher = "write_file|replace",
+                    commandMatcher = "run_shell_command",
                 )
             }
         return targets

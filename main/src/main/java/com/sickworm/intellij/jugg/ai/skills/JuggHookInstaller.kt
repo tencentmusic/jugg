@@ -267,10 +267,50 @@ object JuggHookInstaller {
             }
             var changed = false
             val event = hooks.ensureArray(eventName).also { changed = changed || it.second }.first
+            changed = removeLegacyWildcardNestedCommand(event, matcher, command) || changed
             val entry = findOrCreateMatcherEntry(event, matcher).also { changed = changed || it.second }.first
             val hookArray = entry.ensureArray("hooks").also { changed = changed || it.second }.first
             val commandAdded = ensureNestedCommandHook(hookArray, command)
             return changed || commandAdded
+        }
+
+        private fun removeLegacyWildcardNestedCommand(
+            eventHooks: JsonArray,
+            matcher: String?,
+            command: String,
+        ): Boolean {
+            if (matcher.isNullOrBlank() || matcher == MATCHER_ALL) {
+                return false
+            }
+            val legacyCommands = toLegacyScriptCommands(command) + command
+            var changed = false
+            eventHooks.forEach { element ->
+                if (!element.isJsonObject) {
+                    return@forEach
+                }
+                val item = element.asJsonObject
+                val itemMatcher = item.get("matcher")?.asString
+                if (!(itemMatcher == null || itemMatcher == MATCHER_ALL)) {
+                    return@forEach
+                }
+                val hookArray = item.getAsJsonArray("hooks") ?: return@forEach
+                var index = hookArray.size() - 1
+                while (index >= 0) {
+                    val hook = hookArray[index]
+                    if (!hook.isJsonObject) {
+                        index--
+                        continue
+                    }
+                    val hookObject = hook.asJsonObject
+                    val commandValue = hookObject.get("command")?.asString
+                    if (hookObject.get("type")?.asString == "command" && commandValue in legacyCommands) {
+                        hookArray.remove(index)
+                        changed = true
+                    }
+                    index--
+                }
+            }
+            return changed
         }
 
         private fun findOrCreateMatcherEntry(eventHooks: JsonArray, matcherValue: String?): Pair<JsonObject, Boolean> {
@@ -299,7 +339,7 @@ object JuggHookInstaller {
         }
 
         private fun ensureNestedCommandHook(hookArray: JsonArray, command: String): Boolean {
-            val legacyCommands = toLegacyScriptCommands(command)
+            val legacyCommands = toLegacyScriptCommands(command) + command
             hookArray.forEach { element ->
                 if (!element.isJsonObject) return@forEach
                 val obj = element.asJsonObject
@@ -373,8 +413,39 @@ object JuggHookInstaller {
             }
             var changed = false
             val event = hooks.ensureArray(eventName).also { changed = changed || it.second }.first
+            changed = removeLegacyWildcardFlatCommand(event, matcher, command) || changed
             val commandAdded = ensureFlatCommandEntry(event, command, matcher)
             return changed || commandAdded
+        }
+
+        private fun removeLegacyWildcardFlatCommand(
+            eventHooks: JsonArray,
+            matcher: String?,
+            command: String,
+        ): Boolean {
+            if (matcher.isNullOrBlank() || matcher == MATCHER_ALL) {
+                return false
+            }
+            val legacyCommands = toLegacyScriptCommands(command) + command
+            var changed = false
+            var index = eventHooks.size() - 1
+            while (index >= 0) {
+                val item = eventHooks[index]
+                if (!item.isJsonObject) {
+                    index--
+                    continue
+                }
+                val itemObject = item.asJsonObject
+                val itemMatcher = itemObject.get("matcher")?.asString
+                val commandValue = itemObject.get("command")?.asString
+                val isLegacyMatcher = itemMatcher == null || itemMatcher == MATCHER_ALL
+                if (isLegacyMatcher && commandValue in legacyCommands) {
+                    eventHooks.remove(index)
+                    changed = true
+                }
+                index--
+            }
+            return changed
         }
 
         private fun ensureFlatCommandEntry(eventHooks: JsonArray, command: String, matcher: String?): Boolean {
