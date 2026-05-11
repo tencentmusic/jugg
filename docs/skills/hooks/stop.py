@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stop hook: block stop when Android changes are pending since session baseline."""
+"""Stop hook: block stop after agent Android source edit operations."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hook_common import debug_log, read_status_snapshot, state_file_path
 
 STOP_BLOCK_MESSAGE = (
-    "Android code changes were detected in this session. "
+    "Android source edits were detected in this session. "
     "Before stopping, you must enable the jugg-android-dev-loop skill for verification."
 )
 STOP_BLOCK_RETRY_WARNING = (
@@ -24,6 +24,11 @@ STOP_BLOCK_RETRY_WARNING = (
 )
 STATE_SNAPSHOT_KEY = "snapshot"
 STATE_STOP_BLOCK_COUNT_KEY = "stopBlockCount"
+STATE_ANDROID_EDIT_PENDING_KEY = "androidEditPending"
+STATE_ANDROID_EDIT_PATHS_KEY = "androidEditPaths"
+STATE_ANDROID_EDIT_COMPILE_TIME_KEY = "androidEditBaselineCompileTime"
+STATUS_SNAPSHOT_TIMEOUT_SECONDS = 10
+MAX_REPORTED_FILE_NAMES = 10
 
 
 def _debug_log(message: str) -> None:
@@ -53,7 +58,7 @@ def _extract_snapshot(structured: dict[str, Any]) -> dict[str, Any]:
 
 
 def _read_status_snapshot(home: Path) -> dict[str, Any] | None:
-    structured = read_status_snapshot(home, os.getcwd())
+    structured = read_status_snapshot(home, os.getcwd(), timeout_seconds=STATUS_SNAPSHOT_TIMEOUT_SECONDS)
     if structured is None:
         return None
     snapshot = _extract_snapshot(structured)
@@ -66,33 +71,53 @@ def _read_status_snapshot(home: Path) -> dict[str, Any] | None:
     return snapshot
 
 
-def _is_snapshot_changed(previous: dict[str, Any], current: dict[str, Any]) -> bool:
-    return str(previous.get("lastFileModifiedTime", "")) != str(current.get("lastFileModifiedTime", ""))
+def _has_android_edit(state: dict[str, Any]) -> bool:
+    return bool(state.get(STATE_ANDROID_EDIT_PENDING_KEY))
 
 
-def _is_compile_invoked(previous: dict[str, Any], current: dict[str, Any]) -> bool:
-    return str(previous.get("lastCompileTime", "")) != str(current.get("lastCompileTime", ""))
+def _edit_baseline_compile_time(state: dict[str, Any], previous: dict[str, Any]) -> str:
+    value = state.get(STATE_ANDROID_EDIT_COMPILE_TIME_KEY)
+    if isinstance(value, str):
+        return value
+    return str(previous.get("lastCompileTime", ""))
 
 
-def _has_pending_files(file_counts: dict[str, Any]) -> bool:
-    total = _safe_int(file_counts.get("total", 0))
-    if total > 0:
-        return True
-    for value in file_counts.values():
-        if _safe_int(value) > 0:
-            return True
-    return False
+def _file_name(path: str) -> str:
+    return Path(path.replace("\\", "/")).name
 
 
-def should_block_stop(previous: dict[str, Any], current: dict[str, Any]) -> bool:
-    if _is_compile_invoked(previous, current):
+def format_modified_file_summary(paths: list[Any]) -> str:
+    names: list[str] = []
+    for path in paths:
+        if not isinstance(path, str):
+            continue
+        name = _file_name(path)
+        if name and name not in names:
+            names.append(name)
+    visible = names[:MAX_REPORTED_FILE_NAMES]
+    if len(names) > MAX_REPORTED_FILE_NAMES:
+        visible.append("...")
+    return ", ".join(visible)
+
+
+def build_stop_block_message(paths: list[Any]) -> str:
+    summary = format_modified_file_summary(paths)
+    if not summary:
+        return STOP_BLOCK_MESSAGE
+    return f"{STOP_BLOCK_MESSAGE}\nModified files: {summary}"
+
+
+def should_block_stop(
+    state: dict[str, Any],
+    previous: dict[str, Any],
+    current: dict[str, Any] | None,
+) -> bool:
+    if not _has_android_edit(state):
         return False
-    if not _is_snapshot_changed(previous, current):
+    edit_baseline = _edit_baseline_compile_time(state, previous)
+    if current is not None and edit_baseline != str(current.get("lastCompileTime", "")):
         return False
-    file_counts = current.get("fileCounts", {})
-    if not isinstance(file_counts, dict):
-        file_counts = {}
-    return _has_pending_files(file_counts)
+    return True
 
 
 def parse_stored_state(raw: dict[str, Any]) -> tuple[dict[str, Any], int]:
@@ -108,18 +133,17 @@ def parse_stored_state(raw: dict[str, Any]) -> tuple[dict[str, Any], int]:
     return legacy, _safe_int(raw.get(STATE_STOP_BLOCK_COUNT_KEY, 0))
 
 
-def write_hook_state(state_file: Path, snapshot: dict[str, Any], stop_block_count: int) -> None:
-    """Persist baseline snapshot and stopBlockCount in the canonical nested shape."""
-    payload: dict[str, Any] = {
-        STATE_STOP_BLOCK_COUNT_KEY: stop_block_count,
-        STATE_SNAPSHOT_KEY: snapshot,
-    }
+def write_hook_state(state_file: Path, state: dict[str, Any], snapshot: dict[str, Any], stop_block_count: int) -> None:
+    """Persist stopBlockCount while preserving edit-hook state fields."""
+    payload = dict(state)
+    payload[STATE_STOP_BLOCK_COUNT_KEY] = stop_block_count
+    payload[STATE_SNAPSHOT_KEY] = snapshot
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
 def compute_stop_hook_result(
-    should_block: bool, stop_block_count: int
+    should_block: bool, stop_block_count: int, edited_paths: list[Any]
 ) -> tuple[int, int | None, str | None]:
     """
     Decide hook exit behavior and whether stopBlockCount must be persisted.
@@ -132,7 +156,7 @@ def compute_stop_hook_result(
             return 0, 0, None
         return 0, None, None
     if stop_block_count == 0:
-        return 2, 1, STOP_BLOCK_MESSAGE
+        return 2, 1, build_stop_block_message(edited_paths)
     return 0, None, STOP_BLOCK_RETRY_WARNING
 
 
@@ -164,31 +188,32 @@ def main() -> int:
     previous_snapshot, stop_block_count = parse_stored_state(raw_state)
 
     current = _read_status_snapshot(home)
-    if current is None:
-        _debug_log("exit: no current snapshot generated")
-        return 0
-
-    should_block = should_block_stop(previous_snapshot, current)
+    edited_paths = raw_state.get(STATE_ANDROID_EDIT_PATHS_KEY, [])
+    if not isinstance(edited_paths, list):
+        edited_paths = []
+    should_block = should_block_stop(raw_state, previous_snapshot, current)
     _debug_log(
         "decision computed "
         f"shouldBlock={should_block} stopBlockCount={stop_block_count} "
+        f"androidEditPending={raw_state.get(STATE_ANDROID_EDIT_PENDING_KEY)!r} "
+        f"androidEditPaths={edited_paths!r} "
+        f"androidEditCompile={raw_state.get(STATE_ANDROID_EDIT_COMPILE_TIME_KEY)!r} "
         f"previousLast={previous_snapshot.get('lastFileModifiedTime')!r} "
         f"previousCompile={previous_snapshot.get('lastCompileTime')!r} "
-        f"currentLast={current.get('lastFileModifiedTime')!r} "
-        f"currentCompile={current.get('lastCompileTime')!r} "
-        f"currentFileCounts={current.get('fileCounts')!r}"
+        f"currentLast={(current or {}).get('lastFileModifiedTime')!r} "
+        f"currentCompile={(current or {}).get('lastCompileTime')!r}"
     )
-    exit_code, new_count, stderr_message = compute_stop_hook_result(should_block, stop_block_count)
+    exit_code, new_count, stderr_message = compute_stop_hook_result(should_block, stop_block_count, edited_paths)
     if stderr_message:
         sys.stderr.write(f"{stderr_message}\n")
     if new_count is not None:
         try:
-            write_hook_state(state_file, previous_snapshot, new_count)
+            write_hook_state(state_file, raw_state, previous_snapshot, new_count)
         except OSError as error:
             _debug_log(f"exit: failed to persist stop state file={state_file} error={error}")
             return 0
     if exit_code == 2:
-        _debug_log("exit: blocked stop because Android changes are pending")
+        _debug_log("exit: blocked stop because Android source edits are pending")
     elif should_block and stop_block_count > 0:
         _debug_log("exit: allow stop after repeated block (pending changes remain)")
     else:

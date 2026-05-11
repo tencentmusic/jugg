@@ -14,4 +14,4 @@
 | 文件 | 覆盖点 |
 |------|--------|
 | `l2_agent_hooks.md` | 通过真实 Agent 编辑和命令动作验证 `edit/command` hook 触发、raw Gradle 阻断/二次放行与 `jugg gradle-build` 不误拦截 |
-| `l3_agent_feedback.md` | 被测 Agent 通过真实编辑、命令和结束会话动作触发 hooks，并记录可见反馈原文（edit 提示、raw Gradle 阻断/二次放行、`jugg gradle-build` 不误拦截、stop 阻断/二次放行） |
+| `l3_agent_feedback.md` | 被测 Agent 通过真实编辑、命令和结束会话动作触发 hooks，并记录可见反馈原文（edit 记录、raw Gradle 阻断/二次放行、`jugg gradle-build` 不误拦截、stop 阻断/二次放行） |

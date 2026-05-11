@@ -25,11 +25,7 @@ from hook_common import (
 )
 
 
-REMINDER_MESSAGE = (
-    "You modified Android source files. During verification, enable the "
-    "jugg-android-dev-loop skill and use Jugg CLI compile/deploy/gradle-build "
-    "instead of running Gradle directly."
-)
+STATE_ANDROID_EDIT_COMPILE_TIME_KEY = "androidEditBaselineCompileTime"
 PATCH_FILE_PATTERN = re.compile(r"^\*\*\* (?:Update|Add|Delete) File:\s+(.+)$")
 PATCH_MOVE_TO_PATTERN = re.compile(r"^\*\*\* Move to:\s+(.+)$")
 GIT_STATUS_PATTERN = re.compile(r"^(?:M|A|D|R|C|U|MM|AM|RM|MD|AD|AA|UU|\?\?)\s+(.+)$")
@@ -83,6 +79,13 @@ def collect_android_source_paths(payload: dict[str, Any]) -> list[str]:
     return paths
 
 
+def extract_last_compile_time(structured: dict[str, Any]) -> str:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return ""
+    return str(data.get("lastCompileTime", ""))
+
+
 def _parse_args() -> Any:
     parser = ArgumentParser(description="Jugg edit hook.")
     parser.add_argument("--client", default="", help="Agent client name passed by hook installer.")
@@ -104,7 +107,8 @@ def main() -> int:
 
     home = Path.home()
     cwd = str(Path.cwd())
-    if read_status_snapshot(home, cwd) is None:
+    structured = read_status_snapshot(home, cwd)
+    if structured is None:
         debug_log("JUGG-EDIT", "exit: project is not available to jugg")
         emit_cursor_empty_response(args.client)
         return 0
@@ -112,19 +116,14 @@ def main() -> int:
     state_file = state_file_path(home, cwd)
     state = read_hook_state(state_file)
     state["androidEditPending"] = True
+    state[STATE_ANDROID_EDIT_COMPILE_TIME_KEY] = extract_last_compile_time(structured)
     existing_paths = state.get("androidEditPaths", [])
     if not isinstance(existing_paths, list):
         existing_paths = []
     state["androidEditPaths"] = sorted(set(existing_paths + paths))
 
-    if not state.get("androidEditReminderShown"):
-        state["androidEditReminderShown"] = True
-        sys.stderr.write(f"{REMINDER_MESSAGE}\n")
-        debug_log("JUGG-EDIT", "exit: reminder emitted")
-    else:
-        debug_log("JUGG-EDIT", "exit: reminder already emitted")
-
     write_hook_state(state_file, state)
+    debug_log("JUGG-EDIT", "exit: Android edit state recorded")
     emit_cursor_empty_response(args.client)
     return 0
 

@@ -75,7 +75,7 @@ tools/export_benchmark_prompt_packs.sh hooks
 |------|----------|----------|------|
 | `cli` | `docs/skills/benchmark/benchmark-cli` | `android_demo_project/build/benchmark-packs/cli` | 验证 Agent 是否正确选择和使用 Jugg CLI |
 | `ui-verify` | `docs/skills/benchmark/benchmark-ui-verify` | `android_demo_project/build/benchmark-packs/ui-verify` | 验证 Agent 是否正确使用 UI 观察、定位与交互链路 |
-| `hooks` | `docs/skills/benchmark/benchmark-hooks` | `android_demo_project/build/benchmark-packs/hooks` | 验证 Agent hooks 的软提醒、硬阻断、二次放行与未全量编译放行 |
+| `hooks` | `docs/skills/benchmark/benchmark-hooks` | `android_demo_project/build/benchmark-packs/hooks` | 验证 Agent hooks 的 edit 记录、硬阻断、二次放行与未全量编译放行 |
 
 注意：
 - `cli` / `ui-verify` benchmark 在 `android_demo_project` 或其子目录启动被测 Agent。

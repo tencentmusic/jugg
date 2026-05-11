@@ -170,19 +170,28 @@ def status_allows_hooks(structured: dict[str, Any]) -> bool:
     return project_allows_hooks(data)
 
 
-def read_status_snapshot(home: Path, cwd: str) -> dict[str, Any] | None:
+def read_status_snapshot(
+    home: Path,
+    cwd: str,
+    timeout_seconds: float | None = None,
+) -> dict[str, Any] | None:
     jugg_cli = jugg_cli_path(home)
     if not jugg_cli.exists():
         debug_log("JUGG-HOOK", f"skip: jugg cli not found path={jugg_cli}")
         return None
 
-    result = subprocess.run(
-        [str(jugg_cli), "--console=json", "status"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [str(jugg_cli), "--console=json", "status"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        debug_log("JUGG-HOOK", f"skip: jugg status timeout after {timeout_seconds}s")
+        return None
     if result.returncode != 0:
         stderr_line = (result.stderr or "").strip().splitlines()
         stderr_hint = stderr_line[0] if stderr_line else ""

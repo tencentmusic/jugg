@@ -50,7 +50,7 @@ def collect_command_strings(payload: dict[str, Any]) -> list[str]:
 
 
 def should_block_gradle_command(payload: dict[str, Any], state: dict[str, Any]) -> bool:
-    has_android_edit = bool(state.get("androidEditPending") or state.get("androidEditReminderShown"))
+    has_android_edit = bool(state.get("androidEditPending"))
     return has_android_edit and bool(collect_command_strings(payload))
 
 
