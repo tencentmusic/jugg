@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from argparse import ArgumentParser
@@ -16,6 +15,7 @@ from hook_common import (
     collect_strings,
     debug_log,
     emit_cursor_empty_response,
+    payload_debug_suffix,
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
@@ -49,13 +49,6 @@ def collect_command_strings(payload: dict[str, Any]) -> list[str]:
     return commands
 
 
-def payload_debug_text(payload: dict[str, Any]) -> str:
-    try:
-        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
-    except TypeError:
-        return repr(payload)
-
-
 def should_block_gradle_command(payload: dict[str, Any], state: dict[str, Any]) -> bool:
     has_android_edit = bool(state.get("androidEditPending") or state.get("androidEditReminderShown"))
     return has_android_edit and bool(collect_command_strings(payload))
@@ -70,7 +63,7 @@ def _parse_args() -> Any:
 def main() -> int:
     args = _parse_args()
     payload = read_json_payload()
-    payload_text = payload_debug_text(payload)
+    payload_suffix = payload_debug_suffix(payload)
     home = Path.home()
     cwd = str(Path.cwd())
     state_file = state_file_path(home, cwd)
@@ -78,7 +71,7 @@ def main() -> int:
     commands = collect_command_strings(payload)
     debug_log(
         "JUGG-COMMAND",
-        f"hook triggered cwd={cwd} client={args.client} payload={payload_text} commands={commands!r}",
+        f"hook triggered cwd={cwd} client={args.client}{payload_suffix} commands={commands!r}",
     )
 
     if not should_block_gradle_command(payload, state):

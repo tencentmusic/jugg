@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from argparse import ArgumentParser
@@ -17,6 +16,7 @@ from hook_common import (
     debug_log,
     emit_cursor_empty_response,
     is_android_source_path,
+    payload_debug_suffix,
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
@@ -83,13 +83,6 @@ def collect_android_source_paths(payload: dict[str, Any]) -> list[str]:
     return paths
 
 
-def payload_debug_text(payload: dict[str, Any]) -> str:
-    try:
-        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
-    except TypeError:
-        return repr(payload)
-
-
 def _parse_args() -> Any:
     parser = ArgumentParser(description="Jugg edit hook.")
     parser.add_argument("--client", default="", help="Agent client name passed by hook installer.")
@@ -99,11 +92,11 @@ def _parse_args() -> Any:
 def main() -> int:
     args = _parse_args()
     payload = read_json_payload()
-    payload_text = payload_debug_text(payload)
+    payload_suffix = payload_debug_suffix(payload)
     paths = collect_android_source_paths(payload)
     debug_log(
         "JUGG-EDIT",
-        f"hook triggered cwd={Path.cwd()} client={args.client} payload={payload_text} paths={paths!r}",
+        f"hook triggered cwd={Path.cwd()} client={args.client}{payload_suffix} paths={paths!r}",
     )
     if not paths:
         emit_cursor_empty_response(args.client)

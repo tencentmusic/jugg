@@ -1,0 +1,52 @@
+"""Tests for hook debug logging and payload logging switches."""
+
+import importlib.util
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+
+def _load_hook_common():
+    base = os.path.join(os.path.dirname(__file__), "..", "hook_common.py")
+    spec = importlib.util.spec_from_file_location("jugg_hook_common", base)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("failed to load hook common module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class HookCommonLoggingTest(unittest.TestCase):
+    def test_payload_logging_is_disabled_by_default(self):
+        mod = _load_hook_common()
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual("", mod.payload_debug_suffix({"tool": "Edit"}))
+
+    def test_payload_logging_can_be_enabled(self):
+        mod = _load_hook_common()
+        with mock.patch.dict(os.environ, {"JUGG_HOOK_DEBUG_PAYLOAD": "true"}, clear=True):
+            suffix = mod.payload_debug_suffix({"tool": "Edit", "n": 1})
+        self.assertIn("payload=", suffix)
+        self.assertIn('"tool": "Edit"', suffix)
+        self.assertIn('"n": 1', suffix)
+
+    def test_debug_log_rotates_file_when_size_reaches_one_mb(self):
+        mod = _load_hook_common()
+        with tempfile.TemporaryDirectory(prefix="hook-debug-log-") as temp_dir:
+            log_path = Path(temp_dir) / "jugg-hook-debug.log"
+            log_path.write_bytes(b"x" * (1024 * 1024))
+            with mock.patch.dict(os.environ, {"JUGG_HOOK_DEBUG_LOG": str(log_path)}, clear=True):
+                mod.debug_log("JUGG-TEST", "hello")
+
+            backup_path = Path(f"{log_path}.1")
+            self.assertTrue(backup_path.exists())
+            self.assertEqual(1024 * 1024, backup_path.stat().st_size)
+            content = log_path.read_text(encoding="utf-8")
+            self.assertIn("[JUGG-TEST]", content)
+            self.assertIn("hello", content)
+
+
+if __name__ == "__main__":
+    unittest.main()
