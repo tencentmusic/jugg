@@ -46,6 +46,12 @@ class JuggCompilerHelper(
     gitFileChangesDetector: GitFileChangesDetector,
     taskRunnerManager: TaskRunnerManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
+    private val gitChangeChecker: GitChangesCompileChecker = GitChangesCompileChecker(
+        gitFileChangesDetector,
+        deployFileManager,
+        taskRunnerManager,
+        logger,
+    ),
 ): Disposable, IIncrementalCompileFallbackChecker {
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
@@ -69,8 +75,6 @@ class JuggCompilerHelper(
             IncrementalCompileRetryResolver(compileContextManager, gradleProjectInfoLocalFetchManager, logger),
         )
     )
-
-    private val gitChangeChecker = GitChangesCompileChecker(gitFileChangesDetector, deployFileManager, taskRunnerManager, logger)
 
     /**
      * Checks whether incremental compile would fall back to Gradle at query time, without
@@ -315,20 +319,8 @@ class JuggCompilerHelper(
         val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
         logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceGradleCompile}, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
 
-        if (isNoFileChangesSinceLastCompile) {
-            // Strategy 1: If no file changes, sync check git changes
-            logger.info("No file changes, Checking git for file changes...")
-            val result = gitChangeChecker.checkUndetectedFiles(deployFileManager.getUndeployedFiles())
-            if (result.isFoundNewChangedFiles) {
-                logger.info("Good! Git check found ${result.foundFilesSize} new changed file(s). Continue compile.")
-                isNoFileChangesSinceLastCompile = false
-            } else {
-                logger.info("Git check found no new changed files.")
-            }
-        } else {
-            // Strategy 2: Step 1 Start async git check before compile if it has file changes
-            gitChangeChecker.checkUndetectedFilesAsync(deployFileManager.getUndeployedFiles())
-        }
+        // Always run git change detection asynchronously to avoid blocking compile flow.
+        gitChangeChecker.checkUndetectedFilesAsync(deployFileManager.getUndeployedFiles())
 
         if (uiHandler.isForceGradleCompile) {
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
