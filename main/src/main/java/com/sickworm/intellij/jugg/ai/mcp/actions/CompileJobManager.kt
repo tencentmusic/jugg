@@ -41,14 +41,18 @@ object CompileJobManager {
                 val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlocking(
                     autoConfirm = true,
                 )
-                val isCompileOk = result.status == "success"
+                val status = resolveGradleBuildStatus(result)
                 val initialResult = CompileJobExecutionResult(
-                    status = result.status,
-                    message = result.message,
-                    isCompileSuccess = isCompileOk,
-                    isDeploySuccess = null,
+                    status = status,
+                    message = resolveGradleBuildMessage(result, status),
+                    isCompileSuccess = result.isCompileSuccess,
+                    isDeploySuccess = result.isDeploySuccess,
                 )
-                waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
+                if (runtime.deployTargetManager.hasDevice) {
+                    waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
+                } else {
+                    initialResult
+                }
             },
         )
     }
@@ -73,7 +77,7 @@ object CompileJobManager {
                 )
                 val runResult = runResponse.runResult
                 val compileOk = runResult?.isCompileSuccess
-                val deployOk = if (isSkipDeploy) null else runResult?.isDeploySuccess
+                val deployOk = runResult?.isDeploySuccess
                 if (!runResponse.isSuccess) {
                     return@trigger CompileJobExecutionResult(
                         status = "failed",
@@ -245,6 +249,20 @@ object CompileJobManager {
         return if (runResult.isCompileSuccess && deployOk) "success" else "failed"
     }
 
+    private fun resolveGradleBuildStatus(result: GradleCompileExecutionResult): String {
+        if (result.status == "canceled") {
+            return "canceled"
+        }
+        return if (result.isCompileSuccess && result.isDeploySuccess) "success" else "failed"
+    }
+
+    private fun resolveGradleBuildMessage(result: GradleCompileExecutionResult, status: String): String {
+        if (status == result.status) {
+            return result.message
+        }
+        return "Gradle compile finished with status=$status."
+    }
+
     private fun resolveSoftTimeoutMillis(): Long {
         val override = softTimeoutMillisOverrideForTest
         if (override == null || override <= 0L) {
@@ -275,6 +293,7 @@ object CompileJobManager {
         return result.copy(
             status = "failed",
             message = waitResult.reason ?: "$toolName finished but app is not ready.",
+            isDeploySuccess = false,
         )
     }
 

@@ -32,6 +32,8 @@ def _make_poll_response(data_status: str) -> dict:
             "status": data_status,
             "message": "Compile succeeded.",
             "jobId": "job-123",
+            "isCompileSuccess": True,
+            "isDeploySuccess": False,
         },
     }
 
@@ -90,6 +92,107 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
 
         self.assertNotIn("get-compile-status executed successfully", output)
         self.assertIn("Compile succeeded immediately.", output)
+
+    def test_compile_success_hides_compile_and_deploy_result(self):
+        """Human-readable compile output should not print isCompileSuccess or isDeploySuccess."""
+        initial = _make_compile_response("running", "Compile started.")
+        final_poll = _make_poll_response("success")
+
+        output = self._run_compile_call(initial, final_poll)
+
+        self.assertNotIn("isCompileSuccess", output)
+        self.assertNotIn("isDeploySuccess", output)
+
+
+class TestCompileCallMessageOnFailure(unittest.TestCase):
+    """compile_call should print compile/deploy result flags on failure (except for compile-only command)."""
+
+    def test_failure_prints_compile_and_deploy_result(self):
+        structured = {
+            "status": "ERROR",
+            "message": "deploy failed.",
+            "data": {
+                "status": "failed",
+                "message": "deploy failed.",
+                "jobId": "job-123",
+                "isCompileSuccess": True,
+                "isDeploySuccess": False,
+                "detail": "No device found. Stop deploying.",
+                "logPath": "build/jugg/log/compile_latest.log",
+            },
+        }
+
+        with (
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
+            patch.object(jugglib, "resolve_port", return_value=12320),
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
+        ):
+            captured = io.StringIO()
+            with patch("sys.stderr", captured):
+                with self.assertRaises(SystemExit):
+                    jugglib.compile_call("deploy")
+
+        output = captured.getvalue()
+        self.assertIn("isCompileSuccess: true", output)
+        self.assertIn("isDeploySuccess: false", output)
+
+    def test_failure_prefers_data_message(self):
+        structured = {
+            "status": "ERROR",
+            "message": "deploy failed. Reason: deploy failed.",
+            "data": {
+                "status": "failed",
+                "message": "No device found. Stop deploying.",
+                "jobId": "job-123",
+                "isCompileSuccess": True,
+                "isDeploySuccess": False,
+                "detail": "No device found. Stop deploying.",
+                "logPath": "build/jugg/log/compile_latest.log",
+            },
+        }
+
+        with (
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
+            patch.object(jugglib, "resolve_port", return_value=12320),
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
+        ):
+            captured = io.StringIO()
+            with patch("sys.stderr", captured):
+                with self.assertRaises(SystemExit):
+                    jugglib.compile_call("deploy")
+
+        output = captured.getvalue()
+        self.assertIn("message: No device found. Stop deploying.", output)
+        self.assertNotIn("message: deploy failed. Reason: deploy failed.", output)
+
+    def test_compile_failure_hides_deploy_result(self):
+        structured = {
+            "status": "ERROR",
+            "message": "compile failed.",
+            "data": {
+                "status": "failed",
+                "message": "compile failed.",
+                "jobId": "job-123",
+                "isCompileSuccess": False,
+                "isDeploySuccess": False,
+                "detail": "Compilation failed.",
+                "logPath": "build/jugg/log/compile_latest.log",
+            },
+        }
+
+        with (
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
+            patch.object(jugglib, "resolve_port", return_value=12320),
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
+        ):
+            captured = io.StringIO()
+            with patch("sys.stderr", captured):
+                with self.assertRaises(SystemExit):
+                    jugglib.compile_call("compile")
+
+        output = captured.getvalue()
+        self.assertNotIn("isCompileSuccess", output)
+        self.assertNotIn("isDeploySuccess", output)
 
 
 class TestPollCompileWaitTimeout(unittest.TestCase):

@@ -28,6 +28,8 @@ abstract class ForceGradleCompileHelper {
 data class GradleCompileExecutionResult(
     val status: String,
     val message: String,
+    val isCompileSuccess: Boolean,
+    val isDeploySuccess: Boolean,
 )
 
 data class RemoteSshInfoResult(

@@ -119,6 +119,8 @@
 
 **异步返回**：同 `deploy`。
 
+**行为补充**：`gradle-build` 会走 Gradle 构建后的安装/启动链路；整体 `status` 与 `deploy` 保持一致，只有 `isCompileSuccess=true` 且 `isDeploySuccess=true` 时终态才为 success。
+
 ### `instrument`
 
 按 androidTest 源文件锚点运行 class/method 级测试，内部复用 Jugg compile/deploy 流程。
@@ -149,7 +151,7 @@
 | `jobId` | string | **是** | 异步编译工具返回的 job ID |
 | `waitTimeoutMs` | integer | 否 | 阻塞等待状态变化的超时时间（毫秒），范围 `[0, 10000]`，默认 `0`（不阻塞） |
 
-**返回 data**：`jobId`、`status`（running/success/failed/canceled/unknown）、`executionType`（local/remote）、`message`；running 时附带 `pollIntervalSuggestedMs`。终态时附带 `isCompileSuccess`（boolean，编译是否成功，unknown 时缺失）、`isDeploySuccess`（boolean，部署是否成功，仅 deploy/instrument 工具携带，compile/gradle-build 缺失）。
+**返回 data**：`jobId`、`status`（running/success/failed/canceled/unknown）、`executionType`（local/remote）、`message`；running 时附带 `pollIntervalSuggestedMs`。终态时附带 `isCompileSuccess`（boolean，编译是否成功，unknown 时缺失）、`isDeploySuccess`（boolean，部署是否成功，unknown 时缺失；compile 仅编译时通常为 `false`）。
 
 **行为说明**：
 - 当 `waitTimeoutMs > 0` 且任务当前为 `running` 时，接口会在服务端阻塞等待状态变化，直到任务终态或超时后返回。
@@ -356,7 +358,7 @@
 
 `deploy`、`gradle-build` 可能返回 `isFinal=false` + `jobId`。用 `get-compile-status` 轮询，按 `pollIntervalSuggestedMs` 间隔。
 
-终态 data 中新增 `isCompileSuccess`（boolean）和 `isDeploySuccess`（boolean，仅部署类工具携带）。compile/gradle-build 不返回 `isDeploySuccess`。可配合 `status` 字段做更细粒度的成功/失败判定。
+终态 data 中返回 `isCompileSuccess`（boolean）和 `isDeploySuccess`（boolean）。compile/gradle-build/deploy/instrument 都可配合 `status` 字段做更细粒度的成功/失败判定。
 
 ### 产物清理
 

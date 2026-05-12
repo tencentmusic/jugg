@@ -11,6 +11,8 @@ data class RunResult(
     val isNeedResetHasRun: Boolean = false,
     /** Compiler error lines from a failed Gradle build; empty on success or incremental compile. */
     val errorLog: List<String> = emptyList(),
+    /** Human-readable reason when deployment failed; null when N/A or success. */
+    val failedReason: String? = null,
 ) {
     /**
      * Returns true if the overall run invocation succeeded, considering whether deployment was skipped.

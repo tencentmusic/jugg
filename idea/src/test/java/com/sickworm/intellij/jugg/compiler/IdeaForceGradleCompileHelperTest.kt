@@ -19,7 +19,7 @@ import org.mockito.kotlin.whenever
 class IdeaForceGradleCompileHelperTest {
 
     @Test
-    fun `gradle compile success should not depend on deploy success`() {
+    fun `gradle build should fail when deploy fails`() {
         val helper = createHelper(
             JuggRunInvocationResult(
                 isSuccess = true,
@@ -34,7 +34,35 @@ class IdeaForceGradleCompileHelperTest {
 
         val result = helper.executeGradleCompileBlocking(autoConfirm = true)
 
-        Assert.assertEquals("success", result.status)
+        Assert.assertEquals("failed", result.status)
+        Assert.assertEquals(true, result.isCompileSuccess)
+        Assert.assertEquals(false, result.isDeploySuccess)
+    }
+
+    @Test
+    fun `gradle build should expose no device deploy failure`() {
+        val helper = createHelper(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = true,
+                    isCompileSuccess = true,
+                    isDeploySuccess = false,
+                    isCancel = false,
+                ),
+                detail = """
+                    Jugg compile started.
+                    No device found. Stop installing.
+                """.trimIndent(),
+            )
+        )
+
+        val result = helper.executeGradleCompileBlocking(autoConfirm = true)
+
+        Assert.assertEquals("failed", result.status)
+        Assert.assertEquals("No device found. Stop installing.", result.message)
+        Assert.assertEquals(true, result.isCompileSuccess)
+        Assert.assertEquals(false, result.isDeploySuccess)
     }
 
     private fun createHelper(runInvocationResult: JuggRunInvocationResult): IdeaForceGradleCompileHelper {

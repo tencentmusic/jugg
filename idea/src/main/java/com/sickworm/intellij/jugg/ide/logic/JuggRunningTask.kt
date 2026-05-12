@@ -182,14 +182,16 @@ class JuggRunningTask(
             } else {
                 "deploying"
             }
-            logger.warn("No device found. Stop $deployType.")
+            val failedReason = "No device found. Stop $deployType."
+            logger.warn(failedReason)
             failedAndActiveRunWindowIfNotCanceled()
 
             if (compileTaskResult.isGradleCompile) {
                 initIncrementalCompileTask.invoke()
             }
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true,
-                isDeploySuccess = false, isNeedResetHasRun = compileTaskResult.isGradleCompile, isCancel = processHandler.isCanceled)
+                isDeploySuccess = false, isNeedResetHasRun = compileTaskResult.isGradleCompile, isCancel = processHandler.isCanceled,
+                failedReason = failedReason)
         }
 
         var totalDeployTime = 0L
@@ -228,6 +230,11 @@ class JuggRunningTask(
             val isErrorCanFallback = deployTaskResultList.all { it.isCanFallback }
             logger.debug("Not all device is deploying success. isErrorCanFallback $isErrorCanFallback, " +
                     "isAutoFallbackToGradleWhenDeployError: ${JuggSettings.isAutoFallbackToGradleWhenDeployError}")
+            val failedReason = if (deployTaskResultList.size == 1) {
+                deployTaskResultList[0].failedReason ?: "deploy failed"
+            } else {
+                deployTaskResultList.joinToString(", ") { it.failedReason ?: "deploy failed" }
+            }
             val isCanFallback = isErrorCanFallback && JuggSettings.isAutoFallbackToGradleWhenDeployError
             if (!isCanFallback) {
                 // not all device can fall back
@@ -239,15 +246,11 @@ class JuggRunningTask(
                 // install failed, set flag, next time installing directly
                 val isNeedResetHasRun = deployType == JuggDeployData.DeployType.INSTALL
                 return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true,
-                    isDeploySuccess = false, isNeedResetHasRun = isNeedResetHasRun, isCancel = processHandler.isCanceled)
+                    isDeploySuccess = false, isNeedResetHasRun = isNeedResetHasRun, isCancel = processHandler.isCanceled,
+                    failedReason = failedReason)
             } else {
                 // fallback to gradle compile
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
-                val failedReason = if (deployTaskResultList.size == 1) {
-                    deployTaskResultList[0].failedReason ?: "See log for details."
-                } else {
-                    deployTaskResultList.joinToString(", ") { it.failedReason ?: "See log for details." }
-                }
                 notifyFallback(project, failedReason)
                 compileUiHandler.isForceGradleCompile = true
                 return doRun(options)

@@ -297,6 +297,9 @@ def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
     Subsequent dicts (from get-compile-status) contain only status, no isFinal.
     Use data.status != 'running' as the universal termination condition.
     """
+    # Save logPath from initial response — get-compile-status does not return it.
+    initial_log_path = structured.get("data", {}).get("logPath", "")
+
     while True:
         status = structured.get("data", {}).get("status", "")
         if status != "running":
@@ -317,6 +320,12 @@ def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
             },
         )
         structured = extract_structured(response)
+
+    # Restore logPath if missing from the polling response.
+    if initial_log_path:
+        data = structured.get("data")
+        if isinstance(data, dict) and not data.get("logPath"):
+            data["logPath"] = initial_log_path
 
     return structured
 
@@ -389,39 +398,44 @@ def compile_call(tool: str, *, json_mode: Optional[bool] = None,
         msg = structured.get("data", {}).get("message") or structured.get("message", "Unknown error")
         detail = structured.get("data", {}).get("detail", "")
         log_path = structured.get("data", {}).get("logPath", "")
-        error_output = f"status: ERROR\nmessage: {msg}"
-        if detail:
-            error_output += f"\ndetail:\n{detail}"
+        is_compile_success = structured.get("data", {}).get("isCompileSuccess")
+        is_deploy_success = structured.get("data", {}).get("isDeploySuccess")
+        error_output = "status: ERROR"
+        if tool != "compile" and is_compile_success is not None:
+            error_output += f"\nisCompileSuccess: {str(is_compile_success).lower()}"
+        if tool != "compile" and is_deploy_success is not None:
+            error_output += f"\nisDeploySuccess: {str(is_deploy_success).lower()}"
+        error_output += f"\nmessage: {msg}"
         if log_path:
             error_output += f"\nfull log: {log_path}"
+        if detail:
+            error_output += f"\ndetail:\n{detail}"
         print(error_output, file=sys.stderr)
         sys.exit(1)
 
-    # Prefer data.message (compile job result) over top-level message (tool-call boilerplate).
-    data_message = structured.get("data", {}).get("message")
-    if data_message:
-        structured["message"] = data_message
-
-    # Print only the fields relevant to the user: status, message, isCompileSuccess, isDeploySuccess, runResult.
+    # Print consistently: status, isCompileSuccess, isDeploySuccess, message, full log, detail.
+    # isCompileSuccess and isDeploySuccess are hidden for the "compile" command.
     status = structured.get("status", "")
     if status:
         print(f"status: {status}")
-    message = structured.get("message", "")
+    data = structured.get("data", {})
+    if tool != "compile":
+        is_compile_success = data.get("isCompileSuccess")
+        if is_compile_success is not None:
+            print(f"isCompileSuccess: {str(is_compile_success).lower()}")
+        is_deploy_success = data.get("isDeploySuccess")
+        if is_deploy_success is not None:
+            print(f"isDeploySuccess: {str(is_deploy_success).lower()}")
+    # Prefer data.message (compile job result) over top-level message.
+    message = data.get("message") or structured.get("message", "")
     if message:
         print(f"message: {message}")
-    data = structured.get("data", {})
-    is_compile_success = data.get("isCompileSuccess")
-    if is_compile_success is not None:
-        print(f"isCompileSuccess: {str(is_compile_success).lower()}")
-    is_deploy_success = data.get("isDeploySuccess")
-    if is_deploy_success is not None:
-        print(f"isDeploySuccess: {str(is_deploy_success).lower()}")
-    run_result = data.get("runResult")
-    if run_result is not None:
-        if isinstance(run_result, (dict, list)):
-            print(f"runResult: {json.dumps(run_result)}")
-        else:
-            print(f"runResult: {run_result}")
+    log_path = data.get("logPath", "")
+    if log_path:
+        print(f"full log: {log_path}")
+    detail = data.get("detail", "")
+    if detail:
+        print(f"detail:\n{detail}")
     return structured
 
 

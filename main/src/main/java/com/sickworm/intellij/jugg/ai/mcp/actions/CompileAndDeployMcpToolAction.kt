@@ -42,10 +42,12 @@ class CompileAndDeployMcpToolAction : McpToolAction {
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val isAlwaysRestartApp = arguments["alwaysRestartApp"] as? Boolean ?: true
+        val compiledFiles = runtime.deployFileManager?.getUndeployedFiles()?.map { it.file.name } ?: emptyList()
         return deployAction(
             runtime = runtime,
             toolName = toolName,
             isAlwaysRestartApp = isAlwaysRestartApp,
+            compiledFiles = compiledFiles,
         )
     }
 
@@ -60,6 +62,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             androidTestRunSpec: AndroidTestRunSpec? = null,
             buildTargetOverride: BuildTarget? = null,
             waitAppReadyAfterSuccess: Boolean = true,
+            compiledFiles: List<String> = emptyList(),
         ): McpToolResult {
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
@@ -107,6 +110,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 runResultObject = JsonParser.parseString(Gson().toJson(runResponse.runResult)) as? JsonObject,
                 detail = runResponse.detail,
                 extraData = jobMetaData,
+                compiledFiles = compiledFiles,
             )
             // Record deploy completion timestamp so wait-logs can use it as the log start point.
             val projectDir = runCatching { runtime.project.basePath }.getOrNull()
@@ -222,7 +226,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         ): McpToolResult {
             val detailResult = resolveDetailResult(toolName, detail)
             val reason = runErrorMessage ?: "unknown run error"
-            val data = mutableMapOf<String, Any?>()
+            val data = mutableMapOf<String, Any?>("message" to reason)
             attachDetailData(data, detailResult)
             data.putAll(extraData)
             val message = "$toolName failed. Reason: $reason."
@@ -241,6 +245,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             runResultObject: JsonObject?,
             detail: String,
             extraData: Map<String, Any>,
+            compiledFiles: List<String> = emptyList(),
         ): McpToolResult {
             if (runResultObject == null) {
                 val detailResult = resolveDetailResult(toolName, detail)
@@ -281,9 +286,14 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             )
             data.putAll(extraData)
 
+            val message = if (compiledFiles.isNotEmpty()) {
+                "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ")}"
+            } else {
+                "$successMessage  Compiled files (total: 0)"
+            }
             return McpToolResult(
                 status = McpToolStatus.OK,
-                message = successMessage,
+                message = message,
                 data = data,
                 artifacts = emptyList(),
                 errorCode = null,

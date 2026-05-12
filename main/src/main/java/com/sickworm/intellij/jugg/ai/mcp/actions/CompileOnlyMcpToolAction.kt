@@ -25,14 +25,12 @@ class CompileOnlyMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return compileAction(runtime)
-    }
-
-    private fun compileAction(runtime: IMcpRuntime): McpToolResult {
+        val compiledFiles = runtime.deployFileManager?.getUndeployedFiles()?.map { it.file.name } ?: emptyList()
         return CompileAndDeployMcpToolAction.deployAction(
             runtime = runtime,
             toolName = toolName,
             isSkipDeploy = true,
+            compiledFiles = compiledFiles,
         )
     }
 

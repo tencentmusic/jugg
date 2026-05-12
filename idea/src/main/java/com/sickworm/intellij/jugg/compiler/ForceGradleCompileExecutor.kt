@@ -122,6 +122,8 @@ class IdeaForceGradleCompileHelper(
             return GradleCompileExecutionResult(
                 status = "failed",
                 message = "executeGradleCompileBlocking requires autoConfirm=true.",
+                isCompileSuccess = false,
+                isDeploySuccess = false,
             )
         }
         if (useCleanAndReinstall) {
@@ -134,6 +136,8 @@ class IdeaForceGradleCompileHelper(
             return GradleCompileExecutionResult(
                 status = "failed",
                 message = result.errorMessage ?: "run configuration failed",
+                isCompileSuccess = false,
+                isDeploySuccess = false,
             )
         }
         val runResult = result.runResult
@@ -141,9 +145,11 @@ class IdeaForceGradleCompileHelper(
             return GradleCompileExecutionResult(
                 status = "failed",
                 message = "run result is empty.",
+                isCompileSuccess = false,
+                isDeploySuccess = false,
             )
         }
-        return toExecutionResult(runResult)
+        return toExecutionResult(runResult, result.detail)
     }
 
     override fun resolveExecutionType(): String {
@@ -225,20 +231,31 @@ class IdeaForceGradleCompileHelper(
         return runConfiguration?.state
     }
 
-    private fun toExecutionResult(runResult: RunResult): GradleCompileExecutionResult {
-        val isSuccess = runResult.isInvocationSuccess(isSkipDeploy = false)
+    private fun toExecutionResult(runResult: RunResult, detail: String): GradleCompileExecutionResult {
+        val isSuccess = runResult.isCompileSuccess && runResult.isDeploySuccess
         return if (isSuccess) {
             GradleCompileExecutionResult(
                 status = "success",
                 message = "Gradle compile finished successfully.",
+                isCompileSuccess = runResult.isCompileSuccess,
+                isDeploySuccess = runResult.isDeploySuccess,
             )
         } else {
             val status = if (runResult.isCancel) "canceled" else "failed"
             GradleCompileExecutionResult(
                 status = status,
-                message = "Gradle compile finished with status=$status.",
+                message = resolveFailureMessage(status, detail),
+                isCompileSuccess = runResult.isCompileSuccess,
+                isDeploySuccess = runResult.isDeploySuccess,
             )
         }
+    }
+
+    private fun resolveFailureMessage(status: String, detail: String): String {
+        return detail.lines()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("No device found.") }
+            ?: "Gradle compile finished with status=$status."
     }
 
 }

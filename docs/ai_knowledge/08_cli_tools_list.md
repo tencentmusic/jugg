@@ -164,7 +164,7 @@ plugin version: 1.2.3
 ```
 jugg compile
 ```
-**行为优化**：自动轮询到 `isFinal=true`。成功时输出 `isCompileSuccess: true`（`isDeploySuccess` 不输出，因 compile 不部署）。
+**行为优化**：自动轮询到 `isFinal=true`。人类可读输出统一格式：`status`、`message`、`full log`（如有）、`detail`（如有）。
 
 ---
 
@@ -172,7 +172,7 @@ jugg compile
 ```
 jugg deploy [--always-restart-app <true|false>]
 ```
-**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Deploying...`。成功时输出 `isCompileSuccess: true` 和 `isDeploySuccess: true`。
+**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Deploying...`。终态统一输出 `status`、`isCompileSuccess`、`isDeploySuccess`、`message`、`full log`（如有）、`detail`（如有）。
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
 |-----------------------|----------------------------------|----------|------|
@@ -184,7 +184,7 @@ jugg deploy [--always-restart-app <true|false>]
 ```
 jugg gradle-build
 ```
-**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Running Gradle build...`。成功时输出 `isCompileSuccess: true`（`isDeploySuccess` 不输出，因 gradle-build 无单独部署步骤）。
+**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Running Gradle build...`。终态统一输出 `status`、`isCompileSuccess`、`isDeploySuccess`、`message`、`full log`（如有）、`detail`（如有）。`gradle-build` 会走 Gradle 构建后的安装/启动链路，因此无设备或启动失败时会返回 `status: ERROR`、`isCompileSuccess: true` 且 `isDeploySuccess: false`，无设备场景 `message` 直接提示 `No device found...`。
 
 ---
 

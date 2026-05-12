@@ -108,6 +108,34 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
+    fun testCompileOnlyReturnsCompileAndDeployResult() {
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = false,
+                    isCancel = false,
+                ),
+                detail = "",
+            )
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.COMPILE,
+            isSkipDeploy = true,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["isCompileSuccess"])
+        Assert.assertEquals(false, data["isDeploySuccess"])
+    }
+
+    @Test
     fun testTimeoutReturnsRunningThenJobCanReachFinalState() {
         CompileJobManager.softTimeoutMillisOverrideForTest = 10L
         McpAppReadyGuard.postTimeoutOverrideForTest = 1_500L
@@ -222,7 +250,7 @@ class CompileAndDeployMcpToolActionTest {
         val data = result.data as Map<String, Any>
         Assert.assertEquals("failed", data["status"])
         Assert.assertEquals(true, data["isCompileSuccess"])
-        Assert.assertEquals(true, data["isDeploySuccess"])
+        Assert.assertEquals(false, data["isDeploySuccess"])
     }
 
     @Test
@@ -359,20 +387,77 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
+    fun testSuccessMessageIncludesCompiledFiles() {
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            )
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.COMPILE,
+            isSkipDeploy = true,
+            compiledFiles = listOf("Foo.kt", "Bar.java", "Baz.kt"),
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(
+            "message should contain compiled files info, got: ${result.message}",
+            result.message.contains("compile executed successfully.")
+        )
+        Assert.assertTrue(
+            "message should contain compiled files info, got: ${result.message}",
+            result.message.contains("Compiled files (total: 3): Foo.kt, Bar.java, Baz.kt")
+        )
+    }
+
+    @Test
+    fun testSuccessMessageWithoutCompiledFiles() {
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            )
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.COMPILE,
+            isSkipDeploy = true,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertEquals("compile executed successfully.", result.message)
+    }
+
+    @Test
     fun testCompileSuccessDeployFailedMessageSaysDeploy() {
-        // When compile succeeds but deploy fails (e.g. no device), errorMessage should say
-        // "deploy failed", not "compile failed".
+        // When compile succeeds but deploy fails due to no device, errorMessage should
+        // indicate "no device", not a generic "deploy failed" or wrong "compile failed".
         val action = CompileAndDeployMcpToolAction()
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
                 isSuccess = false,
-                errorMessage = "deploy failed",
+                errorMessage = "no device",
                 detail = "No device found. Stop deploying.",
                 runResult = RunResult(
                     isGradleCompile = false,
                     isCompileSuccess = true,
                     isDeploySuccess = false,
                     isCancel = false,
+                    failedReason = "no device",
                 ),
             )
         )
@@ -381,8 +466,8 @@ class CompileAndDeployMcpToolActionTest {
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertTrue(
-            "message should say 'deploy failed', got: ${result.message}",
-            result.message.contains("deploy failed"),
+            "message should mention 'no device', got: ${result.message}",
+            result.message.contains("no device"),
         )
         Assert.assertFalse(
             "message should NOT say 'compile failed', got: ${result.message}",
@@ -390,6 +475,7 @@ class CompileAndDeployMcpToolActionTest {
         )
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
+        Assert.assertEquals("no device", data["message"])
         Assert.assertEquals(true, data["isCompileSuccess"])
         Assert.assertEquals(false, data["isDeploySuccess"])
     }
