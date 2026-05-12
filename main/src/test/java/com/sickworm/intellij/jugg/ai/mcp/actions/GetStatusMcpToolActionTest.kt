@@ -136,7 +136,7 @@ class GetStatusMcpToolActionTest {
     }
 
     @Test
-    fun testStatusRefreshesChangedFilesBeforeReadingUncompiledFiles() {
+    fun testStatusRefreshesChangedFilesByDefault() {
         val projectDir = tempFolder.newFolder("project-refresh")
         val javaFile = File(projectDir, "ExternalEdit.java")
         javaFile.writeText("class ExternalEdit {}")
@@ -162,6 +162,63 @@ class GetStatusMcpToolActionTest {
         val fileCounts = data["fileCounts"] as Map<String, Any>
         Assert.assertEquals(1, (fileCounts["total"] as Number).toInt())
         Assert.assertEquals(1, (fileCounts["Java"] as Number).toInt())
+    }
+
+    @Test
+    fun testStatusRefreshesChangedFilesWhenRefreshChangesIsTrue() {
+        val projectDir = tempFolder.newFolder("project-refresh-enabled")
+        val javaFile = File(projectDir, "ExternalEdit.java")
+        javaFile.writeText("class ExternalEdit {}")
+        javaFile.setLastModified(1_000L)
+        val module = ModuleInfo.virtualModule
+        var refreshedFiles = emptyList<ChangedFile>()
+        val runtime = runtimeWith(
+            deployState = JuggDeployState.READY,
+            hasDevice = true,
+            uncompiledFiles = emptyList(),
+            uncompiledFilesProvider = { refreshedFiles },
+            statusRefresh = {
+                refreshedFiles = listOf(ChangedFile(CompileFile.Type.Java, javaFile, projectDir, module))
+            },
+        )
+
+        val result = GetStatusMcpToolAction().execute(mapOf("refreshChanges" to true), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val fileCounts = data["fileCounts"] as Map<String, Any>
+        Assert.assertEquals(1, (fileCounts["total"] as Number).toInt())
+        Assert.assertEquals(1, (fileCounts["Java"] as Number).toInt())
+    }
+
+    @Test
+    fun testStatusSkipsRefreshChangedFilesWhenRefreshChangesIsFalse() {
+        val projectDir = tempFolder.newFolder("project-refresh-disabled")
+        val javaFile = File(projectDir, "ExternalEdit.java")
+        javaFile.writeText("class ExternalEdit {}")
+        javaFile.setLastModified(1_000L)
+        val module = ModuleInfo.virtualModule
+        var refreshedFiles = emptyList<ChangedFile>()
+        val runtime = runtimeWith(
+            deployState = JuggDeployState.READY,
+            hasDevice = true,
+            uncompiledFiles = emptyList(),
+            uncompiledFilesProvider = { refreshedFiles },
+            statusRefresh = {
+                refreshedFiles = listOf(ChangedFile(CompileFile.Type.Java, javaFile, projectDir, module))
+            },
+        )
+
+        val result = GetStatusMcpToolAction().execute(mapOf("refreshChanges" to false), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val fileCounts = data["fileCounts"] as Map<String, Any>
+        Assert.assertEquals(0, (fileCounts["total"] as Number).toInt())
     }
 
     @Test

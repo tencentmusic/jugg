@@ -96,7 +96,15 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     "status": CommandHelp(
         "status",
         "Show current deploy state and uncompiled file summary.",
-        "jugg status",
+        "jugg status [--refresh-changes <true|false>]",
+        (
+            OptionHelp(
+                ("--refresh-changes", "--refreshChanges"),
+                "Refresh git-tracked changed files before reading status. Default is false.",
+                "<true|false>",
+                "refreshChanges",
+            ),
+        ),
     ),
     "layout-dump": CommandHelp(
         "layout-dump",

@@ -314,10 +314,15 @@ jugg activity-stack
 
 #### `status`
 ```
-jugg status
+jugg status [--refresh-changes <true|false>]
 ```
 
 返回包含 `enabledAndroidTest`（基于最近 full build 基线）用于判定当时是否开启 Android Test 增量模式。
+默认不刷新 git-tracked changed files；只有传 `--refresh-changes true` 时才会在读取状态前触发刷新。
+
+| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
+|-----------------------|----------------------------------|----------|------|
+| `--refresh-changes <true\|false>` | `--refreshChanges <true\|false>` | `refreshChanges` | 是否先刷新 git-tracked changed files；默认 `false` |
 
 ---
 

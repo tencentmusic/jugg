@@ -286,6 +286,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `refreshChanges` | boolean | 否 | 是否先刷新 git-tracked changed files；默认 `false`，只有传 `true` 时才刷新 |
 
 **返回 data**：
 - `hasDevice`：boolean，设备已连接时为 `true`

@@ -18,6 +18,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private const val MAX_FILE_PATHS = 20
+private const val REFRESH_CHANGES_PARAM = "refreshChanges"
 private val READABLE_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
 /**
@@ -36,6 +37,10 @@ class GetStatusMcpToolAction(
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                REFRESH_CHANGES_PARAM to McpJsonSchemaProperty(
+                    type = "boolean",
+                    description = "When true, refresh git-tracked changed files before reading status. Default is true.",
+                ),
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -108,7 +113,9 @@ class GetStatusMcpToolAction(
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        runtime.refreshChangedFilesForStatus()
+        if (shouldRefreshChanges(arguments)) {
+            runtime.refreshChangedFilesForStatus()
+        }
 
         val deployState = runtime.deployStateManager?.updateDeployState()
             ?: return McpToolResult.internalErrorResult(toolName, "deploy state manager is unavailable")
@@ -190,6 +197,10 @@ class GetStatusMcpToolAction(
         return runCatching {
             FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8)).buildTarget == BuildTarget.ANDROID_TEST
         }.getOrDefault(false)
+    }
+
+    private fun shouldRefreshChanges(arguments: Map<String, Any?>): Boolean {
+        return arguments[REFRESH_CHANGES_PARAM] as? Boolean ?: true
     }
 
 }

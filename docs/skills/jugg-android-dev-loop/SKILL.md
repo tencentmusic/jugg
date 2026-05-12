@@ -119,6 +119,8 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
+python3 {SKILL_DIR}/scripts/jugg.py status               # show status without refreshing changed files
+python3 {SKILL_DIR}/scripts/jugg.py status --refresh-changes true  # refresh changed files before status
 python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
 python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
 python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # --marker: Java Pattern regex matched against log message; block until marker/crash/timeout

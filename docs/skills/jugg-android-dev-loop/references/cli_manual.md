@@ -210,8 +210,10 @@ Output: HTML file with full UI hierarchy.
 ### `status`
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py status
+python3 {SKILL_DIR}/scripts/jugg.py status [--refresh-changes <true|false>]
 ```
+
+`status` does not refresh changed files by default. Pass `--refresh-changes true` to refresh git-tracked changed files before reading status.
 
 ### `ssh-info`
 

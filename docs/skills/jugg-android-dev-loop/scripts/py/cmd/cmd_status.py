@@ -7,10 +7,35 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import jugglib
 
 
+def build_params(args: list[str]) -> dict:
+    params = {}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--refreshChanges":
+            if i + 1 >= len(args):
+                print("--refreshChanges requires a value (true|false)", file=sys.stderr)
+                sys.exit(1)
+            val = args[i + 1].lower()
+            if val not in ("true", "false"):
+                print("--refreshChanges value must be true or false", file=sys.stderr)
+                sys.exit(1)
+            params["refreshChanges"] = val == "true"
+            i += 2
+        else:
+            print(f"Unknown option: {arg}", file=sys.stderr)
+            sys.exit(1)
+    return params
+
+
 def cmd_status(args: list[str]) -> None:
+    remaining = jugglib.normalize_args(args)
+    extra = build_params(remaining)
     project_dir = jugglib.resolve_project_dir()
     port = jugglib.resolve_port()
-    response = jugglib.raw_call(port, "status", {"projectDir": project_dir})
+    params = {"projectDir": project_dir}
+    params.update(extra)
+    response = jugglib.raw_call(port, "status", params)
     structured = jugglib.extract_structured(response)
 
     if jugglib.json_mode:
