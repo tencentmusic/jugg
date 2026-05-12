@@ -36,6 +36,8 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
                         "isFinal" to McpJsonSchemaProperty(type = "boolean"),
                         "status" to McpJsonSchemaProperty(type = "string", `enum` = listOf("running", "success", "failed", "canceled")),
                         "triggered" to McpJsonSchemaProperty(type = "boolean"),
+                        "isCompileSuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether compilation succeeded. Absent when unknown."),
+                        "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment succeeded. Absent when deploy was skipped or not applicable (gradle-build has no separate deploy step)."),
                     ),
                     required = listOf("accepted", "jobId", "executionType", "logPath", "isFinal", "status", "triggered"),
                     additionalProperties = false,
@@ -56,19 +58,22 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
             val status = if (isFinalSuccess || isStillRunning) McpToolStatus.OK else McpToolStatus.ERROR
             val errorCode = if (status == McpToolStatus.ERROR) McpErrorCode.INTERNAL_ERROR else null
 
+            val data = mutableMapOf<String, Any>(
+                "accepted" to trigger.accepted,
+                "jobId" to trigger.jobId,
+                "executionType" to trigger.executionType,
+                "logPath" to trigger.logPath,
+                "isFinal" to trigger.isFinal,
+                "status" to trigger.status,
+                // keep old field for compatibility with old callers.
+                "triggered" to trigger.accepted,
+            )
+            trigger.isCompileSuccess?.let { data["isCompileSuccess"] = it }
+            trigger.isDeploySuccess?.let { data["isDeploySuccess"] = it }
             McpToolResult(
                 status = status,
                 message = trigger.message,
-                data = mutableMapOf<String, Any>(
-                    "accepted" to trigger.accepted,
-                    "jobId" to trigger.jobId,
-                    "executionType" to trigger.executionType,
-                    "logPath" to trigger.logPath,
-                    "isFinal" to trigger.isFinal,
-                    "status" to trigger.status,
-                    // keep old field for compatibility with old callers.
-                    "triggered" to trigger.accepted,
-                ),
+                data = data,
                 artifacts = emptyList(),
                 errorCode = errorCode,
             )

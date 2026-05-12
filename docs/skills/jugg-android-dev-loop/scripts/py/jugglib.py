@@ -402,14 +402,21 @@ def compile_call(tool: str, *, json_mode: Optional[bool] = None,
     if data_message:
         structured["message"] = data_message
 
-    # Print only the fields relevant to the user: status, message, runResult.
+    # Print only the fields relevant to the user: status, message, isCompileSuccess, isDeploySuccess, runResult.
     status = structured.get("status", "")
     if status:
         print(f"status: {status}")
     message = structured.get("message", "")
     if message:
         print(f"message: {message}")
-    run_result = structured.get("data", {}).get("runResult")
+    data = structured.get("data", {})
+    is_compile_success = data.get("isCompileSuccess")
+    if is_compile_success is not None:
+        print(f"isCompileSuccess: {str(is_compile_success).lower()}")
+    is_deploy_success = data.get("isDeploySuccess")
+    if is_deploy_success is not None:
+        print(f"isDeploySuccess: {str(is_deploy_success).lower()}")
+    run_result = data.get("runResult")
     if run_result is not None:
         if isinstance(run_result, (dict, list)):
             print(f"runResult: {json.dumps(run_result)}")

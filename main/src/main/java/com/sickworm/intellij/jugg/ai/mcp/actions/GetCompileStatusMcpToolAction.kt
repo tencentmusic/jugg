@@ -44,6 +44,8 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                         "finishedAt" to McpJsonSchemaProperty(type = "string"),
                         "message" to McpJsonSchemaProperty(type = "string"),
                         "pollIntervalSuggestedMs" to McpJsonSchemaProperty(type = "number"),
+                        "isCompileSuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether compilation succeeded. Absent when unknown (e.g. job running or not found)."),
+                        "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment succeeded. Absent when deploy was skipped or not applicable (e.g. compile-only, gradle-build)."),
                     ),
                     required = listOf("jobId", "status", "executionType", "message"),
                     additionalProperties = false,
@@ -77,6 +79,8 @@ class GetCompileStatusMcpToolAction : McpToolAction {
             "executionType" to state.executionType,
             "message" to state.message,
         )
+        state.isCompileSuccess?.let { data["isCompileSuccess"] = it }
+        state.isDeploySuccess?.let { data["isDeploySuccess"] = it }
         if (state.status == "running") {
             data.putAll(CompileJobManager.buildPollSuggestionData())
         }

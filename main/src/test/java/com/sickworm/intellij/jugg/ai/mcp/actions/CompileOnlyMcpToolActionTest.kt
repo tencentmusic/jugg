@@ -70,6 +70,8 @@ class CompileOnlyMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals("success", data["status"])
+        Assert.assertEquals(true, data["isCompileSuccess"])
+        Assert.assertFalse(data.containsKey("isDeploySuccess"))
     }
 
     /**
@@ -94,6 +96,8 @@ class CompileOnlyMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals("failed", data["status"])
+        Assert.assertFalse(data.containsKey("isCompileSuccess"))
+        Assert.assertFalse(data.containsKey("isDeploySuccess"))
     }
 
     @Test

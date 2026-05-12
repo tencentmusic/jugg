@@ -41,9 +41,12 @@ object CompileJobManager {
                 val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlocking(
                     autoConfirm = true,
                 )
+                val isCompileOk = result.status == "success"
                 val initialResult = CompileJobExecutionResult(
                     status = result.status,
                     message = result.message,
+                    isCompileSuccess = isCompileOk,
+                    isDeploySuccess = null,
                 )
                 waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
             },
@@ -68,19 +71,25 @@ object CompileJobManager {
                     androidTestRunSpec = androidTestRunSpec,
                     buildTargetOverride = buildTargetOverride,
                 )
+                val runResult = runResponse.runResult
+                val compileOk = runResult?.isCompileSuccess
+                val deployOk = if (isSkipDeploy) null else runResult?.isDeploySuccess
                 if (!runResponse.isSuccess) {
                     return@trigger CompileJobExecutionResult(
                         status = "failed",
                         message = runResponse.errorMessage ?: "run configuration failed",
                         runInvocationResult = runResponse,
+                        isCompileSuccess = compileOk,
+                        isDeploySuccess = deployOk,
                     )
                 }
-                val runResult = runResponse.runResult
                 if (runResult == null) {
                     return@trigger CompileJobExecutionResult(
                         status = "failed",
                         message = "run result is empty.",
                         runInvocationResult = runResponse,
+                        isCompileSuccess = compileOk,
+                        isDeploySuccess = deployOk,
                     )
                 }
                 val finalStatus = resolveRunResultStatus(runResult, isSkipDeploy)
@@ -93,6 +102,8 @@ object CompileJobManager {
                     status = finalStatus,
                     message = finalMessage,
                     runInvocationResult = runResponse,
+                    isCompileSuccess = compileOk,
+                    isDeploySuccess = deployOk,
                 )
                 // Skip app-ready check when deployment was intentionally skipped or the caller owns readiness validation.
                 if (isSkipDeploy || !waitAppReadyAfterSuccess) {
@@ -165,6 +176,8 @@ object CompileJobManager {
                 message = normalizedResult.message,
                 finishedAt = if (normalizedStatus == "running") null else Instant.now().toString(),
                 detail = normalizedResult.runInvocationResult?.detail ?: "",
+                isCompileSuccess = normalizedResult.isCompileSuccess,
+                isDeploySuccess = normalizedResult.isDeploySuccess,
             )
         }
 
@@ -180,6 +193,8 @@ object CompileJobManager {
                 status = finalState.status,
                 message = finalState.message,
                 finalResult = finalResultRef.get(),
+                isCompileSuccess = finalState.isCompileSuccess,
+                isDeploySuccess = finalState.isDeploySuccess,
             )
         } catch (_: TimeoutException) {
             CompileJobTriggerResult(
@@ -204,6 +219,8 @@ object CompileJobManager {
                 status = normalizedStatus,
                 message = normalizedResult.message,
                 finishedAt = Instant.now().toString(),
+                isCompileSuccess = normalizedResult.isCompileSuccess,
+                isDeploySuccess = normalizedResult.isDeploySuccess,
             )
             CompileJobTriggerResult(
                 accepted = true,
@@ -214,6 +231,8 @@ object CompileJobManager {
                 status = normalizedStatus,
                 message = normalizedResult.message,
                 finalResult = normalizedResult,
+                isCompileSuccess = normalizedResult.isCompileSuccess,
+                isDeploySuccess = normalizedResult.isDeploySuccess,
             )
         }
     }
@@ -285,12 +304,16 @@ data class CompileJobTriggerResult(
     val status: String,
     val message: String,
     val finalResult: CompileJobExecutionResult? = null,
+    val isCompileSuccess: Boolean? = null,
+    val isDeploySuccess: Boolean? = null,
 )
 
 data class CompileJobExecutionResult(
     val status: String,
     val message: String,
     val runInvocationResult: JuggRunInvocationResult? = null,
+    val isCompileSuccess: Boolean? = null,
+    val isDeploySuccess: Boolean? = null,
 )
 
 data class CompileJobStatus(
@@ -300,4 +323,6 @@ data class CompileJobStatus(
     val message: String,
     val finishedAt: String?,
     val detail: String = "",
+    val isCompileSuccess: Boolean? = null,
+    val isDeploySuccess: Boolean? = null,
 )

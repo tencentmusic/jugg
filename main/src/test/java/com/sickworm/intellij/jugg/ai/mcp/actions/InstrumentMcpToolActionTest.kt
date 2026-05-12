@@ -114,6 +114,8 @@ class InstrumentMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals("success", data["status"])
+        Assert.assertEquals(true, data["isCompileSuccess"])
+        Assert.assertEquals(true, data["isDeploySuccess"])
     }
 
     @Test

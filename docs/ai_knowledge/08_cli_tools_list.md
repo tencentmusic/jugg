@@ -164,7 +164,7 @@ plugin version: 1.2.3
 ```
 jugg compile
 ```
-**行为优化**：自动轮询到 `isFinal=true`。
+**行为优化**：自动轮询到 `isFinal=true`。成功时输出 `isCompileSuccess: true`（`isDeploySuccess` 不输出，因 compile 不部署）。
 
 ---
 
@@ -172,7 +172,7 @@ jugg compile
 ```
 jugg deploy [--always-restart-app <true|false>]
 ```
-**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Deploying...`。
+**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Deploying...`。成功时输出 `isCompileSuccess: true` 和 `isDeploySuccess: true`。
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
 |-----------------------|----------------------------------|----------|------|
@@ -184,7 +184,7 @@ jugg deploy [--always-restart-app <true|false>]
 ```
 jugg gradle-build
 ```
-**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Running Gradle build...`。
+**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Running Gradle build...`。成功时输出 `isCompileSuccess: true`（`isDeploySuccess` 不输出，因 gradle-build 无单独部署步骤）。
 
 ---
 
@@ -216,6 +216,8 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 | `--method <value>` | `--method <value>` | `method` | 测试方法，需已唯一确定 class |
 | `--runner <value>` | `--runner <value>` | `runner` | instrumentation runner override |
 | `--extras <k=v;k2=v2>` | `--extras <k=v;k2=v2>` | `extras` | 批量 extras |
+
+**行为优化**：自动轮询到 `isFinal=true`。成功时输出 `isCompileSuccess: true` 和 `isDeploySuccess: true`。
 
 ---
 

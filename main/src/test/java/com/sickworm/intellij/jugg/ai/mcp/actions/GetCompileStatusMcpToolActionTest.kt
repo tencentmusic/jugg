@@ -64,6 +64,8 @@ class GetCompileStatusMcpToolActionTest {
         }
 
         Assert.assertEquals("success", resultData["status"])
+        Assert.assertEquals(true, resultData["isCompileSuccess"])
+        Assert.assertEquals(true, resultData["isDeploySuccess"])
         Assert.assertTrue("expected blocking wait, elapsed=$elapsedMs", elapsedMs >= 80L)
     }
 

@@ -66,6 +66,8 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals("failed", data["status"])
         Assert.assertEquals("local", data["executionType"])
         Assert.assertEquals(CompileJobManager.COMPILE_LATEST_LOG_PATH, data["logPath"])
+        Assert.assertFalse(data.containsKey("isCompileSuccess"))
+        Assert.assertFalse(data.containsKey("isDeploySuccess"))
         Assert.assertFalse(result.artifacts.isEmpty())
         val logArtifact = result.artifacts.first()
         Assert.assertEquals("log", logArtifact.type)
@@ -97,6 +99,8 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals(true, data["accepted"])
         Assert.assertEquals(true, data["isFinal"])
         Assert.assertEquals("success", data["status"])
+        Assert.assertEquals(true, data["isCompileSuccess"])
+        Assert.assertEquals(true, data["isDeploySuccess"])
         Assert.assertEquals("local", data["executionType"])
         Assert.assertEquals(CompileJobManager.COMPILE_LATEST_LOG_PATH, data["logPath"])
         Assert.assertFalse(data.containsKey("detail"))
@@ -217,6 +221,8 @@ class CompileAndDeployMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals("failed", data["status"])
+        Assert.assertEquals(true, data["isCompileSuccess"])
+        Assert.assertEquals(true, data["isDeploySuccess"])
     }
 
     @Test
@@ -382,6 +388,10 @@ class CompileAndDeployMcpToolActionTest {
             "message should NOT say 'compile failed', got: ${result.message}",
             result.message.contains("compile failed"),
         )
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["isCompileSuccess"])
+        Assert.assertEquals(false, data["isDeploySuccess"])
     }
 
     @Test

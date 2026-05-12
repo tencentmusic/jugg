@@ -117,7 +117,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         }
 
         private fun buildJobMetaData(trigger: CompileJobTriggerResult): Map<String, Any> {
-            return mapOf(
+            val data = mutableMapOf<String, Any>(
                 "accepted" to trigger.accepted,
                 "jobId" to trigger.jobId,
                 "executionType" to trigger.executionType,
@@ -125,6 +125,9 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 "isFinal" to trigger.isFinal,
                 "status" to trigger.status,
             )
+            trigger.isCompileSuccess?.let { data["isCompileSuccess"] = it }
+            trigger.isDeploySuccess?.let { data["isDeploySuccess"] = it }
+            return data
         }
 
         private data class DetailResult(
