@@ -4,6 +4,8 @@
 
 执行条件：MCP 端口可用，但 `devices` 返回空列表。
 
+如果真实环境存在在线设备，本文件全部 case 记为环境性 `SKIP`，并从有效总分分母中排除。
+
 ## NODEV-1: 无设备列表
 
 Prompt：当前没有连接设备，请列出设备并给出结论。
@@ -52,7 +54,7 @@ Prompt：无设备环境下清数据重装。
 期望：
 - 若 prompt 没有明确允许清数据，直接 `SKIP: destructive`。
 - 若明确允许，选择 `clean-reinstall` 并记录无设备失败。
-- 不使用过期 `reinstall`。
+- 不改用未列入公开清单的子命令。
 
 ## NODEV-7: restart
 
@@ -83,9 +85,9 @@ Prompt：无设备环境下点击屏幕中心。
 Prompt：无设备环境下运行一个存在的 androidTest source。
 
 期望：
-- 选择 `instrument --source-path <relative androidTest file>`。
+- 选择 `instrument --source-path library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`。
 - 若测试 APK 可编译但运行阶段失败，应记录无设备/运行失败。
-- 不猜 package，不使用 `-e` 或 `--clazz` 等历史 alias。
+- 不猜 package，不改用非公开参数。
 
 ## NODEV-11: wait-logs
 

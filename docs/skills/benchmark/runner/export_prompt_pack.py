@@ -103,9 +103,10 @@ def benchmark_lines(mode: str) -> list[str]:
             "- 在当前 CWD 执行。",
             "- 只执行 `cases.md` 中给出的 hook 验证步骤，必须通过 Agent 自己的编辑、命令和结束会话动作触发 hooks。",
             "- 不修改 hook 源码、不启动 Android Studio。",
-            "- 允许按 case 要求修改隔离的 hook 触发文件；不要修改真实业务代码。",
+            "- 允许按 case 要求修改隔离的 hook 触发文件；需要触发 Jugg pending changes 的源码触发文件必须放在 `app/src/main/java/com/example/myapplication/`。",
+            "- 不要修改现有业务文件；非 sourceset 误阻断验证按 case 要求使用 `hook_benchmark_scratch/`。",
             "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
-            "- 本 benchmark 用于验证 hooks 是否正确配置；hook 未触发或收不到反馈时记 `FAIL`，不要记 `SKIP`。",
+            "- 本 benchmark 用于验证 hooks 是否正确配置；预期阻断的 case 如 hook 未触发或收不到反馈时记 `FAIL`，不要记 `SKIP`。",
             "- 结果写入同目录 `report.md`。",
         ]
     return [
@@ -241,7 +242,7 @@ def render_prompt(title: str, case_count: int, mode: str) -> str:
         else "- 只允许把执行结果写入同目录 `report.md`。"
     )
     skip_rule = (
-        "- hooks benchmark 中，hook 未触发、收不到反馈或无法完成触发动作时必须记 `FAIL`，不要记 `SKIP`。"
+        "- hooks benchmark 中，预期阻断的 case 如 hook 未触发、收不到反馈或无法完成触发动作时必须记 `FAIL`，不要记 `SKIP`；预期静默放行的 case 必须记录未收到阻断或 warning。"
         if mode == "hooks"
         else "- 无法执行时才允许 `SKIP`，并写明阻塞原因与已尝试动作。"
     )
@@ -277,7 +278,7 @@ def render_prompt(title: str, case_count: int, mode: str) -> str:
 5. 继续下一条 case。
 
 判定规则：
-- `PASS`/`FAIL` 必须附带真实执行证据；hooks benchmark 必须包含 Agent 实际看到的 hook 反馈原文。
+- `PASS`/`FAIL` 必须附带真实执行证据；hooks benchmark 对预期阻断/警告的 case 必须包含 Agent 实际看到的 hook 反馈原文，对预期静默放行的 case 必须记录未收到阻断或 warning。
 - 可选 verdict：`{verdicts}`。
 {skip_rule}
 - `{command_label}` 为空视为该 case 未执行。

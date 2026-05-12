@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Command hook: prevent raw Gradle verification after Android edits."""
+"""Command hook: prevent raw Gradle verification after session writes."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+import shlex
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -17,7 +20,9 @@ from hook_common import (
     emit_cursor_empty_response,
     extract_file_counts,
     extract_session_id,
+    has_session_write_seen,
     has_pending_files,
+    mark_session_write_seen,
     payload_debug_suffix,
     read_hook_state,
     read_json_payload,
@@ -36,6 +41,19 @@ GRADLE_RETRY_WARNING = (
     "Allowing this repeated command attempt, but final verification should use Jugg CLI."
 )
 RAW_GRADLE_PATTERN = re.compile(r"(^|[\s;&|()])(?:\./)?gradlew?(?:\s|$)")
+SHELL_SOURCE_PATH_PATTERN = (
+    r"(?:[^\s'\"<>|;&]+/)?app/src/main/java/com/example/myapplication/[^\s'\"<>|;&]+(?:\.java|\.kt)"
+)
+SHELL_COMMAND_KEYS = {"command", "cmd", "script"}
+VCS_COMMAND_PATTERN = re.compile(r"(^|[\s;&|()])git\s+(?:pull|fetch|checkout|merge|rebase|reset)\b")
+REDIRECT_WRITE_PATTERN = re.compile(r"(?:>|>>)\s*['\"]?(?P<path>" + SHELL_SOURCE_PATH_PATTERN + r")['\"]?")
+TEE_WRITE_PATTERN = re.compile(r"\btee(?:\s+-a)?\s+['\"]?(?P<path>" + SHELL_SOURCE_PATH_PATTERN + r")['\"]?")
+IN_PLACE_WRITE_PATTERN = re.compile(
+    r"\b(?:sed|perl)\b[^;&|]*\s-i(?:\s+(?:''|\"\"|'[^']*'|\"[^\"]*\"))?[^;&|]*\s+['\"]?"
+    r"(?P<path>"
+    + SHELL_SOURCE_PATH_PATTERN
+    + r")['\"]?"
+)
 
 
 def is_raw_gradle_command(command: str) -> bool:
@@ -50,6 +68,94 @@ def collect_command_strings(payload: dict[str, Any]) -> list[str]:
         if is_raw_gradle_command(value) and value not in commands:
             commands.append(value)
     return commands
+
+
+def _collect_shell_command_texts(value: Any) -> list[str]:
+    commands: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key.strip().lower() in SHELL_COMMAND_KEYS and isinstance(child, str) and child.strip():
+                if child not in commands:
+                    commands.append(child)
+                continue
+            for command in _collect_shell_command_texts(child):
+                if command not in commands:
+                    commands.append(command)
+    elif isinstance(value, list):
+        for child in value:
+            for command in _collect_shell_command_texts(child):
+                if command not in commands:
+                    commands.append(command)
+    return commands
+
+
+def _single_line_command(command: str) -> str:
+    return command.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+
+
+def _is_shell_source_path(path: str) -> bool:
+    normalized = path.strip().strip("'\"").replace("\\", "/")
+    return re.fullmatch(SHELL_SOURCE_PATH_PATTERN, normalized) is not None
+
+
+def _command_segments(command: str) -> list[str]:
+    return [segment.strip() for segment in re.split(r"[;&|]+", command) if segment.strip()]
+
+
+def _has_cp_or_mv_source_write(command: str) -> bool:
+    for segment in _command_segments(command):
+        try:
+            words = shlex.split(segment)
+        except ValueError:
+            continue
+        if len(words) < 3 or words[0] not in {"cp", "mv"}:
+            continue
+        if _is_shell_source_path(words[-1]):
+            return True
+    return False
+
+
+def is_low_risk_shell_source_write(command: str) -> bool:
+    if not command.strip() or VCS_COMMAND_PATTERN.search(command):
+        return False
+    return any(
+        pattern.search(command)
+        for pattern in (REDIRECT_WRITE_PATTERN, TEE_WRITE_PATTERN, IN_PLACE_WRITE_PATTERN)
+    ) or _has_cp_or_mv_source_write(command)
+
+
+def pending_fingerprint(structured: dict[str, Any]) -> str:
+    data = structured.get("data", {})
+    files: list[str] = []
+    if isinstance(data, dict):
+        raw_files = data.get("files", [])
+        if isinstance(raw_files, list):
+            files = sorted({str(file).replace("\\", "/") for file in raw_files if str(file).strip()})
+    payload = {
+        "fileCounts": extract_file_counts(structured),
+        "files": files,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(encoded.encode("utf-8")).hexdigest()
+
+
+def emit_codex_deny(message: str) -> None:
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": message,
+                }
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+def emit_codex_system_message(message: str) -> None:
+    print(json.dumps({"systemMessage": message}, ensure_ascii=False))
 
 
 def _parse_args() -> Any:
@@ -67,13 +173,25 @@ def main() -> int:
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
+    shell_commands = _collect_shell_command_texts(payload)
     commands = collect_command_strings(payload)
     debug_log(
         "JUGG-COMMAND",
         f"hook triggered cwd={cwd} client={args.client}{payload_suffix} commands={commands!r}",
     )
+    for shell_command in shell_commands:
+        debug_log("JUGG-COMMAND", f"shellCommand={_single_line_command(shell_command)!r}")
+    if any(is_low_risk_shell_source_write(command) for command in shell_commands):
+        mark_session_write_seen(state)
+        write_hook_state(state_file, state)
+        debug_log("JUGG-COMMAND", "recorded session write from shell source write command")
 
     if not commands:
+        emit_cursor_empty_response(args.client)
+        return 0
+
+    if not has_session_write_seen(state):
+        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because no session write was recorded")
         emit_cursor_empty_response(args.client)
         return 0
 
@@ -92,18 +210,31 @@ def main() -> int:
     if not has_pending:
         if block_count > 0:
             state["gradleBlockCount"] = 0
+            state.pop("gradleBlockedFingerprint", None)
             write_hook_state(state_file, state)
         debug_log("JUGG-COMMAND", "exit: allow raw gradle command because fileCounts show no pending changes")
         emit_cursor_empty_response(args.client)
         return 0
 
-    if block_count == 0:
+    fingerprint = pending_fingerprint(structured)
+    blocked_fingerprint = state.get("gradleBlockedFingerprint")
+
+    if block_count == 0 or blocked_fingerprint != fingerprint:
         state["gradleBlockCount"] = 1
+        state["gradleBlockedFingerprint"] = fingerprint
         write_hook_state(state_file, state)
+        if args.client == "codex":
+            emit_codex_deny(GRADLE_BLOCK_MESSAGE)
+            debug_log("JUGG-COMMAND", "exit: blocked raw gradle command with codex deny")
+            return 0
         sys.stderr.write(f"{GRADLE_BLOCK_MESSAGE}\n")
         debug_log("JUGG-COMMAND", "exit: blocked raw gradle command")
         return 2
 
+    if args.client == "codex":
+        emit_codex_system_message(GRADLE_RETRY_WARNING)
+        debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command with codex systemMessage")
+        return 0
     sys.stderr.write(f"{GRADLE_RETRY_WARNING}\n")
     debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command")
     emit_cursor_empty_response(args.client)

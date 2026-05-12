@@ -13,6 +13,7 @@ from typing import Any
 
 
 STATE_DIR_NAME = ".state"
+SESSION_WRITE_SEEN_KEY = "sessionWriteSeen"
 DEBUG_LOG_ENV = "JUGG_HOOK_DEBUG_LOG"
 DEBUG_PAYLOAD_ENV = "JUGG_HOOK_DEBUG_PAYLOAD"
 DEFAULT_DEBUG_LOG_PATH = Path.home() / ".jugg" / "skills" / "hooks" / "jugg-hook-debug.log"
@@ -173,6 +174,14 @@ def write_hook_state(state_file: Path, state: dict[str, Any]) -> bool:
     except OSError as error:
         debug_log("JUGG-HOOK", f"failed to persist state file={state_file} error={error}")
         return False
+
+
+def has_session_write_seen(state: dict[str, Any]) -> bool:
+    return bool(state.get(SESSION_WRITE_SEEN_KEY))
+
+
+def mark_session_write_seen(state: dict[str, Any]) -> None:
+    state[SESSION_WRITE_SEEN_KEY] = True
 
 
 def jugg_cli_path(home: Path) -> Path:

@@ -45,7 +45,7 @@ Prompt：测试环境可以清数据，请重装应用并清空 app data。
 期望：
 - 选择 `clean-reinstall`。
 - 只有 prompt 明确允许清数据时执行。
-- 如果环境没有设备或 app，不应改用过期 `reinstall`；应记录失败或 skip。
+- 如果环境没有设备或 app，应记录失败或 skip。
 
 ## BUILD-6: 不允许清数据时的处理
 
@@ -54,23 +54,32 @@ Prompt：确认是否能重装应用，但不要清除用户数据。
 期望：
 - 不执行 `clean-reinstall`。
 - 说明当前 CLI 没有“不清数据重装”的公开子命令。
-- 不能调用过期 `reinstall`。
+- 可选择非破坏性的 `deploy` 验证是否能继续安装更新，并记录不会清除数据。
 
 ## BUILDFAIL-1: 编译失败证据记录
 
-Prompt：编译失败了，帮我用 Jugg CLI 复现并记录错误。
+Prompt：请用 Jugg CLI 复现一次受控编译失败并记录错误证据。
 
 期望：
-- no deploy 语义明确时选择 `compile`；否则选择 `deploy`。
-- 记录失败输出中的文件、行号、错误摘要等可定位信息。
-- 不修改源码来让 benchmark 通过。
+- 在 `app/src/main/java/com/example/myapplication/BenchmarkCompileFailure.kt` 创建一次性失败源文件。
+- 失败文件只包含最小 Kotlin 代码，例如引用不存在的类型 `MissingBenchmarkType`。
+- 只允许新增这个临时文件，不修改已有业务文件。
+- 执行 `jugg compile`。
+- 记录失败输出中的文件路径、行号、错误摘要和完整日志相对路径。
+- 删除一次性失败源文件。
+- 再执行一次 `jugg compile`，确认工程恢复可编译。
+- 不调用 `deploy`、`gradle-build` 或直接 Gradle 命令替代本 case 的 Jugg CLI 复现。
 
 ## BUILDFAIL-2: 失败后的 fallback 顺序
 
-Prompt：部署失败了，先按 skill 的 fallback chain 处理。
+Prompt：请构造一个受控部署失败，先用 Jugg CLI 复现失败，然后按 fallback chain 处理并记录每一步判断。
 
 期望：
-- 先读取 `deploy` 错误。
-- 修改/重试应只在真实任务需要时发生；benchmark 中只记录应走的顺序。
-- 达到重试上限仍失败才选择 `gradle-build`。
+- 在 `app/src/main/java/com/example/myapplication/BenchmarkCompileFailure.kt` 创建一次性失败源文件。
+- 执行 `jugg deploy` 并记录失败输出中的文件路径、行号、错误摘要和完整日志相对路径。
+- 不修改已有业务文件，只删除一次性失败源文件作为恢复动作。
+- 删除临时失败文件后再次执行 `jugg deploy`。
+- 如果恢复后的 `jugg deploy` 仍失败，才选择 `jugg gradle-build`。
 - 远程编译仍失败时，`ssh-info` 需要用户明确同意。
+- 报告必须说明每一步为什么继续或停止。
+- case 结束时工作区不得留下 `BenchmarkCompileFailure.kt`。

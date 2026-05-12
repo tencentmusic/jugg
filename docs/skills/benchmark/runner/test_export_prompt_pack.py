@@ -22,6 +22,22 @@ class ExportPromptPackTest(unittest.TestCase):
             self.assertIn("- Score: N / 5", report)
             self.assertIn("| File | Case | Verdict | Score | Notes |", report)
 
+    def test_hooks_pack_documents_sourceset_and_silent_allow_rules(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = export_prompt_pack.export_pack("hooks", Path(tmp_dir))
+
+            readme = (output_dir / "README.md").read_text(encoding="utf-8")
+            prompt = (output_dir / "PROMPT.md").read_text(encoding="utf-8")
+            cases = (output_dir / "cases.md").read_text(encoding="utf-8")
+
+            self.assertIn("app/src/main/java/com/example/myapplication", readme)
+            self.assertIn("hook_benchmark_scratch", readme)
+            self.assertIn("预期静默放行", prompt)
+            self.assertIn("HOOKS-NONSOURCE", cases)
+            self.assertIn("HookShellTrigger.kt", cases)
+            self.assertIn("不要执行任何命令、文件编辑", cases)
+            self.assertIn("必须保留 pending changes 来观测第二次 stop warning", cases)
+
 
 if __name__ == "__main__":
     unittest.main()

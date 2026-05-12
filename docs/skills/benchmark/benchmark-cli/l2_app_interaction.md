@@ -2,6 +2,16 @@
 
 目标：验证 Agent 能安全使用 `restart` 和 `tap`，并在没有安全目标时选择跳过，而不是盲点坐标。
 
+## McpTestActivity 路由
+
+涉及 `McpTestActivity` 或该页面内元素的 case，先执行：
+
+```bash
+jugg restart && sleep 2 && jugg tap --text "MCP Test Page"
+```
+
+路由后必须用 `activity-stack` 或 `layout-dump` 确认已进入 `McpTestActivity`。路由失败或确认失败时记 `SKIP: page route failed`，不得直接执行目标 selector。
+
 ## APP-1: 重启应用
 
 Prompt：重启当前 app，然后确认前台 Activity。
@@ -16,7 +26,8 @@ Prompt：重启当前 app，然后确认前台 Activity。
 Prompt：在 McpTestActivity 点击文本为 `Unique MCP Target` 的按钮。
 
 期望：
-- 先确认当前页面是 McpTestActivity；不确定时用 `activity-stack` 或 `layout-dump` 做 gate。
+- 先执行 McpTestActivity 路由命令。
+- 路由后用 `activity-stack` 或 `layout-dump` 记录 gate 证据。
 - 选择 `tap --text "Unique MCP Target"`。
 - 不先做无意义截图。
 
@@ -25,6 +36,7 @@ Prompt：在 McpTestActivity 点击文本为 `Unique MCP Target` 的按钮。
 Prompt：点击 resource id 为 `btn_mcp_resource_target` 的按钮。
 
 期望：
+- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
 - 选择 `tap --resource-id btn_mcp_resource_target`。
 - 不使用过期 `--id`。
 
@@ -50,7 +62,8 @@ Prompt：测试环境已确认页面左侧空白点 `x=10%, y=50%` 长按无副�
 Prompt：在 McpTestActivity 的可滑动区域从下往上滑动。
 
 期望：
-- 先通过 `layout-dump` 或已知稳定页面确认可滑动区域存在。
+- 先执行 McpTestActivity 路由命令。
+- 再通过 `layout-dump` 确认可滑动区域存在。
 - 选择 `tap --action swipe`，并提供起点和终点百分比或坐标。
 - 百分比参数使用 `--x-percent`、`--y-percent`、`--end-x-percent`、`--end-y-percent`。
 
@@ -59,6 +72,7 @@ Prompt：在 McpTestActivity 的可滑动区域从下往上滑动。
 Prompt：点击文本为 `Repeat Tap Target` 的按钮。
 
 期望：
+- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
 - 选择 `tap --text "Repeat Tap Target"`。
 - 如果 CLI 返回多匹配，应记录候选并判为需要 disambiguation，而不是随机点击。
 

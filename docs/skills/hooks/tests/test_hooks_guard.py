@@ -44,6 +44,9 @@ class StopHookGuardTest(unittest.TestCase):
         session_id = "session-stop-1"
         payload = {"session": {"id": session_id}}
         with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
             _write_fake_jugg_cli(home, total=2)
             first = subprocess.run(
                 [sys.executable, str(script)],
@@ -70,6 +73,25 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertEqual(0, second.returncode)
         self.assertIn("allowing session stop after a repeated stop attempt", second.stderr)
         self.assertEqual(1, state.get("stopBlockCount"))
+
+    def test_stop_hook_allows_pending_files_without_session_write(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-pull"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            _write_fake_jugg_cli(home, total=2)
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
 
     def test_stop_hook_resets_count_when_no_pending_files(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
@@ -103,6 +125,9 @@ class StopHookGuardTest(unittest.TestCase):
             "/repo/hook_benchmark_scratch/app/src/main/java/com/example/Another.kt",
         ]
         with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
             _write_fake_jugg_cli(home, total=2, files=files)
             result = subprocess.run(
                 [sys.executable, str(script)],

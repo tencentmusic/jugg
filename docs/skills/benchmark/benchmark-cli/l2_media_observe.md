@@ -2,6 +2,16 @@
 
 目标：验证 Agent 能使用当前公开 CLI 做运行时观察、布局导出、元素定位、属性读取和日志等待。截图和录屏不是当前公开 CLI，本文件不再包含相关用例。
 
+## McpTestActivity 路由
+
+涉及 `McpTestActivity` 或该页面内元素的 case，先执行：
+
+```bash
+jugg restart && sleep 2 && jugg tap --text "MCP Test Page"
+```
+
+路由后必须用 `activity-stack` 或 `layout-dump` 确认已进入 `McpTestActivity`。路由失败或确认失败时记 `SKIP: page route failed`，不得直接执行目标 selector。
+
 ## OBS-1: 查看 Activity 栈
 
 Prompt：确认当前前台 Activity 是什么。
@@ -33,15 +43,16 @@ Prompt：页面可能有弹窗，请导出所有 window 的布局。
 Prompt：在 McpTestActivity 页面找到文本为 `Unique MCP Target` 的按钮，并报告位置和大小。
 
 期望：
+- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
 - 选择 `view-locate --text "Unique MCP Target"`。
 - 结果应包含 bounds 或坐标信息。
-- 如果当前页面不是 McpTestActivity，应先用 `activity-stack` 说明 gate 失败并记 `SKIP`。
 
 ## OBS-5: 通过 resourceId 定位元素
 
 Prompt：找到 resource id 为 `btn_mcp_resource_target` 的元素。
 
 期望：
+- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
 - 选择 `view-locate --resource-id btn_mcp_resource_target`。
 - 不使用过期 `--id`。
 
@@ -50,6 +61,7 @@ Prompt：找到 resource id 为 `btn_mcp_resource_target` 的元素。
 Prompt：读取 `btn_mcp_resource_target` 的文本、可点击状态和 enabled 状态。
 
 期望：
+- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
 - 选择 `view-inspect`。
 - selector 使用 `--resource-id btn_mcp_resource_target`。
 - expressions 至少包含文本、clickable、enabled 相关表达式。

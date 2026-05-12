@@ -48,7 +48,7 @@ Hooks benchmark 在当前 CWD 启动被测 Agent，只给它 prompt pack：
 不要读取 docs/skills/benchmark。
 ```
 
-Hooks benchmark 用于验证 Agent hooks 配置和真实触发链路。被测 Agent 必须通过自己的文件编辑、命令执行和结束会话动作触发 hooks；其中 L3 可按 case 要求修改隔离的 `hook_benchmark_scratch/` 触发文件，但仍不得修改真实业务代码或 hook 源码。
+Hooks benchmark 用于验证 Agent hooks 配置和真实触发链路。被测 Agent 必须通过自己的文件编辑、shell 命令、raw Gradle 命令和结束会话动作触发 hooks。需要触发 Jugg pending changes 的源码触发文件必须按 case 要求放在 `app/src/main/java/com/example/myapplication/`，只能新增或修改 `Hook*Trigger.kt` 这类隔离文件；非 sourceset 误阻断验证才使用 `hook_benchmark_scratch/`。不得修改现有业务代码或 hook 源码。
 
 ## 验收方式
 

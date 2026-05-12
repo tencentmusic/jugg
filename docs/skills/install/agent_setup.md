@@ -52,6 +52,14 @@ Tool matcher recommendations:
 - Gemini CLI: tool hooks should use matcher `write_file|replace` for `AfterTool`, and `run_shell_command` for `BeforeTool`.
 - Cursor: keep `afterFileEdit` and `beforeShellExecution` with matcher `*`.
 
+Command hook behavior:
+
+- `command.py` logs each received shell command as one debug-log line with newlines escaped.
+- Raw Gradle commands are blocked once per pending source fingerprint; a different pending file set is treated as a new first attempt.
+- Shell commands only mark the session as source-writing when they contain a low-risk write pattern targeting `app/src/main/java/com/example/myapplication`, such as redirection, `tee`, `sed -i`, `perl -i`, `cp`, or `mv`.
+- VCS commands such as `git pull`, `git checkout`, `git merge`, `git rebase`, and `git reset` are not treated as agent source writes.
+- For Codex, repeated raw Gradle warnings use JSON `systemMessage` instead of `permissionDecision: allow`.
+
 Example (Claude Code):
 
 ```json

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Edit hook: intentionally no-op; change detection is status-based in command/stop hooks."""
+"""Edit hook: record that this agent session used a write-capable tool."""
 
 from __future__ import annotations
 
@@ -10,7 +10,17 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from hook_common import debug_log, emit_cursor_empty_response, payload_debug_suffix, read_json_payload
+from hook_common import (
+    debug_log,
+    emit_cursor_empty_response,
+    extract_session_id,
+    mark_session_write_seen,
+    payload_debug_suffix,
+    read_hook_state,
+    read_json_payload,
+    state_file_path,
+    write_hook_state,
+)
 
 
 def _parse_args() -> Any:
@@ -23,7 +33,14 @@ def main() -> int:
     args = _parse_args()
     payload = read_json_payload()
     payload_suffix = payload_debug_suffix(payload)
-    debug_log("JUGG-EDIT", f"hook triggered cwd={Path.cwd()} client={args.client}{payload_suffix}")
+    home = Path.home()
+    cwd = str(Path.cwd())
+    session_id = extract_session_id(payload)
+    state_file = state_file_path(home, cwd, session_id)
+    state = read_hook_state(state_file)
+    mark_session_write_seen(state)
+    write_hook_state(state_file, state)
+    debug_log("JUGG-EDIT", f"hook triggered cwd={cwd} client={args.client}{payload_suffix}; session write recorded")
     emit_cursor_empty_response(args.client)
     return 0
 
