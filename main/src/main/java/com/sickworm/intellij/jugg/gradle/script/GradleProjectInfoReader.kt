@@ -67,8 +67,8 @@ class GradleProjectInfoReader(
             val moduleInfo = getModuleInfo(project)
             modules[moduleInfo.name] = moduleInfo
 
-            // Generate androidTest ModuleInfo for Application modules
-            if (moduleInfo.moduleType == ModuleInfo.Type.Application) {
+            // Generate androidTest ModuleInfo for modules that can own instrumentation sources.
+            if (moduleInfo.moduleType in listOf(ModuleInfo.Type.Application, ModuleInfo.Type.Library, ModuleInfo.Type.DynamicFeature)) {
                 try {
                     val androidExt = reflector(project.extensions.getByName("android"))
                     val sourceDirs = mutableListOf<File>()
@@ -768,8 +768,11 @@ class GradleProjectInfoReader(
             testApplicationId: String?,
         ): ModuleInfo? {
             if (sourceDirs.isEmpty()) return null
-            val appId = appModuleInfo.applicationId ?: return null
-            val resolvedTestAppId = testApplicationId ?: "$appId.test"
+            val targetPackage = appModuleInfo.applicationId ?: appModuleInfo.namespace ?: return null
+            val resolvedTestAppId = testApplicationId ?: when (appModuleInfo.moduleType) {
+                ModuleInfo.Type.Library -> targetPackage
+                else -> "$targetPackage.test"
+            }
             return appModuleInfo.copy(
                 name = "${appModuleInfo.name}.androidTest",
                 moduleType = ModuleInfo.Type.Library,
@@ -780,7 +783,7 @@ class GradleProjectInfoReader(
                     "debugAndroidTest",
                 ),
                 applicationId = resolvedTestAppId,
-                instrumentationTargetPackage = appId,
+                instrumentationTargetPackage = targetPackage,
                 sourceDirs = sourceDirs,
                 resourceDirs = emptyList(),
                 assetsDirs = emptyList(),

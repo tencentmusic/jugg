@@ -14,6 +14,7 @@ class GradleProjectInfoReaderAndroidTestTest {
 
     private val projectDir = File("/project")
     private val appDir = File("/project/app")
+    private val libraryDir = File("/project/library1")
 
     private fun appModule(appId: String = "com.example.app") = ModuleInfo.virtualModule.copy(
         name = "app",
@@ -22,6 +23,15 @@ class GradleProjectInfoReaderAndroidTestTest {
         projectRootDir = projectDir,
         applicationId = appId,
         buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debug"),
+    )
+
+    private fun libraryModule(namespace: String = "com.example.library1") = ModuleInfo.virtualModule.copy(
+        name = "library1",
+        moduleType = ModuleInfo.Type.Library,
+        moduleRootDir = libraryDir,
+        projectRootDir = projectDir,
+        namespace = namespace,
+        buildPathInfo = ModuleBuildPathInfo(projectDir, libraryDir, "debug"),
     )
 
     @Test
@@ -99,5 +109,20 @@ class GradleProjectInfoReaderAndroidTestTest {
             testApplicationId = null,
         )
         assertEquals(listOf(ModuleDependency("app")), result?.moduleDependencies)
+    }
+
+    @Test
+    fun `buildAndroidTestModuleInfo uses namespace for self targeting library module`() {
+        val result = GradleProjectInfoReader.buildAndroidTestModuleInfo(
+            appModuleInfo = libraryModule("com.example.library1"),
+            sourceDirs = listOf(File("/project/library1/src/androidTest/java")),
+            libraryDependencies = emptyList(),
+            testApplicationId = null,
+        )
+
+        assertEquals("library1.androidTest", result?.name)
+        assertEquals("com.example.library1", result?.applicationId)
+        assertEquals("com.example.library1", result?.instrumentationTargetPackage)
+        assertEquals(listOf(ModuleDependency("library1")), result?.moduleDependencies)
     }
 }

@@ -69,13 +69,13 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 
 | 字段 | 当前约定 |
 |------|----------|
-| `name` | `${appModuleName}.androidTest` |
+| `name` | `${ownerModuleName}.androidTest` |
 | `moduleType` | `ModuleInfo.Type.Library` |
 | `buildVariant` | `debugAndroidTest` |
-| `applicationId` | test APK applicationId |
-| `instrumentationTargetPackage` | app applicationId |
-| `sourceDirs` | app module 的 `src/androidTest` Java/Kotlin 源码目录 |
-| `moduleDependencies` | app module |
+| `applicationId` | app androidTest 使用 test APK applicationId；self-targeting library androidTest 默认使用 owner module namespace |
+| `instrumentationTargetPackage` | app androidTest 使用 app applicationId；self-targeting library androidTest 使用 owner module namespace |
+| `sourceDirs` | owner module 的 `src/androidTest` Java/Kotlin 源码目录 |
+| `moduleDependencies` | owner module |
 
 判断 androidTest module 使用 `ModuleInfo.isAndroidTestModule`。
 
@@ -97,6 +97,7 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 - `BuildTarget.ANDROID_TEST` 通过 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`，并把同 variant 的 `assemble<Variant>AndroidTest` 挂到用户请求的 Gradle task 前执行。
 - Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径派生同 variant 的 `app/build/outputs/apk/androidTest/<variant>/*.apk`。
 - `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
+- Gradle project info 读取阶段会为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；Library 模块用 `namespace` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
 
 ### 3.2 增量编译
 
