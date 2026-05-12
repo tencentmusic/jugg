@@ -287,7 +287,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
-        processFileChanged(deployContextRecoverInfo.changedFiles, emptyList(), isFromRecover = true)
+        processFileChanged(deployContextRecoverInfo.changedFiles, emptyList(), from = "recover")
 
         logger.debug("Deploy history recover successfully, no need full compile.")
     }
@@ -307,9 +307,9 @@ class JuggManager @TestOnly constructor(
     private fun processFileChanged(
         changedFiles: List<File>,
         deletedFiles: List<File>,
-        isFromRecover: Boolean,
+        from: String, // recover / ide / git
     ) {
-        logger.trace("[PERF] JuggManager.processFileChanged entered, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}, deletedSize=${deletedFiles.size}")
+        logger.trace("[PERF] JuggManager.processFileChanged from=$from, changedSize=${changedFiles.size}, deletedSize=${deletedFiles.size}")
         // prints file changed info
         if (deletedFiles.isNotEmpty()) {
             // not strict rules, just print it out for debug
@@ -339,24 +339,22 @@ class JuggManager @TestOnly constructor(
         }
 
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
-        realChangedFiles.forEach {
-            logger.debug("Detect file changed: [${it.type}]${it.file.path}")
-        }
         if (realChangedFiles.isEmpty()) {
             return
         }
+        logger.debug("Detect file changed (size=${realChangedFiles.size}): ${realChangedFiles.map { it.file.name }}")
 
         deployFileManager.addChangedFile(realChangedFiles)
 
         val isBuildFileChanged = realChangedFiles.any { it.type == CompileFile.Type.BuildFile }
-        if (isBuildFileChanged || isFromRecover) {
+        if (isBuildFileChanged || from == "recover") {
             val allBuildFiles = deployFileManager.getUndeployedFiles()
                 .filter { it.type == CompileFile.Type.BuildFile }
                 .map { it.file }
             dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
         }
 
-        if (!isFromRecover) {
+        if (from == "ide") {
             gitFileChangesDetector.onSourceFileChanged(realChangedFiles)
         }
 
@@ -577,7 +575,7 @@ class JuggManager @TestOnly constructor(
                 deployStateManager.beginFileProcessing()
                 taskRunnerManager.runBackgroundSafe("Process file changed", isNeedLog = false) {
                     try {
-                        processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
+                        processFileChanged(changedFiles, deletedFiles, from = "ide")
                     } finally {
                         deployStateManager.endFileProcessing()
                     }
@@ -587,7 +585,7 @@ class JuggManager @TestOnly constructor(
         gitFileChangesDetector.startListen(object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
                 logger.trace("[PERF] gitFileChangesDetector.onFileChanges callback, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}")
-                processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
+                processFileChanged(changedFiles, deletedFiles, from = "git")
             }
         })
 
