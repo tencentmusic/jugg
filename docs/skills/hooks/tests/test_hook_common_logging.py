@@ -47,6 +47,27 @@ class HookCommonLoggingTest(unittest.TestCase):
             self.assertIn("[JUGG-TEST]", content)
             self.assertIn("hello", content)
 
+    def test_extract_session_id_from_payload(self):
+        mod = _load_hook_common()
+        payload = {
+            "meta": {
+                "session": {
+                    "id": "session-123",
+                },
+            },
+        }
+
+        self.assertEqual("session-123", mod.extract_session_id(payload))
+
+    def test_state_file_path_uses_session_id_when_present(self):
+        mod = _load_hook_common()
+        home = Path("/tmp")
+        cwd = "/repo/android_demo_project"
+        with_session = mod.state_file_path(home, cwd, "session-123")
+        without_session = mod.state_file_path(home, cwd, None)
+
+        self.assertNotEqual(with_session, without_session)
+
 
 if __name__ == "__main__":
     unittest.main()

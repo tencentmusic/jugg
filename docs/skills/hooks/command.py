@@ -15,6 +15,9 @@ from hook_common import (
     collect_strings,
     debug_log,
     emit_cursor_empty_response,
+    extract_file_counts,
+    extract_session_id,
+    has_pending_files,
     payload_debug_suffix,
     read_hook_state,
     read_json_payload,
@@ -49,11 +52,6 @@ def collect_command_strings(payload: dict[str, Any]) -> list[str]:
     return commands
 
 
-def should_block_gradle_command(payload: dict[str, Any], state: dict[str, Any]) -> bool:
-    has_android_edit = bool(state.get("androidEditPending"))
-    return has_android_edit and bool(collect_command_strings(payload))
-
-
 def _parse_args() -> Any:
     parser = ArgumentParser(description="Jugg command hook.")
     parser.add_argument("--client", default="", help="Agent client name passed by hook installer.")
@@ -66,7 +64,8 @@ def main() -> int:
     payload_suffix = payload_debug_suffix(payload)
     home = Path.home()
     cwd = str(Path.cwd())
-    state_file = state_file_path(home, cwd)
+    session_id = extract_session_id(payload)
+    state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
     commands = collect_command_strings(payload)
     debug_log(
@@ -74,18 +73,30 @@ def main() -> int:
         f"hook triggered cwd={cwd} client={args.client}{payload_suffix} commands={commands!r}",
     )
 
-    if not should_block_gradle_command(payload, state):
+    if not commands:
         emit_cursor_empty_response(args.client)
         return 0
-    if read_status_snapshot(home, cwd) is None:
+
+    structured = read_status_snapshot(home, cwd)
+    if structured is None:
         debug_log("JUGG-COMMAND", "exit: project is not available to jugg")
         emit_cursor_empty_response(args.client)
         return 0
 
+    has_pending = has_pending_files(extract_file_counts(structured))
     try:
         block_count = int(state.get("gradleBlockCount", 0) or 0)
     except (TypeError, ValueError):
         block_count = 0
+
+    if not has_pending:
+        if block_count > 0:
+            state["gradleBlockCount"] = 0
+            write_hook_state(state_file, state)
+        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because fileCounts show no pending changes")
+        emit_cursor_empty_response(args.client)
+        return 0
+
     if block_count == 0:
         state["gradleBlockCount"] = 1
         write_hook_state(state_file, state)

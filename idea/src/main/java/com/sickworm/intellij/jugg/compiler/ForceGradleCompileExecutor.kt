@@ -226,7 +226,7 @@ class IdeaForceGradleCompileHelper(
     }
 
     private fun toExecutionResult(runResult: RunResult): GradleCompileExecutionResult {
-        val isSuccess = runResult.isCompileSuccess && runResult.isDeploySuccess
+        val isSuccess = runResult.isInvocationSuccess(isSkipDeploy = false)
         return if (isSuccess) {
             GradleCompileExecutionResult(
                 status = "success",

@@ -21,6 +21,16 @@ DEBUG_LOG_BACKUP_SUFFIX = ".1"
 ANDROID_SOURCE_SUFFIXES = (".java", ".kt", ".xml", ".gradle", ".gradle.kts")
 ANDROID_SOURCE_NAMES = ("AndroidManifest.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts")
 EXCLUDED_PATH_SEGMENTS = {"docs", "build", ".gradle", ".idea"}
+SESSION_ID_KEYS = {
+    "session_id",
+    "sessionid",
+    "conversation_id",
+    "conversationid",
+    "thread_id",
+    "threadid",
+    "run_id",
+    "runid",
+}
 
 
 def _is_truthy(value: str) -> bool:
@@ -102,6 +112,8 @@ def is_android_source_path(value: str) -> bool:
     normalized = value.strip().replace("\\", "/")
     if not normalized or "\n" in normalized:
         return False
+    if any(char.isspace() for char in normalized):
+        return False
     parts = [part for part in normalized.split("/") if part]
     if any(part in EXCLUDED_PATH_SEGMENTS for part in parts):
         return False
@@ -111,9 +123,35 @@ def is_android_source_path(value: str) -> bool:
     return normalized.endswith(ANDROID_SOURCE_SUFFIXES)
 
 
-def state_file_path(home: Path, cwd: str) -> Path:
+def _extract_session_id_from_value(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            lowered = key.strip().lower()
+            if lowered in SESSION_ID_KEYS and isinstance(child, str) and child.strip():
+                return child.strip()
+            if lowered in {"session", "conversation", "thread", "run"} and isinstance(child, dict):
+                nested_id = child.get("id")
+                if isinstance(nested_id, str) and nested_id.strip():
+                    return nested_id.strip()
+            candidate = _extract_session_id_from_value(child)
+            if candidate:
+                return candidate
+    elif isinstance(value, list):
+        for child in value:
+            candidate = _extract_session_id_from_value(child)
+            if candidate:
+                return candidate
+    return None
+
+
+def extract_session_id(payload: dict[str, Any]) -> str | None:
+    return _extract_session_id_from_value(payload)
+
+
+def state_file_path(home: Path, cwd: str, session_id: str | None = None) -> Path:
     state_dir = home / ".jugg" / "hooks" / STATE_DIR_NAME
-    digest = hashlib.sha1(cwd.encode("utf-8")).hexdigest()
+    scope = cwd if not session_id else f"{cwd}\n{session_id}"
+    digest = hashlib.sha1(scope.encode("utf-8")).hexdigest()
     return state_dir / f"{digest}.json"
 
 
@@ -163,11 +201,55 @@ def project_allows_hooks(project_info: dict[str, Any]) -> bool:
     return project_info.get("hasBeenFullCompiled") is not False
 
 
-def status_allows_hooks(structured: dict[str, Any]) -> bool:
+def safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def extract_file_counts(structured: dict[str, Any]) -> dict[str, Any]:
     data = structured.get("data", {})
     if not isinstance(data, dict):
+        return {}
+    file_counts = data.get("fileCounts", {})
+    if not isinstance(file_counts, dict):
+        return {}
+    return file_counts
+
+
+def extract_modified_file_names(structured: dict[str, Any], limit: int = 10) -> list[str]:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return []
+    files = data.get("files", [])
+    if not isinstance(files, list):
+        return []
+    names: list[str] = []
+    for value in files:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        name = Path(value).name.strip()
+        if not name or name in names:
+            continue
+        names.append(name)
+        if len(names) >= limit:
+            break
+    return names
+
+
+def has_pending_files(file_counts: dict[str, Any]) -> bool:
+    if safe_int(file_counts.get("total", 0)) > 0:
         return True
-    return project_allows_hooks(data)
+    for value in file_counts.values():
+        if safe_int(value) > 0:
+            return True
+    return False
+
+
+def status_allows_hooks(structured: dict[str, Any]) -> bool:
+    data = structured.get("data", {})
+    return project_allows_hooks(data) if isinstance(data, dict) else True
 
 
 def read_status_snapshot(
