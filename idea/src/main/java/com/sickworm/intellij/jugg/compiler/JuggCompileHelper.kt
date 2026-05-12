@@ -214,14 +214,12 @@ class JuggCompilerHelper(
         compileContextManager.ensureInitProjectInfo()
         deployHistoryManager.beforeFullCompiled(deployFileManager.getUndeployedFiles())
 
-        val effectiveOptions = prepareOptionsForBuildTarget(options)
-
-        if (effectiveOptions.isRemoteCompile) {
+        if (options.isRemoteCompile) {
             // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
             if (!gradleProjectInfoLocalFetchManager.isProjectInfoAvailable) {
                 // project info not fetched, run it during remote gradle compile
                 // local compile will auto run after build finish
-                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true, effectiveOptions.compileCommand)
+                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true, options.compileCommand)
             } else {
                 val changedBuildFiles = deployFileManager.getUndeployedFiles().filter {
                     it.type == CompileFile.Type.BuildFile
@@ -230,14 +228,14 @@ class JuggCompilerHelper(
                 logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
                 if (changedBuildFiles.isNotEmpty()) {
                     gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true, lastBuildModifiedTime)
-                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = false, effectiveOptions.compileCommand)
+                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = false, options.compileCommand)
                 }
             }
         }
 
         GradleScriptWriter(pathManager, logger).writeInitGradleFile()
-        val client = gradleCompileClientManager.getClient(effectiveOptions.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
-        val task = JuggGradleCompileTask(project, client, effectiveOptions, uiHandler, isOnlyFetchResult)
+        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
+        val task = JuggGradleCompileTask(project, client, options, uiHandler, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
             val apkInfos = ApkInfoReader(logger).createApkInfo(result.compileOutputFile)
@@ -247,16 +245,6 @@ class JuggCompilerHelper(
         }
 
         return result
-    }
-
-    /**
-     * Keeps RunConfig Gradle options unchanged while tagging androidTest full builds for the Gradle init script and compile clients.
-     */
-    private fun prepareOptionsForBuildTarget(options: JuggGradleCompileOptions): JuggGradleCompileOptions {
-        if (options.buildTarget == BuildTarget.ANDROID_TEST) {
-            logger.info("AndroidTest mode: keep compile command/output APK unchanged: ${options.compileCommand}")
-        }
-        return options
     }
 
     /**
