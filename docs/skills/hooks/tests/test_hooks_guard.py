@@ -10,7 +10,12 @@ import unittest
 from pathlib import Path
 
 
-def _write_fake_jugg_cli(home: str, total: int, files: list[str] | None = None) -> None:
+def _write_fake_jugg_cli(
+    home: str,
+    total: int,
+    files: list[str] | None = None,
+    last_compile_time: str = "",
+) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
     jugg_bin.mkdir(parents=True, exist_ok=True)
     jugg_cli = jugg_bin / "jugg.py"
@@ -24,6 +29,7 @@ def _write_fake_jugg_cli(home: str, total: int, files: list[str] | None = None) 
         "        'hasBeenFullCompiled': True,\n"
         f"        'fileCounts': {{'total': {total}}},\n"
         f"        'files': {files_json},\n"
+        f"        'lastCompileTime': {last_compile_time!r},\n"
         "    },\n"
         "}\n"
         "print(json.dumps(payload))\n",
@@ -108,6 +114,31 @@ class StopHookGuardTest(unittest.TestCase):
         payload = {"session": {"id": session_id}}
         with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
             _write_fake_jugg_cli(home, total=2)
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+
+    def test_stop_hook_allows_pending_files_after_session_write_was_verified(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-verified-pending"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps({"sessionWriteSeen": True, "lastWriteTimeMs": 1778668800000}),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1, last_compile_time="2026-05-13 19:15:03")
             result = subprocess.run(
                 [sys.executable, str(script)],
                 input=json.dumps(payload),

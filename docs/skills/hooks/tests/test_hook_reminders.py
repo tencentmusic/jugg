@@ -21,7 +21,12 @@ def _load_hook_module(file_name):
     return module
 
 
-def _write_fake_jugg_cli(home: str, total: int, files: list[str] | None = None) -> None:
+def _write_fake_jugg_cli(
+    home: str,
+    total: int,
+    files: list[str] | None = None,
+    last_compile_time: str = "",
+) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
     jugg_bin.mkdir(parents=True, exist_ok=True)
     jugg_cli = jugg_bin / "jugg.py"
@@ -35,6 +40,7 @@ def _write_fake_jugg_cli(home: str, total: int, files: list[str] | None = None) 
         "        'hasBeenFullCompiled': True,\n"
         f"        'fileCounts': {{'total': {total}}},\n"
         f"        'files': {files_json},\n"
+        f"        'lastCompileTime': {last_compile_time!r},\n"
         "    },\n"
         "}\n"
         "print(json.dumps(payload))\n",
@@ -125,6 +131,30 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertNotIn("androidEditPaths", state)
 
+    def test_edit_hook_records_last_write_time(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-edit-time"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            payload = {
+                "session": {"id": session_id},
+                "tool_name": "Edit",
+                "tool_input": {"file_path": str(Path(cwd) / "Any.kt")},
+            }
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")
         self.assertTrue(mod.is_raw_gradle_command("./gradlew :app:assembleDebug"))
@@ -169,6 +199,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertFalse(status_marker.exists())
         self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
         self.assertIn("shellCommand=", log_text)
         self.assertIn("\\n", log_text)
 
@@ -326,6 +357,35 @@ class HookReminderDecisionTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
             _write_fake_jugg_cli(home, total=1)
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+
+    def test_command_hook_allows_pending_files_after_session_write_was_verified(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-verified-pending"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps({"sessionWriteSeen": True, "lastWriteTimeMs": 1778668800000}),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1, last_compile_time="2026-05-13 19:15:03")
             result = subprocess.run(
                 [sys.executable, str(script)],
                 input=json.dumps(payload),

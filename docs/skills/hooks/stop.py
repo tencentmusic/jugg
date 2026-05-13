@@ -21,6 +21,7 @@ from hook_common import (
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
+    session_write_needs_verification,
     state_file_path,
     write_hook_state,
 )
@@ -69,18 +70,26 @@ def main() -> int:
     file_counts = extract_file_counts(structured)
     has_pending = has_pending_files(file_counts)
     session_write_seen = has_session_write_seen(state)
+    needs_verification = session_write_needs_verification(state, structured)
     debug_log(
         "JUGG-STOP",
         "decision computed "
         f"hasPending={has_pending} sessionWriteSeen={session_write_seen} "
+        f"needsVerification={needs_verification} "
         f"stopBlockCount={block_count} fileCounts={file_counts!r}",
     )
 
-    if not has_pending or not session_write_seen:
+    if not has_pending or not needs_verification:
         if block_count > 0:
             state["stopBlockCount"] = 0
             write_hook_state(state_file, state)
-        reason = "fileCounts show no pending changes" if not has_pending else "no session write was recorded"
+        reason = (
+            "fileCounts show no pending changes"
+            if not has_pending
+            else "session writes were already covered by Jugg verification"
+            if session_write_seen
+            else "no session write was recorded"
+        )
         debug_log("JUGG-STOP", f"exit: allow stop because {reason}")
         return 0
 

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,8 @@ from typing import Any
 
 STATE_DIR_NAME = ".state"
 SESSION_WRITE_SEEN_KEY = "sessionWriteSeen"
+LAST_WRITE_TIME_MS_KEY = "lastWriteTimeMs"
+JUGG_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEBUG_LOG_ENV = "JUGG_HOOK_DEBUG_LOG"
 DEBUG_PAYLOAD_ENV = "JUGG_HOOK_DEBUG_PAYLOAD"
 DEFAULT_DEBUG_LOG_PATH = Path.home() / ".jugg" / "skills" / "hooks" / "jugg-hook-debug.log"
@@ -182,6 +185,35 @@ def has_session_write_seen(state: dict[str, Any]) -> bool:
 
 def mark_session_write_seen(state: dict[str, Any]) -> None:
     state[SESSION_WRITE_SEEN_KEY] = True
+    state[LAST_WRITE_TIME_MS_KEY] = int(time.time() * 1000)
+
+
+def extract_last_compile_time_ms(structured: dict[str, Any]) -> int:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return 0
+    last_compile_time = data.get("lastCompileTime")
+    if not isinstance(last_compile_time, str) or not last_compile_time.strip():
+        return 0
+    try:
+        parsed_time = datetime.strptime(last_compile_time.strip(), JUGG_TIME_FORMAT)
+    except ValueError:
+        return 0
+    return int(parsed_time.timestamp() * 1000)
+
+
+def session_write_needs_verification(state: dict[str, Any], structured: dict[str, Any]) -> bool:
+    if not has_session_write_seen(state):
+        return False
+    last_write_time_ms = safe_int(state.get(LAST_WRITE_TIME_MS_KEY, 0))
+    if last_write_time_ms <= 0:
+        # Legacy states only recorded a boolean write marker; keep the old conservative behavior.
+        return True
+    last_compile_time_ms = extract_last_compile_time_ms(structured)
+    if last_compile_time_ms <= 0:
+        return True
+    # Jugg status exposes second-level precision. Treat the whole compile second as verified.
+    return last_write_time_ms > last_compile_time_ms + 999
 
 
 def jugg_cli_path(home: Path) -> Path:

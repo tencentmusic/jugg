@@ -55,6 +55,8 @@ Tool matcher recommendations:
 Command hook behavior:
 
 - `command.py` logs each received shell command as one debug-log line with newlines escaped.
+- Edit hooks record a session write timestamp; raw Gradle and stop hooks only block when that timestamp is later than Jugg `status.lastCompileTime` and pending changes still exist.
+- Legacy hook state without a write timestamp is treated conservatively as unverified.
 - Raw Gradle commands are blocked once per pending source fingerprint; a different pending file set is treated as a new first attempt.
 - Shell commands only mark the session as source-writing when they contain a low-risk write pattern targeting `app/src/main/java/com/example/myapplication`, such as redirection, `tee`, `sed -i`, `perl -i`, `cp`, or `mv`.
 - VCS commands such as `git pull`, `git checkout`, `git merge`, `git rebase`, and `git reset` are not treated as agent source writes.

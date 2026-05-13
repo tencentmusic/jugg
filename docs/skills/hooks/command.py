@@ -27,6 +27,7 @@ from hook_common import (
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
+    session_write_needs_verification,
     state_file_path,
     write_hook_state,
 )
@@ -213,6 +214,18 @@ def main() -> int:
             state.pop("gradleBlockedFingerprint", None)
             write_hook_state(state_file, state)
         debug_log("JUGG-COMMAND", "exit: allow raw gradle command because fileCounts show no pending changes")
+        emit_cursor_empty_response(args.client)
+        return 0
+
+    if not session_write_needs_verification(state, structured):
+        if block_count > 0:
+            state["gradleBlockCount"] = 0
+            state.pop("gradleBlockedFingerprint", None)
+            write_hook_state(state_file, state)
+        debug_log(
+            "JUGG-COMMAND",
+            "exit: allow raw gradle command because session writes were already covered by Jugg verification",
+        )
         emit_cursor_empty_response(args.client)
         return 0
 
