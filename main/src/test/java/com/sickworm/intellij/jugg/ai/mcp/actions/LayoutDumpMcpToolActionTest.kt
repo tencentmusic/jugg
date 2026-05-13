@@ -38,6 +38,7 @@ class LayoutDumpMcpToolActionTest {
     @Before
     fun setUp() {
         McpAppReadyGuard.resetForTest()
+        McpAppReadyGuard.preFailureRetryIntervalOverrideForTest = 0L
     }
 
     @After
@@ -115,10 +116,63 @@ class LayoutDumpMcpToolActionTest {
         }.use { construction ->
             val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
             Assert.assertEquals(McpToolStatus.ERROR, result.status)
-            Assert.assertEquals(1, construction.constructed().size)
+            Assert.assertEquals(4, construction.constructed().size)
             Assert.assertTrue(result.message.contains("ViewHierarchy server is unavailable"))
             Assert.assertTrue(result.artifacts.isEmpty())
             Assert.assertEquals(0, setup.adb.pullCount)
+        }
+    }
+
+    @Test
+    fun testLayoutDumpReturnsScreenOffErrorWhenServerUnavailableAndDeviceSleeping() {
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_screen_off_")
+        val setup = setup(
+            projectDir,
+            packageName = "com.example.app",
+            shellOutputs = mapOf(
+                "dumpsys power" to "mWakefulness=Dozing",
+                "dumpsys window policy" to "screenState=SCREEN_STATE_OFF\ninteractiveState=INTERACTIVE_STATE_SLEEP",
+            ),
+        )
+        val action = LayoutDumpMcpToolAction()
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(null)
+        }.use { construction ->
+            val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.DEVICE_NOT_INTERACTIVE, result.errorCode)
+            Assert.assertEquals(1, construction.constructed().size)
+            Assert.assertTrue(result.message.contains("device screen is off"))
+            Assert.assertTrue(setup.adb.executedCommands.contains("dumpsys power"))
+            Assert.assertTrue(setup.adb.executedCommands.contains("dumpsys window policy"))
+        }
+    }
+
+    @Test
+    fun testLayoutDumpReturnsAppBackgroundErrorWhenServerUnavailableAndAppNotForeground() {
+        val projectDir = createTempDir(prefix = "jugg_layout_dump_background_")
+        val setup = setup(
+            projectDir,
+            packageName = "com.example.app",
+            shellOutputs = mapOf(
+                "dumpsys power" to "mWakefulness=Awake",
+                "dumpsys window policy" to "screenState=SCREEN_STATE_ON\ninteractiveState=INTERACTIVE_STATE_AWAKE",
+                "dumpsys activity activities" to
+                    "topResumedActivity=ActivityRecord{100 com.android.launcher/.Launcher t1}",
+            ),
+        )
+        val action = LayoutDumpMcpToolAction()
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(null)
+        }.use { construction ->
+            val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.APP_NOT_FOREGROUND, result.errorCode)
+            Assert.assertEquals(1, construction.constructed().size)
+            Assert.assertTrue(result.message.contains("target app is not in foreground"))
+            Assert.assertTrue(setup.adb.executedCommands.contains("dumpsys activity activities"))
         }
     }
 
@@ -258,9 +312,10 @@ class LayoutDumpMcpToolActionTest {
         projectDir: File,
         packageName: String? = null,
         isAppReadyProvider: () -> Boolean = { true },
+        shellOutputs: Map<String, String> = emptyMap(),
     ): SetupResult {
         val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb()
+        val adb = FakeDeviceAdb(shellOutputs)
         PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
@@ -318,17 +373,23 @@ class LayoutDumpMcpToolActionTest {
         val adb: FakeDeviceAdb,
     )
 
-    private class FakeDeviceAdb : IDeviceAdb {
+    private class FakeDeviceAdb(
+        private val shellOutputs: Map<String, String> = emptyMap(),
+    ) : IDeviceAdb {
         override val displayName: String? = "fake_device"
         override val api: Int = 34
         override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
+        val executedCommands: MutableList<String> = mutableListOf()
         val pullFromPaths: MutableList<String> = mutableListOf()
         var pullCount: Int = 0
             private set
 
-        override fun execAdbShellCmd(cmd: String): String = ""
+        override fun execAdbShellCmd(cmd: String): String {
+            executedCommands.add(cmd)
+            return shellOutputs[cmd].orEmpty()
+        }
 
         override fun push(from: File, to: String): Boolean = true
 

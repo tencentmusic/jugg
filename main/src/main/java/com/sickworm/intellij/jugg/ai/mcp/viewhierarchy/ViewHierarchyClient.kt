@@ -508,7 +508,7 @@ open class ViewHierarchyClient(
             "tcp:$localPort",
             "localabstract:$socketName",
         )
-        val result = runHostCommand(command, timeoutSec = 5)
+        val result = runHostCommand(command, timeoutSec = 1)
         return result.exitCode == 0
     }
 
@@ -607,7 +607,7 @@ open class ViewHierarchyClient(
         private const val VIEW_HIERARCHY_PROTOCOL_VERSION = "1.1"
         private val PACKAGE_NAME_PATTERN = Regex("^[A-Za-z0-9_.]+$")
         private val WHITESPACE_REGEX = Regex("\\s+")
-        private const val CONNECT_TIMEOUT_MS = 3_000
-        private const val REQUEST_TIMEOUT_MS = 8_000
+        private const val CONNECT_TIMEOUT_MS = 500
+        private const val REQUEST_TIMEOUT_MS = 1_000
     }
 }

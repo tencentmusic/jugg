@@ -55,7 +55,7 @@ class TapMcpToolAction : McpToolAction {
         val adb = selected.adb
         val packageName = resolvePackageName(runtime)
         val topActivityStabilityResult = waitTopActivityOnResumeStable(adb)
-        val actionResult = McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+        val actionResult = McpAppReadyGuard.executeWithRuntimeObserveRetry {
             when (action) {
                 "tap" -> executeTap(arguments, adb, packageName, logger)
                 "long-press" -> executeLongPress(arguments, adb, packageName, logger)
@@ -303,7 +303,7 @@ class TapMcpToolAction : McpToolAction {
 
         val serverResult = ViewHierarchyClient(adb, packageName)
             .findAndTap(text = text, resourceId = resourceId, contentDesc = contentDesc, className = className)
-            ?: return serverUnavailableResult("tap")
+            ?: return serverUnavailableResult("tap", adb, packageName)
 
         return serverResultToToolResult(
             serverResult = serverResult,
@@ -394,7 +394,7 @@ class TapMcpToolAction : McpToolAction {
                 className = className,
                 duration = duration,
             )
-            ?: return serverUnavailableResult("long-press")
+            ?: return serverUnavailableResult("long-press", adb, packageName)
 
         return serverResultToToolResult(
             serverResult = serverResult,
@@ -688,16 +688,16 @@ class TapMcpToolAction : McpToolAction {
         )
     }
 
-    private fun serverUnavailableResult(action: String): McpToolResult {
-        return McpToolResult(
-            status = McpToolStatus.ERROR,
-            message = "tap failed. Reason: ViewHierarchy server is unavailable.",
+    private fun serverUnavailableResult(action: String, adb: IDeviceAdb, packageName: String): McpToolResult {
+        return ViewHierarchyFailureDiagnoser.unavailableResult(
+            toolName = "tap",
+            adb = adb,
+            packageName = packageName,
+            fallbackMessage = "ViewHierarchy server is unavailable.",
             data = mapOf(
                 "action" to action,
                 "mode" to "element",
             ),
-            artifacts = emptyList(),
-            errorCode = McpErrorCode.INTERNAL_ERROR,
         )
     }
 

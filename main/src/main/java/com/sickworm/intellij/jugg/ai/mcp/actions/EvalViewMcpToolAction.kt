@@ -156,17 +156,19 @@ class EvalViewMcpToolAction : McpToolAction {
                 )
             }
 
-        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+        return McpAppReadyGuard.executeWithRuntimeObserveRetry {
             try {
                 val client = ViewHierarchyClient(selected.adb, packageName)
                 val evalResult = client.evalView(text, resourceId, contentDesc, className, expressions)
-                    ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
-                        "view-inspect",
-                        "ViewHierarchy server is unavailable or returned invalid response"
+                    ?: return@executeWithRuntimeObserveRetry ViewHierarchyFailureDiagnoser.unavailableResult(
+                        toolName = "view-inspect",
+                        adb = selected.adb,
+                        packageName = packageName,
+                        fallbackMessage = "ViewHierarchy server is unavailable or returned invalid response",
                     )
 
                 if (evalResult.errorMessage != null) {
-                    return@executeWithRetryIfPreWaited McpToolResult(
+                    return@executeWithRuntimeObserveRetry McpToolResult(
                         status = McpToolStatus.ERROR,
                         message = "view_inspect failed. Reason: ${evalResult.errorMessage}",
                         errorCode = McpErrorCode.INTERNAL_ERROR,

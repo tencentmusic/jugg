@@ -65,15 +65,15 @@ class ActivityStackMcpToolAction : McpToolAction {
         val adb = selected.adb
         val sourceCommand = "dumpsys activity activities"
 
-        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+        return McpAppReadyGuard.executeWithRuntimeObserveRetry {
             try {
                 val dumpOutput = adb.execAdbShellCmd(sourceCommand)
                 if (dumpOutput.isBlank()) {
-                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(toolName, "empty dumpsys output")
+                    return@executeWithRuntimeObserveRetry McpToolResult.internalErrorResult(toolName, "empty dumpsys output")
                 }
 
                 val toolDir = ensureToolDir(runtime, toolName)
-                    ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
+                    ?: return@executeWithRuntimeObserveRetry McpToolResult.internalErrorResult(
                         toolName,
                         "failed to prepare artifact directory"
                     )

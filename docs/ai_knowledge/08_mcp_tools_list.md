@@ -351,7 +351,8 @@
 
 - `restart`、`deploy`、`gradle-build`、`clean-reinstall` 成功路径后置等待 App 在线。
 - `activity-stack`、`tap`、`layout-dump`、`view-locate`、`view-inspect` 执行前等待 App 在线（每 100ms 检查，最长 10s）。
-- 若前置等待过程中发生过实际等待且工具调用返回失败，自动重试最多 3 次，间隔 2s。
+- 运行态工具调用返回 `INTERNAL_ERROR` 或缺省错误码时，按瞬态错误自动重试最多 3 次，间隔 2s；用于覆盖 App 已在线但进程内服务（如 ViewHierarchyServer）尚未接受 LocalSocket 请求的短暂窗口。
+- ViewHierarchy 相关工具首次访问失败后会查询设备屏幕状态和前台 Activity；若设备息屏/非交互态，直接返回 `DEVICE_NOT_INTERACTIVE`；若目标 App 不在前台，直接返回 `APP_NOT_FOREGROUND`；这两类错误不再继续重试。
 - 运行态工具执行顺序：参数校验 → `projectDir` 初始化态校验 → App 在线校验 → 业务执行。
 
 ### 异步编译调用
@@ -376,6 +377,8 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 | `INVALID_PARAMS` | 参数错误 |
 | `PROJECT_NOT_INITIALIZED` | 项目未初始化 |
 | `NO_DEVICE` | 无可用设备 |
+| `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态，需唤醒/解锁后重试 |
+| `APP_NOT_FOREGROUND` | 目标 App 不在前台，需切回目标 App 后重试 |
 | `INTERNAL_ERROR` | 内部错误 |
 
 ---
@@ -388,7 +391,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 2. 参数异常先对照 `tools/list` 返回的 `inputSchema`。
 3. 设备类工具失败时再执行 `devices`。
 4. 编译类异步任务卡住时，用 `get-compile-status` + `compile_latest.log`。
-5. `layout-dump`/元素模式 `tap` 返回 `ViewHierarchy server is unavailable` 时，按"先 `restart` → 再 `gradle-build` → 重试"处理。
+5. `layout-dump`/元素模式 `tap` 返回 `DEVICE_NOT_INTERACTIVE` 时，先唤醒/解锁设备后重试；返回 `APP_NOT_FOREGROUND` 时，先用 `restart` 或 `start-activity` 切回目标 App 后重试；仍返回 `ViewHierarchy server is unavailable` 时，再按"先 `restart` → 再 `gradle-build` → 重试"处理。
 
 ---
 

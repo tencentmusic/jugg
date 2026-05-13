@@ -69,16 +69,16 @@ object McpAppReadyGuard {
     }
 
     /**
-     * Retry one tool call when:
-     * 1) pre-wait really waited at least once;
-     * 2) call failed with internal/transient error.
+     * Retry runtime-observe calls on transient internal errors.
+     *
+     * App readiness can become true before app-side runtime services such as
+     * ViewHierarchyServer are accepting LocalSocket requests, especially after restart.
      */
-    fun executeWithRetryIfPreWaited(
-        preWaitResult: PreWaitResult,
+    fun executeWithRuntimeObserveRetry(
         executeOnce: () -> McpToolResult,
     ): McpToolResult {
         var result = executeOnce()
-        if (!preWaitResult.hasWaited || !shouldRetryAfterPreWait(result)) {
+        if (!shouldRetryAfterPreWait(result)) {
             return result
         }
         val retryInterval = resolvePreFailureRetryIntervalMs()

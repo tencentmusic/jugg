@@ -94,15 +94,17 @@ internal object LayoutDumpHelper {
         val localHtmlFile = File(toolDir, "layout_${System.currentTimeMillis()}.html")
 
         var successOutput: DumpInternalResult.Success? = null
-        val result = McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+        val result = McpAppReadyGuard.executeWithRuntimeObserveRetry {
             try {
                 val client = ViewHierarchyClient(selected.adb, packageName)
                 val excludeGone = !isIncludeGone
                 val topWindowOnly = !isAllWindows
                 val dumpResult = client.dumpLayout(rootLayout, excludeGone, topWindowOnly)
-                    ?: return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
-                        callerToolName,
-                        "ViewHierarchy server is unavailable or returned invalid response"
+                    ?: return@executeWithRuntimeObserveRetry ViewHierarchyFailureDiagnoser.unavailableResult(
+                        toolName = callerToolName,
+                        adb = selected.adb,
+                        packageName = packageName,
+                        fallbackMessage = "ViewHierarchy server is unavailable or returned invalid response",
                     )
 
                 val payloadJson = dumpResult.payloadJson
@@ -114,7 +116,7 @@ internal object LayoutDumpHelper {
                 }
 
                 if (!localJsonFile.exists() || localJsonFile.length() <= 0) {
-                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult(
+                    return@executeWithRuntimeObserveRetry McpToolResult.internalErrorResult(
                         callerToolName,
                         "failed to fetch layout dump from ViewHierarchy server"
                     )

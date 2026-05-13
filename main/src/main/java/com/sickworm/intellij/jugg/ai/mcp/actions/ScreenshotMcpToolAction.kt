@@ -76,12 +76,12 @@ class ScreenshotMcpToolAction : McpToolAction {
         val remoteDir = "/sdcard/Download/jugg_mcp"
         val remoteFile = "$remoteDir/$fileName"
 
-        return McpAppReadyGuard.executeWithRetryIfPreWaited(preWaitResult) {
+        return McpAppReadyGuard.executeWithRuntimeObserveRetry {
             try {
                 adb.execAdbShellCmd("mkdir -p $remoteDir")
                 adb.execAdbShellCmd("screencap -p $remoteFile")
                 if (!adb.pull(remoteFile, localFile) || !localFile.exists()) {
-                    return@executeWithRetryIfPreWaited McpToolResult.internalErrorResult("screenshot", "failed to pull screenshot file")
+                    return@executeWithRuntimeObserveRetry McpToolResult.internalErrorResult("screenshot", "failed to pull screenshot file")
                 }
                 val optimizeResult = optimizeForUpload(localFile)
                 val message = if (optimizeResult.isScaled) {

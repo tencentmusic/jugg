@@ -191,7 +191,12 @@ class LayoutVerifyMcpToolAction : McpToolAction {
         return try {
             val client = ViewHierarchyClient(selected.adb, packageName)
             val dumpResult = client.dumpLayout(rootLayout = null, excludeGone = true, topWindowOnly = true)
-                ?: return McpToolResult.internalErrorResult(toolName, "ViewHierarchy server is unavailable or returned invalid response")
+                ?: return ViewHierarchyFailureDiagnoser.unavailableResult(
+                    toolName = toolName,
+                    adb = selected.adb,
+                    packageName = packageName,
+                    fallbackMessage = "ViewHierarchy server is unavailable or returned invalid response",
+                )
             val autoDumpFile = saveAutoDumpFile(runtime, selected.adb, dumpResult)
                 ?: return McpToolResult.internalErrorResult(toolName, "failed to fetch layout dump from ViewHierarchy server")
             executeDumpFileMode(autoDumpFile.absolutePath, checks, legacyTarget, logger)
@@ -693,7 +698,12 @@ class LayoutVerifyMcpToolAction : McpToolAction {
                 val checkTarget = resolveCheckTarget(check, legacyTarget)
                     ?: return invalidParams("layout-verify failed: check[${index + 1}] requires valid target")
                 val verifyResult = client.verify(buildLiveParams(checkTarget, check))
-                    ?: return McpToolResult.internalErrorResult(toolName, "ViewHierarchy server unavailable")
+                    ?: return ViewHierarchyFailureDiagnoser.unavailableResult(
+                        toolName = toolName,
+                        adb = selected.adb,
+                        packageName = packageName,
+                        fallbackMessage = "ViewHierarchy server unavailable",
+                    )
                 items.add(VerifyItem(index + 1, verifyResult.result, verifyResult.message))
             }
             toAggregatedMcpResult(items)

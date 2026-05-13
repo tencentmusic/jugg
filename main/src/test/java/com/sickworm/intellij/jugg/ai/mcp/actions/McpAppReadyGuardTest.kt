@@ -10,6 +10,8 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
+import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import org.junit.After
 import org.junit.Assert
@@ -75,6 +77,47 @@ class McpAppReadyGuardTest {
 
         Assert.assertFalse(result.isReady)
         Assert.assertTrue(result.reason?.contains("not ready") == true)
+    }
+
+    @Test
+    fun testRetryTransientRuntimeObserveFailureWithoutPreWait() {
+        var attempts = 0
+
+        val result = McpAppReadyGuard.executeWithRuntimeObserveRetry {
+            attempts += 1
+            if (attempts < 3) {
+                McpToolResult.internalErrorResult("layout-dump", "ViewHierarchy server is unavailable")
+            } else {
+                McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "layout-dump recovered",
+                    data = emptyMap<String, Any>(),
+                    artifacts = emptyList(),
+                )
+            }
+        }
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertEquals(3, attempts)
+    }
+
+    @Test
+    fun testDoesNotRetryNonTransientRuntimeObserveFailure() {
+        var attempts = 0
+
+        val result = McpAppReadyGuard.executeWithRuntimeObserveRetry {
+            attempts += 1
+            McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "no device",
+                data = emptyMap<String, Any>(),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.NO_DEVICE,
+            )
+        }
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(1, attempts)
     }
 
     private fun runtime(isAppReadyProvider: () -> Boolean): IMcpRuntime {

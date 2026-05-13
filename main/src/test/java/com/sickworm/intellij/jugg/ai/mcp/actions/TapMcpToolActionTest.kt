@@ -346,6 +346,59 @@ class TapMcpToolActionTest {
     }
 
     @Test
+    fun testTapElementModeReportsScreenOffWhenServerUnavailableAndDeviceSleeping() {
+        val (action, adb) = setup(
+            packageName = "com.example.app",
+            shellOutputs = mapOf(
+                "dumpsys power" to "mWakefulness=Dozing",
+                "dumpsys window policy" to "screenState=SCREEN_STATE_OFF\ninteractiveState=INTERACTIVE_STATE_SLEEP",
+            ),
+        )
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Login", null, null, null)).thenReturn(null)
+        }.use { construction ->
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Login"),
+                runtime(),
+            )
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.DEVICE_NOT_INTERACTIVE, result.errorCode)
+            Assert.assertEquals(1, construction.constructed().size)
+            Assert.assertTrue(result.message.contains("device screen is off"))
+            Assert.assertTrue(adb.executedCommands.contains("dumpsys power"))
+            Assert.assertTrue(adb.executedCommands.contains("dumpsys window policy"))
+        }
+    }
+
+    @Test
+    fun testTapElementModeReportsAppBackgroundWhenServerUnavailableAndAppNotForeground() {
+        val backgroundActivityOutput = "topResumedActivity=ActivityRecord{100 com.android.launcher/.Launcher t1}"
+        val (action, adb) = setup(
+            packageName = "com.example.app",
+            shellOutputs = mapOf(
+                "dumpsys power" to "mWakefulness=Awake",
+                "dumpsys window policy" to "screenState=SCREEN_STATE_ON\ninteractiveState=INTERACTIVE_STATE_AWAKE",
+            ),
+            commandBehavior = { cmd, _ ->
+                if (cmd == "dumpsys activity activities") backgroundActivityOutput else null
+            },
+        )
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Login", null, null, null)).thenReturn(null)
+        }.use { construction ->
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Login"),
+                runtime(),
+            )
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.APP_NOT_FOREGROUND, result.errorCode)
+            Assert.assertEquals(1, construction.constructed().size)
+            Assert.assertTrue(result.message.contains("target app is not in foreground"))
+            Assert.assertTrue(adb.executedCommands.contains("dumpsys activity activities"))
+        }
+    }
+
+    @Test
     fun testLongPressElementModeUsesServerSuccess() {
         val (action, adb) = setup(packageName = "com.example.app")
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
