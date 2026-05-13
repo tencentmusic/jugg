@@ -58,7 +58,7 @@ Command hook behavior:
 - Raw Gradle commands are blocked once per pending source fingerprint; a different pending file set is treated as a new first attempt.
 - Shell commands only mark the session as source-writing when they contain a low-risk write pattern targeting `app/src/main/java/com/example/myapplication`, such as redirection, `tee`, `sed -i`, `perl -i`, `cp`, or `mv`.
 - VCS commands such as `git pull`, `git checkout`, `git merge`, `git rebase`, and `git reset` are not treated as agent source writes.
-- For Codex, repeated raw Gradle warnings use JSON `systemMessage` instead of `permissionDecision: allow`.
+- For Codex, repeated raw Gradle and repeated pending stop warnings use JSON `systemMessage` instead of stderr-only success output.
 
 Example (Claude Code):
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import json
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,10 @@ STOP_BLOCK_RETRY_WARNING = (
     "Warning: pending Android changes remain; allowing session stop after a repeated stop attempt. "
     "Run deploy/verification when you continue."
 )
+
+
+def emit_codex_system_message(message: str) -> None:
+    print(json.dumps({"systemMessage": message}, ensure_ascii=False))
 
 
 def _parse_args() -> Any:
@@ -91,6 +96,10 @@ def main() -> int:
         debug_log("JUGG-STOP", "exit: blocked stop because pending changes exist")
         return 2
 
+    if args.client == "codex":
+        emit_codex_system_message(STOP_BLOCK_RETRY_WARNING)
+        debug_log("JUGG-STOP", "exit: allow stop after repeated block with codex systemMessage")
+        return 0
     sys.stderr.write(f"{STOP_BLOCK_RETRY_WARNING}\n")
     debug_log("JUGG-STOP", "exit: allow stop after repeated block while pending changes remain")
     return 0
