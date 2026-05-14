@@ -203,6 +203,7 @@ class JuggCompilerHelper(
             failedReason = result.failedReason,
             incrementalFailedReason = incrementalResult?.failedReason,
             errorLog = result.errorLog,
+            hasFileChanges = incrementalResult?.hasFileChanges ?: true,
         )
     }
 
@@ -509,12 +510,12 @@ class JuggCompilerHelper(
                 when (confirmResult) {
                     ConfirmResult.POSITIVE -> {
                         // fallback to gradle compile
-                        return CompileTaskResult.incrementalFailed(true, "No file changes")
+                        return CompileTaskResult.incrementalFailed(true, "No file changes", hasFileChanges = false)
                     }
                     ConfirmResult.CANCEL, ConfirmResult.LEFT -> {
                         // just stop compile
                         uiHandler.cancel()
-                        return CompileTaskResult.incrementalFailed(false, "No file changes")
+                        return CompileTaskResult.incrementalFailed(false, "No file changes", hasFileChanges = false)
                     }
                     else -> {
                         // continue

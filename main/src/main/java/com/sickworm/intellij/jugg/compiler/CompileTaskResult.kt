@@ -16,6 +16,8 @@ data class CompileTaskResult(
     val incrementalCompileResult: CompileResult? = null,
     /** Compiler error lines from a failed Gradle build; empty for incremental or success. */
     val errorLog: List<String> = emptyList(),
+    /** Whether source files changed since last compile. false when no file changes detected. */
+    val hasFileChanges: Boolean = true,
 ) {
     companion object {
 
@@ -25,24 +27,27 @@ data class CompileTaskResult(
             isCanFallback = false,
             costTime = 0,
             incrementalCompileResult = compileResult,
+            hasFileChanges = compileResult.task.isNeedCompile,
         )
 
-        fun incrementalFailed(isCanFallback: Boolean, failedReason: String) = CompileTaskResult(
+        fun incrementalFailed(isCanFallback: Boolean, failedReason: String, hasFileChanges: Boolean = true) = CompileTaskResult(
             isSuccess = false,
             isGradleCompile = false,
             isCanFallback,
             costTime = 0,
             failedReason = failedReason,
             incrementalFailedReason = failedReason,
+            hasFileChanges = hasFileChanges,
         )
 
-        fun incrementalCanceled(startTime: Long) = CompileTaskResult(
+        fun incrementalCanceled(startTime: Long, hasFileChanges: Boolean = true) = CompileTaskResult(
             isSuccess = false,
             isGradleCompile = false,
             isCanFallback = false,
             costTime = System.currentTimeMillis() - startTime,
             failedReason = "Compile canceled",
             incrementalFailedReason = "Compile canceled",
+            hasFileChanges = hasFileChanges,
         )
     }
 }

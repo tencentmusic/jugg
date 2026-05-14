@@ -321,16 +321,18 @@ class JuggRunningTask(
         }
 
         if (deployTaskResult.isSuccess) {
-            notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType, suffix)
+            notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType, suffix, compileTaskResult.hasFileChanges)
         }
 
         logger.debug("deployDevice: ${device.desc}, isMultipleDevices=$isMultipleDevices, isLastDevice=$isLastDevice, deployTaskResult=$deployTaskResult")
         return deployTaskResult
     }
 
-    private fun notifyLaunched(isGradleCompile: Boolean, deployType: JuggDeployData.DeployType?, suffix: String) {
+    private fun notifyLaunched(isGradleCompile: Boolean, deployType: JuggDeployData.DeployType?, suffix: String, hasFileChanges: Boolean) {
         val text = if (isGradleCompile) {
             "Launch succeeded$suffix"
+        } else if (!hasFileChanges) {
+            "Deploy changes succeeded$suffix (no file changes)"
         } else if (deployType == JuggDeployData.DeployType.HOT_RELOAD) {
             "Deploy changes succeeded$suffix (no need restart App)"
         } else if (deployType == JuggDeployData.DeployType.COMPAT_HOT_FIX) {
