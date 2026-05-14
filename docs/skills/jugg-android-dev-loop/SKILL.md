@@ -43,7 +43,7 @@ Route based on context, then load primary reference:
 ```
 if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH"):
   → references/guide_install_cli.md
-elif user asks to run androidTest / instrument, or the task is anchored in src/androidTest:
+elif user asks to run androidTest / instrumented unit tests, or the task is anchored in src/androidTest:
   → references/flow_android_test.md
 elif user says "compile only" / "no deploy" / "verify modification":
   → references/flow_no_auto_run.md
@@ -56,7 +56,7 @@ else:
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
 | install jugg CLI | `references/guide_install_cli.md` | — |
-| androidTest / instrument | `references/flow_android_test.md` | `references/error_patterns.md`, `references/cli_manual.md` |
+| androidTest / instrumented unit tests | `references/flow_android_test.md` | `references/error_patterns.md`, `references/cli_manual.md` |
 | no verify | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
 | verify with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 

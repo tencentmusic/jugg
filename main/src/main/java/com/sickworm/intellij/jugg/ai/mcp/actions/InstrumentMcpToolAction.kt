@@ -8,10 +8,12 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParseException
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParser
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceSelection
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 /**
@@ -67,6 +69,10 @@ class InstrumentMcpToolAction : McpToolAction {
             testClass = null,
             testMethod = null,
         )
+        val baselineError = validateAndroidTestBaseline(arguments)
+        if (baselineError != null) {
+            return baselineError
+        }
         return CompileAndDeployMcpToolAction.deployAction(
             runtime = runtime,
             toolName = toolName,
@@ -139,6 +145,36 @@ class InstrumentMcpToolAction : McpToolAction {
                 sourcePath = sourcePath,
             ),
         )
+    }
+
+    private fun validateAndroidTestBaseline(arguments: Map<String, Any?>): McpToolResult? {
+        val projectDir = firstNonBlankString(arguments, "projectDir")
+        if (projectDir.isEmpty()) {
+            return null
+        }
+        val projectDirFile = File(projectDir)
+        if (!projectDirFile.exists()) {
+            return null
+        }
+        if (isAndroidTestBaselineEnabled(projectDirFile)) {
+            return null
+        }
+        return invalidParams(
+            "enabledAndroidTest=false. The latest persisted full-build baseline was not built with AndroidTest target. " +
+                "Open the Jugg App Run Configuration in Android Studio / IntelliJ, Enable Android Test / enableAndroidTest, " +
+                "run that Jugg configuration once with a full build / jugg gradle-build, then re-run " +
+                "jugg --console=json status and continue after data.enabledAndroidTest=true."
+        )
+    }
+
+    private fun isAndroidTestBaselineEnabled(projectDir: File): Boolean {
+        val fullBuildInfoFile = File(JuggPathManager(projectDir).compileContextDbDir, "full_build_info.json")
+        if (!fullBuildInfoFile.exists()) {
+            return false
+        }
+        return runCatching {
+            FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8)).buildTarget == BuildTarget.ANDROID_TEST
+        }.getOrDefault(false)
     }
 
     private fun resolveSourceSelection(

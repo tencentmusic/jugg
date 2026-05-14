@@ -1,6 +1,6 @@
 # Flow: AndroidTest / Instrument
 
-Use when the user asks to run androidTest / instrumentation, or the task is anchored in `src/androidTest`.
+Use when the user asks to run androidTest / instrumentation / instrumented unit tests, or the task is anchored in `src/androidTest`.
 
 This flow first refreshes APKs through Jugg's compile/deploy/instrument chain. Raw `adb shell am instrument` is only allowed after one successful Jugg `instrument` run when broader regression coverage is needed.
 
@@ -15,7 +15,12 @@ This flow first refreshes APKs through Jugg's compile/deploy/instrument chain. R
      python3 {SKILL_DIR}/scripts/jugg.py --console=json status
      ```
      Then read `data.enabledAndroidTest`.
-2. If `enabledAndroidTest=false`, stop and report that the latest persisted full-build baseline was not built with AndroidTest target. Ask the user to enable Android Test in the App RunConfig and establish an AndroidTest full-build baseline before using `instrument`.
+2. If `enabledAndroidTest=false`, stop and report that the latest persisted full-build baseline was not built with AndroidTest target. Tell the user how to enable it before using `instrument`:
+   - Open the Jugg App Run Configuration in Android Studio / IntelliJ.
+   - Enable Android Test / `enableAndroidTest` for that App RunConfig.
+   - Run that Jugg configuration once with a full build / `gradle-build` to establish the AndroidTest full-build baseline.
+   - Re-run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and continue only after `data.enabledAndroidTest=true`.
+   If `instrument` is called anyway, it returns `ERROR` / `INVALID_PARAMS` with `enabledAndroidTest=false` and the same enable steps in the error message.
 3. If `enabledAndroidTest=true`, continue to the steps below.
 
 `enabledAndroidTest` is a project status field from `jugg status`. It means the latest persisted full-build baseline used AndroidTest target; it is not merely a UI toggle name.
@@ -55,11 +60,20 @@ This flow first refreshes APKs through Jugg's compile/deploy/instrument chain. R
 
 ## Report Template
 
+Output exactly two lines at task completion. Use the Chinese template when replying in Chinese; otherwise use the English template. Keep `command` as the final decisive command. If optional broad regression ran after `jugg instrument`, use that `adb shell am instrument ...` command.
+
+English template:
+
 ```
-# Jugg Dev Loop Report | Scenario: android_test
-## Pipeline Trace
-| Step | Status | Detail |
-| Context | {{PASS|FAIL}} | enabledAndroidTest={{true|false|unknown}} |
-| Instrument | {{PASS|FAIL|SKIP}} | {{command/result}} |
-## Verdict: **{{PASS | FAIL | INCONCLUSIVE}}**
+# Jugg AndroidTest Result 
+executed command=`{{jugg instrument --source-path ...|adb shell am instrument ...}}`
+Result: `{{PASS|FAIL|INCONCLUSIVE}}`. deploy result: `{{true|false|unknown}}`, instrument result: `{{PASS|FAIL|SKIP|unknown}}`. {{short reason}}
+```
+
+中文模板：
+
+```
+# Jugg AndroidTest 结果 
+执行命令=`{{jugg instrument --source-path ...|adb shell am instrument ...}}`
+结果：`{{通过|失败|不确定}}`。部署结果：`{{成功|失败|未知}}`，测试结果：`{{通过|失败|跳过|未知}}`。 {{简短原因}}
 ```

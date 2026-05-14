@@ -136,8 +136,9 @@
 
 **行为补充**：
 - `package` / `testsRegex` 不再作为 target 入口；多 test APK 场景必须用 `sourcePath` 确定目标。
-- MCP 层只做参数归一化与调用封装，目标解析在 androidTest source resolver 中完成。
+- MCP 层先做参数归一化、`sourcePath` 解析与 AndroidTest full-build baseline 预检；目标解析在 androidTest source resolver 中完成。
 - 内部会以 `BuildTarget.ANDROID_TEST` 运行，并将参数映射到 `AndroidTestRunSpec`。
+- 当前项目未建立 AndroidTest full-build baseline 时，返回 `status=ERROR`、`errorCode=INVALID_PARAMS`，`message` 包含 `enabledAndroidTest=false`，并提示打开 Jugg App Run Configuration、开启 Android Test / `enableAndroidTest`、执行一次 full build / `gradle-build` 后重新检查 `status.data.enabledAndroidTest=true`。
 
 ---
 

@@ -108,21 +108,22 @@ When triggered, agent uses the read-only / low-interaction tools below for a sin
 
 ---
 
-#### Report Line
-
-- Did not run the check → keep `⏭ SKIP (no auto-run entry)`.
-- Ran and evidence matched expectation → `ℹ LIGHT-CHECK: passed — <one-line evidence>`.
-- Ran but evidence was missing / ambiguous → `ℹ LIGHT-CHECK: inconclusive — <reason>`.
-
 ## Report Template
 
-Output at task completion. Status: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 RETRY(n)` / `ℹ LIGHT-CHECK` (deploy-mode optional check only). Compile-only: deploy and verification steps = `⏭ SKIP`.
+Output exactly two lines at task completion. Use the Chinese template when replying in Chinese; otherwise use the English template. Keep `command` as the final decisive Jugg command, not every retry.
 
-Translate to user taget language if user is not using English.
+English template:
 
 ```
-# Jugg Dev Loop Report | Scenario: {{compile_only|no_auto_run}}
-## Pipeline Trace
-| Step | Status | Detail |
-## Verdict: **{{PASS | FAIL | INCONCLUSIVE}}**
+# Jugg Compile Result
+scenario=`{{compile_only|no_auto_run}}`, command=`{{jugg compile|jugg deploy|jugg gradle-build}}`
+Result: `{{PASS|FAIL|INCONCLUSIVE}}`. compile=`{{true|false|unknown}}`, deploy=`{{true|false|skip|unknown}}`, verify=`{{SKIP|LIGHT-CHECK|INCONCLUSIVE}}`. {{short reason}}
+```
+
+中文模板：
+
+```
+# Jugg 编译结果
+场景=`{{仅编译|无自动运行入口}}`，命令=`{{jugg compile|jugg deploy|jugg gradle-build}}`
+结果：`{{通过|失败|不确定}}`。编译结果=`{{成功|失败|未知}}`，部署结果=`{{成功|失败|跳过|未知}}`，验证结果=`{{跳过|轻量检查|不确定}}`。{{简短原因}}
 ```

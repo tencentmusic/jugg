@@ -105,6 +105,8 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 
 Unsupported by `jugg instrument`: package, testPackage, regex, `--clazz`, `--instrumentationRunner`, and raw `-e`. Use `--source-path` with optional `--class`, `--method`, `--runner`, and `--extras`; for broad regression, first refresh APKs with `jugg instrument`, then use raw `adb shell am instrument`.
 
+When the project has no AndroidTest full-build baseline, `instrument` returns `ERROR` / `INVALID_PARAMS` with `enabledAndroidTest=false` and the same enable steps as the pre-flight section: open the Jugg App Run Configuration, enable Android Test / `enableAndroidTest`, run a full build / `gradle-build`, then re-check `status`.
+
 
 ---
 
@@ -222,6 +224,8 @@ python3 {SKILL_DIR}/scripts/jugg.py status [--refresh-changes <true|false>]
 `status` does not refresh changed files by default. Pass `--refresh-changes true` to refresh git-tracked changed files before reading status.
 
 `status` returns `data.enabledAndroidTest`. Reuse an existing hook block's `Jugg status` output when it is already in context; otherwise run `--console=json status` before choosing the androidTest / `instrument` route. `enabledAndroidTest=true` means the latest persisted full-build baseline used AndroidTest target.
+
+If a user asks to run androidTest or instrumented unit tests and `enabledAndroidTest=false`, do not run `instrument`. Tell the user to open the Jugg App Run Configuration, enable Android Test / `enableAndroidTest`, run the configuration once with a full build / `gradle-build`, then re-check `status` until `data.enabledAndroidTest=true`.
 
 ### `ssh-info`
 

@@ -14,12 +14,15 @@ import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.FullBuildInfo
+import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.TestFilter
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -116,6 +119,38 @@ class InstrumentMcpToolActionTest {
         Assert.assertEquals("success", data["status"])
         Assert.assertEquals(true, data["isCompileSuccess"])
         Assert.assertEquals(true, data["isDeploySuccess"])
+    }
+
+    @Test
+    fun testExecuteRejectsProjectWithoutAndroidTestBaselineAndExplainsHowToEnableIt() {
+        val projectDir = Files.createTempDirectory("jugg-instrument-no-baseline").toFile()
+        val sourceFile = projectDir.resolve("app/src/androidTest/java/com/example/FooTest.java")
+        sourceFile.parentFile.mkdirs()
+        sourceFile.writeText(
+            """
+            package com.example;
+
+            public class FooTest {
+                @org.junit.Test
+                public void foo() {}
+            }
+            """.trimIndent()
+        )
+        val runtime = runtimeWithRunner { _, _, _, androidTestRunSpec, _ ->
+            throw AssertionError("runner should not be invoked without AndroidTest baseline: $androidTestRunSpec")
+        }
+
+        val result = InstrumentMcpToolAction().execute(
+            mapOf("projectDir" to projectDir.path, "sourcePath" to sourceFile.path),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+        Assert.assertTrue(result.message.contains("enabledAndroidTest=false"))
+        Assert.assertTrue(result.message.contains("Enable Android Test"))
+        Assert.assertTrue(result.message.contains("Jugg App Run Configuration"))
+        Assert.assertTrue(result.message.contains("gradle-build"))
     }
 
     @Test
@@ -219,6 +254,7 @@ class InstrumentMcpToolActionTest {
     @Test
     fun testExecuteInfersSingleKotlinTestClassFromSourcePath() {
         val projectDir = Files.createTempDirectory("jugg-instrument").toFile()
+        writeFullBuildInfo(projectDir, BuildTarget.ANDROID_TEST)
         val sourceFile = projectDir.resolve("library1/src/androidTest/kotlin/com/example/FooTest.kt")
         sourceFile.parentFile.mkdirs()
         sourceFile.writeText(
@@ -404,5 +440,21 @@ class InstrumentMcpToolActionTest {
 
             override fun isAppReadyDeploy(): Boolean = isAppReadyProvider()
         }
+    }
+
+    private fun writeFullBuildInfo(projectDir: java.io.File, buildTarget: BuildTarget) {
+        val pathManager = JuggPathManager(projectDir)
+        val fullBuildInfoFile = java.io.File(pathManager.compileContextDbDir, "full_build_info.json")
+        fullBuildInfoFile.parentFile?.mkdirs()
+        fullBuildInfoFile.writeText(
+            FullBuildInfoSerializer().serialize(
+                FullBuildInfo(
+                    compileCommand = "./gradlew :app:assembleDebug",
+                    buildTarget = buildTarget,
+                    createdAt = 123L,
+                )
+            ),
+            Charsets.UTF_8,
+        )
     }
 }

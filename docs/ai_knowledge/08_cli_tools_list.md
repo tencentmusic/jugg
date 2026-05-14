@@ -219,6 +219,7 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 
 **行为优化**：自动轮询到 `isFinal=true`。成功时输出 `isCompileSuccess: true` 和 `isDeploySuccess: true`。
 `instrument` 是 source-file anchored 命令：`sourcePath` 是解析测试 class/method、androidTest module 与 test APK 的目标锚点；不支持 package、testPackage、regex、`--clazz`、`--instrumentationRunner` 或 raw `-e` 风格。
+当前项目未建立 AndroidTest full-build baseline 时，`instrument` 返回 `status=ERROR` / `errorCode=INVALID_PARAMS`；错误信息包含 `enabledAndroidTest=false`，并附带打开 Jugg App Run Configuration、开启 Android Test / `enableAndroidTest`、执行一次 full build / `gradle-build` 后重新检查 `status.data.enabledAndroidTest=true` 的方式。
 若需要执行大范围 androidTest 回归，先用一次 `jugg instrument --source-path ...` 完成源码与 androidTest 变更到对应 APK 的编译部署；成功后可使用普通 `adb shell am instrument` 做 class/package/suite 级回归。
 
 ---
@@ -322,6 +323,7 @@ jugg status [--refresh-changes <true|false>]
 ```
 
 返回包含 `enabledAndroidTest`（基于最近 full build 基线）用于判定当时是否开启 Android Test 增量模式；该字段表示最近一次持久化 full-build baseline 使用 AndroidTest target，不等同于单纯 UI toggle 状态。Agent 当前上下文已有 hook block 的 `Jugg status` plain key-value 输出时，可直接复用其中的 `enabledAndroidTest`，无需再次调用 status。
+用户要求执行 androidTest 或 instrumented unit tests 且该字段为 `false` 时，不应继续执行 `instrument`；应提示用户打开 Jugg App Run Configuration，开启 Android Test / `enableAndroidTest`，执行一次 full build / `gradle-build` 后重新检查该字段。
 默认不刷新 git-tracked changed files；只有传 `--refresh-changes true` 时才会在读取状态前触发刷新。
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
