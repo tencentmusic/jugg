@@ -71,7 +71,7 @@ All build commands **block** until completion; no polling needed.
 | `deploy` | Compile + deploy to device | Apply changes to device to verify changes, may use with `Runtime Basic Commands` and `UI Commands` |
 | `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
 | `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
-| `instrument` | Run androidTest | when `enabledAndroidTest=true` |
+| `instrument` | Run androidTest | Verify android test result |
 
 ### `compile`/`deploy`/`gradle-build`/`clean-reinstall`
 
@@ -85,6 +85,8 @@ python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ### `instrument`
 
 Runs androidTest through Jugg compile/deploy chain, while keeping parameter style close to `am instrument`.
+The command is source-file anchored: `--source-path` identifies the `src/androidTest` file used to resolve the test class/method, androidTest module, and test APK.
+After one successful `jugg instrument`, all app source changes and androidTest source changes have been compiled and deployed into their corresponding APKs. If you then need broad androidTest regression coverage, raw `adb shell am instrument` is acceptable for normal class/package/suite filtering.
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androidTest/kotlin/com/example/FooTest.kt
@@ -100,6 +102,8 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 | `--method <name>` | optional test method in the resolved class. |
 | `--runner <fqn>` | instrumentation runner override. |
 | `--extras <k=v;k2=v2>` | batch extras format. |
+
+Unsupported by `jugg instrument`: package, testPackage, regex, `--clazz`, `--instrumentationRunner`, and raw `-e`. Use `--source-path` with optional `--class`, `--method`, `--runner`, and `--extras`; for broad regression, first refresh APKs with `jugg instrument`, then use raw `adb shell am instrument`.
 
 
 ---
@@ -216,6 +220,8 @@ python3 {SKILL_DIR}/scripts/jugg.py status [--refresh-changes <true|false>]
 ```
 
 `status` does not refresh changed files by default. Pass `--refresh-changes true` to refresh git-tracked changed files before reading status.
+
+`status` returns `data.enabledAndroidTest`. Reuse an existing hook block's `Jugg status` output when it is already in context; otherwise run `--console=json status` before choosing the androidTest / `instrument` route. `enabledAndroidTest=true` means the latest persisted full-build baseline used AndroidTest target.
 
 ### `ssh-info`
 

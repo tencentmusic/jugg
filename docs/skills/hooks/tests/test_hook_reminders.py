@@ -26,18 +26,23 @@ def _write_fake_jugg_cli(
     total: int,
     files: list[str] | None = None,
     last_compile_time: str = "",
+    enabled_android_test: bool = False,
 ) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
     jugg_bin.mkdir(parents=True, exist_ok=True)
     jugg_cli = jugg_bin / "jugg.py"
     files_json = json.dumps(files or [])
+    enabled_android_test_python = "True" if enabled_android_test else "False"
     jugg_cli.write_text(
         "#!/usr/bin/env python3\n"
         "import json\n"
         "payload = {\n"
         "    'status': 'OK',\n"
         "    'data': {\n"
+        "        'hasDevice': True,\n"
+        "        'needFallback': False,\n"
         "        'hasBeenFullCompiled': True,\n"
+        f"        'enabledAndroidTest': {enabled_android_test_python},\n"
         f"        'fileCounts': {{'total': {total}}},\n"
         f"        'files': {files_json},\n"
         f"        'lastCompileTime': {last_compile_time!r},\n"
@@ -238,7 +243,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             state_file = _state_file(home, cwd, session_id)
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
-            _write_fake_jugg_cli(home, total=1)
+            _write_fake_jugg_cli(home, total=1, enabled_android_test=True)
             first = subprocess.run(
                 [sys.executable, str(script)],
                 input=json.dumps(payload),
@@ -261,6 +266,9 @@ class HookReminderDecisionTest(unittest.TestCase):
 
         self.assertEqual(2, first.returncode)
         self.assertIn("Do not verify with raw Gradle here", first.stderr)
+        self.assertIn("Jugg status:", first.stderr)
+        self.assertIn("enabledAndroidTest: true", first.stderr)
+        self.assertIn("fileCounts: {\"total\":1}", first.stderr)
         self.assertEqual(0, second.returncode)
         self.assertIn("Allowing this repeated command attempt", second.stderr)
         self.assertEqual(1, state.get("gradleBlockCount"))
@@ -318,7 +326,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             state_file = _state_file(home, cwd, session_id)
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
-            _write_fake_jugg_cli(home, total=1, files=files)
+            _write_fake_jugg_cli(home, total=1, files=files, enabled_android_test=True)
             first = subprocess.run(
                 [sys.executable, str(script), "--client", "codex"],
                 input=json.dumps(payload),
@@ -341,7 +349,11 @@ class HookReminderDecisionTest(unittest.TestCase):
 
         self.assertEqual(0, first.returncode)
         self.assertEqual("", first.stderr)
+        first_payload = json.loads(first.stdout)
+        reason = first_payload["hookSpecificOutput"]["permissionDecisionReason"]
         self.assertIn("permissionDecision", first.stdout)
+        self.assertIn("Jugg status:", reason)
+        self.assertIn("enabledAndroidTest: true", reason)
         self.assertEqual(0, second.returncode)
         self.assertEqual("", second.stderr)
         self.assertIn("systemMessage", warning_payload)

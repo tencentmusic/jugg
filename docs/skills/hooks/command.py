@@ -20,6 +20,7 @@ from hook_common import (
     emit_cursor_empty_response,
     extract_file_counts,
     extract_session_id,
+    format_status_summary,
     has_session_write_seen,
     has_pending_files,
     mark_session_write_seen,
@@ -236,11 +237,13 @@ def main() -> int:
         state["gradleBlockCount"] = 1
         state["gradleBlockedFingerprint"] = fingerprint
         write_hook_state(state_file, state)
+        status_summary = format_status_summary(structured)
+        block_message = f"{GRADLE_BLOCK_MESSAGE}\n{status_summary}" if status_summary else GRADLE_BLOCK_MESSAGE
         if args.client == "codex":
-            emit_codex_deny(GRADLE_BLOCK_MESSAGE)
+            emit_codex_deny(block_message)
             debug_log("JUGG-COMMAND", "exit: blocked raw gradle command with codex deny")
             return 0
-        sys.stderr.write(f"{GRADLE_BLOCK_MESSAGE}\n")
+        sys.stderr.write(f"{block_message}\n")
         debug_log("JUGG-COMMAND", "exit: blocked raw gradle command")
         return 2
 

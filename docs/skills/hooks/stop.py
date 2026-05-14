@@ -16,6 +16,7 @@ from hook_common import (
     extract_file_counts,
     extract_modified_file_names,
     extract_session_id,
+    format_status_summary,
     has_session_write_seen,
     has_pending_files,
     read_hook_state,
@@ -97,9 +98,16 @@ def main() -> int:
         state["stopBlockCount"] = 1
         write_hook_state(state_file, state)
         modified_files = extract_modified_file_names(structured)
+        status_summary = format_status_summary(structured)
+        details: list[str] = []
         if modified_files:
             modified_text = ", ".join(modified_files)
-            sys.stderr.write(f"{STOP_BLOCK_MESSAGE} Modified files: {modified_text}\n")
+            details.append(f"Modified files: {modified_text}")
+        if status_summary:
+            details.append(status_summary)
+        suffix = "\n".join(details)
+        if suffix:
+            sys.stderr.write(f"{STOP_BLOCK_MESSAGE}\n{suffix}\n")
         else:
             sys.stderr.write(f"{STOP_BLOCK_MESSAGE}\n")
         debug_log("JUGG-STOP", "exit: blocked stop because pending changes exist")

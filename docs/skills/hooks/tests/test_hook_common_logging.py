@@ -1,6 +1,7 @@
 """Tests for hook debug logging and payload logging switches."""
 
 import importlib.util
+import json
 import os
 import tempfile
 import unittest
@@ -67,6 +68,30 @@ class HookCommonLoggingTest(unittest.TestCase):
         without_session = mod.state_file_path(home, cwd, None)
 
         self.assertNotEqual(with_session, without_session)
+
+    def test_format_status_summary_outputs_plain_key_value_lines(self):
+        mod = _load_hook_common()
+        summary = mod.format_status_summary(
+            {
+                "data": {
+                    "hasDevice": True,
+                    "needFallback": False,
+                    "hasBeenFullCompiled": True,
+                    "enabledAndroidTest": True,
+                    "fileCounts": {"total": 1, "SOURCE": 1},
+                    "lastCompileTime": "2026-05-14 10:20:30",
+                }
+            }
+        )
+
+        self.assertIn("Jugg status:", summary)
+        self.assertIn("  hasDevice: true", summary)
+        self.assertIn("  needFallback: false", summary)
+        self.assertIn("  hasBeenFullCompiled: true", summary)
+        self.assertIn("  enabledAndroidTest: true", summary)
+        self.assertIn('  fileCounts: {"SOURCE":1,"total":1}', summary)
+        self.assertIn("  lastCompileTime: 2026-05-14 10:20:30", summary)
+        self.assertNotIn(json.dumps({"total": 1}, indent=2), summary)
 
 
 if __name__ == "__main__":

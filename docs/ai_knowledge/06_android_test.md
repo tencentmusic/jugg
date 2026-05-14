@@ -249,6 +249,8 @@ am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMetho
 
 `AndroidTestRunSpec.sourcePath` 非空时，MCP 会先用 source file 解析单 class/多 class 与 method 有效性，部署阶段再用 source file 精确解析 androidTest module 与 test APK；无 `sourcePath` 的旧 app androidTest 路径仍回退到首个 test APK。`AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用 `testClass` / `testMethod`。
 
+当需要执行大范围 androidTest 回归时，先用一次 `jugg instrument --source-path ...` 让 Jugg 完成编译、部署和目标 APK 刷新。该命令成功后，app 源码变更与 androidTest 源码变更都已经写入对应 APK；此时可以使用普通 `adb shell am instrument` 执行更大范围的 class/package/suite 回归，不再要求通过 jugg cli 使用 `sourcePath` 做目标锚定。
+
 `TestLauncher` 会为每台设备启动独立 `logcat -v threadtime` 流。logcat 采集与 instrumentation 协议解析分离：`InstrumentationOutputParser` 只负责生成 `TestStarted` / `TestFinished` 等事件，`TestLauncher` 根据当前设备的 active method 把窗口内 logcat 写入 `AndroidTestResultModel.recordTestLog(...)`，method 外日志只保留在设备详情中。多设备各自维护 active method，避免设备间日志串台。
 
 `TestLauncher` 对每台设备串行执行 instrumentation。任一设备出现以下情况，整体 Run 失败：

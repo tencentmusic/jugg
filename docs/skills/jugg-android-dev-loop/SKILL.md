@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.8
-date: 2026-05-10
+version: 1.0.9
+date: 2026-05-14
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -26,12 +26,13 @@ An **auto-run entry** is a user-designated method (e.g. `com.myapp.Test.run`) th
 
 ## Phase 0 — Context Interview
 
-Collect mandatory variables before any action.
+Collect mandatory variables before any action. For install-only requests, skip Jugg project status collection.
 
 | Variable | Source | Fallback |
 |----------|--------|----------|
 | `projectDir` | CLI auto-resolved from `$PWD`, or explicit `--project-dir <path>` when provided | Ask user only if neither current directory nor provided path identifies the target project |
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
+| `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
 
 ---
 
@@ -42,6 +43,8 @@ Route based on context, then load primary reference:
 ```
 if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH"):
   → references/guide_install_cli.md
+elif user asks to run androidTest / instrument, or the task is anchored in src/androidTest:
+  → references/flow_android_test.md
 elif user says "compile only" / "no deploy" / "verify modification":
   → references/flow_no_auto_run.md
 elif hasAutoRunEntry == true:
@@ -53,6 +56,7 @@ else:
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
 | install jugg CLI | `references/guide_install_cli.md` | — |
+| androidTest / instrument | `references/flow_android_test.md` | `references/error_patterns.md`, `references/cli_manual.md` |
 | no verify | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
 | verify with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 
@@ -91,7 +95,7 @@ All build commands **block** until completion; no polling needed.
 | `deploy` | Compile + deploy to device | Apply changes to device to verify changes, may use with `Runtime Basic Commands` and `UI Commands` |
 | `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
 | `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
-| `instrument` | Run androidTest | when `enabledAndroidTest=true` |
+| `instrument` | Run androidTest | Verify android test result |
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py compile

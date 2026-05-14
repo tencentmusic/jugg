@@ -259,6 +259,32 @@ def extract_file_counts(structured: dict[str, Any]) -> dict[str, Any]:
     return file_counts
 
 
+def _format_plain_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return str(value)
+
+
+def format_status_summary(structured: dict[str, Any]) -> str:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return ""
+    lines = ["Jugg status:"]
+    for key in (
+        "hasDevice",
+        "needFallback",
+        "hasBeenFullCompiled",
+        "enabledAndroidTest",
+        "fileCounts",
+        "lastCompileTime",
+    ):
+        if key in data:
+            lines.append(f"  {key}: {_format_plain_value(data[key])}")
+    return "\n".join(lines)
+
+
 def extract_modified_file_names(structured: dict[str, Any], limit: int = 10) -> list[str]:
     data = structured.get("data", {})
     if not isinstance(data, dict):

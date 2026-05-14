@@ -20,7 +20,7 @@
 SKILL.md 采用"**Context Interview → Scenario Route → Load Reference**"三段式架构：
 
 ```
-Phase 0: 收集变量（projectDir, hasAutoRunEntry）
+Phase 0: 收集变量（projectDir, hasAutoRunEntry, enabledAndroidTest）
     ↓
 Phase 1: 匹配场景 → 加载对应 Primary Reference
     ↓
@@ -36,7 +36,7 @@ SKILL.md 只负责**路由决策**和**全局共享内容**（CLI Quick Referenc
 | 决策 | 判定变量 | 位置 |
 |------|---------|------|
 | **D1** Skill 是否触发 | 用户提到 Jugg / Android 源码被修改 | Frontmatter description |
-| **D2** 路由到哪个流程 | `hasAutoRunEntry` + 用户意图 | Phase 1 路由树 |
+| **D2** 路由到哪个流程 | `hasAutoRunEntry` + `enabledAndroidTest` + 用户意图 | Phase 1 路由树 |
 | **D3** 加载哪些 Reference | 场景 + 当前步骤需求 | Phase 1 Scenario 表 |
 | **D4** 编译失败如何处理 | JSON `status`/`message` + 重试次数 | Build Fallback Chain |
 
@@ -54,6 +54,7 @@ jugg-android-dev-loop/
 └── references/                           ← 按需加载（单个≤150行）
     ├── cli_manual.md                     ← UI/高级命令参数详情
     ├── error_patterns.md                 ← 编译/运行时错误诊断
+    ├── flow_android_test.md              ← androidTest / instrument 流程
     ├── flow_no_auto_run.md               ← 无 auto-run entry 流程
     ├── flow_with_auto_run.md             ← 有 auto-run entry 流程
     ├── guide_auto_run_entry.md           ← auto-run entry 配置指南
