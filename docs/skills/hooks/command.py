@@ -134,7 +134,7 @@ def pending_fingerprint(structured: dict[str, Any]) -> str:
         if isinstance(raw_files, list):
             files = sorted({str(file).replace("\\", "/") for file in raw_files if str(file).strip()})
     payload = {
-        "fileCounts": extract_file_counts(structured),
+        "pendingModifiedFiles": extract_file_counts(structured),
         "files": files,
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -214,7 +214,7 @@ def main() -> int:
             state["gradleBlockCount"] = 0
             state.pop("gradleBlockedFingerprint", None)
             write_hook_state(state_file, state)
-        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because fileCounts show no pending changes")
+        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because pendingModifiedFiles show no pending changes")
         emit_cursor_empty_response(args.client)
         return 0
 

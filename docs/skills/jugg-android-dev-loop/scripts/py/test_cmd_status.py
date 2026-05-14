@@ -13,7 +13,7 @@ class TestStatusCommandParams(unittest.TestCase):
     """cmd_status should forward refreshChanges only when explicitly enabled."""
 
     def _run_status(self, args: list[str]) -> dict:
-        structured = {"status": "OK", "data": {"fileCounts": {"total": 0}}}
+        structured = {"status": "OK", "data": {"pendingModifiedFiles": {"total": 0}}}
         with (
             patch.object(cmd_status.jugglib, "resolve_project_dir", return_value="/proj"),
             patch.object(cmd_status.jugglib, "resolve_port", return_value=12320),

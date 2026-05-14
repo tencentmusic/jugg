@@ -253,7 +253,7 @@ def extract_file_counts(structured: dict[str, Any]) -> dict[str, Any]:
     data = structured.get("data", {})
     if not isinstance(data, dict):
         return {}
-    file_counts = data.get("fileCounts", {})
+    file_counts = data.get("pendingModifiedFiles", {})
     if not isinstance(file_counts, dict):
         return {}
     return file_counts
@@ -277,7 +277,7 @@ def format_status_summary(structured: dict[str, Any]) -> str:
         "needFallback",
         "hasBeenFullCompiled",
         "enabledAndroidTest",
-        "fileCounts",
+        "pendingModifiedFiles",
         "lastCompileTime",
     ):
         if key in data:

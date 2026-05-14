@@ -53,8 +53,8 @@ class GetStatusMcpToolActionTest {
         Assert.assertEquals(true, data["hasDevice"])
         Assert.assertEquals(false, data["needFallback"])
         @Suppress("UNCHECKED_CAST")
-        val fileCounts = data["fileCounts"] as Map<String, Any>
-        Assert.assertEquals(0, (fileCounts["total"] as Number).toInt())
+        val pendingModifiedFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(0, (pendingModifiedFiles["total"] as Number).toInt())
         @Suppress("UNCHECKED_CAST")
         val files = data["files"] as List<*>
         Assert.assertTrue(files.isEmpty())
@@ -159,9 +159,9 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         @Suppress("UNCHECKED_CAST")
-        val fileCounts = data["fileCounts"] as Map<String, Any>
-        Assert.assertEquals(1, (fileCounts["total"] as Number).toInt())
-        Assert.assertEquals(1, (fileCounts["Java"] as Number).toInt())
+        val pendingModifiedFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(1, (pendingModifiedFiles["total"] as Number).toInt())
+        Assert.assertEquals(1, (pendingModifiedFiles["Java"] as Number).toInt())
     }
 
     @Test
@@ -188,9 +188,9 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         @Suppress("UNCHECKED_CAST")
-        val fileCounts = data["fileCounts"] as Map<String, Any>
-        Assert.assertEquals(1, (fileCounts["total"] as Number).toInt())
-        Assert.assertEquals(1, (fileCounts["Java"] as Number).toInt())
+        val pendingModifiedFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(1, (pendingModifiedFiles["total"] as Number).toInt())
+        Assert.assertEquals(1, (pendingModifiedFiles["Java"] as Number).toInt())
     }
 
     @Test
@@ -217,8 +217,8 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         @Suppress("UNCHECKED_CAST")
-        val fileCounts = data["fileCounts"] as Map<String, Any>
-        Assert.assertEquals(0, (fileCounts["total"] as Number).toInt())
+        val pendingModifiedFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(0, (pendingModifiedFiles["total"] as Number).toInt())
     }
 
     @Test
@@ -303,11 +303,11 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         @Suppress("UNCHECKED_CAST")
-        val fileCounts = data["fileCounts"] as Map<String, Any>
-        Assert.assertEquals(4, (fileCounts["total"] as Number).toInt())
-        Assert.assertEquals(2, (fileCounts["Java"] as Number).toInt())
-        Assert.assertEquals(1, (fileCounts["Kotlin"] as Number).toInt())
-        Assert.assertEquals(1, (fileCounts["Resource"] as Number).toInt())
+        val pendingModifiedFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(4, (pendingModifiedFiles["total"] as Number).toInt())
+        Assert.assertEquals(2, (pendingModifiedFiles["Java"] as Number).toInt())
+        Assert.assertEquals(1, (pendingModifiedFiles["Kotlin"] as Number).toInt())
+        Assert.assertEquals(1, (pendingModifiedFiles["Resource"] as Number).toInt())
         @Suppress("UNCHECKED_CAST")
         val files = data["files"] as List<*>
         Assert.assertEquals(4, files.size)
@@ -333,8 +333,8 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         @Suppress("UNCHECKED_CAST")
-        val fileCounts = data["fileCounts"] as Map<String, Any>
-        Assert.assertEquals(25, (fileCounts["total"] as Number).toInt())
+        val pendingModifiedFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(25, (pendingModifiedFiles["total"] as Number).toInt())
         @Suppress("UNCHECKED_CAST")
         val files = data["files"] as List<*>
         Assert.assertEquals(20, files.size)

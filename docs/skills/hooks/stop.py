@@ -77,7 +77,7 @@ def main() -> int:
         "decision computed "
         f"hasPending={has_pending} sessionWriteSeen={session_write_seen} "
         f"needsVerification={needs_verification} "
-        f"stopBlockCount={block_count} fileCounts={file_counts!r}",
+        f"stopBlockCount={block_count} pendingModifiedFiles={file_counts!r}",
     )
 
     if not has_pending or not needs_verification:
@@ -85,7 +85,7 @@ def main() -> int:
             state["stopBlockCount"] = 0
             write_hook_state(state_file, state)
         reason = (
-            "fileCounts show no pending changes"
+            "pendingModifiedFiles show no pending changes"
             if not has_pending
             else "session writes were already covered by Jugg verification"
             if session_write_seen

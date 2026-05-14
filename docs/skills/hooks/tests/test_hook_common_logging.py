@@ -78,7 +78,7 @@ class HookCommonLoggingTest(unittest.TestCase):
                     "needFallback": False,
                     "hasBeenFullCompiled": True,
                     "enabledAndroidTest": True,
-                    "fileCounts": {"total": 1, "SOURCE": 1},
+                    "pendingModifiedFiles": {"total": 1, "SOURCE": 1},
                     "lastCompileTime": "2026-05-14 10:20:30",
                 }
             }
@@ -89,7 +89,7 @@ class HookCommonLoggingTest(unittest.TestCase):
         self.assertIn("  needFallback: false", summary)
         self.assertIn("  hasBeenFullCompiled: true", summary)
         self.assertIn("  enabledAndroidTest: true", summary)
-        self.assertIn('  fileCounts: {"SOURCE":1,"total":1}', summary)
+        self.assertIn('  pendingModifiedFiles: {"SOURCE":1,"total":1}', summary)
         self.assertIn("  lastCompileTime: 2026-05-14 10:20:30", summary)
         self.assertNotIn(json.dumps({"total": 1}, indent=2), summary)
 

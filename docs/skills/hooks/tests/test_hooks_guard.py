@@ -32,7 +32,7 @@ def _write_fake_jugg_cli(
         "        'needFallback': False,\n"
         "        'hasBeenFullCompiled': True,\n"
         f"        'enabledAndroidTest': {enabled_android_test_python},\n"
-        f"        'fileCounts': {{'total': {total}}},\n"
+        f"        'pendingModifiedFiles': {{'total': {total}}},\n"
         f"        'files': {files_json},\n"
         f"        'lastCompileTime': {last_compile_time!r},\n"
         "    },\n"
@@ -83,7 +83,7 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertIn("Before stopping, you must enable the jugg-android-dev-loop skill", first.stderr)
         self.assertIn("Jugg status:", first.stderr)
         self.assertIn("enabledAndroidTest: true", first.stderr)
-        self.assertIn("fileCounts: {\"total\":2}", first.stderr)
+        self.assertIn("pendingModifiedFiles: {\"total\":2}", first.stderr)
         self.assertEqual(0, second.returncode)
         self.assertIn("allowing session stop after a repeated stop attempt", second.stderr)
         self.assertEqual(1, state.get("stopBlockCount"))

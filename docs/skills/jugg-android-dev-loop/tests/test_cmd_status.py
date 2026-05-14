@@ -18,7 +18,7 @@ class CmdStatusPrintTest(unittest.TestCase):
                 "hasDevice": True,
                 "needFallback": False,
                 "stateMessage": "ready",
-                "fileCounts": {"total": 1, "Java": 1},
+                "pendingModifiedFiles": {"total": 1, "Java": 1},
                 "files": ["/tmp/A.java"],
                 "detail": "",
                 "lastFileModifiedTime": "2026-04-25 10:30:00",

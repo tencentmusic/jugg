@@ -43,7 +43,7 @@ def _write_fake_jugg_cli(
         "        'needFallback': False,\n"
         "        'hasBeenFullCompiled': True,\n"
         f"        'enabledAndroidTest': {enabled_android_test_python},\n"
-        f"        'fileCounts': {{'total': {total}}},\n"
+        f"        'pendingModifiedFiles': {{'total': {total}}},\n"
         f"        'files': {files_json},\n"
         f"        'lastCompileTime': {last_compile_time!r},\n"
         "    },\n"
@@ -268,7 +268,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertIn("Do not verify with raw Gradle here", first.stderr)
         self.assertIn("Jugg status:", first.stderr)
         self.assertIn("enabledAndroidTest: true", first.stderr)
-        self.assertIn("fileCounts: {\"total\":1}", first.stderr)
+        self.assertIn("pendingModifiedFiles: {\"total\":1}", first.stderr)
         self.assertEqual(0, second.returncode)
         self.assertIn("Allowing this repeated command attempt", second.stderr)
         self.assertEqual(1, state.get("gradleBlockCount"))

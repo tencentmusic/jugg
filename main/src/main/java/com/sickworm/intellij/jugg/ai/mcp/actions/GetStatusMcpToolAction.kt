@@ -62,9 +62,9 @@ class GetStatusMcpToolAction(
                             type = "string",
                             description = "Human-readable reason for current state.",
                         ),
-                        "fileCounts" to McpJsonSchemaProperty(
+                        "pendingModifiedFiles" to McpJsonSchemaProperty(
                             type = "object",
-                            description = "total and per-type counts of uncompiled files.",
+                            description = "total and per-type counts of pending modified files.",
                             additionalProperties = true,
                         ),
                         "files" to McpJsonSchemaProperty(
@@ -98,7 +98,7 @@ class GetStatusMcpToolAction(
                         "hasDevice",
                         "needFallback",
                         "stateMessage",
-                        "fileCounts",
+                        "pendingModifiedFiles",
                         "files",
                         "detail",
                         "lastFileModifiedTime",
@@ -132,7 +132,7 @@ class GetStatusMcpToolAction(
             .groupingBy { it.type.name }
             .eachCount()
 
-        val fileCounts: Map<String, Any> = mutableMapOf<String, Any>("total" to uncompiledFiles.size)
+        val pendingModifiedFiles: Map<String, Any> = mutableMapOf<String, Any>("total" to uncompiledFiles.size)
             .also { it.putAll(countsByType) }
 
         val total = uncompiledFiles.size
@@ -171,7 +171,7 @@ class GetStatusMcpToolAction(
             "hasDevice" to (runtime.deployTargetManager.hasDevice),
             "needFallback" to needFallback,
             "stateMessage" to deployState.msg,
-            "fileCounts" to fileCounts,
+            "pendingModifiedFiles" to pendingModifiedFiles,
             "files" to files,
             "detail" to detail,
             "lastFileModifiedTime" to lastFileModifiedTime,

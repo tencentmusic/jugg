@@ -59,7 +59,7 @@ def _print_status(structured: dict) -> None:
     has_device: bool = data.get("hasDevice", False)
     need_fallback: bool = data.get("needFallback", False)
     state_message: str = data.get("stateMessage", "")
-    file_counts: dict = data.get("fileCounts", {})
+    file_counts: dict = data.get("pendingModifiedFiles", {})
     files: list = data.get("files", [])
     detail: str = data.get("detail", "")
     last_file_modified_time: str = data.get("lastFileModifiedTime", "")
@@ -77,7 +77,7 @@ def _print_status(structured: dict) -> None:
     print(f"lastCompileTime: {last_compile_time}")
 
     total = file_counts.get("total", 0)
-    print(f"fileCounts: {json.dumps(file_counts)}")
+    print(f"pendingModifiedFiles: {json.dumps(file_counts)}")
 
     if total > 0:
         for path in files:
