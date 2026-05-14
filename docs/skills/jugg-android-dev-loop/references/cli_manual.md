@@ -9,8 +9,10 @@ Controlled by the global `--console` flag (must appear before the subcommand):
 | Value | Spinner | Output style | Typical use |
 |-------|---------|--------------|-------------|
 | `plain` | off | human-readable key: value (default) | agent / script |
-| `rich` | on | human-readable key: value | human terminal (set by shell wrappers) |
+| `rich` | on | human-readable key: value | human interactive terminal (set by shell wrappers) |
 | `json` | off | raw JSON `{status, message, data, ...}` | agent needing structured data |
+
+**DO NOT USE** `--console=rich` on agent, TUI refresh behavior will pollute the context.
 
 Example:
 ```
@@ -65,11 +67,11 @@ All build commands **block** until completion; no polling needed.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `compile` | Compile modified sources, no deploy | No device, or user requests compile-only |
-| `deploy` | Compile + deploy to device | **Default path** |
-| `gradle-build` | Full Gradle compile fallback | After `deploy` retries exhausted; produces artifact only, follow with `deploy` |
-| `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
-| `instrument` | Run androidTest with am instrument-like args |
+| `compile` | Compile modified sources, skip deploy | Verification code modification |
+| `deploy` | Compile + deploy to device | Apply changes to device to verify changes, may use with `Runtime Basic Commands` and `UI Commands` |
+| `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
+| `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
+| `instrument` | Run androidTest | when `enabledAndroidTest=true` |
 
 ### `compile`/`deploy`/`gradle-build`/`clean-reinstall`
 

@@ -42,22 +42,19 @@ Route based on context, then load primary reference:
 ```
 if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH"):
   → references/guide_install_cli.md
-elif user says "no deploy":
-  → references/flow_no_auto_run.md §compile-only
-elif hasAutoRunEntry == false AND user requests verification:
-  → ask user to declare auto-run entry (fully-qualified method, e.g. `com.myapp.Test.run`); then route to references/flow_with_auto_run.md (see references/guide_write_auto_run_entry_code.md for entry body)
-elif hasAutoRunEntry == false:
+elif user says "compile only" / "no deploy" / "verify modification":
   → references/flow_no_auto_run.md
 elif hasAutoRunEntry == true:
   → references/flow_with_auto_run.md
+else:
+  → references/flow_no_auto_run.md
 ```
 
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
 | install jugg CLI | `references/guide_install_cli.md` | — |
-| no-deploy | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
-| no auto-run entry (deploy) | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
-| with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
+| no verify | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
+| verify with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 
 Supplementary references load on-demand at the step that needs them.
 
@@ -84,22 +81,17 @@ python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 
 ### Output Format
 
-Default output is plain `key: value` lines. Use `--console=json` before the subcommand when structured output is needed:
-
-```bash
-python3 {SKILL_DIR}/scripts/jugg.py --console=json deploy
-```
-
 ### Build & Deploy Commands
 
 All build commands **block** until completion; no polling needed.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `deploy` | Compile + deploy to device | **Default path** |
-| `compile` | Compile modified sources, skip deploy | Always use `deploy` instead of `compile` unless user **explicitly** says "no deploy" — agent should always call `deploy` by default |
+| `compile` | Compile modified sources, skip deploy | Verification code modification |
+| `deploy` | Compile + deploy to device | Apply changes to device to verify changes, may use with `Runtime Basic Commands` and `UI Commands` |
 | `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
-| `clean-reinstall` | Clear app data + reinstall APK | **Only** for clean data situation |
+| `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
+| `instrument` | Run androidTest | when `enabledAndroidTest=true` |
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py compile

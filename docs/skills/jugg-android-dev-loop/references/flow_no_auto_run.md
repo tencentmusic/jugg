@@ -1,6 +1,6 @@
 # Flow: No Auto-Run Entry
 
-Use when `hasAutoRunEntry=false`, or user explicitly says "compile only" / "no deploy" / "verification code compiles successfully".
+Use when `hasAutoRunEntry=false`, or user explicitly says "compile only" / "no deploy" / "verify modification".
 
 This flow handles compile and deploy only; no on-device verification.
 
