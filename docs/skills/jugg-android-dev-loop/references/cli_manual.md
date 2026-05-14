@@ -67,8 +67,8 @@ All build commands **block** until completion; no polling needed.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `compile` | Compile modified sources, skip deploy | Verification code modification |
-| `deploy` | Compile + deploy to device | Apply changes to device to verify changes, may use with `Runtime Basic Commands` and `UI Commands` |
+| `compile` | Compile modified sources, skip deploy | Default after ordinary source edits, including generic "verify/check modification" |
+| `deploy` | Compile + deploy to device | Need to launch/run app to inspect runtime/UI state, or perform device-side verification |
 | `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
 | `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
 | `instrument` | Run androidTest | Verify android test result |
@@ -243,17 +243,3 @@ python3 {SKILL_DIR}/scripts/jugg.py ssh-info --reason "deploy fails after 3 retr
 adb logcat -d -s <TAG>                       # filter by tag
 adb logcat -d | grep -E "\\[JUGG_AR\\]"         # filter auto-run logs
 ```
-
----
-
-## Build Fallback Chain
-
-On compile/deploy failure, follow this order:
-
-1. Parse `status`/`message` from JSON output.
-2. Retry `deploy` up to 3 times.
-3. If still failing → `gradle-build`.
-4. If still failing → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
-5. Only on install-state corruption → `clean-reinstall`.
-6. Still unclear → stop, ask user.
-7. `ssh-info` requires explicit user consent.

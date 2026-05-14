@@ -1,6 +1,6 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.9
+version: 1.0.10
 date: 2026-05-14
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
@@ -45,8 +45,6 @@ if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH
   → references/guide_install_cli.md
 elif user asks to run androidTest / instrumented unit tests, or the task is anchored in src/androidTest:
   → references/flow_android_test.md
-elif user says "compile only" / "no deploy" / "verify modification":
-  → references/flow_compile_deploy.md
 elif hasAutoRunEntry == true:
   → references/flow_with_auto_run.md
 else:
@@ -91,8 +89,8 @@ All build commands **block** until completion; no polling needed.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `compile` | Compile modified sources, skip deploy | Verification code modification |
-| `deploy` | Compile + deploy to device | Apply changes to device to verify changes, may use with `Runtime Basic Commands` and `UI Commands` |
+| `compile` | Compile modified sources, skip deploy | Default after ordinary source edits, including generic "verify/check modification" |
+| `deploy` | Compile + deploy to device | Need to launch/run app to inspect runtime/UI state, or perform device-side verification |
 | `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
 | `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
 | `instrument` | Run androidTest | Verify android test result |
@@ -136,7 +134,7 @@ For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → 
 On compile/deploy failure, follow this order:
 
 1. Read error detail.
-2. Modified source and retry `compile` / `deploy` up to 3 times.
+2. Modify source and retry the selected command (`compile` or `deploy`) up to 3 times.
 3. If still failing → `gradle-build`.
 4. Call `ssh-info` (requires explicit user consent) when `gradle-build` is remote compile and still failing.
 5. Still unclear → stop, ask user.

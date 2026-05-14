@@ -1,16 +1,31 @@
 # Flow: Compile and Deploy
 
-Use when `hasAutoRunEntry=false`, or user explicitly says "compile only" / "no deploy" / "verify modification".
-
 This flow handles compile/deploy as the decisive result. It may include a light-weight on-device check when explicitly requested.
 
 ---
 
-## Compile-Only Mode
+## Command Selection Decision Tree
 
-### Pre-flight: Check Incremental Compile Eligibility
+Choose one decisive command:
 
-> Run this pre-flight when the user ask "no Gradle fallback". Otherwise, skip.
+```text
+Need runtime/device/UI/log confirmation, app launch, or deploy-side behavior?
+  -> deploy
+Need only source buildability or generic "verify/check"?
+  -> compile
+compile/deploy failed after source fixes and 3 retries, or status/policy requires baseline recovery?
+  -> gradle-build
+```
+
+- `compile`: default for source edits without device-side verification.
+- `deploy`: compile + device deploy/start when runtime state matters.
+- `gradle-build`: full Gradle build + install/start, fallback only.
+
+---
+
+## Pre-flight: Check Incremental Compile Eligibility
+
+> Run this pre-flight only when the user ask "no Gradle fallback". Otherwise, skip.
 
 Before compiling, check whether the project can use incremental compile (i.e., will NOT require `gradle-build`):
 
@@ -25,6 +40,9 @@ print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')
 - Output `OK` → proceed to Steps below.
 - Output `NEEDS_GRADLE_BUILD` → **stop and inform the user** (see [Gradle-Build Fallback](#gradle-build-fallback)).
 
+---
+
+## Compile Mode
 
 ### Steps
 
@@ -46,7 +64,19 @@ Verdict: PASS (compile-only)
 
 ---
 
-## Gradle-Build Fallback
+## Deploy Mode
+
+### Steps
+
+1. **Modify** — Edit source files.
+2. **Deploy** — Run `deploy`. Blocks until completion.
+   - On `status: OK` + `isFinal: true` → Step 3.
+   - On error → follow Build Fallback Chain (→ see [Gradle-Build Fallback Mode](##Gradle-Build Fallback Mode)).
+3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Light-Weight On-Device Check](##Light-Weight On-Device Check)).
+
+---
+
+## Gradle-Build Fallback Mode
 
 > ⚠️ **`gradle-build` is a heavyweight operation** — it triggers a full Gradle compilation, which is significantly slower than incremental `compile`. Use only as a last resort.
 
@@ -61,22 +91,9 @@ Verdict: PASS (compile-only)
 
 ---
 
-## Deploy Mode
+## Light-Weight On-Device Check
 
-Trigger: `hasAutoRunEntry=false` AND user did not say compile-only.
-
-### Steps
-
-1. **Modify** — Edit source files.
-2. **Deploy** — Run `deploy`. Blocks until completion.
-   - On `status: OK` + `isFinal: true` → Step 3.
-   - On error → follow Build Fallback Chain (→ see [Gradle-Build Fallback](#gradle-build-fallback)).
-   - On `NO_DEVICE` / `No device` → switch to Compile-Only Mode above.
-3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Optional: Light-Weight On-Device Check](#optional-light-weight-on-device-check)).
-
-### Light-Weight On-Device Check
-
-**Trigger condition: only when the user explicitly requests verification** (e.g. "验证", "verify", "check result"). Without an explicit request, skip this section entirely — the verdict is based on compile + deploy success only.
+**Trigger condition: only when the user explicitly requests runtime/device/UI verification** (e.g. "verify on device", "check current UI", "验证运行效果"). Generic "verify/check the modification" stays in Compile-Only Mode. Without an explicit runtime/device request, skip this section entirely — the verdict is based on compile success only.
 
 When triggered, agent uses the read-only / low-interaction tools below for a single pass of confirmation. **Never** a PASS gate — the verdict is still based on compile + deploy success.
 
