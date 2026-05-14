@@ -46,18 +46,18 @@ if user asks to install jugg CLI (e.g. "install jugg cli", "add jugg cli to PATH
 elif user asks to run androidTest / instrumented unit tests, or the task is anchored in src/androidTest:
   → references/flow_android_test.md
 elif user says "compile only" / "no deploy" / "verify modification":
-  → references/flow_no_auto_run.md
+  → references/flow_compile_deploy.md
 elif hasAutoRunEntry == true:
   → references/flow_with_auto_run.md
 else:
-  → references/flow_no_auto_run.md
+  → references/flow_compile_deploy.md
 ```
 
 | Scenario | Primary Reference | Supplementary (on-demand) |
 |----------|-------------------|---------------------------|
 | install jugg CLI | `references/guide_install_cli.md` | — |
 | androidTest / instrumented unit tests | `references/flow_android_test.md` | `references/error_patterns.md`, `references/cli_manual.md` |
-| no verify | `references/flow_no_auto_run.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
+| compile/deploy | `references/flow_compile_deploy.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
 | verify with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 
 Supplementary references load on-demand at the step that needs them.
@@ -136,7 +136,7 @@ For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → 
 On compile/deploy failure, follow this order:
 
 1. Read error detail.
-2. Modified source and retry `deploy` up to 3 times.
+2. Modified source and retry `compile` / `deploy` up to 3 times.
 3. If still failing → `gradle-build`.
 4. Call `ssh-info` (requires explicit user consent) when `gradle-build` is remote compile and still failing.
 5. Still unclear → stop, ask user.

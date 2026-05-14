@@ -105,7 +105,7 @@ Output at task completion. Status: `✅ PASS` / `❌ FAIL` / `⏭ SKIP` / `🔄 
 Translate to user taget language if user is not using English.
 
 ```
-# Jugg Dev Loop Report | Scenario: {{compile_only|no_auto_run}}
+# Jugg Dev Loop Report | Scenario: {{auto_run_verify}}
 ## Pipeline Trace
 | Step | Status | Detail |
 ## Verdict: **{{PASS | FAIL | INCONCLUSIVE}}**

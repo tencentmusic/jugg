@@ -55,7 +55,7 @@ jugg-android-dev-loop/
     ├── cli_manual.md                     ← UI/高级命令参数详情
     ├── error_patterns.md                 ← 编译/运行时错误诊断
     ├── flow_android_test.md              ← androidTest / instrument 流程
-    ├── flow_no_auto_run.md               ← 无 auto-run entry 流程
+    ├── flow_compile_deploy.md            ← 编译/部署流程
     ├── flow_with_auto_run.md             ← 有 auto-run entry 流程
     ├── guide_auto_run_entry.md           ← auto-run entry 配置指南
     ├── guide_install_cli.md              ← Jugg CLI 安装指南
@@ -102,5 +102,5 @@ Build Fallback Chain → 编译失败回退路径（两个 flow 共用）
 | **按需加载** | 出现"先全部读取 references" |
 | **信息完备再动手** | 跳过 Phase 0 |
 | **路由优先** | 直接执行步骤而不经过 Phase 1 路由 |
-| **场景不混用** | 同时引用 flow_no_auto_run 和 flow_with_auto_run |
+| **场景不混用** | 同时引用 flow_compile_deploy 和 flow_with_auto_run |
 | **SKILL.md 只管路由** | 在 SKILL.md 中写具体执行步骤 |

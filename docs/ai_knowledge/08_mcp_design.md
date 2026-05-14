@@ -88,7 +88,7 @@
 
 | 改动类型 | 需检查/更新的 Skill 文档 |
 |----------|--------------------------|
-| `deploy` / `compile` / `restart` 等命令行为变更（默认参数、重启策略、阻塞/异步等） | `SKILL.md` §Build & Deploy Commands、`flow_no_auto_run.md`、`flow_with_auto_run.md` |
+| `deploy` / `compile` / `restart` 等命令行为变更（默认参数、重启策略、阻塞/异步等） | `SKILL.md` §Build & Deploy Commands、`flow_compile_deploy.md`、`flow_with_auto_run.md` |
 | MCP/CLI 新增或修改参数 | `SKILL.md` §Advanced Commands、`references/cli_manual.md` |
 | 错误码或错误消息变更 | `references/error_patterns.md` |
 | deploy 后 app 状态变化（是否重启、是否保留 runtime state） | `SKILL.md` §Mandatory Rules、`flow_with_auto_run.md` Step 3 |

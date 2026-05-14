@@ -1,8 +1,8 @@
-# Flow: No Auto-Run Entry
+# Flow: Compile and Deploy
 
 Use when `hasAutoRunEntry=false`, or user explicitly says "compile only" / "no deploy" / "verify modification".
 
-This flow handles compile and deploy only; no on-device verification.
+This flow handles compile/deploy as the decisive result. It may include a light-weight on-device check when explicitly requested.
 
 ---
 
@@ -61,7 +61,7 @@ Verdict: PASS (compile-only)
 
 ---
 
-## Deploy Mode (No Verification)
+## Deploy Mode
 
 Trigger: `hasAutoRunEntry=false` AND user did not say compile-only.
 
@@ -72,13 +72,7 @@ Trigger: `hasAutoRunEntry=false` AND user did not say compile-only.
    - On `status: OK` + `isFinal: true` → Step 3.
    - On error → follow Build Fallback Chain (→ see [Gradle-Build Fallback](#gradle-build-fallback)).
    - On `NO_DEVICE` / `No device` → switch to Compile-Only Mode above.
-3. **Done** — Output report. Verification steps default to `⏭ SKIP (no auto-run entry)`. If optional light-weight check ran, use `ℹ LIGHT-CHECK` status (see [Optional: Light-Weight On-Device Check](#optional-light-weight-on-device-check)).
-
-```
-Step 1: Modify → [files changed]
-Step 2: deploy → status: OK, isFinal: true ✅
-Verdict: PASS (deployed, no verification)
-```
+3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Optional: Light-Weight On-Device Check](#optional-light-weight-on-device-check)).
 
 ### Light-Weight On-Device Check
 
@@ -116,14 +110,14 @@ English template:
 
 ```
 # Jugg Compile Result
-scenario=`{{compile_only|no_auto_run}}`, command=`{{jugg compile|jugg deploy|jugg gradle-build}}`
-Result: `{{PASS|FAIL|INCONCLUSIVE}}`. compile=`{{true|false|unknown}}`, deploy=`{{true|false|skip|unknown}}`, verify=`{{SKIP|LIGHT-CHECK|INCONCLUSIVE}}`. {{short reason}}
+scenario=`{{compile_only|compile_deploy}}`, command=`{{jugg compile|jugg deploy|jugg gradle-build}}`
+Result: `{{pass|fail|inconclusive}}`. compile=`{{true|false|unknown}}`, deploy=`{{true|false|skip|unknown}}`, verify=`{{skip|light-check|inconclusive}}`. {{short reason}}
 ```
 
 中文模板：
 
 ```
 # Jugg 编译结果
-场景=`{{仅编译|无自动运行入口}}`，命令=`{{jugg compile|jugg deploy|jugg gradle-build}}`
+场景=`{{仅编译|编译部署}}`，命令=`{{jugg compile|jugg deploy|jugg gradle-build}}`
 结果：`{{通过|失败|不确定}}`。编译结果=`{{成功|失败|未知}}`，部署结果=`{{成功|失败|跳过|未知}}`，验证结果=`{{跳过|轻量检查|不确定}}`。{{简短原因}}
 ```

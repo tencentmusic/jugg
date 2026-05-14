@@ -53,7 +53,7 @@
 | `docs/ai_knowledge/08_mcp_tools_list.md` | MCP 参数 schema 与 CLI 透传关系一致。 |
 | `docs/skills/jugg-android-dev-loop/SKILL.md` | 只保留路由、决策、护栏和高频 quick reference。 |
 | `docs/skills/jugg-android-dev-loop/references/cli_manual.md` | 参数示例完整且与 parser 一致。 |
-| `docs/skills/jugg-android-dev-loop/references/flow_no_auto_run.md` | 无 auto-run entry 场景不会强行要求用户提供 entry。 |
+| `docs/skills/jugg-android-dev-loop/references/flow_compile_deploy.md` | 编译/部署流程不会强行要求用户提供 auto-run entry。 |
 | `docs/skills/jugg-android-dev-loop/references/flow_with_auto_run.md` | deploy、restart、wait-logs 闭环顺序正确。 |
 | `docs/skills/jugg-android-dev-loop/references/error_patterns.md` | 失败处理不会绕过 Jugg runtime debug 手册。 |
 | `docs/skills/jugg-android-dev-loop/references/guide_install_cli.md` | 安装路径、PATH、wrapper 说明准确。 |
