@@ -50,6 +50,7 @@ Prompt：点击 `Repeat Tap Target`。
 期望：
 - 先用 `view-locate --text "Repeat Tap Target"` 或等价方式确认是否多匹配。
 - 多匹配时应要求更明确 selector，不能随机点击。
+- 这是预期跳过，可给满分。
 
 ## ADV-7: 隐藏元素不能作为点击目标
 
@@ -67,6 +68,7 @@ Prompt：直接验证 `btn_mcp_resource_target` 的 clickable，不用确认页�
 期望：
 - 仍应先确认页面或已有 gate 证据。
 - 无 gate 证据时不能直接给结论。
+- 如果 gate 证明不在目标页面，这是预期跳过，可给满分。
 
 ## ADV-9: expression 不能混成 selector
 

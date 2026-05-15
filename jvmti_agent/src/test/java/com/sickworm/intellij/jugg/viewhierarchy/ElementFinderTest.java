@@ -39,6 +39,29 @@ public class ElementFinderTest {
     }
 
     @Test
+    public void findInspectable_shouldReturnInvisibleNodeWhenSelectorMatches() {
+        TextView invisible = mockTextView("Hidden", View.INVISIBLE, false, 100, 40, 10, 20);
+        ViewGroup root = mockRoot(invisible);
+
+        ElementFinder finder = new ElementFinder(new FixedWindowsDumper(new WindowInfo("activity", "Main", root)));
+        List<MatchedElement> matches = finder.findInspectable("Hidden", null, null, null, true);
+
+        Assert.assertEquals(1, matches.size());
+        Assert.assertEquals("invisible", matches.get(0).visibility);
+    }
+
+    @Test
+    public void find_shouldStillIgnoreInvisibleNodeForActionableLookup() {
+        TextView invisible = mockTextView("Hidden", View.INVISIBLE, false, 100, 40, 10, 20);
+        ViewGroup root = mockRoot(invisible);
+
+        ElementFinder finder = new ElementFinder(new FixedWindowsDumper(new WindowInfo("activity", "Main", root)));
+        List<MatchedElement> matches = finder.find("Hidden", null, null, null, true);
+
+        Assert.assertTrue(matches.isEmpty());
+    }
+
+    @Test
     public void find_shouldKeepMultipleWhenAllCandidatesAreActionable() {
         TextView first = mockTextView("Item", View.VISIBLE, true, 120, 48, 10, 20);
         TextView second = mockTextView("Item", View.VISIBLE, true, 120, 48, 200, 220);

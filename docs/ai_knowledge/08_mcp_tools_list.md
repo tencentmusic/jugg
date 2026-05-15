@@ -207,7 +207,7 @@
 
 ### `view-locate`
 
-查找单个 UI 元素，返回位置和尺寸。
+查找 UI 元素，返回首个匹配元素的位置和尺寸；重复命中时同时返回候选摘要。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -215,7 +215,7 @@
 | `target` | object | **是** | 元素选择器：`text`/`resourceId`/`contentDesc` |
 | `figmaNode` | object | 否 | Figma 节点信息（id/name/bounds），用于模糊匹配 |
 
-**返回 data**（found=true 时）：`bounds`（`[l,t,r,b]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`。所有坐标单位 dp。
+**返回 data**（found=true 时）：`bounds`（`[l,t,r,b]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`、`resourceId`、`matchCount`、`matches[]`。所有坐标单位 dp；`matchCount > 1` 时不能把首个结果直接当作安全点击目标。
 
 ---
 
@@ -233,6 +233,7 @@
 - 仅允许 getter/查询方法白名单（`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length` 等）。
 - 返回 `data.values[]`，每项含 `expression`/`value`/`type`/`error`。
 - 返回 `data.density`（设备像素密度），便于 px→dp 换算。
+- 可读取仍在 View 树中的隐藏节点属性；隐藏节点不应作为点击目标。
 - 与 `view-locate` 分工：坐标计算用 `view-locate`；属性查询用 `view-inspect`。
 
 ---

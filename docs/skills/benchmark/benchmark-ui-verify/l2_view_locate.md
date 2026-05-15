@@ -32,7 +32,7 @@ Prompt：定位文本为 `Repeat Tap Target` 的元素。
 
 期望：
 - 选择 `view-locate --text "Repeat Tap Target"`。
-- 如果返回多匹配或候选列表，应报告歧义，不随机选一个。
+- 如果返回 `matchCount > 1` 或候选列表，应报告歧义，不随机选一个。
 
 ## LOC-5: 不存在元素
 

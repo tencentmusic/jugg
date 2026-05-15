@@ -249,9 +249,10 @@ jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
 ```
 
 输出：
-- 成功：`data.found=true`、`data.bounds`、`data.position`、`data.size`、`data.className`。
+- 成功：`data.found=true`、`data.bounds`、`data.position`、`data.size`、`data.className`、`data.resourceId`、`data.matchCount`、`data.matches`。
 - 失败：`status=ERROR`、`errorCode=ELEMENT_NOT_FOUND`、`data.found=false`。
 - 不输出 layout 文件；内部复用 `layout-dump` 的结构化结果定位元素。
+- `matchCount > 1` 时表示存在重复候选，不能直接把首个结果当作安全点击目标。
 
 | CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 |
 |-----------------------|----------------------------------|----------|
@@ -274,6 +275,10 @@ jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>) [--c
 | `--content-desc <desc>` | `--contentDesc <desc>` | `target.contentDesc` |
 | `--class-name <cls>` | `--className <cls>` | `target.className` |
 | 位置参数（非 `--` 开头） | — | `expressions[]` |
+
+行为：
+- 表达式使用 getter/query 方法调用格式，如 `getText()`、`getVisibility()`、`isEnabled()`。
+- 可读取仍在 View 树中的隐藏节点属性；隐藏节点不应作为点击目标。
 
 ---
 

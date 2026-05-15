@@ -54,35 +54,10 @@ class UiFindMcpToolAction : McpToolAction {
             val layoutFile = (dumpResult as LayoutDumpHelper.DumpInternalResult.Success).jsonFile
             val layoutJson = JsonParser.parseString(layoutFile.readText()).asJsonObject
             val androidNodes = parseAndroidNodes(layoutJson)
+            val matches = findMatches(androidNodes, target)
 
-            val text = target["text"] as? String
-            val resourceId = target["resourceId"] as? String
-            val contentDesc = target["contentDesc"] as? String
-
-            val matched = androidNodes.find { node ->
-                (text != null && node.text == text) ||
-                (resourceId != null && node.id == resourceId) ||
-                (contentDesc != null && node.contentDesc == contentDesc)
-            }
-
-            if (matched != null) {
-                val data = mapOf(
-                    "found" to true,
-                    "bounds" to matched.bounds.toList(),
-                    "position" to mapOf("x" to matched.bounds[0], "y" to matched.bounds[1]),
-                    "size" to mapOf(
-                        "width" to (matched.bounds[2] - matched.bounds[0]),
-                        "height" to (matched.bounds[3] - matched.bounds[1])
-                    ),
-                    "className" to matched.className
-                )
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "Element found",
-                    data = data,
-                    artifacts = emptyList(),
-                    errorCode = null
-                )
+            if (matches.isNotEmpty()) {
+                return buildFoundResult(matches)
             }
 
             return McpToolResult(
@@ -96,6 +71,57 @@ class UiFindMcpToolAction : McpToolAction {
             logger.warn("$toolName failed: ${e.message}", e)
             return McpToolResult.internalErrorResult(toolName, e.message ?: "unknown error")
         }
+    }
+
+    private fun findMatches(androidNodes: List<AndroidNode>, target: Map<*, *>): List<AndroidNode> {
+        val text = target["text"] as? String
+        val resourceId = target["resourceId"] as? String
+        val contentDesc = target["contentDesc"] as? String
+        return androidNodes.filter { node ->
+            (text != null && node.text == text) ||
+            (resourceId != null && node.id == resourceId) ||
+            (contentDesc != null && node.contentDesc == contentDesc)
+        }
+    }
+
+    private fun buildFoundResult(matches: List<AndroidNode>): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.OK,
+            message = if (matches.size > 1) {
+                "Element found with ${matches.size} matches"
+            } else {
+                "Element found"
+            },
+            data = buildMatchedData(matches.first(), matches),
+            artifacts = emptyList(),
+            errorCode = null
+        )
+    }
+
+    private fun buildMatchedData(matched: AndroidNode, matches: List<AndroidNode>): Map<String, Any?> {
+        return mapOf(
+            "found" to true,
+            "bounds" to matched.bounds.toList(),
+            "position" to mapOf("x" to matched.bounds[0], "y" to matched.bounds[1]),
+            "size" to mapOf(
+                "width" to (matched.bounds[2] - matched.bounds[0]),
+                "height" to (matched.bounds[3] - matched.bounds[1])
+            ),
+            "className" to matched.className,
+            "resourceId" to matched.id,
+            "matchCount" to matches.size,
+            "matches" to matches.map { it.toSummaryMap() },
+        )
+    }
+
+    private fun AndroidNode.toSummaryMap(): Map<String, Any?> {
+        return mapOf(
+            "resourceId" to id,
+            "text" to text,
+            "contentDesc" to contentDesc,
+            "className" to className,
+            "bounds" to bounds.toList(),
+        )
     }
 
     private fun parseAndroidNodes(json: com.google.gson.JsonObject): List<AndroidNode> {

@@ -67,3 +67,4 @@ Prompt：验证 `btn_mcp_resource_target` 是否可点击。
 - 先通过 `activity-stack` 或 `layout-dump` 确认页面。
 - 如果不在 McpTestActivity，结果为 `SKIP: not on McpTestActivity`。
 - 不盲目执行 `tap`。
+- 这是预期跳过，可给满分。

@@ -64,13 +64,13 @@ Prompt：验证 `btn_mcp_resource_target` 的文本、可点击、enabled 和 al
 期望：
 - 选择 `view-inspect --resource-id btn_mcp_resource_target getText().toString() isClickable() isEnabled() getAlpha()`。
 
-## INSPECT-9: 读取隐藏节点 visibility
+## INSPECT-9: 读取 INVISIBLE 节点 visibility
 
 Prompt：读取 `btn_mcp_visibility_hidden` 的 visibility。
 
 期望：
 - 选择 `view-inspect --resource-id btn_mcp_visibility_hidden getVisibility()`。
-- 允许 inspect 隐藏节点，但结论必须说明它不是可点击目标。
+- 允许 inspect `INVISIBLE` 节点，但结论必须说明它不是可点击目标。
 
 ## INSPECT-10: className 辅助过滤
 

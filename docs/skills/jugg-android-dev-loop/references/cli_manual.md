@@ -180,18 +180,20 @@ python3 {SKILL_DIR}/scripts/jugg.py view-locate --content-desc "Back"
 ```
 
 At least one of `--text`/`--resource-id`/`--content-desc` required.
-Output: `bounds [left,top,right,bottom]`, `position {x,y}`, `size {width,height}` (all dp).
+Output: `bounds [left,top,right,bottom]`, `position {x,y}`, `size {width,height}`, `matchCount`, and `matches` summary (all coordinates are dp).
+If `matchCount > 1`, do not use the first result as a safe click target without a stronger selector.
 
 ### `view-inspect`
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py view-inspect --text "Submit" text visibility
-python3 {SKILL_DIR}/scripts/jugg.py view-inspect --resource-id btn_confirm background.color textSize
-python3 {SKILL_DIR}/scripts/jugg.py view-inspect --content-desc "Avatar" width height translationY
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --text "Submit" "getText()" "getVisibility()"
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --resource-id btn_confirm "getBackground()" "getTextSize()"
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --content-desc "Avatar" "getWidth()" "getHeight()" "getTranslationY()"
 ```
 
-- Selector: `--text`/`--resource-id`/`--content-desc` (at least one).
-- `<expr>`: dot-path to View property. Common: `text`, `visibility`, `width`, `height`, `textSize`, `textColor`, `background.color`, `translationX`, `translationY`, `alpha`.
+- Selector: `--text`/`--resource-id`/`--content-desc` (at least one), with optional `--class-name`.
+- `<expr>`: read-only getter/query method expression. Common: `getText()`, `getVisibility()`, `getWidth()`, `getHeight()`, `getTextSize()`, `getCurrentTextColor()`, `getBackground()`, `getTranslationX()`, `getTranslationY()`, `getAlpha()`, `isClickable()`, `isEnabled()`.
+- `view-inspect` may read non-clickable hidden views that stay in the hierarchy; hidden views are not safe tap targets.
 - Output: expression/value/type pairs + density for px→dp conversion.
 
 ### `layout-dump`

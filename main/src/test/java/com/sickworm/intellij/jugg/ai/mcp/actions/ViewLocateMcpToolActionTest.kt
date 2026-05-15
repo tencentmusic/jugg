@@ -123,6 +123,63 @@ class ViewLocateMcpToolActionTest {
         }
     }
 
+    @Test
+    fun executeReturnsMatchCountAndCandidatesForRepeatedText() {
+        val projectDir = createTempDir(prefix = "jugg_view_locate_")
+        val runtime = buildRuntime(projectDir)
+        val layoutJson = """
+            {
+              "windows": [
+                {
+                  "title": "McpTestActivity",
+                  "root": {
+                    "className": "FrameLayout",
+                    "bounds": [0, 0, 300, 600],
+                    "children": [
+                      {
+                        "className": "Button",
+                        "id": "btn_mcp_repeat_a",
+                        "text": "Repeat Tap Target",
+                        "bounds": [10, 20, 110, 70]
+                      },
+                      {
+                        "className": "Button",
+                        "id": "btn_mcp_repeat_b",
+                        "text": "Repeat Tap Target",
+                        "bounds": [10, 90, 110, 140]
+                      }
+                    ]
+                  }
+                }
+              ],
+              "truncated": false
+            }
+        """.trimIndent()
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
+                LayoutDumpResult(payloadJson = layoutJson, remoteFilePath = null)
+            )
+        }.use {
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to projectDir.absolutePath,
+                    "target" to mapOf("text" to "Repeat Tap Target"),
+                ),
+                runtime,
+            )
+
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals(2, data["matchCount"])
+            @Suppress("UNCHECKED_CAST")
+            val matches = data["matches"] as List<Map<String, Any?>>
+            Assert.assertEquals("btn_mcp_repeat_a", matches[0]["resourceId"])
+            Assert.assertEquals("btn_mcp_repeat_b", matches[1]["resourceId"])
+        }
+    }
+
     private fun buildRuntime(projectDir: File): IMcpRuntime {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()

@@ -43,13 +43,41 @@ public class ElementFinder {
         String className,
         boolean topWindowOnly
     ) {
+        return findInternal(text, resourceId, contentDesc, className, topWindowOnly, true);
+    }
+
+    /**
+     * Find elements for read-only inspection, including non-visible views that remain in
+     * the hierarchy. This is intentionally separate from actionable lookup used by tap.
+     */
+    public List<MatchedElement> findInspectable(
+        String text,
+        String resourceId,
+        String contentDesc,
+        String className,
+        boolean topWindowOnly
+    ) {
+        return findInternal(text, resourceId, contentDesc, className, topWindowOnly, false);
+    }
+
+    private List<MatchedElement> findInternal(
+        String text,
+        String resourceId,
+        String contentDesc,
+        String className,
+        boolean topWindowOnly,
+        boolean requireActionable
+    ) {
         List<MatchedElement> result = new ArrayList<>();
         List<WindowInfo> windows = resolveWindows(topWindowOnly);
 
         // Traverse in reverse so overlay/popup windows are preferred over base activity.
         for (int i = windows.size() - 1; i >= 0; i--) {
             WindowInfo window = windows.get(i);
-            findInView(window.rootView, window, text, resourceId, contentDesc, className, result);
+            findInView(
+                window.rootView, window, text, resourceId, contentDesc, className,
+                result, requireActionable
+            );
         }
         return result;
     }
@@ -93,13 +121,14 @@ public class ElementFinder {
         String resourceId,
         String contentDesc,
         String className,
-        List<MatchedElement> result
+        List<MatchedElement> result,
+        boolean requireActionable
     ) {
         if (view == null) {
             return;
         }
         ViewNode.Bounds bounds = resolveBounds(view);
-        if (isActionableNode(view, bounds)) {
+        if (!requireActionable || isActionableNode(view, bounds)) {
             String nodeText = resolveText(view);
             String nodeResourceId = resolveResourceId(view);
             String nodeContentDesc = safeToString(view.getContentDescription());
@@ -130,7 +159,10 @@ public class ElementFinder {
             ViewGroup group = (ViewGroup) view;
             int childCount = group.getChildCount();
             for (int i = 0; i < childCount; i++) {
-                findInView(group.getChildAt(i), window, text, resourceId, contentDesc, className, result);
+                findInView(
+                    group.getChildAt(i), window, text, resourceId, contentDesc, className,
+                    result, requireActionable
+                );
             }
         }
     }

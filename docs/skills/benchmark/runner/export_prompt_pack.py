@@ -22,7 +22,7 @@ BENCHMARKS = {
     "ui-verify": {
         "title": "Jugg UI Verify Benchmark Prompt Pack",
         "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-ui-verify",
-        "mode": "cli",
+        "mode": "ui-verify",
     },
     "hooks": {
         "title": "Jugg Agent Hooks Benchmark Prompt Pack",
@@ -109,7 +109,7 @@ def benchmark_lines(mode: str) -> list[str]:
             "- 本 benchmark 用于验证 hooks 是否正确配置；预期阻断的 case 如 hook 未触发或收不到反馈时记 `FAIL`，不要记 `SKIP`。",
             "- 结果写入同目录 `report.md`。",
         ]
-    return [
+    lines = [
         "执行要求：",
         "- 在 `android_demo_project` 或其子目录执行。",
         "- 使用 `docs/skills/jugg-android-dev-loop` 提供的 Jugg CLI。",
@@ -118,6 +118,12 @@ def benchmark_lines(mode: str) -> list[str]:
         "- 条件不足时写明 `SKIP` 原因。",
         "- 结果写入同目录 `report.md`。",
     ]
+    if mode == "ui-verify":
+        lines.insert(
+            -1,
+            "- UI benchmark 中，预期跳过的安全门禁 case 可给满分；误跳过可执行 case 才扣分。",
+        )
+    return lines
 
 
 def sequence_label(mode: str) -> str:
@@ -244,7 +250,11 @@ def render_prompt(title: str, case_count: int, mode: str) -> str:
     skip_rule = (
         "- hooks benchmark 中，预期阻断的 case 如 hook 未触发、收不到反馈或无法完成触发动作时必须记 `FAIL`，不要记 `SKIP`；预期静默放行的 case 必须记录未收到阻断或 warning。"
         if mode == "hooks"
-        else "- 无法执行时才允许 `SKIP`，并写明阻塞原因与已尝试动作。"
+        else (
+            "- UI benchmark 中，预期跳过的安全门禁 case 可给满分；无法执行或前提不满足时才允许 `SKIP`，并写明阻塞原因与已尝试动作。"
+            if mode == "ui-verify"
+            else "- 无法执行时才允许 `SKIP`，并写明阻塞原因与已尝试动作。"
+        )
     )
     completion_summary = (
         "总分；hooks benchmark 不填写跳过数量。"

@@ -34,7 +34,7 @@ def build_params(args: list[str]) -> dict:
             expressions.append(args[i]); i += 1
 
     if not target:
-        print("view-inspect requires at least one selector: --text, --resourceId, or --contentDesc",
+        print("view-inspect requires at least one selector: --text, --resourceId, --contentDesc, or --className",
               file=sys.stderr)
         sys.exit(1)
     if not expressions:

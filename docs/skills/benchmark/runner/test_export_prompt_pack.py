@@ -22,6 +22,17 @@ class ExportPromptPackTest(unittest.TestCase):
             self.assertIn("- Score: N / 5", report)
             self.assertIn("| File | Case | Verdict | Score | Notes |", report)
 
+    def test_ui_verify_pack_explains_expected_skip_scoring(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = export_prompt_pack.export_pack("ui-verify", Path(tmp_dir))
+
+            readme = (output_dir / "README.md").read_text(encoding="utf-8")
+            prompt = (output_dir / "PROMPT.md").read_text(encoding="utf-8")
+
+            self.assertIn("预期跳过", readme)
+            self.assertIn("预期跳过", prompt)
+            self.assertIn("可给满分", prompt)
+
     def test_hooks_pack_documents_sourceset_and_silent_allow_rules(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = export_prompt_pack.export_pack("hooks", Path(tmp_dir))

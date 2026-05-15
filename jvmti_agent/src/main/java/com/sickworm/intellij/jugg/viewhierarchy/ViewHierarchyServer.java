@@ -384,7 +384,7 @@ public class ViewHierarchyServer {
                 return error("eval_view requires non-empty 'expressions' array.", null);
             }
 
-            List<MatchedElement> matches = elementFinder.find(
+            List<MatchedElement> matches = elementFinder.findInspectable(
                 text, resourceId, contentDesc, className, true);
 
             if (matches.isEmpty()) {
