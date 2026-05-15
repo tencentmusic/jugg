@@ -48,6 +48,11 @@
     - fixes could cause the IDE to stuck for some time, during initialization after downgrade completion
     - fix untracked file rollbacks on first time compile
 
+- version: 2.6.26
+  date: 2026.05.15
+  updates:
+    - supports Android Studio Panda 4
+
 - version: 2.6.23
   date: 2026.04.09
   updates:
