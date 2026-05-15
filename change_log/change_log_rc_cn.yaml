@@ -1,3 +1,8 @@
+- version: 2.6.26
+  date: 2026.05.15
+  updates:
+    - 支持 Android Studio Panda 4
+
 - version: 2.6.23
   date: 2026.04.09
   updates:

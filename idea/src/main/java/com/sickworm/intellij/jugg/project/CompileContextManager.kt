@@ -335,6 +335,11 @@ class CompileContextManager(
                 directoryNotFoundModules.add(module.name)
                 return@forEach
             }
+            val normalizedBaseDir = if (baseDir.isAbsolute) {
+                baseDir
+            } else {
+                File(pathManager.projectDir, baseDir.path)
+            }
 
             val relativePath = if (baseDir.isAbsolute) baseDir.relativeTo(pathManager.projectDir) else baseDir
             if (relativePath.startsWith(".idea")) {
@@ -363,9 +368,9 @@ class CompileContextManager(
 
             var manifestFile: File? = null
             ideModuleInfo.manifestRelativePath?.let {
-                manifestFile = File(baseDir, it)
+                manifestFile = File(normalizedBaseDir, it)
             }
-            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, baseDir, ideModuleInfo.buildVariant)
+            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, normalizedBaseDir, ideModuleInfo.buildVariant)
 
             // 3. find source roots
             val sourceDirs = mutableSetOf<File>()
@@ -468,7 +473,7 @@ class CompileContextManager(
             // Smart cast to 'IdeModuleInfo' is impossible, because 'ideModuleInfo' is a local variable that is captured by a changing closure
             val info = ideModuleInfo!!
             val moduleInfo = ModuleInfo(
-                module.name.moduleSimpleName, ModuleInfo.Type.Unknown, baseDir, pathManager.projectDir,
+                module.name.moduleSimpleName, ModuleInfo.Type.Unknown, normalizedBaseDir, pathManager.projectDir,
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
                 manifestFile, null,
                 info.buildVariant, info.compileVersion, info.minSdkVersion, info.buildToolsVersion,

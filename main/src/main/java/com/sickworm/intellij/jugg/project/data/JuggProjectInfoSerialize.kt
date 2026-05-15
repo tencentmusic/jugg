@@ -14,7 +14,7 @@ class JuggProjectInfoSerialize(
 
     companion object {
 
-        private const val VERSION = 5
+        private const val VERSION = 6
 
         fun serialize(juggProjectInfo: JuggProjectInfo): JuggProjectInfoSerialize {
             val dependencyList = mutableListOf<LibraryDependency>()
