@@ -31,6 +31,8 @@
 4. 若检测到受影响源码/类，继续下一轮增量编译。  
 5. 结果写入 `DeployFileManager` staging，用于后续部署。
 
+成功编译的文件会记录文件快照（`lastModified + length`）。如果后续 IDE 文件事件迟到，但文件当前快照与已编译快照一致，`DeployFileManager` 会忽略这次重复变更事件，避免把已编译未部署的文件重新刷回未编译状态；真正再次修改且快照变化的文件仍会重新进入待编译集合。
+
 编译输出模型支持多 APK 归属语义：
 
 - `CompileOutput.apkPath` 保留旧的单 APK 锚点。

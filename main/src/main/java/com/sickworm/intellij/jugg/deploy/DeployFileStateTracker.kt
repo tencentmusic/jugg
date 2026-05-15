@@ -1,20 +1,26 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * Tracks runtime deploy file states for incremental compile/deploy lifecycle.
  */
-class DeployFileStateTracker {
+class DeployFileStateTracker(
+    private val logger: Logger? = null,
+) {
     private var uncompiledFiles = mutableMapOf<String, ChangedFile>()
     private var compiledFiles = mutableMapOf<String, ChangedFile>()
     private var stagingFiles = mutableMapOf<String, CompileOutput>()
     private val deployedFiles = mutableMapOf<String, CompileOutput>()
     private val mergedDexFilePathSet = mutableMapOf<String, Long>()
+    private val handledFileSnapshots = mutableMapOf<String, FileSnapshot>()
 
     @Synchronized
     fun clearMergedDexFilePaths() {
@@ -38,12 +44,14 @@ class DeployFileStateTracker {
 
     @Synchronized
     fun addChangedFiles(files: List<ChangedFile>): List<ChangedFile> {
-        val newFiles = files.filter {
+        val filesNeedCompile = files.filterNot {
+            isHandledSnapshot(it)
+        }
+        val newFiles = filesNeedCompile.filter {
             !uncompiledFiles.containsKey(it.file.stdPath)
         }
-        files.forEach {
-            uncompiledFiles[it.file.stdPath] = it
-            compiledFiles.remove(it.file.stdPath)
+        filesNeedCompile.forEach {
+            markNeedsCompile(it)
         }
         return newFiles
     }
@@ -51,8 +59,7 @@ class DeployFileStateTracker {
     @Synchronized
     fun rollbackChangedFiles(files: List<ChangedFile>) {
         files.forEach {
-            uncompiledFiles[it.file.stdPath] = it
-            compiledFiles.remove(it.file.stdPath)
+            markNeedsCompile(it)
         }
     }
 
@@ -73,6 +80,7 @@ class DeployFileStateTracker {
                     }
                 }
             }
+            removeHandledSnapshots(file)
         }
     }
 
@@ -84,6 +92,7 @@ class DeployFileStateTracker {
             changedFile.compiledTimes++
             uncompiledFiles.remove(fileKey)
             compiledFiles[fileKey] = changedFile
+            markHandled(it.file)
         }
         failedFiles.forEach {
             val fileKey = it.file.stdAbsPath
@@ -185,6 +194,7 @@ class DeployFileStateTracker {
         uncompiledFiles.clear()
         compiledFiles.clear()
         stagingFiles.clear()
+        handledFileSnapshots.clear()
 
         if (remainUncompiledFiles.isNotEmpty()) {
             uncompiledFiles.putAll(remainUncompiledFiles)
@@ -208,5 +218,60 @@ class DeployFileStateTracker {
             mappedFiles[mapped.file.stdPath] = mapped
         }
         uncompiledFiles = mappedFiles
+    }
+
+    private fun isHandledSnapshot(changedFile: ChangedFile): Boolean {
+        if (uncompiledFiles.containsKey(changedFile.file.stdPath)) {
+            return false
+        }
+        val currentSnapshot = FileSnapshot.from(changedFile.file)
+        val handledSnapshot = handledFileSnapshots[changedFile.file.stdAbsPath]
+        if (currentSnapshot != handledSnapshot) {
+            return false
+        }
+        logger?.debug(
+            "Ignore stale changed file event, path=${changedFile.file.stdAbsPath}, " +
+                "lastModified=${currentSnapshot.formattedLastModified()}"
+        )
+        return true
+    }
+
+    private fun markNeedsCompile(changedFile: ChangedFile) {
+        uncompiledFiles[changedFile.file.stdPath] = changedFile
+        compiledFiles.remove(changedFile.file.stdPath)
+        removeHandledSnapshot(changedFile.file)
+    }
+
+    private fun markHandled(file: File) {
+        handledFileSnapshots[file.stdAbsPath] = FileSnapshot.from(file)
+    }
+
+    private fun removeHandledSnapshot(file: File) {
+        handledFileSnapshots.remove(file.stdAbsPath)
+    }
+
+    private fun removeHandledSnapshots(file: File) {
+        val path = file.stdAbsPath
+        handledFileSnapshots.keys.removeIf {
+            it == path || it.startsWith("$path/")
+        }
+    }
+
+    private data class FileSnapshot(
+        val lastModified: Long,
+        val length: Long,
+    ) {
+        fun formattedLastModified(): String {
+            return SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(Date(lastModified))
+        }
+
+        companion object {
+            fun from(file: File): FileSnapshot {
+                return FileSnapshot(
+                    lastModified = file.lastModified(),
+                    length = file.length(),
+                )
+            }
+        }
     }
 }

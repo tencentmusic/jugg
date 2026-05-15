@@ -38,7 +38,7 @@ class DeployFileManager(
     private val isConstRefTasksEnabled: Boolean
         get() = JuggSettings.isEnableConstRefTasks
 
-    private val stateTracker = DeployFileStateTracker()
+    private val stateTracker = DeployFileStateTracker(logger.getInstance("DeployFileStateTracker"))
 
     /**
      * get source file by source file name in dex file
