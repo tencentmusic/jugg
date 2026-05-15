@@ -106,6 +106,7 @@ def benchmark_lines(mode: str) -> list[str]:
             "- 允许按 case 要求修改隔离的 hook 触发文件；需要触发 Jugg pending changes 的源码触发文件必须放在 `app/src/main/java/com/example/myapplication/`。",
             "- 不要修改现有业务文件；非 sourceset 误阻断验证按 case 要求使用 `hook_benchmark_scratch/`。",
             "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
+            "- 例外：hook 反馈原文中由客户端输出的绝对脚本路径可原样保留，用于证明 Agent 实际看到了 hook 反馈。",
             "- 本 benchmark 用于验证 hooks 是否正确配置；预期阻断的 case 如 hook 未触发或收不到反馈时记 `FAIL`，不要记 `SKIP`。",
             "- 结果写入同目录 `report.md`。",
         ]
@@ -178,9 +179,7 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
         if mode == "hooks"
         else "- 只允许修改 `report.md`。"
     )
-    skipped_summary = (
-        "Skipped: 0（hooks benchmark 不使用 SKIP）" if mode == "hooks" else "Skipped: Z"
-    )
+    skipped_summary = "" if mode == "hooks" else "Skipped: Z"
     return f"""# {title}
 
 这是被测 Agent 可见的 prompt-only 题目包。本文件是执行说明，不是待补全文档。
@@ -300,9 +299,7 @@ def render_prompt(title: str, case_count: int, mode: str) -> str:
 def render_report(title: str, cases: list[Case], mode: str) -> str:
     command_label = sequence_label(mode)
     verdicts = verdict_label(mode)
-    skipped_summary = (
-        "Skipped: 0（hooks benchmark 不使用 SKIP）" if mode == "hooks" else "Skipped: Z"
-    )
+    skipped_summary = "" if mode == "hooks" else "Skipped: Z"
     lines = [
         f"# {title} Report",
         "",

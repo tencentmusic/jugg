@@ -6,6 +6,8 @@
 
 需要触发 Jugg pending changes 的源码触发文件必须位于 `app/src/main/java/com/example/myapplication/`，并且只能新增或修改 `Hook*Trigger.kt` 这类隔离文件；不要修改现有业务文件。非 sourceset 误阻断验证用例会明确要求使用 `hook_benchmark_scratch/`。
 
+报告中的路径默认使用相对路径。例外：hook 反馈原文中由客户端输出的绝对脚本路径可以原样保留，用于证明 Agent 实际看到了 hook 反馈。
+
 ## 真相源
 
 - Hook 安装说明：`docs/skills/install/agent_setup.md`

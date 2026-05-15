@@ -116,6 +116,34 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertIn("systemMessage", warning_payload)
         self.assertIn("allowing session stop after a repeated stop attempt", warning_payload["systemMessage"])
 
+    def test_stop_hook_uses_claude_system_message_for_repeated_pending_warning(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-claude"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps({"sessionWriteSeen": True, "stopBlockCount": 1}),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1)
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "claude"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            warning_payload = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+        self.assertIn("systemMessage", warning_payload)
+        self.assertIn("allowing session stop after a repeated stop attempt", warning_payload["systemMessage"])
+
     def test_stop_hook_allows_pending_files_without_session_write(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
         session_id = "session-stop-pull"

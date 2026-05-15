@@ -359,6 +359,56 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertIn("systemMessage", warning_payload)
         self.assertIn("Allowing this repeated command attempt", warning_payload["systemMessage"])
 
+    def test_command_hook_uses_claude_system_message_for_repeated_raw_gradle_warning(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-claude-warning"
+        files = ["app/src/main/java/com/example/myapplication/HookClaude.kt"]
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        "gradleBlockCount": 1,
+                        "gradleBlockedFingerprint": "old",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1, files=files, enabled_android_test=True)
+            blocked = subprocess.run(
+                [sys.executable, str(script), "--client", "claude"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            allowed = subprocess.run(
+                [sys.executable, str(script), "--client", "claude"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            warning_payload = json.loads(allowed.stdout)
+
+        self.assertEqual(2, blocked.returncode)
+        self.assertIn("Do not verify with raw Gradle here", blocked.stderr)
+        self.assertEqual(0, allowed.returncode)
+        self.assertEqual("", allowed.stderr)
+        self.assertIn("systemMessage", warning_payload)
+        self.assertIn("Allowing this repeated command attempt", warning_payload["systemMessage"])
+
     def test_command_hook_allows_pending_files_without_session_write(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
         session_id = "session-pull-1"

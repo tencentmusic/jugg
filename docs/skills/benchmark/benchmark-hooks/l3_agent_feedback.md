@@ -9,6 +9,7 @@
 - 不修改 hook 源码，不启动 Android Studio。
 - 不修改真实业务代码；只允许修改本文件指定的隔离触发文件和 prompt pack 同目录 `report.md`。
 - 需要触发 Jugg pending changes 的源码触发文件，必须放在 `app/src/main/java/com/example/myapplication/` 下，且只能使用新增/修改 `Hook*Trigger.kt` 这类隔离文件，不要改现有业务文件。
+- 报告中的路径默认使用相对路径；hook 反馈原文中由客户端输出的绝对脚本路径可以原样保留。
 - command/stop hook 未触发、看不到对应反馈、或反馈原文无法写入报告时，判定为 `FAIL`，不要判定为 `SKIP`。
 - stop hook 必须通过 Agent 结束会话动作触发；不要使用 `jugg stop`，它不是 Jugg CLI 子命令。
 

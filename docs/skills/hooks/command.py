@@ -42,6 +42,7 @@ GRADLE_RETRY_WARNING = (
     "Warning: raw Gradle verification is still not the Jugg dev loop. "
     "Allowing this repeated command attempt, but final verification should use Jugg CLI."
 )
+SYSTEM_MESSAGE_CLIENTS = {"codex", "claude"}
 RAW_GRADLE_PATTERN = re.compile(r"(^|[\s;&|()])(?:\./)?gradlew?(?:\s|$)")
 SHELL_SOURCE_PATH_PATTERN = (
     r"(?:[^\s'\"<>|;&]+/)?app/src/main/java/com/example/myapplication/[^\s'\"<>|;&]+(?:\.java|\.kt)"
@@ -156,8 +157,12 @@ def emit_codex_deny(message: str) -> None:
     )
 
 
-def emit_codex_system_message(message: str) -> None:
+def emit_system_message(message: str) -> None:
     print(json.dumps({"systemMessage": message}, ensure_ascii=False))
+
+
+def uses_system_message(client: str) -> bool:
+    return client in SYSTEM_MESSAGE_CLIENTS
 
 
 def _parse_args() -> Any:
@@ -247,9 +252,9 @@ def main() -> int:
         debug_log("JUGG-COMMAND", "exit: blocked raw gradle command")
         return 2
 
-    if args.client == "codex":
-        emit_codex_system_message(GRADLE_RETRY_WARNING)
-        debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command with codex systemMessage")
+    if uses_system_message(args.client):
+        emit_system_message(GRADLE_RETRY_WARNING)
+        debug_log("JUGG-COMMAND", f"exit: allow repeated raw gradle command with {args.client} systemMessage")
         return 0
     sys.stderr.write(f"{GRADLE_RETRY_WARNING}\n")
     debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command")
