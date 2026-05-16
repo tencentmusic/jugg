@@ -3,7 +3,9 @@ package com.sickworm.intellij.jugg.deploy
 import org.junit.Test
 import java.io.IOException
 import java.io.InterruptedIOException
+import java.nio.file.Files
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class IdeaDeviceAdbTest {
@@ -81,5 +83,21 @@ class IdeaDeviceAdbTest {
         val exception = IOException("device offline")
 
         assertFalse(isExpectedStreamingStop(exception) { false })
+    }
+
+    @Test
+    fun `adb cli fallback times out instead of blocking forever`() {
+        val adbScript = Files.createTempFile("jugg-fake-adb", ".sh").toFile()
+        adbScript.writeText("#!/bin/sh\nsleep 5\n")
+        adbScript.setExecutable(true)
+
+        assertFailsWith<IOException> {
+            AdbCliShellExecutor.exec(
+                adbBin = adbScript.absolutePath,
+                serial = "emulator-5554",
+                cmd = "am force-stop com.example.myapplication",
+                timeoutMillis = 10,
+            )
+        }
     }
 }

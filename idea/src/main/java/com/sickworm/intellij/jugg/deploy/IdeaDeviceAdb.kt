@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.getInstance
 import java.io.File
+import java.io.IOException
 import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
 
@@ -185,19 +186,7 @@ class IdeaDeviceAdb(
 
     private fun execAdbShellCmdByCli(cmd: String): String {
         val adbBin = AdbCmdHelper.findAdbExecutablePath()
-        val process = Runtime.getRuntime().exec(arrayOf(adbBin, "-s", serial, "shell", cmd))
-        val normalOutput = String(process.inputStream.readAllBytes())
-        val errorOutput = String(process.errorStream.readAllBytes())
-        process.waitFor()
-        val merged = buildString {
-            append(normalOutput)
-            if (errorOutput.isNotEmpty()) {
-                if (normalOutput.isNotEmpty()) {
-                    append("\n")
-                }
-                append(errorOutput)
-            }
-        }.trim()
+        val merged = AdbCliShellExecutor.exec(adbBin, serial, cmd)
         logger.debug("adb(cli) out: $merged")
         if (AdbTransientOffline.isOfflineMessage(merged)) {
             throw AdbTransientOfflineException("ADB device offline during adb cli shell $cmd: $merged")
@@ -339,4 +328,48 @@ private fun Throwable.causeChain(): Sequence<Throwable> = sequence {
 
 fun AdbCmdHelper(device: IDevice, logger: Logger): AdbCmdHelper {
     return AdbCmdHelper(IdeaDeviceAdb(device, logger), logger)
+}
+
+/**
+ * Executes adb shell through the adb binary with a hard timeout for fallback paths.
+ */
+internal object AdbCliShellExecutor {
+    private const val DEFAULT_TIMEOUT_MILLIS = 10_000L
+
+    fun exec(
+        adbBin: String,
+        serial: String,
+        cmd: String,
+        timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
+    ): String {
+        val process = Runtime.getRuntime().exec(arrayOf(adbBin, "-s", serial, "shell", cmd))
+        val completed = try {
+            process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            process.destroyForcibly()
+            Thread.currentThread().interrupt()
+            throw IOException("adb cli shell interrupted: adb -s $serial shell $cmd", e)
+        }
+        if (!completed) {
+            process.destroyForcibly()
+            process.waitFor(1, TimeUnit.SECONDS)
+            throw IOException("adb cli shell timed out after ${timeoutMillis}ms: adb -s $serial shell $cmd")
+        }
+
+        val normalOutput = String(process.inputStream.readAllBytes())
+        val errorOutput = String(process.errorStream.readAllBytes())
+        return mergeOutput(normalOutput, errorOutput)
+    }
+
+    private fun mergeOutput(normalOutput: String, errorOutput: String): String {
+        return buildString {
+            append(normalOutput)
+            if (errorOutput.isNotEmpty()) {
+                if (normalOutput.isNotEmpty()) {
+                    append("\n")
+                }
+                append(errorOutput)
+            }
+        }.trim()
+    }
 }
