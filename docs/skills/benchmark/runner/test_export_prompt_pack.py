@@ -49,6 +49,8 @@ class ExportPromptPackTest(unittest.TestCase):
             self.assertNotIn("Skipped:", report)
             self.assertIn("hook 反馈原文", readme)
             self.assertIn("绝对脚本路径", readme)
+            self.assertIn("HOOKS-SOURCE", cases)
+            self.assertIn("HookSourceTrigger.kt", cases)
             self.assertIn("HOOKS-NONSOURCE", cases)
             self.assertIn("HookShellTrigger.kt", cases)
             self.assertIn("不要执行任何命令、文件编辑", cases)

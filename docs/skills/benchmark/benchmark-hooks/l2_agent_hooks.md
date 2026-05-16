@@ -10,6 +10,7 @@
 | HOOK-2 | 本会话写入后仍有 Jugg pending changes 时直接调用 raw Gradle，command hook 第一次硬阻断，第二次放行并给 warning |
 | HOOK-3 | `jugg gradle-build` 不被 raw Gradle hook 误拦截 |
 | HOOK-4 | 修改不在 Android sourceset 内的隔离文件后，raw Gradle 不应被 command hook 阻断 |
+| HOOK-5 | 修改 Android sourceset 内的隔离文件后，raw Gradle 应被 command hook 阻断 |
 
 ## 执行规则
 
@@ -34,6 +35,16 @@ Prompt：请验证 Jugg agent hooks 是否已正确配置并能被你的真实 A
 5. 再执行一次 `jugg gradle-build`，记录它是否被 raw Gradle hook 误拦截。
 6. 将结果写入 prompt pack 同目录 `report.md`，必须包含反馈原文；不要只写总结。
 
+## HOOKS-SOURCE: sourceset 文件应触发 raw Gradle 阻断
+
+Prompt：请验证修改 Android sourceset 内的隔离文件时，command hook 会阻断 raw Gradle。不要读取或调用 hook 脚本，不要启动 Android Studio，不要修改真实业务代码。按下面步骤执行，并把你实际看到的 hook 反馈原文写入报告：
+
+1. 在当前 CWD 执行一次 `jugg gradle-build` 作为 hook 状态基线；记录命令是否执行成功。如果命令失败，继续后续步骤，但在报告中保留失败输出摘要。
+2. 使用你的文件编辑能力创建或修改 Android sourceset 内的隔离源码触发文件 `app/src/main/java/com/example/myapplication/HookSourceTrigger.kt`。文件内容必须使用 `package com.example.myapplication` 并保持可编译。不要用 shell 脚本、`python`、`sed`、`cat > file` 或直接调用 hook 脚本代替。
+3. 使用命令执行能力执行一次 raw Gradle 命令：`./gradlew :app:assembleDebug`。
+4. 记录 raw Gradle 命令后你实际收到的 command hook 反馈原文、退出码和是否被阻断。
+5. 将结果写入 prompt pack 同目录 `report.md`，必须包含反馈原文；不要只写总结。
+
 ## HOOKS-NONSOURCE: 非 sourceset 文件不应触发 raw Gradle 阻断
 
 Prompt：请验证修改不在 Android sourceset 内的隔离文件时，command hook 不会误阻断 raw Gradle。不要读取或调用 hook 脚本，不要启动 Android Studio，不要修改真实业务代码。按下面步骤执行，并把你实际看到的结果写入报告：
@@ -50,4 +61,5 @@ Prompt：请验证修改不在 Android sourceset 内的隔离文件时，command
 - `HOOK-2` PASS：第一次 raw Gradle 反馈原文包含 `Do not verify with raw Gradle here`，第二次 raw Gradle 反馈原文包含 `Allowing this repeated command attempt`。
 - `HOOK-3` PASS：`jugg gradle-build` 未被 raw Gradle hook 阻断。
 - `HOOK-4` PASS：修改 `hook_benchmark_scratch/` 下非 sourceset 文件后，两次 raw Gradle 均未被 command hook 阻断；报告明确记录未收到阻断/ warning 反馈。
+- `HOOK-5` PASS：修改 `app/src/main/java/com/example/myapplication/HookSourceTrigger.kt` 后，raw Gradle 反馈原文包含 `Do not verify with raw Gradle here`，并体现阻断。
 - 任一 hook 没有被真实 Agent 动作触发，或预期阻断 case 报告缺少 command hook 反馈原文，对应项为 `FAIL`。
