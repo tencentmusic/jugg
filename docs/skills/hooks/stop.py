@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
     debug_log,
+    emit_cursor_empty_response,
+    emit_cursor_followup_response,
     extract_file_counts,
     extract_modified_file_names,
     extract_session_id,
@@ -22,6 +24,7 @@ from hook_common import (
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
+    remember_project_cwd,
     session_write_needs_verification,
     state_file_path,
     write_hook_state,
@@ -62,12 +65,18 @@ def main() -> int:
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
+    project_cwd = cwd
+    if args.client == "cursor":
+        project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+        if project_cwd_changed:
+            write_hook_state(state_file, state)
     try:
         block_count = int(state.get("stopBlockCount", 0) or 0)
     except (TypeError, ValueError):
         block_count = 0
 
-    structured = read_status_snapshot(home, cwd, timeout_seconds=10)
+    debug_log("JUGG-STOP", f"resolved projectCwd={project_cwd}")
+    structured = read_status_snapshot(home, project_cwd, timeout_seconds=10)
     if structured is None:
         debug_log("JUGG-STOP", "exit: project is not available to jugg")
         return 0
@@ -110,16 +119,22 @@ def main() -> int:
         if status_summary:
             details.append(status_summary)
         suffix = "\n".join(details)
-        if suffix:
-            sys.stderr.write(f"{STOP_BLOCK_MESSAGE}\n{suffix}\n")
-        else:
-            sys.stderr.write(f"{STOP_BLOCK_MESSAGE}\n")
+        block_message = f"{STOP_BLOCK_MESSAGE}\n{suffix}" if suffix else STOP_BLOCK_MESSAGE
+        if args.client == "cursor":
+            emit_cursor_followup_response(block_message)
+            debug_log("JUGG-STOP", "exit: blocked stop with cursor followup")
+            return 0
+        sys.stderr.write(f"{block_message}\n")
         debug_log("JUGG-STOP", "exit: blocked stop because pending changes exist")
         return 2
 
     if uses_system_message(args.client):
         emit_system_message(STOP_BLOCK_RETRY_WARNING)
         debug_log("JUGG-STOP", f"exit: allow stop after repeated block with {args.client} systemMessage")
+        return 0
+    if args.client == "cursor":
+        emit_cursor_empty_response(args.client)
+        debug_log("JUGG-STOP", "exit: allow repeated cursor stop without followup")
         return 0
     sys.stderr.write(f"{STOP_BLOCK_RETRY_WARNING}\n")
     debug_log("JUGG-STOP", "exit: allow stop after repeated block while pending changes remain")

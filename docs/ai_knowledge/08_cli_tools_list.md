@@ -83,6 +83,8 @@ tools/export_benchmark_prompt_packs.sh hooks
 - `hooks` L3 用例必须通过被测 Agent 自己的文件编辑、shell 命令、raw Gradle 命令和结束会话动作触发 hooks；不得直接调用 hook 脚本，也不得使用不存在的 `jugg stop` 子命令。
 - prompt pack 内的 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json` 是被测 Agent 可见输入；被测 Agent 只应填写同目录 `report.md`。`hooks` 用例例外允许按 case 要求修改隔离 hook 触发文件：需要触发 pending changes 的源码触发文件必须位于 `app/src/main/java/com/example/myapplication/`，非 sourceset 误阻断验证才使用 `hook_benchmark_scratch/`。
 - 导出的 `report.md` 模板要求每条用例填写 `Score: N / 5`，汇总表包含 `File / Case / Verdict / Score / Notes`；hooks benchmark 不使用 `Skipped:` 汇总行。所有路径证据应写相对路径，但 hook 反馈原文中由客户端输出的绝对脚本路径可以原样保留。
+- Cursor hook 脚本不能假设 hook 进程 CWD 等于项目目录。Cursor 全局 hook 可能在 agent 配置目录执行，`edit` / `command` / `stop` 在 `--client cursor` 时需要优先使用 payload 的 `workspace_roots` / `file_path` / `cwd` 解析真实项目目录，并可用当前 payload 中带 Gradle 根标记的路径纠正会话 state 里历史记录的错误目录，再调用 `jugg status`。其他 agent 继续使用 hook 进程 CWD，不启用该 Cursor 兼容分支。
+- Cursor 的 `beforeShellExecution` 阻断/警告使用结构化 `permission` JSON 返回；`stop` 的首次阻断使用 `followup_message` 返回，重复 stop 不再发 followup，避免把同一次结束动作阻断两次。
 
 ---
 

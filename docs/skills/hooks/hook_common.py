@@ -16,6 +16,7 @@ from typing import Any
 STATE_DIR_NAME = ".state"
 SESSION_WRITE_SEEN_KEY = "sessionWriteSeen"
 LAST_WRITE_TIME_MS_KEY = "lastWriteTimeMs"
+PROJECT_CWD_KEY = "projectCwd"
 JUGG_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEBUG_LOG_ENV = "JUGG_HOOK_DEBUG_LOG"
 DEBUG_PAYLOAD_ENV = "JUGG_HOOK_DEBUG_PAYLOAD"
@@ -35,6 +36,30 @@ SESSION_ID_KEYS = {
     "run_id",
     "runid",
 }
+PROJECT_CWD_KEYS = {
+    "cwd",
+    "pwd",
+    "workingdirectory",
+    "currentworkingdirectory",
+    "workspace",
+    "workspaces",
+    "workspacefolder",
+    "workspacefolders",
+    "workspaceroot",
+    "workspaceroots",
+    "projectdir",
+    "projectdirectory",
+    "rootdir",
+    "rootpath",
+}
+FILE_PATH_KEYS = {
+    "file",
+    "filepath",
+    "filename",
+    "path",
+    "uri",
+}
+PROJECT_ROOT_MARKERS = ("settings.gradle", "settings.gradle.kts", "gradlew")
 
 
 def _is_truthy(value: str) -> bool:
@@ -110,6 +135,100 @@ def collect_strings(value: Any) -> list[str]:
         for child in value:
             values.extend(collect_strings(child))
     return values
+
+
+def _normalized_payload_key(key: str) -> str:
+    return "".join(char for char in key.strip().lower() if char.isalnum())
+
+
+def _path_from_string(value: str, base_cwd: str | None = None) -> Path | None:
+    candidate = value.strip()
+    if not candidate or "\n" in candidate:
+        return None
+    if candidate.startswith("file://"):
+        candidate = candidate[7:]
+    path = Path(candidate).expanduser()
+    if not path.is_absolute():
+        if not base_cwd:
+            return None
+        path = Path(base_cwd).expanduser() / path
+    try:
+        return path.resolve(strict=False)
+    except OSError:
+        return None
+
+
+def _directory_from_path_value(value: str, base_cwd: str | None = None) -> str | None:
+    path = _path_from_string(value, base_cwd)
+    if path is None:
+        return None
+    directory = path if path.is_dir() else path.parent
+    return str(directory.resolve()) if directory.exists() else None
+
+
+def _find_project_root_from_path(value: str, base_cwd: str | None = None) -> str | None:
+    path = _path_from_string(value, base_cwd)
+    if path is None:
+        return None
+    directory = path if path.is_dir() else path.parent
+    if not directory.exists():
+        return None
+    for current in (directory, *directory.parents):
+        if any((current / marker).exists() for marker in PROJECT_ROOT_MARKERS):
+            return str(current.resolve())
+    return None
+
+
+def _collect_keyed_strings(value: Any, keys: set[str]) -> list[str]:
+    values: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            normalized_key = _normalized_payload_key(key)
+            if normalized_key in keys:
+                values.extend(item for item in collect_strings(child) if item.strip())
+                continue
+            values.extend(_collect_keyed_strings(child, keys))
+    elif isinstance(value, list):
+        for child in value:
+            values.extend(_collect_keyed_strings(child, keys))
+    return values
+
+
+def resolve_project_cwd(state: dict[str, Any], payload: dict[str, Any], fallback_cwd: str) -> str:
+    for value in _collect_keyed_strings(payload, PROJECT_CWD_KEYS):
+        project_root = _find_project_root_from_path(value, fallback_cwd)
+        if project_root:
+            return project_root
+
+    for value in _collect_keyed_strings(payload, FILE_PATH_KEYS):
+        project_root = _find_project_root_from_path(value, fallback_cwd)
+        if project_root:
+            return project_root
+
+    stored_cwd = state.get(PROJECT_CWD_KEY)
+    if isinstance(stored_cwd, str):
+        resolved_stored = _directory_from_path_value(stored_cwd)
+        if resolved_stored:
+            return resolved_stored
+
+    for value in _collect_keyed_strings(payload, PROJECT_CWD_KEYS):
+        resolved_cwd = _directory_from_path_value(value, fallback_cwd)
+        if resolved_cwd:
+            return resolved_cwd
+
+    return str(Path(fallback_cwd).resolve())
+
+
+def remember_project_cwd(
+    state: dict[str, Any],
+    payload: dict[str, Any],
+    fallback_cwd: str,
+) -> tuple[str, bool]:
+    project_cwd = resolve_project_cwd(state, payload, fallback_cwd)
+    if state.get(PROJECT_CWD_KEY) == project_cwd:
+        return project_cwd, False
+    state[PROJECT_CWD_KEY] = project_cwd
+    return project_cwd, True
 
 
 def is_android_source_path(value: str) -> bool:
@@ -366,3 +485,15 @@ def read_status_snapshot(
 def emit_cursor_empty_response(client: str) -> None:
     if client == "cursor":
         print("{}")
+
+
+def emit_cursor_permission_response(permission: str, message: str = "") -> None:
+    payload: dict[str, Any] = {"permission": permission}
+    if message:
+        payload["user_message"] = message
+        payload["agent_message"] = message
+    print(json.dumps(payload, ensure_ascii=False))
+
+
+def emit_cursor_followup_response(message: str) -> None:
+    print(json.dumps({"followup_message": message}, ensure_ascii=False))

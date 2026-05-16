@@ -16,15 +16,25 @@ def _write_fake_jugg_cli(
     files: list[str] | None = None,
     last_compile_time: str = "",
     enabled_android_test: bool = False,
+    expected_cwd: str | None = None,
 ) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
     jugg_bin.mkdir(parents=True, exist_ok=True)
     jugg_cli = jugg_bin / "jugg.py"
     files_json = json.dumps(files or [])
     enabled_android_test_python = "True" if enabled_android_test else "False"
+    cwd_assertion = ""
+    if expected_cwd:
+        cwd_assertion = (
+            "import os, sys\n"
+            f"if os.getcwd() != {expected_cwd!r}:\n"
+            "    print('wrong cwd: ' + os.getcwd(), file=sys.stderr)\n"
+            "    sys.exit(7)\n"
+        )
     jugg_cli.write_text(
         "#!/usr/bin/env python3\n"
         "import json\n"
+        f"{cwd_assertion}"
         "payload = {\n"
         "    'status': 'OK',\n"
         "    'data': {\n"
@@ -88,6 +98,95 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertIn("allowing session stop after a repeated stop attempt", second.stderr)
         self.assertEqual(1, state.get("stopBlockCount"))
 
+    def test_stop_hook_uses_state_project_cwd_when_hook_cwd_is_global(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-global-cwd"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(
+                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(project_cwd).resolve())}),
+                    encoding="utf-8",
+                )
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(project_cwd).resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+
+        response = json.loads(result.stdout)
+        self.assertEqual(0, result.returncode)
+        self.assertIn("followup_message", response)
+        self.assertIn("Before stopping", response["followup_message"])
+
+    def test_stop_hook_uses_cursor_workspace_roots_before_stale_state(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-workspace-roots"
+        payload = {
+            "session": {"id": session_id},
+            "workspace_roots": [],
+            "cwd": "",
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            Path(project_cwd, "settings.gradle").write_text("", encoding="utf-8")
+            payload["workspace_roots"] = [project_cwd]
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(
+                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(hook_cwd).resolve())}),
+                    encoding="utf-8",
+                )
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(project_cwd).resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+                state = json.loads(state_file.read_text(encoding="utf-8"))
+
+        response = json.loads(result.stdout)
+        self.assertEqual(0, result.returncode)
+        self.assertIn("followup_message", response)
+        self.assertEqual(str(Path(project_cwd).resolve()), state.get("projectCwd"))
+
+    def test_stop_hook_ignores_state_project_cwd_for_non_cursor_clients(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-non-cursor-cwd"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(
+                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(project_cwd).resolve())}),
+                    encoding="utf-8",
+                )
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(hook_cwd).resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "claude"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("Before stopping", result.stderr)
+
     def test_stop_hook_uses_codex_system_message_for_repeated_pending_warning(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
         session_id = "session-stop-codex"
@@ -143,6 +242,55 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertEqual("", result.stderr)
         self.assertIn("systemMessage", warning_payload)
         self.assertIn("allowing session stop after a repeated stop attempt", warning_payload["systemMessage"])
+
+    def test_stop_hook_uses_cursor_followup_for_first_block(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-cursor"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+            _write_fake_jugg_cli(home, total=1, files=["/repo/app/src/main/java/com/example/HookStop.kt"])
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            response = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+        self.assertIn("followup_message", response)
+        self.assertIn("Before stopping", response["followup_message"])
+        self.assertIn("HookStop.kt", response["followup_message"])
+
+    def test_stop_hook_silently_allows_repeated_cursor_stop(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-cursor-repeat"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True, "stopBlockCount": 1}), encoding="utf-8")
+            _write_fake_jugg_cli(home, total=1)
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("{}", result.stdout.strip())
+        self.assertEqual("", result.stderr)
 
     def test_stop_hook_allows_pending_files_without_session_write(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"

@@ -18,6 +18,7 @@ from hook_common import (
     payload_debug_suffix,
     read_hook_state,
     read_json_payload,
+    remember_project_cwd,
     state_file_path,
     write_hook_state,
 )
@@ -38,9 +39,16 @@ def main() -> int:
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
+    project_cwd = cwd
+    if args.client == "cursor":
+        project_cwd, _ = remember_project_cwd(state, payload, cwd)
     mark_session_write_seen(state)
     write_hook_state(state_file, state)
-    debug_log("JUGG-EDIT", f"hook triggered cwd={cwd} client={args.client}{payload_suffix}; session write recorded")
+    debug_log(
+        "JUGG-EDIT",
+        f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
+        "session write recorded",
+    )
     emit_cursor_empty_response(args.client)
     return 0
 

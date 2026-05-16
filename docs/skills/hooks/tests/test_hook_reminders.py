@@ -27,15 +27,25 @@ def _write_fake_jugg_cli(
     files: list[str] | None = None,
     last_compile_time: str = "",
     enabled_android_test: bool = False,
+    expected_cwd: str | None = None,
 ) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
     jugg_bin.mkdir(parents=True, exist_ok=True)
     jugg_cli = jugg_bin / "jugg.py"
     files_json = json.dumps(files or [])
     enabled_android_test_python = "True" if enabled_android_test else "False"
+    cwd_assertion = ""
+    if expected_cwd:
+        cwd_assertion = (
+            "import os, sys\n"
+            f"if os.getcwd() != {expected_cwd!r}:\n"
+            "    print('wrong cwd: ' + os.getcwd(), file=sys.stderr)\n"
+            "    sys.exit(7)\n"
+        )
     jugg_cli.write_text(
         "#!/usr/bin/env python3\n"
         "import json\n"
+        f"{cwd_assertion}"
         "payload = {\n"
         "    'status': 'OK',\n"
         "    'data': {\n"
@@ -160,6 +170,35 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
 
+    def test_edit_hook_records_project_cwd_from_absolute_file_path(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-edit-project-cwd"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            project_path = Path(project_cwd)
+            (project_path / "settings.gradle").write_text("", encoding="utf-8")
+            source_path = project_path / "app/src/main/java/com/example/myapplication/HookEdit.kt"
+            source_path.parent.mkdir(parents=True)
+            source_path.write_text("class HookEdit", encoding="utf-8")
+            payload = {
+                "session": {"id": session_id},
+                "tool_name": "Write",
+                "tool_input": {"path": str(source_path)},
+            }
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+                state = json.loads(_state_file(home, hook_cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual(str(project_path.resolve()), state.get("projectCwd"))
+
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")
         self.assertTrue(mod.is_raw_gradle_command("./gradlew :app:assembleDebug"))
@@ -273,6 +312,240 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertIn("Allowing this repeated command attempt", second.stderr)
         self.assertEqual(1, state.get("gradleBlockCount"))
         self.assertTrue(state.get("gradleBlockedFingerprint"))
+
+    def test_command_hook_uses_cursor_permission_json_for_raw_gradle_block(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-cursor-block"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+            _write_fake_jugg_cli(home, total=1)
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            response = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+        self.assertEqual("deny", response.get("permission"))
+        self.assertIn("Do not verify with raw Gradle here", response.get("agent_message", ""))
+
+    def test_command_hook_uses_cursor_permission_json_for_repeated_warning(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-cursor-warning"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        "gradleBlockCount": 1,
+                        "gradleBlockedFingerprint": "old",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1)
+            first = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            second = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            warning = json.loads(second.stdout)
+
+        self.assertEqual(0, first.returncode)
+        self.assertEqual("deny", json.loads(first.stdout).get("permission"))
+        self.assertEqual(0, second.returncode)
+        self.assertEqual("allow", warning.get("permission"))
+        self.assertIn("Allowing this repeated command attempt", warning.get("agent_message", ""))
+
+    def test_command_hook_uses_state_project_cwd_when_hook_cwd_is_global(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-global-cwd"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(
+                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(project_cwd).resolve())}),
+                    encoding="utf-8",
+                )
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(project_cwd).resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+
+        response = json.loads(result.stdout)
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("deny", response.get("permission"))
+        self.assertIn("Do not verify with raw Gradle here", response.get("agent_message", ""))
+
+    def test_command_hook_uses_cursor_workspace_roots_before_stale_state(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-cursor-workspace-roots"
+        payload = {
+            "session": {"id": session_id},
+            "cwd": "",
+            "workspace_roots": [],
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            Path(project_cwd, "settings.gradle").write_text("", encoding="utf-8")
+            payload["workspace_roots"] = [project_cwd]
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(
+                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(hook_cwd).resolve())}),
+                    encoding="utf-8",
+                )
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(project_cwd).resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+                state = json.loads(state_file.read_text(encoding="utf-8"))
+
+        response = json.loads(result.stdout)
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("deny", response.get("permission"))
+        self.assertEqual(str(Path(project_cwd).resolve()), state.get("projectCwd"))
+
+    def test_command_hook_ignores_state_project_cwd_for_non_cursor_clients(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-non-cursor-cwd"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(
+                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(project_cwd).resolve())}),
+                    encoding="utf-8",
+                )
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(hook_cwd).resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "claude"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("Do not verify with raw Gradle here", result.stderr)
+
+    def test_command_hook_records_project_cwd_from_payload_cwd_for_shell_write(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-shell-project-cwd"
+        payload = {
+            "session": {"id": session_id},
+            "cwd": "",
+            "tool_name": "Bash",
+            "tool_input": {
+                "cwd": "",
+                "command": "cat > app/src/main/java/com/example/myapplication/HookShellTrigger.kt <<'EOF'\nclass HookShellTrigger\nEOF",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            payload["cwd"] = project_cwd
+            payload["tool_input"]["cwd"] = project_cwd
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+                state = json.loads(_state_file(home, hook_cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual(str(Path(project_cwd).resolve()), state.get("projectCwd"))
+
+    def test_command_hook_does_not_record_project_cwd_from_payload_for_non_cursor_clients(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-shell-non-cursor"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            payload = {
+                "session": {"id": session_id},
+                "cwd": project_cwd,
+                "tool_name": "Bash",
+                "tool_input": {
+                    "cwd": project_cwd,
+                    "command": "cat > app/src/main/java/com/example/myapplication/HookShellTrigger.kt <<'EOF'\nclass HookShellTrigger\nEOF",
+                },
+            }
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "claude"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env={**os.environ, "HOME": home},
+                    check=False,
+                )
+                state = json.loads(_state_file(home, hook_cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertNotIn("projectCwd", state)
 
     def test_command_hook_blocks_again_when_pending_fingerprint_changes(self):
         script = Path(__file__).resolve().parent.parent / "command.py"

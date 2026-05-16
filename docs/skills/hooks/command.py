@@ -18,6 +18,7 @@ from hook_common import (
     collect_strings,
     debug_log,
     emit_cursor_empty_response,
+    emit_cursor_permission_response,
     extract_file_counts,
     extract_session_id,
     format_status_summary,
@@ -28,6 +29,7 @@ from hook_common import (
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
+    remember_project_cwd,
     session_write_needs_verification,
     state_file_path,
     write_hook_state,
@@ -180,18 +182,26 @@ def main() -> int:
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
+    project_cwd = cwd
+    project_cwd_changed = False
+    if args.client == "cursor":
+        project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
     shell_commands = _collect_shell_command_texts(payload)
     commands = collect_command_strings(payload)
     debug_log(
         "JUGG-COMMAND",
-        f"hook triggered cwd={cwd} client={args.client}{payload_suffix} commands={commands!r}",
+        f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix} "
+        f"commands={commands!r}",
     )
     for shell_command in shell_commands:
         debug_log("JUGG-COMMAND", f"shellCommand={_single_line_command(shell_command)!r}")
+    state_dirty = project_cwd_changed and bool(shell_commands or commands or has_session_write_seen(state))
     if any(is_low_risk_shell_source_write(command) for command in shell_commands):
         mark_session_write_seen(state)
-        write_hook_state(state_file, state)
+        state_dirty = True
         debug_log("JUGG-COMMAND", "recorded session write from shell source write command")
+    if state_dirty:
+        write_hook_state(state_file, state)
 
     if not commands:
         emit_cursor_empty_response(args.client)
@@ -202,7 +212,7 @@ def main() -> int:
         emit_cursor_empty_response(args.client)
         return 0
 
-    structured = read_status_snapshot(home, cwd)
+    structured = read_status_snapshot(home, project_cwd)
     if structured is None:
         debug_log("JUGG-COMMAND", "exit: project is not available to jugg")
         emit_cursor_empty_response(args.client)
@@ -248,6 +258,10 @@ def main() -> int:
             emit_codex_deny(block_message)
             debug_log("JUGG-COMMAND", "exit: blocked raw gradle command with codex deny")
             return 0
+        if args.client == "cursor":
+            emit_cursor_permission_response("deny", block_message)
+            debug_log("JUGG-COMMAND", "exit: blocked raw gradle command with cursor deny")
+            return 0
         sys.stderr.write(f"{block_message}\n")
         debug_log("JUGG-COMMAND", "exit: blocked raw gradle command")
         return 2
@@ -255,6 +269,10 @@ def main() -> int:
     if uses_system_message(args.client):
         emit_system_message(GRADLE_RETRY_WARNING)
         debug_log("JUGG-COMMAND", f"exit: allow repeated raw gradle command with {args.client} systemMessage")
+        return 0
+    if args.client == "cursor":
+        emit_cursor_permission_response("allow", GRADLE_RETRY_WARNING)
+        debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command with cursor warning")
         return 0
     sys.stderr.write(f"{GRADLE_RETRY_WARNING}\n")
     debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command")
