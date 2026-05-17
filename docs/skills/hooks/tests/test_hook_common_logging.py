@@ -78,11 +78,11 @@ class HookCommonLoggingTest(unittest.TestCase):
         self.assertEqual(str(Path(project_cwd).resolve()), resolved)
         self.assertFalse(changed)
 
-    def test_remember_project_cwd_uses_workspace_roots_before_stale_state(self):
+    def test_remember_project_cwd_uses_workspace_roots_without_state(self):
         mod = _load_hook_common()
         with tempfile.TemporaryDirectory() as project_cwd, tempfile.TemporaryDirectory() as hook_cwd:
             (Path(project_cwd) / "settings.gradle").write_text("", encoding="utf-8")
-            state = {"projectCwd": str(Path(hook_cwd).resolve())}
+            state = {}
             payload = {"workspace_roots": [project_cwd], "cwd": ""}
 
             resolved, changed = mod.remember_project_cwd(state, payload, hook_cwd)
@@ -91,7 +91,7 @@ class HookCommonLoggingTest(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(str(Path(project_cwd).resolve()), state.get("projectCwd"))
 
-    def test_remember_project_cwd_uses_file_path_before_stale_state(self):
+    def test_remember_project_cwd_uses_file_path_without_state(self):
         mod = _load_hook_common()
         with tempfile.TemporaryDirectory() as project_cwd, tempfile.TemporaryDirectory() as hook_cwd:
             project_path = Path(project_cwd)
@@ -99,7 +99,7 @@ class HookCommonLoggingTest(unittest.TestCase):
             source_path = project_path / "app/src/main/java/com/example/myapplication/HookEdit.kt"
             source_path.parent.mkdir(parents=True)
             source_path.write_text("class HookEdit", encoding="utf-8")
-            state = {"projectCwd": str(Path(hook_cwd).resolve())}
+            state = {}
             payload = {"file_path": str(source_path)}
 
             resolved, changed = mod.remember_project_cwd(state, payload, hook_cwd)

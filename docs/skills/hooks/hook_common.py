@@ -195,6 +195,12 @@ def _collect_keyed_strings(value: Any, keys: set[str]) -> list[str]:
 
 
 def resolve_project_cwd(state: dict[str, Any], payload: dict[str, Any], fallback_cwd: str) -> str:
+    stored_cwd = state.get(PROJECT_CWD_KEY)
+    if isinstance(stored_cwd, str):
+        resolved_stored = _directory_from_path_value(stored_cwd)
+        if resolved_stored:
+            return resolved_stored
+
     for value in _collect_keyed_strings(payload, PROJECT_CWD_KEYS):
         project_root = _find_project_root_from_path(value, fallback_cwd)
         if project_root:
@@ -204,12 +210,6 @@ def resolve_project_cwd(state: dict[str, Any], payload: dict[str, Any], fallback
         project_root = _find_project_root_from_path(value, fallback_cwd)
         if project_root:
             return project_root
-
-    stored_cwd = state.get(PROJECT_CWD_KEY)
-    if isinstance(stored_cwd, str):
-        resolved_stored = _directory_from_path_value(stored_cwd)
-        if resolved_stored:
-            return resolved_stored
 
     for value in _collect_keyed_strings(payload, PROJECT_CWD_KEYS):
         resolved_cwd = _directory_from_path_value(value, fallback_cwd)

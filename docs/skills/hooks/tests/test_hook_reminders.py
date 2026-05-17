@@ -422,7 +422,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual("deny", response.get("permission"))
         self.assertIn("Do not verify with raw Gradle here", response.get("agent_message", ""))
 
-    def test_command_hook_uses_cursor_workspace_roots_before_stale_state(self):
+    def test_command_hook_uses_cursor_workspace_roots_when_project_cwd_is_absent(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
         session_id = "session-cursor-workspace-roots"
         payload = {
@@ -438,10 +438,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as hook_cwd:
                 state_file = _state_file(home, hook_cwd, session_id)
                 state_file.parent.mkdir(parents=True, exist_ok=True)
-                state_file.write_text(
-                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(hook_cwd).resolve())}),
-                    encoding="utf-8",
-                )
+                state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
                 _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(project_cwd).resolve()))
                 result = subprocess.run(
                     [sys.executable, str(script), "--client", "cursor"],

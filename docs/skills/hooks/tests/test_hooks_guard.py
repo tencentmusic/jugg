@@ -126,7 +126,7 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertIn("followup_message", response)
         self.assertIn("Before stopping", response["followup_message"])
 
-    def test_stop_hook_uses_cursor_workspace_roots_before_stale_state(self):
+    def test_stop_hook_uses_cursor_workspace_roots_when_project_cwd_is_absent(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
         session_id = "session-stop-workspace-roots"
         payload = {
@@ -140,10 +140,7 @@ class StopHookGuardTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as hook_cwd:
                 state_file = _state_file(home, hook_cwd, session_id)
                 state_file.parent.mkdir(parents=True, exist_ok=True)
-                state_file.write_text(
-                    json.dumps({"sessionWriteSeen": True, "projectCwd": str(Path(hook_cwd).resolve())}),
-                    encoding="utf-8",
-                )
+                state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
                 _write_fake_jugg_cli(home, total=1, expected_cwd=str(Path(project_cwd).resolve()))
                 result = subprocess.run(
                     [sys.executable, str(script), "--client", "cursor"],
