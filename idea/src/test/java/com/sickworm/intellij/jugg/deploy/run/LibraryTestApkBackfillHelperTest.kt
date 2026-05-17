@@ -8,6 +8,8 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestTargetResolveException
+import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlan
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -16,6 +18,7 @@ import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -43,11 +46,15 @@ class LibraryTestApkBackfillHelperTest {
         val uiHandler = RecordingUiHandler()
         var backfilledApks = emptyList<ApkInfo>()
         var installedApks = emptyList<ApkInfo>()
+        val buildRecords = mutableListOf<String>()
         val helperContext = createHelper(
             projectDir = projectDir,
             module = module,
             compileClient = compileClient,
             onApksBackfilled = { backfilledApks = it },
+            recordBuildHistory = { recordModule, _, compileCommand, _ ->
+                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:$compileCommand"
+            },
         )
 
         val result = helperContext.helper.backfillIfNeeded(
@@ -64,6 +71,103 @@ class LibraryTestApkBackfillHelperTest {
         assertEquals(result.apks, backfilledApks)
         assertEquals(result.apks, installedApks)
         verify(helperContext.manager).updateApkInfos(result.apks)
+        assertEquals(
+            listOf("library1.androidTest:debugAndroidTest:./gradlew :library1:assembleDebugAndroidTest"),
+            buildRecords,
+        )
+    }
+
+    @Test
+    fun `failed backfill does not record build history`() {
+        val projectDir = temp.newFolder("project")
+        val sourceRoot = File(projectDir, "library1/src/androidTest/kotlin").apply { mkdirs() }
+        val sourceFile = File(sourceRoot, "FooTest.kt").apply { writeText("class FooTest") }
+        val testApkFile = File(projectDir, "library1/build/outputs/apk/androidTest/debug/library1-debug-androidTest.apk")
+        val module = androidTestModule(projectDir, sourceRoot)
+        val compileClient = RecordingCompileClient(testApkFile, succeeds = false)
+        val buildRecords = mutableListOf<String>()
+        val helperContext = createHelper(
+            projectDir = projectDir,
+            module = module,
+            compileClient = compileClient,
+            onApksBackfilled = {},
+            recordBuildHistory = { recordModule, _, compileCommand, _ ->
+                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:$compileCommand"
+            },
+        )
+
+        assertThrows(AndroidTestTargetResolveException::class.java) {
+            helperContext.helper.backfillIfNeeded(
+                spec = AndroidTestRunSpec(null, null, sourcePath = sourceFile.path),
+                data = JuggDeployData.forInstall(emptyList()),
+                uiHandler = RecordingUiHandler(),
+                installBackfilledApks = {},
+            )
+        }
+
+        assertEquals(emptyList<String>(), buildRecords)
+    }
+
+    @Test
+    fun `install callback failure does not record build history`() {
+        val projectDir = temp.newFolder("project")
+        val sourceRoot = File(projectDir, "library1/src/androidTest/kotlin").apply { mkdirs() }
+        val sourceFile = File(sourceRoot, "FooTest.kt").apply { writeText("class FooTest") }
+        val testApkFile = File(projectDir, "library1/build/outputs/apk/androidTest/debug/library1-debug-androidTest.apk")
+        testApkFile.parentFile.mkdirs()
+        testApkFile.writeText("test apk")
+        val module = androidTestModule(projectDir, sourceRoot)
+        val compileClient = RecordingCompileClient(testApkFile)
+        val buildRecords = mutableListOf<String>()
+        val helperContext = createHelper(
+            projectDir = projectDir,
+            module = module,
+            compileClient = compileClient,
+            onApksBackfilled = {},
+            recordBuildHistory = { recordModule, _, compileCommand, _ ->
+                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:$compileCommand"
+            },
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            helperContext.helper.backfillIfNeeded(
+                spec = AndroidTestRunSpec(null, null, sourcePath = sourceFile.path),
+                data = JuggDeployData.forInstall(emptyList()),
+                uiHandler = RecordingUiHandler(),
+                installBackfilledApks = { throw IllegalStateException("install failed") },
+            )
+        }
+
+        assertEquals(emptyList<String>(), buildRecords)
+    }
+
+    @Test
+    fun `build history failure does not fail successful backfill`() {
+        val projectDir = temp.newFolder("project")
+        val sourceRoot = File(projectDir, "library1/src/androidTest/kotlin").apply { mkdirs() }
+        val sourceFile = File(sourceRoot, "FooTest.kt").apply { writeText("class FooTest") }
+        val testApkFile = File(projectDir, "library1/build/outputs/apk/androidTest/debug/library1-debug-androidTest.apk")
+        testApkFile.parentFile.mkdirs()
+        testApkFile.writeText("test apk")
+        val module = androidTestModule(projectDir, sourceRoot)
+        val compileClient = RecordingCompileClient(testApkFile)
+        val helperContext = createHelper(
+            projectDir = projectDir,
+            module = module,
+            compileClient = compileClient,
+            onApksBackfilled = {},
+            recordBuildHistory = { _, _, _, _ -> throw IllegalStateException("history failed") },
+        )
+
+        val result = helperContext.helper.backfillIfNeeded(
+            spec = AndroidTestRunSpec(null, null, sourcePath = sourceFile.path),
+            data = JuggDeployData.forInstall(emptyList()),
+            uiHandler = RecordingUiHandler(),
+            installBackfilledApks = {},
+        )
+
+        assertEquals(listOf("com.example.library1.test"), result.apks.map { it.applicationId })
+        verify(helperContext.manager).updateApkInfos(result.apks)
     }
 
     private fun createHelper(
@@ -71,9 +175,15 @@ class LibraryTestApkBackfillHelperTest {
         module: ModuleInfo,
         compileClient: RecordingCompileClient,
         onApksBackfilled: (List<ApkInfo>) -> Unit,
+        recordBuildHistory: (
+            module: ModuleInfo,
+            plan: LibraryTestApkBackfillPlan,
+            compileCommand: String,
+            apks: List<ApkInfo>,
+        ) -> Unit = { _, _, _, _ -> },
     ): HelperContext {
         return HelperContext().also {
-            it.helper = it.createHelper(projectDir, module, compileClient, onApksBackfilled)
+            it.helper = it.createHelper(projectDir, module, compileClient, onApksBackfilled, recordBuildHistory)
         }
     }
 
@@ -86,6 +196,12 @@ class LibraryTestApkBackfillHelperTest {
             module: ModuleInfo,
             compileClient: RecordingCompileClient,
             onApksBackfilled: (List<ApkInfo>) -> Unit,
+            recordBuildHistory: (
+                module: ModuleInfo,
+                plan: LibraryTestApkBackfillPlan,
+                compileCommand: String,
+                apks: List<ApkInfo>,
+            ) -> Unit,
         ): LibraryTestApkBackfillHelper {
             val project = mock(Project::class.java)
             whenever(project.basePath).thenReturn(projectDir.path)
@@ -110,6 +226,7 @@ class LibraryTestApkBackfillHelperTest {
                     )
                 },
                 onApksBackfilled = onApksBackfilled,
+                recordBuildHistory = recordBuildHistory,
             )
         }
     }
@@ -136,7 +253,10 @@ class LibraryTestApkBackfillHelperTest {
         )
     }
 
-    private class RecordingCompileClient(private val apkFile: File) : IGradleCompileClient {
+    private class RecordingCompileClient(
+        private val apkFile: File,
+        private val succeeds: Boolean = true,
+    ) : IGradleCompileClient {
         override var terminalOutputListener: IGradleCompileClient.TerminalOutputListener =
             IGradleCompileClient.TerminalOutputListener.DEFAULT
         lateinit var compileCommand: String
@@ -148,6 +268,9 @@ class LibraryTestApkBackfillHelperTest {
         }
 
         override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {
+            if (!succeeds) {
+                return GradleCompileResult.failed(false, "compile failed")
+            }
             return GradleCompileResult.success(listOf(apkFile))
         }
 

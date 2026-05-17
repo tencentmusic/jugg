@@ -12,6 +12,8 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestTargetResolveException
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestTargetResolver
+import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
+import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildRecord
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlan
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlanner
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
@@ -34,6 +36,23 @@ class LibraryTestApkBackfillHelper(
     private val logger: Logger,
     private val apkInfoReader: (List<File>) -> List<ApkInfo> = { ApkInfoReader(logger).createApkInfo(it) },
     private val onApksBackfilled: (List<ApkInfo>) -> Unit,
+    private val recordBuildHistory: (
+        module: ModuleInfo,
+        plan: LibraryTestApkBackfillPlan,
+        compileCommand: String,
+        apks: List<ApkInfo>,
+    ) -> Unit = { module, plan, compileCommand, apks ->
+        LibraryTestApkBuildHistory(pathManager.projectDir, logger = logger).record(
+            LibraryTestApkBuildRecord(
+                moduleName = module.name,
+                buildVariant = module.buildVariant,
+                compileCommand = compileCommand,
+                compiledAt = System.currentTimeMillis(),
+                apkPath = apks.firstOrNull()?.files?.firstOrNull()?.apkFile?.absolutePath.orEmpty(),
+                outputApkPattern = plan.outputApkPattern,
+            )
+        )
+    },
 ) {
 
     fun backfillIfNeeded(
@@ -56,12 +75,13 @@ class LibraryTestApkBackfillHelper(
         }
 
         val plan = LibraryTestApkBackfillPlanner.plan(module)
+        val backfillOptions = createBackfillOptions(plan)
         logger.info("Library Test APK missing, building ${plan.gradleTask}")
         uiHandler.notifyByBalloon("Library Test APK missing. Run Gradle compile once to build the test APK.")
         val result = JuggGradleCompileTask(
             project = project,
             compileClient = compileClientFactory(),
-            juggGradleCompileOptions = createBackfillOptions(plan),
+            juggGradleCompileOptions = backfillOptions,
             uiHandler = uiHandler,
             isOnlyFetchResult = false,
             logger = logger,
@@ -84,6 +104,11 @@ class LibraryTestApkBackfillHelper(
         installBackfilledApks(newApks)
         onApksBackfilled(mergedApks)
         compileContextManager.updateApkInfos(mergedApks)
+        runCatching {
+            recordBuildHistory(module, plan, backfillOptions.compileCommand, newApks)
+        }.onFailure {
+            logger.warn("Failed to record library Test APK build history", it)
+        }
         return data.copy(apks = mergedApks)
     }
 
