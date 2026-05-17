@@ -229,7 +229,7 @@ library-style self-targeting Test APK 是例外：它有自己的 runtime packag
 - 当前 APK 列表中无法解析出该 module 对应的 test APK。
 - `module.applicationId == module.instrumentationTargetPackage`，即 self-targeting / library-style Test APK。
 
-补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，再同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
+补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，并立即把新 package 的 overlay id 合并到 deploy history，避免后续 dry deploy 把新安装的 library Test APK 误判为跨项目状态；随后同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
 
 命中缺失分支时，Jugg 会通过 Run tool window balloon 提示 `Library Test APK missing. Run Gradle compile once to build the test APK.`，让用户知道需要一次 Gradle 编译来生成 Test APK baseline。
 

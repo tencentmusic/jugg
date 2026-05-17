@@ -19,6 +19,28 @@ import org.mockito.Mockito
 class JuggDeployerHelperRecoverTest {
 
     @Test
+    fun `mergeOverlayIds should keep existing package ids when library test apk is backfilled`() {
+        val currentIds = mapOf(
+            "com.example.myapplication" to "base-overlay",
+            "com.example.myapplication.test" to "app-test-overlay",
+        )
+        val backfilledIds = mapOf(
+            "com.example.library1.test" to "library-test-overlay",
+        )
+
+        val result = JuggDeployerHelper.mergeOverlayIds(currentIds, backfilledIds)
+
+        assertEquals(
+            mapOf(
+                "com.example.myapplication" to "base-overlay",
+                "com.example.myapplication.test" to "app-test-overlay",
+                "com.example.library1.test" to "library-test-overlay",
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `tryDryDeploy should skip app launch when app is not installed`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)

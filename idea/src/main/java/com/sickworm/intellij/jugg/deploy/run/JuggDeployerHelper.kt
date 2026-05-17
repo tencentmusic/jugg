@@ -382,6 +382,10 @@ class JuggDeployerHelper(
                         if (!launchResult.success) {
                             throw JuggException.applyChangesFailed(launchResult)
                         }
+                        deployHistoryManager.lastDeployOverlayIds = mergeOverlayIds(
+                            deployHistoryManager.lastDeployOverlayIds,
+                            launchResult.overlayIds,
+                        )
                     },
                 )
 
@@ -899,6 +903,16 @@ class JuggDeployerHelper(
         private const val REDEPLOY_WITH_COMPAT_MESSAGE = "Detect JVMTI compatibility issue, need to fallback to compat deploy."
         private const val APP_NOT_INSTALLED_REINSTALL_TIPS = "App not installed, start reinstalling app..."
         private const val DEPLOY_STATE_NOT_MATCH_REINSTALL_TIPS = "Deploy state not match, start reinstalling app..."
+
+        /**
+         * Merges newly installed APK overlay ids into the existing deploy-state checkpoint.
+         */
+        internal fun mergeOverlayIds(
+            currentIds: Map<String, String>,
+            newIds: Map<String, String>,
+        ): Map<String, String> {
+            return currentIds + newIds
+        }
     }
 }
 
