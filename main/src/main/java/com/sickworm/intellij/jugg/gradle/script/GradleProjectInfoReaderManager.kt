@@ -94,24 +94,41 @@ class GradleProjectInfoReaderManager(
             return
         }
 
+        val requestTasks = rootProject.gradle.startParameter.taskRequests.flatMap { it.args }
+        val requestedTaskSet = requestTasks.toSet()
+        val targetTasks = findTasksByRequests(requestedTaskSet)
+        if (targetTasks.isEmpty()) {
+            println("Jugg: no requested task found for androidTest injection, requested: $requestedTaskSet")
+            return
+        }
+        injectApplicationAndroidTestTasks(requestTasks, targetTasks)
+        readLibraryTestTasks().forEach { taskName ->
+            val libraryTestTask = findTasksByRequests(setOf(taskName)).firstOrNull() ?: run {
+                println("Jugg: library androidTest task $taskName not found")
+                return@forEach
+            }
+            targetTasks.forEach { task ->
+                if (task != libraryTestTask) {
+                    task.dependsOn(libraryTestTask)
+                    println("Jugg: inject ${libraryTestTask.path} before ${task.path}")
+                }
+            }
+        }
+    }
+
+    private fun injectApplicationAndroidTestTasks(
+        requestTasks: List<String>,
+        targetTasks: List<org.gradle.api.Task>,
+    ) {
         rootProject.subprojects.forEach { project ->
             if (!project.plugins.hasPlugin("com.android.application")) {
                 return@forEach
             }
             val variants = readApplicationVariants(project)
-            val requestTasks = project.gradle.startParameter.taskRequests.flatMap { it.args }
             val variantName = guessBuildVariant(project.toStandardModuleName(), variants, requestTasks.toSet(), requestTasks) ?: "debug"
             val testTaskName = "assemble${variantName.camelCompat}AndroidTest"
             val testTask = project.tasks.findByName(testTaskName) ?: run {
                 println("Jugg: androidTest task $testTaskName not found in ${project.path}")
-                return@forEach
-            }
-            val requestedTaskSet = requestTasks.toSet()
-            val targetTasks = rootProject.allprojects.flatMap { candidateProject ->
-                candidateProject.tasks.filter { task -> task.name in requestedTaskSet || task.path in requestedTaskSet }
-            }
-            if (targetTasks.isEmpty()) {
-                println("Jugg: no requested task found for androidTest injection, requested: $requestedTaskSet")
                 return@forEach
             }
             targetTasks.forEach { task ->
@@ -121,6 +138,22 @@ class GradleProjectInfoReaderManager(
                 }
             }
         }
+    }
+
+    private fun findTasksByRequests(requestedTaskSet: Set<String>): List<org.gradle.api.Task> {
+        return rootProject.allprojects.flatMap { candidateProject ->
+            candidateProject.tasks.filter { task -> task.name in requestedTaskSet || task.path in requestedTaskSet }
+        }
+    }
+
+    private fun readLibraryTestTasks(): List<String> {
+        return rootProject.properties[PARAM_LIBRARY_TEST_TASKS]
+            ?.toString()
+            ?.split(";")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.distinct()
+            ?: emptyList()
     }
 
     private fun readApplicationVariants(project: Project): List<Variant> {
@@ -183,6 +216,7 @@ class GradleProjectInfoReaderManager(
         const val PARAM_DIFF_MODE = "jugg.diffMode"
         const val PARAM_INC_DEPLOY_TIMES = "jugg.incDeployTimes"
         const val PARAM_BUILD_TARGET = "jugg.buildTarget"
+        const val PARAM_LIBRARY_TEST_TASKS = "jugg.libraryTestTasks"
         const val BUILD_TARGET_ANDROID_TEST = "ANDROID_TEST"
     }
 }

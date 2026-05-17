@@ -94,6 +94,7 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 
 - 不改写用户 RunConfig 中的 compile command 或 output APK 配置。
 - `BuildTarget.ANDROID_TEST` 通过 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`，并把同 variant 的 `assemble<Variant>AndroidTest` 挂到用户请求的 Gradle task 前执行。
+- 若 `LibraryTestApkBuildHistory` 命中近期 self-targeting library Test APK 记录，Gradle compile 会通过 `-Pjugg.libraryTestTasks=...` 传递历史 task 列表，init script 在同一 `projectsEvaluated` 阶段把这些 library androidTest task 也挂到用户请求的 Gradle task 前执行；`BuildTarget.APP` 不参与该逻辑。
 - Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径派生同 variant 的 `app/build/outputs/apk/androidTest/<variant>/*.apk`。
 - `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
 - Gradle project info 读取阶段会为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。

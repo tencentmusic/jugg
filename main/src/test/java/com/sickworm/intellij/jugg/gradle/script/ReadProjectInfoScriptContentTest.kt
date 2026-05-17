@@ -142,11 +142,15 @@ class ReadProjectInfoScriptContentTest {
         assertNotNull(scriptText)
 
         assertTrue(scriptText.contains("PARAM_BUILD_TARGET = \"jugg.buildTarget\""))
+        assertTrue(scriptText.contains("PARAM_LIBRARY_TEST_TASKS = \"jugg.libraryTestTasks\""))
         assertTrue(scriptText.contains("fun injectAndroidTestTaskIfNeeded()"))
+        assertTrue(scriptText.contains("fun readLibraryTestTasks()"))
         assertTrue(scriptText.contains("gradle.projectsEvaluated"))
         assertTrue(scriptText.contains("assemble${'$'}{variantName.camelCompat}AndroidTest"))
         assertTrue(scriptText.contains("guessBuildVariant(project.toStandardModuleName(), variants, requestTasks.toSet(), requestTasks)"))
         assertTrue(scriptText.contains("task.dependsOn(testTask)"))
+        assertTrue(scriptText.contains("readLibraryTestTasks().forEach"))
+        assertTrue(scriptText.contains("task.dependsOn(libraryTestTask)"))
         assertTrue(scriptText.indexOf("injectAndroidTestTaskIfNeeded()") < scriptText.indexOf("gradle.taskGraph.whenReady"))
     }
 

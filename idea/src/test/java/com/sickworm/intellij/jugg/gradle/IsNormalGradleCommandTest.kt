@@ -3,14 +3,19 @@ package com.sickworm.intellij.jugg.gradle
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
 import com.sickworm.intellij.jugg.mock.TestGlobal
+import org.junit.Before
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class IsNormalGradleCommandTest {
 
+    @Before
+    fun setUp() {
+        TestGlobal.init()
+    }
+
     @Test
     fun test() {
-        TestGlobal.init()
         val testMap = mapOf(
             "./gradlew :app:assembleDebug" to true,
             "./gradlew :app:assembleDebug " to true,
@@ -42,6 +47,39 @@ class IsNormalGradleCommandTest {
 
         assertEquals(true, command.contains("-Pjugg.buildTarget=ANDROID_TEST"), command)
         assertEquals(false, command.contains("assembleDebugAndroidTest"), command)
+    }
+
+    @Test
+    fun androidTestBuildTarget_shouldQuoteLibraryTestTasksProperty() {
+        val command = CompileProjectCommand(
+            "./gradlew :app:customDebugTask",
+            "/root/projects/projectABC",
+            "readProjectInfo.gradle",
+            buildTarget = BuildTarget.ANDROID_TEST,
+            libraryTestApkGradleTasks = listOf(
+                ":library1:assembleDebugAndroidTest",
+                ":library2:assemblePaidDebugAndroidTest",
+            ),
+        ).baseCommand
+
+        assertEquals(
+            true,
+            command.contains("\"-Pjugg.libraryTestTasks=:library1:assembleDebugAndroidTest;:library2:assemblePaidDebugAndroidTest\""),
+            command,
+        )
+    }
+
+    @Test
+    fun appBuildTarget_shouldIgnoreLibraryTestTasksProperty() {
+        val command = CompileProjectCommand(
+            "./gradlew :app:customDebugTask",
+            "/root/projects/projectABC",
+            "readProjectInfo.gradle",
+            buildTarget = BuildTarget.APP,
+            libraryTestApkGradleTasks = listOf(":library1:assembleDebugAndroidTest"),
+        ).baseCommand
+
+        assertEquals(false, command.contains("jugg.libraryTestTasks"), command)
     }
 
 }

@@ -123,6 +123,7 @@ open class CompileProjectCommand(
     private val localProjectPath: String = projectPath,
     private val logger: Logger? = null,
     private val buildTarget: BuildTarget = BuildTarget.APP,
+    private val libraryTestApkGradleTasks: List<String> = emptyList(),
 ) : BaseSshCommand() {
 
     val isNormalGradleCommand: Boolean = isNormalGradleCommand(compileCommand)
@@ -147,6 +148,7 @@ open class CompileProjectCommand(
             suffix += ConfigurationCacheCompatHelper.getDisableArgsIfEnabled(
                 File(localProjectPath), compileCommand, logger)
             suffix += buildTarget.gradlePropertyArgument()
+            suffix += libraryTestTasksGradlePropertyArgument()
             suffix += " $injectParam"
         }
         return@run "$compileCommand$suffix"
@@ -172,6 +174,23 @@ open class CompileProjectCommand(
             BuildTarget.APP -> ""
             BuildTarget.ANDROID_TEST -> " -Pjugg.buildTarget=ANDROID_TEST"
         }
+    }
+
+    private fun libraryTestTasksGradlePropertyArgument(): String {
+        if (buildTarget != BuildTarget.ANDROID_TEST || libraryTestApkGradleTasks.isEmpty()) {
+            return ""
+        }
+        val tasks = libraryTestApkGradleTasks.joinToString(";")
+        return " ${quoteGradleProperty(GradleProjectInfoReaderManager.PARAM_LIBRARY_TEST_TASKS, tasks)}"
+    }
+
+    private fun quoteGradleProperty(name: String, value: String): String {
+        val escapedValue = value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("$", "\\$")
+            .replace("`", "\\`")
+        return "\"-P$name=$escapedValue\""
     }
 
     companion object {

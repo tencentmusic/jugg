@@ -307,6 +307,7 @@ class RemoteGradleCompileClient(
                 localProjectPath = project.basePath,
                 logger = logger,
                 buildTarget = gradleCompileSettings.buildTarget,
+                libraryTestApkGradleTasks = gradleCompileSettings.libraryTestApkGradleTasks,
             )
             val compileProjectResult = invoke(channel, compileProjectCommand)
             if (compileProjectResult != 0) {
