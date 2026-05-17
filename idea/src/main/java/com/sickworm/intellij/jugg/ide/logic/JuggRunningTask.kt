@@ -121,9 +121,7 @@ class JuggRunningTask(
     }
 
     private fun showGreenDotOnRunToolWindow() {
-        if (statusManager.isFirstTimeRun()) {
-            compileUiHandler.ensureRunWindowCreated()
-        }
+        prepareRunToolWindowOnTaskStart(statusManager.isFirstTimeRun(), compileUiHandler)
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.let {
@@ -396,6 +394,12 @@ class JuggRunningTask(
                 toolWindowManager.notifyByBalloon("Run", MessageType.WARNING, text)
             }
         }
+    }
+}
+
+internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiHandler: CompileUiHandler) {
+    if (isFirstTimeRun) {
+        compileUiHandler.ensureRunWindowCreated()
     }
 }
 
