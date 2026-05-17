@@ -247,6 +247,37 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertIn("shellCommand=", log_text)
         self.assertIn("\\n", log_text)
 
+    def test_command_hook_records_shell_source_write_through_variable_redirect(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-shell-var-write"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": (
+                    "out=\"app/src/main/java/com/example/myapplication/HookShellTrigger.kt\"\n"
+                    "cat > \"$out\" <<'EOF'\n"
+                    "class HookShellTrigger\n"
+                    "EOF"
+                )
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
     def test_command_hook_ignores_vcs_commands_for_shell_write_tracking(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
         session_id = "session-vcs"

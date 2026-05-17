@@ -59,6 +59,14 @@ IN_PLACE_WRITE_PATTERN = re.compile(
     + SHELL_SOURCE_PATH_PATTERN
     + r")['\"]?"
 )
+SHELL_VAR_ASSIGN_PATTERN = re.compile(
+    r"(?:^|[\s;&|])(?P<name>[A-Za-z_][A-Za-z0-9_]*)=(?P<quote>['\"]?)"
+    r"(?P<path>"
+    + SHELL_SOURCE_PATH_PATTERN
+    + r")(?P=quote)(?=$|[\s;&|])"
+)
+VAR_REDIRECT_WRITE_PATTERN = re.compile(r"(?:>|>>)\s*['\"]?\$(?P<name>[A-Za-z_][A-Za-z0-9_]*)['\"]?")
+VAR_TEE_WRITE_PATTERN = re.compile(r"\btee(?:\s+-a)?\s+['\"]?\$(?P<name>[A-Za-z_][A-Za-z0-9_]*)['\"]?")
 
 
 def is_raw_gradle_command(command: str) -> bool:
@@ -120,13 +128,32 @@ def _has_cp_or_mv_source_write(command: str) -> bool:
     return False
 
 
+def _shell_source_variables(command: str) -> set[str]:
+    variables: set[str] = set()
+    for match in SHELL_VAR_ASSIGN_PATTERN.finditer(command):
+        if _is_shell_source_path(match.group("path")):
+            variables.add(match.group("name"))
+    return variables
+
+
+def _has_variable_source_write(command: str) -> bool:
+    variables = _shell_source_variables(command)
+    if not variables:
+        return False
+    for pattern in (VAR_REDIRECT_WRITE_PATTERN, VAR_TEE_WRITE_PATTERN):
+        for match in pattern.finditer(command):
+            if match.group("name") in variables:
+                return True
+    return False
+
+
 def is_low_risk_shell_source_write(command: str) -> bool:
     if not command.strip() or VCS_COMMAND_PATTERN.search(command):
         return False
     return any(
         pattern.search(command)
         for pattern in (REDIRECT_WRITE_PATTERN, TEE_WRITE_PATTERN, IN_PLACE_WRITE_PATTERN)
-    ) or _has_cp_or_mv_source_write(command)
+    ) or _has_cp_or_mv_source_write(command) or _has_variable_source_write(command)
 
 
 def pending_fingerprint(structured: dict[str, Any]) -> str:

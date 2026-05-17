@@ -54,7 +54,11 @@ class ExportPromptPackTest(unittest.TestCase):
             self.assertIn("HOOKS-NONSOURCE", cases)
             self.assertIn("HookShellTrigger.kt", cases)
             self.assertIn("不要执行任何命令、文件编辑", cases)
-            self.assertIn("必须保留 pending changes 来观测第二次 stop warning", cases)
+            self.assertIn("Cursor/Gemini", cases)
+            self.assertIn("Codex/Claude", cases)
+            self.assertIn("静默放行", cases)
+            self.assertIn("stop hook 反馈不会出现在 shell/terminal/tool output", cases)
+            self.assertIn("不要因为工具输出里没有 stop 文案就提前判 FAIL", cases)
 
 
 if __name__ == "__main__":

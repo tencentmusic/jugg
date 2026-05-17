@@ -32,7 +32,8 @@ from hook_common import (
 
 STOP_BLOCK_MESSAGE = (
     "Android code changes were detected in this session. "
-    "Before stopping, you must enable the jugg-android-dev-loop skill and complete verification."
+    "Before stopping, you must enable the jugg-android-dev-loop skill and complete verification. "
+    "If you are intentionally running a hook benchmark, record this feedback and retry stop without verification."
 )
 STOP_BLOCK_RETRY_WARNING = (
     "Warning: pending Android changes remain; allowing session stop after a repeated stop attempt. "

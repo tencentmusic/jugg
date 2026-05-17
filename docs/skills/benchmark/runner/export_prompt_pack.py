@@ -108,6 +108,8 @@ def benchmark_lines(mode: str) -> list[str]:
             "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
             "- 例外：hook 反馈原文中由客户端输出的绝对脚本路径可原样保留，用于证明 Agent 实际看到了 hook 反馈。",
             "- 本 benchmark 用于验证 hooks 是否正确配置；预期阻断的 case 如 hook 未触发或收不到反馈时记 `FAIL`，不要记 `SKIP`。",
+            "- stop hook 反馈不会出现在 shell/terminal/tool output 中；必须通过结束会话动作触发，并在客户端返回 followup/新消息后继续写入报告。",
+            "- 二次放行反馈按客户端区分：Codex/Claude 应能看到 warning 原文；Cursor/Gemini 允许静默放行，报告记录第二次动作已放行即可。",
             "- 结果写入同目录 `report.md`。",
         ]
     lines = [
