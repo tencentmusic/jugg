@@ -3,10 +3,13 @@ package com.sickworm.intellij.jugg.ide.bean
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.Variant
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class JuggGradleCompileOptionsTest {
 
@@ -79,5 +82,185 @@ class JuggGradleCompileOptionsTest {
         } finally {
             parentDir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun copy_keepsLibraryTestApkHistoryOptions() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_history").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                libraryTestApkGradleTasks = listOf(":library1:assembleDebugAndroidTest"),
+                libraryTestApkOutputPatterns = listOf("library1/build/outputs/apk/androidTest/debug/*.apk"),
+            )
+
+            val copy = options.copy(compileCommand = "./gradlew :app:assembleDebug")
+
+            assertEquals(listOf(":library1:assembleDebugAndroidTest"), copy.libraryTestApkGradleTasks)
+            assertEquals(
+                listOf("library1/build/outputs/apk/androidTest/debug/*.apk"),
+                copy.libraryTestApkOutputPatterns,
+            )
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun inferLibraryTestApkHistoryBuildVariant_usesRequestedAppTask() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_infer").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir, BuildTarget.ANDROID_TEST).copy(
+                compileCommand = "./gradlew :app:assembleDebug",
+            )
+            val modules = modules(
+                module("app", ModuleInfo.Type.Application, "debug", variants = listOf("debug", "developmentDebug")),
+                module("app.androidTest", buildVariant = "debugAndroidTest", isAndroidTest = true),
+                module("library1.androidTest", buildVariant = "developmentDebugAndroidTest", isAndroidTest = true),
+            )
+
+            assertEquals("debugAndroidTest", inferLibraryTestApkHistoryBuildVariant(options, modules))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun inferLibraryTestApkHistoryBuildVariant_supportsCamelCaseVariantTask() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_infer_camel").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir, BuildTarget.ANDROID_TEST).copy(
+                compileCommand = "./gradlew :app:assembleDevelopmentDebug",
+            )
+            val modules = modules(
+                module("app", ModuleInfo.Type.Application, "debug", variants = listOf("debug", "developmentDebug")),
+                module("app.androidTest", buildVariant = "debugAndroidTest", isAndroidTest = true),
+                module("library1.androidTest", buildVariant = "developmentDebugAndroidTest", isAndroidTest = true),
+            )
+
+            assertEquals("developmentDebugAndroidTest", inferLibraryTestApkHistoryBuildVariant(options, modules))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun inferLibraryTestApkHistoryBuildVariant_returnsNullForAmbiguousFallbackVariants() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_infer_ambiguous").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir, BuildTarget.ANDROID_TEST).copy(
+                compileCommand = "./gradlew assembleDebug",
+            )
+            val modules = modules(
+                module("app.androidTest", buildVariant = "debugAndroidTest", isAndroidTest = true),
+                module("library1.androidTest", buildVariant = "developmentDebugAndroidTest", isAndroidTest = true),
+            )
+
+            assertNull(inferLibraryTestApkHistoryBuildVariant(options, modules))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun inferLibraryTestApkHistoryBuildVariant_supportsRootAssembleTask() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_infer_root").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir, BuildTarget.ANDROID_TEST).copy(
+                compileCommand = "./gradlew assembleDebug --console=plain -Pfoo=bar",
+            )
+            val modules = modules(
+                module("app", ModuleInfo.Type.Application, "debug", variants = listOf("debug", "developmentDebug")),
+                module("app.androidTest", buildVariant = "debugAndroidTest", isAndroidTest = true),
+                module("library1.androidTest", buildVariant = "developmentDebugAndroidTest", isAndroidTest = true),
+            )
+
+            assertEquals("debugAndroidTest", inferLibraryTestApkHistoryBuildVariant(options, modules))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun inferLibraryTestApkHistoryBuildVariant_supportsRootProcessManifestTask() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_infer_manifest").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir, BuildTarget.ANDROID_TEST).copy(
+                compileCommand = "./gradlew processDevelopmentDebugManifest",
+            )
+            val modules = modules(
+                module("app", ModuleInfo.Type.Application, "debug", variants = listOf("debug", "developmentDebug")),
+                module("app.androidTest", buildVariant = "debugAndroidTest", isAndroidTest = true),
+                module("library1.androidTest", buildVariant = "developmentDebugAndroidTest", isAndroidTest = true),
+            )
+
+            assertEquals("developmentDebugAndroidTest", inferLibraryTestApkHistoryBuildVariant(options, modules))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun inferLibraryTestApkHistoryBuildVariant_returnsNullForAmbiguousRootTask() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_infer_root_ambiguous").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir, BuildTarget.ANDROID_TEST).copy(
+                compileCommand = "./gradlew assembleDebug",
+            )
+            val modules = modules(
+                module("app", ModuleInfo.Type.Application, "debug", variants = listOf("debug")),
+                module("demo", ModuleInfo.Type.Application, "debug", variants = listOf("debug")),
+                module("app.androidTest", buildVariant = "debugAndroidTest", isAndroidTest = true),
+            )
+
+            assertNull(inferLibraryTestApkHistoryBuildVariant(options, modules))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun inferLibraryTestApkHistoryBuildVariant_returnsNullForAppTarget() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_infer_app").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir, BuildTarget.APP).copy(
+                compileCommand = "./gradlew :app:assembleDebug",
+            )
+            val modules = modules(
+                module("app", ModuleInfo.Type.Application, "debug", variants = listOf("debug")),
+                module("app.androidTest", buildVariant = "debugAndroidTest", isAndroidTest = true),
+            )
+
+            assertNull(inferLibraryTestApkHistoryBuildVariant(options, modules))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    private fun modules(vararg modules: ModuleInfo): Map<String, ModuleInfo> {
+        return modules.associateBy { it.name }
+    }
+
+    private fun module(
+        name: String,
+        type: ModuleInfo.Type = ModuleInfo.Type.Library,
+        buildVariant: String,
+        variants: List<String> = emptyList(),
+        isAndroidTest: Boolean = false,
+    ): ModuleInfo {
+        return ModuleInfo.virtualModule.copy(
+            name = name,
+            moduleType = type,
+            buildVariant = buildVariant,
+            variants = variants.map { Variant(it, null) },
+            instrumentationTargetPackage = if (isAndroidTest) "com.example.test" else null,
+        )
     }
 }

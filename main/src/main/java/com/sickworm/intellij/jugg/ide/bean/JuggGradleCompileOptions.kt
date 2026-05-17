@@ -2,9 +2,116 @@ package com.sickworm.intellij.jugg.ide.bean
 
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.gradle.script.camelCompat
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
+
+/**
+ * Infers the androidTest build variant used to query recent library Test APK build history.
+ */
+fun inferLibraryTestApkHistoryBuildVariant(
+    options: JuggGradleCompileOptions,
+    modules: Map<String, ModuleInfo>,
+): String? {
+    if (options.buildTarget != BuildTarget.ANDROID_TEST) {
+        return null
+    }
+    val requestedVariant = inferRequestedApplicationAndroidTestVariant(modules, options.requestedGradleTasks())
+    if (requestedVariant.hasMatch) {
+        return requestedVariant.variant
+    }
+    return inferFallbackAndroidTestVariant(modules)
+}
+
+fun JuggGradleCompileOptions.requestedGradleTasks(): Set<String> {
+    return compileCommand.split(Regex("\\s+"))
+        .map { it.trim() }
+        .filter { it.isGradleTaskToken() }
+        .toSet()
+}
+
+private fun inferRequestedApplicationAndroidTestVariant(
+    modules: Map<String, ModuleInfo>,
+    requestedTasks: Set<String>,
+): RequestedVariantInference {
+    val applicationModules = modules.values.filter {
+        it.moduleType == ModuleInfo.Type.Application && !it.isAndroidTestModule
+    }
+    val matchedVariants = requestedTasks.asSequence()
+        .mapNotNull { parseRequestedGradleTask(it) }
+        .flatMap { task ->
+            val matchedModules = task.modulePath?.let { modulePath ->
+                applicationModules.filter { it.matchesGradleModulePath(modulePath) }
+            } ?: applicationModules
+            matchedModules.mapNotNull { module ->
+                module.findVariantForTask(task.taskName)?.let { module.name to it }
+            }.asSequence()
+        }
+        .distinct()
+        .toList()
+    return RequestedVariantInference(
+        hasMatch = matchedVariants.isNotEmpty(),
+        variant = matchedVariants.singleOrNull()?.second,
+    )
+}
+
+private data class RequestedVariantInference(
+    val hasMatch: Boolean,
+    val variant: String?,
+)
+
+private fun inferFallbackAndroidTestVariant(modules: Map<String, ModuleInfo>): String? {
+    val variants = modules.values
+        .filter { it.isAndroidTestModule }
+        .map { it.buildVariant }
+        .filter { it.isNotBlank() }
+        .distinct()
+    return variants.singleOrNull()
+}
+
+private data class RequestedGradleTask(
+    val modulePath: String?,
+    val taskName: String,
+)
+
+private fun parseRequestedGradleTask(task: String): RequestedGradleTask? {
+    val parts = task.trim().trim(':').split(':').filter { it.isNotBlank() }
+    if (parts.isEmpty()) {
+        return null
+    }
+    return RequestedGradleTask(
+        modulePath = parts.dropLast(1).joinToString(".").takeIf { it.isNotBlank() },
+        taskName = parts.last(),
+    )
+}
+
+private fun String.isGradleTaskToken(): Boolean {
+    if (isBlank() || startsWith("-") || contains("=") || contains("/")) {
+        return false
+    }
+    val executableNames = setOf("gradle", "gradlew", "gradle.bat", "gradlew.bat")
+    return trim().trim('"', '\'') !in executableNames
+}
+
+private fun ModuleInfo.matchesGradleModulePath(modulePath: String): Boolean {
+    return name == modulePath || gradleModuleName == modulePath
+}
+
+private fun ModuleInfo.findVariantForTask(taskName: String): String? {
+    val variantNames = variants.map { it.name }.ifEmpty { listOf(buildVariant) }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .sortedByDescending { it.camelCompat.length }
+    return variantNames.firstOrNull { variant ->
+        taskName.hasAndroidTaskPrefix() && taskName.contains(variant.camelCompat)
+    }?.let { "${it}AndroidTest" }
+}
+
+private fun String.hasAndroidTaskPrefix(): Boolean {
+    return listOf("assemble", "process", "package", "compile", "bundle", "install").any { startsWith(it) }
+}
 
 /**
  * Wrapper of [JuggRunConfigurationOptions], which is used for compilation.
@@ -99,6 +206,14 @@ data class JuggGradleCompileOptions(
      * ANDROID_TEST compiles app + androidTest variants and starts with am instrument.
      */
     val buildTarget: BuildTarget = BuildTarget.APP,
+    /**
+     * Gradle tasks replayed to build recent library Test APKs for AndroidTest full builds.
+     */
+    val libraryTestApkGradleTasks: List<String> = emptyList(),
+    /**
+     * Output APK patterns matching [libraryTestApkGradleTasks].
+     */
+    val libraryTestApkOutputPatterns: List<String> = emptyList(),
 ) {
 
 
