@@ -48,7 +48,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         }
 
         JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
-            .info("Show Jugg androidTest gutter: " +
+            .debug("Show Jugg androidTest gutter: " +
                 "path=$filePath, element=${element::class.java.name}, owner=${annotatedElement.javaClass.name}")
 
         return Info(

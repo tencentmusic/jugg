@@ -149,10 +149,12 @@ class TestLauncher(
                     parser.feed(line)
                 }, cancelSignal)
                 if (exitCode != 0) {
+                    logAttributor.onAborted()
                     consoleOutput("[Device: $deviceName] Instrumentation command failed with exit code $exitCode")
                     anyFailure = true
                 }
             } catch (e: Exception) {
+                logAttributor.onAborted()
                 consoleOutput("[Device: $deviceName] Device disconnected during test run: ${e.message}")
                 anyFailure = true
             } finally {

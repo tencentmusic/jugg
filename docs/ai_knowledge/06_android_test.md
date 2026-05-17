@@ -184,6 +184,8 @@ UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `Instrumentation
 
 一次 androidTest run 只创建一个 `InstrumentationSmRunnerBridge`；多设备按设备顺序创建 sink，但共享同一个 SM runner session，避免每台设备各自输出一段独立 `enteredTheMatrix`。
 
+androidTest 的 SM Runner process output 不接收 Jugg 项目级 `info/warn` 日志；插件运行日志保留在 `compile_latest.log`，Test Results 节点只通过 instrumentation service message 和 method 级 logcat 输出展示测试相关内容。
+
 关键节点约定：
 
 | 节点 | name | locationHint |

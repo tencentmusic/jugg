@@ -67,7 +67,10 @@ class JuggRunningTask(
         private set
 
     override fun run(indicator: ProgressIndicator) {
-        val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
+        val loggerListener = ProcessHandlerLoggerWrapper(
+            processHandler = processHandler,
+            isOutputEnabled = androidTestRunSpec == null,
+        )
         var isNeedResetHasRun = false
         try {
             if (TestModeManager.isRuntimeTestEnabled()) {

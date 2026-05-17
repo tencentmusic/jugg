@@ -54,7 +54,10 @@ class SimpleProcessHandler : ProcessHandler(),
 /**
  * Usage: Listen project log and output by ProcessHandler
  */
-class ProcessHandlerLoggerWrapper(private var processHandler: IProcessHandler): Logger() {
+class ProcessHandlerLoggerWrapper(
+    private var processHandler: IProcessHandler,
+    private val isOutputEnabled: Boolean = true,
+) : Logger() {
 
     override fun isDebugEnabled(): Boolean {
         return true
@@ -70,10 +73,12 @@ class ProcessHandlerLoggerWrapper(private var processHandler: IProcessHandler): 
     }
 
     override fun info(message: String) {
+        if (!isOutputEnabled) return
         processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
     }
 
     override fun info(message: String, t: Throwable?) {
+        if (!isOutputEnabled) return
         processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
         if (t != null) {
             processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDOUT)
@@ -82,6 +87,7 @@ class ProcessHandlerLoggerWrapper(private var processHandler: IProcessHandler): 
     }
 
     override fun warn(message: String, t: Throwable?) {
+        if (!isOutputEnabled) return
         processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDERR)
         if (t != null) {
             processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDERR)
@@ -90,6 +96,7 @@ class ProcessHandlerLoggerWrapper(private var processHandler: IProcessHandler): 
     }
 
     override fun error(message: String, t: Throwable?, vararg details: String?) {
+        if (!isOutputEnabled) return
         processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDERR)
         if (t != null) {
             processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDERR)
@@ -106,4 +113,3 @@ class ProcessHandlerLoggerWrapper(private var processHandler: IProcessHandler): 
     }
 
 }
-
