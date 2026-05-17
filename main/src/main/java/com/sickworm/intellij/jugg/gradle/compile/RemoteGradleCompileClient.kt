@@ -317,7 +317,8 @@ class RemoteGradleCompileClient(
         }
 
         // 3. find and fetch apk
-        val lookingApkPaths = gradleCompileSettings.outputApkName.split(";").map { it.trim() }.filter { it.isNotEmpty() }
+        val lookupPlan = ApkLookupPlanner.build(gradleCompileSettings)
+        val lookingApkPaths = lookupPlan.requiredPatterns
         val findApks = mutableListOf<RemoteApk>()
         val failedApkPaths = mutableListOf<String>()
         val shouldIndexAppApk = lookingApkPaths.size > 1 || gradleCompileSettings.buildTarget == BuildTarget.ANDROID_TEST
@@ -336,6 +337,7 @@ class RemoteGradleCompileClient(
                 failedApkPaths.add("androidTest APK for ${gradleCompileSettings.outputApkName}")
             }
         }
+        findApks.addAll(findOptionalLibraryTestApks(findApks.size, lookupPlan.optionalLibraryTestPatterns, channel, gradleCompileSettings))
 
         if (failedApkPaths.isNotEmpty()) {
             printToStreamError("Can't find apks in $failedApkPaths in ${project.basePath}, " +
@@ -348,24 +350,31 @@ class RemoteGradleCompileClient(
         return GradleCompileResult.success(findApks.map { it.localFile })
     }
 
-    private fun findApk(index: Int, outputApkName: String, channel: Channel, gradleCompileSettings: JuggGradleCompileOptions): RemoteApk? {
+    private fun findApk(
+        index: Int,
+        outputApkName: String,
+        channel: Channel,
+        gradleCompileSettings: JuggGradleCompileOptions,
+        isRequired: Boolean = true,
+    ): RemoteApk? {
         // find apk path
         val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, outputApkName)
         val findOutputResult = invoke(channel, findOutputCommand)
         if (findOutputResult != 0) {
-            printToStreamErrorIfCanceled("Find APK failed, please check your sync client is opened.")
+            reportFindApkFailure(isRequired, "Find APK failed, please check your sync client is opened.")
             return null
         }
         val apkPath = findOutputCommand.apkPath
-        if (apkPath == null) {
-            printToStreamErrorIfCanceled("Find APK failed, please check your apk name is correct.")
+        if (!ApkLookupPlanner.isFoundRemoteApkPath(apkPath)) {
+            reportFindApkFailure(isRequired, "Find APK failed, please check your apk name is correct.")
             return null
         }
+        val foundApkPath = apkPath!!
 
         // fetch apk
         val remoteSeparator = if (isRemoteWindows) '\\' else '/'
         val fetchOutputCommand = if (gradleCompileSettings.syncMode.isRsync) {
-            val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
+            val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + foundApkPath
             RsyncFetchOutputCommand(
                 finalPasswordOrKey,
                 gradleCompileSettings.remoteSshPort,
@@ -374,7 +383,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.remoteToLocalProjectRsyncPath,
             )
         } else {
-            val absoluteApkPath = gradleCompileSettings.remoteProjectPath + remoteSeparator + apkPath
+            val absoluteApkPath = gradleCompileSettings.remoteProjectPath + remoteSeparator + foundApkPath
             FetchOutputCommand(
                 absoluteApkPath,
                 gradleCompileSettings.remoteToLocalProjectIftPath,
@@ -382,22 +391,22 @@ class RemoteGradleCompileClient(
         }
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
-            printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your sync client is opened.")
+            reportFindApkFailure(isRequired, "Fetch output from remote to local failed, please check your sync client is opened.")
             return null
         }
 
-        val apkFileName = apkPath.lastIndexOf(remoteSeparator).let {
+        val apkFileName = foundApkPath.lastIndexOf(remoteSeparator).let {
             if (it == -1) {
-                apkPath
+                foundApkPath
             } else {
-                apkPath.substring(it + 1)
+                foundApkPath.substring(it + 1)
             }
         }
         val apkFiles = File(gradleCompileSettings.remoteToLocalProjectSyncPath)
             .findFilesRecursively(apkFileName)
 
         if (apkFiles.isNullOrEmpty()) {
-            printToStreamErrorIfCanceled("find apk name with pattern '${gradleCompileSettings.outputApkName}' " +
+            reportFindApkFailure(isRequired, "find apk name with pattern '$outputApkName' " +
                     "in ${gradleCompileSettings.remoteToLocalProjectSyncPath} failed, " +
                     "please check your 'Remote to local sync path' in configuration is correct.")
             return null
@@ -412,10 +421,29 @@ class RemoteGradleCompileClient(
         if (index >= 0) {
             val indexApkFile = apkFile.parentFile.resolve("${index}_${apkFileName}")
             apkFile.renameTo(indexApkFile)
-            return RemoteApk(apkPath, indexApkFile)
+            return RemoteApk(foundApkPath, indexApkFile)
         }
 
-        return RemoteApk(apkPath, apkFile)
+        return RemoteApk(foundApkPath, apkFile)
+    }
+
+    private fun reportFindApkFailure(isRequired: Boolean, message: String) {
+        if (isRequired) {
+            printToStreamErrorIfCanceled(message)
+        } else {
+            logger.warn("Optional library test APK not found: $message")
+        }
+    }
+
+    private fun findOptionalLibraryTestApks(
+        startIndex: Int,
+        patterns: List<String>,
+        channel: Channel,
+        gradleCompileSettings: JuggGradleCompileOptions,
+    ): List<RemoteApk> {
+        return patterns.mapIndexedNotNull { index, pattern ->
+            findApk(startIndex + index, pattern, channel, gradleCompileSettings, isRequired = false)
+        }
     }
 
     private fun findAndroidTestApks(

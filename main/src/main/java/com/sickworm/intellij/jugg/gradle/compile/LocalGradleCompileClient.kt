@@ -62,7 +62,8 @@ class LocalGradleCompileClient(
             }
         }
 
-        val lookingApkPaths = juggGradleCompileOptions.outputApkName.split(";").map { it.trim() }.filter { it.isNotEmpty() }
+        val lookupPlan = ApkLookupPlanner.build(juggGradleCompileOptions)
+        val lookingApkPaths = lookupPlan.requiredPatterns
         val findApks = mutableListOf<FoundApk>()
         val failedApkPaths = mutableListOf<String>()
         val shouldIndexAppApk = lookingApkPaths.size > 1 || juggGradleCompileOptions.buildTarget == BuildTarget.ANDROID_TEST
@@ -80,6 +81,7 @@ class LocalGradleCompileClient(
                 failedApkPaths.add("androidTest APK for ${juggGradleCompileOptions.outputApkName}")
             }
         }
+        findApks.addAll(findOptionalLibraryTestApks(findApks.size, lookupPlan.optionalLibraryTestPatterns, juggGradleCompileOptions))
 
         if (failedApkPaths.isNotEmpty() || findApks.isEmpty()) {
             printToStreamError("Can't find apks in $failedApkPaths in $projectDir " +
@@ -93,7 +95,12 @@ class LocalGradleCompileClient(
         return GradleCompileResult.success(findApks.map { it.outputFile })
     }
 
-    private fun findApk(outputApkNameOrPath: String, juggGradleCompileOptions: JuggGradleCompileOptions, index: Int?): FoundApk? {
+    private fun findApk(
+        outputApkNameOrPath: String,
+        juggGradleCompileOptions: JuggGradleCompileOptions,
+        index: Int?,
+        isRequired: Boolean = true,
+    ): FoundApk? {
         val findOutputCommand = FindOutputCommand(projectDir.path, outputApkNameOrPath)
 
         var apkFiles: List<File>? = null
@@ -127,10 +134,13 @@ class LocalGradleCompileClient(
         }
 
         if (apkFiles.isNullOrEmpty()) {
-            printToStreamError(
-                "Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
-                        "in $projectDir, please make sure your run configuration is right."
-            )
+            val message = "Can't find apk \"$outputApkNameOrPath\" " +
+                    "in $projectDir, please make sure your run configuration is right."
+            if (isRequired) {
+                printToStreamError(message)
+            } else {
+                logger.warn("Optional library test APK not found: $outputApkNameOrPath")
+            }
             return null
         }
 
@@ -154,6 +164,16 @@ class LocalGradleCompileClient(
             return FoundApk(apkFile, apkFile)
         }
         return FoundApk(apkFile, outputApkFile)
+    }
+
+    private fun findOptionalLibraryTestApks(
+        startIndex: Int,
+        patterns: List<String>,
+        options: JuggGradleCompileOptions,
+    ): List<FoundApk> {
+        return patterns.mapIndexedNotNull { index, pattern ->
+            findApk(pattern, options, startIndex + index, isRequired = false)
+        }
     }
 
 
