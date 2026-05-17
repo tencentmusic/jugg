@@ -768,10 +768,11 @@ class GradleProjectInfoReader(
             testApplicationId: String?,
         ): ModuleInfo? {
             if (sourceDirs.isEmpty()) return null
-            val targetPackage = appModuleInfo.applicationId ?: appModuleInfo.namespace ?: return null
-            val resolvedTestAppId = testApplicationId ?: when (appModuleInfo.moduleType) {
-                ModuleInfo.Type.Library -> targetPackage
-                else -> "$targetPackage.test"
+            val ownerPackage = appModuleInfo.applicationId ?: appModuleInfo.namespace ?: return null
+            val resolvedTestAppId = testApplicationId ?: "$ownerPackage.test"
+            val targetPackage = when (appModuleInfo.moduleType) {
+                ModuleInfo.Type.Library -> resolvedTestAppId
+                else -> ownerPackage
             }
             return appModuleInfo.copy(
                 name = "${appModuleInfo.name}.androidTest",

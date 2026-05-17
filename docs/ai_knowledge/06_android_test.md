@@ -72,8 +72,8 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 | `name` | `${ownerModuleName}.androidTest` |
 | `moduleType` | `ModuleInfo.Type.Library` |
 | `buildVariant` | `debugAndroidTest` |
-| `applicationId` | app androidTest 使用 test APK applicationId；self-targeting library androidTest 默认使用 owner module namespace |
-| `instrumentationTargetPackage` | app androidTest 使用 app applicationId；self-targeting library androidTest 使用 owner module namespace |
+| `applicationId` | app androidTest 使用 test APK applicationId；self-targeting library androidTest 默认使用 `${owner namespace}.test` |
+| `instrumentationTargetPackage` | app androidTest 使用 app applicationId；self-targeting library androidTest 使用 `${owner namespace}.test`，与 Gradle 产出的 self-targeting Test APK manifest 对齐 |
 | `sourceDirs` | owner module 的 `src/androidTest` Java/Kotlin 源码目录 |
 | `moduleDependencies` | owner module |
 
@@ -97,7 +97,7 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 - `BuildTarget.ANDROID_TEST` 通过 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`，并把同 variant 的 `assemble<Variant>AndroidTest` 挂到用户请求的 Gradle task 前执行。
 - Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径派生同 variant 的 `app/build/outputs/apk/androidTest/<variant>/*.apk`。
 - `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
-- Gradle project info 读取阶段会为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；Library 模块用 `namespace` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
+- Gradle project info 读取阶段会为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
 
 ### 3.2 增量编译
 
@@ -297,7 +297,7 @@ rg --files main/src/test idea/src/test | rg 'AndroidTest|Instrumentation|ApkInst
 
 1. 文件路径是否在 `/app/src/androidTest/` 下。
 2. test 方法或类是否有 `org.junit.Test` / `org.junit.jupiter.api.Test`。
-3. 当前是否为 app 模块 androidTest；library androidTest 当前不支持。
+3. 文件是否位于 app 或 library 模块的 `src/androidTest` source root 下。
 4. 如果是 Kotlin 文件，确认 PSI 能正确识别注解 owner；当前实现同时兼容 `getAnnotations()` 与 `getAnnotationEntries()`。
 
 ### 7.2 点击 gutter 后没有真正跑 test

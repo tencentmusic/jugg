@@ -1,10 +1,15 @@
 package com.sickworm.intellij.jugg.gradle.script
 
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
+import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestTargetResolver
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
 
 class GradleProjectInfoReaderAndroidTestTest {
@@ -15,6 +20,10 @@ class GradleProjectInfoReaderAndroidTestTest {
     private val projectDir = File("/project")
     private val appDir = File("/project/app")
     private val libraryDir = File("/project/library1")
+
+    @Rule
+    @JvmField
+    val temp = TemporaryFolder()
 
     private fun appModule(appId: String = "com.example.app") = ModuleInfo.virtualModule.copy(
         name = "app",
@@ -112,7 +121,7 @@ class GradleProjectInfoReaderAndroidTestTest {
     }
 
     @Test
-    fun `buildAndroidTestModuleInfo uses namespace for self targeting library module`() {
+    fun `buildAndroidTestModuleInfo defaults library self targeting package to namespace dot test`() {
         val result = GradleProjectInfoReader.buildAndroidTestModuleInfo(
             appModuleInfo = libraryModule("com.example.library1"),
             sourceDirs = listOf(File("/project/library1/src/androidTest/java")),
@@ -121,8 +130,43 @@ class GradleProjectInfoReaderAndroidTestTest {
         )
 
         assertEquals("library1.androidTest", result?.name)
-        assertEquals("com.example.library1", result?.applicationId)
-        assertEquals("com.example.library1", result?.instrumentationTargetPackage)
+        assertEquals("com.example.library1.test", result?.applicationId)
+        assertEquals("com.example.library1.test", result?.instrumentationTargetPackage)
         assertEquals(listOf(ModuleDependency("library1")), result?.moduleDependencies)
+    }
+
+    @Test
+    fun `library androidTest default module resolves Gradle produced self targeting apk`() {
+        val e2eProjectDir = temp.newFolder("project")
+        val sourceRoot = File(e2eProjectDir, "library1/src/androidTest/java")
+        val sourceFile = File(sourceRoot, "com/example/library1/Library1LogicInstrumentedTest.kt").apply {
+            parentFile.mkdirs()
+            writeText("class Library1LogicInstrumentedTest")
+        }
+        val module = GradleProjectInfoReader.buildAndroidTestModuleInfo(
+            appModuleInfo = libraryModule("com.example.library1").copy(
+                moduleRootDir = File(e2eProjectDir, "library1"),
+                projectRootDir = e2eProjectDir,
+                buildPathInfo = ModuleBuildPathInfo(e2eProjectDir, File(e2eProjectDir, "library1"), "debug"),
+            ),
+            sourceDirs = listOf(sourceRoot),
+            libraryDependencies = emptyList(),
+            testApplicationId = null,
+        )!!
+        val testApk = ApkInfo(
+            files = listOf(ApkFileUnit("com.example.library1.test", "", true, File("library1-debug-androidTest.apk"))),
+            applicationId = "com.example.library1.test",
+            instrumentationTargetPackage = "com.example.library1.test",
+        )
+
+        val result = AndroidTestTargetResolver.resolve(
+            sourcePath = sourceFile.path,
+            projectDir = e2eProjectDir,
+            modules = listOf(module),
+            apks = listOf(testApk),
+        )
+
+        assertEquals(module, result.module)
+        assertEquals(testApk, result.testApk)
     }
 }
