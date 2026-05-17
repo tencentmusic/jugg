@@ -56,7 +56,7 @@ def _write_fake_jugg_cli(
 def _state_file(home: str, cwd: str, session_id: str) -> Path:
     resolved_cwd = str(Path(cwd).resolve())
     digest = hashlib.sha1(f"{resolved_cwd}\n{session_id}".encode("utf-8")).hexdigest()
-    return Path(home) / ".jugg" / "hooks" / ".state" / f"{digest}.json"
+    return Path(home) / ".jugg" / "skills" / "hooks" / ".state" / f"{digest}.json"
 
 
 class StopHookGuardTest(unittest.TestCase):

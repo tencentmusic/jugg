@@ -67,7 +67,7 @@ def _write_fake_jugg_cli(
 def _state_file(home: str, cwd: str, session_id: str) -> Path:
     resolved_cwd = str(Path(cwd).resolve())
     digest = hashlib.sha1(f"{resolved_cwd}\n{session_id}".encode("utf-8")).hexdigest()
-    return Path(home) / ".jugg" / "hooks" / ".state" / f"{digest}.json"
+    return Path(home) / ".jugg" / "skills" / "hooks" / ".state" / f"{digest}.json"
 
 
 class HookReminderDecisionTest(unittest.TestCase):
@@ -97,7 +97,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 check=False,
             )
 
-            state_dir = Path(home) / ".jugg" / "hooks" / ".state"
+            state_dir = Path(home) / ".jugg" / "skills" / "hooks" / ".state"
             status_called = status_marker.exists()
             state_exists = state_dir.exists()
             log_text = debug_log.read_text(encoding="utf-8")

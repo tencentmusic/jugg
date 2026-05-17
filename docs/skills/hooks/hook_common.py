@@ -272,7 +272,7 @@ def extract_session_id(payload: dict[str, Any]) -> str | None:
 
 
 def state_file_path(home: Path, cwd: str, session_id: str | None = None) -> Path:
-    state_dir = home / ".jugg" / "hooks" / STATE_DIR_NAME
+    state_dir = home / ".jugg" / "skills" / "hooks" / STATE_DIR_NAME
     scope = cwd if not session_id else f"{cwd}\n{session_id}"
     digest = hashlib.sha1(scope.encode("utf-8")).hexdigest()
     return state_dir / f"{digest}.json"

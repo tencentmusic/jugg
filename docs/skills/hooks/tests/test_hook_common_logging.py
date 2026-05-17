@@ -67,6 +67,7 @@ class HookCommonLoggingTest(unittest.TestCase):
         with_session = mod.state_file_path(home, cwd, "session-123")
         without_session = mod.state_file_path(home, cwd, None)
 
+        self.assertEqual(home / ".jugg" / "skills" / "hooks" / ".state", with_session.parent)
         self.assertNotEqual(with_session, without_session)
 
     def test_remember_project_cwd_prefers_existing_state(self):
