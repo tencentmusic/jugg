@@ -74,7 +74,7 @@
 | `04_engineering_compat.md` | AS 版本兼容层与命令行模块 |
 | `05_utilities.md` | apk/git/logger/server/platform 等公共能力 |
 | `06_testing.md` | TDD 单元测试：testcase 类规范、mock 基础设施、DeployDataGeneratorTest 模式 |
-| `06_android_test.md` | app androidTest 支持：BuildTarget、test APK 识别、synthetic ModuleInfo、增量编译、gutter/RunConfig、`am instrument`、SM Test Runner、rerun failed 与定向测试 |
+| `06_android_test.md` | app androidTest 支持：BuildTarget、test APK 识别、synthetic ModuleInfo、增量编译、gutter/RunConfig、`am instrument`、logcat 捕获与 method 归类、SM Test Runner、rerun failed 与定向测试 |
 | `08_mcp_design.md` | MCP 协议分层与设计约束（§7 引用 `08_mcp_layout_verify_design.md`） |
 | `08_mcp_layout_verify_design.md` | UI 布局验证设计：工具体系、IoU 匹配算法、容差标准、dpr 处理、返回格式 |
 | `08_mcp_tools_list.md` | MCP 工具完整参数清单（19 个注册工具、通用行为、错误码） |

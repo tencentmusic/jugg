@@ -69,6 +69,102 @@ class TestLauncherResultTest {
     }
 
     @Test
+    fun `logcat between test status and start code is recorded for that method`() {
+        val model = AndroidTestResultModel()
+        val logcatSource = FakeTestLogcatSource()
+        val launcher = TestLauncher(
+            devices = listOf(device()),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            resultModel = model,
+            logcatSource = logcatSource,
+            runInstrumentation = { device, _, _, lineConsumer, _ ->
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                logcatSource.emit(device, "05-07 15:31:58.756 1234 1234 I Foo: method prologue")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        assertTrue(model.testLogDetail("com.example.FooTest", "testBar").contains("Foo: method prologue"))
+    }
+
+    @Test
+    fun `logcat source starts with run timestamp before instrumentation`() {
+        val logcatSource = FakeTestLogcatSource()
+        val testDevice = device()
+        var instrumentationStarted = false
+        val launcher = TestLauncher(
+            devices = listOf(testDevice),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            logcatSource = logcatSource,
+            runInstrumentation = { _, _, _, lineConsumer, _ ->
+                instrumentationStarted = true
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                lineConsumer("INSTRUMENTATION_CODE: 1")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        val sinceTime = logcatSource.sinceTimeFor(testDevice)
+        assertTrue(logcatSource.startedBeforeInstrumentation(testDevice))
+        assertTrue(sinceTime.matches(Regex("\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}")))
+        assertTrue(instrumentationStarted)
+    }
+
+    @Test
+    fun `logcat source uses device clock since time`() {
+        val logcatSource = FakeTestLogcatSource()
+        val testDevice = device()
+        val launcher = TestLauncher(
+            devices = listOf(testDevice),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            logcatSource = logcatSource,
+            logcatSinceTimeProvider = { device, _ ->
+                assertEquals(testDevice, device)
+                "05-17 15:58:57.000"
+            },
+            runInstrumentation = { _, _, _, lineConsumer, _ ->
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        assertEquals("05-17 15:58:57.000", logcatSource.sinceTimeFor(testDevice))
+    }
+
+    @Test
     fun `single device multiple methods do not leak logcat between methods`() {
         val model = AndroidTestResultModel()
         val logcatSource = FakeTestLogcatSource()
@@ -143,6 +239,154 @@ class TestLauncherResultTest {
         assertTrue(detail.contains("Foo: inside"))
         assertFalse(detail.contains("Foo: before"))
         assertFalse(detail.contains("Foo: after"))
+    }
+
+    @Test
+    fun `method logcat keeps only test process pid while device log keeps all lines`() {
+        val model = AndroidTestResultModel()
+        val logcatSource = FakeTestLogcatSource()
+        val launcher = TestLauncher(
+            devices = listOf(device()),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            resultModel = model,
+            logcatSource = logcatSource,
+            methodLogPidProvider = { _, _, _ -> setOf(20906) },
+            runInstrumentation = { device, _, _, lineConsumer, _ ->
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                logcatSource.emit(device, "05-17 15:03:37.936 20906 20921 I Foo: test process")
+                logcatSource.emit(device, "05-17 15:03:37.944  9503  9509 W .apps.wellbeing: system noise")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        val detail = model.testLogDetail("com.example.FooTest", "testBar")
+        assertTrue(detail.contains("Foo: test process"))
+        assertFalse(detail.contains(".apps.wellbeing"))
+        val deviceLogs = model.deviceDetail("Pixel_9 API 35").logs.joinToString("\n")
+        assertTrue(deviceLogs.contains(".apps.wellbeing"))
+    }
+
+    @Test
+    fun `pid matched logcat after finish stays with last active method`() {
+        val model = AndroidTestResultModel()
+        val logcatSource = FakeTestLogcatSource()
+        val launcher = TestLauncher(
+            devices = listOf(device()),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            resultModel = model,
+            logcatSource = logcatSource,
+            methodLogPidProvider = { _, _, _ -> setOf(24834) },
+            runInstrumentation = { device, _, _, lineConsumer, _ ->
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                logcatSource.emit(device, "05-17 15:58:58.061 24834 24851 I Foo: delayed test process")
+                logcatSource.emit(device, "05-17 15:58:58.062  9503  9509 W .apps.wellbeing: delayed noise")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        val detail = model.testLogDetail("com.example.FooTest", "testBar")
+        assertTrue(detail.contains("Foo: delayed test process"))
+        assertFalse(detail.contains(".apps.wellbeing"))
+    }
+
+    @Test
+    fun `logcat during pid lookup is buffered then filtered`() {
+        val model = AndroidTestResultModel()
+        val logcatSource = FakeTestLogcatSource()
+        val testDevice = device()
+        val launcher = TestLauncher(
+            devices = listOf(testDevice),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            resultModel = model,
+            logcatSource = logcatSource,
+            methodLogPidProvider = { device, _, _ ->
+                logcatSource.emit(device, "05-17 15:58:58.061 24834 24851 I Foo: during pid lookup")
+                logcatSource.emit(device, "05-17 15:58:58.062  9503  9509 W .apps.wellbeing: during pid lookup")
+                setOf(24834)
+            },
+            runInstrumentation = { _, _, _, lineConsumer, _ ->
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        val detail = model.testLogDetail("com.example.FooTest", "testBar")
+        assertTrue(detail.contains("Foo: during pid lookup"))
+        assertFalse(detail.contains(".apps.wellbeing"))
+    }
+
+    @Test
+    fun `test runner logcat markers attribute logs before instrumentation status arrives`() {
+        val model = AndroidTestResultModel()
+        val logcatSource = FakeTestLogcatSource()
+        val launcher = TestLauncher(
+            devices = listOf(device()),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            resultModel = model,
+            logcatSource = logcatSource,
+            runInstrumentation = { device, _, _, lineConsumer, _ ->
+                logcatSource.emit(
+                    device,
+                    "05-17 16:32:50.470 27408 27422 I TestRunner: started: testBar(com.example.FooTest)",
+                )
+                logcatSource.emit(device, "05-17 16:32:50.475  9503  9509 W .apps.wellbeing: system noise")
+                logcatSource.emit(device, "05-17 16:32:50.476 27408 27422 I Foo: fast logcat")
+                logcatSource.emit(
+                    device,
+                    "05-17 16:32:50.477 27408 27422 I TestRunner: finished: testBar(com.example.FooTest)",
+                )
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        val detail = model.testLogDetail("com.example.FooTest", "testBar")
+        assertTrue(detail.contains("Foo: fast logcat"))
+        assertFalse(detail.contains(".apps.wellbeing"))
     }
 
     @Test
@@ -416,6 +660,56 @@ class TestLauncherSmEventSinkTest {
     }
 
     @Test
+    fun `run sends test runner attributed logcat before test finished event`() {
+        val logcatSource = FakeTestLogcatSource()
+        val events = mutableListOf<InstrumentationEvent>()
+        val testDevice = device()
+        val launcher = TestLauncher(
+            devices = listOf(testDevice),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            testEventSinkFactory = { _, _ ->
+                val sink: (InstrumentationEvent) -> Unit = { event -> events.add(event) }
+                sink
+            },
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherSmEventSinkTest::class.java),
+            logcatSource = logcatSource,
+            runInstrumentation = { device, _, _, lineConsumer, _ ->
+                logcatSource.emit(
+                    device,
+                    "05-17 16:32:50.470 27408 27422 I TestRunner: started: testBar(com.example.FooTest)",
+                )
+                logcatSource.emit(device, "05-17 16:32:50.476 27408 27422 I Foo: fast logcat")
+                logcatSource.emit(
+                    device,
+                    "05-17 16:32:50.477 27408 27422 I TestRunner: finished: testBar(com.example.FooTest)",
+                )
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
+                0
+            },
+        )
+
+        assertTrue(launcher.run())
+        val outputIndex = events.indexOfFirst {
+            it is InstrumentationEvent.TestOutput && it.text.contains("Foo: fast logcat")
+        }
+        val finishIndex = events.indexOfFirst {
+            it is InstrumentationEvent.TestFinished &&
+                    it.className == "com.example.FooTest" &&
+                    it.testName == "testBar"
+        }
+        assertTrue(outputIndex >= 0)
+        assertTrue(finishIndex > outputIndex)
+    }
+
+    @Test
     fun `run passes device display name with api level to test event sink`() {
         val device = device()
         val requestedDeviceNames = mutableListOf<String>()
@@ -577,14 +871,20 @@ class TestLauncherResultSessionTest {
 private class FakeTestLogcatSource : TestLogcatSource {
     private val consumers = linkedMapOf<String, (String) -> Unit>()
     private val closeLines = linkedMapOf<String, String>()
+    private val sinceTimes = linkedMapOf<String, String>()
+    private val startedBeforeInstrumentation = linkedMapOf<String, Boolean>()
+    var instrumentationStarted: Boolean = false
 
     override fun start(
         device: IDevice,
         logger: Logger,
+        sinceTime: String,
         lineConsumer: (String) -> Unit,
         cancelSignal: () -> Boolean,
     ): AutoCloseable {
         consumers[device.serialNumber] = lineConsumer
+        sinceTimes[device.serialNumber] = sinceTime
+        startedBeforeInstrumentation[device.serialNumber] = !instrumentationStarted
         return AutoCloseable {
             closeLines[device.serialNumber]?.let { lineConsumer(it) }
             consumers.remove(device.serialNumber)
@@ -598,4 +898,9 @@ private class FakeTestLogcatSource : TestLogcatSource {
     fun emitOnClose(device: IDevice, line: String) {
         closeLines[device.serialNumber] = line
     }
+
+    fun sinceTimeFor(device: IDevice): String = sinceTimes.getValue(device.serialNumber)
+
+    fun startedBeforeInstrumentation(device: IDevice): Boolean =
+        startedBeforeInstrumentation.getValue(device.serialNumber)
 }

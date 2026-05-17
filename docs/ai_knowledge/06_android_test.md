@@ -1,7 +1,6 @@
 # androidTest 支持指南
 
-> 最后核对：2026-05-08
-> 对应提交：`793d0a0f`、`0bd78f20`、`e36bfdac`、`39b54ba3`、`当前工作区`
+> 最后核对：2026-05-17
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -253,7 +252,33 @@ am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMetho
 
 当需要执行大范围 androidTest 回归时，先用一次 `jugg instrument --source-path ...` 让 Jugg 完成编译、部署和目标 APK 刷新。该命令成功后，app 源码变更与 androidTest 源码变更都已经写入对应 APK；此时可以使用普通 `adb shell am instrument` 执行更大范围的 class/package/suite 回归，不再要求通过 jugg cli 使用 `sourcePath` 做目标锚定。
 
-`TestLauncher` 会为每台设备启动独立 `logcat -v threadtime` 流。logcat 采集与 instrumentation 协议解析分离：`InstrumentationOutputParser` 只负责生成 `TestStarted` / `TestFinished` 等事件，`TestLauncher` 根据当前设备的 active method 把窗口内 logcat 写入 `AndroidTestResultModel.recordTestLog(...)`，method 外日志只保留在设备详情中。多设备各自维护 active method，避免设备间日志串台。
+### 5.3 日志捕获与归类
+
+入口：
+
+- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/TestLauncher.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AndroidTestLogAttributor.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/AndroidTestResultModel.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridge.kt`
+
+AndroidTest 日志捕获方案：
+
+1. `TestLauncher` 在每台设备执行 instrumentation 前读取设备侧 `date '+%m-%d %H:%M:%S.000'` 作为 logcat 起点，格式为 `MM-dd HH:mm:ss.SSS`；设备时间读取失败或格式异常时才回退本机时间。
+2. 每台设备启动独立 `logcat -T <deviceRunStartTime> -v threadtime` 流；Run 窗口与 debug 日志都会输出 `Capturing logcat since <deviceRunStartTime>`，用于验证本轮采集起点。
+3. `InstrumentationOutputParser` 只解析 `am instrument` 协议并生成 `TestStarted` / `TestFinished` / `Aborted` 等事件，不负责 logcat 采样；当 `class` 与 `test` status 都已到达时即打开 `TestStarted` 窗口，后续 `STATUS_CODE: 1` 只作为兼容确认，避免 method 开头的 logcat 早于 code=1 到达时丢失。
+4. `TestLauncher` 把所有 logcat 行先写入 `AndroidTestResultModel.recordLog(...)` 作为设备级日志，同时交给 `AndroidTestLogAttributor` 放入 run 级有界缓存。缓存默认上限为 100000 行；采集结束后会在 debug 日志打印保留行数、字节数、总采集行数、截断行数和上限，并立即释放缓存引用。归类器在 method 窗口 finalize 时再按 test process PID 筛选并输出 `recordTestLog(...)`，避免 PID 查询或 logcat 流稍晚导致 method 日志丢失。PID 来自 `pidof <targetPackage>` / `pidof <testPackage>`，失败时回退到 `ps -A` 精确匹配 package name；若 PID 获取失败则降级为原时间窗口归类，避免 method 日志全丢。
+5. `InstrumentationSmRunnerBridge` 把 method 级日志输出为 SM Runner `testStdOut`；输出前补齐末尾换行，保证导出的 method 日志按行展示。失败事件输出 `testFailed` 时，`message` 使用异常首行，`details` 只保留后续 stack trace，避免 IntelliJ 详情面板重复展示同一条失败摘要。
+
+归类边界：
+
+- method 日志优先使用 AndroidX TestRunner 的 `TestRunner: started/finished: method(class)` logcat marker 做边界，并限定为 marker 所在 PID 的日志。该路径用于覆盖 logcat 早于 `InstrumentationEvent.TestStarted` 到达的场景，避免 instrumentation 协议回调滞后导致 method 日志漏归类。
+- 没有完整 TestRunner marker 时，method 日志窗口回退到 `InstrumentationEvent.TestStarted(className, testName)` 生命周期边界。PID 过滤可用时，窗口保留到下一个 `TestStarted` 或本轮 logcat 关闭前的短暂 drain，然后统一筛选输出；PID 过滤不可用时仍在同一 method 的 `TestFinished` finalize。`TestStarted` 可早于 `INSTRUMENTATION_STATUS_CODE: 1` 发出，但必须等 `class` 与 `test` status 都齐备。
+- method 外 logcat 只进入设备详情，不进入任一 method；active method 窗口内 PID 不属于当前 test process 的全局设备噪声也只进入设备详情。
+- 多设备各自维护 active method，不共享归属状态。
+- `Aborted`、instrumentation 非 0 退出或设备异常时，已收到且处于 active method 窗口内的日志保留在 result model；后续日志不再猜测补归属。
+- 禁止从业务 logcat tag、message 或时间戳反推 method；method 归属只以 instrumentation lifecycle 或 AndroidX TestRunner marker 为准。
+
+使用 `logcat -T` 的原因：设备 logcat buffer 会残留旧运行日志。若直接使用 `logcat -v threadtime`，旧日志可能在本轮启动后立即吐出，并被误归入第一个 active method。`-T <deviceRunStartTime>` 让采集只关注本轮启动后的日志，避免历史 buffer 污染测试方法详情。`-T` 必须使用设备侧时间；若使用主机时间，主机与设备时钟偏移会导致本轮测试 logcat 被整体过滤。
 
 `TestLauncher` 对每台设备串行执行 instrumentation。任一设备出现以下情况，整体 Run 失败：
 

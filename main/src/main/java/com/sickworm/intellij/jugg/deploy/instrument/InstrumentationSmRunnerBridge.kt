@@ -38,7 +38,7 @@ class InstrumentationSmRunnerBridge(
             is InstrumentationEvent.TestOutput -> output(serviceMessage(
                 "testStdOut",
                 "name" to event.testName,
-                "out" to event.text,
+                "out" to event.text.ensureTrailingNewline(),
             ))
             is InstrumentationEvent.Aborted -> renderAborted(event)
             is InstrumentationEvent.SuiteFinished -> Unit
@@ -66,7 +66,7 @@ class InstrumentationSmRunnerBridge(
                 "testFailed",
                 "name" to event.testName,
                 "message" to failureMessage(event.stack, event.result.name),
-                "details" to (event.stack ?: event.result.name),
+                "details" to failureDetails(event.stack),
             ))
             InstrumentationEvent.TestResult.IGNORED,
             InstrumentationEvent.TestResult.ASSUMPTION_FAILURE -> output(serviceMessage(
@@ -97,6 +97,12 @@ class InstrumentationSmRunnerBridge(
 
     private fun failureMessage(stack: String?, fallback: String): String = stack?.lineSequence()?.firstOrNull()?.ifBlank { null } ?: fallback
 
+    private fun failureDetails(stack: String?): String = stack
+        ?.lineSequence()
+        ?.drop(1)
+        ?.joinToString("\n")
+        .orEmpty()
+
     companion object {
         fun serviceMessage(command: String, vararg attributes: Pair<String, String>): String {
             if (attributes.isEmpty()) return "##teamcity[$command]"
@@ -122,5 +128,8 @@ class InstrumentationSmRunnerBridge(
                 }
             }
         }
+
+        private fun String.ensureTrailingNewline(): String =
+            if (endsWith('\n')) this else "$this\n"
     }
 }

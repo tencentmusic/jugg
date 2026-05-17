@@ -51,6 +51,22 @@ class InstrumentationOutputParserTest {
     }
 
     @Test
+    fun `test window opens after class and test status before start code`() {
+        val parser = InstrumentationOutputParser()
+        val events = mutableListOf<InstrumentationEvent>()
+        parser.onEvent = { events.add(it) }
+
+        parser.feed("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+        assertTrue(events.none { it is InstrumentationEvent.TestStarted })
+
+        parser.feed("INSTRUMENTATION_STATUS: test=testBar")
+        assertEquals(1, events.filterIsInstance<InstrumentationEvent.TestStarted>().size)
+
+        parser.feed("INSTRUMENTATION_STATUS_CODE: 1")
+        assertEquals(1, events.filterIsInstance<InstrumentationEvent.TestStarted>().size)
+    }
+
+    @Test
     fun `single FAILURE test carries stack`() {
         val parser = InstrumentationOutputParser()
         val events = mutableListOf<InstrumentationEvent>()

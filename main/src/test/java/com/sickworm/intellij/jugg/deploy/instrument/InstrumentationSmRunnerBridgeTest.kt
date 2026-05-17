@@ -58,8 +58,24 @@ class InstrumentationSmRunnerBridgeTest {
         assertTrue(failedIndex >= 0)
         assertTrue(finishedIndex > failedIndex)
         assertTrue(output[failedIndex].contains("message='java.lang.AssertionError: expected 1'"))
-        assertTrue(output[failedIndex].contains("details='java.lang.AssertionError: expected 1"))
+        assertFalse(output[failedIndex].contains("details='java.lang.AssertionError: expected 1"))
         assertTrue(output[failedIndex].contains("FooTest.kt:42"))
+    }
+
+    @Test
+    fun `failed test details do not repeat failure message first line`() {
+        val output = mutableListOf<String>()
+        val bridge = InstrumentationSmRunnerBridge(output::add)
+        val stack = "org.junit.ComparisonFailure: expected a\n\tat com.example.FooTest.testBar(FooTest.kt:42)"
+
+        bridge.startDevice("Pixel_9")
+        bridge.onEvent(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
+        bridge.onEvent(InstrumentationEvent.TestFinished("com.example.FooTest", "testBar", InstrumentationEvent.TestResult.FAILURE, stack))
+
+        val failed = output.first { it.contains("testFailed") && it.contains("name='testBar'") }
+        assertTrue(failed.contains("message='org.junit.ComparisonFailure: expected a'"))
+        assertTrue(failed.contains("details='\tat com.example.FooTest.testBar(FooTest.kt:42)'"))
+        assertEquals(1, Regex("org\\.junit\\.ComparisonFailure: expected a").findAll(failed).count())
     }
 
     @Test
@@ -82,6 +98,23 @@ class InstrumentationSmRunnerBridgeTest {
         assertTrue(stdoutIndex >= 0)
         assertTrue(finishIndex > stdoutIndex)
         assertTrue(output[stdoutIndex].contains("Foo: line 1"))
+    }
+
+    @Test
+    fun `test output appends newline for exported method log`() {
+        val output = mutableListOf<String>()
+        val bridge = InstrumentationSmRunnerBridge(output::add)
+
+        bridge.startDevice("Pixel_9")
+        bridge.onEvent(InstrumentationEvent.TestStarted("com.example.FooTest", "testBar"))
+        bridge.onEvent(InstrumentationEvent.TestOutput(
+            "com.example.FooTest",
+            "testBar",
+            "05-07 15:31:58.756 1234 1234 I Foo: line 1",
+        ))
+
+        val stdout = output.first { it.contains("testStdOut") }
+        assertTrue(stdout.contains("out='05-07 15:31:58.756 1234 1234 I Foo: line 1|n'"))
     }
 
     @Test
@@ -130,7 +163,8 @@ class InstrumentationSmRunnerBridgeTest {
         val started = output.first { it.contains("testStarted") }
         val failed = output.first { it.contains("testFailed") }
         assertTrue(started.contains("name='test|[weird|]|'name'"))
-        assertTrue(failed.contains("bad || value |' |[ |] |n next"))
+        assertTrue(failed.contains("message='bad || value |' |[ |] '"))
+        assertTrue(failed.contains("details=' next'"))
     }
 
     @Test

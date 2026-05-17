@@ -32,9 +32,11 @@ class InstrumentationOutputParser {
         when {
             line.startsWith("INSTRUMENTATION_STATUS: class=") -> {
                 pendingClass = line.removePrefix("INSTRUMENTATION_STATUS: class=")
+                emitTestStartedIfReady()
             }
             line.startsWith("INSTRUMENTATION_STATUS: test=") -> {
                 pendingTest = line.removePrefix("INSTRUMENTATION_STATUS: test=")
+                emitTestStartedIfReady()
             }
             line.startsWith("INSTRUMENTATION_STATUS: stack=") -> {
                 stackLines.add(line.removePrefix("INSTRUMENTATION_STATUS: stack="))
@@ -44,7 +46,7 @@ class InstrumentationOutputParser {
                 handleStatusCode(code)
             }
             line.startsWith("INSTRUMENTATION_CODE:") -> {
-                val code = line.removePrefix("INSTRUMENTATION_CODE:").trim().toIntOrNull() ?: return
+                line.removePrefix("INSTRUMENTATION_CODE:").trim().toIntOrNull() ?: return
                 emitSuiteFinished()
             }
             line.startsWith("INSTRUMENTATION_ABORTED:") -> {
@@ -59,18 +61,23 @@ class InstrumentationOutputParser {
         val testName = pendingTest ?: return
 
         when (code) {
-            1 -> {
-                // Test started
-                inTestBlock = true
-                stackLines.clear()
-                onEvent(InstrumentationEvent.TestStarted(className, testName))
-            }
+            1 -> emitTestStartedIfReady()
             0 -> emitTestFinished(className, testName, InstrumentationEvent.TestResult.OK)
             -1 -> emitTestFinished(className, testName, InstrumentationEvent.TestResult.ERROR)
             -2 -> emitTestFinished(className, testName, InstrumentationEvent.TestResult.FAILURE)
             -3 -> emitTestFinished(className, testName, InstrumentationEvent.TestResult.IGNORED)
             -4 -> emitTestFinished(className, testName, InstrumentationEvent.TestResult.ASSUMPTION_FAILURE)
         }
+    }
+
+    private fun emitTestStartedIfReady() {
+        if (inTestBlock) return
+        val className = pendingClass ?: return
+        val testName = pendingTest ?: return
+
+        inTestBlock = true
+        stackLines.clear()
+        onEvent(InstrumentationEvent.TestStarted(className, testName))
     }
 
     private fun emitTestFinished(className: String, testName: String, result: InstrumentationEvent.TestResult) {
