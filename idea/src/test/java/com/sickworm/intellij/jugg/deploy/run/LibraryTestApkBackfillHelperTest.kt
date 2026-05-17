@@ -40,6 +40,7 @@ class LibraryTestApkBackfillHelperTest {
         testApkFile.writeText("test apk")
         val module = androidTestModule(projectDir, sourceRoot)
         val compileClient = RecordingCompileClient(testApkFile)
+        val uiHandler = RecordingUiHandler()
         var backfilledApks = emptyList<ApkInfo>()
         var installedApks = emptyList<ApkInfo>()
         val helperContext = createHelper(
@@ -52,10 +53,11 @@ class LibraryTestApkBackfillHelperTest {
         val result = helperContext.helper.backfillIfNeeded(
             spec = AndroidTestRunSpec(null, null, sourcePath = sourceFile.path),
             data = JuggDeployData.forInstall(emptyList()),
-            uiHandler = CompileUiHandler.DEFAULT,
+            uiHandler = uiHandler,
             installBackfilledApks = { installedApks = it },
         )
 
+        assertEquals(listOf("Library Test APK missing. Run Gradle compile once to build the test APK."), uiHandler.balloons)
         assertEquals("./gradlew :library1:assembleDebugAndroidTest", compileClient.compileCommand)
         assertEquals("library1/build/outputs/apk/androidTest/debug/*.apk", compileClient.outputApkName)
         assertEquals(listOf("com.example.library1.test"), result.apks.map { it.applicationId })
@@ -109,6 +111,14 @@ class LibraryTestApkBackfillHelperTest {
                 },
                 onApksBackfilled = onApksBackfilled,
             )
+        }
+    }
+
+    private class RecordingUiHandler : CompileUiHandler by CompileUiHandler.DEFAULT {
+        val balloons = mutableListOf<String>()
+
+        override fun notifyByBalloon(text: String) {
+            balloons += text
         }
     }
 

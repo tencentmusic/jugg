@@ -57,6 +57,7 @@ class LibraryTestApkBackfillHelper(
 
         val plan = LibraryTestApkBackfillPlanner.plan(module)
         logger.info("Library Test APK missing, building ${plan.gradleTask}")
+        uiHandler.notifyByBalloon("Library Test APK missing. Run Gradle compile once to build the test APK.")
         val result = JuggGradleCompileTask(
             project = project,
             compileClient = compileClientFactory(),
