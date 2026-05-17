@@ -5,12 +5,11 @@ import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.SqlApkFileDatabase
 import com.android.tools.deployer.model.Apk
 import com.android.utils.ILogger
-import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureTimeMillis
 
@@ -23,12 +22,12 @@ import kotlin.system.measureTimeMillis
 object JuggDeploymentService {
 
     private val lock = Object()
+    val deploymentCacheDbFile = JuggGlobalPathManager.deployCacheDbFile
 
     private val deploymentCacheDatabase: DeploymentCacheDatabase by lazy {
-        val deployDbPath = Paths.get(PathManager.getSystemPath(), ".deploy_cache.db")
         DeploymentCacheDatabase(
             4,
-            deployDbPath.toFile(),
+            deploymentCacheDbFile,
         )
     }
 

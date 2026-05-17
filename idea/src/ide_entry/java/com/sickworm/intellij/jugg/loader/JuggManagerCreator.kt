@@ -30,7 +30,7 @@ class JuggManagerCreator(
 
         PlatformApi.impl = IdeaPlatformApi()
 
-        val pathManager = JuggPathManager(projectDir, globalJuggRootDir = File(PathManager.getSystemPath(), "jugg"))
+        val pathManager = JuggPathManager(projectDir)
         JuggLogger.register(project, pathManager.logDir)
 
         try {

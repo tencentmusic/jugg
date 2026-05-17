@@ -7,7 +7,7 @@
 针对常量重编译链路，落地以下三点：
 
 1. `RepoSharedFingerprintStore` 和 `ConstRefCacheDatabase` 全局共享，支持同仓库、多工程、多 worktree 命中。
-2. 全局 db 目录统一收归 `JuggPathManager` 管理（其内部可基于 `File(PathManager.getSystemPath(), "jugg")`）。
+2. 全局 db 目录统一收归 `JuggPathManager` / `JuggGlobalPathManager` 管理，根目录为 `~/.jugg`。
 3. 设计并实现 db 过期清理策略，避免长期膨胀。
 
 说明：若文档与代码冲突，以代码为准。
@@ -19,7 +19,7 @@
 | 项目 | 现状 | 代码依据 | 差距 |
 |---|---|---|---|
 | `ConstRefCacheDatabase` 路径 | 每个项目独立，位于 `build/jugg/database/const_ref.db` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt:77` | 无法跨项目/worktree 共享定义与引用缓存 |
-| `RepoSharedFingerprintStore` 路径 | 已全局，但使用 `~/.jugg/const_ref/repo_fingerprint.db` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/RepoSharedFingerprintStore.kt:13` | 路径不统一到 IDE system path |
+| `RepoSharedFingerprintStore` 路径 | 已全局，使用 `~/.jugg/const_ref/repo_fingerprint.db` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt` | 已统一到 Jugg 全局目录 |
 | mtime 命中策略 | 文件 mtime 变更后，先尝试指纹命中；miss 才全量 CRC32 | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefScheduler.kt:289` | 缺少“同文件多 mtime -> 同 checksum”的显式索引 |
 | 过期清理 | 无定期清理机制 | `ConstRefCacheDatabase.kt` / `RepoSharedFingerprintStore.kt` 当前无 cleanup 表和流程 | 数据会持续增长 |
 
@@ -31,7 +31,7 @@
 
 在 `JuggPathManager` 增加全局 const-ref 路径字段，由其统一管理：
 
-- 根目录：`globalJuggRootDir = File(PathManager.getSystemPath(), "jugg")`
+- 根目录：`globalJuggRootDir = JuggGlobalPathManager.rootDir`，即 `~/.jugg`
 - const-ref 目录：`constRefDir = File(globalJuggRootDir, "const_ref")`
 - 文件：
   - `constRefSharedDbFile = File(constRefDir, "const_ref_shared.db")`
@@ -227,7 +227,7 @@
 ## 10. 验收标准（对应需求）
 
 1. 同仓库多工程、多 worktree 下，内容未变但 mtime 变化可命中，且第二次命中不再读文件算 CRC32。
-2. 运行时默认 db 路径由 `JuggPathManager` 统一提供，落在 `File(PathManager.getSystemPath(), "jugg")/const_ref`。
+2. 运行时默认 db 路径由 `JuggPathManager` 统一提供，落在 `~/.jugg/const_ref`。
 3. 清理策略可观测（日志）且可验证（单测），db 大小在长期使用下不线性膨胀。
 
 ---

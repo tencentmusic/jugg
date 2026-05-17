@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -94,14 +94,7 @@ fun List<File>.relativePathForPrintSafe(baseDirPath: File): List<File> {
 }
 
 fun copyResource(resourcePath: String): File {
-    val storeRootDir = File(PathManager.getSystemPath(), "jugg")
-    // location in test: idea/build/idea-sandbox/system-test/jugg
-    // location in test: idea/build/idea-sandbox/system/jugg
-    // location in AS: ~/Library/Caches/Google/AndroidStudio2024.1/jugg
-    val storePath = File(storeRootDir, resourcePath)
-    val isTestEnv = storeRootDir.path.contains("build") && storeRootDir.path.contains("idea-sandbox")
-    // isAlwaysUpdate will cause aapt2 daemon failed to start on My new MacBook :(
-//    val isAlwaysUpdate = isTestEnv && !isWindows // Windows not allowed to delete it when it's running
+    val storePath = JuggGlobalPathManager.resourceFile(resourcePath)
     val isAlwaysUpdate = false
     if (storePath.exists() && !isAlwaysUpdate) {
         return storePath

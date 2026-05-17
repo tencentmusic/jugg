@@ -16,6 +16,10 @@ class JuggPathManagerTest {
             assertEquals(File(projectDir, "build/jugg").absolutePath, pathManager.juggRootDir.absolutePath)
             assertEquals(File(projectDir, "build/jugg/config").absolutePath, pathManager.configDir.absolutePath)
             assertEquals(
+                File(System.getProperty("user.home"), ".jugg/const_ref/const_ref_shared.db").absolutePath,
+                pathManager.constRefSharedDbFile.absolutePath,
+            )
+            assertEquals(
                 File(projectDir, ".gradle/jugg/readProjectInfo.gradle.kts").absolutePath,
                 pathManager.initGradleFilePath.absolutePath,
             )

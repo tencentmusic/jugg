@@ -21,6 +21,7 @@
 | logger | `main/.../logger/` | `JuggLogger`, `FileLogger`, `TimeLogger` | 统一日志与耗时埋点 |
 | server | `main/.../server/` | `JuggServer`, `JuggRemoteCompileApplier` | 远端能力、版本检测、下发支持 |
 | platform | `main/.../platform/` | `PlatformApi` | 平台能力注入抽象 |
+| project path | `main/.../project/` | `JuggPathManager`, `JuggGlobalPathManager` | 项目级 `build/jugg` 路径与用户级 `~/.jugg` 全局目录声明 |
 | ide bean/logic (core side) | `main/.../ide/` | `JuggSettings`, `JuggGradleCompileOptions` | 跨层配置与运行参数模型 |
 
 ---
@@ -32,6 +33,7 @@
 - 需要 APK 变更：优先复用 `ApkFileModifier` 与 `ResourceApkModifier`。  
 - 需要设备平台能力：经 `PlatformApi` 获取，避免直接耦合 IDE 实现。  
 - 需要 Git 变更判断：先看 `GitManager` 与 `WorktreeFileRepository`。
+- 需要 Jugg 自有全局文件：统一经 `JuggGlobalPathManager` 放到 `~/.jugg`；项目级编译缓存仍经 `JuggPathManager` 留在项目 `build/jugg`。
 
 ---
 

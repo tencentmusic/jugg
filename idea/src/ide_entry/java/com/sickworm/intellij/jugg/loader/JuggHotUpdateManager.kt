@@ -1,13 +1,13 @@
 package com.sickworm.intellij.jugg.loader
 
 import com.intellij.ide.util.PropertiesComponent
-import com.intellij.openapi.application.PathManager
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import java.io.File
 import java.util.jar.Manifest
 
 object JuggHotUpdateManager {
 
-    val hotUpdateDir: File = File(PathManager.getSystemPath(), "jugg/hot_update")
+    val hotUpdateDir: File = JuggGlobalPathManager.hotUpdateDir
     val storageDir: File = File(hotUpdateDir, "jars")
 
     /** jar file list to be loaded */

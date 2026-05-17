@@ -7,6 +7,7 @@ import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
@@ -95,6 +96,7 @@ class JuggManager @TestOnly constructor(
             IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             deployHistoryManager.checkProjectDirChanged()
+            clearLegacySystemJuggDir()
             logger.info("Start jugg finished.")
 
             // init project info async
@@ -610,6 +612,13 @@ class JuggManager @TestOnly constructor(
         logger.debug("project ${pathManager.projectDir} dispose")
         deployFileManager.dispose()
         coroutineScope.cancel()
+    }
+
+    private fun clearLegacySystemJuggDir(systemPath: File = File(PathManager.getSystemPath())) {
+        val legacyDir = File(systemPath, "jugg")
+        if (legacyDir.exists() && !legacyDir.deleteRecursively() && legacyDir.exists()) {
+            throw IllegalStateException("Failed to delete legacy Jugg system dir: ${legacyDir.absolutePath}")
+        }
     }
 
     private inner class JuggRunningTaskCreator : IJuggRunningTaskCreator {
