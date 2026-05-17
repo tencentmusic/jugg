@@ -95,7 +95,7 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 - 不改写用户 RunConfig 中的 compile command 或 output APK 配置。
 - `BuildTarget.ANDROID_TEST` 通过 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`，并把同 variant 的 `assemble<Variant>AndroidTest` 挂到用户请求的 Gradle task 前执行。
 - 若 `LibraryTestApkBuildHistory` 命中近期 self-targeting library Test APK 记录，Gradle compile 会通过 `-Pjugg.libraryTestTasks=...` 传递历史 task 列表，init script 在同一 `projectsEvaluated` 阶段把这些 library androidTest task 也挂到用户请求的 Gradle task 前执行；`BuildTarget.APP` 不参与该逻辑。
-- Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径派生同 variant 的 `app/build/outputs/apk/androidTest/<variant>/*.apk`。
+- Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径派生同 variant 的 `app/build/outputs/apk/androidTest/<variant>/*.apk`；history library Test APK output 作为 optional APK 收集，命中则追加到本轮 APK 结果，缺失只记录日志，不进入 `failedApkPaths`。
 - `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
 - Gradle project info 读取阶段会为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
 
@@ -231,6 +231,8 @@ library-style self-targeting Test APK 是例外：它有自己的 runtime packag
 - `module.applicationId == module.instrumentationTargetPackage`，即 self-targeting / library-style Test APK。
 
 补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，并立即把新 package 的 overlay id 合并到 deploy history，避免后续 dry deploy 把新安装的 library Test APK 误判为跨项目状态；随后同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
+
+当 Gradle compile 成功、Test APK 路径解析成功、APK 安装成功且 compile context 已同步后，`LibraryTestApkBuildHistory` 会记录该 library androidTest module 的 compile command、compile time、APK output pattern 与实际 APK path。记录写入 `~/.jugg/library_test_build_records/{projectName}_hash{0:8}.json`，有 git 仓库时 hash 使用仓库 URL，否则使用工程绝对路径；每次读取普通 `BuildTarget.ANDROID_TEST` Gradle build 历史时，只选择最近 30 天、同 variant 的最近 3 条记录用于回放。
 
 命中缺失分支时，Jugg 会通过 Run tool window balloon 提示 `Library Test APK missing. Run Gradle compile once to build the test APK.`，让用户知道需要一次 Gradle 编译来生成 Test APK baseline。
 
