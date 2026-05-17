@@ -24,6 +24,16 @@ interface IGitManager {
     val name: String?
 
     /**
+     * get remote.origin.url in .git/config
+     */
+    val originRemoteUrl: String?
+
+    /**
+     * get remote urls in .git/config
+     */
+    val remoteUrls: List<String>
+
+    /**
      * get git username in .git/config or ~/.gitconfig
      */
     val userName: String?

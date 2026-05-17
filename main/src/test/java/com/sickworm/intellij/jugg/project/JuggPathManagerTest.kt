@@ -36,4 +36,21 @@ class JuggPathManagerTest {
             projectDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun libraryTestBuildRecordDir_shouldUseGlobalJuggRootDir() {
+        val projectDir = Files.createTempDirectory("jugg_path_manager").toFile()
+        val globalJuggRootDir = Files.createTempDirectory("jugg_global_path_manager").toFile()
+        try {
+            val pathManager = JuggPathManager(projectDir, globalJuggRootDir = globalJuggRootDir)
+
+            assertEquals(
+                File(globalJuggRootDir, "library_test_build_records").absolutePath,
+                pathManager.libraryTestBuildRecordDir.absolutePath,
+            )
+        } finally {
+            projectDir.deleteRecursively()
+            globalJuggRootDir.deleteRecursively()
+        }
+    }
 }

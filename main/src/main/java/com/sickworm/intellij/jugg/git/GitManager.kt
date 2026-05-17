@@ -115,6 +115,25 @@ class GitManager (
         }
     }
 
+    override val originRemoteUrl: String? get() {
+        return try {
+            repository?.config?.getString("remote", "origin", "url")
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    override val remoteUrls: List<String> get() {
+        return try {
+            val config = repository?.config ?: return emptyList()
+            config.getSubsections("remote").flatMap { remoteName ->
+                config.getStringList("remote", remoteName, "url").toList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     override fun init() {
         Git.init().setDirectory(rootDir)
             .also {

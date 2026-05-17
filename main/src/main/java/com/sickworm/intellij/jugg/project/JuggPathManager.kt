@@ -14,6 +14,7 @@ class JuggPathManager(
     val constRefDir: File = File(globalJuggRootDir, "const_ref")
     val constRefSharedDbFile: File = File(constRefDir, "const_ref_shared.db")
     val repoFingerprintDbFile: File = File(constRefDir, "repo_fingerprint.db")
+    val libraryTestBuildRecordDir: File = File(globalJuggRootDir, "library_test_build_records")
 
     val compileRootDir = File(juggRootDir, "build")
     val stagingDir = File(compileRootDir, "staging")
