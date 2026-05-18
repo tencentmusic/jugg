@@ -26,4 +26,20 @@ class AppLogicInstrumentedTest {
 
         assertTrue(appName.contains("Application"))
     }
+
+    @Test
+    fun extrasReceivesBenchmarkModeAndTimeout() {
+        Log.i("AppLogicInstrumentedTest", "[extrasReceivesBenchmarkModeAndTimeout] in")
+        val args = InstrumentationRegistry.getArguments()
+        assertEquals("true", args.getString("benchmark_mode"))
+        assertEquals("5000", args.getString("timeout"))
+    }
+
+    @Test
+    fun extrasHandlesSpecialCharacters() {
+        Log.i("AppLogicInstrumentedTest", "[extrasHandlesSpecialCharacters] in")
+        val args = InstrumentationRegistry.getArguments()
+        assertEquals("name=foo;bar", args.getString("filter"))
+        assertEquals("smoke;regression", args.getString("tags"))
+    }
 }

@@ -67,6 +67,7 @@ tools/export_benchmark_prompt_packs.sh all
 tools/export_benchmark_prompt_packs.sh cli
 tools/export_benchmark_prompt_packs.sh ui-verify
 tools/export_benchmark_prompt_packs.sh hooks
+tools/export_benchmark_prompt_packs.sh instrument
 ```
 
 导出脚本实际转发到 `docs/skills/benchmark/runner/export_prompt_pack.py`。默认输出目录为 `android_demo_project/build/benchmark-packs/`，包含：
@@ -76,9 +77,10 @@ tools/export_benchmark_prompt_packs.sh hooks
 | `cli` | `docs/skills/benchmark/benchmark-cli` | `android_demo_project/build/benchmark-packs/cli` | 验证 Agent 是否正确选择和使用 Jugg CLI |
 | `ui-verify` | `docs/skills/benchmark/benchmark-ui-verify` | `android_demo_project/build/benchmark-packs/ui-verify` | 验证 Agent 是否正确使用 UI 观察、定位与交互链路 |
 | `hooks` | `docs/skills/benchmark/benchmark-hooks` | `android_demo_project/build/benchmark-packs/hooks` | 验证 Agent hooks 的 edit 记录、sourceset 硬阻断、二次放行、非 sourceset 放行与未全量编译放行 |
+| `instrument` | `docs/skills/benchmark/benchmark-instrument` | `android_demo_project/build/benchmark-packs/instrument` | 验证 Agent 是否正确使用 `instrument` 命令运行 androidTest |
 
 注意：
-- `cli` / `ui-verify` benchmark 在 `android_demo_project` 或其子目录启动被测 Agent。
+- `cli` / `ui-verify` / `instrument` benchmark 在 `android_demo_project` 或其子目录启动被测 Agent。
 - `hooks` benchmark 在当前 CWD 启动被测 Agent；它验证 Agent hooks 是否正确配置和真实触发，不属于 `jugg` CLI 子命令。
 - `hooks` L3 用例必须通过被测 Agent 自己的文件编辑、shell 命令、raw Gradle 命令和结束会话动作触发 hooks；不得直接调用 hook 脚本，也不得使用不存在的 `jugg stop` 子命令。
 - prompt pack 内的 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json` 是被测 Agent 可见输入；被测 Agent 只应填写同目录 `report.md`。`hooks` 用例例外允许按 case 要求修改隔离 hook 触发文件：需要触发 pending changes 的源码触发文件必须位于 `app/src/main/java/com/example/myapplication/`，非 sourceset 误阻断验证才使用 `hook_benchmark_scratch/`。

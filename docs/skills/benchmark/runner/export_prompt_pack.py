@@ -29,6 +29,17 @@ BENCHMARKS = {
         "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-hooks",
         "mode": "hooks",
     },
+    "instrument": {
+        "title": "Jugg Instrument Benchmark Prompt Pack",
+        "source": REPO_ROOT / "docs" / "skills" / "benchmark" / "benchmark-instrument",
+        "mode": "cli",
+        "file_order": [
+            "l2_instrument_basic.md",
+            "l2_instrument_advanced.md",
+            "l3_instrument_no_device.md",
+            "l4_instrument_e2e.md",
+        ],
+    },
 }
 
 
@@ -87,11 +98,21 @@ def parse_cases(markdown_file: Path, source_root: Path) -> list[Case]:
     return cases
 
 
-def collect_cases(source_root: Path) -> list[Case]:
+def collect_cases(source_root: Path, file_order: list[str] | None = None) -> list[Case]:
+    md_files = {p.name: p for p in source_root.glob("*.md") if p.name != "README.md"}
+
+    if file_order:
+        ordered: list[Path] = []
+        for name in file_order:
+            if name in md_files:
+                ordered.append(md_files.pop(name))
+        # append remaining files alphabetically
+        ordered.extend(p for _, p in sorted(md_files.items()))
+    else:
+        ordered = [p for _, p in sorted(md_files.items())]
+
     cases: list[Case] = []
-    for markdown_file in sorted(source_root.glob("*.md")):
-        if markdown_file.name == "README.md":
-            continue
+    for markdown_file in ordered:
         cases.extend(parse_cases(markdown_file, source_root))
     return cases
 
@@ -351,7 +372,8 @@ def export_pack(kind: str, output_root: Path) -> Path:
     source_root = config["source"]
     title = config["title"]
     mode = config["mode"]
-    cases = collect_cases(source_root)
+    file_order = config.get("file_order")
+    cases = collect_cases(source_root, file_order=file_order)
     if not cases:
         raise ValueError(f"No cases found in {source_root}")
 
