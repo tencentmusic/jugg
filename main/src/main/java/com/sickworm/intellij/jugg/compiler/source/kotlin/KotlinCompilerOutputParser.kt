@@ -184,10 +184,10 @@ class KotlinCompilerOutputParser(
     private fun parseOutputMessage(message: String) {
         // e.g.
         // output: output:
-        // /Users/wormchen/IdeaProjects/jugg/android_demo_project/app/ #soft wrap
+        // /Users/sickworm/IdeaProjects/jugg/android_demo_project/app/ #soft wrap
         // build/tmp/kotlin-classes/debug/com/sickworm/jugg/demo/testcase/CaseKtSmartCast.class
         // Sources:
-        // /Users/wormchen/IdeaProjects/jugg/android_demo_project/app/ #soft wrap
+        // /Users/sickworm/IdeaProjects/jugg/android_demo_project/app/ #soft wrap
         // src/main/java/com/sickworm/jugg/demo/testcase/CaseKtSmartCast.kt
 
         val contents = message.split("\n")

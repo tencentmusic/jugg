@@ -2,10 +2,11 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.OverlayId
-import com.android.tools.deployer.SqlApkFileDatabase
 import com.android.tools.deployer.model.Apk
 import com.android.utils.ILogger
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.CachedOverlayId
+import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
 import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +20,7 @@ import kotlin.system.measureTimeMillis
  * * provides synchronized and async api
  * * provides preInit
  */
-object JuggDeploymentService {
+object JuggDeploymentService : IJuggDeploymentService {
 
     private val lock = Object()
     val deploymentCacheDbFile = JuggGlobalPathManager.deployCacheDbFile
@@ -55,6 +56,12 @@ object JuggDeploymentService {
             deploymentCacheDatabase.store(deviceSerial, packageName, newFiles, overlayId)
             logger.info("JuggDeploymentService.storeEntry, end, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
         }
+    }
+
+    override fun loadCachedOverlayId(deviceSerial: String, packageName: String, logger: Logger): CachedOverlayId? {
+        return loadEntry(deviceSerial, packageName, AdbLogWrapper(logger))
+            ?.overlayId
+            ?.let { CachedOverlayId(sha = it.sha, isBaseInstall = it.isBaseInstall) }
     }
 
     fun loadEntry(deviceSerial: String, packageName: String, logger: ILogger): DeploymentCacheDatabase.Entry? {

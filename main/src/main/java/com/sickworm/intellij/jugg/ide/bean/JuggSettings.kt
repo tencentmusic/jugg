@@ -66,6 +66,11 @@ object JuggSettings {
     var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
     val finalIsEnableCompatibleDeploymentMode get() = isEnableInjectGradleCompile && isEnableCompatibleDeploymentMode
 
+    /**
+     * Enables direct overlay deploy shortcuts that do not require the app process to be online.
+     */
+    var isEnableDirectOverlayDeploy: Boolean by propertiesComponent.delegate(defaultValue = true)
+
     var isUseProjectKotlinCompiler: Boolean by propertiesComponent.delegate(keyName = "isUseProjectKotlinCompiler_v3", defaultValue = true)
 
     /** limit max source modules to compile for better performance */

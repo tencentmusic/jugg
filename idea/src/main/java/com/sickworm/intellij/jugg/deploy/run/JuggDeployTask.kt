@@ -31,14 +31,19 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
-import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
+import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.stream.Collectors
 
 /**
+ *
+ * [JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
+ *
  * @see com.android.tools.idea.run.tasks.AbstractDeployTask
  * @see com.android.tools.idea.run.tasks.DeployTask
  * @see com.android.tools.idea.run.tasks.ApplyChangesTask
@@ -55,6 +60,7 @@ class JuggDeployTask(
     fun run(launchContext: LaunchContext): LaunchResult {
         val stopwatch = Stopwatch.createStarted()
         val device = launchContext.device
+        val ideaLogger = logger
         val logger = AdbLogWrapper(logger)
         val adb = AdbClient(device, logger)
         val ideService = IdeService(project)
@@ -82,7 +88,12 @@ class JuggDeployTask(
             uiService,
             launchContext.exceptOverlayIds,
             launchContext.isSkipExceptOverlayCheck,
-            logger
+            logger,
+            DirectOverlaySwapOptions(
+                enabled = JuggSettings.isEnableDirectOverlayDeploy,
+                isDeviceReadyDeploy = launchContext.isDeviceReadyDeploy,
+                adb = IdeaDeviceAdb(device, ideaLogger),
+            )
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
@@ -255,6 +266,7 @@ class LaunchContext(
     val exceptOverlayIds: Map<String, String>,
     val isSkipExceptOverlayCheck: Boolean,
     val compileUiHandler: CompileUiHandler,
+    val isDeviceReadyDeploy: Boolean = true,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false

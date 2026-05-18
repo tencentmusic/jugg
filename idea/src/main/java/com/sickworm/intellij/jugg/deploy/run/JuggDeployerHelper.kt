@@ -16,6 +16,8 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
+import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
@@ -35,6 +37,7 @@ import kotlin.system.measureTimeMillis
 
 /**
  * Create a deploy task.
+ * [JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
  *
  * @see [com.android.tools.idea.run.AndroidRunConfigurationBase.getState]
  * @see [com.android.tools.idea.run.LaunchTaskRunner.run]
@@ -70,6 +73,10 @@ class JuggDeployerHelper(
             deployFileManager.updateApks(apks)
         },
     ),
+    private val deploymentService: IJuggDeploymentService = JuggDeploymentService,
+    private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { device, ideaLogger ->
+        IdeaDeviceAdb(device, ideaLogger)
+    },
     private var installPathProvider: Computable<String> = Computable<String> {
         CopyEmbeddedDistributionPaths().get()
     },
@@ -86,6 +93,7 @@ class JuggDeployerHelper(
         isLastDevice: Boolean = false,
         androidTestRunSpec: AndroidTestRunSpec? = null,
         androidTestResultModel: AndroidTestResultModel? = null,
+        isDeviceReadyDeploy: Boolean = true,
     ): LaunchResult = synchronized(runTaskLock) {
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
@@ -132,6 +140,7 @@ class JuggDeployerHelper(
                 exceptOverlayIds = deployHistoryManager.lastDeployOverlayIds,
                 isSkipExceptOverlayCheck = isSliceSkipExceptOverlayCheck,
                 compileUiHandler = compileUiHandler,
+                isDeviceReadyDeploy = isDeviceReadyDeploy,
             )
             val task = JuggDeployTask(project, installPathProvider, androidDeployType, splitData)
             launchResult = task.run(launchContext)
@@ -454,6 +463,7 @@ class JuggDeployerHelper(
                     isLastDevice = deployOptions.isLastDevice,
                     androidTestRunSpec = deployOptions.androidTestRunSpec,
                     androidTestResultModel = deployOptions.androidTestResultModel,
+                    isDeviceReadyDeploy = deployStateManager.getDeployState(device).isReadyDeploy,
                 )
                 if (!launchResult.success) {
                     return DeployTaskResult(
@@ -631,6 +641,7 @@ class JuggDeployerHelper(
         val isClassNotFoundException = reason.contains("Class not found")
         // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
         val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
+        val isDirectDeployFailed = reason.contains("Direct overlay")
 
         val reinstallWhenTimeout = deployOptions.timeOutRetryTimes == 2 // try to reinstall apk at the third time
         val stopRetryWhenTimeout = deployOptions.timeOutRetryTimes >= 3
@@ -639,7 +650,7 @@ class JuggDeployerHelper(
             return null
         }
 
-        if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
+        if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout || isDirectDeployFailed) {
             var isNeedTryDeyDeployFirst = false
             var isRetryDirectly = false
             @Suppress("KotlinConstantConditions")
@@ -662,6 +673,9 @@ class JuggDeployerHelper(
                 }
                 isOverlayIdNotCorrect -> {
                     logger.info("Deploy history mismatch with the device, try recover deploy state.")
+                }
+                isDirectDeployFailed -> {
+                    logger.info("Got direct deploy failed exception, try recover deploy state normal way.")
                 }
                 isClassNotFoundException -> {
                     logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
@@ -815,7 +829,6 @@ class JuggDeployerHelper(
         }
 
         deployFileManager.resetAfterReinstall()
-
         return true to true
     }
 
@@ -829,6 +842,11 @@ class JuggDeployerHelper(
     ): DryDeployResult {
         if (deployTargetManager.isAppInstalled(device) == false) {
             return DryDeployResult.APP_NOT_INSTALLED
+        }
+
+        tryDirectDryDeploy(device)?.let {
+            logger.debug("Try directly dry deploy finish, result: $it")
+            return it
         }
 
         logger.info("Start app and waiting app deployable.")
@@ -856,6 +874,38 @@ class JuggDeployerHelper(
             }
             logger.debug("Dry deploy failed, reason: $reason")
             DryDeployResult.FAILED
+        }
+    }
+
+    private fun tryDirectDryDeploy(device: IDevice): DryDeployResult? {
+        if (!JuggSettings.isEnableDirectOverlayDeploy) {
+            logger.debug("Direct overlay state check skipped because direct overlay deploy is disabled.")
+            return null
+        }
+        val packageName = runCatching { deployTargetManager.getPackageName() }.getOrNull()
+        if (packageName == null) {
+            logger.info("Direct overlay state check skipped for missing package name.")
+            return null
+        }
+        val result = DirectOverlayStateChecker(
+            adb = deviceAdbFactory(device, logger),
+            logger = logger,
+            deployHistoryManager = deployHistoryManager,
+            deploymentService = deploymentService,
+        ).checkRecover(device.serialNumber, packageName)
+        return when (result) {
+            DirectOverlayStateCheckResult.MATCHED -> {
+                logger.info("Direct overlay state check matched, skip dry deploy.")
+                DryDeployResult.SUCCESS
+            }
+            DirectOverlayStateCheckResult.MISMATCHED -> {
+                logger.info("Direct overlay state check mismatched, recover deploy state directly.")
+                DryDeployResult.FAILED
+            }
+            DirectOverlayStateCheckResult.UNKNOWN -> {
+                logger.info("Direct overlay state check unknown, fallback to dry deploy.")
+                null
+            }
         }
     }
 

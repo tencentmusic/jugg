@@ -5,14 +5,17 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
-import com.android.tools.tracer.Trace
-import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.deploy.AdbTransientOffline
+import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
+import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
+import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
 
 /**
  * @see com.android.tools.deployer.Deployer
+ *
+ * [JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
  */
 class JuggDeployer(
     private val adb: AdbClient,
@@ -21,7 +24,8 @@ class JuggDeployer(
     private val service: UIService,
     private val exceptOverlayIds: Map<String, String>,
     private val isSkipExceptOverlayCheck: Boolean,
-    private val logger: AdbLogWrapper
+    private val logger: AdbLogWrapper,
+    private val directOverlaySwapOptions: DirectOverlaySwapOptions = DirectOverlaySwapOptions.disabled(),
 ) {
 
     /**
@@ -45,11 +49,6 @@ class JuggDeployer(
     fun install(
         packageName: String, apks: List<String>, options: InstallOptions, argInstallMode: InstallMode
     ): Result {
-//        if (RuntimeMockUtils.isNeedRunTest()) {
-//            val apks = listOf(
-//                "/Users/wormchen/IdeaProjects/jugg/android_demo_project/app/build/outputs/apk/debug/app-debug.apk"
-//            )
-//        }
         val result = Result()
         try {
             var installMode = argInstallMode
@@ -162,16 +161,25 @@ class JuggDeployer(
             }
         }
 
+        val startTime = System.currentTimeMillis()
+        tryDirectOverlaySwap(packageName, data, speculativeDump)?.let { overlayId ->
+            val costTime = System.currentTimeMillis() - startTime
+            logger.info("after direct overlay deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
+            deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
+            return Result().also {
+                it.overlayId = overlayId.sha
+            }
+        }
+
         // On an on-host verification of the dump first.
         val dumper = ApplicationDumper(installer)
         val verifyDump = verifyCache(speculativeDump, dumper, logger, adb)
 
-        // covert to adt deploy data.
+        // Convert to ADT deploy data.
         val builder = OverlayUpdateBuilder()
         val overlayUpdate = builder.build(verifyDump, data)
 
         // Perform the swap.
-        val startTime = System.currentTimeMillis()
         try {
             val overlayId = runWithOfflineRetry("optimistic swap", adb, logger) {
                 AsDeployerCompat.optimisticSwap(
@@ -196,6 +204,34 @@ class JuggDeployer(
             } else {
                 throw e
             }
+        }
+    }
+
+    private fun tryDirectOverlaySwap(
+        packageName: String,
+        data: JuggDeployData,
+        speculativeDump: DeploymentCacheDatabase.Entry?,
+    ): OverlayId? {
+        speculativeDump ?: return null
+        // Base-install cache still needs the legacy APK dump verification before any direct overlay write.
+        if (speculativeDump.overlayId.isBaseInstall) return null
+        val transport = DirectOverlaySwapTransport(directOverlaySwapOptions, logger.logger)
+        if (!transport.canTry(data)) return null
+        return try {
+            val overlayUpdate = OverlayUpdateBuilder().build(speculativeDump, data)
+            transport.trySwap(
+                packageName = packageName,
+                data = data,
+                overlayUpdate = overlayUpdate,
+            )
+        } catch (e: Exception) {
+            if (e is DirectOverlayDirtyException) throw e
+            if (e is InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw e
+            }
+            logger.info("Direct overlay deploy failed before writer, fallback to Apply Changes.", e)
+            null
         }
     }
 
