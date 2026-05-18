@@ -1,3 +1,10 @@
+- version: 3.0.8
+  date: 2026.05.18
+  updates:
+    - 支持 android test 增量编译
+    - 优化部署状态不匹配时会重启 App 1-2 次的表现
+    - 优化启动时需要等待 agent 初始化导致较长耗时
+
 - version: 3.0.7
   date: 2026.04.02
   updates:

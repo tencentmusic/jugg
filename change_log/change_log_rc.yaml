@@ -1,3 +1,10 @@
+- version: 3.0.8
+  date: 2026.05.18
+  updates:
+    - Supports Android test incremental compilation
+    - avoid restart App 1-2 times when deploy state not matched
+    - speed up deployment on App restart
+
 - version: 3.0.7
   date: 2026.04.02
   updates:
