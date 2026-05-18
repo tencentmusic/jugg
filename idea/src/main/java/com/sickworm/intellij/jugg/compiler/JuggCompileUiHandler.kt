@@ -153,7 +153,7 @@ open class JuggCompileUiHandler(
 
     override fun onDeployUiMessage(message: String) {
         if (isRpcMode) {
-            logger.debug("MCP deploy ui message: $message")
+            logger.info(message)
             return
         }
         processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)

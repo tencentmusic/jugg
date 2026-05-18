@@ -37,6 +37,34 @@ class GetCompileStatusMcpToolActionTest {
     }
 
     @Test
+    fun testSuccessDetailIsReturnedByGetCompileStatus() {
+        CompileJobManager.softTimeoutMillisOverrideForTest = 1L
+        val successDetail = "test output line"
+        val runtime = runtimeWithRunner(delayMillis = 120L, detail = successDetail)
+        val deployAction = CompileAndDeployMcpToolAction()
+        val triggerResult = deployAction.execute(mapOf("projectDir" to "/fake/project"), runtime)
+        @Suppress("UNCHECKED_CAST")
+        val triggerData = triggerResult.data as Map<String, Any>
+        Assert.assertEquals(false, triggerData["isFinal"])
+        val jobId = triggerData["jobId"] as String
+
+        val finalState = waitUntilTerminal(jobId)
+        Assert.assertEquals("success", finalState.status)
+
+        val getStatusAction = GetCompileStatusMcpToolAction()
+        val statusResult = getStatusAction.execute(
+            mapOf("projectDir" to "/fake/project", "jobId" to jobId),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, statusResult.status)
+        @Suppress("UNCHECKED_CAST")
+        val statusData = statusResult.data as Map<String, Any>
+        Assert.assertEquals("success", statusData["status"])
+        Assert.assertEquals(successDetail, statusData["detail"])
+    }
+
+    @Test
     fun testWaitTimeoutBlocksUntilCompileFinishes() {
         CompileJobManager.softTimeoutMillisOverrideForTest = 1L
         val runtime = runtimeWithRunner(delayMillis = 120L)
@@ -69,7 +97,7 @@ class GetCompileStatusMcpToolActionTest {
         Assert.assertTrue("expected blocking wait, elapsed=$elapsedMs", elapsedMs >= 80L)
     }
 
-    private fun runtimeWithRunner(delayMillis: Long): IMcpRuntime {
+    private fun runtimeWithRunner(delayMillis: Long, detail: String = ""): IMcpRuntime {
         return object : IMcpRuntime {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("GetCompileStatusTestRuntime")
@@ -123,12 +151,24 @@ class GetCompileStatusMcpToolActionTest {
                             isDeploySuccess = true,
                             isCancel = false,
                         ),
-                        detail = "",
+                        detail = detail,
                     )
                 }
             }
 
             override fun isAppReadyDeploy(): Boolean = true
         }
+    }
+
+    private fun waitUntilTerminal(jobId: String): CompileJobStatus {
+        val deadline = System.currentTimeMillis() + 1_500L
+        while (System.currentTimeMillis() <= deadline) {
+            val state = CompileJobManager.getStatus(jobId)
+            if (state.status != "running") {
+                return state
+            }
+            Thread.sleep(20L)
+        }
+        return CompileJobManager.getStatus(jobId)
     }
 }

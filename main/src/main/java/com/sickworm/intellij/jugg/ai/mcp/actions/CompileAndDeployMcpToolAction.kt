@@ -285,6 +285,13 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 "runResult" to runResultObject,
             )
             data.putAll(extraData)
+            val detailResult = if (detail.isNotBlank()) {
+                val result = resolveDetailResult(toolName, detail)
+                attachDetailData(data, result)
+                result
+            } else {
+                DetailResult()
+            }
 
             val message = if (compiledFiles.isNotEmpty()) {
                 "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ")}"
@@ -295,7 +302,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 status = McpToolStatus.OK,
                 message = message,
                 data = data,
-                artifacts = emptyList(),
+                artifacts = detailResult.artifacts,
                 errorCode = null,
             )
         }

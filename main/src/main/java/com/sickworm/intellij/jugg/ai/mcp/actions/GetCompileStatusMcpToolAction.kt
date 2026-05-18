@@ -97,10 +97,10 @@ class GetCompileStatusMcpToolAction : McpToolAction {
             )
         }
 
-        // Attach detail when compile job finished with failure.
+        // Attach detail when compile job has diagnostic output.
         val isFailed = state.status == "failed" || state.status == "canceled"
         val artifacts = mutableListOf<com.sickworm.intellij.jugg.ai.mcp.McpArtifact>()
-        if (isFailed && state.detail.isNotBlank()) {
+        if (state.detail.isNotBlank()) {
             CompileAndDeployMcpToolAction.attachDetailToData(
                 toolName = toolName,
                 detail = state.detail,

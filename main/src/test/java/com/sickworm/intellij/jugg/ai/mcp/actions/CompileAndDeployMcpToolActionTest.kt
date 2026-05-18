@@ -75,7 +75,7 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
-    fun testSuccessDoesNotCarryDetailPayload() {
+    fun testSuccessIncludesDetailWhenNonEmpty() {
         val action = CompileAndDeployMcpToolAction()
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
@@ -86,7 +86,7 @@ class CompileAndDeployMcpToolActionTest {
                     isDeploySuccess = true,
                     isCancel = false,
                 ),
-                detail = "compile logs that should not be returned on success",
+                detail = "compile logs that should be returned on success",
             )
         )
 
@@ -103,7 +103,7 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals(true, data["isDeploySuccess"])
         Assert.assertEquals("local", data["executionType"])
         Assert.assertEquals(CompileJobManager.COMPILE_LATEST_LOG_PATH, data["logPath"])
-        Assert.assertFalse(data.containsKey("detail"))
+        Assert.assertEquals("compile logs that should be returned on success", data["detail"])
         Assert.assertTrue(result.artifacts.isEmpty())
     }
 
@@ -439,7 +439,7 @@ class CompileAndDeployMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertEquals("compile executed successfully.", result.message)
+        Assert.assertEquals("compile executed successfully.  Compiled files (total: 0)", result.message)
     }
 
     @Test
