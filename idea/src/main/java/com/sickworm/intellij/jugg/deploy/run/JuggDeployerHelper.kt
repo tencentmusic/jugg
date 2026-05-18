@@ -470,7 +470,7 @@ class JuggDeployerHelper(
                     updateInfoAfterIncDeploy(launchResult, deployData)
                 }
 
-                DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType, costTimeExceptCheck = costTime() - launchResult.checkJvmtiCostTime)
+                DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType, costTimeExceptCheck = costTime() - launchResult.checkJvmtiCostTime, hasDeployChanges = !deployData.isEmpty)
             }
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: e.toString()
@@ -971,4 +971,6 @@ data class DeployTaskResult(
     val deployType: JuggDeployData.DeployType? = null,
     val failedReason: String? = null,
     val costTimeExceptCheck: Long = costTime,
+    /** false when deploy data has no incremental products (no classes, no overlays). */
+    val hasDeployChanges: Boolean = true,
 )
