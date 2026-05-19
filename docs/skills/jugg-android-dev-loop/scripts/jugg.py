@@ -72,6 +72,9 @@ def main() -> None:
     i = 0
     while i < len(args):
         a = args[i]
+        # Normalize camelCase global flags to kebab-case so both forms are accepted.
+        if a.startswith("--projectDir"):
+            a = a.replace("--projectDir", "--project-dir", 1)
         if a.startswith("--console="):
             val = a[len("--console="):]
             if val not in _CONSOLE_VALUES:

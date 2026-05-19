@@ -126,7 +126,7 @@ jugg --project-dir <path> <subcommand> [options]
 jugg --project-dir=<path> <subcommand> [options]
 ```
 
-`--project-dir` 是全局参数，用于跳过 `$PWD` 自动匹配，直接把传入路径作为 MCP `projectDir` 发送给对应工具。`version` 仍不需要 `projectDir`。
+`--project-dir`（也接受 `--projectDir`）是全局参数，用于跳过 `$PWD` 自动匹配，直接把传入路径作为 MCP `projectDir` 发送给对应工具。`version` 仍不需要 `projectDir`。
 
 #### Help 输出
 ```
