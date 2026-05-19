@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.PluginInfoReader
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
@@ -176,6 +177,10 @@ class JuggServer(
                 }
                 if (pathManager.tmpGradleProjectInfo.exists()) {
                     files.add(pathManager.tmpGradleProjectInfo)
+                }
+                val hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log")
+                if (hookDebugLog.exists()) {
+                    files.add(hookDebugLog)
                 }
 
                 zipTo(destFile, files)
