@@ -55,6 +55,16 @@ class ConstRefAnalyzer(
         }
     }
 
+    fun parseReferenceCandidates(files: Collection<File>): Map<String, List<ConstReferenceCandidate>> {
+        val sourceFiles = normalizeSourceFiles(files)
+        if (sourceFiles.isEmpty()) {
+            return emptyMap()
+        }
+        return sourceFiles.associate { sourceFile ->
+            sourceFile.toStdPath() to parseReferenceCandidates(sourceFile)
+        }
+    }
+
     fun collectReferenceLookupHints(files: Collection<File>): Map<String, ConstReferenceLookupHints> {
         val sourceFiles = normalizeSourceFiles(files)
         if (sourceFiles.isEmpty()) {
@@ -124,6 +134,14 @@ class ConstRefAnalyzer(
         return when (sourceFile.extension) {
             "java" -> javaConstParser.parseReferences(sourceFile, definitionIndex)
             "kt" -> kotlinConstParser.parseReferences(sourceFile, definitionIndex)
+            else -> emptyList()
+        }
+    }
+
+    private fun parseReferenceCandidates(sourceFile: File): List<ConstReferenceCandidate> {
+        return when (sourceFile.extension) {
+            "java" -> javaConstParser.parseReferenceCandidates(sourceFile)
+            "kt" -> kotlinConstParser.parseReferenceCandidates(sourceFile)
             else -> emptyList()
         }
     }

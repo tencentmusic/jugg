@@ -81,6 +81,52 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should parse java const reference candidates without definitions`() {
+        val rootDir = createTempDirectory("java_const_ref_candidates")
+        val userFile = File(rootDir, "User.java").apply {
+            writeText(
+                """
+                package com.example;
+                import com.example.Constants;
+                import static com.example.Constants.MAX;
+                import static com.example.Constants.*;
+
+                public class User {
+                    int value1 = MAX;
+                    int value2 = MIN;
+                    int value3 = Constants.MAX;
+                    int value4 = Constants.Inner.FLAG;
+                }
+                """.trimIndent()
+            )
+        }
+
+        val parser = JavaConstParser(logger)
+        val candidates = parser.parseReferenceCandidates(userFile)
+
+        assertTrue(candidates.any {
+            it.constName == "MAX" &&
+                it.ownerName == "com.example.Constants" &&
+                it.ownerKind == ConstReferenceOwnerKind.EXPLICIT_CONST_IMPORT
+        })
+        assertTrue(candidates.any {
+            it.constName == "MIN" &&
+                it.ownerName == "com.example.Constants" &&
+                it.ownerKind == ConstReferenceOwnerKind.CLASS_STAR_IMPORT
+        })
+        assertTrue(candidates.any {
+            it.constName == "MAX" &&
+                it.ownerName == "com.example.Constants" &&
+                it.ownerKind == ConstReferenceOwnerKind.OWNER_EXPRESSION
+        })
+        assertTrue(candidates.any {
+            it.constName == "FLAG" &&
+                it.ownerName == "com.example.Constants.Inner" &&
+                it.ownerKind == ConstReferenceOwnerKind.OWNER_EXPRESSION
+        })
+    }
+
+    @Test
     fun `should parse java annotation constants`() {
         val rootDir = createTempDirectory("java_annotation_const_defs")
         val constantsFile = File(rootDir, "Flags.java").apply {

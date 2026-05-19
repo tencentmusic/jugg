@@ -259,6 +259,70 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should find effected file when reference is scanned before definition`() {
+        val rootDir = createTempDirectory("const_ref_scan_order_independent")
+        File(rootDir, ".git").mkdirs()
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example.user
+                import com.example.Config.Companion.MAX
+                val value = MAX
+                """.trimIndent()
+            )
+        }
+        val constantsFile = File(rootDir, "Config.kt").apply {
+            writeText(
+                """
+                package com.example
+                class Config {
+                    companion object {
+                        const val MAX = 1
+                    }
+                }
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.analyzeOnDemand(listOf(userFile.absolutePath))
+            scheduler.analyzeOnDemand(listOf(constantsFile.absolutePath))
+            scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+
+            constantsFile.writeText(
+                """
+                package com.example
+                class Config {
+                    companion object {
+                        const val MAX = 2
+                    }
+                }
+                """.trimIndent()
+            )
+            constantsFile.setLastModified(constantsFile.lastModified() + 1000L)
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val effectedPaths = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+                .map { it.refFilePath }
+                .toSet()
+            assertEquals(setOf(userFile.toStdPath()), effectedPaths)
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `should keep unconsumed const changes after analysis reuse`() {
         val rootDir = createTempDirectory("const_ref_scheduler_reuse_before_consume")
         File(rootDir, ".git").mkdirs()
@@ -716,7 +780,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
-    fun `should skip reference parsing when lookup hints are empty in db session mode`() {
+    fun `should write empty candidate analysis when file has no const references`() {
         val rootDir = createTempDirectory("const_ref_scheduler_empty_hints")
         File(rootDir, ".git").mkdirs()
         val plainFile = File(rootDir, "Plain.kt").apply {
@@ -734,7 +798,12 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 file.toStdPath() to emptyList<ConstDefinition>()
             }
         }
-        whenever(analyzer.collectHintsAndParseReferences(any(), any())).thenReturn(emptyList())
+        whenever(analyzer.parseReferenceCandidates(any())).thenAnswer { invocation ->
+            val files = invocation.getArgument<Collection<File>>(0)
+            files.associate { file ->
+                file.toStdPath() to emptyList<ConstReferenceCandidate>()
+            }
+        }
         whenever(analyzer.parseReferences(any(), any<ConstDefinitionLookup>())).thenReturn(emptyMap())
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -749,7 +818,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             scheduler.onFileSaved(plainFile.absolutePath)
             scheduler.awaitAnalysis(listOf(plainFile.absolutePath), timeoutMs = 10_000L)
 
-            verify(analyzer, atLeastOnce()).collectHintsAndParseReferences(any(), any())
+            verify(analyzer, atLeastOnce()).parseReferenceCandidates(any())
             verify(analyzer, never()).parseReferences(any(), any<ConstDefinitionLookup>())
         } finally {
             scheduler.dispose()

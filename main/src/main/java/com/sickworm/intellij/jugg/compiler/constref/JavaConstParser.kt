@@ -25,6 +25,7 @@ class JavaConstParser(
         "int", "long", "float", "double", "boolean",
         "byte", "short", "char", "String", "java.lang.String",
     )
+    private val candidateOwnerTextRegex = Regex("^[A-Za-z_][A-Za-z0-9_$.]*$")
 
     fun parseDefinitions(sourceFile: File): List<ConstDefinition> {
         if (sourceFile.extension != "java" || !sourceFile.exists()) {
@@ -53,6 +54,15 @@ class JavaConstParser(
         val sourcePath = sourceFile.toStdPath()
         val compilationUnit = parse(sourceFile) ?: return emptyList()
         return parseReferencesFromCu(sourcePath, compilationUnit, definitionIndex)
+    }
+
+    fun parseReferenceCandidates(sourceFile: File): List<ConstReferenceCandidate> {
+        if (sourceFile.extension != "java" || !sourceFile.exists()) {
+            return emptyList()
+        }
+        val sourcePath = sourceFile.toStdPath()
+        val compilationUnit = parse(sourceFile) ?: return emptyList()
+        return parseReferenceCandidatesFromCu(sourcePath, compilationUnit)
     }
 
     /**
@@ -175,6 +185,64 @@ class JavaConstParser(
         }
 
         return references.toList()
+    }
+
+    private fun parseReferenceCandidatesFromCu(
+        sourcePath: String,
+        compilationUnit: CompilationUnit,
+    ): List<ConstReferenceCandidate> {
+        val packageName = compilationUnit.packageDeclaration.map { it.nameAsString }.orElse("")
+        val importContext = buildImportContext(compilationUnit)
+        val candidates = linkedSetOf<ConstReferenceCandidate>()
+
+        compilationUnit.findAll(FieldAccessExpr::class.java).forEach { fieldAccess ->
+            val constName = fieldAccess.nameAsString
+            val ownerName = resolveCandidateOwner(fieldAccess.scope.toString().trim(), importContext)
+                ?: return@forEach
+            candidates += ConstReferenceCandidate(
+                refFilePath = sourcePath,
+                packageName = packageName,
+                constName = constName,
+                ownerName = ownerName,
+                ownerKind = ConstReferenceOwnerKind.OWNER_EXPRESSION,
+            )
+        }
+
+        compilationUnit.findAll(NameExpr::class.java).forEach { nameExpr ->
+            val constName = nameExpr.nameAsString
+            importContext.staticSingleImports[constName].orEmpty().forEach { fqClassName ->
+                candidates += ConstReferenceCandidate(
+                    refFilePath = sourcePath,
+                    packageName = packageName,
+                    constName = constName,
+                    ownerName = fqClassName,
+                    ownerKind = ConstReferenceOwnerKind.EXPLICIT_CONST_IMPORT,
+                )
+            }
+            importContext.staticAsteriskImports.forEach { fqClassName ->
+                candidates += ConstReferenceCandidate(
+                    refFilePath = sourcePath,
+                    packageName = packageName,
+                    constName = constName,
+                    ownerName = fqClassName,
+                    ownerKind = ConstReferenceOwnerKind.CLASS_STAR_IMPORT,
+                )
+            }
+        }
+
+        return candidates.toList()
+    }
+
+    private fun resolveCandidateOwner(ownerText: String, importContext: JavaImportContext): String? {
+        if (!candidateOwnerTextRegex.matches(ownerText) || ownerText == "this" || ownerText == "super") {
+            return null
+        }
+        val firstSegment = ownerText.substringBefore('.')
+        val explicitImport = importContext.explicitClassImports[firstSegment]
+        if (explicitImport != null) {
+            return explicitImport + ownerText.removePrefix(firstSegment)
+        }
+        return ownerText
     }
 
     private fun collectDefinitions(

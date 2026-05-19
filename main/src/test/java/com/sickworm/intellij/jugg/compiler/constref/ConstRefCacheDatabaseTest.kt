@@ -412,6 +412,60 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should match companion candidate references by changed definition`() {
+        val dbDir = createTempDirectory("const_ref_db_candidate_lookup")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+
+        val constantsPath = File(dbDir, "Config.kt").apply {
+            writeText("package com.example\nclass Config { companion object { const val MAX = 1 } }")
+        }.toStdPath()
+        val userPath = File(dbDir, "User.kt").apply {
+            writeText("package com.example.user\nimport com.example.Config.Companion.MAX\nval value = MAX")
+        }.toStdPath()
+
+        database.upsertFileAnalysis(
+            filePath = constantsPath,
+            lastModified = 100L,
+            checksum = 1000L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsPath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.Config",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "1",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = userPath,
+            lastModified = 101L,
+            checksum = 1001L,
+            definitions = emptyList(),
+            references = emptyList(),
+            referenceCandidates = listOf(
+                ConstReferenceCandidate(
+                    refFilePath = userPath,
+                    packageName = "com.example.user",
+                    constName = "MAX",
+                    ownerName = "com.example.Config.Companion",
+                    ownerKind = ConstReferenceOwnerKind.EXPLICIT_CONST_IMPORT,
+                )
+            ),
+        )
+
+        val effected = database.getEffectedFilesByDefinitionKeys(
+            definitionKeys = setOf("com.example.Config" to "MAX"),
+            scopeFilePaths = listOf(constantsPath),
+        )
+
+        assertEquals(setOf(userPath), effected.map { it.refFilePath }.toSet())
+    }
+
+    @Test
     fun `should isolate mtime map by worktree when mtime is same`() {
         val rootDir = createTempDirectory("const_ref_db_worktree_isolation")
         val commonGitDir = File(rootDir, "common.git").apply { mkdirs() }

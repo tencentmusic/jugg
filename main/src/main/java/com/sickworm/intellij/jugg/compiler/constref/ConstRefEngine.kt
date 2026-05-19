@@ -599,8 +599,8 @@ class ConstRefEngine(
             maybeThrottleIo(phase1ProcessedCount)
         }
 
-        // Phase 2: parse references per batch; DB now has all definitions from Phase 1,
-        // so no in-memory overlay is needed. Each file's AST is parsed only once.
+        // Phase 2: parse syntax-only reference candidates per batch. Candidate parsing does not
+        // depend on DB-stored definitions, so scan order cannot hide earlier references.
         //
         // Lock strategy: split per-file work into three steps to keep AST parsing outside the lock.
         // Step 1 (locked, fast): read previousDefinitions + definitions from DB/cache.
@@ -619,7 +619,6 @@ class ConstRefEngine(
                 val file: File,
                 val previousDefinitions: List<ConstDefinition>,
                 val definitions: List<ConstDefinition>,
-                val references: List<ConstReference>,
             )
             val pendingStates = mutableListOf<FilePendingState>()
             // Per-file: Step 1 locked (read state), Step 2 unlocked (AST parse).
@@ -644,18 +643,19 @@ class ConstRefEngine(
                     sessionCache.clearLookupCache()
                     Phase2ReadState(path, previousDefinitions, definitions, checksum)
                 }
-                // Step 2: parse references WITHOUT lock (CPU-intensive AST parse, no shared state).
+                // Step 2: parse reference candidates WITHOUT lock (CPU-intensive AST parse, no shared state).
                 val refParseMs = measureTimeMillis {
-                    val references = parseReferencesByDbOnly(file)
+                    val referenceCandidates = analyzer.parseReferenceCandidates(listOf(file))[readState.path].orEmpty()
                     analysisBatch += ConstRefCacheDatabase.FileAnalysisEntry(
                         filePath = readState.path,
                         lastModified = file.lastModified(),
                         checksum = readState.checksum,
                         definitions = readState.definitions,
-                        references = references,
+                        references = emptyList(),
+                        referenceCandidates = referenceCandidates,
                     )
                     pendingStates += FilePendingState(
-                        readState.path, file, readState.previousDefinitions, readState.definitions, references
+                        readState.path, file, readState.previousDefinitions, readState.definitions
                     )
                 }
                 phase2RefParseMs += refParseMs
@@ -677,7 +677,7 @@ class ConstRefEngine(
                             lastModified = state.file.lastModified(),
                             checksum = checksumMap[state.path] ?: 0L,
                             definitions = state.definitions,
-                            references = state.references,
+                            references = emptyList(),
                         )
                         markAnalyzed(state.path)
                         sessionCache.clearLookupCache()

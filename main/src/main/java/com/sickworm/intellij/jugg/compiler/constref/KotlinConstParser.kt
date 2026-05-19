@@ -33,6 +33,7 @@ import kotlin.system.measureTimeMillis
 class KotlinConstParser(
     private val logger: Logger,
 ) {
+    private val candidateOwnerTextRegex = Regex("^[A-Za-z_][A-Za-z0-9_$.]*$")
     private var disposable: Disposable = Disposer.newDisposable()
     private var environment: KotlinCoreEnvironment
     private var psiFactory: KtPsiFactory
@@ -84,6 +85,107 @@ class KotlinConstParser(
         val sourcePath = sourceFile.toStdPath()
         val ktFile = parseKtFile(sourceFile) ?: return emptyList()
         return collectReferencesFromKtFile(ktFile, sourcePath, definitionIndex)
+    }
+
+    /**
+     * Collects syntax-only const reference candidates without consulting known definitions.
+     * This keeps reference indexing independent from full-scan definition ordering.
+     */
+    fun parseReferenceCandidates(sourceFile: File): List<ConstReferenceCandidate> {
+        if (sourceFile.extension != "kt" || !sourceFile.exists()) {
+            return emptyList()
+        }
+        val sourcePath = sourceFile.toStdPath()
+        val ktFile = parseKtFile(sourceFile) ?: return emptyList()
+        return collectReferenceCandidatesFromKtFile(ktFile, sourcePath)
+    }
+
+    private fun collectReferenceCandidatesFromKtFile(
+        ktFile: KtFile,
+        sourcePath: String,
+    ): List<ConstReferenceCandidate> {
+        val packageName = ktFile.packageFqName.asString()
+        val importContext = buildCandidateImportContext(ktFile)
+        val candidates = linkedSetOf<ConstReferenceCandidate>()
+        ktFile.accept(object : KtTreeVisitorVoid() {
+            override fun visitDotQualifiedExpression(expression: KtDotQualifiedExpression) {
+                if (expression.getStrictParentOfType<KtImportDirective>() != null) {
+                    super.visitDotQualifiedExpression(expression)
+                    return
+                }
+                val selector = expression.selectorExpression as? KtNameReferenceExpression
+                if (selector != null) {
+                    val constName = selector.getReferencedName()
+                    val ownerText = expression.receiverExpression.text.trim()
+                    resolveCandidateOwner(ownerText, importContext)?.let { ownerName ->
+                        candidates += ConstReferenceCandidate(
+                            refFilePath = sourcePath,
+                            packageName = packageName,
+                            constName = constName,
+                            ownerName = ownerName,
+                            ownerKind = ConstReferenceOwnerKind.OWNER_EXPRESSION,
+                        )
+                    }
+                }
+                super.visitDotQualifiedExpression(expression)
+            }
+
+            override fun visitReferenceExpression(expression: KtReferenceExpression) {
+                val nameExpression = expression as? KtNameReferenceExpression ?: run {
+                    super.visitReferenceExpression(expression)
+                    return
+                }
+                if (nameExpression.getStrictParentOfType<KtImportDirective>() != null) {
+                    super.visitReferenceExpression(expression)
+                    return
+                }
+                val parentDot = nameExpression.parent as? KtDotQualifiedExpression
+                if (parentDot != null &&
+                    (parentDot.receiverExpression == nameExpression || parentDot.selectorExpression == nameExpression)
+                ) {
+                    super.visitReferenceExpression(expression)
+                    return
+                }
+                val referenceName = nameExpression.getReferencedName()
+                importContext.explicitConstImports[referenceName].orEmpty().forEach { target ->
+                    candidates += ConstReferenceCandidate(
+                        refFilePath = sourcePath,
+                        packageName = packageName,
+                        constName = target.constName,
+                        ownerName = target.fqClassName,
+                        ownerKind = ConstReferenceOwnerKind.EXPLICIT_CONST_IMPORT,
+                    )
+                }
+                importContext.classAsteriskImports.forEach { ownerName ->
+                    candidates += ConstReferenceCandidate(
+                        refFilePath = sourcePath,
+                        packageName = packageName,
+                        constName = referenceName,
+                        ownerName = ownerName,
+                        ownerKind = ConstReferenceOwnerKind.CLASS_STAR_IMPORT,
+                    )
+                }
+                importContext.packageAsteriskImports.forEach { importPackage ->
+                    candidates += ConstReferenceCandidate(
+                        refFilePath = sourcePath,
+                        packageName = packageName,
+                        constName = referenceName,
+                        ownerName = null,
+                        ownerKind = ConstReferenceOwnerKind.PACKAGE_STAR_IMPORT,
+                        importPackages = setOf(importPackage),
+                    )
+                }
+                candidates += ConstReferenceCandidate(
+                    refFilePath = sourcePath,
+                    packageName = packageName,
+                    constName = referenceName,
+                    ownerName = null,
+                    ownerKind = ConstReferenceOwnerKind.BARE_SAME_PACKAGE,
+                )
+                super.visitReferenceExpression(expression)
+            }
+        })
+        return candidates.toList()
     }
 
     /**
@@ -409,6 +511,50 @@ class KotlinConstParser(
         val fqClassName: String,
         val constName: String,
     )
+
+    private data class CandidateImportContext(
+        val explicitClassImports: MutableMap<String, String> = mutableMapOf(),
+        val packageAsteriskImports: MutableSet<String> = mutableSetOf(),
+        val classAsteriskImports: MutableSet<String> = mutableSetOf(),
+        val explicitConstImports: MutableMap<String, MutableSet<ImportedConstTarget>> = mutableMapOf(),
+    )
+
+    private fun buildCandidateImportContext(ktFile: KtFile): CandidateImportContext {
+        val context = CandidateImportContext()
+        ktFile.importDirectives.forEach { importDirective ->
+            val importedFqName = importDirective.importedFqName?.asString() ?: return@forEach
+            val aliasName = importDirective.aliasName
+            if (importDirective.isAllUnder) {
+                context.packageAsteriskImports += importedFqName
+                context.classAsteriskImports += importedFqName
+                return@forEach
+            }
+            val importedName = importedFqName.substringAfterLast('.')
+            val bindName = aliasName ?: importedName
+            context.explicitClassImports[bindName] = importedFqName
+
+            val owner = importedFqName.substringBeforeLast('.', "")
+            if (owner.isNotBlank()) {
+                context.explicitConstImports.getOrPut(bindName) { mutableSetOf() } += ImportedConstTarget(
+                    fqClassName = owner,
+                    constName = importedName,
+                )
+            }
+        }
+        return context
+    }
+
+    private fun resolveCandidateOwner(ownerText: String, importContext: CandidateImportContext): String? {
+        if (!candidateOwnerTextRegex.matches(ownerText) || ownerText == "this" || ownerText == "super") {
+            return null
+        }
+        val firstSegment = ownerText.substringBefore('.')
+        val explicitImport = importContext.explicitClassImports[firstSegment]
+        if (explicitImport != null) {
+            return explicitImport + ownerText.removePrefix(firstSegment)
+        }
+        return ownerText
+    }
 
     private fun buildImportContext(ktFile: KtFile, definitionIndex: ConstDefinitionLookup): KotlinImportContext {
         val context = KotlinImportContext()

@@ -102,6 +102,39 @@ class KotlinConstParserTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should parse kotlin const reference candidates without definitions`() {
+        val rootDir = createTempDirectory("kotlin_const_ref_candidates")
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example.user
+                import com.example.Config.Companion.MAX
+                import com.example.BasePager
+                val a = MAX
+                val b = BasePager.THEME_ID_DEFAULT_WHITE_ANDROID
+                """.trimIndent()
+            )
+        }
+
+        val parser = KotlinConstParser(logger)
+        try {
+            val candidates = parser.parseReferenceCandidates(userFile)
+            assertTrue(candidates.any {
+                it.constName == "MAX" &&
+                    it.ownerName == "com.example.Config.Companion" &&
+                    it.ownerKind == ConstReferenceOwnerKind.EXPLICIT_CONST_IMPORT
+            })
+            assertTrue(candidates.any {
+                it.constName == "THEME_ID_DEFAULT_WHITE_ANDROID" &&
+                    it.ownerName == "com.example.BasePager" &&
+                    it.ownerKind == ConstReferenceOwnerKind.OWNER_EXPRESSION
+            })
+        } finally {
+            parser.dispose()
+        }
+    }
+
+    @Test
     fun `should parse kotlin constant references with alias imports`() {
         val rootDir = createTempDirectory("kotlin_const_refs_alias")
         val constantsFile = File(rootDir, "Config.kt").apply {

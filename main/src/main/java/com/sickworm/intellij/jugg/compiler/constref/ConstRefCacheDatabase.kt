@@ -254,6 +254,7 @@ class ConstRefCacheDatabase(
         checksum: Long,
         definitions: List<ConstDefinition>,
         references: List<ConstReference>,
+        referenceCandidates: List<ConstReferenceCandidate> = emptyList(),
     ) {
         val repoIdentity = resolveRepoIdentity(filePath) ?: return
         val nowMs = System.currentTimeMillis()
@@ -303,6 +304,7 @@ class ConstRefCacheDatabase(
                     statement.setLong(3, checksum)
                     statement.executeUpdate()
                 }
+                deleteReferenceCandidates(connection, repoIdentity.repoKey, repoIdentity.relativePath, checksum)
 
                 connection.prepareStatement(
                     """
@@ -343,6 +345,14 @@ class ConstRefCacheDatabase(
                     }
                     statement.executeBatch()
                 }
+
+                insertReferenceCandidates(
+                    connection = connection,
+                    repoKey = repoIdentity.repoKey,
+                    relativePath = repoIdentity.relativePath,
+                    checksum = checksum,
+                    candidates = referenceCandidates,
+                )
 
                 upsertMtimeMap(
                     connection = connection,
@@ -519,6 +529,7 @@ class ConstRefCacheDatabase(
                         statement.setLong(3, entry.checksum)
                         statement.executeUpdate()
                     }
+                    deleteReferenceCandidates(connection, repoIdentity.repoKey, repoIdentity.relativePath, entry.checksum)
                     connection.prepareStatement(
                         """
                         INSERT INTO const_definitions(
@@ -557,6 +568,13 @@ class ConstRefCacheDatabase(
                         }
                         statement.executeBatch()
                     }
+                    insertReferenceCandidates(
+                        connection = connection,
+                        repoKey = repoIdentity.repoKey,
+                        relativePath = repoIdentity.relativePath,
+                        checksum = entry.checksum,
+                        candidates = entry.referenceCandidates,
+                    )
                     upsertMtimeMap(
                         connection = connection,
                         worktreeKey = repoIdentity.worktreeKey,
@@ -574,6 +592,57 @@ class ConstRefCacheDatabase(
             } finally {
                 connection.autoCommit = true
             }
+        }
+    }
+
+    private fun deleteReferenceCandidates(
+        connection: Connection,
+        repoKey: String,
+        relativePath: String,
+        checksum: Long,
+    ) {
+        connection.prepareStatement(
+            """
+            DELETE FROM const_reference_candidates
+            WHERE repo_key = ?
+              AND relative_path = ?
+              AND checksum = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, repoKey)
+            statement.setString(2, relativePath)
+            statement.setLong(3, checksum)
+            statement.executeUpdate()
+        }
+    }
+
+    private fun insertReferenceCandidates(
+        connection: Connection,
+        repoKey: String,
+        relativePath: String,
+        checksum: Long,
+        candidates: List<ConstReferenceCandidate>,
+    ) {
+        connection.prepareStatement(
+            """
+            INSERT INTO const_reference_candidates(
+                repo_key, relative_path, checksum, package_name, const_name, owner_name, owner_kind, import_packages
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent()
+        ).use { statement ->
+            candidates.forEach { candidate ->
+                statement.setString(1, repoKey)
+                statement.setString(2, relativePath)
+                statement.setLong(3, checksum)
+                statement.setString(4, candidate.packageName)
+                statement.setString(5, candidate.constName)
+                statement.setString(6, candidate.ownerName)
+                statement.setString(7, candidate.ownerKind.name)
+                statement.setString(8, encodeStringSet(candidate.importPackages))
+                statement.addBatch()
+            }
+            statement.executeBatch()
         }
     }
 
@@ -992,22 +1061,20 @@ class ConstRefCacheDatabase(
         if (changedDefinitions.isEmpty()) {
             return emptyList()
         }
-        val uniqueDefinitionKeys = changedDefinitions.map { it.fqClassName to it.constName }.toSet()
         val repoKeys = identities.map { it.repoKey }.toSet()
-        return queryEffectedFilesByDefinitionKeys(uniqueDefinitionKeys, repoKeys)
+        return queryEffectedFilesByDefinitions(changedDefinitions, repoKeys)
     }
 
     @Synchronized
     fun getEffectedFilesByDefinitions(definitions: Collection<ConstDefinition>): List<EffectedConstRef> {
-        val uniqueDefinitionKeys = definitions.map { it.fqClassName to it.constName }.toSet()
-        if (uniqueDefinitionKeys.isEmpty()) {
+        if (definitions.isEmpty()) {
             return emptyList()
         }
         val repoKeys = definitions
             .mapNotNull { resolveRepoIdentity(it.filePath) }
             .map { it.repoKey }
             .toSet()
-        return queryEffectedFilesByDefinitionKeys(uniqueDefinitionKeys, repoKeys)
+        return queryEffectedFilesByDefinitions(definitions, repoKeys)
     }
 
     @Synchronized
@@ -1019,11 +1086,12 @@ class ConstRefCacheDatabase(
         if (uniqueDefinitionKeys.isEmpty()) {
             return emptyList()
         }
-        val repoKeys = scopeFilePaths
-            .mapNotNull { resolveRepoIdentity(it) }
-            .map { it.repoKey }
-            .toSet()
-        return queryEffectedFilesByDefinitionKeys(uniqueDefinitionKeys, repoKeys)
+        val definitions = queryDefinitionsByClassConstKeys(uniqueDefinitionKeys, scopeFilePaths)
+        val foundKeys = definitions.map { it.fqClassName to it.constName }.toSet()
+        val syntheticDefinitions = (uniqueDefinitionKeys - foundKeys).map { (fqClassName, constName) ->
+            syntheticDefinitionForKey(fqClassName, constName)
+        }
+        return queryEffectedFilesByDefinitions(definitions + syntheticDefinitions, resolveScopeRepoKeys(scopeFilePaths))
     }
 
     /**
@@ -1283,6 +1351,25 @@ class ConstRefCacheDatabase(
                 CREATE INDEX IF NOT EXISTS idx_ref_file_version
                     ON const_references(repo_key, relative_path, checksum);
 
+                CREATE TABLE IF NOT EXISTS const_reference_candidates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    repo_key TEXT NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    checksum INTEGER NOT NULL,
+                    package_name TEXT NOT NULL,
+                    const_name TEXT NOT NULL,
+                    owner_name TEXT,
+                    owner_kind TEXT NOT NULL,
+                    import_packages TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY (repo_key, relative_path, checksum)
+                        REFERENCES file_analysis_head(repo_key, relative_path, checksum)
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_ref_candidate_const
+                    ON const_reference_candidates(repo_key, const_name);
+                CREATE INDEX IF NOT EXISTS idx_ref_candidate_file
+                    ON const_reference_candidates(repo_key, relative_path, checksum);
+
                 CREATE TABLE IF NOT EXISTS maintenance_meta (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
@@ -1455,7 +1542,22 @@ class ConstRefCacheDatabase(
         }
     }
 
-    private fun queryEffectedFilesByDefinitionKeys(
+    private fun queryEffectedFilesByDefinitions(
+        definitions: Collection<ConstDefinition>,
+        scopeRepoKeys: Set<String>,
+    ): List<EffectedConstRef> {
+        val normalizedDefinitions = definitions.distinctBy { "${it.fqClassName}|${it.constName}|${it.filePath}" }
+        if (normalizedDefinitions.isEmpty()) {
+            return emptyList()
+        }
+        val effectedSet = linkedSetOf<EffectedConstRef>()
+        val definitionKeys = normalizedDefinitions.map { it.fqClassName to it.constName }.toSet()
+        effectedSet += queryExactEffectedFilesByDefinitionKeys(definitionKeys, scopeRepoKeys)
+        effectedSet += queryCandidateEffectedFilesByDefinitions(normalizedDefinitions, scopeRepoKeys)
+        return effectedSet.toList()
+    }
+
+    private fun queryExactEffectedFilesByDefinitionKeys(
         definitionKeys: Set<Pair<String, String>>,
         scopeRepoKeys: Set<String>,
     ): List<EffectedConstRef> {
@@ -1504,6 +1606,104 @@ class ConstRefCacheDatabase(
                                 defFqClassName = resultSet.getString("def_fq_class_name"),
                                 constName = resultSet.getString("const_name"),
                             )
+                        }
+                    }
+                }
+            }
+            effectedSet.toList()
+        }
+    }
+
+    private fun queryCandidateEffectedFilesByDefinitions(
+        definitions: List<ConstDefinition>,
+        scopeRepoKeys: Set<String>,
+    ): List<EffectedConstRef> {
+        val definitionsByConstName = definitions.groupBy { it.constName }
+        val constNames = definitionsByConstName.keys
+        if (constNames.isEmpty()) {
+            return emptyList()
+        }
+        val repoRoots = repoRootByKey.toMap()
+        return withConnection { connection ->
+            val effectedSet = linkedSetOf<EffectedConstRef>()
+            constNames.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
+                val constPlaceholders = chunk.joinToString(",") { "?" }
+                val sql = buildString {
+                    append(
+                        """
+                        WITH latest AS (
+                            SELECT repo_key,
+                                   relative_path,
+                                   checksum
+                            FROM (
+                                SELECT repo_key,
+                                       relative_path,
+                                       checksum,
+                                       ROW_NUMBER() OVER (
+                                           PARTITION BY repo_key, relative_path
+                                           ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
+                                       ) AS rank_num
+                                FROM file_analysis_head
+                            ) ranked
+                            WHERE rank_num = 1
+                        )
+                        SELECT c.repo_key,
+                               c.relative_path,
+                               c.package_name,
+                               c.const_name,
+                               c.owner_name,
+                               c.owner_kind,
+                               c.import_packages
+                        FROM const_reference_candidates c
+                        INNER JOIN latest l
+                            ON l.repo_key = c.repo_key
+                           AND l.relative_path = c.relative_path
+                           AND l.checksum = c.checksum
+                        WHERE c.const_name IN ($constPlaceholders)
+                        """.trimIndent()
+                    )
+                    if (scopeRepoKeys.isNotEmpty()) {
+                        append(" AND c.repo_key IN (${scopeRepoKeys.joinToString(",") { "?" }})")
+                    }
+                }
+                connection.prepareStatement(sql).use { statement ->
+                    var paramIndex = 1
+                    chunk.forEach { constName ->
+                        statement.setString(paramIndex++, constName)
+                    }
+                    if (scopeRepoKeys.isNotEmpty()) {
+                        scopeRepoKeys.forEach { repoKey ->
+                            statement.setString(paramIndex++, repoKey)
+                        }
+                    }
+                    statement.executeQuery().use { resultSet ->
+                        while (resultSet.next()) {
+                            val repoKey = resultSet.getString("repo_key")
+                            val relativePath = resultSet.getString("relative_path")
+                            val absolutePath = resolveAbsolutePath(repoKey, relativePath, repoRoots) ?: continue
+                            if (!File(absolutePath).exists()) {
+                                continue
+                            }
+                            val ownerKind = runCatching {
+                                ConstReferenceOwnerKind.valueOf(resultSet.getString("owner_kind"))
+                            }.getOrNull() ?: continue
+                            val candidate = ConstReferenceCandidate(
+                                refFilePath = absolutePath,
+                                packageName = resultSet.getString("package_name"),
+                                constName = resultSet.getString("const_name"),
+                                ownerName = resultSet.getString("owner_name"),
+                                ownerKind = ownerKind,
+                                importPackages = decodeStringSet(resultSet.getString("import_packages")),
+                            )
+                            definitionsByConstName[candidate.constName].orEmpty().forEach { definition ->
+                                if (candidate.mayReference(definition)) {
+                                    effectedSet += EffectedConstRef(
+                                        refFilePath = absolutePath,
+                                        defFqClassName = definition.fqClassName,
+                                        constName = definition.constName,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1614,6 +1814,29 @@ class ConstRefCacheDatabase(
 
     private fun ConstDefinition.uniqueDefinitionKey(): String {
         return "$filePath|$fqClassName|$constName|$constType|${constValue.orEmpty()}"
+    }
+
+    private fun syntheticDefinitionForKey(fqClassName: String, constName: String): ConstDefinition {
+        return ConstDefinition(
+            filePath = "",
+            packageName = fqClassName.substringBeforeLast('.', ""),
+            fqClassName = fqClassName,
+            constName = constName,
+            constType = "",
+            constValue = null,
+        )
+    }
+
+    private fun encodeStringSet(values: Set<String>): String {
+        return values.joinToString("\n")
+    }
+
+    private fun decodeStringSet(value: String?): Set<String> {
+        return value
+            ?.split('\n')
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            .orEmpty()
     }
 
     private fun upsertMtimeMap(
@@ -1781,6 +2004,7 @@ class ConstRefCacheDatabase(
         val checksum: Long,
         val definitions: List<ConstDefinition>,
         val references: List<ConstReference>,
+        val referenceCandidates: List<ConstReferenceCandidate> = emptyList(),
     )
 
     data class FileCacheEntry(
@@ -1814,7 +2038,7 @@ class ConstRefCacheDatabase(
     )
 
     companion object {
-        private const val DB_SCHEMA_VERSION = 4
+        private const val DB_SCHEMA_VERSION = 5
         private const val MAX_MTIME_QUERY_ROWS_PER_BATCH = 250
         private const val CLEANUP_INTERVAL_MS = 24L * 60L * 60L * 1000L
         private const val MTIME_MAP_TTL_MS = 30L * 24L * 60L * 60L * 1000L

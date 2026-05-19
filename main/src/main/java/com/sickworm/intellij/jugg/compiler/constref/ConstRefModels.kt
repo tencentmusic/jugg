@@ -17,6 +17,60 @@ data class ConstReference(
     val constName: String,
 )
 
+/**
+ * Syntax-only const reference candidate.
+ *
+ * It intentionally does not require a resolved definition. Impact lookup later matches these
+ * candidates against changed const definitions and may conservatively over-report effected files.
+ */
+data class ConstReferenceCandidate(
+    val refFilePath: String,
+    val packageName: String,
+    val constName: String,
+    val ownerName: String?,
+    val ownerKind: ConstReferenceOwnerKind,
+    val importPackages: Set<String> = emptySet(),
+)
+
+/**
+ * Describes the syntax source that produced a const reference candidate.
+ */
+enum class ConstReferenceOwnerKind {
+    EXPLICIT_CONST_IMPORT,
+    EXPLICIT_CLASS_IMPORT,
+    PACKAGE_STAR_IMPORT,
+    CLASS_STAR_IMPORT,
+    OWNER_EXPRESSION,
+    BARE_SAME_PACKAGE,
+}
+
+internal fun ConstReferenceCandidate.mayReference(definition: ConstDefinition): Boolean {
+    if (constName != definition.constName) {
+        return false
+    }
+    return when (ownerKind) {
+        ConstReferenceOwnerKind.EXPLICIT_CONST_IMPORT,
+        ConstReferenceOwnerKind.EXPLICIT_CLASS_IMPORT,
+        ConstReferenceOwnerKind.CLASS_STAR_IMPORT,
+        ConstReferenceOwnerKind.OWNER_EXPRESSION -> {
+            ownerName != null && ownerName in definition.candidateOwnerNames()
+        }
+        ConstReferenceOwnerKind.PACKAGE_STAR_IMPORT -> definition.packageName in importPackages
+        ConstReferenceOwnerKind.BARE_SAME_PACKAGE -> packageName == definition.packageName
+    }
+}
+
+private fun ConstDefinition.candidateOwnerNames(): Set<String> {
+    val simpleName = fqClassName.substringAfterLast('.')
+    return linkedSetOf(
+        fqClassName,
+        simpleName,
+        "$fqClassName.Companion",
+        "$simpleName.Companion",
+        packageName,
+    )
+}
+
 data class EffectedConstRef(
     val refFilePath: String,
     val defFqClassName: String,

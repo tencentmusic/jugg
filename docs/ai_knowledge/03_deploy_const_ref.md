@@ -1,8 +1,8 @@
 # Jugg 常量引用影响分析（ConstRefEngine / ConstRefAnalyzer）
 
-> 文档版本: v1.5  
+> 文档版本: v1.6
 > 创建时间: 2026-02-22  
-> 更新时间: 2026-04-01  
+> 更新时间: 2026-05-19
 > 涵盖模块: `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/*`、`main/src/main/java/com/sickworm/intellij/jugg/deploy/data/*`  
 > 一致性提示: 如文档与代码不一致，以代码为准。
 
@@ -71,7 +71,7 @@
 | `onFileSaved(path)` | 仅处理 `.java/.kt`；将"前一个编辑文件"推入待分析队列，当前文件仅标记为 editing。 |
 | `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile`；触发 `PRE_COMPILE`；`shouldSkipFullScanRequirement()` 始终返回 `true`，因此 `FULL_SCAN` 不阻塞编译就绪，仅要求目标文件 `analyzedAt` 达标。 |
 | `analyzeOnDemand(paths)` | 同步按需分析：优先复用已有 checksum 结果；缺失或变化时立即分析并返回。 |
-| `initializeFullScan(sourceDirs)` | 注册目录后异步全量扫描，构建 definitions/references 索引。 |
+| `initializeFullScan(sourceDirs)` | 注册目录后异步全量扫描，构建 definitions/reference candidates 索引。 |
 | `onFileDeleted(path)` | 立即清理内存状态与变更跟踪；DB 删除走后台队列，避免 EDT 阻塞。 |
 | `getEffectedFiles(changedPaths)` | 基于 `changedDefinitionKeys` + `removedDefinitionKeys` 查询引用文件；仅返回本地存在且不在 `changedPaths` 的文件。 |
 
@@ -90,8 +90,8 @@
 
 - Java 走 `JavaConstParser`；Kotlin 走 `KotlinConstParser`；
 - 支持输入去重、只处理存在且扩展名合法的源码文件；
-- `collectHintsAndParseReferences()`：单趟在同一 AST 上先收集 lookup hints 再解析 references，避免二次解析开销；
-- hints 中的 `simpleClassConstKeys` 记录 AST 实际出现的 `(simpleName, constName)` 配对，避免笛卡尔积查询爆炸；
+- `parseReferenceCandidates()`：不依赖已解析 definitions，仅基于源码语法记录可能引用的常量候选；
+- 旧的 `collectHintsAndParseReferences()` / `parseReferences()` 仍保留给兼容用例和旧精确引用模型，但主分析链路写入 candidate 索引；
 - `dispose()` 负责释放 Kotlin PSI 环境资源。
 
 ### 4.1 定义解析（Definition）
@@ -110,11 +110,19 @@ Kotlin 侧（`KotlinConstParser`）：
 - 支持 top-level `const val`（归属 `FileKt`）；
 - 支持 `object`、类内 `companion object`、嵌套 `class/object` 的 `const val`。
 
-### 4.2 引用解析（Reference）
+### 4.2 候选引用解析（Reference Candidate）
 
-`ConstReference` 字段：
+`ConstReferenceCandidate` 字段：
 
-- `refFilePath`, `defFqClassName`, `constName`
+- `refFilePath`, `packageName`, `constName`, `ownerName`, `ownerKind`, `importPackages`
+
+核心原则：
+
+- 引用扫描不查询 definitions，也不要求目标 const 已经被扫描；
+- 候选事实记录语法来源，例如显式 const import、显式 class import、包/类星号导入、owner-qualified 表达式、同包裸引用；
+- 影响查询阶段用变更后的 `ConstDefinition` 与 candidate 做保守匹配，允许多编译，不能漏编译；
+- companion const 会同时匹配 `Owner.CONST` 与 `Owner.Companion.CONST` 形态；
+- const 被降级为普通 `val` 等 removed definition 场景，会用变更 key 构造临时 definition 继续匹配旧候选索引。
 
 Java 引用覆盖：
 
@@ -136,10 +144,10 @@ Kotlin 引用覆盖：
 
 ### 5.1 查找模式与内存缓存
 
-- 不做全量预加载；每个待解析文件先用线索回源 DB 查询候选 definitions，再构建临时 `ConstDefinitionIndex` 仅用于当前文件引用解析。
-- 当 hints 为空或候选 definitions 为空时，直接返回空 references，跳过二次解析。
+- 不做全量预加载；每个待解析文件直接写入 syntax-only reference candidates。
+- `getEffectedFiles()` 消费 `changedDefinitionKeys` / `removedDefinitionKeys` 后，在 DB 中按 `constName` 找候选引用，再用 owner/package 规则做保守匹配。
 - `ConstRefSessionCache`（LRU+TTL，惰性节流清理默认 60s）：
-  - `fileCache`：缓存会话内已访问文件的 definitions/references；
+  - `fileCache`：缓存会话内已访问文件的 definitions/legacy references；
   - `lookupCache`：缓存 `constName / class+const / package+const / simpleClassName` 查询结果。
 
 ### 5.2 SQLite 缓存：ConstRefCacheDatabase
@@ -151,17 +159,18 @@ Kotlin 引用覆盖：
 | `file_checksum_mtime_map` | `(worktree_key, relative_path) -> (last_modified, checksum)`，每 worktree 每文件仅一行 |
 | `file_analysis_head` | `(repo_key, relative_path, checksum)` 的分析版本头 |
 | `const_definitions` | 按 `repo_key + relative_path + checksum` 存定义 |
-| `const_references` | 按 `repo_key + relative_path + checksum` 存引用 |
+| `const_references` | 旧精确引用表，保留兼容历史查询与测试 |
+| `const_reference_candidates` | 按 `repo_key + relative_path + checksum` 存 syntax-only 候选引用 |
 | `maintenance_meta` | 清理节流元数据 |
 
 关键行为：
 
-- `file_analysis_head` / `const_definitions` / `const_references` 通过 `repo_key + relative_path` 共享分析结果；
+- `file_analysis_head` / `const_definitions` / `const_reference_candidates` 通过 `repo_key + relative_path` 共享分析结果；
 - `file_checksum_mtime_map` 通过 `worktree_key + relative_path` 隔离项目本地基线；
-- 受影响文件查询先定位定义 key，再按当前 worktree 还原绝对路径，仅返回本地存在文件；
+- 受影响文件查询先定位定义 key，再匹配 latest candidate rows，最后按当前 worktree 还原绝对路径，仅返回本地存在文件；
 - 支持 `queryClassesBySimpleNames` 通过 `simple_class_name` 列 + 索引实现点查，避免全表扫描；
 - 使用共享 SQLite 长连接，避免高频建连；latest 版本选择追加 `checksum` 作为稳定 tie-breaker；
-- `PRAGMA schema_version=4`，不兼容时重建。
+- `PRAGMA schema_version=5`，不兼容时重建。
 
 ### 5.3 Repo 共享指纹：RepoSharedFingerprintStore
 
