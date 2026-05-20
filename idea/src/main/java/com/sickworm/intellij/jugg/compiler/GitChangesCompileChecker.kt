@@ -24,11 +24,28 @@ class GitChangesCompileChecker(
         val filesBefore = deployFileManager.getUndeployedFiles()
         gitFileChangesDetector.updateChangedFiles(compilingFiles.map { it.file })
         val filesAfter = deployFileManager.getUndeployedFiles()
-        val result = FoundResult(filesAfter - filesBefore.toSet())
+        val result = FoundResult(findNewlyUncompiledFiles(filesBefore, filesAfter))
 
         logger.debug("GitChangesRetryResolver: checkUndetectedFiles: $result")
         this.lastFoundResult = result
         return result
+    }
+
+    /**
+     * Only files that still need compilation count as "new". Matches [ChangedFile.hasCompiledOnce]
+     * and stale-snapshot ignore in [com.sickworm.intellij.jugg.deploy.DeployFileStateTracker].
+     */
+    private fun findNewlyUncompiledFiles(
+        filesBefore: List<ChangedFile>,
+        filesAfter: List<ChangedFile>,
+    ): List<ChangedFile> {
+        val uncompiledPathsBefore = filesBefore
+            .filter { !it.hasCompiledOnce }
+            .map { it.file.absolutePath }
+            .toSet()
+        return filesAfter.filter { changedFile ->
+            !changedFile.hasCompiledOnce && changedFile.file.absolutePath !in uncompiledPathsBefore
+        }
     }
 
     private var lastFoundResult: FoundResult? = null
@@ -48,7 +65,31 @@ class GitChangesCompileChecker(
         }
         val result = lastFoundResult
         lastFoundResult = null
-        return result
+        return result?.let { reconcileWithCurrentState(it) }
+    }
+
+    /**
+     * Git check may finish before in-flight compile marks APT outputs as compiled.
+     * Re-resolve candidate paths against current [DeployFileManager] state instead of stale [ChangedFile] snapshots.
+     */
+    private fun reconcileWithCurrentState(found: FoundResult): FoundResult {
+        if (found.files.isEmpty()) {
+            return found
+        }
+        val currentByPath = deployFileManager.getUndeployedFiles().associateBy { it.file.absolutePath }
+        val stillNeedCompile = found.files.mapNotNull { candidate ->
+            val current = currentByPath[candidate.file.absolutePath] ?: return@mapNotNull null
+            if (current.hasCompiledOnce) {
+                return@mapNotNull null
+            }
+            current
+        }
+        if (stillNeedCompile.size != found.files.size) {
+            logger.debug(
+                "GitChangesCompileChecker reconcile: candidates=${found.files.size}, stillNeedCompile=${stillNeedCompile.size}"
+            )
+        }
+        return FoundResult(stillNeedCompile)
     }
     data class FoundResult(
         val files: List<ChangedFile>
