@@ -56,13 +56,14 @@
 - 通过 `ConstRefChangeTracker` 追踪"真实变更 key + 已删除 key"，避免空白改动触发全量常量引用重编译；
 - 通过 `ConstRefImpactResolver` 统一执行受影响文件查询与过滤。
 
-### 3.2 三个分析场景
+### 3.2 四个分析场景
 
 | 场景 | 触发方式 | 行为 |
 |---|---|---|
-| `FULL_SCAN` | `initializeFullScan(sourceDirs)` | 首次调用延后 `10_000ms` 启动（启动稳定宽限期）；按 DB 缓存命中跳过已分析文件；使用 `Dispatchers.IO.limitedParallelism(1)` 隔离。 |
-| `FILE_CHANGE` | `onFileSaved(path)` | 日常保存触发的异步增量分析。 |
-| `PRE_COMPILE` | `awaitAnalysis()` 内触发 | 异步冲刷待分析队列，不阻塞超时预算。 |
+| `FULL_SCAN` | `initializeFullScan(sourceDirs)` | 首次调用延后 `10_000ms` 启动（启动稳定宽限期）；按 DB 缓存命中跳过已分析文件；使用 `Dispatchers.IO.limitedParallelism(1)` 隔离；后台扫描不阻塞编译就绪，允许轻量节流以降低 IDE 启动期资源竞争。 |
+| `FILE_CHANGE` | `onFileSaved(path)` | 日常保存触发的异步增量分析；后台补索引，允许轻量节流。 |
+| `PRE_COMPILE` | `awaitAnalysis()` 内触发 | 编译前冲刷待分析队列，调用方会等待目标文件分析完成；不应主动 sleep，否则容易超过 5s readiness 预算并降级到旧缓存。 |
+| `ON_DEMAND` | `analyzeOnDemand(paths)` | 同步按需分析目标文件，调用方直接等待结果；不应主动 sleep。 |
 
 ### 3.3 核心 API
 
@@ -192,11 +193,19 @@ IO 限频系统属性（默认值）：
 
 | 属性 | 默认值 |
 |---|---|
-| `jugg.constref.io.throttle.ms` | `10_000` |
-| `jugg.constref.io.throttle.every` | `50` |
+| `jugg.constref.fullscan.io.throttle.ms` | `500` |
+| `jugg.constref.fullscan.io.throttle.every` | `200` |
+| `jugg.constref.filechange.io.throttle.ms` | `500` |
+| `jugg.constref.filechange.io.throttle.every` | `200` |
+| `jugg.constref.precompile.io.throttle.ms` | `0` |
+| `jugg.constref.precompile.io.throttle.every` | `1` |
+| `jugg.constref.ondemand.io.throttle.ms` | `0` |
+| `jugg.constref.ondemand.io.throttle.every` | `1` |
 | `jugg.constref.session.file.cache.max` | `500` |
 | `jugg.constref.session.lookup.cache.max` | `4000` |
 | `jugg.constref.session.cache.ttl.ms` | `900_000` |
+
+`jugg.constref.io.throttle.ms` / `jugg.constref.io.throttle.every` 作为兼容兜底仍可使用，但优先级低于各场景专属属性。`FULL_SCAN` 和 `FILE_CHANGE` 是后台任务，默认只做轻量让步；`PRE_COMPILE` 和 `ON_DEMAND` 位于用户等待链路，默认不节流。
 
 ---
 

@@ -62,19 +62,36 @@ class ConstRefEngine(
         AnalyzeScene.FILE_CHANGE to SceneTaskState(),
         AnalyzeScene.PRE_COMPILE to SceneTaskState(),
     )
-    private val ioThrottleSleepMs: Long =
-        readNonNegativeLongProperty(IO_THROTTLE_MS_PROPERTY, DEFAULT_IO_THROTTLE_MS)
-    private val ioThrottleEveryNFiles: Int =
-        readPositiveIntProperty(IO_THROTTLE_EVERY_PROPERTY, DEFAULT_IO_THROTTLE_EVERY)
+    private val fullScanIoThrottleSleepMs: Long =
+        readSceneNonNegativeLongProperty(FULL_SCAN_IO_THROTTLE_MS_PROPERTY, DEFAULT_FULL_SCAN_IO_THROTTLE_MS)
+    private val fullScanIoThrottleEveryNFiles: Int =
+        readScenePositiveIntProperty(FULL_SCAN_IO_THROTTLE_EVERY_PROPERTY, DEFAULT_FULL_SCAN_IO_THROTTLE_EVERY)
+    private val fileChangeIoThrottleSleepMs: Long =
+        readSceneNonNegativeLongProperty(FILE_CHANGE_IO_THROTTLE_MS_PROPERTY, DEFAULT_FILE_CHANGE_IO_THROTTLE_MS)
+    private val fileChangeIoThrottleEveryNFiles: Int =
+        readScenePositiveIntProperty(FILE_CHANGE_IO_THROTTLE_EVERY_PROPERTY, DEFAULT_FILE_CHANGE_IO_THROTTLE_EVERY)
+    private val preCompileIoThrottleSleepMs: Long =
+        readSceneNonNegativeLongProperty(PRE_COMPILE_IO_THROTTLE_MS_PROPERTY, DEFAULT_PRE_COMPILE_IO_THROTTLE_MS)
+    private val preCompileIoThrottleEveryNFiles: Int =
+        readScenePositiveIntProperty(PRE_COMPILE_IO_THROTTLE_EVERY_PROPERTY, DEFAULT_PRE_COMPILE_IO_THROTTLE_EVERY)
+    private val onDemandIoThrottleSleepMs: Long =
+        readSceneNonNegativeLongProperty(ON_DEMAND_IO_THROTTLE_MS_PROPERTY, DEFAULT_ON_DEMAND_IO_THROTTLE_MS)
+    private val onDemandIoThrottleEveryNFiles: Int =
+        readScenePositiveIntProperty(ON_DEMAND_IO_THROTTLE_EVERY_PROPERTY, DEFAULT_ON_DEMAND_IO_THROTTLE_EVERY)
     private val analyzeFilesBatchSize: Int =
         readPositiveIntProperty(BATCH_SIZE_PROPERTY, DEFAULT_BATCH_SIZE)
     private val fullScanLogIntervalMs: Long =
         readNonNegativeLongProperty(FULL_SCAN_LOG_INTERVAL_MS_PROPERTY, DEFAULT_FULL_SCAN_LOG_INTERVAL_MS)
 
     init {
-        if (ioThrottleSleepMs > 0L) {
-            logger.info("ConstRefEngine io throttle enabled, " +
-                    "sleepMs=$ioThrottleSleepMs, everyNFiles=$ioThrottleEveryNFiles")
+        if (hasEnabledIoThrottle()) {
+            logger.info(
+                "ConstRefEngine io throttle enabled, " +
+                    "fullScan=${formatThrottle(fullScanIoThrottleSleepMs, fullScanIoThrottleEveryNFiles)}, " +
+                    "fileChange=${formatThrottle(fileChangeIoThrottleSleepMs, fileChangeIoThrottleEveryNFiles)}, " +
+                    "preCompile=${formatThrottle(preCompileIoThrottleSleepMs, preCompileIoThrottleEveryNFiles)}, " +
+                    "onDemand=${formatThrottle(onDemandIoThrottleSleepMs, onDemandIoThrottleEveryNFiles)}"
+            )
         }
         scheduleCacheCleanup()
     }
@@ -131,7 +148,6 @@ class ConstRefEngine(
                 }
             }
             trimAnalyzedAtLocked()
-            schedulePendingLocked()
         }
         triggerPreCompileAnalyze()
         var readiness = AnalysisReadiness.READY
@@ -239,7 +255,7 @@ class ConstRefEngine(
                 val executor = Executors.newSingleThreadExecutor()
                 val future = executor.submit {
                     runBlocking {
-                        analyzeFiles(analyzePaths.map(::File))
+                        analyzeFilesForScene(analyzePaths.map(::File), AnalyzeScene.ON_DEMAND)
                     }
                 }
                 try {
@@ -379,7 +395,7 @@ class ConstRefEngine(
                         sourceFiles.filter { it.toStdPath() !in reusablePaths }
                     }
                     val startTime = System.currentTimeMillis()
-                    analyzeFiles(filesToAnalyze)
+                    analyzeFilesForScene(filesToAnalyze, AnalyzeScene.FULL_SCAN)
                     val costTime = System.currentTimeMillis() - startTime
                     progressLogger.onSourceDirFinished(
                         sourceDirPath = sourceDirPath,
@@ -420,11 +436,11 @@ class ConstRefEngine(
 
     private fun schedulePendingLocked() {
         launchSceneTaskLocked(AnalyzeScene.FILE_CHANGE) {
-            analyzePending()
+            analyzePending(AnalyzeScene.FILE_CHANGE)
         }
     }
 
-    private suspend fun analyzePending() {
+    private suspend fun analyzePending(scene: AnalyzeScene) {
         val toAnalyze = synchronized(stateLock) {
             if (pendingAnalyzeFiles.isEmpty()) {
                 return
@@ -434,7 +450,7 @@ class ConstRefEngine(
             files
         }
         try {
-            analyzeFiles(toAnalyze.map(::File))
+            analyzeFilesForScene(toAnalyze.map(::File), scene)
         } finally {
             synchronized(stateLock) {
                 if (pendingAnalyzeFiles.isNotEmpty()) {
@@ -445,6 +461,10 @@ class ConstRefEngine(
     }
 
     private suspend fun analyzeFiles(files: List<File>) {
+        analyzeFilesForScene(files, AnalyzeScene.ON_DEMAND)
+    }
+
+    private suspend fun analyzeFilesForScene(files: List<File>, scene: AnalyzeScene) {
         if (files.isEmpty()) {
             return
         }
@@ -514,7 +534,7 @@ class ConstRefEngine(
                 }
             }
             checksumPhaseMs += stepMs
-            maybeThrottleIo(index + 1)
+            maybeThrottleIo(scene, index + 1)
         }
         if (mtimeHitCount > 0 || fingerprintHitCount > 0 || crcMissCount > 0 || analysisReuseHitCount > 0) {
             logger.debug(
@@ -596,7 +616,7 @@ class ConstRefEngine(
             // scales with total file count; with this, it is bounded by batch size.
             analyzer.resetEnvironment()
             phase1ProcessedCount += batch.size
-            maybeThrottleIo(phase1ProcessedCount)
+            maybeThrottleIo(scene, phase1ProcessedCount)
         }
 
         // Phase 2: parse syntax-only reference candidates per batch. Candidate parsing does not
@@ -688,7 +708,7 @@ class ConstRefEngine(
             // Reset KotlinCoreEnvironment after each batch to release string-intern caches.
             analyzer.resetEnvironment()
             phase2ProcessedCount += batch.size
-            maybeThrottleIo(phase2ProcessedCount)
+            maybeThrottleIo(scene, phase2ProcessedCount)
         }
 
         val totalMs = checksumPhaseMs + phase1ParseMs + phase1DbWriteMs +
@@ -721,7 +741,7 @@ class ConstRefEngine(
             sceneTaskStates[AnalyzeScene.FILE_CHANGE]?.scheduledJob?.cancel()
             sceneTaskStates[AnalyzeScene.FILE_CHANGE]?.scheduledJob = null
             launchSceneTaskLocked(AnalyzeScene.PRE_COMPILE) {
-                analyzePending()
+                analyzePending(AnalyzeScene.PRE_COMPILE)
             }
         }
     }
@@ -814,11 +834,15 @@ class ConstRefEngine(
         return crc32.value
     }
 
-    private suspend fun maybeThrottleIo(processedCount: Int) {
-        if (processedCount % ioThrottleEveryNFiles != 0) {
+    private suspend fun maybeThrottleIo(scene: AnalyzeScene, processedCount: Int) {
+        val sleepMs = ioThrottleSleepMs(scene)
+        if (sleepMs <= 0L) {
             return
         }
-        delay(ioThrottleSleepMs)
+        if (processedCount % ioThrottleEveryNFiles(scene) != 0) {
+            return
+        }
+        delay(sleepMs)
     }
 
     /**
@@ -1316,6 +1340,35 @@ class ConstRefEngine(
         checkNotNull(scheduledJob).start()
     }
 
+    private fun hasEnabledIoThrottle(): Boolean {
+        return fullScanIoThrottleSleepMs > 0L ||
+            fileChangeIoThrottleSleepMs > 0L ||
+            preCompileIoThrottleSleepMs > 0L ||
+            onDemandIoThrottleSleepMs > 0L
+    }
+
+    private fun formatThrottle(sleepMs: Long, everyNFiles: Int): String {
+        return "${sleepMs}ms/${everyNFiles}files"
+    }
+
+    private fun ioThrottleSleepMs(scene: AnalyzeScene): Long {
+        return when (scene) {
+            AnalyzeScene.FULL_SCAN -> fullScanIoThrottleSleepMs
+            AnalyzeScene.FILE_CHANGE -> fileChangeIoThrottleSleepMs
+            AnalyzeScene.PRE_COMPILE -> preCompileIoThrottleSleepMs
+            AnalyzeScene.ON_DEMAND -> onDemandIoThrottleSleepMs
+        }
+    }
+
+    private fun ioThrottleEveryNFiles(scene: AnalyzeScene): Int {
+        return when (scene) {
+            AnalyzeScene.FULL_SCAN -> fullScanIoThrottleEveryNFiles
+            AnalyzeScene.FILE_CHANGE -> fileChangeIoThrottleEveryNFiles
+            AnalyzeScene.PRE_COMPILE -> preCompileIoThrottleEveryNFiles
+            AnalyzeScene.ON_DEMAND -> onDemandIoThrottleEveryNFiles
+        }
+    }
+
     /**
      * Enqueues deleted paths and schedules asynchronous DB cleanup.
      * This avoids blocking caller threads (including EDT) on DB monitor contention.
@@ -1443,6 +1496,7 @@ class ConstRefEngine(
         FULL_SCAN,
         FILE_CHANGE,
         PRE_COMPILE,
+        ON_DEMAND,
     }
 
     private data class SceneTaskState(
@@ -1453,13 +1507,27 @@ class ConstRefEngine(
     companion object {
         private const val IO_THROTTLE_MS_PROPERTY = "jugg.constref.io.throttle.ms"
         private const val IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.io.throttle.every"
+        private const val FULL_SCAN_IO_THROTTLE_MS_PROPERTY = "jugg.constref.fullscan.io.throttle.ms"
+        private const val FULL_SCAN_IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.fullscan.io.throttle.every"
+        private const val FILE_CHANGE_IO_THROTTLE_MS_PROPERTY = "jugg.constref.filechange.io.throttle.ms"
+        private const val FILE_CHANGE_IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.filechange.io.throttle.every"
+        private const val PRE_COMPILE_IO_THROTTLE_MS_PROPERTY = "jugg.constref.precompile.io.throttle.ms"
+        private const val PRE_COMPILE_IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.precompile.io.throttle.every"
+        private const val ON_DEMAND_IO_THROTTLE_MS_PROPERTY = "jugg.constref.ondemand.io.throttle.ms"
+        private const val ON_DEMAND_IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.ondemand.io.throttle.every"
         private const val FULL_SCAN_LOG_INTERVAL_MS_PROPERTY = "jugg.constref.full.scan.log.interval.ms"
         private const val SESSION_FILE_CACHE_MAX_PROPERTY = "jugg.constref.session.file.cache.max"
         private const val SESSION_LOOKUP_CACHE_MAX_PROPERTY = "jugg.constref.session.lookup.cache.max"
         private const val SESSION_CACHE_TTL_MS_PROPERTY = "jugg.constref.session.cache.ttl.ms"
         private const val BATCH_SIZE_PROPERTY = "jugg.constref.batch.size"
-        private const val DEFAULT_IO_THROTTLE_MS = 10_000L
-        private const val DEFAULT_IO_THROTTLE_EVERY = 50
+        private const val DEFAULT_FULL_SCAN_IO_THROTTLE_MS = 3000L
+        private const val DEFAULT_FULL_SCAN_IO_THROTTLE_EVERY = 50
+        private const val DEFAULT_FILE_CHANGE_IO_THROTTLE_MS = 500L
+        private const val DEFAULT_FILE_CHANGE_IO_THROTTLE_EVERY = 200
+        private const val DEFAULT_PRE_COMPILE_IO_THROTTLE_MS = 0L
+        private const val DEFAULT_PRE_COMPILE_IO_THROTTLE_EVERY = 1
+        private const val DEFAULT_ON_DEMAND_IO_THROTTLE_MS = 0L
+        private const val DEFAULT_ON_DEMAND_IO_THROTTLE_EVERY = 1
         private const val DEFAULT_FULL_SCAN_LOG_INTERVAL_MS = 5000L
         private const val DEFAULT_SESSION_FILE_CACHE_MAX = 500
         private const val DEFAULT_SESSION_LOOKUP_CACHE_MAX = 4000
@@ -1475,6 +1543,18 @@ class ConstRefEngine(
 
         private fun readPositiveIntProperty(property: String, defaultValue: Int): Int {
             return System.getProperty(property)?.toIntOrNull()?.coerceAtLeast(1) ?: defaultValue
+        }
+
+        private fun readSceneNonNegativeLongProperty(property: String, defaultValue: Long): Long {
+            return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L)
+                ?: System.getProperty(IO_THROTTLE_MS_PROPERTY)?.toLongOrNull()?.coerceAtLeast(0L)
+                ?: defaultValue
+        }
+
+        private fun readScenePositiveIntProperty(property: String, defaultValue: Int): Int {
+            return System.getProperty(property)?.toIntOrNull()?.coerceAtLeast(1)
+                ?: System.getProperty(IO_THROTTLE_EVERY_PROPERTY)?.toIntOrNull()?.coerceAtLeast(1)
+                ?: defaultValue
         }
     }
 }

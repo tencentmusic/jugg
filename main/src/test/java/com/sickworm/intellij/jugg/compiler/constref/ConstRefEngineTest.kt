@@ -1222,8 +1222,8 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
-    fun `should use 10 seconds throttle every 50 files by default`() {
-        val rootDir = createTempDirectory("const_ref_default_throttle")
+    fun `should use scene specific throttle defaults`() {
+        val rootDir = createTempDirectory("const_ref_default_scene_throttle")
         File(rootDir, ".git").mkdirs()
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val engine = ConstRefEngine(
@@ -1234,11 +1234,173 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
-            assertEquals(10_000L, readPrivateLong(engine, "ioThrottleSleepMs"))
-            assertEquals(50, readPrivateInt(engine, "ioThrottleEveryNFiles"))
+            assertEquals(500L, readPrivateLong(engine, "fullScanIoThrottleSleepMs"))
+            assertEquals(200, readPrivateInt(engine, "fullScanIoThrottleEveryNFiles"))
+            assertEquals(500L, readPrivateLong(engine, "fileChangeIoThrottleSleepMs"))
+            assertEquals(200, readPrivateInt(engine, "fileChangeIoThrottleEveryNFiles"))
+            assertEquals(0L, readPrivateLong(engine, "preCompileIoThrottleSleepMs"))
+            assertEquals(1, readPrivateInt(engine, "preCompileIoThrottleEveryNFiles"))
+            assertEquals(0L, readPrivateLong(engine, "onDemandIoThrottleSleepMs"))
+            assertEquals(1, readPrivateInt(engine, "onDemandIoThrottleEveryNFiles"))
         } finally {
             engine.dispose()
             scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should let scene specific throttle override legacy throttle`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.io.throttle.ms" to "9000",
+                "jugg.constref.io.throttle.every" to "9",
+                "jugg.constref.fullscan.io.throttle.ms" to "250",
+                "jugg.constref.fullscan.io.throttle.every" to "100",
+                "jugg.constref.precompile.io.throttle.ms" to "0",
+                "jugg.constref.precompile.io.throttle.every" to "1",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_scene_throttle_override")
+            File(rootDir, ".git").mkdirs()
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val engine = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            )
+            try {
+                assertEquals(250L, readPrivateLong(engine, "fullScanIoThrottleSleepMs"))
+                assertEquals(100, readPrivateInt(engine, "fullScanIoThrottleEveryNFiles"))
+                assertEquals(9000L, readPrivateLong(engine, "fileChangeIoThrottleSleepMs"))
+                assertEquals(9, readPrivateInt(engine, "fileChangeIoThrottleEveryNFiles"))
+                assertEquals(0L, readPrivateLong(engine, "preCompileIoThrottleSleepMs"))
+                assertEquals(1, readPrivateInt(engine, "preCompileIoThrottleEveryNFiles"))
+                assertEquals(9000L, readPrivateLong(engine, "onDemandIoThrottleSleepMs"))
+                assertEquals(9, readPrivateInt(engine, "onDemandIoThrottleEveryNFiles"))
+            } finally {
+                engine.dispose()
+                scope.cancel()
+            }
+        }
+    }
+
+    @Test
+    fun `precompile should ignore legacy throttle sleep`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.io.throttle.ms" to "1200",
+                "jugg.constref.io.throttle.every" to "1",
+                "jugg.constref.precompile.io.throttle.ms" to "0",
+                "jugg.constref.precompile.io.throttle.every" to "1",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_precompile_no_throttle")
+            File(rootDir, ".git").mkdirs()
+            val constantsFile = File(rootDir, "Constants.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    const val MAX = 1
+                    """.trimIndent()
+                )
+            }
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val engine = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            )
+            try {
+                engine.onFileSaved(constantsFile.absolutePath)
+                val elapsedMs = measureTimeMillis {
+                    val readiness = engine.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 1_000L)
+                    assertTrue(readiness.isReady)
+                }
+                assertTrue("precompile should not sleep legacy throttle, elapsedMs=$elapsedMs", elapsedMs < 1_000L)
+            } finally {
+                engine.dispose()
+                scope.cancel()
+            }
+        }
+    }
+
+    @Test
+    fun `on demand should ignore legacy throttle sleep`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.io.throttle.ms" to "1200",
+                "jugg.constref.io.throttle.every" to "1",
+                "jugg.constref.ondemand.io.throttle.ms" to "0",
+                "jugg.constref.ondemand.io.throttle.every" to "1",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_ondemand_no_throttle")
+            File(rootDir, ".git").mkdirs()
+            val constantsFile = File(rootDir, "Constants.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    const val MAX = 1
+                    """.trimIndent()
+                )
+            }
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val engine = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            )
+            try {
+                engine.onFileSaved(constantsFile.absolutePath)
+                val elapsedMs = measureTimeMillis {
+                    val readiness = engine.analyzeOnDemand(listOf(constantsFile.absolutePath))
+                    assertTrue(readiness.isReady)
+                }
+                assertTrue("on-demand should not sleep legacy throttle, elapsedMs=$elapsedMs", elapsedMs < 1_000L)
+            } finally {
+                engine.dispose()
+                scope.cancel()
+            }
+        }
+    }
+
+    @Test
+    fun `legacy throttle should still apply when no scene specific property is set`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.io.throttle.ms" to "1200",
+                "jugg.constref.io.throttle.every" to "1",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_legacy_throttle")
+            File(rootDir, ".git").mkdirs()
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val engine = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            )
+            try {
+                assertEquals(1200L, readPrivateLong(engine, "fullScanIoThrottleSleepMs"))
+                assertEquals(1, readPrivateInt(engine, "fullScanIoThrottleEveryNFiles"))
+                assertEquals(1200L, readPrivateLong(engine, "fileChangeIoThrottleSleepMs"))
+                assertEquals(1, readPrivateInt(engine, "fileChangeIoThrottleEveryNFiles"))
+                assertEquals(1200L, readPrivateLong(engine, "preCompileIoThrottleSleepMs"))
+                assertEquals(1, readPrivateInt(engine, "preCompileIoThrottleEveryNFiles"))
+                assertEquals(1200L, readPrivateLong(engine, "onDemandIoThrottleSleepMs"))
+                assertEquals(1, readPrivateInt(engine, "onDemandIoThrottleEveryNFiles"))
+            } finally {
+                engine.dispose()
+                scope.cancel()
+            }
         }
     }
 
