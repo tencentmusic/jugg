@@ -22,6 +22,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.io.File
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -950,6 +951,12 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         return condition()
     }
 
+    private fun snapshotLogs(logs: List<String>): List<String> {
+        return synchronized(logs) {
+            logs.toList()
+        }
+    }
+
     @Test
     fun `analyzeOnDemand should not be blocked by concurrent full scan batch`() {
         val rootDir = createTempDirectory("const_ref_mutex_contention")
@@ -1148,6 +1155,63 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         } finally {
             engine.dispose()
             scope.cancel()
+        }
+    }
+
+    @Test
+    fun `initializeFullScan should emit final progress log after interval log consumed batch`() {
+        withSystemProperties(
+            mapOf("jugg.constref.full.scan.log.interval.ms" to "0")
+        ) {
+            val rootDir = createTempDirectory("const_ref_full_scan_final_log")
+            File(rootDir, ".git").mkdirs()
+            val sourceDir = File(rootDir, "src").apply { mkdirs() }
+            val constantsFile = File(sourceDir, "Constants.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    const val MAX = 1
+                    """.trimIndent()
+                )
+            }
+            val logOutput = Collections.synchronizedList(mutableListOf<String>())
+            val capturingLogger = object : StdLogger("ConstRefEngine") {
+                override fun debug(message: String?) {
+                    message?.let { logOutput += it }
+                    super.debug(message)
+                }
+            }
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+            val engine = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = database,
+                logger = capturingLogger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+                startupStabilizationDelayMs = 0L,
+            )
+            try {
+                engine.initializeFullScan(listOf(sourceDir))
+
+                assertTrue(
+                    "full scan should analyze file",
+                    waitUntil(timeoutMs = 5_000L) {
+                        database.getFileCache(constantsFile.toStdPath()) != null
+                    },
+                )
+                assertTrue(
+                    "Expected final full scan progress log but got: ${snapshotLogs(logOutput)}",
+                    waitUntil(timeoutMs = 1_000L) {
+                        snapshotLogs(logOutput).any {
+                            it.contains("ConstRefEngine full scan progress") && it.contains("final=true")
+                        }
+                    },
+                )
+            } finally {
+                engine.dispose()
+                scope.cancel()
+            }
         }
     }
 

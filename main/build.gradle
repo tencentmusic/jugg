@@ -144,7 +144,15 @@ dependencies {
 
 tasks.withType(Test).configureEach {
     // Forward benchmark system properties to the test JVM.
-    ["benchmark.project.dir", "benchmark.output.dir", "benchmark.constref.cache.dir"].each { key ->
+    [
+            "benchmark.project.dir",
+            "benchmark.output.dir",
+            "benchmark.constref.cache.dir",
+            "benchmark.constref.reset.cache",
+            "benchmark.constref.timeout.ms",
+            "jugg.constref.fullscan.io.throttle.ms",
+            "jugg.constref.fullscan.io.throttle.every",
+    ].each { key ->
         def value = System.getProperty(key)
         if (value) {
             systemProperty key, value

@@ -1463,7 +1463,7 @@ class ConstRefEngine(
         }
 
         private fun emitProgressLog(isFinal: Boolean) {
-            if (batchDirCount <= 0) {
+            if (batchDirCount <= 0 && !(isFinal && totalDirCount > 0)) {
                 return
             }
             logger.debug(
