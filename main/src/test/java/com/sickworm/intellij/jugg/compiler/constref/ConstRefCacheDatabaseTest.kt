@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -466,6 +467,174 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should store candidate paths and strings by id schema`() {
+        val dbDir = createTempDirectory("const_ref_db_compact_schema")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db")
+        val database = ConstRefCacheDatabase(dbFile, logger)
+        val constantsPath = File(dbDir, "src/main/Constants.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nconst val MAX = 1")
+        }.toStdPath()
+        val userPath = File(dbDir, "src/main/User.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nval value = MAX")
+        }.toStdPath()
+
+        database.upsertFileAnalysis(
+            filePath = constantsPath,
+            lastModified = 100L,
+            checksum = 1000L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsPath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "1",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = userPath,
+            lastModified = 101L,
+            checksum = 1001L,
+            definitions = emptyList(),
+            references = emptyList(),
+            referenceCandidates = listOf(
+                ConstReferenceCandidate(
+                    refFilePath = userPath,
+                    packageName = "com.example",
+                    constName = "MAX",
+                    ownerName = null,
+                    ownerKind = ConstReferenceOwnerKind.BARE_SAME_PACKAGE,
+                )
+            ),
+        )
+        database.close()
+
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("PRAGMA table_info(const_reference_candidates)").use { resultSet ->
+                    val columns = mutableSetOf<String>()
+                    while (resultSet.next()) {
+                        columns += resultSet.getString("name")
+                    }
+                    assertTrue("candidate table should use file_id", "file_id" in columns)
+                    assertTrue("candidate table should use package_id", "package_id" in columns)
+                    assertTrue("candidate table should use const_name_id", "const_name_id" in columns)
+                    assertFalse("candidate table should not duplicate relative_path", "relative_path" in columns)
+                    assertFalse("candidate table should not duplicate repo_key", "repo_key" in columns)
+                }
+                statement.executeQuery("SELECT COUNT(*) FROM strings WHERE value IN ('src/main/User.kt', 'com.example', 'MAX')").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertEquals(3, resultSet.getInt(1))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `should store owner kind as integer while preserving candidate lookup`() {
+        val dbDir = createTempDirectory("const_ref_db_owner_kind_code")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db")
+        val database = ConstRefCacheDatabase(dbFile, logger)
+        val constantsPath = File(dbDir, "Config.kt").apply {
+            writeText("package com.example\nclass Config { companion object { const val MAX = 1 } }")
+        }.toStdPath()
+        val userPath = File(dbDir, "User.kt").apply {
+            writeText("package com.example.user\nimport com.example.Config.Companion.MAX\nval value = MAX")
+        }.toStdPath()
+
+        database.upsertFileAnalysis(
+            filePath = constantsPath,
+            lastModified = 100L,
+            checksum = 1000L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsPath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.Config",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "1",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = userPath,
+            lastModified = 101L,
+            checksum = 1001L,
+            definitions = emptyList(),
+            references = emptyList(),
+            referenceCandidates = listOf(
+                ConstReferenceCandidate(
+                    refFilePath = userPath,
+                    packageName = "com.example.user",
+                    constName = "MAX",
+                    ownerName = "com.example.Config.Companion",
+                    ownerKind = ConstReferenceOwnerKind.EXPLICIT_CONST_IMPORT,
+                )
+            ),
+        )
+
+        val effected = database.getEffectedFilesByDefinitionKeys(
+            definitionKeys = setOf("com.example.Config" to "MAX"),
+            scopeFilePaths = listOf(constantsPath),
+        )
+        assertEquals(setOf(userPath), effected.map { it.refFilePath }.toSet())
+        database.close()
+
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT owner_kind FROM const_reference_candidates").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertEquals(1, resultSet.getInt("owner_kind"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `should keep string id cache bounded after large batch write`() {
+        val dbDir = createTempDirectory("const_ref_db_string_cache_bound")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+        val filePath = File(dbDir, "ManyConstants.kt").apply {
+            writeText("package com.example\n")
+        }.toStdPath()
+        val definitions = (0 until 4500).map { index ->
+            ConstDefinition(
+                filePath = filePath,
+                packageName = "com.example.generated",
+                fqClassName = "com.example.generated.ManyConstantsKt",
+                constName = "CONST_$index",
+                constType = "String",
+                constValue = "value_$index",
+            )
+        }
+
+        database.upsertBatchAnalysis(
+            listOf(
+                ConstRefCacheDatabase.FileAnalysisEntry(
+                    filePath = filePath,
+                    lastModified = 100L,
+                    checksum = 1000L,
+                    definitions = definitions,
+                    references = emptyList(),
+                    referenceCandidates = emptyList(),
+                )
+            )
+        )
+
+        assertTrue(cachedStringCount(database) <= 4096)
+    }
+
+    @Test
     fun `should isolate mtime map by worktree when mtime is same`() {
         val rootDir = createTempDirectory("const_ref_db_worktree_isolation")
         val commonGitDir = File(rootDir, "common.git").apply { mkdirs() }
@@ -607,6 +776,13 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
         File(worktreeGitDir, "commondir").writeText("../../\n")
         File(worktreeDir, ".git").writeText("gitdir: ${worktreeGitDir.absolutePath}\n")
+    }
+
+    private fun cachedStringCount(database: ConstRefCacheDatabase): Int {
+        val field = ConstRefCacheDatabase::class.java.getDeclaredField("stringIdCache")
+        field.isAccessible = true
+        val cache = field.get(database) as Map<*, *>
+        return cache.size
     }
 
     // ---- simple_class_name index tests ----
