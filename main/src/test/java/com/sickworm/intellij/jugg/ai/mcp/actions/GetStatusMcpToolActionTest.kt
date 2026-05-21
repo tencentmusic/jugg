@@ -62,6 +62,23 @@ class GetStatusMcpToolActionTest {
         Assert.assertEquals("", data["lastFileModifiedTime"])
         Assert.assertEquals("", data["lastCompileTime"])
         Assert.assertFalse(data.containsKey("lastFileModifiedTimeMillis"))
+        Assert.assertEquals(false, data["isCompiling"])
+    }
+
+    @Test
+    fun testStatusReturnsIsCompilingWhenRunnerIsBusy() {
+        val runtime = runtimeWith(
+            deployState = JuggDeployState.READY,
+            hasDevice = true,
+            uncompiledFiles = emptyList(),
+            isCompiling = true,
+        )
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals(true, data["isCompiling"])
     }
 
     @Test
@@ -440,6 +457,7 @@ class GetStatusMcpToolActionTest {
         fallbackChecker: IIncrementalCompileFallbackChecker? = null,
         uncompiledFilesProvider: (() -> List<ChangedFile>)? = null,
         statusRefresh: () -> Unit = {},
+        isCompiling: Boolean = false,
     ): IMcpRuntime {
         val deployStateManager = object : IDeployStateManager {
             override fun updateDeployState(): JuggDeployState = deployState
@@ -468,7 +486,7 @@ class GetStatusMcpToolActionTest {
                     RemoteSshInfoResult(approved = false, message = "not used in this test")
             }
             override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
-                override val isCompiling: Boolean = false
+                override val isCompiling: Boolean = isCompiling
                 override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: com.sickworm.intellij.jugg.compiler.CompileUiHandler, executor: com.intellij.execution.Executor?, runProfile: com.intellij.execution.configurations.RunProfile?, androidTestRunSpec: com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec?): com.intellij.execution.ExecutionResult =
                     throw UnsupportedOperationException("not used in this test")
                 override fun forceReInstallNextTime() = throw UnsupportedOperationException("not used in this test")

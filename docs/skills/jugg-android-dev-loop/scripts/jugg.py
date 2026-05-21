@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 from help_registry import COMMAND_HELP, format_command_help
 
 USAGE_HEAD = """\
-Usage: jugg [--console=plain|rich|json] [--project-dir <path>] <subcommand> [options]
+Usage: jugg [--console=plain|rich|json] [--project-dir <path>] [--if-compiling wait|interrupt] <subcommand> [options]
        jugg help <subcommand>
 
 Global options:
@@ -24,7 +24,11 @@ Global options:
   --console=plain     No spinner; plain text output (default for direct python3 calls)
   --console=json      Structured JSON output; implies no spinner
   --project-dir PATH   Use this projectDir instead of resolving it from the current directory
+  --if-compiling MODE  For compile/deploy/gradle-build/instrument: wait (default) until the
+                       current compile finishes, or interrupt it and start immediately.
 """
+
+_IF_COMPILING_VALUES = ("wait", "interrupt")
 
 _CONSOLE_VALUES = ("plain", "rich", "json")
 
@@ -68,6 +72,7 @@ def main() -> None:
     # Extract global flags before subcommand dispatch.
     console = "plain"
     project_dir = ""
+    if_compiling = "wait"
     remaining = []
     i = 0
     while i < len(args):
@@ -75,6 +80,8 @@ def main() -> None:
         # Normalize camelCase global flags to kebab-case so both forms are accepted.
         if a.startswith("--projectDir"):
             a = a.replace("--projectDir", "--project-dir", 1)
+        if a.startswith("--ifCompiling"):
+            a = a.replace("--ifCompiling", "--if-compiling", 1)
         if a.startswith("--console="):
             val = a[len("--console="):]
             if val not in _CONSOLE_VALUES:
@@ -93,14 +100,33 @@ def main() -> None:
             if not project_dir:
                 print("jugg: --project-dir requires a path", file=sys.stderr)
                 sys.exit(1)
+        elif a == "--if-compiling":
+            if i + 1 >= len(args):
+                print("jugg: --if-compiling requires wait or interrupt", file=sys.stderr)
+                sys.exit(1)
+            if_compiling = args[i + 1]
+            i += 1
+        elif a.startswith("--if-compiling="):
+            if_compiling = a[len("--if-compiling="):]
+            if not if_compiling:
+                print("jugg: --if-compiling requires wait or interrupt", file=sys.stderr)
+                sys.exit(1)
         else:
             remaining.append(a)
         i += 1
     args = remaining
 
+    if if_compiling not in _IF_COMPILING_VALUES:
+        print(
+            f"jugg: invalid --if-compiling value '{if_compiling}' (choose: wait, interrupt)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     jugglib.spinner_enabled = (console == "rich")
     jugglib.json_mode = (console == "json")
     jugglib.set_project_dir_override(project_dir)
+    jugglib.if_compiling = if_compiling
 
     if not args or args[0] in ("--help", "-h"):
         print(top_usage(), file=sys.stderr, end="")

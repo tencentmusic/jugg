@@ -93,6 +93,10 @@ class GetStatusMcpToolAction(
                             type = "boolean",
                             description = "True when Jugg has persisted a complete full-build baseline for this project.",
                         ),
+                        "isCompiling" to McpJsonSchemaProperty(
+                            type = "boolean",
+                            description = "True when a Jugg compile/deploy run task is currently executing.",
+                        ),
                     ),
                     required = listOf(
                         "hasDevice",
@@ -105,6 +109,7 @@ class GetStatusMcpToolAction(
                         "lastCompileTime",
                         "enabledAndroidTest",
                         "hasBeenFullCompiled",
+                        "isCompiling",
                     ),
                     additionalProperties = false,
                 )
@@ -178,6 +183,7 @@ class GetStatusMcpToolAction(
             "lastCompileTime" to lastCompileTime,
             "enabledAndroidTest" to enabledAndroidTest,
             "hasBeenFullCompiled" to hasBeenFullCompiled,
+            "isCompiling" to runtime.juggConfigurationRunner.isCompiling,
         )
 
         return McpToolResult(

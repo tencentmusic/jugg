@@ -12,7 +12,7 @@ import time
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 
 # ─── cache paths (overridable via env) ───────────────────────────────────────
@@ -256,6 +256,9 @@ def print_kv(structured: dict) -> None:
 
 _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 COMPILE_STATUS_WAIT_TIMEOUT_MS = 3000
+COMPILE_IDLE_POLL_INTERVAL_SEC = 0.3
+IF_COMPILING_WAIT = "wait"
+IF_COMPILING_INTERRUPT = "interrupt"
 
 
 # Controlled by --console global flag (parsed in jugg.py).
@@ -263,9 +266,11 @@ COMPILE_STATUS_WAIT_TIMEOUT_MS = 3000
 # json_mode: True only for --console=json (structured output for agents/scripts).
 spinner_enabled: bool = False
 json_mode: bool = False
+# Controlled by --if-compiling global flag (parsed in jugg.py). CLI-only; not sent to MCP.
+if_compiling: str = IF_COMPILING_WAIT
 
 
-def _run_spinner(stop_event: threading.Event, label: str) -> None:
+def _run_spinner(stop_event: threading.Event, label: str | list[str]) -> None:
     """Animate a braille spinner written to stderr.
 
     Disabled by default; only runs when jugglib.spinner_enabled is True.
@@ -273,18 +278,28 @@ def _run_spinner(stop_event: threading.Event, label: str) -> None:
     hundreds of spinner lines in logs.
     The jugg shell/cmd wrappers pass --spinner so human users still
     see the spinner; direct python3 calls and agent calls do not.
+
+    When label is a single-element list, the spinner reads label[0] each frame
+    so callers can update progress text without restarting the thread.
     """
     if not spinner_enabled or not sys.stderr.isatty():
         return
+
+    def current_label() -> str:
+        return label[0] if isinstance(label, list) else label
+
     i = 0
+    max_label_len = 0
     while not stop_event.is_set():
+        text = current_label()
+        max_label_len = max(max_label_len, len(text))
         frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
-        sys.stderr.write(f"\r{frame} {label}...")
+        sys.stderr.write(f"\r{frame} {text}...")
         sys.stderr.flush()
         time.sleep(0.08)
         i += 1
     # Clear spinner line
-    sys.stderr.write(f"\r{' ' * (len(label) + 6)}\r")
+    sys.stderr.write(f"\r{' ' * (max_label_len + 6)}\r")
     sys.stderr.flush()
 
 
@@ -330,6 +345,42 @@ def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
     return structured
 
 
+def _fetch_is_compiling(port: int, project_dir: str) -> bool:
+    """Return whether a compile/deploy task is currently running on the IDE side."""
+    response = raw_call(
+        port,
+        "status",
+        {
+            "projectDir": project_dir,
+            "refreshChanges": False,
+        },
+    )
+    structured = extract_structured(response)
+    if structured.get("status") != "OK":
+        msg = structured.get("message", "Unknown error")
+        print(f"status: ERROR\nmessage: {msg}", file=sys.stderr)
+        sys.exit(1)
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return False
+    return bool(data.get("isCompiling", False))
+
+
+def wait_for_compile_idle(
+    port: int,
+    project_dir: str,
+    *,
+    on_waiting: Optional[Callable[[], None]] = None,
+) -> None:
+    """Poll status until no compile/deploy task is running."""
+    if not _fetch_is_compiling(port, project_dir):
+        return
+    if on_waiting is not None:
+        on_waiting()
+    while _fetch_is_compiling(port, project_dir):
+        time.sleep(COMPILE_IDLE_POLL_INTERVAL_SEC)
+
+
 # ─── standard subcommand helpers ─────────────────────────────────────────────
 
 def simple_call(tool: str, *, json_mode: Optional[bool] = None,
@@ -371,12 +422,21 @@ def compile_call(tool: str, *, json_mode: Optional[bool] = None,
         params.update(extra_params)
 
     label = progress_msg or "Compiling"
+    spinner_label = [label]
     stop_event = threading.Event()
     spinner_thread = threading.Thread(
-        target=_run_spinner, args=(stop_event, label), daemon=True
+        target=_run_spinner, args=(stop_event, spinner_label), daemon=True
     )
     spinner_thread.start()
     try:
+        if if_compiling == IF_COMPILING_WAIT:
+            wait_for_compile_idle(
+                port,
+                project_dir,
+                on_waiting=lambda: spinner_label.__setitem__(
+                    0, "Waiting for previous compile"
+                ),
+            )
         response = raw_call(port, tool, params)
         structured = extract_structured(response)
         structured = poll_compile(port, project_dir, structured)

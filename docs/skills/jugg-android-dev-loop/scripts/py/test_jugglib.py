@@ -1,11 +1,12 @@
 """Tests for jugglib compile_call message selection logic."""
 
 import io
+import os
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import Mock, patch
 
-sys.path.insert(0, "/Users/wormchen/IdeaProjects/jugg/jugg_f1/docs/skills/jugg-android-dev-loop/scripts/py")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 import jugglib
 
 
@@ -40,6 +41,13 @@ def _make_poll_response(data_status: str) -> dict:
 
 class TestCompileCallMessageOnSuccess(unittest.TestCase):
     """compile_call should print compile's own message on success, not the poll loop's message."""
+
+    def setUp(self):
+        self._original_if_compiling = jugglib.if_compiling
+        jugglib.if_compiling = jugglib.IF_COMPILING_INTERRUPT
+
+    def tearDown(self):
+        jugglib.if_compiling = self._original_if_compiling
 
     def _run_compile_call(self, initial: dict, poll_final: dict) -> str:
         """Helper: patch dependencies, run compile_call, return captured stdout."""
@@ -106,6 +114,13 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
 
 class TestCompileCallMessageOnFailure(unittest.TestCase):
     """compile_call should print compile/deploy result flags on failure (except for compile-only command)."""
+
+    def setUp(self):
+        self._original_if_compiling = jugglib.if_compiling
+        jugglib.if_compiling = jugglib.IF_COMPILING_INTERRUPT
+
+    def tearDown(self):
+        jugglib.if_compiling = self._original_if_compiling
 
     def test_failure_prints_compile_and_deploy_result(self):
         structured = {
@@ -193,6 +208,112 @@ class TestCompileCallMessageOnFailure(unittest.TestCase):
         output = captured.getvalue()
         self.assertNotIn("isCompileSuccess", output)
         self.assertNotIn("isDeploySuccess", output)
+
+
+def _status_response(is_compiling: bool) -> dict:
+    return {
+        "result": {
+            "structuredContent": {
+                "status": "OK",
+                "data": {"isCompiling": is_compiling},
+            }
+        }
+    }
+
+
+class TestCompileIdleWait(unittest.TestCase):
+    """compile_call should wait for status.isCompiling=false before triggering compile-like tools."""
+
+    def setUp(self):
+        self._original_if_compiling = jugglib.if_compiling
+
+    def tearDown(self):
+        jugglib.if_compiling = self._original_if_compiling
+
+    def test_wait_mode_polls_status_until_idle_before_compile(self):
+        jugglib.if_compiling = "wait"
+        initial = _make_compile_response("success", "Compile succeeded immediately.")
+        status_busy = _status_response(True)
+        status_idle = _status_response(False)
+
+        with (
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
+            patch.object(jugglib, "resolve_port", return_value=12320),
+            patch.object(jugglib, "raw_call") as mock_raw_call,
+            patch.object(jugglib.time, "sleep") as mock_sleep,
+        ):
+            mock_raw_call.side_effect = [
+                status_busy,
+                status_busy,
+                status_idle,
+                {"result": {"structuredContent": initial}},
+            ]
+
+            jugglib.compile_call("compile")
+
+        self.assertEqual(
+            [
+                ("status", {"projectDir": "/proj", "refreshChanges": False}),
+                ("status", {"projectDir": "/proj", "refreshChanges": False}),
+                ("status", {"projectDir": "/proj", "refreshChanges": False}),
+                ("compile", {"projectDir": "/proj"}),
+            ],
+            [(call.args[1], call.args[2]) for call in mock_raw_call.call_args_list],
+        )
+        mock_sleep.assert_called()
+
+    def test_interrupt_mode_skips_status_poll(self):
+        jugglib.if_compiling = "interrupt"
+        initial = _make_compile_response("success", "Compile succeeded immediately.")
+
+        with (
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
+            patch.object(jugglib, "resolve_port", return_value=12320),
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": initial}}) as mock_raw_call,
+        ):
+            jugglib.compile_call("compile")
+
+        mock_raw_call.assert_called_once_with(12320, "compile", {"projectDir": "/proj"})
+
+    def test_wait_mode_uses_single_status_when_already_idle(self):
+        jugglib.if_compiling = "wait"
+        initial = _make_compile_response("success", "Compile succeeded immediately.")
+        status_idle = _status_response(False)
+
+        with (
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
+            patch.object(jugglib, "resolve_port", return_value=12320),
+            patch.object(jugglib, "raw_call") as mock_raw_call,
+        ):
+            mock_raw_call.side_effect = [
+                status_idle,
+                {"result": {"structuredContent": initial}},
+            ]
+            jugglib.compile_call("compile")
+
+        self.assertEqual(
+            [
+                ("status", {"projectDir": "/proj", "refreshChanges": False}),
+                ("compile", {"projectDir": "/proj"}),
+            ],
+            [(call.args[1], call.args[2]) for call in mock_raw_call.call_args_list],
+        )
+
+    def test_on_waiting_not_called_when_already_idle(self):
+        with patch.object(jugglib, "_fetch_is_compiling", return_value=False) as mock_fetch:
+            on_waiting = Mock()
+            jugglib.wait_for_compile_idle(12320, "/proj", on_waiting=on_waiting)
+
+        mock_fetch.assert_called_once_with(12320, "/proj")
+        on_waiting.assert_not_called()
+
+    def test_on_waiting_called_only_after_compiling_detected(self):
+        with patch.object(jugglib, "_fetch_is_compiling", side_effect=[True, False]) as mock_fetch:
+            on_waiting = Mock()
+            jugglib.wait_for_compile_idle(12320, "/proj", on_waiting=on_waiting)
+
+        self.assertEqual(2, mock_fetch.call_count)
+        on_waiting.assert_called_once()
 
 
 class TestPollCompileWaitTimeout(unittest.TestCase):

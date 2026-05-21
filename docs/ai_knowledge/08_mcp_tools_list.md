@@ -303,6 +303,7 @@
 - `lastCompileTime`：最近一次调用 `compile` / `deploy` / `gradle-build` 的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无记录时为空字符串）；AI hooks 用它判断当前 Agent 会话写入是否已被 Jugg 验证覆盖
 - `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线；AI hooks 仅在该字段为 `true` 时启用 raw Gradle guard 与 stop guard，并且 guard 还要求当前 Agent 会话已有写入工具触发记录，且该写入时间晚于 `lastCompileTime`
 - `enabledAndroidTest`：最近一次 full build 基线是否以 AndroidTest target 初始化（`true` 表示当时开启了 `enableAndroidTest`）
+- `isCompiling`：boolean，当前是否有 Jugg compile/deploy 运行任务在执行（对齐 `JuggConfigurationRunner.isCompiling`）
 
 ---
 

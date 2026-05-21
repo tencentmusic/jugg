@@ -22,6 +22,7 @@
 | **projectDir 解析** | 默认通过调用 `list-projects` 后与 `$PWD` 做最长前缀匹配自动确定；传入全局参数 `--project-dir <path>` 时直接使用该路径 |
 | **端口自动发现** | 先读本地缓存文件，不命中则扫描 `12320..12329`，命中后写缓存 |
 | **异步编译自动轮询** | `compile`/`deploy`/`gradle-build` 自动调用 `get-compile-status` 到终态；返回 `running` 后立即再次请求，并附带 `waitTimeoutMs=3000` 进行短阻塞等待，减少尾部等待窗口 |
+| **并发 compile 等待** | `compile`/`deploy`/`gradle-build`/`instrument` 在触发 MCP 前默认轮询 `status.isCompiling`，直到无进行中的 compile/deploy 任务；可用全局 `--if-compiling interrupt` 跳过等待并立即触发（服务端仍会中断当前任务） |
 | **`--console=json` 模式** | 通过全局参数 `--console=json` 输出原始 structuredContent JSON 供脚本消费；默认以 `key: value` 格式输出 |
 
 **端口/session 缓存文件位置**（可被环境变量覆盖）：
@@ -119,6 +120,15 @@ jugg --console=json <subcommand> [options]
 ```
 
 `--console` 是全局参数，必须放在子命令前。
+
+#### 并发 compile 策略（CLI-only）
+```
+jugg [--if-compiling wait|interrupt] <compile|deploy|gradle-build|instrument> [options]
+```
+
+- 默认 `wait`：触发前无限轮询 `status.isCompiling`，直到 idle 再调用 MCP
+- `interrupt`：跳过等待，立即触发；服务端沿用现有「新任务中断旧任务」语义
+- 该参数为 CLI 专属全局 flag，不发送给 MCP
 
 #### 手动指定 projectDir
 ```
@@ -332,6 +342,7 @@ jugg status [--refresh-changes <true|false>]
 ```
 
 返回包含 `enabledAndroidTest`（基于最近 full build 基线）用于判定当时是否开启 Android Test 增量模式；该字段表示最近一次持久化 full-build baseline 使用 AndroidTest target，不等同于单纯 UI toggle 状态。Agent 当前上下文已有 hook block 的 `Jugg status` plain key-value 输出时，可直接复用其中的 `enabledAndroidTest`，无需再次调用 status。
+返回包含 `isCompiling`：当前是否有 compile/deploy 任务在运行；CLI 在触发 compile 类命令前默认轮询该字段直到为 `false`。
 用户要求执行 androidTest 或 instrumented unit tests 且该字段为 `false` 时，不应继续执行 `instrument`；应提示用户打开 Jugg App Run Configuration，开启 Android Test / `enableAndroidTest`，执行一次 full build / `gradle-build` 后重新检查该字段。
 默认不刷新 git-tracked changed files；只有传 `--refresh-changes true` 时才会在读取状态前触发刷新。
 

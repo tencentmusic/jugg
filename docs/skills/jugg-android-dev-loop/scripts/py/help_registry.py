@@ -34,13 +34,25 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     "compile": CommandHelp(
         "compile",
         "Compile modified sources without deploying.",
-        "jugg compile",
+        "jugg [--if-compiling wait|interrupt] compile",
+        (
+            OptionHelp(
+                ("--if-compiling", "--ifCompiling"),
+                "When another compile is running: wait (default) or interrupt. CLI-only global flag.",
+                "wait|interrupt",
+            ),
+        ),
     ),
     "deploy": CommandHelp(
         "deploy",
         "Compile and deploy to device, then wait for completion.",
-        "jugg deploy [--always-restart-app <true|false>]",
+        "jugg [--if-compiling wait|interrupt] deploy [--always-restart-app <true|false>]",
         (
+            OptionHelp(
+                ("--if-compiling", "--ifCompiling"),
+                "When another compile is running: wait (default) or interrupt. CLI-only global flag.",
+                "wait|interrupt",
+            ),
             OptionHelp(
                 ("--always-restart-app", "--alwaysRestartApp"),
                 "Restart the app after deploy; pass false to allow hot reload.",
@@ -53,7 +65,14 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     "gradle-build": CommandHelp(
         "gradle-build",
         "Force a Gradle build and wait for completion.",
-        "jugg gradle-build",
+        "jugg [--if-compiling wait|interrupt] gradle-build",
+        (
+            OptionHelp(
+                ("--if-compiling", "--ifCompiling"),
+                "When another compile is running: wait (default) or interrupt. CLI-only global flag.",
+                "wait|interrupt",
+            ),
+        ),
     ),
     "clean-reinstall": CommandHelp(
         "clean-reinstall",
@@ -68,9 +87,14 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     "instrument": CommandHelp(
         "instrument",
         "Run androidTest from a source file anchor.",
-        "jugg instrument --source-path <path> [--class <fqcn>] [--method <name>] "
+        "jugg [--if-compiling wait|interrupt] instrument --source-path <path> [--class <fqcn>] [--method <name>] "
         "[--runner <fqcn>] [--extras <k=v;k2=v2>]",
         (
+            OptionHelp(
+                ("--if-compiling", "--ifCompiling"),
+                "When another compile is running: wait (default) or interrupt. CLI-only global flag.",
+                "wait|interrupt",
+            ),
             OptionHelp(
                 ("--source-path", "--sourcePath"),
                 "androidTest source file path.",

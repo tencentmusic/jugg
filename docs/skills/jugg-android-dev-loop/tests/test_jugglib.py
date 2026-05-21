@@ -337,6 +337,13 @@ class NormalizeArgsRoundTripTest(unittest.TestCase):
 class CompileCallErrorDetailTest(unittest.TestCase):
     """compile_call should print data.detail when status is ERROR."""
 
+    def setUp(self):
+        self._original_if_compiling = jugglib.if_compiling
+        jugglib.if_compiling = jugglib.IF_COMPILING_INTERRUPT
+
+    def tearDown(self):
+        jugglib.if_compiling = self._original_if_compiling
+
     def _run_compile_call(self, structured: dict):
         import io
         from contextlib import redirect_stderr
