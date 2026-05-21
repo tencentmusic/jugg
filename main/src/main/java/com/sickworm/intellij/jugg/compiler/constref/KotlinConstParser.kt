@@ -47,44 +47,54 @@ class KotlinConstParser(
         if (sourceFile.extension != "kt" || !sourceFile.exists()) {
             return emptyList()
         }
-        val sourcePath = sourceFile.toStdPath()
-        val ktFile = parseKtFile(sourceFile) ?: return emptyList()
-        val packageName = ktFile.packageFqName.asString()
-        val definitions = mutableListOf<ConstDefinition>()
+        return try {
+            val sourcePath = sourceFile.toStdPath()
+            val ktFile = parseKtFile(sourceFile) ?: return emptyList()
+            val packageName = readPackageName(ktFile)
+            val definitions = mutableListOf<ConstDefinition>()
 
-        ktFile.declarations.filterIsInstance<KtProperty>().forEach { property ->
-            if (!property.hasModifier(KtTokens.CONST_KEYWORD)) {
-                return@forEach
+            ktFile.declarations.filterIsInstance<KtProperty>().forEach { property ->
+                if (!property.hasModifier(KtTokens.CONST_KEYWORD)) {
+                    return@forEach
+                }
+                definitions += ConstDefinition(
+                    filePath = sourcePath,
+                    packageName = packageName,
+                    fqClassName = topLevelClassName(packageName, sourceFile),
+                    constName = property.name ?: return@forEach,
+                    constType = property.typeReference?.text ?: inferTypeFromInitializer(property.initializer?.text),
+                    constValue = property.initializer?.text,
+                )
             }
-            definitions += ConstDefinition(
-                filePath = sourcePath,
-                packageName = packageName,
-                fqClassName = topLevelClassName(packageName, sourceFile),
-                constName = property.name ?: return@forEach,
-                constType = property.typeReference?.text ?: inferTypeFromInitializer(property.initializer?.text),
-                constValue = property.initializer?.text,
-            )
-        }
 
-        ktFile.declarations.filterIsInstance<KtClassOrObject>().forEach { classOrObject ->
-            collectDefinitionsFromClassOrObject(
-                classOrObject = classOrObject,
-                packageName = packageName,
-                outerClassName = null,
-                sourcePath = sourcePath,
-                definitions = definitions,
-            )
+            ktFile.declarations.filterIsInstance<KtClassOrObject>().forEach { classOrObject ->
+                collectDefinitionsFromClassOrObject(
+                    classOrObject = classOrObject,
+                    packageName = packageName,
+                    outerClassName = null,
+                    sourcePath = sourcePath,
+                    definitions = definitions,
+                )
+            }
+            definitions
+        } catch (t: Throwable) {
+            logger.debug("KotlinConstParser parseDefinitions failed for ${sourceFile.path}: ${t.message}")
+            emptyList()
         }
-        return definitions
     }
 
     fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionLookup): List<ConstReference> {
         if (sourceFile.extension != "kt" || !sourceFile.exists()) {
             return emptyList()
         }
-        val sourcePath = sourceFile.toStdPath()
-        val ktFile = parseKtFile(sourceFile) ?: return emptyList()
-        return collectReferencesFromKtFile(ktFile, sourcePath, definitionIndex)
+        return try {
+            val sourcePath = sourceFile.toStdPath()
+            val ktFile = parseKtFile(sourceFile) ?: return emptyList()
+            collectReferencesFromKtFile(ktFile, sourcePath, definitionIndex)
+        } catch (t: Throwable) {
+            logger.debug("KotlinConstParser parseReferences failed for ${sourceFile.path}: ${t.message}")
+            emptyList()
+        }
     }
 
     /**
@@ -95,16 +105,21 @@ class KotlinConstParser(
         if (sourceFile.extension != "kt" || !sourceFile.exists()) {
             return emptyList()
         }
-        val sourcePath = sourceFile.toStdPath()
-        val ktFile = parseKtFile(sourceFile) ?: return emptyList()
-        return collectReferenceCandidatesFromKtFile(ktFile, sourcePath)
+        return try {
+            val sourcePath = sourceFile.toStdPath()
+            val ktFile = parseKtFile(sourceFile) ?: return emptyList()
+            collectReferenceCandidatesFromKtFile(ktFile, sourcePath)
+        } catch (t: Throwable) {
+            logger.debug("KotlinConstParser parseReferenceCandidates failed for ${sourceFile.path}: ${t.message}")
+            emptyList()
+        }
     }
 
     private fun collectReferenceCandidatesFromKtFile(
         ktFile: KtFile,
         sourcePath: String,
     ): List<ConstReferenceCandidate> {
-        val packageName = ktFile.packageFqName.asString()
+        val packageName = readPackageName(ktFile)
         val importContext = buildCandidateImportContext(ktFile)
         val candidates = linkedSetOf<ConstReferenceCandidate>()
         ktFile.accept(object : KtTreeVisitorVoid() {
@@ -198,7 +213,7 @@ class KotlinConstParser(
         sourcePath: String,
         definitionIndex: ConstDefinitionLookup,
     ): List<ConstReference> {
-        val packageName = ktFile.packageFqName.asString()
+        val packageName = readPackageName(ktFile)
         val importContext = buildImportContext(ktFile, definitionIndex)
         val ownerImportContext = OwnerImportContext(
             explicitClassImports = importContext.explicitClassImports,
@@ -330,6 +345,23 @@ class KotlinConstParser(
      * @return the parsed references, or empty list if no hints or no candidates.
      */
     fun collectHintsAndParseReferences(
+        sourceFile: File,
+        definitionIndexFactory: (ConstReferenceLookupHints) -> ConstDefinitionLookup?,
+    ): List<ConstReference> {
+        if (sourceFile.extension != "kt" || !sourceFile.exists()) {
+            return emptyList()
+        }
+        return try {
+            collectHintsAndParseReferencesInternal(sourceFile, definitionIndexFactory)
+        } catch (t: Throwable) {
+            logger.debug(
+                "KotlinConstParser collectHintsAndParseReferences failed for ${sourceFile.path}: ${t.message}"
+            )
+            emptyList()
+        }
+    }
+
+    private fun collectHintsAndParseReferencesInternal(
         sourceFile: File,
         definitionIndexFactory: (ConstReferenceLookupHints) -> ConstDefinitionLookup?,
     ): List<ConstReference> {
@@ -519,9 +551,27 @@ class KotlinConstParser(
         val explicitConstImports: MutableMap<String, MutableSet<ImportedConstTarget>> = mutableMapOf(),
     )
 
+    private fun readPackageName(ktFile: KtFile): String {
+        return try {
+            ktFile.packageFqName.asString()
+        } catch (t: Throwable) {
+            logger.debug("KotlinConstParser failed to read package name: ${t.message}")
+            ""
+        }
+    }
+
+    private fun readImportDirectives(ktFile: KtFile): List<KtImportDirective> {
+        return try {
+            ktFile.importDirectives
+        } catch (t: Throwable) {
+            logger.debug("KotlinConstParser failed to read import directives: ${t.message}")
+            emptyList()
+        }
+    }
+
     private fun buildCandidateImportContext(ktFile: KtFile): CandidateImportContext {
         val context = CandidateImportContext()
-        ktFile.importDirectives.forEach { importDirective ->
+        readImportDirectives(ktFile).forEach { importDirective ->
             val importedFqName = importDirective.importedFqName?.asString() ?: return@forEach
             val aliasName = importDirective.aliasName
             if (importDirective.isAllUnder) {
@@ -558,7 +608,7 @@ class KotlinConstParser(
 
     private fun buildImportContext(ktFile: KtFile, definitionIndex: ConstDefinitionLookup): KotlinImportContext {
         val context = KotlinImportContext()
-        ktFile.importDirectives.forEach { importDirective ->
+        readImportDirectives(ktFile).forEach { importDirective ->
             val importedFqName = importDirective.importedFqName?.asString() ?: return@forEach
             val aliasName = importDirective.aliasName
             if (importDirective.isAllUnder) {

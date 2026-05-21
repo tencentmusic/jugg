@@ -248,9 +248,10 @@ class ConstRefEngine(
             paths
         }
 
+        var timedOut = false
+        var analysisFailed = false
         if (analyzePaths.isNotEmpty()) {
             val timeoutMs = analyzePaths.size * PER_FILE_ANALYZE_TIMEOUT_MS
-            var timedOut = false
             val costMs = measureTimeMillis {
                 val executor = Executors.newSingleThreadExecutor()
                 val future = executor.submit {
@@ -268,6 +269,7 @@ class ConstRefEngine(
                             "fileCount=${analyzePaths.size}, timeoutMs=$timeoutMs"
                     )
                 } catch (e: ExecutionException) {
+                    analysisFailed = true
                     logger.warn("ConstRefEngine analyzeOnDemand failed: ${e.cause?.message}")
                 } finally {
                     executor.shutdownNow()
@@ -295,10 +297,30 @@ class ConstRefEngine(
         }
 
         return synchronized(stateLock) {
+            if (timedOut) {
+                val unreadyPaths = targetPaths.filter { path ->
+                    File(path).exists() && (analyzedAt[path] ?: 0L) <= 0L
+                }
+                return@synchronized if (unreadyPaths.isEmpty()) {
+                    AnalysisReadiness.READY
+                } else {
+                    AnalysisReadiness(
+                        isReady = false,
+                        unreadyPaths = unreadyPaths,
+                    )
+                }
+            }
             val unreadyPaths = targetPaths.filter { path ->
                 File(path).exists() && (analyzedAt[path] ?: 0L) <= 0L
             }
             if (unreadyPaths.isEmpty()) {
+                AnalysisReadiness.READY
+            } else if (analysisFailed) {
+                logger.warn(
+                    "ConstRefEngine analyzeOnDemand degraded to ready after failure, " +
+                        "unreadyPathCount=${unreadyPaths.size}"
+                )
+                unreadyPaths.forEach { markAnalyzed(it) }
                 AnalysisReadiness.READY
             } else {
                 AnalysisReadiness(
@@ -590,7 +612,15 @@ class ConstRefEngine(
             var batchParseMs = 0L
             pendingFiles.forEach { state ->
                 val parseMs = measureTimeMillis {
-                    val definitions = analyzer.parseDefinitions(listOf(state.file))[state.path].orEmpty()
+                    val definitions = runCatching {
+                        analyzer.parseDefinitions(listOf(state.file))[state.path].orEmpty()
+                    }.getOrElse { error ->
+                        logger.warn(
+                            "ConstRefEngine failed to parse definitions, " +
+                                "file=${state.file.name}, reason=${error.message}"
+                        )
+                        emptyList()
+                    }
                     definitionsBatch += ConstRefCacheDatabase.FileDefinitionsEntry(
                         filePath = state.path,
                         lastModified = state.file.lastModified(),
@@ -665,7 +695,15 @@ class ConstRefEngine(
                 }
                 // Step 2: parse reference candidates WITHOUT lock (CPU-intensive AST parse, no shared state).
                 val refParseMs = measureTimeMillis {
-                    val referenceCandidates = analyzer.parseReferenceCandidates(listOf(file))[readState.path].orEmpty()
+                    val referenceCandidates = runCatching {
+                        analyzer.parseReferenceCandidates(listOf(file))[readState.path].orEmpty()
+                    }.getOrElse { error ->
+                        logger.warn(
+                            "ConstRefEngine failed to parse reference candidates, " +
+                                "file=${file.name}, reason=${error.message}"
+                        )
+                        emptyList()
+                    }
                     analysisBatch += ConstRefCacheDatabase.FileAnalysisEntry(
                         filePath = readState.path,
                         lastModified = file.lastModified(),

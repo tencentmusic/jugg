@@ -1713,6 +1713,112 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         }
     }
 
+    @Test
+    fun `analyzeOnDemand should degrade to ready when batch analysis throws`() {
+        val rootDir = createTempDirectory("const_ref_analyze_on_demand_failure")
+        File(rootDir, ".git").mkdirs()
+        val goodFile = File(rootDir, "Good.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val GOOD = 1
+                """.trimIndent()
+            )
+        }
+        val badFile = File(rootDir, "Bad.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val BAD = 2
+                """.trimIndent()
+            )
+        }
+
+        val failingAnalyzer = mock<ConstRefAnalyzer>()
+        whenever(failingAnalyzer.parseDefinitions(any())).thenAnswer { invocation ->
+            val files = invocation.getArgument<Collection<File>>(0)
+            files.associate { file ->
+                if (file.name == "Bad.kt") {
+                    throw ClassCastException(
+                        "null cannot be cast to non-null type org.jetbrains.kotlin.psi.KtPackageDirective"
+                    )
+                }
+                file.toStdPath() to listOf(
+                    ConstDefinition(
+                        filePath = file.toStdPath(),
+                        packageName = "com.example",
+                        fqClassName = "com.example.${file.nameWithoutExtension}Kt",
+                        constName = file.nameWithoutExtension.uppercase(),
+                        constType = "Int",
+                        constValue = "1",
+                    )
+                )
+            }
+        }
+        whenever(failingAnalyzer.parseReferenceCandidates(any())).thenReturn(emptyMap())
+        whenever(failingAnalyzer.resetEnvironment()).then { }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = failingAnalyzer,
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            val readiness = engine.analyzeOnDemand(listOf(goodFile.absolutePath, badFile.absolutePath))
+            assertTrue("analyzeOnDemand should degrade to ready after parse failure", readiness.isReady)
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `analyzeOnDemand should stay ready during concurrent file change analysis`() {
+        val rootDir = createTempDirectory("const_ref_on_demand_concurrent")
+        File(rootDir, ".git").mkdirs()
+        repeat(20) { index ->
+            File(rootDir, "Bulk$index.kt").writeText(
+                """
+                package com.example.bulk
+                const val BULK_$index = $index
+                """.trimIndent()
+            )
+        }
+        val targetFile = File(rootDir, "Target.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val TARGET = 1
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.initializeFullScan(listOf(rootDir))
+            repeat(20) { index ->
+                engine.onFileSaved(File(rootDir, "Bulk$index.kt").absolutePath)
+            }
+            engine.onFileSaved(targetFile.absolutePath)
+            val paths = (0 until 20).map { File(rootDir, "Bulk$it.kt").absolutePath } + targetFile.absolutePath
+            val readiness = engine.analyzeOnDemand(paths)
+            assertTrue("analyzeOnDemand should stay ready under concurrent file-change analysis", readiness.isReady)
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
     private class StartupDelayBackgroundTaskRunner(
         private val delegate: CoroutineBackgroundTaskRunner,
     ) : IBackgroundTaskRunner by delegate

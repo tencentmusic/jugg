@@ -219,6 +219,8 @@ IO 限频系统属性（默认值）：
 
 超时或中断时返回 `AnalysisReadiness(isReady = false, unreadyPaths, pendingSourceDirs)`。日志 `debug` 打印详细路径，`warn` 仅打印数量。
 
+`analyzeOnDemand()` 采用按文件 best-effort：`ConstRefAnalyzer` 串行化 Kotlin PSI 解析；单文件解析失败仅 warning 并写入空索引，不中断同批其他文件；仅当整批任务抛出未捕获异常时才降级为 `READY`，避免阻塞编译主流程（超时仍返回 not-ready）。
+
 ### 6.2 DeployDataGenerator 降级行为
 
 - `ensureReadyForRecompile()` 异常：warning，按"未就绪"继续；
@@ -232,8 +234,9 @@ IO 限频系统属性（默认值）：
 
 | 测试文件 | 重点验证 |
 |---|---|
-| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` removed keys 命中、`db_session` 一致性、首次 `FULL_SCAN` 延后启动、throttle 配置、`FULL_SCAN` 不阻塞就绪。 |
+| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` removed keys 命中、`db_session` 一致性、首次 `FULL_SCAN` 延后启动、throttle 配置、`FULL_SCAN` 不阻塞就绪、按需分析并发/失败降级。 |
 | `ConstRefIntegrationTest.kt` | 冷启动 full scan 命中、companion const 变更命中、无关类不误报。 |
+| `ConstRefAnalyzerTest.kt` | Kotlin/Java parser 并发访问串行化。 |
 | `JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
 | `KotlinConstParserTest.kt` | Kotlin 定义/引用解析、alias/星号导入、同包解析、忽略注释/字符串。 |
 | `ConstRefCacheDatabaseTest.kt` | DB upsert/query、同名常量跨文件共存、mtime 映射复用、cleanup 保留上限、DB-first 批量查询。 |
