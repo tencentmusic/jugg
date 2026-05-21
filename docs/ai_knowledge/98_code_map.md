@@ -41,7 +41,7 @@
 | IDE 总管理器 | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | 初始化、同步事件、MCP runtime 装配 |
 | 运行任务编排 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | 编译与部署串联主流程 |
 | 编译入口 | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | 增量/Gradle 回退判定；AndroidTest Gradle build 读取 library Test APK build history 并注入回放任务 |
-| 部署入口 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/LibraryTestApkBackfillHelper.kt` | 部署策略、recover、agent 协调；Direct Overlay 统一放在 `deploy.direct` 包，Writer/StateChecker 等不依赖 IDE 的实现下沉到 `main`，deployment cache 经 `IJuggDeploymentService` 注入；sourcePath 命中缺失 self-targeting library Test APK 时做单模块懒加载补齐，并在成功后记录 build history |
+| 部署入口 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/DeployStateRecover.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/DeployRetryHandler.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/LibraryTestApkBackfillHelper.kt` | 部署策略、recover、重试、agent 协调；`DeployStateRecover` 负责 `recoverDeployState` / `tryDryDeploy`，`DeployRetryHandler` 负责 `tryRetry`，均经 `IJuggDeployHelperRunHost` 回调 `JuggDeployerHelper`；`deploy` 分派为 `deployInstall` / `deployChanges`；Direct Overlay 统一放在 `deploy.direct` 包，Writer/StateChecker 等不依赖 IDE 的实现下沉到 `main`，deployment cache 经 `IJuggDeploymentService` 注入；sourcePath 命中缺失 self-targeting library Test APK 时做单模块懒加载补齐，并在成功后记录 build history |
 | 核心部署器 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployer.kt` | install/codeSwap/fullSwap |
 | 部署状态 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 设备状态与部署可行性 |
 | 插件加载 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 类加载隔离与桥接 |
@@ -79,7 +79,7 @@
 
 - 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  
 - 查“编译为何回退”：从 `JuggCompileHelper` -> `preprocessIncrementalCompile`。  
-- 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `recoverDeployState`。  
+- 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `DeployStateRecover.recoverDeployState`。  
 - 查“MCP 参数规则”：从 tool action 的 `inputSchema` 和 `execute` 实现确认。
 
 ---

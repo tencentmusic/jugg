@@ -13,15 +13,9 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
-import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
-import com.sickworm.intellij.jugg.server.JuggServer
 import org.junit.Assert.assertEquals
 import org.junit.BeforeClass
 import org.junit.Test
-import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito
 
 class JuggDeployerHelperRecoverTest {
@@ -54,22 +48,13 @@ class JuggDeployerHelperRecoverTest {
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(false)
 
-        val helper = JuggDeployerHelper(
-            project = Mockito.mock(Project::class.java),
+        val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
-            deployFileManager = Mockito.mock(DeployFileManager::class.java),
-            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
-            deployStateManager = Mockito.mock(DeployStateManager::class.java),
-            dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java),
-            compileContextManager = Mockito.mock(CompileContextManager::class.java),
-            juggServer = Mockito.mock(JuggServer::class.java),
-            taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
-            logger = Mockito.mock(Logger::class.java),
         )
 
-        val result = invokeTryDryDeploy(helper, device)
+        val result = recover.tryDryDeploy(device, false, CompileUiHandler.DEFAULT)
 
-        assertEquals("APP_NOT_INSTALLED", result.toString())
+        assertEquals(DryDeployResult.APP_NOT_INSTALLED, result)
         Mockito.verify(deployTargetManager, Mockito.never()).restartApp(device)
     }
 
@@ -85,32 +70,26 @@ class JuggDeployerHelperRecoverTest {
         Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
             .thenReturn(mapOf("com.example.app" to "overlay-id"))
 
+        val testLogger = Mockito.mock(Logger::class.java)
         val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
-        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", logger))
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", testLogger))
             .thenReturn(CachedOverlayId(sha = "overlay-id", isBaseInstall = false))
 
         val adb = Mockito.mock(IDeviceAdb::class.java)
         Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
             .thenReturn("__JUGG_OVERLAY_STATE__ ID overlay-id")
 
-        val helper = JuggDeployerHelper(
-            project = Mockito.mock(Project::class.java),
+        val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
-            deployFileManager = Mockito.mock(DeployFileManager::class.java),
             deployHistoryManager = deployHistoryManager,
-            deployStateManager = Mockito.mock(DeployStateManager::class.java),
-            dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java),
-            compileContextManager = Mockito.mock(CompileContextManager::class.java),
-            juggServer = Mockito.mock(JuggServer::class.java),
-            taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
-            logger = Mockito.mock(Logger::class.java),
             deploymentService = deploymentService,
             deviceAdbFactory = { _, _ -> adb },
+            logger = testLogger,
         )
 
-        val result = invokeTryDryDeploy(helper, device)
+        val result = recover.tryDryDeploy(device, false, CompileUiHandler.DEFAULT)
 
-        assertEquals("SUCCESS", result.toString())
+        assertEquals(DryDeployResult.SUCCESS, result)
         Mockito.verify(deployTargetManager, Mockito.never()).restartApp(device)
     }
 
@@ -126,39 +105,45 @@ class JuggDeployerHelperRecoverTest {
         Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
             .thenReturn(mapOf("com.example.app" to "overlay-id"))
 
+        val testLogger = Mockito.mock(Logger::class.java)
         val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
-        Mockito.`when`(deploymentService.loadCachedOverlayId(anyString(), anyString(), logger)).thenReturn(null)
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", testLogger))
+            .thenReturn(null)
 
-        val helper = JuggDeployerHelper(
-            project = Mockito.mock(Project::class.java),
+        val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
-            deployFileManager = Mockito.mock(DeployFileManager::class.java),
             deployHistoryManager = deployHistoryManager,
-            deployStateManager = Mockito.mock(DeployStateManager::class.java),
-            dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java),
-            compileContextManager = Mockito.mock(CompileContextManager::class.java),
-            juggServer = Mockito.mock(JuggServer::class.java),
-            taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
-            logger = Mockito.mock(Logger::class.java),
             deploymentService = deploymentService,
+            logger = testLogger,
         )
 
-        val result = invokeTryDryDeploy(helper, device)
+        val result = recover.tryDryDeploy(device, false, CompileUiHandler.DEFAULT)
 
-        assertEquals("FAILED", result.toString())
+        assertEquals(DryDeployResult.FAILED, result)
         Mockito.verify(deployTargetManager, Mockito.never()).restartApp(device)
-        Mockito.verify(deploymentService).loadCachedOverlayId("device-1", "com.example.app", logger)
+        Mockito.verify(deploymentService).loadCachedOverlayId("device-1", "com.example.app", testLogger)
     }
 
-    private fun invokeTryDryDeploy(helper: JuggDeployerHelper, device: IDevice): Any {
-        val method = JuggDeployerHelper::class.java.getDeclaredMethod(
-            "tryDryDeploy",
-            IDevice::class.java,
-            Boolean::class.javaPrimitiveType,
-            CompileUiHandler::class.java,
+    private fun createDeployStateRecover(
+        deployTargetManager: IDeployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
+        deployFileManager: DeployFileManager = Mockito.mock(DeployFileManager::class.java),
+        deployHistoryManager: IDeployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+        deployStateManager: DeployStateManager = Mockito.mock(DeployStateManager::class.java),
+        deploymentService: IJuggDeploymentService = Mockito.mock(IJuggDeploymentService::class.java),
+        deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { _, _ -> Mockito.mock(IDeviceAdb::class.java) },
+        logger: Logger = Mockito.mock(Logger::class.java),
+    ): DeployStateRecover {
+        return DeployStateRecover(
+            project = Mockito.mock(Project::class.java),
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployStateManager = deployStateManager,
+            deployRunHost = Mockito.mock(IJuggDeployHelperRunHost::class.java),
+            deploymentService = deploymentService,
+            deviceAdbFactory = deviceAdbFactory,
+            logger = logger,
         )
-        method.isAccessible = true
-        return method.invoke(helper, device, false, CompileUiHandler.DEFAULT)
     }
 
     companion object {
