@@ -31,7 +31,11 @@ class CmdExecutor(
     @Volatile
     private var currentRunningProcess: Process? = null
 
-    fun invoke(command: ISshCommand, envArray: List<String>? = null): Int {
+    fun invoke(
+        command: ISshCommand,
+        envArray: List<String>? = null,
+        outputCollector: MutableList<String>? = null,
+    ): Int {
         val printSafeCommand = command.getPrintSafeCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
         logger.debug("CmdExecutor invoke command: $printSafeCommand")
 
@@ -75,6 +79,7 @@ class CmdExecutor(
                         val line = reader.readLine()
                         if (line != null) {
                             if (line.isNotEmpty()) {
+                                outputCollector?.add(line)
                                 if (command.isCanOutput(line, isError = true)) {
                                     if (isLogAllDebug) {
                                         printToStream(line)
@@ -104,6 +109,7 @@ class CmdExecutor(
                 val line = reader.readLine()
                 if (line != null) {
                     if (line.isNotEmpty()) {
+                        outputCollector?.add(line)
                         if (command.isCanOutput(line, isError = false)) {
                             printToStream(line)
                         } else {

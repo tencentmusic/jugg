@@ -620,20 +620,45 @@ class RemoteGradleCompileClient(
 
         command.beforeInvokeCommand()
         val result = if (command is RsyncCommand) {
-            // invoke at local and using expect login into ssh
-            cmdExecutor.terminalOutputListener = terminalOutputListener
-            val result = cmdExecutor.invoke(command)
-            if (!isCanceled && result == IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED) {
-                logger.warn("process exit without print result, behavior may incorrect")
-                IGradleCompileClient.Error.SUCCESS
-            } else {
-                result
-            }
+            invokeRsyncCommand(command)
         } else {
             remoteInvoke(channel, command)
         }
 
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
+        return result
+    }
+
+    private fun invokeRsyncCommand(command: RsyncCommand): Int {
+        cmdExecutor.terminalOutputListener = terminalOutputListener
+        var lastResult = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
+        for (attempt in 0 until RsyncAuthRetryPolicy.MAX_ATTEMPTS) {
+            if (attempt > 0) {
+                if (isCanceled) {
+                    return lastResult
+                }
+                val delayMs = RsyncAuthRetryPolicy.retryDelaysMs[attempt - 1]
+                logger.info("Retry rsync after transient SSH auth failure, attempt ${attempt + 1}/${RsyncAuthRetryPolicy.MAX_ATTEMPTS}, delay ${delayMs}ms")
+                Thread.sleep(delayMs)
+            }
+            val outputLines = mutableListOf<String>()
+            lastResult = cmdExecutor.invoke(command, outputCollector = outputLines)
+            lastResult = normalizeRsyncProcessResult(lastResult)
+            if (lastResult == IGradleCompileClient.Error.SUCCESS || isCanceled) {
+                return lastResult
+            }
+            if (!RsyncAuthRetryPolicy.isRetryable(lastResult, outputLines)) {
+                return lastResult
+            }
+        }
+        return lastResult
+    }
+
+    private fun normalizeRsyncProcessResult(result: Int): Int {
+        if (!isCanceled && result == IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED) {
+            logger.warn("process exit without print result, behavior may incorrect")
+            return IGradleCompileClient.Error.SUCCESS
+        }
         return result
     }
 
