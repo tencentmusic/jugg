@@ -7,6 +7,7 @@ import com.android.utils.ILogger
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.CachedOverlayId
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

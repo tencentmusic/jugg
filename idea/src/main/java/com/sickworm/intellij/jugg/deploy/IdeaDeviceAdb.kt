@@ -7,6 +7,8 @@ import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOfflineException
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.getInstance

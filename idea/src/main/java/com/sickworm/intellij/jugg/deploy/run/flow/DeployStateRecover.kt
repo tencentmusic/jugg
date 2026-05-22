@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.flow
 
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
@@ -8,6 +8,8 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
+import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import kotlin.system.measureTimeMillis
@@ -84,7 +86,7 @@ class DeployStateRecover(
         }
 
         // recover deploy state for device
-        val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
+        val deployData = JuggDeployData.Companion.forInstall(deployTargetManager.getApks())
         logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
 
         val costTime = measureTimeMillis {
@@ -136,7 +138,7 @@ class DeployStateRecover(
 
         logger.info("Device online, try dry deploy.")
         return try {
-            val dryDeployData = JuggDeployData.forDryDeploy(deployTargetManager.getApks())
+            val dryDeployData = JuggDeployData.Companion.forDryDeploy(deployTargetManager.getApks())
             deployRunHost.runRecoverDeployTask(
                 device,
                 dryDeployData,

@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.utils
 
 import android.annotation.SuppressLint
 import com.android.tools.idea.IdeInfo

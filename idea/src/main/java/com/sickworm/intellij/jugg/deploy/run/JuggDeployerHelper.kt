@@ -12,9 +12,17 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
+import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
+import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
+import com.sickworm.intellij.jugg.deploy.run.applychanges.LaunchContext
+import com.sickworm.intellij.jugg.deploy.run.utils.CopyEmbeddedDistributionPaths
+import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
+import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
+import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
+import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
+import com.sickworm.intellij.jugg.deploy.run.instrument.TestLauncher
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -28,7 +36,7 @@ import java.io.File
 
 /**
  * Create a deploy task.
- * [JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
+ * [JuggDeployerHelper] -> [com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask] -> [com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployer]
  *
  * @see [com.android.tools.idea.run.AndroidRunConfigurationBase.getState]
  * @see [com.android.tools.idea.run.LaunchTaskRunner.run]

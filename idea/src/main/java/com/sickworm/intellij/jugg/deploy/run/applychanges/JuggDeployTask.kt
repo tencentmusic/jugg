@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.ddmlib.IDevice
 import com.android.sdklib.AndroidVersion
@@ -34,6 +34,11 @@ import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.LaunchResult
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
@@ -42,7 +47,7 @@ import java.util.stream.Collectors
 
 /**
  *
- * [JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
+ * [com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
  *
  * @see com.android.tools.idea.run.tasks.AbstractDeployTask
  * @see com.android.tools.idea.run.tasks.DeployTask
@@ -125,7 +130,7 @@ class JuggDeployTask(
                 overlayIds[applicationId] = result.overlayId ?: ""
             } catch (e: DeployerException) {
                 logger.error(e, "%s failed: %s %s", deployType, e.message, e.details)
-                return LaunchResult(false, e.error.ordinal, e.message + " " +  e.details, emptyMap())
+                return LaunchResult(false, e.error.ordinal, e.message + " " + e.details, emptyMap())
             }
         }
         stopwatch.stop()

@@ -1,8 +1,11 @@
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.tools.deployer.DeployerException
 import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.DexComparator.ChangedClasses
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 
 class OverlayUpdateBuilder {
 
@@ -25,7 +28,7 @@ class OverlayUpdateBuilder {
         val overlayFiles = data.overlays.flatMap { item ->
             val targetPaths = item.targetApkPaths.ifEmpty { listOf(item.apkPath) }
             targetPaths.map { targetPath ->
-                val apk = if (targetPath == DeployItem.FLAG_CLASS || targetPath == DeployItem.FLAG_BASE_APK) {
+                val apk = if (targetPath == DeployItem.Companion.FLAG_CLASS || targetPath == DeployItem.Companion.FLAG_BASE_APK) {
                     baseApk
                 } else {
                     cacheEntryMap[targetPath] ?: baseApk

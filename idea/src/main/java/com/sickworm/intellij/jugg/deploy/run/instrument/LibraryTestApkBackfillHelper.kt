@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.instrument
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -7,7 +7,6 @@ import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggGradleCompileTask
-import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestTargetResolveException
@@ -16,6 +15,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildRecord
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlan
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlanner
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode

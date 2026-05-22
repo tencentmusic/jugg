@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.utils
 
 import com.android.tools.idea.log.LogWrapper
 import com.intellij.openapi.diagnostic.Logger

@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.sdklib.AndroidVersion
 import com.android.tools.deploy.proto.Deploy
@@ -7,15 +7,19 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
-import com.sickworm.intellij.jugg.deploy.AdbTransientOffline
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 
 /**
- * @see com.android.tools.deployer.Deployer
+ * @see Deployer
  *
- * [JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
+ * [com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
  */
 class JuggDeployer(
     private val adb: AdbClient,

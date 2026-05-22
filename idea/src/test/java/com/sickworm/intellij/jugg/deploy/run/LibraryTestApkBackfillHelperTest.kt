@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestTargetResolveException
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlan
+import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -219,7 +220,14 @@ class LibraryTestApkBackfillHelperTest {
                 apkInfoReader = {
                     listOf(
                         ApkInfo(
-                            files = listOf(ApkFileUnit("com.example.library1.test", "", true, it.single())),
+                            files = listOf(
+                                ApkFileUnit(
+                                    "com.example.library1.test",
+                                    "",
+                                    true,
+                                    it.single()
+                                )
+                            ),
                             applicationId = "com.example.library1.test",
                             instrumentationTargetPackage = "com.example.library1.test",
                         )

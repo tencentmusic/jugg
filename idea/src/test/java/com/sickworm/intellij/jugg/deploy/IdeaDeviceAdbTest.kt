@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
 import org.junit.Test
 import java.io.IOException
 import java.io.InterruptedIOException

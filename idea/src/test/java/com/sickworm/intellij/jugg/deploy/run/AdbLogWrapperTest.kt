@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.mockito.Mockito.mock

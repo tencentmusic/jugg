@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy
+package com.sickworm.intellij.jugg.deploy.run.utils
 
 import com.android.tools.deployer.AdbClient
 import java.io.IOException

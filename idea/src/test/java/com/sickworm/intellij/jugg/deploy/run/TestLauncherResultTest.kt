@@ -8,6 +8,8 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.run.instrument.TestLauncher
+import com.sickworm.intellij.jugg.deploy.run.instrument.TestLogcatSource
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
@@ -261,7 +263,10 @@ class TestLauncherResultTest {
                 lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
                 lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
                 logcatSource.emit(device, "05-17 15:03:37.936 20906 20921 I Foo: test process")
-                logcatSource.emit(device, "05-17 15:03:37.944  9503  9509 W .apps.wellbeing: system noise")
+                logcatSource.emit(
+                    device,
+                    "05-17 15:03:37.944  9503  9509 W .apps.wellbeing: system noise"
+                )
                 lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
                 lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
                 lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
@@ -299,8 +304,14 @@ class TestLauncherResultTest {
                 lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
                 lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
                 lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
-                logcatSource.emit(device, "05-17 15:58:58.061 24834 24851 I Foo: delayed test process")
-                logcatSource.emit(device, "05-17 15:58:58.062  9503  9509 W .apps.wellbeing: delayed noise")
+                logcatSource.emit(
+                    device,
+                    "05-17 15:58:58.061 24834 24851 I Foo: delayed test process"
+                )
+                logcatSource.emit(
+                    device,
+                    "05-17 15:58:58.062  9503  9509 W .apps.wellbeing: delayed noise"
+                )
                 0
             },
         )
@@ -328,7 +339,10 @@ class TestLauncherResultTest {
             logcatSource = logcatSource,
             methodLogPidProvider = { device, _, _ ->
                 logcatSource.emit(device, "05-17 15:58:58.061 24834 24851 I Foo: during pid lookup")
-                logcatSource.emit(device, "05-17 15:58:58.062  9503  9509 W .apps.wellbeing: during pid lookup")
+                logcatSource.emit(
+                    device,
+                    "05-17 15:58:58.062  9503  9509 W .apps.wellbeing: during pid lookup"
+                )
                 setOf(24834)
             },
             runInstrumentation = { _, _, _, lineConsumer, _ ->
@@ -367,7 +381,10 @@ class TestLauncherResultTest {
                     device,
                     "05-17 16:32:50.470 27408 27422 I TestRunner: started: testBar(com.example.FooTest)",
                 )
-                logcatSource.emit(device, "05-17 16:32:50.475  9503  9509 W .apps.wellbeing: system noise")
+                logcatSource.emit(
+                    device,
+                    "05-17 16:32:50.475  9503  9509 W .apps.wellbeing: system noise"
+                )
                 logcatSource.emit(device, "05-17 16:32:50.476 27408 27422 I Foo: fast logcat")
                 logcatSource.emit(
                     device,
@@ -483,11 +500,17 @@ class TestLauncherResultTest {
                 lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
                 lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
                 lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
-                logcatSource.emit(device, "05-07 15:31:58.756 1234 1234 I Foo: completed before failed exit")
+                logcatSource.emit(
+                    device,
+                    "05-07 15:31:58.756 1234 1234 I Foo: completed before failed exit"
+                )
                 lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
                 lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
                 lineConsumer("INSTRUMENTATION_STATUS_CODE: 0")
-                logcatSource.emit(device, "05-07 15:31:59.756 1234 1234 I Foo: after completed method")
+                logcatSource.emit(
+                    device,
+                    "05-07 15:31:59.756 1234 1234 I Foo: after completed method"
+                )
                 -1
             },
         )
@@ -764,11 +787,13 @@ class TestLauncherSmEventSinkTest {
                 lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
                 lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
                 lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
-                lineConsumer(if (device.serialNumber == "emulator-5554") {
-                    "INSTRUMENTATION_STATUS_CODE: 0"
-                } else {
-                    "INSTRUMENTATION_STATUS_CODE: -2"
-                })
+                lineConsumer(
+                    if (device.serialNumber == "emulator-5554") {
+                        "INSTRUMENTATION_STATUS_CODE: 0"
+                    } else {
+                        "INSTRUMENTATION_STATUS_CODE: -2"
+                    }
+                )
                 lineConsumer("INSTRUMENTATION_CODE: 1")
                 0
             },

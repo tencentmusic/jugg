@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy.run
+package com.sickworm.intellij.jugg.deploy.run.instrument
 
 /**
  * AndroidTestLogAttributor keeps a bounded run-level logcat buffer and projects matching slices into

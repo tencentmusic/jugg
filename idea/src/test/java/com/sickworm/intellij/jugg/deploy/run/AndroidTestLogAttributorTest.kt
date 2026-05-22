@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.sickworm.intellij.jugg.deploy.run.instrument.AndroidTestLogAttributor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
