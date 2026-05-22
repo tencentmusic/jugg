@@ -1,9 +1,11 @@
 package com.sickworm.intellij.jugg.project.merger
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.ModulePathMergePolicy
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
@@ -40,7 +42,10 @@ interface IJuggProjectInfoMerger {
  * JuggProjectInfoMerger merges IDE and Gradle snapshots into one project model,
  * reconciles module-name mismatches, and decides whether dependency data should be refreshed.
  */
-class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
+class JuggProjectInfoMerger(
+    loggerArg: Logger,
+    private val buildTargetProvider: () -> BuildTarget = { BuildTarget.APP },
+) : IJuggProjectInfoMerger {
 
     private val logger = loggerArg.getInstance("JuggProjectInfoMerger")
 
@@ -128,13 +133,13 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         // here we update name in gradle project info to match ide
         val nameUpdateMap = mutableMapOf<String, String>()
         val updateModules = gradleProjectInfo.modules.toMutableMap()
+        val buildTarget = buildTargetProvider()
         gradleProjectInfo.modules.values.forEach { module ->
-            val path = module.moduleRootDir.absolutePath
-            val ideModuleName =
-                ideProjectInfo.modules.values.find { it.moduleRootDir.absolutePath == path && it.name == module.name }?.name
-                ?: ideProjectInfo.modules.values.find { it.moduleRootDir.absolutePath == path }?.name
+            val ideModuleName = ModulePathMergePolicy.resolveIdeModuleName(module, ideProjectInfo.modules.values)
             val gradleModuleName = module.name
-            if (ideModuleName != null && ideModuleName != gradleModuleName) {
+            if (ideModuleName != null &&
+                ModulePathMergePolicy.shouldAlignGradleModuleName(module, gradleModuleName, ideModuleName)
+            ) {
                 logger.debug("gradle module $gradleModuleName will update name to $ideModuleName")
                 nameUpdateMap[gradleModuleName] = ideModuleName
             }
@@ -180,7 +185,20 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
             }
 
             // merge with different strategy
-            val buildVariant = selectBuildVariant(moduleInfo, gradleModuleInfo)
+            val buildVariant = ModulePathMergePolicy.selectMergedBuildVariant(moduleInfo, gradleModuleInfo)
+            if (buildVariant != gradleModuleInfo.buildVariant && buildVariant == moduleInfo.buildVariant) {
+                logger.debug(
+                    "module ${moduleInfo.name} build variant not match, " +
+                            "ide:${moduleInfo.buildVariant} vs gradle:${gradleModuleInfo.buildVariant}, " +
+                            "use ${moduleInfo.buildVariant}"
+                )
+            } else if (buildVariant != moduleInfo.buildVariant) {
+                logger.debug(
+                    "module ${moduleInfo.name} build variant not match, " +
+                            "ide:${moduleInfo.buildVariant} vs gradle:${gradleModuleInfo.buildVariant}, " +
+                            "use ${gradleModuleInfo.buildVariant}"
+                )
+            }
             val mergedModuleInfo = ModuleInfo(
                 name = moduleInfo.name,
                 moduleType = gradleModuleInfo.moduleType,
@@ -225,6 +243,13 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         if (missingModules.isNotEmpty()) {
             missingModules.forEach {
                 val gradleModuleInfo = finalGradleProjectInfo.modules[it] ?: return@forEach
+                if (!ModulePathMergePolicy.shouldIncludeGradleOnlyModule(gradleModuleInfo, buildTarget)) {
+                    logger.debug(
+                        "module ${gradleModuleInfo.name} is gradle-only ${ModulePathMergePolicy.classify(gradleModuleInfo)} " +
+                                "snapshot, skip for buildTarget=$buildTarget"
+                    )
+                    return@forEach
+                }
                 logger.debug("module ${gradleModuleInfo.name} not found in ide project info, add it directly")
                 mergedModules[gradleModuleInfo.name] = gradleModuleInfo
             }
@@ -256,22 +281,9 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         return list
     }
 
-    private fun selectBuildVariant(moduleInfo: ModuleInfo, gradleModuleInfo: ModuleInfo): String {
-        // gradle can know which build variant is executed, and ide read from "Build Variants" selection
-        // and which may not be correct
-
-        if (moduleInfo.buildVariant == gradleModuleInfo.buildVariant) {
-            return moduleInfo.buildVariant
-        }
-
-        // priority: gradleBuildVariant > ideBuildVariant
-        // can not check exists build path to ensure which build variant is reliable, because buildPathInfo is not
-        // the final path which may changed by classpath JuggCompilerHelper.fetchClasspath
-        logger.debug("module ${moduleInfo.name} build variant not match, " +
-                "ide:${moduleInfo.buildVariant} vs gradle:${gradleModuleInfo.buildVariant}, use ${gradleModuleInfo.buildVariant}")
-        return gradleModuleInfo.buildVariant
+    private fun Long.timeStampToTime(): String {
+        return SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date(this))
     }
-
 
     @Suppress("SameParameterValue")
     private fun <T, K> setIfEmpty(moduleName: String, type: String,
@@ -303,10 +315,6 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         } else {
             return base
         }
-    }
-
-    private fun Long.timeStampToTime(): String {
-        return SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date(this))
     }
 }
 

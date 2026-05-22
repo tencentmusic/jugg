@@ -42,7 +42,9 @@ class CompileContextManager(
 
     private val projectInfoSerializer = ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger)
     private var allGradleProjectInfoSerializerList = emptyList<ProjectInfoSerializer>()
-    private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger)
+    private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger) {
+        deployHisManager.getFullBuildInfo()?.buildTarget ?: BuildTarget.APP
+    }
 
     private val compileContextInside: BaseCompileContext by lazy { createCompileContext() }
 
@@ -350,10 +352,7 @@ class CompileContextManager(
             }
 
             val stdModuleName = module.name.replace(Regex("~\\d+$"), "")
-            val isAndroidTestModule = stdModuleName.endsWith(".androidTest")
-            if (stdModuleName.endsWith(".test") ||
-                stdModuleName.endsWith(".unitTest") ||
-                (isAndroidTestModule && currentBuildTarget != BuildTarget.ANDROID_TEST)) {
+            if (ModulePathMergePolicy.shouldSkipIdeModule(stdModuleName, currentBuildTarget)) {
                 testModules.add(module.name)
                 return@forEach
             }
