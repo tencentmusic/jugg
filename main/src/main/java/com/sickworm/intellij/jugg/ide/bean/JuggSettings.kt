@@ -63,7 +63,7 @@ object JuggSettings {
      * For Xiaomi HyperOS, some apps may get "MISSING_AGENT_RESPONSES", Jugg will use hot fix deployment solution to compat with it.
      * For Device API lower than 30, Jugg will use hot fix deployment solution to compat with it.
      */
-    var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
+    var isEnableCompatibleDeploymentMode: Boolean = true
     val finalIsEnableCompatibleDeploymentMode get() = isEnableInjectGradleCompile && isEnableCompatibleDeploymentMode
 
     /**

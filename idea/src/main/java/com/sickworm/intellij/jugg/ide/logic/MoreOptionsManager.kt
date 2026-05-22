@@ -158,15 +158,6 @@ class MoreOptionsManager(
 
         if (JuggSettings.isEnableInjectGradleCompile) {
             createOption(
-                name = "Enable compatible deployment mode",
-                onGet = { JuggSettings.isEnableCompatibleDeploymentMode },
-                onSet = {
-                    JuggSettings.isEnableCompatibleDeploymentMode = it
-                    enableCompatibleDeploymentMode()
-                }
-            )
-
-            createOption(
                 name = "Enable quick deploy(skip App startup)",
                 onGet = { JuggSettings.isEnableDirectOverlayDeploy },
                 onSet = {
