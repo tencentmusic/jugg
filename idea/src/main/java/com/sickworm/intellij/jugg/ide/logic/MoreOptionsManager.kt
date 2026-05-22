@@ -167,6 +167,14 @@ class MoreOptionsManager(
             )
 
             createOption(
+                name = "Enable quick deploy(skip App startup)",
+                onGet = { JuggSettings.isEnableDirectOverlayDeploy },
+                onSet = {
+                    JuggSettings.isEnableDirectOverlayDeploy = it
+                }
+            )
+
+            createOption(
                 name = "Enable use project Kotlin compiler",
                 onGet = { JuggSettings.isUseProjectKotlinCompiler },
                 onSet = {
