@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.mock
 
 import com.intellij.openapi.diagnostic.DefaultLogger
+import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.logger.ITestStdoutLogger
 import org.jetbrains.annotations.NonNls
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -8,7 +10,9 @@ import java.time.format.DateTimeFormatter
 /**
  * Output log to [System.out].
  */
-class StdLogger(private val category: String): DefaultLogger(category) {
+open class StdLogger(private val category: String) : DefaultLogger(category), ITestStdoutLogger {
+
+    override fun deriveTag(tag: String): Logger = StdLogger(tag)
 
     var isEnableDebug = true
     var isEnableInfo = true

@@ -152,9 +152,9 @@ object JuggLogger {
 }
 
 fun Logger.getInstance(tag: String): Logger {
-    if (this is LogDispatcher) {
-        return JuggLogger.getInstance(this.instanceKey, tag)
-    } else {
-        return this
+    return when (this) {
+        is LogDispatcher -> JuggLogger.getInstance(this.instanceKey, tag)
+        is ITestStdoutLogger -> this.deriveTag(tag)
+        else -> this
     }
 }
