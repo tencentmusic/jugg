@@ -10,13 +10,14 @@ import java.util.zip.ZipOutputStream
  * DirectOverlayWriter writes Apply Changes overlay files without attaching to a running app process.
  * It validates the current overlay id on-device, extracts a pushed ZIP into `code_cache/.overlay`,
  * and writes the next overlay id last to match the install-server commit semantics.
+ * Concurrent writes are serialized globally because cleanup removes shared temp ZIP files on device.
  */
 open class DirectOverlayWriter(
     private val adb: IDeviceAdb,
     private val logger: Logger,
 ) {
 
-    open fun write(request: DirectOverlayWriteRequest): DirectOverlayWriteResult {
+    open fun write(request: DirectOverlayWriteRequest): DirectOverlayWriteResult = synchronized(writeLock) {
         val zipFile = File.createTempFile("jugg-direct-overlay-", ".zip")
         val remoteZipPath = "/data/local/tmp/jugg/direct-overlay-${System.currentTimeMillis()}.zip"
         var scriptStarted = false
@@ -100,6 +101,7 @@ open class DirectOverlayWriter(
     }
 
     companion object {
+        private val writeLock = Any()
         private const val MARKER = "__JUGG_DIRECT_OVERLAY__"
         private val PACKAGE_NAME_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
