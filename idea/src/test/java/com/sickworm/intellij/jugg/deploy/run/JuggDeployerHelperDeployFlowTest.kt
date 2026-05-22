@@ -7,8 +7,10 @@ import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowCaseId
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowFixture
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowOverlaySeed
+import com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
@@ -17,7 +19,7 @@ import org.mockito.Mockito
 
 /**
  * L2 deploy-flow via [com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice].
- * Spec: docs/task/jugg_deploy_flow_virtual_device.md
+ * Spec: docs/task/jugg_deploy_flow_virtual_device.md, jugg_deployer_helper_deploy_flow_test_plan.md §5.1
  */
 class JuggDeployerHelperDeployFlowTest {
 
@@ -29,6 +31,7 @@ class JuggDeployerHelperDeployFlowTest {
         assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
         assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
         assertNotEquals("", fixture.virtualDevice.readOverlayId().orEmpty())
+        assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
     }
 
     @Test
@@ -48,6 +51,83 @@ class JuggDeployerHelperDeployFlowTest {
         val deviceOverlayId = fixture.virtualDevice.readOverlayId().orEmpty()
         assertNotEquals("", deviceOverlayId)
         assertNotEquals(mismatchedDeviceOverlayId, deviceOverlayId)
+        assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+    }
+
+    @Test
+    fun `DF-L2-003 recover dry skips reinstall when overlay triple matched`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
+        assertOverlayRecoverMatched(fixture)
+        val recoverHost = requireNotNull(fixture.recoverRunHost)
+        val result = fixture.helper.deploy(fixture.deployOptions)
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertTrue(
+            fixture.virtualDevice.hadRecoverMatchedOverlayCheckBeforeInstall(fixture.seededOverlayId),
+        )
+        assertEquals(0, recoverHost.installRecoverTaskCount)
+        assertEquals(0, fixture.virtualDevice.installInvokeCount)
+        Mockito.verify(fixture.deployTargetManager, Mockito.never()).restartApp(fixture.device)
+        assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
+        assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+    }
+
+    @Test
+    fun `DF-L2-004 direct write skipped falls back to Apply Changes`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_004)
+        val result = fixture.helper.deploy(fixture.deployOptions)
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertTrue(fixture.virtualDevice.failDirectOverlayPush)
+        assertFalse(fixture.virtualDevice.hasDirectOverlayApply())
+        assertTrue(
+            "expected Apply Changes fallback after direct overlay push failure",
+            fixture.compatBoundary.optimisticSwapInvokeCount >= 1,
+        )
+    }
+
+    @Test
+    fun `DF-L2-005 direct write dirty failure does not fall back to Apply Changes`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_005)
+        assertEquals(VirtualDeployDevice.DirectOverlayWriteResult.APPLYING, fixture.virtualDevice.directOverlayWriteResult)
+        val result = fixture.helper.deploy(fixture.deployOptions)
+        assertFalse("deploy should fail on dirty direct overlay write", result.isSuccess)
+        assertTrue(
+            "failed reason should mention direct overlay",
+            result.failedReason.orEmpty().contains("Direct overlay", ignoreCase = true),
+        )
+        assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+        assertTrue(fixture.virtualDevice.shellScripts.any { it.contains("__JUGG_DIRECT_OVERLAY__") })
+    }
+
+    @Test
+    fun `DF-L2-006 skips direct write when app is deployable and uses Apply Changes`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+        val result = fixture.helper.deploy(fixture.deployOptions)
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertFalse(fixture.virtualDevice.hasDirectOverlayApply())
+        assertTrue(
+            "expected Apply Changes when isDeviceReadyDeploy is true",
+            fixture.compatBoundary.optimisticSwapInvokeCount >= 1,
+        )
+    }
+
+    @Test
+    fun `DF-L2-007 swap phase device mismatch falls back to Apply Changes without reinstall`() {
+        val swapMismatchOverlayId = "swap-phase-mismatch-overlay"
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_007)
+        val recoverHost = requireNotNull(fixture.recoverRunHost)
+        val result = fixture.helper.deploy(fixture.deployOptions)
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertTrue(
+            fixture.virtualDevice.hadRecoverMatchedOverlayCheckBeforeInstall(fixture.seededOverlayId),
+        )
+        assertTrue(fixture.virtualDevice.hadOverlayStateCheckWithDeviceId(swapMismatchOverlayId))
+        assertEquals(0, recoverHost.installRecoverTaskCount)
+        assertEquals(0, fixture.virtualDevice.installInvokeCount)
+        assertFalse(fixture.virtualDevice.hasDirectOverlayApply())
+        assertTrue(
+            "expected Apply Changes after swap-phase checkDevice mismatch",
+            fixture.compatBoundary.optimisticSwapInvokeCount >= 1,
+        )
     }
 
     private fun assertOverlayRecoverMatched(fixture: DeployFlowFixture) {

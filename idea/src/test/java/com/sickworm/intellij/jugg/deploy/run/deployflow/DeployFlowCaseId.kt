@@ -6,4 +6,9 @@ package com.sickworm.intellij.jugg.deploy.run.deployflow
 enum class DeployFlowCaseId {
     DF_L2_001,
     DF_L2_002,
+    DF_L2_003,
+    DF_L2_004,
+    DF_L2_005,
+    DF_L2_006,
+    DF_L2_007,
 }

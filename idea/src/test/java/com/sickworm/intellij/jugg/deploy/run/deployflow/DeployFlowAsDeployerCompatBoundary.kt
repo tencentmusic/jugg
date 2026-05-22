@@ -4,7 +4,6 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.deployer.AdbInstaller
 import com.android.tools.deployer.Installer
-import org.mockito.Mockito
 import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.InstallOptions
@@ -14,6 +13,7 @@ import com.android.tools.deployer.ClassRedefiner
 import com.android.utils.ILogger
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import org.mockito.Mockito
 
 /**
  * Deploy-flow physical boundary for install and Apply Changes swap.
@@ -21,9 +21,13 @@ import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
  */
 class DeployFlowAsDeployerCompatBoundary(
     private val virtualDevice: VirtualDeployDevice,
+    private val optimisticSwapPolicy: OptimisticSwapPolicy = OptimisticSwapPolicy.FORBIDDEN,
     private val onInstall: Runnable = Runnable { virtualDevice.onInstallCompleted() },
     private val delegate: IAsDeployerCompat = AsDeployerCompat,
 ) : IAsDeployerCompat by delegate {
+
+    var optimisticSwapInvokeCount: Int = 0
+        private set
 
     override fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller {
         return Mockito.mock(AdbInstaller::class.java)
@@ -55,6 +59,19 @@ class DeployFlowAsDeployerCompatBoundary(
         logger: ILogger,
         isPushOverlayOnly: Boolean,
     ): OverlayId {
-        throw AssertionError("Apply Changes optimisticSwap must not be called in deploy-flow direct overlay tests")
+        return when (optimisticSwapPolicy) {
+            OptimisticSwapPolicy.FORBIDDEN -> throw AssertionError(
+                "Apply Changes optimisticSwap must not be called in deploy-flow direct overlay tests",
+            )
+            OptimisticSwapPolicy.RECORD_SUCCESS -> {
+                optimisticSwapInvokeCount++
+                OverlayId.builder(overlayUpdate.cachedDump.overlayId).build()
+            }
+        }
+    }
+
+    enum class OptimisticSwapPolicy {
+        FORBIDDEN,
+        RECORD_SUCCESS,
     }
 }

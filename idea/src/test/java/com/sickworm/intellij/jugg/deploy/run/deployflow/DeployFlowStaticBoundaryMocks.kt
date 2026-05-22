@@ -9,10 +9,13 @@ object DeployFlowStaticBoundaryMocks {
 
     fun createCompat(
         virtualDevice: VirtualDeployDevice,
+        optimisticSwapPolicy: DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy =
+            DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.FORBIDDEN,
         onInstall: Runnable = Runnable { virtualDevice.onInstallCompleted() },
-    ): IAsDeployerCompat {
+    ): DeployFlowAsDeployerCompatBoundary {
         return DeployFlowAsDeployerCompatBoundary(
             virtualDevice = virtualDevice,
+            optimisticSwapPolicy = optimisticSwapPolicy,
             onInstall = onInstall,
         )
     }

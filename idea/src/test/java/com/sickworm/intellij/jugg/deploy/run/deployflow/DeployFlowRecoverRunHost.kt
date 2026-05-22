@@ -18,6 +18,11 @@ class DeployFlowRecoverRunHost(
 
     private lateinit var helper: JuggDeployerHelper
 
+    var recoverTaskInvokeCount: Int = 0
+        private set
+    var installRecoverTaskCount: Int = 0
+        private set
+
     fun bind(helper: JuggDeployerHelper) {
         this.helper = helper
     }
@@ -28,6 +33,10 @@ class DeployFlowRecoverRunHost(
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
     ) {
+        recoverTaskInvokeCount++
+        if (data.isInstall) {
+            installRecoverTaskCount++
+        }
         helper.runRecoverDeployTask(device, data, isSkipExceptOverlayCheck, compileUiHandler)
         if (data.isInstall) {
             onAfterInstallRecoverTask?.run()

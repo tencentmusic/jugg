@@ -34,6 +34,11 @@ import java.io.File
 
 internal object DeployFlowTestSupport {
 
+    /** Deploy payload that does not force [com.sickworm.intellij.jugg.deploy.run.JuggDeployData.isNeedRestartApp]. */
+    fun incrementalDeployDataWithoutAppRestart(apkInfos: List<ApkInfo> = context.apkInfos): JuggDeployData {
+        return incrementalDeployData(apkInfos).copy(isPushOverlayOnly = false)
+    }
+
     fun incrementalDeployData(apkInfos: List<ApkInfo> = context.apkInfos): JuggDeployData {
         val apkPath = apkInfos.first().files.first().apkFile.path
         return JuggDeployData(
@@ -69,6 +74,7 @@ internal object DeployFlowTestSupport {
         installPathProvider: Computable<String>,
         asDeployerCompat: IAsDeployerCompat,
         recoverRunHost: DeployFlowRecoverRunHost = DeployFlowRecoverRunHost(),
+        afterRecoverSuccess: Runnable? = null,
     ): JuggDeployerHelper {
 
         val compileContext = Mockito.mock(ICompileContext::class.java)
@@ -92,6 +98,7 @@ internal object DeployFlowTestSupport {
             deviceAdbFactory = deviceAdbFactory,
             logger = ideaLogger,
             ideDeployStateHelper = ideDeployStateHelper,
+            afterRecoverSuccess = afterRecoverSuccess,
         )
         val helper = JuggDeployerHelper(
             project = project,

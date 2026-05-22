@@ -119,7 +119,7 @@ L3 Flow 依赖 `AssembleAndroidProjectOnce`；L1 `DeployDataGeneratorTest` 依�
 | 用户点击 Run 后真部署 | **L3** | `TopLevelFlowTest`、`TopLevelFlowWithGitTest` |
 | androidTest 部署+instrument | **L3** | `AndroidTestTopLevelFlowTest` |
 | dry deploy / recover / retry 分支 | L2 | `JuggDeployerHelperRecoverTest`、`DeployRetryHandlerTest`（**追加**，不新建第三类 Helper 测试） |
-| DF-L2-001/002 direct overlay 全链 | L2 Virtual Device | `JuggDeployerHelperDeployFlowTest` + `VirtualDeployDevice`（契约：`docs/task/jugg_deploy_flow_virtual_device.md`） |
+| DF-L2-001～007 direct overlay 全链 | L2 Virtual Device | `JuggDeployerHelperDeployFlowTest` + `VirtualDeployDevice`（契约：`docs/task/jugg_deploy_flow_virtual_device.md`） |
 | deploy 早退 | L2 | `JuggDeployerHelperDeployTest` |
 | transport 窄脚本 | L1 | `idea/.../DirectOverlaySwapTransportTest` |
 | overlay 三路 / writer 算法 | L1 | `main/.../DirectOverlayStateCheckerTest`、`DirectOverlayWriterTest` |

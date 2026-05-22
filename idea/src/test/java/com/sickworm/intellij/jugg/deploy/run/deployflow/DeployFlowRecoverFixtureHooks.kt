@@ -29,6 +29,7 @@ class DeployFlowRecoverFixtureHooks(
     deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb,
     logger: Logger,
     private val ideDeployStateHelper: DeployFlowIdeDeployStateHelper,
+    private val afterRecoverSuccess: Runnable? = null,
 ) : DeployStateRecover(
     project = project,
     deployTargetManager = deployTargetManager,
@@ -60,6 +61,7 @@ class DeployFlowRecoverFixtureHooks(
         if (result.first) {
             ideDeployStateHelper.forIncrementalNotDeployable()
             deployStateManager.updateDeployState()
+            afterRecoverSuccess?.run()
         }
         return result
     }

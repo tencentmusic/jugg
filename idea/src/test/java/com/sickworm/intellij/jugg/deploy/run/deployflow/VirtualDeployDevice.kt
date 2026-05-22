@@ -21,8 +21,16 @@ class VirtualDeployDevice(
     val overlayStateProbes: MutableList<OverlayStateProbe> = mutableListOf()
     var installInvokeCount: Int = 0
         private set
+    var failDirectOverlayPush: Boolean = false
+    var directOverlayWriteResult: DirectOverlayWriteResult = DirectOverlayWriteResult.OK
 
     private val remotePushFiles = mutableMapOf<String, File>()
+
+    enum class DirectOverlayWriteResult {
+        OK,
+        SKIPPED,
+        APPLYING,
+    }
 
     /**
      * One [__JUGG_OVERLAY_STATE__] script execution (e.g. [DirectOverlayStateChecker.checkRecover]).
@@ -83,6 +91,19 @@ class VirtualDeployDevice(
      * True when recover ran [DirectOverlayStateChecker] against [mismatchedOverlayId] before mock install
      * and before the first direct-overlay write script.
      */
+    fun hadRecoverMatchedOverlayCheckBeforeInstall(expectedOverlayId: String): Boolean {
+        val directWriteIndex = shellScripts.indexOfFirst { it.contains(DIRECT_OVERLAY_MARKER) }
+        return overlayStateProbes.any { probe ->
+            probe.installInvokeCountAtProbe == 0 &&
+                probe.deviceOverlayId == expectedOverlayId &&
+                (directWriteIndex < 0 || probe.scriptIndex < directWriteIndex)
+        }
+    }
+
+    fun hadOverlayStateCheckWithDeviceId(deviceOverlayId: String): Boolean {
+        return overlayStateProbes.any { it.deviceOverlayId == deviceOverlayId }
+    }
+
     fun hadRecoverMismatchOverlayCheckBeforeInstallAndDirectWrite(mismatchedOverlayId: String): Boolean {
         val directWriteIndex = shellScripts.indexOfFirst { it.contains(DIRECT_OVERLAY_MARKER) }
         return overlayStateProbes.any { probe ->
@@ -141,6 +162,11 @@ class VirtualDeployDevice(
     }
 
     private fun handleDirectOverlayScript(script: String): String {
+        when (directOverlayWriteResult) {
+            DirectOverlayWriteResult.SKIPPED -> return "$DIRECT_OVERLAY_MARKER SKIPPED"
+            DirectOverlayWriteResult.APPLYING -> return "$DIRECT_OVERLAY_MARKER APPLYING"
+            DirectOverlayWriteResult.OK -> Unit
+        }
         val expectedId = Regex("""!= \"([^\"]+)\"""").find(script)?.groupValues?.get(1)
             ?: return "$DIRECT_OVERLAY_MARKER SKIPPED"
         val newOverlayId = Regex("""printf %s \"([^\"]+)\" >""").find(script)?.groupValues?.get(1)
@@ -201,6 +227,10 @@ class VirtualDeployDevice(
         override fun execAdbShellScript(cmd: String): String = device.execShellScript(cmd)
 
         override fun push(from: File, to: String): Boolean {
+            if (device.failDirectOverlayPush) {
+                device.shellCommands += "push FAILED ${from.absolutePath} -> $to"
+                return false
+            }
             device.shellCommands += "push ${from.absolutePath} -> $to"
             val target = File(device.root, to.removePrefix("/"))
             target.parentFile?.mkdirs()
