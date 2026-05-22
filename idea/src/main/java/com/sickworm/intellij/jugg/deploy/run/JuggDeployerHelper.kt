@@ -104,20 +104,26 @@ class JuggDeployerHelper(
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
     ) {
-        runTask(device, data, isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
+        runTask(
+            JuggDeployRunTaskRequest(
+                device = device,
+                data = data,
+                compileUiHandler = compileUiHandler,
+                isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
+            ),
+        )
     }
 
-    private fun runTask(
-        device: IDevice,
-        data: JuggDeployData,
-        isSkipExceptOverlayCheck: Boolean = false,
-        compileUiHandler: CompileUiHandler,
-        isMultipleDevices: Boolean = false,
-        isLastDevice: Boolean = false,
-        androidTestRunSpec: AndroidTestRunSpec? = null,
-        androidTestResultModel: AndroidTestResultModel? = null,
-        isDeviceReadyDeploy: Boolean = true,
-    ): LaunchResult = synchronized(runTaskLock) {
+    private fun runTask(request: JuggDeployRunTaskRequest): LaunchResult = synchronized(runTaskLock) {
+        val device = request.device
+        val data = request.data
+        val isSkipExceptOverlayCheck = request.isSkipExceptOverlayCheck
+        val compileUiHandler = request.compileUiHandler
+        val isMultipleDevices = request.isMultipleDevices
+        val isLastDevice = request.isLastDevice
+        val androidTestRunSpec = request.androidTestRunSpec
+        val androidTestResultModel = request.androidTestResultModel
+        val isDeviceReadyDeploy = request.isDeviceReadyDeploy
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
 
@@ -405,15 +411,7 @@ class JuggDeployerHelper(
             logger.info("Installing APK...\n${apkFiles.joinToString("\n")}")
         }
         val deployData = JuggDeployData.forInstall(apks)
-        val launchResult = runTask(
-            deployOptions.device,
-            deployData,
-            compileUiHandler = deployOptions.compileUiHandler,
-            isMultipleDevices = deployOptions.isMultipleDevices,
-            isLastDevice = deployOptions.isLastDevice,
-            androidTestRunSpec = deployOptions.androidTestRunSpec,
-            androidTestResultModel = deployOptions.androidTestResultModel,
-        )
+        val launchResult = runTask(JuggDeployRunTaskRequest.fromDeployOptions(deployOptions, deployData))
         if (!launchResult.success) {
             return InstallDeployOutcome(
                 DeployTaskResult(
@@ -466,12 +464,11 @@ class JuggDeployerHelper(
             installBackfilledApks = { backfilledApks ->
                 val installData = JuggDeployData.forInstall(backfilledApks)
                 val launchResult = runTask(
-                    device = device,
-                    data = installData,
-                    isSkipExceptOverlayCheck = true,
-                    compileUiHandler = deployOptions.compileUiHandler,
-                    isMultipleDevices = deployOptions.isMultipleDevices,
-                    isLastDevice = deployOptions.isLastDevice,
+                    JuggDeployRunTaskRequest.fromDeployOptions(
+                        deployOptions = deployOptions,
+                        data = installData,
+                        isSkipExceptOverlayCheck = true,
+                    ),
                 )
                 if (!launchResult.success) {
                     throw JuggException.applyChangesFailed(launchResult)
@@ -550,15 +547,12 @@ class JuggDeployerHelper(
         }
         val finalIsSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck || isRecoverWithReinstall
         val launchResult = runTask(
-            device,
-            deployData,
-            finalIsSkipExceptOverlayCheck,
-            compileUiHandler = deployOptions.compileUiHandler,
-            isMultipleDevices = deployOptions.isMultipleDevices,
-            isLastDevice = deployOptions.isLastDevice,
-            androidTestRunSpec = deployOptions.androidTestRunSpec,
-            androidTestResultModel = deployOptions.androidTestResultModel,
-            isDeviceReadyDeploy = deployStateManager.getDeployState(device).isReadyDeploy,
+            JuggDeployRunTaskRequest.fromDeployOptions(
+                deployOptions = deployOptions,
+                data = deployData,
+                isSkipExceptOverlayCheck = finalIsSkipExceptOverlayCheck,
+                isDeviceReadyDeploy = deployStateManager.getDeployState(device).isReadyDeploy,
+            ),
         )
         if (!launchResult.success) {
             return ChangesDeployOutcome(
@@ -618,15 +612,9 @@ class JuggDeployerHelper(
         }
 
         val deployData = JuggDeployData.forInstall(apks)
-        val launchResult = runTask(
-            deployOptions.device,
-            deployData,
-            compileUiHandler = deployOptions.compileUiHandler,
-            isMultipleDevices = deployOptions.isMultipleDevices,
-            isLastDevice = deployOptions.isLastDevice,
-        )
+        val launchResult = runTask(JuggDeployRunTaskRequest.fromDeployOptions(deployOptions, deployData))
         if (deployOptions.isLastDevice) {
-            logger.debug("Installing finished, update info after install.")
+            logger.debug("Embedded finished, update info after install.")
             deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
             updateInfoAfterIncDeploy(launchResult, incDeployData)
         }
@@ -721,14 +709,3 @@ class JuggDeployerHelper(
         }
     }
 }
-
-data class DeployTaskResult(
-    val isSuccess: Boolean,
-    val costTime: Long,
-    val isCanFallback: Boolean = false,
-    val deployType: JuggDeployData.DeployType? = null,
-    val failedReason: String? = null,
-    val costTimeExceptCheck: Long = costTime,
-    /** false when deploy data has no incremental products (no classes, no overlays). */
-    val hasDeployChanges: Boolean = true,
-)
