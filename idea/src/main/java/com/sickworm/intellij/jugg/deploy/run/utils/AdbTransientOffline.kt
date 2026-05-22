@@ -1,12 +1,16 @@
 package com.sickworm.intellij.jugg.deploy.run.utils
 
 import com.android.tools.deployer.AdbClient
+import com.sickworm.intellij.jugg.deploy.AdbCliShellExecutor
+import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 internal object AdbTransientOffline {
 
-    const val DEFAULT_WAIT_MILLIS = 5_000L
+    /** Max wait for ADB transport to recover after transient offline (shell, swap, install, deploy retry). */
+    const val DEFAULT_WAIT_MILLIS = 3_000L
+
     const val DEFAULT_POLL_INTERVAL_MILLIS = 500L
 
     fun isOffline(throwable: Throwable?): Boolean {
@@ -65,7 +69,36 @@ internal object AdbTransientOffline {
     ): Boolean {
         logWait("Device $serial went offline during $phase, wait up to ${DEFAULT_WAIT_MILLIS}ms.")
         return waitUntilReady {
-            isDeviceOnline() && isAdbShellReady(adb)
+            isTransportRecovered(
+                serial = serial,
+                isDeviceOnline = isDeviceOnline,
+                isDdmlibShellReady = { isAdbShellReady(adb) },
+            )
+        }
+    }
+
+    /**
+     * True when adb CLI reports device + shell true, or ddmlib transport is ready.
+     * CLI is checked first because [com.android.ddmlib.IDevice.isOnline] can lag after recovery.
+     */
+    internal fun isTransportRecovered(
+        serial: String,
+        isDeviceOnline: () -> Boolean,
+        isDdmlibShellReady: () -> Boolean,
+        isCliTransportReady: () -> Boolean = { isAdbCliTransportReady(serial) },
+    ): Boolean {
+        return isCliTransportReady() || (isDeviceOnline() && isDdmlibShellReady())
+    }
+
+    fun isAdbCliTransportReady(serial: String, adbBin: String = AdbCmdHelper.findAdbExecutablePath()): Boolean {
+        return try {
+            if (AdbCliShellExecutor.getState(adbBin, serial) != "device") {
+                return false
+            }
+            AdbCliShellExecutor.exec(adbBin, serial, "true", timeoutMillis = 5_000L)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 

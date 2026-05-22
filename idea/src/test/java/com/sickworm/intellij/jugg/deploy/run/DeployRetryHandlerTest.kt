@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
+import com.sickworm.intellij.jugg.deploy.run.flow.IAdbTransportRecovery
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -19,6 +20,61 @@ import org.junit.Test
 import org.mockito.Mockito
 
 class DeployRetryHandlerTest {
+
+    @Test
+    fun `tryRetry should redeploy when device offline recovers within wait window`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(device = device, isLastDevice = true)
+        val deployData = JuggDeployData.forInstall(emptyList())
+
+        val deployRunHost = RecordingDeployRunHost(DeployTaskResult(isSuccess = true, costTime = 7L))
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        val handler = createHandler(
+            deployTargetManager = deployTargetManager,
+            deployRunHost = deployRunHost,
+            adbTransportRecovery = object : IAdbTransportRecovery {
+                override fun waitUntilRecovered(device: IDevice, phase: String, logWait: (String) -> Unit): Boolean = true
+            },
+        )
+
+        val reason = "Apply changes failed, errorId: 30, reason: device offline"
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = reason,
+        )
+
+        assertEquals(deployRunHost.lastResult, result)
+        assertEquals(reason, deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(deployData, deployRunHost.lastRedeployOptions?.retryDeployData)
+        Mockito.verify(deployTargetManager, Mockito.never()).isAppForeground(device)
+    }
+
+    @Test
+    fun `tryRetry should stop retry when adb transport recovery times out`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(device = device, isLastDevice = true)
+        val deployData = JuggDeployData.forInstall(emptyList())
+
+        val deployRunHost = RecordingDeployRunHost(DeployTaskResult(isSuccess = true, costTime = 0L))
+        val handler = createHandler(
+            deployRunHost = deployRunHost,
+            adbTransportRecovery = object : IAdbTransportRecovery {
+                override fun waitUntilRecovered(device: IDevice, phase: String, logWait: (String) -> Unit): Boolean = false
+            },
+        )
+
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = "AdbCommandRejectedException: device offline",
+        )
+
+        assertNull(result)
+        assertNull(deployRunHost.lastRedeployOptions)
+    }
 
     @Test
     fun `tryRetry should redeploy with compat data when compat fallback is required`() {
@@ -196,7 +252,7 @@ class DeployRetryHandlerTest {
     }
 
     @Test
-    fun `tryRetry should recover with dry deploy first on class not found`() {
+    fun `tryRetry should recover deploy state on class not found`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(device = device, isLastDevice = true)
         val deployData = JuggDeployData.forInstall(emptyList())
@@ -206,7 +262,7 @@ class DeployRetryHandlerTest {
             deployStateRecover.recoverDeployState(
                 device,
                 deployOptions.indicator,
-                true,
+                false,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
                 deployOptions.compileUiHandler,
@@ -230,7 +286,7 @@ class DeployRetryHandlerTest {
         Mockito.verify(deployStateRecover).recoverDeployState(
             device,
             deployOptions.indicator,
-            true,
+            false,
             deployOptions.isSkipExceptOverlayCheck,
             false,
             deployOptions.compileUiHandler,
@@ -297,6 +353,9 @@ class DeployRetryHandlerTest {
         deployFileManager: DeployFileManager = Mockito.mock(DeployFileManager::class.java),
         deployStateRecover: DeployStateRecover = Mockito.mock(DeployStateRecover::class.java),
         deployRunHost: IJuggDeployHelperRunHost = RecordingDeployRunHost(DeployTaskResult(isSuccess = true, costTime = 0)),
+        adbTransportRecovery: IAdbTransportRecovery = object : IAdbTransportRecovery {
+            override fun waitUntilRecovered(device: IDevice, phase: String, logWait: (String) -> Unit): Boolean = true
+        },
     ): DeployRetryHandler {
         return DeployRetryHandler(
             deployTargetManager = deployTargetManager,
@@ -305,6 +364,7 @@ class DeployRetryHandlerTest {
             juggServer = Mockito.mock(JuggServer::class.java),
             deployRunHost = deployRunHost,
             logger = TestGlobal.getLogger(),
+            adbTransportRecovery = adbTransportRecovery,
         )
     }
 

@@ -338,6 +338,31 @@ fun AdbCmdHelper(device: IDevice, logger: Logger): AdbCmdHelper {
 internal object AdbCliShellExecutor {
     private const val DEFAULT_TIMEOUT_MILLIS = 10_000L
 
+    fun getState(
+        adbBin: String,
+        serial: String,
+        timeoutMillis: Long = 5_000L,
+    ): String {
+        val process = Runtime.getRuntime().exec(arrayOf(adbBin, "-s", serial, "get-state"))
+        val completed = try {
+            process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            process.destroyForcibly()
+            Thread.currentThread().interrupt()
+            throw IOException("adb cli get-state interrupted: adb -s $serial get-state", e)
+        }
+        if (!completed) {
+            process.destroyForcibly()
+            process.waitFor(1, TimeUnit.SECONDS)
+            throw IOException("adb cli get-state timed out after ${timeoutMillis}ms: adb -s $serial get-state")
+        }
+        if (process.exitValue() != 0) {
+            val errorOutput = String(process.errorStream.readAllBytes()).trim()
+            throw IOException(errorOutput.ifEmpty { "adb get-state failed with exit ${process.exitValue()}" })
+        }
+        return String(process.inputStream.readAllBytes()).trim()
+    }
+
     fun exec(
         adbBin: String,
         serial: String,

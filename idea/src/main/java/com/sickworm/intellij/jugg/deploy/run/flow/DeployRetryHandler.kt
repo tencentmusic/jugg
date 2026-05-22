@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.server.JuggServer
 
@@ -23,6 +24,7 @@ class DeployRetryHandler(
     private val juggServer: JuggServer,
     private val deployRunHost: IJuggDeployHelperRunHost,
     private val logger: Logger,
+    private val adbTransportRecovery: IAdbTransportRecovery = AdbTransportRecovery(logger),
 ) {
 
     fun tryRetry(
@@ -31,6 +33,10 @@ class DeployRetryHandler(
         deployData: JuggDeployData,
         reason: String,
     ): DeployTaskResult? {
+        if (AdbTransientOffline.isOfflineMessage(reason)) {
+            return tryRetryAfterDeviceOffline(deployOptions, deployData, reason)
+        }
+
         val isAppForeground = deployTargetManager.isAppForeground(deployOptions.device)
         logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
 
@@ -166,6 +172,32 @@ class DeployRetryHandler(
         }
 
         return null
+    }
+
+    private fun tryRetryAfterDeviceOffline(
+        deployOptions: DeployOptions,
+        deployData: JuggDeployData,
+        reason: String,
+    ): DeployTaskResult? {
+        val device = deployOptions.device
+        logger.info("Deploy got device offline, wait for device to recover.")
+        if (!adbTransportRecovery.waitUntilRecovered(device, "deploy retry") { logger.info(it) }) {
+            logger.warn(
+                "Device ${device.serialNumber} still offline after ${AdbTransientOffline.DEFAULT_WAIT_MILLIS}ms, stop retry.",
+            )
+            return null
+        }
+        logger.info("Device ${device.serialNumber} recovered, retry deploy.")
+        juggServer.report {
+            action = "incremental_deploy_retry"
+            detail = reason
+        }
+        val nextDeployOptions = deployOptions.copy(
+            retryReason = reason,
+            retryDeployData = deployData,
+            isSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck,
+        )
+        return deployRunHost.redeploy(nextDeployOptions)
     }
 
     fun isCanFallbackOnException(reason: String, isInstall: Boolean): Boolean {
