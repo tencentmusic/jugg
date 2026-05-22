@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
@@ -78,7 +79,7 @@ internal object DeployFlowTestSupport {
         val taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java)
         whenever(taskRunnerManager.runAsyncSafe<Boolean>(any(), any())).thenReturn(CompletableDeferred(false))
 
-        val ideaLogger = Mockito.mock(Logger::class.java)
+        val ideaLogger = TestGlobal.getLogger()
         val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { _, _ -> virtualDevice.asIDeviceAdb() }
         val deployStateRecover = DeployFlowRecoverFixtureHooks(
             project = project,

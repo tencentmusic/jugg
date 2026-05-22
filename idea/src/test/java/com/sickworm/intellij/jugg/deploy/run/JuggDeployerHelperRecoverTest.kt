@@ -75,9 +75,8 @@ class JuggDeployerHelperRecoverTest {
         Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
             .thenReturn(mapOf("com.example.app" to "overlay-id"))
 
-        val testLogger = Mockito.mock(Logger::class.java)
         val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
-        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", testLogger))
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
             .thenReturn(CachedOverlayId(sha = "overlay-id", isBaseInstall = false))
 
         val adb = Mockito.mock(IDeviceAdb::class.java)
@@ -89,7 +88,7 @@ class JuggDeployerHelperRecoverTest {
             deployHistoryManager = deployHistoryManager,
             deploymentService = deploymentService,
             deviceAdbFactory = { _, _ -> adb },
-            logger = testLogger,
+            logger = TestGlobal.getLogger(),
         )
 
         val result = recover.tryDryDeploy(device, false, CompileUiHandler.DEFAULT)
@@ -110,23 +109,22 @@ class JuggDeployerHelperRecoverTest {
         Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
             .thenReturn(mapOf("com.example.app" to "overlay-id"))
 
-        val testLogger = Mockito.mock(Logger::class.java)
         val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
-        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", testLogger))
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
             .thenReturn(null)
 
         val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
             deployHistoryManager = deployHistoryManager,
             deploymentService = deploymentService,
-            logger = testLogger,
+            logger = TestGlobal.getLogger(),
         )
 
         val result = recover.tryDryDeploy(device, false, CompileUiHandler.DEFAULT)
 
         assertEquals(DryDeployResult.FAILED, result)
         Mockito.verify(deployTargetManager, Mockito.never()).restartApp(device)
-        Mockito.verify(deploymentService).loadCachedOverlayId("device-1", "com.example.app", testLogger)
+        Mockito.verify(deploymentService).loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger())
     }
 
     @Test
@@ -142,9 +140,8 @@ class JuggDeployerHelperRecoverTest {
         Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
             .thenReturn(mapOf("com.example.app" to "overlay-id"))
 
-        val testLogger = Mockito.mock(Logger::class.java)
         val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
-        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", testLogger))
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
             .thenReturn(CachedOverlayId(sha = "overlay-id", isBaseInstall = false))
 
         val adb = Mockito.mock(IDeviceAdb::class.java)
@@ -157,7 +154,7 @@ class JuggDeployerHelperRecoverTest {
             deployHistoryManager = deployHistoryManager,
             deploymentService = deploymentService,
             deviceAdbFactory = { _, _ -> adb },
-            logger = testLogger,
+            logger = TestGlobal.getLogger(),
             deployRunHost = recoverHost,
         )
 
@@ -192,9 +189,8 @@ class JuggDeployerHelperRecoverTest {
         Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(JuggDeployState.READY)
 
         val deployFileManager = Mockito.mock(DeployFileManager::class.java)
-        val testLogger = Mockito.mock(Logger::class.java)
         val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
-        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", testLogger))
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
             .thenReturn(null)
 
         val recoverHost = RecordingRecoverHost()
@@ -204,7 +200,7 @@ class JuggDeployerHelperRecoverTest {
             deployHistoryManager = deployHistoryManager,
             deployStateManager = deployStateManager,
             deploymentService = deploymentService,
-            logger = testLogger,
+            logger = TestGlobal.getLogger(),
             deployRunHost = recoverHost,
         )
 
@@ -299,7 +295,7 @@ class JuggDeployerHelperRecoverTest {
         deployStateManager: DeployStateManager = Mockito.mock(DeployStateManager::class.java),
         deploymentService: IJuggDeploymentService = Mockito.mock(IJuggDeploymentService::class.java),
         deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { _, _ -> Mockito.mock(IDeviceAdb::class.java) },
-        logger: Logger = Mockito.mock(Logger::class.java),
+        logger: Logger = TestGlobal.getLogger(),
         deployRunHost: IJuggDeployHelperRunHost = Mockito.mock(IJuggDeployHelperRunHost::class.java),
     ): DeployStateRecover {
         return DeployStateRecover(

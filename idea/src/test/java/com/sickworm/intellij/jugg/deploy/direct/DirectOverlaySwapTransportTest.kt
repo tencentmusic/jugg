@@ -4,8 +4,8 @@ import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
+import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
@@ -22,7 +22,7 @@ import java.io.File
 
 class DirectOverlaySwapTransportTest {
 
-    private val logger = Mockito.mock(Logger::class.java)
+    private val logger = TestGlobal.getLogger()
     private val adb = RecordingAdb()
 
     @Test

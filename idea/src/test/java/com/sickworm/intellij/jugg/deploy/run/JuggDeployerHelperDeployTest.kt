@@ -119,7 +119,7 @@ class JuggDeployerHelperDeployTest {
             compileContextManager = compileContextManager,
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
-            logger = Mockito.mock(Logger::class.java),
+            logger = TestGlobal.getLogger(),
         )
     }
 

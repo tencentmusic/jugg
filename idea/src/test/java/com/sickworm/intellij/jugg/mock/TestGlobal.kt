@@ -27,6 +27,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.registerExtension
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -40,6 +41,10 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 
 object TestGlobal {
+
+    val logger = StdLogger("JuggTest")
+
+    fun getLogger(): Logger = logger
 
     val projectInfo = try {
         PlatformApi.impl = IdeaPlatformApi()
