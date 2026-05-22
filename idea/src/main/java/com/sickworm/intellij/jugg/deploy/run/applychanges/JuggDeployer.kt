@@ -12,8 +12,9 @@ import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 
 /**
@@ -23,13 +24,14 @@ import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
  */
 class JuggDeployer(
     private val adb: AdbClient,
-    private val deploymentService: JuggDeploymentService,
+    private val deploymentService: IJuggDeployerDeploymentService,
     private val installer: Installer,
     private val service: UIService,
     private val exceptOverlayIds: Map<String, String>,
     private val isSkipExceptOverlayCheck: Boolean,
     private val logger: AdbLogWrapper,
     private val directOverlaySwapOptions: DirectOverlaySwapOptions = DirectOverlaySwapOptions.disabled(),
+    private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
 ) {
 
     /**
@@ -61,7 +63,7 @@ class JuggDeployer(
             }
             logger.info("going to install apks: $apks")
             try {
-                result.skippedInstall = !AsDeployerCompat.install(
+                result.skippedInstall = !asDeployerCompat.install(
                     adb, service, installer, logger,
                     packageName, apks, options, installMode,
                 )
@@ -72,7 +74,7 @@ class JuggDeployer(
                         installMode = InstallMode.FULL
                         logger.warning("Got device not found error, retry with FULL install mode after 2s.")
                         Thread.sleep(2000)
-                        result.skippedInstall = !AsDeployerCompat.install(
+                        result.skippedInstall = !asDeployerCompat.install(
                             adb, service, installer, logger,
                             packageName, apks, options, installMode,
                         )
@@ -81,7 +83,7 @@ class JuggDeployer(
                     throw e
                 }
             }
-            val apkList = AsDeployerCompat.parseApks(apks)
+            val apkList = asDeployerCompat.parseApks(apks)
             // Update the database
             val appId = ApplicationDumper.getPackageName(apkList)
             val oid = OverlayId(apkList)
@@ -121,7 +123,7 @@ class JuggDeployer(
         val deviceSerial = adb.serial
         // Get the list of files from the local apks
         val parseApksStartTime = System.currentTimeMillis()
-        val newFiles = AsDeployerCompat.parseApks(argPaths)
+        val newFiles = asDeployerCompat.parseApks(argPaths)
         logger.info("parseApks time: ${System.currentTimeMillis() - parseApksStartTime}ms")
 
         // Get the App info. Some from the APK, some from DDMLib.
@@ -186,7 +188,7 @@ class JuggDeployer(
         // Perform the swap.
         try {
             val overlayId = runWithOfflineRetry("optimistic swap", adb, logger) {
-                AsDeployerCompat.optimisticSwap(
+                asDeployerCompat.optimisticSwap(
                     installer, redefiners, packageName,
                     argRestart, pids, arch, overlayUpdate,
                     adb, logger,

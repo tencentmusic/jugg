@@ -1,147 +1,155 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.sickworm.intellij.jugg.compiler.CompileUiHandler
-import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.deploy.DeployStateManager
-import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
-import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Computable
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
+import com.sickworm.intellij.jugg.mock.JuggMockProject
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import org.mockito.Mockito
-import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
-import org.mockito.kotlin.whenever
+import java.io.File
 
 /**
- * Builds L2 fixtures with mocked device and collaborators.
+ * Assembles Virtual Device deploy-flow fixtures for DF-L2-001/002.
  */
 object DeployFlowMockBackend : DeployFlowDeviceBackend {
 
-    override val mode: DeployFlowDeviceMode = DeployFlowDeviceMode.MOCK
+    private var installPath: String? = null
 
     override fun buildFixture(caseId: DeployFlowCaseId): DeployFlowFixture {
         return when (caseId) {
-            DeployFlowCaseId.DF_L2_001 -> dfL2001DirectWriteSuccess()
-            DeployFlowCaseId.DF_L2_002 -> dfL2002RecoverThenDirectWrite()
+            DeployFlowCaseId.DF_L2_001 -> buildDfL2001()
+            DeployFlowCaseId.DF_L2_002 -> buildDfL2002()
         }
-    }
-
-    fun dfL2001DirectWriteSuccess(): DeployFlowFixture {
-        val device = DeployFlowTestSupport.mockDevice()
-        val deployData = DeployFlowTestSupport.incrementalDeployData()
-        val deployTargetManager = baseDeployTargetManager(device)
-        val deployFileManager = DeployFlowTestSupport.defaultDeployFileManager(deployData)
-
-        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
-        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(DeployFlowTestSupport.deployReadyState)
-        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(DeployFlowTestSupport.appNotDeployableState)
-
-        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
-        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
-            .thenReturn(mapOf(RecordingDeployRunTaskExecutor.DEFAULT_PACKAGE to "matched-overlay-id"))
-
-        val recover = Mockito.mock(DeployStateRecover::class.java)
-        whenever(
-            recover.recoverDeployState(
-                eq(device),
-                eq(null),
-                eq(true),
-                any(),
-                eq(false),
-                any(),
-            ),
-        ).thenReturn(true to false)
-
-        val executor = RecordingDeployRunTaskExecutor(mapOf(RecordingDeployRunTaskExecutor.DEFAULT_PACKAGE to "new-overlay-id"))
-        val helper = DeployFlowTestSupport.createHelper(
-            device = device,
-            deployTargetManager = deployTargetManager,
-            deployFileManager = deployFileManager,
-            deployStateManager = deployStateManager,
-            deployHistoryManager = deployHistoryManager,
-            deployStateRecover = recover,
-            executor = executor,
-        )
-
-        return DeployFlowFixture(
-            caseId = DeployFlowCaseId.DF_L2_001,
-            device = device,
-            deployOptions = DeployFlowTestSupport.defaultDeployOptions(device),
-            helper = helper,
-            executor = executor,
-            deployFileManager = deployFileManager,
-            deployStateRecover = recover,
-        )
-    }
-
-    fun dfL2002RecoverThenDirectWrite(): DeployFlowFixture {
-        val device = DeployFlowTestSupport.mockDevice()
-        val deployData = DeployFlowTestSupport.incrementalDeployData()
-        val deployTargetManager = baseDeployTargetManager(device)
-        Mockito.`when`(deployTargetManager.getApks()).thenReturn(deployData.apks)
-
-        val deployFileManager = DeployFlowTestSupport.defaultDeployFileManager(deployData)
-
-        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
-        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(DeployFlowTestSupport.deployReadyState)
-        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(DeployFlowTestSupport.appNotDeployableState)
-
-        val executor = RecordingDeployRunTaskExecutor(mapOf(RecordingDeployRunTaskExecutor.DEFAULT_PACKAGE to "overlay-after-recover"))
-        val recover = Mockito.mock(DeployStateRecover::class.java)
-        lateinit var helper: JuggDeployerHelper
-        whenever(
-            recover.recoverDeployState(
-                eq(device),
-                eq(null),
-                eq(true),
-                any(),
-                eq(false),
-                any(),
-            ),
-        ).thenAnswer {
-            helper.runRecoverDeployTask(
-                device = device,
-                data = JuggDeployData.forInstall(deployData.apks),
-                isSkipExceptOverlayCheck = false,
-                compileUiHandler = CompileUiHandler.DEFAULT,
-            )
-            deployFileManager.resetAfterReinstall()
-            true to true
-        }
-        helper = DeployFlowTestSupport.createHelper(
-            device = device,
-            deployTargetManager = deployTargetManager,
-            deployFileManager = deployFileManager,
-            deployStateManager = deployStateManager,
-            deployStateRecover = recover,
-            executor = executor,
-        )
-
-        return DeployFlowFixture(
-            caseId = DeployFlowCaseId.DF_L2_002,
-            device = device,
-            deployOptions = DeployFlowTestSupport.defaultDeployOptions(device),
-            helper = helper,
-            executor = executor,
-            deployFileManager = deployFileManager,
-            deployStateRecover = recover,
-        )
-    }
-
-    private fun baseDeployTargetManager(device: com.android.ddmlib.IDevice): IDeployTargetManager {
-        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
-        Mockito.`when`(deployTargetManager.hasDevice).thenReturn(true)
-        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
-        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(RecordingDeployRunTaskExecutor.DEFAULT_PACKAGE)
-        return deployTargetManager
     }
 
     fun initSettings() {
         TestGlobal.init()
+        AssembleAndroidProjectOnce.ensure()
         JuggSettings.isEmbeddedToApk = false
         JuggSettings.isEnableDirectOverlayDeploy = true
+        installPath = System.getProperty("java.io.tmpdir")
+        JuggDeploymentService.deploymentCacheDbFile.parentFile?.mkdirs()
+        JuggDeploymentService.preInit(com.sickworm.intellij.jugg.mock.logger)
+    }
+
+    private fun buildDfL2001(): DeployFlowFixture {
+        val virtualDevice = VirtualDeployDevice(DeployFlowOverlaySeed.packageName())
+        val deployData = DeployFlowTestSupport.incrementalDeployData()
+        val deployHistoryManager = DeployFlowTestHistoryManager()
+        val seededOverlayId = DeployFlowOverlaySeed.seedMatchedTriple(
+            virtualDevice = virtualDevice,
+            deploymentService = JuggDeploymentService,
+            deployHistoryManager = deployHistoryManager,
+        )
+        val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalNotDeployable() }
+        val deployTargetManager = DeployFlowTestSupport.defaultDeployTargetManager(virtualDevice)
+        val deployFileManager = DeployFlowTestSupport.defaultDeployFileManager(deployData)
+        val project = registerDeployFlowProject()
+        val deployStateManager = DeployFlowTestSupport.createDeployStateManager(
+            project = project,
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+        )
+        val asDeployerCompat = DeployFlowStaticBoundaryMocks.createCompat(virtualDevice)
+        val device = virtualDevice.asDdmlibDevice()
+        val helper = DeployFlowTestSupport.createHelper(
+            project = project,
+            virtualDevice = virtualDevice,
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployStateManager = deployStateManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+            installPathProvider = installPathProvider(),
+            asDeployerCompat = asDeployerCompat,
+        )
+        return DeployFlowFixture(
+            caseId = DeployFlowCaseId.DF_L2_001,
+            virtualDevice = virtualDevice,
+            device = device,
+            deployOptions = DeployFlowTestSupport.defaultDeployOptions(device),
+            helper = helper,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+            seededOverlayId = seededOverlayId,
+        )
+    }
+
+    private fun buildDfL2002(): DeployFlowFixture {
+        val virtualDevice = VirtualDeployDevice(DeployFlowOverlaySeed.packageName())
+        val deployData = DeployFlowTestSupport.incrementalDeployData()
+        val deployHistoryManager = DeployFlowTestHistoryManager()
+        val historyOverlayId = DeployFlowOverlaySeed.seedHistoryAndCacheOnly(
+            deploymentService = JuggDeploymentService,
+            deployHistoryManager = deployHistoryManager,
+            virtualDevice = virtualDevice,
+        )
+        DeployFlowOverlaySeed.writeMismatchedDeviceOverlay(virtualDevice, "mismatched-device-overlay")
+        val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalNotDeployable() }
+        val deployTargetManager = DeployFlowTestSupport.defaultDeployTargetManager(virtualDevice)
+        val deployFileManager = DeployFlowTestSupport.defaultDeployFileManager(deployData)
+        val project = registerDeployFlowProject()
+        val deployStateManager = DeployFlowTestSupport.createDeployStateManager(
+            project = project,
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+        )
+        val device = virtualDevice.asDdmlibDevice()
+        val asDeployerCompat = DeployFlowStaticBoundaryMocks.createCompat(
+            virtualDevice = virtualDevice,
+            onInstall = Runnable {
+                virtualDevice.onInstallCompleted()
+                DeployFlowOverlaySeed.realignDeviceAfterInstall(virtualDevice, historyOverlayId)
+            },
+        )
+        val recoverRunHost = DeployFlowRecoverRunHost(
+            onAfterInstallRecoverTask = Runnable {
+                DeployFlowOverlaySeed.restoreDeploymentCacheAfterMockInstall(
+                    virtualDevice = virtualDevice,
+                    deploymentService = JuggDeploymentService,
+                    deployHistoryManager = deployHistoryManager,
+                )
+                ideDeployStateHelper.signalInstallCompletedForRecoverWait()
+            },
+        )
+        val helper = DeployFlowTestSupport.createHelper(
+            project = project,
+            virtualDevice = virtualDevice,
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployStateManager = deployStateManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+            installPathProvider = installPathProvider(),
+            asDeployerCompat = asDeployerCompat,
+            recoverRunHost = recoverRunHost,
+        )
+        return DeployFlowFixture(
+            caseId = DeployFlowCaseId.DF_L2_002,
+            virtualDevice = virtualDevice,
+            device = device,
+            deployOptions = DeployFlowTestSupport.defaultDeployOptions(device),
+            helper = helper,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+            seededOverlayId = historyOverlayId,
+        )
+    }
+
+    private fun installPathProvider(): Computable<String> {
+        val path = installPath ?: File(System.getProperty("java.io.tmpdir")).absolutePath
+        return Computable { path }
+    }
+
+    private fun registerDeployFlowProject(): Project {
+        val project = JuggMockProject(TestGlobal.projectInfo.projectRoot)
+        JuggLogger.register(project, File(System.getProperty("java.io.tmpdir"), "jugg-deploy-flow-log"))
+        return project
     }
 }

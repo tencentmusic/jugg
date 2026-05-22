@@ -17,7 +17,7 @@ import kotlin.system.measureTimeMillis
 /**
  * Recovers device deploy state via dry deploy or full reinstall when history and device diverge.
  */
-class DeployStateRecover(
+open class DeployStateRecover(
     private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
     private val deployFileManager: DeployFileManager,
@@ -34,7 +34,7 @@ class DeployStateRecover(
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      * @return <isSuccess, isReinstalled>
      */
-    fun recoverDeployState(
+    open fun recoverDeployState(
         device: IDevice,
         indicator: ProgressIndicator?,
         isNeedTryDeyDeployFirst: Boolean,
@@ -110,7 +110,7 @@ class DeployStateRecover(
         return true to true
     }
 
-    fun tryDryDeploy(
+    open fun tryDryDeploy(
         device: IDevice,
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,

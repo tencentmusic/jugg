@@ -21,7 +21,7 @@ import kotlin.system.measureTimeMillis
  * * provides synchronized and async api
  * * provides preInit
  */
-object JuggDeploymentService : IJuggDeploymentService {
+object JuggDeploymentService : IJuggDeploymentService, IJuggDeployerDeploymentService {
 
     private val lock = Object()
     val deploymentCacheDbFile = JuggGlobalPathManager.deployCacheDbFile
@@ -44,7 +44,7 @@ object JuggDeploymentService : IJuggDeploymentService {
         }
     }
 
-    fun storeEntry(deviceSerial: String, packageName: String, newFiles: List<Apk>, overlayId: OverlayId, logger: ILogger) {
+    override fun storeEntry(deviceSerial: String, packageName: String, newFiles: List<Apk>, overlayId: OverlayId, logger: ILogger) {
         val storeStartTime = System.currentTimeMillis()
 
         // store to memory
@@ -65,7 +65,7 @@ object JuggDeploymentService : IJuggDeploymentService {
             ?.let { CachedOverlayId(sha = it.sha, isBaseInstall = it.isBaseInstall) }
     }
 
-    fun loadEntry(deviceSerial: String, packageName: String, logger: ILogger): DeploymentCacheDatabase.Entry? {
+    override fun loadEntry(deviceSerial: String, packageName: String, logger: ILogger): DeploymentCacheDatabase.Entry? {
         // load from memory
         val memCache = memoryCache[String.format("%s:%s", deviceSerial, packageName)]
         if (memCache != null) {

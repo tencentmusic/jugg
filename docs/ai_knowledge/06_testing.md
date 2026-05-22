@@ -119,12 +119,11 @@ L3 Flow 依赖 `AssembleAndroidProjectOnce`；L1 `DeployDataGeneratorTest` 依�
 | 用户点击 Run 后真部署 | **L3** | `TopLevelFlowTest`、`TopLevelFlowWithGitTest` |
 | androidTest 部署+instrument | **L3** | `AndroidTestTopLevelFlowTest` |
 | dry deploy / recover / retry 分支 | L2 | `JuggDeployerHelperRecoverTest`、`DeployRetryHandlerTest`（**追加**，不新建第三类 Helper 测试） |
-| Helper 编排分支（recover→runTask 参数） | L2-mock | `JuggDeployerHelperDeployFlowTest`（`RecordingDeployRunTaskExecutor` **不**跑 `JuggDeployer`） |
-| `JuggDeployer.tryDirectOverlaySwap` vs Apply Changes | L2-integration（待补） / L1 transport | `JuggDeployer.kt:168`；`idea/.../DirectOverlaySwapTransportTest` |
+| DF-L2-001/002 direct overlay 全链 | L2 Virtual Device | `JuggDeployerHelperDeployFlowTest` + `VirtualDeployDevice`（契约：`docs/task/jugg_deploy_flow_virtual_device.md`） |
 | deploy 早退 | L2 | `JuggDeployerHelperDeployTest` |
-| overlay 三路一致 | L1 | `main/.../DirectOverlayStateCheckerTest` |
-| overlay 写入 | L1 | `main/.../DirectOverlayWriterTest` |
-| Direct overlay 设备写盘 | L2-real / L3 | `DeployFlowRealDeviceBackend`（待补）或 `TopLevelFlowTest` |
+| transport 窄脚本 | L1 | `idea/.../DirectOverlaySwapTransportTest` |
+| overlay 三路 / writer 算法 | L1 | `main/.../DirectOverlayStateCheckerTest`、`DirectOverlayWriterTest` |
+| 真机全链路 | L3 | `TopLevelFlowTest` |
 
 **硬性**：改动 `JuggDeployerHelper.deploy` 分派或 recover→deploy 顺序时，执行清单必须包含 **至少 1 个 L3** 或说明复用哪条 Flow 场景。
 

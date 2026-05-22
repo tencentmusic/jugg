@@ -32,9 +32,11 @@ import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
-import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
@@ -59,7 +61,9 @@ class JuggDeployTask(
     private val installPathProvider: Computable<String>,
     private val type: AndroidDeployType,
     private val data: JuggDeployData,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask")
+    private val deploymentService: IJuggDeployerDeploymentService = JuggDeploymentService,
+    private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask"),
 ) {
 
     fun run(launchContext: LaunchContext): LaunchResult {
@@ -69,7 +73,7 @@ class JuggDeployTask(
         val logger = AdbLogWrapper(logger)
         val adb = AdbClient(device, logger)
         val ideService = IdeService(project)
-        val adbInstaller = AsDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
+        val adbInstaller = asDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
         val uiService = object : UIService {
             override fun prompt(message: String): Boolean {
                 if (launchContext.compileUiHandler.shouldAutoConfirmDeployPrompt(message)) {
@@ -88,7 +92,7 @@ class JuggDeployTask(
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
             adb,
-            JuggDeploymentService,
+            deploymentService,
             adbInstaller,
             uiService,
             launchContext.exceptOverlayIds,
@@ -97,8 +101,9 @@ class JuggDeployTask(
             DirectOverlaySwapOptions(
                 enabled = JuggSettings.isEnableDirectOverlayDeploy,
                 isDeviceReadyDeploy = launchContext.isDeviceReadyDeploy,
-                adb = IdeaDeviceAdb(device, ideaLogger),
-            )
+                adb = launchContext.deviceAdb,
+            ),
+            asDeployerCompat = asDeployerCompat,
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
@@ -204,7 +209,7 @@ class JuggDeployTask(
                     // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
                     // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
                     // because we don't need debuggerRedefiners on restart case
-                    debuggerRedefiners = AsDeployerCompat.makeDebuggerRedefiners(
+                    debuggerRedefiners = asDeployerCompat.makeDebuggerRedefiners(
                         project, device, fastRerunOnSwapFailure && deployer.supportsNewPipeline()
                     )
                 }
@@ -268,6 +273,7 @@ enum class AndroidDeployType {
  */
 class LaunchContext(
     val device: IDevice,
+    val deviceAdb: IDeviceAdb,
     val exceptOverlayIds: Map<String, String>,
     val isSkipExceptOverlayCheck: Boolean,
     val compileUiHandler: CompileUiHandler,

@@ -1,6 +1,6 @@
 # JuggDeployerHelper DeployFlowTest 用例规格
 
-> 状态：编码中（001/002 **mock 编排切片**已落地；Direct overlay 设备写盘与 `JuggDeployer` 分支待 L1/L2-integration/real）  
+> 状态：Virtual Device 单轨契约已对齐（见 [jugg_deploy_flow_virtual_device.md](jugg_deploy_flow_virtual_device.md)）；001/002 待按契约编码  
 > 日期：2026-05-22  
 > 一致性：与 `AGENTS.md`、`docs/ai_knowledge/06_testing.md` 一致；冲突时以代码为准。
 
@@ -39,7 +39,7 @@
 |------|----------|------|
 | `DeployStateRecover.tryDryDeploy` / `recoverDeployState` 内部细节 | `JuggDeployerHelperRecoverTest` | DeployFlowTest 只验证 **Helper 是否以正确参数调用** recover |
 | `DeployRetryHandler.tryRetry` 分支矩阵 | `DeployRetryHandlerTest` | DeployFlowTest 只验证 **Helper.deploy catch 是否委托** retry |
-| `JuggDeployTask` / `JuggDeployer` / `deploy_compat` | 无单测 / 真机间接 | 不在此文件展开 device 协议细节 |
+| `JuggDeployTask` / `JuggDeployer` 内部算法 | L1 transport 测试 | 经 **Virtual Device** 在 DeployFlowTest 覆盖 direct 分支；协议细节不拆第三套用例 |
 | `DirectOverlayStateChecker` / `Writer` | `main/.../direct/*Test` | L1 |
 | `LibraryTestApkBackfillHelper` 业务细节 | `LibraryTestApkBackfillHelperTest` | DeployFlowTest 只验证 **deployIncremental 是否调用 backfill 及 install 回调结果** |
 | `TestLauncher` logcat 算法 | `TestLauncherResultTest` | androidTest 仅验证 Helper 分支选择 |
@@ -48,69 +48,39 @@
 
 ```
 TopLevelFlowTest / AndroidTestTopLevelFlowTest     (L3 真机 happy path)
-JuggDeployerHelperDeployFlowTest                   (L2 分支矩阵，本计划)
-DeployRetryHandlerTest / JuggDeployerHelperRecoverTest   (保留，不重复测 retry/recover 内部)
-JuggDeployerHelperDeployTest                       (合并入 DeployFlowTest 后删除，见 §9)
+JuggDeployerHelperDeployFlowTest                   (L2 Virtual Device：001/002 全链，本计划)
+DeployRetryHandlerTest                             (L2 补充：retry 单元网)
+JuggDeployerHelperRecoverTest                      (L2 补充：dry/MISMATCHED 细节)
+DirectOverlaySwapTransportTest                     (L1：transport 窄脚本)
+JuggDeployerHelperDeployTest                       (L2 早退；合并后可删，见 §9)
 ```
 
 ---
 
-## 3. 测试分层与设备后端
+## 3. L2 设备后端：Virtual Device 单轨
+
+> **实现契约（权威）**：[jugg_deploy_flow_virtual_device.md](jugg_deploy_flow_virtual_device.md)
 
 ### 3.1 L2 / L3 分工
 
-- **L2（§5）**：场景化步骤 + 断言；入口必须是 `JuggDeployerHelper.deploy()`（或文档允许的等价入口）。
-- **L3（§6）**：真机 + demo 工程，证明主链路在 refactor 后仍可跑通；**不替代** L2 的分支矩阵。
+- **L2（§5）**：`JuggDeployerHelper.deploy()` 入口 + **真实** `executeDeployRunTask` → `JuggDeployer.optimisticSwap` → direct overlay；设备侧用 **VirtualDeployDevice**（FS + 窄脚本）。
+- **L3（§6）**：真机 + demo（`TopLevelFlowTest`）；**不** 在 DeployFlowTest 内维护 `real` 双轨或 `@Ignore` 真机用例。
 
-L2 **禁止**只测 `DeployStateRecover` / `DeployRetryHandler` 内部逻辑而不经过 Helper（存量单测文件继续承担那部分）。
+L2 **禁止**只测 `DeployStateRecover` / `DeployRetryHandler` 而不经过 Helper（存量单测继续承担细节网）。
 
-### 3.2 设备后端：`mock` / `real` 可切换（推荐）
+### 3.2 Virtual Device 概要
 
-每条 L2 用例标注 **`设备后端`**：
-
-| 后端 | 适用 | 实现要点 |
-|------|------|----------|
-| **`mock`（默认）** | CI、日常 PR、分支接线 | `IDevice` + `IDeviceAdb` fake；`DeployStateManager` / `DeployStateRecover` 可注入返回值；overlay 文件一致性用 **内存目录或 stub 脚本输出** 断言 |
-| **`real`（可选）** | Direct overlay 写盘、run-as、ZIP push | `@RequiresDeviceRule` + 与 `TopLevelFlow` 相同 demo；同一用例 ID 下增加 `@DeployFlowRealDevice` 或 JUnit category，本地/夜间 job 跑 |
-
-**对你写法的评估（结论）**：
-
-| 维度 | 评价 |
+| 组件 | 说明 |
 |------|------|
-| **场景 + 条件 + 分步断言** | ✅ 比表格一句话更适合 DeployFlowTest；与「验证设备目录与推送产物一致」这类 **端到端子目标** 对齐 |
-| **术语「app 不在线」** | ⚠️ 需在条件里写清映射：在 Direct overlay 语境下 = **`DeployStateManager` 判定 `isReadyDeploy == false`**（不可 Apply Changes），**不是** adb offline。adb 仍须 **设备在线** |
-| **术语「app 在线」** | = `isReadyDeploy == true` → `DirectOverlaySwapTransport.canTry` 为 false → 走 **Apply Changes**，不应出现 direct write |
-| **mock / real 切换** | ✅ 推荐：**同一用例 ID、两套后端**。mock 保证全分支可每日跑；real 只覆盖 §5.2 Direct overlay 与少量 reinstall（避免 45 条全跑真机） |
-| **与 L1 边界** | `DirectOverlayStateChecker` / `Writer` 单元细节仍在 `main/.../direct/*Test`；DeployFlowTest 验证 **Helper 编排是否走到** 这些能力，real 后端才断言设备目录 |
+| **FS 内核** | tempDir 映射 `data/data/{pkg}/code_cache`、`/data/local/tmp/jugg` |
+| **双适配** | `asIDeviceAdb()` + `asDdmlibDevice()` 共用同一 FS |
+| **install** | static mock；副作用 = 清空 virtual `code_cache` |
+| **Apply Changes** | static mock `optimisticSwap` never（001/002） |
+| **IDE deploy 状态** | 注入 **`IIdeDeployStateHelper`**（物理边界），驱动 `DeployStateManager` |
+| **本地 cache** | 真实 **`IJuggDeploymentService`**；与 install **不联动** |
+| **overlay 三路** | **前置流程** 写 history + storeEntry + virtual id（禁止仅 mock 对齐） |
 
-**实现约定（编码时）**：
-
-```text
-interface DeployFlowDeviceBackend {
-  fun prepare(condition: DeployFlowCondition): DeployFlowFixture
-}
-// DeployFlowMockBackend / DeployFlowRealDeviceBackend
-// 测试方法: @Test fun df_l2_001(...) = runFlow(DF_L2_001, backendFromEnv())
-```
-
-环境变量或 Gradle property，例如 `-Ddeploy.flow.device=real`，未设置则 `mock`。
-
-### 3.4 Direct Overlay 覆盖矩阵（review 对齐，避免 mock L2 过度承诺）
-
-`RecordingDeployRunTaskExecutor` **绕过** `JuggDeployerHelper.executeDeployRunTask` → `JuggDeployTask` → `JuggDeployer.optimisticSwap`，因此 **mock 后端不能证明** `DirectOverlaySwapTransport.trySwap` / writer / `AsDeployerCompat.optimisticSwap` 分支。
-
-| 规格步骤（§5.1） | 证明层级 | 落点 |
-|------------------|----------|------|
-| Helper：`deploy()` → recover → `runTask` 且 `isDeviceReadyDeploy=false` | **L2-mock**（编排） | `JuggDeployerHelperDeployFlowTest` + `RecordingDeployRunTaskExecutor` |
-| `DirectOverlaySwapTransport.canTry` / `trySwap`、writer、未走 Apply Changes | **L1** | `idea/.../direct/DirectOverlaySwapTransportTest`；`main/.../direct/DirectOverlayWriterTest` |
-| `JuggDeployer` 在 `optimisticSwap` 内优先 `tryDirectOverlaySwap`（`:168`），失败再 `AsDeployerCompat` | **L2-integration**（待补） | 建议 `JuggDeployerDirectOverlayTest`：stub `deploymentService` + `RecordingAdb`，**不** stub 整个 `runTask` |
-| 设备 `code_cache/.overlay`、push zip 清单与产物一致 | **L2-real / L3** | `DeployFlowRealDeviceBackend` 或 `TopLevelFlowTest` 夜间 job |
-
-**命名约定**：同一 `DF-L2-00x` ID 下拆三条实现轨，避免 CI 绿但语义不完整：
-
-- `DF-L2-00x-orchestration`（mock，默认跑）
-- `DF-L2-00x-deployer`（L2-integration，待补）
-- `DF-L2-00x-real`（`@Ignore` 或 `-Ddeploy.flow.device=real`）
+已废弃：`RecordingDeployRunTaskExecutor`、`DeployFlowRealDeviceBackend`、`deploy.flow.device=real`。
 
 ### 3.3 条件字段词汇表（§5 统一使用）
 
@@ -126,22 +96,19 @@ interface DeployFlowDeviceBackend {
 
 ---
 
-## 4. 实现前置（编码前需对齐）
+## 4. 实现前置（已对齐）
 
-为满足 AGENTS「禁止为测试新增 test-only lambda」，L2 需下列**生产语义**接缝（实现阶段再定具体类名）：
+生产接缝与物理边界详见 [jugg_deploy_flow_virtual_device.md §3–§7](jugg_deploy_flow_virtual_device.md)。
 
-| 接缝 | 职责 | 用途 |
-|------|------|------|
-| `IJuggDeployTaskRunner`（拟定） | 封装原 `runTask`：入参 `JuggDeployRunTaskRequest`，出参 `LaunchResult` | L2 注入成功/失败/抛错，避免真 `JuggDeployTask` |
-| 既有 `IJuggDeployHelperRunHost` | Recover/Retry 回调 | 已由 `DeployStateRecover` / `DeployRetryHandler` 使用；DeployFlowTest 用 **真实 Helper** + mock 协作对象 |
-| `DeployStateRecover` | 可 mock 实例注入 Helper（若当前写死 `private val` 需改为构造注入） | 控制 recover 返回值 |
-| `DeployRetryHandler` | 同上 | 控制 retry 返回值（可选；也可只 mock `runTask` 抛错走真实 Retry） |
+| 类别 | 内容 |
+|------|------|
+| **生产接缝** | `LaunchContext.deviceAdb`；`executeDeployRunTask` 全量 `deviceAdbFactory`；`JuggDeployer`/`Task` → `IJuggDeploymentService`；`installPathProvider` 注入 |
+| **物理边界 mock** | `VirtualDeployDevice`；static `install` / `optimisticSwap`；`IIdeDeployStateHelper` |
+| **真实协作** | `DeployStateRecover`（002）；`JuggDeploymentService` 本地 cache；overlay 三路 **前置 API** |
+| **APK** | `com.sickworm.intellij.jugg.mock.context.apkInfos`（`Commons.kt`） |
+| **禁止** | `runTaskProvider` lambda；用 `whenever(lastDeployOverlayIds)` 代替三路前置 |
 
-**不在接缝清单内、实现时禁止**：
-
-- 仅为测试增加 `runTaskProvider: () -> LaunchResult` 等无业务语义的 lambda 参数。
-
-编码前评审：接缝是否足够覆盖 §5 全部用例；Direct overlay **real** 后端需能读取 `code_cache/.overlay` 与 push 的 zip 清单。
+`IJuggDeployRunTaskExecutor` 保留用于其他 L2 早退/故障注入用例时可选；**001/002 不走 recording executor**。
 
 ---
 
@@ -152,7 +119,7 @@ interface DeployFlowDeviceBackend {
 每条用例包含：
 
 - **标题**：`# DF-L2-xxx 场景名`
-- **设备后端**：`mock` | `real` | `mock+real`（后者表示两种后端都要实现，ID 相同）
+- **设备后端**：**Virtual Device**（单轨，见 §3）
 - **条件**：前置状态（使用 §3.3 词汇表）
 - **步骤**：从 `JuggDeployerHelper.deploy(DeployOptions)` 起，按时间顺序列出 **观察点**（可混合 `verify` 与 real 文件检查）
 - **Kotlin 方法名**（建议）：与标题语义一致，如 `` `df l2 001 direct overlay incremental deploy when app not deployable` ``
@@ -165,49 +132,48 @@ interface DeployFlowDeviceBackend {
 
 #### DF-L2-001 direct write 增量部署成功
 
-**设备后端**：`mock+real`（mock 仅覆盖 **编排轨** `DF-L2-001-orchestration`，见 §3.4）
+**设备后端**：Virtual Device（§3、[契约 §5.1](jugg_deploy_flow_virtual_device.md#51-df-l2-001-前置matched)）
 
 **条件**：
 
 - `JuggSettings.isEnableDirectOverlayDeploy = true`
-- 设备在线
-- **app 不可 deploy**（`isReadyDeploy == false`）
-- deployment cache 中 overlay id **非 base**；**设备** `code_cache/.overlay/id` 与 cache / history **一致**（`DirectOverlayStateChecker.checkDevice` → MATCHED）
-- 本轮 `JuggDeployData` 非空、非 install
+- 设备在线（virtual `isOnline`）
+- **app 不可 deploy**（`IIdeDeployStateHelper` → `isReadyDeploy == false`）
+- 三路 overlay **前置一致**（history + 本地 `storeEntry` + virtual `code_cache/.overlay/id`）
+- `JuggDeployData` 来自 `mock.context.apkInfos`，非空、非 install
 
-**步骤**：
+**步骤**（同一 `@Test` 内）：
 
-| # | 断言 | 层级 |
+| # | 断言 | 手段 |
 |---|------|------|
-| 1 | `deploy()` → `deployIncrementalChanges` →（recover）→ `runTask` 请求里 `isDeviceReadyDeploy=false` | **L2-mock** ✅ 已实现 |
-| 2 | `DirectOverlaySwapTransport.canTry == true` | **L1**（`DirectOverlaySwapTransportTest`） |
-| 3 | writer 前 `checkDevice` → MATCHED | **L1** + recover 用例 |
-| 4 | 走 direct write；**未**调用 `AsDeployerCompat.optimisticSwap` | **L2-integration**（`JuggDeployer.kt:168`） |
-| 5 | `deploy()` 成功；`storeEntry` 写入新 overlay id | **L2-integration** / **L2-real** |
-| 6 | 设备 overlay 目录与 `DirectOverlayWriteRequest` 一致 | **L2-real** / **L3** |
+| 1 | `deploy()` → recover（可选 dry 成功）→ 真实 `JuggDeployTask` | Virtual + 真实 Helper |
+| 2 | `canTry` 且 `tryDirectOverlaySwap` 成功 | 生产代码 + virtual 脚本/markers |
+| 3 | writer 前 `checkDevice` → MATCHED | virtual FS 已与 cache 对齐 |
+| 4 | **未**调用 `AsDeployerCompat.optimisticSwap` | **static mock never** |
+| 5 | `deploy()` 成功；本地 `storeEntry` 新 overlay id | 真实 `IJuggDeploymentService` |
+| 6 | virtual 上 overlay 文件与 `DirectOverlayWriteRequest` 一致 | 读 tempDir FS |
 
 ---
 
 #### DF-L2-002 recover 后 direct write（overlay 不一致 → 重装）
 
-**设备后端**：`mock+real`（mock 仅 **编排轨** `DF-L2-002-orchestration`；MISMATCHED dry 由 `JuggDeployerHelperRecoverTest` 承担）
+**设备后端**：Virtual Device（§3、[契约 §5.2](jugg_deploy_flow_virtual_device.md#52-df-l2-002-前置mismatched--install--再-matched)）
 
 **条件**：
 
-- Direct overlay 开关开启
-- 设备在线，**app 不可 deploy**
-- **overlay 设备不一致**（history/cache 与设备 `code_cache/.overlay/id` 不匹配，或 cache 缺失）
-- 已编译产物存在（history 中有 **历史产物 overlay id**）
+- Direct overlay 开启；设备在线；**app 不可 deploy**（incremental 阶段）
+- history + 本地 cache 有 **H**；virtual 设备 id 为 **D≠H**（或缺失）→ MISMATCHED
+- 真实 `DeployStateRecover`（非 mock recover）
 
-**步骤**：
+**步骤**（同一 `@Test` 内）：
 
-| # | 断言 | 层级 |
+| # | 断言 | 手段 |
 |---|------|------|
-| 1 | `!isReadyDeploy` → `recoverDeployState` | **L2-mock** ✅ |
-| 2 | `checkRecover` → MISMATCHED，不 restart 做 Apply Changes 探测 | **L2** `JuggDeployerHelperRecoverTest` |
-| 3 | reinstall（`runRecoverDeployTask` + `forInstall`）+ `resetAfterReinstall` | **L2-mock** ✅（mock recover 模拟决策；非真实 MISMATCHED 链） |
-| 4 | 再次 `runTask` 且 `isDeviceReadyDeploy=false` | **L2-mock** ✅；direct write 本体见 001 的 L2-integration / real |
-| 5 | 重装后设备 overlay 与 history/cache 对齐 | **L2-real** / **L3** |
+| 1 | `recoverDeployState` 因 `!isReadyDeploy` 触发 | 真实 Recover |
+| 2 | `checkRecover` → MISMATCHED；不靠 restart 做 Apply Changes 探测 | virtual + 真实 dry 链 |
+| 3 | mock `install` 清空 `code_cache`；`runRecoverDeployTask`；`resetAfterReinstall` | static install + 真实 Helper |
+| 4 | 前置再对齐三路 → incremental `isDeviceReadyDeploy=false` → direct 成功 | `IIdeDeployStateHelper` 分阶段 |
+| 5 | 未 `optimisticSwap`；virtual overlay 与产物一致 | 同 001 |
 
 ---
 

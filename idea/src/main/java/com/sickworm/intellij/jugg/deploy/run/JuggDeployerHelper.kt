@@ -14,6 +14,8 @@ import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
 import com.sickworm.intellij.jugg.deploy.run.applychanges.LaunchContext
@@ -73,7 +75,8 @@ class JuggDeployerHelper(
             deployFileManager.updateApks(apks)
         },
     ),
-    private val deploymentService: IJuggDeploymentService = JuggDeploymentService,
+    private val deploymentService: IJuggDeployerDeploymentService = JuggDeploymentService,
+    private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
     private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { device, ideaLogger ->
         IdeaDeviceAdb(device, ideaLogger)
     },
@@ -162,7 +165,7 @@ class JuggDeployerHelper(
         }
 
         val detectJob = taskRunnerManager.runAsyncSafe("isNeedPushAgentAfterDeploy") {
-            val adb = IdeaDeviceAdb(device, logger)
+            val adb = deviceAdbFactory(device, logger)
             JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(adb, data)
         }
 
@@ -170,7 +173,7 @@ class JuggDeployerHelper(
             removeLibraryDexFiles(data, device)
         }
 
-        val (firstSliceSize, sliceSize) = SliceDeployHelper(logger).get(IdeaDeviceAdb(device, logger))
+        val (firstSliceSize, sliceSize) = SliceDeployHelper(logger).get(deviceAdbFactory(device, logger))
         val dataList = data.splitData(firstSliceSize, sliceSize)
         logger.debug("deploy_to_device size: ${dataList.size}")
 
@@ -182,14 +185,23 @@ class JuggDeployerHelper(
                     "classes: ${splitData.newClasses.size + splitData.hotFixModifiedClasses.size + splitData.hotReloadModifiedClasses.size}, " +
                     "overlays: ${splitData.overlays.size}")
             val isSliceSkipExceptOverlayCheck = isSkipExceptOverlayCheck || i != 0
+            val deviceAdb = deviceAdbFactory(device, logger)
             val launchContext = LaunchContext(
                 device = device,
+                deviceAdb = deviceAdb,
                 exceptOverlayIds = deployHistoryManager.lastDeployOverlayIds,
                 isSkipExceptOverlayCheck = isSliceSkipExceptOverlayCheck,
                 compileUiHandler = compileUiHandler,
                 isDeviceReadyDeploy = isDeviceReadyDeploy,
             )
-            val task = JuggDeployTask(project, installPathProvider, androidDeployType, splitData)
+            val task = JuggDeployTask(
+                project = project,
+                installPathProvider = installPathProvider,
+                type = androidDeployType,
+                data = splitData,
+                deploymentService = deploymentService,
+                asDeployerCompat = asDeployerCompat,
+            )
             launchResult = task.run(launchContext)
             if (!launchResult.success) {
                 throw JuggException.applyChangesFailed(launchResult)
@@ -204,7 +216,7 @@ class JuggDeployerHelper(
             isNeedPushAgentAfterDeploy = detectJob.await() ?: false
             logger.debug("isNeedPushAgentAfterDeploy: $isNeedPushAgentAfterDeploy")
             if (isNeedPushAgentAfterDeploy) {
-                val adb = IdeaDeviceAdb(device, logger)
+                val adb = deviceAdbFactory(device, logger)
                 JuggJvmtiAgentManagerHelper(logger).pushAgentToApps(adb, data)
             }
         }
@@ -223,7 +235,7 @@ class JuggDeployerHelper(
         }
 
         if ((isNeedPushAgentAfterDeploy && !isNeedRestartApp) || (data.isFullRes && !isNeedRestartApp)) {
-            val adb = IdeaDeviceAdb(device, logger)
+            val adb = deviceAdbFactory(device, logger)
             if (PlatformApi.isHasRelaunchActivityIssues(adb, logger)) {
                 // fix JVMTI compatibility issue for Android >=15 below Android Studio Meerkat
                 // restart app to let fix works
@@ -285,7 +297,7 @@ class JuggDeployerHelper(
         if (isNeedPushAgentAfterDeploy && isNeedRestartApp) {
             // check JVMTI compatibility issue
             // waiting app foreground (which means JVMTI agent boot finished)
-            val adb = IdeaDeviceAdb(device, logger)
+            val adb = deviceAdbFactory(device, logger)
             val isHasJvmtiCompatIssue = JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data)
             if (isHasJvmtiCompatIssue && !data.isCompatDeploy) {
                 juggServer.report {
@@ -663,7 +675,7 @@ class JuggDeployerHelper(
     }
 
     override fun detectJvmtiCompatIssue(device: IDevice, deployData: JuggDeployData): Boolean {
-        val adb = IdeaDeviceAdb(device, logger)
+        val adb = deviceAdbFactory(device, logger)
         val jvmtiAgentManagerHelper = JuggJvmtiAgentManagerHelper(logger)
         if (jvmtiAgentManagerHelper.isNeedPushAgentAfterDeploy(adb, deployData)) {
             jvmtiAgentManagerHelper.pushAgentToApps(adb, deployData)
@@ -683,7 +695,7 @@ class JuggDeployerHelper(
     private fun isNeedPushResourceApk(device: IDevice, data: JuggDeployData): Boolean {
         logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy start, thread=${Thread.currentThread().name}")
         val compatStart = System.currentTimeMillis()
-        val isEnableCompatDeploy = CompatDeployHelper(logger).isEnableCompatDeploy(IdeaDeviceAdb(device, logger), data)
+        val isEnableCompatDeploy = CompatDeployHelper(logger).isEnableCompatDeploy(deviceAdbFactory(device, logger), data)
         logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy end, cost=${System.currentTimeMillis() - compatStart}ms, thread=${Thread.currentThread().name}")
         logger.debug("isNeedPushResourceApk: " +
                 "isEnableCompatDeploy: $isEnableCompatDeploy, " +

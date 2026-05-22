@@ -1,71 +1,52 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
 import com.android.ddmlib.IDevice
-import com.android.sdklib.AndroidVersion
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.apk.ApkFileUnit
+import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
-import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
+import kotlinx.coroutines.CompletableDeferred
 import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import java.io.File
-import kotlinx.coroutines.CompletableDeferred
 
 internal object DeployFlowTestSupport {
 
-    val appNotDeployableState = JuggDeployState(
-        JuggDeployState.State.READY_INCREMENTAL_COMPILE,
-        "not ready to deploy",
-        IdeDeployState.ok,
-    )
-
-    val deployReadyState = JuggDeployState.READY
-
-    fun mockDevice(): IDevice {
-        val device = Mockito.mock(IDevice::class.java)
-        Mockito.`when`(device.serialNumber).thenReturn("deploy-flow-device")
-        Mockito.`when`(device.isOnline).thenReturn(true)
-        Mockito.`when`(device.version).thenReturn(AndroidVersion(30, null))
-        return device
-    }
-
-    fun incrementalDeployData(packageName: String = RecordingDeployRunTaskExecutor.DEFAULT_PACKAGE): JuggDeployData {
-        val apkPath = "/tmp/$packageName/base.apk"
-        val apkInfo = ApkInfo(
-            files = listOf(ApkFileUnit(packageName, "", true, File(apkPath))),
-            applicationId = packageName,
-        )
+    fun incrementalDeployData(apkInfos: List<ApkInfo> = context.apkInfos): JuggDeployData {
+        val apkPath = apkInfos.first().files.first().apkFile.path
         return JuggDeployData(
-            apks = listOf(apkInfo),
+            apks = apkInfos,
             newClasses = emptyList(),
             hotFixModifiedClasses = emptyList(),
             hotReloadModifiedClasses = emptyList(),
             effectedClassNodes = emptyList(),
             overlays = listOf(
                 DeployItem(
-                    name = "res/layout/main.xml",
+                    name = "res/layout/deploy_flow_main.xml",
                     type = CompileOutput.Type.Res,
                     checksum = 1L,
-                    content = byteArrayOf(1),
+                    content = byteArrayOf(1, 2, 3),
                     apkPath = apkPath,
                 ),
             ),
@@ -77,16 +58,17 @@ internal object DeployFlowTestSupport {
     }
 
     fun createHelper(
-        device: IDevice,
+        project: Project,
+        virtualDevice: VirtualDeployDevice,
         deployTargetManager: IDeployTargetManager,
         deployFileManager: DeployFileManager,
         deployStateManager: DeployStateManager,
-        deployHistoryManager: IDeployHistoryManager = defaultDeployHistoryManager(),
-        deployStateRecover: DeployStateRecover? = null,
-        executor: RecordingDeployRunTaskExecutor = RecordingDeployRunTaskExecutor(),
+        deployHistoryManager: IDeployHistoryManager,
+        ideDeployStateHelper: DeployFlowIdeDeployStateHelper,
+        installPathProvider: Computable<String>,
+        asDeployerCompat: IAsDeployerCompat,
+        recoverRunHost: DeployFlowRecoverRunHost = DeployFlowRecoverRunHost(),
     ): JuggDeployerHelper {
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn("/tmp/jugg-deploy-flow-test")
 
         val compileContext = Mockito.mock(ICompileContext::class.java)
         Mockito.`when`(compileContext.isDebuggable).thenReturn(true)
@@ -96,7 +78,21 @@ internal object DeployFlowTestSupport {
         val taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java)
         whenever(taskRunnerManager.runAsyncSafe<Boolean>(any(), any())).thenReturn(CompletableDeferred(false))
 
-        return JuggDeployerHelper(
+        val ideaLogger = Mockito.mock(Logger::class.java)
+        val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { _, _ -> virtualDevice.asIDeviceAdb() }
+        val deployStateRecover = DeployFlowRecoverFixtureHooks(
+            project = project,
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployStateManager = deployStateManager,
+            deployRunHost = recoverRunHost,
+            deploymentService = JuggDeploymentService,
+            deviceAdbFactory = deviceAdbFactory,
+            logger = ideaLogger,
+            ideDeployStateHelper = ideDeployStateHelper,
+        )
+        val helper = JuggDeployerHelper(
             project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
@@ -106,20 +102,49 @@ internal object DeployFlowTestSupport {
             compileContextManager = compileContextManager,
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = taskRunnerManager,
-            logger = Mockito.mock(Logger::class.java),
+            logger = ideaLogger,
+            deploymentService = JuggDeploymentService,
+            deviceAdbFactory = deviceAdbFactory,
+            installPathProvider = installPathProvider,
+            asDeployerCompat = asDeployerCompat,
             injectedDeployStateRecover = deployStateRecover,
-            injectedDeployRunTaskExecutor = executor,
+        )
+        recoverRunHost.bind(helper)
+        return helper
+    }
+
+    fun createDeployStateManager(
+        project: Project,
+        deployTargetManager: IDeployTargetManager,
+        deployHistoryManager: IDeployHistoryManager,
+        ideDeployStateHelper: IIdeDeployStateHelper,
+    ): DeployStateManager {
+        return DeployStateManager(
+            project = project,
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
         )
     }
 
-    fun defaultDeployOptions(device: IDevice): DeployOptions {
-        return DeployOptions(device = device, isLastDevice = true, isInstall = false)
+    fun defaultDeployTargetManager(virtualDevice: VirtualDeployDevice): IDeployTargetManager {
+        val device = virtualDevice.asDdmlibDevice()
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.hasDevice).thenReturn(true)
+        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
+        val packageName = DeployFlowOverlaySeed.packageName()
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(packageName)
+        Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenReturn(packageName)
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(context.apkInfos)
+        Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(true)
+        return deployTargetManager
     }
 
-    fun defaultDeployHistoryManager(): IDeployHistoryManager {
-        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
-        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds).thenReturn(emptyMap())
-        return deployHistoryManager
+    fun defaultDeployFileManager(deployData: JuggDeployData): DeployFileManager {
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        Mockito.`when`(deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean())).thenReturn(deployData)
+        Mockito.`when`(deployFileManager.getStagingFiles()).thenReturn(emptyList())
+        return deployFileManager
     }
 
     fun defaultDependencyChangeManager(): IDependencyChangeManager {
@@ -129,10 +154,7 @@ internal object DeployFlowTestSupport {
         return dependencyChangeManager
     }
 
-    fun defaultDeployFileManager(deployData: JuggDeployData): DeployFileManager {
-        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
-        Mockito.`when`(deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean())).thenReturn(deployData)
-        Mockito.`when`(deployFileManager.getStagingFiles()).thenReturn(emptyList())
-        return deployFileManager
+    fun defaultDeployOptions(device: IDevice): DeployOptions {
+        return DeployOptions(device = device, isLastDevice = true, isInstall = false)
     }
 }
