@@ -381,6 +381,7 @@ class JuggDeployerHelper(
 
         var finalIsFallbackAllHotFix = false
         var deployData: JuggDeployData = JuggDeployData.forInstall(deployTargetManager.getApks())
+        var incrementalSnapshot: IncrementalDeploySnapshot? = null
         return try {
             if (deployOptions.isInstall) {
                 val outcome = deployInstall(deployOptions)
@@ -392,12 +393,17 @@ class JuggDeployerHelper(
                 logger.warn("APK is not debuggable, will auto switch to embedded to apk mode.")
                 return embeddedToApk(deployOptions)
             } else {
-                val outcome = deployIncrementalChanges(deployOptions, deployData)
+                incrementalSnapshot = IncrementalDeploySnapshot(deployData)
+                val outcome = deployIncrementalChanges(deployOptions, deployData, incrementalSnapshot)
                 deployData = outcome.deployData
                 finalIsFallbackAllHotFix = outcome.finalIsFallbackAllHotFix
                 outcome.result
             }
         } catch (e: Exception) {
+            incrementalSnapshot?.let { snapshot ->
+                deployData = snapshot.deployData
+                finalIsFallbackAllHotFix = snapshot.finalIsFallbackAllHotFix
+            }
             val reason = e.message ?: e.cause?.message ?: e.toString()
             val retryReason = deployOptions.retryReason
             val canRetry = (retryReason != DO_NOT_RETRY) && (retryReason == null || retryReason != reason)
@@ -464,8 +470,13 @@ class JuggDeployerHelper(
     private fun deployIncrementalChanges(
         deployOptions: DeployOptions,
         initialDeployData: JuggDeployData,
+        incrementalSnapshot: IncrementalDeploySnapshot,
     ): ChangesDeployOutcome {
         fun costTime(): Long { return System.currentTimeMillis() - deployOptions.startTime }
+        fun publishDeployState(deployData: JuggDeployData, finalIsFallbackAllHotFix: Boolean = incrementalSnapshot.finalIsFallbackAllHotFix) {
+            incrementalSnapshot.deployData = deployData
+            incrementalSnapshot.finalIsFallbackAllHotFix = finalIsFallbackAllHotFix
+        }
         val device = deployOptions.device
         if (!deployTargetManager.hasDevice) {
             logger.warn("\nNo device connected, please check device is connected.")
@@ -485,6 +496,7 @@ class JuggDeployerHelper(
 
         var deployData = deployOptions.retryDeployData
             ?: deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, initialDeployData))
+        publishDeployState(deployData)
         deployData = libraryTestApkBackfillHelper.backfillIfNeeded(
             spec = deployOptions.androidTestRunSpec,
             data = deployData,
@@ -507,6 +519,7 @@ class JuggDeployerHelper(
                 )
             },
         )
+        publishDeployState(deployData)
 
         var isNeedReinstallApk = false
         val isRetry = deployOptions.retryReason != null // retry means we have already resigned the apk
@@ -559,6 +572,7 @@ class JuggDeployerHelper(
         // get deploy data again after resigning apk (trigger full res deploy)
         if (isRecoverWithReinstall) {
             deployData = deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, deployData))
+            publishDeployState(deployData)
         }
 
         val isClassNeedHotFix = deployData.hotFixModifiedClasses.isNotEmpty() ||
@@ -567,6 +581,7 @@ class JuggDeployerHelper(
         if (finalIsFallbackAllHotFix) {
             deployData = deployData.toFallbackToHotFixData()
         }
+        publishDeployState(deployData, finalIsFallbackAllHotFix)
 
         logger.debug("Deploying data(debug):\n$deployData")
         logger.info("Deploying data:\n${deployData.toDescString()}")
@@ -713,6 +728,15 @@ class JuggDeployerHelper(
     private data class InstallDeployOutcome(
         val result: DeployTaskResult,
         val deployData: JuggDeployData,
+    )
+
+    /**
+     * Holds the latest incremental deploy payload while [deployIncrementalChanges] runs,
+     * so [deploy] catch/retry paths see the same deployData as f2 inline flow.
+     */
+    private data class IncrementalDeploySnapshot(
+        var deployData: JuggDeployData,
+        var finalIsFallbackAllHotFix: Boolean = false,
     )
 
     private data class ChangesDeployOutcome(
