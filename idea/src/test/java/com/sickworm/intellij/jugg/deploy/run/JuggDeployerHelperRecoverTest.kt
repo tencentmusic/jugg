@@ -161,7 +161,7 @@ class JuggDeployerHelperRecoverTest {
         val result = recover.recoverDeployState(
             device = device,
             indicator = null,
-            isNeedTryDeyDeployFirst = true,
+            isNeedDryDeployFirst = true,
             isSkipExceptOverlayCheck = false,
             compileUiHandler = CompileUiHandler.DEFAULT,
         )
@@ -207,7 +207,7 @@ class JuggDeployerHelperRecoverTest {
         val result = recover.recoverDeployState(
             device = device,
             indicator = null,
-            isNeedTryDeyDeployFirst = true,
+            isNeedDryDeployFirst = true,
             isSkipExceptOverlayCheck = false,
             compileUiHandler = CompileUiHandler.DEFAULT,
         )
@@ -243,7 +243,7 @@ class JuggDeployerHelperRecoverTest {
         val result = recover.recoverDeployState(
             device = device,
             indicator = null,
-            isNeedTryDeyDeployFirst = false,
+            isNeedDryDeployFirst = false,
             isSkipExceptOverlayCheck = false,
             isInstallUpdateApk = true,
             compileUiHandler = CompileUiHandler.DEFAULT,

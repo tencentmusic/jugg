@@ -45,7 +45,7 @@ class DeployFlowRecoverFixtureHooks(
     override fun recoverDeployState(
         device: IDevice,
         indicator: ProgressIndicator?,
-        isNeedTryDeyDeployFirst: Boolean,
+        isNeedDryDeployFirst: Boolean,
         isSkipExceptOverlayCheck: Boolean,
         isInstallUpdateApk: Boolean,
         compileUiHandler: CompileUiHandler,
@@ -53,7 +53,7 @@ class DeployFlowRecoverFixtureHooks(
         val result = super.recoverDeployState(
             device = device,
             indicator = indicator,
-            isNeedTryDeyDeployFirst = isNeedTryDeyDeployFirst,
+            isNeedDryDeployFirst = isNeedDryDeployFirst,
             isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
             isInstallUpdateApk = isInstallUpdateApk,
             compileUiHandler = compileUiHandler,

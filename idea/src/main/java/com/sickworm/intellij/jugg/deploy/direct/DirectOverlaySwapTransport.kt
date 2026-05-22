@@ -35,12 +35,13 @@ class DirectOverlaySwapTransport(
     }
 
     fun canTry(data: JuggDeployData): Boolean {
-        logger.debug("Direct overlay swap canTry: enabled: ${options.enabled}, " +
-                "isDeviceReadyDeploy: ${options.isDeviceReadyDeploy}, isInstall: ${data.isInstall}, isEmpty: ${data.isEmpty}")
-        return options.enabled &&
+        val result = options.enabled &&
                 !options.isDeviceReadyDeploy &&
                 !data.isInstall &&
                 !data.isEmpty
+        logger.debug("Direct overlay swap canTry=$result. Details: enabled: ${options.enabled}, " +
+                "isDeviceReadyDeploy: ${options.isDeviceReadyDeploy}, isInstall: ${data.isInstall}, isEmpty: ${data.isEmpty}")
+        return result
     }
 
     private fun trySwapInternal(

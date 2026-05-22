@@ -102,7 +102,6 @@ class DeployRetryHandler(
         }
 
         if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout || isDirectDeployFailed) {
-            var isNeedTryDeyDeployFirst = false
             var isRetryDirectly = false
             @Suppress("KotlinConstantConditions")
             when {
@@ -130,18 +129,16 @@ class DeployRetryHandler(
                 }
                 isClassNotFoundException -> {
                     logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
-                    isNeedTryDeyDeployFirst = true
                 }
                 isOverlayIdNotMatch -> {
                     logger.info("The device's deploy status mismatch with this project, try recover deploy state.")
-                    isNeedTryDeyDeployFirst = true
                 }
             }
             if (!isRetryDirectly) {
                 val (isSuccess, _) = deployStateRecover.recoverDeployState(
                     deployOptions.device,
                     deployOptions.indicator,
-                    isNeedTryDeyDeployFirst,
+                    isNeedDryDeployFirst = false,
                     deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
                 )

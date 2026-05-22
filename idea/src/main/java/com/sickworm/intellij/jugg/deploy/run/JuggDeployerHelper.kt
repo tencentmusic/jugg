@@ -14,8 +14,6 @@ import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
 import com.sickworm.intellij.jugg.deploy.run.applychanges.LaunchContext
@@ -534,7 +532,7 @@ class JuggDeployerHelper(
                 val (isSuccess, isReinstalled) = deployStateRecover.recoverDeployState(
                     device,
                     deployOptions.indicator,
-                    isNeedTryDeyDeployFirst = !isNeedReinstallApk,
+                    isNeedDryDeployFirst = !isNeedReinstallApk,
                     isInstallUpdateApk = isNeedReinstallApk,
                     isSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,

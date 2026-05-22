@@ -8,7 +8,6 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
-import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
@@ -37,7 +36,7 @@ open class DeployStateRecover(
     open fun recoverDeployState(
         device: IDevice,
         indicator: ProgressIndicator?,
-        isNeedTryDeyDeployFirst: Boolean,
+        isNeedDryDeployFirst: Boolean, // which means device state is unknown and needs to detect first
         isSkipExceptOverlayCheck: Boolean,
         isInstallUpdateApk: Boolean = false,
         compileUiHandler: CompileUiHandler,
@@ -50,7 +49,7 @@ open class DeployStateRecover(
         val reinstallTips = if (isCleanAndReinstall) {
             "User triggered, start clean and reinstalling app..."
         } else {
-            DEPLOY_STATE_NOT_MATCH_REINSTALL_TIPS
+            "Deploy state not match, start reinstalling app..."
         }
 
         if (isCleanAndReinstall) {
@@ -60,14 +59,14 @@ open class DeployStateRecover(
         }
 
         // dry deploy first, if success, no need to reinstall and recover
-        if (isNeedTryDeyDeployFirst && !isCleanAndReinstall) {
+        if (isNeedDryDeployFirst && !isCleanAndReinstall) {
             val dryDeployResult = tryDryDeploy(device, isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
             if (dryDeployResult == DryDeployResult.SUCCESS) {
                 logger.info("Deploy state matched, no need reinstall app.")
                 return true to false
             } else {
                 val tips = when (dryDeployResult) {
-                    DryDeployResult.APP_NOT_INSTALLED -> APP_NOT_INSTALLED_REINSTALL_TIPS
+                    DryDeployResult.APP_NOT_INSTALLED -> "App not installed, start reinstalling app..."
                     DryDeployResult.SUCCESS -> error("unreachable")
                     DryDeployResult.FAILED -> reinstallTips
                 }
@@ -86,7 +85,7 @@ open class DeployStateRecover(
         }
 
         // recover deploy state for device
-        val deployData = JuggDeployData.Companion.forInstall(deployTargetManager.getApks())
+        val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
         logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
 
         val costTime = measureTimeMillis {
@@ -100,10 +99,14 @@ open class DeployStateRecover(
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
 
         // device need to be deployable, otherwise deployer can not get the correct arch of App.
-        val isDeviceDeployable = waitingForDeployable(device, maxWaitTimeSecond = 5)
-        if (!isDeviceDeployable) {
-            logger.warn("App not deployable after reinstalling.")
-            return false to false
+        if (isNeedDryDeployFirst && JuggSettings.isEnableDirectOverlayDeploy) {
+            logger.debug("Skip wait for online and goes to direct write on detect mismatch and isNeedTisEnableDirectOverlayDeploy=true")
+        } else {
+            val isDeviceDeployable = waitingForDeployable(device, maxWaitTimeSecond = 5)
+            if (!isDeviceDeployable) {
+                logger.warn("App not deployable after reinstalling.")
+                return false to false
+            }
         }
 
         deployFileManager.resetAfterReinstall()
@@ -175,15 +178,15 @@ open class DeployStateRecover(
         ).checkRecover(device.serialNumber, packageName)
         return when (result) {
             DirectOverlayStateCheckResult.MATCHED -> {
-                logger.info("Direct overlay state check matched, skip dry deploy.")
+                logger.debug("Direct overlay state check matched, skip dry deploy.")
                 DryDeployResult.SUCCESS
             }
             DirectOverlayStateCheckResult.MISMATCHED -> {
-                logger.info("Direct overlay state check mismatched, recover deploy state directly.")
+                logger.debug("Direct overlay state check mismatched, recover deploy state directly.")
                 DryDeployResult.FAILED
             }
             DirectOverlayStateCheckResult.UNKNOWN -> {
-                logger.info("Direct overlay state check unknown, fallback to dry deploy.")
+                logger.debug("Direct overlay state check unknown, fallback to dry deploy.")
                 null
             }
         }
@@ -208,8 +211,6 @@ open class DeployStateRecover(
 
     companion object {
         private const val REDEPLOY_WITH_COMPAT_MESSAGE = "Detect JVMTI compatibility issue, need to fallback to compat deploy."
-        private const val APP_NOT_INSTALLED_REINSTALL_TIPS = "App not installed, start reinstalling app..."
-        private const val DEPLOY_STATE_NOT_MATCH_REINSTALL_TIPS = "Deploy state not match, start reinstalling app..."
     }
 }
 

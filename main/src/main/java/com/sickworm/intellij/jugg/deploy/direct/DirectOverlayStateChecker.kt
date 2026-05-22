@@ -40,7 +40,7 @@ class DirectOverlayStateChecker(
         }
 
         if (cachedOverlayId.sha != historyOverlayId) {
-            logger.info("Direct overlay state check mismatched for " +
+            logger.debug("Direct overlay state check mismatched for " +
                     "local overlay id mismatch, cached: ${cachedOverlayId.sha}, history: $historyOverlayId")
             return DirectOverlayStateCheckResult.MISMATCHED
         }
