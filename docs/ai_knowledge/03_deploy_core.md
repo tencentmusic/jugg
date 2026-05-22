@@ -72,7 +72,7 @@
 - recover 增量部署状态时，dry deploy 前会通过 `pm path <package>` 快速检测目标 App 是否已安装，并打印检测耗时；未安装时跳过 app 启动与 3s deployable 等待，直接进入 `App not installed, start reinstalling app...` 的重装分支。
 - 开启 `JuggSettings.isEnableDirectOverlayDeploy` 后，recover 的 dry deploy 前会通过 `DirectOverlayStateChecker.checkRecover` 校验 deploy history、deployment cache 与设备 `code_cache/.overlay/id` 三路一致：一致则跳过 app 启动与 apply changes 探测，本地 history/cache 不一致或设备 overlay 不一致则进入重装分支，adb/run-as 无法确认时回退旧 dry deploy 流程。
 - 同一开关也控制 Direct Overlay Writer swap transport。该 transport 不会替代在线 hot reload：只有 `DeployStateManager` 判定设备未 ready 且本轮本来需要重启生效时才尝试，在线场景仍优先保留 Apply Changes 的 pipe/proto 分发能力。
-- 部署过程中遇到模拟器/设备短暂 offline 时，会统一识别 `AdbCommandRejectedException: device offline`、`adb: device offline` 以及 deployer channel 的 `InvalidProtocolBufferException: Protocol message contained an invalid tag (zero)`；具体失败点原地等待 ADB transport 恢复，最长 5s，恢复后只重试当前 ADB/deployer 操作一次，避免把一次短暂 offline 扩散成整轮 hotfix/fallback/recover 误判。
+- 部署过程中遇到模拟器/设备短暂 offline 时，会统一识别 `AdbCommandRejectedException: device offline`、`adb: device offline` 以及 deployer channel 的 `InvalidProtocolBufferException: Protocol message contained an invalid tag (zero)`；具体失败点原地等待 ADB transport 恢复，最长 5s，恢复后只重试当前 ADB/deployer 操作一次，避免把一次短暂 offline 扩散成整轮 hotfix/fallback/recover 误判。**install 路径**（`JuggDeployer.install` → `asDeployerCompat.install`）与 shell/swap 同样 wait + 重试；`not found` 且非 FULL 时会升级为 FULL 后再重试。
 - `IdeaDeviceAdb` 的 ddmlib shell 调用超时后会重启 adb 并重试；若最终回退到 adb CLI，CLI fallback 带硬超时，超时会抛出错误让部署任务进入失败终态，避免 MCP job 一直停留在 `running`。
 
 ---

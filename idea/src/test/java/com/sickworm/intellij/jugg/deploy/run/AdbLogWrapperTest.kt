@@ -23,4 +23,13 @@ class AdbLogWrapperTest {
 
         assertEquals("Requested internal only, but not enough space", logger.realErrorMessage)
     }
+
+    @Test
+    fun `records device offline from installation failure line`() {
+        val logger = AdbLogWrapper(mock(Logger::class.java))
+
+        logger.verbose("Installation Failure: device offline")
+
+        assertEquals("device offline", logger.realErrorMessage)
+    }
 }

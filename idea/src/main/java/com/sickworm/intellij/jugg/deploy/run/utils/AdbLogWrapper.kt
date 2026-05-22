@@ -56,6 +56,10 @@ class AdbLogWrapper(val logger: Logger) : LogWrapper(logger) {
         if (!message.contains("Installation Failure:")) {
             return null
         }
+        val tail = message.substringAfter("Installation Failure:").trim()
+        if (AdbTransientOffline.isOfflineMessage(tail)) {
+            return tail.trim('\'', '"')
+        }
         val prefixes = listOf(
             "Caused by: java.io.IOException:",
             "android.os.ParcelableException: java.io.IOException:",

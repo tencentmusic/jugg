@@ -62,27 +62,9 @@ class JuggDeployer(
                 installMode = InstallMode.DELTA_NO_SKIP
             }
             logger.info("going to install apks: $apks")
-            try {
-                result.skippedInstall = !asDeployerCompat.install(
-                    adb, service, installer, logger,
-                    packageName, apks, options, installMode,
-                )
-            } catch (e: Exception) {
-                if (e.message?.contains("not found") == true) {
-                    logger.info("got device not found, argInstallMode: $installMode")
-                    if (installMode != InstallMode.FULL) {
-                        installMode = InstallMode.FULL
-                        logger.warning("Got device not found error, retry with FULL install mode after 2s.")
-                        Thread.sleep(2000)
-                        result.skippedInstall = !asDeployerCompat.install(
-                            adb, service, installer, logger,
-                            packageName, apks, options, installMode,
-                        )
-                    }
-                } else {
-                    throw e
-                }
-            }
+            result.skippedInstall = !invokeInstallWithTransientRetry(
+                packageName, apks, options, installMode,
+            )
             val apkList = asDeployerCompat.parseApks(apks)
             // Update the database
             val appId = ApplicationDumper.getPackageName(apkList)
@@ -101,6 +83,44 @@ class JuggDeployer(
                 throw e
             }
         }
+    }
+
+    private fun invokeInstallWithTransientRetry(
+        packageName: String,
+        apks: List<String>,
+        options: InstallOptions,
+        initialMode: InstallMode,
+    ): Boolean {
+        var installMode = initialMode
+        return try {
+            runInstallAttempt(packageName, apks, options, installMode)
+        } catch (first: Exception) {
+            if (!isTransientInstallFailure(first, logger)) {
+                throw first
+            }
+            if (shouldEscalateToFullInstall(first, logger, installMode)) {
+                installMode = InstallMode.FULL
+                logger.warning("Transient install failure, retry with FULL install mode after transport ready.")
+            } else {
+                logger.warning("Transient install failure during install, wait for ADB transport.")
+            }
+            if (!waitAdbTransportReady("install", adb, logger)) {
+                throw AdbTransientOffline.toException("install", first)
+            }
+            runInstallAttempt(packageName, apks, options, installMode)
+        }
+    }
+
+    private fun runInstallAttempt(
+        packageName: String,
+        apks: List<String>,
+        options: InstallOptions,
+        installMode: InstallMode,
+    ): Boolean {
+        return asDeployerCompat.install(
+            adb, service, installer, logger,
+            packageName, apks, options, installMode,
+        )
     }
 
     @Throws(DeployerException::class)
@@ -320,6 +340,36 @@ class JuggDeployer(
             ) {
                 logger.info(it)
             }
+        }
+
+        internal fun isTransientInstallFailure(e: Throwable, logger: AdbLogWrapper): Boolean {
+            if (AdbTransientOffline.isOffline(e)) {
+                return true
+            }
+            logger.realErrorMessage?.let { message ->
+                if (AdbTransientOffline.isOfflineMessage(message)) {
+                    return true
+                }
+            }
+            val message = e.message ?: return false
+            if (message.contains("not found", ignoreCase = true)) {
+                return true
+            }
+            return AdbTransientOffline.isOfflineMessage(message)
+        }
+
+        internal fun shouldEscalateToFullInstall(
+            e: Throwable,
+            logger: AdbLogWrapper,
+            installMode: InstallMode,
+        ): Boolean {
+            if (installMode == InstallMode.FULL) {
+                return false
+            }
+            if (e.message?.contains("not found", ignoreCase = true) == true) {
+                return true
+            }
+            return logger.realErrorMessage?.contains("not found", ignoreCase = true) == true
         }
     }
 }
