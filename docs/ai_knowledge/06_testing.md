@@ -1,111 +1,171 @@
-# 单元测试指南（TDD）
+# 测试策略与 TDD（权威细则）
 
-> 最后核对：2026-05-04
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 选测试文件的优先级规则
-
-新增测试前，必须按以下优先级决策：
-
-1. **【最高优先级】复用已有文件**：先按第3节查找已有测试。若已有覆盖同一被测类/模块的文件，必须追加用例，不得新建。
-2. **【次优先级】优先 main 模块**：若同被测对象在 main 和 idea 都没有测试，优先在 `main` 模块新建测试。
-3. **【仅在必要时】使用 idea 模块**：只有被测逻辑依赖 IDE API、RunConfig、JuggCompiler 端到端流程、Git 集成等 main 无法覆盖的能力时，才在 `idea` 模块新增或追加测试。
-
-> app androidTest / instrumentation 支持的实现链路与定向测试入口见 [`06_android_test.md`](06_android_test.md)。
+> 最后核对：2026-05-22  
+> 一致性规则：文档与代码冲突时，以代码为准。  
+> **与 AGENTS.md 关系**：`AGENTS.md` 规定测试分层硬性原则；**本页是落地细则**（选型、目录、示例、TDD 清单）。其他 `docs/task/*` 设计文档若与本页冲突，以本页为准。
 
 ---
 
-## 2. 测试基础设施
+## 1. 测试分层
 
-### 2.1 前置条件
-
-测试依赖一个真实编译过的 Android Demo APK。在 `@Before` 中调用 `clearBuild()` 会自动触发：
-
-```kotlin
-fun clearBuild() {
-    AssembleAndroidProjectOnce.ensure()
-    buildDir.clearDir()
-}
+```
+                    ┌─────────────────────────────┐
+              L3    │  *FlowTest / 手测矩阵      │  真实 demo 编译 → 部署/运行
+                    ├─────────────────────────────┤
+              L2    │  多类协作 + Mockito 接口     │  恢复/重试/编排分支（快）
+                    ├─────────────────────────────┤
+              L1    │  域内单测 + 真实产物        │  算法、解析、影响分析、序列化
+                    ├─────────────────────────────┤
+              L0    │  不写                      │  data class / 路径常量 / 纯 getter
+                    └─────────────────────────────┘
 ```
 
-`AssembleAndroidProjectOnce.ensure()` 保证 APK 只 assemble 一次，后续测试复用缓存。
+| 层级 | 典型位置 | 证明什么 |
+|------|----------|----------|
+| **L3** | `idea/src/test/.../manager/TopLevelFlowTest`、`TopLevelFlowWithGitTest`、`AndroidTestTopLevelFlowTest` | 用户可见主链路、重构前后等价 |
+| **L2** | `idea/.../deploy/run/*Test`（Recover/Retry）、`JuggCompileHelperTest` | 分支决策、协作接线；**不能替代 L3** |
+| **L1** | `main/.../DeployDataGeneratorTest`、`main/.../deploy/direct/*Test`、`InstrumentationOutputParserTest` | 确定性变换、复杂数据结构 |
+| **L0** | — | 禁止为「测字段存在」单独建类 |
 
-### 2.2 关键全局变量（来自 `mock/Commons.kt`）
-
-| 变量 | 含义 |
-|------|------|
-| `buildDir` | 临时编译输出目录（测试隔离用） |
-| `stagingDir` | 暂存目录，用于 SourceCompiler / DexCompiler 输出 |
-| `assetsAndroidDir` | `android_demo_project` 根目录（源码和 APK） |
-| `assetsAndroidModifySourceDir` | 包含「修改版」源文件的目录（用于模拟增量修改） |
-| `assetsLibDir` | 测试所需第三方 jar（如 kotlin-stdlib） |
-| `projectInfo` | 包含 `apkFile`、`apkInfos` 等 APK 元信息 |
-| `context` | `SimpleCompileContext`，封装 module / apk / tempModule |
-| `mockParentDisposable` | IDE 资源释放 mock |
-
-### 2.3 为什么用真实 testcase 类而非手写 mock 数据
-
-`DeployDataGeneratorTest` 依赖真实 D8 编译产物中的 `MethodNode`、`ClassNode` 等结构。手工构造容易遗漏编译器生成的细节，例如 Kotlin lambda 对应的 `$r8$lambda$` 静态合成方法。
-
-结论：用真实 Kotlin/Java 类写 testcase，让 D8 编译后从 APK 里读取，测试才有可信度。
+**数量关系（纠正旧口径）**：L1 可多于 L3，但 **L3 必须覆盖每条对外主链路**；手测矩阵在发布前补充，不替代自动化 L3。
 
 ---
 
-## 3. 查找已有测试
+## 2. 何时允许「单文件 / 单类」测试（L1 白名单）
 
-新增测试前先用被测类名、包名或能力关键词查现有 `*Test.kt`。能追加到同一被测对象的测试文件时，不新建文件。
+仅在下列类型新增或追加 **L1** 用例；其余默认走 L2/L3：
+
+| 类型 | 示例 | 模块 |
+|------|------|------|
+| 影响分析 / 图传播 | `DeployDataGenerator`、`DeployDataDatabase` | main |
+| 字节码 / Dex / APK 解析 | `ParsedDex`、`ApkInfoReader` | main |
+| 协议 / 日志解析 | `InstrumentationOutputParser`、`AdbLogWrapper`（有解析逻辑时） | main |
+| 时序 / 缓冲算法 | `AndroidTestLogAttributor`、`TestLauncher` logcat 归属 | idea |
+| 纯函数派生 | `AndroidTestCommandDeriver`、`InstrumentCommandBuilder` | main |
+| Direct overlay 校验 | `DirectOverlayStateChecker`、`DirectOverlayWriter` | main |
+| 序列化往返 | `ApkInfoSerializer`、`BaseBuildCmdRecord` | main |
+
+**不属于 L1（不要新建单文件 Mockito 测编排）**：
+
+- `JuggDeployerHelper`、`DeployStateRecover`、`DeployRetryHandler` 的「是否调用 recover」类分支 → **L2**；主链路 → **L3**
+- `DeployOptions` 字段、`JuggDeploymentService` 路径常量 → **L0**
+- `mergeOverlayIds` 等一行纯函数 → 并入已有 L2 文件，不单独开类
+
+---
+
+## 3. 选型决策（新增测试前 30 秒）
+
+1. 改动是否影响 **Run → 编译 → 部署** 用户路径？→ **先** 查/扩 `*FlowTest`（L3）
+2. 是否复杂算法 / 真实 D8 产物？→ `main` + testcase + `DeployDataGeneratorTest` 模式（L1）
+3. 是否 IDE-only 编排分支？→ 复用已有 `*Test.kt` 追加（L2），**禁止**为同一 Helper 再建新文件
+4. 是否仅数据结构？→ 不测（L0）
+
+---
+
+## 4. 文件与模块优先级
+
+1. **【最高】复用已有文件**：同一被测能力只追加用例，不新建 `*Test.kt`（除非 L1 白名单且尚无文件）。
+2. **【次优先】main 模块**：无 IDE 依赖时 L1 放 `main/src/test`。
+3. **【必要时】idea 模块**：IDE API、RunConfig、`JuggRunningTask`、deploy/run 编排。
+
+> androidTest / instrumentation：见 [`06_android_test.md`](06_android_test.md)。
+
+---
+
+## 5. 查找已有测试
 
 ```bash
-# Search by production class or action name
-rg -n "DeployDataGenerator|CompileAndDeployMcpToolAction" main/src/test idea/src/test
-
-# Search candidate test files by feature keyword
-rg --files main/src/test idea/src/test | rg "DeployData|McpToolAction|Compiler"
-
-# Search existing demo testcase scenarios
+rg -n "DeployDataGenerator|JuggDeployerHelper|TopLevelFlow" main/src/test idea/src/test
+rg --files main/src/test idea/src/test | rg "Deploy|Flow|Compiler|McpTool"
 rg --files android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase
 ```
 
-优先路径：
-
-| 场景 | 优先测试目录 | 说明 |
-|------|--------------|------|
-| 纯 main 逻辑、数据结构、协议解析 | `main/src/test/` | 默认优先，避免引入 IDE 测试开销 |
-| 依赖 IntelliJ Platform API、RunConfig、IDE 生命周期 | `idea/src/test/` | main 无法覆盖时再放 idea |
-| `DeployDataGenerator` 影响分析 | `main/src/test/.../deploy/data/` | 通常复用 `DeployDataGeneratorTest.kt` 或 SQLite 专测 |
-| MCP action / layout 子模块 | `main/src/test/.../ai/mcp/` | action 与协议层分别找已有测试 |
-| 完整编译/部署集成 | `idea/src/test/.../manager/` 或 `idea/src/test/.../compile/` | 仅在单元层无法证明行为时使用 |
+| 场景 | 优先目录 | 层级 |
+|------|----------|------|
+| 影响分析 / const ref | `main/.../deploy/data/` | L1 |
+| Direct overlay / writer | `main/.../deploy/direct/` | L1 |
+| 部署编排 / recover / retry | `idea/.../deploy/run/` 追加 + `idea/.../manager/*Flow*` | L2 + **L3** |
+| MCP action | `main/.../ai/mcp/` | L1/L2 |
+| 完整编译+部署 | `idea/.../manager/TopLevelFlowTest` 等 | L3 |
 
 ---
 
-## 4. 添加 testcase 类的规范
+## 6. testcase 类规范（L1 / L3 共用）
 
-### 4.1 目录约定
+### 6.1 目录约定
 
 ```text
 android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/
-└── <feature>/          # Use snake_case scenario name
-    ├── TargetClass.kt  # Core class under test
-    ├── SubClass.kt     # Subclass for cascade cases
-    └── InvokerClass.kt # Caller for method_refs cases
+└── <feature>/
+    ├── TargetClass.kt
+    └── InvokerClass.kt
 ```
 
-已有目录按场景命名。新增前先用第3节命令确认是否已有相同场景，避免为同一 bug 或传播规则拆出多个 testcase 目录。
+- 每目录**一个场景**；类名体现角色（`Parent` / `Child` / `Invoker`）。
+- 新增/修改 testcase 后删除 `~/.jugg/test_flag/skip_assemble` 或手动 assemble。
 
-### 4.2 类设计原则
+### 6.2 与 L3 关系
 
-- 每个 testcase 目录只覆盖**一个场景**，类越少越好。
-- 命名体现角色：`XxxParent` / `XxxChild` / `XxxInvoker` / `XxxImpl`。
-- 类本身不需要业务逻辑，`println` 占位即可。
-- 修改后需重新 assemble demo 项目：删除 `skip_assemble` flag 或手动执行。
+L3 Flow 依赖 `AssembleAndroidProjectOnce`；L1 `DeployDataGeneratorTest` 依赖同一 demo 产物。testcase 变更后两类测试均需回归。
 
 ---
 
-## 5. 编写 DeployDataGeneratorTest 的模式
+## 7. 典型链路测试落点
 
-### 5.1 从 APK 中提取单个类的 ParsedDex
+### 7.1 编译 → 部署（JuggDeployerHelper 重构口径）
+
+| 目标 | 层级 | 文件 |
+|------|------|------|
+| 用户点击 Run 后真部署 | **L3** | `TopLevelFlowTest`、`TopLevelFlowWithGitTest` |
+| androidTest 部署+instrument | **L3** | `AndroidTestTopLevelFlowTest` |
+| dry deploy / recover / retry 分支 | L2 | `JuggDeployerHelperRecoverTest`、`DeployRetryHandlerTest`（**追加**，不新建第三类 Helper 测试） |
+| Helper 编排分支（recover→runTask 参数） | L2-mock | `JuggDeployerHelperDeployFlowTest`（`RecordingDeployRunTaskExecutor` **不**跑 `JuggDeployer`） |
+| `JuggDeployer.tryDirectOverlaySwap` vs Apply Changes | L2-integration（待补） / L1 transport | `JuggDeployer.kt:168`；`idea/.../DirectOverlaySwapTransportTest` |
+| deploy 早退 | L2 | `JuggDeployerHelperDeployTest` |
+| overlay 三路一致 | L1 | `main/.../DirectOverlayStateCheckerTest` |
+| overlay 写入 | L1 | `main/.../DirectOverlayWriterTest` |
+| Direct overlay 设备写盘 | L2-real / L3 | `DeployFlowRealDeviceBackend`（待补）或 `TopLevelFlowTest` |
+
+**硬性**：改动 `JuggDeployerHelper.deploy` 分派或 recover→deploy 顺序时，执行清单必须包含 **至少 1 个 L3** 或说明复用哪条 Flow 场景。
+
+### 7.2 androidTest（阶段设计对齐）
+
+`docs/task/androidtest_support_design.md` §10 的组件表仍有效，但分层口径以**本页 §1** 为准：§10.2 列为 **L1 域内**，§10.3 为 **L2**，手测矩阵为 **L3 补充**。
+
+### 7.3 现有 L2 存量（idea/deploy/run）
+
+目录内 Mockito 单测视为 **L2 补充网**，新增用例优先**追加**到：
+
+- `DeployRetryHandlerTest` / `JuggDeployerHelperRecoverTest`
+- `TestLauncherResultTest`（L1 算法 + L2 会话）
+- `LibraryTestApkBackfillHelperTest`（偏 L2 协作）
+
+不新增 `DeployOptions*Test`、`JuggGlobalStoragePathTest` 同类 L0 文件。
+
+---
+
+## 8. TDD 与变更类型
+
+| 变更类型 | 测试要求 |
+|----------|----------|
+| **feature / bugfix** | 先写失败测试 → 清单列路径+层级 → 再改生产代码 |
+| **refactor** | 清单列路径+层级；编排类 **L3 或 Flow 回归** + 可选 L2 |
+| **optimize** | 同 refactor；性能断言需 L3 或基准场景 |
+| **仅 docs** | 无 |
+
+执行清单示例：
+
+```text
+- 已验证测试用例：TopLevelFlowTest#deployAfterModify (L3)；DeployRetryHandlerTest (L2)
+```
+
+---
+
+## 9. DeployDataGeneratorTest 模式（L1 示例）
+
+依赖真实 D8 编译产物；勿手写 `MethodNode` 省略 `$r8$lambda$` 等细节。
+
+### 9.1 从 APK 提取 ParsedDex
 
 ```kotlin
 private fun getParsedDex(className: String): ParsedDex {
@@ -124,88 +184,78 @@ private fun getParsedDex(className: String): ParsedDex {
 }
 ```
 
-### 5.2 模拟方法变更（增/删/改）
-
-```kotlin
-val modifiedMethods = classNode.methods.filter { it.name != "targetMethod" }
-val modifiedParsedDex = parsedDex.updateMethods(modifiedMethods)
-
-val addedMethods = classNode.methods + MethodNode(
-    classNode.className,
-    DexConstants.ACC_PUBLIC or DexConstants.ACC_ABSTRACT,
-    "newMethod",
-    "()V",
-)
-
-val methodsWithChangedAccess = classNode.methods.map {
-    if (it.name == "targetMethod") MethodNode(it.owner, DexConstants.ACC_PRIVATE, it.name, it.desc)
-    else it
-}
-```
-
-### 5.3 断言受影响的 source 文件
+### 9.2 断言受影响源文件
 
 ```kotlin
 val data = generator.buildDeployData(modifiedParsedDex, emptyList())
-
 assertEquals(listOf("SubClass1.java", "SubClass2.java").sorted(), data.effectedSourceFileNames.sorted())
-assertFalse(data.effectedSourceFileNames.contains("UnrelatedClass.kt"))
-assertTrue(data.effectedSourceFileNames.contains("InvokerClass.kt"))
 ```
 
-`effectedSourceFileNames` 扩展属性：
+---
+
+## 10. 测试基础设施
+
+### 10.1 前置条件
 
 ```kotlin
-private val JuggDeployData.effectedSourceFileNames
-    get() = effectedClassNodes.map { it.sourceFileName }.distinct()
+fun clearBuild() {
+    AssembleAndroidProjectOnce.ensure()
+    buildDir.clearDir()
+}
 ```
+
+### 10.2 关键全局变量（`mock/Commons.kt`）
+
+| 变量 | 含义 |
+|------|------|
+| `buildDir` | 临时编译输出 |
+| `assetsAndroidDir` | `android_demo_project` 根目录 |
+| `context` | `SimpleCompileContext` |
+| `projectInfo` | APK 元信息 |
 
 ---
 
-## 6. 运行测试
+## 11. 运行测试
 
-禁止不加 `--tests` 过滤运行完整测试套件。开发完成后运行本次改动对应的定向测试；需要编译兜底时，可运行 `:idea:compileKotlin`。
+禁止无 `--tests` 的全量 `:main:test` / `:idea:test`。
 
 ```bash
-# Run one test class
+# L3
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.manager.TopLevelFlowTest"
+
+# L2
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.deploy.run.DeployRetryHandlerTest"
+
+# L1
 ./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.data.DeployDataGeneratorTest"
 
-# Run one test method
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.manager.JuggCompilerTest.testName"
-
-# Compile verification without running full tests
 ./gradlew :idea:compileKotlin
-
-# Ensure ANDROID_HOME is set before first run
-export ANDROID_HOME=/path/to/android/sdk
 ```
-
-首次运行会触发 `android_demo_project` 的 Gradle assemble，耗时较长（几分钟），之后走缓存。
-
-设备相关测试或 androidTest 定向入口见 [`06_android_test.md` 第6节](06_android_test.md#6-测试入口)。
 
 ---
 
-## 7. 跳过 Assemble 加速本地迭代
-
-若已有编译产物不想重新 assemble，可创建 flag 文件：
+## 12. 跳过 Assemble 加速
 
 ```bash
-mkdir -p ~/.jugg/test_flag
-touch ~/.jugg/test_flag/enabled
-touch ~/.jugg/test_flag/skip_assemble
+mkdir -p ~/.jugg/test_flag && touch ~/.jugg/test_flag/enabled && touch ~/.jugg/test_flag/skip_assemble
 ```
 
-删除 `skip_assemble` 文件即可恢复自动 assemble。新增 testcase 类后必须删除。
+新增 testcase 后必须删除 `skip_assemble`。
 
 ---
 
-## 8. 常见陷阱
+## 13. 常见陷阱
 
 | 问题 | 原因 | 解决 |
 |------|------|------|
-| `getParsedDex` 返回空 classDeployItems | 类名写错，或 demo project 未重新 assemble | 检查类名拼写；删除 skip_assemble 重跑 |
-| `staticLambdaMethods.isNotEmpty()` 断言失败 | D8 未生成 lambda 静态方法，可能 Kotlin 版本差异 | 检查 demo project 编译产物 |
-| 测试通过但 SQLite 版本仍有问题 | `DeployDataGeneratorTest` 走的是内存版 `IncrementalDeployDataDatabase` | SQLite 路径需覆盖 `DeployDataDatabaseSqLiteHelperTest` |
-| `AssembleAndroidProjectOnce` 编译错误 | 依赖了 `idea` 模块中的类 | `main` 的测试代码只能依赖 `main` 模块 |
-| 在 main 模块无法编写测试 | 被测逻辑依赖 IntelliJ Platform API | 在 idea 模块对应文件中追加用例 |
+| 只有 L2 绿、线上仍坏 | 缺 L3 | 补 Flow 或扩 TopLevelFlow |
+| `getParsedDex` 为空 | 未 assemble / 类名错 | 删 skip_assemble |
+| SQLite 与内存 DB 行为不一致 | 只测内存库 | 补 `DeployDataDatabaseSqLiteHelperTest` |
+| 为 Helper 建第三个 `*Test` | 未复用文件 | 合并到 Recover/Retry |
+| 任务文档写「单测 >> 集成」 | 历史口径 | 以本页 §1 为准 |
+
+---
+
+## 14. 历史文档
+
+`docs/task/TDD_UNIT_TEST_COVERAGE_GAP_REPORT_*.md`、`androidtest_support_design.md` §10 等若写「单元测试数量远多于集成」，指 **L1 域内测试** 或历史盘点，**不等同**于鼓励为编排类堆 Mockito 单测。修订任务文档时分层以本页为准。

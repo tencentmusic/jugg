@@ -15,26 +15,38 @@
 
 ## 测试要求
 
+> **权威细则**：[06_testing.md](docs/ai_knowledge/06_testing.md)（分层、选型、落点、TDD 清单）。本节为硬性原则；实操与示例以该文档为准。
+
+### 测试分层（原则，优先级高于任何其他测试相关描述）
+
+| 层级 | 形态 | 何时必须/允许 |
+|------|------|----------------|
+| **L3 端到端** | `idea/.../manager/*Flow*`，真实 demo 编译 + 部署/运行 | 用户可见主链路变更；**deploy / compile 编排 refactor 至少 1 条** |
+| **L2 协作集成** | 多生产类协作；Mockito mock **接口**；可 fake 设备/ADB | 恢复/重试/编排分支；**不能代替 L3** |
+| **L1 域内测试** | 单模块 + 真实产物或纯函数；见 06_testing §2 | 复杂算法、解析器、影响分析、序列化等 |
+| **L0 禁止默认** | 数据类字段、路径常量、无行为的 getter | 不单独建 `*Test` |
+
+- **默认**：不为「单个编排类/Helper/策略类」新建仅 Mockito 的单文件测试。
+- **允许 L1 单文件**：复杂算法与确定性数据变换（如 `DeployDataGenerator`、`InstrumentationOutputParser`、`AndroidTestLogAttributor`）— 完整清单见 06_testing §2。
+- **L2 与 L3 关系**：L2 用于分支与回归速度；**对外承诺的行为**必须由 L3（或 06_testing §7 列出的等价 Flow）证明。
+
 ### 测试代码规范
-- 除复杂算法，否则不编写针对单个文件的单元测试。只编写集成测试/系统测试/e2e 测试。此规则优先级高于任何规则。
-- 禁止为了测试 mock 在生产代码中新增 `provider` / `supplier` / `factory` / `override` lambda、函数类型参数、可变闭包或默认 lambda 参数
-- 需要替换外部依赖时，必须抽象为有业务语义的接口或类，并通过正常生产依赖关系注入；接口命名和方法语义必须服务生产职责，而不是服务测试
-- 测试侧优先使用 Mockito mock 接口/类，不允许用 lambda 注入绕过真实协作对象
+- 禁止为测试在生产代码新增仅服务于 mock 的 `provider` / `supplier` / `factory` / `override` lambda、函数类型参数、可变闭包或默认 lambda 参数。
+- 需替换外部依赖时：抽象为**有业务语义**的接口/类（如 `IJuggDeployHelperRunHost`），经正常依赖注入；禁止测试专用命名。
+- 测试侧优先 Mockito mock **接口/类**；禁止用 lambda 注入绕过真实协作对象。
 
 ### feature / bugfix 变更 TDD 强制前置条件
 **禁止直接调用 Edit/Write 修改业务代码**，必须按顺序完成：
-1. 写好对应的失败测试（描述预期行为）
-2. 在执行清单中列出测试文件路径，确认测试已覆盖本次改动
+1. 按 06_testing §2 选定层级，写好失败测试（描述预期行为）
+2. 在执行清单中列出**测试文件路径 + 层级（L1/L2/L3）**，确认覆盖本次改动
 3. 再实现业务代码使测试通过
 
 ### optimize / refactor 变更 TDD 强制前置条件
-1. 在执行清单中列出测试文件路径，确认测试已覆盖本次改动；未覆盖时必须补充
-2. 变更完成后，确保测试通过
+1. 在执行清单中列出测试路径与层级；未覆盖时按 06_testing §8 补充（**涉及 `JuggDeployerHelper` / deploy/run 时须含 L3 或已有 Flow 回归**）
+2. 变更完成后，定向测试全通过（`--tests` 过滤，禁止全量 `:main:test` / `:idea:test`）
 
 ### 测试运行规范
-完成开发时需要运行测试套件，保证用例全通过，但禁止运行完整测试套件（`./gradlew :main:test` 或 `./gradlew :idea:test` 不加 `--tests` 过滤）**，因机器内存压力大，全量运行会导致机器卡顿。
-
-编译验证仍可用 `./gradlew :idea:compileKotlin`。
+完成开发时保证用例全通过；禁止无 `--tests` 过滤的全量 `:main:test` / `:idea:test`（内存压力）。编译验证可用 `./gradlew :idea:compileKotlin`。
 
 ## commit 规范
 _根据以下规则编写提交信息：

@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.deploy.run.utils.CopyEmbeddedDistributionPaths
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
+import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployRunTaskExecutor
 import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.deploy.run.instrument.TestLauncher
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
@@ -76,12 +77,15 @@ class JuggDeployerHelper(
     private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { device, ideaLogger ->
         IdeaDeviceAdb(device, ideaLogger)
     },
+    injectedDeployStateRecover: DeployStateRecover? = null,
+    injectedDeployRetryHandler: DeployRetryHandler? = null,
+    injectedDeployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
     private var installPathProvider: Computable<String> = Computable<String> {
         CopyEmbeddedDistributionPaths().get()
     },
 ) : IJuggDeployHelperRunHost {
 
-    private val deployStateRecover = DeployStateRecover(
+    private val deployStateRecover: DeployStateRecover = injectedDeployStateRecover ?: DeployStateRecover(
         project = project,
         deployTargetManager = deployTargetManager,
         deployFileManager = deployFileManager,
@@ -93,7 +97,7 @@ class JuggDeployerHelper(
         logger = logger,
     )
 
-    private val deployRetryHandler = DeployRetryHandler(
+    private val deployRetryHandler: DeployRetryHandler = injectedDeployRetryHandler ?: DeployRetryHandler(
         deployTargetManager = deployTargetManager,
         deployFileManager = deployFileManager,
         deployStateRecover = deployStateRecover,
@@ -101,6 +105,10 @@ class JuggDeployerHelper(
         deployRunHost = this,
         logger = logger,
     )
+
+    private val deployRunTaskExecutor: IJuggDeployRunTaskExecutor = injectedDeployRunTaskExecutor ?: object : IJuggDeployRunTaskExecutor {
+        override fun execute(request: JuggDeployRunTaskRequest): LaunchResult = executeDeployRunTask(request)
+    }
 
     private var isRunning = false
 
@@ -122,7 +130,9 @@ class JuggDeployerHelper(
         )
     }
 
-    private fun runTask(request: JuggDeployRunTaskRequest): LaunchResult = synchronized(runTaskLock) {
+    private fun runTask(request: JuggDeployRunTaskRequest): LaunchResult = deployRunTaskExecutor.execute(request)
+
+    private fun executeDeployRunTask(request: JuggDeployRunTaskRequest): LaunchResult = synchronized(runTaskLock) {
         val device = request.device
         val data = request.data
         val isSkipExceptOverlayCheck = request.isSkipExceptOverlayCheck

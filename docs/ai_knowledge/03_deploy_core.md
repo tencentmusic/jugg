@@ -91,3 +91,4 @@
 - 部署全流程：`03_deploy_complete.md`
 - 影响分析：`03_deploy_data_generator.md`
 - JVMTI：`03_runtime_jvmti.md`
+- 部署相关测试落点（L1/L2/L3）：`06_testing.md` §7.1
