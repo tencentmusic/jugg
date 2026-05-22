@@ -259,16 +259,9 @@ class JuggRunningTask(
         }
 
         val totalTime = compileTaskResult.costTime + totalDeployTime
-        when (deployType) {
-            JuggDeployData.DeployType.INSTALL -> {
-                logger.info("\nGradle BUILD_AND_INSTALL SUCCESSFUL in ${totalTime / 1000}s.")
-                logger.info("App launched.")
-            }
-            else -> {
-                logger.info("\nJugg $deployType SUCCESSFUL in ${totalTime / 1000}s.")
-                logger.info("App deployed.")
-            }
-        }
+        val successLog = buildDeploySuccessLogLines(deployType, compileTaskResult.isGradleCompile, totalTime)
+        logger.info(successLog.headline)
+        logger.info(successLog.followUp)
 
         if (compileTaskResult.isGradleCompile) {
             initIncrementalCompileTask.invoke()
@@ -403,6 +396,39 @@ class JuggRunningTask(
 internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiHandler: CompileUiHandler) {
     if (isFirstTimeRun) {
         compileUiHandler.ensureRunWindowCreated()
+    }
+}
+
+internal data class DeploySuccessLogLines(
+    val headline: String,
+    val followUp: String,
+)
+
+internal fun buildDeploySuccessLogLines(
+    deployType: JuggDeployData.DeployType,
+    isGradleCompile: Boolean,
+    totalTimeMillis: Long,
+): DeploySuccessLogLines {
+    val totalSeconds = totalTimeMillis / 1000
+    return when {
+        deployType == JuggDeployData.DeployType.INSTALL && isGradleCompile -> {
+            DeploySuccessLogLines(
+                headline = "\nGradle BUILD_AND_INSTALL SUCCESSFUL in ${totalSeconds}s.",
+                followUp = "App launched.",
+            )
+        }
+        deployType == JuggDeployData.DeployType.INSTALL -> {
+            DeploySuccessLogLines(
+                headline = "\nJugg INSTALL SUCCESSFUL in ${totalSeconds}s.",
+                followUp = "App launched.",
+            )
+        }
+        else -> {
+            DeploySuccessLogLines(
+                headline = "\nJugg $deployType SUCCESSFUL in ${totalSeconds}s.",
+                followUp = "App deployed.",
+            )
+        }
     }
 }
 

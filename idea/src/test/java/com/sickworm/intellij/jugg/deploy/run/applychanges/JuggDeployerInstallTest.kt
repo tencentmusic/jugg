@@ -57,6 +57,9 @@ class JuggDeployerInstallTest {
 
         assertFalse(result.skippedInstall)
         assertEquals(2, fixture.compat.installCalls)
+        Mockito.verify(fixture.ideaLogger).info(
+            Mockito.eq("Install succeeded after transient ADB failure, retried once."),
+        )
     }
 
     @Test
@@ -137,7 +140,8 @@ class JuggDeployerInstallTest {
         val deploymentService = Mockito.mock(IJuggDeployerDeploymentService::class.java)
         val installer = Mockito.mock(Installer::class.java)
         val service = Mockito.mock(UIService::class.java)
-        val logger = AdbLogWrapper(Mockito.mock(Logger::class.java))
+        val ideaLogger = Mockito.mock(Logger::class.java)
+        val logger = AdbLogWrapper(ideaLogger)
 
         val deployer = JuggDeployer(
             adb = adb,
@@ -150,7 +154,7 @@ class JuggDeployerInstallTest {
             directOverlaySwapOptions = DirectOverlaySwapOptions.disabled(),
             asDeployerCompat = compat,
         )
-        return Fixture(adb, compat, deploymentService, logger, deployer)
+        return Fixture(adb, compat, deploymentService, ideaLogger, logger, deployer)
     }
 
     private fun testApk(): Apk {
@@ -268,6 +272,7 @@ class JuggDeployerInstallTest {
         val adb: AdbClient,
         val compat: RecordingInstallCompat,
         val deploymentService: IJuggDeployerDeploymentService,
+        val ideaLogger: Logger,
         val logger: AdbLogWrapper,
         val deployer: JuggDeployer,
     )

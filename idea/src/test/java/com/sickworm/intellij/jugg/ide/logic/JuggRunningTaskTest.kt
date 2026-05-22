@@ -1,10 +1,48 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.mockito.Mockito
 
 class JuggRunningTaskTest {
+
+    @Test
+    fun `gradle compile install success uses BUILD_AND_INSTALL headline`() {
+        val lines = buildDeploySuccessLogLines(
+            deployType = JuggDeployData.DeployType.INSTALL,
+            isGradleCompile = true,
+            totalTimeMillis = 13_000,
+        )
+
+        assertEquals("\nGradle BUILD_AND_INSTALL SUCCESSFUL in 13s.", lines.headline)
+        assertEquals("App launched.", lines.followUp)
+    }
+
+    @Test
+    fun `incremental recover install success uses Jugg INSTALL headline`() {
+        val lines = buildDeploySuccessLogLines(
+            deployType = JuggDeployData.DeployType.INSTALL,
+            isGradleCompile = false,
+            totalTimeMillis = 2_827,
+        )
+
+        assertEquals("\nJugg INSTALL SUCCESSFUL in 2s.", lines.headline)
+        assertEquals("App launched.", lines.followUp)
+    }
+
+    @Test
+    fun `incremental hot reload success keeps Jugg deploy headline`() {
+        val lines = buildDeploySuccessLogLines(
+            deployType = JuggDeployData.DeployType.HOT_RELOAD,
+            isGradleCompile = false,
+            totalTimeMillis = 5_000,
+        )
+
+        assertEquals("\nJugg HOT_RELOAD SUCCESSFUL in 5s.", lines.headline)
+        assertEquals("App deployed.", lines.followUp)
+    }
 
     @Test
     fun `first task start creates run tool window without activating it`() {

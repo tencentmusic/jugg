@@ -107,7 +107,9 @@ class JuggDeployer(
             if (!waitAdbTransportReady("install", adb, logger)) {
                 throw AdbTransientOffline.toException("install", first)
             }
-            runInstallAttempt(packageName, apks, options, installMode)
+            val installed = runInstallAttempt(packageName, apks, options, installMode)
+            logger.logger.info("Install succeeded after transient ADB failure, retried once.")
+            return installed
         }
     }
 
