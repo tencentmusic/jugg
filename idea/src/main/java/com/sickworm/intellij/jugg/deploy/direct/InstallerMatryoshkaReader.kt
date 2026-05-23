@@ -16,7 +16,7 @@ class InstallerMatryoshkaReader(
 ) {
 
     fun extractAgentSo(deviceAbi: String, arch: Deploy.Arch): ByteArray {
-        val dollName = agentDollName(arch)
+        val dollName = InstallerAgentDollNames.resolve(deviceAbi, arch)
         val installer = File(installersRoot, "$deviceAbi/installer")
         if (!installer.isFile) {
             fail("installer not found at ${installer.absolutePath}")
@@ -35,18 +35,26 @@ class InstallerMatryoshkaReader(
         }
     }
 
-    private fun agentDollName(arch: Deploy.Arch): String {
-        return if (arch == Deploy.Arch.ARCH_32_BIT) {
-            "agent-alt.so"
-        } else {
-            "agent.so"
-        }
-    }
-
     private fun fail(message: String, cause: Throwable? = null): Nothing {
         val detail = "Direct overlay deploy failed: $message"
         logger.warn(detail, cause)
         throw DirectOverlayDeployFailedException(detail, cause)
+    }
+}
+
+/**
+ * Maps deploy arch and host installer ABI to the matryoshka doll name used by AS installer packaging.
+ * agent-alt.so exists only in 64-bit installers (arm64-v8a / x86_64) for 32-bit apps on 64-bit devices.
+ */
+internal object InstallerAgentDollNames {
+    private val INSTALLER_64_BIT_ABIS = setOf("arm64-v8a", "x86_64")
+
+    fun resolve(deviceAbi: String, arch: Deploy.Arch): String {
+        return if (deviceAbi in INSTALLER_64_BIT_ABIS && arch == Deploy.Arch.ARCH_32_BIT) {
+            "agent-alt.so"
+        } else {
+            "agent.so"
+        }
     }
 }
 
