@@ -7,6 +7,9 @@ interface IJuggRunningTaskStatusManager {
 
     fun isFirstTimeRun(runningDevice: String? = null): Boolean
 
+    /** True when the current Run detected a project-root switch since the previous Run. */
+    var isProjectSwitchedThisRun: Boolean
+
     fun setHasRun(runningDevice: String?)
 
     fun resetHasRun()
@@ -19,6 +22,8 @@ interface IJuggRunningTaskStatusManager {
 class JuggRunningTaskStatusManager : IJuggRunningTaskStatusManager {
 
     private var isFirstTimeRun: Boolean = true
+
+    override var isProjectSwitchedThisRun: Boolean = false
 
     private var lastRunningDevice: String = ""
 

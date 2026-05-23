@@ -49,6 +49,7 @@ class JuggDeployerHelper(
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployStateManager: DeployStateManager,
     private val dependencyChangeManager: IDependencyChangeManager,
+    private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager,
     private val compileContextManager: CompileContextManager,
     private val juggServer: JuggServer,
     private val taskRunnerManager: TaskRunnerManager,
@@ -548,7 +549,11 @@ class JuggDeployerHelper(
         }
 
         var isRecoverWithReinstall = false
-        if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy) {
+        val isProjectSwitchedThisRun = juggRunningTaskStatusManager.isProjectSwitchedThisRun
+        if (isProjectSwitchedThisRun) {
+            logger.debug("Project switched since last run, force recover deploy state.")
+        }
+        if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy || isProjectSwitchedThisRun) {
             if (deployStateManager.getDeployState(device).isReadyIncCompile) {
                 val (isSuccess, isReinstalled) = deployStateRecover.recoverDeployState(
                     device,

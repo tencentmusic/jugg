@@ -152,14 +152,14 @@ class DeployRetryHandler(
                     allowDirectOverlayRecover = allowDirectOverlayRecover,
                 )
                 if (!isSuccess) {
-                    logger.info("Try recover deploy state failed on retry.")
+                    logger.warn("Try recover deploy state failed on retry.")
                     return DeployTaskResult(
                         isSuccess = false,
                         costTime = System.currentTimeMillis() - deployOptions.startTime,
                         failedReason = "Try recover deploy state failed on retry.",
                     )
                 } else {
-                    logger.info("Try recover deploy state success on retry.")
+                    logger.debug("Try recover deploy state success on retry.")
                 }
             }
             val nextDeployOptions = deployOptions.copy(

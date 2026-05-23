@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
+import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
@@ -107,6 +108,7 @@ internal object DeployFlowTestSupport {
             deployHistoryManager = deployHistoryManager,
             deployStateManager = deployStateManager,
             dependencyChangeManager = defaultDependencyChangeManager(),
+            juggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
             compileContextManager = compileContextManager,
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = taskRunnerManager,

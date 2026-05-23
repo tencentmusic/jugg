@@ -28,6 +28,8 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.LastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.PrintWriter
@@ -52,6 +54,7 @@ class JuggRunningTask(
     private val initIncrementalCompileTask: () -> Unit,
     private val compileUiHandler: CompileUiHandler,
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
+    private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg..."), IJuggRunningTask {
 
@@ -77,6 +80,9 @@ class JuggRunningTask(
                 RuntimeMockUtils.runTest(logger)
                 return
             }
+
+            statusManager.isProjectSwitchedThisRun =
+                lastCompileProjectRegistry.detectSwitch(options.projectRootPath)
 
             dependencyChangeManager.onStartBuilding()
             JuggLogger.recreateLogFileIfDeleted(project)
@@ -109,6 +115,7 @@ class JuggRunningTask(
             compileUiHandler.onEnd(RunResult.FAILED)
         } finally {
             isRunning = false
+            lastCompileProjectRegistry.record(options.projectRootPath)
             val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask
             if (isCanceled) {
                 isNeedResetHasRun = true

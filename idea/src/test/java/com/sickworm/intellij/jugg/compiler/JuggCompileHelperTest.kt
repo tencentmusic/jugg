@@ -2,13 +2,17 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.JuggCompiler
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
@@ -17,6 +21,8 @@ import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
+import org.junit.Assert.assertTrue
+import org.junit.BeforeClass
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
@@ -25,6 +31,15 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 class JuggCompileHelperTest {
+
+    companion object {
+        @BeforeClass
+        @JvmStatic
+        fun initTestEnv() {
+            TestGlobal.init()
+            JuggLogger.register("/tmp/jugg-test", TestGlobal.projectInfo.projectRoot)
+        }
+    }
 
     @Test
     fun preprocessIncrementalCompile_noFileChanges_onlyRunAsyncGitCheck() {
@@ -35,6 +50,23 @@ class JuggCompileHelperTest {
 
         verify(fixture.gitChangeChecker).checkUndetectedFilesAsync(any())
         verify(fixture.gitChangeChecker, never()).checkUndetectedFiles(any())
+    }
+
+    @Test
+    fun incrementalCompile_noFileChanges_projectSwitched_deployDirectlyWithoutConfirm() {
+        val fixture = createFixture()
+        fixture.juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        fixture.helper.juggCompiler = mock<JuggCompiler>()
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler)
+
+        assertTrue(result.isSuccess)
+        verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
     }
 
     @Test
@@ -57,14 +89,14 @@ class JuggCompileHelperTest {
         val deployStateManager = mock<DeployStateManager>()
         val deployFileManager = mock<DeployFileManager>()
         val deployHistoryManager = mock<IDeployHistoryManager>()
-        val juggRunningTaskStatusManager = mock<IJuggRunningTaskStatusManager>()
+        val juggRunningTaskStatusManager = JuggRunningTaskStatusManager()
         val compileContextManager = mock<CompileContextManager>()
         val fileChangesHandler = mock<IFileChangesHandler>()
         val dependencyChangeManager = mock<IDependencyChangeManager>()
         val gradleProjectInfoLocalFetchManager = mock<GradleProjectInfoLocalFetchManager>()
         val gitFileChangesDetector = mock<GitFileChangesDetector>()
         val taskRunnerManager = mock<TaskRunnerManager>()
-        val logger = mock<Logger>()
+        val logger = TestGlobal.getLogger()
         val gitChangeChecker = mock<GitChangesCompileChecker>()
         val uiHandler = mock<CompileUiHandler>()
         val options = mock<JuggGradleCompileOptions>()
@@ -98,9 +130,12 @@ class JuggCompileHelperTest {
         return Fixture(
             helper = helper,
             deployFileManager = deployFileManager,
+            dependencyChangeManager = dependencyChangeManager,
             gitChangeChecker = gitChangeChecker,
             uiHandler = uiHandler,
             options = options,
+            deployTargetManager = deployTargetManager,
+            juggRunningTaskStatusManager = juggRunningTaskStatusManager,
         )
     }
 
@@ -121,8 +156,11 @@ class JuggCompileHelperTest {
     private data class Fixture(
         val helper: JuggCompilerHelper,
         val deployFileManager: DeployFileManager,
+        val deployTargetManager: IDeployTargetManager,
+        val dependencyChangeManager: IDependencyChangeManager,
         val gitChangeChecker: GitChangesCompileChecker,
         val uiHandler: CompileUiHandler,
         val options: JuggGradleCompileOptions,
+        val juggRunningTaskStatusManager: JuggRunningTaskStatusManager,
     )
 }

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
+import com.android.sdklib.AndroidVersion
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ICompileContext
@@ -11,8 +12,12 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
+import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.run.LaunchResult
+import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployRunTaskExecutor
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -107,6 +112,87 @@ class JuggDeployerHelperDeployTest {
 
         assertFalse(result.isSuccess)
         assertEquals("device not ready to warm up", result.failedReason)
+    }
+
+    @Test
+    fun `deploy should recover when device is ready deploy but project switched this run`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val androidVersion = Mockito.mock(AndroidVersion::class.java)
+        Mockito.`when`(androidVersion.apiLevel).thenReturn(30)
+        Mockito.`when`(device.version).thenReturn(androidVersion)
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.hasDevice).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(listOf(apkInfo("/tmp/jugg-deploy-test/app.apk")))
+
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(JuggDeployState.READY)
+
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        val emptyDeployData = JuggDeployData(
+            apks = listOf(apkInfo("/tmp/jugg-deploy-test/app.apk")),
+            newClasses = emptyList(),
+            hotFixModifiedClasses = emptyList(),
+            hotReloadModifiedClasses = emptyList(),
+            effectedClassNodes = emptyList(),
+            overlays = emptyList(),
+            parsedDex = ParsedDex.EMPTY,
+            isFullRes = false,
+            isWarmUp = false,
+        )
+        Mockito.`when`(deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean())).thenReturn(emptyDeployData)
+        Mockito.`when`(deployFileManager.getStagingFiles()).thenReturn(emptyList())
+
+        val dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java)
+        Mockito.`when`(dependencyChangeManager.getRemovedLibraryFiles()).thenReturn(emptyList())
+
+        val statusManager = JuggRunningTaskStatusManager().apply {
+            isProjectSwitchedThisRun = true
+        }
+        val recoverInvokeCount = intArrayOf(0)
+        val deployStateRecover = object : DeployStateRecover(
+            project = Mockito.mock(Project::class.java),
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+            deployStateManager = deployStateManager,
+            deployRunHost = Mockito.mock(com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost::class.java),
+            deploymentService = Mockito.mock(com.sickworm.intellij.jugg.deploy.IJuggDeploymentService::class.java),
+            deviceAdbFactory = { _, _ -> Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeviceAdb::class.java) },
+            logger = TestGlobal.getLogger(),
+        ) {
+            override fun recoverDeployState(
+                device: IDevice,
+                indicator: com.intellij.openapi.progress.ProgressIndicator?,
+                isNeedDryDeployFirst: Boolean,
+                isSkipExceptOverlayCheck: Boolean,
+                isInstallUpdateApk: Boolean,
+                compileUiHandler: com.sickworm.intellij.jugg.compiler.CompileUiHandler,
+                allowDirectOverlayRecover: Boolean,
+            ): Pair<Boolean, Boolean> {
+                recoverInvokeCount[0]++
+                return true to false
+            }
+        }
+
+        val deployRunTaskExecutor = Mockito.mock(IJuggDeployRunTaskExecutor::class.java)
+        Mockito.`when`(deployRunTaskExecutor.execute(org.mockito.kotlin.any())).thenReturn(LaunchResult(true, 0, null, emptyMap()))
+
+        val helper = createHelper(
+            deployTargetManager = deployTargetManager,
+            deployStateManager = deployStateManager,
+            deployFileManager = deployFileManager,
+            dependencyChangeManager = dependencyChangeManager,
+            juggRunningTaskStatusManager = statusManager,
+            injectedDeployStateRecover = deployStateRecover,
+            deployRunTaskExecutor = deployRunTaskExecutor,
+        )
+        val result = helper.deploy(
+            DeployOptions(device = device, isLastDevice = true, isInstall = false),
+        )
+
+        assertTrue("recover not invoked, failedReason=${result.failedReason}", recoverInvokeCount[0] == 1)
+        assertTrue(result.isSuccess)
     }
 
     @Test
@@ -215,7 +301,9 @@ class JuggDeployerHelperDeployTest {
         deployStateManager: DeployStateManager = Mockito.mock(DeployStateManager::class.java),
         deployFileManager: DeployFileManager = Mockito.mock(DeployFileManager::class.java),
         dependencyChangeManager: IDependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java),
+        juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
         deployRetryHandler: DeployRetryHandler? = null,
+        injectedDeployStateRecover: DeployStateRecover? = null,
         deployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
     ): JuggDeployerHelper {
         val project = Mockito.mock(Project::class.java)
@@ -233,10 +321,12 @@ class JuggDeployerHelperDeployTest {
             deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
             deployStateManager = deployStateManager,
             dependencyChangeManager = dependencyChangeManager,
+            juggRunningTaskStatusManager = juggRunningTaskStatusManager,
             compileContextManager = compileContextManager,
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
             logger = TestGlobal.getLogger(),
+            injectedDeployStateRecover = injectedDeployStateRecover,
             injectedDeployRetryHandler = deployRetryHandler,
             injectedDeployRunTaskExecutor = deployRunTaskExecutor,
         )

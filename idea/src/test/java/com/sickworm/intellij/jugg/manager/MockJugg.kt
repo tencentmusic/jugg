@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
@@ -366,7 +367,19 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
                 moduleManager = compileModuleManager, customCompilerManager = customCompilerManager)
         }
 
-        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, taskRunnerManager, logger) {
+        juggDeployerHelper = JuggDeployerHelper(
+            project,
+            deployTargetManager,
+            deployFileManager,
+            deployHistoryManager,
+            deployStateManager,
+            dependencyChangeManager,
+            JuggRunningTaskStatusManager(),
+            compileContextManager,
+            juggServer,
+            taskRunnerManager,
+            logger,
+        ) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
                 downloader.makeSureComponentIsInPlace()

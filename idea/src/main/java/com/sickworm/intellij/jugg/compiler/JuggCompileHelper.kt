@@ -528,6 +528,14 @@ class JuggCompilerHelper(
                     logger.info("No file changes, but last compilation not finished" +
                             ", will run with incremental compile.")
                 }
+            } else if (juggRunningTaskStatusManager.isProjectSwitchedThisRun) {
+                if (deployFileManager.getUncompiledFiles().isEmpty()) {
+                    logger.info("No file changes, but project switched since last run, deploy directly.")
+                    return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
+                } else {
+                    logger.info("No file changes, but project switched since last run" +
+                            ", will run with incremental compile.")
+                }
             } else {
                 logger.info("No file changes. will fallback to gradle compile.")
 
