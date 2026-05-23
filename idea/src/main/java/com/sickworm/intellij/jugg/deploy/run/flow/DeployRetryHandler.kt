@@ -142,12 +142,14 @@ class DeployRetryHandler(
             }
             if (!isRetryDirectly) {
                 val isNeedDryDeployFirst = isDirectDeployFailed
+                val allowDirectOverlayRecover = !isDirectDeployFailed && deployOptions.isAllowDirectOverlayDeploy
                 val (isSuccess, _) = deployStateRecover.recoverDeployState(
                     deployOptions.device,
                     deployOptions.indicator,
                     isNeedDryDeployFirst = isNeedDryDeployFirst,
                     deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
+                    allowDirectOverlayRecover = allowDirectOverlayRecover,
                 )
                 if (!isSuccess) {
                     logger.info("Try recover deploy state failed on retry.")

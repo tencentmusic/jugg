@@ -49,6 +49,7 @@ class DeployFlowRecoverFixtureHooks(
         isSkipExceptOverlayCheck: Boolean,
         isInstallUpdateApk: Boolean,
         compileUiHandler: CompileUiHandler,
+        allowDirectOverlayRecover: Boolean,
     ): Pair<Boolean, Boolean> {
         val result = super.recoverDeployState(
             device = device,
@@ -57,6 +58,7 @@ class DeployFlowRecoverFixtureHooks(
             isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
             isInstallUpdateApk = isInstallUpdateApk,
             compileUiHandler = compileUiHandler,
+            allowDirectOverlayRecover = allowDirectOverlayRecover,
         )
         if (result.first) {
             ideDeployStateHelper.forIncrementalNotDeployable()

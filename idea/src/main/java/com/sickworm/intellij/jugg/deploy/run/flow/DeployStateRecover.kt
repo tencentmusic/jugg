@@ -40,6 +40,7 @@ open class DeployStateRecover(
         isSkipExceptOverlayCheck: Boolean,
         isInstallUpdateApk: Boolean = false,
         compileUiHandler: CompileUiHandler,
+        allowDirectOverlayRecover: Boolean = true,
     ): Pair<Boolean, Boolean> {
         val isCleanAndReinstall = deployHistoryManager.isCleanAndReinstall
         val reinstallTips = if (isCleanAndReinstall) {
@@ -56,7 +57,12 @@ open class DeployStateRecover(
 
         // dry deploy first, if success, no need to reinstall and recover
         if (isNeedDryDeployFirst && !isCleanAndReinstall) {
-            val dryDeployResult = tryDryDeploy(device, isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
+            val dryDeployResult = tryDryDeploy(
+                device,
+                isSkipExceptOverlayCheck,
+                compileUiHandler = compileUiHandler,
+                allowDirectOverlayRecover = allowDirectOverlayRecover,
+            )
             if (dryDeployResult == DryDeployResult.SUCCESS) {
                 logger.debug("Deploy state matched, no need reinstall app.")
                 return true to false
@@ -84,7 +90,7 @@ open class DeployStateRecover(
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
         logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
 
-        val deferPostDeployLaunch = JuggSettings.isEnableDirectOverlayDeploy
+        val deferPostDeployLaunch = allowDirectOverlayRecover && JuggSettings.isEnableDirectOverlayDeploy
         val costTime = measureTimeMillis {
             deployRunHost.runRecoverDeployTask(
                 device,
@@ -92,11 +98,12 @@ open class DeployStateRecover(
                 isSkipExceptOverlayCheck = false,
                 compileUiHandler = compileUiHandler,
                 deferPostDeployLaunch = deferPostDeployLaunch,
+                isAllowDirectOverlayDeploy = allowDirectOverlayRecover,
             )
         }
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
 
-        // Follow-up deploy launches the app when launch was deferred; do not wait for online here.
+        // Direct overlay recover defers launch; legacy recover must wait for the app to come online.
         if (deferPostDeployLaunch) {
             logger.debug("Skip wait for online; follow-up deploy will launch the app.")
         } else {
@@ -115,12 +122,13 @@ open class DeployStateRecover(
         device: IDevice,
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
+        allowDirectOverlayRecover: Boolean = true,
     ): DryDeployResult {
         if (deployTargetManager.isAppInstalled(device) == false) {
             return DryDeployResult.APP_NOT_INSTALLED
         }
 
-        tryDirectDryDeploy(device)?.let {
+        tryDirectDryDeploy(device, allowDirectOverlayRecover)?.let {
             logger.debug("Try directly dry deploy finish, result: $it")
             return it
         }
@@ -145,6 +153,8 @@ open class DeployStateRecover(
                 dryDeployData,
                 isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
                 compileUiHandler = compileUiHandler,
+                deferPostDeployLaunch = false,
+                isAllowDirectOverlayDeploy = allowDirectOverlayRecover,
             )
             DryDeployResult.SUCCESS
         } catch (e: Exception) {
@@ -158,9 +168,9 @@ open class DeployStateRecover(
         }
     }
 
-    private fun tryDirectDryDeploy(device: IDevice): DryDeployResult? {
-        if (!JuggSettings.isEnableDirectOverlayDeploy) {
-            logger.debug("Direct overlay state check skipped because direct overlay deploy is disabled.")
+    private fun tryDirectDryDeploy(device: IDevice, allowDirectOverlayRecover: Boolean): DryDeployResult? {
+        if (!allowDirectOverlayRecover || !JuggSettings.isEnableDirectOverlayDeploy) {
+            logger.debug("Direct overlay state check skipped because direct overlay recover is disabled.")
             return null
         }
         val packageName = runCatching { deployTargetManager.getPackageName() }.getOrNull()

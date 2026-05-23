@@ -121,6 +121,7 @@ class JuggDeployerHelper(
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
         deferPostDeployLaunch: Boolean,
+        isAllowDirectOverlayDeploy: Boolean,
     ) {
         runTask(
             JuggDeployRunTaskRequest(
@@ -129,6 +130,7 @@ class JuggDeployerHelper(
                 compileUiHandler = compileUiHandler,
                 isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
                 deferPostDeployLaunch = deferPostDeployLaunch,
+                isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             ),
         )
     }
@@ -555,6 +557,7 @@ class JuggDeployerHelper(
                     isInstallUpdateApk = isNeedReinstallApk,
                     isSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
+                    allowDirectOverlayRecover = deployOptions.isAllowDirectOverlayDeploy,
                 )
                 if (!isSuccess) {
                     logger.info("Try recover deploy state failed.")

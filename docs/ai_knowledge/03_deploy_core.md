@@ -145,11 +145,14 @@ recoverDeployState()
           -> run dry deploy payload
   -> dry deploy 成功: 不重装
   -> dry deploy 失败 / app updated / clean reinstall: install apks
-  -> 重装后按需 waitingForDeployable(默认 5s)
+  -> allowDirectOverlayRecover && direct overlay 开关: defer INSTALL 后 launch，跳过 waitingForDeployable(5s)
+  -> 否则: INSTALL 后 restart + waitingForDeployable(5s)
   -> DeployFileManager.resetAfterReinstall()
 ```
 
-Direct Overlay recover 只在 `JuggSettings.isEnableDirectOverlayDeploy` 开启时参与。它要求 deploy history、deployment cache、设备 `code_cache/.overlay/id` 三者一致；ADB / `run-as` 无法确认时返回 UNKNOWN，继续旧 dry deploy，不直接判失败。
+Direct Overlay recover 只在 `allowDirectOverlayRecover=true` 且 `JuggSettings.isEnableDirectOverlayDeploy` 开启时参与 `tryDirectDryDeploy` / defer launch。`DeployRetryHandler` 在 **direct deploy failed** retry 时传 `allowDirectOverlayRecover=false`：recover 走 legacy（启动 App + Apply Changes dry deploy；reinstall 后 wait online），与 redeploy 的 `isAllowDirectOverlayDeploy=false` 一致。
+
+其它 recover 场景（overlay mismatch、主链路 not ready）保持 `allowDirectOverlayRecover=true`（或来自 `DeployOptions.isAllowDirectOverlayDeploy`）。
 
 ### 5.2 retry
 
@@ -160,7 +163,7 @@ Direct Overlay recover 只在 `JuggSettings.isEnableDirectOverlayDeploy` 开启�
 | `JVMTI_ERROR_UNMODIFIABLE_CLASS` / `app restart` / redefiner/internal error | fallback 到 HOT_FIX 后 redeploy。 |
 | `INSTRUMENTATION_FAILED` / `IOException occurred` | 不改 payload，直接重试。 |
 | agent no response / deploy timeout | 先检测 JVMTI compat；必要时 compat deploy。 |
-| overlay id mismatch / class not found / direct deploy failed | recover deploy state 后 redeploy。 |
+| overlay id mismatch / class not found / direct deploy failed | recover deploy state 后 redeploy。direct deploy failed 时 recover 禁用 direct overlay（legacy + `isAllowDirectOverlayDeploy=false`）。 |
 | install `INSTALL_FAILED_INVALID_APK` | uninstall 当前 applicationId 集合后重新 install。 |
 | 用户限制、设备丢失、APK install 失败、embedded APK 冲突 | 停止 fallback，向上暴露失败。 |
 

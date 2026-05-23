@@ -64,6 +64,96 @@ class JuggDeployerHelperRecoverTest {
     }
 
     @Test
+    fun `tryDryDeploy should use legacy path when direct overlay recover is disallowed`() {
+        val device = Mockito.mock(IDevice::class.java)
+        Mockito.`when`(device.serialNumber).thenReturn("device-1")
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+        Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(emptyList())
+
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
+            .thenReturn(mapOf("com.example.app" to "overlay-id"))
+
+        val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
+            .thenReturn(CachedOverlayId(sha = "overlay-id", isBaseInstall = false))
+
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(JuggDeployState.READY)
+
+        val recoverHost = RecordingRecoverHost()
+        val recover = createDeployStateRecover(
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            deploymentService = deploymentService,
+            deployStateManager = deployStateManager,
+            deployRunHost = recoverHost,
+            logger = TestGlobal.getLogger(),
+        )
+
+        val result = recover.tryDryDeploy(
+            device,
+            false,
+            CompileUiHandler.DEFAULT,
+            allowDirectOverlayRecover = false,
+        )
+
+        assertEquals(DryDeployResult.SUCCESS, result)
+        Mockito.verify(deployTargetManager).restartApp(device)
+        Mockito.verifyNoInteractions(deploymentService)
+    }
+
+    @Test
+    fun `recoverDeployState should not defer install launch when direct overlay recover is disallowed`() {
+        val device = Mockito.mock(IDevice::class.java)
+        Mockito.`when`(device.serialNumber).thenReturn("device-1")
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(emptyList())
+
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        Mockito.`when`(deployHistoryManager.isCleanAndReinstall).thenReturn(false)
+        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
+            .thenReturn(mapOf("com.example.app" to "overlay-id"))
+
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(JuggDeployState.READY)
+
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
+            .thenReturn(null)
+
+        val recoverHost = RecordingRecoverHost()
+        val recover = createDeployStateRecover(
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployStateManager = deployStateManager,
+            deploymentService = deploymentService,
+            deployRunHost = recoverHost,
+            logger = TestGlobal.getLogger(),
+        )
+
+        recover.recoverDeployState(
+            device = device,
+            indicator = null,
+            isNeedDryDeployFirst = true,
+            isSkipExceptOverlayCheck = false,
+            compileUiHandler = CompileUiHandler.DEFAULT,
+            allowDirectOverlayRecover = false,
+        )
+
+        assertEquals(false, recoverHost.lastDeferPostDeployLaunch)
+    }
+
+    @Test
     fun `tryDryDeploy should skip app launch when direct overlay state matches`() {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("device-1")
@@ -406,6 +496,7 @@ class JuggDeployerHelperRecoverTest {
         var recoverInvokeCount = 0
 
         var lastDeferPostDeployLaunch: Boolean? = null
+        var lastAllowDirectOverlayDeploy: Boolean? = null
 
         override fun runRecoverDeployTask(
             device: IDevice,
@@ -413,10 +504,12 @@ class JuggDeployerHelperRecoverTest {
             isSkipExceptOverlayCheck: Boolean,
             compileUiHandler: CompileUiHandler,
             deferPostDeployLaunch: Boolean,
+            isAllowDirectOverlayDeploy: Boolean,
         ) {
             recoverInvokeCount++
             if (data.isInstall) {
                 lastDeferPostDeployLaunch = deferPostDeployLaunch
+                lastAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy
             }
             throwOnRecover?.let { throw it }
         }

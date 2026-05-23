@@ -16,6 +16,7 @@ interface IJuggDeployHelperRunHost {
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
         deferPostDeployLaunch: Boolean = false,
+        isAllowDirectOverlayDeploy: Boolean = true,
     )
 
     fun redeploy(deployOptions: DeployOptions): DeployTaskResult

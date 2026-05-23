@@ -221,6 +221,7 @@ class DeployRetryHandlerTest {
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
                 deployOptions.compileUiHandler,
+                true,
             ),
         ).thenReturn(true to false)
 
@@ -248,6 +249,7 @@ class DeployRetryHandlerTest {
             deployOptions.isSkipExceptOverlayCheck,
             false,
             deployOptions.compileUiHandler,
+            true,
         )
     }
 
@@ -266,6 +268,7 @@ class DeployRetryHandlerTest {
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
                 deployOptions.compileUiHandler,
+                true,
             ),
         ).thenReturn(true to false)
 
@@ -290,6 +293,7 @@ class DeployRetryHandlerTest {
             deployOptions.isSkipExceptOverlayCheck,
             false,
             deployOptions.compileUiHandler,
+            true,
         )
     }
 
@@ -308,6 +312,7 @@ class DeployRetryHandlerTest {
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
                 deployOptions.compileUiHandler,
+                false,
             ),
         ).thenReturn(true to false)
 
@@ -333,6 +338,7 @@ class DeployRetryHandlerTest {
             deployOptions.isSkipExceptOverlayCheck,
             false,
             deployOptions.compileUiHandler,
+            false,
         )
     }
 
@@ -351,6 +357,7 @@ class DeployRetryHandlerTest {
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
                 deployOptions.compileUiHandler,
+                false,
             ),
         ).thenReturn(false to false)
 
@@ -430,6 +437,7 @@ class DeployRetryHandlerTest {
             isSkipExceptOverlayCheck: Boolean,
             compileUiHandler: CompileUiHandler,
             deferPostDeployLaunch: Boolean,
+            isAllowDirectOverlayDeploy: Boolean,
         ) = Unit
 
         override fun redeploy(deployOptions: DeployOptions): DeployTaskResult {

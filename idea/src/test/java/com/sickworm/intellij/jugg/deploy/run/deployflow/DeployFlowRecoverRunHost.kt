@@ -33,12 +33,20 @@ class DeployFlowRecoverRunHost(
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
         deferPostDeployLaunch: Boolean,
+        isAllowDirectOverlayDeploy: Boolean,
     ) {
         recoverTaskInvokeCount++
         if (data.isInstall) {
             installRecoverTaskCount++
         }
-        helper.runRecoverDeployTask(device, data, isSkipExceptOverlayCheck, compileUiHandler, deferPostDeployLaunch)
+        helper.runRecoverDeployTask(
+            device,
+            data,
+            isSkipExceptOverlayCheck,
+            compileUiHandler,
+            deferPostDeployLaunch,
+            isAllowDirectOverlayDeploy,
+        )
         if (data.isInstall) {
             onAfterInstallRecoverTask?.run()
         }
