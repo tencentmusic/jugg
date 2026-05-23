@@ -9,7 +9,8 @@ import java.util.zip.ZipOutputStream
 /**
  * DirectOverlayWriter writes Apply Changes overlay files without attaching to a running app process.
  * It validates the current overlay id on-device, extracts a pushed ZIP into `code_cache/.overlay`,
- * and writes the next overlay id last to match the install-server commit semantics.
+ * marks overlay `.dex` files read-only for Android 14+ W^X, and writes the next overlay id last
+ * to match the install-server commit semantics.
  * Concurrent writes are serialized globally because cleanup removes shared temp ZIP files on device.
  */
 open class DirectOverlayWriter(
@@ -78,6 +79,7 @@ open class DirectOverlayWriter(
                 "rm -f \"\$overlay_dir/id\"; " +
                 "rm -rf code_cache/.ll; " +
                 "unzip -oq $remoteZipPath -d \"\$overlay_dir\"; " +
+                "find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +; " +
                 "printf %s $overlayId > \"\$overlay_dir/id\"; " +
                 "echo \"$MARKER OK\"" +
                 "'"

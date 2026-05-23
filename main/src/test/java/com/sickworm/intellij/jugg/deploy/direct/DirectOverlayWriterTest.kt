@@ -44,6 +44,7 @@ class DirectOverlayWriterTest {
         assertTrue(adb.lastScript.contains("overlay_dir=code_cache/.overlay"))
         assertTrue(adb.lastScript.contains("\$overlay_dir/id"))
         assertTrue(adb.lastScript.contains("unzip -oq"))
+        assertTrue(adb.lastScript.contains("find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +"))
         assertTrue(adb.commands.contains("mkdir -p /data/local/tmp/jugg"))
         assertTrue(adb.commands.contains("rm -f /data/local/tmp/jugg/direct-overlay-*.zip"))
     }

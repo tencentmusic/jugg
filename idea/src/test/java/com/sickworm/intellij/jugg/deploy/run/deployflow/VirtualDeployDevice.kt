@@ -234,6 +234,7 @@ class VirtualDeployDevice(
         File(overlayDir, "id").delete()
 
         unzipToDirectory(localZip, overlayDir)
+        markOverlayDexReadOnly(overlayDir)
         writeOverlayId(newOverlayId)
         return "$DIRECT_OVERLAY_MARKER OK"
     }
@@ -257,6 +258,12 @@ class VirtualDeployDevice(
                 entry = zip.nextEntry
             }
         }
+    }
+
+    private fun markOverlayDexReadOnly(overlayDir: File) {
+        overlayDir.walkTopDown()
+            .filter { it.isFile && it.extension == "dex" }
+            .forEach { it.setReadOnly() }
     }
 
     private class VirtualDeviceAdb(
