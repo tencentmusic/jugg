@@ -45,26 +45,20 @@
 
 ## 4. 装载与执行链路
 
-### 4.1 配置更新到 SPI 实例
+### 4.1 配置到 jar 状态
 
-```text
-JuggManager 收到 server config
-  -> CustomCompilerManager.updateCustomCompilers(customCompilers)
-     -> null config：保留当前状态，直接退出
-     -> 绝对路径 / projectDir 相对路径：文件存在且 md5 匹配才进入 customCompilerJars
-     -> http(s)：若本地缓存存在先校验；不存在则后台下载
-     -> 删除 customCompilerDir 下不再被配置引用的旧 jar
-  -> downloadCompilers()
-     -> 下载远端 jar 后校验 md5
-     -> resetCompilerJars()，下次 getCustomCompilers() 重新 ServiceLoader
-```
+`JuggManager` 收到 server config 后交给 `CustomCompilerManager` 维护 jar 状态。这里不需要记住单文件内的方法顺序，只需要关注四个规则：
+
+- `null` config 不清空旧状态；非 null 列表才会重算有效 jar。
+- 本地 jar 必须存在且 md5 匹配才进入 `customCompilerJars`。
+- 远端 jar 先复用缓存；缓存不存在时后台下载，下载后校验 md5。
+- 下载成功或缓存变化后会清空已创建的 `customCompilers`，下次 `getCustomCompilers()` 再懒加载 SPI。
 
 ### 4.2 SPI 实例到编译阶段
 
 ```text
 BaseCompileContext.customCompilers
   -> CustomCompilerManager.getCustomCompilers()
-     -> customCompilerJars 非空且 customCompilers 为空时 initCompilers()
      -> URLClassLoader(customCompilerJars, current classloader)
      -> ServiceLoader.load(ICompilerCreator)
      -> creator.create(context, parent)

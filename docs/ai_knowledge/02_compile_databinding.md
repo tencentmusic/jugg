@@ -55,26 +55,13 @@
 
 ```text
 ResourceCompiler
-  -> DataBindingGenBaseClassesCompiler.doModuleCompile()
-     -> DataBindingArgsManager(context, module)
-     -> 未启用 ViewBinding/DataBinding：直接跳过
-     -> packageName 为空：warn 后跳过
-     -> argsManager.reset()
-        -> 清理 Jugg 临时目录
-        -> 备份 Gradle layout info 到 backupDataBindingLayoutXmlDir
-     -> splitLayoutXml()
-        -> LayoutXmlProcessor.processSingleFile()
-        -> 写 tempDataBindingLayoutXmlDir
-     -> generateBaseClasses()
-        -> BaseDataBinder.generateAll()
-     -> copyToGradleDir()
-        -> layout info 回写 backup 目录
-     -> getOutput()
-        -> DataBinding：生成 DataBindingInfo.java 或 DataBindingInfo.kt trigger
-        -> ViewBinding-only：复制 base classes 到 resource task 的 java 输出
-        -> DataBinding：复制 stripped XML 到 resource task 的 res 输出
-        -> artifact 写入 incrementalDependencyClassesFolder
+  -> DataBindingGenBaseClassesCompiler
+     -> DataBindingArgsManager 解析 Gradle/Jugg DataBinding 目录
+     -> 产出 tempDataBindingLayoutXmlDir、base classes 或 DataBinding trigger、stripped XML
+     -> JuggCompiler 把这些产物转给 SourceCompiler 或 overlays
 ```
+
+资源阶段的单文件内部顺序优先直接读 `DataBindingGenBaseClassesCompiler`。文档只保留跨阶段价值：它把 Gradle layout info 备份到 Jugg 临时目录，并产出源码阶段必须消费的 trigger/layout info。
 
 ### 4.2 源码阶段：mapper / BR / language compile
 
@@ -85,17 +72,10 @@ SourceCompiler.prepareSourceCompile()
         -> 不 reset argsManager，继续消费资源阶段写入的 layout info
         -> runAnnotationProcessor()
            -> LayoutIncludeAnalyzer.findAllIncludePath(resource)
-           -> adapter json 复制到 dataBindingDependencyArtifacts
            -> 当前默认：JavaCompilerInvoker apt-only
            -> 保留分支：KotlinCompilerInvoker kapt
               -> kapt 失败时切到 Java APT fallback 重试一次
-        -> generateIncrementalMapperHolder()
-           -> 当前 DataBinderMapperImpl 改名为 DataBinderMapperImpl_Inc_N
-           -> 生成 DataBinderMapper_IncrementalHolder
-           -> 复制 delegate mapper 和 full mapper
-        -> mergeLibraryBr()
-        -> mergeAppBr()
-        -> getOutput()
+        -> 产出 DataBinderMapperImpl_Inc_N、DataBinderMapper_IncrementalHolder、BR、stripped XML
   -> DataBinding 生成的 Java 源合入 Java compile 输入
   -> Kotlin -> Java -> Dex/Minify 继续执行
 ```

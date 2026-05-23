@@ -91,23 +91,6 @@ JuggCompiler.doCompile(task)
   -> 任一阶段失败或取消：停止后续阶段，并把剩余输入收口为失败/取消结果
 ```
 
-### 4.4 `BaseCompiler` 模板逻辑
-
-```text
-BaseCompiler.compile(task)
-  -> 校验 supportedTypes、context、outputDir
-  -> 执行 order 落在 beforeCompileOrderRange 的自定义编译器
-     -> consumeFiles() 可过滤后续内置编译输入
-  -> doCompile(filteredTask)
-     -> 默认按非 androidTest / androidTest 分两批
-     -> 每批按 modulesWithOrder 编译
-     -> 资源/manifest/asset 类编译器可再 splitApkAndCompile()
-  -> 执行 order 落在 afterCompileOrderRange 的自定义编译器
-  -> 通知 task.notifyCompiled()
-```
-
----
-
 ## 5. 阶段顺序与扩展点
 
 ### 5.1 内置阶段
@@ -134,6 +117,7 @@ BaseCompiler.compile(task)
 - 成功编译的文件会记录 `lastModified + length` 快照。迟到的 IDE 文件事件如果快照未变，会被忽略，避免已编译未部署文件重新回到未编译状态。
 - Git 补检有两层：失败时 resolver 可刷新 Git 发现漏掉的新文件并重试一次；成功后 `GitChangesCompileChecker` 只在出现新的待编译文件时再触发一轮。
 - 影响传播会排除本次已经编译过的文件，但 Kotlin top-level/extension 相关场景可能强制重编，入口在 `CheckEffectByTopLevelClass` 日志段。
+- `BaseCompiler` 是所有子编译器的模板层，负责类型校验、模块/androidTest 分批、APK 分流和 custom compiler hook；单个子编译器内部顺序优先直接读对应实现。
 - `splitModuleAndCompile()` 会把 androidTest module 单独分批，且 androidTest 的 module 分组 key 包含 module root，避免同名测试模块被合并。
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
