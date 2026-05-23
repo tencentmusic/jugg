@@ -1,6 +1,6 @@
 # Jugg 项目概览（AI 速读版）
 
-> 最后核对：2026-03-05
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -43,7 +43,7 @@
 2. `JuggRunningTask` 统一编排“编译 -> 部署”。  
 3. `JuggCompilerHelper` 决定增量或 Gradle 回退。  
 4. 增量路径由 `JuggCompiler` 执行多阶段编译；Gradle 路径由 `LocalGradleCompileClient` / `RemoteGradleCompileClient` 执行。  
-5. `JuggDeployerHelper` + `JuggDeployer` 完成 install / code swap / full swap。
+5. `JuggDeployerHelper` 经 `JuggDeployTask` 调用 `JuggDeployer` 完成 install / code swap / full swap。
 
 ---
 

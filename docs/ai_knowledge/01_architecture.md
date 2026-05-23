@@ -1,6 +1,6 @@
 # Jugg 架构设计（AI 任务版）
 
-> 最后核对：2026-02-23  
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -37,10 +37,10 @@
 
 ### 3.2 Run 主流程
 
-1. `JuggRunningTask.run` 进入统一执行链。  
-2. `JuggCompileHelper.compile` 决策“增量 or Gradle 回退”。  
-3. 增量路径：`IncrementalCompilerHelper` -> `JuggCompiler`。  
-4. 部署路径：`JuggDeployerHelper.deploy` -> `JuggDeployer`。  
+1. `JuggRunningTask.run` 进入统一执行链。
+2. `JuggCompilerHelper.compile` 决策“增量 or Gradle 回退”。
+3. 增量路径：`IncrementalCompilerHelper` -> `JuggCompiler`。
+4. 部署路径：`JuggDeployerHelper.deploy` -> `JuggDeployTask` -> `JuggDeployer`。
 5. 结果写回状态与历史（deploy/history/status managers）。
 
 ### 3.3 MCP 主流程
@@ -57,7 +57,7 @@
 - **增量优先，失败可回退**：优先走旁路增量，必要时回退 Gradle。
 - **main 与 idea 解耦**：`main` 提供核心逻辑，`idea` 注入平台实现。
 - **兼容层隔离**：AS 版本差异集中在 `deploy_compat`，减少业务污染。
-- **协议内聚**：MCP 在 `main/mcp` 独立分层，不与 IDE UI 逻辑强耦合。
+- **协议内聚**：MCP 在 `main/.../ai/mcp` 独立分层，不与 IDE UI 逻辑强耦合。
 
 ---
 
@@ -72,9 +72,9 @@
 
 ## 6. 常见排查入口
 
-- “为什么回退 Gradle”：`idea/.../JuggCompileHelper.kt`。  
-- “为什么部署失败”：`idea/.../JuggDeployerHelper.kt`。  
-- “为什么类热更失败”：`idea/.../JuggDeployer.kt` + `main/.../deploy/JuggJvmtiAgentManagerHelper.kt`。  
+- “为什么回退 Gradle”：`idea/.../JuggCompileHelper.kt` 中的 `JuggCompilerHelper`。
+- “为什么部署失败”：`idea/.../JuggDeployerHelper.kt`。
+- “为什么类热更失败”：`idea/.../deploy/run/applychanges/JuggDeployer.kt` + `main/.../runtime/jvmti/*`。
 - “为什么 MCP 参数错误”：`main/.../ai/mcp/McpRequestValidator.kt`。
 
 ---
@@ -84,4 +84,4 @@
 - 编译：`02_compile_core.md`
 - 部署：`03_deploy_core.md`, `03_deploy_complete.md`
 - IDE：`04_engineering_ide.md`
-- MCP：`08_mcp_design.md`, `08_mcp_usage.md`
+- MCP：`08_mcp_design.md`, `08_mcp_tools_list.md`
