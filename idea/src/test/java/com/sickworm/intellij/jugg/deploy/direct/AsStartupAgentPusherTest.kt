@@ -80,6 +80,39 @@ class AsStartupAgentPusherTest {
         pusher.pushApplyChangesStartupAgent("com.example.app", "arm64-v8a", Deploy.Arch.ARCH_64_BIT)
     }
 
+    @Test
+    fun `pushApplyChangesStartupAgent should mkdir remote agent dir before adb push`() {
+        val root = tempFolder.newFolder("installers")
+        writeInstaller(root, byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02))
+        val adb = RecordingAdb(startupAgents = emptyList(), requireRemoteDirBeforePush = true)
+        val pusher = newPusher(adb, installersRoot = root.absolutePath)
+
+        pusher.pushApplyChangesStartupAgent("com.example.app", "arm64-v8a", Deploy.Arch.ARCH_64_BIT)
+
+        assertTrue(
+            adb.shellCommands.any { it == "mkdir -p /data/local/tmp/jugg/as-agent/dced2491" },
+        )
+        assertTrue(adb.pushedPaths.any { it.endsWith("/data/local/tmp/jugg/as-agent/dced2491/agent.so") })
+    }
+
+    @Test
+    fun `pushApplyChangesStartupAgent should setup studio dir and remove stale startup agents`() {
+        val root = tempFolder.newFolder("installers")
+        writeInstaller(root, byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02))
+        val adb = RecordingAdb(startupAgents = listOf("oldversion-agent.so"))
+        val pusher = newPusher(adb, installersRoot = root.absolutePath)
+
+        pusher.pushApplyChangesStartupAgent("com.example.app", "arm64-v8a", Deploy.Arch.ARCH_64_BIT)
+
+        assertTrue(
+            adb.shellScripts.any {
+                it.contains("code_cache/.studio") &&
+                    it.contains("rm -rf code_cache/startup_agents") &&
+                    it.contains("code_cache/startup_agents/dced2491-agent.so")
+            },
+        )
+    }
+
     private fun newPusher(
         adb: RecordingAdb,
         installersRoot: String = tempFolder.newFolder("empty").absolutePath,
@@ -119,9 +152,12 @@ class AsStartupAgentPusherTest {
     private class RecordingAdb(
         private val startupAgents: List<String>,
         private val failRunAsCopy: Boolean = false,
+        private val requireRemoteDirBeforePush: Boolean = false,
     ) : IDeviceAdb {
         val pushedPaths = mutableListOf<String>()
+        val shellCommands = mutableListOf<String>()
         val shellScripts = mutableListOf<String>()
+        private val createdRemoteDirs = mutableSetOf<String>()
 
         override val displayName: String? = "fake"
         override val api: Int = 35
@@ -129,6 +165,10 @@ class AsStartupAgentPusherTest {
         override val isOnline: Boolean = true
 
         override fun execAdbShellCmd(cmd: String): String {
+            shellCommands += cmd
+            if (cmd.startsWith("mkdir -p ")) {
+                createdRemoteDirs += cmd.removePrefix("mkdir -p ").trim()
+            }
             return when {
                 cmd.contains("startup_agents") && startupAgents.isEmpty() ->
                     "No such file or directory"
@@ -147,6 +187,12 @@ class AsStartupAgentPusherTest {
         }
 
         override fun push(from: File, to: String): Boolean {
+            if (requireRemoteDirBeforePush) {
+                val parent = to.substringBeforeLast('/')
+                if (parent !in createdRemoteDirs) {
+                    return false
+                }
+            }
             pushedPaths += to
             return true
         }

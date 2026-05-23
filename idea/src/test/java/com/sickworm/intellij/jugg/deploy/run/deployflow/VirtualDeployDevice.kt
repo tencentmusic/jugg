@@ -172,6 +172,12 @@ class VirtualDeployDevice(
     }
 
     private fun handleAsAgentPushScript(script: String): String {
+        if (script.contains("code_cache/.studio")) {
+            File(packageDataDir(), "code_cache/.studio").mkdirs()
+        }
+        if (script.contains("rm -rf code_cache/startup_agents")) {
+            startupAgentsDir().deleteRecursively()
+        }
         val copyMatch = Regex("""cp -f (\S+) (\S+)""").find(script) ?: return ""
         val remotePath = copyMatch.groupValues[1]
         val destRelative = copyMatch.groupValues[2]
