@@ -114,21 +114,8 @@ open class DeployStateRecover(
             }
         }
 
-        syncDeployHistoryOverlayIdFromCache(device)
         deployFileManager.resetAfterReinstall()
         return true to true
-    }
-
-    /** Align deploy history overlay ids with deployment cache after APK reinstall. */
-    private fun syncDeployHistoryOverlayIdFromCache(device: IDevice) {
-        val packageName = runCatching { deployTargetManager.getPackageName() }.getOrNull() ?: return
-        val cached = deploymentService.loadCachedOverlayId(device.serialNumber, packageName, logger) ?: return
-        val current = deployHistoryManager.lastDeployOverlayIds
-        if (current[packageName] == cached.sha) {
-            return
-        }
-        deployHistoryManager.lastDeployOverlayIds = current + (packageName to cached.sha)
-        logger.debug("Synced deploy history overlay id after reinstall: $packageName -> ${cached.sha}")
     }
 
     open fun tryDryDeploy(
@@ -141,7 +128,7 @@ open class DeployStateRecover(
             return DryDeployResult.APP_NOT_INSTALLED
         }
 
-        tryDirectDryDeploy(device, allowDirectOverlayRecover)?.let {
+        tryDirectDryDeploy(device, allowDirectOverlayRecover, isSkipExceptOverlayCheck)?.let {
             logger.debug("Try directly dry deploy finish, result: $it")
             return it
         }
@@ -181,7 +168,11 @@ open class DeployStateRecover(
         }
     }
 
-    private fun tryDirectDryDeploy(device: IDevice, allowDirectOverlayRecover: Boolean): DryDeployResult? {
+    private fun tryDirectDryDeploy(
+        device: IDevice,
+        allowDirectOverlayRecover: Boolean,
+        isSkipExceptOverlayCheck: Boolean,
+    ): DryDeployResult? {
         if (!allowDirectOverlayRecover || !JuggSettings.isEnableDirectOverlayDeploy) {
             logger.debug("Direct overlay state check skipped because direct overlay recover is disabled.")
             return null
@@ -196,7 +187,7 @@ open class DeployStateRecover(
             logger = logger,
             deployHistoryManager = deployHistoryManager,
             deploymentService = deploymentService,
-        ).checkRecover(device.serialNumber, packageName)
+        ).checkRecover(device.serialNumber, packageName, isSkipExceptOverlayCheck)
         return when (result) {
             DirectOverlayStateCheckResult.MATCHED -> {
                 logger.debug("Direct overlay state check matched, skip dry deploy.")

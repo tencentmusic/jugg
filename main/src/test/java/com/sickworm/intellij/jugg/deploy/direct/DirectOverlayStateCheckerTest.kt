@@ -47,6 +47,20 @@ class DirectOverlayStateCheckerTest {
     }
 
     @Test
+    fun `checkRecover should trust cache for device check when local overlay mismatch is skipped`() {
+        val checker = createRecoverChecker(
+            adb = FakeAdb("__JUGG_OVERLAY_STATE__ NO_DIR"),
+            historyOverlayIds = mapOf("com.example.app" to "stale-history-id"),
+            cachedOverlayId = CachedOverlayId(sha = "fresh-cache-id", isBaseInstall = true),
+        )
+
+        assertEquals(
+            DirectOverlayStateCheckResult.MATCHED,
+            checker.checkRecover("device-1", "com.example.app", isSkipExceptOverlayCheck = true),
+        )
+    }
+
+    @Test
     fun `checkRecover should match when history cache and device overlay agree`() {
         val checker = createRecoverChecker(
             adb = FakeAdb("__JUGG_OVERLAY_STATE__ ID overlay-id"),

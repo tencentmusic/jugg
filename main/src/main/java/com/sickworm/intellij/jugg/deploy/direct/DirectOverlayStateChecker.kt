@@ -21,7 +21,11 @@ class DirectOverlayStateChecker(
      *
      * @return null when deploy history overlay id is missing and the check should be skipped
      */
-    fun checkRecover(deviceSerial: String, packageName: String): DirectOverlayStateCheckResult {
+    fun checkRecover(
+        deviceSerial: String,
+        packageName: String,
+        isSkipExceptOverlayCheck: Boolean = false,
+    ): DirectOverlayStateCheckResult {
         val historyManager = requireNotNull(deployHistoryManager) { "deployHistoryManager is required for checkRecover" }
         val deploymentCache = requireNotNull(deploymentService) { "deploymentService is required for checkRecover" }
 
@@ -40,6 +44,14 @@ class DirectOverlayStateChecker(
         }
 
         if (cachedOverlayId.sha != historyOverlayId) {
+            if (isSkipExceptOverlayCheck) {
+                logger.debug(
+                    "Skip local overlay id mismatch check, trust deployment cache for device check, " +
+                        "cached: ${cachedOverlayId.sha}, history: $historyOverlayId",
+                )
+                val expectedDeviceOverlayId = if (cachedOverlayId.isBaseInstall) "" else cachedOverlayId.sha
+                return checkDevice(packageName, expectedDeviceOverlayId)
+            }
             logger.debug("Direct overlay state check mismatched for " +
                     "local overlay id mismatch, cached: ${cachedOverlayId.sha}, history: $historyOverlayId")
             return DirectOverlayStateCheckResult.MISMATCHED

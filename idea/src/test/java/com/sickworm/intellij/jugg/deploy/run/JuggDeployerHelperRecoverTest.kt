@@ -15,7 +15,6 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.DryDeployResult
-import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowTestHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
@@ -398,47 +397,41 @@ class JuggDeployerHelperRecoverTest {
     }
 
     @Test
-    fun `recoverDeployState should sync deploy history overlay id after reinstall`() {
+    fun `tryDryDeploy should match using cache when except overlay check is skipped after reinstall`() {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("device-1")
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
-        Mockito.`when`(deployTargetManager.getApks()).thenReturn(emptyList())
 
-        val deployHistoryManager = DeployFlowTestHistoryManager()
-        deployHistoryManager.lastDeployOverlayIds = mapOf("com.example.app" to "stale-history-id")
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
+            .thenReturn(mapOf("com.example.app" to "stale-history-id"))
 
-        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
-        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
-        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(JuggDeployState.READY)
-
-        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
         val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
-        Mockito.`when`(
-            deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()),
-        ).thenReturn(CachedOverlayId(sha = "fresh-cache-id", isBaseInstall = true))
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
+            .thenReturn(CachedOverlayId(sha = "fresh-cache-id", isBaseInstall = true))
 
-        val recoverHost = RecordingRecoverHost()
+        val adb = Mockito.mock(IDeviceAdb::class.java)
+        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
+            .thenReturn("__JUGG_OVERLAY_STATE__ NO_DIR")
+
         val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
-            deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
-            deployStateManager = deployStateManager,
             deploymentService = deploymentService,
-            deployRunHost = recoverHost,
+            deviceAdbFactory = { _, _ -> adb },
             logger = TestGlobal.getLogger(),
         )
 
-        val result = recover.recoverDeployState(
-            device = device,
-            indicator = null,
-            isNeedDryDeployFirst = false,
-            isSkipExceptOverlayCheck = false,
+        val result = recover.tryDryDeploy(
+            device,
+            isSkipExceptOverlayCheck = true,
             compileUiHandler = CompileUiHandler.DEFAULT,
         )
 
-        assertEquals(true to true, result)
-        assertEquals("fresh-cache-id", deployHistoryManager.lastDeployOverlayIds["com.example.app"])
+        assertEquals(DryDeployResult.SUCCESS, result)
+        Mockito.verify(deployTargetManager, Mockito.never()).restartApp(device)
     }
 
     @Test

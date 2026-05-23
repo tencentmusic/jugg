@@ -145,8 +145,8 @@ recoverDeployState()
           -> run dry deploy payload
   -> dry deploy 成功: 不重装
   -> dry deploy 失败 / app updated / clean reinstall: install apks
-  -> sync deploy history overlay id from deployment cache（避免 retry recover 后 redeploy 再次 recover 时 cache/history 不一致触发二次 install）
   -> allowDirectOverlayRecover && direct overlay 开关: defer INSTALL 后 launch，跳过 waitingForDeployable(5s)
+  -> redeploy 时 `isSkipExceptOverlayCheck=true`（retry 或 `isRecoverWithReinstall`）会在 recover 的 `checkRecover` 中跳过 cache/history 本地不一致，改以 deployment cache 校验设备 overlay，避免重装后二次 recover 再 install
   -> 否则: INSTALL 后 restart + waitingForDeployable(5s)
   -> DeployFileManager.resetAfterReinstall()
 ```
