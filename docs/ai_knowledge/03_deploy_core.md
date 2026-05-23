@@ -32,7 +32,7 @@
 | `DirectOverlaySwapTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
 | `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 `run-as` 原子写入设备 `code_cache/.overlay`，新 overlay id 最后提交。 |
 | `DirectOverlayStateChecker` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayStateChecker.kt` | recover 校验 history/cache/device 三路一致；swap 前只校验 device overlay。 |
-| `DeployHistoryManager` / `JuggDeploymentService` | `main/.../DeployHistoryManager.kt`, `idea/.../JuggDeploymentService.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与 Android Studio deployment cache。Direct Overlay recover 同时依赖二者。 |
+| `DeployHistoryManager` / `JuggDeploymentService` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与 Android Studio deployment cache。Direct Overlay recover 同时依赖二者。 |
 
 ---
 
@@ -178,7 +178,9 @@ timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则�
 
 `DirectOverlaySwapOptions.enabled = settingsEnabled && !isDeviceReadyDeploy && isAllowedByCaller`。
 
-Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。还要求非 install、deploy data 非空、deployment cache 存在、设备当前 overlay id 与预期一致。
+Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。进入 swap 前还要求 Android O 及以上、非 install、deploy data 非空、deployment cache 存在、startup agent 元数据可用或允许跳过、设备当前 overlay id 与预期一致。
+
+`isAllowedByCaller` 来自外层 lifecycle；默认主部署链路允许，特殊调用方可显式关闭。Direct Overlay 只替换 overlay update transport，后续 start/restart/androidTest 仍由 `JuggDeployerHelper.runTask()` 收口。
 
 ### 6.2 swap 链路
 
@@ -202,6 +204,8 @@ JuggDeployer.optimisticSwap()
       -> JuggDeploymentService.storeEntry()
   -> direct 返回 null: fallback 旧 Apply Changes
 ```
+
+base install cache 对应的 expected device overlay id 为空字符串；非 base install 才要求设备 overlay id 等于 cache 中的 sha。
 
 ### 6.3 dirty 语义
 
