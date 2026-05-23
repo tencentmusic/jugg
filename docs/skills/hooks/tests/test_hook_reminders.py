@@ -170,6 +170,238 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
 
+    def test_edit_hook_ignores_codex_apply_patch_for_docs(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codex-docs-patch"
+        payload = {
+            "session_id": session_id,
+            "tool_name": "apply_patch",
+            "tool_input": {
+                "command": (
+                    "*** Begin Patch\n"
+                    "*** Update File: docs/ai_knowledge/00_overview.md\n"
+                    "@@\n"
+                    "-old\n"
+                    "+new\n"
+                    "*** End Patch\n"
+                )
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codex"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state_exists = _state_file(home, cwd, session_id).exists()
+
+        self.assertEqual(0, result.returncode)
+        self.assertFalse(state_exists)
+
+    def test_edit_hook_records_codex_apply_patch_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codex-source-patch"
+        payload = {
+            "session_id": session_id,
+            "tool_name": "apply_patch",
+            "tool_input": {
+                "command": (
+                    "*** Begin Patch\n"
+                    "*** Update File: app/src/main/java/com/example/myapplication/HookEdit.kt\n"
+                    "@@\n"
+                    "-old\n"
+                    "+new\n"
+                    "*** End Patch\n"
+                )
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codex"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
+    def test_edit_hook_ignores_codex_apply_patch_delete_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codex-source-delete-patch"
+        payload = {
+            "session_id": session_id,
+            "tool_name": "apply_patch",
+            "tool_input": {
+                "command": (
+                    "*** Begin Patch\n"
+                    "*** Delete File: app/src/main/java/com/example/myapplication/HookDelete.kt\n"
+                    "*** End Patch\n"
+                )
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codex"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state_exists = _state_file(home, cwd, session_id).exists()
+
+        self.assertEqual(0, result.returncode)
+        self.assertFalse(state_exists)
+
+    def test_edit_hook_ignores_claude_edit_for_docs(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-claude-docs-edit"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Edit",
+            "tool_input": {
+                "file_path": "/tmp/fake/docs/readme.md",
+                "old_string": "old",
+                "new_string": "new",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "claude"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state_exists = _state_file(home, cwd, session_id).exists()
+
+        self.assertEqual(0, result.returncode)
+        self.assertFalse(state_exists)
+
+    def test_edit_hook_records_claude_edit_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-claude-source-edit"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Edit",
+            "tool_input": {
+                "file_path": "app/src/main/java/com/example/myapplication/HookEdit.kt",
+                "old_string": "old",
+                "new_string": "new",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "claude"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
+    def test_edit_hook_ignores_cursor_edit_for_docs(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-cursor-docs-edit"
+        payload = {
+            "session_id": session_id,
+            "hook_event_name": "afterFileEdit",
+            "file_path": "docs/ai_knowledge/00_overview.md",
+            "edits": [{"old_string": "old", "new_string": "new"}],
+            "workspace_roots": ["/tmp/android-demo"],
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state_path = _state_file(home, cwd, session_id)
+            if state_path.exists():
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+                session_write_seen = state.get("sessionWriteSeen")
+            else:
+                session_write_seen = None
+
+        self.assertEqual(0, result.returncode)
+        self.assertNotEqual(True, session_write_seen)
+
+    def test_edit_hook_records_cursor_edit_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-cursor-source-edit"
+        payload = {
+            "session_id": session_id,
+            "hook_event_name": "afterFileEdit",
+            "file_path": "app/src/main/java/com/example/myapplication/HookEdit.kt",
+            "edits": [{"old_string": "old", "new_string": "new"}],
+            "workspace_roots": ["/tmp/android-demo"],
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "cursor"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
+    def test_edit_hook_records_claude_write_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-claude-source-write"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": "app/src/main/java/com/example/myapplication/HookWrite.kt",
+                "content": "class HookWrite",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "claude"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
     def test_edit_hook_records_project_cwd_from_absolute_file_path(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
         session_id = "s-edit-project-cwd"
@@ -180,9 +412,11 @@ class HookReminderDecisionTest(unittest.TestCase):
             source_path.parent.mkdir(parents=True)
             source_path.write_text("class HookEdit", encoding="utf-8")
             payload = {
-                "session": {"id": session_id},
-                "tool_name": "Write",
-                "tool_input": {"path": str(source_path)},
+                "session_id": session_id,
+                "hook_event_name": "afterFileEdit",
+                "file_path": str(source_path),
+                "edits": [{"old_string": "class HookEdit", "new_string": "class HookEditUpdated"}],
+                "workspace_roots": [str(project_path.resolve())],
             }
             with tempfile.TemporaryDirectory() as hook_cwd:
                 result = subprocess.run(
@@ -198,6 +432,145 @@ class HookReminderDecisionTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode)
         self.assertEqual(str(project_path.resolve()), state.get("projectCwd"))
+
+    def test_edit_hook_ignores_codebuddy_edit_for_docs(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codebuddy-docs-edit"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Edit",
+            "tool_input": {
+                "file_path": "docs/ai_knowledge/00_overview.md",
+                "old_string": "old",
+                "new_string": "new",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state_exists = _state_file(home, cwd, session_id).exists()
+
+        self.assertEqual(0, result.returncode)
+        self.assertFalse(state_exists)
+
+    def test_edit_hook_records_codebuddy_edit_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codebuddy-source-edit"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Edit",
+            "tool_input": {
+                "file_path": "app/src/main/java/com/example/myapplication/HookEdit.kt",
+                "old_string": "old",
+                "new_string": "new",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
+    def test_edit_hook_records_codebuddy_write_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codebuddy-source-write"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": "app/src/main/java/com/example/myapplication/HookWrite.kt",
+                "content": "class HookWrite",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+
+    def test_edit_hook_ignores_gemini_write_file_for_docs(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-gemini-docs-write"
+        payload = {
+            "session_id": session_id,
+            "tool_name": "write_file",
+            "tool_input": {
+                "file_path": "docs/ai_knowledge/00_overview.md",
+                "content": "new content",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "gemini"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state_exists = _state_file(home, cwd, session_id).exists()
+
+        self.assertEqual(0, result.returncode)
+        # Current behavior: it DOES record it (fuzzy match or fallthrough)
+        # Target behavior: it should NOT record it.
+        # This test will FAIL until we implement precise matching.
+        self.assertFalse(state_exists)
+
+    def test_edit_hook_records_gemini_replace_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-gemini-source-replace"
+        payload = {
+            "session_id": session_id,
+            "tool_name": "replace",
+            "tool_input": {
+                "file_path": "app/src/main/java/com/example/myapplication/HookEdit.kt",
+                "old_string": "old",
+                "new_string": "new",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "gemini"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
 
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")
@@ -789,6 +1162,62 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual(0, state.get("gradleBlockCount"))
         self.assertNotIn("gradleBlockedFingerprint", state)
+
+    def test_edit_hook_ignores_gemini_write_file_for_docs(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-gemini-docs-write"
+        payload = {
+            "session_id": session_id,
+            "tool_name": "write_file",
+            "tool_input": {
+                "file_path": "docs/ai_knowledge/00_overview.md",
+                "content": "new content",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "gemini"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state_exists = _state_file(home, cwd, session_id).exists()
+
+        self.assertEqual(0, result.returncode)
+        # Current behavior: it DOES record it (fuzzy match or fallthrough)
+        # Target behavior: it should NOT record it.
+        self.assertFalse(state_exists)
+
+    def test_edit_hook_records_gemini_replace_for_android_source(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-gemini-source-replace"
+        payload = {
+            "session_id": session_id,
+            "tool_name": "replace",
+            "tool_input": {
+                "file_path": "app/src/main/java/com/example/myapplication/HookEdit.kt",
+                "old_string": "old",
+                "new_string": "new",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "gemini"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
 
 
 if __name__ == "__main__":

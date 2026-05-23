@@ -59,7 +59,7 @@ class JuggHookInstallerMultiAgentTest {
             settingsFile = File(userHome, ".claude/settings.json"),
             eventName = "PostToolUse",
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
-            matcher = "Edit|Write|MultiEdit|apply_patch",
+            matcher = "Edit|Write",
         )
         assertNestedCommandMatcher(
             settingsFile = File(userHome, ".claude/settings.json"),
@@ -87,7 +87,7 @@ class JuggHookInstallerMultiAgentTest {
             settingsFile = File(userHome, ".codex/hooks.json"),
             eventName = "PostToolUse",
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
-            matcher = "Edit|Write|MultiEdit|apply_patch",
+            matcher = "Edit|Write|apply_patch",
         )
         assertNestedCommandMatcher(
             settingsFile = File(userHome, ".codex/hooks.json"),
@@ -123,7 +123,7 @@ class JuggHookInstallerMultiAgentTest {
             settingsFile = File(userHome, ".codebuddy/settings.json"),
             eventName = "PostToolUse",
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
-            matcher = "Edit|Write|MultiEdit|apply_patch",
+            matcher = "Edit|Write",
         )
         assertNestedCommandMatcher(
             settingsFile = File(userHome, ".codebuddy/settings.json"),
@@ -182,6 +182,18 @@ class JuggHookInstallerMultiAgentTest {
             editCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
             commandCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}command.py",
             clientArgument = "cursor",
+        )
+        assertFlatCommandMatcher(
+            settingsFile = File(userHome, ".cursor/hooks.json"),
+            eventName = "afterFileEdit",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            matcher = "Write",
+        )
+        assertNoFlatCommandWithMatcher(
+            settingsFile = File(userHome, ".cursor/hooks.json"),
+            eventName = "afterFileEdit",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            matcher = "*",
         )
         assertNestedCommandUsesPython3(
             settingsFile = File(userHome, ".codebuddy/settings.json"),
@@ -313,7 +325,7 @@ class JuggHookInstallerMultiAgentTest {
             settingsFile = settingsFile,
             eventName = "PostToolUse",
             commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
-            matcher = "Edit|Write|MultiEdit|apply_patch",
+            matcher = "Edit|Write|apply_patch",
         )
         assertNestedCommandMatcher(
             settingsFile = settingsFile,
@@ -488,6 +500,53 @@ class JuggHookInstallerMultiAgentTest {
             }
         }
         return false
+    }
+
+    private fun assertFlatCommandMatcher(
+        settingsFile: File,
+        eventName: String,
+        commandSuffix: String,
+        matcher: String,
+    ) {
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
+        for (item in eventArray) {
+            if (!item.isJsonObject) {
+                continue
+            }
+            val itemObject = item.asJsonObject
+            if (itemObject.get("matcher")?.asString != matcher) {
+                continue
+            }
+            val command = itemObject.get("command")?.asString ?: continue
+            if (command.contains(commandSuffix)) {
+                return
+            }
+        }
+        throw AssertionError("missing matcher=$matcher command=$commandSuffix in ${settingsFile.path}#$eventName")
+    }
+
+    private fun assertNoFlatCommandWithMatcher(
+        settingsFile: File,
+        eventName: String,
+        commandSuffix: String,
+        matcher: String,
+    ) {
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
+        for (item in eventArray) {
+            if (!item.isJsonObject) {
+                continue
+            }
+            val itemObject = item.asJsonObject
+            if (itemObject.get("matcher")?.asString != matcher) {
+                continue
+            }
+            val command = itemObject.get("command")?.asString ?: continue
+            if (command.contains(commandSuffix)) {
+                throw AssertionError("unexpected matcher=$matcher command=$commandSuffix in ${settingsFile.path}#$eventName")
+            }
+        }
     }
 
     private fun assertNestedCommandUsesPython3(

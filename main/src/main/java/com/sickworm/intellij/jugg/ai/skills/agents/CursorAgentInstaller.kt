@@ -24,7 +24,7 @@ object CursorAgentInstaller : IAgentInstaller {
                 clientArgument = client.cliName,
                 editEventName = "afterFileEdit",
                 commandEventName = "beforeShellExecution",
-                editMatcher = "*",
+                editMatcher = "Write",
                 commandMatcher = "*",
             ),
         )

@@ -30,7 +30,7 @@ object CodexAgentInstaller : IAgentInstaller {
                 clientArgument = client.cliName,
                 editEventName = "PostToolUse",
                 commandEventName = "PreToolUse",
-                editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                editMatcher = "Edit|Write|apply_patch",
                 commandMatcher = "Bash",
             ),
         )
@@ -45,7 +45,7 @@ object CodexAgentInstaller : IAgentInstaller {
                     clientArgument = client.cliName,
                     editEventName = "PostToolUse",
                     commandEventName = "PreToolUse",
-                    editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                    editMatcher = "Edit|Write|apply_patch",
                     commandMatcher = "Bash",
                 )
             }

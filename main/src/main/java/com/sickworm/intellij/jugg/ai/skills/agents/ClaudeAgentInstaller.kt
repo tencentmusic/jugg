@@ -34,7 +34,7 @@ object ClaudeAgentInstaller : IAgentInstaller {
             clientArgument = client.cliName,
             editEventName = "PostToolUse",
             commandEventName = "PreToolUse",
-            editMatcher = "Edit|Write|MultiEdit|apply_patch",
+            editMatcher = "Edit|Write",
             commandMatcher = "Bash",
         )
         val targets = mutableListOf(primary)
@@ -49,7 +49,7 @@ object ClaudeAgentInstaller : IAgentInstaller {
                     clientArgument = client.cliName,
                     editEventName = "PostToolUse",
                     commandEventName = "PreToolUse",
-                    editMatcher = "Edit|Write|MultiEdit|apply_patch",
+                    editMatcher = "Edit|Write",
                     commandMatcher = "Bash",
                 )
             }

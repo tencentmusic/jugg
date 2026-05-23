@@ -56,6 +56,15 @@ def _parse_args() -> Any:
 
 
 def main() -> int:
+    try:
+        return _main_impl()
+    except Exception:
+        # Safety net: never block the agent on unexpected errors.
+        debug_log("JUGG-STOP", "unhandled exception; allowing stop")
+        return 0
+
+
+def _main_impl() -> int:
     args = _parse_args()
     payload = read_json_payload()
     client_part = f" client={args.client}" if args.client else ""
@@ -110,7 +119,12 @@ def main() -> int:
 
     if block_count == 0:
         state["stopBlockCount"] = 1
-        write_hook_state(state_file, state)
+        persisted = write_hook_state(state_file, state)
+        if not persisted:
+            # If we cannot persist the block count, allow the stop rather than
+            # risk blocking indefinitely on every subsequent attempt.
+            debug_log("JUGG-STOP", "exit: allow stop because state persistence failed")
+            return 0
         modified_files = extract_modified_file_names(structured)
         status_summary = format_status_summary(structured)
         details: list[str] = []

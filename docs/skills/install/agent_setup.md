@@ -48,9 +48,11 @@ Use the matching client value in hook commands: `claude`, `cursor`, `codebuddy` 
 
 Tool matcher recommendations:
 
-- Codex / Claude Code / CodeBuddy: tool hooks should use matcher `Edit|Write|MultiEdit|apply_patch` for edit events and `Bash` for command events.
+- Codex: tool hooks should use matcher `Edit|Write|apply_patch` for edit events and `Bash` for command events.
+- Claude Code: tool hooks should use matcher `Edit|Write` for edit events and `Bash` for command events.
+- CodeBuddy: tool hooks should use matcher `Edit|Write` for edit events and `Bash` for command events.
 - Gemini CLI: tool hooks should use matcher `write_file|replace` for `AfterTool`, and `run_shell_command` for `BeforeTool`.
-- Cursor: keep `afterFileEdit` and `beforeShellExecution` with matcher `*`.
+- Cursor: use matcher `Write` for `afterFileEdit` (agent file writes, excludes Tab completions) and keep `beforeShellExecution` with matcher `*`.
 
 Command hook behavior:
 
@@ -90,7 +92,7 @@ Example (Claude Code):
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|apply_patch",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
