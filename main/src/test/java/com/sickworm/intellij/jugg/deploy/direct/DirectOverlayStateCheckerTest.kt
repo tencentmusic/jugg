@@ -100,6 +100,16 @@ class DirectOverlayStateCheckerTest {
     }
 
     @Test
+    fun `checkDevice empty overlay id matches base install`() {
+        val checker = DirectOverlayStateChecker(
+            adb = FakeAdb("__JUGG_OVERLAY_STATE__ ID "),
+            logger = Mockito.mock(Logger::class.java),
+        )
+
+        assertEquals(DirectOverlayStateCheckResult.MATCHED, checker.checkDevice("com.example.app", ""))
+    }
+
+    @Test
     fun `checkDevice readable overlay id matches expected id`() {
         val checker = DirectOverlayStateChecker(
             adb = FakeAdb("__JUGG_OVERLAY_STATE__ ID overlay-id"),

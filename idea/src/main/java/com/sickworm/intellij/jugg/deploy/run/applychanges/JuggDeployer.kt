@@ -191,7 +191,7 @@ class JuggDeployer(
         }
 
         val startTime = System.currentTimeMillis()
-        tryDirectOverlaySwap(packageName, data, speculativeDump)?.let { overlayId ->
+        tryDirectOverlaySwap(packageName, data, speculativeDump, arch)?.let { overlayId ->
             val costTime = System.currentTimeMillis() - startTime
             logger.info("after direct overlay deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
             deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
@@ -240,11 +240,10 @@ class JuggDeployer(
         packageName: String,
         data: JuggDeployData,
         speculativeDump: DeploymentCacheDatabase.Entry?,
+        appArch: Deploy.Arch,
     ): OverlayId? {
         speculativeDump ?: return null
-        // Base-install cache still needs the legacy APK dump verification before any direct overlay write.
-        if (speculativeDump.overlayId.isBaseInstall) return null
-        val transport = DirectOverlaySwapTransport(directOverlaySwapOptions, logger.logger)
+        val transport = DirectOverlaySwapTransport(directOverlaySwapOptions.withAppArch(appArch), logger.logger)
         if (!transport.canTry(data)) return null
         return try {
             val overlayUpdate = OverlayUpdateBuilder().build(speculativeDump, data)

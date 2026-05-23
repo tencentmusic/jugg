@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
+import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.model.Apk
@@ -16,11 +17,16 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.mockito.Mockito
 import java.io.File
 
 class DirectOverlaySwapTransportTest {
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
 
     private val logger = TestGlobal.getLogger()
     private val adb = RecordingAdb()
@@ -77,7 +83,7 @@ class DirectOverlaySwapTransportTest {
     }
 
     @Test
-    fun `trySwap should fall back when startup agent is missing`() {
+    fun `trySwap should push startup agent when missing then write overlay`() {
         val entry = cacheEntry()
         adb.overlayStateId = entry.overlayId.sha
         adb.startupAgentsAvailable = false
@@ -90,14 +96,17 @@ class DirectOverlaySwapTransportTest {
             overlayUpdate = overlayUpdate,
         )
 
-        assertNull(overlayId)
-        assertTrue(adb.commands.none { it.contains("direct-overlay") })
+        assertNotNull(overlayId)
+        assertTrue(adb.pushedPaths.any { it.contains("/data/local/tmp/jugg/as-agent/") })
+        assertTrue(adb.shellScripts.any { it.contains("code_cache/startup_agents/dced2491-agent.so") })
+        assertTrue(adb.commands.contains("rm -f /data/local/tmp/jugg/direct-overlay-*.zip"))
     }
 
     @Test
-    fun `trySwap should fall back when cache is base install`() {
+    fun `trySwap should write overlay on base install after pushing startup agent`() {
         val entry = cacheEntry(isBaseInstall = true)
         adb.overlayStateId = ""
+        adb.startupAgentsAvailable = false
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
         val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
 
@@ -107,8 +116,8 @@ class DirectOverlaySwapTransportTest {
             overlayUpdate = overlayUpdate,
         )
 
-        assertNull(overlayId)
-        assertTrue(adb.commands.isEmpty())
+        assertNotNull(overlayId)
+        assertTrue(adb.shellScripts.any { it.contains("__JUGG_DIRECT_OVERLAY__") })
     }
 
     @Test
@@ -144,13 +153,29 @@ class DirectOverlaySwapTransportTest {
     }
 
     private fun newTransport(isDeviceReadyDeploy: Boolean = false): DirectOverlaySwapTransport {
+        val installersRoot = tempFolder.newFolder("installers")
+        writeAgentInstaller(installersRoot)
         return DirectOverlaySwapTransport(
             options = DirectOverlaySwapOptions(
                 enabled = true,
                 isDeviceReadyDeploy = isDeviceReadyDeploy,
                 adb = adb,
+                installersRoot = installersRoot.absolutePath,
+                installerVersion = "dced2491",
+                deviceAbi = "arm64-v8a",
+                appArch = Deploy.Arch.ARCH_64_BIT,
             ),
             logger = logger,
+        )
+    }
+
+    private fun writeAgentInstaller(root: File) {
+        val abiDir = File(root, "arm64-v8a").also { it.mkdirs() }
+        val installer = File(abiDir, "installer")
+        installer.writeBytes(byteArrayOf(0x7f))
+        MatryoshkaFixtureWriter.appendMatryoshka(
+            installer,
+            linkedMapOf("agent.so" to byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02), "version" to "dced2491".toByteArray()),
         )
     }
 
@@ -219,6 +244,8 @@ class DirectOverlaySwapTransportTest {
 
     private class RecordingAdb : IDeviceAdb {
         val commands = mutableListOf<String>()
+        val shellScripts = mutableListOf<String>()
+        val pushedPaths = mutableListOf<String>()
         var overlayStateId: String = ""
         var startupAgentsAvailable: Boolean = true
         var throwOnOverlayStateCheck: Boolean = false
@@ -233,7 +260,7 @@ class DirectOverlaySwapTransportTest {
             commands += cmd
             return when {
                 cmd.contains("startup_agents") && startupAgentsAvailable ->
-                    "1.0.27-jugg_jvmti_agent.so\napplychanges_jvmti_agent.so"
+                    "dced2491-agent.so\n1.0.27-jugg_jvmti_agent.so"
                 cmd.contains("startup_agents") ->
                     "No such file or directory"
                 else -> ""
@@ -241,6 +268,7 @@ class DirectOverlaySwapTransportTest {
         }
 
         override fun execAdbShellScript(cmd: String): String {
+            shellScripts += cmd
             commands += cmd
             if (throwOnOverlayStateCheck && cmd.contains("__JUGG_OVERLAY_STATE__")) {
                 throw IllegalStateException("boom")
@@ -248,11 +276,15 @@ class DirectOverlaySwapTransportTest {
             return when {
                 cmd.contains("__JUGG_OVERLAY_STATE__") -> "__JUGG_OVERLAY_STATE__ ID $overlayStateId"
                 cmd.contains("__JUGG_DIRECT_OVERLAY__") -> directOverlayResponse
+                cmd.contains("code_cache/startup_agents") -> "__JUGG_AS_AGENT__ OK"
                 else -> ""
             }
         }
 
-        override fun push(from: File, to: String): Boolean = true
+        override fun push(from: File, to: String): Boolean {
+            pushedPaths += to
+            return true
+        }
         override fun pull(from: String, to: File): Boolean = true
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
         override fun getArch(packageName: String): String = "ARCH_64_BIT"

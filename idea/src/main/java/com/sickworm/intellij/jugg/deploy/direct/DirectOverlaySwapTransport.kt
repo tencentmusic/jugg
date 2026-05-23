@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
 import com.android.tools.deployer.OverlayId
+import com.android.tools.deploy.proto.Deploy
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -49,8 +50,7 @@ class DirectOverlaySwapTransport(
         data: JuggDeployData,
         overlayUpdate: JuggOverlayUpdate,
     ): OverlayId? {
-        if (overlayUpdate.cachedDump.overlayId.isBaseInstall) {
-            logger.debug("Direct overlay swap skipped for base install cache.")
+        if (!canTry(data)) {
             return null
         }
 
@@ -58,6 +58,10 @@ class DirectOverlaySwapTransport(
             logger.debug("Direct overlay swap skipped for adb not ready.")
             return null
         }
+
+        val deviceAbi = options.deviceAbi ?: InstallerDeviceAbiResolver.resolve(adb)
+        val appArch = options.appArch ?: Deploy.Arch.ARCH_64_BIT
+        ensureApplyChangesStartupAgent(packageName, adb, deviceAbi, appArch)
 
         val expectedDeviceOverlayId = overlayUpdate.cachedDump.overlayId.let {
             if (it.isBaseInstall) "" else it.sha
@@ -80,6 +84,26 @@ class DirectOverlaySwapTransport(
             }
         }
     }
+
+    private fun ensureApplyChangesStartupAgent(
+        packageName: String,
+        adb: IDeviceAdb,
+        deviceAbi: String,
+        appArch: Deploy.Arch,
+    ) {
+        val installersRoot = options.installersRoot
+        val installerVersion = options.installerVersion
+        if (installersRoot == null || installerVersion == null) {
+            logger.debug("Direct overlay startup agent push skipped for missing installer metadata.")
+            return
+        }
+        AsStartupAgentPusher(
+            adb = adb,
+            matryoshkaReader = InstallerMatryoshkaReader(installersRoot, logger),
+            versionHash = installerVersion,
+            logger = logger,
+        ).pushApplyChangesStartupAgent(packageName, deviceAbi, appArch)
+    }
 }
 
 class DirectOverlayDirtyException(message: String) : RuntimeException(message)
@@ -91,7 +115,13 @@ data class DirectOverlaySwapOptions(
     val enabled: Boolean,
     val isDeviceReadyDeploy: Boolean,
     val adb: IDeviceAdb?,
+    val installersRoot: String? = null,
+    val installerVersion: String? = null,
+    val deviceAbi: String? = null,
+    val appArch: Deploy.Arch? = null,
 ) {
+    fun withAppArch(arch: Deploy.Arch): DirectOverlaySwapOptions = copy(appArch = arch)
+
     companion object {
         fun disabled(): DirectOverlaySwapOptions {
             return DirectOverlaySwapOptions(

@@ -35,6 +35,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
+import com.sickworm.intellij.jugg.deploy.direct.InstallerDeviceAbiResolver
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -102,6 +103,9 @@ class JuggDeployTask(
                 enabled = JuggSettings.isEnableDirectOverlayDeploy,
                 isDeviceReadyDeploy = launchContext.isDeviceReadyDeploy,
                 adb = launchContext.deviceAdb,
+                installersRoot = installPathProvider.compute(),
+                installerVersion = adbInstaller.version,
+                deviceAbi = InstallerDeviceAbiResolver.resolve(launchContext.deviceAdb),
             ),
             asDeployerCompat = asDeployerCompat,
         )

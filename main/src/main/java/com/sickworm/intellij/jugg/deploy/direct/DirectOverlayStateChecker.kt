@@ -85,9 +85,9 @@ class DirectOverlayStateChecker(
                 }
             }
             state == "MISSING_ID" -> DirectOverlayStateCheckResult.MISMATCHED
-            state.startsWith("ID ") -> {
-                val actualOverlayId = state.removePrefix("ID ").trim()
-                if (expectedDeviceOverlayId.isNotEmpty() && actualOverlayId == expectedDeviceOverlayId) {
+            state.startsWith("ID") -> {
+                val actualOverlayId = state.substringAfter("ID").trim()
+                if (actualOverlayId == expectedDeviceOverlayId) {
                     DirectOverlayStateCheckResult.MATCHED
                 } else {
                     DirectOverlayStateCheckResult.MISMATCHED
