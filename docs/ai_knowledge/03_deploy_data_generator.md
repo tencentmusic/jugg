@@ -1,187 +1,148 @@
 # 部署系统：影响分析与部署数据生成
 
-> 最后核对：2026-03-30（新增 MINIFY_MEMBER_REMOVED 类型、merge 优先级修复）
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
 ## 1. 文档定位
 
-本页关注“改了哪些文件 -> 需要部署哪些类/资源”的分析逻辑。
+本页只回答一件事：Jugg 拿到增量编译产物后，如何判断哪些 class/resource/lib 进入本轮 `JuggDeployData`，以及哪些源码或字节码需要补偿更新。
+
+本页不展开部署执行、设备状态恢复、常量引用数据库细节；对应入口见 `03_deploy_core.md`、`03_deploy_complete.md`、`03_deploy_const_ref.md`。
 
 ---
 
-## 2. 关键类
+## 2. 核心源码索引
 
-| 类 | 文件 | 作用 |
-|----|------|------|
-| `DeployDataGenerator` | `main/.../deploy/data/DeployDataGenerator.kt` | 构建 `JuggDeployData` |
-| `DeployDataDatabase` | `main/.../deploy/data/DeployDataDatabase.kt` | 维护类引用关系与增量索引 |
-| `ClassNodeComparator` | `main/.../deploy/data/ClassNodeComparator.kt` | 类结构差异比较（热更能力判定） |
-| `InlineMethodDetector` | `main/.../deploy/data/InlineMethodDetector.kt` | 内联影响分析 |
-| `ClassFileParser` / `DexFileNodeCollector` | `main/.../deploy/data/` | 字节码节点提取与解析 |
-| `EffectedClassNode` | `main/.../deploy/data/EffectedClassNode.kt` | 受影响类数据模型 |
-
----
-
-## 3. 核心流程
-
-1. 从编译产物和历史索引读取变更类集合。  
-2. 用 `ClassNodeComparator` 识别结构性变化。  
-3. 查询/更新 `DeployDataDatabase` 依赖关系。  
-4. 结合内联检测补齐受影响调用方。  
-5. 生成最终 `JuggDeployData`（决定热更/热修/重装倾向）。
+| 类/接口 | 文件 | 作用 |
+|---|---|---|
+| `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | 从 `DeployItem` 和部署历史生成 `JuggDeployData`，集中决定 hot reload / hot fix / reinstall 输入 |
+| `DeployDataDatabase` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabase.kt` | APK 与增量部署索引 facade，聚合 SQLite helper 的引用查询和 commit |
+| `DeployDataDatabaseSqLiteHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabaseSqLiteHelper.kt` | method/field/subclass/source 索引的 SQLite 查询实现，是 effectedSource 传播的主要事实来源 |
+| `ClassNodeComparator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ClassNodeComparator.kt` | 比较新旧 `ClassNode`，输出结构变化、abstract 变化和 generic signature 变化 |
+| `InlineMethodDetector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/InlineMethodDetector.kt` | release/minify 场景从 mapping 里找 R8 inline 调用方，补齐字节码补偿类 |
+| `EffectedClassNode` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/EffectedClassNode.kt` | 受影响类模型，区分源码重编译、inline 补偿、minify 移除补偿 |
+| `ConstRefEffectProvider` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt` | 常量引用影响分析入口；结果走 `constRefEffectedSourcePaths`，不混入 `effectedClassNodes` |
 
 ---
 
-## 4. 为什么这层关键
+## 3. 核心数据模型
 
-- 增量部署是否安全，核心依赖这里的“影响面判断”。  
-- 判定过松会引入运行时风险，判定过紧会导致频繁回退。
+### 3.1 `JuggDeployData` 的关键字段
 
----
+| 字段 | 来源 | 部署语义 |
+|---|---|---|
+| `newClasses` | 旧 DB 中不存在的新 class | 新增 class，通常不能只做 hot reload |
+| `hotReloadModifiedClasses` | `ClassNodeComparator.isCanHotReload = true` | 结构未变，可走更轻量的 class 更新 |
+| `hotFixModifiedClasses` | 多 dex / library dex / 结构变化 class | 结构或归属更复杂，走 hot fix 路径 |
+| `effectedSourceAndClassNodes` | method/field/subclass/generic/minify/inline 分析 | 需要源码重编译或字节码补偿的调用方 |
+| `overlays` / `isFullRes` | resource/asset 变更 + 首次 overlay 历史 | 首次资源部署会补齐全量 res，避免设备端缺资源 |
+| `updateApkFiles` | manifest、`resources.arsc`、native lib | 需要改 APK 并重签/重装的产物 |
+| `constRefEffectedSourcePaths` | `ConstRefEffectProvider` | 常量引用命中的源码路径，独立于 class 引用传播 |
 
-## 5. 重编译（effectedSource）完整机制
+### 3.2 `ClassNodeDiffResult` 到下游的映射
 
-### 5.1 触发入口：ClassNodeComparator 结构差异
+| 字段 | 触发条件 | 下游集合 |
+|---|---|---|
+| `effectMethods` | 方法删除、签名变化、`private` 与非 private 切换、其他有效 access flag 变化 | `changedMethodRef` |
+| `deletedFields` | 字段删除 | `changedFieldRef` |
+| `isAddedAbstractMethodForNonAbstractClass` | 抽象类/接口新增 abstract 方法 | `changedAbstractClasses` |
+| `modifiedGenericSignature` | 类级泛型 signature 变化 | `changedGenericSignatureClasses` |
 
-`DeployDataGenerator.buildDeployData()` 对每个发生变化的类调用 `ClassNodeComparator.compare()`，输出 `ClassNodeDiffResult`，其中关键字段：
+`effectMethods` 判断会忽略 `ACC_ABSTRACT` 和 `ACC_PRIVATE` 之外的等价细节；仅方法体变化不会进入 `effectMethods`。`R$xxx` class 会整体跳过 method/field 引用传播，避免资源修复流程制造大量误重编译。
 
-| 字段 | 含义 | 进入下游 |
-|------|------|----------|
-| `effectMethods` | 结构性变化的方法（删除/签名改变/可见性从 private 变 public 等） | → `changedMethodRef` |
-| `deletedFields` | 被删除的字段 | → `changedFieldRef` |
-| `isAddedAbstractMethodForNonAbstractClass` | 抽象类/接口新增了 abstract 方法 | → `changedAbstractClasses` |
-| `modifiedGenericSignature` | 类级 generic signature 变化（如 `T` → `T extends Number`） | → `changedGenericSignatureClasses` |
+### 3.3 `EffectedType`
 
-**`effectMethods` 的判定规则（`isEffectedChanged`）**：两个 `MethodNode` 满足以下条件则视为"结构未变"（不进入 effectMethods）：
-- `owner`、`name`、`desc` 完全相同
-- `access` 忽略 `ACC_ABSTRACT` 和 `ACC_PRIVATE` 位后相同
-
-换言之，以下变化会产生 `effectMethods`（触发重编译）：
-- 方法删除
-- 方法签名（name/desc）变化
-- `private` ↔ 非 `private` 可见性变化
-- 其他 access flag 变化（如 `static` / `final`）
-
-以下变化**不会**触发重编译（isCanHotReload = true）：
-- 仅方法体内容变化（方法签名不变）
-- 新增 non-static 字段（但会触发 hotfix 而非 hotreload）
-- `abstract` flag 变化（不影响调用方字节码）
-
-**特殊过滤：R subclass**：`R$xxx` 类不加入 changedMethodRef / changedFieldRef，避免 RFileFixer 处理后字段大量变化触发全量重编译。
-
-**特殊过滤：`$` 方法**：编译器合成方法（名称含 `$`）虽进入 effectMethods，但不写入 `deletedNormalMethodClasses`，区分用户代码与合成代码的删除。
+| 类型 | 检测来源 | 处理路径 |
+|---|---|---|
+| `SOURCE` | method/field/subclass/abstract/generic 传播 | 源码重编译 |
+| `INLINE_IMPL_CHANGE` | `InlineMethodDetector` 解析 R8 mapping inline 调用方 | `DexMinifyCompiler` 字节码补偿 |
+| `MINIFY_MEMBER_REMOVED` | `getEffectedClassNodesForMinify` 发现类或成员被 R8/ProGuard 移除 | `DexMinifyCompiler` 字节码补偿 |
 
 ---
 
-### 5.2 重编译开关
+## 4. 核心调用链路
 
-```kotlin
-buildDeployData(
-    isNeedCheckRecompile = true,            // 总开关；false 时完全跳过，effectedSource 为空
-    isNeedCheckRecompileMinifyRemovedClass = false, // release 场景：检查 minify 删类
-    isCompilingEffectedSourceFiles = false, // 正在编译受影响文件时，跳过 inline 检测（防循环）
-)
+```text
+编译产物成为 DeployItem
+  -> DeployDataGenerator.buildDeployData(items)
+     解析 changed dex，按 resource / asset / native lib 分组
+  -> ClassNodeComparator.compare(oldClassNode, newClassNode)
+     把结构变化压缩为 changedMethodRef / changedFieldRef / abstract / generic 四类信号
+  -> DeployDataDatabase.getEffectedSourceAndClass(...)
+     用历史引用索引找调用方、子类、generic 受影响类，并可附加 minify 移除补偿
+  -> InlineMethodDetector.findInlineEffectedClasses(...)
+     release/minify 场景补齐持有旧 inline 副本的类
+  -> ConstRefEffectProvider.ensureReadyForRecompile() + getEffectedFiles()
+     常量引用独立查询，失败只退化为 completed cache / empty result
+  -> JuggDeployData
+     交给后续 deploy/run 决定 install、apply changes、restart 和 commit
 ```
 
----
-
-### 5.3 getEffectedSourceAndClass 四步传播逻辑
-
-`DeployDataDatabase` / `DeployDataDatabaseSqLiteHelper` 中的 `getEffectedSourceAndClass()` 按五步计算受影响类集合：
-
-| 步骤 | 说明 | 设计语义 |
-|------|------|----------|
-| Step 1 | 构建 `changedMethodRefs` 的 classId 映射 | 准备 DB 查询所需 ID |
-| Step 2 | 查 `subclass_refs`，为 **非 static** `changedMethodRefs` 的 owner 找所有子类，生成子类虚拟 method node 写入 `changedMethodRefsWithSubclasses` | 处理 `invokevirtual`/`invokeinterface`：父类虚方法被删改时，调用子类同名方法的调用方也需感知 |
-| Step 3 | 查 `method_refs`，找所有调用了 `changedMethodRefsWithSubclasses`（含 static 方法）的类 | 直接引用关系命中 |
-| Step 4 | 查 `subclass_refs`，找 `changedAbstractClasses` 的所有非抽象子类 | 父类新增 abstract 方法，子类必须重编 |
-| Step 5 | 先查 `method_refs/field_refs` 找 `changedGenericSignatureClasses` 及其受影响子类的 direct member callers，再递归查 `subclass_refs` | 类级 generic signature 改变时，子类声明和具体类调用方的泛型校验都可能失效，需重编 |
-
-**⚠️ Step 2 的 static 过滤（2026-03-17 修复）**
-
-修复前，Step 2 对所有 `changedMethodRefs` 均做子类传播，包括 `ACC_STATIC` 方法。
-D8 在 `--file-per-class` 模式下会将 Kotlin lambda 编译为父类的 `$r8$lambda$xxx` 静态方法，lambda 重编号后这些方法以 `changedMethodRefs` 形式出现，错误触发所有子类重编译。
-
-修复方案：Step 2 while 循环的初始 `currentSuperClassIds`（SQLite 版）/ `classesToCheckSubclasses`（内存版）只取 `access == MISS_ACCESS || (access and ACC_STATIC) == 0` 的方法 owner，`changedMethodRefsWithSubclasses` 本身保留全部方法供 Step 3 使用。
-
-详见 `docs/task/recompile_cascade_bug_analysis.md`。
-
-**⚠️ Step 5 的 generic signature 传播（2026-04-02 修复）**
-
-修复前，`ClassNode` / `ClassNodeComparator` 只比较 DEX 擦除后的 `super/interface/method/field` 结构。像 `class Parent<T>` 改成 `class Parent<T extends Number>` 这类**不改变擦除后 descriptor** 的修改，会被误判为 `isSameStructure = true`，导致 `effectedSource` 为空。
-
-修复方案：
-- `ClassNode` 新增 `genericSignature`，从 DEX 的 `Ldalvik/annotation/Signature;` 注解还原
-- `ClassNodeComparator` 将 `modifiedGenericSignature` 视为结构变化
-- `getEffectedSourceAndClass` 新增 Step 5，递归标记所有子类为 `SOURCE`
-- Step 5 继续扩展为：把 generic signature 变化类及其受影响子类的 direct member callers 也标记为 `SOURCE`
-
-当前能力边界：Step 5 目前保证两类传播：
-- **子类级联**重编译
-- **直接调用/访问 generic signature 变化具体类成员**的调用方重编译
-
-仍未覆盖的范围：
-- 仅通过源码泛型类型约束间接受影响、但 DEX 中没有落到该类 direct member refs 的场景
-- 例如只在局部变量/方法泛型声明里出现类型约束、但没有对应 constructor / method / field direct ref 的源码
+不能把 `buildDeployData()` 的结果视为已提交状态。部署历史只在后续成功部署后由 `commitDeployedData()` 写回；失败轮的 staging / deploy data 不能污染下一轮。
 
 ---
 
-### 5.4 EffectedType 类型说明
+## 5. effectedSource 传播规则
 
-`EffectedClassNode.EffectedType` 枚举标识受影响类的检测来源和处理路径：
+`DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()` 当前按 6 个阶段收敛到 `EffectedClassNode(SOURCE)`：
 
-| 类型 | 含义 | 检测来源 | 处理路径 |
-|------|------|----------|----------|
-| `SOURCE` | 常规引用变更，需源码重编译 | `getEffectedSourceAndClass` 四步传播 | 源码重编译（`SourceCompiler`） |
-| `INLINE_IMPL_CHANGE` | R8 内联方法实现变更，调用方持有旧副本 | `InlineMethodDetector` 解析 mapping inline 标记 | 字节码补全（`DexMinifyCompiler`） |
-| `MINIFY_MEMBER_REMOVED` | R8/ProGuard 移除了类或其成员，增量 dex 引用缺失成员 | `DeployDataDatabaseSqLiteHelper.getEffectedClassNodesForMinify` | 字节码补全（`DexMinifyCompiler`） |
+| 阶段 | 作用 | 关键约束 |
+|---|---|---|
+| Step 1 | 将 changed method/field/abstract/generic class 转成 DB classId | 后续 SQL 都依赖历史 APK / deploy DB 中已有 classId |
+| Step 2 | 对非 static changed method 的 owner 查 `subclass_refs`，构造子类虚拟 method ref | 只模拟虚方法分发；static 方法保留给 Step 3，但不能启动子类遍历 |
+| Step 3 | 查 `method_refs` / `field_refs`，找到直接调用或访问变更成员的类 | `changedMethodRefsWithSubclasses` 包含 static 方法，保证 static 直接调用仍会命中 |
+| Step 4 | 对新增 abstract method 的 class/interface 递归找子类 | 非抽象子类必须重编；abstract 子类继续向下传播 |
+| Step 5 | 对 generic signature 变化类及其子类，查直接 member callers 并递归找子类 | 解决 DEX 擦除后 descriptor 不变但源码泛型约束改变的问题 |
+| Step 6 | 将受影响 classId 反查 class name/source，生成 `EffectedClassNode(SOURCE)` | 这里才形成 SourceCompiler 可消费的源码路径 |
 
-扩展属性：`Collection<EffectedClassNode>.sources` / `.inlineImplChanges` / `.minifyMemberRemoved` 分别过滤对应类型。
+Step 2 的 static 过滤是高风险边界：`changedMethodRefsWithSubclasses` 必须保留全部 method，供 Step 3 查直接引用；但 `currentSuperClassIds` 只能来自 `access == MISS_ACCESS || non-static` 的 method owner。否则 Kotlin lambda / `$r8$lambda$` 这类 static 方法会误触发整棵子类级联重编译。
 
----
-
-### 5.5 inline 检测补充（release 场景）
-
-仅当 `isNeedCheckRecompileMinifyRemovedClass = true`（release 构建）且 `isCompilingEffectedSourceFiles = false` 时，`InlineMethodDetector` 会检查 R8 mapping 中的 inline 链，将内联了被删除方法的调用方也加入受影响列表，`effectedType = INLINE_IMPL_CHANGE`（由 `DexMinifyCompiler` 处理，不触发源码重编译）。
-
----
-
-### 5.6 minify 移除检测（release 场景）
-
-`getEffectedClassNodesForMinify` 在 release 构建中检测两类问题：
-- **Check 1**：整个类被 R8 移除（APK 数据库中无该类记录），`effectedType = MINIFY_MEMBER_REMOVED`
-- **Check 2**：类存在但部分成员被移除（方法/字段在增量 dex 中被引用但 APK 中不存在），`effectedType = MINIFY_MEMBER_REMOVED`
+Generic signature 传播只能覆盖两类确定场景：子类声明链，以及对变化类/受影响子类的 direct method/field caller。纯源码泛型约束但 DEX 中没有 direct member ref 的间接场景，不能假定一定命中。
 
 ---
 
-### 5.7 merge 合并优先级
+## 6. release/minify 补偿
 
-`DeployDataGenerator.merge()` 将 `InlineMethodDetector` 的结果合并到 `effectedNodes` 中。当同一类同时被标记为 `SOURCE`（常规引用检测）和 `INLINE_IMPL_CHANGE`（inline 检测）时，**保留 `SOURCE`**——源码重编译能力严格强于字节码补全（源码重编能解决 inline 问题，反之不行）。
+`isNeedCheckRecompileMinifyRemovedClass = true` 时，`DeployDataGenerator` 会把 `parsedDex` 传入 DB 查询和 inline 检测：
 
----
+- `getEffectedClassNodesForMinify()` 检查增量 dex 引用的类或成员是否已被 APK 中的 R8/ProGuard 结果移除，命中后标为 `MINIFY_MEMBER_REMOVED`。
+- `InlineMethodDetector` 读取 mapping，找“被改方法曾经 inline 到哪些类”，命中后标为 `INLINE_IMPL_CHANGE`。
+- `DeployDataGenerator.merge()` 合并 inline 结果时，同一 class 如果已是 `SOURCE`，必须保留 `SOURCE`。源码重编译能力强于字节码补偿，反向不成立。
 
-### 5.8 constRef 补充（常量引用）
-
-与上述 method/field/abstract 传播并行，`ConstRefEffectProvider.getEffectedFiles()` 独立查询常量引用影响，结果写入 `JuggDeployData.constRefEffectedSourcePaths`（不在 `effectedClassNodes` 中）。详见 `03_deploy_const_ref.md`。
-
----
-
-## 6. 常见问题定位
-
-- **”改动很小却触发大量重编译”**：先看日志 `found effected source`，确认命中来自 Step 2（子类传播）还是 Step 3（直接引用）。若全量子类被 Step 2 扫入，检查 `changedMethodRef` 中是否混入了 static 方法（`$r8$lambda$` 等合成方法）。
-- **”调用方没更新导致运行异常”**：检查 `DeployDataDatabase` 索引更新，以及 inline 检测是否在 release 构建中启用（`isNeedCheckRecompileMinifyRemovedClass`）。
-- **”某方法改了但 effectedSource 为空”**：确认该方法的 access flag 变化是否触发了 `isEffectedChanged` 判断，以及 `changedMethodRef` 是否被 R subclass 过滤掉。
-- **”分析耗时异常”**：关注 SQLite 数据量、索引重建频率与 class 解析规模。
-- **”`Isolated process parsing failed` 且 `ClassNotFoundException: ApkParserProcess`”**：优先检查 `ApkParserProcessLauncher` 的 `-cp` 构建是否包含 URL 编码路径（如 `%20`）。子进程 classpath 必须使用可访问的本地文件路径。
-- **”修改基类 lambda 触发所有子类重编译”**（已修复）：Step 2 static 方法误传播，见第 5.3 节及 `docs/task/recompile_cascade_bug_analysis.md`。
-- **”修改类泛型没有触发级联重编译”**（已修复）：确认 `ClassNodeComparator` 是否输出 `modifiedGenericSignature`，再看 Step 5 是否将子类和 direct member callers 加入 `effectedSource`。
+`isCompilingEffectedSourceFiles = true` 时会跳过 inline 检测，避免“正在补偿受影响源码”又继续制造下一轮 inline 补偿循环。
 
 ---
 
-## 7. 关联文档
+## 7. 隐形约束
+
+- `isNeedCheckRecompile = false` 会同时跳过 class 引用传播和 constRef 查询；此时 `effectedSourceAndClassNodes` 与 `constRefEffectedSourcePaths` 都应为空。
+- constRef readiness 失败不会中断部署数据生成，只会记录 warn 并退化查询；这类运行时风险应去 `03_deploy_const_ref.md` 查缓存准备状态。
+- 首次 overlay 部署会通过 `addFullRes()` 补全资源；不要只根据本轮 changed resource 数量判断设备端资源完整性。
+- `updateApkFiles` 只收 manifest、配套 `resources.arsc` 和 native lib；普通 overlay 不等价于需要改 APK。
+- `deletedNormalMethodClasses` 会过滤方法名含 `$` 的合成方法，避免把编译器生成方法删除当作用户代码删除信号。
+
+---
+
+## 8. 排查入口
+
+| 现象 | 优先入口 |
+|---|---|
+| 改动很小却触发大量 `effectedSource` | `DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()` Step 2，检查 changed method 是否 static / `$r8$lambda$` |
+| 调用方没重编译导致运行异常 | `ClassNodeComparator.compare()` 输出，以及 Step 3 `method_refs` / `field_refs` 是否命中 |
+| 修改泛型约束但 effectedSource 为空 | `ClassNodeComparator.modifiedGenericSignature` 与 Step 5 generic propagation |
+| release 增量后缺类/缺成员 | `getEffectedClassNodesForMinify()` 与 `EffectedType.MINIFY_MEMBER_REMOVED` |
+| release 方法体修改但调用方仍旧逻辑 | `InlineMethodDetector.findInlineEffectedClasses()` 和 mapping 文件是否存在 |
+| 常量改动未触发调用方 | `ConstRefEffectProvider.ensureReadyForRecompile()`，再转 `03_deploy_const_ref.md` |
+| `Isolated process parsing failed` 且 `ClassNotFoundException: ApkParserProcess` | `ApkParserProcessLauncher` 的 classpath 构建，检查是否用了 URL 编码路径 |
+
+---
+
+## 9. 关联文档
 
 - 部署核心：`03_deploy_core.md`
+- 完整部署流程：`03_deploy_complete.md`
+- 常量引用影响分析：`03_deploy_const_ref.md`
 - 编译主流程：`02_compile_core.md`
-- 级联重编译 Bug 详细分析：`docs/task/recompile_cascade_bug_analysis.md`
+- 级联重编译案例：`docs/task/recompile_cascade_bug_analysis.md`
