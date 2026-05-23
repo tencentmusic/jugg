@@ -171,6 +171,95 @@ class JuggDeployerHelperRecoverTest {
     }
 
     @Test
+    fun `recoverDeployState should defer install recover launch when direct overlay enabled`() {
+        val device = Mockito.mock(IDevice::class.java)
+        Mockito.`when`(device.serialNumber).thenReturn("device-1")
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(emptyList())
+
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        Mockito.`when`(deployHistoryManager.isCleanAndReinstall).thenReturn(false)
+        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
+            .thenReturn(mapOf("com.example.app" to "overlay-id"))
+
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(JuggDeployState.READY)
+
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
+            .thenReturn(null)
+
+        val recoverHost = RecordingRecoverHost()
+        val recover = createDeployStateRecover(
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployStateManager = deployStateManager,
+            deploymentService = deploymentService,
+            logger = TestGlobal.getLogger(),
+            deployRunHost = recoverHost,
+        )
+
+        recover.recoverDeployState(
+            device = device,
+            indicator = null,
+            isNeedDryDeployFirst = true,
+            isSkipExceptOverlayCheck = false,
+            compileUiHandler = CompileUiHandler.DEFAULT,
+        )
+
+        assertEquals(true, recoverHost.lastDeferPostDeployLaunch)
+    }
+
+    @Test
+    fun `recoverDeployState should skip waiting when direct overlay defers launch without dry deploy first`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(emptyList())
+
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        Mockito.`when`(deployHistoryManager.isCleanAndReinstall).thenReturn(false)
+
+        val notReady = JuggDeployState(
+            JuggDeployState.State.READY_INCREMENTAL_COMPILE,
+            "app not running or not debuggable",
+            com.sickworm.intellij.jugg.deploy.run.IdeDeployState(
+                com.sickworm.intellij.jugg.deploy.run.IdeDeployState.State.NO_DEPLOYABLE_APP,
+                "app not running or not debuggable",
+            ),
+        )
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(notReady)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(notReady)
+
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        val recoverHost = RecordingRecoverHost()
+        val recover = createDeployStateRecover(
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployStateManager = deployStateManager,
+            deployRunHost = recoverHost,
+        )
+
+        val result = recover.recoverDeployState(
+            device = device,
+            indicator = null,
+            isNeedDryDeployFirst = false,
+            isSkipExceptOverlayCheck = false,
+            isInstallUpdateApk = true,
+            compileUiHandler = CompileUiHandler.DEFAULT,
+        )
+
+        assertEquals(true to true, result)
+        Mockito.verify(deployStateManager, Mockito.never()).getDeployState(device)
+    }
+
+    @Test
     fun `recoverDeployState should reinstall and reset after dry deploy fails`() {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("device-1")
@@ -316,13 +405,19 @@ class JuggDeployerHelperRecoverTest {
     ) : IJuggDeployHelperRunHost {
         var recoverInvokeCount = 0
 
+        var lastDeferPostDeployLaunch: Boolean? = null
+
         override fun runRecoverDeployTask(
             device: IDevice,
             data: JuggDeployData,
             isSkipExceptOverlayCheck: Boolean,
             compileUiHandler: CompileUiHandler,
+            deferPostDeployLaunch: Boolean,
         ) {
             recoverInvokeCount++
+            if (data.isInstall) {
+                lastDeferPostDeployLaunch = deferPostDeployLaunch
+            }
             throwOnRecover?.let { throw it }
         }
 

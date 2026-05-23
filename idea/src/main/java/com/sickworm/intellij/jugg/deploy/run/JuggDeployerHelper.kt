@@ -120,6 +120,7 @@ class JuggDeployerHelper(
         data: JuggDeployData,
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
+        deferPostDeployLaunch: Boolean,
     ) {
         runTask(
             JuggDeployRunTaskRequest(
@@ -127,6 +128,7 @@ class JuggDeployerHelper(
                 data = data,
                 compileUiHandler = compileUiHandler,
                 isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
+                deferPostDeployLaunch = deferPostDeployLaunch,
             ),
         )
     }
@@ -143,6 +145,7 @@ class JuggDeployerHelper(
         val androidTestRunSpec = request.androidTestRunSpec
         val androidTestResultModel = request.androidTestResultModel
         val isDeviceReadyDeploy = request.isDeviceReadyDeploy
+        val deferPostDeployLaunch = request.deferPostDeployLaunch
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
 
@@ -281,6 +284,8 @@ class JuggDeployerHelper(
                     return LaunchResult(false, 1, "Instrumentation test run reported failures.", emptyMap())
                 }
             }
+        } else if (deferPostDeployLaunch) {
+            logger.debug("Defer post-deploy launch; follow-up deploy will restart the app.")
         } else if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
             deployTargetManager.restartApp(device)

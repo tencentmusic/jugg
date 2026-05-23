@@ -84,19 +84,21 @@ open class DeployStateRecover(
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
         logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
 
+        val deferPostDeployLaunch = JuggSettings.isEnableDirectOverlayDeploy
         val costTime = measureTimeMillis {
             deployRunHost.runRecoverDeployTask(
                 device,
                 deployData,
                 isSkipExceptOverlayCheck = false,
                 compileUiHandler = compileUiHandler,
+                deferPostDeployLaunch = deferPostDeployLaunch,
             )
         }
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
 
-        // device need to be deployable, otherwise deployer can not get the correct arch of App.
-        if (isNeedDryDeployFirst && JuggSettings.isEnableDirectOverlayDeploy) {
-            logger.debug("Skip wait for online and goes to direct write on detect mismatch and isNeedTisEnableDirectOverlayDeploy=true")
+        // Follow-up deploy launches the app when launch was deferred; do not wait for online here.
+        if (deferPostDeployLaunch) {
+            logger.debug("Skip wait for online; follow-up deploy will launch the app.")
         } else {
             val isDeviceDeployable = waitingForDeployable(device, maxWaitTimeSecond = 5)
             if (!isDeviceDeployable) {

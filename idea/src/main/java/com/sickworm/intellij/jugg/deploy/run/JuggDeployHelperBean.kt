@@ -57,6 +57,8 @@ data class JuggDeployRunTaskRequest(
     val androidTestResultModel: AndroidTestResultModel? = null,
     val isDeviceReadyDeploy: Boolean = true,
     val isAllowDirectOverlayDeploy: Boolean = true,
+    /** When true, skip app restart/start after this task; a follow-up deploy will launch the app. */
+    val deferPostDeployLaunch: Boolean = false,
 ) {
     companion object {
         fun fromDeployOptions(

@@ -429,6 +429,7 @@ class DeployRetryHandlerTest {
             data: JuggDeployData,
             isSkipExceptOverlayCheck: Boolean,
             compileUiHandler: CompileUiHandler,
+            deferPostDeployLaunch: Boolean,
         ) = Unit
 
         override fun redeploy(deployOptions: DeployOptions): DeployTaskResult {

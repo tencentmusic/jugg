@@ -52,6 +52,7 @@ class JuggDeployerHelperDeployFlowTest {
         assertNotEquals("", deviceOverlayId)
         assertNotEquals(mismatchedDeviceOverlayId, deviceOverlayId)
         assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+        Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
     }
 
     @Test

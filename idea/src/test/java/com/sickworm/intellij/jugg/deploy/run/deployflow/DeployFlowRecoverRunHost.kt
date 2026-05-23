@@ -32,12 +32,13 @@ class DeployFlowRecoverRunHost(
         data: JuggDeployData,
         isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler,
+        deferPostDeployLaunch: Boolean,
     ) {
         recoverTaskInvokeCount++
         if (data.isInstall) {
             installRecoverTaskCount++
         }
-        helper.runRecoverDeployTask(device, data, isSkipExceptOverlayCheck, compileUiHandler)
+        helper.runRecoverDeployTask(device, data, isSkipExceptOverlayCheck, compileUiHandler, deferPostDeployLaunch)
         if (data.isInstall) {
             onAfterInstallRecoverTask?.run()
         }

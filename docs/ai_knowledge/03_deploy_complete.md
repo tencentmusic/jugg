@@ -46,6 +46,7 @@
 - 部署前/中检测状态异常可触发 `recoverDeployState`。  
 - Overlay 不一致、agent 兼容问题会触发额外修复流程。  
 - 开启 `JuggSettings.isEnableDirectOverlayDeploy` 后，recover 会先直接读取设备 overlay id 判断状态是否匹配；该检查不等待 app 进程在线，未知结果才回退原 dry deploy/apply changes 探测。
+- 同一开关开启后，recover 触发的 **INSTALL 重装** 会设置 `deferPostDeployLaunch`：跳过 recover `runTask` 末尾的 restart/start，并 **跳过** recover 后的 `waitingForDeployable`（因 App 尚未拉起），由紧随其后的增量 deploy 统一 restart。
 - 同一开关开启后，主部署链路仍完整进入 `runTask`，但 `JuggDeployer.optimisticSwap` 会在旧 `AsDeployerCompat.optimisticSwap` 前尝试 Direct Overlay Writer transport：仅当设备未 ready、Android O 及以上、非 install、overlay-only、本轮需要重启生效，且 startup agent/cache/设备 overlay 状态都满足时（含 **base install cache**），先由 `AsStartupAgentPusher` 从 host installer matryoshka 解 doll 并 `run-as cp` 到 `code_cache/startup_agents/{adbInstaller.version}-agent.so`（32-bit app on 64-bit device 为 `-agent-alt.so`），再通过 ADB push ZIP + `run-as` 写入 `code_cache/.overlay`，成功后更新 deployment cache；条件不满足或 writer 在修改 overlay 目录前失败都会继续走旧 Apply Changes 流程，writer 已开始修改 overlay 目录后失败则停止本轮部署，避免半提交后继续旧流程。Direct transport 不负责 app 启动、重启或 instrumentation，后续仍由 `runTask` 统一处理。
 - Gradle 编译成功后会重建增量上下文，恢复后续增量能力。
 
