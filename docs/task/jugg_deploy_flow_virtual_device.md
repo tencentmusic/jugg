@@ -51,16 +51,26 @@ VirtualDeployDevice
 {tempDir}/data/local/tmp/jugg/                             # push 的 zip
 ```
 
-### 2.3 窄脚本解释器（v1）
+### 2.3 脚本模拟（v2）
+
+采用 **两层** 模型，避免 Kotlin 模式匹配与真机 shell 漂移：
+
+| 层级 | 行为 |
+|------|------|
+| **`IdeaDeviceAdb` 包装** | `execAdbShellScript` 先记录并等价于生产侧的 `sh -c '$escaped'`（见 [VirtualDeployShellExecutor.wrapLikeIdeaDeviceAdb]） |
+| **run-as 内层** | 解析 `run-as <pkg> sh -c '<inner>'`：`__JUGG_OVERLAY_STATE__` / `__JUGG_DIRECT_OVERLAY__` 仍走 Kotlin marker handler；**其余 generic 脚本**（如 AS startup agent SetUpAgent）在 host `/bin/sh` 上执行，`cwd=data/data/<pkg>`，并将 `/data/local/tmp/` 重写到 virtual root |
+
+这样 invalid `\` 续行等 **shell 语法错误** 会在 L2 Virtual Device 上失败，而不是 mock 直接返回 OK。
+
+仍 **不** 实现通用 shell；新需求优先扩 marker 表或 SetUpAgent 类 run-as 脚本。
 
 | 标记 / 模式 | 行为 |
 |-------------|------|
-| `__JUGG_OVERLAY_STATE__` | 读/写 `code_cache/.overlay/id`；返回 `__JUGG_OVERLAY_STATE__ ID {id}` |
-| `__JUGG_DIRECT_OVERLAY__` | 按 `DirectOverlayWriter` 脚本语义更新 overlay 目录；返回 `__JUGG_DIRECT_OVERLAY__ OK` |
+| `__JUGG_OVERLAY_STATE__` | Kotlin handler：读 virtual `code_cache/.overlay/id` |
+| `__JUGG_DIRECT_OVERLAY__` | Kotlin handler：按 `DirectOverlayWriter` 语义解压/写 id |
+| generic `run-as sh -c`（如 startup agent） | host `/bin/sh` + 路径重写 |
+| `execAdbShellCmd`（非 script） | 窄命令表：`mkdir`/`rm`/`run-as ls startup_agents` 等 |
 | `push` / `pull` | 本地文件 ↔ `{tempDir}/data/local/tmp/...` |
-| `startup_agents`（若 JVMTI 检测走到） | 可返回固定 agent 列表或空（与 `DirectOverlaySwapTransportTest.RecordingAdb` 对齐） |
-
-**不** 实现通用 shell；新脚本需求先扩表，禁止宽解释器。
 
 ### 2.4 install 语义（物理边界）
 

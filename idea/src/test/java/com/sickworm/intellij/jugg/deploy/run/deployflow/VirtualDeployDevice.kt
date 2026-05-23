@@ -9,7 +9,7 @@ import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 /**
- * In-memory device filesystem with a narrow adb/script interpreter for deploy-flow L2 tests.
+ * In-memory device filesystem with marker handlers plus host-shell run-as simulation for deploy-flow L2 tests.
  */
 class VirtualDeployDevice(
     val packageName: String,
@@ -99,7 +99,11 @@ class VirtualDeployDevice(
         return dir.listFiles()?.map { it.name }?.sorted() ?: emptyList()
     }
 
+    fun studioDir(): File = File(packageDataDir(), "code_cache/.studio")
+
     fun startupAgentsDir(): File = File(packageDataDir(), "code_cache/startup_agents")
+
+    fun remotePushFile(remotePath: String): File? = remotePushFiles[remotePath]
 
     /**
      * True when recover ran [DirectOverlayStateChecker] against [mismatchedOverlayId] before mock install
@@ -157,36 +161,31 @@ class VirtualDeployDevice(
         }
     }
 
-    private fun execShellScript(script: String): String {
-        val scriptIndex = shellScripts.size
-        shellScripts += script
+    private fun dispatchShellScript(cmd: String): String {
+        shellScripts += cmd
+        val runAs = VirtualDeployShellExecutor.parseRunAsShC(cmd) ?: return ""
+        val (pkg, inner) = runAs
+        if (pkg != packageName) {
+            return ""
+        }
+        return executeRunAsInnerScript(inner)
+    }
+
+    private fun executeRunAsInnerScript(inner: String): String {
+        val scriptIndex = shellScripts.size - 1
         return when {
-            script.contains(OVERLAY_STATE_MARKER) -> handleOverlayStateScript(scriptIndex)
-            script.contains("run-as $packageName") && script.contains(DIRECT_OVERLAY_MARKER) -> handleDirectOverlayScript(script)
-            script.contains(AS_AGENT_MARKER) ||
-                (script.contains("run-as $packageName") &&
-                    script.contains("code_cache/startup_agents") &&
-                    script.contains("cp -f")) -> handleAsAgentPushScript(script)
-            else -> ""
+            inner.contains(OVERLAY_STATE_MARKER) -> handleOverlayStateScript(scriptIndex)
+            inner.contains(DIRECT_OVERLAY_MARKER) -> handleDirectOverlayScript(inner)
+            else -> executeGenericRunAsScript(inner)
         }
     }
 
-    private fun handleAsAgentPushScript(script: String): String {
-        if (script.contains("code_cache/.studio")) {
-            File(packageDataDir(), "code_cache/.studio").mkdirs()
+    private fun executeGenericRunAsScript(inner: String): String {
+        val output = VirtualDeployShellExecutor.executeRunAsInner(this, inner)
+        if (inner.contains("code_cache/startup_agents") && output.contains("$AS_AGENT_MARKER OK")) {
+            asStartupAgentPushCount++
         }
-        if (script.contains("rm -rf code_cache/startup_agents")) {
-            startupAgentsDir().deleteRecursively()
-        }
-        val copyMatch = Regex("""cp -f (\S+) (\S+)""").find(script) ?: return ""
-        val remotePath = copyMatch.groupValues[1]
-        val destRelative = copyMatch.groupValues[2]
-        val remoteFile = remotePushFiles[remotePath] ?: return "$AS_AGENT_MARKER FAILED"
-        val destFile = File(packageDataDir(), destRelative)
-        destFile.parentFile?.mkdirs()
-        remoteFile.copyTo(destFile, overwrite = true)
-        asStartupAgentPushCount++
-        return "$AS_AGENT_MARKER OK"
+        return output
     }
 
     private fun handleOverlayStateScript(scriptIndex: Int): String {
@@ -270,7 +269,10 @@ class VirtualDeployDevice(
 
         override fun execAdbShellCmd(cmd: String): String = device.execShellCmd(cmd)
 
-        override fun execAdbShellScript(cmd: String): String = device.execShellScript(cmd)
+        override fun execAdbShellScript(cmd: String): String {
+            device.shellCommands += VirtualDeployShellExecutor.wrapLikeIdeaDeviceAdb(cmd)
+            return device.dispatchShellScript(cmd)
+        }
 
         override fun push(from: File, to: String): Boolean {
             if (device.failDirectOverlayPush) {
