@@ -1,8 +1,14 @@
 # 测试策略与 TDD（权威细则）
 
-> 最后核对：2026-05-22  
-> 一致性规则：文档与代码冲突时，以代码为准。  
+> 最后核对：2026-05-23
+> 一致性规则：文档与代码冲突时，以代码为准。
 > **与 AGENTS.md 关系**：`AGENTS.md` 规定测试分层硬性原则；**本页是落地细则**（选型、目录、示例、TDD 清单）。其他 `docs/task/*` 设计文档若与本页冲突，以本页为准。
+
+---
+
+## 0. 文档定位
+
+本页是测试选型与 TDD 执行口径，不维护完整测试清单。查具体测试文件时，先按能力域 `rg` 当前 `main/src/test`、`idea/src/test`，再用本页判断层级与是否需要补 L3。
 
 ---
 
@@ -64,9 +70,9 @@
 
 ## 4. 文件与模块优先级
 
-1. **【最高】复用已有文件**：同一被测能力只追加用例，不新建 `*Test.kt`（除非 L1 白名单且尚无文件）。
-2. **【次优先】main 模块**：无 IDE 依赖时 L1 放 `main/src/test`。
-3. **【必要时】idea 模块**：IDE API、RunConfig、`JuggRunningTask`、deploy/run 编排。
+1. **复用已有文件**：同一被测能力只追加用例，不新建 `*Test.kt`（除非 L1 白名单且尚无文件）。
+2. **main 模块优先**：无 IDE 依赖时 L1 放 `main/src/test`。
+3. **idea 模块承载 IDE 编排**：IDE API、RunConfig、`JuggRunningTask`、deploy/run 编排。
 
 > androidTest / instrumentation：见 [`06_android_test.md`](06_android_test.md)。
 
@@ -255,6 +261,18 @@ mkdir -p ~/.jugg/test_flag && touch ~/.jugg/test_flag/enabled && touch ~/.jugg/t
 
 ---
 
-## 14. 历史文档
+## 14. 排查入口
+
+| 现象 | 优先入口 |
+|------|----------|
+| 不确定该写 L1/L2/L3 | 本页 §2 白名单 + §3 选型决策 |
+| deploy/run 分支只在 L2 复现 | 本页 §7.1，确认是否还需要 `TopLevelFlowTest` / `AndroidTestTopLevelFlowTest` |
+| androidTest 相关测试落点不清 | `06_android_test.md` §6 + 本页 §7.2 |
+| 新增 testcase 后测试读到旧产物 | 本页 §6.1、§12，删除 `~/.jugg/test_flag/skip_assemble` |
+| 任务文档测试口径冲突 | 本页 §1 与 §15；任务文档只保留场景背景 |
+
+---
+
+## 15. 历史文档
 
 `docs/task/TDD_UNIT_TEST_COVERAGE_GAP_REPORT_*.md`、`androidtest_support_design.md` §10 等若写「单元测试数量远多于集成」，指 **L1 域内测试** 或历史盘点，**不等同**于鼓励为编排类堆 Mockito 单测。修订任务文档时分层以本页为准。

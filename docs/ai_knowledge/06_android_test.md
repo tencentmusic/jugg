@@ -1,6 +1,6 @@
 # androidTest 支持指南
 
-> 最后核对：2026-05-17
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -64,7 +64,7 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 - `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt`
 
-阶段 2 最终采用 **独立 synthetic ModuleInfo**，不是早期方案里的“合入 app ModuleInfo”：
+androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
 | 字段 | 当前约定 |
 |------|----------|
@@ -134,10 +134,10 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 | 配置 | 职责 |
 |------|------|
 | `JuggRunConfiguration.enableAndroidTest` | 控制 app RunConfig 是否允许 androidTest 编译与运行 |
-| `JuggAndroidTestRunConfiguration` | General 页对齐 Android Instrumented Tests：Module 行、四种 Test scope、动态字段、可编辑 Instrumentation class 与原有 Instrumentation arguments |
+| `JuggAndroidTestRunConfiguration` | General 页对齐 Android Instrumented Tests：Module 行、两种 Test scope、动态字段、可编辑 Instrumentation class 与原有 Instrumentation arguments |
 | `JuggAndroidTestLineMarkerContributor` | 在 `src/androidTest` 的 JUnit test 上提供 Jugg gutter，并把测试文件路径写入 `sourcePath` |
 
-`JuggAndroidTestRunConfiguration` 当前两种 scope：
+`JuggAndroidTestRunConfiguration` 支持两种执行 scope：
 
 | Scope | 配置字段 | 运行映射 | 校验 |
 |-------|----------|----------|------|
@@ -194,7 +194,7 @@ androidTest 的 SM Runner process output 不接收 Jugg 项目级 `info/warn` �
 | class suite | FQCN | `java:suite://FQCN` |
 | method test | methodName | `java:test://FQCN/methodName` |
 
-设备 suite 展示规则（2026-05-07）：
+设备 suite 展示规则：
 
 - **单设备运行**：隐藏 device suite，仅展示 class/method 节点，减少一层无效树层级。
 - **多设备运行**：展示 device suite，按设备分组 class/method 节点，避免不同设备结果混在同一层。
@@ -214,11 +214,11 @@ androidTest 的 SM Runner process output 不接收 Jugg 项目级 `info/warn` �
 
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployTask.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`
-- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/LibraryTestApkBackfillHelper.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/LibraryTestApkBackfillHelper.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/ApkInstallOrder.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt`
 
-部署阶段继续按 `applicationId` 分组，install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。2026-05-06 后的关键差异：
+部署阶段继续按 `applicationId` 分组，install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。关键差异：
 
 - **base APK**：继续走完整部署策略（install / code swap / full swap），参与 JVMTI agent push/attach 与 compat 检测。
 - **test APK**：只走 **INSTALL**（完整 APK 安装），不走 code swap / full swap 增量部署。
@@ -242,7 +242,7 @@ library-style self-targeting Test APK 是例外：它有自己的 runtime packag
 
 入口：
 
-- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/TestLauncher.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/TestLauncher.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/AdbCmdHelper.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentCommandBuilder.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationOutputParser.kt`
@@ -255,7 +255,7 @@ library-style self-targeting Test APK 是例外：它有自己的 runtime packag
 am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMethod>...]] [-e <key> <value>]* <testPkg>/<runner>
 ```
 
-`AndroidTestRunSpec.sourcePath` 非空时，MCP 会先用 source file 解析单 class/多 class 与 method 有效性，部署阶段再用 source file 精确解析 androidTest module 与 test APK；无 `sourcePath` 的旧 app androidTest 路径仍回退到首个 test APK。`AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用 `testClass` / `testMethod`。
+`AndroidTestRunSpec.sourcePath` 非空时，运行入口会先用 source file 解析单 class/多 class 与 method 有效性，部署阶段再用 source file 精确解析 androidTest module 与 test APK；无 `sourcePath` 的 app androidTest 路径仍回退到首个 test APK。`AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用 `testClass` / `testMethod`。
 
 当需要执行大范围 androidTest 回归时，先用一次 `jugg instrument --source-path ...` 让 Jugg 完成编译、部署和目标 APK 刷新。该命令成功后，app 源码变更与 androidTest 源码变更都已经写入对应 APK；此时可以使用普通 `adb shell am instrument` 执行更大范围的 class/package/suite 回归，不再要求通过 jugg cli 使用 `sourcePath` 做目标锚定。
 
@@ -263,8 +263,8 @@ am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMetho
 
 入口：
 
-- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/TestLauncher.kt`
-- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AndroidTestLogAttributor.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/TestLauncher.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/AndroidTestLogAttributor.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/AndroidTestResultModel.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridge.kt`
 
