@@ -41,10 +41,6 @@ open class DeployStateRecover(
         isInstallUpdateApk: Boolean = false,
         compileUiHandler: CompileUiHandler,
     ): Pair<Boolean, Boolean> {
-        if (!isInstallUpdateApk) {
-            logger.info("App not ready to deploy, recover deploy state from history.")
-        }
-
         val isCleanAndReinstall = deployHistoryManager.isCleanAndReinstall
         val reinstallTips = if (isCleanAndReinstall) {
             "User triggered, start clean and reinstalling app..."
@@ -62,7 +58,7 @@ open class DeployStateRecover(
         if (isNeedDryDeployFirst && !isCleanAndReinstall) {
             val dryDeployResult = tryDryDeploy(device, isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
             if (dryDeployResult == DryDeployResult.SUCCESS) {
-                logger.info("Deploy state matched, no need reinstall app.")
+                logger.debug("Deploy state matched, no need reinstall app.")
                 return true to false
             } else {
                 val tips = when (dryDeployResult) {
