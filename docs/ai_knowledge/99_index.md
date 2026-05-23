@@ -50,6 +50,7 @@
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
 | **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_manifest_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`, `04_engineering_ide.md`, `03_deploy_const_ref.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
+| 知识库维护 / 专题文档重整 | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai_knowledge/*` |
 
 ---
 
@@ -81,6 +82,7 @@
 | `08_cli_tools_list.md` | `jugg` CLI（MCP 封装层）子命令参数与行为差异 |
 | `08_mcp_figma-layout-verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |
 | `09_plugin_runtime_debug.md` | 运行时排查手册：目录结构、日志分析、IDE freeze 证据保全、高频问题根因、TDD 修复流程 |
+| `97_maintenance_manual.md` | AI 知识库维护手册：专题文档整理标准、结构模板、密度控制、自审清单 |
 
 ---
 
@@ -96,6 +98,7 @@
 ## 6. 维护约定
 
 - 发生类名/路径变更：至少同步 `98_code_map.md`（路径同步规则详见 `98_code_map.md §6`）。
+- 维护或重整专题文档时，先按 `97_maintenance_manual.md` 的质量标准与自审清单执行。
 - **新增专题文档**：必须同时在第3节添加任务类型行、在第4节添加文档描述行。
 - 更新已有专题时，直接描述当前最新实现；不要用“某日期起”这类时间分界来表达当前行为。
 - 若暂未同步文档：在结论中标注"以代码为准"。
