@@ -130,6 +130,25 @@ class JuggDeployerHelperDeployFlowTest {
         )
     }
 
+    @Test
+    fun `DF-L2-008 recover reinstall base cache then direct write with as startup agent push`() {
+        val mismatchedDeviceOverlayId = "mismatched-device-overlay"
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_008)
+        val result = fixture.helper.deploy(fixture.deployOptions)
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertTrue(
+            fixture.virtualDevice.hadRecoverMismatchOverlayCheckBeforeInstallAndDirectWrite(mismatchedDeviceOverlayId),
+        )
+        assertTrue(fixture.virtualDevice.installInvokeCount >= 1)
+        Mockito.verify(fixture.deployFileManager).resetAfterReinstall()
+        assertTrue(fixture.virtualDevice.hasAsStartupAgentPush())
+        assertTrue(fixture.virtualDevice.listStartupAgents().contains("dced2491-agent.so"))
+        assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
+        assertNotEquals("", fixture.virtualDevice.readOverlayId().orEmpty())
+        assertNotEquals(mismatchedDeviceOverlayId, fixture.virtualDevice.readOverlayId().orEmpty())
+        assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+    }
+
     private fun assertOverlayRecoverMatched(fixture: DeployFlowFixture) {
         val checker = DirectOverlayStateChecker(
             adb = fixture.virtualDevice.asIDeviceAdb(),

@@ -1,6 +1,6 @@
 # JuggDeployerHelper DeployFlowTest 用例规格
 
-> 状态：Virtual Device 单轨契约已对齐（见 [jugg_deploy_flow_virtual_device.md](jugg_deploy_flow_virtual_device.md)）；DF-L2-001～007 已落地，DF-L2-010～026 待编码
+> 状态：Virtual Device 单轨契约已对齐（见 [jugg_deploy_flow_virtual_device.md](jugg_deploy_flow_virtual_device.md)）；DF-L2-001～008 已落地，DF-L2-010～026 待编码
 > 日期：2026-05-22  
 > 一致性：与 `AGENTS.md`、`docs/ai_knowledge/06_testing.md` 一致；冲突时以代码为准。
 
@@ -75,7 +75,7 @@ L2 **禁止**只测 `DeployStateRecover` / `DeployRetryHandler` 而不经过 Hel
 | **FS 内核** | tempDir 映射 `data/data/{pkg}/code_cache`、`/data/local/tmp/jugg` |
 | **双适配** | `asIDeviceAdb()` + `asDdmlibDevice()` 共用同一 FS |
 | **install** | `DeployFlowAsDeployerCompatBoundary.install`；副作用 = 清空 virtual `code_cache` |
-| **Apply Changes** | `DeployFlowAsDeployerCompatBoundary.optimisticSwap`；001/002/003/005 禁止，004/006/007 记录 fallback |
+| **Apply Changes** | `DeployFlowAsDeployerCompatBoundary.optimisticSwap`；001/002/003/005/008 禁止，004/006/007 记录 fallback |
 | **IDE deploy 状态** | 注入 **`IIdeDeployStateHelper`**（物理边界），驱动 `DeployStateManager` |
 | **本地 cache** | 真实 **`IJuggDeploymentService`**；与 install **不联动** |
 | **overlay 三路** | **前置流程** 写 history + storeEntry + virtual id（禁止仅 mock 对齐） |
@@ -260,6 +260,26 @@ L2 **禁止**只测 `DeployStateRecover` / `DeployRetryHandler` 而不经过 Hel
 1. `tryDirectOverlaySwap` 内 `checkDevice` → **MISMATCHED**。
 2. 断言：返回 null，**回退** Apply Changes（同 DF-L2-004）。
 3. 断言：与 DF-L2-002 区别：本条 **不经过** recover reinstall，仅 swap 阶段跳过 direct。
+
+---
+
+#### DF-L2-008 recover reinstall 后 base install cache → direct write + AS startup agent push
+
+**设备后端**：Virtual Device
+
+**条件**：
+
+- Direct overlay 开启；设备在线；**app 不可 deploy**
+- recover 前 overlay 设备不一致 → 触发 reinstall
+- reinstall 后 deployment cache / history 为 **base install**（`isBaseInstall == true`），设备无 `.overlay` 目录
+- mock `AdbInstaller.version` 与 matryoshka installer fixture 可用；设备 `startup_agents` 初始为空
+
+**步骤**：
+
+1. `recoverDeployState` → reinstall → `restoreBaseInstallCacheAfterMockInstall`。
+2. incremental `tryDirectOverlaySwap`：`AsStartupAgentPusher` push → `checkDevice("", NO_DIR)` → MATCHED → writer 成功。
+3. 断言：`hasAsStartupAgentPush()`；`listStartupAgents()` 含 `{version}-agent.so`。
+4. 断言：**未** `optimisticSwap`；virtual overlay id 已更新为非空。
 
 ---
 

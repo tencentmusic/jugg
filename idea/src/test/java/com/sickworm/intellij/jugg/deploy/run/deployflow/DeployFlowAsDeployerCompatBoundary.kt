@@ -23,6 +23,7 @@ class DeployFlowAsDeployerCompatBoundary(
     private val virtualDevice: VirtualDeployDevice,
     private val optimisticSwapPolicy: OptimisticSwapPolicy = OptimisticSwapPolicy.FORBIDDEN,
     private val onInstall: Runnable = Runnable { virtualDevice.onInstallCompleted() },
+    private val installerVersion: String? = null,
     private val delegate: IAsDeployerCompat = AsDeployerCompat,
 ) : IAsDeployerCompat by delegate {
 
@@ -30,7 +31,11 @@ class DeployFlowAsDeployerCompatBoundary(
         private set
 
     override fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller {
-        return Mockito.mock(AdbInstaller::class.java)
+        val installer = Mockito.mock(AdbInstaller::class.java)
+        if (installerVersion != null) {
+            Mockito.`when`(installer.version).thenReturn(installerVersion)
+        }
+        return installer
     }
 
     override fun install(

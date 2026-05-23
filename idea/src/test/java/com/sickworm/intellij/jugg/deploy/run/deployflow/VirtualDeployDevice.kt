@@ -23,6 +23,8 @@ class VirtualDeployDevice(
         private set
     var failDirectOverlayPush: Boolean = false
     var directOverlayWriteResult: DirectOverlayWriteResult = DirectOverlayWriteResult.OK
+    var asStartupAgentPushCount: Int = 0
+        private set
 
     private val remotePushFiles = mutableMapOf<String, File>()
 
@@ -87,6 +89,18 @@ class VirtualDeployDevice(
         return shellScripts.any { it.contains(DIRECT_OVERLAY_MARKER) }
     }
 
+    fun hasAsStartupAgentPush(): Boolean = asStartupAgentPushCount > 0
+
+    fun listStartupAgents(): List<String> {
+        val dir = startupAgentsDir()
+        if (!dir.isDirectory) {
+            return emptyList()
+        }
+        return dir.listFiles()?.map { it.name }?.sorted() ?: emptyList()
+    }
+
+    fun startupAgentsDir(): File = File(packageDataDir(), "code_cache/startup_agents")
+
     /**
      * True when recover ran [DirectOverlayStateChecker] against [mismatchedOverlayId] before mock install
      * and before the first direct-overlay write script.
@@ -115,21 +129,32 @@ class VirtualDeployDevice(
 
     private fun execShellCmd(cmd: String): String {
         shellCommands += cmd
-        when {
+        return when {
             cmd.startsWith("mkdir -p /data/local/tmp/jugg") -> {
                 File(root, "data/local/tmp/jugg").mkdirs()
+                ""
             }
             cmd.startsWith("rm -f /data/local/tmp/jugg/direct-overlay-") -> {
                 File(root, "data/local/tmp/jugg").listFiles()
                     ?.filter { it.name.startsWith("direct-overlay-") && it.name.endsWith(".zip") }
                     ?.forEach { it.delete() }
+                ""
             }
             cmd.startsWith("rm -f /data/local/tmp/jugg/") -> {
                 val remote = cmd.removePrefix("rm -f ").trim()
                 remotePushFiles.remove(remote)?.delete()
+                ""
             }
+            cmd.contains("run-as $packageName") && cmd.contains("code_cache/startup_agents") && cmd.contains("ls") -> {
+                val agents = listStartupAgents()
+                if (agents.isEmpty()) {
+                    "No such file or directory"
+                } else {
+                    agents.joinToString("\n")
+                }
+            }
+            else -> ""
         }
-        return ""
     }
 
     private fun execShellScript(script: String): String {
@@ -138,9 +163,24 @@ class VirtualDeployDevice(
         return when {
             script.contains(OVERLAY_STATE_MARKER) -> handleOverlayStateScript(scriptIndex)
             script.contains("run-as $packageName") && script.contains(DIRECT_OVERLAY_MARKER) -> handleDirectOverlayScript(script)
-            script.contains("startup_agents") -> "1.0.27-jugg_jvmti_agent.so\napplychanges_jvmti_agent.so"
+            script.contains(AS_AGENT_MARKER) ||
+                (script.contains("run-as $packageName") &&
+                    script.contains("code_cache/startup_agents") &&
+                    script.contains("cp -f")) -> handleAsAgentPushScript(script)
             else -> ""
         }
+    }
+
+    private fun handleAsAgentPushScript(script: String): String {
+        val copyMatch = Regex("""cp -f (\S+) (\S+)""").find(script) ?: return ""
+        val remotePath = copyMatch.groupValues[1]
+        val destRelative = copyMatch.groupValues[2]
+        val remoteFile = remotePushFiles[remotePath] ?: return "$AS_AGENT_MARKER FAILED"
+        val destFile = File(packageDataDir(), destRelative)
+        destFile.parentFile?.mkdirs()
+        remoteFile.copyTo(destFile, overwrite = true)
+        asStartupAgentPushCount++
+        return "$AS_AGENT_MARKER OK"
     }
 
     private fun handleOverlayStateScript(scriptIndex: Int): String {
@@ -167,7 +207,7 @@ class VirtualDeployDevice(
             DirectOverlayWriteResult.APPLYING -> return "$DIRECT_OVERLAY_MARKER APPLYING"
             DirectOverlayWriteResult.OK -> Unit
         }
-        val expectedId = Regex("""!= \"([^\"]+)\"""").find(script)?.groupValues?.get(1)
+        val expectedId = Regex("""!= \"([^\"]*)\"""").find(script)?.groupValues?.get(1)
             ?: return "$DIRECT_OVERLAY_MARKER SKIPPED"
         val newOverlayId = Regex("""printf %s \"([^\"]+)\" >""").find(script)?.groupValues?.get(1)
             ?: return "$DIRECT_OVERLAY_MARKER SKIPPED"
@@ -252,11 +292,15 @@ class VirtualDeployDevice(
 
         override fun getArch(packageName: String): String = "ARCH_64_BIT"
 
-        override fun getProperty(name: String): String? = null
+        override fun getProperty(name: String): String? = when (name) {
+            "ro.product.cpu.abi" -> "arm64-v8a"
+            else -> null
+        }
     }
 
     companion object {
         private const val OVERLAY_STATE_MARKER = "__JUGG_OVERLAY_STATE__"
         private const val DIRECT_OVERLAY_MARKER = "__JUGG_DIRECT_OVERLAY__"
+        private const val AS_AGENT_MARKER = "__JUGG_AS_AGENT__"
     }
 }

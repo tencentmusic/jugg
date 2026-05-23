@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run.deployflow
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
+import com.sickworm.intellij.jugg.deploy.direct.MatryoshkaFixtureWriter
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -12,11 +13,12 @@ import com.sickworm.intellij.jugg.mock.TestGlobal
 import java.io.File
 
 /**
- * Assembles Virtual Device deploy-flow fixtures for DF-L2-001 through DF-L2-007.
+ * Assembles Virtual Device deploy-flow fixtures for DF-L2-001 through DF-L2-008.
  */
 object DeployFlowMockBackend : DeployFlowDeviceBackend {
 
     private var installPath: String? = null
+    private const val AS_INSTALLER_VERSION = "dced2491"
 
     override fun buildFixture(caseId: DeployFlowCaseId): DeployFlowFixture {
         return when (caseId) {
@@ -27,6 +29,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             DeployFlowCaseId.DF_L2_005 -> buildDfL2005()
             DeployFlowCaseId.DF_L2_006 -> buildDfL2006()
             DeployFlowCaseId.DF_L2_007 -> buildDfL2007()
+            DeployFlowCaseId.DF_L2_008 -> buildDfL2008()
         }
     }
 
@@ -35,9 +38,26 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         AssembleAndroidProjectOnce.ensure()
         JuggSettings.isEmbeddedToApk = false
         JuggSettings.isEnableDirectOverlayDeploy = true
-        installPath = System.getProperty("java.io.tmpdir")
+        installPath = ensureMatryoshkaInstallersRoot()
         JuggDeploymentService.deploymentCacheDbFile.parentFile?.mkdirs()
         JuggDeploymentService.preInit(com.sickworm.intellij.jugg.mock.logger)
+    }
+
+    private fun ensureMatryoshkaInstallersRoot(): String {
+        val root = File(System.getProperty("java.io.tmpdir"), "jugg-deploy-flow-installers")
+        val abiDir = File(root, "arm64-v8a").also { it.mkdirs() }
+        val installer = File(abiDir, "installer")
+        if (!installer.isFile) {
+            installer.writeBytes(byteArrayOf(0x7f))
+            MatryoshkaFixtureWriter.appendMatryoshka(
+                installer,
+                linkedMapOf(
+                    "agent.so" to byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02),
+                    "version" to AS_INSTALLER_VERSION.toByteArray(),
+                ),
+            )
+        }
+        return root.absolutePath
     }
 
     private fun buildDfL2001(): DeployFlowFixture {
@@ -212,6 +232,70 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             optimisticSwapPolicy = DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.RECORD_SUCCESS,
             onInstall = null,
             afterRecoverSuccessOverlayId = "swap-phase-mismatch-overlay",
+        )
+    }
+
+    private fun buildDfL2008(): DeployFlowFixture {
+        val virtualDevice = VirtualDeployDevice(DeployFlowOverlaySeed.packageName())
+        val deployData = DeployFlowTestSupport.incrementalDeployData()
+        val deployHistoryManager = DeployFlowTestHistoryManager()
+        val historyOverlayId = DeployFlowOverlaySeed.seedHistoryAndCacheOnly(
+            deploymentService = JuggDeploymentService,
+            deployHistoryManager = deployHistoryManager,
+            virtualDevice = virtualDevice,
+        )
+        DeployFlowOverlaySeed.writeMismatchedDeviceOverlay(virtualDevice, "mismatched-device-overlay")
+        val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalNotDeployable() }
+        val deployTargetManager = DeployFlowTestSupport.defaultDeployTargetManager(virtualDevice)
+        val deployFileManager = DeployFlowTestSupport.defaultDeployFileManager(deployData)
+        val project = registerDeployFlowProject()
+        val deployStateManager = DeployFlowTestSupport.createDeployStateManager(
+            project = project,
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+        )
+        val device = virtualDevice.asDdmlibDevice()
+        val compatBoundary = DeployFlowStaticBoundaryMocks.createCompat(
+            virtualDevice = virtualDevice,
+            onInstall = Runnable { virtualDevice.onInstallCompleted() },
+            installerVersion = AS_INSTALLER_VERSION,
+        )
+        val recoverRunHost = DeployFlowRecoverRunHost(
+            onAfterInstallRecoverTask = Runnable {
+                DeployFlowOverlaySeed.restoreBaseInstallCacheAfterMockInstall(
+                    virtualDevice = virtualDevice,
+                    deploymentService = JuggDeploymentService,
+                    deployHistoryManager = deployHistoryManager,
+                )
+                ideDeployStateHelper.signalInstallCompletedForRecoverWait()
+            },
+        )
+        val helper = DeployFlowTestSupport.createHelper(
+            project = project,
+            virtualDevice = virtualDevice,
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployStateManager = deployStateManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+            installPathProvider = installPathProvider(),
+            asDeployerCompat = compatBoundary,
+            recoverRunHost = recoverRunHost,
+        )
+        return DeployFlowFixture(
+            caseId = DeployFlowCaseId.DF_L2_008,
+            virtualDevice = virtualDevice,
+            device = device,
+            deployOptions = DeployFlowTestSupport.defaultDeployOptions(device),
+            helper = helper,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployTargetManager = deployTargetManager,
+            compatBoundary = compatBoundary,
+            ideDeployStateHelper = ideDeployStateHelper,
+            recoverRunHost = recoverRunHost,
+            seededOverlayId = historyOverlayId,
         )
     }
 

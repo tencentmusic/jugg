@@ -12,11 +12,13 @@ object DeployFlowStaticBoundaryMocks {
         optimisticSwapPolicy: DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy =
             DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.FORBIDDEN,
         onInstall: Runnable = Runnable { virtualDevice.onInstallCompleted() },
+        installerVersion: String? = null,
     ): DeployFlowAsDeployerCompatBoundary {
         return DeployFlowAsDeployerCompatBoundary(
             virtualDevice = virtualDevice,
             optimisticSwapPolicy = optimisticSwapPolicy,
             onInstall = onInstall,
+            installerVersion = installerVersion,
         )
     }
 }
