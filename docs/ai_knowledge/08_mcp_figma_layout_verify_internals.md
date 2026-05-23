@@ -45,7 +45,7 @@ FigmaLayoutVerifyMcpToolAction.execute()
   -> structuredContent.data.results
 ```
 
-App 侧 `jvmti_agent/.../LayoutVerifier.java` 属于旧 `layout_verify` / ViewHierarchy server 方向；`figma-layout-verify` 的关系提取与验证在 IDE 侧 Kotlin 实现内完成。
+App 侧 `jvmti_agent/.../LayoutVerifier.java` 属于旧 `layout-verify` / ViewHierarchy server 方向；`figma-layout-verify` 的关系提取与验证在 IDE 侧 Kotlin 实现内完成。
 
 ---
 
@@ -205,7 +205,7 @@ pass if maxDiff <= 2
 | alignment 先按 top/left 分桶，再按中心点验证 | 可能提取出最终会失败的 alignment |
 | IoU 阈值固定为 `> 0.7` | 重叠容器、FrameLayout、相似尺寸节点可能误匹配 |
 | 匹配不看语义信息 | 元素命名、文本、resourceId 不参与匹配 |
-| 不验证颜色、字号、圆角 | 这些属性应使用公开的 `view-inspect` / `layout-verify` 路径 |
+| 不验证颜色、字号、圆角 | 这些属性应使用公开的 `view-inspect`；位置和尺寸用 `view-locate` |
 | spacing 百分比容差使用 `expected` 原值作分母 | `expected <= 0` 时结果不符合通常的百分比容差直觉 |
 
 ---
@@ -228,4 +228,5 @@ pass if maxDiff <= 2
 - MCP 设计说明：`08_mcp_design.md`
 - MCP 工具参数清单：`08_mcp_tools_list.md`
 - UI 布局验证设计：`08_mcp_layout_verify_design.md`
+- UI 验证检查清单：`08_mcp_ui_verify_checklist.md`
 - 代码路径速查：`98_code_map.md`

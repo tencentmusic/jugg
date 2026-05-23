@@ -78,7 +78,7 @@ McpToolAction
 - 只有 `McpToolActionRegistry.noProjectDirTools` 中的工具不要求 `projectDir`；当前是 `list-projects` 与 `version`。
 - 非全局工具会校验项目是否已初始化。
 
-Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/baseline 校验、`layout-verify` 的 checks 结构校验、runtime observe 工具的 App ready 校验。
+Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/baseline 校验、runtime observe 工具的 App ready 校验。未注册 action（如 `layout-verify`）即使保留内部校验，也不能视为公开 MCP 能力。
 
 ---
 
@@ -103,7 +103,7 @@ compile/deploy/gradle-build/instrument
 
 ## 7. ViewHierarchy 与 UI 工具约束
 
-- `layout-dump` 公开 HTML artifact；内部 JSON 文件只给 `view-locate`、`layout-verify` 等实现消费。
+- `layout-dump` 公开 HTML artifact；内部 JSON 文件只给 `view-locate` 等实现消费。
 - `ViewHierarchyClient` 使用 App 内 LocalSocket Server-only 通道，不走 uiautomator 回退。
 - 多进程场景按“主进程优先 -> 其余 PID -> `jugg_vh` 兼容名”尝试 socket。
 - `ElementFinder` 在 selector 命中前过滤不可操作节点：可见、已显示、非零尺寸、有效 bounds。
@@ -118,10 +118,10 @@ compile/deploy/gradle-build/instrument
 | `view-locate` | 公开 MCP + CLI | `UiFindMcpToolAction` |
 | `view-inspect` | 公开 MCP + CLI | `EvalViewMcpToolAction` |
 | `tap` | 公开 MCP + CLI | `TapMcpToolAction` |
-| `layout-verify` | 公开 MCP，未封装 CLI | `LayoutVerifyMcpToolAction` |
+| `layout-verify` | action 类存在，但未进入 `defaultActions()`，不是当前公开工具 | `LayoutVerifyMcpToolAction` |
 | `figma-layout-verify` | action 类存在，但未进入 `defaultActions()`，不是当前公开工具 | `FigmaLayoutVerifyMcpToolAction` |
 
-`figma-layout-verify` 的内部算法见 [`08_mcp_figma_layout_verify_internals.md`](08_mcp_figma_layout_verify_internals.md)；不要把它写进公开工具清单，除非先注册到 `McpToolActionRegistry.defaultActions()` 并同步 `tools/list`、CLI/skill 文档。
+`layout-verify` 与 `figma-layout-verify` 不要写进公开工具清单，除非先注册到 `McpToolActionRegistry.defaultActions()` 并同步 `tools/list`、CLI/skill 文档。`figma-layout-verify` 的内部算法见 [`08_mcp_figma_layout_verify_internals.md`](08_mcp_figma_layout_verify_internals.md)。
 
 ---
 

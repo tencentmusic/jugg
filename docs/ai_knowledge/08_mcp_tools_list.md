@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-04-15
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -213,7 +213,7 @@
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
 | `target` | object | **是** | 元素选择器：`text`/`resourceId`/`contentDesc` |
-| `figmaNode` | object | 否 | Figma 节点信息（id/name/bounds），用于模糊匹配 |
+| `figmaNode` | object | 否 | 保留字段；当前公开实现仍以 `target` 的 text/resourceId/contentDesc 精确匹配为准 |
 
 **返回 data**（found=true 时）：`bounds`（`[l,t,r,b]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`、`resourceId`、`matchCount`、`matches[]`。所有坐标单位 dp；`matchCount > 1` 时不能把首个结果直接当作安全点击目标。
 
@@ -279,7 +279,7 @@
 - 元素模式多匹配时不执行，返回 `ERROR` + 匹配元素摘要。
 - 执行前检查 `topActivity` 稳定性（连续 2 次相同且 onResume，最长等待 5s）。
 - 百分比换算结果做边界钳制 `[0, size-1]`。
-- 推荐交互顺序：`layout-dump + element tap` → `layout-dump + coordinate tap` → `screenshot + percent/coordinate tap`。
+- 推荐交互顺序：`layout-dump + element tap` → `layout-dump + coordinate tap` → 外部截图证据（若可用）+ percent/coordinate tap。当前 MCP `screenshot` action 未注册，不能作为默认公开工具。
 
 ---
 
@@ -403,4 +403,5 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 - CLI 封装层：`08_cli_tools_list.md`
 - 设计说明：`08_mcp_design.md`
 - figma-layout-verify 算法：`08_mcp_figma_layout_verify_internals.md`
+- UI 验证检查清单：`08_mcp_ui_verify_checklist.md`
 - 路径速查：`98_code_map.md`

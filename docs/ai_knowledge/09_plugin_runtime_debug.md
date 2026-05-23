@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-04-01
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -12,7 +12,7 @@
 1. **定位日志时间区间**：从用户提供的日志片段找到问题时间戳（精确到毫秒）。
 2. **读取完整上下文**：在日志中向上/向下各扩展 50~100 行，确认前后调用链。
 3. **检索关键词**：用下表"常用搜索词"在日志中定位锁等待、EDT 阻塞、耗时超标等信号。
-4. **对照代码**：根据日志中的 `[ClassName]` 标签，直接用 IDE MCP 工具跳转到对应类。
+4. **对照代码**：根据日志中的 `[ClassName]` 标签，优先用 android-studio-index MCP 跳转到对应类；调用时必须带项目目录参数。
 5. **输出结论**：给出根因 + 调用链 + 修复方向，不要只描述现象。
 
 ---
@@ -347,8 +347,9 @@ fun `addChangedFile on EDT should dispatch async and return immediately`() {
 ### Step 3：验证
 
 ```bash
-# 单测验证
-./gradlew :main:test :idea:test
+# 定向测试验证；按 06_testing.md 选择 L1/L2/L3，不跑无过滤的全量 :main:test / :idea:test
+./gradlew :main:test --tests "*YourTest*"
+./gradlew :idea:test --tests "*YourFlowTest*"
 
 # 打包
 ./gradlew :idea:buildPlugin

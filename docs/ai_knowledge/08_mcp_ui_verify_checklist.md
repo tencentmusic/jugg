@@ -1,58 +1,53 @@
 # MCP UI 验证执行情况检查清单
 
-> 基于 `docs/skills/jugg-android-dev-loop/references/guide_layout_verify_assertion.md` 全部章节。
-> 用于验收 Agent 是否按规范执行了 UI 检查流程。每条问题要求 Agent 给出**事实回答**，如未遵守需说明原因。
-> 最后更新：2026-03-10
+> 最后核对：2026-05-23
+> 依据：`08_mcp_layout_verify_design.md`、`08_mcp_tools_list.md` 与当前 `McpToolActionRegistry.defaultActions()`。
+> 用于验收 Agent 是否按当前公开 MCP 工具完成 UI 证据采集。每条问题要求给出事实回答；未遵守时说明原因。
 
 ---
 
-## A. Core Principle & Sub-Agent 隔离
+## A. 页面与工具边界
 
-1. 你是否按 Sub-Agent Delegation Policy（§Core Principle）将 **UI 检查** 和 **UI 修复** 分配给了两个独立的 sub-agent？如果没有，为什么？
-2. 检查 sub-agent（A）和修复 sub-agent（B）之间，是否存在 context 共享？Main agent 是通过结构化摘要传递信息的吗？
-3. 修复完成后，你是否 spawn 了一个 **全新的** 检查 sub-agent 实例做 re-verify，而不是复用上一轮的 A？
+1. 你是否先用 `activity-stack` 或等价证据确认当前页面就是目标页面？如果没有，为什么？
+2. 你使用的 UI 工具是否都在 `tools/list` / `08_mcp_tools_list.md` 的公开工具清单内？
+3. 你是否避免调用未注册的 `layout-verify`、`figma-layout-verify`、`screenshot` 作为默认验证工具？如果用了，请说明运行时 `tools/list` 证据。
 
-## B. 三层原则 & 期望值来源
+## B. Expected Value 来源
 
-4. 你的 expected value 来自哪里——代码推导、设计稿数值、还是你自己目测猜的？请列出至少 2 个 expected value 的推导公式或设计稿出处。
-5. 你是否执行了 Step 1.5（Code-Derive Expected Values），为尺寸/间距关键元素写出了显式公式？如果没有，为什么？
+4. 每个 expected value 来自哪里：设计稿、代码公式、产品文案，还是用户明确给出的数值？
+5. 对尺寸、间距、对齐类断言，你是否写出至少两个公式，例如 `right.left - left.right` 或 `(left + right) / 2`？
+6. 如果 Figma 数值是 px，你是否说明 `dpr` 并换算为 dp？
 
-## C. 工具使用优先级
+## C. Actual Value 证据
 
-6. 你优先使用了 `layout_verify` 和 `view-inspect` 吗？如果某些检查跳过了这两个工具，请逐条说明原因。
-7. 如果你使用了 `screenshot` 作为判定依据（而非仅作为辅助截图），是因为 `layout_verify` / `view-inspect` 无法覆盖该属性吗？请说明具体是哪个属性。
-8. 你是否存在"截图看起来对了就 PASS"的情况？有没有每个判定都有 `layout_verify` / `view-inspect` 的数据层数值支撑？
+7. 元素位置、大小、间距、对齐是否来自 `view-locate` 的 `bounds` / `size`，而不是目测？
+8. View 内部属性（颜色、字号、maxLines、ellipsize、enabled、clickable 等）是否来自 `view-inspect` 的 getter 输出？
+9. 全局结构或 selector 失败时，是否用 `layout-dump` HTML 查找候选节点，而不是直接标记跳过？
+10. 需要运行时闭环时，是否用 `wait-logs` 的 `marker` / `crash` / `timeout` 结果支撑结论？
 
-## D. Selector Fallback Chain（§1.3.1）
+## D. Selector 与多命中
 
-9. 遇到 selector 匹配失败时，你是否按 5 级 fallback chain 逐级尝试了（`resourceId` → `+className` → `text+className` → `contentDesc+className` → `layout-dump` 手动提取）？
-10. 有没有因为第一次 selector 失败就直接标记 INCONCLUSIVE 或跳过检查的情况？
+11. selector 是否优先使用稳定 `resourceId`，再考虑 `text` / `contentDesc`？
+12. `view-locate.data.matchCount > 1` 时，你是否消歧后再做断言或点击？
+13. selector 查不到元素时，你是否用 `layout-dump` 检查真实 text/id/contentDesc，而不是只重试同一个 selector？
+14. 对隐藏或 GONE 节点，你是否区分“属性仍可读”和“不能作为安全点击目标”？
 
-## E. 完整性 & SOP 步骤
+## E. 数值与单位
 
-11. 你是否按 §4 的 Step 0 ~ Step 7 完整走完了所有步骤？如果跳过了某个 Step，是哪个，为什么？
-12. Step 0（Screenshot 可疑区域表）你生成了吗？是表格形式还是自由文本？
-13. Step 6（Cross-Check Against §2 Component Checklist）你做了吗？对页面上存在的组件类型（Grid / Image / Banner / Spacing / Corner radius / Scrollable），是否逐条过了 §2 的 mandatory check？
+15. 所有 bounds、size、spacing 结论是否以 dp 表达？
+16. `view-inspect` 返回 px 或原始 getter 值时，你是否用 `density` 做 px -> dp 换算？
+17. 近似判定是否显式写出容差口径（推荐 `<= 2dp` 或 `<= 5%`），而不是使用不存在的 `tolerance` 参数？
+18. 颜色值是否说明格式来源；若转成 hex，是否保留 alpha（`#AARRGGBB`）？
 
-## F. 断言生成 & 分组
+## F. 交互验证
 
-14. 你的 `layout_verify` 调用是否按 target 分组了（同一元素的所有 checks 放在一个 `checks[]` 里）？
-15. 对于 §1.4 列出的 `layout_verify` 不支持的属性（maxLines / ellipsize / cornerRadius 等），你用 `view-inspect` 补充了吗？还是直接跳过了？
+19. 点击前是否确认 `tap` 的模式：coordinate、percent 或 element？
+20. 元素模式点击前是否确认没有多匹配？多匹配时是否改用更强 selector 或坐标？
+21. 点击后是否重新采集页面证据，而不是复用点击前的 `layout-dump` / `view-locate` 输出？
 
-## G. 数值规范
+## G. Verification Report
 
-16. 你的 `textColor` 值是否使用了 `#AARRGGBB` 格式（含 alpha）？有没有漏掉 alpha 写成 `#RRGGBB` 的？
-17. 近似匹配你用了 `gte` + `lte` 一对检查吗？有没有使用不存在的 `tolerance` 字段？
-18. 所有数值是 dp 单位吗？如果来源是 px，你做了 `dp = px / density` 转换吗？
-
-## H. Verification Report（§7）
-
-19. 你在改代码 **之前** 是否先输出了完整的 Verification Report？
-20. Report 里是否每一条断言都出现了——有没有 silently omitted 的？
-21. Report 的 "Actual" 列是来自 `layout_verify` / `view-inspect` 的工具输出，还是你自己的目测估算？
-22. FAIL 项是否包含了具体的修复建议（含文件/位置提示）？
-
-## I. Re-Verify 完整性
-
-23. 改完代码后，你是否重新执行了 **完整的** Step 0 → Step 7 验证，而不是只 re-check 了之前 FAIL 的那几项？
-24. 每次 re-verify 是否生成了新的 Report，并保留了上一轮 Report 用于 diff？
+22. 报告是否逐条列出 `Expected`、`Actual`、`Diff`、`Evidence tool`、`Verdict`？
+23. 是否没有 silently omit 失败或无法验证的断言？
+24. FAIL 项是否包含具体修复方向，并指明优先查看的文件、布局或 View getter？
+25. 修复后是否完整 re-verify 受影响页面，而不是只检查上一次 FAIL 的单个数值？

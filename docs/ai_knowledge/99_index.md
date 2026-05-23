@@ -43,7 +43,7 @@
 | 兼容层（AS 版本适配） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt` |
 | MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `ai/mcp/McpToolInvoker.kt`, `ai/mcp/actions/*`, `ai/mcp/util/CrashDetector.kt`, `ai/mcp/util/LastDeployTimestampRegistry.kt` |
 | jugg CLI 子命令使用 / **新增或修改 CLI 参数** | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` |
-| MCP UI 布局验证设计（工具原理/算法） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `ai/mcp/layout/*`, `ElementFinder.kt`, `ElementMatcher.kt`, `RelationExtractor.kt`, `RelationVerifier.kt` |
+| MCP UI 布局验证设计（公开工具边界 / 证据链） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `McpToolActionRegistry.kt`, `LayoutDumpHelper.kt`, `UiFindMcpToolAction.kt`, `EvalViewMcpToolAction.kt`, `TapMcpToolAction.kt` |
 | MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_tools_list.md` | `ai/mcp/actions/McpToolActionRegistry.kt`, `ai/mcp/actions/*` |
 | MCP UI 验证盲测/view_inspect | `98_code_map.md`, `ai/mcp/actions/*` |
 | figma-layout-verify 内部算法（关系提取/IoU 匹配/容差） | `08_mcp_figma_layout_verify_internals.md` | `ai/mcp/layout/RelationExtractor.kt`, `ElementMatcher.kt`, `RelationVerifier.kt` |
@@ -77,7 +77,7 @@
 | `06_testing.md` | 测试策略与 TDD：L1/L2/L3 分层、选型、deploy/run 落点、testcase、DeployDataGeneratorTest 模式 |
 | `06_android_test.md` | app androidTest 支持：BuildTarget、test APK 识别、synthetic ModuleInfo、增量编译、gutter/RunConfig、`am instrument`、logcat 捕获与 method 归类、SM Test Runner、rerun failed 与定向测试 |
 | `08_mcp_design.md` | MCP 协议分层与设计约束（§7 引用 `08_mcp_layout_verify_design.md`） |
-| `08_mcp_layout_verify_design.md` | UI 布局验证设计：工具体系、IoU 匹配算法、容差标准、dpr 处理、返回格式 |
+| `08_mcp_layout_verify_design.md` | UI 布局验证设计：公开工具边界、证据链、单位流转、未注册 action 风险 |
 | `08_mcp_tools_list.md` | MCP 工具完整参数清单（18 个注册工具、通用行为、错误码） |
 | `08_cli_tools_list.md` | `jugg` CLI（MCP 封装层）子命令参数与行为差异 |
 | `08_mcp_figma_layout_verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |
