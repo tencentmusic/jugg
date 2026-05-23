@@ -141,10 +141,11 @@ class DeployRetryHandler(
                 }
             }
             if (!isRetryDirectly) {
+                val isNeedDryDeployFirst = isDirectDeployFailed
                 val (isSuccess, _) = deployStateRecover.recoverDeployState(
                     deployOptions.device,
                     deployOptions.indicator,
-                    isNeedDryDeployFirst = false,
+                    isNeedDryDeployFirst = isNeedDryDeployFirst,
                     deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
                 )

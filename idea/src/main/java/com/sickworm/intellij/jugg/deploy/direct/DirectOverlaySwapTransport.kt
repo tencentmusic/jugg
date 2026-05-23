@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.deploy.direct
 import com.android.tools.deployer.OverlayId
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManagerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 
@@ -25,6 +24,7 @@ class DirectOverlaySwapTransport(
             trySwapInternal(packageName, data, overlayUpdate)
         } catch (e: Exception) {
             if (e is DirectOverlayDirtyException) throw e
+            if (e is DirectOverlayDeployFailedException) throw e
             if (e is InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw e

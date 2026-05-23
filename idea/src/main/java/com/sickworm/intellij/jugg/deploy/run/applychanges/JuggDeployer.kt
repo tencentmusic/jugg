@@ -8,6 +8,7 @@ import com.android.tools.deployer.model.Apk
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
+import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDeployFailedException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
@@ -254,6 +255,7 @@ class JuggDeployer(
             )
         } catch (e: Exception) {
             if (e is DirectOverlayDirtyException) throw e
+            if (e is DirectOverlayDeployFailedException) throw e
             if (e is InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw e
