@@ -402,5 +402,5 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 
 - CLI 封装层：`08_cli_tools_list.md`
 - 设计说明：`08_mcp_design.md`
-- figma-layout-verify 算法：`08_mcp_figma-layout-verify_internals.md`
+- figma-layout-verify 算法：`08_mcp_figma_layout_verify_internals.md`
 - 路径速查：`98_code_map.md`

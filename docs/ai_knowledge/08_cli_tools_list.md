@@ -1,383 +1,357 @@
-# jugg CLI 参数清单
+# jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-05-10
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
-
-> **相关文档**：MCP 工具完整参数清单见 [`08_mcp_tools_list.md`](08_mcp_tools_list.md)
 
 ---
 
-## 1. jugg CLI 概述
+## 1. 文档定位
 
-> 脚本位置：`docs/skills/jugg-android-dev-loop/scripts/`  
-> 入口：`jugg.py`（跨平台）/ `jugg`（shell 包装）/ `jugg.cmd`（Windows）  
-> 实现层：`scripts/py/jugglib.py` + `scripts/py/cmd/cmd_*.py`
+本页只描述 `jugg` CLI 的公开子命令、全局参数、CLI flag 到 MCP 参数的映射，以及几个容易误判的 CLI-only 行为。
 
-`jugg` CLI 是一层把 MCP tools 包装为 POSIX 子命令的工具。参数透传到对应 MCP tool，但有以下统一行为优化：
+不展开 MCP tool 的完整 schema；完整参数以 [`08_mcp_tools_list.md`](08_mcp_tools_list.md) 与 `tools/list` 为准。Benchmark prompt pack、hooks 验收与被测 Agent 报告格式由 `docs/skills/benchmark/` 承载，不放在本参数清单内。
 
-### 1.1 统一优化行为
+---
 
-| 优化点 | 说明 |
-|--------|------|
-| **projectDir 解析** | 默认通过调用 `list-projects` 后与 `$PWD` 做最长前缀匹配自动确定；传入全局参数 `--project-dir <path>` 时直接使用该路径 |
-| **端口自动发现** | 先读本地缓存文件，不命中则扫描 `12320..12329`，命中后写缓存 |
-| **异步编译自动轮询** | `compile`/`deploy`/`gradle-build` 自动调用 `get-compile-status` 到终态；返回 `running` 后立即再次请求，并附带 `waitTimeoutMs=3000` 进行短阻塞等待，减少尾部等待窗口 |
-| **并发 compile 等待** | `compile`/`deploy`/`gradle-build`/`instrument` 在触发 MCP 前默认轮询 `status.isCompiling`，直到无进行中的 compile/deploy 任务；可用全局 `--if-compiling interrupt` 跳过等待并立即触发（服务端仍会中断当前任务） |
-| **`--console=json` 模式** | 通过全局参数 `--console=json` 输出原始 structuredContent JSON 供脚本消费；默认以 `key: value` 格式输出 |
+## 2. 核心源码索引
 
-**端口/session 缓存文件位置**（可被环境变量覆盖）：
+| 文件 | 作用 |
+|------|------|
+| `docs/skills/jugg-android-dev-loop/scripts/jugg.py` | CLI 总入口；解析全局参数、处理本地 help、懒加载子命令 |
+| `docs/skills/jugg-android-dev-loop/scripts/py/help_registry.py` | side-effect-free help 文案；`COMMAND_HELP` 必须覆盖全部公开 CLI 子命令 |
+| `docs/skills/jugg-android-dev-loop/scripts/py/jugglib.py` | MCP 端口发现、projectDir 解析、kebab-case 归一化、异步轮询、输出格式 |
+| `docs/skills/jugg-android-dev-loop/scripts/py/cmd/cmd_*.py` | 各子命令参数解析；只做 MCP 参数直传和必要的本地校验 |
+| `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | MCP 注册工具事实来源；CLI 子命令必须映射到这里的公开工具 |
+
+---
+
+## 3. 全局行为
+
+### 3.1 projectDir 解析
+
+默认路径：
+
+```text
+jugg.py
+  -> jugglib.resolve_project_dir()
+  -> list-projects
+  -> 用当前工作目录和已初始化项目做最长前缀匹配
+  -> 将匹配结果作为 MCP projectDir
+```
+
+传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，直接把该路径作为 MCP `projectDir`，跳过 `list-projects` 与 `$PWD` 匹配。`--projectDir` 作为 camelCase 全局别名也会被归一化。
+
+### 3.2 端口与缓存
+
+CLI 先读端口缓存，不命中再扫描 `12320..12329`。
 
 | 文件 | 默认路径 | 环境变量 |
 |------|----------|----------|
 | 端口缓存 | `~/.cache/jugg/port`（Linux/macOS）/ `%LOCALAPPDATA%/jugg/port`（Windows） | `JUGG_PORT_CACHE` |
 | 缓存根目录 | `~/.cache/jugg/` | `JUGG_CACHE_DIR` |
 
-### 1.2 CLI flag 双格式兼容
+### 3.3 输出模式
 
-CLI flag 同时接受 **kebab-case**（POSIX 惯例，文档示例默认格式）和 **camelCase**（= MCP 参数名）：
-
-```bash
-# 以下两种写法完全等价：
-jugg layout-dump --include-gone          # kebab-case（默认示例格式）
-jugg layout-dump --includeGone           # camelCase（= MCP param name）
+```text
+jugg --console=plain <subcommand>
+jugg --console=rich <subcommand>
+jugg --console=json <subcommand>
 ```
 
-内部实现：`jugglib.normalize_args()` 在解析前将 kebab-case 转为 camelCase，解析器只匹配 camelCase。转换规则为纯机械的 kebab→camelCase，无特例：`to_camel_case(flag) === MCP_key`。
+- `plain`：直接 `python3 jugg.py` 的默认模式，不显示 spinner。
+- `rich`：shell / Windows wrapper 默认注入，面向人工终端显示 spinner。
+- `json`：输出 MCP `structuredContent` JSON，供脚本或 Agent 消费。
 
-### 1.3 CLI 参数设计强制约束（1:1 透传原则）
+全局参数由 `jugg.py` 在子命令分发前抽取；示例统一写在子命令前，便于阅读。
 
-> **⚠️ AI 必读：新增或修改 CLI 参数时，必须遵守以下规则，违反即为错误设计。**
+### 3.4 并发 compile 策略
 
-**核心约束：CLI 参数与 MCP 参数必须严格 1:1 对应，CLI 不得创造 MCP 不存在的参数语义。**
-
-| 规则 | 正确做法 | 错误做法（禁止） |
-|------|----------|-----------------|
-| boolean 参数只有一个 flag | `--always-restart-app false`（带值透传） | `--no-always-restart-app`（CLI 自造反向 flag，MCP 无对应） |
-| flag 名 = MCP 参数名的 kebab-case | `--always-restart-app` → `alwaysRestartApp` | 自造与 MCP key 无法机械互转的别名 |
-| 默认值由 MCP 端决定，CLI 省略即不传 | 省略 `--always-restart-app` → MCP 用自身默认值 | CLI 硬编码默认值覆盖 MCP 默认值 |
-| 参数透传不做语义转换 | 值原样发给 MCP | CLI 把两个 flag 合并/拆分成不同的 MCP 参数 |
-
-**判断方法**：新增 CLI flag 后，检查 `jugglib.normalize_args()` + `build_params()` 的结果能否与 MCP 参数表完全对齐。若需要在 CLI 侧做任何"翻译"逻辑，即违反本约束。
-
-### 1.4 Agent benchmark prompt pack
-
-`docs/skills/benchmark/` 维护给被测 Agent 使用的 prompt-only benchmark 母版，默认通过仓库根目录脚本导出：
-
-```bash
-tools/export_benchmark_prompt_packs.sh all
-tools/export_benchmark_prompt_packs.sh cli
-tools/export_benchmark_prompt_packs.sh ui-verify
-tools/export_benchmark_prompt_packs.sh hooks
-tools/export_benchmark_prompt_packs.sh instrument
-```
-
-导出脚本实际转发到 `docs/skills/benchmark/runner/export_prompt_pack.py`。默认输出目录为 `android_demo_project/build/benchmark-packs/`，包含：
-
-| kind | 母版目录 | 输出目录 | 定位 |
-|------|----------|----------|------|
-| `cli` | `docs/skills/benchmark/benchmark-cli` | `android_demo_project/build/benchmark-packs/cli` | 验证 Agent 是否正确选择和使用 Jugg CLI |
-| `ui-verify` | `docs/skills/benchmark/benchmark-ui-verify` | `android_demo_project/build/benchmark-packs/ui-verify` | 验证 Agent 是否正确使用 UI 观察、定位与交互链路 |
-| `hooks` | `docs/skills/benchmark/benchmark-hooks` | `android_demo_project/build/benchmark-packs/hooks` | 验证 Agent hooks 的 edit 记录、sourceset 硬阻断、二次放行、非 sourceset 放行与未全量编译放行 |
-| `instrument` | `docs/skills/benchmark/benchmark-instrument` | `android_demo_project/build/benchmark-packs/instrument` | 验证 Agent 是否正确使用 `instrument` 命令运行 androidTest |
-
-注意：
-- `cli` / `ui-verify` / `instrument` benchmark 在 `android_demo_project` 或其子目录启动被测 Agent。
-- `hooks` benchmark 在当前 CWD 启动被测 Agent；它验证 Agent hooks 是否正确配置和真实触发，不属于 `jugg` CLI 子命令。
-- `hooks` L3 用例必须通过被测 Agent 自己的文件编辑、shell 命令、raw Gradle 命令和结束会话动作触发 hooks；不得直接调用 hook 脚本，也不得使用不存在的 `jugg stop` 子命令。
-- prompt pack 内的 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json` 是被测 Agent 可见输入；被测 Agent 只应填写同目录 `report.md`。`hooks` 用例例外允许按 case 要求修改隔离 hook 触发文件：需要触发 pending changes 的源码触发文件必须位于 `app/src/main/java/com/example/myapplication/`，非 sourceset 误阻断验证才使用 `hook_benchmark_scratch/`。
-- 导出的 `report.md` 模板要求每条用例填写 `Score: N / 5`，汇总表包含 `File / Case / Verdict / Score / Notes`；hooks benchmark 不使用 `Skipped:` 汇总行。所有路径证据应写相对路径，但 hook 反馈原文中由客户端输出的绝对脚本路径可以原样保留。
-- Cursor hook 脚本不能假设 hook 进程 CWD 等于项目目录。Cursor 全局 hook 可能在 agent 配置目录执行，`edit` / `command` / `stop` 在 `--client cursor` 且会话 state 尚未记录项目目录时，需要使用 payload 的 `workspace_roots` / `file_path` / `cwd` 解析真实项目目录，再调用 `jugg status`。其他 agent 继续使用 hook 进程 CWD，不启用该 Cursor 兼容分支。
-- Cursor 的 `beforeShellExecution` 阻断/警告使用结构化 `permission` JSON 返回；`stop` 的首次阻断使用 `followup_message` 返回，重复 stop 不再发 followup，避免把同一次结束动作阻断两次。
-
----
-
-## 2. 子命令列表与 CLI 参数
-
-| 子命令 | 对应 MCP tool | 说明 |
-|--------|--------------|------|
-| `version` | `version` | 显示 CLI 版本和插件版本（无需 projectDir） |
-| `compile` | `compile` | 增量编译（自动轮询） |
-| `deploy` | `deploy` | 编译并部署（自动轮询） |
-| `gradle-build` | `gradle-build` | Gradle 构建（自动轮询） |
-| `clean-reinstall` | `clean-reinstall` | 清数据并重装 APK |
-| `restart` | `restart` | 重启 App |
-| `instrument` | `instrument` | 运行 androidTest（参数风格接近 `am instrument`） |
-| `status` | `status` | 查看当前部署状态与未编译文件摘要 |
-| `layout-dump` | `layout-dump` | 导出 UI 层级 HTML |
-| `view-locate` | `view-locate` | 查找元素位置 |
-| `view-inspect` | `view-inspect` | 反射查询 View 属性 |
-| `tap` | `tap` | 触控操作 |
-| `devices` | `devices` | 列出设备 |
-| `activity-stack` | `activity-stack` | 查看 Activity 栈 |
-| `ssh-info` | `ssh-info` | 申请 SSH 排障信息 |
-| `wait-logs` | `wait-logs` | 阻塞等待 App 日志直到 marker/crash/超时 |
-
----
-
-#### JSON 输出
-```
-jugg --console=json <subcommand> [options]
-```
-
-`--console` 是全局参数，必须放在子命令前。
-
-#### 并发 compile 策略（CLI-only）
-```
+```text
 jugg [--if-compiling wait|interrupt] <compile|deploy|gradle-build|instrument> [options]
 ```
 
-- 默认 `wait`：触发前无限轮询 `status.isCompiling`，直到 idle 再调用 MCP
-- `interrupt`：跳过等待，立即触发；服务端沿用现有「新任务中断旧任务」语义
-- 该参数为 CLI 专属全局 flag，不发送给 MCP
+- `wait`（默认）：触发前轮询 `status.isCompiling=false`。
+- `interrupt`：跳过等待，立即调用目标 MCP tool；服务端沿用“新任务中断旧任务”的语义。
+- 这是 CLI-only 全局参数，不发送给 MCP。
 
-#### 手动指定 projectDir
-```
-jugg --project-dir <path> <subcommand> [options]
-jugg --project-dir=<path> <subcommand> [options]
-```
+### 3.5 异步编译轮询
 
-`--project-dir`（也接受 `--projectDir`）是全局参数，用于跳过 `$PWD` 自动匹配，直接把传入路径作为 MCP `projectDir` 发送给对应工具。`version` 仍不需要 `projectDir`。
+`compile`、`deploy`、`gradle-build`、`instrument` 经 `jugglib.compile_call()` 调用。若首次响应 `data.status=running`，CLI 用 `get-compile-status` + `waitTimeoutMs=3000` 轮询到终态，并保留首次响应中的 `logPath`。
 
-#### Help 输出
-```
+### 3.6 help 输出
+
+```text
 jugg --help
 jugg help <subcommand>
 jugg <subcommand> --help
 ```
 
-`--help` / `help` 只打印本地帮助信息，不连接 MCP、不解析 `projectDir`、不触发编译或部署。顶层 help 展示全局参数和子命令列表；子命令 help 展示 usage、参数、MCP 参数映射和示例。
+help 在 `jugg.py` 内直接返回，只读取 `help_registry.py`，不会连接 MCP、解析 `projectDir`、触发编译或部署。
 
 ---
 
-#### `version`
-```
+## 4. 参数映射约束
+
+CLI 参数设计遵循“机械映射，不创造新语义”：
+
+| 规则 | 正确做法 | 禁止做法 |
+|------|----------|----------|
+| flag 名可机械转成 MCP key | `--always-restart-app` -> `alwaysRestartApp` | 自造无法转回 MCP key 的别名 |
+| kebab-case 与 camelCase 等价 | `--source-path` -> `--sourcePath` -> `sourcePath` | 为兼容旧名字保留 `--clazz`、`--instrumentationRunner` |
+| CLI 省略参数即不发送给 MCP | 不传 `--always-restart-app` | CLI 硬编码默认值覆盖 MCP 默认值 |
+| CLI-only 参数必须留在全局层 | `--if-compiling` 只影响触发前等待 | 把 CLI-only 参数塞进 MCP arguments |
+
+`jugglib.normalize_args()` 只做 kebab-case 到 camelCase 的机械转换，不做语义 alias。每个 `cmd_*.py` 的 `build_params()` 是实际参数直传边界。
+
+---
+
+## 5. 公开子命令
+
+当前公开 CLI 子命令共 16 个，来自 `jugg.py::COMMANDS`。
+
+| 子命令 | MCP tool | 说明 |
+|--------|----------|------|
+| `version` | `version` | 显示 CLI 版本和插件版本；无需 `projectDir` |
+| `compile` | `compile` | 增量编译，自动轮询终态 |
+| `deploy` | `deploy` | 编译并部署，自动轮询终态 |
+| `gradle-build` | `gradle-build` | 强制 Gradle 构建并走后续安装/启动链路 |
+| `clean-reinstall` | `clean-reinstall` | 清数据并重装 APK |
+| `restart` | `restart` | 重启 App |
+| `instrument` | `instrument` | 从 androidTest 源文件锚点运行测试 |
+| `status` | `status` | 查看部署状态、未编译文件摘要、androidTest baseline 与 compile 运行态 |
+| `layout-dump` | `layout-dump` | 导出 UI 层级 HTML |
+| `view-locate` | `view-locate` | 查找元素位置 |
+| `view-inspect` | `view-inspect` | 反射读取 View 属性 |
+| `tap` | `tap` | 坐标、百分比或元素模式触控 |
+| `devices` | `devices` | 列出设备 |
+| `activity-stack` | `activity-stack` | 查看 Activity 栈 |
+| `ssh-info` | `ssh-info` | 申请 SSH 排障信息 |
+| `wait-logs` | `wait-logs` | 等待 App 日志 marker / crash / timeout |
+
+`list-projects`、`get-compile-status` 是 CLI 内部使用的 MCP tool，不暴露为 CLI 子命令。
+
+---
+
+## 6. 子命令参数
+
+### `version`
+
+```text
 jugg version
 ```
-**行为说明**：直接调用 MCP `version` 工具（无需 projectDir），同时展示内置 CLI 版本和插件版本。
 
-默认输出示例：
-```
-cli version: 1.0.1
-plugin version: 1.2.3
-```
+无需 `projectDir`。默认输出 CLI version 与当前已初始化项目中的插件版本；`--console=json` 返回 `{"cliVersion": "...", "plugin": <MCP structuredContent>}`。
 
-当各工程版本不一致时，额外输出每个工程的版本 map：
-```
-cli version: 1.0.1
-plugin version: 1.2.3
-  (versions differ across projects)
-  /path/to/projectA: 1.2.3
-  /path/to/projectB: 1.2.0
-```
+### `compile`
 
-`--console=json` 模式返回：`{"cliVersion": "...", "plugin": <MCP structuredContent>}`
-
----
-
-#### `compile`
-```
+```text
 jugg compile
 ```
-**行为优化**：自动轮询到 `isFinal=true`。人类可读输出统一格式：`status`、`message`、`full log`（如有）、`detail`（如有）。
 
----
+无子命令参数。终态输出 `status`、`message`、`full log`、`detail` 等字段。
 
-#### `deploy`
-```
+### `deploy`
+
+```text
 jugg deploy [--always-restart-app <true|false>]
 ```
-**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Deploying...`。终态统一输出 `status`、`isCompileSuccess`、`isDeploySuccess`、`message`、`full log`（如有）、`detail`（如有）。
 
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
-|-----------------------|----------------------------------|----------|------|
-| `--always-restart-app <true\|false>` | `--alwaysRestartApp <true\|false>` | `alwaysRestartApp` | 默认 `true`，部署后强制重启 App；传 `false` 允许 HOT RELOAD |
+| CLI flag | MCP 参数 | 说明 |
+|----------|----------|------|
+| `--always-restart-app` / `--alwaysRestartApp` | `alwaysRestartApp` | `true` 时部署后强制重启 App；`false` 允许 HOT RELOAD。省略时由 MCP 默认值决定 |
 
----
+终态输出 `isCompileSuccess`、`isDeploySuccess` 与日志路径。判断部署是否成功时必须同时看 deploy 结果，不要只看 compile 是否成功。
 
-#### `gradle-build`
-```
+### `gradle-build`
+
+```text
 jugg gradle-build
 ```
-**行为优化**：自动轮询到 `isFinal=true`，启动时打印 `Running Gradle build...`。终态统一输出 `status`、`isCompileSuccess`、`isDeploySuccess`、`message`、`full log`（如有）、`detail`（如有）。`gradle-build` 会走 Gradle 构建后的安装/启动链路，因此无设备或启动失败时会返回 `status: ERROR`、`isCompileSuccess: true` 且 `isDeploySuccess: false`，无设备场景 `message` 直接提示 `No device found...`。
 
----
+无子命令参数。该命令会走 Gradle 构建后的安装/启动链路；无设备或启动失败时可能出现 `isCompileSuccess=true` 且 `isDeploySuccess=false`。
 
-#### `clean-reinstall`
-```
+### `clean-reinstall`
+
+```text
 jugg clean-reinstall
 ```
 
----
+无子命令参数。
 
-#### `restart`
-```
+### `restart`
+
+```text
 jugg restart
 ```
 
----
+无子命令参数。
 
-#### `instrument`
-```
+### `instrument`
+
+```text
 jugg instrument --source-path <src/androidTest/.../FooTest.kt>
-                [--class <Fqcn>] [--method <method>] [--runner <runnerFqn>]
-                [--extras <k=v;k2=v2>]
+                [--class <Fqcn>] [--method <method>]
+                [--runner <runnerFqn>] [--extras <k=v;k2=v2>]
 ```
 
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
-|-----------------------|----------------------------------|----------|------|
-| `--source-path <value>` | `--sourcePath <value>` | `sourcePath` | androidTest 源文件路径，用于解析 module 与 test APK |
-| `--class <value>` | `--class <value>` | `class` | 文件内测试类，单 class 文件可省略 |
-| `--method <value>` | `--method <value>` | `method` | 测试方法，需已唯一确定 class |
-| `--runner <value>` | `--runner <value>` | `runner` | instrumentation runner override |
-| `--extras <k=v;k2=v2>` | `--extras <k=v;k2=v2>` | `extras` | 批量 extras |
+| CLI flag | MCP 参数 | 说明 |
+|----------|----------|------|
+| `--source-path` / `--sourcePath` | `sourcePath` | 必填；androidTest 源文件路径，用于解析 module 与 test APK |
+| `--class` | `class` | 文件内测试类；单 class 文件可省略 |
+| `--method` | `method` | 测试方法；需已唯一确定 class |
+| `--runner` | `runner` | instrumentation runner override |
+| `--extras` | `extras` | 分号分隔的 `k=v` 列表，转换为 MCP object |
 
-**行为优化**：自动轮询到 `isFinal=true`。成功时输出 `isCompileSuccess: true` 和 `isDeploySuccess: true`。
-`instrument` 是 source-file anchored 命令：`sourcePath` 是解析测试 class/method、androidTest module 与 test APK 的目标锚点；不支持 package、testPackage、regex、`--clazz`、`--instrumentationRunner` 或 raw `-e` 风格。
-当前项目未建立 AndroidTest full-build baseline 时，`instrument` 返回 `status=ERROR` / `errorCode=INVALID_PARAMS`；错误信息包含 `enabledAndroidTest=false`，并附带打开 Jugg App Run Configuration、开启 Android Test / `enableAndroidTest`、执行一次 full build / `gradle-build` 后重新检查 `status.data.enabledAndroidTest=true` 的方式。
-若需要执行大范围 androidTest 回归，先用一次 `jugg instrument --source-path ...` 完成源码与 androidTest 变更到对应 APK 的编译部署；成功后可使用普通 `adb shell am instrument` 做 class/package/suite 级回归。
+硬边界：
 
----
+- 不支持 `--package`、`--testPackage`、`--testsRegex`、`--regex`。
+- 不支持旧 alias：`--clazz`、`--instrumentationRunner`、`-e`、`--e`。
+- 当前项目没有 AndroidTest full-build baseline 时会返回 `INVALID_PARAMS`，并提示开启 Android Test、执行一次 full build / `gradle-build` 后再检查 `status.data.enabledAndroidTest=true`。
 
-#### `layout-dump`
-```
-jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
-```
+### `status`
 
-输出：
-- `message`：窗口数、top window、节点数、clickable 数、是否截断。
-- `data.file`：HTML 文件路径。
-- `data.contentBytes`：HTML 内容字节数。
-- `artifacts[0]`：`type=html`，路径同 `data.file`。
-
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
-|-----------------------|----------------------------------|----------|------|
-| `--root-layout <id>` | `--rootLayout <id>` | `rootLayout` | 只导出指定节点子树 |
-| `--include-gone` | `--includeGone` | `includeGone` | 包含 GONE 节点 |
-| `--all-windows` | `--allWindows` | `allWindows` | 导出所有窗口 |
-
----
-
-#### `view-locate`
-```
-jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
-```
-
-输出：
-- 成功：`data.found=true`、`data.bounds`、`data.position`、`data.size`、`data.className`、`data.resourceId`、`data.matchCount`、`data.matches`。
-- 失败：`status=ERROR`、`errorCode=ELEMENT_NOT_FOUND`、`data.found=false`。
-- 不输出 layout 文件；内部复用 `layout-dump` 的结构化结果定位元素。
-- `matchCount > 1` 时表示存在重复候选，不能直接把首个结果当作安全点击目标。
-
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 |
-|-----------------------|----------------------------------|----------|
-| `--text <t>` | — | `target.text` |
-| `--resource-id <id>` | `--resourceId <id>` | `target.resourceId` |
-| `--content-desc <desc>` | `--contentDesc <desc>` | `target.contentDesc` |
-
----
-
-#### `view-inspect`
-```
-jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>) [--class-name <cls>]
-                  <expr1> [<expr2> ...]
-```
-
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 |
-|-----------------------|----------------------------------|----------|
-| `--text <t>` | — | `target.text` |
-| `--resource-id <id>` | `--resourceId <id>` | `target.resourceId` |
-| `--content-desc <desc>` | `--contentDesc <desc>` | `target.contentDesc` |
-| `--class-name <cls>` | `--className <cls>` | `target.className` |
-| 位置参数（非 `--` 开头） | — | `expressions[]` |
-
-行为：
-- 表达式使用 getter/query 方法调用格式，如 `getText()`、`getVisibility()`、`isEnabled()`。
-- 可读取仍在 View 树中的隐藏节点属性；隐藏节点不应作为点击目标。
-
----
-
-#### `tap`
-```
-jugg tap [--action tap|long-press|swipe]
-         ( --x <n> --y <n> [--end-x <n> --end-y <n>]                          # 坐标模式
-         | --x-percent <n> --y-percent <n> [--end-x-percent <n> --end-y-percent <n>]  # 百分比模式
-         | --text <t> | --resource-id <id> | --content-desc <desc> [--class-name <cls>] )  # 元素模式
-         [--duration <ms>]
-```
-
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
-|-----------------------|----------------------------------|----------|------|
-| `--action tap` | — | `action=tap` | 默认值 |
-| `--action long-press` | — | `action=long-press` | |
-| `--action swipe` | — | `action=swipe` | |
-| `--x/--y` | — | `x/y` | 坐标模式 |
-| `--end-x/--end-y` | `--endX/--endY` | `endX/endY` | swipe 终点 |
-| `--x-percent/--y-percent` | `--xPercent/--yPercent` | `xPercent/yPercent` | 百分比模式（0-100） |
-| `--end-x-percent/--end-y-percent` | `--endXPercent/--endYPercent` | `endXPercent/endYPercent` | swipe 百分比终点 |
-| `--text` | — | `text` | 元素模式 |
-| `--resource-id` | `--resourceId` | `resourceId` | 元素模式 |
-| `--content-desc` | `--contentDesc` | `contentDesc` | 元素模式 |
-| `--class-name` | `--className` | `className` | 元素 AND 过滤 |
-| `--duration` | — | `duration` | ms |
-
----
-
-#### `devices`
-```
-jugg devices
-```
-
----
-
-#### `activity-stack`
-```
-jugg activity-stack
-```
-
----
-
-#### `status`
-```
+```text
 jugg status [--refresh-changes <true|false>]
 ```
 
-返回包含 `enabledAndroidTest`（基于最近 full build 基线）用于判定当时是否开启 Android Test 增量模式；该字段表示最近一次持久化 full-build baseline 使用 AndroidTest target，不等同于单纯 UI toggle 状态。Agent 当前上下文已有 hook block 的 `Jugg status` plain key-value 输出时，可直接复用其中的 `enabledAndroidTest`，无需再次调用 status。
-返回包含 `isCompiling`：当前是否有 compile/deploy 任务在运行；CLI 在触发 compile 类命令前默认轮询该字段直到为 `false`。
-用户要求执行 androidTest 或 instrumented unit tests 且该字段为 `false` 时，不应继续执行 `instrument`；应提示用户打开 Jugg App Run Configuration，开启 Android Test / `enableAndroidTest`，执行一次 full build / `gradle-build` 后重新检查该字段。
-默认不刷新 git-tracked changed files；只有传 `--refresh-changes true` 时才会在读取状态前触发刷新。
+| CLI flag | MCP 参数 | 说明 |
+|----------|----------|------|
+| `--refresh-changes` / `--refreshChanges` | `refreshChanges` | 是否读取状态前刷新 git-tracked changed files；默认不刷新 |
 
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
-|-----------------------|----------------------------------|----------|------|
-| `--refresh-changes <true\|false>` | `--refreshChanges <true\|false>` | `refreshChanges` | 是否先刷新 git-tracked changed files；默认 `false` |
+关键字段：
 
----
+- `enabledAndroidTest`：最近一次持久化 full-build baseline 是否使用 AndroidTest target，不等同于单纯 UI toggle。
+- `isCompiling`：当前是否有 compile/deploy 任务在运行；CLI 的 compile 类命令会用它做触发前等待。
 
-#### `ssh-info`
+### `layout-dump`
+
+```text
+jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 ```
+
+| CLI flag | MCP 参数 | 说明 |
+|----------|----------|------|
+| `--root-layout` / `--rootLayout` | `rootLayout` | 只导出指定节点子树 |
+| `--include-gone` / `--includeGone` | `includeGone=true` | 包含 GONE 节点 |
+| `--all-windows` / `--allWindows` | `allWindows=true` | 导出所有窗口 |
+
+公开输出是 HTML artifact；内部 JSON 仅供 `view-locate` / 布局验证实现消费。
+
+### `view-locate`
+
+```text
+jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
+```
+
+| CLI flag | MCP 参数 |
+|----------|----------|
+| `--text` | `target.text` |
+| `--resource-id` / `--resourceId` | `target.resourceId` |
+| `--content-desc` / `--contentDesc` | `target.contentDesc` |
+
+`matchCount > 1` 表示存在重复候选，不能直接把首个结果当作安全点击目标。
+
+### `view-inspect`
+
+```text
+jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>)
+                  [--class-name <cls>] <expr1> [<expr2> ...]
+```
+
+| CLI flag | MCP 参数 |
+|----------|----------|
+| `--text` | `target.text` |
+| `--resource-id` / `--resourceId` | `target.resourceId` |
+| `--content-desc` / `--contentDesc` | `target.contentDesc` |
+| `--class-name` / `--className` | `target.className` |
+| 位置参数 | `expressions[]` |
+
+表达式使用 getter/query 方法调用格式，例如 `getText()`、`getVisibility()`、`isEnabled()`。
+
+### `tap`
+
+```text
+jugg tap [--action tap|long-press|swipe]
+         (--x <n> --y <n> [--end-x <n> --end-y <n>]
+         | --x-percent <n> --y-percent <n> [--end-x-percent <n> --end-y-percent <n>]
+         | --text <t> | --resource-id <id> | --content-desc <desc> [--class-name <cls>])
+         [--duration <ms>]
+```
+
+| CLI flag | MCP 参数 | 说明 |
+|----------|----------|------|
+| `--action` | `action` | `tap`、`long-press`、`swipe`；默认 `tap` |
+| `--x` / `--y` | `x` / `y` | 坐标模式起点 |
+| `--end-x` / `--endX` | `endX` | swipe 终点 x |
+| `--end-y` / `--endY` | `endY` | swipe 终点 y |
+| `--x-percent` / `--xPercent` | `xPercent` | 百分比模式起点 x，范围 0-100 |
+| `--y-percent` / `--yPercent` | `yPercent` | 百分比模式起点 y，范围 0-100 |
+| `--end-x-percent` / `--endXPercent` | `endXPercent` | swipe 百分比终点 x |
+| `--end-y-percent` / `--endYPercent` | `endYPercent` | swipe 百分比终点 y |
+| `--text` | `text` | 元素模式 selector |
+| `--resource-id` / `--resourceId` | `resourceId` | 元素模式 selector |
+| `--content-desc` / `--contentDesc` | `contentDesc` | 元素模式 selector |
+| `--class-name` / `--className` | `className` | 元素模式 AND 过滤 |
+| `--duration` | `duration` | 手势时长，ms |
+
+`swipe` 在坐标模式必须提供 end 坐标；百分比模式必须提供 end 百分比坐标。
+
+### `devices`
+
+```text
+jugg devices
+```
+
+无子命令参数。
+
+### `activity-stack`
+
+```text
+jugg activity-stack
+```
+
+无子命令参数。
+
+### `ssh-info`
+
+```text
 jugg ssh-info --reason <reason>
 ```
 
 | CLI flag | MCP 参数 |
 |----------|----------|
-| `--reason <str>` | `reason` |
+| `--reason` | `reason` |
 
----
+### `wait-logs`
 
-#### `wait-logs`
-```
+```text
 jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 ```
 
-| CLI flag (kebab-case) | CLI flag (camelCase = MCP 参数名) | MCP 参数 | 说明 |
-|-----------------------|----------------------------------|----------|------|
-| `--marker <regex>` | — | `marker` | Java Pattern 正则，必填 |
-| `--tags <t1,t2>` | — | `tags` | 逗号分隔 tag 白名单 |
-| `--timeout-ms <ms>` | `--timeoutMs <ms>` | `timeoutMs` | 硬超时，范围 [1000, 300000]，默认 30000 |
+| CLI flag | MCP 参数 | 说明 |
+|----------|----------|------|
+| `--marker` | `marker` | Java Pattern 正则，必填 |
+| `--tags` | `tags` | 逗号分隔 tag 白名单 |
+| `--timeout-ms` / `--timeoutMs` | `timeoutMs` | 硬超时，范围 `[1000, 300000]`，默认 30000 |
 
 ---
 
-## 3. 关联文档
+## 7. 排查入口
+
+| 现象 | 优先入口 |
+|------|----------|
+| 子命令是否公开、help 是否覆盖 | `jugg.py::COMMANDS` + `help_registry.py::COMMAND_HELP` |
+| CLI flag 是否正确映射 MCP 参数 | 对应 `cmd_*.py::build_params()` |
+| kebab-case 参数未生效 | `jugglib.normalize_args()` |
+| CLI 找不到项目 | `jugglib.resolve_project_dir()`、`list-projects` 返回 |
+| compile 类命令一直等待 | `status.isCompiling`、`jugglib.wait_for_compile_idle()` |
+| 命令显示 compile 成功但部署失败 | 终态 `isCompileSuccess` / `isDeploySuccess` 与 `full log` |
+
+---
+
+## 8. 关联文档
 
 - MCP 工具参数清单：`08_mcp_tools_list.md`
-- 设计说明：`08_mcp_design.md`
-- 路径速查：`98_code_map.md`
+- MCP 设计说明：`08_mcp_design.md`
+- 代码路径速查：`98_code_map.md`
+- CLI / MCP 行为变更后的 skill 同步规则：`08_mcp_design.md` §9

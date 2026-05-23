@@ -1,204 +1,231 @@
-# figma-layout-verify 内部算法文档
+# figma-layout-verify 内部算法
 
-> 最后更新：2026-04-07  
-> 口径：以代码为准（`FigmaLayoutVerifier.kt`、`RelationExtractor.kt`、`ElementMatcher.kt`、`RelationVerifier.kt`、`FigmaJsonParser.kt`）
+> 最后核对：2026-05-23
+> 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
-## 1. 总体流程
+## 1. 文档定位
 
-```
-get_design_context (Figma API)
-        │ figmaJsonPath
-        ▼
+本页只解释 `figma-layout-verify` 相关 Kotlin 实现里的 Figma JSON 解析、关系提取、IoU 匹配和容差验证算法。
+
+当前边界：`FigmaLayoutVerifyMcpToolAction` 类存在，但没有注册到 `McpToolActionRegistry.defaultActions()`，因此它不是当前公开 MCP tool。公开工具列表请以 [`08_mcp_tools_list.md`](08_mcp_tools_list.md) 和运行时 `tools/list` 为准。
+
+---
+
+## 2. 核心源码索引
+
+| 类 | 文件 | 作用 |
+|----|------|------|
+| `FigmaLayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/FigmaLayoutVerifyMcpToolAction.kt` | 实验性 action；读取 Figma JSON、内部 dump Android layout、调用 verifier 生成报告 |
+| `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | 生成 Android layout 内部 JSON，供 verifier 匹配实际节点 |
+| `FigmaLayoutVerifier` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/FigmaLayoutVerifier.kt` | 算法编排入口：parse -> extract -> match -> verify |
+| `FigmaJsonParser` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/parser/FigmaJsonParser.kt` | 识别 Figma JSON 格式，解析 `FigmaNode` 树 |
+| `RelationExtractor` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/extractor/RelationExtractor.kt` | 从 Figma 节点树提取 spacing / alignment 关系 |
+| `ElementMatcher` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/matcher/ElementMatcher.kt` | 将 Figma 节点和 Android 节点归一化到 1000x1000 后用 IoU 匹配 |
+| `RelationVerifier` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/verifier/RelationVerifier.kt` | 用固定容差验证间距和对齐 |
+| `FigmaNode` / `AndroidNode` / `Relation` / `VerifyResult` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/model/*` | 算法数据模型 |
+
+---
+
+## 3. 核心数据流
+
+```text
 FigmaLayoutVerifyMcpToolAction.execute()
-        │
-        ├─① LayoutDumpHelper.dumpInternal()  → 内部调用 layout_dump，获取 androidJsonPath
-        │
-        ├─② FigmaJsonParser.parse()  → FigmaNode 树
-        │
-        ├─③ RelationExtractor.extractRelations()  → List<Relation>（间距 + 对齐）
-        │
-        ├─④ ElementMatcher.match()（每个 Relation 的两端节点）  → AndroidNode
-        │
-        └─⑤ RelationVerifier.verify*()  → VerifyResult（PASS / FAIL）
+  -> 校验 figmaJsonPath，读取 dpr（默认 1.0）
+  -> LayoutDumpHelper.dumpInternal()
+       产出 Android layout 内部 JSON；失败时直接返回 dump 的错误结果
+  -> FigmaJsonParser.validate()
+       只校验根节点格式，非法时返回 INVALID_FIGMA_FORMAT
+  -> FigmaLayoutVerifier.verify()
+       parse Figma JSON
+       extract spacing/alignment relations
+       为每条 relation 的端点做 IoU 匹配
+       用 Android dp bounds 验证实际关系
+  -> structuredContent.data.results
 ```
 
-整个算法仅在 IDE 侧（Kotlin）运行。App 侧 `LayoutVerifier.java` 是 `layout_verify` 工具专用，`figma-layout-verify` 不调用它。
+App 侧 `jvmti_agent/.../LayoutVerifier.java` 属于旧 `layout_verify` / ViewHierarchy server 方向；`figma-layout-verify` 的关系提取与验证在 IDE 侧 Kotlin 实现内完成。
 
 ---
 
-## 2. 阶段一：Figma JSON 解析（FigmaJsonParser）
+## 4. Figma JSON 解析
 
-### 2.1 格式自动检测
+`FigmaJsonParser.parse()` 支持三种输入格式：
 
-支持三种格式，按顺序匹配：
+| 格式 | 判断条件 | 根节点 |
+|------|----------|--------|
+| Direct node | `json.has("id") && (json.has("layout") || json.has("bounds"))` | JSON 本身 |
+| Nodes wrapper | `json.has("nodes")` | `nodes.entrySet().first().value` |
+| Document wrapper | `json.has("document")` | `document.children[0]` |
 
-| 格式 | 判断条件 | 取根节点方式 |
-|------|----------|-------------|
-| Direct node | `json.has("id") && (json.has("layout") || json.has("bounds"))` | `json` 本身即根节点 |
-| Nodes wrapper | `json.has("nodes")` | `json["nodes"].entrySet().first().value` |
-| Document wrapper | `json.has("document")` | `json["document"]["children"][0]` |
+bounds 规则：
 
-### 2.2 bounds 解析规则
+| 字段 | 输入含义 | 解析结果 |
+|------|----------|----------|
+| `layout` | `[x, y, width, height]` | `[x, y, x + width, y + height]` |
+| `bounds` | `[left, top, right, bottom]` | 原样使用 |
 
-`get_design_context` 产出的 Figma JSON 使用 `layout` 字段，格式为 `[x, y, width, height]`：
-
-```
-bounds[left]  = layout[0]         (x)
-bounds[top]   = layout[1]         (y)
-bounds[right] = layout[0] + layout[2]  (x + width)
-bounds[bottom]= layout[1] + layout[3]  (y + height)
-```
-
-也兼容 `bounds` 字段（原始 Figma API 格式），格式为 `[left, top, right, bottom]`，直接使用。
-
-> ⚠️ 此处 bounds 单位为 Figma 设计像素（未经 dpr 缩放）。dpr 在后续阶段使用。
-
-### 2.3 节点树展平
-
-`flattenNodes()` 做先序深度遍历（DFS），将所有节点（包括叶子和中间容器）收集为平铺列表，顺序与 Figma 层级中从上到下的层叠顺序一致。
+`flattenNodes()` 用先序 DFS 展平节点树，保留容器节点和叶子节点。后续 spacing 只扫描展平列表中相邻下标对，因此 Figma 层级顺序会直接影响关系覆盖面。
 
 ---
 
-## 3. 阶段二：关系提取（RelationExtractor）
+## 5. 关系提取
 
-`RelationExtractor` 构造时接收 `dpr` 参数，所有公差均乘以 `dpr` 以在 Figma 像素空间中计算，最终输出换算为 dp。
+`RelationExtractor` 在 Figma 像素空间里判断关系，输出的 spacing expected 值再除以 `dpr` 转成 dp。
 
-### 3.1 间距关系（SpacingRelation）
+### 5.1 spacing
 
-对展平后的节点列表，逐对扫描相邻节点对 `(nodes[i], nodes[i+1])`：
+只检查展平列表中的相邻节点 `(nodes[i], nodes[i + 1])`。
 
-**水平相邻判断** (`isHorizontallyAdjacent`):
-```
-tolerance = 20 * dpr
-abs(node1.bounds[1] - node2.bounds[1]) < tolerance   // top 差距足够小
-AND node2.bounds[0] >= node1.bounds[2]               // node2 在 node1 右侧
-```
+水平相邻：
 
-**垂直相邻判断** (`isVerticallyAdjacent`):
-```
-tolerance = 20 * dpr
-abs(node1.bounds[0] - node2.bounds[0]) < tolerance   // left 差距足够小
-AND node2.bounds[1] >= node1.bounds[3]               // node2 在 node1 下方
+```text
+tolerance = (20 * dpr).toInt()
+abs(node1.top - node2.top) < tolerance
+AND node2.left >= node1.right
+expected = ((node2.left - node1.right) / dpr).toInt()
+axis = "x"
 ```
 
-满足条件时，计算期望间距（单位：dp）：
-```
-水平间距 expected_x = (node2.bounds[0] - node1.bounds[2]) / dpr   // node2.left - node1.right
-垂直间距 expected_y = (node2.bounds[1] - node1.bounds[3]) / dpr   // node2.top  - node1.bottom
-```
+垂直相邻：
 
-> 注：间距可为负值（重叠情形），但通常设计稿中为正值。
-
-### 3.2 对齐关系（AlignmentRelation）
-
-对展平后的所有节点，按坐标分桶聚类：
-
-```
-tolerance = 5 * dpr
-bucket_y = (bounds[1] / tolerance) * tolerance   // top 分桶 → Y 轴对齐（水平方向）
-bucket_x = (bounds[0] / tolerance) * tolerance   // left 分桶 → X 轴对齐（垂直方向）
+```text
+tolerance = (20 * dpr).toInt()
+abs(node1.left - node2.left) < tolerance
+AND node2.top >= node1.bottom
+expected = ((node2.top - node1.bottom) / dpr).toInt()
+axis = "y"
 ```
 
-同一 bucket 内节点数 ≥ 2，则产生一条对齐关系。
+实现使用 `toInt()` 截断小数；不是四舍五入。
 
-| 分桶依据 | `axis` | 含义 |
-|----------|--------|------|
-| `bounds[1]`（top） | `"y"` | 一行内元素水平对齐（共享相同 top） |
-| `bounds[0]`（left） | `"x"` | 一列内元素垂直对齐（共享相同 left） |
+### 5.2 alignment
+
+按 top / left 坐标分桶，bucket 内至少 2 个节点时产生一条 alignment relation。
+
+```text
+tolerance = (5 * dpr).toInt()
+yBucket = (top / tolerance) * tolerance
+xBucket = (left / tolerance) * tolerance
+```
+
+| 分桶依据 | axis | 验证含义 |
+|----------|------|----------|
+| `top` | `y` | 多个节点的 centerY 是否对齐 |
+| `left` | `x` | 多个节点的 centerX 是否对齐 |
+
+注意：分桶按 top/left 归组，但验证按中心点判断。这可以减少简单尺寸差异影响，也可能让“顶部接近但中心差异大”的节点在验证阶段失败。
 
 ---
 
-## 4. 阶段三：元素匹配（ElementMatcher，IoU）
+## 6. 元素匹配
 
-### 4.1 归一化
+`ElementMatcher` 不看 name、text、resourceId，只看 bounds 的相对位置和尺寸。
 
-将 Figma 节点 bounds 和 Android 节点 bounds 分别映射到 1000×1000 虚拟空间：
-
-```
-normalized[0] = bounds[0] / screenWidth  * 1000    // left
-normalized[1] = bounds[1] / screenHeight * 1000    // top
-normalized[2] = bounds[2] / screenWidth  * 1000    // right
-normalized[3] = bounds[3] / screenHeight * 1000    // bottom
+```text
+normalized.left   = bounds.left   / screenWidth  * 1000
+normalized.top    = bounds.top    / screenHeight * 1000
+normalized.right  = bounds.right  / screenWidth  * 1000
+normalized.bottom = bounds.bottom / screenHeight * 1000
 ```
 
-- Figma 侧 screenSize：从 Figma JSON 的 `layout[2], layout[3]`（或 `bounds[2], bounds[3]`）读取，即设计稿整体画布尺寸（Figma 像素）
-- Android 侧 screenSize：从 `layout-dump` 产出的 `androidJson.deviceInfo.screenWidth/screenHeight` 读取（dp）
+screen size 来源：
 
-**归一化消除了分辨率和 dpr 差异**，使 Figma 设计稿坐标与实际设备 dp 坐标可直接比较。这也是状态栏/导航栏高度不一致、屏幕尺寸不同时仍能正确匹配元素的原因——元素的**相对位置**在归一化后一致。
+| 侧 | 来源 | 单位 |
+|----|------|------|
+| Figma | 根节点 `layout[2], layout[3]` 或 `bounds[2], bounds[3]` | Figma px |
+| Android | `layout-dump` 内部 JSON 的 `deviceInfo.screenWidth/screenHeight` | dp |
 
-### 4.2 IoU 计算
+IoU 匹配规则：
 
+```text
+iou = intersectArea / (area1 + area2 - intersectArea)
+match if iou > 0.7
 ```
-intersect_area = max(0, min(r1,r2) - max(l1,l2)) * max(0, min(b1,b2) - max(t1,t2))
-area1 = (r1 - l1) * (b1 - t1)
-area2 = (r2 - l2) * (b2 - t2)
-iou = intersect_area / (area1 + area2 - intersect_area)
-```
 
-**匹配条件**：IoU > 0.7（硬阈值）。取 IoU 最高的节点作为最终匹配，最多保留 3 个备选。
+取 IoU 最高的 Android 节点作为 matched，最多保留 3 个 alternatives。
 
 ---
 
-## 5. 阶段四：关系验证（RelationVerifier）
+## 7. 关系验证
 
-`AndroidNode.bounds` 单位为 dp（由 `layout-dump` 在 IDE 侧按 `dp = round(px / density)` 转换）。
+`AndroidNode.bounds` 已经是 dp，来自 `layout-dump` 在 IDE 侧的 px -> dp 转换。
 
-### 5.1 间距验证
+### 7.1 spacing
 
-```
-实际间距（dp）:
-  axis=x: element2.bounds[0] - element1.bounds[2]   // right-to-left gap
-  axis=y: element2.bounds[1] - element1.bounds[3]   // bottom-to-top gap
+实际值：
 
+```text
+axis=x: actual = element2.left - element1.right
+axis=y: actual = element2.top  - element1.bottom
 diff = actual - expected
-
-通过条件（满足其一）:
-  abs(diff) <= 2dp    (TOLERANCE_DP = 2)
-  abs(diff) / expected <= 5%   (TOLERANCE_PERCENT = 0.05)
 ```
 
-> 若 expected=0，百分比容差退化为 0，仅靠绝对值容差 ±2dp 判定。
+通过条件：
 
-### 5.2 对齐验证
-
+```text
+abs(diff) <= 2
+OR abs(diff) / expected <= 0.05
 ```
-center_x(node) = (bounds[0] + bounds[2]) / 2
-center_y(node) = (bounds[1] + bounds[3]) / 2
 
-maxDiff = max(centers) - min(centers)
+与直觉不同的实现细节：
 
-通过条件: maxDiff <= 2dp   (TOLERANCE_DP = 2)
+- `expected == 0` 时百分比差异为 0，只要不触发绝对容差也可能被百分比条件放过；这是当前代码行为。
+- `expected < 0` 时百分比差异为负数，也会满足 `<= 0.05`；重叠关系因此可能被过度放宽。
+
+### 7.2 alignment
+
+```text
+axis=x: centerX = (left + right) / 2
+axis=y: centerY = (top + bottom) / 2
+maxDiff = max(center) - min(center)
+pass if maxDiff <= 2
 ```
 
 ---
 
-## 6. 坐标单位流转总结
+## 8. 单位流转
 
-| 阶段 | Figma 侧单位 | Android 侧单位 |
-|------|-------------|---------------|
-| JSON 解析后 | Figma px（未缩放） | dp（layout_dump 已转换） |
-| 间距计算（RelationExtractor） | Figma px → `/ dpr` → dp | - |
-| 元素匹配归一化（ElementMatcher） | Figma px / 画布尺寸 × 1000 | dp / 屏幕 dp 尺寸 × 1000 |
-| 验证（RelationVerifier） | expected: dp | actual: dp（直接用 AndroidNode.bounds） |
-
----
-
-## 7. 差异容忍说明
-
-| 差异类型 | 处理方式 | 原理 |
-|----------|----------|------|
-| 状态栏高度不同 | 自动容忍 | IoU 归一化后，App 内容区元素相对位置一致 |
-| 底部导航栏高度/样式不同 | 自动容忍 | 同上；若影响 App 内容区位置可能导致 FAIL |
-| 设计稿分辨率/DPI ≠ 设备 | 通过 `dpr` 参数解决 | 间距提取时 `/ dpr` 转换为 dp；匹配时归一化消除尺寸差异 |
-| 元素命名不同 | IoU 匹配，不依赖名称 | 仅用位置/尺寸相似度匹配 |
+| 阶段 | Figma 侧 | Android 侧 |
+|------|----------|------------|
+| JSON 解析后 | Figma px | dp |
+| spacing expected | Figma px / dpr -> dp | - |
+| IoU 匹配 | Figma px / 画布尺寸 -> 1000 空间 | dp / 屏幕 dp -> 1000 空间 |
+| 关系验证 | expected dp | actual dp |
 
 ---
 
-## 8. 已知局限
+## 9. 隐形约束与局限
 
-1. **仅验证相邻节点对**：`SpacingRelation` 仅产生于 `flattenNodes` 后的相邻下标对，非全量配对，可能遗漏跨层级关系。
-2. **对齐分桶精度**：以 `5 * dpr` 为 bucket 大小，在 2x 设计稿（dpr=2）时容差为 10px，可能将非同行元素错误归为对齐组。
-3. **不检查属性**：颜色、字号、圆角等属性需配合 `view-inspect` 单独验证。
-4. **节点遮挡**：`layout-dump` 返回所有可见节点，若存在重叠布局（如 FrameLayout），IoU > 0.7 可能误匹配。
+| 约束 / 局限 | 影响 |
+|-------------|------|
+| action 未注册到 `defaultActions()` | 不应在公开 MCP/CLI 文档中承诺可直接调用 `figma-layout-verify` |
+| spacing 只看 DFS 展平后的相邻节点 | 会遗漏非相邻但视觉上相关的间距 |
+| alignment 先按 top/left 分桶，再按中心点验证 | 可能提取出最终会失败的 alignment |
+| IoU 阈值固定为 `> 0.7` | 重叠容器、FrameLayout、相似尺寸节点可能误匹配 |
+| 匹配不看语义信息 | 元素命名、文本、resourceId 不参与匹配 |
+| 不验证颜色、字号、圆角 | 这些属性应使用公开的 `view-inspect` / `layout-verify` 路径 |
+| spacing 百分比容差使用 `expected` 原值作分母 | `expected <= 0` 时结果不符合通常的百分比容差直觉 |
+
+---
+
+## 10. 排查入口
+
+| 现象 | 优先入口 |
+|------|----------|
+| 工具无法通过 MCP 调用 | `McpToolActionRegistry.defaultActions()`，确认是否注册 |
+| Figma JSON 被判非法 | `FigmaJsonParser.validate()` |
+| 间距关系缺失 | `RelationExtractor.extractSpacingRelations()` 与 Figma 展平顺序 |
+| 对齐关系过多 | `RelationExtractor.extractAlignmentRelations()` 的 `5 * dpr` bucket |
+| 元素匹配到错误 Android View | `ElementMatcher.match()` 的 normalized bounds 与 IoU 分数 |
+| spacing diff 看起来不合理 | `RelationVerifier.verifySpacing()` 的 dp actual/expected 与 `dpr` |
+
+---
+
+## 11. 关联文档
+
+- MCP 设计说明：`08_mcp_design.md`
+- MCP 工具参数清单：`08_mcp_tools_list.md`
+- UI 布局验证设计：`08_mcp_layout_verify_design.md`
+- 代码路径速查：`98_code_map.md`

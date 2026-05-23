@@ -78,9 +78,9 @@
 | `06_android_test.md` | app androidTest 支持：BuildTarget、test APK 识别、synthetic ModuleInfo、增量编译、gutter/RunConfig、`am instrument`、logcat 捕获与 method 归类、SM Test Runner、rerun failed 与定向测试 |
 | `08_mcp_design.md` | MCP 协议分层与设计约束（§7 引用 `08_mcp_layout_verify_design.md`） |
 | `08_mcp_layout_verify_design.md` | UI 布局验证设计：工具体系、IoU 匹配算法、容差标准、dpr 处理、返回格式 |
-| `08_mcp_tools_list.md` | MCP 工具完整参数清单（19 个注册工具、通用行为、错误码） |
+| `08_mcp_tools_list.md` | MCP 工具完整参数清单（18 个注册工具、通用行为、错误码） |
 | `08_cli_tools_list.md` | `jugg` CLI（MCP 封装层）子命令参数与行为差异 |
-| `08_mcp_figma-layout-verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |
+| `08_mcp_figma_layout_verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |
 | `09_plugin_runtime_debug.md` | 运行时排查手册：目录结构、日志分析、IDE freeze 证据保全、高频问题根因、TDD 修复流程 |
 | `97_maintenance_manual.md` | AI 知识库维护手册：专题文档整理标准、结构模板、密度控制、自审清单 |
 
