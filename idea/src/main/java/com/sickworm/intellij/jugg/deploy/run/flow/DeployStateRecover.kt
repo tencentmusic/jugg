@@ -114,8 +114,21 @@ open class DeployStateRecover(
             }
         }
 
+        syncDeployHistoryOverlayIdFromCache(device)
         deployFileManager.resetAfterReinstall()
         return true to true
+    }
+
+    /** Align deploy history overlay ids with deployment cache after APK reinstall. */
+    private fun syncDeployHistoryOverlayIdFromCache(device: IDevice) {
+        val packageName = runCatching { deployTargetManager.getPackageName() }.getOrNull() ?: return
+        val cached = deploymentService.loadCachedOverlayId(device.serialNumber, packageName, logger) ?: return
+        val current = deployHistoryManager.lastDeployOverlayIds
+        if (current[packageName] == cached.sha) {
+            return
+        }
+        deployHistoryManager.lastDeployOverlayIds = current + (packageName to cached.sha)
+        logger.debug("Synced deploy history overlay id after reinstall: $packageName -> ${cached.sha}")
     }
 
     open fun tryDryDeploy(
