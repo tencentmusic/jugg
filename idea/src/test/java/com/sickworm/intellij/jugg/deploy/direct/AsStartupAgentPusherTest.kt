@@ -96,6 +96,20 @@ class AsStartupAgentPusherTest {
     }
 
     @Test
+    fun `pushApplyChangesStartupAgent should not use shell line continuation backslashes in run-as script`() {
+        val root = tempFolder.newFolder("installers")
+        writeInstaller(root, byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02))
+        val adb = RecordingAdb(startupAgents = emptyList())
+        val pusher = newPusher(adb, installersRoot = root.absolutePath)
+
+        pusher.pushApplyChangesStartupAgent("com.example.app", "arm64-v8a", Deploy.Arch.ARCH_64_BIT)
+
+        val script = adb.shellScripts.single()
+        assertFalse("backslash breaks sh -c single-quoted scripts on device", script.contains("&& \\"))
+        assertTrue(script.contains("if [ -d code_cache/startup_agents ]"))
+    }
+
+    @Test
     fun `pushApplyChangesStartupAgent should setup studio dir and remove stale startup agents`() {
         val root = tempFolder.newFolder("installers")
         writeInstaller(root, byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 0x02))

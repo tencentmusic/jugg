@@ -91,15 +91,18 @@ class AsStartupAgentPusher(
     /**
      * Mirrors AOSP OverlayInstall::SetUpAgent: ensure `.studio`, remove stale startup agents when
      * the directory exists but the versioned agent file is absent, then copy the new agent.
+     *
+     * Must stay a plain one-liner without `\` line continuations: [IDeviceAdb.execAdbShellScript]
+     * wraps the command in `sh -c '...'`, where backslashes are literal and break `if ... then`.
      */
     private fun buildSetUpAgentScript(remoteAgentPath: String, destPath: String): String {
-        return """
-            mkdir -p $STUDIO_DIR && \
-            if [ -d $STARTUP_AGENTS_DIR ] && [ ! -f $destPath ]; then rm -rf $STARTUP_AGENTS_DIR; fi && \
-            mkdir -p $STARTUP_AGENTS_DIR && \
-            cp -f $remoteAgentPath $destPath && \
-            echo $AGENT_MARKER OK
-        """.trimIndent().replace("\n", " ")
+        return listOf(
+            "mkdir -p $STUDIO_DIR",
+            "if [ -d $STARTUP_AGENTS_DIR ] && [ ! -f $destPath ]; then rm -rf $STARTUP_AGENTS_DIR; fi",
+            "mkdir -p $STARTUP_AGENTS_DIR",
+            "cp -f $remoteAgentPath $destPath",
+            "echo $AGENT_MARKER OK",
+        ).joinToString(" && ")
     }
 
     private fun agentDestFileName(deviceAbi: String, appArch: Deploy.Arch): String {
