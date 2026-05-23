@@ -137,6 +137,23 @@ class DirectOverlaySwapTransportTest {
         assertNull(overlayId)
     }
 
+    @Test
+    fun `trySwap should fall back when caller disallows direct overlay`() {
+        val entry = cacheEntry()
+        adb.overlayStateId = entry.overlayId.sha
+        val data = deployData(apkInfo("com.example.app", "/base.apk"))
+        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+
+        val overlayId = newTransport(isAllowedByCaller = false).trySwap(
+            packageName = "com.example.app",
+            data = data,
+            overlayUpdate = overlayUpdate,
+        )
+
+        assertNull(overlayId)
+        assertTrue(adb.commands.isEmpty())
+    }
+
     @Test(expected = DirectOverlayDirtyException::class)
     fun `trySwap should not fall back when writer leaves overlay dirty`() {
         val entry = cacheEntry()
@@ -152,13 +169,18 @@ class DirectOverlaySwapTransportTest {
         )
     }
 
-    private fun newTransport(isDeviceReadyDeploy: Boolean = false): DirectOverlaySwapTransport {
+    private fun newTransport(
+        isDeviceReadyDeploy: Boolean = false,
+        isAllowedByCaller: Boolean = true,
+    ): DirectOverlaySwapTransport {
         val installersRoot = tempFolder.newFolder("installers")
         writeAgentInstaller(installersRoot)
         return DirectOverlaySwapTransport(
-            options = DirectOverlaySwapOptions(
-                enabled = true,
+            options = DirectOverlaySwapOptions.create(
+                settingsEnabled = true,
                 isDeviceReadyDeploy = isDeviceReadyDeploy,
+                isAllowedByCaller = isAllowedByCaller,
+                logger = logger,
                 adb = adb,
                 installersRoot = installersRoot.absolutePath,
                 installerVersion = "dced2491",

@@ -19,6 +19,8 @@ data class DeployOptions(
     val retryReason: String? = null,
     val isSkipExceptOverlayCheck: Boolean = false,
     val retryDeployData: JuggDeployData? = null,
+    /** When false, retry falls back to Apply Changes instead of direct overlay writer. */
+    val isAllowDirectOverlayDeploy: Boolean = true,
     val androidTestRunSpec: AndroidTestRunSpec? = null,
     val androidTestResultModel: AndroidTestResultModel? = null,
     val startTime: Long = System.currentTimeMillis(),
@@ -54,6 +56,7 @@ data class JuggDeployRunTaskRequest(
     val androidTestRunSpec: AndroidTestRunSpec? = null,
     val androidTestResultModel: AndroidTestResultModel? = null,
     val isDeviceReadyDeploy: Boolean = true,
+    val isAllowDirectOverlayDeploy: Boolean = true,
 ) {
     companion object {
         fun fromDeployOptions(
@@ -72,6 +75,7 @@ data class JuggDeployRunTaskRequest(
                 androidTestRunSpec = deployOptions.androidTestRunSpec,
                 androidTestResultModel = deployOptions.androidTestResultModel,
                 isDeviceReadyDeploy = isDeviceReadyDeploy,
+                isAllowDirectOverlayDeploy = deployOptions.isAllowDirectOverlayDeploy,
             )
         }
     }

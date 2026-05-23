@@ -191,6 +191,7 @@ class JuggDeployerHelper(
                 isSkipExceptOverlayCheck = isSliceSkipExceptOverlayCheck,
                 compileUiHandler = compileUiHandler,
                 isDeviceReadyDeploy = isDeviceReadyDeploy,
+                isAllowDirectOverlayDeploy = request.isAllowDirectOverlayDeploy,
             )
             val task = JuggDeployTask(
                 project = project,

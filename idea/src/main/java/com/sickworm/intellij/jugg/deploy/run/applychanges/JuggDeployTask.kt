@@ -99,9 +99,11 @@ class JuggDeployTask(
             launchContext.exceptOverlayIds,
             launchContext.isSkipExceptOverlayCheck,
             logger,
-            DirectOverlaySwapOptions(
-                enabled = JuggSettings.isEnableDirectOverlayDeploy,
+            DirectOverlaySwapOptions.create(
+                settingsEnabled = JuggSettings.isEnableDirectOverlayDeploy,
                 isDeviceReadyDeploy = launchContext.isDeviceReadyDeploy,
+                isAllowedByCaller = launchContext.isAllowDirectOverlayDeploy,
+                logger = ideaLogger,
                 adb = launchContext.deviceAdb,
                 installersRoot = installPathProvider.compute(),
                 installerVersion = adbInstaller.version,
@@ -282,6 +284,7 @@ class LaunchContext(
     val isSkipExceptOverlayCheck: Boolean,
     val compileUiHandler: CompileUiHandler,
     val isDeviceReadyDeploy: Boolean = true,
+    val isAllowDirectOverlayDeploy: Boolean = true,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false

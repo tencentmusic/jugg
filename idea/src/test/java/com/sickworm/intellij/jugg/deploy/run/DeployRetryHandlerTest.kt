@@ -325,6 +325,7 @@ class DeployRetryHandlerTest {
             reason = "Direct overlay deploy failed: installer not found",
         )
 
+        assertFalse(deployRunHost.lastRedeployOptions!!.isAllowDirectOverlayDeploy)
         Mockito.verify(deployStateRecover).recoverDeployState(
             device,
             deployOptions.indicator,

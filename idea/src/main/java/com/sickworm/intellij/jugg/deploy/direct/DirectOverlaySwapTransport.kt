@@ -36,12 +36,11 @@ class DirectOverlaySwapTransport(
     }
 
     fun canTry(data: JuggDeployData): Boolean {
-        val result = options.enabled &&
-                !options.isDeviceReadyDeploy &&
-                !data.isInstall &&
-                !data.isEmpty
-        logger.debug("Direct overlay swap canTry=$result. Details: enabled: ${options.enabled}, " +
-                "isDeviceReadyDeploy: ${options.isDeviceReadyDeploy}, isInstall: ${data.isInstall}, isEmpty: ${data.isEmpty}")
+        options.logEnabled(logger)
+        val result = options.enabled && !data.isInstall && !data.isEmpty
+        logger.debug(
+            "Direct overlay swap canTry=$result: isInstall=${data.isInstall}, isEmpty=${data.isEmpty}",
+        )
         return result
     }
 
@@ -110,23 +109,60 @@ class DirectOverlayDirtyException(message: String) : RuntimeException(message)
 
 /**
  * DirectOverlaySwapOptions carries deploy-state facts from the outer lifecycle into the swap transport.
+ *
+ * [enabled] is derived from [settingsEnabled], [isDeviceReadyDeploy], and [isAllowedByCaller].
  */
 data class DirectOverlaySwapOptions(
-    val enabled: Boolean,
+    val settingsEnabled: Boolean,
     val isDeviceReadyDeploy: Boolean,
+    val isAllowedByCaller: Boolean,
     val adb: IDeviceAdb?,
     val installersRoot: String? = null,
     val installerVersion: String? = null,
     val deviceAbi: String? = null,
     val appArch: Deploy.Arch? = null,
 ) {
+    val enabled: Boolean
+        get() = settingsEnabled && !isDeviceReadyDeploy && isAllowedByCaller
+
+    fun logEnabled(logger: Logger) {
+        logger.debug(
+            "Direct overlay enabled=$enabled: settingsEnabled=$settingsEnabled, " +
+                "isDeviceReadyDeploy=$isDeviceReadyDeploy, isAllowedByCaller=$isAllowedByCaller",
+        )
+    }
+
     fun withAppArch(arch: Deploy.Arch): DirectOverlaySwapOptions = copy(appArch = arch)
 
     companion object {
+        fun create(
+            settingsEnabled: Boolean,
+            isDeviceReadyDeploy: Boolean,
+            isAllowedByCaller: Boolean,
+            logger: Logger,
+            adb: IDeviceAdb?,
+            installersRoot: String? = null,
+            installerVersion: String? = null,
+            deviceAbi: String? = null,
+            appArch: Deploy.Arch? = null,
+        ): DirectOverlaySwapOptions {
+            return DirectOverlaySwapOptions(
+                settingsEnabled = settingsEnabled,
+                isDeviceReadyDeploy = isDeviceReadyDeploy,
+                isAllowedByCaller = isAllowedByCaller,
+                adb = adb,
+                installersRoot = installersRoot,
+                installerVersion = installerVersion,
+                deviceAbi = deviceAbi,
+                appArch = appArch,
+            ).also { it.logEnabled(logger) }
+        }
+
         fun disabled(): DirectOverlaySwapOptions {
             return DirectOverlaySwapOptions(
-                enabled = false,
+                settingsEnabled = false,
                 isDeviceReadyDeploy = true,
+                isAllowedByCaller = false,
                 adb = null,
             )
         }

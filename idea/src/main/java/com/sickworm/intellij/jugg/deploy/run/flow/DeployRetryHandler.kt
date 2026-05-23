@@ -163,6 +163,7 @@ class DeployRetryHandler(
             val nextDeployOptions = deployOptions.copy(
                 retryReason = reason,
                 isSkipExceptOverlayCheck = true,
+                isAllowDirectOverlayDeploy = !isDirectDeployFailed && deployOptions.isAllowDirectOverlayDeploy,
                 timeOutRetryTimes = deployOptions.timeOutRetryTimes + if (isDeployTimeout) 1 else 0,
             )
             return deployRunHost.redeploy(nextDeployOptions)
