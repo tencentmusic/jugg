@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-03-30
+> 最后核对：2026-05-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -31,7 +31,7 @@
 | 整体架构理解/模块划分 | `98_code_map.md`, `01_architecture.md` | - |
 | 编译失败/回退策略 | `98_code_map.md`, `02_compile_core.md`, `02_compile_source.md` | `idea/.../JuggCompileHelper.kt`, `main/.../JuggCompiler.kt` |
 | 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest_obfuscation.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
-| 自定义编译器/编译交互协议 | `98_code_map.md`, `02_compile_custom_ui.md` | `compiler/customui/*` |
+| 自定义编译器/编译交互协议 | `98_code_map.md`, `02_compile_custom_ui.md` | `compiler/custom/*`, `compiler/ui/*` |
 | 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md`, `06_testing.md` §7.1 | `idea/.../JuggDeployerHelper.kt`, `idea/.../manager/TopLevelFlowTest` |
 | 常量变化重编译异常（const ref） | `98_code_map.md`, `03_deploy_const_ref.md`, `02_compile_core.md` | `main/.../compiler/constref/*`, `deploy/DeployFileManager.kt`, `deploy/data/DeployDataGenerator.kt` |
 | 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
@@ -45,9 +45,9 @@
 | jugg CLI 子命令使用 / **新增或修改 CLI 参数** | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` |
 | MCP UI 布局验证设计（公开工具边界 / 证据链） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `McpToolActionRegistry.kt`, `LayoutDumpHelper.kt`, `UiFindMcpToolAction.kt`, `EvalViewMcpToolAction.kt`, `TapMcpToolAction.kt` |
 | MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_tools_list.md` | `ai/mcp/actions/McpToolActionRegistry.kt`, `ai/mcp/actions/*` |
-| MCP UI 验证盲测/view_inspect | `98_code_map.md`, `ai/mcp/actions/*` |
+| MCP UI 验证盲测 / view-inspect | `98_code_map.md`, `08_mcp_layout_verify_design.md`, `08_mcp_ui_verify_checklist.md` | `ai/mcp/actions/*` |
 | figma-layout-verify 内部算法（关系提取/IoU 匹配/容差） | `08_mcp_figma_layout_verify_internals.md` | `ai/mcp/layout/RelationExtractor.kt`, `ElementMatcher.kt`, `RelationVerifier.kt` |
-| 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
+| 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk`, `main/.../git`, `main/.../logger`, `main/.../server` |
 | **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_manifest_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`, `04_engineering_ide.md`, `03_deploy_const_ref.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
 | 知识库维护 / 专题文档重整 | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai_knowledge/*` |
@@ -78,6 +78,7 @@
 | `06_android_test.md` | app androidTest 支持：BuildTarget、test APK 识别、synthetic ModuleInfo、增量编译、gutter/RunConfig、`am instrument`、logcat 捕获与 method 归类、SM Test Runner、rerun failed 与定向测试 |
 | `08_mcp_design.md` | MCP 协议分层与设计约束（§7 引用 `08_mcp_layout_verify_design.md`） |
 | `08_mcp_layout_verify_design.md` | UI 布局验证设计：公开工具边界、证据链、单位流转、未注册 action 风险 |
+| `08_mcp_ui_verify_checklist.md` | MCP UI 验证执行清单：页面边界、expected/actual 证据、selector、单位换算与报告口径 |
 | `08_mcp_tools_list.md` | MCP 工具完整参数清单（18 个注册工具、通用行为、错误码） |
 | `08_cli_tools_list.md` | `jugg` CLI（MCP 封装层）子命令参数与行为差异 |
 | `08_mcp_figma_layout_verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |

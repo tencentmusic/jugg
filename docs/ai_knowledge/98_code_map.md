@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-05-08
+> 最后核对：2026-05-23
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -12,9 +12,9 @@
 |------|-------------|------|-----------|------|----------|
 | 编译总控 | `JuggCompiler`, `BaseCompiler`, `CompileTask` | `compiler/core` | 增量编译主流程、阶段顺序与循环重编译 | 稳定 | 2025-01-20 |
 | 源码编译 | `SourceCompiler`, `JuggAptCompiler`, `IJuggAptProcessor`, `JavaCompiler`, `KotlinCompiler`, `DexCompiler` | `compiler/source`, `compiler/source/apt`, `compiler/source/kotlin` | Java/Kotlin 编译与 DEX 生成（含生成源码增量改写） | 稳定 | 2026-02-23 |
-| 资源编译 | `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler`, `Aapt2Invoker` | `compiler/overlay`, `compiler/resource` | res/manifest 编译与 aapt2 link | 稳定 | 2025-01-20 |
+| 资源编译 | `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler`, `Aapt2DaemonInvoker` | `compiler/overlay`, `aapt2` | res/manifest 编译与 aapt2 link | 稳定 | 2026-05-23 |
 | DataBinding | `DataBindingArgsManager`, `DataBindingGenBaseClassesCompiler`, `DataBindingGenMapperCompiler` | `compiler/databinding` | DataBinding/ViewBinding 增量处理 | 稳定 | 2025-01-20 |
-| Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer`, `ObfuscationCompiler` | `compiler/manifest` | 清单差异合并与混淆 | 稳定 | 2025-01-20 |
+| Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer` | `compiler/manifest` | 清单差异合并；混淆映射由 `compiler/obfuscation` 承载 | 稳定 | 2026-05-23 |
 | 混淆映射 | `ClassMinifyCompiler`, `DexMinifyCompiler`, `ClassObfuscator`, `R8MappingReader`, `R8UsageReader` | `compiler/obfuscation` | release 混淆映射一致性、`usage.txt` 删除成员读取与 `_jugg_fix` compatibility stub 重写 | 稳定 | 2026-04-01 |
 | 自定义编译器 | `CustomCompilerManager`, `ICompilerCreator`, `CompileUiHandler` | `compiler/custom` | SPI 扩展、远端下载 jar、动态装载；编译交互抽象（供 IDE/CLI） | 稳定 | 2025-01-20 |
 | 常量引用分析 | `ConstRefEngine`, `ConstRefAnalyzer`, `ConstRefChangeTracker`, `ConstRefImpactResolver`, `ConstRefSessionCache` | `compiler/constref` | 编译期常量定义/引用分析；按”真实变更常量 key”定位受影响源码；DB 主导+会话缓存；repo/worktree 共享缓存与过期清理 | 稳定 | 2026-03-04 |
@@ -41,7 +41,7 @@
 | IDE 总管理器 | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | 初始化、同步事件、MCP runtime 装配 |
 | 运行任务编排 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | 编译与部署串联主流程 |
 | 编译入口 | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | 增量/Gradle 回退判定；AndroidTest Gradle build 读取 library Test APK build history 并注入回放任务 |
-| 部署入口 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/DeployStateRecover.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/DeployRetryHandler.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/LibraryTestApkBackfillHelper.kt` | 部署策略、recover、重试、agent 协调；`DeployStateRecover` 负责 `recoverDeployState` / `tryDryDeploy`，`DeployRetryHandler` 负责 `tryRetry`，均经 `IJuggDeployHelperRunHost` 回调 `JuggDeployerHelper`；`deploy` 分派为 `deployInstall` / `deployChanges`；Direct Overlay 统一放在 `deploy.direct` 包，Writer/StateChecker 等不依赖 IDE 的实现下沉到 `main`，deployment cache 经 `IJuggDeploymentService` 注入；sourcePath 命中缺失 self-targeting library Test APK 时做单模块懒加载补齐，并在成功后记录 build history |
+| 部署入口 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployStateRecover.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/LibraryTestApkBackfillHelper.kt` | 部署策略、recover、重试、agent 协调；`DeployStateRecover` 负责 `recoverDeployState` / `tryDryDeploy`，`DeployRetryHandler` 负责 `tryRetry`，均经 `IJuggDeployHelperRunHost` 回调 `JuggDeployerHelper`；`deploy` 分派为 `deployInstall` / `deployChanges`；Direct Overlay 统一放在 `deploy.direct` 包，Writer/StateChecker 等不依赖 IDE 的实现下沉到 `main`，deployment cache 经 `IJuggDeploymentService` 注入；sourcePath 命中缺失 self-targeting library Test APK 时做单模块懒加载补齐，并在成功后记录 build history |
 | 核心部署器 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployer.kt` | install/codeSwap/fullSwap |
 | 部署状态 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 设备状态与部署可行性 |
 | 插件加载 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 类加载隔离与桥接 |
