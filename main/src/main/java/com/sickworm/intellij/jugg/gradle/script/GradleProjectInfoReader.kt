@@ -37,7 +37,7 @@ class GradleProjectInfoReader(
 
     private var isEnableJetifier: Boolean = false
 
-    fun getProjectInfo(): JuggProjectInfo {
+    fun getProjectInfo(includeAndroidTestSourceSet: Boolean): JuggProjectInfo {
         TraceLogger.clear()
         var jetifierReadError: String? = null
         val isEnableJetifierValue = try {
@@ -67,8 +67,10 @@ class GradleProjectInfoReader(
             val moduleInfo = getModuleInfo(project)
             modules[moduleInfo.name] = moduleInfo
 
-            // Generate androidTest ModuleInfo for modules that can own instrumentation sources.
-            if (moduleInfo.moduleType in listOf(ModuleInfo.Type.Application, ModuleInfo.Type.Library, ModuleInfo.Type.DynamicFeature)) {
+            // Generate androidTest ModuleInfo only when the active build target includes androidTest sources.
+            if (includeAndroidTestSourceSet &&
+                moduleInfo.moduleType in listOf(ModuleInfo.Type.Application, ModuleInfo.Type.Library, ModuleInfo.Type.DynamicFeature)
+            ) {
                 try {
                     val androidExt = reflector(project.extensions.getByName("android"))
                     val sourceDirs = mutableListOf<File>()

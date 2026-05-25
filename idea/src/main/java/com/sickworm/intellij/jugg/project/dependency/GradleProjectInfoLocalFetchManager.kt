@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -144,6 +145,7 @@ class GradleProjectInfoLocalFetchManager(
                 pathManager.projectDir.path,
                 pathManager.initGradleFilePath.path,
                 logger = logger,
+                buildTarget = deployHistoryManager.getFullBuildInfo()?.buildTarget ?: BuildTarget.APP,
             )
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")

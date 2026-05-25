@@ -275,6 +275,7 @@ class LocalGradleCompileClient(
             juggGradleCompileOptions.projectRootPath,
             juggGradleCompileOptions.initGradleFilePath,
             incDeployTimes,
+            buildTarget = juggGradleCompileOptions.buildTarget,
         )
         val compileProjectResult = invoke(diffLibraryChangesCommand)
         if (compileProjectResult != 0) {

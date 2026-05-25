@@ -559,6 +559,7 @@ class RemoteGradleCompileClient(
             gradleCompileSettings.remoteInitGradleFilePath,
             incDeployTimes,
             localProjectPath = project.basePath,
+            buildTarget = gradleCompileSettings.buildTarget,
         )
         val compileProjectResult = invoke(channel, diffLibraryChangesCommand)
         if (compileProjectResult != 0) {

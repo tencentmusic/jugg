@@ -26,12 +26,15 @@ class GradleProjectInfoReaderManager(
     fun readAndSave() {
         try {
             val isDiffMode = rootProject.properties[PARAM_DIFF_MODE] == "true"
+            val includeAndroidTestSourceSet = includeAndroidTestSourceSet()
             println("Jugg: readProjectInfo.gradle execute start, diffMode: $isDiffMode, " +
+                    "includeAndroidTestSourceSet: $includeAndroidTestSourceSet, " +
                     "includeBuildProjects: ${includeBuildProjects.map { it.projectDir }}")
             readEnvironment()
             val startTime = System.currentTimeMillis()
             val lastProjectInfo = readLastProjectInfo()
-            val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo, juggPathManager.projectDir).getProjectInfo()
+            val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo, juggPathManager.projectDir)
+                .getProjectInfo(includeAndroidTestSourceSet)
 
             if (isDiffMode) {
                 GradleDependencyDiffer(rootProject, projectInfo, juggPathManager.projectDir).outputDiffToDir()
@@ -90,7 +93,7 @@ class GradleProjectInfoReaderManager(
      * Injects androidTest assemble task before Gradle finalizes the task graph.
      */
     fun injectAndroidTestTaskIfNeeded() {
-        if (rootProject.properties[PARAM_BUILD_TARGET] != BUILD_TARGET_ANDROID_TEST) {
+        if (!includeAndroidTestSourceSet()) {
             return
         }
 
@@ -173,6 +176,9 @@ class GradleProjectInfoReaderManager(
     /**
      * We need this to determined build variant, the info is from IDE
      */
+    private fun includeAndroidTestSourceSet(): Boolean =
+        rootProject.properties[PARAM_BUILD_TARGET]?.toString() == BUILD_TARGET_ANDROID_TEST
+
     private fun readLastProjectInfo(): JuggProjectInfoSerialize?  {
         var lastProjectInfo: File? = null
 

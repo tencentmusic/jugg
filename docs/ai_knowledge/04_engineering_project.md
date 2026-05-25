@@ -97,10 +97,12 @@ JuggManager.onSyncEvent()
 ### 4.3 androidTest 相关读取
 
 ```text
-GradleProjectInfoReader.getProjectInfo()
+GradleProjectInfoReader.getProjectInfo(includeAndroidTestSourceSet)
+  -> 仅当 -Pjugg.buildTarget=ANDROID_TEST 时 includeAndroidTestSourceSet=true
   -> 对 Application / Library / DynamicFeature 尝试读取 androidTest sourceSet
   -> buildAndroidTestModuleInfo()
      有 androidTest source 才生成 synthetic ModuleInfo
+  -> localFetch 从 [IDeployHistoryManager.getFullBuildInfo] 取 buildTarget；diff 从当前 compile options 取 buildTarget，并写入 -Pjugg.buildTarget
   -> GradleProjectInfoReaderManager.injectAndroidTestTaskIfNeeded()
      buildTarget=ANDROID_TEST 时把 application androidTest task 和 library test tasks 注入任务依赖
 ```

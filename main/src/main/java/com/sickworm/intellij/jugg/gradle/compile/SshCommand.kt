@@ -348,12 +348,15 @@ class DiffLibraryChangesCommand(
     initGradleFileRelativePath: String,
     incDeployTimes: Int,
     localProjectPath: String = projectPath,
+    buildTarget: BuildTarget,
 ) : CompileProjectCommand(
     "./gradlew --dry-run" +
             " -P${GradleProjectInfoReaderManager.PARAM_DIFF_MODE}=true" +
             " -P${GradleProjectInfoReaderManager.PARAM_INC_DEPLOY_TIMES}=$incDeployTimes",
-    projectPath, initGradleFileRelativePath,
+    projectPath,
+    initGradleFileRelativePath,
     localProjectPath = localProjectPath,
+    buildTarget = buildTarget,
 )
 
 /**

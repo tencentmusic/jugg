@@ -16,6 +16,16 @@ enum class BuildTarget(
 ) {
     APP("", false, LaunchStrategy.AM_START),
     ANDROID_TEST("AndroidTest", true, LaunchStrategy.AM_INSTRUMENT);
+
+    companion object {
+        const val GRADLE_PROPERTY_ANDROID_TEST = "ANDROID_TEST"
+
+        /** Maps [GradleProjectInfoReaderManager.PARAM_BUILD_TARGET] value; unknown values default to [APP]. */
+        fun fromGradlePropertyValue(value: String?): BuildTarget = when (value) {
+            GRADLE_PROPERTY_ANDROID_TEST -> ANDROID_TEST
+            else -> APP
+        }
+    }
 }
 
 /** LaunchStrategy determines how the deployed app is started on the device. */
