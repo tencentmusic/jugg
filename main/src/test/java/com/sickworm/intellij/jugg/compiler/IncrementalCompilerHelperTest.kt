@@ -2,7 +2,9 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.RecompileFiles
+import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -12,12 +14,17 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doNothing
+import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import java.util.concurrent.atomic.AtomicInteger
 import java.io.File
 import java.nio.file.Files
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -290,4 +297,385 @@ class IncrementalCompilerHelperTest {
         // compiler.compile() called twice: first round + retry round
         verify(compiler, Mockito.times(2)).compile(any())
     }
+
+    @Test
+    fun `should skip effected files compiled in immediate previous round only`() {
+        val tempDir = Files.createTempDirectory("inc_compile_helper_last_round_filter").toFile()
+        val callerFile = File(tempDir, "src/Caller.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nclass Caller\n")
+        }
+        val defFile = File(tempDir, "src/Def.kt").apply {
+            writeText("package com.example\nclass Def\n")
+        }
+        val callerChanged = changedFile(callerFile, tempDir)
+        val successResult = { files: List<CompileFile> ->
+            CompileResult(
+                task = CompileTask(files, File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+                details = files.map { Result.success(it) },
+                outputs = emptyList(),
+            )
+        }
+
+        val compiler: JuggCompiler = mock()
+        val compileContext: ICompileContext = mock()
+        val pathManager: JuggPathManager = mock()
+        val deployStateManager: IDeployStateManager = mock()
+        val deployFileManager: DeployFileManager = mock()
+        val fileChangesHandler: IFileChangesHandler = mock()
+        val retryResolver: IIncrementalCompileRetryResolver = mock()
+        val juggDeployData: JuggDeployData = mock()
+        whenever(compiler.context).thenReturn(compileContext)
+        whenever(compileContext.mappingFile).thenReturn(null)
+        whenever(compileContext.isMinified).thenReturn(false)
+        whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
+        whenever(compiler.compile(any())).thenAnswer { invocation ->
+            val task = invocation.getArgument<CompileTask>(0)
+            successResult(task.files)
+        }
+        whenever(fileChangesHandler.filter(any())).thenAnswer { invocation ->
+            val files = invocation.getArgument<List<File>>(0)
+            files.map { file -> changedFile(file, tempDir) }
+        }
+        whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        doNothing().whenever(deployFileManager).updateUncompiledFiles(any(), any())
+        doNothing().whenever(deployFileManager).addStagingFiles(any())
+        doNothing().whenever(deployFileManager).awaitConstRefAnalysis(any())
+        val getRecompileCallCount = AtomicInteger(0)
+        whenever(deployFileManager.getRecompileFiles(any(), any(), isNull())).thenAnswer {
+            if (getRecompileCallCount.getAndIncrement() == 0) {
+                RecompileFiles(
+                    effectedSourceFiles = listOf(callerFile, defFile),
+                    redexClasses = emptyList(),
+                    juggDeployData = juggDeployData,
+                )
+            } else {
+                RecompileFiles(
+                    effectedSourceFiles = emptyList(),
+                    redexClasses = emptyList(),
+                    juggDeployData = juggDeployData,
+                )
+            }
+        }
+
+        val helper = buildHelper(compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, retryResolver)
+        helper.compile(
+            undeployedFiles = listOf(callerChanged),
+            uiHandler = CompileUiHandler.DEFAULT,
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        val taskCaptor = argumentCaptor<CompileTask>()
+        verify(compiler, Mockito.times(2)).compile(taskCaptor.capture())
+        val secondRoundPaths = taskCaptor.allValues[1].files.map { it.file.absolutePath }.toSet()
+        assertEquals(setOf(defFile.absolutePath), secondRoundPaths)
+    }
+
+    @Test
+    fun `should recompile earlier round source when later round dependency changes`() {
+        val tempDir = Files.createTempDirectory("inc_compile_helper_earlier_round_recompile").toFile()
+        val callerFile = File(tempDir, "src/Caller.kt").apply {
+            parentFile.mkdirs()
+            writeText("package com.example\nclass Caller\n")
+        }
+        val defFile = File(tempDir, "src/Def.kt").apply {
+            writeText("package com.example\nclass Def\n")
+        }
+        val callerChanged = changedFile(callerFile, tempDir)
+        val successResult = { files: List<CompileFile> ->
+            CompileResult(
+                task = CompileTask(files, File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+                details = files.map { Result.success(it) },
+                outputs = emptyList(),
+            )
+        }
+
+        val compiler: JuggCompiler = mock()
+        val compileContext: ICompileContext = mock()
+        val pathManager: JuggPathManager = mock()
+        val deployStateManager: IDeployStateManager = mock()
+        val deployFileManager: DeployFileManager = mock()
+        val fileChangesHandler: IFileChangesHandler = mock()
+        val retryResolver: IIncrementalCompileRetryResolver = mock()
+        val juggDeployData: JuggDeployData = mock()
+        whenever(compiler.context).thenReturn(compileContext)
+        whenever(compileContext.mappingFile).thenReturn(null)
+        whenever(compileContext.isMinified).thenReturn(false)
+        whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
+        whenever(compiler.compile(any())).thenAnswer { invocation ->
+            val task = invocation.getArgument<CompileTask>(0)
+            successResult(task.files)
+        }
+        whenever(fileChangesHandler.filter(any())).thenAnswer { invocation ->
+            val files = invocation.getArgument<List<File>>(0)
+            files.map { file -> changedFile(file, tempDir) }
+        }
+        whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        doNothing().whenever(deployFileManager).updateUncompiledFiles(any(), any())
+        doNothing().whenever(deployFileManager).addStagingFiles(any())
+        doNothing().whenever(deployFileManager).awaitConstRefAnalysis(any())
+        val getRecompileCallCount = AtomicInteger(0)
+        whenever(deployFileManager.getRecompileFiles(any(), any(), isNull())).thenAnswer {
+            when (getRecompileCallCount.getAndIncrement()) {
+                0 -> RecompileFiles(
+                    effectedSourceFiles = listOf(defFile),
+                    redexClasses = emptyList(),
+                    juggDeployData = juggDeployData,
+                )
+                1 -> RecompileFiles(
+                    effectedSourceFiles = listOf(callerFile),
+                    redexClasses = emptyList(),
+                    juggDeployData = juggDeployData,
+                )
+                else -> RecompileFiles(
+                    effectedSourceFiles = emptyList(),
+                    redexClasses = emptyList(),
+                    juggDeployData = juggDeployData,
+                )
+            }
+        }
+
+        val helper = buildHelper(compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, retryResolver)
+        val result = helper.compile(
+            undeployedFiles = listOf(callerChanged),
+            uiHandler = CompileUiHandler.DEFAULT,
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        assertTrue(result.isSuccess)
+        val taskCaptor = argumentCaptor<CompileTask>()
+        verify(compiler, Mockito.times(3)).compile(taskCaptor.capture())
+        assertEquals(setOf(defFile.absolutePath), taskCaptor.allValues[1].files.map { it.file.absolutePath }.toSet())
+        assertEquals(setOf(callerFile.absolutePath), taskCaptor.allValues[2].files.map { it.file.absolutePath }.toSet())
+    }
+
+    @Test
+    fun `should consume pending trigger before filtering to stop alternating continue compile`() {
+        val tempDir = Files.createTempDirectory("inc_compile_effect_trigger_consume").toFile()
+        val safeModeFile = File(tempDir, "src/SafeMode.kt").apply {
+            parentFile.mkdirs()
+            writeText("object SafeMode\n")
+        }
+        val lastCrashFile = File(tempDir, "src/LastCrashHandler.kt").apply {
+            writeText("class LastCrashHandler\n")
+        }
+        val deployData = deployDataWithSourceEffects(
+            listOf(
+                EffectedClassNode(
+                    className = "Lcom/tencent/ibg/crash/safemode/SafeMode;",
+                    sourceFileName = "SafeMode.kt",
+                    effectedByClasses = listOf("Lcom/tencent/ibg/crash/safemode/CrashDataSource;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+                EffectedClassNode(
+                    className = "Lcom/tencent/ibg/crash/safemode/LastCrashHandler;",
+                    sourceFileName = "LastCrashHandler.kt",
+                    effectedByClasses = listOf("Lcom/tencent/ibg/crash/safemode/CrashDataSource;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+            ),
+        )
+        val safeModeKey = ContinueCompileEffectFilter.resolveEffectTriggerKey(changedFile(safeModeFile, tempDir), deployData)
+        val lastCrashKey = ContinueCompileEffectFilter.resolveEffectTriggerKey(changedFile(lastCrashFile, tempDir), deployData)
+        val satisfied = mutableSetOf(safeModeKey)
+        val pending = mutableMapOf(lastCrashFile.absolutePath to lastCrashKey)
+        val filtered = ContinueCompileEffectFilter.resolveUncompiledEffectedFiles(
+            justCompiledFiles = listOf(changedFile(lastCrashFile, tempDir)),
+            changedFiles = listOf(changedFile(safeModeFile, tempDir), changedFile(lastCrashFile, tempDir)),
+            lastRoundCompiledPaths = setOf(lastCrashFile.absolutePath),
+            satisfiedEffectTriggers = satisfied,
+            pendingEffectTriggerKeys = pending,
+            juggDeployData = deployData,
+        )
+        assertTrue(filtered.isEmpty())
+        assertTrue(satisfied.contains(lastCrashKey))
+        assertTrue(pending.isEmpty())
+    }
+
+    @Test
+    fun `should not continue compile again when recompile keeps returning same effected files`() {
+        val tempDir = Files.createTempDirectory("inc_compile_effect_trigger_no_loop").toFile()
+        val triggerFile = File(tempDir, "src/CrashDataSource.kt").apply {
+            parentFile.mkdirs()
+            writeText("class CrashDataSource\n")
+        }
+        val safeModeFile = File(tempDir, "src/SafeMode.kt").apply {
+            writeText("object SafeMode\n")
+        }
+        val lastCrashFile = File(tempDir, "src/LastCrashHandler.kt").apply {
+            writeText("class LastCrashHandler\n")
+        }
+        val triggerChanged = changedFile(triggerFile, tempDir)
+        val deployData = deployDataWithSourceEffects(
+            listOf(
+                EffectedClassNode(
+                    className = "Lcom/tencent/ibg/crash/safemode/SafeMode;",
+                    sourceFileName = "SafeMode.kt",
+                    effectedByClasses = listOf("Lcom/tencent/ibg/crash/safemode/CrashDataSource;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+                EffectedClassNode(
+                    className = "Lcom/tencent/ibg/crash/safemode/LastCrashHandler;",
+                    sourceFileName = "LastCrashHandler.kt",
+                    effectedByClasses = listOf("Lcom/tencent/ibg/crash/safemode/CrashDataSource;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+            ),
+        )
+        val successResult = { files: List<CompileFile> ->
+            CompileResult(
+                task = CompileTask(files, File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+                details = files.map { Result.success(it) },
+                outputs = emptyList(),
+            )
+        }
+        val compiler: JuggCompiler = mock()
+        val compileContext: ICompileContext = mock()
+        val pathManager: JuggPathManager = mock()
+        val deployStateManager: IDeployStateManager = mock()
+        val deployFileManager: DeployFileManager = mock()
+        val fileChangesHandler: IFileChangesHandler = mock()
+        val retryResolver: IIncrementalCompileRetryResolver = mock()
+        whenever(compiler.context).thenReturn(compileContext)
+        whenever(compileContext.mappingFile).thenReturn(null)
+        whenever(compileContext.isMinified).thenReturn(false)
+        whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
+        whenever(compiler.compile(any())).thenAnswer { invocation ->
+            successResult(invocation.getArgument<CompileTask>(0).files)
+        }
+        whenever(fileChangesHandler.filter(any())).thenAnswer { invocation ->
+            invocation.getArgument<List<File>>(0).map { file -> changedFile(file, tempDir) }
+        }
+        whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        doNothing().whenever(deployFileManager).updateUncompiledFiles(any(), any())
+        doNothing().whenever(deployFileManager).addStagingFiles(any())
+        doNothing().whenever(deployFileManager).awaitConstRefAnalysis(any())
+        whenever(deployFileManager.getRecompileFiles(any(), any(), isNull())).thenReturn(
+            RecompileFiles(
+                effectedSourceFiles = listOf(safeModeFile, lastCrashFile),
+                redexClasses = emptyList(),
+                juggDeployData = deployData,
+            ),
+        )
+        val helper = buildHelper(compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, retryResolver)
+        val result = helper.compile(
+            undeployedFiles = listOf(triggerChanged),
+            uiHandler = CompileUiHandler.DEFAULT,
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+        assertTrue(result.isSuccess)
+        verify(compiler, Mockito.times(2)).compile(any())
+    }
+
+    @Test
+    fun `should stop continue compile when effect trigger already satisfied`() {
+        val tempDir = Files.createTempDirectory("inc_compile_effect_trigger_satisfied").toFile()
+        val safeModeFile = File(tempDir, "src/SafeMode.kt").apply {
+            parentFile.mkdirs()
+            writeText("object SafeMode\n")
+        }
+        val lastCrashFile = File(tempDir, "src/LastCrashHandler.kt").apply {
+            writeText("class LastCrashHandler\n")
+        }
+        val triggerClasses = listOf("Lcom/tencent/ibg/crash/safemode/CrashDataSource;")
+        val deployData = deployDataWithSourceEffects(
+            listOf(
+                EffectedClassNode(
+                    className = "Lcom/tencent/ibg/crash/safemode/SafeMode;",
+                    sourceFileName = "SafeMode.kt",
+                    effectedByClasses = triggerClasses,
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+                EffectedClassNode(
+                    className = "Lcom/tencent/ibg/crash/safemode/LastCrashHandler;",
+                    sourceFileName = "LastCrashHandler.kt",
+                    effectedByClasses = triggerClasses,
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+            ),
+        )
+        val satisfied = setOf(
+            ContinueCompileEffectFilter.resolveEffectTriggerKey(changedFile(safeModeFile, tempDir), deployData),
+            ContinueCompileEffectFilter.resolveEffectTriggerKey(changedFile(lastCrashFile, tempDir), deployData),
+        )
+        val filtered = ContinueCompileEffectFilter.filterUncompiledEffectedFiles(
+            changedFiles = listOf(changedFile(safeModeFile, tempDir), changedFile(lastCrashFile, tempDir)),
+            lastRoundCompiledPaths = setOf(safeModeFile.absolutePath),
+            satisfiedEffectTriggers = satisfied,
+            juggDeployData = deployData,
+        )
+        assertTrue(filtered.isEmpty())
+    }
+
+    @Test
+    fun `should recompile caller when new trigger from dependency was not satisfied before`() {
+        val tempDir = Files.createTempDirectory("inc_compile_effect_trigger_new").toFile()
+        val callerFile = File(tempDir, "src/Caller.kt").apply {
+            parentFile.mkdirs()
+            writeText("class Caller\n")
+        }
+        val defFile = File(tempDir, "src/Def.kt").apply {
+            writeText("class Def\n")
+        }
+        val deployData = deployDataWithSourceEffects(
+            listOf(
+                EffectedClassNode(
+                    className = "Lcom/example/Caller;",
+                    sourceFileName = "Caller.kt",
+                    effectedByClasses = listOf("Lcom/example/Def;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+            ),
+        )
+        val satisfied = setOf(
+            ContinueCompileEffectFilter.resolveEffectTriggerKey(changedFile(defFile, tempDir), deployDataWithSourceEffects(
+                listOf(
+                    EffectedClassNode(
+                        className = "Lcom/example/Def;",
+                        sourceFileName = "Def.kt",
+                        effectedByClasses = listOf("Lcom/example/Caller;"),
+                        effectedType = EffectedClassNode.EffectedType.SOURCE,
+                    ),
+                ),
+            )),
+        )
+        val filtered = ContinueCompileEffectFilter.filterUncompiledEffectedFiles(
+            changedFiles = listOf(changedFile(callerFile, tempDir)),
+            lastRoundCompiledPaths = setOf(defFile.absolutePath),
+            satisfiedEffectTriggers = satisfied,
+            juggDeployData = deployData,
+        )
+        assertEquals(listOf(callerFile.absolutePath), filtered.map { it.file.absolutePath })
+    }
+
+    private fun deployDataWithSourceEffects(nodes: List<EffectedClassNode>): JuggDeployData {
+        val deployData: JuggDeployData = mock()
+        whenever(deployData.effectedClassNodes).thenReturn(nodes)
+        whenever(deployData.constRefEffectedSourcePaths).thenReturn(emptyList())
+        return deployData
+    }
+
+    private fun changedFile(file: File, baseDir: File) = ChangedFile(
+        type = CompileFile.Type.Kotlin,
+        file = file,
+        baseDir = baseDir,
+        module = ModuleInfo.virtualModule,
+    )
+
+    private fun buildHelper(
+        compiler: JuggCompiler,
+        pathManager: JuggPathManager,
+        deployStateManager: IDeployStateManager,
+        deployFileManager: DeployFileManager,
+        fileChangesHandler: IFileChangesHandler,
+        retryResolver: IIncrementalCompileRetryResolver,
+    ) = IncrementalCompilerHelper(
+        compiler = compiler,
+        pathManager = pathManager,
+        deployStateManager = deployStateManager,
+        deployFileManager = deployFileManager,
+        fileChangesHandler = fileChangesHandler,
+        retryResolver = retryResolver,
+        loggerArg = logger,
+    )
 }

@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.compiler
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
-import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -106,47 +105,26 @@ class IncrementalCompilerHelper(
             val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
 
             TimeLogger.start("CheckEffectByTopLevelClass")
+            val lastRoundCompiledPaths = undeployedFiles.map { it.file.absolutePath }.toSet()
+            val juggDeployData = recompileFiles.juggDeployData
             logger.debug("CheckEffectByTopLevelClass" +
                     ", undeployedFiles: $undeployedFiles" +
                     ", effectedSourceFiles: $effectedSourceFiles" +
                     ", changedFiles: $changedFiles" +
-                    ", compiledFilesThisTime: ${compileLoopStatus.compiledFilesThisTime.map { it.file }}"
+                    ", compiledFilesThisTime: ${compileLoopStatus.compiledFilesThisTime.map { it.file }}" +
+                    ", lastRoundCompiledPaths: $lastRoundCompiledPaths" +
+                    ", satisfiedEffectTriggerCount: ${compileLoopStatus.satisfiedEffectTriggers.size}"
             )
 
             compileLoopStatus.compiledFilesThisTime += undeployedFiles
-            val compiledFilesThisTimeSet = compileLoopStatus.compiledFilesThisTime.map { it.file.absolutePath }.toSet()
-            val undeployedFilesSet = undeployedFiles.map { it.file.absolutePath }.toSet()
-            val unCompiledEffectedFiles = changedFiles.filter { changedFile ->
-                if (compiledFilesThisTimeSet.contains(changedFile.file.absolutePath)) {
-                    return@filter false
-                }
-
-                if (undeployedFilesSet.contains(changedFile.file.absolutePath)) {
-                    // check whether the file has top level class changed.
-                    // if so, it should be recompiled through it's in compiledFilesThisTimeSet
-                    logger.debug("CheckEffectByTopLevelClass ${changedFile.file.name} is in compiledFilesThisTimeSet and effected, check recompile")
-                    val kmModuleMerger = KmModuleMergerForCompilation(changedFile.module.buildPathInfo.kotlinClassPath)
-                    kmModuleMerger.loadAndMerge()
-                    val extensionClasses = kmModuleMerger.getExtensionClasses().toSet()
-                    if (extensionClasses.isNotEmpty()) {
-                        logger.debug("CheckEffectByTopLevelClass extensionClasses: $extensionClasses, effectNodes: ${recompileFiles.juggDeployData.effectedClassNodes}")
-                        recompileFiles.juggDeployData.effectedClassNodes
-                            .filter {
-                                it.sourceFileName == changedFile.file.name
-                            }.forEach {
-                                it.effectedByClasses.forEach { effectedByClass ->
-                                    if (extensionClasses.contains(effectedByClass)) {
-                                        logger.debug("CheckEffectByTopLevelClass ${changedFile.file.name} is in compiledFilesThisTimeSet, but it's effected by top level class, force recompile")
-                                        return@filter true
-                                    }
-                                }
-                            }
-                    }
-                    logger.debug("${changedFile.file.name} is in compiledFilesThisTimeSet and effected, no need recompile")
-                    return@filter false
-                }
-                return@filter true
-            }
+            val unCompiledEffectedFiles = ContinueCompileEffectFilter.resolveUncompiledEffectedFiles(
+                justCompiledFiles = undeployedFiles,
+                changedFiles = changedFiles,
+                lastRoundCompiledPaths = lastRoundCompiledPaths,
+                satisfiedEffectTriggers = compileLoopStatus.satisfiedEffectTriggers,
+                pendingEffectTriggerKeys = compileLoopStatus.pendingEffectTriggerKeys,
+                juggDeployData = juggDeployData,
+            )
             TimeLogger.end("CheckEffectByTopLevelClass", logger)
 
             if (unCompiledEffectedFiles.isNotEmpty()) {
@@ -168,6 +146,11 @@ class IncrementalCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
+                ContinueCompileEffectFilter.schedulePendingEffectTriggers(
+                    unCompiledEffectedFiles,
+                    juggDeployData,
+                    compileLoopStatus.pendingEffectTriggerKeys,
+                )
                 val result = compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder, compileLoopStatus)
                 if (compileStatusHolder.isShouldCancel) {
                     // revert file compile status, compile again next round
@@ -176,9 +159,8 @@ class IncrementalCompilerHelper(
                         deployFileManager.clearStagingFiles()
                     }
                     return CompileTaskResult.incrementalFailed(false, "Compile canceled")
-                } else {
-                    return result
                 }
+                return result
             }
         }
 
@@ -323,8 +305,12 @@ class IncrementalCompilerHelper(
      * CompileLoopStatus carries compiledFilesThisTime and isRetry.
      */
     class CompileLoopStatus(
-        /** used for avoid recompilation dead loop */
+        /** Accumulates all rounds in this compile session; continue-compile filtering uses last round only. */
         var compiledFilesThisTime: List<ChangedFile> = emptyList(),
+        /** Effect trigger keys (effected source + trigger classes) already recompiled in this session. */
+        val satisfiedEffectTriggers: MutableSet<String> = mutableSetOf(),
+        /** Pending trigger keys scheduled by parent frame for nested continue-compile sources. */
+        val pendingEffectTriggerKeys: MutableMap<String, String> = mutableMapOf(),
         var isRetry: Boolean = false,
     ) {
         val isFirstRoundCompile get() = compiledFilesThisTime.isEmpty()
