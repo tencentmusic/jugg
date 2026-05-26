@@ -14,14 +14,53 @@ import java.io.File
 class DirectOverlayStateCheckerTest {
 
     @Test
-    fun `checkRecover should return mismatch when deploy history overlay id is missing`() {
+    fun `checkRecover should mismatch when deploy history and deployment cache are both missing`() {
         val checker = createRecoverChecker(
-            adb = FakeAdb("__JUGG_OVERLAY_STATE__ ID overlay-id"),
+            adb = FakeAdb("__JUGG_OVERLAY_STATE__ NO_DIR"),
             historyOverlayIds = emptyMap(),
-            cachedOverlayId = CachedOverlayId(sha = "overlay-id", isBaseInstall = false),
+            cachedOverlayId = null,
         )
 
         assertEquals(DirectOverlayStateCheckResult.MISMATCHED, checker.checkRecover("device-1", "com.example.app"))
+    }
+
+    @Test
+    fun `checkRecover should mismatch when deploy history overlay id is missing but cache exists`() {
+        val checker = createRecoverChecker(
+            adb = FakeAdb("__JUGG_OVERLAY_STATE__ NO_DIR"),
+            historyOverlayIds = emptyMap(),
+            cachedOverlayId = CachedOverlayId(sha = "base-overlay", isBaseInstall = true),
+        )
+
+        assertEquals(DirectOverlayStateCheckResult.MISMATCHED, checker.checkRecover("device-1", "com.example.app"))
+    }
+
+    @Test
+    fun `checkRecover should match from deployment cache when except overlay check is skipped`() {
+        val checker = createRecoverChecker(
+            adb = FakeAdb("__JUGG_OVERLAY_STATE__ NO_DIR"),
+            historyOverlayIds = emptyMap(),
+            cachedOverlayId = CachedOverlayId(sha = "base-overlay", isBaseInstall = true),
+        )
+
+        assertEquals(
+            DirectOverlayStateCheckResult.MATCHED,
+            checker.checkRecover("device-1", "com.example.app", isSkipExceptOverlayCheck = true),
+        )
+    }
+
+    @Test
+    fun `checkRecover should mismatch from deployment cache when device overlay disagrees and except overlay check is skipped`() {
+        val checker = createRecoverChecker(
+            adb = FakeAdb("__JUGG_OVERLAY_STATE__ ID stale-on-device"),
+            historyOverlayIds = emptyMap(),
+            cachedOverlayId = CachedOverlayId(sha = "base-overlay", isBaseInstall = true),
+        )
+
+        assertEquals(
+            DirectOverlayStateCheckResult.MISMATCHED,
+            checker.checkRecover("device-1", "com.example.app", isSkipExceptOverlayCheck = true),
+        )
     }
 
     @Test

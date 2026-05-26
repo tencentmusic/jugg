@@ -1,13 +1,14 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.CachedOverlayId
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
 
 /**
  * DirectOverlayStateChecker verifies overlay checkpoint consistency for recover and swap paths.
- * Recover checks require deploy history, deployment cache, and device overlay to agree.
+ * Recover except-overlay rules match [com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployer] optimisticSwap.
  */
 class DirectOverlayStateChecker(
     private val adb: IDeviceAdb,
@@ -17,9 +18,8 @@ class DirectOverlayStateChecker(
 ) {
 
     /**
-     * Validates history, deployment cache, and device overlay state for recover dry deploy.
-     *
-     * @return null when deploy history overlay id is missing and the check should be skipped
+     * Validates deployment cache and device overlay for recover dry deploy.
+     * Except-overlay handling mirrors optimisticSwap: compare history to cache unless [isSkipExceptOverlayCheck].
      */
     fun checkRecover(
         deviceSerial: String,
@@ -29,32 +29,21 @@ class DirectOverlayStateChecker(
         val historyManager = requireNotNull(deployHistoryManager) { "deployHistoryManager is required for checkRecover" }
         val deploymentCache = requireNotNull(deploymentService) { "deploymentService is required for checkRecover" }
 
-        val historyOverlayId = historyManager.lastDeployOverlayIds[packageName]
-        if (historyOverlayId == null) {
-            logger.debug("Direct overlay state check skipped for " +
-                    "missing deploy history overlay id.")
-            return DirectOverlayStateCheckResult.MISMATCHED
-        }
-
         val cachedOverlayId = deploymentCache.loadCachedOverlayId(deviceSerial, packageName, logger)
         if (cachedOverlayId == null) {
-            logger.debug("Direct overlay state check mismatched for " +
-                    "missing local deployment cache, history: $historyOverlayId")
+            logger.debug("Direct overlay state check mismatched for missing local deployment cache")
             return DirectOverlayStateCheckResult.MISMATCHED
         }
 
-        if (cachedOverlayId.sha != historyOverlayId) {
-            if (isSkipExceptOverlayCheck) {
+        if (!isSkipExceptOverlayCheck) {
+            val exceptOverlayId = historyManager.lastDeployOverlayIds[packageName]
+            if (exceptOverlayId != cachedOverlayId.sha) {
                 logger.debug(
-                    "Skip local overlay id mismatch check, trust deployment cache for device check, " +
-                        "cached: ${cachedOverlayId.sha}, history: $historyOverlayId",
+                    "Direct overlay state check mismatched for overlay id mismatch with Jugg, " +
+                        "cached: ${cachedOverlayId.sha}, except: $exceptOverlayId",
                 )
-                val expectedDeviceOverlayId = if (cachedOverlayId.isBaseInstall) "" else cachedOverlayId.sha
-                return checkDevice(packageName, expectedDeviceOverlayId)
+                return DirectOverlayStateCheckResult.MISMATCHED
             }
-            logger.debug("Direct overlay state check mismatched for " +
-                    "local overlay id mismatch, cached: ${cachedOverlayId.sha}, history: $historyOverlayId")
-            return DirectOverlayStateCheckResult.MISMATCHED
         }
 
         val expectedDeviceOverlayId = if (cachedOverlayId.isBaseInstall) "" else cachedOverlayId.sha

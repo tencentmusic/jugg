@@ -154,6 +154,39 @@ class JuggDeployerHelperRecoverTest {
     }
 
     @Test
+    fun `tryDryDeploy should match after reinstall when deploy history is empty but cache is base install`() {
+        val device = Mockito.mock(IDevice::class.java)
+        Mockito.`when`(device.serialNumber).thenReturn("device-1")
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds).thenReturn(emptyMap())
+
+        val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
+            .thenReturn(CachedOverlayId(sha = "base-overlay", isBaseInstall = true))
+
+        val adb = Mockito.mock(IDeviceAdb::class.java)
+        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
+            .thenReturn("__JUGG_OVERLAY_STATE__ NO_DIR")
+
+        val recover = createDeployStateRecover(
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            deploymentService = deploymentService,
+            deviceAdbFactory = { _, _ -> adb },
+            logger = TestGlobal.getLogger(),
+        )
+
+        val result = recover.tryDryDeploy(device, isSkipExceptOverlayCheck = true, compileUiHandler = CompileUiHandler.DEFAULT)
+
+        assertEquals(DryDeployResult.SUCCESS, result)
+        Mockito.verify(deployTargetManager, Mockito.never()).restartApp(device)
+    }
+
+    @Test
     fun `tryDryDeploy should skip app launch when direct overlay state matches`() {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("device-1")

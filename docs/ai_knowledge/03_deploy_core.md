@@ -138,15 +138,17 @@ recoverDeployState()
       -> tryDryDeploy()
           -> pm path 不存在: APP_NOT_INSTALLED
           -> DirectOverlayStateChecker.checkRecover()
+              -> except-overlay 规则与 `JuggDeployer.optimisticSwap` 一致：`exceptOverlayId != cache.sha` 则 MISMATCHED（含 history 为空且 cache 有值）
+              -> `isSkipExceptOverlayCheck=true`：不比 history 与 cache，仅 cache + 设备校验
               -> MATCHED: SUCCESS
-              -> MISMATCHED: FAILED
+              -> MISMATCHED: FAILED（含 cache 缺失）
               -> UNKNOWN: fallback legacy dry deploy
           -> restart app + waitingForDeployable(默认 3s)
           -> run dry deploy payload
   -> dry deploy 成功: 不重装
   -> dry deploy 失败 / app updated / clean reinstall: install apks
   -> allowDirectOverlayRecover && direct overlay 开关: defer INSTALL 后 launch，跳过 waitingForDeployable(5s)
-  -> redeploy 时 `isSkipExceptOverlayCheck=true`（retry 或 `isRecoverWithReinstall`）会在 recover 的 `checkRecover` 中跳过 cache/history 本地不一致，改以 deployment cache 校验设备 overlay，避免重装后二次 recover 再 install
+  -> redeploy / retry 时 `isSkipExceptOverlayCheck=true`，recover 的 `checkRecover` 与 deploy 的 `optimisticSwap` 同样跳过 history 与 cache 对账；reinstall 后 dry check 依赖 skip 与 cache+设备一致
   -> 否则: INSTALL 后 restart + waitingForDeployable(5s)
   -> DeployFileManager.resetAfterReinstall()
 ```
