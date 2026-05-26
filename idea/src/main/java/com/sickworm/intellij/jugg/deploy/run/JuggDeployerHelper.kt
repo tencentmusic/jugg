@@ -22,6 +22,7 @@ import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployRunTaskExecutor
+import com.sickworm.intellij.jugg.deploy.run.flow.JuggDeployHelperRunHostBridge
 import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.deploy.run.instrument.TestLauncher
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
@@ -79,37 +80,43 @@ class JuggDeployerHelper(
     private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { device, ideaLogger ->
         IdeaDeviceAdb(device, ideaLogger)
     },
-    injectedDeployStateRecover: DeployStateRecover? = null,
-    injectedDeployRetryHandler: DeployRetryHandler? = null,
-    injectedDeployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
+    stateRecover: DeployStateRecover? = null,
+    retryHandler: DeployRetryHandler? = null,
+    deployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
     private var installPathProvider: Computable<String> = Computable<String> {
         CopyEmbeddedDistributionPaths().get()
     },
 ) : IJuggDeployHelperRunHost {
 
-    private val deployStateRecover: DeployStateRecover = injectedDeployStateRecover ?: DeployStateRecover(
+    private val deployRunHostBridge = JuggDeployHelperRunHostBridge()
+
+    private val deployStateRecover: DeployStateRecover = stateRecover ?: DeployStateRecover(
         project = project,
         deployTargetManager = deployTargetManager,
         deployFileManager = deployFileManager,
         deployHistoryManager = deployHistoryManager,
         deployStateManager = deployStateManager,
-        deployRunHost = this,
+        deployRunHost = deployRunHostBridge,
         deploymentService = deploymentService,
         deviceAdbFactory = deviceAdbFactory,
         logger = logger,
     )
 
-    private val deployRetryHandler: DeployRetryHandler = injectedDeployRetryHandler ?: DeployRetryHandler(
+    private val deployRetryHandler: DeployRetryHandler = retryHandler ?: DeployRetryHandler(
         deployTargetManager = deployTargetManager,
         deployFileManager = deployFileManager,
         deployStateRecover = deployStateRecover,
         juggServer = juggServer,
-        deployRunHost = this,
+        deployRunHost = deployRunHostBridge,
         logger = logger,
     )
 
-    private val deployRunTaskExecutor: IJuggDeployRunTaskExecutor = injectedDeployRunTaskExecutor ?: object : IJuggDeployRunTaskExecutor {
+    private val deployRunTaskExecutor: IJuggDeployRunTaskExecutor = deployRunTaskExecutor ?: object : IJuggDeployRunTaskExecutor {
         override fun execute(request: JuggDeployRunTaskRequest): LaunchResult = executeDeployRunTask(request)
+    }
+
+    init {
+        deployRunHostBridge.bind(this)
     }
 
     private var isRunning = false

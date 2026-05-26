@@ -184,7 +184,7 @@ class JuggDeployerHelperDeployTest {
             deployFileManager = deployFileManager,
             dependencyChangeManager = dependencyChangeManager,
             juggRunningTaskStatusManager = statusManager,
-            injectedDeployStateRecover = deployStateRecover,
+            deployStateRecover = deployStateRecover,
             deployRunTaskExecutor = deployRunTaskExecutor,
         )
         val result = helper.deploy(
@@ -303,7 +303,7 @@ class JuggDeployerHelperDeployTest {
         dependencyChangeManager: IDependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java),
         juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
         deployRetryHandler: DeployRetryHandler? = null,
-        injectedDeployStateRecover: DeployStateRecover? = null,
+        deployStateRecover: DeployStateRecover? = null,
         deployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
     ): JuggDeployerHelper {
         val project = Mockito.mock(Project::class.java)
@@ -326,9 +326,9 @@ class JuggDeployerHelperDeployTest {
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
             logger = TestGlobal.getLogger(),
-            injectedDeployStateRecover = injectedDeployStateRecover,
-            injectedDeployRetryHandler = deployRetryHandler,
-            injectedDeployRunTaskExecutor = deployRunTaskExecutor,
+            stateRecover = deployStateRecover,
+            retryHandler = deployRetryHandler,
+            deployRunTaskExecutor = deployRunTaskExecutor,
         )
     }
 

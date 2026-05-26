@@ -117,7 +117,7 @@ internal object DeployFlowTestSupport {
             deviceAdbFactory = deviceAdbFactory,
             installPathProvider = installPathProvider,
             asDeployerCompat = asDeployerCompat,
-            injectedDeployStateRecover = deployStateRecover,
+            stateRecover = deployStateRecover,
         )
         recoverRunHost.bind(helper)
         return helper
