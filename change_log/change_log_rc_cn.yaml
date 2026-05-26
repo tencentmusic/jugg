@@ -1,3 +1,8 @@
+- version: 3.0.9
+  date: 2026.05.26
+  updates:
+    - 修复 AbstractMethodException，场景：编译多层级 gradle 模块的 Kotlin internal 方法时，概率出现 module-name 和 base APK 不一致
+
 - version: 3.0.8
   date: 2026.05.18
   updates:

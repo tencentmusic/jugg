@@ -1,7 +1,7 @@
 <h1>Change Log</h1>
-<h2>3.0.8 (2026.05.18)</h2>
+<h2>3.0.9 (2026.05.26)</h2>
 <ol>
-    <li>[feature] Supports MCP and associated skills allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
+    <li>[feature] Supports Jugg CLI skills, allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
     <li>[feature] Supports Android test incremental compilation</li>
     <li>[feature] Supports incremental compilation on release APK with R8 minify and AabResGuard</li>
     <li>[feature] Supports KSP(only available for kuikly @Page for now)</li>
@@ -13,6 +13,7 @@
     <li>[optimize] Introduce automatic dex merge during the deployment stage to fix OOM scenarios triggered when deploying a large number of classes (>2000)</li>
     <li>[optimize] Improve databinding compile compatibility</li>
     <li>[optimize] Remove windows log file lock</li>
+    <li>[bugfix] Fix AbstractMethodException：When compiling Kotlin `internal` methods within a multi-module Gradle project, a probabilistic inconsistency occurs between the module name and the base APK.</li>
     <li>[bugfix] Fix untracked file rollbacks on first time compile</li>
     <li>[bugfix] Fix Kotlin compile may be failed when multiple projects opened with different Kotlin version</li>
     <li>[bugfix] Fix compile failed when using ./gradlew clean assembleDebug due to clean removing artifacts required by Jugg</li>
