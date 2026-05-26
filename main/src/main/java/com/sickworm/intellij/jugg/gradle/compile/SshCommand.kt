@@ -286,7 +286,7 @@ open class FetchClasspathCommand(
                     if (extension.isNotEmpty()) "--include='$path'"
                     else "--include='$path/**'"
                 }
-            val deleteParam = if (isNeedDeleteArg) "--delete" else ""
+            val deleteParam = if (isNeedDeleteArg) "--delete --delete-excluded" else ""
             return "-av $deleteParam --prune-empty-dirs --include='*/' ${additionalPath.joinToString(" ")} $includeClasspathFilter --exclude='*'"
         }
     }
@@ -305,7 +305,7 @@ class SyncLocalClasspathCommand(
 
     private var includeClasspathFilter = ""
 
-    override val baseCommand: String get() = """${RsyncCompatibleHelper.rsyncPath} ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
+    override val baseCommand: String get() = """${RsyncCompatibleHelper.rsyncPath} ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --delete-excluded --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
