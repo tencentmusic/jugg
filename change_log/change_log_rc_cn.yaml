@@ -1,3 +1,9 @@
+- version: 2.6.27
+  date: 2026.05.26
+  updates:
+    - 修复 Windows UI 切换远程编译时卡死
+    - 修复部分远程服务器传输文件卡住
+
 - version: 2.6.26
   date: 2026.05.15
   updates:

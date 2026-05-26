@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>2.6.26 (2026.05.15)</h2>
+<h2>2.6.27 (2026.05.26)</h2>
 <ol>
     <li>[feature] 支持 Android Studio Panda 4</li>
     <li>[feature] 支持 Android Studio Otter 2 Feature Drop</li>
@@ -24,6 +24,7 @@
     <li>[bugfix] 修复使用 rsync 模式，且 .ssh 里面 key 较多时，会触发远程编译登录失败</li>
     <li>[bugfix] 兼容子目录调用形式的编译命令 subDir/gradlew :app:assembleDebug</li>
     <li>[bugfix] 兼容部分子模块用了 compileSdk = 36 导致 aapt2 加载失败，降级 gradle</li>
+    <li>[bugfix] 修复 Windows UI 切换远程编译时卡死；修复部分远程服务器传输文件卡住</li>
 </ol>
 <h2>2.5.0 (2025.11.10)</h2>
 <ol>

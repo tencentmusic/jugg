@@ -1,3 +1,9 @@
+- version: 2.6.27
+  date: 2026.05.26
+  updates:
+    - fix Windows stuck when configuration UI switch to SyncMode.iFT / SyncMode.RSYNC
+    - fix some ssh stuck when using remote compile
+
 - version: 2.6.26
   date: 2026.05.15
   updates:

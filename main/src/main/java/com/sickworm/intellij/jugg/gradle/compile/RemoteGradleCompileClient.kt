@@ -25,7 +25,9 @@ class RemoteGradleCompileClient(
     private var session: Session? = null
     private var channel: Channel? = null
     private var inputStream: InputStream? = null
+    private var shellInputStream: BufferedInputStream? = null
     private var juggGradleCompileOptions: JuggGradleCompileOptions? = null
+    private var remoteEnvironmentPrefix: String = ""
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
@@ -36,10 +38,9 @@ class RemoteGradleCompileClient(
     private var isUseKey: Boolean = false // currently no use
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
-        if ((this.juggGradleCompileOptions == juggGradleCompileOptions) && (session?.isConnected == true) && channel != null) {
+        if ((this.juggGradleCompileOptions == juggGradleCompileOptions) && (session?.isConnected == true) && channel?.isConnected == true) {
             printToStreamInfo("${juggGradleCompileOptions.remoteSshIp} already login")
-            // Set environment variables for already logged in session
-            setEnvironmentVariables(juggGradleCompileOptions.environmentVariables)
+            updateRemoteEnvironmentPrefix(juggGradleCompileOptions.environmentVariables)
             return
         }
 
@@ -101,52 +102,32 @@ class RemoteGradleCompileClient(
     }
 
     private fun onLoginFailed(e: Exception) {
+        shellInputStream = null
         inputStream = null
         channel = null
         session = null
+        remoteEnvironmentPrefix = ""
         printToStreamError("RemoteClient login failed", e)
         throw JuggException.loginToRemoteFailed("Please check your login info.")
     }
 
     /**
-     * Set environment variables on remote SSH session.
-     * Format: VAR=value; VAR1=value1
+     * Build export prefix prepended to each remote shell command.
      */
-    private fun setEnvironmentVariables(environmentVariables: String) {
+    private fun updateRemoteEnvironmentPrefix(environmentVariables: String) {
+        remoteEnvironmentPrefix = ""
         if (environmentVariables.isEmpty()) {
             return
         }
-
-        val channel = channel ?: run {
-            logger.warn("setEnvironmentVariables but channel is null, skip")
+        val envVars = environmentVariables.split(";")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && it.contains("=") }
+        if (envVars.isEmpty()) {
+            logger.debug("No valid environment variables to set")
             return
         }
-
-        try {
-            // Parse environment variables (format: VAR=value; VAR1=value1)
-            val envVars = environmentVariables.split(";")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && it.contains("=") }
-
-            if (envVars.isEmpty()) {
-                logger.debug("No valid environment variables to set")
-                return
-            }
-
-            logger.info("Setting ${envVars.size} environment variables on remote session")
-
-            val commander = PrintStream(channel.outputStream, false)
-            envVars.forEach { envVar ->
-                val exportCommand = "export $envVar"
-                logger.debug("Setting environment variable: $exportCommand")
-                commander.printlnCompat(exportCommand)
-            }
-            commander.flush()
-            printToStreamInfo("Environment variables set successfully: ${envVars.joinToString(", ")}")
-        } catch (e: Exception) {
-            logger.warn("Failed to set environment variables", e)
-            printToStreamError("Failed to set environment variables: ${e.message}")
-        }
+        remoteEnvironmentPrefix = envVars.joinToString(" ; ") { "export $it" } + " ; "
+        logger.info("Prepared ${envVars.size} remote environment variables for shell commands")
     }
 
     private fun showDialogAndGetPasswordOrKey(extraTips: String): String {
@@ -158,6 +139,7 @@ class RemoteGradleCompileClient(
     }
 
     private fun doLogin(juggGradleCompileOptions: JuggGradleCompileOptions, keyPathList: List<String>, password: String) {
+        isCanceled = false
         val jsch = JSch()
         keyPathList.filter {
             File(it).exists()
@@ -172,6 +154,7 @@ class RemoteGradleCompileClient(
         if (juggGradleCompileOptions.httpProxyIp.isNotEmpty() &&
             juggGradleCompileOptions.httpProxyPort != 0) {
             session.setProxy(ProxyHTTP(juggGradleCompileOptions.httpProxyIp, juggGradleCompileOptions.httpProxyPort))
+            logger.debug("[Jugg] JSch session uses HTTP proxy ${juggGradleCompileOptions.httpProxyIp}:${juggGradleCompileOptions.httpProxyPort}")
         }
         session.setPassword(password)
         session.setConfig("StrictHostKeyChecking", "no")
@@ -182,14 +165,149 @@ class RemoteGradleCompileClient(
         session.setConfig("PubkeyAcceptedAlgorithms", algorithms.joinToString(","))
         session.connect()
 
-        val channel = session.openChannel("shell")
-        this.inputStream = BufferedInputStream(channel.inputStream)
-        channel.connect()
-
         this.session = session
-        this.channel = channel
         this.juggGradleCompileOptions = juggGradleCompileOptions
+        updateRemoteEnvironmentPrefix(juggGradleCompileOptions.environmentVariables)
+        openShellChannel()
+        if (!waitShellReady()) {
+            throw JuggException.loginToRemoteFailed("Remote shell is not ready, terminal handshake may have failed.")
+        }
         logger.debug("login success, isUseKey: $isUseKey")
+    }
+
+    private fun openShellChannel() {
+        val session = session ?: throw JuggInternalException.notLoginYet()
+        val shell = session.openChannel("shell") as ChannelShell
+        shell.setPtyType("xterm-256color")
+        shell.setPtySize(120, 80, 640, 480)
+        // JSch requires getInputStream() before connect(), otherwise early shell output may be lost.
+        this.inputStream = shell.inputStream
+        this.shellInputStream = BufferedInputStream(shell.inputStream)
+        shell.connect()
+        this.channel = shell
+        logger.debug("[Jugg] JSch shell channel opened with PTY xterm-256color")
+    }
+
+    /**
+     * Wait until remote shell accepts commands. Drain init output, respond to PTY queries, verify with probe echo retries.
+     */
+    private fun waitShellReady(): Boolean {
+        val channel = channel ?: return false
+        val input = shellInputStream ?: return false
+        val commander = PrintStream(channel.outputStream, false)
+        logger.debug("[Jugg] waiting for remote shell ready probe...")
+
+        val deadlineMs = System.currentTimeMillis() + 30_000
+        val rawBuffer = StringBuilder()
+        var lastProbeTime = 0L
+        val startTime = System.currentTimeMillis()
+
+        while (System.currentTimeMillis() < deadlineMs && !isCanceled) {
+            val now = System.currentTimeMillis()
+            val shouldProbe = now - startTime >= INITIAL_SHELL_DRAIN_MS &&
+                (lastProbeTime == 0L || now - lastProbeTime >= SHELL_READY_PROBE_RETRY_MS)
+            if (shouldProbe) {
+                commander.print("\n")
+                commander.printlnCompat(JschShellTerminalHelper.SHELL_READY_PROBE_COMMAND)
+                commander.flush()
+                lastProbeTime = now
+                logger.debug("[Jugg] shell ready probe sent")
+            }
+
+            val chunkDeadline = minOf(deadlineMs, now + 200)
+            if (pollShellInput(
+                input = input,
+                commander = commander,
+                rawBuffer = rawBuffer,
+                deadlineMs = chunkDeadline,
+                command = null,
+            ) { line -> JschShellTerminalHelper.parseShellReadyResult(line) == 0 }) {
+                logger.debug("[Jugg] remote shell ready probe succeeded")
+                return true
+            }
+        }
+        logger.warn("[Jugg] remote shell ready probe timeout, tail: ${JschShellTerminalHelper.stripAnsi(rawBuffer.toString()).trim()}")
+        return false
+    }
+
+    private fun respondTerminalQueries(rawBuffer: StringBuilder, commander: PrintStream) {
+        while (true) {
+            val response = JschShellTerminalHelper.tryRespondTerminalQuery(rawBuffer) ?: break
+            logger.debug("[Jugg] shell terminal query response sent")
+            commander.print(response)
+            commander.flush()
+        }
+    }
+
+    /**
+     * Poll shell output, auto-respond to PTY queries, optionally wait for a matching line.
+     */
+    private fun pollShellInput(
+        input: BufferedInputStream,
+        commander: PrintStream,
+        rawBuffer: StringBuilder,
+        deadlineMs: Long,
+        command: ISshCommand?,
+        onLineMatched: (String) -> Boolean,
+    ): Boolean {
+        var lastInterruptCode = IGradleCompileClient.Error.SUCCESS
+        while (System.currentTimeMillis() < deadlineMs && !isCanceled) {
+            respondTerminalQueries(rawBuffer, commander)
+            if (input.available() > 0) {
+                val code = input.read()
+                if (code == -1) {
+                    return false
+                }
+                if (code == '\n'.code || code == '\r'.code) {
+                    val line = decodeTerminalLine(rawBuffer)
+                    if (line.isNotEmpty() && (command == null || command.isCanOutput(line, false))) {
+                        printToStream(line)
+                        if (onLineMatched(line)) {
+                            return true
+                        }
+                        if (command != null) {
+                            val output = command.getInput(line)
+                            if (output != null) {
+                                logger.debug("output: $output")
+                                commander.printlnCompat(output)
+                                commander.flush()
+                            }
+                        }
+                    }
+                } else {
+                    rawBuffer.append(code.toChar())
+                    respondTerminalQueries(rawBuffer, commander)
+                    if (command != null) {
+                        val interruptCode = command.shouldInterrupted(code, rawBuffer)
+                        if (interruptCode != null && lastInterruptCode != interruptCode) {
+                            if (interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
+                                interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
+                                lastInterruptCode = interruptCode
+                                val content = "iFt ${rawBuffer.toString().replace(":", "")}"
+                                val output = PlatformApi.showUserAndPasswordInputDialog(
+                                    content,
+                                    isPassword = interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD,
+                                )
+                                if (output == null) {
+                                    return false
+                                }
+                                commander.printlnCompat(output)
+                                commander.flush()
+                            }
+                        }
+                    }
+                }
+            } else {
+                Thread.sleep(50)
+            }
+        }
+        return false
+    }
+
+    private fun decodeTerminalLine(buffer: StringBuilder): String {
+        val line = String(buffer.toString().toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+        buffer.setLength(0)
+        return line
     }
 
     private fun convertToAbsoluteKeyPathIfSpecific(passwordOrKey: String): String? {
@@ -281,14 +399,14 @@ class RemoteGradleCompileClient(
     }
 
     override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {
-        val (channel, gradleCompileSettings) = checkLoginOnStart()
+        val gradleCompileSettings = checkLoginOnStart()
 
         if (gradleCompileSettings.syncMode.isRsync) {
             RsyncCompatibleHelper.init(logger)
         }
         if (!isOnlyFetchResult) {
             // 1. sync source
-            val syncFileResult = syncSourceFile(channel, gradleCompileSettings)
+            val syncFileResult = syncSourceFile(gradleCompileSettings)
             if (!syncFileResult.isSuccess) {
                 return syncFileResult
             }
@@ -301,7 +419,7 @@ class RemoteGradleCompileClient(
                 localProjectPath = project.basePath,
                 logger = logger,
             )
-            val compileProjectResult = invoke(channel, compileProjectCommand)
+            val compileProjectResult = invoke(compileProjectCommand)
             if (compileProjectResult != 0) {
                 printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
                 return GradleCompileResult.failed(isCanceled, failedReason = "Compile project failed")
@@ -314,7 +432,7 @@ class RemoteGradleCompileClient(
         val failedApkPaths = mutableListOf<String>()
         lookingApkPaths.forEachIndexed { index, apkPath ->
             val finalIndex = if (lookingApkPaths.size > 1) index else -1
-            val apkFile = findApk(finalIndex, apkPath, channel, gradleCompileSettings)
+            val apkFile = findApk(finalIndex, apkPath, gradleCompileSettings)
             if (apkFile != null) {
                 findApks.add(apkFile)
             } else {
@@ -333,10 +451,10 @@ class RemoteGradleCompileClient(
         return GradleCompileResult.success(findApks)
     }
 
-    private fun findApk(index: Int, outputApkName: String, channel: Channel, gradleCompileSettings: JuggGradleCompileOptions): File? {
+    private fun findApk(index: Int, outputApkName: String, gradleCompileSettings: JuggGradleCompileOptions): File? {
         // find apk path
         val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, outputApkName)
-        val findOutputResult = invoke(channel, findOutputCommand)
+        val findOutputResult = invoke(findOutputCommand)
         if (findOutputResult != 0) {
             printToStreamErrorIfCanceled("Find APK failed, please check your sync client is opened.")
             return null
@@ -365,7 +483,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.remoteToLocalProjectIftPath,
             )
         }
-        val fetchOutputResult = invoke(channel, fetchOutputCommand)
+        val fetchOutputResult = invoke(fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your sync client is opened.")
             return null
@@ -403,19 +521,18 @@ class RemoteGradleCompileClient(
         return apkFile
     }
 
-    private fun checkLoginOnStart(): Pair<Channel, JuggGradleCompileOptions> {
+    private fun checkLoginOnStart(): JuggGradleCompileOptions {
         isCanceled = false
-        val channel = channel
         val gradleCompileSettings = juggGradleCompileOptions
-        if (channel == null || gradleCompileSettings == null) {
+        if (session?.isConnected != true || channel?.isConnected != true || gradleCompileSettings == null) {
             throw JuggInternalException.notLoginYet()
         }
-        return channel to gradleCompileSettings
+        return gradleCompileSettings
     }
 
-    private fun syncSourceFile(channel: Channel, gradleCompileSettings: JuggGradleCompileOptions): GradleCompileResult {
+    private fun syncSourceFile(gradleCompileSettings: JuggGradleCompileOptions): GradleCompileResult {
         val mkDirCommand = MkDirCommand(gradleCompileSettings.remoteSyncRootPath)
-        val mkDirResult = invoke(channel, mkDirCommand)
+        val mkDirResult = invoke(mkDirCommand)
         if (mkDirResult != 0) {
             printToStreamErrorIfCanceled("Make dir failed, please check your sync client is opened.")
             return GradleCompileResult.failed(isCanceled, failedReason = "Make dir failed")
@@ -437,7 +554,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.remoteProjectSyncRelativePath,
             )
         }
-        val syncFileResult = invoke(channel, syncFileCommand)
+        val syncFileResult = invoke(syncFileCommand)
         if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
             syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
             printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
@@ -451,7 +568,7 @@ class RemoteGradleCompileClient(
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
-        val (channel, gradleCompileSettings) = checkLoginOnStart()
+        val gradleCompileSettings = checkLoginOnStart()
 
         if (gradleCompileSettings.syncMode.isRsync) {
             RsyncCompatibleHelper.init(logger)
@@ -473,7 +590,7 @@ class RemoteGradleCompileClient(
                 buildDirs,
             )
         }
-        val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
+        val fetchClasspathResult = invoke(fetchClasspathCommand)
         if (fetchClasspathResult != 0) {
             printToStreamErrorIfCanceled("Fetch classpath failed, please check your sync client is opened.")
             return null
@@ -482,10 +599,10 @@ class RemoteGradleCompileClient(
     }
 
     override fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResultSet? {
-        val (channel, gradleCompileSettings) = checkLoginOnStart()
+        val gradleCompileSettings = checkLoginOnStart()
 
         // 1. sync source
-        val syncFileResult = syncSourceFile(channel, gradleCompileSettings)
+        val syncFileResult = syncSourceFile(gradleCompileSettings)
         if (!syncFileResult.isSuccess) {
             return null
         }
@@ -497,7 +614,7 @@ class RemoteGradleCompileClient(
             incDeployTimes,
             localProjectPath = project.basePath,
         )
-        val compileProjectResult = invoke(channel, diffLibraryChangesCommand)
+        val compileProjectResult = invoke(diffLibraryChangesCommand)
         if (compileProjectResult != 0) {
             printToStreamErrorIfCanceled("Diff library changes failed, please check the error message.")
             return null
@@ -520,7 +637,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.remoteToLocalRootIftPath,
             )
         }
-        val fetchChangedLibraryResult = invoke(channel, fetchChangedLibraryCommand)
+        val fetchChangedLibraryResult = invoke(fetchChangedLibraryCommand)
         if (fetchChangedLibraryResult != 0) {
             printToStreamErrorIfCanceled("Fetch library changes failed, please check the error message.")
             return null
@@ -538,113 +655,108 @@ class RemoteGradleCompileClient(
         if (isByUser) {
             printToStreamInfo("[Jugg] user cancel")
         }
-        val channel = channel ?: run {
+        isCanceled = true
+        if (session == null || channel == null) {
             logger.debug("cancelAction but not login, exit")
             return
         }
-        val commander = PrintStream(channel.outputStream, true)
-        commander.print(String(byteArrayOf(0x03))) // control c
-        commander.flush()
-        // iFt/rsync needs control c twice
-        commander.print(String(byteArrayOf(0x03))) // control c
-        commander.flush()
+        val channel = channel!!
+        try {
+            val commander = PrintStream(channel.outputStream, true)
+            commander.print(String(byteArrayOf(0x03))) // control c
+            commander.flush()
+            // iFt/rsync needs control c twice
+            commander.print(String(byteArrayOf(0x03))) // control c
+            commander.flush()
+        } catch (e: Exception) {
+            logger.debug("cancelAction send Ctrl+C failed", e)
+        }
         cmdExecutor.release()
-        isCanceled = true
+        try {
+            channel.disconnect()
+        } catch (e: Exception) {
+            logger.debug("cancelAction disconnect channel failed", e)
+        }
     }
 
-    private fun invoke(channel: Channel, command: ISshCommand): Int {
+    private fun invoke(command: ISshCommand): Int {
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
 
         command.beforeInvokeCommand()
         val result = if (command is RsyncCommand) {
-            // invoke at local and using expect login into ssh
             cmdExecutor.terminalOutputListener = terminalOutputListener
-            val result = cmdExecutor.invoke(command)
-            if (!isCanceled && result == IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED) {
+            val rsyncResult = cmdExecutor.invoke(command)
+            if (!isCanceled && rsyncResult == IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED) {
                 logger.warn("process exit without print result, behavior may incorrect")
                 IGradleCompileClient.Error.SUCCESS
             } else {
-                result
+                rsyncResult
             }
         } else {
-            remoteInvoke(channel, command)
+            remoteInvoke(command)
         }
 
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
         return result
     }
 
-    private fun remoteInvoke(channel: Channel, command: ISshCommand): Int {
+    private fun remoteInvoke(command: ISshCommand): Int {
+        if (isCanceled) {
+            return IGradleCompileClient.Error.ERROR_CANCELED
+        }
+        val channel = channel ?: run {
+            logger.warn("Shell channel is null, current state is unexpected, exit.")
+            return IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
+        }
+        val input = shellInputStream ?: run {
+            logger.warn("Shell input stream is null, current state is unexpected, exit.")
+            return IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
+        }
         val commander = PrintStream(channel.outputStream, false)
-        val commandString = command.getCommand(isNeedSetChineseLanguage = true, isWindows = false)
+        val commandString = remoteEnvironmentPrefix +
+            command.getCommand(isNeedSetChineseLanguage = true, isWindows = false)
         logger.debug("Jsch invoke command: $commandString")
         commander.printlnCompat(commandString)
         commander.flush()
 
-        val inputStream = inputStream ?: run {
-            logger.warn("InputStream is null, current state is unexpected, exit.")
+        val resultEcho = "(Jugg) ${command::class.simpleName} result: "
+        val rawBuffer = StringBuilder()
+        var parsedResult: Int? = null
+        val matched = pollShellInput(
+            input = input,
+            commander = commander,
+            rawBuffer = rawBuffer,
+            deadlineMs = Long.MAX_VALUE,
+            command = command,
+        ) { line ->
+            val currentResult = command.hasFinishWithResult(line)
+            if (currentResult != null) {
+                logger.debug("[Jugg] ${command::class.simpleName} parsed result line: $line -> $currentResult")
+                parsedResult = currentResult
+                true
+            } else {
+                if (line.startsWith(resultEcho) && line.endsWith("?")) {
+                    logger.debug("[Jugg] ${command::class.simpleName} skip echoed template line: $line")
+                }
+                false
+            }
+        }
+
+        if (isCanceled) {
+            return IGradleCompileClient.Error.ERROR_CANCELED
+        }
+        if (parsedResult != null) {
+            return parsedResult!!
+        }
+        if (channel.isClosed) {
+            printToStream("[Jugg] exit-status: " + channel.exitStatus)
             return IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
         }
-        val buffer = StringBuilder()
-        val bufferedInputStream = BufferedInputStream(inputStream)
-        val result: Int
-        var lastInterruptCode: Int = IGradleCompileClient.Error.SUCCESS // avoid popup dialog on every chat entered
-        whileRoot@while (true) {
-            buffer.setLength(0)
-            var line: String
-            while (true) {
-                val code = bufferedInputStream.read()
-                if (code == '\n'.code || code == '\r'.code || code == -1) {
-                    line = String(buffer.toString().toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
-                    break
-                } else {
-                    buffer.append(code.toChar())
-                }
-                val interruptCode = command.shouldInterrupted(code, buffer)
-                if (interruptCode != null && lastInterruptCode != interruptCode) {
-                    if (interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
-                        interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
-                        lastInterruptCode = interruptCode
-                        val content = "iFt ${buffer.toString().replace(":", "")}"
-                        val output = PlatformApi.showUserAndPasswordInputDialog(content,
-                            isPassword = interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD)
-                        if (output == null) {
-                            // user canceled
-                            result = interruptCode
-                            break@whileRoot
-                        }
-                        commander.printlnCompat(output)
-                        commander.flush()
-                    } else {
-                        result = interruptCode
-                        break@whileRoot
-                    }
-                }
-            }
-            if (line.isNotEmpty()) {
-                printToStream(line)
-
-                val output = command.getInput(line)
-                if (output != null) {
-                    logger.debug("output: $output")
-                    commander.printlnCompat(output)
-                    commander.flush()
-                }
-                val currentResult = command.hasFinishWithResult(line)
-                if (currentResult != null) {
-                    result = currentResult
-                    break
-                }
-            }
-
-            if (channel.isClosed) {
-                printToStream("[Jugg] exit-status: " + channel.exitStatus)
-                result = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
-                break
-            }
+        return if (matched) {
+            IGradleCompileClient.Error.SUCCESS
+        } else {
+            IGradleCompileClient.Error.ERROR_FAILED
         }
-
-        return result
     }
 
     private fun PrintStream.printlnCompat(line: String) {
@@ -681,12 +793,14 @@ class RemoteGradleCompileClient(
 
     override fun dispose() {
         JSch.setLogger(null)
+        shellInputStream = null
         inputStream?.close()
         channel?.disconnect()
         session?.disconnect()
         inputStream = null
         channel = null
         session = null
+        remoteEnvironmentPrefix = ""
 
         cmdExecutor.release()
     }
@@ -719,5 +833,13 @@ class RemoteGradleCompileClient(
                 else -> "UNKNOWN"
             }
         }
+    }
+
+    companion object {
+        /** Wait for login banner / PTY queries before the first probe command. */
+        private const val INITIAL_SHELL_DRAIN_MS = 800L
+
+        /** Re-send probe if the previous one was only echoed during shell init. */
+        private const val SHELL_READY_PROBE_RETRY_MS = 1500L
     }
 }

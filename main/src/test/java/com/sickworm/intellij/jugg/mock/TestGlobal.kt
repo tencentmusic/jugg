@@ -1,9 +1,12 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
 object TestGlobal {
+
+    val logger: Logger = Logger.getInstance("TestGlobal")
 
     private val rootDir = File("../").absoluteFile
 
