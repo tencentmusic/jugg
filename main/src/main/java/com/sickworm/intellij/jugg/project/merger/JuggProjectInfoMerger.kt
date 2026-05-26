@@ -235,6 +235,7 @@ class JuggProjectInfoMerger(
                 coreLibraryDesugaring = gradleModuleInfo.coreLibraryDesugaring,
                 kspDependencies = gradleModuleInfo.kspDependencies,
                 instrumentationTargetPackage = gradleModuleInfo.instrumentationTargetPackage,
+                gradleModuleName = gradleModuleInfo.gradleModuleName,
             )
             mergedModules[name] = mergedModuleInfo
         }
