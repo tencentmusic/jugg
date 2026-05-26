@@ -51,8 +51,8 @@ abstract class BaseSshCommand : ISshCommand {
     private val resultEcho = "(Jugg) ${this::class.simpleName} result: "
 
     /**
-     * add echo at last to confirm exec finished and get the result
-     * '\n' to avoid control ascii code on the line start
+     * Append echo to confirm exec finished and read exit code.
+     * Use single-line echo (not multi-line string) so the command is not split while the shell is still initializing.
      */
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         val fixedBaseCommand = if (isWindows) {
@@ -64,7 +64,8 @@ abstract class BaseSshCommand : ISshCommand {
             val escapeResultEcho = resultEcho.replace("(", "^(").replace(")", "^)")
             "$fixedBaseCommand && (echo. & echo ${escapeResultEcho}0& echo.) || (echo. & echo ${escapeResultEcho}1& echo.)"
         } else {
-            "$fixedBaseCommand ; echo \"\n$resultEcho\$?\n\""
+            // Leading empty echo avoids control characters at the start of the result line.
+            "$fixedBaseCommand ; echo ; echo \"${resultEcho}\$?\""
         }
         if (isNeedSetChineseLanguage && !isWindows) {
             return "export LC_CTYPE=\"zh_CN.utf8\" ; $command"

@@ -329,18 +329,27 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             alignmentX = LEFT_ALIGNMENT
             left?.let {
                 add(left)
-                val realLeftWidth = if (right == null) {
-                    Int.MAX_VALUE
-                } else if (leftWidth > 0) {
-                    leftWidth
+                if (right == null) {
+                    if (leftWidth > 0) {
+                        val h = left.preferredSize.height
+                        left.minimumSize = Dimension(leftWidth, h)
+                        left.preferredSize = Dimension(leftWidth, h)
+                    }
+                    add(Box.createHorizontalGlue())
+                    val rowHeight = left.preferredSize.height
+                    maximumSize = Dimension(Int.MAX_VALUE, rowHeight)
                 } else {
-                    left.preferredSize.width
+                    val realLeftWidth = if (leftWidth > 0) {
+                        leftWidth
+                    } else {
+                        left.preferredSize.width
+                    }
+                    left.minimumSize = Dimension(realLeftWidth, left.preferredSize.height)
+                    left.preferredSize = Dimension(realLeftWidth, left.preferredSize.height)
                 }
-                left.minimumSize = Dimension(realLeftWidth, left.preferredSize.height)
-                left.preferredSize = Dimension(realLeftWidth, left.preferredSize.height)
             }
 
-            if (isAlignEnd) {
+            if (isAlignEnd && right != null) {
                 add(Box.createHorizontalGlue())
             }
 
@@ -389,12 +398,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
                 }
             }
             if (!isFilteredByRsync) {
-                it.first.parent?.let { parent ->
-                    remoteCompilePanel.add(parent)
-                } ?: run {
-                    val pair = createPairPanel(it.first, it.second, leftWidth = 260)
-                    remoteCompilePanel.add(pair)
-                }
+                remoteCompilePanel.add(createPairPanel(it.first, it.second, leftWidth = 260))
             }
         }
 
