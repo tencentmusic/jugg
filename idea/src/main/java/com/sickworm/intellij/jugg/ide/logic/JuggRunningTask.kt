@@ -179,6 +179,9 @@ class JuggRunningTask(
 
         if (compileUiHandler.isSkipDeploy) {
             logger.info("Skip deploy.")
+            if (compileTaskResult.isGradleCompile) {
+                initIncrementalCompileTask.invoke()
+            }
             // reset hasRun so next user-triggered compile won't show "no file changes"
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile,
                 isCompileSuccess = true, isDeploySuccess = false, isNeedResetHasRun = true, isCancel = processHandler.isCanceled)

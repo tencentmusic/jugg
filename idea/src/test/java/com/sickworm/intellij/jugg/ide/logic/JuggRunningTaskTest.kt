@@ -3,6 +3,8 @@ package com.sickworm.intellij.jugg.ide.logic
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito
 
@@ -62,5 +64,35 @@ class JuggRunningTaskTest {
 
         Mockito.verify(handler, Mockito.never()).ensureRunWindowCreated()
         Mockito.verify(handler, Mockito.never()).showRunWindow()
+    }
+
+    @Test
+    fun `skip deploy triggers init for remote gradle compile`() {
+        val shouldInit = shouldInitIncrementalAfterSkipDeploy(
+            isSkipDeploy = true,
+            isGradleCompile = true,
+            isRemoteCompile = true,
+        )
+        assertTrue(shouldInit)
+    }
+
+    @Test
+    fun `skip deploy does not trigger init for local gradle compile`() {
+        val shouldInit = shouldInitIncrementalAfterSkipDeploy(
+            isSkipDeploy = true,
+            isGradleCompile = true,
+            isRemoteCompile = false,
+        )
+        assertFalse(shouldInit)
+    }
+
+    @Test
+    fun `skip deploy does not trigger init for incremental compile`() {
+        val shouldInit = shouldInitIncrementalAfterSkipDeploy(
+            isSkipDeploy = true,
+            isGradleCompile = false,
+            isRemoteCompile = true,
+        )
+        assertFalse(shouldInit)
     }
 }

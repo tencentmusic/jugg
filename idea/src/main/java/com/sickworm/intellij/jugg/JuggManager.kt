@@ -32,7 +32,6 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.ai.mcp.*
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpFetchCleaner
 import com.sickworm.intellij.jugg.project.*
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
@@ -91,6 +90,7 @@ class JuggManager @TestOnly constructor(
         compileContextManager, logger)
     private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
         IdeaMcpRuntime(logger.getInstance("McpRuntime"), project, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector))
+    private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
 
     constructor(
         project2: Project,
@@ -443,7 +443,7 @@ class JuggManager @TestOnly constructor(
         TimeLogger.end("reInitAfterFullCompiled", logger)
 
         if (isRemoteCompile) {
-            copyGeneratedSourceToLocal()
+            copyGeneratedSourceHelper.copy(projectInfo.modules)
         }
         initCompile(compileContextInfo, emptyList(),
             startCompileTime = startCompileTime,
@@ -470,32 +470,6 @@ class JuggManager @TestOnly constructor(
 
     fun forceReInstallNextTime() {
         juggConfigurationRunner.forceReInstallNextTime()
-    }
-
-    private fun copyGeneratedSourceToLocal() {
-        logger.info("copyGeneratedSourceToLocal")
-        taskRunnerManager.runTaskSafe("Copy Generated Source to local", {
-            val modules = compileContextManager.compileContext.modules
-            modules.values.forEach module@{
-                val baseDir = ModuleBuildPathInfo(it.projectRootDir, it.moduleRootDir, it.buildVariant).buildDir
-                it.buildPathInfo.syncToLocalPathList.forEach { fileOrDirInClasspath ->
-                    val fileOrDirInLocal = fileOrDirInClasspath.changeBaseDir(it.buildPathInfo.buildDir, baseDir)
-                    logger.debug("Copy generated source from $fileOrDirInClasspath to $fileOrDirInLocal")
-                    if (!fileOrDirInClasspath.exists()) {
-                        logger.debug("Skip copy, $fileOrDirInClasspath not exists")
-                        return@forEach
-                    }
-                    if (fileOrDirInClasspath.path.equals(fileOrDirInLocal.path)) {
-                        logger.debug("Skip copy, source and target are the same")
-                        return@forEach
-                    }
-                    if (fileOrDirInLocal.exists() && !fileOrDirInLocal.isDirectory) {
-                        fileOrDirInLocal.delete()
-                    }
-                    fileOrDirInClasspath.copyRecursively(fileOrDirInLocal, overwrite = true)
-                }
-            }
-        }, isBlockIncrementalCompile = false)
     }
 
     override fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup {
