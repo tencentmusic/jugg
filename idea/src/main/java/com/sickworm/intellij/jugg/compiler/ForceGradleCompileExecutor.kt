@@ -138,6 +138,7 @@ class IdeaForceGradleCompileHelper(
                 message = result.errorMessage ?: "run configuration failed",
                 isCompileSuccess = false,
                 isDeploySuccess = false,
+                detail = result.detail,
             )
         }
         val runResult = result.runResult
@@ -147,6 +148,7 @@ class IdeaForceGradleCompileHelper(
                 message = "run result is empty.",
                 isCompileSuccess = false,
                 isDeploySuccess = false,
+                detail = result.detail,
             )
         }
         return toExecutionResult(runResult, result.detail)
@@ -239,6 +241,7 @@ class IdeaForceGradleCompileHelper(
                 message = "Gradle compile finished successfully.",
                 isCompileSuccess = runResult.isCompileSuccess,
                 isDeploySuccess = runResult.isDeploySuccess,
+                detail = detail,
             )
         } else {
             val status = if (runResult.isCancel) "canceled" else "failed"
@@ -247,6 +250,7 @@ class IdeaForceGradleCompileHelper(
                 message = resolveFailureMessage(status, detail),
                 isCompileSuccess = runResult.isCompileSuccess,
                 isDeploySuccess = runResult.isDeploySuccess,
+                detail = detail,
             )
         }
     }

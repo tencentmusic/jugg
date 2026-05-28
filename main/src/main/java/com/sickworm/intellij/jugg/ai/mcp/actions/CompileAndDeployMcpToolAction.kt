@@ -152,7 +152,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             // Strip log-level prefixes (e.g. "[INFO] ", "[WARN] ", "[ERROR] ") for cleaner output.
             val filteredDetail = detail.lines()
                 .map { it.replace(Regex("^\\[(INFO|WARN|ERROR|DEBUG)\\] "), "") }
-                .filter { !it.startsWith("[Jugg]") && !it.startsWith("[MCP]") }
+                .filter { !it.startsWith("[MCP]") }
                 .joinToString("\n")
                 .trim()
             val detailLength = detail.length

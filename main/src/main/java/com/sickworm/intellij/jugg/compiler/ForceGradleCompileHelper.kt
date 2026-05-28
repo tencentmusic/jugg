@@ -30,6 +30,7 @@ data class GradleCompileExecutionResult(
     val message: String,
     val isCompileSuccess: Boolean,
     val isDeploySuccess: Boolean,
+    val detail: String = "",
 )
 
 data class RemoteSshInfoResult(

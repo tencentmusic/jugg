@@ -47,6 +47,7 @@ object CompileJobManager {
                     message = resolveGradleBuildMessage(result, status),
                     isCompileSuccess = result.isCompileSuccess,
                     isDeploySuccess = result.isDeploySuccess,
+                    detail = result.detail,
                 )
                 if (runtime.deployTargetManager.hasDevice) {
                     waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
@@ -85,6 +86,7 @@ object CompileJobManager {
                         runInvocationResult = runResponse,
                         isCompileSuccess = compileOk,
                         isDeploySuccess = deployOk,
+                        detail = runResponse.detail,
                     )
                 }
                 if (runResult == null) {
@@ -94,6 +96,7 @@ object CompileJobManager {
                         runInvocationResult = runResponse,
                         isCompileSuccess = compileOk,
                         isDeploySuccess = deployOk,
+                        detail = runResponse.detail,
                     )
                 }
                 val finalStatus = resolveRunResultStatus(runResult, isSkipDeploy)
@@ -108,6 +111,7 @@ object CompileJobManager {
                     runInvocationResult = runResponse,
                     isCompileSuccess = compileOk,
                     isDeploySuccess = deployOk,
+                    detail = runResponse.detail,
                 )
                 // Skip app-ready check when deployment was intentionally skipped or the caller owns readiness validation.
                 if (isSkipDeploy || !waitAppReadyAfterSuccess) {
@@ -179,7 +183,7 @@ object CompileJobManager {
                 status = normalizedStatus,
                 message = normalizedResult.message,
                 finishedAt = if (normalizedStatus == "running") null else Instant.now().toString(),
-                detail = normalizedResult.runInvocationResult?.detail ?: "",
+                detail = normalizedResult.detail,
                 isCompileSuccess = normalizedResult.isCompileSuccess,
                 isDeploySuccess = normalizedResult.isDeploySuccess,
             )
@@ -223,6 +227,7 @@ object CompileJobManager {
                 status = normalizedStatus,
                 message = normalizedResult.message,
                 finishedAt = Instant.now().toString(),
+                detail = normalizedResult.detail,
                 isCompileSuccess = normalizedResult.isCompileSuccess,
                 isDeploySuccess = normalizedResult.isDeploySuccess,
             )
@@ -333,6 +338,7 @@ data class CompileJobExecutionResult(
     val runInvocationResult: JuggRunInvocationResult? = null,
     val isCompileSuccess: Boolean? = null,
     val isDeploySuccess: Boolean? = null,
+    val detail: String = runInvocationResult?.detail ?: "",
 )
 
 data class CompileJobStatus(

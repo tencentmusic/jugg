@@ -38,6 +38,9 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
                         "triggered" to McpJsonSchemaProperty(type = "boolean"),
                         "isCompileSuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether compilation succeeded. Absent when unknown."),
                         "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment succeeded. Absent when deploy was skipped or not applicable (gradle-build has no separate deploy step)."),
+                        "detail" to McpJsonSchemaProperty(type = "string", description = "Preview of compile/deploy diagnostic output when available."),
+                        "detailLength" to McpJsonSchemaProperty(type = "number", description = "Original diagnostic output length before preview truncation."),
+                        "detailTruncated" to McpJsonSchemaProperty(type = "boolean", description = "Whether detail only contains a tail preview."),
                     ),
                     required = listOf("accepted", "jobId", "executionType", "logPath", "isFinal", "status", "triggered"),
                     additionalProperties = false,
@@ -58,7 +61,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
             val status = if (isFinalSuccess || isStillRunning) McpToolStatus.OK else McpToolStatus.ERROR
             val errorCode = if (status == McpToolStatus.ERROR) McpErrorCode.INTERNAL_ERROR else null
 
-            val data = mutableMapOf<String, Any>(
+            val data = mutableMapOf<String, Any?>(
                 "accepted" to trigger.accepted,
                 "jobId" to trigger.jobId,
                 "executionType" to trigger.executionType,
@@ -70,11 +73,20 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
             )
             trigger.isCompileSuccess?.let { data["isCompileSuccess"] = it }
             trigger.isDeploySuccess?.let { data["isDeploySuccess"] = it }
+            val artifacts = mutableListOf<com.sickworm.intellij.jugg.ai.mcp.McpArtifact>()
+            if (status == McpToolStatus.ERROR) {
+                CompileAndDeployMcpToolAction.attachDetailToData(
+                    toolName = toolName,
+                    detail = trigger.finalResult?.detail.orEmpty(),
+                    data = data,
+                    artifacts = artifacts,
+                )
+            }
             McpToolResult(
                 status = status,
                 message = trigger.message,
                 data = data,
-                artifacts = emptyList(),
+                artifacts = artifacts,
                 errorCode = errorCode,
             )
         } catch (e: Exception) {

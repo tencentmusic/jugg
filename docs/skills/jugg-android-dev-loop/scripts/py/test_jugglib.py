@@ -209,6 +209,41 @@ class TestCompileCallMessageOnFailure(unittest.TestCase):
         self.assertNotIn("isCompileSuccess", output)
         self.assertNotIn("isDeploySuccess", output)
 
+    def test_gradle_build_failure_prints_detail(self):
+        structured = {
+            "status": "ERROR",
+            "message": "gradle-build failed.",
+            "data": {
+                "status": "failed",
+                "message": "Compile project failed, please check the error message.",
+                "jobId": "job-123",
+                "isCompileSuccess": False,
+                "isDeploySuccess": False,
+                "detail": "\n".join([
+                    "[Jugg] Found error in logs:",
+                    "e: java.lang.IllegalAccessError: superclass access check failed",
+                    "> Task :library1:kaptGenerateStubsDebugKotlin FAILED",
+                ]),
+                "logPath": "build/jugg/log/compile_latest.log",
+            },
+        }
+
+        with (
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
+            patch.object(jugglib, "resolve_port", return_value=12320),
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
+        ):
+            captured = io.StringIO()
+            with patch("sys.stderr", captured):
+                with self.assertRaises(SystemExit):
+                    jugglib.compile_call("gradle-build")
+
+        output = captured.getvalue()
+        self.assertIn("detail:", output)
+        self.assertIn("[Jugg] Found error in logs:", output)
+        self.assertIn("java.lang.IllegalAccessError", output)
+        self.assertIn("> Task :library1:kaptGenerateStubsDebugKotlin FAILED", output)
+
 
 def _status_response(is_compiling: bool) -> dict:
     return {

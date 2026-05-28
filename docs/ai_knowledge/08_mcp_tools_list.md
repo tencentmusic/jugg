@@ -121,6 +121,8 @@
 
 **行为补充**：`gradle-build` 会走 Gradle 构建后的安装/启动链路；整体 `status` 与 `deploy` 保持一致，只有 `isCompileSuccess=true` 且 `isDeploySuccess=true` 时终态才为 success。
 
+**失败详情**：失败终态会在 data 中附带 `detail` / `detailLength` / `detailTruncated`（如有），内容来自本次 Gradle build + 安装/启动日志摘要；异步场景通过 `get-compile-status` 获取同一份详情。
+
 ### `instrument`
 
 按 androidTest 源文件锚点运行 class/method 级测试，内部复用 Jugg compile/deploy 流程。
@@ -362,7 +364,7 @@
 
 `deploy`、`gradle-build` 可能返回 `isFinal=false` + `jobId`。用 `get-compile-status` 轮询，按 `pollIntervalSuggestedMs` 间隔。
 
-终态 data 中返回 `isCompileSuccess`（boolean）和 `isDeploySuccess`（boolean）。compile/gradle-build/deploy/instrument 都可配合 `status` 字段做更细粒度的成功/失败判定。
+终态 data 中返回 `isCompileSuccess`（boolean）和 `isDeploySuccess`（boolean）。失败时如有诊断输出，会返回 `detail` / `detailLength` / `detailTruncated`。compile/gradle-build/deploy/instrument 都可配合 `status` 字段做更细粒度的成功/失败判定。
 
 ### 产物清理
 

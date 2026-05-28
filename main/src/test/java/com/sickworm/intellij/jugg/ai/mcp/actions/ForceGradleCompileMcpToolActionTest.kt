@@ -174,7 +174,66 @@ class ForceGradleCompileMcpToolActionTest {
         Assert.assertEquals(false, data["isDeploySuccess"])
     }
 
-    private fun runtimeWithGradleCompileResult(result: GradleCompileExecutionResult, hasDevice: Boolean = true, isAppReady: Boolean = true): IMcpRuntime {
+    @Test
+    fun testAsyncGradleBuildFailureExposesDetailInStatus() {
+        CompileJobManager.softTimeoutMillisOverrideForTest = 10L
+        val detail = """
+            Compile project failed, please check the error message.
+            [Jugg] Found error in logs:
+            e: java.lang.IllegalAccessError: superclass access check failed
+            > Task :library1:kaptGenerateStubsDebugKotlin FAILED
+        """.trimIndent()
+        val action = ForceGradleCompileMcpToolAction()
+        val runtime = runtimeWithGradleCompileResult(
+            GradleCompileExecutionResult(
+                status = "failed",
+                message = "Compile project failed",
+                isCompileSuccess = false,
+                isDeploySuccess = false,
+                detail = detail,
+            ),
+            hasDevice = false,
+            delayMs = 80L,
+        )
+
+        val triggerResult = action.execute(mapOf("projectDir" to "/fake/project/gradle-detail"), runtime)
+        @Suppress("UNCHECKED_CAST")
+        val jobId = (triggerResult.data as Map<String, Any>)["jobId"] as String
+        waitUntilTerminal(jobId)
+
+        val statusResult = GetCompileStatusMcpToolAction().execute(
+            mapOf("projectDir" to "/fake/project/gradle-detail", "jobId" to jobId),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, statusResult.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = statusResult.data as Map<String, Any>
+        val detailPreview = data["detail"] as String
+        Assert.assertTrue(detailPreview.contains("Compile project failed, please check the error message."))
+        Assert.assertTrue(detailPreview.contains("[Jugg] Found error in logs:"))
+        Assert.assertTrue(detailPreview.contains("java.lang.IllegalAccessError"))
+        Assert.assertTrue(detailPreview.contains("> Task :library1:kaptGenerateStubsDebugKotlin FAILED"))
+    }
+
+    private fun waitUntilTerminal(jobId: String): CompileJobStatus {
+        val deadline = System.currentTimeMillis() + 1_500L
+        while (System.currentTimeMillis() <= deadline) {
+            val state = CompileJobManager.getStatus(jobId)
+            if (state.status != "running") {
+                return state
+            }
+            Thread.sleep(20L)
+        }
+        return CompileJobManager.getStatus(jobId)
+    }
+
+    private fun runtimeWithGradleCompileResult(
+        result: GradleCompileExecutionResult,
+        hasDevice: Boolean = true,
+        isAppReady: Boolean = true,
+        delayMs: Long = 0L,
+    ): IMcpRuntime {
         return object : IMcpRuntime {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestForceGradleRuntime")
@@ -224,6 +283,9 @@ class ForceGradleCompileMcpToolActionTest {
                     autoConfirm: Boolean,
                     useCleanAndReinstall: Boolean,
                 ): GradleCompileExecutionResult {
+                    if (delayMs > 0) {
+                        Thread.sleep(delayMs)
+                    }
                     return result
                 }
 
