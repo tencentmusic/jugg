@@ -52,7 +52,9 @@ class CompileAndDeployMcpToolAction : McpToolAction {
     }
 
     companion object {
-        private const val DETAIL_PREVIEW_MAX_CHARS = 4096
+        private const val DETAIL_PREVIEW_HEAD_CHARS = 4 * 1024
+        private const val DETAIL_PREVIEW_TAIL_CHARS = 4 * 1024
+        private const val DETAIL_PREVIEW_MAX_CHARS = DETAIL_PREVIEW_HEAD_CHARS + DETAIL_PREVIEW_TAIL_CHARS
 
         fun deployAction(
             runtime: IMcpRuntime,
@@ -169,9 +171,15 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             val preview = buildString {
                 append("...[truncated ")
                 append(filteredDetail.length - DETAIL_PREVIEW_MAX_CHARS)
-                append(" chars from beginning; showing tail]")
+                append(" chars from middle; showing first ")
+                append(DETAIL_PREVIEW_HEAD_CHARS)
+                append(" and last ")
+                append(DETAIL_PREVIEW_TAIL_CHARS)
+                append(" chars]")
                 append("\n")
-                append(filteredDetail.takeLast(DETAIL_PREVIEW_MAX_CHARS))
+                append(filteredDetail.take(DETAIL_PREVIEW_HEAD_CHARS).trimEnd())
+                append("\n...\n")
+                append(filteredDetail.takeLast(DETAIL_PREVIEW_TAIL_CHARS).trimStart())
             }
 
             val artifacts = listOfNotNull(writeFullLogArtifact(toolName, detail))

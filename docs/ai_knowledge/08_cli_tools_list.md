@@ -168,7 +168,7 @@ jugg deploy [--always-restart-app <true|false>]
 jugg gradle-build
 ```
 
-无子命令参数。该命令会走 Gradle 构建后的安装/启动链路；无设备或启动失败时可能出现 `isCompileSuccess=true` 且 `isDeploySuccess=false`。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行。
+无子命令参数。该命令会走 Gradle 构建后的安装/启动链路；无设备或启动失败时可能出现 `isCompileSuccess=true` 且 `isDeploySuccess=false`。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行；长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾。
 
 ### `clean-reinstall`
 

@@ -41,7 +41,7 @@ class CompileAndDeployMcpToolActionTest {
     @Test
     fun testFailureDetailIsTruncatedAndFullLogIsArtifact() {
         val fullDetail = buildString {
-            repeat(5200) { append('x') }
+            repeat(16_000) { append('x') }
         }
         val action = CompileAndDeployMcpToolAction()
         val runtime = runtimeWithResult(
@@ -59,7 +59,7 @@ class CompileAndDeployMcpToolActionTest {
         val data = result.data as Map<String, Any>
         val detailPreview = data["detail"] as String
         Assert.assertTrue(detailPreview.contains("[truncated"))
-        Assert.assertEquals(5200.0, (data["detailLength"] as Number).toDouble(), 0.0)
+        Assert.assertEquals(16_000.0, (data["detailLength"] as Number).toDouble(), 0.0)
         Assert.assertEquals(true, data["detailTruncated"])
         Assert.assertEquals(true, data["accepted"])
         Assert.assertEquals(true, data["isFinal"])
@@ -72,6 +72,41 @@ class CompileAndDeployMcpToolActionTest {
         val logArtifact = result.artifacts.first()
         Assert.assertEquals("log", logArtifact.type)
         Assert.assertTrue(Files.exists(Paths.get(logArtifact.path)))
+    }
+
+    @Test
+    fun testLongFailureDetailKeepsHeadAndTail() {
+        val fullDetail = buildString {
+            appendLine("Compile project failed, please check the error message.")
+            appendLine("[Jugg] Found error in logs:")
+            appendLine("e: java.lang.IllegalAccessError: superclass access check failed")
+            repeat(14_000) { append('x') }
+            appendLine()
+            appendLine("> Task :library1:kaptGenerateStubsDebugKotlin FAILED")
+            appendLine("BUILD FAILED in 9s")
+        }
+        val action = CompileAndDeployMcpToolAction()
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = false,
+                errorMessage = "mock run failed",
+                detail = fullDetail,
+            )
+        )
+
+        val result = action.execute(emptyMap(), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        val detailPreview = data["detail"] as String
+        Assert.assertTrue(detailPreview.contains("Compile project failed, please check the error message."))
+        Assert.assertTrue(detailPreview.contains("[Jugg] Found error in logs:"))
+        Assert.assertTrue(detailPreview.contains("java.lang.IllegalAccessError"))
+        Assert.assertTrue(detailPreview.contains("> Task :library1:kaptGenerateStubsDebugKotlin FAILED"))
+        Assert.assertTrue(detailPreview.contains("BUILD FAILED in 9s"))
+        Assert.assertTrue(detailPreview.contains("[truncated"))
+        Assert.assertTrue(detailPreview.contains("showing first 4096 and last 4096 chars"))
+        Assert.assertEquals(true, data["detailTruncated"])
     }
 
     @Test
@@ -522,7 +557,7 @@ class CompileAndDeployMcpToolActionTest {
     @Test
     fun testAsyncFailureLongDetailIsTruncatedByGetCompileStatus() {
         CompileJobManager.softTimeoutMillisOverrideForTest = 10L
-        val longDetail = buildString { repeat(5200) { append('x') } }
+        val longDetail = buildString { repeat(16_000) { append('x') } }
         val action = CompileAndDeployMcpToolAction()
         val runtime = runtimeWithRunner(
             runFirstConfiguration = {
@@ -550,7 +585,7 @@ class CompileAndDeployMcpToolActionTest {
         val statusData = statusResult.data as Map<String, Any>
         val detailPreview = statusData["detail"] as String
         Assert.assertTrue(detailPreview.contains("[truncated"))
-        Assert.assertEquals(5200.0, (statusData["detailLength"] as Number).toDouble(), 0.0)
+        Assert.assertEquals(16_000.0, (statusData["detailLength"] as Number).toDouble(), 0.0)
         Assert.assertEquals(true, statusData["detailTruncated"])
         Assert.assertFalse(statusResult.artifacts.isEmpty())
     }

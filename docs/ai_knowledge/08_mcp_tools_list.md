@@ -121,7 +121,7 @@
 
 **行为补充**：`gradle-build` 会走 Gradle 构建后的安装/启动链路；整体 `status` 与 `deploy` 保持一致，只有 `isCompileSuccess=true` 且 `isDeploySuccess=true` 时终态才为 success。
 
-**失败详情**：失败终态会在 data 中附带 `detail` / `detailLength` / `detailTruncated`（如有），内容来自本次 Gradle build + 安装/启动日志摘要；异步场景通过 `get-compile-status` 获取同一份详情。
+**失败详情**：失败终态会在 data 中附带 `detail` / `detailLength` / `detailTruncated`（如有），内容来自本次 Gradle build + 安装/启动日志摘要；异步场景通过 `get-compile-status` 获取同一份详情。长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾，避免只保留 stack/footer 而丢失根因。
 
 ### `instrument`
 
