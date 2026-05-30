@@ -12,6 +12,7 @@ for (final def file in scriptDirectory.listFiles()) {
     }
 }
 File dataDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/data")
+File projectInfoSerializeFile = new File(dataDirectory, "JuggProjectInfoSerialize.kt")
 for (final def file in dataDirectory.listFiles()) {
     if (file.name.endsWith(".java") || file.name.endsWith(".kt")) {
         willCollectFiles.add(file)
@@ -49,6 +50,15 @@ def sortWeight = { File file ->
         return 6
     }
     return 9
+}
+
+def readProjectInfoSerializeVersion = {
+    String sourceText = projectInfoSerializeFile.text
+    def versionMatch = (sourceText =~ /private\s+const\s+val\s+VERSION\s*=\s*(\d+)/)
+    if (!versionMatch.find()) {
+        throw new GradleException("Cannot parse JuggProjectInfoSerialize.VERSION from ${projectInfoSerializeFile}")
+    }
+    return versionMatch.group(1)
 }
 
 // sort order
@@ -247,6 +257,7 @@ gradle.taskGraph.whenReady {
         finalContent.append("\n")
 
         String rawContent = finalContent.toString()
+        String projectInfoSerializeVersion = readProjectInfoSerializeVersion()
 
         // Rewrite qualified companion member calls (e.g. DependencyDiffResult.create() -> create())
         // Must run before factory function injection to handle all call sites.
@@ -267,7 +278,7 @@ gradle.taskGraph.whenReady {
             // (generates NoSuchMethodError). Using the literal value avoids the accessor issue.
             // Keep in sync with JuggProjectInfoSerialize.VERSION.
             .replace(") : this(juggProjectInfoExceptModules, dependencyList, modules, VERSION)",
-                     ") : this(juggProjectInfoExceptModules, dependencyList, modules, 5)")
+                     ") : this(juggProjectInfoExceptModules, dependencyList, modules, ${projectInfoSerializeVersion})")
 
         // Problem B fix: replace direct inner-class construction calls with top-level factory function calls.
         // Must run BEFORE appending factory function definitions to avoid replacing them too.

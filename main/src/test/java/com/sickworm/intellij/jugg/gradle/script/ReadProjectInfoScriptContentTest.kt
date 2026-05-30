@@ -154,6 +154,20 @@ class ReadProjectInfoScriptContentTest {
         assertTrue(scriptText.indexOf("injectAndroidTestTaskIfNeeded()") < scriptText.indexOf("gradle.taskGraph.whenReady"))
     }
 
+    @Test
+    fun generatedScript_shouldInlineCurrentProjectInfoVersion() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+        val sourceText = readSource("src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfoSerialize.kt")
+
+        val sourceVersion = requireNotNull("""VERSION = (\d+)""".toRegex().find(sourceText)?.groupValues?.get(1))
+        assertTrue(scriptText.contains("val VERSION = $sourceVersion"))
+        assertTrue(
+            scriptText.contains(") : this(juggProjectInfoExceptModules, dependencyList, modules, $sourceVersion)"),
+            "generated script must inline current JuggProjectInfoSerialize.VERSION"
+        )
+    }
+
     private fun readSource(relativePath: String): String {
         return java.io.File(System.getProperty("user.dir"), relativePath).readText()
     }
