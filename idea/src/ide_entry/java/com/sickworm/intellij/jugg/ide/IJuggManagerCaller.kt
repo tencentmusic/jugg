@@ -39,4 +39,6 @@ interface IJuggManagerCaller: Disposable {
     fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse
 
     fun installSkills()
+
+    fun checkUpdates()
 }

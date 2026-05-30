@@ -296,7 +296,7 @@ class MoreOptionsManager(
         deployHistoryManager.deleteDeployHistory()
     }
 
-    private fun checkUpdates() {
+    fun checkUpdates() {
         val dialog = CheckUpdatesProgressDialog()
 
         taskRunnerManager.runBackgroundSafe("Check updates") {

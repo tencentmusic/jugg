@@ -473,15 +473,23 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup {
-        return MoreOptionsManager(
-            this, pathManager, taskRunnerManager,
-            deployHistoryManager, deployTargetManager, dependencyChangeManager,
-            juggCompilerHelper, juggServer, juggHotUpdateDownloader, logger,
-        ).createOptions(options)
+        return createMoreOptionsManager().createOptions(options)
     }
 
     override fun installSkills() {
         InstallJuggSkillsDialog.installJuggMcpAndSkills(project, pathManager.projectDir, taskRunnerManager, logger)
+    }
+
+    override fun checkUpdates() {
+        createMoreOptionsManager().checkUpdates()
+    }
+
+    private fun createMoreOptionsManager(): MoreOptionsManager {
+        return MoreOptionsManager(
+            this, pathManager, taskRunnerManager,
+            deployHistoryManager, deployTargetManager, dependencyChangeManager,
+            juggCompilerHelper, juggServer, juggHotUpdateDownloader, logger,
+        )
     }
 
     override fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent {

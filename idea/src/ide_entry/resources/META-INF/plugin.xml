@@ -101,5 +101,12 @@
                 description="Install Jugg skills for AI clients (Codex / Claude Code / Gemini)"
         >
         </action>
+
+        <action id="jugg.CheckJuggUpdateAction"
+                class="com.sickworm.intellij.jugg.ide.ui.CheckJuggUpdateAction"
+                text="Check Jugg Update"
+                description="Check Jugg Update"
+        >
+        </action>
     </actions>
 </idea-plugin>
