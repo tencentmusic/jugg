@@ -15,6 +15,7 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
 import java.io.PrintStream
+import java.util.concurrent.atomic.AtomicLong
 
 class RemoteGradleCompileClient(
     private val project: Project,
@@ -36,14 +37,10 @@ class RemoteGradleCompileClient(
     private var finalPasswordOrKey: String = ""
     private var keyPathList = mutableListOf<String>()
     private var isUseKey: Boolean = false // currently no use
+    private val remoteCommandCounter = AtomicLong(0L)
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
-        if ((this.juggGradleCompileOptions == juggGradleCompileOptions) && (session?.isConnected == true) && channel?.isConnected == true) {
-            printToStreamInfo("${juggGradleCompileOptions.remoteSshIp} already login")
-            updateRemoteEnvironmentPrefix(juggGradleCompileOptions.environmentVariables)
-            return
-        }
-
+        logger.debug("[Jugg] remote login starts with fresh shell, reuse disabled")
         dispose()
 
         finalPasswordOrKey = juggGradleCompileOptions.remoteSshPassword
@@ -221,7 +218,7 @@ class RemoteGradleCompileClient(
                 rawBuffer = rawBuffer,
                 deadlineMs = chunkDeadline,
                 command = null,
-            ) { line -> JschShellTerminalHelper.parseShellReadyResult(line) == 0 }) {
+            ) { line -> JschShellTerminalHelper.parseShellReadyResult(line) == 0 }.isMatched) {
                 logger.debug("[Jugg] remote shell ready probe succeeded")
                 return true
             }
@@ -248,22 +245,30 @@ class RemoteGradleCompileClient(
         rawBuffer: StringBuilder,
         deadlineMs: Long,
         command: ISshCommand?,
+        noOutputTimeoutMs: Long? = null,
         onLineMatched: (String) -> Boolean,
-    ): Boolean {
+    ): PollShellInputResult {
         var lastInterruptCode = IGradleCompileClient.Error.SUCCESS
+        val startMs = System.currentTimeMillis()
+        var sawOutput = false
         while (System.currentTimeMillis() < deadlineMs && !isCanceled) {
+            val currentChannel = channel
+            if (currentChannel == null || !currentChannel.isConnected || currentChannel.isClosed) {
+                return PollShellInputResult(isMatched = false, isNoOutputTimeout = false)
+            }
             respondTerminalQueries(rawBuffer, commander)
             if (input.available() > 0) {
+                sawOutput = true
                 val code = input.read()
                 if (code == -1) {
-                    return false
+                    return PollShellInputResult(isMatched = false, isNoOutputTimeout = false)
                 }
                 if (code == '\n'.code || code == '\r'.code) {
                     val line = decodeTerminalLine(rawBuffer)
                     if (line.isNotEmpty() && (command == null || command.isCanOutput(line, false))) {
                         printToStream(line)
                         if (onLineMatched(line)) {
-                            return true
+                            return PollShellInputResult(isMatched = true, isNoOutputTimeout = false)
                         }
                         if (command != null) {
                             val output = command.getInput(line)
@@ -289,7 +294,7 @@ class RemoteGradleCompileClient(
                                     isPassword = interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD,
                                 )
                                 if (output == null) {
-                                    return false
+                                    return PollShellInputResult(isMatched = false, isNoOutputTimeout = false)
                                 }
                                 commander.printlnCompat(output)
                                 commander.flush()
@@ -298,10 +303,13 @@ class RemoteGradleCompileClient(
                     }
                 }
             } else {
+                if (!sawOutput && noOutputTimeoutMs != null && System.currentTimeMillis() - startMs >= noOutputTimeoutMs) {
+                    return PollShellInputResult(isMatched = false, isNoOutputTimeout = true)
+                }
                 Thread.sleep(50)
             }
         }
-        return false
+        return PollShellInputResult(isMatched = false, isNoOutputTimeout = false)
     }
 
     private fun decodeTerminalLine(buffer: StringBuilder): String {
@@ -715,6 +723,12 @@ class RemoteGradleCompileClient(
         val commander = PrintStream(channel.outputStream, false)
         val commandString = remoteEnvironmentPrefix +
             command.getCommand(isNeedSetChineseLanguage = true, isWindows = false)
+        val commandId = remoteCommandCounter.incrementAndGet()
+        val sentAt = System.currentTimeMillis()
+        val safeCommand = remoteEnvironmentPrefix +
+            command.getPrintSafeCommand(isNeedSetChineseLanguage = true, isWindows = false)
+        logger.info("[Jugg][cmd-$commandId] send ${command::class.simpleName}")
+        logger.debug("[Jugg][cmd-$commandId] safeCommandHash=${safeCommand.hashCode()} length=${safeCommand.length}")
         logger.debug("Jsch invoke command: $commandString")
         commander.printlnCompat(commandString)
         commander.flush()
@@ -722,37 +736,55 @@ class RemoteGradleCompileClient(
         val resultEcho = "(Jugg) ${command::class.simpleName} result: "
         val rawBuffer = StringBuilder()
         var parsedResult: Int? = null
-        val matched = pollShellInput(
+        val pollResult = pollShellInput(
             input = input,
             commander = commander,
             rawBuffer = rawBuffer,
             deadlineMs = Long.MAX_VALUE,
             command = command,
+            noOutputTimeoutMs = NO_OUTPUT_TIMEOUT_MS,
         ) { line ->
             val currentResult = command.hasFinishWithResult(line)
             if (currentResult != null) {
-                logger.debug("[Jugg] ${command::class.simpleName} parsed result line: $line -> $currentResult")
+                val elapsedMs = System.currentTimeMillis() - sentAt
+                logger.debug("[Jugg][cmd-$commandId] ${command::class.simpleName} parsed result line: $line -> $currentResult, elapsed=${elapsedMs}ms")
                 parsedResult = currentResult
                 true
             } else {
                 if (line.startsWith(resultEcho) && line.endsWith("?")) {
-                    logger.debug("[Jugg] ${command::class.simpleName} skip echoed template line: $line")
+                    logger.debug("[Jugg][cmd-$commandId] ${command::class.simpleName} skip echoed template line: $line")
                 }
                 false
             }
         }
+        val elapsedMs = System.currentTimeMillis() - sentAt
 
         if (isCanceled) {
             return IGradleCompileClient.Error.ERROR_CANCELED
         }
         if (parsedResult != null) {
+            logger.info("[Jugg][cmd-$commandId] done in ${elapsedMs}ms")
             return parsedResult!!
+        }
+        if (pollResult.isNoOutputTimeout) {
+            val available = try {
+                input.available()
+            } catch (e: Exception) {
+                -1
+            }
+            val timeoutMessage = "[Jugg][cmd-$commandId] no output in ${NO_OUTPUT_TIMEOUT_MS}ms after send, " +
+                "command=${command::class.simpleName}, sessionConnected=${session?.isConnected}, " +
+                "channelConnected=${channel.isConnected}, channelClosed=${channel.isClosed}, " +
+                "exitStatus=${channel.exitStatus}, inputAvailable=$available, elapsed=${elapsedMs}ms"
+            logger.warn(timeoutMessage)
+            printToStreamErrorIfCanceled(timeoutMessage)
+            return IGradleCompileClient.Error.ERROR_FAILED
         }
         if (channel.isClosed) {
             printToStream("[Jugg] exit-status: " + channel.exitStatus)
             return IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
         }
-        return if (matched) {
+        return if (pollResult.isMatched) {
             IGradleCompileClient.Error.SUCCESS
         } else {
             IGradleCompileClient.Error.ERROR_FAILED
@@ -835,11 +867,19 @@ class RemoteGradleCompileClient(
         }
     }
 
+    private data class PollShellInputResult(
+        val isMatched: Boolean,
+        val isNoOutputTimeout: Boolean,
+    )
+
     companion object {
         /** Wait for login banner / PTY queries before the first probe command. */
         private const val INITIAL_SHELL_DRAIN_MS = 800L
 
         /** Re-send probe if the previous one was only echoed during shell init. */
         private const val SHELL_READY_PROBE_RETRY_MS = 1500L
+
+        /** Timeout for commands that produce no shell output at all after being sent. */
+        private const val NO_OUTPUT_TIMEOUT_MS = 90_000L
     }
 }
