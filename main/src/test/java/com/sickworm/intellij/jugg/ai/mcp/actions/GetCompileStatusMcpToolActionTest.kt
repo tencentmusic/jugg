@@ -37,7 +37,7 @@ class GetCompileStatusMcpToolActionTest {
     }
 
     @Test
-    fun testSuccessDetailIsReturnedByGetCompileStatus() {
+    fun testSuccessDetailIsNotReturnedByGetCompileStatus() {
         CompileJobManager.softTimeoutMillisOverrideForTest = 1L
         val successDetail = "test output line"
         val runtime = runtimeWithRunner(delayMillis = 120L, detail = successDetail)
@@ -61,7 +61,9 @@ class GetCompileStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val statusData = statusResult.data as Map<String, Any>
         Assert.assertEquals("success", statusData["status"])
-        Assert.assertEquals(successDetail, statusData["detail"])
+        Assert.assertFalse(statusData.containsKey("detail"))
+        Assert.assertFalse(statusData.containsKey("detailLength"))
+        Assert.assertFalse(statusData.containsKey("detailTruncated"))
     }
 
     @Test
