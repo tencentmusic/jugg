@@ -16,6 +16,7 @@ from typing import Any
 STATE_DIR_NAME = ".state"
 SESSION_WRITE_SEEN_KEY = "sessionWriteSeen"
 LAST_WRITE_TIME_MS_KEY = "lastWriteTimeMs"
+SESSION_WRITE_FILE_NAMES_KEY = "sessionWriteFileNames"
 PROJECT_CWD_KEY = "projectCwd"
 JUGG_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEBUG_LOG_ENV = "JUGG_HOOK_DEBUG_LOG"
@@ -299,12 +300,63 @@ def write_hook_state(state_file: Path, state: dict[str, Any]) -> bool:
 
 
 def has_session_write_seen(state: dict[str, Any]) -> bool:
-    return bool(state.get(SESSION_WRITE_SEEN_KEY))
+    return bool(state.get(SESSION_WRITE_SEEN_KEY) or get_session_write_file_names(state))
 
 
-def mark_session_write_seen(state: dict[str, Any]) -> None:
+def _extract_file_name(value: str) -> str | None:
+    normalized = value.strip().replace("\\", "/")
+    if not normalized:
+        return None
+    name = Path(normalized).name.strip()
+    return name or None
+
+
+def get_session_write_file_names(state: dict[str, Any]) -> list[str]:
+    raw = state.get(SESSION_WRITE_FILE_NAMES_KEY)
+    if not isinstance(raw, list):
+        return []
+    names: list[str] = []
+    for value in raw:
+        if not isinstance(value, str):
+            continue
+        name = _extract_file_name(value)
+        if not name or name in names:
+            continue
+        names.append(name)
+    return names
+
+
+def mark_session_write_seen(state: dict[str, Any], file_paths: list[str] | None = None) -> None:
     state[SESSION_WRITE_SEEN_KEY] = True
     state[LAST_WRITE_TIME_MS_KEY] = int(time.time() * 1000)
+    if not file_paths:
+        return
+    names = get_session_write_file_names(state)
+    for path in file_paths:
+        name = _extract_file_name(path)
+        if not name or name in names:
+            continue
+        names.append(name)
+    if names:
+        state[SESSION_WRITE_FILE_NAMES_KEY] = names
+
+
+def extract_status_file_names(structured: dict[str, Any]) -> list[str]:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return []
+    files = data.get("files", [])
+    if not isinstance(files, list):
+        return []
+    names: list[str] = []
+    for value in files:
+        if not isinstance(value, str):
+            continue
+        name = _extract_file_name(value)
+        if not name or name in names:
+            continue
+        names.append(name)
+    return names
 
 
 def extract_last_compile_time_ms(structured: dict[str, Any]) -> int:
@@ -324,6 +376,11 @@ def extract_last_compile_time_ms(structured: dict[str, Any]) -> int:
 def session_write_needs_verification(state: dict[str, Any], structured: dict[str, Any]) -> bool:
     if not has_session_write_seen(state):
         return False
+    session_file_names = get_session_write_file_names(state)
+    if session_file_names:
+        status_file_names = set(extract_status_file_names(structured))
+        if not any(name in status_file_names for name in session_file_names):
+            return False
     last_write_time_ms = safe_int(state.get(LAST_WRITE_TIME_MS_KEY, 0))
     if last_write_time_ms <= 0:
         # Legacy states only recorded a boolean write marker; keep the old conservative behavior.
@@ -386,6 +443,24 @@ def _format_plain_value(value: Any) -> str:
     return str(value)
 
 
+def format_pending_modified_file_names(data: dict[str, Any], limit: int | None = None) -> str:
+    """Return comma-separated basenames from status data.files."""
+    files = data.get("files", [])
+    if not isinstance(files, list):
+        return ""
+    names: list[str] = []
+    for value in files:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        name = Path(value).name.strip()
+        if not name or name in names:
+            continue
+        names.append(name)
+        if limit is not None and len(names) >= limit:
+            break
+    return ", ".join(names)
+
+
 def format_status_summary(structured: dict[str, Any]) -> str:
     data = structured.get("data", {})
     if not isinstance(data, dict):
@@ -399,6 +474,10 @@ def format_status_summary(structured: dict[str, Any]) -> str:
         "pendingModifiedFiles",
         "lastCompileTime",
     ):
+        if key == "pendingModifiedFiles":
+            if key in data or "files" in data:
+                lines.append(f"  pendingModifiedFiles: {format_pending_modified_file_names(data)}")
+            continue
         if key in data:
             lines.append(f"  {key}: {_format_plain_value(data[key])}")
     return "\n".join(lines)
@@ -408,20 +487,10 @@ def extract_modified_file_names(structured: dict[str, Any], limit: int = 10) -> 
     data = structured.get("data", {})
     if not isinstance(data, dict):
         return []
-    files = data.get("files", [])
-    if not isinstance(files, list):
+    names_text = format_pending_modified_file_names(data, limit=limit)
+    if not names_text:
         return []
-    names: list[str] = []
-    for value in files:
-        if not isinstance(value, str) or not value.strip():
-            continue
-        name = Path(value).name.strip()
-        if not name or name in names:
-            continue
-        names.append(name)
-        if len(names) >= limit:
-            break
-    return names
+    return names_text.split(", ")
 
 
 def has_pending_files(file_counts: dict[str, Any]) -> bool:

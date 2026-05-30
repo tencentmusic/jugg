@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import shlex
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -24,7 +23,6 @@ from hook_common import (
     format_status_summary,
     has_session_write_seen,
     has_pending_files,
-    mark_session_write_seen,
     payload_debug_suffix,
     read_hook_state,
     read_json_payload,
@@ -37,36 +35,17 @@ from hook_common import (
 
 
 GRADLE_BLOCK_MESSAGE = (
-    "Android source changes are pending. Do not verify with raw Gradle here; "
-    "enable the jugg-android-dev-loop skill and run Jugg CLI compile/deploy/gradle-build instead."
+    "You should prefer enabling the jugg-android-dev-loop skill and running Jugg CLI "
+    "compile/deploy/gradle-build instead of verifying compilation with raw Gradle here."
+    "This hook will block only once. If you insist in using raw Gradle, please retry again."
 )
 GRADLE_RETRY_WARNING = (
     "Warning: raw Gradle verification is still not the Jugg dev loop. "
-    "Allowing this repeated command attempt, but final verification should use Jugg CLI."
+    "Allowing this repeated command attempt."
 )
 SYSTEM_MESSAGE_CLIENTS = {"codex", "claude"}
 RAW_GRADLE_PATTERN = re.compile(r"(^|[\s;&|()])(?:\./)?gradlew?(?:\s|$)")
-SHELL_SOURCE_PATH_PATTERN = (
-    r"(?:[^\s'\"<>|;&]+/)?app/src/main/java/com/example/myapplication/[^\s'\"<>|;&]+(?:\.java|\.kt)"
-)
 SHELL_COMMAND_KEYS = {"command", "cmd", "script"}
-VCS_COMMAND_PATTERN = re.compile(r"(^|[\s;&|()])git\s+(?:pull|fetch|checkout|merge|rebase|reset)\b")
-REDIRECT_WRITE_PATTERN = re.compile(r"(?:>|>>)\s*['\"]?(?P<path>" + SHELL_SOURCE_PATH_PATTERN + r")['\"]?")
-TEE_WRITE_PATTERN = re.compile(r"\btee(?:\s+-a)?\s+['\"]?(?P<path>" + SHELL_SOURCE_PATH_PATTERN + r")['\"]?")
-IN_PLACE_WRITE_PATTERN = re.compile(
-    r"\b(?:sed|perl)\b[^;&|]*\s-i(?:\s+(?:''|\"\"|'[^']*'|\"[^\"]*\"))?[^;&|]*\s+['\"]?"
-    r"(?P<path>"
-    + SHELL_SOURCE_PATH_PATTERN
-    + r")['\"]?"
-)
-SHELL_VAR_ASSIGN_PATTERN = re.compile(
-    r"(?:^|[\s;&|])(?P<name>[A-Za-z_][A-Za-z0-9_]*)=(?P<quote>['\"]?)"
-    r"(?P<path>"
-    + SHELL_SOURCE_PATH_PATTERN
-    + r")(?P=quote)(?=$|[\s;&|])"
-)
-VAR_REDIRECT_WRITE_PATTERN = re.compile(r"(?:>|>>)\s*['\"]?\$(?P<name>[A-Za-z_][A-Za-z0-9_]*)['\"]?")
-VAR_TEE_WRITE_PATTERN = re.compile(r"\btee(?:\s+-a)?\s+['\"]?\$(?P<name>[A-Za-z_][A-Za-z0-9_]*)['\"]?")
 
 
 def is_raw_gradle_command(command: str) -> bool:
@@ -104,56 +83,6 @@ def _collect_shell_command_texts(value: Any) -> list[str]:
 
 def _single_line_command(command: str) -> str:
     return command.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
-
-
-def _is_shell_source_path(path: str) -> bool:
-    normalized = path.strip().strip("'\"").replace("\\", "/")
-    return re.fullmatch(SHELL_SOURCE_PATH_PATTERN, normalized) is not None
-
-
-def _command_segments(command: str) -> list[str]:
-    return [segment.strip() for segment in re.split(r"[;&|]+", command) if segment.strip()]
-
-
-def _has_cp_or_mv_source_write(command: str) -> bool:
-    for segment in _command_segments(command):
-        try:
-            words = shlex.split(segment)
-        except ValueError:
-            continue
-        if len(words) < 3 or words[0] not in {"cp", "mv"}:
-            continue
-        if _is_shell_source_path(words[-1]):
-            return True
-    return False
-
-
-def _shell_source_variables(command: str) -> set[str]:
-    variables: set[str] = set()
-    for match in SHELL_VAR_ASSIGN_PATTERN.finditer(command):
-        if _is_shell_source_path(match.group("path")):
-            variables.add(match.group("name"))
-    return variables
-
-
-def _has_variable_source_write(command: str) -> bool:
-    variables = _shell_source_variables(command)
-    if not variables:
-        return False
-    for pattern in (VAR_REDIRECT_WRITE_PATTERN, VAR_TEE_WRITE_PATTERN):
-        for match in pattern.finditer(command):
-            if match.group("name") in variables:
-                return True
-    return False
-
-
-def is_low_risk_shell_source_write(command: str) -> bool:
-    if not command.strip() or VCS_COMMAND_PATTERN.search(command):
-        return False
-    return any(
-        pattern.search(command)
-        for pattern in (REDIRECT_WRITE_PATTERN, TEE_WRITE_PATTERN, IN_PLACE_WRITE_PATTERN)
-    ) or _has_cp_or_mv_source_write(command) or _has_variable_source_write(command)
 
 
 def pending_fingerprint(structured: dict[str, Any]) -> str:
@@ -223,10 +152,6 @@ def main() -> int:
     for shell_command in shell_commands:
         debug_log("JUGG-COMMAND", f"shellCommand={_single_line_command(shell_command)!r}")
     state_dirty = project_cwd_changed and bool(shell_commands or commands or has_session_write_seen(state))
-    if any(is_low_risk_shell_source_write(command) for command in shell_commands):
-        mark_session_write_seen(state)
-        state_dirty = True
-        debug_log("JUGG-COMMAND", "recorded session write from shell source write command")
     if state_dirty:
         write_hook_state(state_file, state)
 

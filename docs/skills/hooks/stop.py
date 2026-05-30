@@ -16,7 +16,6 @@ from hook_common import (
     emit_cursor_empty_response,
     emit_cursor_followup_response,
     extract_file_counts,
-    extract_modified_file_names,
     extract_session_id,
     format_status_summary,
     has_session_write_seen,
@@ -32,11 +31,10 @@ from hook_common import (
 
 STOP_BLOCK_MESSAGE = (
     "Android code changes were detected in this session. "
-    "Before stopping, you must enable the jugg-android-dev-loop skill and complete verification. "
-    "If you are intentionally running a hook benchmark, record this feedback and retry stop without verification."
+    "You should enable the jugg-android-dev-loop skill if you modified Android source during this session, and complete verification before stopping. "
 )
 STOP_BLOCK_RETRY_WARNING = (
-    "Warning: pending Android changes remain; allowing session stop after a repeated stop attempt. "
+    "Notice: Jugg detect pending Android changes remain; allowing session stop after a repeated stop attempt. "
 )
 SYSTEM_MESSAGE_CLIENTS = {"codex", "claude"}
 
@@ -125,16 +123,12 @@ def _main_impl() -> int:
             # risk blocking indefinitely on every subsequent attempt.
             debug_log("JUGG-STOP", "exit: allow stop because state persistence failed")
             return 0
-        modified_files = extract_modified_file_names(structured)
         status_summary = format_status_summary(structured)
-        details: list[str] = []
-        if modified_files:
-            modified_text = ", ".join(modified_files)
-            details.append(f"Modified files: {modified_text}")
-        if status_summary:
-            details.append(status_summary)
-        suffix = "\n".join(details)
-        block_message = f"{STOP_BLOCK_MESSAGE}\n{suffix}" if suffix else STOP_BLOCK_MESSAGE
+        block_message = (
+            f"{STOP_BLOCK_MESSAGE}\n{status_summary}"
+            if status_summary
+            else STOP_BLOCK_MESSAGE
+        )
         if args.client == "cursor":
             emit_cursor_followup_response(block_message)
             debug_log("JUGG-STOP", "exit: blocked stop with cursor followup")

@@ -29,7 +29,7 @@ Prompt：请验证 agent hooks 是否会被你的真实文件变更和命令动�
 期望：
 
 - 新增隔离 Android 源码文件后，Agent 不应看到 `You modified Android source files.` 软提醒；后续第一次 raw Gradle 被阻断即证明 hook 已记录本会话写入状态。
-- 第一次 raw Gradle 尝试被 command hook 阻断，Agent 能看到原文包含 `Do not verify with raw Gradle here`，退出码应体现阻断。
+- 第一次 raw Gradle 尝试被 command hook 阻断，Agent 能看到原文包含 `instead of verifying with raw Gradle here`，退出码应体现阻断。
 - 第二次 raw Gradle 尝试应被放行。Codex/Claude 应能看到原文包含 `Allowing this repeated command attempt`；Cursor/Gemini 可静默放行，报告写明未收到第二次 warning 但命令已执行即可。
 - `jugg gradle-build` 不应被识别为 raw Gradle 拦截目标。
 - 如果 hook 没有被 Agent 真实动作触发，本 case 判定为 `FAIL`。
@@ -47,7 +47,7 @@ Prompt：请验证 stop hook 是否会被你的真实结束会话动作触发。
 
 期望：
 
-- 首次结束会话应被 stop hook 阻断，Agent 能看到原文包含 `Before stopping, you must enable the jugg-android-dev-loop skill`，并包含 `Modified files: HookStopTrigger.kt`。
+- 首次结束会话应被 stop hook 阻断，Agent 能看到原文包含 `you should enable the jugg-android-dev-loop skill and complete verification before stopping`，并包含 `Modified files: HookStopTrigger.kt`。
 - 第二次结束会话应放行。Cursor/Gemini 重复 stop 预期可静默放行，避免反馈循环阻断；Codex/Claude 等支持 `systemMessage` 的客户端应能看到原文包含 `allowing session stop after a repeated stop attempt`。
 - 第一次 stop 被阻断后，Agent 不得响应 stop hook 要求去执行验证或清理 pending changes；本 case 必须保留 pending changes 来观测第二次 stop warning。
 - 不得使用 `jugg stop`、直接调用 `stop.py` 或脚本模拟 stop hook。

@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+SESSION_WRITE_FILE_NAMES_KEY = "sessionWriteFileNames"
+
 
 def _write_fake_jugg_cli(
     home: str,
@@ -68,7 +70,15 @@ class StopHookGuardTest(unittest.TestCase):
             state_file = _state_file(home, cwd, session_id)
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
-            _write_fake_jugg_cli(home, total=2, enabled_android_test=True)
+            _write_fake_jugg_cli(
+                home,
+                total=2,
+                files=[
+                    "/repo/app/src/main/java/com/example/PendingOne.kt",
+                    "/repo/app/src/main/java/com/example/PendingTwo.kt",
+                ],
+                enabled_android_test=True,
+            )
             first = subprocess.run(
                 [sys.executable, str(script)],
                 input=json.dumps(payload),
@@ -90,10 +100,10 @@ class StopHookGuardTest(unittest.TestCase):
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
 
         self.assertEqual(2, first.returncode)
-        self.assertIn("Before stopping, you must enable the jugg-android-dev-loop skill", first.stderr)
+        self.assertIn("you should enable the jugg-android-dev-loop skill and complete verification before stopping", first.stderr)
         self.assertIn("Jugg status:", first.stderr)
         self.assertIn("enabledAndroidTest: true", first.stderr)
-        self.assertIn("pendingModifiedFiles: {\"total\":2}", first.stderr)
+        self.assertIn("pendingModifiedFiles: PendingOne.kt, PendingTwo.kt", first.stderr)
         self.assertEqual(0, second.returncode)
         self.assertIn("allowing session stop after a repeated stop attempt", second.stderr)
         self.assertEqual(1, state.get("stopBlockCount"))
@@ -124,7 +134,7 @@ class StopHookGuardTest(unittest.TestCase):
         response = json.loads(result.stdout)
         self.assertEqual(0, result.returncode)
         self.assertIn("followup_message", response)
-        self.assertIn("Before stopping", response["followup_message"])
+        self.assertIn("complete verification before stopping", response["followup_message"])
 
     def test_stop_hook_uses_cursor_workspace_roots_when_project_cwd_is_absent(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
@@ -182,7 +192,7 @@ class StopHookGuardTest(unittest.TestCase):
                 )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("Before stopping", result.stderr)
+        self.assertIn("complete verification before stopping", result.stderr)
 
     def test_stop_hook_uses_codex_system_message_for_repeated_pending_warning(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
@@ -263,7 +273,7 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stderr)
         self.assertIn("followup_message", response)
-        self.assertIn("Before stopping", response["followup_message"])
+        self.assertIn("complete verification before stopping", response["followup_message"])
         self.assertIn("HookStop.kt", response["followup_message"])
 
     def test_stop_hook_silently_allows_repeated_cursor_stop(self):
@@ -380,7 +390,67 @@ class StopHookGuardTest(unittest.TestCase):
             )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("Modified files: StopHookTrigger.kt, Another.kt", result.stderr)
+        self.assertIn("pendingModifiedFiles: StopHookTrigger.kt, Another.kt", result.stderr)
+
+    def test_stop_hook_allows_when_pending_file_name_does_not_match_recorded_write(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-name-mismatch"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["HookEdit.kt"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1, files=["app/src/main/java/com/example/Another.kt"])
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+
+    def test_stop_hook_blocks_when_pending_file_name_matches_recorded_write(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-name-match"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["HookEdit.kt"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1, files=["/repo/app/src/main/java/com/example/HookEdit.kt"])
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("complete verification before stopping", result.stderr)
 
 
 if __name__ == "__main__":

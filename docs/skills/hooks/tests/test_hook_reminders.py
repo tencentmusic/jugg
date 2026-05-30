@@ -70,6 +70,9 @@ def _state_file(home: str, cwd: str, session_id: str) -> Path:
     return Path(home) / ".jugg" / "skills" / "hooks" / ".state" / f"{digest}.json"
 
 
+SESSION_WRITE_FILE_NAMES_KEY = "sessionWriteFileNames"
+
+
 class HookReminderDecisionTest(unittest.TestCase):
     def test_start_hook_only_logs_without_status_or_state(self):
         script = Path(__file__).resolve().parent.parent / "start.py"
@@ -169,6 +172,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["Any.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_edit_hook_ignores_codex_apply_patch_for_docs(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
@@ -234,6 +238,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_edit_hook_ignores_codex_apply_patch_delete_for_android_source(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
@@ -318,6 +323,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_edit_hook_ignores_cursor_edit_for_docs(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
@@ -374,6 +380,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_edit_hook_records_claude_write_for_android_source(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
@@ -401,6 +408,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookWrite.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_edit_hook_records_project_cwd_from_absolute_file_path(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
@@ -487,6 +495,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_edit_hook_records_codebuddy_write_for_android_source(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
@@ -514,6 +523,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookWrite.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_edit_hook_ignores_gemini_write_file_for_docs(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
@@ -571,13 +581,14 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")
         self.assertTrue(mod.is_raw_gradle_command("./gradlew :app:assembleDebug"))
         self.assertFalse(mod.is_raw_gradle_command("python3 ~/.jugg/bin/jugg.py gradle-build"))
 
-    def test_command_hook_records_low_risk_shell_source_write_without_status_lookup(self):
+    def test_command_hook_does_not_record_shell_source_write_without_status_lookup(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
         session_id = "session-shell-write"
         payload = {
@@ -610,17 +621,18 @@ class HookReminderDecisionTest(unittest.TestCase):
                 env={**os.environ, "HOME": home, "JUGG_HOOK_DEBUG_LOG": str(debug_log)},
                 check=False,
             )
-            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+            state_path = _state_file(home, cwd, session_id)
+            state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
             log_text = debug_log.read_text(encoding="utf-8")
 
         self.assertEqual(0, result.returncode)
         self.assertFalse(status_marker.exists())
-        self.assertTrue(state.get("sessionWriteSeen"))
-        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertFalse(state.get("sessionWriteSeen"))
+        self.assertNotIn(SESSION_WRITE_FILE_NAMES_KEY, state)
         self.assertIn("shellCommand=", log_text)
         self.assertIn("\\n", log_text)
 
-    def test_command_hook_records_shell_source_write_through_variable_redirect(self):
+    def test_command_hook_does_not_record_shell_source_write_through_variable_redirect(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
         session_id = "session-shell-var-write"
         payload = {
@@ -648,8 +660,8 @@ class HookReminderDecisionTest(unittest.TestCase):
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
 
         self.assertEqual(0, result.returncode)
-        self.assertTrue(state.get("sessionWriteSeen"))
-        self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertFalse(state.get("sessionWriteSeen"))
+        self.assertNotIn(SESSION_WRITE_FILE_NAMES_KEY, state)
 
     def test_command_hook_ignores_vcs_commands_for_shell_write_tracking(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -686,7 +698,12 @@ class HookReminderDecisionTest(unittest.TestCase):
             state_file = _state_file(home, cwd, session_id)
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
-            _write_fake_jugg_cli(home, total=1, enabled_android_test=True)
+            _write_fake_jugg_cli(
+                home,
+                total=1,
+                files=["/repo/app/src/main/java/com/example/Pending.kt"],
+                enabled_android_test=True,
+            )
             first = subprocess.run(
                 [sys.executable, str(script)],
                 input=json.dumps(payload),
@@ -708,10 +725,10 @@ class HookReminderDecisionTest(unittest.TestCase):
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
 
         self.assertEqual(2, first.returncode)
-        self.assertIn("Do not verify with raw Gradle here", first.stderr)
+        self.assertIn("instead of verifying with raw Gradle here", first.stderr)
         self.assertIn("Jugg status:", first.stderr)
         self.assertIn("enabledAndroidTest: true", first.stderr)
-        self.assertIn("pendingModifiedFiles: {\"total\":1}", first.stderr)
+        self.assertIn("pendingModifiedFiles: Pending.kt", first.stderr)
         self.assertEqual(0, second.returncode)
         self.assertIn("Allowing this repeated command attempt", second.stderr)
         self.assertEqual(1, state.get("gradleBlockCount"))
@@ -744,7 +761,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stderr)
         self.assertEqual("deny", response.get("permission"))
-        self.assertIn("Do not verify with raw Gradle here", response.get("agent_message", ""))
+        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
 
     def test_command_hook_uses_cursor_permission_json_for_repeated_warning(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -824,7 +841,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         response = json.loads(result.stdout)
         self.assertEqual(0, result.returncode)
         self.assertEqual("deny", response.get("permission"))
-        self.assertIn("Do not verify with raw Gradle here", response.get("agent_message", ""))
+        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
 
     def test_command_hook_uses_cursor_workspace_roots_when_project_cwd_is_absent(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -888,7 +905,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("Do not verify with raw Gradle here", result.stderr)
+        self.assertIn("instead of verifying with raw Gradle here", result.stderr)
 
     def test_command_hook_records_project_cwd_from_payload_cwd_for_shell_write(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -943,10 +960,10 @@ class HookReminderDecisionTest(unittest.TestCase):
                     env={**os.environ, "HOME": home},
                     check=False,
                 )
-                state = json.loads(_state_file(home, hook_cwd, session_id).read_text(encoding="utf-8"))
+                state_path = _state_file(home, hook_cwd, session_id)
 
         self.assertEqual(0, result.returncode)
-        self.assertNotIn("projectCwd", state)
+        self.assertFalse(state_path.exists())
 
     def test_command_hook_blocks_again_when_pending_fingerprint_changes(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -983,7 +1000,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             state = json.loads(state_file.read_text(encoding="utf-8"))
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("Do not verify with raw Gradle here", result.stderr)
+        self.assertIn("instead of verifying with raw Gradle here", result.stderr)
         self.assertEqual(1, state.get("gradleBlockCount"))
         self.assertNotEqual(old_fingerprint, state.get("gradleBlockedFingerprint"))
 
@@ -1077,7 +1094,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             warning_payload = json.loads(allowed.stdout)
 
         self.assertEqual(2, blocked.returncode)
-        self.assertIn("Do not verify with raw Gradle here", blocked.stderr)
+        self.assertIn("instead of verifying with raw Gradle here", blocked.stderr)
         self.assertEqual(0, allowed.returncode)
         self.assertEqual("", allowed.stderr)
         self.assertIn("systemMessage", warning_payload)
@@ -1163,6 +1180,82 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, state.get("gradleBlockCount"))
         self.assertNotIn("gradleBlockedFingerprint", state)
 
+    def test_command_hook_allows_when_pending_file_name_does_not_match_recorded_write(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-name-mismatch"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["HookEdit.kt"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(
+                home,
+                total=1,
+                files=["/repo/app/src/main/java/com/example/myapplication/Another.kt"],
+            )
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+
+    def test_command_hook_blocks_when_pending_file_name_matches_recorded_write(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-name-match"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["HookEdit.kt"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(
+                home,
+                total=1,
+                files=["app/src/main/java/com/example/myapplication/HookEdit.kt"],
+            )
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("instead of verifying with raw Gradle here", result.stderr)
+
     def test_edit_hook_ignores_gemini_write_file_for_docs(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
         session_id = "s-gemini-docs-write"
@@ -1218,6 +1311,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
 
 if __name__ == "__main__":

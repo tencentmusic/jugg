@@ -112,6 +112,35 @@ def _should_record_cursor_write(payload: dict[str, Any]) -> bool:
     return is_android_source_path(file_path)
 
 
+def _tool_input_file_path(payload: dict[str, Any]) -> str | None:
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return None
+    file_path = tool_input.get("file_path")
+    return file_path if isinstance(file_path, str) and file_path.strip() else None
+
+
+def _recorded_write_paths(payload: dict[str, Any], client: str) -> list[str]:
+    if client == "codex":
+        return [path for path in _codex_apply_patch_paths(payload) if is_android_source_path(path)]
+    if client == "claude":
+        file_path = _tool_input_file_path(payload)
+        return [file_path] if file_path and is_android_source_path(file_path) else []
+    if client == "codebuddy":
+        file_path = _tool_input_file_path(payload)
+        return [file_path] if file_path and is_android_source_path(file_path) else []
+    if client == "gemini":
+        file_path = _tool_input_file_path(payload)
+        return [file_path] if file_path and is_android_source_path(file_path) else []
+    if client == "cursor":
+        file_path = payload.get("file_path")
+        if isinstance(file_path, str) and is_android_source_path(file_path):
+            return [file_path]
+        return []
+    generic_file_path = _tool_input_file_path(payload)
+    return [generic_file_path] if generic_file_path else []
+
+
 def main() -> int:
     try:
         return _main_impl()
@@ -134,35 +163,37 @@ def _main_impl() -> int:
     if args.client == "cursor":
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
 
-    if args.client == "codex" and not _should_record_codex_write(payload):
+    recorded_paths = _recorded_write_paths(payload, args.client)
+
+    if args.client == "codex" and not recorded_paths:
         debug_log(
             "JUGG-EDIT",
             f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
             "ignored codex edit payload outside Android source",
         )
         return 0
-    if args.client == "claude" and not _should_record_claude_write(payload):
+    if args.client == "claude" and not recorded_paths:
         debug_log(
             "JUGG-EDIT",
             f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
             "ignored claude edit payload outside Android source",
         )
         return 0
-    if args.client == "codebuddy" and not _should_record_codebuddy_write(payload):
+    if args.client == "codebuddy" and not recorded_paths:
         debug_log(
             "JUGG-EDIT",
             f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
             "ignored codebuddy edit payload outside Android source",
         )
         return 0
-    if args.client == "gemini" and not _should_record_gemini_write(payload):
+    if args.client == "gemini" and not recorded_paths:
         debug_log(
             "JUGG-EDIT",
             f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
             "ignored gemini edit payload outside Android source",
         )
         return 0
-    if args.client == "cursor" and not _should_record_cursor_write(payload):
+    if args.client == "cursor" and not recorded_paths:
         debug_log(
             "JUGG-EDIT",
             f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
@@ -171,7 +202,7 @@ def _main_impl() -> int:
         if project_cwd_changed:
             write_hook_state(state_file, state)
         return 0
-    mark_session_write_seen(state)
+    mark_session_write_seen(state, recorded_paths)
     write_hook_state(state_file, state)
     debug_log(
         "JUGG-EDIT",

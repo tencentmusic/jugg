@@ -129,6 +129,7 @@ class HookCommonLoggingTest(unittest.TestCase):
                     "hasBeenFullCompiled": True,
                     "enabledAndroidTest": True,
                     "pendingModifiedFiles": {"total": 1, "SOURCE": 1},
+                    "files": ["/repo/app/src/main/java/com/example/HookStopTrigger.kt"],
                     "lastCompileTime": "2026-05-14 10:20:30",
                 }
             }
@@ -139,9 +140,9 @@ class HookCommonLoggingTest(unittest.TestCase):
         self.assertIn("  needFallback: false", summary)
         self.assertIn("  hasBeenFullCompiled: true", summary)
         self.assertIn("  enabledAndroidTest: true", summary)
-        self.assertIn('  pendingModifiedFiles: {"SOURCE":1,"total":1}', summary)
+        self.assertIn("  pendingModifiedFiles: HookStopTrigger.kt", summary)
         self.assertIn("  lastCompileTime: 2026-05-14 10:20:30", summary)
-        self.assertNotIn(json.dumps({"total": 1}, indent=2), summary)
+        self.assertNotIn('{"SOURCE":1,"total":1}', summary)
 
 
 if __name__ == "__main__":
