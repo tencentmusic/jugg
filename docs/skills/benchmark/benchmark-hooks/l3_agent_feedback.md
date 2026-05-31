@@ -13,7 +13,9 @@
 - command/stop hook 未触发、看不到对应反馈、或反馈原文无法写入报告时，判定为 `FAIL`，不要判定为 `SKIP`。
 - stop hook 必须通过 Agent 结束会话动作触发；不要使用 `jugg stop`，它不是 Jugg CLI 子命令。
 - stop hook 反馈不会出现在 shell/terminal/tool output 中；必须通过发送最终回复或结束会话动作触发。如果客户端随后用 followup/新消息把 stop hook 反馈返回给你，你必须继续本轮任务，把反馈原文追加到 `report.md` 后再第二次结束。
-- 二次放行反馈按客户端区分：Codex/Claude 应能看到 warning 原文；Cursor/Gemini 允许静默放行，报告记录第二次动作已放行即可。
+- 二次放行反馈按客户端区分：command hook 与 stop hook 均适用下表。
+  - **command hook（HOOKFB-1）**：Codex/Claude 应能在上下文中看到 warning 原文；Cursor/Gemini 允许静默放行，报告记录第二次命令已执行即可。
+  - **stop hook（HOOKFB-2）**：Claude 应能在 followup/上下文中看到第二次 stop warning 原文；Cursor/Gemini 允许静默放行；**Codex** 的第二次 stop warning 通过 `systemMessage` 发出但通常**不会进入 Agent 上下文**，改由执行人在 `report.md` 人工确认是否在客户端看到，Agent 不得因缺少该原文判 FAIL。
 
 ## HOOKFB-1: 新增源码后的 command hook 可见性
 
@@ -43,12 +45,24 @@ Prompt：请验证 stop hook 是否会被你的真实结束会话动作触发。
 3. 不执行 `jugg compile`、`jugg deploy` 或 `jugg gradle-build`。
 4. 先把“准备触发第一次 stop”写入 `report.md`，然后尝试结束本次任务并发送最终回复来触发真实 stop hook。不要执行 `jugg stop`。注意：stop hook 反馈不会出现在 shell/terminal/tool output 中，不要因为工具输出里没有 stop 文案就提前判 FAIL。
 5. 如果 stop hook 正确配置，第一次结束会话会被客户端阻断，反馈中会列出 Jugg 当前 pending 文件名（最多 10 个）。如果你收到 followup/新消息形式的 stop hook 反馈，说明本 case 仍在继续，不是已经失败；此时只允许把你看到的 stop hook 反馈原文写入 `report.md`，然后立刻再次尝试结束本次任务。不要执行任何命令、文件变更、`jugg compile`、`jugg deploy`、`jugg gradle-build` 或其他验证/修复操作，必须保留 pending changes 来观测第二次 stop 行为。
-6. 第二次结束会话的期望按客户端区分：Cursor/Gemini 允许静默放行（无第二条反馈也可判定通过，需在报告中写明未收到第二次 warning）；Codex/Claude 等支持 `systemMessage` 的客户端应记录第二次 stop warning 原文。
+6. 第二次结束会话的期望按客户端区分：
+   - **Cursor/Gemini**：允许静默放行；无第二条反馈也可判定通过，报告中写明 Agent 未收到第二次 warning、但会话已结束即可。
+   - **Claude**：应把第二次 stop warning 原文写入 `report.md`（预期包含 `allowing session stop after a repeated stop attempt`）。
+   - **Codex**：再次尝试结束会话；若会话已结束，在 `report.md` 记录「Agent 侧：第二次 stop 已放行」。**不要**因 Agent 未收到或未写出第二次 stop warning 原文而判 FAIL。由**执行人**填写下方「人工确认（Codex）」小节（Agent 可在步骤 6 末尾留出标题，由人补全）：
+     ```markdown
+     ## 人工确认（Codex）
+     - 被测客户端：Codex
+     - 第二次结束会话时，是否在 Codex 客户端看到 stop 二次 warning（预期含 `allowing session stop after a repeated stop attempt`）：是 / 否
+     - 备注（观察位置、截图路径等，可选）：
+     ```
 
 期望：
 
 - 首次结束会话应被 stop hook 阻断，Agent 能看到原文包含 `you should enable the jugg-android-dev-loop skill and complete verification before stopping`，并包含 `Modified files: HookStopTrigger.kt`。
-- 第二次结束会话应放行。Cursor/Gemini 重复 stop 预期可静默放行，避免反馈循环阻断；Codex/Claude 等支持 `systemMessage` 的客户端应能看到原文包含 `allowing session stop after a repeated stop attempt`。
-- 第一次 stop 被阻断后，Agent 不得响应 stop hook 要求去执行验证或清理 pending changes；本 case 必须保留 pending changes 来观测第二次 stop warning。
+- 第二次结束会话应放行（会话能够结束）。
+  - **Cursor/Gemini**：重复 stop 可静默放行；报告写明 Agent 是否收到第二次 warning 即可。
+  - **Claude**：Agent 应能在 followup/上下文中看到并记录原文包含 `allowing session stop after a repeated stop attempt`。
+  - **Codex**：Agent 链路 PASS 以「第二次能结束会话」为准；第二次 warning 是否可见由「人工确认（Codex）」记录，**不要求** Agent 复述该 warning。执行人填「否」时，在报告中标注为已知限制（warning 未进入 Agent 上下文），不因此记 Agent FAIL。
+- 第一次 stop 被阻断后，Agent 不得响应 stop hook 要求去执行验证或清理 pending changes；本 case 必须保留 pending changes 来观测第二次 stop 行为。
 - 不得使用 `jugg stop`、直接调用 `stop.py` 或脚本模拟 stop hook。
 - 如果已经真实尝试结束会话，但客户端没有返回任何 stop hook 反馈或 followup，本 case 判定为 `FAIL`。不得仅凭 shell/terminal/tool output 缺少 stop 文案判定失败。
