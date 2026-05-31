@@ -14,6 +14,7 @@ from typing import Any
 
 
 STATE_DIR_NAME = ".state"
+HOOK_BLOCK_DISABLED_FLAG_NAME = "DISABLE_BLOCK"
 SESSION_WRITE_SEEN_KEY = "sessionWriteSeen"
 LAST_WRITE_TIME_MS_KEY = "lastWriteTimeMs"
 SESSION_WRITE_FILE_NAMES_KEY = "sessionWriteFileNames"
@@ -272,8 +273,17 @@ def extract_session_id(payload: dict[str, Any]) -> str | None:
     return _extract_session_id_from_value(payload)
 
 
+def resolve_hooks_dir(home: Path | None = None) -> Path:
+    resolved_home = home if home is not None else Path.home()
+    return resolved_home / ".jugg" / "skills" / "hooks"
+
+
+def is_hook_block_disabled(home: Path | None = None) -> bool:
+    return (resolve_hooks_dir(home) / HOOK_BLOCK_DISABLED_FLAG_NAME).is_file()
+
+
 def state_file_path(home: Path, cwd: str, session_id: str | None = None) -> Path:
-    state_dir = home / ".jugg" / "skills" / "hooks" / STATE_DIR_NAME
+    state_dir = resolve_hooks_dir(home) / STATE_DIR_NAME
     scope = cwd if not session_id else f"{cwd}\n{session_id}"
     digest = hashlib.sha1(scope.encode("utf-8")).hexdigest()
     return state_dir / f"{digest}.json"

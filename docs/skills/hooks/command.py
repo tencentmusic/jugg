@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hook_common import (
     collect_strings,
     debug_log,
+    is_hook_block_disabled,
     emit_cursor_empty_response,
     emit_cursor_permission_response,
     extract_file_counts,
@@ -194,6 +195,11 @@ def main() -> int:
             "JUGG-COMMAND",
             "exit: allow raw gradle command because session writes were already covered by Jugg verification",
         )
+        emit_cursor_empty_response(args.client)
+        return 0
+
+    if is_hook_block_disabled(home):
+        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because DISABLE_BLOCK flag is set")
         emit_cursor_empty_response(args.client)
         return 0
 

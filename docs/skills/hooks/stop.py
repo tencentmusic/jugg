@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
     debug_log,
+    is_hook_block_disabled,
     emit_cursor_empty_response,
     emit_cursor_followup_response,
     extract_file_counts,
@@ -113,6 +114,10 @@ def _main_impl() -> int:
             else "no session write was recorded"
         )
         debug_log("JUGG-STOP", f"exit: allow stop because {reason}")
+        return 0
+
+    if is_hook_block_disabled(home):
+        debug_log("JUGG-STOP", "exit: allow stop because DISABLE_BLOCK flag is set")
         return 0
 
     if block_count == 0:

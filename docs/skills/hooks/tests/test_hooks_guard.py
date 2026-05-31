@@ -62,6 +62,42 @@ def _state_file(home: str, cwd: str, session_id: str) -> Path:
 
 
 class StopHookGuardTest(unittest.TestCase):
+    def test_stop_hook_skips_block_and_retry_when_disable_flag_present(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-disable-block"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            hooks_dir = Path(home) / ".jugg" / "skills" / "hooks"
+            hooks_dir.mkdir(parents=True, exist_ok=True)
+            (hooks_dir / "DISABLE_BLOCK").write_text("", encoding="utf-8")
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+            _write_fake_jugg_cli(home, total=1)
+            first = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            second = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(0, first.returncode)
+        self.assertEqual(0, second.returncode)
+        self.assertNotIn("complete verification before stopping", first.stderr.lower())
+        self.assertNotIn("allowing session stop after a repeated stop attempt", second.stderr.lower())
+
     def test_stop_hook_blocks_first_and_allows_second_when_pending(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
         session_id = "session-stop-1"

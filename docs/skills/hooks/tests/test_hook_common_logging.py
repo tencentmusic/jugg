@@ -119,6 +119,19 @@ class HookCommonLoggingTest(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(str(Path(project_cwd).resolve()), state.get("projectCwd"))
 
+    def test_is_hook_block_disabled_when_flag_missing(self):
+        mod = _load_hook_common()
+        with tempfile.TemporaryDirectory(prefix="hook-disable-flag-") as home:
+            self.assertFalse(mod.is_hook_block_disabled(Path(home)))
+
+    def test_is_hook_block_disabled_when_flag_present(self):
+        mod = _load_hook_common()
+        with tempfile.TemporaryDirectory(prefix="hook-disable-flag-") as home:
+            flag = mod.resolve_hooks_dir(Path(home)) / mod.HOOK_BLOCK_DISABLED_FLAG_NAME
+            flag.parent.mkdir(parents=True, exist_ok=True)
+            flag.write_text("", encoding="utf-8")
+            self.assertTrue(mod.is_hook_block_disabled(Path(home)))
+
     def test_format_status_summary_outputs_plain_key_value_lines(self):
         mod = _load_hook_common()
         summary = mod.format_status_summary(

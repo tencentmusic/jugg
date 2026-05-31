@@ -252,7 +252,10 @@ class InstallJuggSkillsDialog(
             }
             if (options.installHooks) {
                 JuggSkillInstaller.installHooks(logger, userHome)
+                JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger, userHome)
                 JuggHookInstaller.installForClients(options.clients, userHome, logger)
+            } else {
+                JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger, userHome)
             }
             return ClientSetupDocExporter.export(projectDir, userHome)
         }
@@ -274,8 +277,10 @@ class InstallJuggSkillsDialog(
                 }
                 val hookSummary = if (options.installHooks) {
                     JuggSkillInstaller.installHooks(logger)
+                    JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger)
                     JuggHookInstaller.installForClients(options.clients, logger = logger)
                 } else {
+                    JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
                     HookInstallSummary(emptyList())
                 }
                 val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&

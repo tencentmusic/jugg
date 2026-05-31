@@ -94,6 +94,49 @@ class InstallJuggSkillsDialogTest {
     }
 
     @Test
+    fun exportAndInstallSkills_whenHooksNotSelected_shouldCreateDisableBlockFlag() {
+        val projectDir = Files.createTempDirectory("jugg-project-manual-hooks-off").toFile()
+        val userHome = Files.createTempDirectory("jugg-home-manual-hooks-off").toFile()
+        val logger = mock(Logger::class.java)
+
+        InstallJuggSkillsDialog.exportAndInstallSkills(
+            projectDir = projectDir,
+            options = InstallOptions(
+                clients = emptySet(),
+                installCli = false,
+                installHooks = false,
+            ),
+            logger = logger,
+            userHome = userHome,
+        )
+
+        assertTrue(File(userHome, ".jugg/skills/hooks/DISABLE_BLOCK").isFile)
+    }
+
+    @Test
+    fun exportAndInstallSkills_whenHooksSelected_shouldRemoveDisableBlockFlag() {
+        val projectDir = Files.createTempDirectory("jugg-project-manual-hooks-on").toFile()
+        val userHome = Files.createTempDirectory("jugg-home-manual-hooks-on").toFile()
+        val logger = mock(Logger::class.java)
+        val flagFile = File(userHome, ".jugg/skills/hooks/DISABLE_BLOCK")
+        flagFile.parentFile.mkdirs()
+        flagFile.writeText("")
+
+        InstallJuggSkillsDialog.exportAndInstallSkills(
+            projectDir = projectDir,
+            options = InstallOptions(
+                clients = emptySet(),
+                installCli = false,
+                installHooks = true,
+            ),
+            logger = logger,
+            userHome = userHome,
+        )
+
+        assertFalse(flagFile.exists())
+    }
+
+    @Test
     fun exportAndInstallSkills_whenHooksSelected_shouldInstallCliAndUseBundledHookScripts() {
         val projectDir = Files.createTempDirectory("jugg-project-manual-hooks").toFile()
         val userHome = Files.createTempDirectory("jugg-home-manual-hooks").toFile()

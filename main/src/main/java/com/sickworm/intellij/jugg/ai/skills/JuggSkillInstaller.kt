@@ -9,6 +9,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
@@ -20,6 +21,7 @@ object JuggSkillInstaller {
     private const val SKILL_NAME = "jugg-android-dev-loop"
     private const val SKILLS_BUNDLE_ZIP_RESOURCE = "docs/skills/docs-skills.zip"
     private const val BUNDLED_HOOKS_DIR = "hooks"
+    const val HOOK_BLOCK_DISABLED_FLAG_FILE_NAME = "DISABLE_BLOCK"
     private const val BUNDLED_INSTALL_DOC_PATH = "install/agent_setup.md"
     private val HOOK_SCRIPT_FILES = setOf("start.py", "stop.py", "edit.py", "command.py", "hook_common.py")
 
@@ -185,6 +187,36 @@ object JuggSkillInstaller {
                 createSymlink(userHome, binDir)
             }
             logger.info("[Install Jugg CLI] installed to ${binDir.path}")
+        }
+    }
+
+    fun resolveHooksDir(userHome: File): File {
+        return File(userHome, ".jugg/skills/hooks")
+    }
+
+    /**
+     * Creates or removes ~/.jugg/skills/hooks/DISABLE_BLOCK to suppress command/stop block reminders.
+     */
+    fun setHookBlockDisabled(
+        disabled: Boolean,
+        logger: Logger,
+        userHome: File = File(System.getProperty("user.home")),
+    ): Result<Unit> {
+        return runCatching {
+            val hooksDir = resolveHooksDir(userHome)
+            hooksDir.mkdirs()
+            val flagFile = File(hooksDir, HOOK_BLOCK_DISABLED_FLAG_FILE_NAME)
+            if (disabled) {
+                if (!flagFile.exists()) {
+                    flagFile.writeText("", StandardCharsets.UTF_8)
+                }
+                logger.info("[Install Jugg Hooks] block reminders disabled via ${flagFile.path}")
+                return@runCatching
+            }
+            if (flagFile.exists() && !flagFile.delete()) {
+                throw IOException("failed_to_delete_${flagFile.path}")
+            }
+            logger.info("[Install Jugg Hooks] block reminders enabled")
         }
     }
 

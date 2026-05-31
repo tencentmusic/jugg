@@ -277,6 +277,31 @@ class JuggSkillInstallerTest {
     }
 
     @Test
+    fun setHookBlockDisabled_whenTrue_shouldCreateDisableBlockFlag() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-disable-flag").toFile()
+        val logger = mock(Logger::class.java)
+
+        val result = JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger, userHome)
+
+        assertTrue(result.isSuccess)
+        assertTrue(File(userHome, ".jugg/skills/hooks/DISABLE_BLOCK").isFile)
+    }
+
+    @Test
+    fun setHookBlockDisabled_whenFalse_shouldRemoveDisableBlockFlag() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-enable-flag").toFile()
+        val logger = mock(Logger::class.java)
+        val flagFile = File(userHome, ".jugg/skills/hooks/DISABLE_BLOCK")
+        flagFile.parentFile.mkdirs()
+        flagFile.writeText("")
+
+        val result = JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger, userHome)
+
+        assertTrue(result.isSuccess)
+        assertFalse(flagFile.exists())
+    }
+
+    @Test
     fun installHooks_shouldBeIdempotent() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-idem").toFile()
         val logger = mock(Logger::class.java)
