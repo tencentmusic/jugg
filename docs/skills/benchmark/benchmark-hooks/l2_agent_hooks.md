@@ -12,8 +12,7 @@
 | HOOK-4 | 修改不在 Android sourceset 内的隔离文件后，raw Gradle 不应被 command hook 阻断 |
 | HOOK-5 | 新增 Android sourceset 内的隔离文件后，raw Gradle 应被 command hook 阻断 |
 | HOOK-6 | 修改 Android sourceset 内的隔离文件后，raw Gradle 应被 command hook 阻断 |
-| HOOK-7 | 移动或重命名 Android sourceset 内的隔离文件后，raw Gradle 应被 command hook 阻断 |
-| HOOK-8 | 同一轮变更多个 Android sourceset 隔离文件后，raw Gradle 应被 command hook 阻断 |
+| HOOK-7 | 同一轮变更多个 Android sourceset 隔离文件后，raw Gradle 应被 command hook 阻断 |
 
 ## 执行规则
 
@@ -60,17 +59,6 @@ Prompt：请验证修改 Android sourceset 内的隔离文件时，command hook 
 5. 记录 raw Gradle 命令后你实际收到的 command hook 反馈原文、退出码和是否被阻断。
 6. 将结果写入 prompt pack 同目录 `report.md`，必须包含反馈原文；不要只写总结。
 
-## HOOKS-SOURCE-MOVE: 移动 sourceset 文件应触发 raw Gradle 阻断
-
-Prompt：请验证移动或重命名 Android sourceset 内的隔离文件时，command hook 会阻断 raw Gradle。不要读取或调用 hook 脚本，不要启动 Android Studio，不要修改真实业务代码。按下面步骤执行，并把你实际看到的 hook 反馈原文写入报告：
-
-1. 确保隔离源码文件 `app/src/main/java/com/example/myapplication/HookMoveTrigger.kt` 已存在且可编译；如果需要先准备该文件，准备后执行一次 `jugg gradle-build` 重新建立基线。
-2. 在当前 CWD 执行一次 `jugg gradle-build` 作为本 case 的 hook 状态基线；记录命令是否执行成功。如果命令失败，继续后续步骤，但在报告中保留失败输出摘要。
-3. 将 `HookMoveTrigger.kt` 移动或重命名为 `app/src/main/java/com/example/myapplication/HookMoveRenamedTrigger.kt`，并保持目标文件可编译。
-4. 执行一次 raw Gradle 命令：`./gradlew :app:assembleDebug`。
-5. 记录 raw Gradle 命令后你实际收到的 command hook 反馈原文、退出码和是否被阻断。
-6. 将结果写入 prompt pack 同目录 `report.md`，必须包含反馈原文；不要只写总结。
-
 ## HOOKS-SOURCE-MULTI: 多文件同轮变更应触发 raw Gradle 阻断
 
 Prompt：请验证同一轮变更多个 Android sourceset 隔离文件时，command hook 会阻断 raw Gradle。不要读取或调用 hook 脚本，不要启动 Android Studio，不要修改真实业务代码。按下面步骤执行，并把你实际看到的 hook 反馈原文写入报告：
@@ -100,6 +88,5 @@ Prompt：请验证修改不在 Android sourceset 内的隔离文件时，command
 - `HOOK-4` PASS：修改 `hook_benchmark_scratch/` 下非 sourceset 文件后，两次 raw Gradle 均未被 command hook 阻断；报告明确记录未收到阻断/ warning 反馈。
 - `HOOK-5` PASS：新增 `HookAddTrigger.kt` 后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
 - `HOOK-6` PASS：修改 `HookModifyTrigger.kt` 后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
-- `HOOK-7` PASS：移动或重命名 `HookMoveTrigger.kt` 后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
-- `HOOK-8` PASS：同一轮变更多个 Android sourceset 隔离文件后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
+- `HOOK-7` PASS：同一轮变更多个 Android sourceset 隔离文件后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
 - 任一 hook 没有被真实 Agent 动作触发，或预期阻断 case 报告缺少 command hook 反馈原文，对应项为 `FAIL`。

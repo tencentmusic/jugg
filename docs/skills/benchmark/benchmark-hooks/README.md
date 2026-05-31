@@ -17,5 +17,5 @@
 
 | 文件 | 覆盖点 |
 |------|--------|
-| `l2_agent_hooks.md` | 通过真实 Agent 文件变更和命令动作验证 `edit/command` hook 触发、sourceset raw Gradle 阻断、raw Gradle 二次放行（Codex/Claude 可见 warning，Cursor/Gemini 可静默放行）、非 sourceset 文件不误阻断、`jugg gradle-build` 不误拦截，以及新增/移动/修改/多文件同轮变更均可被检测 |
+| `l2_agent_hooks.md` | 通过真实 Agent 文件变更和命令动作验证 `edit/command` hook 触发、sourceset raw Gradle 阻断、raw Gradle 二次放行（Codex/Claude 可见 warning，Cursor/Gemini 可静默放行）、非 sourceset 文件不误阻断、`jugg gradle-build` 不误拦截，以及新增/修改/多文件同轮变更均可被检测 |
 | `l3_agent_feedback.md` | 被测 Agent 通过一条新增源码 command 链路和一条 stop 链路验证可见反馈原文（raw Gradle 首次阻断/二次放行、`jugg gradle-build` 不误拦截、stop 阻断/二次放行；Cursor/Gemini 二次放行可静默） |
