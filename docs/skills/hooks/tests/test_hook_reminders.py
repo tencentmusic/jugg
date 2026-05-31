@@ -525,6 +525,67 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
         self.assertEqual(["HookWrite.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
 
+    def test_edit_hook_records_codebuddy_edit_with_tool_input_file_path_camel_case(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codebuddy-ide-edit"
+        source_path = (
+            "/tmp/android_demo/app/src/main/java/com/example/myapplication/HookSmokeTrigger.kt"
+        )
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Edit",
+            "tool_input": {
+                "filePath": source_path,
+                "old_str": '"smoke trigger v1"',
+                "new_str": '"smoke trigger v2"',
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertEqual(["HookSmokeTrigger.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
+
+    def test_edit_hook_records_codebuddy_write_with_tool_input_file_path_camel_case(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        session_id = "s-codebuddy-ide-write"
+        source_path = (
+            "/tmp/android_demo/app/src/main/java/com/example/myapplication/HookPayload.kt"
+        )
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Write",
+            "tool_input": {
+                "filePath": source_path,
+                "content": "object HookPayload",
+            },
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertEqual(["HookPayload.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
+
     def test_edit_hook_ignores_gemini_write_file_for_docs(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
         session_id = "s-gemini-docs-write"

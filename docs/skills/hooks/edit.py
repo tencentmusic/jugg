@@ -79,16 +79,20 @@ def _should_record_claude_write(payload: dict[str, Any]) -> bool:
         return False
     return is_android_source_path(file_path)
 
-def _should_record_codebuddy_write(payload: dict[str, Any]) -> bool:
-    if payload.get("tool_name") not in CODEBUDDY_EDIT_TOOLS:
-        return False
+def _codebuddy_tool_input_file_path(payload: dict[str, Any]) -> str | None:
+    """Resolve edited file path from CodeBuddy IDE PostToolUse payloads."""
     tool_input = payload.get("tool_input")
-    if not isinstance(tool_input, dict):
-        return False
-    file_path = tool_input.get("file_path")
-    if not isinstance(file_path, str):
-        return False
-    return is_android_source_path(file_path)
+    if isinstance(tool_input, dict):
+        for key in ("file_path", "filePath"):
+            value = tool_input.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    tool_response = payload.get("tool_response")
+    if isinstance(tool_response, dict):
+        path = tool_response.get("path")
+        if isinstance(path, str) and path.strip():
+            return path.strip()
+    return None
 
 
 def _should_record_gemini_write(payload: dict[str, Any]) -> bool:
@@ -127,7 +131,9 @@ def _recorded_write_paths(payload: dict[str, Any], client: str) -> list[str]:
         file_path = _tool_input_file_path(payload)
         return [file_path] if file_path and is_android_source_path(file_path) else []
     if client == "codebuddy":
-        file_path = _tool_input_file_path(payload)
+        if payload.get("tool_name") not in CODEBUDDY_EDIT_TOOLS:
+            return []
+        file_path = _codebuddy_tool_input_file_path(payload)
         return [file_path] if file_path and is_android_source_path(file_path) else []
     if client == "gemini":
         file_path = _tool_input_file_path(payload)
