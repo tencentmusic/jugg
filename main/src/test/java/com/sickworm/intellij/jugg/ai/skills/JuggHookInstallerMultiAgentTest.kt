@@ -111,6 +111,12 @@ class JuggHookInstallerMultiAgentTest {
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
             clientArgument = "codebuddy",
         )
+        assertNestedCommandMatcher(
+            settingsFile = File(userHome, ".codebuddy/settings.json"),
+            eventName = "Stop",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            matcher = "",
+        )
         assertNestedToolHookCommands(
             settingsFile = File(userHome, ".codebuddy/settings.json"),
             editEventName = "PostToolUse",

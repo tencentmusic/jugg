@@ -124,7 +124,7 @@ object JuggHookInstaller {
                     editEventName = target.editEventName,
                     commandEventName = target.commandEventName,
                     startMatcher = null,
-                    stopMatcher = MATCHER_ALL,
+                    stopMatcher = target.stopMatcher ?: MATCHER_ALL,
                     editMatcher = target.editMatcher,
                     commandMatcher = target.commandMatcher,
                 )

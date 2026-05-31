@@ -15,6 +15,8 @@ data class AgentHookTarget(
     val commandEventName: String? = null,
     val editMatcher: String? = null,
     val commandMatcher: String? = null,
+    /** Stop/UserPromptSubmit matcher; CodeBuddy requires "" instead of "*" for Stop feedback delivery. */
+    val stopMatcher: String? = null,
 )
 
 /**

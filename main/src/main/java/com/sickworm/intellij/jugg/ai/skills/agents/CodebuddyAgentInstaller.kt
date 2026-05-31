@@ -7,6 +7,8 @@ import java.io.File
  * Install channel for CodeBuddy.
  */
 object CodebuddyAgentInstaller : IAgentInstaller {
+    private const val STOP_HOOK_MATCHER = ""
+
     override val client: InstallClient = InstallClient.CODEBUDDY
 
     override fun resolvePrimarySkillRoot(userHome: File): File {
@@ -26,6 +28,7 @@ object CodebuddyAgentInstaller : IAgentInstaller {
                 commandEventName = "PreToolUse",
                 editMatcher = "Edit|Write",
                 commandMatcher = "Bash",
+                stopMatcher = STOP_HOOK_MATCHER,
             ),
             AgentHookTarget(
                 settingsFile = File(userHome, ".codebuddy/settings.local.json"),
@@ -37,6 +40,7 @@ object CodebuddyAgentInstaller : IAgentInstaller {
                 commandEventName = "PreToolUse",
                 editMatcher = "Edit|Write",
                 commandMatcher = "Bash",
+                stopMatcher = STOP_HOOK_MATCHER,
             ),
         )
     }
