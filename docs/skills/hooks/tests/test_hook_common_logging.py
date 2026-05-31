@@ -119,6 +119,12 @@ class HookCommonLoggingTest(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(str(Path(project_cwd).resolve()), state.get("projectCwd"))
 
+    def test_is_codebuddy_ide_payload_detects_ide_runtime(self):
+        mod = _load_hook_common()
+        self.assertTrue(mod.is_codebuddy_ide_payload({"client": "CodeBuddyIDE"}))
+        self.assertFalse(mod.is_codebuddy_ide_payload({"client": "CLI"}))
+        self.assertFalse(mod.is_codebuddy_ide_payload({}))
+
     def test_is_hook_block_disabled_when_flag_missing(self):
         mod = _load_hook_common()
         with tempfile.TemporaryDirectory(prefix="hook-disable-flag-") as home:

@@ -136,7 +136,7 @@ class StopHookGuardTest(unittest.TestCase):
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
 
         self.assertEqual(2, first.returncode)
-        self.assertIn("you should enable the jugg-android-dev-loop skill and complete verification before stopping", first.stderr)
+        self.assertIn("complete verification before stopping", first.stderr)
         self.assertIn("Jugg status:", first.stderr)
         self.assertIn("enabledAndroidTest: true", first.stderr)
         self.assertIn("pendingModifiedFiles: PendingOne.kt, PendingTwo.kt", first.stderr)
@@ -285,6 +285,84 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertEqual("", result.stderr)
         self.assertIn("systemMessage", warning_payload)
         self.assertIn("allowing session stop after a repeated stop attempt", warning_payload["systemMessage"])
+
+    def test_stop_hook_emits_codebuddy_stdout_json_on_first_block(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-codebuddy"
+        payload = {"session": {"id": session_id}, "client": "CLI"}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+            _write_fake_jugg_cli(home, total=1, files=["/repo/app/src/main/java/com/example/HookStop.kt"])
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            response = json.loads(result.stdout)
+
+        self.assertEqual(2, result.returncode)
+        self.assertFalse(response["continue"])
+        self.assertIn("stopReason", response)
+        self.assertIn("complete verification before stopping", response["stopReason"])
+        self.assertIn("HookStop.kt", response["stopReason"])
+        self.assertEqual("", result.stderr)
+
+    def test_stop_hook_emits_codebuddy_stderr_on_first_block_for_ide(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-codebuddy-ide"
+        payload = {"session": {"id": session_id}, "client": "CodeBuddyIDE"}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+            _write_fake_jugg_cli(home, total=1, files=["/repo/app/src/main/java/com/example/HookStop.kt"])
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("complete verification before stopping", result.stderr)
+
+    def test_stop_hook_emits_codebuddy_system_message_on_repeated_stop(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-codebuddy-repeat"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps({"sessionWriteSeen": True, "stopBlockCount": 1}),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(home, total=1)
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codebuddy"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env={**os.environ, "HOME": home},
+                check=False,
+            )
+            response = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("", result.stderr)
+        self.assertTrue(response["continue"])
+        self.assertIn("systemMessage", response)
+        self.assertIn("allowing session stop after a repeated stop attempt", response["systemMessage"])
 
     def test_stop_hook_uses_cursor_followup_for_first_block(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"

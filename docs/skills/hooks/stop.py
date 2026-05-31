@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
     debug_log,
+    is_codebuddy_ide_payload,
     is_hook_block_disabled,
     emit_cursor_empty_response,
     emit_cursor_followup_response,
@@ -42,6 +43,18 @@ SYSTEM_MESSAGE_CLIENTS = {"codex", "claude"}
 
 def emit_system_message(message: str) -> None:
     print(json.dumps({"systemMessage": message}, ensure_ascii=False))
+
+
+def emit_codebuddy_stop_block(message: str, payload: dict[str, Any]) -> None:
+    """Emit CodeBuddy Stop block on stdout; mirror to stderr only for IDE runtime."""
+    print(json.dumps({"continue": False, "stopReason": message}, ensure_ascii=False))
+    if is_codebuddy_ide_payload(payload):
+        sys.stderr.write(f"{message}\n")
+
+
+def emit_codebuddy_stop_allow(message: str) -> None:
+    """Emit CodeBuddy Stop hook allow payload; systemMessage is user-visible only."""
+    print(json.dumps({"continue": True, "systemMessage": message}, ensure_ascii=False))
 
 
 def uses_system_message(client: str) -> bool:
@@ -138,6 +151,14 @@ def _main_impl() -> int:
             emit_cursor_followup_response(block_message)
             debug_log("JUGG-STOP", "exit: blocked stop with cursor followup")
             return 0
+        if args.client == "codebuddy":
+            emit_codebuddy_stop_block(block_message, payload)
+            debug_log(
+                "JUGG-STOP",
+                "exit: blocked stop with codebuddy stopReason"
+                + (" and stderr" if is_codebuddy_ide_payload(payload) else ""),
+            )
+            return 2
         sys.stderr.write(f"{block_message}\n")
         debug_log("JUGG-STOP", "exit: blocked stop because pending changes exist")
         return 2
@@ -149,6 +170,10 @@ def _main_impl() -> int:
     if args.client == "cursor":
         emit_cursor_empty_response(args.client)
         debug_log("JUGG-STOP", "exit: allow repeated cursor stop without followup")
+        return 0
+    if args.client == "codebuddy":
+        emit_codebuddy_stop_allow(STOP_BLOCK_RETRY_WARNING)
+        debug_log("JUGG-STOP", "exit: allow stop after repeated block with codebuddy systemMessage")
         return 0
     sys.stderr.write(f"{STOP_BLOCK_RETRY_WARNING}\n")
     debug_log("JUGG-STOP", "exit: allow stop after repeated block while pending changes remain")

@@ -309,6 +309,12 @@ def write_hook_state(state_file: Path, state: dict[str, Any]) -> bool:
         return False
 
 
+def is_codebuddy_ide_payload(payload: dict[str, Any]) -> bool:
+    """True when CodeBuddy hook stdin identifies the IDE runtime (not CLI)."""
+    client = payload.get("client")
+    return isinstance(client, str) and client.strip().lower() == "codebuddyide"
+
+
 def has_session_write_seen(state: dict[str, Any]) -> bool:
     return bool(state.get(SESSION_WRITE_SEEN_KEY) or get_session_write_file_names(state))
 

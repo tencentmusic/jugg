@@ -51,6 +51,7 @@ Tool matcher recommendations:
 - Codex: tool hooks should use matcher `Edit|Write|apply_patch` for edit events and `Bash` for command events.
 - Claude Code: tool hooks should use matcher `Edit|Write` for edit events and `Bash` for command events.
 - CodeBuddy: tool hooks should use matcher `Edit|Write` for edit events and `Bash` for command events.
+- CodeBuddy merges `~/.codebuddy/settings.json` with `settings.local.json`; register each Jugg hook command only once across both files. Do not add a second copy with `JUGG_HOOK_DEBUG_PAYLOAD=true` beside the normal command.
 - Gemini CLI: tool hooks should use matcher `write_file|replace` for `AfterTool`, and `run_shell_command` for `BeforeTool`.
 - Cursor: use matcher `Write` for `afterFileEdit` (agent file writes, excludes Tab completions) and keep `beforeShellExecution` with matcher `*`.
 
