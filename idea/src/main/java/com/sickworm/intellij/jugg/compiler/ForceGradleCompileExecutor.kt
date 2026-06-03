@@ -212,10 +212,6 @@ class IdeaForceGradleCompileHelper(
             if (!result.isSuccess) {
                 val errorMessage = result.errorMessage ?: "Unknown error"
                 logger.debug("tryRunFirstConfiguration failed: $errorMessage")
-                CommonConfirmDialog.showAndGetResult(
-                    "Run failed", "Error: $errorMessage",
-                    okButtonText = "Close"
-                )
             }
         }
     }
