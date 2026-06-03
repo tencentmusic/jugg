@@ -21,7 +21,10 @@ object ClaudeAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveInternalSkillHomes(userHome: File): List<File> {
-        return listOf(File(userHome, ".claude-internal"))
+        return listOf(
+            File(userHome, ".claude-internal"),
+            File(userHome, ".tme-claude"),
+        )
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {

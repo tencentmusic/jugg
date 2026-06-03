@@ -37,6 +37,7 @@ class InstallAgentsTest {
     fun claudeAgentInstaller_shouldReturnTwoHookSettingsTargets() {
         val userHome = Files.createTempDirectory("jugg-home-claude-hook-agent").toFile()
         File(userHome, ".claude-internal").mkdirs()
+        File(userHome, ".tme-claude").mkdirs()
         val targets = ClaudeAgentInstaller.resolveHookTargets(userHome)
 
         assertEquals(
@@ -54,6 +55,17 @@ class InstallAgentsTest {
                 ),
                 AgentHookTarget(
                     settingsFile = File(userHome, ".claude-internal/settings.json"),
+                    style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
+                    startEventName = "UserPromptSubmit",
+                    stopEventName = "Stop",
+                    clientArgument = "claude",
+                    editEventName = "PostToolUse",
+                    commandEventName = "PreToolUse",
+                    editMatcher = "Edit|Write",
+                    commandMatcher = "Bash",
+                ),
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".tme-claude/settings.json"),
                     style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                     startEventName = "UserPromptSubmit",
                     stopEventName = "Stop",
@@ -85,6 +97,7 @@ class InstallAgentsTest {
                     commandEventName = "PreToolUse",
                     editMatcher = "Edit|Write",
                     commandMatcher = "Bash",
+                    stopMatcher = "",
                 ),
                 AgentHookTarget(
                     settingsFile = File(userHome, ".codebuddy/settings.local.json"),
@@ -96,6 +109,7 @@ class InstallAgentsTest {
                     commandEventName = "PreToolUse",
                     editMatcher = "Edit|Write",
                     commandMatcher = "Bash",
+                    stopMatcher = "",
                 ),
             ),
             CodebuddyAgentInstaller.resolveHookTargets(userHome),
