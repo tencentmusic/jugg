@@ -25,13 +25,17 @@ class GradleProjectInfoReaderAndroidTestTest {
     @JvmField
     val temp = TemporaryFolder()
 
-    private fun appModule(appId: String = "com.example.app") = ModuleInfo.virtualModule.copy(
+    private fun appModule(
+        appId: String = "com.example.app",
+        buildVariant: String = "debug",
+    ) = ModuleInfo.virtualModule.copy(
         name = "app",
         moduleType = ModuleInfo.Type.Application,
         moduleRootDir = appDir,
         projectRootDir = projectDir,
         applicationId = appId,
-        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debug"),
+        buildVariant = buildVariant,
+        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, buildVariant),
     )
 
     private fun libraryModule(namespace: String = "com.example.library1") = ModuleInfo.virtualModule.copy(
@@ -63,6 +67,18 @@ class GradleProjectInfoReaderAndroidTestTest {
             testApplicationId = null,
         )
         assertEquals("debugAndroidTest", result?.buildVariant)
+    }
+
+    @Test
+    fun `buildAndroidTestModuleInfo keeps owner flavor when resolving buildVariant`() {
+        val result = GradleProjectInfoReader.buildAndroidTestModuleInfo(
+            appModuleInfo = appModule(buildVariant = "jooxDebug"),
+            sourceDirs = listOf(File("/project/app/src/androidTest/java")),
+            libraryDependencies = emptyList(),
+            testApplicationId = null,
+        )
+        assertEquals("jooxDebugAndroidTest", result?.buildVariant)
+        assertEquals("jooxDebugAndroidTest", result?.buildPathInfo?.buildVariant)
     }
 
     @Test

@@ -776,14 +776,15 @@ class GradleProjectInfoReader(
                 ModuleInfo.Type.Library -> resolvedTestAppId
                 else -> ownerPackage
             }
+            val androidTestBuildVariant = resolveAndroidTestBuildVariant(appModuleInfo.buildVariant)
             return appModuleInfo.copy(
                 name = "${appModuleInfo.name}.androidTest",
                 moduleType = ModuleInfo.Type.Library,
-                buildVariant = "debugAndroidTest",
+                buildVariant = androidTestBuildVariant,
                 buildPathInfo = ModuleBuildPathInfo(
                     appModuleInfo.projectRootDir,
                     appModuleInfo.moduleRootDir,
-                    "debugAndroidTest",
+                    androidTestBuildVariant,
                 ),
                 applicationId = resolvedTestAppId,
                 instrumentationTargetPackage = targetPackage,
@@ -800,6 +801,14 @@ class GradleProjectInfoReader(
                 variants = emptyList(),
                 signingConfigs = null,
             )
+        }
+
+        private fun resolveAndroidTestBuildVariant(ownerBuildVariant: String): String {
+            return if (ownerBuildVariant.endsWith("AndroidTest")) {
+                ownerBuildVariant
+            } else {
+                "${ownerBuildVariant}AndroidTest"
+            }
         }
     }
 

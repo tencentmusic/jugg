@@ -71,7 +71,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 |------|----------|
 | `name` | `${ownerModuleName}.androidTest` |
 | `moduleType` | `ModuleInfo.Type.Library` |
-| `buildVariant` | `debugAndroidTest` |
+| `buildVariant` | `${ownerVariant}AndroidTest` |
 | `applicationId` | app androidTest 使用 test APK applicationId；self-targeting library androidTest 默认使用 `${owner namespace}.test` |
 | `instrumentationTargetPackage` | app androidTest 使用 app applicationId；self-targeting library androidTest 使用 `${owner namespace}.test`，与 Gradle 产出的 self-targeting Test APK manifest 对齐 |
 | `sourceDirs` | owner module 的 `src/androidTest` Java/Kotlin 源码目录 |
@@ -83,7 +83,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
 - `.androidTest` 后缀只用于 `ModulePathMergePolicy` 判定 IDE module 创建候选；最终身份仍由补齐后的 `instrumentationTargetPackage != null` 表示。
 - `sourceDirs` 来自 IDE module source roots，并额外纳入 androidTest IDE module 的 test source root 类型，因此支持自定义 androidTest source root，不再硬编码标准目录。
-- IDE `.androidTest` module 的 `buildVariant` 与 `ModuleBuildPathInfo.buildVariant` 使用 `${ownerVariant}AndroidTest`，例如 `debugAndroidTest` / `jooxDebugAndroidTest`，确保 full build 后同步 `build/tmp/kotlin-classes/<variant>AndroidTest`、`intermediates/javac/<variant>AndroidTest/classes` 等 test classpath。
+- Gradle 与 IDE 生成的 `.androidTest` synthetic module 的 `buildVariant` 与 `ModuleBuildPathInfo.buildVariant` 使用 `${ownerVariant}AndroidTest`，例如 `debugAndroidTest` / `jooxDebugAndroidTest`，确保 full build 后同步 `build/tmp/kotlin-classes/<variant>AndroidTest`、`intermediates/javac/<variant>AndroidTest/classes` 等 test classpath。
 - test package / target package 来自 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型 androidTest artifact 信息；Chipmunk 继承链读取 `artifactForAndroidTest.applicationId` 与 module `applicationId`，Narwhal feature / Otter / Panda 继承链读取 AndroidTest artifact core 与 main artifact 的 applicationId。
 - IDE project info 不再用已保存 Test APK manifest 信息反推缺失字段；IDE module info 只有 test package 与 target package 都可用时才标记为 androidTest module。
 - Gradle merge 时 test 相关字段仍以 Gradle 非空值优先。
