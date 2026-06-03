@@ -120,4 +120,6 @@ data class IdeModuleInfo(
     val buildVariant: String,
     val manifestRelativePath: String?,
     val brokenFields: List<String>,
+    val androidTestApplicationId: String? = null,
+    val androidTestInstrumentationTargetPackage: String? = null,
 )

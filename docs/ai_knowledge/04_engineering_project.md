@@ -57,7 +57,7 @@
 | `instrumentationTargetPackage` | 非空表示 synthetic androidTest module |
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
 
-androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVariant` 固定为 `debugAndroidTest`，并通过 `instrumentationTargetPackage` 标记为测试模块。
+androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVariant` 固定为 `debugAndroidTest`，并通过 `instrumentationTargetPackage` 标记为测试模块。IDE project info 创建时会使用 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型 androidTest artifact 信息，只有 test package 与 target package 都可用时才把 IDE `.androidTest` module 标记为 androidTest module。Gradle merge 时这些 test 字段仍以 Gradle 非空值优先。
 
 ---
 
@@ -86,6 +86,8 @@ IDE / Gradle compile 触发 project info 更新
 JuggManager.onSyncEvent()
   -> updateProjectInfo()
   -> CompileContextManager.updateCompileContext()
+  -> CompileContextManager.doGetAllModulesByModuleManager()
+     创建 IDE project info，并基于完整 IDE Android 模型 androidTest artifact 信息标记 IDE androidTest module
   -> JuggProjectInfoMerger
      合并 IDE project info、Gradle project info、include build project info、custom config
   -> reInitOnCompileContextUpdate()

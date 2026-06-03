@@ -197,6 +197,9 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
         if (buildVariant.isNullOrEmpty()) {
             buildVariant = "debug"
         }
+        val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
+        val androidTestApplicationId = readAndroidTestApplicationId(gradleAndroidModel)
+        val mainApplicationId = readMainApplicationId(gradleAndroidModel)
 
         return IdeModuleInfo(
             baseDir = module.guessModuleDirAdv(projectBuildModel),
@@ -240,8 +243,30 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
             manifestRelativePath = gradleVariableHelper.readVariable("manifestRelativePath") {
                 androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             },
-            gradleVariableHelper.brokenFields,
+            brokenFields = gradleVariableHelper.brokenFields,
+            androidTestApplicationId = androidTestApplicationId,
+            androidTestInstrumentationTargetPackage = mainApplicationId,
         )
+    }
+
+    protected fun readAndroidTestApplicationId(gradleAndroidModel: Any?): String? {
+        return readArtifactApplicationId(gradleAndroidModel, "getArtifactCoreForAndroidTest")
+    }
+
+    protected fun readMainApplicationId(gradleAndroidModel: Any?): String? {
+        return readArtifactApplicationId(gradleAndroidModel, "getMainArtifact")
+    }
+
+    // Keep this reflective because newer Android Studio jars expose artifact core methods inconsistently to Kotlin.
+    private fun readArtifactApplicationId(gradleAndroidModel: Any?, methodName: String): String? {
+        val artifact = gradleAndroidModel?.invokeNoArgMethod(methodName) ?: return null
+        return artifact.invokeNoArgMethod("getApplicationId") as? String
+    }
+
+    private fun Any.invokeNoArgMethod(methodName: String): Any? {
+        return runCatching {
+            javaClass.methods.firstOrNull { it.name == methodName && it.parameterCount == 0 }?.invoke(this)
+        }.getOrNull()
     }
 
 

@@ -159,4 +159,56 @@ class JuggProjectInfoMergerAndroidTestTest {
             gradleFile.delete()
         }
     }
+
+    @Test
+    fun `doMerge keeps IDE androidTest fields when gradle fields are missing`() {
+        val ideModule = androidTestIdeModule().copy(
+            applicationId = "com.example.app.test",
+            instrumentationTargetPackage = "com.example.app",
+        )
+        val gradleModule = androidTestGradleModule().copy(
+            applicationId = null,
+            instrumentationTargetPackage = null,
+        )
+        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to ideModule)))
+        val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to gradleModule)))
+        try {
+            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+
+            val merged = result.mergedInfo?.modules?.get("app.androidTest")
+            assertEquals("com.example.app.test", merged?.applicationId)
+            assertEquals("com.example.app", merged?.instrumentationTargetPackage)
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
+    fun `doMerge prefers gradle androidTest fields when both sources have values`() {
+        val ideModule = androidTestIdeModule().copy(
+            applicationId = "com.example.ide.test",
+            instrumentationTargetPackage = "com.example.ide",
+        )
+        val gradleModule = androidTestGradleModule().copy(
+            applicationId = "com.example.gradle.test",
+            instrumentationTargetPackage = "com.example.gradle",
+        )
+        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to ideModule)))
+        val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to gradleModule)))
+        try {
+            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+
+            val merged = result.mergedInfo?.modules?.get("app.androidTest")
+            assertEquals("com.example.gradle.test", merged?.applicationId)
+            assertEquals("com.example.gradle", merged?.instrumentationTargetPackage)
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
 }

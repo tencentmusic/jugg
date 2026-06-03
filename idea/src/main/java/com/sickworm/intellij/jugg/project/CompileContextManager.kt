@@ -361,6 +361,8 @@ class CompileContextManager(
                 testModules.add(module.name)
                 return@forEach
             }
+            val isAndroidTestIdeModule =
+                ModulePathMergePolicy.classifyByName(stdModuleName) == ModulePathMergePolicy.ModuleSourceKind.AndroidTest
 
             val isBuildSrc = baseDir.name.moduleSimpleName == "buildSrc"
                     && relativePath.path.startsWith("buildSrc")
@@ -385,11 +387,15 @@ class CompileContextManager(
             val assetDirs = mutableSetOf<File>()
 
             val moduleRootManager = ModuleRootManager.getInstance(module)
-            val subSourceRoots = moduleRootManager.getSourceRoots(
-                setOf(
-                    JavaSourceRootType.SOURCE,
-                    org.jetbrains.kotlin.config.SourceKotlinRootType
-                ))
+            val sourceRootTypes = mutableSetOf(
+                JavaSourceRootType.SOURCE,
+                org.jetbrains.kotlin.config.SourceKotlinRootType,
+            )
+            if (isAndroidTestIdeModule) {
+                sourceRootTypes.add(JavaSourceRootType.TEST_SOURCE)
+                sourceRootTypes.add(org.jetbrains.kotlin.config.TestSourceKotlinRootType)
+            }
+            val subSourceRoots = moduleRootManager.getSourceRoots(sourceRootTypes)
                 .filter { file ->
                     // ignore source in excludeRoots, etc. build
                     moduleRootManager.excludeRoots.all { !file.path.startsWith(it.path) }
@@ -479,20 +485,42 @@ class CompileContextManager(
 
             // Smart cast to 'IdeModuleInfo' is impossible, because 'ideModuleInfo' is a local variable that is captured by a changing closure
             val info = ideModuleInfo!!
+            val hasIdeAndroidTestMetadata = isAndroidTestIdeModule &&
+                    info.androidTestApplicationId != null &&
+                    info.androidTestInstrumentationTargetPackage != null
             val moduleInfo = ModuleInfo(
-                module.name.moduleSimpleName, ModuleInfo.Type.Unknown, normalizedBaseDir, pathManager.projectDir,
-                sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
-                manifestFile, null,
-                info.buildVariant, info.compileVersion, info.minSdkVersion, info.buildToolsVersion,
-                info.kotlinJvmTarget, info.kotlinFreeCompilerArgs ?: emptyList(),
-                info.javaSourceCompatibility, info.javaTargetCompatibility,
-                moduleBuildPathInfo,
-                moduleDependencies,
-                libraryDependencies,
-                emptyList(), emptyList(), emptyList(), // read it in gradle
+                name = module.name.moduleSimpleName,
+                moduleType = if (hasIdeAndroidTestMetadata) ModuleInfo.Type.Library else ModuleInfo.Type.Unknown,
+                moduleRootDir = normalizedBaseDir,
+                projectRootDir = pathManager.projectDir,
+                sourceDirs = sourceDirs.toList(),
+                resourceDirs = resourceDirs.toList(),
+                assetsDirs = assetDirs.toList(),
+                manifestFile = manifestFile,
+                manifestPlaceHolders = null,
+                buildVariant = info.buildVariant,
+                compileVersion = info.compileVersion,
+                minSdkVersion = info.minSdkVersion,
+                buildToolsVersion = info.buildToolsVersion,
+                kotlinJvmTarget = info.kotlinJvmTarget,
+                kotlinFreeCompilerArgs = info.kotlinFreeCompilerArgs ?: emptyList(),
+                javaSourceCompatibility = info.javaSourceCompatibility,
+                javaTargetCompatibility = info.javaTargetCompatibility,
+                buildPathInfo = moduleBuildPathInfo,
+                moduleDependencies = moduleDependencies,
+                libraryDependencies = libraryDependencies,
+                runtimeLibraryDependencies = emptyList(),
+                annotationProcessorDependencies = emptyList(),
+                kaptDependencies = emptyList(), // read it in gradle
+                applicationId = if (hasIdeAndroidTestMetadata) info.androidTestApplicationId else null,
+                instrumentationTargetPackage = if (hasIdeAndroidTestMetadata) {
+                    info.androidTestInstrumentationTargetPackage
+                } else {
+                    null
+                },
             )
 
-            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty()) {
+            if (moduleInfo.sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty()) {
                 noSourceModules[module.name] = moduleInfo
                 return@forEach
             }

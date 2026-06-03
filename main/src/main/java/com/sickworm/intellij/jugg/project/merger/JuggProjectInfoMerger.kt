@@ -226,7 +226,7 @@ class JuggProjectInfoMerger(
                 kaptDependencies = gradleModuleInfo.kaptDependencies,
                 javaAnnotationProcessorOptions = gradleModuleInfo.javaAnnotationProcessorOptions,
                 kaptArguments = gradleModuleInfo.kaptArguments,
-                applicationId = gradleModuleInfo.applicationId,
+                applicationId = gradleModuleInfo.applicationId ?: moduleInfo.applicationId,
                 namespace = gradleModuleInfo.namespace,
                 variants = gradleModuleInfo.variants,
                 signingConfigs = gradleModuleInfo.signingConfigs,
@@ -234,7 +234,7 @@ class JuggProjectInfoMerger(
                 kotlinPlugins = gradleModuleInfo.kotlinPlugins,
                 coreLibraryDesugaring = gradleModuleInfo.coreLibraryDesugaring,
                 kspDependencies = gradleModuleInfo.kspDependencies,
-                instrumentationTargetPackage = gradleModuleInfo.instrumentationTargetPackage,
+                instrumentationTargetPackage = gradleModuleInfo.instrumentationTargetPackage ?: moduleInfo.instrumentationTargetPackage,
                 gradleModuleName = gradleModuleInfo.gradleModuleName,
             )
             mergedModules[name] = mergedModuleInfo

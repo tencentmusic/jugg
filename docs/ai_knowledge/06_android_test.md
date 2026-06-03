@@ -63,6 +63,7 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 
 - `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt`
 
 androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
@@ -76,7 +77,15 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 | `sourceDirs` | owner module 的 `src/androidTest` Java/Kotlin 源码目录 |
 | `moduleDependencies` | owner module |
 
-判断 androidTest module 使用 `ModuleInfo.isAndroidTestModule`。
+判断 androidTest module 使用 `ModuleInfo.isAndroidTestModule`，即 `instrumentationTargetPackage != null`；`.androidTest` 后缀只作为 IDE module 补齐候选，不作为最终身份判断。
+
+当 Gradle project info 不可用或缺少 androidTest synthetic module 时，`CompileContextManager#doGetAllModulesByModuleManager()` 会在创建 IDE project info 阶段逐个处理 IDE 侧 `.androidTest` module：
+
+- `.androidTest` 后缀只用于 `ModulePathMergePolicy` 判定 IDE module 创建候选；最终身份仍由补齐后的 `instrumentationTargetPackage != null` 表示。
+- `sourceDirs` 来自 IDE module source roots，并额外纳入 androidTest IDE module 的 test source root 类型，因此支持自定义 androidTest source root，不再硬编码标准目录。
+- test package / target package 来自 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型 androidTest artifact 信息；Chipmunk 继承链读取 `artifactForAndroidTest.applicationId` 与 module `applicationId`，Narwhal feature / Otter / Panda 继承链读取 AndroidTest artifact core 与 main artifact 的 applicationId。
+- IDE project info 不再用已保存 Test APK manifest 信息反推缺失字段；IDE module info 只有 test package 与 target package 都可用时才标记为 androidTest module。
+- Gradle merge 时 test 相关字段仍以 Gradle 非空值优先。
 
 ---
 

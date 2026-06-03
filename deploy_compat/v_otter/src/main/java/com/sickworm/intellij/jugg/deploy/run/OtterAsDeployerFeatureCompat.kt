@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.idea.gradle.dsl.android.model.android.android
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
+import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.module.Module
@@ -19,6 +20,9 @@ open class OtterAsDeployerFeatureCompat: NarwhalAsDeployerFeatureCompat() {
         if (buildVariant.isNullOrEmpty()) {
             buildVariant = "debug"
         }
+        val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
+        val androidTestApplicationId = readAndroidTestApplicationId(gradleAndroidModel)
+        val mainApplicationId = readMainApplicationId(gradleAndroidModel)
 
         return IdeModuleInfo(
             baseDir = module.guessModuleDirAdv(projectBuildModel),
@@ -62,7 +66,9 @@ open class OtterAsDeployerFeatureCompat: NarwhalAsDeployerFeatureCompat() {
             manifestRelativePath = gradleVariableHelper.readVariable("manifestRelativePath") {
                 androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             },
-            gradleVariableHelper.brokenFields,
+            brokenFields = gradleVariableHelper.brokenFields,
+            androidTestApplicationId = androidTestApplicationId,
+            androidTestInstrumentationTargetPackage = mainApplicationId,
         )
     }
 

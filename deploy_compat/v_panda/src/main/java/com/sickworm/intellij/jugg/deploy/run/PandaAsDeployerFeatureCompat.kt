@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.android.AndroidModel
+import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
@@ -24,6 +25,9 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
         if (buildVariant.isNullOrEmpty()) {
             buildVariant = "debug"
         }
+        val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
+        val androidTestApplicationId = readAndroidTestApplicationId(gradleAndroidModel)
+        val mainApplicationId = readMainApplicationId(gradleAndroidModel)
 
         return IdeModuleInfo(
             baseDir = module.guessModuleDirAdvByBuildModel(buildModel),
@@ -71,7 +75,9 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
             manifestRelativePath = gradleVariableHelper.readVariable("manifestRelativePath") {
                 androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             },
-            gradleVariableHelper.brokenFields,
+            brokenFields = gradleVariableHelper.brokenFields,
+            androidTestApplicationId = androidTestApplicationId,
+            androidTestInstrumentationTargetPackage = mainApplicationId,
         )
     }
 
