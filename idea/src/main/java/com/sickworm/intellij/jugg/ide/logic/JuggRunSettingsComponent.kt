@@ -39,6 +39,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     override val component: JComponent = this
 
     private val topButtonsContainer: JPanel = JPanel().also {
+        it.alignmentX = LEFT_ALIGNMENT
         it.border = JBUI.Borders.empty(0, 4)
         it.layout = BoxLayout(it, BoxLayout.X_AXIS)
     }
@@ -48,6 +49,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     }
 
     private val tipsContainer = JPanel().also {
+        it.alignmentX = LEFT_ALIGNMENT
         it.border = JBUI.Borders.empty(0, 4)
         it.layout = BoxLayout(it, BoxLayout.X_AXIS)
     }
@@ -99,6 +101,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val copyRemoteConfigActionLink = ActionLink("Copy config")
 
     private val remoteCompilePanel = JPanel().also {
+        it.alignmentX = LEFT_ALIGNMENT
         it.border = IdeBorderFactory.createTitledBorder("Remote Compile Options")
         it.layout = GridLayout(0, 1, 5, 5)
     }
@@ -128,6 +131,8 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     )
 
     init {
+        alignmentX = LEFT_ALIGNMENT
+        maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
 
         add(tipsContainer)
@@ -186,6 +191,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         topButtonsContainer.removeAll()
         topButtonsContainer.add(Box.createHorizontalGlue())
         topButtonsContainer.add(moreOptionsButton)
+        topButtonsContainer.maximumSize = Dimension(Int.MAX_VALUE, topButtonsContainer.preferredSize.height)
     }
 
     override fun updateUi(settings: JuggRunConfigurationOptions, configName: String) {
@@ -401,6 +407,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
                 remoteCompilePanel.add(createPairPanel(it.first, it.second, leftWidth = 260))
             }
         }
+        remoteCompilePanel.maximumSize = Dimension(Int.MAX_VALUE, remoteCompilePanel.preferredSize.height)
 
         revalidate()
         repaint()

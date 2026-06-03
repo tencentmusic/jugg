@@ -179,7 +179,11 @@ class JuggRunningTask(
 
         if (compileUiHandler.isSkipDeploy) {
             logger.info("Skip deploy.")
-            if (compileTaskResult.isGradleCompile) {
+            if (shouldInitIncrementalAfterSkipDeploy(
+                    isSkipDeploy = true,
+                    isGradleCompile = compileTaskResult.isGradleCompile,
+                    isRemoteCompile = options.isRemoteCompile,
+                )) {
                 initIncrementalCompileTask.invoke()
             }
             // reset hasRun so next user-triggered compile won't show "no file changes"
@@ -407,6 +411,14 @@ internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiH
     if (isFirstTimeRun) {
         compileUiHandler.ensureRunWindowCreated()
     }
+}
+
+internal fun shouldInitIncrementalAfterSkipDeploy(
+    isSkipDeploy: Boolean,
+    isGradleCompile: Boolean,
+    isRemoteCompile: Boolean,
+): Boolean {
+    return isSkipDeploy && isGradleCompile && isRemoteCompile
 }
 
 internal data class DeploySuccessLogLines(
