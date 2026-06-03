@@ -115,4 +115,28 @@ class ModulePathMergePolicyTest {
         )
         assertEquals("debug", ModulePathMergePolicy.selectMergedBuildVariant(mainIde, androidTestGradle))
     }
+
+    @Test
+    fun `selectIdeBuildVariant converts androidTest IDE module to test variant`() {
+        assertEquals(
+            "debugAndroidTest",
+            ModulePathMergePolicy.selectIdeBuildVariant("common.download.androidTest", "debug"),
+        )
+    }
+
+    @Test
+    fun `selectIdeBuildVariant keeps flavor name when converting androidTest IDE module`() {
+        assertEquals(
+            "jooxDebugAndroidTest",
+            ModulePathMergePolicy.selectIdeBuildVariant("wemusic.androidTest", "jooxDebug"),
+        )
+    }
+
+    @Test
+    fun `selectIdeBuildVariant keeps existing androidTest variant`() {
+        assertEquals(
+            "debugAndroidTest",
+            ModulePathMergePolicy.selectIdeBuildVariant("app.androidTest", "debugAndroidTest"),
+        )
+    }
 }

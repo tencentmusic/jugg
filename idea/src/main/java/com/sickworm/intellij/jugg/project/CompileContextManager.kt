@@ -374,12 +374,13 @@ class CompileContextManager(
                 // just log it
                 logger.debug("module ${module.name} find minifyEnabled: ${ideModuleInfo.buildVariant} -> ${ideModuleInfo.minifyEnabled}")
             }
+            val moduleBuildVariant = ModulePathMergePolicy.selectIdeBuildVariant(stdModuleName, ideModuleInfo.buildVariant)
 
             var manifestFile: File? = null
             ideModuleInfo.manifestRelativePath?.let {
                 manifestFile = File(normalizedBaseDir, it)
             }
-            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, normalizedBaseDir, ideModuleInfo.buildVariant)
+            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, normalizedBaseDir, moduleBuildVariant)
 
             // 3. find source roots
             val sourceDirs = mutableSetOf<File>()
@@ -498,7 +499,7 @@ class CompileContextManager(
                 assetsDirs = assetDirs.toList(),
                 manifestFile = manifestFile,
                 manifestPlaceHolders = null,
-                buildVariant = info.buildVariant,
+                buildVariant = moduleBuildVariant,
                 compileVersion = info.compileVersion,
                 minSdkVersion = info.minSdkVersion,
                 buildToolsVersion = info.buildToolsVersion,

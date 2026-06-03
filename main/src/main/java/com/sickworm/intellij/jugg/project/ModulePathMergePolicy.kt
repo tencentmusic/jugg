@@ -41,6 +41,17 @@ object ModulePathMergePolicy {
         }
     }
 
+    fun selectIdeBuildVariant(stdModuleName: String, ownerBuildVariant: String): String {
+        if (classifyByName(stdModuleName) != ModuleSourceKind.AndroidTest) {
+            return ownerBuildVariant
+        }
+        return if (ownerBuildVariant.endsWith("AndroidTest")) {
+            ownerBuildVariant
+        } else {
+            "${ownerBuildVariant}AndroidTest"
+        }
+    }
+
     /**
      * Resolves the IDE module name that corresponds to [gradleModule].
      *
