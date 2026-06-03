@@ -59,7 +59,7 @@ class JuggConfigurationRunnerTest {
     }
 
     @Test
-    fun `androidTest project log listener does not write plugin logs into SM runner process output`() {
+    fun `disabled project log listener does not write plugin logs into process output`() {
         val processHandler = CapturingProcessHandler()
         val listener = ProcessHandlerLoggerWrapper(processHandler, isOutputEnabled = false)
 
@@ -68,6 +68,24 @@ class JuggConfigurationRunnerTest {
 
         assertFalse(processHandler.lines.any { it.contains("Show Jugg androidTest gutter") })
         assertFalse(processHandler.lines.any { it.contains("Plugin warning") })
+    }
+
+    @Test
+    fun `run project log listener writes compile logs into process output`() {
+        val processHandler = CapturingProcessHandler()
+        val listener = createRunProjectLogListener(processHandler)
+
+        listener.info("Jugg compile started.")
+        listener.info("Compile files:\nKotlin:TestCaseScope.kt")
+        listener.warn("/tmp/TestCaseScope.kt:18:25: error: unresolved reference 'PreconditionFailedException'.", null)
+        listener.info("Compile finished in 1s, all: 8, success: 0, failure: 8.")
+        listener.warn("\nFound incremental compile error. Please see logs for details.", null)
+
+        assertTrue(processHandler.lines.any { it.contains("Jugg compile started.") })
+        assertTrue(processHandler.lines.any { it.contains("Kotlin:TestCaseScope.kt") })
+        assertTrue(processHandler.lines.any { it.contains("unresolved reference") })
+        assertTrue(processHandler.lines.any { it.contains("Compile finished in 1s") })
+        assertTrue(processHandler.lines.any { it.contains("Found incremental compile error") })
     }
 
     private class CapturingProcessHandler : IProcessHandler {

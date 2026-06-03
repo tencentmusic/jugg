@@ -70,10 +70,7 @@ class JuggRunningTask(
         private set
 
     override fun run(indicator: ProgressIndicator) {
-        val loggerListener = ProcessHandlerLoggerWrapper(
-            processHandler = processHandler,
-            isOutputEnabled = androidTestRunSpec == null,
-        )
+        val loggerListener = createRunProjectLogListener(processHandler)
         var isNeedResetHasRun = false
         try {
             if (TestModeManager.isRuntimeTestEnabled()) {
@@ -411,6 +408,10 @@ internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiH
     if (isFirstTimeRun) {
         compileUiHandler.ensureRunWindowCreated()
     }
+}
+
+internal fun createRunProjectLogListener(processHandler: IProcessHandler): ProcessHandlerLoggerWrapper {
+    return ProcessHandlerLoggerWrapper(processHandler)
 }
 
 internal fun shouldInitIncrementalAfterSkipDeploy(
