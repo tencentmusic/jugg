@@ -198,8 +198,7 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
             buildVariant = "debug"
         }
         val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
-        val androidTestApplicationId = readAndroidTestApplicationId(gradleAndroidModel)
-        val mainApplicationId = readMainApplicationId(gradleAndroidModel)
+        val androidTestPackageInfo = readAndroidTestPackageInfo(gradleAndroidModel)
 
         return IdeModuleInfo(
             baseDir = module.guessModuleDirAdv(projectBuildModel),
@@ -244,29 +243,21 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
                 androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             },
             brokenFields = gradleVariableHelper.brokenFields,
-            androidTestApplicationId = androidTestApplicationId,
-            androidTestInstrumentationTargetPackage = mainApplicationId,
+            androidTestApplicationId = androidTestPackageInfo.applicationId,
+            androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
         )
     }
 
+    protected fun readAndroidTestPackageInfo(gradleAndroidModel: Any?): IdeAndroidTestPackageInfo {
+        return IdeAndroidTestPackageReader.read(gradleAndroidModel)
+    }
+
     protected fun readAndroidTestApplicationId(gradleAndroidModel: Any?): String? {
-        return readArtifactApplicationId(gradleAndroidModel, "getArtifactCoreForAndroidTest")
+        return IdeAndroidTestPackageReader.readAndroidTestApplicationId(gradleAndroidModel)
     }
 
     protected fun readMainApplicationId(gradleAndroidModel: Any?): String? {
-        return readArtifactApplicationId(gradleAndroidModel, "getMainArtifact")
-    }
-
-    // Keep this reflective because newer Android Studio jars expose artifact core methods inconsistently to Kotlin.
-    private fun readArtifactApplicationId(gradleAndroidModel: Any?, methodName: String): String? {
-        val artifact = gradleAndroidModel?.invokeNoArgMethod(methodName) ?: return null
-        return artifact.invokeNoArgMethod("getApplicationId") as? String
-    }
-
-    private fun Any.invokeNoArgMethod(methodName: String): Any? {
-        return runCatching {
-            javaClass.methods.firstOrNull { it.name == methodName && it.parameterCount == 0 }?.invoke(this)
-        }.getOrNull()
+        return IdeAndroidTestPackageReader.readMainApplicationId(gradleAndroidModel)
     }
 
 

@@ -57,7 +57,7 @@
 | `instrumentationTargetPackage` | 非空表示 synthetic androidTest module |
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
 
-androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVariant` 固定为 `debugAndroidTest`，并通过 `instrumentationTargetPackage` 标记为测试模块。IDE project info 创建时会使用 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型 androidTest artifact 信息，只有 test package 与 target package 都可用时才把 IDE `.androidTest` module 标记为 androidTest module。Gradle merge 时这些 test 字段仍以 Gradle 非空值优先。
+androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVariant` 固定为 `debugAndroidTest`，并通过 `instrumentationTargetPackage` 标记为测试模块。IDE project info 创建时会使用 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型 test package / target package 信息；Chipmunk / Narwhal feature / Otter / Panda 继承链在 library self-targeting 场景下会 fallback 到 `selectedBasicVariant.testApplicationId`、`androidProject.testNamespace` 或 `${androidProject.namespace}.test`。只有 test package 与 target package 都可用时才把 IDE `.androidTest` module 标记为 androidTest module。Gradle merge 时这些 test 字段仍以 Gradle 非空值优先。
 
 ---
 

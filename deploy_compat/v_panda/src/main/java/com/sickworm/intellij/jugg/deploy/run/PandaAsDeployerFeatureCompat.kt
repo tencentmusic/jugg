@@ -26,8 +26,7 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
             buildVariant = "debug"
         }
         val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
-        val androidTestApplicationId = readAndroidTestApplicationId(gradleAndroidModel)
-        val mainApplicationId = readMainApplicationId(gradleAndroidModel)
+        val androidTestPackageInfo = readAndroidTestPackageInfo(gradleAndroidModel)
 
         return IdeModuleInfo(
             baseDir = module.guessModuleDirAdvByBuildModel(buildModel),
@@ -76,8 +75,8 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
                 androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             },
             brokenFields = gradleVariableHelper.brokenFields,
-            androidTestApplicationId = androidTestApplicationId,
-            androidTestInstrumentationTargetPackage = mainApplicationId,
+            androidTestApplicationId = androidTestPackageInfo.applicationId,
+            androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
         )
     }
 

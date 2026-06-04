@@ -417,7 +417,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             buildVariant = "debug"
         }
         val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
-        val androidTestArtifact = gradleAndroidModel?.artifactForAndroidTest
+        val androidTestPackageInfo = IdeAndroidTestPackageReader.read(gradleAndroidModel)
 
         return IdeModuleInfo(
             baseDir = module.guessModuleDirAdv(projectBuildModel),
@@ -462,8 +462,8 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             },
             brokenFields = gradleVariableHelper.brokenFields,
-            androidTestApplicationId = androidTestArtifact?.applicationId,
-            androidTestInstrumentationTargetPackage = gradleAndroidModel?.applicationId,
+            androidTestApplicationId = androidTestPackageInfo.applicationId,
+            androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
         )
     }
 

@@ -21,8 +21,7 @@ open class OtterAsDeployerFeatureCompat: NarwhalAsDeployerFeatureCompat() {
             buildVariant = "debug"
         }
         val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
-        val androidTestApplicationId = readAndroidTestApplicationId(gradleAndroidModel)
-        val mainApplicationId = readMainApplicationId(gradleAndroidModel)
+        val androidTestPackageInfo = readAndroidTestPackageInfo(gradleAndroidModel)
 
         return IdeModuleInfo(
             baseDir = module.guessModuleDirAdv(projectBuildModel),
@@ -67,8 +66,8 @@ open class OtterAsDeployerFeatureCompat: NarwhalAsDeployerFeatureCompat() {
                 androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             },
             brokenFields = gradleVariableHelper.brokenFields,
-            androidTestApplicationId = androidTestApplicationId,
-            androidTestInstrumentationTargetPackage = mainApplicationId,
+            androidTestApplicationId = androidTestPackageInfo.applicationId,
+            androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
         )
     }
 

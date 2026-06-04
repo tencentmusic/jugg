@@ -37,6 +37,9 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
     implementation project(':deploy_compat:interface')
     api project(':deploy_compat:v_narwhal')
+
+    testImplementation "junit:junit:4.12"
+    testRuntimeOnly "org.junit.vintage:junit-vintage-engine:5.9.3"
 }
 
 test {
