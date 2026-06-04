@@ -31,6 +31,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
@@ -126,10 +127,12 @@ class JuggDeployTask(
                 // process and don't benefit from incremental deploy; force INSTALL.
                 val isOtherTargeting = apkInfos.all { it.isOtherTargetingTestApk }
                 val effectiveType = if (isOtherTargeting && type != AndroidDeployType.INSTALL) {
+                    logOtherTargetingTestApkInstall(applicationId, apkInfos, logger)
                     AndroidDeployType.INSTALL
                 } else {
                     type
                 }
+                logPackageScope(applicationId, apkInfos, scopedData, effectiveType, logger)
                 val result = perform(device, deployer, applicationId, apkFiles, scopedData, effectiveType)
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId)
@@ -221,6 +224,49 @@ class JuggDeployTask(
                 }
                 return deployer.codeSwap(getPathsToInstall(files), debuggerRedefiners, scopedData)
             }
+        }
+    }
+
+    private fun logOtherTargetingTestApkInstall(
+        applicationId: String,
+        apkInfos: List<ApkInfo>,
+        logger: AdbLogWrapper,
+    ) {
+        val targets = apkInfos.mapNotNull { it.instrumentationTargetPackage }.distinct()
+        logger.info(
+            "Force INSTALL for other-targeting androidTest APK: applicationId=$applicationId, " +
+                "targets=$targets",
+        )
+    }
+
+    private fun logPackageScope(
+        applicationId: String,
+        apkInfos: List<ApkInfo>,
+        scopedData: JuggDeployData,
+        effectiveType: AndroidDeployType,
+        logger: AdbLogWrapper,
+    ) {
+        val selectedApkNames = apkInfos.flatMap { it.files }.map { it.apkFile.name }
+        val selectedApkPaths = apkInfos.flatMap { it.files }.map { it.apkFile.path }
+        val scopedClassCount = scopedData.newClasses.size +
+            scopedData.hotFixModifiedClasses.size +
+            scopedData.hotReloadModifiedClasses.size
+        val originalClassCount = data.newClasses.size +
+            data.hotFixModifiedClasses.size +
+            data.hotReloadModifiedClasses.size
+        val targetSample = data.targetApkPathSample().map { File(it).name }
+        logger.info(
+            "Deploy package scope: applicationId=$applicationId, apkFiles=$selectedApkNames, " +
+                "effectiveType=$effectiveType, scopedClasses=$scopedClassCount, " +
+                "scopedOverlays=${scopedData.overlays.size}, scopedUpdateApks=${scopedData.updateApkFiles.size}, " +
+                "scopedIsEmpty=${scopedData.isEmpty}, originalClasses=$originalClassCount, " +
+                "originalOverlays=${data.overlays.size}, originalTargetApkSample=$targetSample",
+        )
+        if (scopedData.isEmpty && !data.isEmpty) {
+            logger.info(
+                "Deploy payload scoped out: applicationId=$applicationId, " +
+                    "selectedApkPaths=$selectedApkPaths, originalTargetApkSample=${data.targetApkPathSample()}",
+            )
         }
     }
 

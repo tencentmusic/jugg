@@ -112,6 +112,17 @@ class JuggDeployDataTest {
         assertEquals(data.constRefEffectedSourcePaths, baseScoped.constRefEffectedSourcePaths)
     }
 
+    @Test
+    fun `targetApkPathSample exposes original deploy targets for scoped logs`() {
+        val data = deployData(
+            newClasses = listOf(classDeployItem("TestOnly", listOf(testPath))),
+            hotFixModifiedClasses = listOf(classDeployItem("Shared", listOf(basePath, testPath))),
+            overlays = listOf(deployItem("base.xml", CompileOutput.Type.Res, basePath, listOf(basePath))),
+        )
+
+        assertEquals(listOf(testPath, basePath), data.targetApkPathSample())
+    }
+
     private fun apkInfo(applicationId: String, apkPath: String): ApkInfo {
         return ApkInfo(
             files = listOf(ApkFileUnit(applicationId, "", true, File(apkPath))),

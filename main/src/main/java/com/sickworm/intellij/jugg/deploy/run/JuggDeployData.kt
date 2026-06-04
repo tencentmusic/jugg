@@ -105,6 +105,13 @@ data class JuggDeployData(
             }
     }
 
+    fun targetApkPathSample(limit: Int = 5): List<String> {
+        val classTargets = (newClasses + hotFixModifiedClasses + hotReloadModifiedClasses)
+            .flatMap { it.deployItem.targetPathsForLog() }
+        val fileTargets = (overlays + updateApkFiles).flatMap { it.targetPathsForLog() }
+        return (classTargets + fileTargets).distinct().take(limit)
+    }
+
     private fun toString(isFull: Boolean): String {
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")
@@ -229,6 +236,10 @@ data class JuggDeployData(
         HOT_RELOAD,
         WARM_UP,
     }
+}
+
+private fun DeployItem.targetPathsForLog(): List<String> {
+    return targetApkPaths.ifEmpty { listOf(apkPath) }.filter { it.isNotBlank() }
 }
 
 /**
