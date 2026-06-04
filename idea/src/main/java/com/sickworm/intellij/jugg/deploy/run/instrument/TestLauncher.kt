@@ -80,7 +80,6 @@ class TestLauncher(
             ) { className, testName, line ->
                 resultModel.recordTestLog(deviceName, className, testName, line)
                 testEventSink?.invoke(InstrumentationEvent.TestOutput(className, testName, line))
-                logger.debug("[TestLog:$className#$testName] $line")
             }
             var methodLogPidResolved = false
 

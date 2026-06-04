@@ -28,7 +28,7 @@ class AndroidTestLogAttributorTest {
     }
 
     @Test
-    fun `next test start closes previous buffered window`() {
+    fun `test finish closes previous buffered window`() {
         val outputs = mutableListOf<MethodLogLine>()
         val attributor = AndroidTestLogAttributor { className, testName, line ->
             outputs.add(MethodLogLine(className, testName, line))
@@ -47,9 +47,25 @@ class AndroidTestLogAttributorTest {
         val detailA = outputs.filter { it.testName == "testA" }.joinToString("\n") { it.line }
         val detailB = outputs.filter { it.testName == "testB" }.joinToString("\n") { it.line }
         assertTrue(detailA.contains("Foo: a"))
-        assertTrue(detailA.contains("Foo: a delayed"))
+        assertTrue(!detailA.contains("Foo: a delayed"))
         assertTrue(detailB.contains("Foo: b"))
-        assertEquals(3, outputs.size)
+        assertEquals(2, outputs.size)
+    }
+
+    @Test
+    fun `method window emits at most 10000 bytes`() {
+        val outputs = mutableListOf<MethodLogLine>()
+        val attributor = AndroidTestLogAttributor { className, testName, line ->
+            outputs.add(MethodLogLine(className, testName, line))
+        }
+
+        attributor.onTestStarted("com.example.FooTest", "testBar")
+        attributor.onLogLine("z".repeat(12_000))
+        attributor.onTestFinished("com.example.FooTest", "testBar")
+        attributor.finish()
+
+        val detail = outputs.joinToString("\n") { it.line }
+        assertEquals(10_000, detail.count { it == 'z' })
     }
 
     @Test

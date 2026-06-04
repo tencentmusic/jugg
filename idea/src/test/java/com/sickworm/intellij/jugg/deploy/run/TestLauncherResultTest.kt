@@ -283,7 +283,7 @@ class TestLauncherResultTest {
     }
 
     @Test
-    fun `pid matched logcat after finish stays with last active method`() {
+    fun `pid matched logcat after finish stays out of method detail`() {
         val model = AndroidTestResultModel()
         val logcatSource = FakeTestLogcatSource()
         val launcher = TestLauncher(
@@ -318,8 +318,11 @@ class TestLauncherResultTest {
 
         assertTrue(launcher.run())
         val detail = model.testLogDetail("com.example.FooTest", "testBar")
-        assertTrue(detail.contains("Foo: delayed test process"))
+        assertFalse(detail.contains("Foo: delayed test process"))
         assertFalse(detail.contains(".apps.wellbeing"))
+        val deviceLogs = model.deviceDetail("Pixel_9 API 35").logs.joinToString("\n")
+        assertTrue(deviceLogs.contains("Foo: delayed test process"))
+        assertTrue(deviceLogs.contains(".apps.wellbeing"))
     }
 
     @Test
@@ -550,6 +553,41 @@ class TestLauncherResultTest {
         val detail = model.testLogDetail("com.example.FooTest", "testBar")
         assertTrue(detail.contains("Foo: before failed exit"))
         assertFalse(detail.contains("Foo: after failed exit"))
+    }
+
+    @Test
+    fun `failed method detail keeps first 10000 bytes of logcat then appends stack`() {
+        val model = AndroidTestResultModel()
+        val logcatSource = FakeTestLogcatSource()
+        val oversizedLog = "z".repeat(12_000)
+        val failureStack = "java.lang.AssertionError: failed"
+        val launcher = TestLauncher(
+            devices = listOf(device()),
+            spec = spec,
+            testApk = testApk,
+            consoleOutput = {},
+            cancelSignal = { false },
+            logger = Logger.getInstance(TestLauncherResultTest::class.java),
+            deviceDisplayName = { _, _ -> "Pixel_9 API 35" },
+            resultModel = model,
+            logcatSource = logcatSource,
+            runInstrumentation = { device, _, _, lineConsumer, _ ->
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: 1")
+                logcatSource.emit(device, oversizedLog)
+                lineConsumer("INSTRUMENTATION_STATUS: stack=$failureStack")
+                lineConsumer("INSTRUMENTATION_STATUS: class=com.example.FooTest")
+                lineConsumer("INSTRUMENTATION_STATUS: test=testBar")
+                lineConsumer("INSTRUMENTATION_STATUS_CODE: -2")
+                0
+            },
+        )
+
+        assertFalse(launcher.run())
+        val detail = model.testLogDetail("com.example.FooTest", "testBar")
+        assertEquals(10_000, detail.count { it == 'z' })
+        assertTrue(detail.indexOf(oversizedLog.take(100)) < detail.indexOf(failureStack))
     }
 
     @Test

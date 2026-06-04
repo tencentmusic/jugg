@@ -33,9 +33,7 @@ internal class AndroidTestLogAttributor(
         }
         val window = activeWindow ?: return
         if (!window.matches(className, testName)) return
-        if (allowedPids == null) {
-            flushActiveWindow(buffer.nextSequence())
-        }
+        flushActiveWindow(buffer.nextSequence())
     }
 
     @Synchronized
@@ -105,8 +103,16 @@ internal class AndroidTestLogAttributor(
         testName: String,
         shouldEmit: (AndroidTestLogcatBuffer.Entry) -> Boolean,
     ) {
-        buffer.snapshot().filter(shouldEmit).forEach { entry ->
-            emitMethodLog(className, testName, entry.line)
+        var remainingBytes = METHOD_LOG_MAX_BYTES
+        for (entry in buffer.snapshot()) {
+            if (remainingBytes <= 0) return
+            if (!shouldEmit(entry)) continue
+
+            val output = entry.line.takeUtf8Bytes(remainingBytes)
+            if (output.isEmpty()) return
+
+            emitMethodLog(className, testName, output)
+            remainingBytes -= output.toByteArray(Charsets.UTF_8).size
         }
     }
 
@@ -250,6 +256,21 @@ internal class AndroidTestLogcatBuffer(
 }
 
 internal const val DEFAULT_LOGCAT_BUFFER_MAX_LINES = 100_000
+
+internal const val METHOD_LOG_MAX_BYTES = 10_000
+
+private fun String.takeUtf8Bytes(maxBytes: Int): String {
+    if (maxBytes <= 0) return ""
+    var usedBytes = 0
+    return buildString {
+        for (ch in this@takeUtf8Bytes) {
+            val charBytes = ch.toString().toByteArray(Charsets.UTF_8).size
+            if (usedBytes + charBytes > maxBytes) break
+            append(ch)
+            usedBytes += charBytes
+        }
+    }
+}
 
 private val TEST_RUNNER_MARKER_REGEX = Regex(
     "^\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}\\.\\d+\\s+\\d+\\s+\\d+\\s+[VDIWEAF]\\s+TestRunner\\s*:\\s+" +

@@ -86,8 +86,8 @@ class AndroidTestResultModel {
             (devices.keys + deviceLogs.keys).distinct().forEach { deviceName ->
                 val cell = deviceCells[deviceName]
                 appendLine("$deviceName: ${cell?.status?.label ?: AndroidTestCellStatus.NOT_RUN.label}")
-                cell?.stack?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
                 deviceLogs[deviceName].orEmpty().forEach { appendLine(it) }
+                cell?.stack?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
             }
         }.trimEnd()
     }
