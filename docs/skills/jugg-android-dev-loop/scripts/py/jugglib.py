@@ -6,13 +6,15 @@ Provides: port detection, projectDir resolution, record session management,
 
 import json
 import os
+import socket
 import sys
 import threading
 import time
 import urllib.request
 import urllib.error
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 
 # ─── cache paths (overridable via env) ───────────────────────────────────────
@@ -58,8 +60,42 @@ def write_port_cache(port: int) -> None:
 
 # ─── port detection ──────────────────────────────────────────────────────────
 
-def ping_port(port: int) -> bool:
-    """Ping a port; return True if the Jugg MCP endpoint responds."""
+
+@dataclass
+class PortProbeResult:
+    """Result of probing one local Jugg MCP port."""
+    ok: bool
+    summary: str
+    retryable: bool
+
+
+def _is_connection_refused(reason: Any) -> bool:
+    if isinstance(reason, ConnectionRefusedError):
+        return True
+    return isinstance(reason, OSError) and getattr(reason, "errno", None) in (61, 111)
+
+
+def _is_timeout(reason: Any) -> bool:
+    return isinstance(reason, (TimeoutError, socket.timeout))
+
+
+def _summarize_probe_exception(exc: Exception) -> PortProbeResult:
+    if isinstance(exc, urllib.error.HTTPError):
+        return PortProbeResult(False, f"http {exc.code}", exc.code >= 500)
+    if isinstance(exc, urllib.error.URLError):
+        reason = exc.reason
+        if _is_connection_refused(reason):
+            return PortProbeResult(False, "connection refused", False)
+        if _is_timeout(reason):
+            return PortProbeResult(False, "timed out", True)
+        return PortProbeResult(False, f"url error: {reason}", True)
+    if _is_timeout(exc):
+        return PortProbeResult(False, "timed out", True)
+    return PortProbeResult(False, f"{type(exc).__name__}: {exc}", True)
+
+
+def _probe_port(port: int) -> PortProbeResult:
+    """Ping a port and keep the failure reason for diagnostics."""
     try:
         body = json.dumps({
             "jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}
@@ -72,26 +108,60 @@ def ping_port(port: int) -> bool:
         )
         with urllib.request.urlopen(req, timeout=1) as resp:
             data = resp.read().decode()
-            return '"jsonrpc"' in data
-    except Exception:
-        return False
+            if '"jsonrpc"' in data:
+                return PortProbeResult(True, "ok", False)
+            return PortProbeResult(False, "unexpected response", False)
+    except Exception as exc:
+        return _summarize_probe_exception(exc)
+
+
+def ping_port(port: int) -> bool:
+    """Ping a port; return True if the Jugg MCP endpoint responds."""
+    return _probe_port(port).ok
+
+
+def _scan_ports(ports: Iterable[int]) -> dict[int, PortProbeResult]:
+    return {port: _probe_port(port) for port in ports}
+
+
+def _print_port_probe_failure(results: dict[int, PortProbeResult]) -> None:
+    print("ERROR: Jugg IDE plugin not found on ports 12320-12329. "
+          "Is Android Studio running?", file=sys.stderr)
+    print("Port probe summary:", file=sys.stderr)
+    for port in range(12320, 12330):
+        result = results.get(port)
+        summary = result.summary if result else "not checked"
+        print(f"  {port}: {summary}", file=sys.stderr)
 
 
 def resolve_port() -> int:
     """Resolve the active Jugg port: check cache first, then scan 12320..12329."""
+    results: dict[int, PortProbeResult] = {}
     cached = read_port_cache()
     if cached:
         port = int(cached)
-        if ping_port(port):
+        result = _probe_port(port)
+        results[port] = result
+        if result.ok:
             return port
 
-    for port in range(12320, 12330):
-        if ping_port(port):
+    scan_results = _scan_ports(range(12320, 12330))
+    results.update(scan_results)
+    for port, result in scan_results.items():
+        if result.ok:
             write_port_cache(port)
             return port
 
-    print("ERROR: Jugg IDE plugin not found on ports 12320-12329. "
-          "Is Android Studio running?", file=sys.stderr)
+    if any(result.retryable for result in results.values()):
+        time.sleep(0.2)
+        for port in range(12320, 12330):
+            result = _probe_port(port)
+            results[port] = result
+            if result.ok:
+                write_port_cache(port)
+                return port
+
+    _print_port_probe_failure(results)
     sys.exit(1)
 
 

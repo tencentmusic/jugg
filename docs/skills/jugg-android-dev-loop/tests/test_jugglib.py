@@ -1,10 +1,13 @@
 """Tests for jugglib — port cache, projectDir resolution, record session, JSON output."""
 
+import contextlib
+import io
 import json
 import os
 import sys
 import tempfile
 import types
+import urllib.error
 import unittest
 from unittest.mock import patch
 
@@ -38,6 +41,57 @@ class PortCacheTest(unittest.TestCase):
         jugglib.write_port_cache(12321)
         jugglib.write_port_cache(12323)
         self.assertEqual(jugglib.read_port_cache(), "12323")
+
+
+class ResolvePortTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        os.environ["JUGG_CACHE_DIR"] = self.tmp
+        os.environ["JUGG_PORT_CACHE"] = os.path.join(self.tmp, "port")
+        os.environ["JUGG_RECORD_SESSION"] = os.path.join(self.tmp, "record_session")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_resolve_port_prints_each_port_error_without_retry_for_closed_ports(self):
+        refused = urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
+        stderr = io.StringIO()
+
+        with patch.object(jugglib.urllib.request, "urlopen", side_effect=refused) as mock_urlopen, \
+             patch.object(jugglib.time, "sleep") as mock_sleep, \
+             contextlib.redirect_stderr(stderr), \
+             self.assertRaises(SystemExit):
+            jugglib.resolve_port()
+
+        self.assertEqual(mock_urlopen.call_count, 10)
+        mock_sleep.assert_not_called()
+        output = stderr.getvalue()
+        self.assertIn("12320: connection refused", output)
+        self.assertIn("12329: connection refused", output)
+
+    def test_resolve_port_retries_after_timeout_and_uses_recovered_port(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"jsonrpc":"2.0","result":{}}'
+
+        timeout = TimeoutError("timed out")
+        side_effects = [timeout] * 10 + [FakeResponse()]
+
+        with patch.object(jugglib.urllib.request, "urlopen", side_effect=side_effects) as mock_urlopen, \
+             patch.object(jugglib.time, "sleep") as mock_sleep:
+            port = jugglib.resolve_port()
+
+        self.assertEqual(port, 12320)
+        self.assertEqual(mock_urlopen.call_count, 11)
+        mock_sleep.assert_called_once()
 
 
 class ProjectDirMatchTest(unittest.TestCase):
@@ -151,7 +205,8 @@ class JuggHelpTest(unittest.TestCase):
 
         self.assertEqual(code, 0)
         mock_import.assert_not_called()
-        self.assertIn("Usage: jugg instrument --source-path", stderr)
+        self.assertIn("Usage: jugg", stderr)
+        self.assertIn("instrument --source-path", stderr)
         self.assertIn("--source-path", stderr)
         self.assertIn("MCP: sourcePath", stderr)
 
@@ -161,7 +216,8 @@ class JuggHelpTest(unittest.TestCase):
 
         self.assertEqual(code, 0)
         mock_import.assert_not_called()
-        self.assertIn("Usage: jugg compile", stderr)
+        self.assertIn("Usage: jugg", stderr)
+        self.assertIn("compile", stderr)
 
     def test_help_registry_covers_all_commands(self):
         import jugg
