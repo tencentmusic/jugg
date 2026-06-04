@@ -3,10 +3,16 @@ package com.sickworm.intellij.jugg.ide
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import javax.swing.Icon
 
 class JuggAndroidTestLineMarkerContributorTest {
+
+    @Before
+    fun setUp() {
+        JuggAndroidTestLineMarkerContributor.resetScanCostLogThrottleForTest()
+    }
 
     @Test
     fun `app androidTest path is supported`() {
@@ -63,7 +69,7 @@ class JuggAndroidTestLineMarkerContributorTest {
     }
 
     @Test
-    fun `annotation owner is found by walking parent chain`() {
+    fun `annotation owner is ignored when element is not owner name identifier`() {
         val owner = FakeOwner()
         val modifier = FakeNode(parent = owner)
         val annotation = FakeNode(parent = modifier)
@@ -71,6 +77,12 @@ class JuggAndroidTestLineMarkerContributorTest {
 
         val found = JuggAndroidTestLineMarkerContributor.findAnnotatedElementOwner(
             leaf,
+            readNameIdentifier = { current ->
+                when (current) {
+                    owner -> FakeLeaf(parent = owner)
+                    else -> null
+                }
+            },
         ) { current ->
             when (current) {
                 is FakeNode -> current.parent
@@ -78,32 +90,74 @@ class JuggAndroidTestLineMarkerContributorTest {
             }
         }
 
-        assertSame(owner, found)
+        assertTrue(found == null)
     }
 
     @Test
-    fun `class owner is found when class contains junit test`() {
+    fun `non name identifier lookup does not scan class children`() {
         val testMethod = FakeKotlinFunction(
             name = "targetContextUsesAppPackage",
             parent = null,
             annotations = listOf(KotlinTestAnnotation()),
         )
-        val owner = FakeKotlinClass(
+        val owner = FakeCountingKotlinClass(
             name = "com.example.myapplication.AppLogicInstrumentedTest",
             children = listOf(testMethod),
         )
-        val leaf = FakeLeaf(parent = owner)
+        val classNameIdentifier = FakeLeaf(parent = owner)
+        val bodyLeaf = FakeLeaf(parent = owner)
 
         val found = JuggAndroidTestLineMarkerContributor.findAnnotatedElementOwner(
-            leaf,
+            bodyLeaf,
+            readNameIdentifier = { current ->
+                when (current) {
+                    owner -> classNameIdentifier
+                    else -> null
+                }
+            },
         ) { current ->
             when (current) {
+                bodyLeaf -> owner
+                is FakeLeaf -> current.parent
+                else -> null
+            }
+        }
+
+        assertTrue(found == null)
+        assertTrue(owner.childrenReadCount == 0)
+    }
+
+    @Test
+    fun `class owner is found from class name identifier when class contains junit test`() {
+        val testMethod = FakeKotlinFunction(
+            name = "targetContextUsesAppPackage",
+            parent = null,
+            annotations = listOf(KotlinTestAnnotation()),
+        )
+        val owner = FakeCountingKotlinClass(
+            name = "com.example.myapplication.AppLogicInstrumentedTest",
+            children = listOf(testMethod),
+        )
+        val nameIdentifier = FakeLeaf(parent = owner)
+
+        val found = JuggAndroidTestLineMarkerContributor.findAnnotatedElementOwner(
+            nameIdentifier,
+            readNameIdentifier = { current ->
+                when (current) {
+                    owner -> nameIdentifier
+                    else -> null
+                }
+            },
+        ) { current ->
+            when (current) {
+                nameIdentifier -> owner
                 is FakeLeaf -> current.parent
                 else -> null
             }
         }
 
         assertSame(owner, found)
+        assertTrue(owner.childrenReadCount > 0)
     }
 
 
@@ -407,6 +461,41 @@ class JuggAndroidTestLineMarkerContributorTest {
         assertTrue(options.appRunConfigurationName == "appDebug")
     }
 
+    @Test
+    fun `scan cost logging accumulates same results until result changes`() {
+        val first = JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 2)
+        assertTrue(first != null)
+        assertTrue(first!!.previousHasMarker == null)
+        assertTrue(first.previousScanCount == 0)
+        assertTrue(first.previousTotalCostMs == 0L)
+        assertTrue(!first.currentHasMarker)
+        assertTrue(first.currentScanCount == 1)
+        assertTrue(first.currentTotalCostMs == 2L)
+
+        assertTrue(JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 3) == null)
+        assertTrue(JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 4) == null)
+
+        val markerHit = JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = true, costMs = 5)
+        assertTrue(markerHit != null)
+        assertTrue(markerHit!!.previousHasMarker == false)
+        assertTrue(markerHit.previousScanCount == 3)
+        assertTrue(markerHit.previousTotalCostMs == 9L)
+        assertTrue(markerHit.currentHasMarker)
+        assertTrue(markerHit.currentScanCount == 1)
+        assertTrue(markerHit.currentTotalCostMs == 5L)
+
+        assertTrue(JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = true, costMs = 6) == null)
+
+        val markerMiss = JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 7)
+        assertTrue(markerMiss != null)
+        assertTrue(markerMiss!!.previousHasMarker == true)
+        assertTrue(markerMiss.previousScanCount == 2)
+        assertTrue(markerMiss.previousTotalCostMs == 11L)
+        assertTrue(!markerMiss.currentHasMarker)
+        assertTrue(markerMiss.currentScanCount == 1)
+        assertTrue(markerMiss.currentTotalCostMs == 7L)
+    }
+
     private class JavaTestOwner {
         @Suppress("unused")
         fun getAnnotations(): Array<JavaTestAnnotation> = arrayOf(JavaTestAnnotation())
@@ -476,6 +565,26 @@ class JuggAndroidTestLineMarkerContributorTest {
 
         @Suppress("unused")
         fun getChildren(): Array<Any> = children.toTypedArray()
+    }
+
+    private class FakeCountingKotlinClass(
+        private val name: String,
+        private val children: List<Any> = emptyList(),
+    ) : FakeLeaf(null) {
+        var childrenReadCount = 0
+            private set
+
+        @Suppress("unused")
+        fun getFqName(): String = name
+
+        @Suppress("unused")
+        fun getName(): String = name.substringAfterLast(".")
+
+        @Suppress("unused")
+        fun getChildren(): Array<Any> {
+            childrenReadCount++
+            return children.toTypedArray()
+        }
     }
 
 

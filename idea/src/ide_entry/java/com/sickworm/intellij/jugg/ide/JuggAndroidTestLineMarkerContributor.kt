@@ -8,9 +8,9 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.psi.PsiElement
 import com.intellij.ui.IconManager
 import com.sickworm.intellij.jugg.loader.JuggInitializer
-import com.intellij.psi.PsiElement
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import javax.swing.Icon
 
@@ -42,14 +42,17 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
             return null
         }
 
+        val scanStartNs = System.nanoTime()
         val annotatedElement = findAnnotatedElement(element)
+        logScanCostIfNeeded(
+            element = element,
+            filePath = filePath,
+            costMs = (System.nanoTime() - scanStartNs) / 1_000_000,
+            hasMarker = annotatedElement != null,
+        )
         if (annotatedElement == null) {
             return null
         }
-
-        JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
-            .debug("Show Jugg androidTest gutter: " +
-                "path=$filePath, element=${element::class.java.name}, owner=${annotatedElement.javaClass.name}")
 
         return Info(
             lineMarkerIcon(),
@@ -60,9 +63,24 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
     private fun findAnnotatedElement(element: PsiElement): PsiElement? {
         val owner = findAnnotatedElementOwner(
             element,
+            readNameIdentifier = ::readNameIdentifier,
             ownerParent = { current -> (current as? PsiElement)?.parent },
         ) as? PsiElement ?: return null
-        return owner.takeIf { isAndroidTestEntryNameIdentifier(element, it, ::readNameIdentifier) }
+        return owner
+    }
+
+    private fun logScanCostIfNeeded(element: PsiElement, filePath: String, costMs: Long, hasMarker: Boolean) {
+        val logState = recordScanCostResult(hasMarker, costMs) ?: return
+        JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
+            .debug(
+                "Jugg androidTest gutter scan: " +
+                        "cost=${logState.currentTotalCostMs}ms, hasMarker=$hasMarker, " +
+                        "previousHasMarker=${logState.previousHasMarker}, " +
+                        "previousScanCount=${logState.previousScanCount}, " +
+                        "previousTotalCost=${logState.previousTotalCostMs}ms, " +
+                        "currentScanCount=${logState.currentScanCount}, " +
+                        "path=$filePath"
+            )
     }
 
     private fun createRunAction(annotatedElement: PsiElement): AnAction {
@@ -124,11 +142,16 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
 
         internal fun findAnnotatedElementOwner(
             start: Any,
+            readNameIdentifier: (Any) -> Any?,
             ownerParent: (Any) -> Any?,
         ): Any? {
             var current: Any? = start
             while (current != null) {
-                if (hasJUnitTestAnnotation(current) || containsJUnitTestAnnotation(current)) return current
+                if (isOwnerNameIdentifier(start, current, readNameIdentifier)) {
+                    return current.takeIf {
+                        hasJUnitTestAnnotation(it) || containsJUnitTestAnnotation(it)
+                    }
+                }
                 current = ownerParent(current)
             }
             return null
@@ -318,6 +341,51 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
             fun toScope(): AndroidTestScope = if (testMethod == null) AndroidTestScope.CLASS else AndroidTestScope.METHOD
         }
 
+        @Synchronized
+        internal fun recordScanCostResult(hasMarker: Boolean, costMs: Long): ScanCostLogState? {
+            val previousResult = lastScanHasMarker
+            if (previousResult == null) {
+                lastScanHasMarker = hasMarker
+                lastScanResultCount = 1
+                lastScanTotalCostMs = costMs
+                return ScanCostLogState(null, 0, 0L, hasMarker, lastScanResultCount, lastScanTotalCostMs)
+            }
+            if (previousResult == hasMarker) {
+                lastScanResultCount++
+                lastScanTotalCostMs += costMs
+                return null
+            }
+            val previousScanCount = lastScanResultCount
+            val previousTotalCostMs = lastScanTotalCostMs
+            lastScanHasMarker = hasMarker
+            lastScanResultCount = 1
+            lastScanTotalCostMs = costMs
+            return ScanCostLogState(
+                previousResult,
+                previousScanCount,
+                previousTotalCostMs,
+                hasMarker,
+                lastScanResultCount,
+                lastScanTotalCostMs,
+            )
+        }
+
+        @Synchronized
+        internal fun resetScanCostLogThrottleForTest() {
+            lastScanHasMarker = null
+            lastScanResultCount = 0
+            lastScanTotalCostMs = 0L
+        }
+
+        internal data class ScanCostLogState(
+            val previousHasMarker: Boolean?,
+            val previousScanCount: Int,
+            val previousTotalCostMs: Long,
+            val currentHasMarker: Boolean,
+            val currentScanCount: Int,
+            val currentTotalCostMs: Long,
+        )
+
         /**
          * Shows the "enableAndroidTest not configured" notification.
          * Called from the gutter icon action when the user clicks without the flag enabled.
@@ -339,5 +407,9 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 })
                 .notify(project)
         }
+
+        private var lastScanHasMarker: Boolean? = null
+        private var lastScanResultCount: Int = 0
+        private var lastScanTotalCostMs: Long = 0L
     }
 }
