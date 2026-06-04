@@ -20,6 +20,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "waitAppReadyAfterSuccess" to McpToolSchemas.waitAppReadyAfterSuccessProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -50,12 +51,16 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return forceGradleCompileAction(runtime)
+        val waitAppReadyAfterSuccess = arguments["waitAppReadyAfterSuccess"] as? Boolean ?: false
+        return forceGradleCompileAction(runtime, waitAppReadyAfterSuccess)
     }
 
-    private fun forceGradleCompileAction(runtime: IMcpRuntime): McpToolResult {
+    private fun forceGradleCompileAction(runtime: IMcpRuntime, waitAppReadyAfterSuccess: Boolean): McpToolResult {
         return try {
-            val trigger = CompileJobManager.triggerForceGradleCompile(runtime)
+            val trigger = CompileJobManager.triggerForceGradleCompile(
+                runtime = runtime,
+                waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
+            )
             val isFinalSuccess = trigger.isFinal && trigger.status == "success"
             val isStillRunning = !trigger.isFinal
             val status = if (isFinalSuccess || isStillRunning) McpToolStatus.OK else McpToolStatus.ERROR

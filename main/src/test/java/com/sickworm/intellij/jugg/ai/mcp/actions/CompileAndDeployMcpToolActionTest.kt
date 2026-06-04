@@ -258,7 +258,7 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
-    fun testCompileSuccessTurnsFailedWhenAppNeverGetsReady() {
+    fun testCompileSuccessDoesNotWaitForAppReadyByDefault() {
         McpAppReadyGuard.postTimeoutOverrideForTest = 5L
         McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
         val action = CompileAndDeployMcpToolAction()
@@ -279,6 +279,37 @@ class CompileAndDeployMcpToolActionTest {
         )
 
         val result = action.execute(emptyMap(), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("success", data["status"])
+        Assert.assertEquals(true, data["isCompileSuccess"])
+        Assert.assertEquals(true, data["isDeploySuccess"])
+    }
+
+    @Test
+    fun testCompileSuccessTurnsFailedWhenExplicitAppReadyWaitTimesOut() {
+        McpAppReadyGuard.postTimeoutOverrideForTest = 5L
+        McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
+        val action = CompileAndDeployMcpToolAction()
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = true,
+                        isCancel = false,
+                    ),
+                    detail = "",
+                )
+            },
+            isAppReadyProvider = { false },
+        )
+
+        val result = action.execute(mapOf("waitAppReadyAfterSuccess" to true), runtime)
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         @Suppress("UNCHECKED_CAST")

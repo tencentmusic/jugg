@@ -34,7 +34,10 @@ object CompileJobManager {
 
     private val jobs: ConcurrentHashMap<String, CompileJobStatus> = ConcurrentHashMap()
 
-    fun triggerForceGradleCompile(runtime: IMcpRuntime): CompileJobTriggerResult {
+    fun triggerForceGradleCompile(
+        runtime: IMcpRuntime,
+        waitAppReadyAfterSuccess: Boolean = false,
+    ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
             runTask = {
@@ -49,7 +52,7 @@ object CompileJobManager {
                     isDeploySuccess = result.isDeploySuccess,
                     detail = result.detail,
                 )
-                if (runtime.deployTargetManager.hasDevice) {
+                if (runtime.deployTargetManager.hasDevice && waitAppReadyAfterSuccess) {
                     waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
                 } else {
                     initialResult
@@ -64,7 +67,7 @@ object CompileJobManager {
         isAlwaysRestartApp: Boolean = false,
         androidTestRunSpec: AndroidTestRunSpec? = null,
         buildTargetOverride: BuildTarget? = null,
-        waitAppReadyAfterSuccess: Boolean = true,
+        waitAppReadyAfterSuccess: Boolean = false,
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),

@@ -57,7 +57,42 @@ class RestartAppMcpToolActionTest {
         Assert.assertTrue(result.message.contains("restart executed successfully"))
     }
 
-    private fun runtimeWithMocks(): Pair<IMcpRuntime, IDeployTargetManager> {
+    @Test
+    fun testRestartDoesNotWaitForAppReadyByDefault() {
+        var readyChecks = 0
+        val (runtime, _) = runtimeWithMocks(isAppReadyProvider = {
+            readyChecks += 1
+            false
+        })
+        val action = RestartAppMcpToolAction()
+
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test"),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertEquals(0, readyChecks)
+    }
+
+    @Test
+    fun testRestartFailsWhenExplicitAppReadyWaitTimesOut() {
+        McpAppReadyGuard.postTimeoutOverrideForTest = 5L
+        McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
+        val (runtime, _) = runtimeWithMocks(isAppReadyProvider = { false })
+        val action = RestartAppMcpToolAction()
+
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "waitAppReadyAfterSuccess" to true),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+    }
+
+    private fun runtimeWithMocks(
+        isAppReadyProvider: () -> Boolean = { true },
+    ): Pair<IMcpRuntime, IDeployTargetManager> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
         PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
@@ -97,7 +132,7 @@ class RestartAppMcpToolActionTest {
             override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
 
             override fun isAppReadyDeploy(): Boolean {
-                return true
+                return isAppReadyProvider()
             }
         }
 

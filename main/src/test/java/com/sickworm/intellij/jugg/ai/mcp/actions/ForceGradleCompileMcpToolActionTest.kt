@@ -84,7 +84,7 @@ class ForceGradleCompileMcpToolActionTest {
     }
 
     @Test
-    fun testGradleBuildSuccessWhenAppNotReadyButDevicePresent() {
+    fun testGradleBuildSuccessDoesNotWaitForAppReadyByDefault() {
         val action = ForceGradleCompileMcpToolAction()
         val runtime = runtimeWithGradleCompileResult(
             GradleCompileExecutionResult(
@@ -99,7 +99,29 @@ class ForceGradleCompileMcpToolActionTest {
 
         val result = action.execute(mapOf("projectDir" to "/fake/project/has-device"), runtime)
 
-        Assert.assertEquals("gradle-build with device: app not ready should report ERROR", McpToolStatus.ERROR, result.status)
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+    }
+
+    @Test
+    fun testGradleBuildSuccessTurnsFailedWhenExplicitAppReadyWaitTimesOut() {
+        val action = ForceGradleCompileMcpToolAction()
+        val runtime = runtimeWithGradleCompileResult(
+            GradleCompileExecutionResult(
+                status = "success",
+                message = "gradle build ok",
+                isCompileSuccess = true,
+                isDeploySuccess = true,
+            ),
+            hasDevice = true,
+            isAppReady = false,
+        )
+
+        val result = action.execute(
+            mapOf("projectDir" to "/fake/project/has-device", "waitAppReadyAfterSuccess" to true),
+            runtime,
+        )
+
+        Assert.assertEquals("explicit wait should report ERROR when app is not ready", McpToolStatus.ERROR, result.status)
     }
 
     @Test

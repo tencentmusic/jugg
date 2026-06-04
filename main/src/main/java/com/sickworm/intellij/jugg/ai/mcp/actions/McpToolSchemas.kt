@@ -14,6 +14,12 @@ object McpToolSchemas {
         pattern = "^/.+",
     )
 
+    val waitAppReadyAfterSuccessProperty = McpJsonSchemaProperty(
+        type = "boolean",
+        default = false,
+        description = "When true, wait until the app is ready after the tool succeeds. Default: false.",
+    )
+
     val baseOutputSchema = McpJsonSchemaObject(
         description = "Structured result returned via tools/call structuredContent.",
         properties = mapOf(

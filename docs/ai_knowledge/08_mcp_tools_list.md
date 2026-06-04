@@ -71,8 +71,9 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径（pattern: `^/.+`） |
+| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时重启成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
-**行为补充**：成功路径会后置等待 App 在线。
+**行为补充**：成功路径默认只确认 restart 命令执行完成；需要把 App ready 作为工具成功条件时显式传 `waitAppReadyAfterSuccess=true`。
 
 ---
 
@@ -94,6 +95,7 @@
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
 | `alwaysRestartApp` | boolean | 否 | `true`（默认）时部署后强制重启 App（HOT_FIX 行为）；`false` 时仅在类结构变化时才重启（允许 HOT RELOAD） |
+| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时部署成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
 **异步返回**：`isFinal=false` 时返回 `jobId`，需用 `get-compile-status` 轮询。
 
@@ -106,6 +108,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时重装成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
 ---
 
@@ -116,6 +119,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时构建/安装成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
 **异步返回**：同 `deploy`。
 
@@ -354,7 +358,7 @@
 
 ### App 在线等待
 
-- `restart`、`deploy`、`gradle-build`、`clean-reinstall` 成功路径后置等待 App 在线。
+- `restart`、`deploy`、`gradle-build`、`clean-reinstall` 统一使用 `waitAppReadyAfterSuccess` 控制成功后的 App ready 等待；默认 `false`，只有显式传 `true` 才后置等待（每 200ms 检查，最长 10s）。
 - `activity-stack`、`tap`、`layout-dump`、`view-locate`、`view-inspect` 执行前等待 App 在线（每 100ms 检查，最长 10s）。
 - 运行态工具调用返回 `INTERNAL_ERROR` 或缺省错误码时，按瞬态错误自动重试最多 3 次，间隔 2s；用于覆盖 App 已在线但进程内服务（如 ViewHierarchyServer）尚未接受 LocalSocket 请求的短暂窗口。
 - ViewHierarchy 相关工具首次访问失败后会查询设备屏幕状态和前台 Activity；若设备息屏/非交互态，直接返回 `DEVICE_NOT_INTERACTIVE`；若目标 App 不在前台，直接返回 `APP_NOT_FOREGROUND`；这两类错误不再继续重试。

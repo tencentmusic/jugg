@@ -33,6 +33,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                     description = "When true (default), always restart the app after deployment (HOT_FIX behavior). " +
                         "When false, only restart when class structure changes require it (HOT RELOAD is allowed).",
                 ),
+                "waitAppReadyAfterSuccess" to McpToolSchemas.waitAppReadyAfterSuccessProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -42,11 +43,13 @@ class CompileAndDeployMcpToolAction : McpToolAction {
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val isAlwaysRestartApp = arguments["alwaysRestartApp"] as? Boolean ?: true
+        val waitAppReadyAfterSuccess = arguments["waitAppReadyAfterSuccess"] as? Boolean ?: false
         val compiledFiles = runtime.deployFileManager?.getUndeployedFiles()?.map { it.file.name } ?: emptyList()
         return deployAction(
             runtime = runtime,
             toolName = toolName,
             isAlwaysRestartApp = isAlwaysRestartApp,
+            waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
             compiledFiles = compiledFiles,
         )
     }
@@ -63,7 +66,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             isAlwaysRestartApp: Boolean = true,
             androidTestRunSpec: AndroidTestRunSpec? = null,
             buildTargetOverride: BuildTarget? = null,
-            waitAppReadyAfterSuccess: Boolean = true,
+            waitAppReadyAfterSuccess: Boolean = false,
             compiledFiles: List<String> = emptyList(),
         ): McpToolResult {
             val trigger = CompileJobManager.triggerJuggCompile(

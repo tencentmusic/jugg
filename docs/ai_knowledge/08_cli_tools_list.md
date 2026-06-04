@@ -163,6 +163,8 @@ jugg deploy [--always-restart-app <true|false>]
 
 终态输出 `isCompileSuccess`、`isDeploySuccess` 与日志路径。判断部署是否成功时必须同时看 deploy 结果，不要只看 compile 是否成功。
 
+CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 compile/deploy 任务终态，不额外等待 App ready。
+
 ### `gradle-build`
 
 ```text
@@ -170,6 +172,8 @@ jugg gradle-build
 ```
 
 无子命令参数。该命令会走 Gradle 构建后的安装/启动链路；无设备或启动失败时可能出现 `isCompileSuccess=true` 且 `isDeploySuccess=false`。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行；长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾。
+
+CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 Gradle build 任务终态，不额外等待 App ready。
 
 ### `clean-reinstall`
 
@@ -179,6 +183,8 @@ jugg clean-reinstall
 
 无子命令参数。
 
+CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 clean-reinstall 任务终态，不额外等待 App ready。
+
 ### `restart`
 
 ```text
@@ -186,6 +192,8 @@ jugg restart
 ```
 
 无子命令参数。
+
+CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 restart 命令执行完成，不额外等待 App ready。
 
 ### `instrument`
 

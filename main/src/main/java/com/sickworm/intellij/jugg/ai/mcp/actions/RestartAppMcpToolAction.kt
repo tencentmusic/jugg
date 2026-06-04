@@ -23,6 +23,7 @@ class RestartAppMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "waitAppReadyAfterSuccess" to McpToolSchemas.waitAppReadyAfterSuccessProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -31,10 +32,11 @@ class RestartAppMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return restartAppAction(runtime)
+        val waitAppReadyAfterSuccess = arguments["waitAppReadyAfterSuccess"] as? Boolean ?: false
+        return restartAppAction(runtime, waitAppReadyAfterSuccess)
     }
 
-    private fun restartAppAction(runtime: IMcpRuntime): McpToolResult {
+    private fun restartAppAction(runtime: IMcpRuntime, waitAppReadyAfterSuccess: Boolean): McpToolResult {
         val targetDevice = resolveOnlineDevice(runtime) ?: return noDeviceResult()
         val isSuccess = runtime.deployTargetManager.restartApp(targetDevice)
         if (!isSuccess) {
@@ -46,15 +48,17 @@ class RestartAppMcpToolAction : McpToolAction {
                 errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
-        val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
-        if (!waitResult.isReady) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = waitResult.reason ?: "restart failed. Reason: app is not ready after restart.",
-                data = mapOf("readyChecks" to waitResult.checks),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.INTERNAL_ERROR,
-            )
+        if (waitAppReadyAfterSuccess) {
+            val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
+            if (!waitResult.isReady) {
+                return McpToolResult(
+                    status = McpToolStatus.ERROR,
+                    message = waitResult.reason ?: "restart failed. Reason: app is not ready after restart.",
+                    data = mapOf("readyChecks" to waitResult.checks),
+                    artifacts = emptyList(),
+                    errorCode = McpErrorCode.INTERNAL_ERROR,
+                )
+            }
         }
         return McpToolResult(
             status = McpToolStatus.OK,

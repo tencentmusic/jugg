@@ -86,6 +86,7 @@ python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 ### Build & Deploy Commands
 
 All build commands **block** until completion; no polling needed.
+Completion means the compile/deploy job reached a terminal state; CLI does not add an extra app-ready wait.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|

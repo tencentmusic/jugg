@@ -18,6 +18,7 @@ class CleanReinstallApkMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "waitAppReadyAfterSuccess" to McpToolSchemas.waitAppReadyAfterSuccessProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -26,12 +27,17 @@ class CleanReinstallApkMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return cleanReinstallAction(runtime)
+        val waitAppReadyAfterSuccess = arguments["waitAppReadyAfterSuccess"] as? Boolean ?: false
+        return cleanReinstallAction(runtime, waitAppReadyAfterSuccess)
     }
 
-    private fun cleanReinstallAction(runtime: IMcpRuntime): McpToolResult {
+    private fun cleanReinstallAction(runtime: IMcpRuntime, waitAppReadyAfterSuccess: Boolean): McpToolResult {
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
-        return CompileAndDeployMcpToolAction.deployAction(runtime, McpToolActionRegistry.ToolNames.REINSTALL)
+        return CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.REINSTALL,
+            waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
+        )
     }
 
 }

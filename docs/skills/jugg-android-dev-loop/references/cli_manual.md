@@ -64,6 +64,9 @@ plugin version: 1.2.3
 ## Build & Deploy Commands
 
 All build commands **block** until completion; no polling needed.
+Completion means the MCP compile/deploy job has reached a terminal state. The CLI does not expose
+`waitAppReadyAfterSuccess`, so it does not add an extra app-ready wait after `deploy`, `gradle-build`,
+`clean-reinstall`, or `restart`.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
