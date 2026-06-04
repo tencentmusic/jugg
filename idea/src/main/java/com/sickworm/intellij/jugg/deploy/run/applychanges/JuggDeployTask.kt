@@ -123,15 +123,13 @@ class JuggDeployTask(
             try {
                 launchContext.launchApp = shouldTaskLaunchApp()
                 val apkFiles = apkInfos.flatMap { it.files }.map { it.apkFile }
-                // Other-targeting test APKs (app androidTest) run inside the main app
-                // process and don't benefit from incremental deploy; force INSTALL.
-                val isOtherTargeting = apkInfos.all { it.isOtherTargetingTestApk }
-                val effectiveType = if (isOtherTargeting && type != AndroidDeployType.INSTALL) {
-                    logOtherTargetingTestApkInstall(applicationId, apkInfos, logger)
-                    AndroidDeployType.INSTALL
-                } else {
-                    type
+                val decision = AndroidTestPackageDeployPolicy.decide(apkInfos, scopedData, type)
+                decision.warningMessage?.let { logger.warning("%s", it) }
+                if (decision.skip) {
+                    logPackageScope(applicationId, apkInfos, scopedData, decision.effectiveType, logger)
+                    continue
                 }
+                val effectiveType = decision.effectiveType
                 logPackageScope(applicationId, apkInfos, scopedData, effectiveType, logger)
                 val result = perform(device, deployer, applicationId, apkFiles, scopedData, effectiveType)
                 if (result.skippedInstall) {
@@ -225,18 +223,6 @@ class JuggDeployTask(
                 return deployer.codeSwap(getPathsToInstall(files), debuggerRedefiners, scopedData)
             }
         }
-    }
-
-    private fun logOtherTargetingTestApkInstall(
-        applicationId: String,
-        apkInfos: List<ApkInfo>,
-        logger: AdbLogWrapper,
-    ) {
-        val targets = apkInfos.mapNotNull { it.instrumentationTargetPackage }.distinct()
-        logger.info(
-            "Force INSTALL for other-targeting androidTest APK: applicationId=$applicationId, " +
-                "targets=$targets",
-        )
     }
 
     private fun logPackageScope(

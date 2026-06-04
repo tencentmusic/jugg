@@ -89,9 +89,9 @@ object ModuleApkBelongsUtils {
         } else {
             logger.debug("getModuleApkBelongs: base apk: $baseApk")
         }
-        // Step 0: androidTest modules map directly to the matching test ApkFileUnit.
-        // This must run before all other routing so test modules are never
-        // accidentally routed to the base or dynamic-feature APK.
+        // Step 0: androidTest modules must route by runtime classloader ownership.
+        // App androidTest modules run in the target app process, while self-targeting
+        // library test APKs run against their own test APK package.
         val testApkByTargetPkg: Map<String, ApkFileUnit> = apkInfo
             .filter { it.isTestApk }
             .mapNotNull { info ->
@@ -100,16 +100,36 @@ object ModuleApkBelongsUtils {
                 pkg to unit
             }
             .toMap()
+        val selfTargetingTestApkByTargetPkg = apkInfo
+            .filter { it.isTestApk && !it.isOtherTargetingTestApk }
+            .mapNotNull { info ->
+                val unit = info.files.firstOrNull() ?: return@mapNotNull null
+                val pkg = info.instrumentationTargetPackage ?: return@mapNotNull null
+                pkg to unit
+            }
+            .toMap()
+        val appApkByAppId = apkInfo
+            .filter { !it.isTestApk }
+            .fold(mutableMapOf<String, ApkFileUnit>()) { acc, info ->
+                val unit = info.files.firstOrNull() ?: return@fold acc
+                acc.putIfAbsent(info.applicationId, unit)
+                acc
+            }
 
         modules.values
             .filter { it.isAndroidTestModule }
             .forEach { testModule ->
-                val unit = testApkByTargetPkg[testModule.instrumentationTargetPackage]
+                val targetPackage = testModule.instrumentationTargetPackage ?: return@forEach
+                val unit = if (testModule.applicationId == targetPackage) {
+                    selfTargetingTestApkByTargetPkg[targetPackage]
+                } else {
+                    appApkByAppId[targetPackage] ?: baseApk
+                }
                 if (unit != null) {
                     moduleApkBelongs[testModule] = unit
                     allModuleApkBelongs.getOrPut(testModule) { mutableListOf() }.add(unit)
                 }
-                // if no test apk found, fall through to normal routing below (will land on base apk)
+                // if no matching unit is found, fall through to normal routing below
             }
 
         moduleApkBelongs[tempModule] = baseApk
@@ -150,14 +170,6 @@ object ModuleApkBelongsUtils {
             allModuleApkBelongs.getOrPut(moduleInfo) { mutableListOf() }.add(baseApk)
         }
 
-        val selfTargetingTestApkByTargetPkg = apkInfo
-            .filter { it.isTestApk && !it.isOtherTargetingTestApk }
-            .mapNotNull { info ->
-                val unit = info.files.firstOrNull() ?: return@mapNotNull null
-                val pkg = info.instrumentationTargetPackage ?: return@mapNotNull null
-                pkg to unit
-            }
-            .toMap()
         modules.values
             .filter { it.isAndroidTestModule }
             .forEach { testModule ->

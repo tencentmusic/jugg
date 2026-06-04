@@ -5,7 +5,6 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import java.io.File
 
@@ -69,7 +68,7 @@ class ModuleApkBelongsUtilsAndroidTestTest {
     )
 
     @Test
-    fun `androidTest module maps to test ApkFileUnit`() {
+    fun `app androidTest module maps to base ApkFileUnit`() {
         val appMod = appModule()
         val testMod = androidTestModule()
         val modules = mapOf(appMod.name to appMod, testMod.name to testMod)
@@ -79,9 +78,9 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         val result = ModuleApkBelongsUtils.getModuleApkBelongs(appMod, apkInfos, modules, tempModule,
             com.intellij.openapi.diagnostic.Logger.getInstance("test"))
 
-        val testApkUnit = apkInfos.first { it.isTestApk }.files.first()
-        assertEquals(testApkUnit, result.getBelongsApk(testMod))
-        assertEquals(listOf(testApkUnit), result.getAllBelongsApk(testMod))
+        val appApkUnit = apkInfos.first { !it.isTestApk }.files.first()
+        assertEquals(appApkUnit, result.getBelongsApk(testMod))
+        assertEquals(listOf(appApkUnit), result.getAllBelongsApk(testMod))
     }
 
     @Test
@@ -101,7 +100,7 @@ class ModuleApkBelongsUtilsAndroidTestTest {
     }
 
     @Test
-    fun `androidTest module and app module map to different ApkFileUnits`() {
+    fun `app androidTest module and app module map to same ApkFileUnit`() {
         val appMod = appModule()
         val testMod = androidTestModule()
         val modules = mapOf(appMod.name to appMod, testMod.name to testMod)
@@ -111,7 +110,30 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         val result = ModuleApkBelongsUtils.getModuleApkBelongs(appMod, apkInfos, modules, tempModule,
             com.intellij.openapi.diagnostic.Logger.getInstance("test"))
 
-        assertNotEquals(result.getBelongsApk(appMod), result.getBelongsApk(testMod))
+        assertEquals(result.getBelongsApk(appMod), result.getBelongsApk(testMod))
+    }
+
+    @Test
+    fun `self targeting androidTest module maps to test ApkFileUnit`() {
+        val appMod = appModule()
+        val testMod = androidTestModule(
+            name = "library1.androidTest",
+            testAppId = "com.example.library1.test",
+            targetPkg = "com.example.library1.test",
+        )
+        val modules = mapOf(appMod.name to appMod, testMod.name to testMod)
+        val apkInfos = listOf(
+            appApkInfo(),
+            testApkInfo(testId = "com.example.library1.test", targetPkg = "com.example.library1.test"),
+        )
+        val tempModule = ModuleInfo.virtualModule
+
+        val result = ModuleApkBelongsUtils.getModuleApkBelongs(appMod, apkInfos, modules, tempModule,
+            com.intellij.openapi.diagnostic.Logger.getInstance("test"))
+
+        val testApkUnit = apkInfos.first { it.isTestApk }.files.first()
+        assertEquals(testApkUnit, result.getBelongsApk(testMod))
+        assertEquals(listOf(testApkUnit), result.getAllBelongsApk(testMod))
     }
 
     @Test
