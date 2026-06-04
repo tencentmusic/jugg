@@ -44,6 +44,13 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                         "finishedAt" to McpJsonSchemaProperty(type = "string"),
                         "message" to McpJsonSchemaProperty(type = "string"),
                         "pollIntervalSuggestedMs" to McpJsonSchemaProperty(type = "number"),
+                        "indicator" to McpJsonSchemaProperty(
+                            type = "object",
+                            properties = mapOf(
+                                "text" to McpJsonSchemaProperty(type = "string"),
+                            ),
+                            additionalProperties = false,
+                        ),
                         "isCompileSuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether compilation succeeded. Absent when unknown (e.g. job running or not found)."),
                         "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment succeeded. Absent when deploy was skipped or not applicable (e.g. compile-only, gradle-build)."),
                         "detail" to McpJsonSchemaProperty(type = "string", description = "Preview of compile/deploy diagnostic output when available."),
@@ -86,6 +93,10 @@ class GetCompileStatusMcpToolAction : McpToolAction {
         state.isDeploySuccess?.let { data["isDeploySuccess"] = it }
         if (state.status == "running") {
             data.putAll(CompileJobManager.buildPollSuggestionData())
+            val indicatorText = runtime.juggConfigurationRunner.currentIndicatorText
+            if (indicatorText.isNotBlank()) {
+                data["indicator"] = mapOf("text" to indicatorText)
+            }
         }
         state.finishedAt?.let { data["finishedAt"] = it }
 

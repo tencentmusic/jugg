@@ -325,8 +325,10 @@ def print_kv(structured: dict) -> None:
 # ─── terminal spinner ───────────────────────────────────────────────────────
 
 _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-COMPILE_STATUS_WAIT_TIMEOUT_MS = 3000
-COMPILE_IDLE_POLL_INTERVAL_SEC = 0.3
+COMPILE_STATUS_WAIT_TIMEOUT_MS = 5000
+COMPILE_IDLE_POLL_INTERVAL_SEC = 5.0
+COMPILE_IDLE_HEARTBEAT_INTERVAL_SEC = 30.0
+COMPILE_RUNNING_HEARTBEAT_INTERVAL_SEC = 30.0
 IF_COMPILING_WAIT = "wait"
 IF_COMPILING_INTERRUPT = "interrupt"
 
@@ -359,23 +361,68 @@ def _run_spinner(stop_event: threading.Event, label: str | list[str]) -> None:
         return label[0] if isinstance(label, list) else label
 
     i = 0
-    max_label_len = 0
+    max_line_len = 0
     while not stop_event.is_set():
         text = current_label()
-        max_label_len = max(max_label_len, len(text))
         frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
-        sys.stderr.write(f"\r{frame} {text}...")
+        line = f"{frame} {text}..."
+        padding = " " * max(0, max_line_len - len(line))
+        max_line_len = max(max_line_len, len(line))
+        sys.stderr.write(f"\r{line}{padding}")
         sys.stderr.flush()
         time.sleep(0.08)
         i += 1
     # Clear spinner line
-    sys.stderr.write(f"\r{' ' * (max_label_len + 6)}\r")
+    sys.stderr.write(f"\r{' ' * max_line_len}\r")
     sys.stderr.flush()
 
 
 # ─── async compile polling ───────────────────────────────────────────────────
 
-def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
+def _print_progress_heartbeat(text: str) -> None:
+    """Print non-result progress to stderr for human-readable modes."""
+    if json_mode:
+        return
+    normalized = text.strip()
+    if not normalized:
+        return
+    print(normalized, file=sys.stderr)
+
+
+def _extract_indicator_text(structured: dict) -> str:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return ""
+    indicator = data.get("indicator", {})
+    if not isinstance(indicator, dict):
+        return ""
+    text = indicator.get("text", "")
+    return text if isinstance(text, str) else ""
+
+
+def _handle_running_indicator(
+    text: str,
+    next_heartbeat_at: Optional[float],
+    progress_label: Optional[list[str]],
+) -> Optional[float]:
+    if not text.strip():
+        return next_heartbeat_at
+    if spinner_enabled and progress_label is not None:
+        progress_label[0] = text.strip()
+        return next_heartbeat_at
+    now = time.monotonic()
+    if next_heartbeat_at is None or now >= next_heartbeat_at:
+        _print_progress_heartbeat(text)
+        return now + COMPILE_RUNNING_HEARTBEAT_INTERVAL_SEC
+    return next_heartbeat_at
+
+
+def poll_compile(
+    port: int,
+    project_dir: str,
+    structured: dict,
+    progress_label: Optional[list[str]] = None,
+) -> dict:
     """Poll get_compile_status until status is no longer 'running'.
 
     The initial structured dict (from compile/deploy/gradle-build) contains isFinal + status.
@@ -384,6 +431,7 @@ def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
     """
     # Save logPath from initial response — get-compile-status does not return it.
     initial_log_path = structured.get("data", {}).get("logPath", "")
+    next_indicator_heartbeat_at: Optional[float] = None
 
     while True:
         status = structured.get("data", {}).get("status", "")
@@ -405,6 +453,13 @@ def poll_compile(port: int, project_dir: str, structured: dict) -> dict:
             },
         )
         structured = extract_structured(response)
+        if structured.get("data", {}).get("status") == "running":
+            indicator_text = _extract_indicator_text(structured)
+            next_indicator_heartbeat_at = _handle_running_indicator(
+                indicator_text,
+                next_indicator_heartbeat_at,
+                progress_label,
+            )
 
     # Restore logPath if missing from the polling response.
     if initial_log_path:
@@ -447,7 +502,12 @@ def wait_for_compile_idle(
         return
     if on_waiting is not None:
         on_waiting()
+    next_heartbeat_at = time.monotonic() + COMPILE_IDLE_HEARTBEAT_INTERVAL_SEC
     while _fetch_is_compiling(port, project_dir):
+        now = time.monotonic()
+        if now >= next_heartbeat_at and not spinner_enabled:
+            _print_progress_heartbeat("waiting for previous compile...")
+            next_heartbeat_at = now + COMPILE_IDLE_HEARTBEAT_INTERVAL_SEC
         time.sleep(COMPILE_IDLE_POLL_INTERVAL_SEC)
 
 
@@ -498,7 +558,10 @@ def compile_call(tool: str, *, json_mode: Optional[bool] = None,
         target=_run_spinner, args=(stop_event, spinner_label), daemon=True
     )
     spinner_thread.start()
+    interrupted = False
     try:
+        if not spinner_enabled and not _json_mode:
+            _print_progress_heartbeat(f"{label}...")
         if if_compiling == IF_COMPILING_WAIT:
             wait_for_compile_idle(
                 port,
@@ -509,10 +572,17 @@ def compile_call(tool: str, *, json_mode: Optional[bool] = None,
             )
         response = raw_call(port, tool, params)
         structured = extract_structured(response)
-        structured = poll_compile(port, project_dir, structured)
+        structured = poll_compile(port, project_dir, structured, progress_label=spinner_label)
+    except KeyboardInterrupt:
+        interrupted = True
     finally:
         stop_event.set()
         spinner_thread.join()
+
+    if interrupted:
+        if not _json_mode:
+            print("Interrupted by user.", file=sys.stderr)
+        sys.exit(130)
 
     if _json_mode:
         print(json.dumps(structured))

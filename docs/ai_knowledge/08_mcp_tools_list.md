@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-05-23
+> 最后核对：2026-06-04
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -158,7 +158,7 @@
 | `jobId` | string | **是** | 异步编译工具返回的 job ID |
 | `waitTimeoutMs` | integer | 否 | 阻塞等待状态变化的超时时间（毫秒），范围 `[0, 10000]`，默认 `0`（不阻塞） |
 
-**返回 data**：`jobId`、`status`（running/success/failed/canceled/unknown）、`executionType`（local/remote）、`message`；running 时附带 `pollIntervalSuggestedMs`。终态时附带 `isCompileSuccess`（boolean，编译是否成功，unknown 时缺失）、`isDeploySuccess`（boolean，部署是否成功，unknown 时缺失；compile 仅编译时通常为 `false`）。终态为 `failed` / `canceled` 且存在诊断输出时，附带 `detail` / `detailLength` / `detailTruncated`；成功终态不返回 `detail`。
+**返回 data**：`jobId`、`status`（running/success/failed/canceled/unknown）、`executionType`（local/remote）、`message`；running 时附带 `pollIntervalSuggestedMs`，如果当前 IDE 进度文本非空，还会附带 `indicator.text`，供 CLI/Agent 展示轻量 heartbeat。终态时附带 `isCompileSuccess`（boolean，编译是否成功，unknown 时缺失）、`isDeploySuccess`（boolean，部署是否成功，unknown 时缺失；compile 仅编译时通常为 `false`）。终态为 `failed` / `canceled` 且存在诊断输出时，附带 `detail` / `detailLength` / `detailTruncated`；成功终态不返回 `detail`。
 
 **行为说明**：
 - 当 `waitTimeoutMs > 0` 且任务当前为 `running` 时，接口会在服务端阻塞等待状态变化，直到任务终态或超时后返回。

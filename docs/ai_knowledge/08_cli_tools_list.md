@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-05-23
+> 最后核对：2026-06-04
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -63,6 +63,10 @@ jugg --console=json <subcommand>
 - `rich`：shell / Windows wrapper 默认注入，面向人工终端显示 spinner。
 - `json`：输出 MCP `structuredContent` JSON，供脚本或 Agent 消费。
 
+`compile` / `deploy` / `gradle-build` / `instrument` 的长耗时进度提示不进入结果 stdout。`plain` 会在触发前向 stderr 输出一次起始进度（如 `Running Gradle build...`），并在运行中输出无额外前缀的 heartbeat；`rich` 会更新同一行 spinner 文案；`json` 保持 stdout 纯 JSON，默认不输出 heartbeat。
+
+用户用 Ctrl-C 中断 compile 类命令时，CLI 输出简短 `Interrupted by user.` 并以 130 退出，不打印 Python traceback。
+
 全局参数由 `jugg.py` 在子命令分发前抽取；示例统一写在子命令前，便于阅读。
 
 ### 3.4 并发 compile 策略
@@ -71,13 +75,15 @@ jugg --console=json <subcommand>
 jugg [--if-compiling wait|interrupt] <compile|deploy|gradle-build|instrument> [options]
 ```
 
-- `wait`（默认）：触发前轮询 `status.isCompiling=false`。
+- `wait`（默认）：触发前每 5s 轮询 `status.isCompiling=false`；持续等待时每 30s 在 stderr 输出一次 `waiting for previous compile` heartbeat。
 - `interrupt`：跳过等待，立即调用目标 MCP tool；服务端沿用“新任务中断旧任务”的语义。
 - 这是 CLI-only 全局参数，不发送给 MCP。
 
 ### 3.5 异步编译轮询
 
-`compile`、`deploy`、`gradle-build`、`instrument` 经 `jugglib.compile_call()` 调用。若首次响应 `data.status=running`，CLI 用 `get-compile-status` + `waitTimeoutMs=3000` 轮询到终态，并保留首次响应中的 `logPath`。
+`compile`、`deploy`、`gradle-build`、`instrument` 经 `jugglib.compile_call()` 调用。若首次响应 `data.status=running`，CLI 用 `get-compile-status` + `waitTimeoutMs=5000` 轮询到终态，并保留首次响应中的 `logPath`。
+
+`get-compile-status` 返回 running 且附带 `data.indicator.text` 时，`plain` 模式会立即向 stderr 输出首条 heartbeat，后续同类 running heartbeat 每 30s 节流一次；`rich` 模式会用该文本覆盖当前 spinner 文案并保留 spinner；`json` 模式不输出该 heartbeat。
 
 ### 3.6 help 输出
 

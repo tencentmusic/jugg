@@ -16,6 +16,8 @@ interface IJuggConfigurationRunner {
 
     val isCompiling: Boolean
 
+    val currentIndicatorText: String get() = ""
+
     fun runTask(
         options: JuggGradleCompileOptions,
         compileUiHandler: CompileUiHandler,

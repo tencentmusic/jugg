@@ -53,8 +53,14 @@ class JuggConfigurationRunner(
 
     override val isCompiling: Boolean get() = currentTask?.isRunning == true
 
+    override val currentIndicatorText: String
+        get() = currentCompileUiHandler?.progressIndicator?.text.orEmpty()
+
     @Volatile
     private var currentTask: IJuggRunningTask? = null
+
+    @Volatile
+    private var currentCompileUiHandler: CompileUiHandler? = null
 
 
     override fun runTask(
@@ -79,6 +85,7 @@ class JuggConfigurationRunner(
         }
 
         cancelCurrentTask(processHandler) {
+            currentCompileUiHandler = compileUiHandler
             currentTask = juggRunningTaskCreator.createAndRun(options, compileUiHandler, androidTestRunSpec)
         }
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = false

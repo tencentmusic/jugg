@@ -99,7 +99,44 @@ class GetCompileStatusMcpToolActionTest {
         Assert.assertTrue("expected blocking wait, elapsed=$elapsedMs", elapsedMs >= 80L)
     }
 
-    private fun runtimeWithRunner(delayMillis: Long, detail: String = ""): IMcpRuntime {
+    @Test
+    fun testRunningStatusReturnsCurrentIndicatorText() {
+        CompileJobManager.softTimeoutMillisOverrideForTest = 1L
+        val runtime = runtimeWithRunner(
+            delayMillis = 300L,
+            indicatorText = "Compiling files (3/12)...",
+        )
+        val deployAction = CompileAndDeployMcpToolAction()
+        val triggerResult = deployAction.execute(mapOf("projectDir" to "/fake/project"), runtime)
+        @Suppress("UNCHECKED_CAST")
+        val triggerData = triggerResult.data as Map<String, Any>
+        Assert.assertEquals(false, triggerData["isFinal"])
+        val jobId = triggerData["jobId"] as String
+
+        val action = GetCompileStatusMcpToolAction()
+        val result = action.execute(
+            mapOf(
+                "projectDir" to "/fake/project",
+                "jobId" to jobId,
+                "waitTimeoutMs" to 0,
+            ),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("running", data["status"])
+        @Suppress("UNCHECKED_CAST")
+        val indicator = data["indicator"] as Map<String, Any>
+        Assert.assertEquals("Compiling files (3/12)...", indicator["text"])
+    }
+
+    private fun runtimeWithRunner(
+        delayMillis: Long,
+        detail: String = "",
+        indicatorText: String = "",
+    ): IMcpRuntime {
         return object : IMcpRuntime {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("GetCompileStatusTestRuntime")
@@ -130,6 +167,8 @@ class GetCompileStatusMcpToolActionTest {
 
             override val juggConfigurationRunner: IJuggConfigurationRunner = object : IJuggConfigurationRunner {
                 override val isCompiling: Boolean = false
+                override val currentIndicatorText: String
+                    get() = indicatorText
 
                 override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler, executor: Executor?, runProfile: RunProfile?, androidTestRunSpec: AndroidTestRunSpec?): ExecutionResult {
                     throw UnsupportedOperationException("not used in this test")
