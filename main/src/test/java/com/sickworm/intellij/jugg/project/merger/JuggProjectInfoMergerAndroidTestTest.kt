@@ -142,6 +142,67 @@ class JuggProjectInfoMergerAndroidTestTest {
     }
 
     @Test
+    fun `doMerge skips IDE-only androidTest module when gradle snapshot exists`() {
+        val mainIde = ModuleInfo.virtualModule.copy(
+            name = "common.download",
+            moduleType = ModuleInfo.Type.Library,
+            moduleRootDir = moduleDir("common/download"),
+            projectRootDir = projectDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/download"), "debug"),
+        )
+        val extraIdeAndroidTest = ModuleInfo.virtualModule.copy(
+            name = "common.fake.androidTest",
+            moduleType = ModuleInfo.Type.Library,
+            moduleRootDir = moduleDir("common/fake"),
+            projectRootDir = projectDir,
+            applicationId = "com.example.fake.test",
+            instrumentationTargetPackage = "com.example.fake.test",
+            buildVariant = "debugAndroidTest",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/fake"), "debugAndroidTest"),
+        )
+        val mainGradle = mainIde.copy(moduleType = ModuleInfo.Type.Library)
+        val realGradleAndroidTest = ModuleInfo.virtualModule.copy(
+            name = "common.download.androidTest",
+            moduleType = ModuleInfo.Type.Library,
+            moduleRootDir = moduleDir("common/download"),
+            projectRootDir = projectDir,
+            applicationId = "com.example.download.test",
+            instrumentationTargetPackage = "com.example.download.test",
+            buildVariant = "debugAndroidTest",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/download"), "debugAndroidTest"),
+        )
+
+        val ideFile = saveToTempFile(
+            JuggProjectInfo(
+                mapOf(
+                    "common.download" to mainIde,
+                    "common.fake.androidTest" to extraIdeAndroidTest,
+                )
+            )
+        )
+        val gradleFile = saveToTempFile(
+            JuggProjectInfo(
+                mapOf(
+                    "common.download" to mainGradle,
+                    "common.download.androidTest" to realGradleAndroidTest,
+                )
+            )
+        )
+        try {
+            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+
+            assertNull(result.mergedInfo?.modules?.get("common.fake.androidTest"))
+            assertNotNull(result.mergedInfo?.modules?.get("common.download.androidTest"))
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
     fun `doMerge preserves instrumentationTargetPackage from gradle module`() {
         val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to androidTestIdeModule())))
         val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to androidTestGradleModule())))
@@ -211,4 +272,6 @@ class JuggProjectInfoMergerAndroidTestTest {
             gradleFile.delete()
         }
     }
+
+    private fun moduleDir(path: String): File = File(projectDir, path)
 }

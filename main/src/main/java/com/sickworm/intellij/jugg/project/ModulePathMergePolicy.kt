@@ -99,6 +99,39 @@ object ModulePathMergePolicy {
         }
     }
 
+    fun shouldIncludeIdeOnlyModule(ideModule: ModuleInfo): Boolean {
+        return when (classify(ideModule)) {
+            ModuleSourceKind.JvmTest -> false
+            ModuleSourceKind.AndroidTest -> false
+            ModuleSourceKind.Main -> true
+        }
+    }
+
+    fun shouldIncludeIdeAndroidTestCandidate(
+        moduleName: String,
+        applicationId: String?,
+        instrumentationTargetPackage: String?,
+        hasSourceFiles: Boolean,
+        knownGradleAndroidTestModuleNames: Set<String>?,
+    ): Boolean {
+        if (!hasValidAndroidTestMetadata(applicationId, instrumentationTargetPackage)) {
+            return false
+        }
+        if (knownGradleAndroidTestModuleNames != null) {
+            return knownGradleAndroidTestModuleNames.contains(moduleName)
+        }
+        return hasSourceFiles
+    }
+
+    fun hasValidAndroidTestMetadata(applicationId: String?, instrumentationTargetPackage: String?): Boolean {
+        return isValidAndroidTestPackage(applicationId) &&
+                isValidAndroidTestPackage(instrumentationTargetPackage)
+    }
+
+    private fun isValidAndroidTestPackage(value: String?): Boolean {
+        return !value.isNullOrBlank() && value != UNINITIALIZED_APPLICATION_ID
+    }
+
     /**
      * Picks the build variant when merging IDE and Gradle snapshots for the same module name.
      */
@@ -114,4 +147,6 @@ object ModulePathMergePolicy {
         }
         return gradleModule.buildVariant
     }
+
+    private const val UNINITIALIZED_APPLICATION_ID = "uninitialized.application.id"
 }

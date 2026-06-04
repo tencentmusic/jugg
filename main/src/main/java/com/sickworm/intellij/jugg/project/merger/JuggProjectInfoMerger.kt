@@ -160,6 +160,13 @@ class JuggProjectInfoMerger(
         ideProjectInfo.modules.forEach { (name, moduleInfo) ->
             val gradleModuleInfo = finalGradleProjectInfo.modules[name]
             if (gradleModuleInfo == null) {
+                if (!ModulePathMergePolicy.shouldIncludeIdeOnlyModule(moduleInfo)) {
+                    logger.debug(
+                        "module ${moduleInfo.name} is IDE-only ${ModulePathMergePolicy.classify(moduleInfo)} " +
+                                "snapshot, skip for buildTarget=$buildTarget"
+                    )
+                    return@forEach
+                }
                 noMergeModules.add(name)
                 mergedModules[name] = moduleInfo
                 return@forEach

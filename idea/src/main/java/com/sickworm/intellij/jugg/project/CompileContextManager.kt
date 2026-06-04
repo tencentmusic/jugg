@@ -322,7 +322,9 @@ class CompileContextManager(
         val ideaFolderModules = mutableSetOf<String>()
         val notGradleModules = mutableSetOf<String>()
         val testModules = mutableSetOf<String>()
+        val filteredAndroidTestModules = mutableSetOf<String>()
         val noSourceModules = mutableMapOf<String, ModuleInfo>()
+        val knownGradleAndroidTestModuleNames = loadKnownGradleAndroidTestModuleNames()
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
@@ -361,6 +363,7 @@ class CompileContextManager(
                 testModules.add(module.name)
                 return@forEach
             }
+            val moduleSimpleName = module.name.moduleSimpleName
             val isAndroidTestIdeModule =
                 ModulePathMergePolicy.classifyByName(stdModuleName) == ModulePathMergePolicy.ModuleSourceKind.AndroidTest
 
@@ -408,6 +411,22 @@ class CompileContextManager(
                     return@filter !it.isChild(moduleBuildPathInfo.buildDir) // exclude generated source
                 }
             sourceDirs.addAll(subSourceRoots)
+
+            if (isAndroidTestIdeModule) {
+                val hasAndroidTestSourceFiles = knownGradleAndroidTestModuleNames != null ||
+                        sourceDirs.hasJavaOrKotlinSourceFile()
+                if (!ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
+                        moduleName = moduleSimpleName,
+                        applicationId = ideModuleInfo.androidTestApplicationId,
+                        instrumentationTargetPackage = ideModuleInfo.androidTestInstrumentationTargetPackage,
+                        hasSourceFiles = hasAndroidTestSourceFiles,
+                        knownGradleAndroidTestModuleNames = knownGradleAndroidTestModuleNames,
+                    )
+                ) {
+                    filteredAndroidTestModules.add(module.name)
+                    return@forEach
+                }
+            }
 
             val subResourceRoots = moduleRootManager.getSourceRoots(
                 setOf(
@@ -487,10 +506,12 @@ class CompileContextManager(
             // Smart cast to 'IdeModuleInfo' is impossible, because 'ideModuleInfo' is a local variable that is captured by a changing closure
             val info = ideModuleInfo!!
             val hasIdeAndroidTestMetadata = isAndroidTestIdeModule &&
-                    info.androidTestApplicationId != null &&
-                    info.androidTestInstrumentationTargetPackage != null
+                    ModulePathMergePolicy.hasValidAndroidTestMetadata(
+                        info.androidTestApplicationId,
+                        info.androidTestInstrumentationTargetPackage,
+                    )
             val moduleInfo = ModuleInfo(
-                name = module.name.moduleSimpleName,
+                name = moduleSimpleName,
                 moduleType = if (hasIdeAndroidTestMetadata) ModuleInfo.Type.Library else ModuleInfo.Type.Unknown,
                 moduleRootDir = normalizedBaseDir,
                 projectRootDir = pathManager.projectDir,
@@ -558,6 +579,9 @@ class CompileContextManager(
         if (testModules.isNotEmpty()) {
             logger.debug("ignore modules (test module): ${testModules.joinToString(", ")}")
         }
+        if (filteredAndroidTestModules.isNotEmpty()) {
+            logger.debug("ignore modules (non-gradle androidTest module): ${filteredAndroidTestModules.joinToString(", ")}")
+        }
         logger.debug(addedModules.joinToString("\n"))
 
         logger.debug("getLibraryDependencies total $totalCount, hitCacheCount $hitCacheCount, unHitCacheCount ${totalCount - hitCacheCount}")
@@ -573,6 +597,31 @@ class CompileContextManager(
                     it.name.startsWith("layout") ||
                     it.name.startsWith("values") ||
                     it.name.startsWith("mipmap")
+        }
+    }
+
+    private fun loadKnownGradleAndroidTestModuleNames(): Set<String>? {
+        val result = mutableSetOf<String>()
+        var hasGradleProjectInfo = false
+        getAllGradleProjectInfo().forEach { projectInfoSerializer ->
+            val gradleProjectInfo = projectInfoSerializer.load() ?: return@forEach
+            hasGradleProjectInfo = true
+            gradleProjectInfo.modules.values.forEach { moduleInfo ->
+                if (ModulePathMergePolicy.classify(moduleInfo) == ModulePathMergePolicy.ModuleSourceKind.AndroidTest &&
+                    moduleInfo.isAndroidTestModule
+                ) {
+                    result.add(moduleInfo.name)
+                }
+            }
+        }
+        return if (hasGradleProjectInfo) result else null
+    }
+
+    private fun Collection<File>.hasJavaOrKotlinSourceFile(): Boolean {
+        return any { sourceDir ->
+            sourceDir.exists() && sourceDir.walkTopDown().any { file ->
+                file.isFile && (file.extension == "java" || file.extension == "kt")
+            }
         }
     }
 

@@ -106,6 +106,63 @@ class ModulePathMergePolicyTest {
     }
 
     @Test
+    fun `shouldIncludeIdeAndroidTestCandidate rejects uninitialized target package`() {
+        assertFalse(
+            ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
+                moduleName = "common.download.androidTest",
+                applicationId = "com.example.test",
+                instrumentationTargetPackage = "uninitialized.application.id",
+                hasSourceFiles = true,
+                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
+            )
+        )
+    }
+
+    @Test
+    fun `shouldIncludeIdeAndroidTestCandidate follows known gradle androidTest modules`() {
+        assertTrue(
+            ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
+                moduleName = "common.download.androidTest",
+                applicationId = "com.example.test",
+                instrumentationTargetPackage = "com.example.test",
+                hasSourceFiles = false,
+                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
+            )
+        )
+        assertFalse(
+            ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
+                moduleName = "common.fake.androidTest",
+                applicationId = "com.example.fake.test",
+                instrumentationTargetPackage = "com.example.fake.test",
+                hasSourceFiles = true,
+                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
+            )
+        )
+    }
+
+    @Test
+    fun `shouldIncludeIdeAndroidTestCandidate falls back to source files without gradle snapshot`() {
+        assertTrue(
+            ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
+                moduleName = "common.download.androidTest",
+                applicationId = "com.example.test",
+                instrumentationTargetPackage = "com.example.test",
+                hasSourceFiles = true,
+                knownGradleAndroidTestModuleNames = null,
+            )
+        )
+        assertFalse(
+            ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
+                moduleName = "common.download.androidTest",
+                applicationId = "com.example.test",
+                instrumentationTargetPackage = "com.example.test",
+                hasSourceFiles = false,
+                knownGradleAndroidTestModuleNames = null,
+            )
+        )
+    }
+
+    @Test
     fun `selectMergedBuildVariant keeps main module debug when gradle snapshot is androidTest`() {
         val mainIde = module("common.download", "debug")
         val androidTestGradle = module(
