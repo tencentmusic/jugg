@@ -2,9 +2,10 @@
 
 package com.sickworm.intellij.jugg.ai.skills
 
-import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
-import com.sickworm.intellij.jugg.ai.skills.agents.IAgentInstaller
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ai.skills.agents.CodexAgentInstaller
+import com.sickworm.intellij.jugg.ai.skills.agents.IAgentInstaller
+import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
@@ -71,6 +72,11 @@ object JuggSkillInstaller {
                     targetSkillDir = File(internalHome, "skills/$SKILL_NAME"),
                 )
             }
+        if (client == InstallClient.CODEX) {
+            CodexPermissionRuleInstaller.install(
+                CodexAgentInstaller.resolvePermissionRuleTargets(userHome, SKILL_NAME),
+            )
+        }
     }
 
     private fun installSkillToDir(sourceSkillDir: File, targetSkillDir: File) {

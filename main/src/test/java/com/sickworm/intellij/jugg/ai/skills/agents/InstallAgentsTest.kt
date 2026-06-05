@@ -193,4 +193,32 @@ class InstallAgentsTest {
             GeminiAgentInstaller.resolveHookTargets(userHome),
         )
     }
+
+    @Test
+    fun codexAgentInstaller_shouldExposePermissionRuleTargetsForPrimaryAndInternalHomes() {
+        val userHome = Files.createTempDirectory("jugg-home-codex-rules").toFile()
+        File(userHome, ".codex-internal").mkdirs()
+
+        val targets = CodexAgentInstaller.resolvePermissionRuleTargets(userHome, "jugg-android-dev-loop")
+
+        assertEquals(
+            listOf(
+                AgentPermissionRuleTarget(
+                    rulesFile = File(userHome, ".codex/rules/default.rules"),
+                    prefixPattern = listOf(
+                        "python3",
+                        File(userHome, ".codex/skills/jugg-android-dev-loop/scripts/jugg.py").absolutePath,
+                    ),
+                ),
+                AgentPermissionRuleTarget(
+                    rulesFile = File(userHome, ".codex-internal/rules/default.rules"),
+                    prefixPattern = listOf(
+                        "python3",
+                        File(userHome, ".codex-internal/skills/jugg-android-dev-loop/scripts/jugg.py").absolutePath,
+                    ),
+                ),
+            ),
+            targets,
+        )
+    }
 }

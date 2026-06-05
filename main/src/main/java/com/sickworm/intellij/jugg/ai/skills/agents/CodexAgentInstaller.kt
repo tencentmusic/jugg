@@ -10,9 +10,36 @@ object CodexAgentInstaller : IAgentInstaller {
     override val client: InstallClient = InstallClient.CODEX
 
     override fun resolvePrimarySkillRoot(userHome: File): File {
+        return File(resolveCodexHome(userHome), "skills")
+    }
+
+    fun resolvePermissionRuleTargets(userHome: File, skillName: String): List<AgentPermissionRuleTarget> {
+        val codexHome = resolveCodexHome(userHome)
+        val primary = permissionRuleTarget(
+            codexHome = codexHome,
+            scriptFile = File(codexHome, "skills/$skillName/scripts/jugg.py"),
+        )
+        val internals = resolveInternalSkillHomes(userHome)
+            .filter { it.exists() }
+            .map { internalHome ->
+                permissionRuleTarget(
+                    codexHome = internalHome,
+                    scriptFile = File(internalHome, "skills/$skillName/scripts/jugg.py"),
+                )
+            }
+        return listOf(primary) + internals
+    }
+
+    private fun resolveCodexHome(userHome: File): File {
         val envHome = System.getenv("CODEX_HOME").takeIf { userHome.isDefaultUserHome() }
-        val codexHome = if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".codex")
-        return File(codexHome, "skills")
+        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".codex")
+    }
+
+    private fun permissionRuleTarget(codexHome: File, scriptFile: File): AgentPermissionRuleTarget {
+        return AgentPermissionRuleTarget(
+            rulesFile = File(codexHome, "rules/default.rules"),
+            prefixPattern = listOf("python3", scriptFile.absolutePath),
+        )
     }
 
     override fun resolveInternalSkillHomes(userHome: File): List<File> {
