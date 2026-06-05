@@ -109,55 +109,45 @@ class ModulePathMergePolicyTest {
     fun `shouldIncludeIdeAndroidTestCandidate rejects uninitialized target package`() {
         assertFalse(
             ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
-                moduleName = "common.download.androidTest",
                 applicationId = "com.example.test",
                 instrumentationTargetPackage = "uninitialized.application.id",
                 hasSourceFiles = true,
-                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
             )
         )
     }
 
     @Test
-    fun `shouldIncludeIdeAndroidTestCandidate follows known gradle androidTest modules`() {
+    fun `shouldIncludeIdeAndroidTestCandidate does not require known gradle androidTest module`() {
         assertTrue(
             ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
-                moduleName = "common.download.androidTest",
                 applicationId = "com.example.test",
                 instrumentationTargetPackage = "com.example.test",
-                hasSourceFiles = false,
-                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
+                hasSourceFiles = true,
             )
         )
-        assertFalse(
+        assertTrue(
             ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
-                moduleName = "common.fake.androidTest",
                 applicationId = "com.example.fake.test",
                 instrumentationTargetPackage = "com.example.fake.test",
                 hasSourceFiles = true,
-                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
             )
         )
     }
 
     @Test
-    fun `shouldIncludeIdeAndroidTestCandidate falls back to source files without gradle snapshot`() {
+    fun `shouldIncludeIdeAndroidTestCandidate requires source files`() {
         assertTrue(
             ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
-                moduleName = "common.download.androidTest",
                 applicationId = "com.example.test",
                 instrumentationTargetPackage = "com.example.test",
                 hasSourceFiles = true,
-                knownGradleAndroidTestModuleNames = null,
             )
         )
         assertFalse(
             ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
-                moduleName = "common.download.androidTest",
                 applicationId = "com.example.test",
                 instrumentationTargetPackage = "com.example.test",
                 hasSourceFiles = false,
-                knownGradleAndroidTestModuleNames = null,
             )
         )
     }
@@ -167,40 +157,32 @@ class ModulePathMergePolicyTest {
         assertEquals(
             "missingMetadata",
             ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
-                moduleName = "common.download.androidTest",
                 applicationId = "com.example.test",
                 instrumentationTargetPackage = null,
                 hasSourceFiles = true,
-                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
             ),
         )
-        assertEquals(
-            "notInGradleTruth",
+        assertNull(
             ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
-                moduleName = "common.fake.androidTest",
                 applicationId = "com.example.fake.test",
                 instrumentationTargetPackage = "com.example.fake.test",
                 hasSourceFiles = true,
-                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
             ),
         )
         assertEquals(
             "noSourceFiles",
             ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
-                moduleName = "common.download.androidTest",
                 applicationId = "com.example.test",
                 instrumentationTargetPackage = "com.example.test",
                 hasSourceFiles = false,
-                knownGradleAndroidTestModuleNames = null,
             ),
         )
-        assertNull(
+        assertEquals(
+            "noSourceFiles",
             ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
-                moduleName = "common.download.androidTest",
                 applicationId = "com.example.test",
                 instrumentationTargetPackage = "com.example.test",
                 hasSourceFiles = false,
-                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
             ),
         )
     }

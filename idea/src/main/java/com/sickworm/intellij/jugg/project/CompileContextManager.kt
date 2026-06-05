@@ -415,14 +415,11 @@ class CompileContextManager(
             sourceDirs.addAll(subSourceRoots)
 
             if (isAndroidTestIdeModule) {
-                val hasAndroidTestSourceFiles = knownGradleAndroidTestModuleNames != null ||
-                        sourceDirs.hasJavaOrKotlinSourceFile()
+                val hasAndroidTestSourceFiles = sourceDirs.hasJavaOrKotlinSourceFile()
                 val filterReason = ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
-                        moduleName = moduleSimpleName,
                         applicationId = ideModuleInfo.androidTestApplicationId,
                         instrumentationTargetPackage = ideModuleInfo.androidTestInstrumentationTargetPackage,
                         hasSourceFiles = hasAndroidTestSourceFiles,
-                        knownGradleAndroidTestModuleNames = knownGradleAndroidTestModuleNames,
                     )
                 logger.trace(
                     "IDE androidTest candidate: module=${module.name}, simpleName=$moduleSimpleName, " +
@@ -593,7 +590,7 @@ class CompileContextManager(
         }
         if (filteredAndroidTestModules.isNotEmpty()) {
             logger.debug(
-                "ignore modules (non-gradle androidTest module): ${filteredAndroidTestModules.joinToString(", ")}, " +
+                "ignore modules (invalid IDE androidTest module): ${filteredAndroidTestModules.joinToString(", ")}, " +
                         "reasons=$filteredAndroidTestReasons"
             )
         }

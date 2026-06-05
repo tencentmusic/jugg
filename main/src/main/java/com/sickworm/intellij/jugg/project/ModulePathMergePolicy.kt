@@ -108,33 +108,24 @@ object ModulePathMergePolicy {
     }
 
     fun shouldIncludeIdeAndroidTestCandidate(
-        moduleName: String,
         applicationId: String?,
         instrumentationTargetPackage: String?,
         hasSourceFiles: Boolean,
-        knownGradleAndroidTestModuleNames: Set<String>?,
     ): Boolean {
         return getIdeAndroidTestCandidateFilterReason(
-            moduleName,
             applicationId,
             instrumentationTargetPackage,
             hasSourceFiles,
-            knownGradleAndroidTestModuleNames,
         ) == null
     }
 
     fun getIdeAndroidTestCandidateFilterReason(
-        moduleName: String,
         applicationId: String?,
         instrumentationTargetPackage: String?,
         hasSourceFiles: Boolean,
-        knownGradleAndroidTestModuleNames: Set<String>?,
     ): String? {
         if (!hasValidAndroidTestMetadata(applicationId, instrumentationTargetPackage)) {
             return "missingMetadata"
-        }
-        if (knownGradleAndroidTestModuleNames != null) {
-            return if (knownGradleAndroidTestModuleNames.contains(moduleName)) null else "notInGradleTruth"
         }
         return if (hasSourceFiles) null else "noSourceFiles"
     }
