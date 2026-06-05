@@ -47,17 +47,10 @@ class ResourceApkGenerator(
 
         val resourceModifier = ResourceApkModifier(originApkPath, resourceApkFile, logger)
         if (!isApkExists) {
-            val deployedItems = mutableListOf<DeployItem>()
-            notStagingDeployedFiles.forEach { output ->
-                if (output.type != CompileOutput.Type.Asset && output.type != CompileOutput.Type.Res) {
-                    return@forEach
-                }
-                val deployItem = output.toDeployItem()
-                deployedItems.add(deployItem)
-            }
+            val deployedItems = buildScopedFullResInputs(originApkPath, changedOverlays, notStagingDeployedFiles)
 
             val fullResAndAssets = deployDataDatabase.addFullRes(deployedItems, isNeedRes = true, isNeedAsset = true)
-            resourceModifier.createResourceApk(fullResAndAssets)
+            resourceModifier.createResourceApk(fullResAndAssets.scopedDistinctByName(originApkPath))
             resourceModifier.toDeployItems()
         } else {
             resourceModifier.incrementalUpdateResourceApk(changedOverlays)
@@ -65,6 +58,35 @@ class ResourceApkGenerator(
 
         TimeLogger.end("getResourceApkDeployItem", logger)
         return resourceModifier.toDeployItems()
+    }
+
+    private fun buildScopedFullResInputs(
+        originApkPath: String,
+        changedOverlays: List<DeployItem>,
+        notStagingDeployedFiles: List<CompileOutput>,
+    ): List<DeployItem> {
+        val nameSet = mutableSetOf<String>()
+        val deployedItems = mutableListOf<DeployItem>()
+        fun addScopedItem(item: DeployItem) {
+            if (!item.belongsTo(originApkPath) || !nameSet.add(item.name)) {
+                return
+            }
+            deployedItems.add(item)
+        }
+
+        changedOverlays.forEach(::addScopedItem)
+        notStagingDeployedFiles.forEach { output ->
+            if (output.type != CompileOutput.Type.Asset && output.type != CompileOutput.Type.Res) {
+                return@forEach
+            }
+            addScopedItem(output.toDeployItem())
+        }
+        return deployedItems
+    }
+
+    private fun List<DeployItem>.scopedDistinctByName(originApkPath: String): List<DeployItem> {
+        val nameSet = mutableSetOf<String>()
+        return filter { it.belongsTo(originApkPath) && nameSet.add(it.name) }
     }
 
     fun deleteResourceApk() {
