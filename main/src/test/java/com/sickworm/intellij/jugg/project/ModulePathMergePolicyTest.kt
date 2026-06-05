@@ -163,6 +163,49 @@ class ModulePathMergePolicyTest {
     }
 
     @Test
+    fun `getIdeAndroidTestCandidateFilterReason explains rejected androidTest candidates`() {
+        assertEquals(
+            "missingMetadata",
+            ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
+                moduleName = "common.download.androidTest",
+                applicationId = "com.example.test",
+                instrumentationTargetPackage = null,
+                hasSourceFiles = true,
+                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
+            ),
+        )
+        assertEquals(
+            "notInGradleTruth",
+            ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
+                moduleName = "common.fake.androidTest",
+                applicationId = "com.example.fake.test",
+                instrumentationTargetPackage = "com.example.fake.test",
+                hasSourceFiles = true,
+                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
+            ),
+        )
+        assertEquals(
+            "noSourceFiles",
+            ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
+                moduleName = "common.download.androidTest",
+                applicationId = "com.example.test",
+                instrumentationTargetPackage = "com.example.test",
+                hasSourceFiles = false,
+                knownGradleAndroidTestModuleNames = null,
+            ),
+        )
+        assertNull(
+            ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
+                moduleName = "common.download.androidTest",
+                applicationId = "com.example.test",
+                instrumentationTargetPackage = "com.example.test",
+                hasSourceFiles = false,
+                knownGradleAndroidTestModuleNames = setOf("common.download.androidTest"),
+            ),
+        )
+    }
+
+    @Test
     fun `selectMergedBuildVariant keeps main module debug when gradle snapshot is androidTest`() {
         val mainIde = module("common.download", "debug")
         val androidTestGradle = module(

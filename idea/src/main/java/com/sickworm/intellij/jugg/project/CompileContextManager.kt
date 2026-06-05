@@ -323,8 +323,10 @@ class CompileContextManager(
         val notGradleModules = mutableSetOf<String>()
         val testModules = mutableSetOf<String>()
         val filteredAndroidTestModules = mutableSetOf<String>()
+        val filteredAndroidTestReasons = mutableMapOf<String, Int>()
         val noSourceModules = mutableMapOf<String, ModuleInfo>()
         val knownGradleAndroidTestModuleNames = loadKnownGradleAndroidTestModuleNames()
+        logger.debug("known Gradle androidTest modules: ${knownGradleAndroidTestModuleNames?.joinToString(", ")}")
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
@@ -415,15 +417,25 @@ class CompileContextManager(
             if (isAndroidTestIdeModule) {
                 val hasAndroidTestSourceFiles = knownGradleAndroidTestModuleNames != null ||
                         sourceDirs.hasJavaOrKotlinSourceFile()
-                if (!ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(
+                val filterReason = ModulePathMergePolicy.getIdeAndroidTestCandidateFilterReason(
                         moduleName = moduleSimpleName,
                         applicationId = ideModuleInfo.androidTestApplicationId,
                         instrumentationTargetPackage = ideModuleInfo.androidTestInstrumentationTargetPackage,
                         hasSourceFiles = hasAndroidTestSourceFiles,
                         knownGradleAndroidTestModuleNames = knownGradleAndroidTestModuleNames,
                     )
-                ) {
+                logger.trace(
+                    "IDE androidTest candidate: module=${module.name}, simpleName=$moduleSimpleName, " +
+                            "applicationId=${ideModuleInfo.androidTestApplicationId}, " +
+                            "instrumentationTargetPackage=${ideModuleInfo.androidTestInstrumentationTargetPackage}, " +
+                            "hasSourceFiles=$hasAndroidTestSourceFiles, " +
+                            "knownGradleAndroidTestModules=${knownGradleAndroidTestModuleNames?.size ?: "null"}, " +
+                            "knownGradleContains=${knownGradleAndroidTestModuleNames?.contains(moduleSimpleName)}, " +
+                            "include=${filterReason == null}, reason=${filterReason ?: "included"}"
+                )
+                if (filterReason != null) {
                     filteredAndroidTestModules.add(module.name)
+                    filteredAndroidTestReasons[filterReason] = (filteredAndroidTestReasons[filterReason] ?: 0) + 1
                     return@forEach
                 }
             }
@@ -580,7 +592,10 @@ class CompileContextManager(
             logger.debug("ignore modules (test module): ${testModules.joinToString(", ")}")
         }
         if (filteredAndroidTestModules.isNotEmpty()) {
-            logger.debug("ignore modules (non-gradle androidTest module): ${filteredAndroidTestModules.joinToString(", ")}")
+            logger.debug(
+                "ignore modules (non-gradle androidTest module): ${filteredAndroidTestModules.joinToString(", ")}, " +
+                        "reasons=$filteredAndroidTestReasons"
+            )
         }
         logger.debug(addedModules.joinToString("\n"))
 

@@ -23,7 +23,7 @@ open class OtterAsDeployerFeatureCompat: NarwhalAsDeployerFeatureCompat() {
         val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
         val androidTestPackageInfo = readAndroidTestPackageInfo(gradleAndroidModel)
 
-        return IdeModuleInfo(
+        val result = IdeModuleInfo(
             baseDir = module.guessModuleDirAdv(projectBuildModel),
             buildToolsVersion = gradleVariableHelper.readVariable(
                 "buildToolsVersion",
@@ -69,6 +69,16 @@ open class OtterAsDeployerFeatureCompat: NarwhalAsDeployerFeatureCompat() {
             androidTestApplicationId = androidTestPackageInfo.applicationId,
             androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
         )
+        IdeAndroidTestPackageReader.traceReadResult(
+            logger = logger,
+            moduleName = module.name,
+            isSafeMode = isSafeMode,
+            buildVariant = buildVariant,
+            gradleAndroidModel = gradleAndroidModel,
+            packageInfo = androidTestPackageInfo,
+            brokenFields = result.brokenFields,
+        )
+        return result
     }
 
 }

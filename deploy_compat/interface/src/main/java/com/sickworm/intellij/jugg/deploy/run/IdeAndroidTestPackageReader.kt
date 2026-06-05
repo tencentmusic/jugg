@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.intellij.openapi.diagnostic.Logger
+
 /**
  * Android test package metadata read from IDE Gradle models.
  */
@@ -22,6 +24,25 @@ object IdeAndroidTestPackageReader {
             mainApplicationId ?: androidTestApplicationId
         }
         return IdeAndroidTestPackageInfo(androidTestApplicationId, instrumentationTargetPackage)
+    }
+
+    fun traceReadResult(
+        logger: Logger,
+        moduleName: String,
+        isSafeMode: Boolean,
+        buildVariant: String,
+        gradleAndroidModel: Any?,
+        packageInfo: IdeAndroidTestPackageInfo,
+        brokenFields: List<String>,
+    ) {
+        logger.trace(
+            "IDE module androidTest package metadata: module=$moduleName, isSafeMode=$isSafeMode, " +
+                    "buildVariant=$buildVariant, hasGradleAndroidModel=${gradleAndroidModel != null}, " +
+                    "gradleAndroidModelClass=${gradleAndroidModel?.javaClass?.name}, " +
+                    "androidTestApplicationId=${packageInfo.applicationId}, " +
+                    "androidTestInstrumentationTargetPackage=${packageInfo.instrumentationTargetPackage}, " +
+                    "brokenFields=$brokenFields"
+        )
     }
 
     fun readAndroidTestApplicationId(gradleAndroidModel: Any?): String? {

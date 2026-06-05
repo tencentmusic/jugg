@@ -28,7 +28,7 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
         val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
         val androidTestPackageInfo = readAndroidTestPackageInfo(gradleAndroidModel)
 
-        return IdeModuleInfo(
+        val result = IdeModuleInfo(
             baseDir = module.guessModuleDirAdvByBuildModel(buildModel),
             buildToolsVersion = gradleVariableHelper.readVariable(
                 "buildToolsVersion",
@@ -78,6 +78,16 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
             androidTestApplicationId = androidTestPackageInfo.applicationId,
             androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
         )
+        IdeAndroidTestPackageReader.traceReadResult(
+            logger = logger,
+            moduleName = module.name,
+            isSafeMode = isSafeMode,
+            buildVariant = buildVariant,
+            gradleAndroidModel = gradleAndroidModel,
+            packageInfo = androidTestPackageInfo,
+            brokenFields = result.brokenFields,
+        )
+        return result
     }
 
     private fun Module.guessModuleDirAdvByBuildModel(buildModel: GradleBuildModel): File? {

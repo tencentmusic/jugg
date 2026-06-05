@@ -114,13 +114,29 @@ object ModulePathMergePolicy {
         hasSourceFiles: Boolean,
         knownGradleAndroidTestModuleNames: Set<String>?,
     ): Boolean {
+        return getIdeAndroidTestCandidateFilterReason(
+            moduleName,
+            applicationId,
+            instrumentationTargetPackage,
+            hasSourceFiles,
+            knownGradleAndroidTestModuleNames,
+        ) == null
+    }
+
+    fun getIdeAndroidTestCandidateFilterReason(
+        moduleName: String,
+        applicationId: String?,
+        instrumentationTargetPackage: String?,
+        hasSourceFiles: Boolean,
+        knownGradleAndroidTestModuleNames: Set<String>?,
+    ): String? {
         if (!hasValidAndroidTestMetadata(applicationId, instrumentationTargetPackage)) {
-            return false
+            return "missingMetadata"
         }
         if (knownGradleAndroidTestModuleNames != null) {
-            return knownGradleAndroidTestModuleNames.contains(moduleName)
+            return if (knownGradleAndroidTestModuleNames.contains(moduleName)) null else "notInGradleTruth"
         }
-        return hasSourceFiles
+        return if (hasSourceFiles) null else "noSourceFiles"
     }
 
     fun hasValidAndroidTestMetadata(applicationId: String?, instrumentationTargetPackage: String?): Boolean {
