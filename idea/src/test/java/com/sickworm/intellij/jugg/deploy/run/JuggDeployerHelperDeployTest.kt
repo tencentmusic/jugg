@@ -325,6 +325,32 @@ class JuggDeployerHelperDeployTest {
         Mockito.verify(deployHistoryManager).lastDeployOverlayIds = overlayIds
     }
 
+    @Test
+    fun `runRecoverDeployTask should update overlay ids after install recover succeeds`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val overlayIds = mapOf("com.example.app" to "install-overlay-id")
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        val deployRunTaskExecutor = Mockito.mock(IJuggDeployRunTaskExecutor::class.java)
+        Mockito.`when`(deployRunTaskExecutor.execute(org.mockito.kotlin.any()))
+            .thenReturn(LaunchResult(true, 0, null, overlayIds))
+
+        val helper = createHelper(
+            deployHistoryManager = deployHistoryManager,
+            deployRunTaskExecutor = deployRunTaskExecutor,
+        )
+
+        helper.runRecoverDeployTask(
+            device = device,
+            data = JuggDeployData.forInstall(listOf(apkInfo("/tmp/jugg-deploy-test/app.apk"))),
+            isSkipExceptOverlayCheck = false,
+            compileUiHandler = com.sickworm.intellij.jugg.compiler.CompileUiHandler.DEFAULT,
+            deferPostDeployLaunch = true,
+            isAllowDirectOverlayDeploy = true,
+        )
+
+        Mockito.verify(deployHistoryManager).lastDeployOverlayIds = overlayIds
+    }
+
     private fun apkInfo(apkPath: String): ApkInfo {
         return ApkInfo(
             files = listOf(ApkFileUnit("com.example.app", "", true, File(apkPath))),

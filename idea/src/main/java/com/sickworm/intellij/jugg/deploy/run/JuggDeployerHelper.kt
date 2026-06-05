@@ -131,7 +131,7 @@ class JuggDeployerHelper(
         deferPostDeployLaunch: Boolean,
         isAllowDirectOverlayDeploy: Boolean,
     ) {
-        runTask(
+        val launchResult = runTask(
             JuggDeployRunTaskRequest(
                 device = device,
                 data = data,
@@ -141,6 +141,13 @@ class JuggDeployerHelper(
                 isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             ),
         )
+        updateOverlayIdsAfterRecoverInstall(data, launchResult)
+    }
+
+    private fun updateOverlayIdsAfterRecoverInstall(data: JuggDeployData, launchResult: LaunchResult) {
+        if (data.isInstall && launchResult.success) {
+            deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
+        }
     }
 
     private fun runTask(request: JuggDeployRunTaskRequest): LaunchResult = deployRunTaskExecutor.execute(request)
