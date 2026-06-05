@@ -165,6 +165,7 @@ gutter 约束：
 - 识别 `org.junit.Test` 与 `org.junit.jupiter.api.Test`。
 - Java / Kotlin PSI 都支持，gutter 通过测试注解 owner 判定，不依赖单一 PSI 类型。
 - 未开启 `enableAndroidTest` 时只弹 Notification，引导用户打开 App RunConfig，不自动修改配置。
+- gutter debug 日志不按 `hasMarker=true/false` 跳变逐条输出；`JuggAndroidTestLineMarkerContributor` 只在文件级 scan 达到阈值、单次慢 scan、marker 命中去重后、以及用户点击 gutter 执行或被配置拦截时打印可定位日志，避免普通 PSI miss 造成低价值噪声。
 
 Agent / CLI 场景中，如果用户要求执行 androidTest 或 instrumented unit tests，但 `jugg status` 返回 `enabledAndroidTest=false`，应停止执行 `instrument` 并提示用户：打开 Jugg App Run Configuration，开启 Android Test / `enableAndroidTest`，对该配置执行一次 full build / `gradle-build` 建立 AndroidTest full-build baseline，然后重新检查 `status.data.enabledAndroidTest=true` 后再继续。若仍直接调用 `instrument`，MCP 层返回 `INVALID_PARAMS`，并在错误信息中携带同一组开启方式。
 

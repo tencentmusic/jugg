@@ -15,6 +15,9 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import javax.swing.Icon
 
 private const val ANDROID_TEST_PATH_SEGMENT = "/src/androidTest/"
+private const val SCAN_SUMMARY_INTERVAL = 500
+private const val SCAN_SUMMARY_TOTAL_COST_MS = 100L
+private const val SLOW_SCAN_COST_MS = 20L
 
 /**
  * JuggAndroidTestLineMarkerContributor displays a gutter icon on @Test methods and classes
@@ -44,7 +47,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
 
         val scanStartNs = System.nanoTime()
         val annotatedElement = findAnnotatedElement(element)
-        logScanCostIfNeeded(
+        logScanEvents(
             element = element,
             filePath = filePath,
             costMs = (System.nanoTime() - scanStartNs) / 1_000_000,
@@ -53,6 +56,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         if (annotatedElement == null) {
             return null
         }
+        logMarkerHitIfNeeded(element, annotatedElement, filePath)
 
         return Info(
             lineMarkerIcon(),
@@ -69,17 +73,38 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         return owner
     }
 
-    private fun logScanCostIfNeeded(element: PsiElement, filePath: String, costMs: Long, hasMarker: Boolean) {
-        val logState = recordScanCostResult(hasMarker, costMs) ?: return
+    private fun logScanEvents(element: PsiElement, filePath: String, costMs: Long, hasMarker: Boolean) {
+        val events = recordScanResult(filePath, hasMarker, costMs)
+        if (events.isEmpty()) return
+        val logger = JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
+        events.forEach { event ->
+            when (event) {
+                is ScanLogEvent.Summary -> logger.debug(
+                    "Jugg androidTest gutter scan summary: " +
+                            "reason=${event.reason}, scans=${event.scanCount}, hits=${event.hitCount}, " +
+                            "misses=${event.missCount}, totalCost=${event.totalCostMs}ms, " +
+                            "maxCost=${event.maxCostMs}ms, path=${event.filePath}",
+                )
+                is ScanLogEvent.SlowScan -> logger.debug(
+                    "Jugg androidTest gutter slow scan: " +
+                            "cost=${event.costMs}ms, hasMarker=${event.hasMarker}, path=${event.filePath}",
+                )
+            }
+        }
+    }
+
+    private fun logMarkerHitIfNeeded(element: PsiElement, annotatedElement: PsiElement, filePath: String) {
+        val target = resolveAndroidTestTarget(
+            annotatedElement,
+            ownerParent = { current -> (current as? PsiElement)?.parent },
+        ).copy(sourcePath = filePath)
+        val markerKey = markerKey(target)
+        if (!recordMarkerHit(markerKey)) return
         JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
             .debug(
-                "Jugg androidTest gutter scan: " +
-                        "cost=${logState.currentTotalCostMs}ms, hasMarker=$hasMarker, " +
-                        "previousHasMarker=${logState.previousHasMarker}, " +
-                        "previousScanCount=${logState.previousScanCount}, " +
-                        "previousTotalCost=${logState.previousTotalCostMs}ms, " +
-                        "currentScanCount=${logState.currentScanCount}, " +
-                        "path=$filePath"
+                "Jugg androidTest gutter marker: " +
+                        "scope=${target.toScope()}, class=${target.testClass}, method=${target.testMethod}, " +
+                        "displayName=${target.displayName}, sourcePath=${target.sourcePath}",
             )
     }
 
@@ -89,6 +114,11 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 val project = annotatedElement.project
                 val appSettings = JuggAndroidTestAppRunConfigurationSelector.firstEnabledAndroidTestSettings(project)
                 if (appSettings == null) {
+                    JuggLogger.getInstance(project, "JuggAndroidTestLineMarkerContributor")
+                        .debug(
+                            "Jugg androidTest gutter blocked: reason=enableAndroidTestMissing, " +
+                                    "sourcePath=${annotatedElement.containingFile?.virtualFile?.path}",
+                        )
                     notifyEnableAndroidTestRequired(project)
                     return
                 }
@@ -104,6 +134,12 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 configuration.state?.let { options ->
                     applyTargetOptions(options, target, appSettings.name)
                 }
+                JuggLogger.getInstance(project, "JuggAndroidTestLineMarkerContributor")
+                    .debug(
+                        "Jugg androidTest gutter run: " +
+                                "scope=${target.toScope()}, class=${target.testClass}, method=${target.testMethod}, " +
+                                "appRunConfig=${appSettings.name}, sourcePath=${target.sourcePath}",
+                    )
                 val settings = runManager.createConfiguration(configuration, factory)
                 runManager.setTemporaryConfiguration(settings)
                 ProgramRunnerUtil.executeConfiguration(settings, DefaultRunExecutor.getRunExecutorInstance())
@@ -111,6 +147,23 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         }
     }
 
+    internal sealed class ScanLogEvent {
+        data class Summary(
+            val filePath: String,
+            val scanCount: Int,
+            val hitCount: Int,
+            val missCount: Int,
+            val totalCostMs: Long,
+            val maxCostMs: Long,
+            val reason: String,
+        ) : ScanLogEvent()
+
+        data class SlowScan(
+            val filePath: String,
+            val costMs: Long,
+            val hasMarker: Boolean,
+        ) : ScanLogEvent()
+    }
 
     companion object {
         internal fun isOwnerNameIdentifier(
@@ -342,49 +395,51 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         }
 
         @Synchronized
-        internal fun recordScanCostResult(hasMarker: Boolean, costMs: Long): ScanCostLogState? {
-            val previousResult = lastScanHasMarker
-            if (previousResult == null) {
-                lastScanHasMarker = hasMarker
-                lastScanResultCount = 1
-                lastScanTotalCostMs = costMs
-                return ScanCostLogState(null, 0, 0L, hasMarker, lastScanResultCount, lastScanTotalCostMs)
+        internal fun recordScanResult(filePath: String, hasMarker: Boolean, costMs: Long): List<ScanLogEvent> {
+            val events = mutableListOf<ScanLogEvent>()
+            val activeFilePath = currentScanFilePath
+            if (activeFilePath != null && activeFilePath != filePath) {
+                buildCurrentScanSummary("fileChanged")?.let { events.add(it) }
+                resetCurrentScanStats(filePath)
+            } else if (activeFilePath == null) {
+                resetCurrentScanStats(filePath)
             }
-            if (previousResult == hasMarker) {
-                lastScanResultCount++
-                lastScanTotalCostMs += costMs
-                return null
+
+            currentScanCount++
+            if (hasMarker) currentScanHitCount++ else currentScanMissCount++
+            currentScanTotalCostMs += costMs
+            currentScanMaxCostMs = maxOf(currentScanMaxCostMs, costMs)
+
+            if (costMs >= SLOW_SCAN_COST_MS) {
+                events.add(ScanLogEvent.SlowScan(filePath, costMs, hasMarker))
             }
-            val previousScanCount = lastScanResultCount
-            val previousTotalCostMs = lastScanTotalCostMs
-            lastScanHasMarker = hasMarker
-            lastScanResultCount = 1
-            lastScanTotalCostMs = costMs
-            return ScanCostLogState(
-                previousResult,
-                previousScanCount,
-                previousTotalCostMs,
-                hasMarker,
-                lastScanResultCount,
-                lastScanTotalCostMs,
-            )
+            if (shouldEmitScanSummary()) {
+                buildCurrentScanSummary("threshold")?.let { events.add(it) }
+                lastSummaryScanCount = currentScanCount
+                lastSummaryTotalCostMs = currentScanTotalCostMs
+            }
+            return events
+        }
+
+        @Synchronized
+        internal fun recordMarkerHit(markerKey: String): Boolean {
+            if (lastMarkerKey == markerKey) return false
+            lastMarkerKey = markerKey
+            return true
         }
 
         @Synchronized
         internal fun resetScanCostLogThrottleForTest() {
-            lastScanHasMarker = null
-            lastScanResultCount = 0
-            lastScanTotalCostMs = 0L
+            currentScanFilePath = null
+            currentScanCount = 0
+            currentScanHitCount = 0
+            currentScanMissCount = 0
+            currentScanTotalCostMs = 0L
+            currentScanMaxCostMs = 0L
+            lastSummaryScanCount = 0
+            lastSummaryTotalCostMs = 0L
+            lastMarkerKey = null
         }
-
-        internal data class ScanCostLogState(
-            val previousHasMarker: Boolean?,
-            val previousScanCount: Int,
-            val previousTotalCostMs: Long,
-            val currentHasMarker: Boolean,
-            val currentScanCount: Int,
-            val currentTotalCostMs: Long,
-        )
 
         /**
          * Shows the "enableAndroidTest not configured" notification.
@@ -408,8 +463,50 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 .notify(project)
         }
 
-        private var lastScanHasMarker: Boolean? = null
-        private var lastScanResultCount: Int = 0
-        private var lastScanTotalCostMs: Long = 0L
+        private fun markerKey(target: AndroidTestTarget): String {
+            return "${target.toScope()}:${target.testClass.orEmpty()}#${target.testMethod.orEmpty()}"
+        }
+
+        private fun shouldEmitScanSummary(): Boolean {
+            return currentScanCount - lastSummaryScanCount >= SCAN_SUMMARY_INTERVAL ||
+                    currentScanTotalCostMs - lastSummaryTotalCostMs >= SCAN_SUMMARY_TOTAL_COST_MS
+        }
+
+        private fun buildCurrentScanSummary(reason: String): ScanLogEvent.Summary? {
+            val filePath = currentScanFilePath ?: return null
+            if (currentScanCount == lastSummaryScanCount && currentScanTotalCostMs == lastSummaryTotalCostMs) {
+                return null
+            }
+            return ScanLogEvent.Summary(
+                filePath = filePath,
+                scanCount = currentScanCount,
+                hitCount = currentScanHitCount,
+                missCount = currentScanMissCount,
+                totalCostMs = currentScanTotalCostMs,
+                maxCostMs = currentScanMaxCostMs,
+                reason = reason,
+            )
+        }
+
+        private fun resetCurrentScanStats(filePath: String) {
+            currentScanFilePath = filePath
+            currentScanCount = 0
+            currentScanHitCount = 0
+            currentScanMissCount = 0
+            currentScanTotalCostMs = 0L
+            currentScanMaxCostMs = 0L
+            lastSummaryScanCount = 0
+            lastSummaryTotalCostMs = 0L
+        }
+
+        private var currentScanFilePath: String? = null
+        private var currentScanCount: Int = 0
+        private var currentScanHitCount: Int = 0
+        private var currentScanMissCount: Int = 0
+        private var currentScanTotalCostMs: Long = 0L
+        private var currentScanMaxCostMs: Long = 0L
+        private var lastSummaryScanCount: Int = 0
+        private var lastSummaryTotalCostMs: Long = 0L
+        private var lastMarkerKey: String? = null
     }
 }

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -462,38 +463,83 @@ class JuggAndroidTestLineMarkerContributorTest {
     }
 
     @Test
-    fun `scan cost logging accumulates same results until result changes`() {
-        val first = JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 2)
-        assertTrue(first != null)
-        assertTrue(first!!.previousHasMarker == null)
-        assertTrue(first.previousScanCount == 0)
-        assertTrue(first.previousTotalCostMs == 0L)
-        assertTrue(!first.currentHasMarker)
-        assertTrue(first.currentScanCount == 1)
-        assertTrue(first.currentTotalCostMs == 2L)
+    fun `scan logging emits file summary by threshold instead of marker result flips`() {
+        repeat(499) {
+            assertTrue(
+                JuggAndroidTestLineMarkerContributor.recordScanResult(
+                    filePath = "/project/app/src/androidTest/java/FooTest.kt",
+                    hasMarker = false,
+                    costMs = 0,
+                ).isEmpty()
+            )
+        }
 
-        assertTrue(JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 3) == null)
-        assertTrue(JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 4) == null)
+        val events = JuggAndroidTestLineMarkerContributor.recordScanResult(
+            filePath = "/project/app/src/androidTest/java/FooTest.kt",
+            hasMarker = true,
+            costMs = 1,
+        )
 
-        val markerHit = JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = true, costMs = 5)
-        assertTrue(markerHit != null)
-        assertTrue(markerHit!!.previousHasMarker == false)
-        assertTrue(markerHit.previousScanCount == 3)
-        assertTrue(markerHit.previousTotalCostMs == 9L)
-        assertTrue(markerHit.currentHasMarker)
-        assertTrue(markerHit.currentScanCount == 1)
-        assertTrue(markerHit.currentTotalCostMs == 5L)
+        assertEquals(1, events.size)
+        val summary = events.single() as JuggAndroidTestLineMarkerContributor.ScanLogEvent.Summary
+        assertEquals("/project/app/src/androidTest/java/FooTest.kt", summary.filePath)
+        assertEquals(500, summary.scanCount)
+        assertEquals(1, summary.hitCount)
+        assertEquals(499, summary.missCount)
+        assertEquals(1L, summary.totalCostMs)
+        assertEquals(1L, summary.maxCostMs)
+        assertEquals("threshold", summary.reason)
+    }
 
-        assertTrue(JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = true, costMs = 6) == null)
+    @Test
+    fun `scan logging emits slow scan event`() {
+        val events = JuggAndroidTestLineMarkerContributor.recordScanResult(
+            filePath = "/project/app/src/androidTest/java/FooTest.kt",
+            hasMarker = false,
+            costMs = 20,
+        )
 
-        val markerMiss = JuggAndroidTestLineMarkerContributor.recordScanCostResult(hasMarker = false, costMs = 7)
-        assertTrue(markerMiss != null)
-        assertTrue(markerMiss!!.previousHasMarker == true)
-        assertTrue(markerMiss.previousScanCount == 2)
-        assertTrue(markerMiss.previousTotalCostMs == 11L)
-        assertTrue(!markerMiss.currentHasMarker)
-        assertTrue(markerMiss.currentScanCount == 1)
-        assertTrue(markerMiss.currentTotalCostMs == 7L)
+        assertEquals(1, events.size)
+        val slowScan = events.single() as JuggAndroidTestLineMarkerContributor.ScanLogEvent.SlowScan
+        assertEquals("/project/app/src/androidTest/java/FooTest.kt", slowScan.filePath)
+        assertEquals(20L, slowScan.costMs)
+        assertFalse(slowScan.hasMarker)
+    }
+
+    @Test
+    fun `scan logging emits summary when file changes`() {
+        JuggAndroidTestLineMarkerContributor.recordScanResult(
+            filePath = "/project/app/src/androidTest/java/FooTest.kt",
+            hasMarker = false,
+            costMs = 1,
+        )
+        JuggAndroidTestLineMarkerContributor.recordScanResult(
+            filePath = "/project/app/src/androidTest/java/FooTest.kt",
+            hasMarker = true,
+            costMs = 2,
+        )
+
+        val events = JuggAndroidTestLineMarkerContributor.recordScanResult(
+            filePath = "/project/app/src/androidTest/java/BarTest.kt",
+            hasMarker = false,
+            costMs = 3,
+        )
+
+        assertEquals(1, events.size)
+        val summary = events.single() as JuggAndroidTestLineMarkerContributor.ScanLogEvent.Summary
+        assertEquals("/project/app/src/androidTest/java/FooTest.kt", summary.filePath)
+        assertEquals(2, summary.scanCount)
+        assertEquals(1, summary.hitCount)
+        assertEquals(1, summary.missCount)
+        assertEquals(3L, summary.totalCostMs)
+        assertEquals("fileChanged", summary.reason)
+    }
+
+    @Test
+    fun `marker logging suppresses repeated same target`() {
+        assertTrue(JuggAndroidTestLineMarkerContributor.recordMarkerHit("METHOD:com.example.FooTest#testBar"))
+        assertFalse(JuggAndroidTestLineMarkerContributor.recordMarkerHit("METHOD:com.example.FooTest#testBar"))
+        assertTrue(JuggAndroidTestLineMarkerContributor.recordMarkerHit("CLASS:com.example.FooTest"))
     }
 
     private class JavaTestOwner {
