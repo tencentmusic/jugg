@@ -47,17 +47,22 @@ object JuggSkillInstaller {
     private fun installForClient(projectDir: File, client: InstallClient, logger: Logger, userHome: File): InstallAgentResult {
         val reasons = mutableListOf<String>()
         val skillStatus = runCatching {
-            installSkill(client, userHome)
+            installSkill(client, logger, userHome)
             "ok"
         }.getOrElse { error ->
-            reasons.add("SKILL:${error.safeReason()}")
+            val reason = error.safeReason()
+            reasons.add("SKILL:$reason")
+            logger.warn(
+                "[Install Jugg Skills] projectDir=${projectDir.path}, agent=${client.cliName}, skill=fail, reason=$reason",
+                error,
+            )
             "fail"
         }
         logger.info("[Install Jugg Skills] projectDir=${projectDir.path}, agent=${client.cliName}, skill=$skillStatus")
         return InstallAgentResult(client.cliName, skillStatus, reasons.distinct())
     }
 
-    private fun installSkill(client: InstallClient, userHome: File) {
+    private fun installSkill(client: InstallClient, logger: Logger, userHome: File) {
         val bundledSkillsHome = ensureBundledSkillsHome(userHome)
         val agent = InstallAgents.resolveAgentInstaller(client)
         installSkillToDir(
@@ -75,6 +80,7 @@ object JuggSkillInstaller {
         if (client == InstallClient.CODEX) {
             CodexPermissionRuleInstaller.install(
                 CodexAgentInstaller.resolvePermissionRuleTargets(userHome, SKILL_NAME),
+                logger,
             )
         }
     }

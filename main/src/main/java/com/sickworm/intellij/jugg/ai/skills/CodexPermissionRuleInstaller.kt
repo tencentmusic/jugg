@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ai.skills
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ai.skills.agents.AgentPermissionRuleTarget
 import java.io.File
 import java.io.FileOutputStream
@@ -14,13 +15,27 @@ import java.nio.file.StandardCopyOption
  */
 object CodexPermissionRuleInstaller {
 
-    fun install(targets: List<AgentPermissionRuleTarget>) {
-        targets.forEach { target ->
-            installTarget(target)
+    fun install(targets: List<AgentPermissionRuleTarget>, logger: Logger? = null): List<CodexPermissionRuleInstallResult> {
+        return targets.map { target ->
+            try {
+                installTarget(target).also { result ->
+                    logger?.info(
+                        "[Install Codex Permission Rules] rulesFile=${result.rulesFile.path}, " +
+                            "status=${result.status}, prefix=[${target.prefixPattern.joinToString(", ")}]",
+                    )
+                }
+            } catch (error: Throwable) {
+                logger?.warn(
+                    "[Install Codex Permission Rules] rulesFile=${target.rulesFile.path}, " +
+                        "status=fail, prefix=[${target.prefixPattern.joinToString(", ")}]",
+                    error,
+                )
+                throw error
+            }
         }
     }
 
-    private fun installTarget(target: AgentPermissionRuleTarget) {
+    private fun installTarget(target: AgentPermissionRuleTarget): CodexPermissionRuleInstallResult {
         val ruleLine = buildPrefixRuleLine(target.prefixPattern)
         val existingContent = if (target.rulesFile.isFile) {
             target.rulesFile.readText(StandardCharsets.UTF_8)
@@ -32,10 +47,11 @@ object CodexPermissionRuleInstaller {
             .filter { it.isNotEmpty() }
             .toSet()
         if (ruleLine in existingLines) {
-            return
+            return CodexPermissionRuleInstallResult(target.rulesFile, "already_installed")
         }
         val nextContent = appendLine(existingContent, ruleLine)
         writeAtomically(target.rulesFile, nextContent)
+        return CodexPermissionRuleInstallResult(target.rulesFile, "installed")
     }
 
     private fun buildPrefixRuleLine(prefixPattern: List<String>): String {
@@ -90,3 +106,11 @@ object CodexPermissionRuleInstaller {
         }
     }
 }
+
+/**
+ * Result for one Codex permission rules file write.
+ */
+data class CodexPermissionRuleInstallResult(
+    val rulesFile: File,
+    val status: String,
+)

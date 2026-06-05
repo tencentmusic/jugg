@@ -105,7 +105,7 @@ androidTest 运行必须把 `androidTestRunSpec`、`executor`、`runProfile` 一
 - 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；Sync 后如果没有可用配置会短暂重试。
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
 - `Check Jugg Update` 独立 action 经 `JuggManager.checkUpdates()` 复用 `MoreOptionsManager.checkUpdates()`，行为与 More Options 中的更新检查一致。
-- `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 `~/.codex/rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。
+- `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 `~/.codex/rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认，并在安装日志记录 rules file、prefix 与 installed/already_installed/fail 状态；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。
 - CLI/MCP/RPC 触发首个 run configuration 时会创建 Run content，但默认不激活 Run tool window；失败等需要用户注意的场景才显式 show。
 - `reportIssue()` 会 dump project info、logcat error，并通过 `JuggServer.reportAndUploadLogs()` 上传日志。
 

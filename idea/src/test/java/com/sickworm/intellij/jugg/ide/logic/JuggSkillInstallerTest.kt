@@ -10,6 +10,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.verify
 
 class JuggSkillInstallerTest {
 
@@ -35,6 +36,32 @@ class JuggSkillInstallerTest {
         assertFalse(File(userHome, ".codex/skills/jugg-android-dev-loop/hooks").exists())
         assertTrue(File(userHome, ".jugg/skills/jugg-android-dev-loop/SKILL.md").exists())
         assertTrue(File(userHome, ".jugg/skills/hooks/start.py").exists())
+    }
+
+    @Test
+    fun install_shouldWriteCodexPermissionRule() {
+        val projectDir = Files.createTempDirectory("jugg-project-codex-rule").toFile()
+        val userHome = Files.createTempDirectory("jugg-home-codex-rule").toFile()
+        val logger = mock(Logger::class.java)
+
+        val summary = JuggSkillInstaller.install(
+            projectDir = projectDir,
+            selectedClients = setOf(InstallClient.CODEX),
+            logger = logger,
+            userHome = userHome,
+        )
+
+        val scriptPath = File(userHome, ".codex/skills/jugg-android-dev-loop/scripts/jugg.py").absolutePath
+        val rulesFile = File(userHome, ".codex/rules/default.rules")
+        assertTrue(summary.isAllSuccess)
+        assertEquals(
+            listOf("prefix_rule(pattern=[\"python3\", \"$scriptPath\"], decision=\"allow\")"),
+            rulesFile.readLines(),
+        )
+        verify(logger).info(
+            "[Install Codex Permission Rules] rulesFile=${rulesFile.path}, status=installed, " +
+                "prefix=[python3, $scriptPath]",
+        )
     }
 
     @Test
