@@ -50,7 +50,7 @@ object CodexAgentInstaller : IAgentInstaller {
         // https://developers.openai.com/codex/hooks
         val targets = mutableListOf(
             AgentHookTarget(
-                settingsFile = File(userHome, ".codex/hooks.json"),
+                settingsFile = File(resolveCodexHome(userHome), "hooks.json"),
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                 startEventName = "UserPromptSubmit",
                 stopEventName = "Stop",

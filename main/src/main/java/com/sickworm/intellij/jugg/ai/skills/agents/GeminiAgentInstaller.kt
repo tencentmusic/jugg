@@ -10,9 +10,12 @@ object GeminiAgentInstaller : IAgentInstaller {
     override val client: InstallClient = InstallClient.GEMINI
 
     override fun resolvePrimarySkillRoot(userHome: File): File {
+        return File(resolveGeminiHome(userHome), "skills")
+    }
+
+    private fun resolveGeminiHome(userHome: File): File {
         val envHome = System.getenv("GEMINI_HOME").takeIf { userHome.isDefaultUserHome() }
-        val geminiHome = if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".gemini")
-        return File(geminiHome, "skills")
+        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".gemini")
     }
 
     override fun resolveInternalSkillHomes(userHome: File): List<File> {
@@ -23,7 +26,7 @@ object GeminiAgentInstaller : IAgentInstaller {
         // https://geminicli.com/docs/hooks/
         val targets = mutableListOf(
             AgentHookTarget(
-                settingsFile = File(userHome, ".gemini/settings.json"),
+                settingsFile = File(resolveGeminiHome(userHome), "settings.json"),
                 style = AgentHookConfigStyle.NESTED_EVENT_HOOKS,
                 startEventName = "BeforeAgent",
                 stopEventName = "AfterAgent",

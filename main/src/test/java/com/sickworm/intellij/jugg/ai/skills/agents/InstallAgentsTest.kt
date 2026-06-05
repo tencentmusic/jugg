@@ -195,6 +195,32 @@ class InstallAgentsTest {
     }
 
     @Test
+    fun codexAgentInstaller_shouldResolvePrimaryHookTargetFromCodexHome() {
+        val userHome = File(System.getProperty("user.home"))
+        val codexHome = System.getenv("CODEX_HOME")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(it) }
+            ?: File(userHome, ".codex")
+
+        val target = CodexAgentInstaller.resolveHookTargets(userHome).first()
+
+        assertEquals(File(codexHome, "hooks.json"), target.settingsFile)
+    }
+
+    @Test
+    fun geminiAgentInstaller_shouldResolvePrimaryHookTargetFromGeminiHome() {
+        val userHome = File(System.getProperty("user.home"))
+        val geminiHome = System.getenv("GEMINI_HOME")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(it) }
+            ?: File(userHome, ".gemini")
+
+        val target = GeminiAgentInstaller.resolveHookTargets(userHome).first()
+
+        assertEquals(File(geminiHome, "settings.json"), target.settingsFile)
+    }
+
+    @Test
     fun codexAgentInstaller_shouldExposePermissionRuleTargetsForPrimaryAndInternalHomes() {
         val userHome = Files.createTempDirectory("jugg-home-codex-rules").toFile()
         File(userHome, ".codex-internal").mkdirs()
