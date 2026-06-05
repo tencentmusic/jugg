@@ -291,7 +291,7 @@ class JuggDeployerHelper(
                 val success = launcher.run()
                 if (!success) {
                     logger.warn("Instrumentation test run reported failures.")
-                    return LaunchResult(false, 1, "Instrumentation test run reported failures.", emptyMap())
+                    return LaunchResult(false, 1, "Instrumentation test run reported failures.", launchResult.overlayIds)
                 }
             }
         } else if (deferPostDeployLaunch) {
@@ -619,6 +619,10 @@ class JuggDeployerHelper(
             ),
         )
         if (!launchResult.success) {
+            if (deployOptions.androidTestRunSpec != null && deployOptions.isLastDevice) {
+                logger.debug("AndroidTest launch failed after deploy, update deploy info before returning failure.")
+                updateInfoAfterIncDeploy(launchResult, deployData)
+            }
             return ChangesDeployOutcome(
                 DeployTaskResult(
                     isSuccess = false,

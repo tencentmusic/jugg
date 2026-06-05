@@ -153,7 +153,7 @@ class JuggCompilerHelper(
         if (!isGradleCompile) {
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
-            incrementalResult = incrementalCompile(uiHandler)
+            incrementalResult = incrementalCompile(uiHandler, options.buildTarget)
 
             // Strategy 2: Step2 Wait for async git check and force recompile if new files found
             logger.trace("[PERF] gitChangeChecker.getAsyncResultWithTimeout start, thread=${Thread.currentThread().name}")
@@ -164,7 +164,7 @@ class JuggCompilerHelper(
                 logger.warn("Git check after compile timeout, the repository is tooooo big?? File changes may not reliable.")
             } else if (foundResult.isFoundNewChangedFiles) {
                 logger.info("Git check after compile, found ${foundResult.foundFilesSize} new file(s) after compile success, compile again.")
-                incrementalResult = incrementalCompile(uiHandler)
+                incrementalResult = incrementalCompile(uiHandler, options.buildTarget)
             } else {
                 logger.debug("Git check after compile found no new changed files.")
             }
@@ -511,7 +511,10 @@ class JuggCompilerHelper(
     }
 
     @TestOnly
-    fun incrementalCompile(uiHandler: CompileUiHandler): CompileTaskResult {
+    fun incrementalCompile(
+        uiHandler: CompileUiHandler,
+        buildTarget: BuildTarget = BuildTarget.APP,
+    ): CompileTaskResult {
 
         val compiler = juggCompiler ?: run {
             logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
@@ -519,9 +522,17 @@ class JuggCompilerHelper(
         }
 
         if (deployFileManager.isNoFileChanges() && !dependencyChangeManager.isNeedCompilation) {
+            val uncompiledFiles = deployFileManager.getUncompiledFiles()
+            if (uncompiledFiles.isEmpty() && buildTarget == BuildTarget.ANDROID_TEST) {
+                logger.info("No file changes for androidTest, but current run should deploy directly.")
+                return CompileTaskResult.incrementalSuccess(
+                    CompileResult.empty(uiHandler.createCompileStatusHolder()),
+                ).copy(hasFileChanges = false)
+            }
+
             val deviceName = deployTargetManager.getDeviceNameList()
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
-                if (deployFileManager.getUncompiledFiles().isEmpty()) {
+                if (uncompiledFiles.isEmpty()) {
                     logger.info("No file changes, but it's first time run, deploy directly.")
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {
@@ -529,7 +540,7 @@ class JuggCompilerHelper(
                             ", will run with incremental compile.")
                 }
             } else if (juggRunningTaskStatusManager.isProjectSwitchedThisRun) {
-                if (deployFileManager.getUncompiledFiles().isEmpty()) {
+                if (uncompiledFiles.isEmpty()) {
                     logger.info("No file changes, but project switched since last run, deploy directly.")
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {

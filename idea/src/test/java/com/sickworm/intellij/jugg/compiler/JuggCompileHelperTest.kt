@@ -10,17 +10,21 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
@@ -29,6 +33,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import java.io.File
 
 class JuggCompileHelperTest {
 
@@ -67,6 +72,55 @@ class JuggCompileHelperTest {
 
         assertTrue(result.isSuccess)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
+    }
+
+    @Test
+    fun incrementalCompile_noFileChanges_pendingCompiledFilesForApp_fallbackToGradle() {
+        val fixture = createFixture()
+        val pendingFile = ChangedFile(
+            CompileFile.Type.Kotlin,
+            File("/tmp/jugg-test/src/androidTest/PendingTest.kt"),
+            File("/tmp/jugg-test"),
+            ModuleInfo.virtualModule,
+        ).apply {
+            compiledTimes = 1
+        }
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.deployFileManager.getCompiledFiles()).thenReturn(listOf(pendingFile))
+        whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
+        whenever(fixture.uiHandler.confirmFallbackWhenNoFileChanges()).thenReturn(ConfirmResult.POSITIVE)
+        fixture.juggRunningTaskStatusManager.setHasRun("device-1")
+        fixture.helper.juggCompiler = mock<JuggCompiler>()
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler)
+
+        assertFalse(result.isSuccess)
+        assertFalse(result.isGradleCompile)
+        assertTrue(result.isCanFallback)
+        assertFalse(result.hasFileChanges)
+        verify(fixture.uiHandler).confirmFallbackWhenNoFileChanges()
+        verify(fixture.helper.juggCompiler!!, never()).compile(any())
+    }
+
+    @Test
+    fun incrementalCompile_noFileChanges_androidTest_deployDirectlyWithoutRecompile() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.deployFileManager.getCompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        fixture.helper.juggCompiler = mock<JuggCompiler>()
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler, BuildTarget.ANDROID_TEST)
+
+        assertTrue(result.isSuccess)
+        assertFalse(result.isGradleCompile)
+        assertFalse(result.hasFileChanges)
+        verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
+        verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }
 
     @Test

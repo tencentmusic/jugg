@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
@@ -267,6 +268,63 @@ class JuggDeployerHelperDeployTest {
         assertEquals(listOf("WeMusicApplicationLike"), retryDeployData!!.hotReloadModifiedClasses.map { it.name })
     }
 
+    @Test
+    fun `deploy should commit state when androidTest fails after successful deploy`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val androidVersion = Mockito.mock(AndroidVersion::class.java)
+        Mockito.`when`(androidVersion.apiLevel).thenReturn(30)
+        Mockito.`when`(device.version).thenReturn(androidVersion)
+        val apkInfo = apkInfo("/tmp/jugg-deploy-test/app.apk")
+        val deployData = hotReloadDeployData(apkInfo, "PlayerPlayButtonGeneratedTest")
+        val overlayIds = mapOf("com.example.app" to "overlay-id")
+
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.hasDevice).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(listOf(apkInfo))
+
+        val deployState = JuggDeployState.READY
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(deployState)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(deployState)
+
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        Mockito.`when`(deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()))
+            .thenReturn(deployData)
+        Mockito.`when`(deployFileManager.getStagingFiles()).thenReturn(emptyList())
+
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        val dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java)
+        Mockito.`when`(dependencyChangeManager.getRemovedLibraryFiles()).thenReturn(emptyList())
+
+        val deployRunTaskExecutor = Mockito.mock(IJuggDeployRunTaskExecutor::class.java)
+        Mockito.`when`(deployRunTaskExecutor.execute(org.mockito.kotlin.any()))
+            .thenReturn(LaunchResult(false, 1, "Instrumentation test run reported failures.", overlayIds))
+
+        val helper = createHelper(
+            deployTargetManager = deployTargetManager,
+            deployStateManager = deployStateManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            dependencyChangeManager = dependencyChangeManager,
+            deployRunTaskExecutor = deployRunTaskExecutor,
+        )
+
+        val result = helper.deploy(
+            DeployOptions(
+                device = device,
+                isLastDevice = true,
+                isInstall = false,
+                androidTestRunSpec = AndroidTestRunSpec("com.example.PlayerPlayButtonGeneratedTest", null),
+            ),
+        )
+
+        assertFalse(result.isSuccess)
+        assertEquals("Instrumentation test run reported failures.", result.failedReason)
+        Mockito.verify(deployHistoryManager).updateHistoryOnAfterDeployed(emptyList())
+        Mockito.verify(deployFileManager).commit(deployData)
+        Mockito.verify(deployHistoryManager).lastDeployOverlayIds = overlayIds
+    }
+
     private fun apkInfo(apkPath: String): ApkInfo {
         return ApkInfo(
             files = listOf(ApkFileUnit("com.example.app", "", true, File(apkPath))),
@@ -301,6 +359,7 @@ class JuggDeployerHelperDeployTest {
         deployStateManager: DeployStateManager = Mockito.mock(DeployStateManager::class.java),
         deployFileManager: DeployFileManager = Mockito.mock(DeployFileManager::class.java),
         dependencyChangeManager: IDependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java),
+        deployHistoryManager: IDeployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
         juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
         deployRetryHandler: DeployRetryHandler? = null,
         deployStateRecover: DeployStateRecover? = null,
@@ -318,7 +377,7 @@ class JuggDeployerHelperDeployTest {
             project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
-            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+            deployHistoryManager = deployHistoryManager,
             deployStateManager = deployStateManager,
             dependencyChangeManager = dependencyChangeManager,
             juggRunningTaskStatusManager = juggRunningTaskStatusManager,

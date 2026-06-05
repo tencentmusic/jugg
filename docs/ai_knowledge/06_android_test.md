@@ -124,6 +124,8 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 - `BuildTarget.ANDROID_TEST`：纳入 `.androidTest` module。
 - `.test` / `.unitTest` 在两种 target 下都继续过滤。
 
+androidTest 重跑不复用普通 app run 的 no-changes fallback 语义。下一次 androidTest 运行如果没有新的文件变更、且没有 uncompiled 文件，`JuggCompileHelper` 会直接返回增量成功进入部署：存在 compiled/staging pending outputs 时复用这批产物；不存在 pending outputs 时直接进入空部署 / instrumentation，不重新执行 Kotlin / D8，也不把测试重跑误判为 Gradle fallback。
+
 `ModuleApkBelongsUtils` 返回 `ModuleApkBelongs` 封装类，默认通过 `getBelongsApk()` 保留现有单 APK 语义，同时用 `getAllBelongsApk()` 暴露多 APK 归属视图。androidTest module 按 runtime classloader 归属路由：app-style other-targeting androidTest 运行在 `instrumentationTargetPackage` 对应的 main APK 进程内，因此归属 main APK；self-targeting / library-style androidTest 的 `applicationId == instrumentationTargetPackage`，归属匹配的 Test APK。普通 library module 在存在 self-targeting library Test APK 时，`getAllBelongsApk()` 会同时包含 base APK 与 library Test APK。
 
 `CompileOutput.targetApkPaths` 与 `DeployItem.targetApkPaths` 会把多 APK 归属传到部署层，并保证在有真实 `apkPath` 时至少包含它；Dex merge、resource APK、APK 内嵌更新和 overlay update 都必须优先读取 target paths，旧的 `allTargetApkPaths` 视图已经删除。
@@ -236,6 +238,7 @@ androidTest 的 SM Runner process output 与普通 text console 一样接收 Jug
 - **app-style other-targeting test APK**：测试代码增量应通过 main APK overlay 生效；非 INSTALL 方式进入 package deploy loop 时只 warning 并跳过，不强制改写为 INSTALL。
 - **library-style self-targeting test APK**：有自己的 runtime package 和安装目标，继续走完整部署策略。
 - **multi APK scoped data**：每个 applicationId 部署前调用 `JuggDeployData.filterForApks(...)`，只保留属于当前 APK 集合的 class / overlay / updateApkFiles，避免 base/test APK 互相错投。
+- **instrumentation 结果与部署状态分离**：Jugg 部署成功后再执行 `am instrument`；如果 instrumentation 断言失败，本轮 run 仍返回测试失败，但 deploy history、staging commit 与 direct overlay id 会按已成功部署的结果推进，避免下次 androidTest 重跑再次重新编译或因 stale overlay id 触发 reinstall。
 
 原因：app-style `am instrument` 在主 APK 进程内运行测试代码，other-targeting test APK 无独立进程；self-targeting library Test APK 是独立 runtime package，需要保留完整部署能力。
 
