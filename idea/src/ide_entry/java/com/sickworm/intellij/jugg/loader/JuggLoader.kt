@@ -131,7 +131,8 @@ class JuggLoader(val project: Project, val projectDir: File) {
             "kotlin.jvm.internal.DefaultConstructorMarker",
             "kotlin.jvm.functions.Function1",
             "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest",
-            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse"
+            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse",
+            "com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec",
         )
 
         private var isFirstTimeLoad = true

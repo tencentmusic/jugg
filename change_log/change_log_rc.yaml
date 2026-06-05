@@ -1,3 +1,9 @@
+- version: 3.0.12
+  date: 2026.06.05
+  isNeedReinstall: true
+  updates:
+    - Fix run android test error
+
 - version: 3.0.9
   date: 2026.05.26
   updates:

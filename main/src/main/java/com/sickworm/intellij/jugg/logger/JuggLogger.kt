@@ -30,6 +30,15 @@ object JuggLogger {
             ))
     }
 
+    fun getInstanceSafe(project: Project, tag: String): Logger? {
+        return try {
+            getInstance(project.instanceKey, tag)
+        } catch (e: Throwable) {
+            // case: hot-reload plugin will get java.lang.IllegalAccessException: project [xxx] not registered
+            null
+        }
+    }
+
     /**
      * Get global logger that will print to all projects
      */

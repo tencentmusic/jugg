@@ -76,16 +76,16 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
     private fun logScanEvents(element: PsiElement, filePath: String, costMs: Long, hasMarker: Boolean) {
         val events = recordScanResult(filePath, hasMarker, costMs)
         if (events.isEmpty()) return
-        val logger = JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
+        val logger = JuggLogger.getInstanceSafe(element.project, "JuggAndroidTestLineMarkerContributor")
         events.forEach { event ->
             when (event) {
-                is ScanLogEvent.Summary -> logger.debug(
+                is ScanLogEvent.Summary -> logger?.debug(
                     "Jugg androidTest gutter scan summary: " +
                             "reason=${event.reason}, scans=${event.scanCount}, hits=${event.hitCount}, " +
                             "misses=${event.missCount}, totalCost=${event.totalCostMs}ms, " +
                             "maxCost=${event.maxCostMs}ms, path=${event.filePath}",
                 )
-                is ScanLogEvent.SlowScan -> logger.debug(
+                is ScanLogEvent.SlowScan -> logger?.debug(
                     "Jugg androidTest gutter slow scan: " +
                             "cost=${event.costMs}ms, hasMarker=${event.hasMarker}, path=${event.filePath}",
                 )
@@ -100,8 +100,8 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         ).copy(sourcePath = filePath)
         val markerKey = markerKey(target)
         if (!recordMarkerHit(markerKey)) return
-        JuggLogger.getInstance(element.project, "JuggAndroidTestLineMarkerContributor")
-            .debug(
+        JuggLogger.getInstanceSafe(element.project, "JuggAndroidTestLineMarkerContributor")
+            ?.debug(
                 "Jugg androidTest gutter marker: " +
                         "scope=${target.toScope()}, class=${target.testClass}, method=${target.testMethod}, " +
                         "displayName=${target.displayName}, sourcePath=${target.sourcePath}",
@@ -114,8 +114,8 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 val project = annotatedElement.project
                 val appSettings = JuggAndroidTestAppRunConfigurationSelector.firstEnabledAndroidTestSettings(project)
                 if (appSettings == null) {
-                    JuggLogger.getInstance(project, "JuggAndroidTestLineMarkerContributor")
-                        .debug(
+                    JuggLogger.getInstanceSafe(project, "JuggAndroidTestLineMarkerContributor")
+                        ?.debug(
                             "Jugg androidTest gutter blocked: reason=enableAndroidTestMissing, " +
                                     "sourcePath=${annotatedElement.containingFile?.virtualFile?.path}",
                         )
@@ -134,8 +134,8 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
                 configuration.state?.let { options ->
                     applyTargetOptions(options, target, appSettings.name)
                 }
-                JuggLogger.getInstance(project, "JuggAndroidTestLineMarkerContributor")
-                    .debug(
+                JuggLogger.getInstanceSafe(project, "JuggAndroidTestLineMarkerContributor")
+                    ?.debug(
                         "Jugg androidTest gutter run: " +
                                 "scope=${target.toScope()}, class=${target.testClass}, method=${target.testMethod}, " +
                                 "appRunConfig=${appSettings.name}, sourcePath=${target.sourcePath}",
