@@ -62,7 +62,7 @@ abstract class BaseSshCommand : ISshCommand {
             "$fixedBaseCommand && (echo. & echo ${escapeResultEcho}0& echo.) || (echo. & echo ${escapeResultEcho}1& echo.)"
         } else {
             // Leading empty echo avoids control characters at the start of the result line.
-            "$fixedBaseCommand ; echo ; echo \"${resultEcho}\$?\""
+            "$fixedBaseCommand ; __jugg_exit=\$? ; echo ; echo \"${resultEcho}\$__jugg_exit\""
         }
         if (isNeedSetChineseLanguage && !isWindows) {
             return "export LC_CTYPE=\"zh_CN.utf8\" ; $command"
@@ -77,5 +77,3 @@ abstract class BaseSshCommand : ISshCommand {
         return null
     }
 }
-
-
