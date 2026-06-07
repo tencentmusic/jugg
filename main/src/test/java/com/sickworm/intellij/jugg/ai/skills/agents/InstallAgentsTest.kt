@@ -126,6 +126,7 @@ class InstallAgentsTest {
                     commandEventName = "beforeShellExecution",
                     editMatcher = "Write",
                     commandMatcher = "*",
+                    configVersion = 1,
                 ),
             ),
             CursorAgentInstaller.resolveHookTargets(userHome),

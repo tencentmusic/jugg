@@ -256,6 +256,39 @@ class JuggHookInstallerMultiAgentTest {
     }
 
     @Test
+    fun installForClients_cursor_whenHooksJsonAbsent_shouldIncludeVersionField() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-cursor-version").toFile()
+
+        val summary = JuggHookInstaller.installForClients(
+            clients = setOf(InstallClient.CURSOR),
+            userHome = userHome,
+            logger = logger,
+        )
+
+        assertEquals(1, summary.results.size)
+        assertTrue(summary.results.all { it.status == "ok" })
+        val root = JsonParser.parseString(File(userHome, ".cursor/hooks.json").readText()).asJsonObject
+        assertEquals(1, root.get("version").asInt)
+    }
+
+    @Test
+    fun installForClients_cursor_whenHooksJsonExists_shouldNotInjectVersionField() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-cursor-existing").toFile()
+        val hooksFile = File(userHome, ".cursor/hooks.json")
+        hooksFile.parentFile.mkdirs()
+        hooksFile.writeText("""{"hooks":{"stop":[]}}""")
+
+        JuggHookInstaller.installForClients(
+            clients = setOf(InstallClient.CURSOR),
+            userHome = userHome,
+            logger = logger,
+        )
+
+        val root = JsonParser.parseString(hooksFile.readText()).asJsonObject
+        assertFalse(root.has("version"))
+    }
+
+    @Test
     fun installForClients_codex_whenInternalDirAbsent_shouldSkipInternalHooks() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-codex-no-internal").toFile()
 

@@ -26,6 +26,7 @@ object CursorAgentInstaller : IAgentInstaller {
                 commandEventName = "beforeShellExecution",
                 editMatcher = "Write",
                 commandMatcher = "*",
+                configVersion = 1,
             ),
         )
     }

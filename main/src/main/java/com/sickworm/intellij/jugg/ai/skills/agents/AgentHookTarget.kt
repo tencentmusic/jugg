@@ -17,6 +17,8 @@ data class AgentHookTarget(
     val commandMatcher: String? = null,
     /** Stop/UserPromptSubmit matcher; CodeBuddy requires "" instead of "*" for Stop feedback delivery. */
     val stopMatcher: String? = null,
+    /** Root config version written when creating a new hooks file (e.g. Cursor hooks.json requires 1). */
+    val configVersion: Int? = null,
 )
 
 /**

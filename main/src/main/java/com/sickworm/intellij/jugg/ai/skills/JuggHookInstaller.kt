@@ -144,6 +144,7 @@ object JuggHookInstaller {
                     stopMatcher = MATCHER_ALL,
                     editMatcher = target.editMatcher,
                     commandMatcher = target.commandMatcher,
+                    configVersion = target.configVersion,
                 )
             }
         }
@@ -381,11 +382,17 @@ object JuggHookInstaller {
         private val stopMatcher: String?,
         private val editMatcher: String?,
         private val commandMatcher: String?,
+        private val configVersion: Int?,
     ) : HookConfigAdapter {
 
         override fun merge(existingContent: String?): HookMergeResult {
             val root = parseRootObject(existingContent)
             var changed = false
+
+            if (configVersion != null && existingContent.isNullOrBlank()) {
+                root.addProperty("version", configVersion)
+                changed = true
+            }
 
             val hooks = root.ensureObject("hooks").also { changed = changed || it.second }.first
             val startEvent = hooks.ensureArray(startEventName).also { changed = changed || it.second }.first
