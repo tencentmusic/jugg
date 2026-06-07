@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -111,19 +112,75 @@ def debug_log(prefix: str, message: str) -> None:
         pass
 
 
+def _debug_payload_read(message: str) -> None:
+    env_keys = sorted(
+        key
+        for key in os.environ
+        if "CURSOR" in key.upper() or "HOOK" in key.upper() or "WORKSPACE" in key.upper()
+    )
+    debug_log("JUGG-HOOK", f"{message} stdin_isatty={os.isatty(0)} envKeys={env_keys[:20]!r}")
+
+
+def _read_stdin_bytes() -> bytes:
+    if os.isatty(0):
+        return b""
+    chunks: list[bytes] = []
+    try:
+        while True:
+            chunk = os.read(0, 65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    except OSError as error:
+        _debug_payload_read(f"payload read failed error={error!r}")
+        return b""
+    return b"".join(chunks)
+
+
+def _payload_encodings() -> list[str]:
+    encodings = ["utf-8-sig", "utf-16", "utf-16-le", "utf-16-be"]
+    if os.name == "nt":
+        encodings.append("mbcs")
+    return encodings
+
+
+def _parse_payload_bytes(raw_bytes: bytes) -> tuple[dict[str, Any], str] | None:
+    errors: list[str] = []
+    for encoding in _payload_encodings():
+        try:
+            raw = raw_bytes.decode(encoding)
+        except UnicodeDecodeError as error:
+            errors.append(f"{encoding}: decode {error!r}")
+            continue
+        if not raw.strip("\x00\r\n\t "):
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as error:
+            errors.append(f"{encoding}: json {error!r}")
+            continue
+        if isinstance(payload, dict):
+            return payload, encoding
+        errors.append(f"{encoding}: root {type(payload).__name__}")
+    if errors:
+        _debug_payload_read(
+            f"payload parse failed byteLength={len(raw_bytes)} errors={errors!r} "
+            f"hexPreview={raw_bytes[:160].hex()!r}"
+        )
+    return None
+
+
 def read_json_payload() -> dict[str, Any]:
-    raw = ""
-    try:
-        raw = os.fdopen(0, encoding="utf-8", closefd=False).read()
-    except Exception:
+    raw_bytes = _read_stdin_bytes()
+    if not raw_bytes.strip(b"\x00\r\n\t "):
+        _debug_payload_read("payload read empty")
         return {}
-    if not raw.strip():
+    parsed = _parse_payload_bytes(raw_bytes)
+    if parsed is None:
         return {}
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    payload, encoding = parsed
+    debug_log("JUGG-HOOK", f"payload read ok encoding={encoding} keys={sorted(payload.keys())!r}")
+    return payload
 
 
 def collect_strings(value: Any) -> list[str]:
@@ -412,6 +469,13 @@ def jugg_cli_path(home: Path) -> Path:
     return home / ".jugg" / "bin" / "jugg.py"
 
 
+def jugg_cli_command(home: Path) -> list[str]:
+    jugg_cli = jugg_cli_path(home)
+    if os.name == "nt":
+        return [sys.executable, str(jugg_cli)]
+    return [str(jugg_cli)]
+
+
 def match_project_info(cwd: str, projects: list[Any]) -> dict[str, Any] | None:
     normalized_cwd = cwd.replace("\\", "/")
     best: dict[str, Any] | None = None
@@ -535,7 +599,7 @@ def read_status_snapshot(
 
     try:
         result = subprocess.run(
-            [str(jugg_cli), "--console=json", "status"],
+            [*jugg_cli_command(home), "--console=json", "status"],
             capture_output=True,
             text=True,
             cwd=cwd,
@@ -544,6 +608,9 @@ def read_status_snapshot(
         )
     except subprocess.TimeoutExpired:
         debug_log("JUGG-HOOK", f"skip: jugg status timeout after {timeout_seconds}s")
+        return None
+    except OSError as error:
+        debug_log("JUGG-HOOK", f"skip: jugg status failed to start error={error}")
         return None
     if result.returncode != 0:
         stderr_line = (result.stderr or "").strip().splitlines()

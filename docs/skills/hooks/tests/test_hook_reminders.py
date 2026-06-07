@@ -70,6 +70,12 @@ def _state_file(home: str, cwd: str, session_id: str) -> Path:
     return Path(home) / ".jugg" / "skills" / "hooks" / ".state" / f"{digest}.json"
 
 
+def _hook_env(home: str, **extra: str) -> dict[str, str]:
+    env = {**os.environ, "HOME": home, "USERPROFILE": home}
+    env.update(extra)
+    return env
+
+
 SESSION_WRITE_FILE_NAMES_KEY = "sessionWriteFileNames"
 
 
@@ -96,7 +102,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home, "JUGG_HOOK_DEBUG_LOG": str(debug_log)},
+                env=_hook_env(home, JUGG_HOOK_DEBUG_LOG=str(debug_log)),
                 check=False,
             )
 
@@ -139,7 +145,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -164,7 +170,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -198,7 +204,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_exists = _state_file(home, cwd, session_id).exists()
@@ -230,7 +236,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -261,7 +267,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_exists = _state_file(home, cwd, session_id).exists()
@@ -288,7 +294,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_exists = _state_file(home, cwd, session_id).exists()
@@ -315,7 +321,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -342,7 +348,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_path = _state_file(home, cwd, session_id)
@@ -372,7 +378,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -400,7 +406,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -433,7 +439,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
                 state = json.loads(_state_file(home, hook_cwd, session_id).read_text(encoding="utf-8"))
@@ -460,7 +466,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_exists = _state_file(home, cwd, session_id).exists()
@@ -487,7 +493,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -515,7 +521,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -547,7 +553,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -577,7 +583,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -604,7 +610,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_exists = _state_file(home, cwd, session_id).exists()
@@ -634,7 +640,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -647,6 +653,9 @@ class HookReminderDecisionTest(unittest.TestCase):
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")
         self.assertTrue(mod.is_raw_gradle_command("./gradlew :app:assembleDebug"))
+        self.assertTrue(mod.is_raw_gradle_command(".\\gradlew :app:assembleDebug"))
+        self.assertTrue(mod.is_raw_gradle_command(".\\gradlew.bat :app:assembleDebug"))
+        self.assertTrue(mod.is_raw_gradle_command("gradlew.bat :app:assembleDebug"))
         self.assertFalse(mod.is_raw_gradle_command("python3 ~/.jugg/bin/jugg.py gradle-build"))
 
     def test_command_hook_does_not_record_shell_source_write_without_status_lookup(self):
@@ -679,7 +688,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home, "JUGG_HOOK_DEBUG_LOG": str(debug_log)},
+                env=_hook_env(home, JUGG_HOOK_DEBUG_LOG=str(debug_log)),
                 check=False,
             )
             state_path = _state_file(home, cwd, session_id)
@@ -715,7 +724,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -739,7 +748,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_path = _state_file(home, cwd, session_id)
@@ -769,7 +778,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             second = subprocess.run(
@@ -778,7 +787,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -811,7 +820,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             second = subprocess.run(
@@ -820,7 +829,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -854,7 +863,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             response = json.loads(result.stdout)
@@ -892,7 +901,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             second = subprocess.run(
@@ -901,7 +910,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             warning = json.loads(second.stdout)
@@ -935,7 +944,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
 
@@ -968,7 +977,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
                 state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -977,6 +986,75 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("deny", response.get("permission"))
         self.assertEqual(str(Path(project_cwd).resolve()), state.get("projectCwd"))
+
+    def test_command_hook_blocks_windows_cursor_root_command_payload(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-cursor-windows-command"
+        payload = {
+            "conversation_id": session_id,
+            "session_id": session_id,
+            "hook_event_name": "beforeShellExecution",
+            "command": 'Set-Location "D:\\GitHub\\jugg\\android_demo_project"; .\\gradlew.bat :app:assembleDebug 2>&1',
+            "cwd": "",
+            "workspace_roots": [],
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            project_path = Path(project_cwd)
+            (project_path / "settings.gradle").write_text("", encoding="utf-8")
+            payload["workspace_roots"] = [str(project_path.resolve())]
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(project_path.resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload),
+                    capture_output=True,
+                    text=True,
+                    cwd=hook_cwd,
+                    env=_hook_env(home),
+                    check=False,
+                )
+
+        response = json.loads(result.stdout)
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("deny", response.get("permission"))
+        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
+
+    def test_command_hook_blocks_windows_cursor_utf16_command_payload(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-cursor-windows-utf16-command"
+        payload = {
+            "conversation_id": session_id,
+            "session_id": session_id,
+            "hook_event_name": "beforeShellExecution",
+            "command": 'Set-Location "D:\\GitHub\\jugg\\android_demo_project"; .\\gradlew :app:assembleDebug 2>&1',
+            "cwd": "",
+            "workspace_roots": [],
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project_cwd:
+            project_path = Path(project_cwd)
+            (project_path / "settings.gradle").write_text("", encoding="utf-8")
+            payload["workspace_roots"] = [str(project_path.resolve())]
+            with tempfile.TemporaryDirectory() as hook_cwd:
+                state_file = _state_file(home, hook_cwd, session_id)
+                state_file.parent.mkdir(parents=True, exist_ok=True)
+                state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+                _write_fake_jugg_cli(home, total=1, expected_cwd=str(project_path.resolve()))
+                result = subprocess.run(
+                    [sys.executable, str(script), "--client", "cursor"],
+                    input=json.dumps(payload).encode("utf-16"),
+                    capture_output=True,
+                    cwd=hook_cwd,
+                    env=_hook_env(home),
+                    check=False,
+                )
+
+        response = json.loads(result.stdout.decode("utf-8"))
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("deny", response.get("permission"))
+        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
 
     def test_command_hook_ignores_state_project_cwd_for_non_cursor_clients(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -1001,7 +1079,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
 
@@ -1030,7 +1108,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
                 state = json.loads(_state_file(home, hook_cwd, session_id).read_text(encoding="utf-8"))
@@ -1058,7 +1136,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
                 state_path = _state_file(home, hook_cwd, session_id)
@@ -1095,7 +1173,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -1125,7 +1203,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             second = subprocess.run(
@@ -1134,7 +1212,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             warning_payload = json.loads(second.stdout)
@@ -1180,7 +1258,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             allowed = subprocess.run(
@@ -1189,7 +1267,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             warning_payload = json.loads(allowed.stdout)
@@ -1217,7 +1295,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -1246,7 +1324,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -1272,7 +1350,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -1312,7 +1390,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -1350,7 +1428,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -1375,7 +1453,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state_exists = _state_file(home, cwd, session_id).exists()
@@ -1404,7 +1482,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))

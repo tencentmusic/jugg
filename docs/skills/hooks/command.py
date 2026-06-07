@@ -37,7 +37,7 @@ from hook_common import (
 
 GRADLE_BLOCK_MESSAGE = (
     "You should prefer enabling the jugg-android-dev-loop skill and running Jugg CLI "
-    "compile/deploy/gradle-build instead of verifying compilation with raw Gradle here."
+    "compile/deploy/gradle-build instead of verifying with raw Gradle here."
     "This hook will block only once. If you insist in using raw Gradle, please retry again."
 )
 GRADLE_RETRY_WARNING = (
@@ -45,7 +45,7 @@ GRADLE_RETRY_WARNING = (
     "Allowing this repeated command attempt."
 )
 SYSTEM_MESSAGE_CLIENTS = {"codex", "claude"}
-RAW_GRADLE_PATTERN = re.compile(r"(^|[\s;&|()])(?:\./)?gradlew?(?:\s|$)")
+RAW_GRADLE_PATTERN = re.compile(r"(^|[\s;&|()])(?:\.[\\/])?gradlew(?:\.(?:bat|cmd))?(?:\s|$)")
 SHELL_COMMAND_KEYS = {"command", "cmd", "script"}
 
 

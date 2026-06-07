@@ -61,6 +61,10 @@ def _state_file(home: str, cwd: str, session_id: str) -> Path:
     return Path(home) / ".jugg" / "skills" / "hooks" / ".state" / f"{digest}.json"
 
 
+def _hook_env(home: str) -> dict[str, str]:
+    return {**os.environ, "HOME": home, "USERPROFILE": home}
+
+
 class StopHookGuardTest(unittest.TestCase):
     def test_stop_hook_skips_block_and_retry_when_disable_flag_present(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
@@ -80,7 +84,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             second = subprocess.run(
@@ -89,7 +93,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -121,7 +125,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             second = subprocess.run(
@@ -130,7 +134,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
@@ -163,7 +167,7 @@ class StopHookGuardTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
 
@@ -194,7 +198,7 @@ class StopHookGuardTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
                 state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -223,7 +227,7 @@ class StopHookGuardTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     cwd=hook_cwd,
-                    env={**os.environ, "HOME": home},
+                    env=_hook_env(home),
                     check=False,
                 )
 
@@ -248,7 +252,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             warning_payload = json.loads(result.stdout)
@@ -276,7 +280,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             warning_payload = json.loads(result.stdout)
@@ -301,7 +305,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             response = json.loads(result.stdout)
@@ -328,7 +332,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -353,7 +357,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             response = json.loads(result.stdout)
@@ -379,7 +383,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             response = json.loads(result.stdout)
@@ -405,7 +409,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -425,7 +429,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -450,7 +454,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -472,7 +476,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
             state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -499,7 +503,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -529,7 +533,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
@@ -559,7 +563,7 @@ class StopHookGuardTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=cwd,
-                env={**os.environ, "HOME": home},
+                env=_hook_env(home),
                 check=False,
             )
 
