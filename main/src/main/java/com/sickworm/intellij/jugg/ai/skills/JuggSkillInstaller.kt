@@ -195,6 +195,7 @@ object JuggSkillInstaller {
             val binDir = File(userHome, ".jugg/bin")
             copyDirectory(sourceDir = bundledScriptsDir, targetDir = binDir)
             if (isWindows()) {
+                normalizeWindowsCmdWrapper(binDir)
                 addWindowsCliDirToUserPath(userHome, binDir)
             } else {
                 setExecutable(binDir)
@@ -271,6 +272,27 @@ object JuggSkillInstaller {
             symlinkFile.delete()
         }
         Files.createSymbolicLink(symlinkFile.toPath(), target)
+    }
+
+    private fun normalizeWindowsCmdWrapper(binDir: File) {
+        val cmdFile = File(binDir, "jugg.cmd")
+        if (!cmdFile.isFile) {
+            throw FileNotFoundException("source_file_not_found_${cmdFile.path}")
+        }
+        val content = normalizeWindowsCmdContent(cmdFile.readText(StandardCharsets.UTF_8))
+        if (content.any { it.code !in 0..127 }) {
+            throw IOException("windows_cmd_wrapper_not_ascii")
+        }
+        cmdFile.writeText(content, StandardCharsets.US_ASCII)
+    }
+
+    private fun normalizeWindowsCmdContent(content: String): String {
+        return content
+            .removePrefix("\uFEFF")
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .split("\n")
+            .joinToString("\r\n")
     }
 
     private fun addWindowsCliDirToUserPath(userHome: File, binDir: File) {

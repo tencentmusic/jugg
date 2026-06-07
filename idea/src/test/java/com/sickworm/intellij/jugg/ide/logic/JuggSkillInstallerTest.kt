@@ -297,6 +297,31 @@ class JuggSkillInstallerTest {
     }
 
     @Test
+    fun installCli_shouldInstallCmdCompatibleWindowsEntry() {
+        val userHome = Files.createTempDirectory("jugg-home-cli-windows-cmd").toFile()
+        val logger = mock(Logger::class.java)
+        val originalOsName = System.getProperty("os.name")
+
+        try {
+            System.setProperty("os.name", "Windows 11")
+            val result = JuggSkillInstaller.installCli(logger, userHome)
+
+            assertTrue("CLI install should succeed", result.isSuccess)
+            val content = File(userHome, ".jugg/bin/jugg.cmd").readText(Charsets.UTF_8)
+            val sourceContent = File(
+                userHome,
+                ".jugg/skills/jugg-android-dev-loop/scripts/jugg.cmd",
+            ).readText(Charsets.UTF_8)
+            assertTrue("jugg.cmd should use CRLF line endings", content.contains("\r\n"))
+            assertFalse("jugg.cmd should not contain LF-only line endings", content.contains(Regex("(?<!\r)\n")))
+            assertTrue("jugg.cmd should stay ASCII for cmd.exe", content.all { it.code in 0..127 })
+            assertEquals("jugg.cmd should keep bundled content", normalizeLineEndings(sourceContent), content)
+        } finally {
+            System.setProperty("os.name", originalOsName)
+        }
+    }
+
+    @Test
     fun installHooks_shouldUseBundledHookScriptsUnderJuggSkillsDir() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-copy").toFile()
         val logger = mock(Logger::class.java)
@@ -344,5 +369,14 @@ class JuggSkillInstallerTest {
         assertTrue(File(userHome, ".jugg/skills/hooks/start.py").exists())
         assertTrue(File(userHome, ".jugg/skills/hooks/stop.py").exists())
         assertFalse(File(userHome, ".jugg/hooks").exists())
+    }
+
+    private fun normalizeLineEndings(content: String): String {
+        return content
+            .removePrefix("\uFEFF")
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .split("\n")
+            .joinToString("\r\n")
     }
 }

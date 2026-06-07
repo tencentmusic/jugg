@@ -1,5 +1,5 @@
 @echo off
-REM jugg.cmd — Windows wrapper for Jugg CLI (Python version)
+REM jugg.cmd - Windows wrapper for Jugg CLI (Python version)
 REM Place this in PATH or call directly: jugg.cmd compile --console=json
 
 setlocal
