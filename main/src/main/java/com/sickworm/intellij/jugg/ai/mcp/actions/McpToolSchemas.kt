@@ -11,7 +11,7 @@ object McpToolSchemas {
     val projectDirProperty = McpJsonSchemaProperty(
         type = "string",
         description = "Project absolute path.",
-        pattern = "^/.+",
+        pattern = "^(/[^/].*|[A-Za-z]:/.+)$",
     )
 
     val waitAppReadyAfterSuccessProperty = McpJsonSchemaProperty(

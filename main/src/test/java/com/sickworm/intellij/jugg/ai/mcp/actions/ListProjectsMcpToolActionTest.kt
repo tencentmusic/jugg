@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -53,8 +54,20 @@ class ListProjectsMcpToolActionTest {
         val projects = data["projects"] as List<Any>
         val byDir = projects.associateBy { readStringProperty(it, "projectDir") }
 
-        Assert.assertEquals(true, readBooleanProperty(byDir[compiledProject.absolutePath], "hasBeenFullCompiled"))
-        Assert.assertEquals(false, readBooleanProperty(byDir[neverCompiledProject.absolutePath], "hasBeenFullCompiled"))
+        Assert.assertEquals(
+            true,
+            readBooleanProperty(
+                byDir[ProjectDirNormalizer.normalizeProjectDir(compiledProject.absolutePath)],
+                "hasBeenFullCompiled",
+            ),
+        )
+        Assert.assertEquals(
+            false,
+            readBooleanProperty(
+                byDir[ProjectDirNormalizer.normalizeProjectDir(neverCompiledProject.absolutePath)],
+                "hasBeenFullCompiled",
+            ),
+        )
     }
 
     @Test

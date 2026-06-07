@@ -77,6 +77,7 @@ McpToolAction
 - 嵌套 object 也按 schema 校验 `additionalProperties`。
 - 只有 `McpToolActionRegistry.noProjectDirTools` 中的工具不要求 `projectDir`；当前是 `list-projects` 与 `version`。
 - 非全局工具会校验项目是否已初始化。
+- `projectDir` 在 schema 校验前经 `ProjectDirNormalizer.normalizeProjectDir` 统一规范化（`/` 分隔、Windows 盘符路径、MSYS `/d/...`、Cygwin `/cygdrive/d/...`、WSL `/mnt/d/...`）；`list-projects` 输出与 `JuggInitializer.getManager` 查找均使用同一 canonical 形式。
 
 Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/baseline 校验、runtime observe 工具的 App ready 校验。未注册 action（如 `layout-verify`）即使保留内部校验，也不能视为公开 MCP 能力。
 

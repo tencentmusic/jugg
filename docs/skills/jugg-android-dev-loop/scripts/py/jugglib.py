@@ -6,6 +6,7 @@ Provides: port detection, projectDir resolution, record session management,
 
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -229,20 +230,88 @@ def jugg_call(tool: str, params: dict, *, json_mode: bool = False) -> dict:
 
 project_dir_override: str = ""
 
+_WSL_DRIVE_RE = re.compile(r"^/mnt/([a-zA-Z])(?:/(.*))?$")
+_CYGWIN_DRIVE_RE = re.compile(r"^/cygdrive/([a-zA-Z])(?:/(.*))?$", re.IGNORECASE)
+_MSYS_DRIVE_RE = re.compile(r"^/([a-zA-Z])(?:/(.*))?$")
+
+
+def _is_msys_like_environment() -> bool:
+    if os.environ.get("MSYSTEM"):
+        return True
+    ostype = os.environ.get("OSTYPE", "").lower()
+    return "msys" in ostype or "cygwin" in ostype
+
+
+def _convert_posix_style_windows_path(path: str, *, msys_drive_enabled: bool | None = None) -> str:
+    normalized = path.replace("\\", "/")
+    for pattern in (_WSL_DRIVE_RE, _CYGWIN_DRIVE_RE):
+        match = pattern.match(normalized)
+        if match:
+            drive = match.group(1).upper()
+            rest = match.group(2) or ""
+            normalized = f"{drive}:/{rest}" if rest else f"{drive}:/"
+            break
+    if msys_drive_enabled if msys_drive_enabled is not None else _is_msys_like_environment():
+        match = _MSYS_DRIVE_RE.match(normalized)
+        if match:
+            drive = match.group(1).upper()
+            rest = match.group(2) or ""
+            normalized = f"{drive}:/{rest}" if rest else f"{drive}:/"
+    return normalized
+
+
+def _is_windows_drive_path(path: str) -> bool:
+    return len(path) >= 2 and path[0].isalpha() and path[1] == ":"
+
+
+def _resolve_to_absolute_path(converted: str) -> str:
+    slash_path = converted.replace("\\", "/")
+    if sys.platform != "win32" or _is_windows_drive_path(slash_path) or not slash_path.startswith("/"):
+        return str(Path(converted).resolve()).replace("\\", "/")
+    return slash_path
+
+
+def _finalize_project_dir(path: str) -> str:
+    if not path:
+        return path
+    result = path.replace("\\", "/")
+    if _is_windows_drive_path(result):
+        result = result[0].upper() + result[1:]
+        if sys.platform == "win32":
+            result = result.lower()
+    elif sys.platform == "darwin":
+        result = result.lower()
+    return result
+
+
+def normalize_project_dir(path: str) -> str:
+    """Canonicalize projectDir for MCP calls (Windows, MSYS/MINGW, Cygwin, WSL)."""
+    trimmed = path.strip()
+    if not trimmed:
+        return trimmed
+    converted = _convert_posix_style_windows_path(trimmed)
+    resolved = _resolve_to_absolute_path(converted)
+    return _finalize_project_dir(resolved)
+
+
+def _project_dir_key(path: str) -> str:
+    return normalize_project_dir(path).lower()
+
 
 def match_project_dir(work_dir: str, projects: list[str]) -> str:
     """Given a working directory and a list of projectDirs,
     return the longest prefix match (slash-boundary-aware)."""
-    # Normalize separators to forward slash for comparison
-    norm_wd = work_dir.replace("\\", "/")
+    norm_wd = _project_dir_key(work_dir)
     best = ""
-    for d in projects:
-        if not d:
+    best_len = -1
+    for project_dir in projects:
+        if not project_dir:
             continue
-        norm_d = d.replace("\\", "/")
+        norm_d = _project_dir_key(project_dir)
         if norm_wd == norm_d or norm_wd.startswith(norm_d + "/"):
-            if len(d) > len(best):
-                best = d
+            if len(norm_d) > best_len:
+                best = project_dir
+                best_len = len(norm_d)
     return best
 
 

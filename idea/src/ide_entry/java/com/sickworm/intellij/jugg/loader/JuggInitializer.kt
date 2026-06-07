@@ -7,6 +7,7 @@ import com.intellij.openapi.project.ProjectManager
 import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
 import com.sickworm.intellij.jugg.ai.mcp.McpLocalServer
+import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -79,7 +80,10 @@ object JuggInitializer {
     }
 
     fun getManager(projectDir: String): IJuggManagerCaller? {
-        return instanceSet[projectDir]?.juggManager
+        val normalizedProjectDir = ProjectDirNormalizer.normalizeProjectDir(projectDir)
+        return instanceSet.entries.firstOrNull { (key, _) ->
+            ProjectDirNormalizer.projectDirEquals(key, normalizedProjectDir)
+        }?.value?.juggManager
     }
 
     @Synchronized

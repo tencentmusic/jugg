@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
 
 class IdeaMcpRuntime(
     override val logger: Logger,
@@ -53,7 +54,8 @@ class IdeaMcpRuntime(
                         message = "invoke_mcp failed. Reason: projectDir is required.")
                 }
 
-            val juggManager = JuggInitializer.getManager(projectDir)
+            val normalizedProjectDir = ProjectDirNormalizer.normalizeProjectDir(projectDir)
+            val juggManager = JuggInitializer.getManager(normalizedProjectDir)
                 ?: run {
                     return McpResultMapper().toolError(
                         id = request.id,
@@ -61,8 +63,22 @@ class IdeaMcpRuntime(
                         message = "invoke_mcp failed. Reason: project is not initialized.")
                 }
 
-            val response = juggManager.invokeMcp(request)
+            val response = juggManager.invokeMcp(withNormalizedProjectDir(request, normalizedProjectDir))
             return response
+        }
+
+        private fun withNormalizedProjectDir(
+            request: McpJsonRpcRequest,
+            normalizedProjectDir: String,
+        ): McpJsonRpcRequest {
+            val params = request.params as? Map<*, *> ?: return request
+            @Suppress("UNCHECKED_CAST")
+            val arguments = (params["arguments"] as? Map<String, Any?>)?.toMutableMap() ?: return request
+            arguments["projectDir"] = normalizedProjectDir
+            val patchedParams = params.toMutableMap().apply {
+                this["arguments"] = arguments
+            }
+            return request.copy(params = patchedParams)
         }
     }
 }

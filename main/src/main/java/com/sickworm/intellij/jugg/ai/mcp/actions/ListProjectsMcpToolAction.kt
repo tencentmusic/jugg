@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
 import java.io.File
 
 /**
@@ -68,7 +69,7 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
             data = mapOf(
                 "projects" to PlatformApi.getInitializedProjectDirs().map {
                     McpProjectInfo(
-                        projectDir = it.path,
+                        projectDir = ProjectDirNormalizer.normalizeProjectDir(it.absolutePath),
                         initialized = true,
                         hasBeenFullCompiled = hasBeenFullCompiled(it),
                     )

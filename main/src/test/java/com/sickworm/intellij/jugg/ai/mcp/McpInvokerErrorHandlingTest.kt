@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
+import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
 import org.junit.Assert
 import org.junit.Test
 
@@ -99,6 +100,25 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("projectDir is required"))
+    }
+
+    @Test
+    fun testProjectDirAcceptsNormalizedWindowsStylePath() {
+        val invoker = newToolInvoker(currentProjectDir = ProjectDirNormalizer.normalizeProjectDir("/tmp/projectA"))
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 51,
+                params = mapOf(
+                    "name" to "restart",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA"),
+                ),
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
     }
 
     @Test

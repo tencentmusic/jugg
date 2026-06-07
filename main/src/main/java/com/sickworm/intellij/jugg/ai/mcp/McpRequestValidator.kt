@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
+import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
 
 /**
  * McpRequestValidator validates incoming MCP JSON-RPC requests:
@@ -52,7 +53,7 @@ class McpRequestValidator(
                 message = "Tool not found: $toolName",
             )
 
-        val normalizedArgs = applyDefaults(args, toolDefinition.inputSchema)
+        val normalizedArgs = applyDefaults(normalizeProjectDirArgument(args), toolDefinition.inputSchema)
         val schemaValidation = validateAgainstSchema(toolName, normalizedArgs, toolDefinition.inputSchema)
         if (schemaValidation != null) {
             return schemaValidation
@@ -75,7 +76,7 @@ class McpRequestValidator(
             )
         }
 
-        if (projectDir != currentProjectDir) {
+        if (!ProjectDirNormalizer.projectDirEquals(projectDir, currentProjectDir)) {
             return McpValidationResult.Invalid(
                 errorCode = McpErrorCode.PROJECT_NOT_INITIALIZED,
                 message = "$toolName failed. Reason: project is not initialized.",
@@ -87,6 +88,13 @@ class McpRequestValidator(
             arguments = normalizedArgs,
             projectDir = projectDir,
         )
+    }
+
+    private fun normalizeProjectDirArgument(arguments: Map<String, Any?>): Map<String, Any?> {
+        val rawProjectDir = arguments["projectDir"] as? String ?: return arguments
+        return arguments.toMutableMap().apply {
+            this["projectDir"] = ProjectDirNormalizer.normalizeProjectDir(rawProjectDir)
+        }
     }
 
     private fun applyDefaults(arguments: Map<String, Any?>, schema: McpJsonSchemaObject): Map<String, Any?> {
