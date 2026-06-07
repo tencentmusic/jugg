@@ -237,7 +237,7 @@ class InstallJuggSkillsDialogTest {
             hookSummary = HookInstallSummary(emptyList()),
         )
 
-        assertTrue(display.contains("CLI: installed. Try \"jugg -h\" in terminal."))
+        assertTrue(display.contains("CLI: installed. Open a new terminal and run \"jugg -h\"."))
     }
 
     @Test

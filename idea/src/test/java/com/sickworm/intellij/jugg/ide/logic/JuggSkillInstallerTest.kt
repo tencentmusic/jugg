@@ -261,8 +261,14 @@ class JuggSkillInstallerTest {
     fun installCli_shouldCreateSymlinkInLocalBin() {
         val userHome = Files.createTempDirectory("jugg-home-cli-symlink").toFile()
         val logger = mock(Logger::class.java)
+        val originalOsName = System.getProperty("os.name")
 
-        JuggSkillInstaller.installCli(logger, userHome)
+        try {
+            System.setProperty("os.name", "Linux")
+            JuggSkillInstaller.installCli(logger, userHome)
+        } finally {
+            System.setProperty("os.name", originalOsName)
+        }
 
         val symlink = File(userHome, ".local/bin/jugg")
         assertTrue("Symlink should be created in ~/.local/bin", symlink.exists())

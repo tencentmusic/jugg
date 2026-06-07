@@ -245,7 +245,7 @@ class InstallJuggSkillsDialog(
         ): File {
             val shouldInstallCli = options.installCli || options.installHooks
             if (shouldInstallCli) {
-                JuggSkillInstaller.installCli(logger, userHome)
+                JuggSkillInstaller.installCli(logger, userHome).getOrThrow()
             }
             if (options.clients.isNotEmpty()) {
                 JuggSkillInstaller.install(projectDir, options.clients, logger, userHome)
@@ -268,7 +268,7 @@ class InstallJuggSkillsDialog(
             taskRunnerManager.runTaskSafe("Install Jugg Skills", {
                 val shouldInstallCli = options.installCli || options.installHooks
                 if (shouldInstallCli) {
-                    JuggSkillInstaller.installCli(logger)
+                    JuggSkillInstaller.installCli(logger).getOrThrow()
                 }
                 val skillSummary = if (options.clients.isNotEmpty()) {
                     JuggSkillInstaller.install(projectDir, options.clients, logger)
@@ -366,7 +366,7 @@ class InstallJuggSkillsDialog(
                     } else {
                         ""
                     }
-                    appendLine("CLI: installed$reason. Try \"jugg -h\" in terminal.")
+                    appendLine("CLI: installed$reason. Try \"jugg -h\" in a NEW terminal.")
                 }
                 if (resultLines.isNotEmpty()) {
                     if (isNotEmpty()) {

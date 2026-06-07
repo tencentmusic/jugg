@@ -194,7 +194,9 @@ object JuggSkillInstaller {
             val bundledScriptsDir = File(ensureBundledSkillsHome(userHome), "$SKILL_NAME/scripts")
             val binDir = File(userHome, ".jugg/bin")
             copyDirectory(sourceDir = bundledScriptsDir, targetDir = binDir)
-            if (!isWindows()) {
+            if (isWindows()) {
+                addWindowsCliDirToUserPath(userHome, binDir)
+            } else {
                 setExecutable(binDir)
                 createSymlink(userHome, binDir)
             }
@@ -269,6 +271,62 @@ object JuggSkillInstaller {
             symlinkFile.delete()
         }
         Files.createSymbolicLink(symlinkFile.toPath(), target)
+    }
+
+    private fun addWindowsCliDirToUserPath(userHome: File, binDir: File) {
+        if (!isCurrentUserHome(userHome)) {
+            return
+        }
+        val targetPath = binDir.canonicalPath
+        val process = ProcessBuilder(
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            buildWindowsPathUpdateScript(targetPath),
+        )
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw IOException("failed_to_update_user_path: ${output.trim()}")
+        }
+    }
+
+    private fun isCurrentUserHome(userHome: File): Boolean {
+        return userHome.canonicalFile == File(System.getProperty("user.home")).canonicalFile
+    }
+
+    private fun buildWindowsPathUpdateScript(targetPath: String): String {
+        val quotedTargetPath = quotePowerShellString(targetPath)
+        return listOf(
+            "\$ErrorActionPreference = 'Stop'",
+            "\$target = $quotedTargetPath",
+            "\$current = [Environment]::GetEnvironmentVariable('Path', 'User')",
+            "\$targetFull = [IO.Path]::GetFullPath(\$target).TrimEnd([char]'\\')",
+            "\$exists = \$false",
+            "if (-not [string]::IsNullOrWhiteSpace(\$current)) { " +
+                "foreach (\$entry in \$current -split ';') { " +
+                "if ([string]::IsNullOrWhiteSpace(\$entry)) { continue }; " +
+                "\$normalized = \$entry.Trim().TrimEnd([char]'\\'); " +
+                "try { \$normalized = [IO.Path]::GetFullPath(\$normalized).TrimEnd([char]'\\') } catch {}; " +
+                "if ([string]::Equals(\$normalized, \$targetFull, [StringComparison]::OrdinalIgnoreCase)) { " +
+                "\$exists = \$true; break " +
+                "} " +
+                "} " +
+                "}",
+            "if (-not \$exists) { " +
+                "if ([string]::IsNullOrWhiteSpace(\$current)) { \$updated = \$target } " +
+                "else { \$updated = \"\$target;\$current\" }; " +
+                "[Environment]::SetEnvironmentVariable('Path', \$updated, 'User') " +
+                "}",
+        ).joinToString("; ")
+    }
+
+    private fun quotePowerShellString(value: String): String {
+        return "'${value.replace("'", "''")}'"
     }
 
     private fun isWindows() = System.getProperty("os.name")?.lowercase()?.contains("windows") == true
