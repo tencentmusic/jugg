@@ -165,8 +165,7 @@ class InstallJuggSkillsDialog(
         return arrayOf(object : AbstractAction("Manual Setup Guide") {
             override fun actionPerformed(e: ActionEvent?) {
                 try {
-                    val logger = Logger.getInstance(InstallJuggSkillsDialog::class.java)
-                    val outputFile = exportAndInstallSkills(projectDir, selectedOptions(), logger)
+                    val outputFile = exportAndInstallSkills(projectDir, userHome)
                     val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(outputFile)
                         ?: throw IllegalStateException("Failed to locate exported guide file.")
                     FileEditorManager.getInstance(project).openFile(virtualFile, true)
@@ -237,26 +236,14 @@ class InstallJuggSkillsDialog(
             return result
         }
 
+        /**
+         * Exports the bundled manual setup guide under ~/.jugg/skills without installing
+         * skills, CLI, or hooks into agent config directories.
+         */
         fun exportAndInstallSkills(
             projectDir: File,
-            options: InstallOptions,
-            logger: Logger,
             userHome: File = File(System.getProperty("user.home")),
         ): File {
-            val shouldInstallCli = options.installCli || options.installHooks
-            if (shouldInstallCli) {
-                JuggSkillInstaller.installCli(logger, userHome).getOrThrow()
-            }
-            if (options.clients.isNotEmpty()) {
-                JuggSkillInstaller.install(projectDir, options.clients, logger, userHome)
-            }
-            if (options.installHooks) {
-                JuggSkillInstaller.installHooks(logger, userHome)
-                JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger, userHome)
-                JuggHookInstaller.installForClients(options.clients, userHome, logger)
-            } else {
-                JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger, userHome)
-            }
             return ClientSetupDocExporter.export(projectDir, userHome)
         }
 
