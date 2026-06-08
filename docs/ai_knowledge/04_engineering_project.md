@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-05-23
+> 最后核对：2026-06-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -79,6 +79,8 @@ IDE / Gradle compile 触发 project info 更新
 ```
 
 `main/src/main/java/.../gradle/script` 下的类同时作为生成 init script 的源码模板；排查时要同时关注生产 wrapper 和 `main/src/main/resources/gradle/readProjectInfo.gradle.kts` 中的内嵌结果。
+
+`readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
 ### 4.2 Sync 后合并为编译上下文
 

@@ -251,7 +251,31 @@ gradle.projectsEvaluated {
 
 gradle.taskGraph.whenReady {
     println("Jugg: task graph ready for \${rootProject.projectDir}")
-    gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
+    val isDryRun = gradle.startParameter.isDryRun
+    var hasReadProjectInfo = false
+
+    fun readProjectInfoOnce() {
+        if (hasReadProjectInfo) {
+            return
+        }
+        hasReadProjectInfo = true
+        gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
+    }
+
+    if (isDryRun) {
+        readProjectInfoOnce()
+    } else {
+        val terminalTask = gradle.taskGraph.allTasks.lastOrNull()
+        if (terminalTask == null) {
+            println("Jugg: no terminal task found, read project info immediately")
+            readProjectInfoOnce()
+        } else {
+            println("Jugg: readProjectInfo.gradle will execute after task \${terminalTask.path}")
+            terminalTask.doLast {
+                readProjectInfoOnce()
+            }
+        }
+    }
 }
 """)
         finalContent.append("\n")

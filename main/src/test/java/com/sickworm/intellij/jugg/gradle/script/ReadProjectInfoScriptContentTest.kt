@@ -44,6 +44,7 @@ class ReadProjectInfoScriptContentTest {
         )
         assertFalse(scriptText.contains("project.buildDir"))
         assertFalse(scriptText.contains("gradle.buildFinished("))
+        assertFalse(scriptText.contains("stackTraceToString("))
         assertFalse(scriptText.contains("firstChar.toInt()"))
         assertFalse(scriptText.contains(".code"), "Char.code is Kotlin 1.5+ API, not supported in Gradle 7")
         assertFalse(scriptText.lineSequence().any { it.startsWith("const val ") || it.startsWith("private const val ") })
@@ -181,6 +182,19 @@ class ReadProjectInfoScriptContentTest {
         assertTrue(scriptText.contains("readLibraryTestTasks().forEach"))
         assertTrue(scriptText.contains("task.dependsOn(libraryTestTask)"))
         assertTrue(scriptText.indexOf("injectAndroidTestTaskIfNeeded()") < scriptText.indexOf("gradle.taskGraph.whenReady"))
+    }
+
+    @Test
+    fun generatedScript_shouldReadProjectInfoFromTerminalTaskDoLastWhenNotDryRun() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        assertTrue(scriptText.contains("val isDryRun = gradle.startParameter.isDryRun"))
+        assertTrue(scriptText.contains("fun readProjectInfoOnce()"))
+        assertTrue(scriptText.contains("if (isDryRun) {"))
+        assertTrue(scriptText.contains("val terminalTask = gradle.taskGraph.allTasks.lastOrNull()"))
+        assertTrue(scriptText.contains("terminalTask.doLast {"))
+        assertTrue(scriptText.indexOf("if (isDryRun) {") < scriptText.indexOf("terminalTask.doLast {"))
     }
 
     @Test

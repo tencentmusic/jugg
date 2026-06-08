@@ -98,7 +98,7 @@ class GradleProjectInfoReader(
                     }
                 } catch (e: Throwable) {
                     println("Jugg: get androidTest info for ${moduleInfo.name} failed: $e")
-                    println(e.stackTraceToString())
+                    printException(e)
                 }
             }
         }
