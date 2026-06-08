@@ -63,7 +63,7 @@ class JuggManager @TestOnly constructor(
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, logger),
-    private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, taskRunnerManager, logger),
+    private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, deployFileManager, taskRunnerManager, logger),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(
         project,
         deployTargetManager,

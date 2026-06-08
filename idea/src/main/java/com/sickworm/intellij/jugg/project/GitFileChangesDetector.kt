@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
@@ -17,6 +18,7 @@ import java.io.File
  */
 class GitFileChangesDetector(
     private val deployHistoryManager: IDeployHistoryManager,
+    private val deployFileManager: DeployFileManager,
     private val taskRunnerManager: TaskRunnerManager,
     loggerArg: Logger,
 ): IFileChangesDetector {
@@ -104,9 +106,20 @@ class GitFileChangesDetector(
         val recoverData = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = false) ?: return
         val filterFilesSet = filterFiles.map { it.path }.toSet()
         val allChangedFiles = recoverData.changedFiles.filter { it.path !in filterFilesSet }
-        logger.debug("updateChangedFiles, allChangedFiles size: ${allChangedFiles.size}, names: ${allChangedFiles.map { it.name }}")
+        val deletedFiles = collectMissingUndeployedFiles()
+        logger.debug("updateChangedFiles, allChangedFiles size: ${allChangedFiles.size}, " +
+                "names: ${allChangedFiles.map { it.name }}, " +
+                "deletedFiles size: ${deletedFiles.size}, names: ${deletedFiles.map { it.name }}",
+        )
 
-        listener?.onFileChanges(allChangedFiles, emptyList())
+        listener?.onFileChanges(allChangedFiles, deletedFiles)
+    }
+
+    private fun collectMissingUndeployedFiles(): List<File> {
+        return deployFileManager.getUndeployedFiles()
+            .map { it.file }
+            .filter { !it.exists() }
+            .distinctBy { it.path }
     }
 
     override fun startListen(listener: FileChangesListener) {

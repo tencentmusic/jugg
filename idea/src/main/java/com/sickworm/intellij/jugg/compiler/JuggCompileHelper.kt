@@ -589,7 +589,14 @@ class JuggCompilerHelper(
         }
 
         // read all undeployed files
-        val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
+        val allUndeployedFiles = deployFileManager.getUndeployedFiles()
+        val missingUndeployedFiles = allUndeployedFiles.filter { !it.file.exists() }
+        if (missingUndeployedFiles.isNotEmpty()) {
+            logger.warn("Skipping missing source files (likely renamed or deleted): " +
+                    missingUndeployedFiles.joinToString { it.file.path })
+            deployFileManager.removeChangedFile(missingUndeployedFiles.map { it.file })
+        }
+        val undeployedFiles = allUndeployedFiles.filter { it.file.exists() }.toMutableList()
         // remove gradle files from undeployed files, it can not be compiled
         // since we go into this method, then it must be an incremental compile
         val buildFileFiles = undeployedFiles.filter { it.type == CompileFile.Type.BuildFile }

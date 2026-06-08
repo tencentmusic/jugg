@@ -4,7 +4,9 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.JuggCompiler
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.RecompileFiles
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
@@ -24,11 +26,17 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
@@ -36,6 +44,10 @@ import org.mockito.kotlin.whenever
 import java.io.File
 
 class JuggCompileHelperTest {
+
+    @Rule
+    @JvmField
+    val temporaryFolder = TemporaryFolder()
 
     companion object {
         @BeforeClass
@@ -124,6 +136,56 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun incrementalCompile_skipsMissingUndeployedSourceFiles() {
+        val fixture = createFixture()
+        val existingFile = File.createTempFile("Existing", ".kt")
+        existingFile.deleteOnExit()
+        val missingFile = File(existingFile.parentFile, "Missing_${System.nanoTime()}.kt")
+        val existingChanged = ChangedFile(
+            CompileFile.Type.Kotlin,
+            existingFile,
+            existingFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+        val missingChanged = ChangedFile(
+            CompileFile.Type.Kotlin,
+            missingFile,
+            missingFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.dependencyChangeManager.changeStatus).thenReturn(IDependencyChangeManager.ChangeStatus.NO_CHANGE)
+        whenever(fixture.deployFileManager.getUndeployedFiles()).thenReturn(listOf(existingChanged, missingChanged))
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        whenever(fixture.pathManager.stagingDir).thenReturn(temporaryFolder.newFolder("staging"))
+        doReturn(RecompileFiles(emptyList(), emptyList(), JuggDeployData.forDryDeploy(emptyList())))
+            .whenever(fixture.deployFileManager)
+            .getRecompileFiles(any(), any(), anyOrNull())
+
+        val juggCompiler = mock<JuggCompiler>()
+        whenever(juggCompiler.context).thenReturn(mock())
+        whenever(juggCompiler.compile(any())).thenAnswer { invocation ->
+            val task = invocation.getArgument<CompileTask>(0)
+            CompileResult.empty(task)
+        }
+        fixture.helper.juggCompiler = juggCompiler
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler)
+
+        assertTrue(result.isSuccess)
+        verify(fixture.deployFileManager).removeChangedFile(listOf(missingFile))
+
+        val compileTaskCaptor = argumentCaptor<CompileTask>()
+        verify(juggCompiler).compile(compileTaskCaptor.capture())
+        assertEquals(
+            listOf(existingFile.absolutePath),
+            compileTaskCaptor.firstValue.files.map { it.file.absolutePath },
+        )
+    }
+
+    @Test
     fun preprocessIncrementalCompile_hasFileChanges_onlyRunAsyncGitCheck() {
         val fixture = createFixture()
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
@@ -183,6 +245,7 @@ class JuggCompileHelperTest {
 
         return Fixture(
             helper = helper,
+            pathManager = pathManager,
             deployFileManager = deployFileManager,
             dependencyChangeManager = dependencyChangeManager,
             gitChangeChecker = gitChangeChecker,
@@ -209,6 +272,7 @@ class JuggCompileHelperTest {
 
     private data class Fixture(
         val helper: JuggCompilerHelper,
+        val pathManager: JuggPathManager,
         val deployFileManager: DeployFileManager,
         val deployTargetManager: IDeployTargetManager,
         val dependencyChangeManager: IDependencyChangeManager,
