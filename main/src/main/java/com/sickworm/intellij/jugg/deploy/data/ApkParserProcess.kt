@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import org.apache.log4j.Level
 import java.io.File
+import java.util.Base64
 import kotlin.system.exitProcess
 
 /**
@@ -32,7 +33,7 @@ object ApkParserProcess {
         }
 
         val dbDir = File(args[0])
-        val apkFilesJson = args[1]
+        val apkFilesJson = decodeApkFilesJson(args[1])
         val applicationId = args[2]
         val outputFile = File(args[3])
 
@@ -131,6 +132,10 @@ object ApkParserProcess {
         return dtos.map { dto ->
             ApkFileUnit(dto.applicationId, dto.moduleName, dto.debuggable, File(dto.apkFilePath))
         }
+    }
+
+    private fun decodeApkFilesJson(encodedJson: String): String {
+        return String(Base64.getUrlDecoder().decode(encodedJson), Charsets.UTF_8)
     }
 
     private fun serializeResults(results: List<ParsedApkUpdateResult>): String {

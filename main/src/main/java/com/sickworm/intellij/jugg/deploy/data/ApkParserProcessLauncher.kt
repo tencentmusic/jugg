@@ -11,6 +11,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.net.URL
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 /**
@@ -158,7 +159,7 @@ class ApkParserProcessLauncher(
             "-cp", classpath,
             "com.sickworm.intellij.jugg.deploy.data.ApkParserProcess",
             dbDir.absolutePath,
-            apkFilesJson,
+            encodeApkFilesJson(apkFilesJson),
             applicationId,
             outputFile.absolutePath
         )
@@ -183,6 +184,12 @@ class ApkParserProcessLauncher(
             )
         }
         return gson.toJson(dtos)
+    }
+
+    private fun encodeApkFilesJson(json: String): String {
+        return Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(json.toByteArray(Charsets.UTF_8))
     }
 
     private fun deserializeResults(json: String): List<ParsedApkUpdateResult> {
