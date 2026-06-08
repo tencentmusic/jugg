@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployRunTaskExecutor
+import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
@@ -37,6 +38,8 @@ import org.junit.BeforeClass
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.whenever
 import java.io.File
 
@@ -351,6 +354,59 @@ class JuggDeployerHelperDeployTest {
         Mockito.verify(deployHistoryManager).lastDeployOverlayIds = overlayIds
     }
 
+    @Test
+    fun `install deploy should run task with library test apk backfilled data`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val appApk = apkInfo("/tmp/jugg-deploy-test/app.apk")
+        val testApk = ApkInfo(
+            files = listOf(ApkFileUnit("com.example.app.test", "", true, File("/tmp/jugg-deploy-test/app-test.apk"))),
+            applicationId = "com.example.app.test",
+            instrumentationTargetPackage = "com.example.app",
+        )
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(listOf(appApk))
+
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+
+        val backfillHelper = Mockito.mock(LibraryTestApkBackfillHelper::class.java)
+        Mockito.`when`(
+            backfillHelper.backfillIfNeeded(
+                spec = anyOrNull(),
+                data = any(),
+                uiHandler = any(),
+                installBackfilledApks = any(),
+            )
+        ).thenReturn(JuggDeployData.forInstall(listOf(appApk, testApk)))
+
+        val deployRunTaskExecutor = Mockito.mock(IJuggDeployRunTaskExecutor::class.java)
+        Mockito.`when`(deployRunTaskExecutor.execute(any()))
+            .thenReturn(LaunchResult(true, 0, null, emptyMap()))
+
+        val helper = createHelper(
+            deployTargetManager = deployTargetManager,
+            deployStateManager = deployStateManager,
+            libraryTestApkBackfillHelper = backfillHelper,
+            deployRunTaskExecutor = deployRunTaskExecutor,
+        )
+        val result = helper.deploy(
+            DeployOptions(
+                device = device,
+                isLastDevice = true,
+                isInstall = true,
+                androidTestRunSpec = AndroidTestRunSpec(null, null, sourcePath = "/tmp/jugg-deploy-test/library1/src/androidTest/FooTest.kt"),
+            ),
+        )
+
+        val requestCaptor = argumentCaptor<JuggDeployRunTaskRequest>()
+        Mockito.verify(deployRunTaskExecutor).execute(requestCaptor.capture())
+        assertTrue(result.isSuccess)
+        assertEquals(
+            listOf("com.example.app", "com.example.app.test"),
+            requestCaptor.firstValue.data.apks.map { it.applicationId },
+        )
+    }
+
     private fun apkInfo(apkPath: String): ApkInfo {
         return ApkInfo(
             files = listOf(ApkFileUnit("com.example.app", "", true, File(apkPath))),
@@ -390,6 +446,7 @@ class JuggDeployerHelperDeployTest {
         deployRetryHandler: DeployRetryHandler? = null,
         deployStateRecover: DeployStateRecover? = null,
         deployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
+        libraryTestApkBackfillHelper: LibraryTestApkBackfillHelper? = null,
     ): JuggDeployerHelper {
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn("/tmp/jugg-deploy-test")
@@ -398,6 +455,18 @@ class JuggDeployerHelperDeployTest {
         Mockito.`when`(compileContext.isDebuggable).thenReturn(true)
         val compileContextManager = Mockito.mock(CompileContextManager::class.java)
         Mockito.`when`(compileContextManager.compileContext).thenReturn(compileContext)
+
+        val passthroughBackfillHelper = libraryTestApkBackfillHelper
+            ?: Mockito.mock(LibraryTestApkBackfillHelper::class.java).also {
+                Mockito.`when`(
+                    it.backfillIfNeeded(
+                        spec = anyOrNull(),
+                        data = any(),
+                        uiHandler = any(),
+                        installBackfilledApks = any(),
+                    )
+                ).thenAnswer { invocation -> invocation.getArgument<JuggDeployData>(1) }
+            }
 
         return JuggDeployerHelper(
             project = project,
@@ -414,6 +483,7 @@ class JuggDeployerHelperDeployTest {
             stateRecover = deployStateRecover,
             retryHandler = deployRetryHandler,
             deployRunTaskExecutor = deployRunTaskExecutor,
+            libraryTestApkBackfillHelper = passthroughBackfillHelper,
         )
     }
 

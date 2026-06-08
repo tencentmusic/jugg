@@ -467,7 +467,12 @@ class JuggDeployerHelper(
         } else {
             logger.info("Installing APK...\n${apkFiles.joinToString("\n")}")
         }
-        val deployData = JuggDeployData.forInstall(apks)
+        var deployData = JuggDeployData.forInstall(apks)
+        deployData = libraryTestApkBackfillHelper.backfillIfNeeded(
+            spec = deployOptions.androidTestRunSpec,
+            data = deployData,
+            uiHandler = deployOptions.compileUiHandler,
+        )
         val launchResult = runTask(JuggDeployRunTaskRequest.fromDeployOptions(deployOptions, deployData))
         if (!launchResult.success) {
             return InstallDeployOutcome(

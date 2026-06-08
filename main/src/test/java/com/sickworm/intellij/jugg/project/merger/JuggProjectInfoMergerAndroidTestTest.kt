@@ -79,9 +79,9 @@ class JuggProjectInfoMergerAndroidTestTest {
             )
         )
         try {
-            val merger = JuggProjectInfoMerger(logger) { BuildTarget.APP }
-            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
-            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.APP)
 
             val merged = result.mergedInfo?.modules?.get("common.download")
             assertEquals("debug", merged?.buildVariant)
@@ -125,9 +125,9 @@ class JuggProjectInfoMergerAndroidTestTest {
             )
         )
         try {
-            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
-            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
-            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.ANDROID_TEST)
 
             assertEquals("debug", result.mergedInfo?.modules?.get("common.download")?.buildVariant)
             assertNotNull(result.mergedInfo?.modules?.get("common.download.androidTest"))
@@ -142,7 +142,7 @@ class JuggProjectInfoMergerAndroidTestTest {
     }
 
     @Test
-    fun `doMerge skips IDE-only androidTest module when gradle snapshot exists`() {
+    fun `doMerge keeps IDE-only androidTest module when buildTarget is ANDROID_TEST`() {
         val mainIde = ModuleInfo.virtualModule.copy(
             name = "common.download",
             moduleType = ModuleInfo.Type.Library,
@@ -190,11 +190,11 @@ class JuggProjectInfoMergerAndroidTestTest {
             )
         )
         try {
-            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
-            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
-            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.ANDROID_TEST)
 
-            assertNull(result.mergedInfo?.modules?.get("common.fake.androidTest"))
+            assertNotNull(result.mergedInfo?.modules?.get("common.fake.androidTest"))
             assertNotNull(result.mergedInfo?.modules?.get("common.download.androidTest"))
         } finally {
             ideFile.delete()
@@ -207,9 +207,9 @@ class JuggProjectInfoMergerAndroidTestTest {
         val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to androidTestIdeModule())))
         val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to androidTestGradleModule())))
         try {
-            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
-            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
-            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.ANDROID_TEST)
 
             assertEquals(
                 "com.example.app",
@@ -234,9 +234,9 @@ class JuggProjectInfoMergerAndroidTestTest {
         val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to ideModule)))
         val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to gradleModule)))
         try {
-            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
-            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
-            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.ANDROID_TEST)
 
             val merged = result.mergedInfo?.modules?.get("app.androidTest")
             assertEquals("com.example.app.test", merged?.applicationId)
@@ -260,9 +260,9 @@ class JuggProjectInfoMergerAndroidTestTest {
         val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to ideModule)))
         val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to gradleModule)))
         try {
-            val merger = JuggProjectInfoMerger(logger) { BuildTarget.ANDROID_TEST }
-            merger.afterSync(ProjectInfoSerializer(ideFile, logger))
-            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)))
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.ANDROID_TEST)
 
             val merged = result.mergedInfo?.modules?.get("app.androidTest")
             assertEquals("com.example.gradle.test", merged?.applicationId)

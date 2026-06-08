@@ -1,6 +1,6 @@
 # androidTest 支持指南
 
-> 最后核对：2026-06-03
+> 最后核对：2026-06-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -86,8 +86,8 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 - Gradle 与 IDE 生成的 `.androidTest` synthetic module 的 `buildVariant` 与 `ModuleBuildPathInfo.buildVariant` 使用 `${ownerVariant}AndroidTest`，例如 `debugAndroidTest` / `jooxDebugAndroidTest`，确保 full build 后同步 `build/tmp/kotlin-classes/<variant>AndroidTest`、`intermediates/javac/<variant>AndroidTest/classes` 等 test classpath。
 - test package / target package 来自 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型。Chipmunk / Narwhal feature / Otter / Panda 继承链统一读取 AndroidTest artifact 与 main artifact 的 applicationId，并在 library self-targeting 场景下 fallback 到 `selectedBasicVariant.testApplicationId`、`androidProject.testNamespace` 或 `${androidProject.namespace}.test`，target package 使用 test package。
 - IDE project info 不再用已保存 Test APK manifest 信息反推缺失字段；IDE module info 只有 test package 与 target package 都有效时才标记为 androidTest module，`uninitialized.application.id` 会视为无效。
-- 已有 Gradle project info 时，IDE `.androidTest` synthetic module 只保留 Gradle 也识别为 androidTest 的模块；没有 Gradle 快照时，fallback 为 source root 下必须存在 Java/Kotlin 源码。
-- Gradle merge 时 test 相关字段仍以 Gradle 非空值优先，并会丢弃 IDE-only androidTest module。
+- `BuildTarget.APP` 下仍过滤 IDE `.androidTest` module；`BuildTarget.ANDROID_TEST` 下 IDE-only `.androidTest` module 会进入 merge 结果，避免首次切换 target 且 Gradle 快照尚未完成 merge 时丢失 source root。
+- Gradle merge 时 test 相关字段仍以 Gradle 非空值优先；Gradle-only androidTest module 也只在 `BuildTarget.ANDROID_TEST` 下追加。
 
 ---
 
@@ -108,7 +108,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 - 若 `LibraryTestApkBuildHistory` 命中近期 self-targeting library Test APK 记录，Gradle compile 会通过 `-Pjugg.libraryTestTasks=...` 传递历史 task 列表，init script 在同一 `projectsEvaluated` 阶段把这些 library androidTest task 也挂到用户请求的 Gradle task 前执行；`BuildTarget.APP` 不参与该逻辑。
 - Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径派生同 variant 的 `app/build/outputs/apk/androidTest/<variant>/*.apk`；history library Test APK output 作为 optional APK 收集，命中则追加到本轮 APK 结果，缺失只记录日志，不进入 `failedApkPaths`。
 - `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
-- Gradle project info 读取阶段仅在 `-Pjugg.buildTarget=ANDROID_TEST` 时为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；`APP`/未传时不写入快照。localFetch 的 buildTarget 来自 `IDeployHistoryManager.getFullBuildInfo()`。Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
+- Gradle project info 读取阶段仅在 `-Pjugg.buildTarget=ANDROID_TEST` 时为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；`APP`/未传时不写入快照。project-info merge 与 localFetch 必须显式使用当前 run 的 `BuildTarget`，不能再从旧 `FullBuildInfo` 推断。首次从 `APP` 切到 `ANDROID_TEST` 且本地 Gradle full compile 成功后，`JuggCompileHelper` 会在 install/deploy 前按本次 target 立即执行一次 localFetch merge；remote compile 不走该补偿路径。Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
 
 ### 3.2 增量编译
 
@@ -248,9 +248,9 @@ library-style self-targeting Test APK 是例外：它有自己的 runtime packag
 - 当前 APK 列表中无法解析出该 module 对应的 test APK。
 - `module.applicationId == module.instrumentationTargetPackage`，即 self-targeting / library-style Test APK。
 
-补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，并立即把新 package 的 overlay id 合并到 deploy history，避免后续 dry deploy 把新安装的 library Test APK 误判为跨项目状态；随后同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
+增量部署分支中，补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，并立即把新 package 的 overlay id 合并到 deploy history，避免后续 dry deploy 把新安装的 library Test APK 误判为跨项目状态；随后同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。full install 分支中，backfill 会在最终 install `runTask` 前把 Test APK 合入本轮 install APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
 
-当 Gradle compile 成功、Test APK 路径解析成功、APK 安装成功且 compile context 已同步后，`LibraryTestApkBuildHistory` 会记录该 library androidTest module 的 compile command、compile time、APK output pattern 与实际 APK path。记录写入 `~/.jugg/library_test_build_records/{projectName}_hash{0:8}.json`，有 git 仓库时 hash 使用仓库 URL，否则使用工程绝对路径；每次读取普通 `BuildTarget.ANDROID_TEST` Gradle build 历史时，只选择最近 30 天、同 variant 的最近 3 条记录用于回放。
+当 Gradle compile 成功、Test APK 路径解析成功，且用合并后的 APK 列表完成 `AndroidTestTargetResolver` 校验后，`LibraryTestApkBuildHistory` 会记录该 library androidTest module 的 compile command、compile time、APK output pattern 与实际 APK path；记录不再要求本轮最终 install 成功。记录写入 `~/.jugg/library_test_build_records/{projectName}_hash{0:8}.json`，有 git 仓库时 hash 使用仓库 URL，否则使用工程绝对路径；每次读取普通 `BuildTarget.ANDROID_TEST` Gradle build 历史时，只选择最近 30 天、同 variant 的最近 3 条记录用于回放。
 
 命中缺失分支时，Jugg 会通过 Run tool window balloon 提示 `Library Test APK missing. Run Gradle compile once to build the test APK.`，让用户知道需要一次 Gradle 编译来生成 Test APK baseline。
 

@@ -110,7 +110,7 @@ class LibraryTestApkBackfillHelperTest {
     }
 
     @Test
-    fun `install callback failure does not record build history`() {
+    fun `install callback failure still records successful build history`() {
         val projectDir = temp.newFolder("project")
         val sourceRoot = File(projectDir, "library1/src/androidTest/kotlin").apply { mkdirs() }
         val sourceFile = File(sourceRoot, "FooTest.kt").apply { writeText("class FooTest") }
@@ -139,7 +139,10 @@ class LibraryTestApkBackfillHelperTest {
             )
         }
 
-        assertEquals(emptyList<String>(), buildRecords)
+        assertEquals(
+            listOf("library1.androidTest:debugAndroidTest:./gradlew :library1:assembleDebugAndroidTest"),
+            buildRecords,
+        )
     }
 
     @Test

@@ -106,6 +106,30 @@ class ModulePathMergePolicyTest {
     }
 
     @Test
+    fun `shouldIncludeIdeOnlyModule keeps androidTest when buildTarget is ANDROID_TEST`() {
+        val ideAndroidTest = module(
+            name = "common.download.androidTest",
+            buildVariant = "debugAndroidTest",
+            instrumentationTargetPackage = "com.example.test",
+        )
+        assertTrue(
+            ModulePathMergePolicy.shouldIncludeIdeOnlyModule(ideAndroidTest, BuildTarget.ANDROID_TEST)
+        )
+    }
+
+    @Test
+    fun `shouldIncludeIdeOnlyModule skips androidTest when buildTarget is APP`() {
+        val ideAndroidTest = module(
+            name = "common.download.androidTest",
+            buildVariant = "debugAndroidTest",
+            instrumentationTargetPackage = "com.example.test",
+        )
+        assertFalse(
+            ModulePathMergePolicy.shouldIncludeIdeOnlyModule(ideAndroidTest, BuildTarget.APP)
+        )
+    }
+
+    @Test
     fun `shouldIncludeIdeAndroidTestCandidate rejects uninitialized target package`() {
         assertFalse(
             ModulePathMergePolicy.shouldIncludeIdeAndroidTestCandidate(

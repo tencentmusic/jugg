@@ -30,12 +30,12 @@ interface IJuggProjectInfoMerger {
     val juggProjectInfo: JuggProjectInfo?
 
     /** read from project info */
-    fun afterSync(projectInfoSerialize: ProjectInfoSerializer): JuggProjectInfoMergeResult
+    fun afterSync(projectInfoSerialize: ProjectInfoSerializer, buildTarget: BuildTarget): JuggProjectInfoMergeResult
 
     /**
      * e.g. ./gradlew --dry-run -I readProjectInfo.gradle.kts
      */
-    fun afterLocalFetch(projectInfoSerialize: List<ProjectInfoSerializer>): JuggProjectInfoMergeResult
+    fun afterLocalFetch(projectInfoSerialize: List<ProjectInfoSerializer>, buildTarget: BuildTarget): JuggProjectInfoMergeResult
 }
 
 /**
@@ -44,7 +44,6 @@ interface IJuggProjectInfoMerger {
  */
 class JuggProjectInfoMerger(
     loggerArg: Logger,
-    private val buildTargetProvider: () -> BuildTarget = { BuildTarget.APP },
 ) : IJuggProjectInfoMerger {
 
     private val logger = loggerArg.getInstance("JuggProjectInfoMerger")
@@ -54,21 +53,27 @@ class JuggProjectInfoMerger(
 
     override var juggProjectInfo: JuggProjectInfo? = null
 
-    override fun afterSync(projectInfoSerialize: ProjectInfoSerializer): JuggProjectInfoMergeResult {
+    override fun afterSync(
+        projectInfoSerialize: ProjectInfoSerializer,
+        buildTarget: BuildTarget,
+    ): JuggProjectInfoMergeResult {
         ide = projectInfoSerialize
-        val result = merge()
+        val result = merge(buildTarget)
         juggProjectInfo = result.mergedInfo
         return result
     }
 
-    override fun afterLocalFetch(projectInfoSerialize: List<ProjectInfoSerializer>): JuggProjectInfoMergeResult {
+    override fun afterLocalFetch(
+        projectInfoSerialize: List<ProjectInfoSerializer>,
+        buildTarget: BuildTarget,
+    ): JuggProjectInfoMergeResult {
         localFetch = projectInfoSerialize
-        val result = merge()
+        val result = merge(buildTarget)
         juggProjectInfo = result.mergedInfo
         return result
     }
 
-    private fun merge(): JuggProjectInfoMergeResult {
+    private fun merge(buildTarget: BuildTarget): JuggProjectInfoMergeResult {
         TimeLogger.start("merge")
 
         // use ideProjectInfo as base project info
@@ -115,14 +120,19 @@ class JuggProjectInfoMerger(
             logger.debug("ide project info is older than gradle project info, isNeedUpdateLibraryDependency=true")
         }
 
-        val result = doMerge(ideProjectInfo, gradleProjectInfo, isNeedUpdateLibraryDependency)
+        val result = doMerge(ideProjectInfo, gradleProjectInfo, isNeedUpdateLibraryDependency, buildTarget)
         logger.debug("merge result: $result")
 
         TimeLogger.end("merge", logger)
         return result
     }
 
-    private fun doMerge(ideProjectInfo: JuggProjectInfo, gradleProjectInfo: JuggProjectInfo, isNeedUpdateDependency: Boolean): JuggProjectInfoMergeResult {
+    private fun doMerge(
+        ideProjectInfo: JuggProjectInfo,
+        gradleProjectInfo: JuggProjectInfo,
+        isNeedUpdateDependency: Boolean,
+        buildTarget: BuildTarget,
+    ): JuggProjectInfoMergeResult {
         val mergedModules = mutableMapOf<String, ModuleInfo>()
         val mergeResult = JuggProjectInfoMergeResult.createEmpty().copy(
             isNeedUpdateDependency = isNeedUpdateDependency
@@ -133,7 +143,6 @@ class JuggProjectInfoMerger(
         // here we update name in gradle project info to match ide
         val nameUpdateMap = mutableMapOf<String, String>()
         val updateModules = gradleProjectInfo.modules.toMutableMap()
-        val buildTarget = buildTargetProvider()
         gradleProjectInfo.modules.values.forEach { module ->
             val ideModuleName = ModulePathMergePolicy.resolveIdeModuleName(module, ideProjectInfo.modules.values)
             val gradleModuleName = module.name
@@ -160,7 +169,7 @@ class JuggProjectInfoMerger(
         ideProjectInfo.modules.forEach { (name, moduleInfo) ->
             val gradleModuleInfo = finalGradleProjectInfo.modules[name]
             if (gradleModuleInfo == null) {
-                if (!ModulePathMergePolicy.shouldIncludeIdeOnlyModule(moduleInfo)) {
+                if (!ModulePathMergePolicy.shouldIncludeIdeOnlyModule(moduleInfo, buildTarget)) {
                     logger.debug(
                         "module ${moduleInfo.name} is IDE-only ${ModulePathMergePolicy.classify(moduleInfo)} " +
                                 "snapshot, skip for buildTarget=$buildTarget"

@@ -99,16 +99,16 @@ class LibraryTestApkBackfillHelper(
         val newApks = apkInfoReader(result.compileOutputFile)
         val mergedApks = mergeApks(data.apks, newApks)
         AndroidTestTargetResolver.resolve(sourcePath, projectDir, projectInfo.modules.values, mergedApks)
-        // The Gradle-built test APK already contains the latest test artifacts, so install it as
-        // a complete APK instead of feeding it this run's incremental deploy items.
-        installBackfilledApks(newApks)
-        onApksBackfilled(mergedApks)
-        compileContextManager.updateApkInfos(mergedApks)
         runCatching {
             recordBuildHistory(module, plan, backfillOptions.compileCommand, newApks)
         }.onFailure {
             logger.warn("Failed to record library Test APK build history", it)
         }
+        // The Gradle-built test APK already contains the latest test artifacts, so install it as
+        // a complete APK instead of feeding it this run's incremental deploy items.
+        installBackfilledApks(newApks)
+        onApksBackfilled(mergedApks)
+        compileContextManager.updateApkInfos(mergedApks)
         return data.copy(apks = mergedApks)
     }
 

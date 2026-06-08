@@ -406,7 +406,7 @@ class JuggManager @TestOnly constructor(
         val isRemoteCompile = options.isRemoteCompile
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
         if (!isRemoteCompile) {
-            compileContextManager.updateCompileContextAfterLocalFetch()
+            compileContextManager.updateCompileContextAfterLocalFetch(options.buildTarget)
         }
 
         var projectInfo = compileContextManager.getProjectInfo()

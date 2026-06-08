@@ -217,6 +217,8 @@ class JuggCompilerHelper(
     ): GradleCompileResult {
         compileContextManager.ensureInitProjectInfo()
         val effectiveOptions = withLibraryTestApkHistory(options)
+        val isLocalBuildTargetChanged = !effectiveOptions.isRemoteCompile &&
+                deployHistoryManager.isBuildTargetChanged(effectiveOptions)
         deployHistoryManager.beforeFullCompiled(deployFileManager.getUndeployedFiles())
 
         if (effectiveOptions.isRemoteCompile) {
@@ -224,7 +226,11 @@ class JuggCompilerHelper(
             if (!gradleProjectInfoLocalFetchManager.isProjectInfoAvailable) {
                 // project info not fetched, run it during remote gradle compile
                 // local compile will auto run after build finish
-                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true, effectiveOptions.compileCommand)
+                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
+                    isForce = true,
+                    specificCompileCommand = effectiveOptions.compileCommand,
+                    buildTarget = effectiveOptions.buildTarget,
+                )
             } else {
                 val changedBuildFiles = deployFileManager.getUndeployedFiles().filter {
                     it.type == CompileFile.Type.BuildFile
@@ -233,7 +239,11 @@ class JuggCompilerHelper(
                 logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
                 if (changedBuildFiles.isNotEmpty()) {
                     gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true, lastBuildModifiedTime)
-                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = false, effectiveOptions.compileCommand)
+                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
+                        isForce = false,
+                        specificCompileCommand = effectiveOptions.compileCommand,
+                        buildTarget = effectiveOptions.buildTarget,
+                    )
                 }
             }
         }
@@ -250,6 +260,9 @@ class JuggCompilerHelper(
             deployTargetManager.setApks(apkInfos)
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
+            if (isLocalBuildTargetChanged) {
+                compileContextManager.updateCompileContextAfterLocalFetch(effectiveOptions.buildTarget)
+            }
         }
 
         return result

@@ -99,10 +99,10 @@ object ModulePathMergePolicy {
         }
     }
 
-    fun shouldIncludeIdeOnlyModule(ideModule: ModuleInfo): Boolean {
+    fun shouldIncludeIdeOnlyModule(ideModule: ModuleInfo, buildTarget: BuildTarget): Boolean {
         return when (classify(ideModule)) {
             ModuleSourceKind.JvmTest -> false
-            ModuleSourceKind.AndroidTest -> false
+            ModuleSourceKind.AndroidTest -> buildTarget.includeAndroidTestSourceSet
             ModuleSourceKind.Main -> true
         }
     }

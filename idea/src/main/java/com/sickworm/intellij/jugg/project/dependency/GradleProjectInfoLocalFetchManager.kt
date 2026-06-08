@@ -91,7 +91,11 @@ class GradleProjectInfoLocalFetchManager(
      * 1. init compile finished after project opened/build finished
      * 2. start remote compile
      */
-    fun runUpdateIfNeeded(isForce: Boolean = false, specificCompileCommand: String? = null) {
+    fun runUpdateIfNeeded(
+        isForce: Boolean = false,
+        specificCompileCommand: String? = null,
+        buildTarget: BuildTarget = deployHistoryManager.getFullBuildInfo()?.buildTarget ?: BuildTarget.APP,
+    ) {
         // make sure we have checked the gradle project info data
         // gradleProjectInfoFile will be deleted if data is invalid
         compileContextManager.ensureInitProjectInfo()
@@ -103,12 +107,12 @@ class GradleProjectInfoLocalFetchManager(
         }
 
         taskRunnerManager.runTaskSafe("Update project info from gradle", {
-            update(specificCompileCommand)
+            update(specificCompileCommand, buildTarget)
         }, isBlockIncrementalCompile = false)
     }
 
     @Synchronized
-    private fun update(specificCompileCommand: String?): Boolean {
+    private fun update(specificCompileCommand: String?, buildTarget: BuildTarget): Boolean {
         try {
             isUpdating = true
             GradleScriptWriter(pathManager, logger).writeInitGradleFile()
@@ -145,7 +149,7 @@ class GradleProjectInfoLocalFetchManager(
                 pathManager.projectDir.path,
                 pathManager.initGradleFilePath.path,
                 logger = logger,
-                buildTarget = deployHistoryManager.getFullBuildInfo()?.buildTarget ?: BuildTarget.APP,
+                buildTarget = buildTarget,
             )
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")
@@ -158,7 +162,7 @@ class GradleProjectInfoLocalFetchManager(
             if (isSuccess) {
                 // update success
                 markIsNeedUpdate(false)
-                compileContextManager.updateCompileContextAfterLocalFetch()
+                compileContextManager.updateCompileContextAfterLocalFetch(buildTarget)
             }
             dependencyChangeManager.onEndSyncing(isFromIde = false, isSuccess, compileContextManager.compileContext)
             return isSuccess
