@@ -21,6 +21,7 @@ object JuggSkillInstaller {
 
     private const val SKILL_NAME = "jugg-android-dev-loop"
     private const val SKILLS_BUNDLE_ZIP_RESOURCE = "docs/skills/docs-skills.zip"
+    private const val BUNDLED_SCRIPTS_PREFIX = "$SKILL_NAME/scripts/"
     private const val BUNDLED_HOOKS_DIR = "hooks"
     const val HOOK_BLOCK_DISABLED_FLAG_FILE_NAME = "DISABLE_BLOCK"
     private const val BUNDLED_INSTALL_DOC_PATH = "install/agent_setup.md"
@@ -191,9 +192,8 @@ object JuggSkillInstaller {
      */
     fun installCli(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
         return runCatching {
-            val bundledScriptsDir = File(ensureBundledSkillsHome(userHome), "$SKILL_NAME/scripts")
             val binDir = File(userHome, ".jugg/bin")
-            copyDirectory(sourceDir = bundledScriptsDir, targetDir = binDir)
+            extractBundledScriptsTo(binDir)
             if (isWindows()) {
                 normalizeWindowsCmdWrapper(binDir)
                 addWindowsCliDirToUserPath(userHome, binDir)
@@ -202,6 +202,32 @@ object JuggSkillInstaller {
                 createSymlink(userHome, binDir)
             }
             logger.info("[Install Jugg CLI] installed to ${binDir.path}")
+        }
+    }
+
+    private fun extractBundledScriptsTo(binDir: File) {
+        binDir.deleteRecursively()
+        binDir.mkdirs()
+        val stream = JuggSkillInstaller::class.java.classLoader.getResourceAsStream(SKILLS_BUNDLE_ZIP_RESOURCE)
+            ?: throw FileNotFoundException("resource_not_found_$SKILLS_BUNDLE_ZIP_RESOURCE")
+        val canonicalParent = binDir.canonicalPath + File.separator
+        ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (entry.name.startsWith(BUNDLED_SCRIPTS_PREFIX) && !entry.isDirectory) {
+                    val outFile = File(binDir, entry.name.removePrefix(BUNDLED_SCRIPTS_PREFIX))
+                    if (!outFile.canonicalPath.startsWith(canonicalParent)) {
+                        throw IOException("invalid_zip_entry_path")
+                    }
+                    outFile.parentFile?.mkdirs()
+                    FileOutputStream(outFile).use { output -> zip.copyTo(output) }
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+        if (!File(binDir, "jugg.py").isFile) {
+            throw FileNotFoundException("resource_missing_file_jugg.py")
         }
     }
 
@@ -299,56 +325,11 @@ object JuggSkillInstaller {
         if (!isCurrentUserHome(userHome)) {
             return
         }
-        val targetPath = binDir.canonicalPath
-        val process = ProcessBuilder(
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            buildWindowsPathUpdateScript(targetPath),
-        )
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        val exitCode = process.waitFor()
-        if (exitCode != 0) {
-            throw IOException("failed_to_update_user_path: ${output.trim()}")
-        }
+        WindowsUserPathUpdater.prependIfMissing(binDir.canonicalPath)
     }
 
     private fun isCurrentUserHome(userHome: File): Boolean {
         return userHome.canonicalFile == File(System.getProperty("user.home")).canonicalFile
-    }
-
-    private fun buildWindowsPathUpdateScript(targetPath: String): String {
-        val quotedTargetPath = quotePowerShellString(targetPath)
-        return listOf(
-            "\$ErrorActionPreference = 'Stop'",
-            "\$target = $quotedTargetPath",
-            "\$current = [Environment]::GetEnvironmentVariable('Path', 'User')",
-            "\$targetFull = [IO.Path]::GetFullPath(\$target).TrimEnd([char]'\\')",
-            "\$exists = \$false",
-            "if (-not [string]::IsNullOrWhiteSpace(\$current)) { " +
-                "foreach (\$entry in \$current -split ';') { " +
-                "if ([string]::IsNullOrWhiteSpace(\$entry)) { continue }; " +
-                "\$normalized = \$entry.Trim().TrimEnd([char]'\\'); " +
-                "try { \$normalized = [IO.Path]::GetFullPath(\$normalized).TrimEnd([char]'\\') } catch {}; " +
-                "if ([string]::Equals(\$normalized, \$targetFull, [StringComparison]::OrdinalIgnoreCase)) { " +
-                "\$exists = \$true; break " +
-                "} " +
-                "} " +
-                "}",
-            "if (-not \$exists) { " +
-                "if ([string]::IsNullOrWhiteSpace(\$current)) { \$updated = \$target } " +
-                "else { \$updated = \"\$target;\$current\" }; " +
-                "[Environment]::SetEnvironmentVariable('Path', \$updated, 'User') " +
-                "}",
-        ).joinToString("; ")
-    }
-
-    private fun quotePowerShellString(value: String): String {
-        return "'${value.replace("'", "''")}'"
     }
 
     private fun isWindows() = System.getProperty("os.name")?.lowercase()?.contains("windows") == true

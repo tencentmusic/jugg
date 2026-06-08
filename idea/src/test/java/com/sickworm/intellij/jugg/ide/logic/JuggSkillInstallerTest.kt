@@ -8,7 +8,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.zip.ZipInputStream
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 
@@ -308,10 +310,7 @@ class JuggSkillInstallerTest {
 
             assertTrue("CLI install should succeed", result.isSuccess)
             val content = File(userHome, ".jugg/bin/jugg.cmd").readText(Charsets.UTF_8)
-            val sourceContent = File(
-                userHome,
-                ".jugg/skills/jugg-android-dev-loop/scripts/jugg.cmd",
-            ).readText(Charsets.UTF_8)
+            val sourceContent = readBundledJuggCmdFromZip()
             assertTrue("jugg.cmd should use CRLF line endings", content.contains("\r\n"))
             assertFalse("jugg.cmd should not contain LF-only line endings", content.contains(Regex("(?<!\r)\n")))
             assertTrue("jugg.cmd should stay ASCII for cmd.exe", content.all { it.code in 0..127 })
@@ -378,5 +377,22 @@ class JuggSkillInstallerTest {
             .replace("\r", "\n")
             .split("\n")
             .joinToString("\r\n")
+    }
+
+    private fun readBundledJuggCmdFromZip(): String {
+        val stream = JuggSkillInstaller::class.java.classLoader
+            .getResourceAsStream("docs/skills/docs-skills.zip")
+            ?: error("Bundled skills zip not found")
+        return ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (entry.name == "jugg-android-dev-loop/scripts/jugg.cmd") {
+                    return@use zip.readBytes().toString(StandardCharsets.UTF_8)
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+            error("jugg.cmd not found in bundled zip")
+        }
     }
 }
