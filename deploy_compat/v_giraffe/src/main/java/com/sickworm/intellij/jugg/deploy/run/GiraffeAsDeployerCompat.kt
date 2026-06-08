@@ -29,17 +29,16 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
     }
 
     override fun install(
-        adb: AdbClient,
-        service: UIService,
-        installer: Installer,
+        device: IDevice,
+        session: JuggInstallSession,
         logger: ILogger,
         packageName: String,
         apks: List<String>,
-        options: InstallOptions,
-        installMode: Deployer.InstallMode,
+        installMode: JuggInstallSession.Mode,
     ): Boolean {
-        val apkInstaller = ApkInstaller(adb, service, installer, logger)
-        return apkInstaller.install(packageName, apks, options, installMode, metrics.deployMetrics)
+        val adb = createLegacyAdbClient(device, logger)
+        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, logger)
+        return apkInstaller.install(packageName, apks, createInstallOptions(device, packageName), installMode.toLegacyInstallMode(), metrics.deployMetrics)
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {

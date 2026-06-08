@@ -1,18 +1,16 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
+import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.AdbClient
-import com.android.tools.deployer.AdbInstaller
 import com.android.tools.deployer.Installer
 import com.android.tools.deployer.OverlayId
-import com.android.tools.deployer.Deployer.InstallMode
-import com.android.tools.deployer.InstallOptions
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
-import com.android.tools.deployer.UIService
 import com.android.tools.deployer.ClassRedefiner
 import com.android.utils.ILogger
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import org.mockito.Mockito
 
 /**
@@ -30,47 +28,52 @@ class DeployFlowAsDeployerCompatBoundary(
     var optimisticSwapInvokeCount: Int = 0
         private set
 
-    override fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller {
-        val installer = Mockito.mock(AdbInstaller::class.java)
+    override fun createInstallSession(
+        installersFolder: String,
+        device: IDevice,
+        logger: ILogger,
+        onPrompt: (String) -> Boolean,
+        onMessage: (String) -> Unit,
+    ): JuggInstallSession {
+        val installer = Mockito.mock(Installer::class.java)
         if (installerVersion != null) {
             Mockito.`when`(installer.version).thenReturn(installerVersion)
         }
-        return installer
+        return JuggInstallSession(installer, installerVersion, onPrompt, onMessage)
     }
 
     override fun install(
-        adb: AdbClient,
-        service: UIService,
-        installer: Installer,
+        device: IDevice,
+        session: JuggInstallSession,
         logger: ILogger,
         packageName: String,
         apks: List<String>,
-        options: InstallOptions,
-        installMode: InstallMode,
+        installMode: JuggInstallSession.Mode,
     ): Boolean {
         onInstall.run()
         return true
     }
 
     override fun optimisticSwap(
-        installer: Installer,
+        session: JuggInstallSession,
         redefiners: Map<Int, ClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
         arch: Deploy.Arch,
         overlayUpdate: JuggOverlayUpdate,
-        adb: AdbClient,
+        device: IDevice,
         logger: ILogger,
         isPushOverlayOnly: Boolean,
-    ): OverlayId {
+    ): JuggOverlayId {
         return when (optimisticSwapPolicy) {
             OptimisticSwapPolicy.FORBIDDEN -> throw AssertionError(
                 "Apply Changes optimisticSwap must not be called in deploy-flow direct overlay tests",
             )
             OptimisticSwapPolicy.RECORD_SUCCESS -> {
                 optimisticSwapInvokeCount++
-                OverlayId.builder(overlayUpdate.cachedDump.overlayId).build()
+                val rawOverlayId = OverlayId.builder(overlayUpdate.cachedDump.overlayId.raw as OverlayId).build()
+                JuggOverlayId(rawOverlayId, rawOverlayId.sha, rawOverlayId.isBaseInstall)
             }
         }
     }

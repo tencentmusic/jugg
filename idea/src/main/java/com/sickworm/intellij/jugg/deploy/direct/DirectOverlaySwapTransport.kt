@@ -1,10 +1,11 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
-import com.android.tools.deployer.OverlayId
 import com.android.tools.deploy.proto.Deploy
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 
 /**
@@ -20,9 +21,10 @@ class DirectOverlaySwapTransport(
         packageName: String,
         data: JuggDeployData,
         overlayUpdate: JuggOverlayUpdate,
-    ): OverlayId? {
+        asDeployerCompat: IAsDeployerCompat,
+    ): JuggOverlayId? {
         return try {
-            trySwapInternal(packageName, data, overlayUpdate)
+            trySwapInternal(packageName, data, overlayUpdate, asDeployerCompat)
         } catch (e: Exception) {
             if (e is DirectOverlayDirtyException) throw e
             if (e is DirectOverlayDeployFailedException) throw e
@@ -48,7 +50,8 @@ class DirectOverlaySwapTransport(
         packageName: String,
         data: JuggDeployData,
         overlayUpdate: JuggOverlayUpdate,
-    ): OverlayId? {
+        asDeployerCompat: IAsDeployerCompat,
+    ): JuggOverlayId? {
         if (!canTry(data)) {
             return null
         }
@@ -71,7 +74,7 @@ class DirectOverlaySwapTransport(
             return null
         }
 
-        val preparedRequest = DirectOverlayWriteRequestBuilder().build(packageName, overlayUpdate)
+        val preparedRequest = DirectOverlayWriteRequestBuilder().build(packageName, overlayUpdate, asDeployerCompat)
         when (DirectOverlayWriter(adb, logger).write(preparedRequest.request)) {
             DirectOverlayWriteResult.SUCCESS -> return preparedRequest.overlayId
             DirectOverlayWriteResult.SKIPPED -> {

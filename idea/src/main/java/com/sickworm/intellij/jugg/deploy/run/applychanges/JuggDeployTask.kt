@@ -16,14 +16,7 @@
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.ddmlib.IDevice
-import com.android.sdklib.AndroidVersion
-import com.android.tools.deployer.AdbClient
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.Deployer.InstallMode
-import com.android.tools.deployer.DeployerException
-import com.android.tools.deployer.InstallOptions
-import com.android.tools.deployer.UIService
-import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.run.IdeService
 import com.google.common.base.Stopwatch
 import com.intellij.openapi.diagnostic.Logger
@@ -41,6 +34,7 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -73,41 +67,42 @@ class JuggDeployTask(
         val device = launchContext.device
         val ideaLogger = logger
         val logger = AdbLogWrapper(logger)
-        val adb = AdbClient(device, logger)
         val ideService = IdeService(project)
-        val adbInstaller = asDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
-        val uiService = object : UIService {
-            override fun prompt(message: String): Boolean {
+        val installSession = asDeployerCompat.createInstallSession(
+            installPathProvider.compute(),
+            device,
+            logger,
+            onPrompt = { message ->
                 if (launchContext.compileUiHandler.shouldAutoConfirmDeployPrompt(message)) {
                     logger.warning("Deploy prompt auto-confirmed by compile ui handler: %s", message)
-                    return true
+                    true
+                } else {
+                    ideService.prompt(message)
                 }
-                return ideService.prompt(message)
-            }
-
-            override fun message(message: String) {
+            },
+            onMessage = { message ->
                 launchContext.compileUiHandler.onDeployUiMessage(message)
                 ideService.message(message)
-            }
-        }
+            },
+        )
 
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
-            adb,
-            deploymentService,
-            adbInstaller,
-            uiService,
-            launchContext.exceptOverlayIds,
-            launchContext.isSkipExceptOverlayCheck,
-            logger,
-            DirectOverlaySwapOptions.create(
+            device = device,
+            deviceAdb = launchContext.deviceAdb,
+            deploymentService = deploymentService,
+            installSession = installSession,
+            exceptOverlayIds = launchContext.exceptOverlayIds,
+            isSkipExceptOverlayCheck = launchContext.isSkipExceptOverlayCheck,
+            logger = logger,
+            directOverlaySwapOptions = DirectOverlaySwapOptions.create(
                 settingsEnabled = JuggSettings.isEnableDirectOverlayDeploy,
                 isDeviceReadyDeploy = launchContext.isDeviceReadyDeploy,
                 isAllowedByCaller = launchContext.isAllowDirectOverlayDeploy,
                 logger = ideaLogger,
                 adb = launchContext.deviceAdb,
                 installersRoot = installPathProvider.compute(),
-                installerVersion = adbInstaller.version,
+                installerVersion = installSession.installerVersion,
                 deviceAbi = InstallerDeviceAbiResolver.resolve(launchContext.deviceAdb),
             ),
             asDeployerCompat = asDeployerCompat,
@@ -140,9 +135,9 @@ class JuggDeployTask(
                     launchContext.launchApp = true
                 }
                 overlayIds[applicationId] = result.overlayId ?: ""
-            } catch (e: DeployerException) {
+            } catch (e: JuggDeployerException) {
                 logger.error(e, "%s failed: %s %s", deployType, e.message, e.details)
-                return LaunchResult(false, e.error.ordinal, e.message + " " + e.details, emptyMap())
+                return LaunchResult(false, e.errorOrdinal, e.message + " " + e.details, emptyMap())
             }
         }
         stopwatch.stop()
@@ -169,7 +164,7 @@ class JuggDeployTask(
         AndroidDeployType.APPLY_CHANGES -> false
     }
 
-    @Throws(DeployerException::class)
+    @Throws(JuggDeployerException::class)
     private fun perform(
         device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>,
         scopedData: JuggDeployData,
@@ -177,31 +172,9 @@ class JuggDeployTask(
     ): JuggDeployer.Result {
         when (effectiveType) {
             AndroidDeployType.INSTALL -> {
-                // default install argument has: -t -r --full --dont-kill
-                val options = InstallOptions.builder().setAllowDebuggable()
-                // no setInstallOnCurrentUser in giraffe
-//                val installOnAllUsers = true
-//                if (!installOnAllUsers && device.version.isGreaterOrEqualThan(24)) {
-//                    options.setInstallOnCurrentUser()
-//                }
-                if (device.supportsFeature(IDevice.HardwareFeature.EMBEDDED)) {
-                    options.setGrantAllPermissions()
-                }
-                if (device.version.isGreaterOrEqualThan(28)) {
-                    options.setInstallFullApk()
-                }
-                if (device.version.isGreaterOrEqualThan(AndroidVersion.VersionCodes.N)) {
-                    options.setDontKill()
-                }
-                options.setSkipVerification(device, applicationId)
-
                 logger.debug("Installing application $applicationId...")
-                var installMode = InstallMode.DELTA
-                if (!StudioFlags.DELTA_INSTALL.get()) {
-                    installMode = InstallMode.FULL
-                }
-
-                return deployer.install(applicationId, getPathsToInstall(files), options.build(), installMode)
+                val installMode = asDeployerCompat.getInstallMode()
+                return deployer.install(applicationId, getPathsToInstall(files), installMode)
             }
             AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 logger.debug("Applying changes to application $applicationId...")

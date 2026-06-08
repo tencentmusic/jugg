@@ -1,11 +1,12 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.model.Apk
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.mock.logger
@@ -112,11 +113,13 @@ object DeployFlowOverlaySeed {
         return AsDeployerCompat.parseApks(apkPaths)
     }
 
-    private fun buildNonBaseOverlayId(parsedApks: List<Apk>): OverlayId {
-        val base = OverlayId(parsedApks)
+    private fun buildNonBaseOverlayId(parsedApks: List<Apk>): JuggOverlayId {
+        val base = AsDeployerCompat.createBaseOverlayId(parsedApks)
         val entryPath = parsedApks.first().name + "/res/layout/deploy_flow_seed.xml"
-        return OverlayId.builder(base).addOverlayFile(entryPath, 1L).build()
+        return AsDeployerCompat.buildOverlayId(base, listOf(JuggOverlayFile(entryPath, 1L)))
     }
 
-    private fun buildBaseInstallOverlayId(parsedApks: List<Apk>): OverlayId = OverlayId(parsedApks)
+    private fun buildBaseInstallOverlayId(parsedApks: List<Apk>): JuggOverlayId {
+        return AsDeployerCompat.createBaseOverlayId(parsedApks)
+    }
 }

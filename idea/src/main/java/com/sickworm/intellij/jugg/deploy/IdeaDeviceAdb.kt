@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.IDevice
-import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.log.LogWrapper
 import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
@@ -40,7 +39,7 @@ class IdeaDeviceAdb(
         it.alwaysLogAsDebug(true)
         it.allowVerbose(true)
     }
-    private val adb = AdbClient(device, this.loggerWrapper)
+    private val adbClient = IdeaDeviceAdbClient(device, loggerWrapper)
 
     override fun execAdbShellCmd(cmd: String): String {
         synchronized(IdeaDeviceAdb::class.java) {
@@ -55,6 +54,10 @@ class IdeaDeviceAdb(
             val escaped = cmd.replace("'", "'\\''")
             return execAdbShellCmd("sh -c '$escaped'", retryCount = 0)
         }
+    }
+
+    override fun isAdbTransportReady(): Boolean {
+        return AdbTransientOffline.isAdbCliTransportReady(serial) || (device.isOnline && isRawShellReady())
     }
 
     /**
@@ -115,9 +118,11 @@ class IdeaDeviceAdb(
             val cmdList = cmd.splitIgnoringQuotes()
             logger.debug("adb in:  adb shell $cmd")
             logger.debug("adb in:  cmd splits to : $cmdList")
-            val response = adb.shell(
+            val response = adbClient.shell(
                 cmdList.toTypedArray(),
-                null, 5L, TimeUnit.SECONDS)
+                timeout = 5L,
+                timeUnit = TimeUnit.SECONDS,
+            )
             if (response.isNotEmpty()) {
                 val extraMsg = String(response, Charsets.UTF_8).trim { it <= ' ' }
                 val logMsg = if (extraMsg.length > 200) {
@@ -177,12 +182,19 @@ class IdeaDeviceAdb(
 
     private fun waitAdbTransportReady(cmd: String): Boolean {
         return AdbTransientOffline.waitForAdbTransport(
-            serial = serial,
             phase = "adb shell $cmd",
-            adb = adb,
-            isDeviceOnline = { device.isOnline },
+            adb = this,
         ) {
             logger.warn(it)
+        }
+    }
+
+    private fun isRawShellReady(): Boolean {
+        return try {
+            adbClient.shell(arrayOf("true"), timeout = 5L, timeUnit = TimeUnit.SECONDS)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -211,8 +223,7 @@ class IdeaDeviceAdb(
     @Synchronized
     override fun push(from: File, to: String): Boolean {
         return try {
-            adb.push(from.path, to)
-            true
+            adbClient.push(from.path, to)
         } catch (e: Exception) {
             logger.warn("adb push failed, from: $from, to: $to", e)
             false
@@ -245,7 +256,6 @@ class IdeaDeviceAdb(
 
     override fun getArch(packageName: String): String {
         try {
-            val adbClient = AdbClient(device, loggerWrapper)
             val pids = adbClient.getPids(packageName)
             val arch = adbClient.getArch(pids)
             return arch.name

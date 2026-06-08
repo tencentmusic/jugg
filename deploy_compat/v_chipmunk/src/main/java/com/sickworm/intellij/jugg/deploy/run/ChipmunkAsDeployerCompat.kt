@@ -6,7 +6,9 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
+import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.adb.AdbService
+import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
@@ -112,30 +114,62 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return debugBridge.get().devices?.toList()
     }
 
-    override fun getInstaller(
+    override fun createInstallSession(
         installersFolder: String,
-        adb: AdbClient,
+        device: IDevice,
         logger: ILogger,
-    ): AdbInstaller {
+        onPrompt: (String) -> Boolean,
+        onMessage: (String) -> Unit,
+    ): JuggInstallSession {
         var adbInstallerMode = AdbInstaller.Mode.DAEMON
         if (!StudioFlags.APPLY_CHANGES_KEEP_CONNECTION_ALIVE.get()) {
             adbInstallerMode = AdbInstaller.Mode.ONE_SHOT
         }
-        return AdbInstaller(installersFolder, adb, metrics.deployMetrics, logger, adbInstallerMode)
+        val adb = createLegacyAdbClient(device, logger)
+        val installer = AdbInstaller(installersFolder, adb, metrics.deployMetrics, logger, adbInstallerMode)
+        return JuggInstallSession(installer, installer.version, onPrompt, onMessage)
+    }
+
+    protected fun createInstallOptions(device: IDevice, applicationId: String): InstallOptions {
+        val options = InstallOptions.builder().setAllowDebuggable()
+        if (device.supportsFeature(IDevice.HardwareFeature.EMBEDDED)) {
+            options.setGrantAllPermissions()
+        }
+        if (device.version.isGreaterOrEqualThan(28)) {
+            options.setInstallFullApk()
+        }
+        if (device.version.isGreaterOrEqualThan(com.android.sdklib.AndroidVersion.VersionCodes.N)) {
+            options.setDontKill()
+        }
+        options.setSkipVerification(device, applicationId)
+        return options.build()
     }
 
     override fun install(
-        adb: AdbClient,
-        service: UIService,
-        installer: Installer,
+        device: IDevice,
+        session: JuggInstallSession,
         logger: ILogger,
         packageName: String,
         apks: List<String>,
-        options: InstallOptions,
-        installMode: InstallMode,
+        installMode: JuggInstallSession.Mode,
     ): Boolean {
-        val apkInstaller = ApkInstaller(adb, service, installer, logger)
-        return apkInstaller.install(packageName, apks, options, installMode, metrics.deployMetrics)
+        val adb = createLegacyAdbClient(device, logger)
+        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, logger)
+        return apkInstaller.install(
+            packageName,
+            apks,
+            createInstallOptions(device, packageName),
+            installMode.toLegacyInstallMode(),
+            metrics.deployMetrics,
+        )
+    }
+
+    override fun getInstallMode(): JuggInstallSession.Mode {
+        return if (StudioFlags.DELTA_INSTALL.get()) {
+            JuggInstallSession.Mode.DELTA
+        } else {
+            JuggInstallSession.Mode.FULL
+        }
     }
 
     private fun getFastRerunOnSwapFailure(): Boolean {
@@ -164,31 +198,32 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     }
 
     override fun optimisticSwap(
-        installer: Installer,
+        session: JuggInstallSession,
         redefiners: Map<Int, ClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
         arch: Deploy.Arch,
         overlayUpdate: JuggOverlayUpdate,
-        adb: AdbClient,
+        device: IDevice,
         logger: ILogger,
         isPushOverlayOnly: Boolean,
-    ): OverlayId {
+    ): JuggOverlayId {
+        val rawInstaller = session.rawInstaller as Installer
         if (isPushOverlayOnly) {
-            val updater = OptimisticApkUpdater(installer, redefiners)
+            val updater = OptimisticApkUpdater(rawInstaller, redefiners)
             val swapResult = updater.pushOverlays(packageName, pids, arch, overlayUpdate)
-            return swapResult.overlayId
+            return swapResult.overlayId.toJuggOverlayId()
         }
 
         val swapper = OptimisticApkSwapper(
-            installer,
+            rawInstaller,
             redefiners,
             argRestart,
             options,
             metrics
         )
-        val swapResult = swapper.optimisticSwap(packageName, pids, arch, overlayUpdate.overlayUpdate)
+        val swapResult = swapper.optimisticSwap(packageName, pids, arch, overlayUpdate.raw as OptimisticApkSwapper.OverlayUpdate)
 
         //  java.lang.IllegalAccessError: class com.sickworm.intellij.jugg.deploy.run.JuggDeployer tried to access method
         //  'void com.android.tools.deployer.MetricsRecorder.add(com.android.tools.deployer.DeployMetric)'
@@ -197,7 +232,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         //  is in unnamed module of loader
 //        result.getMetrics().forEach(metrics::add);
 
-        return swapResult.overlayId
+        return swapResult.overlayId.toJuggOverlayId()
     }
 
     override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {
@@ -247,6 +282,60 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun parseApks(paths: List<String>): List<Apk> {
         return ApkParser().parsePaths(paths)
+    }
+
+    override fun getPackageName(apks: List<Apk>): String {
+        return ApplicationDumper.getPackageName(apks)
+    }
+
+    override fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId {
+        return OverlayId(apks).toJuggOverlayId()
+    }
+
+    override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId {
+        val builder = OverlayId.builder(base.raw as OverlayId)
+        addedFiles.forEach { builder.addOverlayFile(it.path, it.checksum) }
+        return builder.build().toJuggOverlayId()
+    }
+
+    override fun createOverlayUpdate(
+        cachedDump: JuggDeploymentCacheEntry,
+        dexOverlays: DexComparator.ChangedClasses,
+        fileOverlays: Map<ApkEntry, ByteString>,
+    ): JuggOverlayUpdate {
+        val raw = OptimisticApkSwapper.OverlayUpdate(
+            cachedDump.raw as DeploymentCacheDatabase.Entry,
+            dexOverlays,
+            fileOverlays,
+        )
+        return JuggOverlayUpdate(cachedDump, dexOverlays, fileOverlays, raw)
+    }
+
+    override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> {
+        return ApplicationDumper(session.rawInstaller as Installer).dump(apks).apks
+    }
+
+    override fun remoteApkNotFound(): JuggDeployerException {
+        return DeployerException.remoteApkNotFound().toJuggDeployerException()
+    }
+
+    override fun overlayIdMismatch(): JuggDeployerException {
+        return DeployerException.overlayIdMismatch().toJuggDeployerException()
+    }
+
+    override fun apiNotSupported(): JuggDeployerException {
+        return DeployerException.apiNotSupported().toJuggDeployerException()
+    }
+
+    override fun wrapDeployerException(e: Throwable): JuggDeployerException? {
+        return (e as? DeployerException)?.toJuggDeployerException()
+    }
+
+    override fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry {
+        val database = DeploymentCacheDatabase(1)
+        database.store(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME, apks, overlayId.raw as OverlayId)
+        val entry = database.get(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME)
+        return JuggDeploymentCacheEntry(entry, apks, overlayId)
     }
 
     override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
@@ -495,5 +584,42 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             ?: moduleFile?.parent
             ?: return null
         return VfsUtil.virtualToIoFile(virtualFile)
+    }
+
+    protected fun createLegacyAdbClient(device: IDevice, logger: ILogger): AdbClient {
+        return AdbClient(device, logger)
+    }
+
+    protected fun OverlayId.toJuggOverlayId(): JuggOverlayId {
+        val overlayFiles = overlayContents.allFiles().map {
+            JuggOverlayFile(it, overlayContents.getFileChecksum(it))
+        }
+        return JuggOverlayId(this, sha, isBaseInstall, overlayFiles)
+    }
+
+    protected fun DeployerException.toJuggDeployerException(): JuggDeployerException {
+        return JuggDeployerException(error.ordinal, message, details, this)
+    }
+
+    protected fun JuggInstallSession.toLegacyUiService(): UIService {
+        val session = this
+        return object : UIService {
+            override fun prompt(message: String): Boolean = session.prompt(message)
+
+            override fun message(message: String) = session.message(message)
+        }
+    }
+
+    protected fun JuggInstallSession.Mode.toLegacyInstallMode(): InstallMode {
+        return when (this) {
+            JuggInstallSession.Mode.DELTA -> InstallMode.DELTA
+            JuggInstallSession.Mode.DELTA_NO_SKIP -> InstallMode.DELTA_NO_SKIP
+            JuggInstallSession.Mode.FULL -> InstallMode.FULL
+        }
+    }
+
+    private companion object {
+        const val MEMORY_DEVICE_SERIAL = "memory"
+        const val MEMORY_PACKAGE_NAME = "entry"
     }
 }

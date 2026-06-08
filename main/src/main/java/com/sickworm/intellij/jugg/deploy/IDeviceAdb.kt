@@ -17,6 +17,21 @@ interface IDeviceAdb {
 
     fun execAdbShellCmd(cmd: String): String
 
+    /**
+     * Returns true when the adb transport can accept a lightweight shell command.
+     */
+    fun isAdbTransportReady(): Boolean {
+        if (!isOnline) {
+            return false
+        }
+        return try {
+            execAdbShellCmd("true")
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun execAdbShellScript(cmd: String): String {
         return execAdbShellCmd(cmd)
     }

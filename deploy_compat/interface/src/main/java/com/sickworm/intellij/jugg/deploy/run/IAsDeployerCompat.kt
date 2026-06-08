@@ -2,10 +2,12 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.*
-import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
+import com.android.tools.deployer.ClassRedefiner
+import com.android.tools.deployer.DexComparator
 import com.android.tools.idea.run.*
+import com.android.tools.deployer.model.ApkEntry
+import com.android.tools.idea.protobuf.ByteString
 import com.android.utils.ILogger
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
@@ -25,39 +27,69 @@ interface IAsDeployerCompat {
 
     fun getConnectedDevices(project: Project): List<IDevice>?
 
-    fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller
+    fun createInstallSession(
+        installersFolder: String,
+        device: IDevice,
+        logger: ILogger,
+        onPrompt: (String) -> Boolean,
+        onMessage: (String) -> Unit,
+    ): JuggInstallSession
 
     fun install(
-        adb: AdbClient,
-        service: UIService,
-        installer: Installer,
+        device: IDevice,
+        session: JuggInstallSession,
         logger: ILogger,
         packageName: String,
         apks: List<String>,
-        options: InstallOptions,
-        installMode: InstallMode,
+        installMode: JuggInstallSession.Mode,
     ): Boolean
+
+    fun getInstallMode(): JuggInstallSession.Mode
 
     fun makeDebuggerRedefiners(project: Project, device: IDevice, fallback: Boolean): Map<Int, ClassRedefiner>
 
     fun optimisticSwap(
-        installer: Installer,
+        session: JuggInstallSession,
         redefiners: Map<Int, ClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
         arch: Deploy.Arch,
         overlayUpdate: JuggOverlayUpdate,
-        adb: AdbClient,
+        device: IDevice,
         logger: ILogger,
         isPushOverlayOnly: Boolean,
-    ): OverlayId
+    ): JuggOverlayId
 
     fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState
 
     fun getDeploymentService(project: Project): DeploymentService
 
     fun parseApks(paths: List<String>): List<Apk>
+
+    fun getPackageName(apks: List<Apk>): String
+
+    fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId
+
+    fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId
+
+    fun createOverlayUpdate(
+        cachedDump: JuggDeploymentCacheEntry,
+        dexOverlays: DexComparator.ChangedClasses,
+        fileOverlays: Map<ApkEntry, ByteString>,
+    ): JuggOverlayUpdate
+
+    fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk>
+
+    fun remoteApkNotFound(): JuggDeployerException
+
+    fun overlayIdMismatch(): JuggDeployerException
+
+    fun apiNotSupported(): JuggDeployerException
+
+    fun wrapDeployerException(e: Throwable): JuggDeployerException?
+
+    fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry
 
     fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>)
 
@@ -104,6 +136,7 @@ interface IAsDeployerCompat {
                 ANDROID_11_API
             }
         }
+
     }
 }
 

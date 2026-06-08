@@ -1,10 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.run.utils
 
-import com.android.tools.deployer.AdbClient
 import com.sickworm.intellij.jugg.deploy.AdbCliShellExecutor
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 
 internal object AdbTransientOffline {
 
@@ -61,19 +60,13 @@ internal object AdbTransientOffline {
     }
 
     fun waitForAdbTransport(
-        serial: String,
         phase: String,
-        adb: AdbClient,
-        isDeviceOnline: () -> Boolean = { true },
+        adb: IDeviceAdb,
         logWait: (String) -> Unit,
     ): Boolean {
-        logWait("Device $serial went offline during $phase, wait up to ${DEFAULT_WAIT_MILLIS}ms.")
+        logWait("Device ${adb.serial} went offline during $phase, wait up to ${DEFAULT_WAIT_MILLIS}ms.")
         return waitUntilReady {
-            isTransportRecovered(
-                serial = serial,
-                isDeviceOnline = isDeviceOnline,
-                isDdmlibShellReady = { isAdbShellReady(adb) },
-            )
+            adb.isAdbTransportReady()
         }
     }
 
@@ -98,15 +91,6 @@ internal object AdbTransientOffline {
             AdbCliShellExecutor.exec(adbBin, serial, "true", timeoutMillis = 5_000L)
             true
         } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun isAdbShellReady(adb: AdbClient): Boolean {
-        return try {
-            adb.shell(arrayOf("true"), null, 5L, TimeUnit.SECONDS)
-            true
-        } catch (e: Exception) {
             false
         }
     }

@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
-import com.android.tools.deployer.OverlayId
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 import java.util.Locale
 
@@ -10,28 +12,32 @@ import java.util.Locale
  */
 class DirectOverlayWriteRequestBuilder {
 
-    fun build(packageName: String, overlayUpdate: JuggOverlayUpdate): DirectOverlayPreparedRequest {
-        val overlayIdBuilder = OverlayId.builder(overlayUpdate.cachedDump.overlayId)
+    fun build(
+        packageName: String,
+        overlayUpdate: JuggOverlayUpdate,
+        asDeployerCompat: IAsDeployerCompat,
+    ): DirectOverlayPreparedRequest {
+        val overlayFiles = mutableListOf<JuggOverlayFile>()
         val files = mutableListOf<DirectOverlayWriteFile>()
 
         overlayUpdate.dexOverlays.newClasses.forEach { clazz ->
             val path = String.format(Locale.US, "%s.dex", clazz.name)
-            overlayIdBuilder.addOverlayFile(path, clazz.checksum)
+            overlayFiles += JuggOverlayFile(path, clazz.checksum)
             files += DirectOverlayWriteFile(path, clazz.code)
         }
 
         overlayUpdate.dexOverlays.modifiedClasses.forEach { clazz ->
             val path = String.format(Locale.US, "%s.dex", clazz.name)
-            overlayIdBuilder.addOverlayFile(path, clazz.checksum)
+            overlayFiles += JuggOverlayFile(path, clazz.checksum)
             files += DirectOverlayWriteFile(path, clazz.code)
         }
 
         overlayUpdate.fileOverlays.entries.forEach { entry ->
-            overlayIdBuilder.addOverlayFile(entry.key.qualifiedPath, entry.key.checksum)
+            overlayFiles += JuggOverlayFile(entry.key.qualifiedPath, entry.key.checksum)
             files += DirectOverlayWriteFile(entry.key.qualifiedPath, entry.value.toByteArray())
         }
 
-        val overlayId = overlayIdBuilder.build()
+        val overlayId = asDeployerCompat.buildOverlayId(overlayUpdate.cachedDump.overlayId, overlayFiles)
         val expectedOverlayId = overlayUpdate.cachedDump.overlayId.let {
             if (it.isBaseInstall) "" else it.sha
         }
@@ -49,5 +55,5 @@ class DirectOverlayWriteRequestBuilder {
 
 data class DirectOverlayPreparedRequest(
     val request: DirectOverlayWriteRequest,
-    val overlayId: OverlayId,
+    val overlayId: JuggOverlayId,
 )

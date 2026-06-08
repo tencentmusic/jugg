@@ -2,16 +2,24 @@ package com.sickworm.intellij.jugg.deploy.direct
 
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.DeploymentCacheDatabase
+import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
+import com.android.tools.idea.protobuf.ByteString
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 import com.sickworm.intellij.jugg.deploy.run.applychanges.OverlayUpdateBuilder
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -30,18 +38,20 @@ class DirectOverlaySwapTransportTest {
 
     private val logger = TestGlobal.getLogger()
     private val adb = RecordingAdb()
+    private val asDeployerCompat = DirectOverlayTestCompat()
 
     @Test
     fun `trySwap should write overlay and return overlay id when direct path is eligible`() {
         val entry = cacheEntry()
         adb.overlayStateId = entry.overlayId.sha
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         val overlayId = newTransport().trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
 
         assertNotNull(overlayId)
@@ -54,12 +64,13 @@ class DirectOverlaySwapTransportTest {
         val entry = cacheEntry()
         adb.overlayStateId = entry.overlayId.sha
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         val overlayId = newTransport(isDeviceReadyDeploy = true).trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
 
         assertNull(overlayId)
@@ -71,12 +82,13 @@ class DirectOverlaySwapTransportTest {
         val entry = cacheEntry()
         adb.overlayStateId = "different-overlay"
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         val overlayId = newTransport().trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
 
         assertNull(overlayId)
@@ -88,12 +100,13 @@ class DirectOverlaySwapTransportTest {
         adb.overlayStateId = entry.overlayId.sha
         adb.startupAgentsAvailable = false
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         val overlayId = newTransport().trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
 
         assertNotNull(overlayId)
@@ -108,12 +121,13 @@ class DirectOverlaySwapTransportTest {
         adb.overlayStateId = ""
         adb.startupAgentsAvailable = false
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         val overlayId = newTransport().trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
 
         assertNotNull(overlayId)
@@ -126,12 +140,13 @@ class DirectOverlaySwapTransportTest {
         adb.overlayStateId = entry.overlayId.sha
         adb.throwOnOverlayStateCheck = true
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         val overlayId = newTransport().trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
 
         assertNull(overlayId)
@@ -142,12 +157,13 @@ class DirectOverlaySwapTransportTest {
         val entry = cacheEntry()
         adb.overlayStateId = entry.overlayId.sha
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         val overlayId = newTransport(isAllowedByCaller = false).trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
 
         assertNull(overlayId)
@@ -160,12 +176,13 @@ class DirectOverlaySwapTransportTest {
         adb.overlayStateId = entry.overlayId.sha
         adb.directOverlayResponse = "__JUGG_DIRECT_OVERLAY__ APPLYING"
         val data = deployData(apkInfo("com.example.app", "/base.apk"))
-        val overlayUpdate = OverlayUpdateBuilder().build(entry, data)
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
 
         newTransport().trySwap(
             packageName = "com.example.app",
             data = data,
             overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
         )
     }
 
@@ -231,7 +248,7 @@ class DirectOverlaySwapTransportTest {
         )
     }
 
-    private fun cacheEntry(isBaseInstall: Boolean = false): DeploymentCacheDatabase.Entry {
+    private fun cacheEntry(isBaseInstall: Boolean = false): JuggDeploymentCacheEntry {
         val apk = apk("base.apk", "/base.apk", "com.example.app")
         val baseOverlayId = OverlayId(listOf(apk))
         val overlayId = if (isBaseInstall) {
@@ -242,7 +259,32 @@ class DirectOverlaySwapTransportTest {
         val constructor = DeploymentCacheDatabase.Entry::class.java
             .getDeclaredConstructor(java.util.List::class.java, OverlayId::class.java)
         constructor.isAccessible = true
-        return constructor.newInstance(listOf(apk), overlayId)
+        val rawEntry = constructor.newInstance(listOf(apk), overlayId)
+        return JuggDeploymentCacheEntry(
+            raw = rawEntry,
+            apks = listOf(apk),
+            overlayId = overlayId.toJuggOverlayId(),
+        )
+    }
+
+    private inner class DirectOverlayTestCompat : IAsDeployerCompat by AsDeployerCompat {
+        override fun createOverlayUpdate(
+            cachedDump: JuggDeploymentCacheEntry,
+            dexOverlays: DexComparator.ChangedClasses,
+            fileOverlays: Map<ApkEntry, ByteString>,
+        ): JuggOverlayUpdate {
+            return JuggOverlayUpdate(cachedDump, dexOverlays, fileOverlays, Any())
+        }
+
+        override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId {
+            val builder = OverlayId.builder(base.raw as OverlayId)
+            addedFiles.forEach { builder.addOverlayFile(it.path, it.checksum) }
+            return builder.build().toJuggOverlayId()
+        }
+    }
+
+    private fun OverlayId.toJuggOverlayId(): JuggOverlayId {
+        return JuggOverlayId(raw = this, sha = sha, isBaseInstall = isBaseInstall)
     }
 
     private fun apk(name: String, path: String, packageName: String): Apk {

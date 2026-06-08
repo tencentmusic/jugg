@@ -2,15 +2,12 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.AdbClient
-import com.android.tools.deployer.AdbInstaller
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.Deployer.InstallMode
-import com.android.tools.deployer.InstallOptions
+import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.Installer
-import com.android.tools.deployer.OverlayId
-import com.android.tools.deployer.UIService
 import com.android.tools.deployer.model.Apk
+import com.android.tools.deployer.model.ApkEntry
+import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.DeploymentService
@@ -19,10 +16,17 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheStore
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
+import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
@@ -32,9 +36,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.mockito.Answers
 import org.mockito.Mockito
-import org.mockito.invocation.InvocationOnMock
+import java.io.File
 import java.io.IOException
 
 class JuggDeployerInstallTest {
@@ -51,8 +54,7 @@ class JuggDeployerInstallTest {
         val result = fixture.deployer.install(
             packageName = PACKAGE_NAME,
             apks = listOf("/tmp/demo.apk"),
-            options = InstallOptions.builder().build(),
-            argInstallMode = InstallMode.FULL,
+            argInstallMode = JuggInstallSession.Mode.FULL,
         )
 
         assertFalse(result.skippedInstall)
@@ -73,8 +75,7 @@ class JuggDeployerInstallTest {
             fixture.deployer.install(
                 packageName = PACKAGE_NAME,
                 apks = listOf("/tmp/demo.apk"),
-                options = InstallOptions.builder().build(),
-                argInstallMode = InstallMode.FULL,
+                argInstallMode = JuggInstallSession.Mode.FULL,
             )
         }
 
@@ -94,13 +95,12 @@ class JuggDeployerInstallTest {
         fixture.deployer.install(
             packageName = PACKAGE_NAME,
             apks = listOf("/tmp/demo.apk"),
-            options = InstallOptions.builder().build(),
-            argInstallMode = InstallMode.DELTA,
+            argInstallMode = JuggInstallSession.Mode.DELTA,
         )
 
         assertEquals(2, fixture.compat.installCalls)
-        assertEquals(InstallMode.DELTA_NO_SKIP, fixture.compat.installModes[0])
-        assertEquals(InstallMode.FULL, fixture.compat.installModes[1])
+        assertEquals(JuggInstallSession.Mode.DELTA_NO_SKIP, fixture.compat.installModes[0])
+        assertEquals(JuggInstallSession.Mode.FULL, fixture.compat.installModes[1])
     }
 
     @Test
@@ -116,8 +116,7 @@ class JuggDeployerInstallTest {
         val result = fixture.deployer.install(
             packageName = PACKAGE_NAME,
             apks = listOf("/tmp/demo.apk"),
-            options = InstallOptions.builder().build(),
-            argInstallMode = InstallMode.FULL,
+            argInstallMode = JuggInstallSession.Mode.FULL,
         )
 
         assertFalse(result.skippedInstall)
@@ -134,27 +133,208 @@ class JuggDeployerInstallTest {
         )
     }
 
+    @Test
+    fun `deploy main path does not expose legacy deployer runtime types`() {
+        val paths = listOf(
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt",
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggOverlayUpdate.kt",
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/IJuggDeployerDeploymentService.kt",
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt",
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt",
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt",
+        )
+        val legacyTypes = listOf(
+            "AdbClient",
+            "Installer",
+            "InstallOptions",
+            "UIService",
+            "OverlayId",
+            "DeployerException",
+            "DeploymentCacheDatabase",
+            "ApplicationDumper",
+        )
+
+        paths.forEach { path ->
+            val file = findRepoFile(path)
+            val text = file.readText()
+            val signatureText = text.lineSequence()
+                .filterNot { it.contains('"') }
+                .filterNot { it.trimStart().startsWith("*") }
+                .joinToString("\n")
+            legacyTypes.forEach { legacyType ->
+                val importReference = Regex("""import\s+com\.android\.tools\.deployer\.(\*|$legacyType)\b""")
+                    .containsMatchIn(text)
+                val signatureReference = Regex("""(^|[\s:<,(])$legacyType($|[\s>),?=])""")
+                    .containsMatchIn(signatureText)
+                assertFalse(
+                    "$path should route legacy deployer $legacyType access through deploy_compat",
+                    importReference || signatureReference,
+                )
+            }
+        }
+
+        assertFalse(
+            "JuggDeployTask should route StudioFlags access through deploy_compat",
+            findRepoFile(
+                "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
+            ).readText().contains("StudioFlags"),
+        )
+    }
+
+    @Test
+    fun `deployer compat boundary does not expose device adb or installer construction methods`() {
+        val compatInterface = findRepoFile(
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt",
+        ).readText()
+        val forbiddenApiNames = listOf(
+            "getInstaller(",
+            "createInstallOptions(",
+            "getPids(",
+            "getArch(",
+            "shell(",
+            "push(",
+            "uninstall(",
+        )
+
+        forbiddenApiNames.forEach { apiName ->
+            assertFalse(
+                "IAsDeployerCompat should not expose $apiName",
+                compatInterface.contains(apiName),
+            )
+        }
+    }
+
+    @Test
+    fun `install mode is resolved by version compat implementations`() {
+        val compatInterface = findRepoFile(
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt",
+        ).readText()
+        val chipmunkCompat = findRepoFile(
+            "deploy_compat/v_chipmunk/src/main/java/com/sickworm/intellij/jugg/deploy/run/ChipmunkAsDeployerCompat.kt",
+        ).readText()
+        val quailCompat = findRepoFile(
+            "deploy_compat/v_quail/src/main/java/com/sickworm/intellij/jugg/deploy/run/QuailAsDeployerCompat.kt",
+        ).readText()
+
+        assertFalse(
+            "IAsDeployerCompat should not bypass version dispatch for StudioFlags",
+            compatInterface.contains("DELTA_INSTALL"),
+        )
+        assertTrue(
+            "Chipmunk compat should keep legacy DELTA_INSTALL behavior",
+            chipmunkCompat.contains("override fun getInstallMode()") &&
+                chipmunkCompat.contains("StudioFlags.DELTA_INSTALL.get()"),
+        )
+        assertTrue(
+            "Quail compat should define its own install mode behavior",
+            quailCompat.contains("override fun getInstallMode()"),
+        )
+        assertFalse(
+            "Quail compat should not read removed DELTA_INSTALL flag",
+            quailCompat.contains("DELTA_INSTALL"),
+        )
+    }
+
+    @Test
+    fun `deployment service delegates studio cache database details`() {
+        val serviceText = findRepoFile(
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
+        ).readText()
+
+        assertFalse(
+            "JuggDeploymentService should delegate DeploymentCacheDatabase reflection to a cache store",
+            serviceText.contains("DeploymentCacheDatabase"),
+        )
+    }
+
+    @Test
+    fun `deployment cache store uses local source snapshot without studio deployer dependencies`() {
+        assertFalse(
+            "Deployment cache store should use local source implementation instead of reflection",
+            findOptionalRepoFile(
+                "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/ReflectiveJuggDeploymentCacheStore.kt",
+            )?.exists() == true,
+        )
+
+        val storeText = findRepoFile(
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentCacheStore.kt",
+        ).readText()
+        listOf(
+            "Class.forName",
+            "getMethod(",
+            "getDeclaredConstructor",
+            "com.android.tools.deployer",
+            "com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat",
+            "com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry",
+            "Apk",
+        ).forEach { forbiddenCall ->
+            assertFalse(
+                "JuggDeploymentCacheStore should not depend on $forbiddenCall",
+                storeText.contains(forbiddenCall),
+            )
+        }
+    }
+
+    @Test
+    fun `local deployment cache store persists source snapshot`() {
+        val cacheFile = File.createTempFile("jugg-deployment-cache", ".bin")
+        cacheFile.deleteOnExit()
+        val store = JuggDeploymentCacheStore(cacheFile)
+        val entry = JuggDeploymentCacheStore.CacheEntry(
+            apkPaths = listOf("/tmp/app.apk"),
+            overlayId = JuggDeploymentCacheStore.OverlayId(
+                sha = "overlay-sha",
+                isBaseInstall = false,
+                overlayFiles = listOf(JuggDeploymentCacheStore.OverlayFile("base.apk/classes.dex", 42L)),
+            ),
+        )
+
+        store.store("device", PACKAGE_NAME, entry)
+        val restored = JuggDeploymentCacheStore(cacheFile).load("device", PACKAGE_NAME)
+
+        assertEquals(entry, restored)
+    }
+
+    private fun findRepoFile(path: String): File {
+        return findOptionalRepoFile(path) ?: throw IllegalStateException("Cannot find $path")
+    }
+
+    private fun findOptionalRepoFile(path: String): File? {
+        var current = File("").absoluteFile
+        while (true) {
+            val candidate = File(current, path)
+            if (candidate.exists()) {
+                return candidate
+            }
+            current = current.parentFile ?: break
+        }
+        return null
+    }
+
     private fun newFixture(shellReady: Boolean = true): Fixture {
-        val adb = mockAdbClient(shellReady)
+        val device = Mockito.mock(IDevice::class.java)
+        Mockito.`when`(device.serialNumber).thenReturn("emulator-5554")
+        val deviceAdb = FakeDeviceAdb(shellReady)
         val compat = RecordingInstallCompat(listOf(testApk()))
         val deploymentService = Mockito.mock(IJuggDeployerDeploymentService::class.java)
         val installer = Mockito.mock(Installer::class.java)
-        val service = Mockito.mock(UIService::class.java)
         val ideaLogger = Mockito.mock(Logger::class.java)
         val logger = AdbLogWrapper(ideaLogger)
 
         val deployer = JuggDeployer(
-            adb = adb,
+            device = device,
+            deviceAdb = deviceAdb,
             deploymentService = deploymentService,
-            installer = installer,
-            service = service,
+            installSession = JuggInstallSession(installer, "test-installer", { true }, {}),
             exceptOverlayIds = emptyMap(),
             isSkipExceptOverlayCheck = false,
             logger = logger,
             directOverlaySwapOptions = DirectOverlaySwapOptions.disabled(),
             asDeployerCompat = compat,
         )
-        return Fixture(adb, compat, deploymentService, ideaLogger, logger, deployer)
+        return Fixture(deviceAdb, compat, deploymentService, ideaLogger, logger, deployer)
     }
 
     private fun testApk(): Apk {
@@ -175,37 +355,20 @@ class JuggDeployerInstallTest {
         return constructor.newInstance(*args.toTypedArray()) as Apk
     }
 
-    private fun mockAdbClient(shellReady: Boolean): AdbClient {
-        val defaultAnswer = Answers.RETURNS_DEFAULTS
-        return Mockito.mock(AdbClient::class.java) { invocation: InvocationOnMock ->
-            when (invocation.method.name) {
-                "getSerial" -> "emulator-5554"
-                "shell" -> if (shellReady) {
-                    ByteArray(0)
-                } else {
-                    throw IOException("device offline")
-                }
-                else -> defaultAnswer.answer(invocation)
-            }
-        }
-    }
-
     private class RecordingInstallCompat(
         private val parsedApks: List<Apk>,
     ) : IAsDeployerCompat {
         var installCalls = 0
-        val installModes = mutableListOf<InstallMode>()
-        var onInstall: (callIndex: Int, installMode: InstallMode) -> Unit = { _, _ -> }
+        val installModes = mutableListOf<JuggInstallSession.Mode>()
+        var onInstall: (callIndex: Int, installMode: JuggInstallSession.Mode) -> Unit = { _, _ -> }
 
         override fun install(
-            adb: AdbClient,
-            service: UIService,
-            installer: Installer,
+            device: IDevice,
+            session: JuggInstallSession,
             logger: ILogger,
             packageName: String,
             apks: List<String>,
-            options: InstallOptions,
-            installMode: InstallMode,
+            installMode: JuggInstallSession.Mode,
         ): Boolean {
             installCalls++
             installModes.add(installMode)
@@ -213,7 +376,37 @@ class JuggDeployerInstallTest {
             return true
         }
 
+        override fun getInstallMode(): JuggInstallSession.Mode = JuggInstallSession.Mode.DELTA
+
         override fun parseApks(paths: List<String>): List<Apk> = parsedApks
+
+        override fun getPackageName(apks: List<Apk>): String = PACKAGE_NAME
+
+        override fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId {
+            return JuggOverlayId(raw = Any(), sha = "base-overlay", isBaseInstall = true)
+        }
+
+        override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId =
+            unsupported()
+
+        override fun createOverlayUpdate(
+            cachedDump: JuggDeploymentCacheEntry,
+            dexOverlays: DexComparator.ChangedClasses,
+            fileOverlays: Map<ApkEntry, ByteString>,
+        ): JuggOverlayUpdate = unsupported()
+
+        override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> = unsupported()
+
+        override fun remoteApkNotFound(): JuggDeployerException = unsupported()
+
+        override fun overlayIdMismatch(): JuggDeployerException = unsupported()
+
+        override fun apiNotSupported(): JuggDeployerException = unsupported()
+
+        override fun wrapDeployerException(e: Throwable): JuggDeployerException? = null
+
+        override fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry =
+            unsupported()
 
         override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider =
             unsupported()
@@ -222,7 +415,13 @@ class JuggDeployerInstallTest {
 
         override fun getConnectedDevices(project: Project): List<IDevice>? = unsupported()
 
-        override fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller =
+        override fun createInstallSession(
+            installersFolder: String,
+            device: IDevice,
+            logger: ILogger,
+            onPrompt: (String) -> Boolean,
+            onMessage: (String) -> Unit,
+        ): JuggInstallSession =
             unsupported()
 
         override fun makeDebuggerRedefiners(
@@ -232,17 +431,17 @@ class JuggDeployerInstallTest {
         ): Map<Int, ClassRedefiner> = unsupported()
 
         override fun optimisticSwap(
-            installer: Installer,
+            session: JuggInstallSession,
             redefiners: Map<Int, ClassRedefiner>,
             packageName: String,
             argRestart: Boolean,
             pids: List<Int>,
             arch: Deploy.Arch,
             overlayUpdate: JuggOverlayUpdate,
-            adb: AdbClient,
+            device: IDevice,
             logger: ILogger,
             isPushOverlayOnly: Boolean,
-        ): OverlayId = unsupported()
+        ): JuggOverlayId = unsupported()
 
         override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState =
             unsupported()
@@ -269,7 +468,7 @@ class JuggDeployerInstallTest {
     }
 
     private data class Fixture(
-        val adb: AdbClient,
+        val deviceAdb: FakeDeviceAdb,
         val compat: RecordingInstallCompat,
         val deploymentService: IJuggDeployerDeploymentService,
         val ideaLogger: Logger,
@@ -280,4 +479,32 @@ class JuggDeployerInstallTest {
     private companion object {
         const val PACKAGE_NAME = "com.example.app"
     }
+}
+
+private class FakeDeviceAdb(
+    private val shellReady: Boolean,
+) : IDeviceAdb {
+    override val displayName: String = "fake"
+    override val api: Int = 30
+    override val serial: String = "emulator-5554"
+    override val isOnline: Boolean = true
+
+    override fun execAdbShellCmd(cmd: String): String {
+        if (!shellReady && cmd == "true") {
+            throw IOException("device offline")
+        }
+        return ""
+    }
+
+    override fun isAdbTransportReady(): Boolean = shellReady
+
+    override fun push(from: File, to: String): Boolean = false
+
+    override fun pull(from: String, to: File): Boolean = false
+
+    override fun getDefaultLaunchActivity(apkFile: File): String? = null
+
+    override fun getArch(packageName: String): String = "ARCH_UNKNOWN"
+
+    override fun getProperty(name: String): String? = null
 }

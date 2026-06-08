@@ -7,10 +7,21 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.mock.MockProject
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
-import org.junit.Assert.assertNotSame
+import com.sickworm.intellij.jugg.mock.TestGlobal
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.BeforeClass
 import org.junit.Test
 
 class JuggAndroidTestRunConfigurationDeviceSelectionTest {
+
+    companion object {
+        @JvmStatic
+        @BeforeClass
+        fun setUpClass() {
+            TestGlobal.init()
+        }
+    }
 
     @Test
     fun `android test run configuration enables device selection keys`() {
@@ -18,7 +29,7 @@ class JuggAndroidTestRunConfigurationDeviceSelectionTest {
 
         config.getUserData(Key.create<Any>("trigger"))
 
-        assertEnsureSetAllowSelectDeviceExecuted(config)
+        assertDeviceSelectionEnabled(config)
     }
 
     @Test
@@ -27,19 +38,33 @@ class JuggAndroidTestRunConfigurationDeviceSelectionTest {
 
         config.getUserData(Key.create<Any>("trigger"))
 
-        assertEnsureSetAllowSelectDeviceExecuted(config)
+        assertDeviceSelectionEnabled(config)
     }
 
-    private fun assertEnsureSetAllowSelectDeviceExecuted(config: RunConfigurationBase<*>) {
-        val field = config.javaClass.getDeclaredField("lastSetObj").apply { isAccessible = true }
-        val sentinel = Any()
-        field.set(config, sentinel)
-        config.getUserData(Key.create<Any>("trigger-after-sentinel"))
-        assertNotSame(
-            "Expected ensureSetAllowSelectDevice to refresh lastSetObj",
-            sentinel,
-            field.get(config),
-        )
+    private fun assertDeviceSelectionEnabled(config: RunConfigurationBase<*>) {
+        val keys = loadDeviceSelectionKeys()
+        assertTrue("Expected at least one Android Studio device selection key", keys.isNotEmpty())
+        keys.forEach { key ->
+            assertEquals(true, config.getUserData(key))
+        }
+    }
+
+    private fun loadDeviceSelectionKeys(): List<Key<Boolean>> {
+        return listOf(
+            KeyRef("com.android.tools.idea.execution.common.DeployableToDevice", "KEY"),
+            KeyRef("com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction", "DEPLOYS_TO_LOCAL_DEVICE"),
+        ).mapNotNull { it.loadKey() }
+    }
+
+    private data class KeyRef(val className: String, val fieldName: String) {
+        fun loadKey(): Key<Boolean>? {
+            return try {
+                @Suppress("UNCHECKED_CAST")
+                Class.forName(className).getField(fieldName).get(null) as? Key<Boolean>
+            } catch (e: Throwable) {
+                null
+            }
+        }
     }
 
     private fun createAndroidTestConfig(): JuggAndroidTestRunConfiguration {

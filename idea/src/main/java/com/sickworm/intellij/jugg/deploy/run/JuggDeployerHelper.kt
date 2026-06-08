@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
-import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.log.LogWrapper
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
@@ -710,10 +709,11 @@ class JuggDeployerHelper(
         if (isNeedUninstall) {
             val applicationIds = deployData.apks.map { it.applicationId }.toSet()
             logger.info("Got INSTALL_FAILED_INVALID_APK error, try uninstall apks. applicationIds: $applicationIds")
-            val adbClient = AdbClient(deployOptions.device, LogWrapper(logger).also {
+            val adbLogger = LogWrapper(logger).also {
                 it.alwaysLogAsDebug(true)
                 it.allowVerbose(true)
-            })
+            }
+            val adbClient = IdeaDeviceAdbClient(deployOptions.device, adbLogger)
             applicationIds.forEach {
                 logger.debug("Uninstalling $it...")
                 adbClient.uninstall(it)
