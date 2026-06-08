@@ -39,6 +39,18 @@ class ModulePathMergePolicyTest {
     }
 
     @Test
+    fun `androidTestModuleName appends suffix only for owner modules`() {
+        assertEquals("common.download.androidTest", ModulePathMergePolicy.androidTestModuleName("common.download"))
+        assertEquals("common.download.androidTest", ModulePathMergePolicy.androidTestModuleName("common.download.androidTest"))
+    }
+
+    @Test
+    fun `androidTestOwnerModuleName returns owner only for androidTest modules`() {
+        assertEquals("common.download", ModulePathMergePolicy.androidTestOwnerModuleName("common.download.androidTest"))
+        assertNull(ModulePathMergePolicy.androidTestOwnerModuleName("common.download"))
+    }
+
+    @Test
     fun `resolveIdeModuleName does not map androidTest gradle module to main ide module by path`() {
         val mainIde = module("common.download", "debug")
         val gradleAndroidTest = module(

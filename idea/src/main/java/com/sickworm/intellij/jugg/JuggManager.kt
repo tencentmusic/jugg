@@ -16,6 +16,10 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlanner
+import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
+import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildRecord
+import com.sickworm.intellij.jugg.deploy.instrument.RequestedLibraryTestApkPlanner
 import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -382,13 +386,50 @@ class JuggManager @TestOnly constructor(
         runProfile: RunProfile?,
         androidTestRunSpec: AndroidTestRunSpec?,
     ): ExecutionResult {
+        val compileOptions = options.toCompileOptions(pathManager)
+        recordRequestedLibraryTestApkBuild(compileOptions, androidTestRunSpec)
         val compileUiHandler = JuggCompileUiHandler(project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = false,
-            options.toCompileOptions(pathManager),
+            compileOptions,
             logger
         )
-        return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler, executor, runProfile, androidTestRunSpec)
+        return juggConfigurationRunner.runTask(compileOptions, compileUiHandler, executor, runProfile, androidTestRunSpec)
+    }
+
+    private fun recordRequestedLibraryTestApkBuild(
+        options: JuggGradleCompileOptions,
+        androidTestRunSpec: AndroidTestRunSpec?,
+    ) {
+        if (options.buildTarget != BuildTarget.ANDROID_TEST) {
+            return
+        }
+        runCatching {
+            compileContextManager.ensureInitProjectInfo()
+            val module = RequestedLibraryTestApkPlanner.resolveSelfTargetingLibraryModule(
+                androidTestRunSpec,
+                pathManager.projectDir,
+                compileContextManager.getProjectInfo().modules.values,
+            ) ?: return
+            val plan = LibraryTestApkBackfillPlanner.plan(module)
+            LibraryTestApkBuildHistory(pathManager.projectDir, logger = logger).record(
+                LibraryTestApkBuildRecord(
+                    moduleName = module.name,
+                    buildVariant = module.buildVariant,
+                    compileCommand = "${options.gradleExecutable()} ${plan.gradleTask}",
+                    compiledAt = System.currentTimeMillis(),
+                    apkPath = "",
+                    outputApkPattern = plan.outputApkPattern,
+                )
+            )
+            logger.debug("Recorded requested library Test APK build: ${plan.gradleTask}")
+        }.onFailure {
+            logger.debug("Failed to record requested library Test APK build", it)
+        }
+    }
+
+    private fun JuggGradleCompileOptions.gradleExecutable(): String {
+        return compileCommand.substringBefore(" :").trim().takeIf { it.isNotBlank() } ?: "./gradlew"
     }
 
     @TestOnly
@@ -648,6 +689,5 @@ class JuggManager @TestOnly constructor(
 
             return task
         }
-
     }
 }

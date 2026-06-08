@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.ModulePathMergePolicy
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.security.MessageDigest
@@ -60,7 +61,7 @@ class LibraryTestApkBuildHistory(
             .asSequence()
             .filter { it.compiledAt >= minTime }
             .filter { it.buildVariant == buildVariant }
-            .filter { modules.containsKey(it.moduleName) }
+            .filter { it.isModuleAvailableIn(modules) }
             .sortedByDescending { it.compiledAt }
             .mapNotNull { record ->
                 val task = record.gradleTask() ?: return@mapNotNull null
@@ -83,6 +84,14 @@ class LibraryTestApkBuildHistory(
             .firstOrNull { token ->
                 token.startsWith(":") && GRADLE_ANDROID_TEST_ASSEMBLE_TASK.matches(token.substringAfterLast(":"))
             }
+    }
+
+    private fun LibraryTestApkBuildRecord.isModuleAvailableIn(modules: Map<String, ModuleInfo>): Boolean {
+        if (modules.containsKey(moduleName)) {
+            return true
+        }
+        val ownerModuleName = ModulePathMergePolicy.androidTestOwnerModuleName(moduleName) ?: return false
+        return modules.containsKey(ownerModuleName)
     }
 
     companion object {
@@ -145,14 +154,13 @@ private data class LibraryTestApkBuildRecordDto(
         val moduleName = moduleName?.takeIf { it.isNotBlank() } ?: return null
         val buildVariant = buildVariant?.takeIf { it.isNotBlank() } ?: return null
         val compileCommand = compileCommand?.takeIf { it.isNotBlank() } ?: return null
-        val apkPath = apkPath?.takeIf { it.isNotBlank() } ?: return null
         val outputApkPattern = outputApkPattern?.takeIf { it.isNotBlank() } ?: return null
         return LibraryTestApkBuildRecord(
             moduleName = moduleName,
             buildVariant = buildVariant,
             compileCommand = compileCommand,
             compiledAt = compiledAt ?: 0L,
-            apkPath = apkPath,
+            apkPath = apkPath.orEmpty(),
             outputApkPattern = outputApkPattern,
         )
     }
