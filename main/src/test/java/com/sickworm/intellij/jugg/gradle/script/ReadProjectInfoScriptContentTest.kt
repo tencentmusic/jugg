@@ -137,6 +137,35 @@ class ReadProjectInfoScriptContentTest {
     }
 
     @Test
+    fun gradleProjectInfoReader_shouldOnlyProbeKotlinDetailsForKotlinModules() {
+        val readerText = readSource("src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt")
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        listOf(readerText, scriptText).forEach { text ->
+            assertTrue(text.contains("val hasKotlinPlugin = project.hasKotlinPlugin()"))
+            assertTrue(text.contains("if (hasKotlinPlugin) extensions?.invoke(\"getByName\", \"kotlinOptions\") else null"))
+            assertTrue(text.contains("if (hasKotlinPlugin) findKotlinTask(project, buildVariantCapital) else null"))
+            assertTrue(text.contains("} else if (hasKotlinPlugin) {"))
+            assertTrue(text.contains("private fun findKotlinTask(project: Project, buildVariantCapital: String): Any?"))
+            assertTrue(text.contains("private fun Project.hasKotlinPlugin(): Boolean"))
+        }
+    }
+
+    @Test
+    fun gradleProjectInfoReader_shouldSkipEmptyConfigurationsBeforeResolve() {
+        val readerText = readSource("src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt")
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        listOf(readerText, scriptText).forEach { text ->
+            assertTrue(text.contains("val allDependencies = configuration.allDependencies"))
+            assertTrue(text.contains("if (allDependencies.isEmpty()) {"))
+            assertTrue(text.indexOf("if (allDependencies.isEmpty()) {") < text.indexOf("if (configuration.isCanBeResolved)"))
+        }
+    }
+
+    @Test
     fun generatedScript_shouldInjectAndroidTestTaskBeforeTaskGraphReady() {
         val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
         assertNotNull(scriptText)

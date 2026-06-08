@@ -143,8 +143,9 @@ class GradleProjectInfoReader(
                 // com.android.build.gradle.internal.dsl.DefaultConfig
                 val defaultConfig = androidExt["defaultConfig"]
                 val extensions = androidExt["extensions"]
+                val hasKotlinPlugin = project.hasKotlinPlugin()
                 // org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
-                val kotlinJvmOptions = extensions?.invoke("getByName", "kotlinOptions")
+                val kotlinJvmOptions = if (hasKotlinPlugin) extensions?.invoke("getByName", "kotlinOptions") else null
                 // org.jetbrains.kotlin.gradle.plugin.KaptExtension
                 val kapt = reflector(project.extensions.findByName("kapt"))
 
@@ -214,35 +215,7 @@ class GradleProjectInfoReader(
                 var kotlinPlugins: List<File>? = null
                 val buildVariantCapital = moduleInfo.buildVariant.camelCompat
                 val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
-                var kotlinTask: Any? = null
-                try {
-                    kotlinTask = project.tasks.findByName(kotlinTaskName)
-                } catch (e: Throwable) {
-                    try {
-                        // occurs on application module with includeBuild
-                        // retry will be ok
-                        // see: https://docs.gradle.org/current/samples/sample_composite_builds_declared_substitutions.html
-                        // see: https://docs.gradle.org/current/userguide/composite_builds.html
-                        kotlinTask = project.tasks.findByName(kotlinTaskName)
-                        println("Jugg: ${project.name}.findByName(\"$kotlinTaskName\") failed and success with retry")
-                    } catch (e: Throwable) {
-                        println("Jugg: ${project.name}.findByName(\"$kotlinTaskName\") failed with retry")
-                    }
-                }
-                if (kotlinTask == null) {
-                    val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
-                    try {
-                        // compat with kmm
-                        kotlinTask = project.tasks.findByName(kotlinTaskNameKmm)
-                    } catch (e: Throwable) {
-                        try {
-                            kotlinTask = project.tasks.findByName(kotlinTaskNameKmm)
-                            println("Jugg: ${project.name}.findByName(\"$kotlinTaskNameKmm\") failed and success with retry")
-                        } catch (e: Throwable) {
-                            println("Jugg: ${project.name}.findByName(\"$kotlinTaskNameKmm\") failed with retry")
-                        }
-                    }
-                }
+                val kotlinTask = if (hasKotlinPlugin) findKotlinTask(project, buildVariantCapital) else null
                 if (kotlinTask != null) {
                     // before 2.0, kotlin classpath is in pluginClasspath
                     kotlinPlugins = (reflector(kotlinTask)["pluginClasspath"]?.value as? FileCollection)?.toList()
@@ -251,7 +224,7 @@ class GradleProjectInfoReader(
                     if (kotlinClasspath20 != null) {
                         kotlinPlugins = ((kotlinPlugins ?: emptyList()) + kotlinClasspath20).distinct()
                     }
-                } else {
+                } else if (hasKotlinPlugin) {
                     println("Jugg: can not find kotlin compile task for ${moduleInfo.name} by $kotlinTaskName, skip it.")
                 }
 
@@ -429,6 +402,10 @@ class GradleProjectInfoReader(
 
         names.forEach nameForEach@{ name ->
             val configuration = project.configurations.findByName(name) ?: return@nameForEach
+            val allDependencies = configuration.allDependencies
+            if (allDependencies.isEmpty()) {
+                return@nameForEach
+            }
             if (configuration.isCanBeResolved) {
                 val subResult = if (isGetByNewWay) {
                     doGetDependenciesNew(configuration)
@@ -439,7 +416,6 @@ class GradleProjectInfoReader(
                 resolveArtifacts += configuration.allDependencies.size
                 result.addToResult(subResult)
             } else {
-                val allDependencies = configuration.allDependencies
                 allDependencies.forEach { dependencyDeclaration: org.gradle.api.artifacts.Dependency ->
                     val dependencies: List<Dependency> = getDependenciesWithoutResolved(project, dependencyDeclaration, isAndroidDepend, isNeedResolve)
                     totalReadArtifacts += dependencies.size
@@ -449,6 +425,31 @@ class GradleProjectInfoReader(
         }
 
         return result.values.toMutableList()
+    }
+
+    private fun findKotlinTask(project: Project, buildVariantCapital: String): Any? {
+        val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
+        val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
+        return findTaskByNameWithRetry(project, kotlinTaskName) ?: findTaskByNameWithRetry(project, kotlinTaskNameKmm)
+    }
+
+    private fun findTaskByNameWithRetry(project: Project, taskName: String): Any? {
+        try {
+            return project.tasks.findByName(taskName)
+        } catch (e: Throwable) {
+            try {
+                // occurs on application module with includeBuild
+                // retry will be ok
+                // see: https://docs.gradle.org/current/samples/sample_composite_builds_declared_substitutions.html
+                // see: https://docs.gradle.org/current/userguide/composite_builds.html
+                val task = project.tasks.findByName(taskName)
+                println("Jugg: ${project.name}.findByName(\"$taskName\") failed and success with retry")
+                return task
+            } catch (e: Throwable) {
+                println("Jugg: ${project.name}.findByName(\"$taskName\") failed with retry")
+                return null
+            }
+        }
     }
 
     private fun getDependenciesWithoutResolved(project: Project, dependency: org.gradle.api.artifacts.Dependency,
@@ -684,6 +685,13 @@ class GradleProjectInfoReader(
         // match with module name read from IDE
         // e.g. :libraryGroup:library1 -> libraryGroup.library1
         return path.replace(":", ".").substring(1)
+    }
+
+    private fun Project.hasKotlinPlugin(): Boolean {
+        return plugins.hasPlugin("org.jetbrains.kotlin.android") ||
+                plugins.hasPlugin("kotlin-android") ||
+                plugins.hasPlugin("org.jetbrains.kotlin.multiplatform") ||
+                plugins.hasPlugin("kotlin-multiplatform")
     }
 
     private val String.standardModuleName: String get() {

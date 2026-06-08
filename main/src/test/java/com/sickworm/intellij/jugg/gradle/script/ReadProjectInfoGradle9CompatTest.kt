@@ -7,6 +7,7 @@ import org.mockito.Mockito.mock
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -105,6 +106,18 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
             extraArgs = listOf("-P${PARAM_INJECT_ENABLE}=true"),
         )
         assertEquals(0, result.exitCode, "Gradle $gradleVersion android fixture failed.\n${result.output}")
+        assertFalse(
+            result.output.contains("Jugg: reflect invoke method failed"),
+            "Non-Kotlin Android modules must not trigger Kotlin options reflection errors.\n${result.output}",
+        )
+        assertFalse(
+            result.output.contains("Jugg: can not find kotlin compile task"),
+            "Non-Kotlin Android modules must not probe compileKotlin tasks.\n${result.output}",
+        )
+        assertFalse(
+            result.output.contains("resolved during configuration time"),
+            "Empty dependency configurations must not be resolved during project info reading.\n${result.output}",
+        )
     }
 
     /**
