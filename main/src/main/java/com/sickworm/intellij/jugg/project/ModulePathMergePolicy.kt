@@ -16,33 +16,19 @@ object ModulePathMergePolicy {
     }
 
     fun classifyByName(moduleName: String): ModuleSourceKind = when {
-        moduleName.endsWith(ANDROID_TEST_MODULE_SUFFIX) -> ModuleSourceKind.AndroidTest
+        moduleName.endsWith(".androidTest") -> ModuleSourceKind.AndroidTest
         moduleName.endsWith(".test") || moduleName.endsWith(".unitTest") -> ModuleSourceKind.JvmTest
         else -> ModuleSourceKind.Main
     }
 
     fun classify(module: ModuleInfo): ModuleSourceKind = when {
-        module.isAndroidTestModule || module.name.endsWith(ANDROID_TEST_MODULE_SUFFIX) -> ModuleSourceKind.AndroidTest
+        module.isAndroidTestModule || module.name.endsWith(".androidTest") -> ModuleSourceKind.AndroidTest
         module.name.endsWith(".test") || module.name.endsWith(".unitTest") -> ModuleSourceKind.JvmTest
         else -> ModuleSourceKind.Main
     }
 
     fun isAndroidTestModule(module: ModuleInfo): Boolean =
         classify(module) == ModuleSourceKind.AndroidTest
-
-    fun androidTestModuleName(ownerModuleName: String): String {
-        if (classifyByName(ownerModuleName) == ModuleSourceKind.AndroidTest) {
-            return ownerModuleName
-        }
-        return "$ownerModuleName$ANDROID_TEST_MODULE_SUFFIX"
-    }
-
-    fun androidTestOwnerModuleName(moduleName: String): String? {
-        if (classifyByName(moduleName) != ModuleSourceKind.AndroidTest) {
-            return null
-        }
-        return moduleName.removeSuffix(ANDROID_TEST_MODULE_SUFFIX)
-    }
 
     /**
      * Whether an IDE module should be collected into project info for the current [buildTarget].
@@ -170,5 +156,4 @@ object ModulePathMergePolicy {
     }
 
     private const val UNINITIALIZED_APPLICATION_ID = "uninitialized.application.id"
-    private const val ANDROID_TEST_MODULE_SUFFIX = ".androidTest"
 }

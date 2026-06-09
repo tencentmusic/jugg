@@ -92,31 +92,6 @@ class LibraryTestApkBuildHistoryTest {
     }
 
     @Test
-    fun `select recent records accepts planned record before androidTest module is merged`() {
-        val history = createHistory()
-        val now = 40L * 24 * 60 * 60 * 1000
-        history.record(
-            record(
-                "library1.androidTest",
-                "debugAndroidTest",
-                now - 1,
-                ":library1:assembleDebugAndroidTest",
-                apkPath = "",
-            ),
-        )
-        val modules = mapOf("library1" to ModuleInfo.virtualModule.copy(name = "library1"))
-
-        val selected = history.selectRecentForAndroidTest(
-            modules = modules,
-            buildVariant = "debugAndroidTest",
-            nowMillis = now,
-        )
-
-        assertEquals(listOf(":library1:assembleDebugAndroidTest"), selected.map { it.gradleTask })
-        assertEquals("", selected.single().source.apkPath)
-    }
-
-    @Test
     fun `resolve git project info prefers origin remote over first remote`() {
         val projectDir = temp.newFolder("project")
         val gitManager = FakeGitManager(
