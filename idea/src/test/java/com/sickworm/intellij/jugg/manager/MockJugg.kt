@@ -11,6 +11,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
+import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -48,6 +49,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
     lateinit var juggDeployerHelper: JuggDeployerHelper
     lateinit var deployHistoryManager: IDeployHistoryManager
     lateinit var deployFileManager: DeployFileManager
+    lateinit var customCompilerManager: CustomCompilerManager
     lateinit var deployStateManager: DeployStateManager
     lateinit var dependencyChangeManager: IDependencyChangeManager
     lateinit var taskRunnerManager: TaskRunnerManager
@@ -248,6 +250,13 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
         deployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
         deployFileManager = DeployFileManager(projectDir, logger, pathManager.tmpDir, pathManager.databaseDir, coroutineScope)
+        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath!!)), CoroutineScope(Dispatchers.IO))
+        customCompilerManager = CustomCompilerManager(
+            pathManager.projectDir,
+            pathManager.customCompilerDir,
+            juggServer,
+            logger,
+        )
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
@@ -257,11 +266,10 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         } else {
             val moduleManager = mock(ModuleManager::class.java)
             doReturn(emptyArray<com.intellij.openapi.module.Module>()).`when`(moduleManager).modules
-            compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager,
+            compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager, customCompilerManager,
                 moduleManager = moduleManager)
         }
 
-        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath!!)), CoroutineScope(Dispatchers.IO))
         taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, taskRunnerManager, logger) {
             val downloader = MockAndroidProfilerDownloader()

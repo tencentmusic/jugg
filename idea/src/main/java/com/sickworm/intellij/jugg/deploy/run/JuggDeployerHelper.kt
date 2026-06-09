@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import android.annotation.SuppressLint
 import com.android.ddmlib.IDevice
-import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.IdeInfo
 import com.android.tools.idea.log.LogWrapper
 import com.google.gson.Gson
@@ -93,7 +92,12 @@ class JuggDeployerHelper(
                     "classes: ${splitData.newClasses.size + splitData.hotFixModifiedClasses.size + splitData.hotReloadModifiedClasses.size}, " +
                     "overlays: ${splitData.overlays.size}")
             val isSliceSkipExceptOverlayCheck = isSkipExceptOverlayCheck || i != 0
-            val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSliceSkipExceptOverlayCheck)
+            val launchContext = LaunchContext(
+                device,
+                IdeaDeviceAdb(device, logger),
+                deployHistoryManager.lastDeployOverlayIds,
+                isSliceSkipExceptOverlayCheck,
+            )
             val task = JuggDeployTask(project, installPathProvider, androidDeployType, splitData)
             launchResult = task.run(launchContext)
             if (!launchResult.success) {
@@ -557,10 +561,11 @@ class JuggDeployerHelper(
         if (isNeedUninstall) {
             val applicationIds = deployData.apks.map { it.applicationId }.toSet()
             logger.info("Got INSTALL_FAILED_INVALID_APK error, try uninstall apks. applicationIds: $applicationIds")
-            val adbClient = AdbClient(deployOptions.device, LogWrapper(logger).also {
+            val adbLogger = LogWrapper(logger).also {
                 it.alwaysLogAsDebug(true)
                 it.allowVerbose(true)
-            })
+            }
+            val adbClient = IdeaDeviceAdbClient(deployOptions.device, adbLogger)
             applicationIds.forEach {
                 logger.debug("Uninstalling $it...")
                 adbClient.uninstall(it)
@@ -783,4 +788,3 @@ data class DeployTaskResult(
     val failedReason: String? = null,
     val costTimeExceptCheck: Long = costTime,
 )
-

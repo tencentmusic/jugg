@@ -16,13 +16,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
-import com.android.sdklib.AndroidVersion
-import com.android.tools.deployer.AdbClient
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.Deployer.InstallMode
-import com.android.tools.deployer.DeployerException
-import com.android.tools.deployer.InstallOptions
-import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.run.IdeService
 import com.google.common.base.Stopwatch
 import com.intellij.openapi.diagnostic.Logger
@@ -31,6 +25,7 @@ import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -47,26 +42,34 @@ class JuggDeployTask(
     private val installPathProvider: Computable<String>,
     private val type: AndroidDeployType,
     private val data: JuggDeployData,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask")
+    private val deploymentService: IJuggDeployerDeploymentService = JuggDeploymentService,
+    private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask"),
 ) {
 
     fun run(launchContext: LaunchContext): LaunchResult {
         val stopwatch = Stopwatch.createStarted()
         val device = launchContext.device
         val logger = AdbLogWrapper(logger)
-        val adb = AdbClient(device, logger)
         val ideService = IdeService(project)
-        val adbInstaller = AsDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
+        val installSession = asDeployerCompat.createInstallSession(
+            installPathProvider.compute(),
+            device,
+            logger,
+            onPrompt = { message -> ideService.prompt(message) },
+            onMessage = { message -> ideService.message(message) },
+        )
 
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
-            adb,
-            JuggDeploymentService,
-            adbInstaller,
-            ideService,
-            launchContext.exceptOverlayIds,
-            launchContext.isSkipExceptOverlayCheck,
-            logger
+            device = device,
+            deviceAdb = launchContext.deviceAdb,
+            deploymentService = deploymentService,
+            installSession = installSession,
+            exceptOverlayIds = launchContext.exceptOverlayIds,
+            isSkipExceptOverlayCheck = launchContext.isSkipExceptOverlayCheck,
+            logger = logger,
+            asDeployerCompat = asDeployerCompat,
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
@@ -86,9 +89,9 @@ class JuggDeployTask(
                     launchContext.launchApp = true
                 }
                 overlayIds[applicationId] = result.overlayId ?: ""
-            } catch (e: DeployerException) {
+            } catch (e: JuggDeployerException) {
                 logger.error(e, "%s failed: %s %s", deployType, e.message, e.details)
-                return LaunchResult(false, e.error.ordinal, e.message + " " +  e.details, emptyMap())
+                return LaunchResult(false, e.errorOrdinal, e.message + " " + e.details, emptyMap())
             }
         }
         stopwatch.stop()
@@ -109,43 +112,21 @@ class JuggDeployTask(
         return LaunchResult(true, 0, null, overlayIds)
     }
 
-    private fun shouldTaskLaunchApp() = when(type) {
+    private fun shouldTaskLaunchApp() = when (type) {
         AndroidDeployType.INSTALL -> true
         AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> true
         AndroidDeployType.APPLY_CHANGES -> false
     }
 
-    @Throws(DeployerException::class)
+    @Throws(JuggDeployerException::class)
     private fun perform(
         device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>
     ): JuggDeployer.Result {
         when (type) {
             AndroidDeployType.INSTALL -> {
-                // default install argument has: -t -r --full --dont-kill
-                val options = InstallOptions.builder().setAllowDebuggable()
-                // no setInstallOnCurrentUser in giraffe
-//                val installOnAllUsers = true
-//                if (!installOnAllUsers && device.version.isGreaterOrEqualThan(24)) {
-//                    options.setInstallOnCurrentUser()
-//                }
-                if (device.supportsFeature(IDevice.HardwareFeature.EMBEDDED)) {
-                    options.setGrantAllPermissions()
-                }
-                if (device.version.isGreaterOrEqualThan(28)) {
-                    options.setInstallFullApk()
-                }
-                if (device.version.isGreaterOrEqualThan(AndroidVersion.VersionCodes.N)) {
-                    options.setDontKill()
-                }
-                options.setSkipVerification(device, applicationId)
-
                 logger.debug("Installing application $applicationId...")
-                var installMode = InstallMode.DELTA
-                if (!StudioFlags.DELTA_INSTALL.get()) {
-                    installMode = InstallMode.FULL
-                }
-
-                return deployer.install(applicationId, getPathsToInstall(files), options.build(), installMode)
+                val installMode = asDeployerCompat.getInstallMode()
+                return deployer.install(applicationId, getPathsToInstall(files), installMode)
             }
             AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 logger.debug("Applying changes to application $applicationId...")
@@ -157,10 +138,8 @@ class JuggDeployTask(
 
                 var debuggerRedefiners = emptyMap<Int, ClassRedefiner>()
                 if (!data.isNeedRestartApp) {
-                    // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
-                    // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
-                    // because we don't need debuggerRedefiners on restart case
-                    debuggerRedefiners = AsDeployerCompat.makeDebuggerRedefiners(
+                    // Reduce chance of "R+ Device should have FULL debugger swap support" on some devices.
+                    debuggerRedefiners = asDeployerCompat.makeDebuggerRedefiners(
                         project, device, fastRerunOnSwapFailure && deployer.supportsNewPipeline()
                     )
                 }
@@ -224,11 +203,10 @@ enum class AndroidDeployType {
  */
 class LaunchContext(
     val device: IDevice,
+    val deviceAdb: IDeviceAdb,
     val exceptOverlayIds: Map<String, String>,
     val isSkipExceptOverlayCheck: Boolean,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
 }
-
-

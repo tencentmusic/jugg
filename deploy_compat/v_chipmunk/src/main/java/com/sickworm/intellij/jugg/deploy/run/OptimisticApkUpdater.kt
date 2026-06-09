@@ -25,7 +25,7 @@ class OptimisticApkUpdater(
         val cachedDump = overlayUpdate.cachedDump
         val dexOverlays = overlayUpdate.dexOverlays
         val fileOverlays: Map<ApkEntry, ByteString> = overlayUpdate.fileOverlays
-        val overlayIdBuilder = OverlayId.builder(cachedDump.overlayId)
+        val overlayIdBuilder = OverlayId.builder(cachedDump.overlayId.raw as OverlayId)
         val expectedOverlayId = cachedDump.overlayId
         val request = Deploy.OverlayInstallRequest.newBuilder()
             .setPackageName(packageId)

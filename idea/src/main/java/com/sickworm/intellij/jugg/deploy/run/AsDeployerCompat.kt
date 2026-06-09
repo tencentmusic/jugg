@@ -2,67 +2,25 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.*
+import com.android.tools.deployer.ClassRedefiner
+import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.model.Apk
+import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.DeploymentService
+import com.android.tools.idea.protobuf.ByteString
 import com.android.utils.ILogger
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import java.lang.ref.WeakReference
-import java.lang.reflect.InvocationHandler
-import java.lang.reflect.InvocationTargetException
-import java.lang.reflect.Method
-import java.lang.reflect.Proxy
 import kotlin.math.min
 
 object AsDeployerCompat : IAsDeployerCompat {
-
-    private val impl : IAsDeployerCompat = Proxy.newProxyInstance(this.javaClass.classLoader,
-        arrayOf<Class<*>>(IAsDeployerCompat::class.java), object : InvocationHandler {
-             override fun invoke(proxy: Any?, method: Method, args: Array<Any?>?): Any? {
-                try {
-                    return method.invoke(priorityImpl.impl.value, *(args ?: emptyArray()))
-                } catch (e: InvocationTargetException) {
-                    if (!e.targetException.isCompatError) {
-                        throw e.targetException
-                    }
-
-                    val logger = logger.get()
-                    logger?.debug("try priorityImpl with ${e.targetException}, try higher version impl")
-
-                    // try other version impl
-                    compatImplList
-                        .filter { it.ideVersion != priorityImpl.ideVersion }
-                        .forEach {
-                            try {
-                                val result = method.invoke(it.impl.value, *(args ?: emptyArray()))
-                                logger?.debug("try ${it.ideVersion.name} API success, return")
-                                return result
-                            } catch (e: InvocationTargetException) {
-                                if (!e.targetException.isCompatError) {
-                                    throw e.targetException
-                                }
-                                logger?.debug("try ${it.ideVersion.name} API with ${e.targetException}")
-                            }
-                        }
-
-                    logger?.warn("Try all Android Studio API failed.")
-                    throw e
-                }
-            }
-        }) as IAsDeployerCompat
-
-    private val Throwable.isCompatError: Boolean get() {
-        return this is NoSuchMethodError
-                || this is NoSuchFieldError
-                || this is NoClassDefFoundError
-                || this is IncompatibleClassChangeError
-    }
 
     private lateinit var priorityImpl : CompatImpl
 
@@ -70,6 +28,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      * Must order DESC
      */
     private val compatImplList = listOf(
+        CompatImpl(
+            IdeVersion("Android Studio Quail", "AI", "261.23567.138", "261.23567.138"),
+            lazy { QuailAsDeployerCompat() }
+        ),
         CompatImpl(
             IdeVersion("Android Studio Panda", "AI", "253.29346.138", "253.29346.138"),
             lazy { PandaAsDeployerFeatureCompat() }
@@ -137,32 +99,40 @@ object AsDeployerCompat : IAsDeployerCompat {
     }
 
     override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
-        return impl.getApkProvider(project, config)
+        return invokeCompat { it.getApkProvider(project, config) }
     }
 
     override fun getSelectedDevices(project: Project): List<IDevice>? {
-        return impl.getSelectedDevices(project)
+        return invokeCompat { it.getSelectedDevices(project) }
     }
 
     override fun getConnectedDevices(project: Project): List<IDevice>? {
-        return impl.getConnectedDevices(project)
+        return invokeCompat { it.getConnectedDevices(project) }
     }
 
-    override fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller {
-        return impl.getInstaller(installersFolder, adb, logger)
+    override fun createInstallSession(
+        installersFolder: String,
+        device: IDevice,
+        logger: ILogger,
+        onPrompt: (String) -> Boolean,
+        onMessage: (String) -> Unit,
+    ): JuggInstallSession {
+        return invokeCompat { it.createInstallSession(installersFolder, device, logger, onPrompt, onMessage) }
     }
 
     override fun install(
-        adb: AdbClient,
-        service: UIService,
-        installer: Installer,
+        device: IDevice,
+        session: JuggInstallSession,
         logger: ILogger,
         packageName: String,
         apks: List<String>,
-        options: InstallOptions,
-        installMode: Deployer.InstallMode
+        installMode: JuggInstallSession.Mode,
     ): Boolean {
-        return impl.install(adb, service, installer, logger, packageName, apks, options, installMode)
+        return invokeCompat { it.install(device, session, logger, packageName, apks, installMode) }
+    }
+
+    override fun getInstallMode(): JuggInstallSession.Mode {
+        return invokeCompat { it.getInstallMode() }
     }
 
     override fun makeDebuggerRedefiners(
@@ -170,39 +140,97 @@ object AsDeployerCompat : IAsDeployerCompat {
         device: IDevice,
         fallback: Boolean
     ): Map<Int, ClassRedefiner> {
-        return impl.makeDebuggerRedefiners(project, device, fallback)
+        return invokeCompat { it.makeDebuggerRedefiners(project, device, fallback) }
     }
 
     override fun optimisticSwap(
-        installer: Installer,
+        session: JuggInstallSession,
         redefiners: Map<Int, ClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
         arch: Deploy.Arch,
         overlayUpdate: JuggOverlayUpdate,
-        adb: AdbClient,
+        device: IDevice,
         logger: ILogger,
         isPushOverlayOnly: Boolean,
-    ): OverlayId {
-        return impl.optimisticSwap(installer, redefiners, packageName, argRestart, pids, arch, overlayUpdate, adb, logger, isPushOverlayOnly)
+    ): JuggOverlayId {
+        return invokeCompat {
+            it.optimisticSwap(
+                session,
+                redefiners,
+                packageName,
+                argRestart,
+                pids,
+                arch,
+                overlayUpdate,
+                device,
+                logger,
+                isPushOverlayOnly,
+            )
+        }
     }
 
     override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {
-        return impl.getIdeDeployStateResult(project, device, packageName)
+        return invokeCompat { it.getIdeDeployStateResult(project, device, packageName) }
     }
 
     override fun getDeploymentService(project: Project): DeploymentService {
-        return impl.getDeploymentService(project)
+        return invokeCompat { it.getDeploymentService(project) }
     }
 
     override fun parseApks(paths: List<String>): List<Apk> {
-        return impl.parseApks(paths)
+        return invokeCompat { it.parseApks(paths) }
+    }
+
+    override fun getPackageName(apks: List<Apk>): String {
+        return invokeCompat { it.getPackageName(apks) }
+    }
+
+    override fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId {
+        return invokeCompat { it.createBaseOverlayId(apks) }
+    }
+
+    override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId {
+        return invokeCompat { it.buildOverlayId(base, addedFiles) }
+    }
+
+    override fun createOverlayUpdate(
+        cachedDump: JuggDeploymentCacheEntry,
+        dexOverlays: DexComparator.ChangedClasses,
+        fileOverlays: Map<ApkEntry, ByteString>,
+    ): JuggOverlayUpdate {
+        return invokeCompat { it.createOverlayUpdate(cachedDump, dexOverlays, fileOverlays) }
+    }
+
+    override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> {
+        return invokeCompat { it.dumpApks(session, apks) }
+    }
+
+    override fun remoteApkNotFound(): JuggDeployerException {
+        return invokeCompat { it.remoteApkNotFound() }
+    }
+
+    override fun overlayIdMismatch(): JuggDeployerException {
+        return invokeCompat { it.overlayIdMismatch() }
+    }
+
+    override fun apiNotSupported(): JuggDeployerException {
+        return invokeCompat { it.apiNotSupported() }
+    }
+
+    override fun wrapDeployerException(e: Throwable): JuggDeployerException? {
+        return invokeCompat { it.wrapDeployerException(e) }
+    }
+
+    override fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry {
+        return invokeCompat { it.createDeploymentCacheEntry(apks, overlayId) }
     }
 
     override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
         // special api, call before project init, we just loop all impl
         // special api, can not hot update
+        RunConfigurationDeviceSelectionMarker.mark(runConfiguration)
         compatImplList.forEach {
             try {
                 it.impl.value.setAllowSelectDevice(runConfiguration)
@@ -213,11 +241,49 @@ object AsDeployerCompat : IAsDeployerCompat {
     }
 
     override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger, isNeedDefaultRunConfig: Boolean): List<SuggestRunConfiguration> {
-        return impl.getSuggestRunConfigurations(existsRunConfigNames, project, logger, isNeedDefaultRunConfig)
+        return invokeCompat { it.getSuggestRunConfigurations(existsRunConfigNames, project, logger, isNeedDefaultRunConfig) }
     }
 
     override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo? {
-        return impl.getIdeModuleInfo(project, module, logger, isSafeMode)
+        return invokeCompat { it.getIdeModuleInfo(project, module, logger, isSafeMode) }
+    }
+
+    private fun <T> invokeCompat(call: (IAsDeployerCompat) -> T): T {
+        return AsDeployerCompatDispatcher(
+            implementations = compatImplList,
+            priorityImplementation = priorityImpl,
+            nameOf = { it.ideVersion.name },
+            logDebug = { logger.get()?.debug(it) },
+            logWarn = { logger.get()?.warn(it) },
+        ).invoke { call(it.impl.value) }
+    }
+}
+
+/**
+ * Marks Jugg run configurations as deployable without linking this module to one Android Studio API shape.
+ */
+internal object RunConfigurationDeviceSelectionMarker {
+    private val keyRefs = listOf(
+        KeyRef("com.android.tools.idea.execution.common.DeployableToDevice", "KEY"),
+        KeyRef("com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction", "DEPLOYS_TO_LOCAL_DEVICE"),
+    )
+
+    fun mark(runConfiguration: RunConfigurationBase<*>) {
+        keyRefs.forEach { keyRef ->
+            val key = keyRef.loadKey() ?: return@forEach
+            runConfiguration.putUserData(key, true)
+        }
+    }
+
+    private data class KeyRef(val className: String, val fieldName: String) {
+        fun loadKey(): Key<Boolean>? {
+            return try {
+                @Suppress("UNCHECKED_CAST")
+                Class.forName(className).getField(fieldName).get(null) as? Key<Boolean>
+            } catch (e: Throwable) {
+                null
+            }
+        }
     }
 }
 
@@ -225,6 +291,55 @@ private class CompatImpl(
     val ideVersion: IdeVersion,
     val impl: Lazy<IAsDeployerCompat>,
 )
+
+/**
+ * Dispatches a compat API call without reflecting the whole compat interface during IDE startup.
+ */
+internal class AsDeployerCompatDispatcher<T>(
+    private val implementations: List<T>,
+    private val priorityImplementation: T,
+    private val nameOf: (T) -> String,
+    private val logDebug: (String) -> Unit,
+    private val logWarn: (String) -> Unit,
+) {
+    fun <R> invoke(call: (T) -> R): R {
+        try {
+            return call(priorityImplementation)
+        } catch (e: Throwable) {
+            if (!e.isCompatError) {
+                throw e
+            }
+
+            logDebug("try priorityImpl with $e, try other version impl")
+
+            implementations
+                .filter { it != priorityImplementation }
+                .forEach {
+                    try {
+                        val result = call(it)
+                        logDebug("try ${nameOf(it)} API success, return")
+                        return result
+                    } catch (fallbackError: Throwable) {
+                        if (!fallbackError.isCompatError) {
+                            throw fallbackError
+                        }
+                        logDebug("try ${nameOf(it)} API with $fallbackError")
+                    }
+                }
+
+            logWarn("Try all Android Studio API failed.")
+            throw e
+        }
+    }
+
+    private val Throwable.isCompatError: Boolean get() {
+        return this is NoSuchMethodError
+                || this is NoSuchFieldError
+                || this is NoClassDefFoundError
+                || this is IncompatibleClassChangeError
+    }
+}
+
 data class IdeVersion(
     /**
      * e.g.

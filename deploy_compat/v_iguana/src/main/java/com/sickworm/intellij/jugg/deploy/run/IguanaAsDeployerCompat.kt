@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.android.ddmlib.IDevice
 import com.android.tools.deployer.*
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkParser
@@ -15,18 +16,17 @@ import java.nio.file.Path
 open class IguanaAsDeployerCompat: HedgehogAsDeployerCompat() {
 
     override fun install(
-        adb: AdbClient,
-        service: UIService,
-        installer: Installer,
+        device: IDevice,
+        session: JuggInstallSession,
         logger: ILogger,
         packageName: String,
         apks: List<String>,
-        options: InstallOptions,
-        installMode: Deployer.InstallMode,
+        installMode: JuggInstallSession.Mode,
     ): Boolean {
-        val apkInstaller = ApkInstaller(adb, service, installer, logger)
+        val adb = createLegacyAdbClient(device, logger)
+        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, logger)
         val app = App.fromPaths(packageName, apks.map { Path.of(it) })
-        return apkInstaller.install(app, options, installMode, metrics.deployMetrics)
+        return apkInstaller.install(app, createInstallOptions(device, packageName), installMode.toLegacyInstallMode(), metrics.deployMetrics)
     }
 
     override fun parseApks(paths: List<String>): List<Apk> {

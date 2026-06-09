@@ -1,15 +1,13 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.tools.deployer.DeployerException
-import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.DexComparator.ChangedClasses
 
-class OverlayUpdateBuilder {
+class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
 
-    fun build(cacheEntry: DeploymentCacheDatabase.Entry?, data: JuggDeployData): JuggOverlayUpdate {
+    fun build(cacheEntry: JuggDeploymentCacheEntry?, data: JuggDeployData): JuggOverlayUpdate {
 
         if (cacheEntry == null) {
-            throw DeployerException.remoteApkNotFound()
+            throw asDeployerCompat.remoteApkNotFound()
         }
 
         val newClasses = (data.newClasses + data.hotFixModifiedClasses).map {
@@ -31,8 +29,6 @@ class OverlayUpdateBuilder {
             it.toIncompleteOverlay(apk)
         }
 
-        return JuggOverlayUpdate(cacheEntry, dexOverlays, overlayFiles)
+        return asDeployerCompat.createOverlayUpdate(cacheEntry, dexOverlays, overlayFiles)
     }
-
 }
-
