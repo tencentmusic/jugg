@@ -1,3 +1,8 @@
+- version: 2.6.30
+  date: 2026.06.09
+  updates:
+    - 支持 Android Studio Quail 1
+
 - version: 2.6.27
   date: 2026.05.26
   updates:
