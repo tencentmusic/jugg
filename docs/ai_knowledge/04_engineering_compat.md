@@ -19,7 +19,7 @@
 |---|---|---|
 | `AsDeployerCompat` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | IDE 侧统一门面；按当前 AS 版本选择优先实现，并在兼容错误时尝试其他版本实现 |
 | `AsDeployerCompatDispatcher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | 兼容层方法分发器；显式捕获 AS API 兼容错误后 fallback，避免 JDK Proxy 在启动期反射解析缺失方法签名 |
-| `IAsDeployerCompat` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt` | deploy 兼容层接口，封装 APK provider、install session、swap、IDE deploy state、module info 等 AS 版本差异 API |
+| `IAsDeployerCompat` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt` | deploy 兼容层接口，封装 APK provider、install session、swap、IDE deploy state、module info、Java debugger attach 等 AS 版本差异 API |
 | `JuggDeployCompatTypes` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployCompatTypes.kt` | 运行时中立 wrapper，承接 `JuggInstallSession`、`JuggOverlayId`、deployment cache entry、deployer exception 等 AS deployer 类型 |
 | `JuggDeploymentCacheStore` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentCacheStore.kt` | Jugg 本地源码版 deployment cache；持久化 APK path 与 overlay snapshot，不依赖 AS deployer runtime 类型 |
 | `*AsDeployerCompat` | `deploy_compat/v_*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | 各 Android Studio 版本的具体 API 适配实现 |
@@ -57,6 +57,8 @@ Android Studio Quail（`AI-261.x`）已不再携带旧 `com.android.tools.deploy
 IDE 部署主路径（例如 `JuggDeployerHelper` / `JuggDeployTask` / `JuggDeployer` / `JuggDeploymentService` / `IdeaDeviceAdb`）不应直接 import、构造或持有旧 deployer runtime 类型，包括 `AdbClient`、`Installer`、`InstallOptions`、`UIService`、`OverlayId`、`DeploymentCacheDatabase.Entry`、`DeployerException`。这些类型只允许在 `deploy_compat` 的版本实现中局部创建，并通过 `JuggInstallSession`、`JuggOverlayId`、`JuggDeploymentCacheEntry`、`JuggDeployerException` 等 wrapper 返回主路径；`JuggDeploymentCacheStore` 只持久化 Jugg 自有 snapshot（APK path、overlay sha/base 标记与 overlay file checksum），加载后由 `JuggDeploymentService` 经 `AsDeployerCompat` 重新 parse APK、重建 OverlayId，并在进入 AS deployer swap 前按版本创建 `DeploymentCacheDatabase.Entry`。ADB transport 的 `shell` / `push` / `uninstall` / pid / arch 查询由 `IdeaDeviceAdbClient` 基于 `IDevice` 封装，不属于 AS deployer 版本兼容接口。ADB transport 恢复检查通过 `IDeviceAdb.isAdbTransportReady()` 暴露业务语义，调用方不注入 shell-ready 探针。
 
 部署主路径也不应直接 import 或字段访问 `StudioFlags`。例如 install mode 通过 `IAsDeployerCompat.getInstallMode()` 获取；legacy compat 可读取旧 `StudioFlags.DELTA_INSTALL`，Quail compat 则提供不依赖该已移除 flag 的实现，避免新版 Android Studio 在 `JuggDeployTask` 触发 `NoSuchFieldError`。
+
+Debug attach 同样必须走 `IAsDeployerCompat.attachJavaDebugger()`，不要在 IDE 主路径直接 import Android Studio debugger 内部类。Giraffe 及后续兼容实现先通过 `AndroidDebugClientReadyWaiter` 反射调用 AS `waitForClientReadyForDebug`，等待目标 app 的 `ClientData.DebuggerStatus.WAITING`；随后通过 `AndroidStudioDebuggerAttachStarter` 反射调用 AS 原生 `AndroidConnectDebugger.closeOldSessionAndRun(project, AndroidJavaDebugger(), client, null)`，让 Android Studio 自身创建/激活 `XDebugSession` 与 Debug tool window。低版本默认返回“不支持”，调用方负责在 Run 输出和通知中展示明确原因。
 
 Quail 的 deployer API 已迁移到 `com.android.tools.deployer.common` 与 `com.android.tools.deployer.install` 包，`OptimisticApkUpdater` 不存在。`deploy_compat/v_quail` 必须独立实现，不继承 legacy compat 链，避免 superclass 或方法签名在启动期解析旧 root deployer 类型。
 
@@ -132,6 +134,7 @@ main(args)
 ## 7. 关联文档
 
 - IDE 层：`04_engineering_ide.md`
+- Jugg Debug attach：`04_engineering_debug_attach.md`
 - 项目模型：`04_engineering_project.md`
 - 部署核心：`03_deploy_core.md`
 - JVMTI / startup agent：`03_runtime_jvmti.md`

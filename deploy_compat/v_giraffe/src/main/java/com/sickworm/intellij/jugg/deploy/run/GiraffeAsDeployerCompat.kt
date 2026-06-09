@@ -41,6 +41,11 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
         return apkInstaller.install(packageName, apks, createInstallOptions(device, packageName), installMode.toLegacyInstallMode(), metrics.deployMetrics)
     }
 
+    override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
+        val client = AndroidDebugClientReadyWaiter().waitForWaitingDebuggerClient(device, packageName)
+        AndroidStudioDebuggerAttachStarter().attachExistingProcess(project, client)
+    }
+
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {
         if (runConfiguration is RunConfigurationBase<*>) {
             return runConfiguration.putUserDataIfAbsent(

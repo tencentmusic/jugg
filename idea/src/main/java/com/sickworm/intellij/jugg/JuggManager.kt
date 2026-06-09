@@ -382,11 +382,26 @@ class JuggManager @TestOnly constructor(
         runProfile: RunProfile?,
         androidTestRunSpec: AndroidTestRunSpec?,
     ): ExecutionResult {
-        val compileUiHandler = JuggCompileUiHandler(project,
+        val isJuggDebugRun = shouldForceRestartAppForDebugExecutor(
+            executorId = executor?.id,
+            hasAndroidTestRunSpec = androidTestRunSpec != null,
+        )
+        val debugSessionManager = if (isJuggDebugRun) {
+            JuggDebugSessionManager(project, deployTargetManager)
+        } else {
+            null
+        }
+        lateinit var compileUiHandler: JuggCompileUiHandler
+        compileUiHandler = JuggCompileUiHandler(project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = false,
             options.toCompileOptions(pathManager),
-            logger
+            logger,
+            isAlwaysRestartApp = isJuggDebugRun,
+            isDebugRun = isJuggDebugRun,
+            onEndListener = { runResult ->
+                debugSessionManager?.attachAfterSuccessfulRun(runResult, compileUiHandler)
+            },
         )
         return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler, executor, runProfile, androidTestRunSpec)
     }

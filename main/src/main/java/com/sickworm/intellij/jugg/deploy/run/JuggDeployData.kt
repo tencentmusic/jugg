@@ -52,6 +52,10 @@ data class JuggDeployData(
             hotReloadModifiedClasses.isEmpty() &&
             overlays.isEmpty()
 
+    val hasClassChanges get() = newClasses.isNotEmpty() ||
+            hotFixModifiedClasses.isNotEmpty() ||
+            hotReloadModifiedClasses.isNotEmpty()
+
     private val isNeedRestartActivityInner get() = !isWarmUp && !isEmpty
 
     // for now, we always restart activity excepts warm up and restart app

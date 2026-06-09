@@ -95,4 +95,19 @@ class JuggRunningTaskTest {
         )
         assertFalse(shouldInit)
     }
+
+    @Test
+    fun `normal run detaches process when task stops`() {
+        assertTrue(shouldDetachProcessOnTaskStop(isProcessCanceled = false))
+    }
+
+    @Test
+    fun `debug run detaches jugg process when task stops`() {
+        assertTrue(shouldDetachProcessOnTaskStop(isProcessCanceled = false))
+    }
+
+    @Test
+    fun `canceled run does not detach process again when task stops`() {
+        assertFalse(shouldDetachProcessOnTaskStop(isProcessCanceled = true))
+    }
 }

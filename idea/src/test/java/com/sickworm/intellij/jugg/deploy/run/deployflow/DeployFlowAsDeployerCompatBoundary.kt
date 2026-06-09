@@ -28,6 +28,9 @@ class DeployFlowAsDeployerCompatBoundary(
     var optimisticSwapInvokeCount: Int = 0
         private set
 
+    var makeDebuggerRedefinersInvokeCount: Int = 0
+        private set
+
     override fun createInstallSession(
         installersFolder: String,
         device: IDevice,
@@ -76,6 +79,15 @@ class DeployFlowAsDeployerCompatBoundary(
                 JuggOverlayId(rawOverlayId, rawOverlayId.sha, rawOverlayId.isBaseInstall)
             }
         }
+    }
+
+    override fun makeDebuggerRedefiners(
+        project: com.intellij.openapi.project.Project,
+        device: IDevice,
+        fallback: Boolean,
+    ): Map<Int, ClassRedefiner> {
+        makeDebuggerRedefinersInvokeCount++
+        return emptyMap()
     }
 
     enum class OptimisticSwapPolicy {

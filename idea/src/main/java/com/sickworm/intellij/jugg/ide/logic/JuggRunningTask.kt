@@ -361,7 +361,7 @@ class JuggRunningTask(
 
     private fun stop(indicator: ProgressIndicator) {
         indicator.stop()
-        if (!processHandler.isCanceled) {
+        if (shouldDetachProcessOnTaskStop(processHandler.isCanceled)) {
             processHandler.detachProcess()
         }
         if (onFinishListener != null) {
@@ -408,6 +408,10 @@ internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiH
     if (isFirstTimeRun) {
         compileUiHandler.ensureRunWindowCreated()
     }
+}
+
+internal fun shouldDetachProcessOnTaskStop(isProcessCanceled: Boolean): Boolean {
+    return !isProcessCanceled
 }
 
 internal fun createRunProjectLogListener(processHandler: IProcessHandler): ProcessHandlerLoggerWrapper {

@@ -93,6 +93,7 @@ ${projectRoot}/.gradle/jugg/
 | 重混淆注解问题 | `visitAnnotation` / `mapType` |
 | 重混淆类型引用遗漏 | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
 | 重混淆 access flag 宽化 | `widenAccessFlags` / `invoke-direct` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
+| Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Debugger is waiting for application to start` / `Connected to the target VM` |
 
 ---
 
@@ -142,6 +143,38 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 - 以当前代码 + 当前运行日志为准；
 - `docs/task` 历史方案用于解释背景，不代表全部已落地；
 - 若源码默认值与运行日志不一致，优先怀疑 IDE 中加载的插件产物未更新，或系统属性覆盖。
+
+### 4.1.2 Jugg Debug 断点不生效
+
+**信号**：Jugg Debug 启动后 App 显示等待/已 attach，但断点不打勾或点击后不 suspend；原生 Android Studio Debug / Attach 可以命中同一断点。
+
+**排查步骤**：
+1. 在 `build/jugg/log/compile_latest.log` 搜 `Jugg Debug attach:`，确认 Jugg 进入 attach 阶段。
+2. 在 Android Studio `idea.log` 同一时间窗搜 `waitForClientReadyForDebug`，确认是否出现：
+   - `Waiting for clients [<package>] for 15 seconds`
+   - `Found process <package>. Waiting for it to be debuggable.`
+   - `<package> is now debuggable.`
+3. 继续搜 `Debugger is waiting for application to start` 与 `Connected to the target VM`。
+4. 若只有 `Debugger is waiting for application to start`，没有 `Connected to the target VM`，说明 Java debugger session 未完成 VM 连接，断点不会生效。
+
+**期望顺序**：
+1. Jugg 主日志：`Jugg Debug attach: waiting for <package> to enter debugger WAITING state.`
+2. `idea.log`：`waitForClientReadyForDebug - Waiting for clients [<package>] for 15 seconds`
+3. `idea.log`：`waitForClientReadyForDebug - Found process <package>. Waiting for it to be debuggable.`
+4. `idea.log`：`waitForClientReadyForDebug - <package> is now debuggable.`
+5. `idea.log`：`Connecting to the target VM`
+6. `idea.log`：`Debugger is waiting for application to start`
+7. `idea.log`：`Connected to the target VM`
+8. Jugg 主日志：`Jugg Debug attach: Android Studio Java debugger session created for <package>.`
+
+**关键类**：
+```
+idea/.../ide/logic/JuggDebugSessionManager.kt
+deploy_compat/interface/.../AndroidDebugClientReadyWaiter.kt
+deploy_compat/interface/.../JavaDebuggerSessionStarter.kt
+deploy_compat/v_giraffe/.../GiraffeAsDeployerCompat.kt
+deploy_compat/v_quail/.../QuailAsDeployerCompat.kt
+```
 
 ### 4.2 每次都回退全量 Gradle 编译
 

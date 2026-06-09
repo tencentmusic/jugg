@@ -208,6 +208,8 @@ JuggDeployer.optimisticSwap()
   -> direct 返回 null: fallback 旧 Apply Changes
 ```
 
+旧 Apply Changes 进入 `JuggDeployTask.perform(APPLY_CHANGES)` 时，只有存在 class 变更且本轮不需要重启 App，才创建 Android Studio debugger redefiner；空变更或纯 overlay/update-apk 场景不传 debugger redefiner，避免 AS deployer 在无 class swap 时误走 debugger redefine 能力。
+
 base install cache 对应的 expected device overlay id 为空字符串；非 base install 才要求设备 overlay id 等于 cache 中的 sha。
 
 ### 6.3 dirty 语义

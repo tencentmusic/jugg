@@ -64,6 +64,21 @@ internal object DeployFlowTestSupport {
         )
     }
 
+    fun emptyDeployData(apkInfos: List<ApkInfo> = context.apkInfos): JuggDeployData {
+        return JuggDeployData(
+            apks = apkInfos,
+            newClasses = emptyList(),
+            hotFixModifiedClasses = emptyList(),
+            hotReloadModifiedClasses = emptyList(),
+            effectedClassNodes = emptyList(),
+            overlays = emptyList(),
+            parsedDex = ParsedDex.EMPTY,
+            isFullRes = false,
+            isWarmUp = false,
+            isPushOverlayOnly = false,
+        )
+    }
+
     fun createHelper(
         project: Project,
         virtualDevice: VirtualDeployDevice,
@@ -147,6 +162,7 @@ internal object DeployFlowTestSupport {
         Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenReturn(packageName)
         Mockito.`when`(deployTargetManager.getApks()).thenReturn(context.apkInfos)
         Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.restartAppForDebug(device)).thenReturn(true)
         return deployTargetManager
     }
 

@@ -10,6 +10,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -35,6 +36,8 @@ open class JuggCompileUiHandler(
     override var testEventSinkFactory: ((String, Boolean) -> ((InstrumentationEvent) -> Unit)?)? = null,
     override val isSkipDeploy: Boolean = false,
     override val isAlwaysRestartApp: Boolean = false,
+    override val isDebugRun: Boolean = false,
+    private val onEndListener: ((RunResult) -> Unit)? = null,
 ) : CompileUiHandler {
 
     private val logger = logger.getInstance("JuggCompileUiHandler")
@@ -157,6 +160,10 @@ open class JuggCompileUiHandler(
             return
         }
         processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
+    }
+
+    override fun onEnd(runResult: RunResult) {
+        onEndListener?.invoke(runResult)
     }
 
     override fun cancel() {

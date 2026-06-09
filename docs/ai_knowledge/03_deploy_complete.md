@@ -58,7 +58,7 @@ JuggRunningTask.run()
   -> 部分失败且不可 fallback: 返回失败 RunResult
 ```
 
-Run 层只决定“是否进入部署、是否整体 fallback、如何汇总 UI 结果”；install / recover / retry 的细节不在这里展开。
+Run 层只决定“是否进入部署、是否整体 fallback、如何汇总 UI 结果”；install / recover / retry 的细节不在这里展开。Debug executor 入口会额外把 `CompileUiHandler.isAlwaysRestartApp` 置为 true，使普通增量部署、空变更部署都在成功后重启 App，再由 IDE 层 attach Java debugger。
 
 ### 4.2 单设备部署链路
 

@@ -84,6 +84,16 @@ class DeployTargetManager(
         }
     }
 
+    override fun restartAppForDebug(device: IDevice): Boolean {
+        return try {
+            AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = true, isDebug = true)
+            true
+        } catch (e: Exception) {
+            logger.error("RestartAppForDebug failed, got exception: ", e)
+            false
+        }
+    }
+
     override fun stopApp(device: IDevice): Boolean {
         return try {
             AdbCmdHelper(device, logger).stopApp(getPackageName())

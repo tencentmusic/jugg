@@ -185,7 +185,7 @@ class JuggDeployTask(
                 val fastRerunOnSwapFailure = false
 
                 var debuggerRedefiners = emptyMap<Int, ClassRedefiner>()
-                if (!scopedData.isNeedRestartApp) {
+                if (!scopedData.isNeedRestartApp && scopedData.hasClassChanges) {
                     // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
                     // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
                     // because we don't need debuggerRedefiners on restart case

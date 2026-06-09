@@ -39,14 +39,14 @@
 | 入口 | 文件路径 | 说明 |
 |------|----------|------|
 | IDE 总管理器 | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | 初始化、同步事件、MCP runtime 装配 |
-| 运行任务编排 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | 编译与部署串联主流程 |
+| 运行任务编排 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggDebugSessionManager.kt` | 编译与部署串联主流程；Debug executor 成功部署后由 `JuggDebugSessionManager` 做单设备 Java debugger attach |
 | 编译入口 | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | 增量/Gradle 回退判定；AndroidTest Gradle build 读取 library Test APK build history 并注入回放任务 |
 | 部署入口 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployStateRecover.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentCacheStore.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/LibraryTestApkBackfillHelper.kt` | 部署策略、recover、重试、agent 协调；`DeployStateRecover` 负责 `recoverDeployState` / `tryDryDeploy`，`DeployRetryHandler` 负责 `tryRetry`，均经 `IJuggDeployHelperRunHost` 回调 `JuggDeployerHelper`；`deploy` 分派为 `deployInstall` / `deployChanges`；Direct Overlay 统一放在 `deploy.direct` 包，Writer/StateChecker 等不依赖 IDE 的实现下沉到 `main`，deployment cache 经 `IJuggDeploymentService` 注入，磁盘 cache 由 `JuggDeploymentCacheStore` 保存 Jugg 自有 snapshot；sourcePath 命中缺失 self-targeting library Test APK 时做单模块懒加载补齐，并在成功后记录 build history |
 | 核心部署器 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployer.kt` | install/codeSwap/fullSwap |
 | 部署状态 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 设备状态与部署可行性 |
 | 插件加载 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 类加载隔离与桥接 |
 | 初始化器 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | 插件生命周期入口 |
-| 运行配置 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggRunConfiguration.kt` | run config 定义 |
+| 运行配置 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggRunConfiguration.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/JuggDebugProgramRunner.kt` | run config 定义；`JuggDebugProgramRunner` 接管 Jugg + Debug executor，让 Debug 按钮可用 |
 | androidTest 运行入口 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunConfiguration.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributor.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsoleProperties.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsAction.kt` | app `src/androidTest` gutter 与临时 RunConfig，生成 `AndroidTestRunSpec` 后进入 Jugg run pipeline；androidTest run 使用 SM Test Runner console，支持 Test Results 树、source navigation 与 rerun failed |
 | More Options 工具菜单 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More options 下拉分组与工具项（含 MCP/skill 安装入口） |
 | Gradle Sync 监听 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncListener.kt` | Sync 事件上报 Jugg |
@@ -57,7 +57,7 @@
 
 | 模块 | 目录 | 关键点 |
 |------|------|--------|
-| deploy_compat | `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | `IAsDeployerCompat` + 多版本实现（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal/narwhal_feature/otter/panda/quail）；接口层通过 `JuggInstallSession` / overlay / cache entry wrapper 隔离 Android Studio deployer runtime 类型包迁移，持久化 cache 使用 Jugg 自有 snapshot，ADB transport 能力由 `IdeaDeviceAdbClient` 基于 `IDevice` 封装 |
+| deploy_compat | `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | `IAsDeployerCompat` + 多版本实现（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal/narwhal_feature/otter/panda/quail）；接口层通过 `JuggInstallSession` / overlay / cache entry wrapper 隔离 Android Studio deployer runtime 类型包迁移，并通过 `attachJavaDebugger()` 隔离 Java debugger API 迁移；持久化 cache 使用 Jugg 自有 snapshot，ADB transport 能力由 `IdeaDeviceAdbClient` 基于 `IDevice` 封装 |
 | platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `BuildGradleBaseCommand`, `BuildIncrementalApkCommand` |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |

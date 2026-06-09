@@ -243,6 +243,11 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         runConfiguration.putUserData(DeployableToDevice.KEY, true)
     }
 
+    override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
+        val client = AndroidDebugClientReadyWaiter().waitForWaitingDebuggerClient(device, packageName)
+        AndroidStudioDebuggerAttachStarter().attachExistingProcess(project, client)
+    }
+
     override fun getSuggestRunConfigurations(
         existsRunConfigNames: List<String>,
         project: Project,

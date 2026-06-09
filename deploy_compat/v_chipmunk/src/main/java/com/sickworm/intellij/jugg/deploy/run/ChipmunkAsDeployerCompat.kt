@@ -253,7 +253,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         }
     }
 
-    private fun findClientCompat(device: IDevice, packageName: String): List<Client> {
+    protected fun findClientCompat(device: IDevice, packageName: String): List<Client> {
         return try {
             DeploymentApplicationService.getInstance().findClient(device, packageName)
         } catch (e: IncompatibleClassChangeError) {
@@ -340,6 +340,10 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
         runConfiguration.putUserData(DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE, true)
+    }
+
+    override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
+        throw UnsupportedOperationException("Jugg Debug is not supported in this Android Studio version.")
     }
 
     override fun getSuggestRunConfigurations(

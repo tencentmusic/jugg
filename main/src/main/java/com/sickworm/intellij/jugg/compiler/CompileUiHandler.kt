@@ -21,6 +21,8 @@ interface CompileUiHandler {
     val isSkipDeploy: Boolean
     /** When true, always restart app after deployment regardless of deploy type (HOT_FIX behavior). */
     val isAlwaysRestartApp: Boolean
+    /** When true, app launch should wait for debugger before executing app code. */
+    val isDebugRun: Boolean get() = false
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
     var progressIndicator: ProgressIndicator // injected

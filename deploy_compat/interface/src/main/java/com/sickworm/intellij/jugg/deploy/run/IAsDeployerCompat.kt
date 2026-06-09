@@ -93,6 +93,10 @@ interface IAsDeployerCompat {
 
     fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>)
 
+    fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
+        throw UnsupportedOperationException("Jugg Debug is not supported in this Android Studio version.")
+    }
+
     /**
      * Get suggest run configuration from [AndroidRunConfigurationType]
      */

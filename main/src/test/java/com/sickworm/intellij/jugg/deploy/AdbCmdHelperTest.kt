@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -29,8 +30,23 @@ class AdbCmdHelperTest {
         assertFalse(isInstalled)
     }
 
+    @Test
+    fun `startDefaultApp should start app with debugger wait when debug launch is requested`() {
+        val adb = FakeDeviceAdb("", launchActivity = ".MainActivity")
+
+        AdbCmdHelper(adb, Mockito.mock(Logger::class.java)).startDefaultApp(
+            packageName = "com.example",
+            apks = listOf(ApkInfo(File("app-debug.apk"), "com.example")),
+            isRestart = true,
+            isDebug = true,
+        )
+
+        assertEquals("am start -D -S -n com.example/.MainActivity", adb.commands.single())
+    }
+
     private class FakeDeviceAdb(
         private val shellOutput: String,
+        private val launchActivity: String? = null,
     ) : IDeviceAdb {
         val commands = mutableListOf<String>()
 
@@ -46,7 +62,7 @@ class AdbCmdHelperTest {
 
         override fun push(from: File, to: String): Boolean = true
         override fun pull(from: String, to: File): Boolean = true
-        override fun getDefaultLaunchActivity(apkFile: File): String? = null
+        override fun getDefaultLaunchActivity(apkFile: File): String? = launchActivity
         override fun getArch(packageName: String): String = ""
         override fun getProperty(name: String): String? = null
     }

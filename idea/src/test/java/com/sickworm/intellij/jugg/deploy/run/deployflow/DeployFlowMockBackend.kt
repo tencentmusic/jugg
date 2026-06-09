@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.mock.TestGlobal
 import java.io.File
 
 /**
- * Assembles Virtual Device deploy-flow fixtures for DF-L2-001 through DF-L2-008.
+ * Assembles Virtual Device deploy-flow fixtures for DF-L2-001 through DF-L2-009.
  */
 object DeployFlowMockBackend : DeployFlowDeviceBackend {
 
@@ -30,6 +30,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             DeployFlowCaseId.DF_L2_006 -> buildDfL2006()
             DeployFlowCaseId.DF_L2_007 -> buildDfL2007()
             DeployFlowCaseId.DF_L2_008 -> buildDfL2008()
+            DeployFlowCaseId.DF_L2_009 -> buildDfL2009()
         }
     }
 
@@ -296,6 +297,65 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             ideDeployStateHelper = ideDeployStateHelper,
             recoverRunHost = recoverRunHost,
             seededOverlayId = historyOverlayId,
+        )
+    }
+
+    private fun buildDfL2009(): DeployFlowFixture {
+        return buildDeployableApplyChangesFixture(
+            caseId = DeployFlowCaseId.DF_L2_009,
+            deployData = DeployFlowTestSupport.emptyDeployData(),
+        )
+    }
+
+    private fun buildDeployableApplyChangesFixture(
+        caseId: DeployFlowCaseId,
+        deployData: com.sickworm.intellij.jugg.deploy.run.JuggDeployData,
+    ): DeployFlowFixture {
+        val virtualDevice = VirtualDeployDevice(DeployFlowOverlaySeed.packageName())
+        val deployHistoryManager = DeployFlowTestHistoryManager()
+        val seededOverlayId = DeployFlowOverlaySeed.seedMatchedTriple(
+            virtualDevice = virtualDevice,
+            deploymentService = JuggDeploymentService,
+            deployHistoryManager = deployHistoryManager,
+        )
+        val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalDeployable() }
+        val deployTargetManager = DeployFlowTestSupport.defaultDeployTargetManager(virtualDevice)
+        val deployFileManager = DeployFlowTestSupport.defaultDeployFileManager(deployData)
+        val project = registerDeployFlowProject()
+        val deployStateManager = DeployFlowTestSupport.createDeployStateManager(
+            project = project,
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+        )
+        val compatBoundary = DeployFlowStaticBoundaryMocks.createCompat(
+            virtualDevice = virtualDevice,
+            optimisticSwapPolicy = DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.RECORD_SUCCESS,
+        )
+        val device = virtualDevice.asDdmlibDevice()
+        val helper = DeployFlowTestSupport.createHelper(
+            project = project,
+            virtualDevice = virtualDevice,
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployStateManager = deployStateManager,
+            deployHistoryManager = deployHistoryManager,
+            ideDeployStateHelper = ideDeployStateHelper,
+            installPathProvider = installPathProvider(),
+            asDeployerCompat = compatBoundary,
+        )
+        return DeployFlowFixture(
+            caseId = caseId,
+            virtualDevice = virtualDevice,
+            device = device,
+            deployOptions = DeployFlowTestSupport.defaultDeployOptions(device),
+            helper = helper,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployTargetManager = deployTargetManager,
+            compatBoundary = compatBoundary,
+            ideDeployStateHelper = ideDeployStateHelper,
+            seededOverlayId = seededOverlayId,
         )
     }
 

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowCaseId
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowFixture
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
@@ -148,6 +149,61 @@ class JuggDeployerHelperDeployFlowTest {
         assertNotEquals("", fixture.virtualDevice.readOverlayId().orEmpty())
         assertNotEquals(mismatchedDeviceOverlayId, fixture.virtualDevice.readOverlayId().orEmpty())
         assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+    }
+
+    @Test
+    fun `DF-L2-009 empty Apply Changes does not create debugger redefiners`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+        val result = fixture.helper.deploy(fixture.deployOptions)
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertEquals(1, fixture.compatBoundary.optimisticSwapInvokeCount)
+        assertEquals(0, fixture.compatBoundary.makeDebuggerRedefinersInvokeCount)
+    }
+
+    @Test
+    fun `debug restart flag restarts app after hot reload deploy`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
+        val compileUiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {
+            override val isAlwaysRestartApp: Boolean = true
+        }
+
+        val result = fixture.helper.deploy(fixture.deployOptions.copy(compileUiHandler = compileUiHandler))
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `always restart flag does not restart app after empty deploy when app is foreground`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+        val compileUiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {
+            override val isAlwaysRestartApp: Boolean = true
+        }
+        Mockito.`when`(fixture.deployTargetManager.isAppForeground(fixture.device)).thenReturn(true)
+
+        val result = fixture.helper.deploy(fixture.deployOptions.copy(compileUiHandler = compileUiHandler))
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertFalse(result.hasDeployChanges)
+        Mockito.verify(fixture.deployTargetManager, Mockito.never()).restartApp(fixture.device)
+        Mockito.verify(fixture.deployTargetManager, Mockito.never()).startApp(fixture.device)
+    }
+
+    @Test
+    fun `debug run starts app with debugger wait after empty deploy`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+        val compileUiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {
+            override val isAlwaysRestartApp: Boolean = true
+            override val isDebugRun: Boolean = true
+        }
+
+        val result = fixture.helper.deploy(fixture.deployOptions.copy(compileUiHandler = compileUiHandler))
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertFalse(result.hasDeployChanges)
+        Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartAppForDebug(fixture.device)
+        Mockito.verify(fixture.deployTargetManager, Mockito.never()).restartApp(fixture.device)
     }
 
     private fun assertOverlayRecoverMatched(fixture: DeployFlowFixture) {

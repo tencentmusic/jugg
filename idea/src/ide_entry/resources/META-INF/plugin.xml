@@ -49,6 +49,7 @@
                 id="jugg.JuggAndroidTestConfigurationType"
                 implementation="com.sickworm.intellij.jugg.ide.JuggAndroidTestConfigurationType"
         />
+        <programRunner implementation="com.sickworm.intellij.jugg.ide.JuggDebugProgramRunner"/>
         <runLineMarkerContributor
                 language="JAVA"
                 implementationClass="com.sickworm.intellij.jugg.ide.JuggAndroidTestLineMarkerContributor"

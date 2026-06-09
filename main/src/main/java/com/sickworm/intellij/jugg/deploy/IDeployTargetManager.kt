@@ -29,6 +29,8 @@ interface IDeployTargetManager {
 
     fun restartApp(device: IDevice): Boolean
 
+    fun restartAppForDebug(device: IDevice): Boolean = restartApp(device)
+
     fun stopApp(device: IDevice): Boolean
 
     fun isAppForeground(device: IDevice): Boolean

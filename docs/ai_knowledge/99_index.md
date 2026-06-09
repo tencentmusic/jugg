@@ -39,6 +39,7 @@
 | **修改基类触发子类级联重编译**（static 方法误传播 Bug） | `03_deploy_data_generator.md` 第5节, `docs/task/recompile_cascade_bug_analysis.md` | `DeployDataDatabaseSqLiteHelper.kt` step 2（~826行）, `DeployDataDatabase.kt`（~454行） |
 | JVMTI/运行时 agent 协同 | `98_code_map.md`, `03_runtime_jvmti.md` | `runtime/jvmti/*` |
 | IDE 生命周期/运行配置 | `98_code_map.md`, `04_engineering_ide.md` | `idea/.../JuggManager.kt`, `JuggRunConfiguration.kt` |
+| Jugg Debug attach / 断点不可用 | `98_code_map.md`, `04_engineering_debug_attach.md`, `04_engineering_compat.md` | `JuggDebugProgramRunner.kt`, `JuggDebugSessionManager.kt`, `AndroidStudioDebuggerAttachStarter.kt`, `*AsDeployerCompat.kt` |
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
 | 兼容层（AS 版本适配） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt` |
 | MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `ai/mcp/McpToolInvoker.kt`, `ai/mcp/actions/*`, `ai/mcp/util/CrashDetector.kt`, `ai/mcp/util/LastDeployTimestampRegistry.kt` |
@@ -72,6 +73,7 @@
 | `03_runtime_jvmti.md` | JVMTI agent 与部署协同 |
 | `04_engineering_project.md` | 项目模型与 Gradle 信息读取 |
 | `04_engineering_ide.md` | IDE 生命周期、运行配置、任务调度 |
+| `04_engineering_debug_attach.md` | Jugg Debug attach 生命周期、AS XDebugger 接入与断点不可用排查 |
 | `04_engineering_compat.md` | AS 版本兼容层与命令行模块 |
 | `05_utilities.md` | apk/git/logger/server/platform 等公共能力 |
 | `06_testing.md` | 测试策略与 TDD：L1/L2/L3 分层、选型、deploy/run 落点、testcase、DeployDataGeneratorTest 模式 |

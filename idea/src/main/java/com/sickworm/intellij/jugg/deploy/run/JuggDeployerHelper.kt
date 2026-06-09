@@ -242,7 +242,10 @@ class JuggDeployerHelper(
 
         var isNeedRestartApp = data.isNeedRestartApp
 
-        if (compileUiHandler.isAlwaysRestartApp && !isNeedRestartApp && !data.isEmpty) {
+        if (compileUiHandler.isDebugRun && !isNeedRestartApp) {
+            logger.info("Debug run requires app restart before attaching debugger.")
+            isNeedRestartApp = true
+        } else if (compileUiHandler.isAlwaysRestartApp && !isNeedRestartApp && !data.isEmpty) {
             logger.info("Always restart app is set, restart app.")
             isNeedRestartApp = true
         }
@@ -304,7 +307,11 @@ class JuggDeployerHelper(
             logger.debug("Defer post-deploy launch; follow-up deploy will restart the app.")
         } else if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
-            deployTargetManager.restartApp(device)
+            if (compileUiHandler.isDebugRun) {
+                deployTargetManager.restartAppForDebug(device)
+            } else {
+                deployTargetManager.restartApp(device)
+            }
         } else if (!deployTargetManager.isAppForeground(device)) {
             logger.debug("Starting app...")
             deployTargetManager.startApp(device)

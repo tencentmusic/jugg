@@ -19,13 +19,16 @@ class AdbCmdHelper(
     private val logger = loggerArg.getInstance("AdbCmdHelper")
 
     @Suppress("MemberVisibilityCanBePrivate")
-    fun startApp(packageName: String, launchedActivity: String, isRestart: Boolean = true) {
+    fun startApp(packageName: String, launchedActivity: String, isRestart: Boolean = true, isDebug: Boolean = false) {
         logger.debug("startApp: $packageName, $launchedActivity")
         val restartFlag = if (isRestart) "-S" else ""
-        execAdbShellCmd("am start $restartFlag -n $packageName/$launchedActivity")
+        val debugFlag = if (isDebug) "-D" else ""
+        val flags = listOf(debugFlag, restartFlag).filter { it.isNotBlank() }.joinToString(" ")
+        val flagPart = if (flags.isBlank()) "" else "$flags "
+        execAdbShellCmd("am start ${flagPart}-n $packageName/$launchedActivity")
     }
 
-    fun startDefaultApp(packageName: String, apks: List<ApkInfo>, isRestart: Boolean = true) {
+    fun startDefaultApp(packageName: String, apks: List<ApkInfo>, isRestart: Boolean = true, isDebug: Boolean = false) {
         logger.debug("startDefaultApp: $packageName, apks: $apks, isRestart: $isRestart")
         val apkFiles = apks.flatMap { it.files }.map { it.apkFile }
         var launchedActivity: String? = null
@@ -40,7 +43,7 @@ class AdbCmdHelper(
             logger.warn("No default launch activity found for $packageName, won't start App.")
             return
         }
-        startApp(packageName, launchedActivity!!, isRestart)
+        startApp(packageName, launchedActivity!!, isRestart, isDebug)
     }
 
     fun stopApp(packageName: String) {

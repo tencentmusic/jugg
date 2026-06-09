@@ -240,6 +240,10 @@ object AsDeployerCompat : IAsDeployerCompat {
         }
     }
 
+    override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
+        return invokeCompat { it.attachJavaDebugger(project, device, packageName) }
+    }
+
     override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger, isNeedDefaultRunConfig: Boolean): List<SuggestRunConfiguration> {
         return invokeCompat { it.getSuggestRunConfigurations(existsRunConfigNames, project, logger, isNeedDefaultRunConfig) }
     }

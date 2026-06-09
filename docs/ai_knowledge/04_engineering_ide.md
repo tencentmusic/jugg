@@ -22,6 +22,7 @@
 | `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | 设置 `PlatformApi.impl`、注册项目日志、创建/释放 `JuggManager` |
 | `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDE 侧总装配器，连接 compile、deploy、project info、dependency、MCP、server、UI |
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 按钮后的后台任务，串联编译、部署、状态回写、Run tool window |
+| `JuggDebugProgramRunner` / `JuggDebugSessionManager` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggDebugProgramRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggDebugSessionManager.kt` | 接管 Jugg + Debug executor，让 Debug 按钮可用；Jugg 编译/部署输出挂到 Run tool window，部署成功后限制单设备并通过兼容层 attach Java debugger |
 | `JuggConfigurationRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggConfigurationRunner.kt` | 创建并运行 `JuggRunningTask`，维护是否正在编译和下一轮强制重装 |
 | `JuggCompileHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | IDE 侧增量/Gradle 回退判定与 compile 入口 |
 | `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | IDE 侧设备部署、recover、retry、agent 协同入口 |
@@ -98,6 +99,8 @@ JuggRunConfiguration / JuggAndroidTestRunConfiguration
 
 androidTest 运行必须把 `androidTestRunSpec`、`executor`、`runProfile` 一起传入 `JuggManager.runTask()`，否则 Test Results console、source navigation、rerun failed 不能完整接入。
 
+Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。Debug 仍先复用 Jugg 的编译与部署主链路；`JuggManager.runTask()` 会把该入口标记为 `isAlwaysRestartApp=true` 与 `isDebugRun=true`，确保部署后以 `am start -D -S` 重启 App，让启动阶段等待 debugger，再由兼容层请求 Android Studio 原生 attach flow 创建/激活 `XDebugSession`。Debug attach 的完整状态模型、AS 内部 API 边界与断点不可用排查见 `04_engineering_debug_attach.md`。
+
 ---
 
 ## 5. UI 与工具入口
@@ -120,6 +123,7 @@ androidTest 运行必须把 `androidTestRunSpec`、`executor`、`runProfile` 一
 | 默认 Run 配置没有生成 | `JuggManager.tryCreateRunConfigurations()` 与 `AsDeployerCompat.getSuggestRunConfigurations()` |
 | Sync 后 project info / dependency 状态异常 | `JuggManager.onSyncEvent()`、`updateProjectInfo()`、`CompileContextManager.updateCompileContext()` |
 | Run UI 状态错乱或取消后下轮误判 | `JuggRunningTask.run()` finally 中 hasRun / processHandler / logger listener 收口 |
+| Jugg Debug attach 后断点不可用 | `04_engineering_debug_attach.md`，确认 WAITING、`Connected to the target VM` 与 `XDebugSession` |
 | androidTest 有结果但 Test Results 不完整 | `JuggManager.runTask()` 参数传递，确认 `executor` / `runProfile` / `androidTestRunSpec` 都非空 |
 | skill / hook 安装入口异常 | `MoreOptionsManager`、`InstallJuggSkillsDialog`、`JuggSkillInstaller` |
 | MCP 本地服务没有启动或未停止 | `JuggInitializer.init()` / `release()` 对 `McpLocalServer.start()` / `stop()` 的调用 |
@@ -131,6 +135,7 @@ androidTest 运行必须把 `androidTestRunSpec`、`executor`、`runProfile` 一
 - 架构：`01_architecture.md`
 - 项目模型：`04_engineering_project.md`
 - 兼容层：`04_engineering_compat.md`
+- Jugg Debug attach：`04_engineering_debug_attach.md`
 - 部署流程：`03_deploy_complete.md`
 - 插件运行时排查：`09_plugin_runtime_debug.md`
 - MCP：`08_mcp_design.md`、`08_mcp_tools_list.md`
