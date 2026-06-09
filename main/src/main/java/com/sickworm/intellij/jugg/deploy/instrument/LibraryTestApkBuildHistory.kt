@@ -63,7 +63,7 @@ class LibraryTestApkBuildHistory(
             .filter { modules.containsKey(it.moduleName) }
             .sortedByDescending { it.compiledAt }
             .mapNotNull { record ->
-                val task = record.gradleTask() ?: return@mapNotNull null
+                val task = record.gradleTask.takeIf { it.isAndroidTestAssembleTask() } ?: return@mapNotNull null
                 if (task in requestedTasks) return@mapNotNull null
                 LibraryTestApkBuildReplayRecord(task, record.outputApkPattern, record)
             }
@@ -78,11 +78,10 @@ class LibraryTestApkBuildHistory(
         file.writeText(gson.toJson(data), Charsets.UTF_8)
     }
 
-    private fun LibraryTestApkBuildRecord.gradleTask(): String? {
-        return compileCommand.split(Regex("\\s+"))
-            .firstOrNull { token ->
-                token.startsWith(":") && GRADLE_ANDROID_TEST_ASSEMBLE_TASK.matches(token.substringAfterLast(":"))
-            }
+    private fun String.isAndroidTestAssembleTask(): Boolean {
+        return startsWith(":") &&
+            !contains(Regex("\\s")) &&
+            GRADLE_ANDROID_TEST_ASSEMBLE_TASK.matches(substringAfterLast(":"))
     }
 
     companion object {
@@ -136,23 +135,20 @@ private data class LibraryTestApkBuildHistoryDataDto(
 private data class LibraryTestApkBuildRecordDto(
     val moduleName: String?,
     val buildVariant: String?,
-    val compileCommand: String?,
+    val gradleTask: String?,
     val compiledAt: Long?,
-    val apkPath: String?,
     val outputApkPattern: String?,
 ) {
     fun normalize(): LibraryTestApkBuildRecord? {
         val moduleName = moduleName?.takeIf { it.isNotBlank() } ?: return null
         val buildVariant = buildVariant?.takeIf { it.isNotBlank() } ?: return null
-        val compileCommand = compileCommand?.takeIf { it.isNotBlank() } ?: return null
-        val apkPath = apkPath?.takeIf { it.isNotBlank() } ?: return null
+        val gradleTask = gradleTask?.takeIf { it.isNotBlank() } ?: return null
         val outputApkPattern = outputApkPattern?.takeIf { it.isNotBlank() } ?: return null
         return LibraryTestApkBuildRecord(
             moduleName = moduleName,
             buildVariant = buildVariant,
-            compileCommand = compileCommand,
+            gradleTask = gradleTask,
             compiledAt = compiledAt ?: 0L,
-            apkPath = apkPath,
             outputApkPattern = outputApkPattern,
         )
     }
@@ -168,9 +164,8 @@ data class LibraryTestApkBuildHistoryData(
 data class LibraryTestApkBuildRecord(
     val moduleName: String,
     val buildVariant: String,
-    val compileCommand: String,
+    val gradleTask: String,
     val compiledAt: Long,
-    val apkPath: String,
     val outputApkPattern: String,
 )
 

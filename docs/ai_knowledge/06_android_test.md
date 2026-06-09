@@ -250,7 +250,7 @@ library-style self-targeting Test APK 是例外：它有自己的 runtime packag
 
 增量部署分支中，补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，并立即把新 package 的 overlay id 合并到 deploy history，避免后续 dry deploy 把新安装的 library Test APK 误判为跨项目状态；随后同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。full install 分支中，backfill 会在最终 install `runTask` 前把 Test APK 合入本轮 install APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
 
-当 Gradle compile 成功、Test APK 路径解析成功，且用合并后的 APK 列表完成 `AndroidTestTargetResolver` 校验后，`LibraryTestApkBuildHistory` 会记录该 library androidTest module 的 compile command、compile time、APK output pattern 与实际 APK path；记录不再要求本轮最终 install 成功。记录写入 `~/.jugg/library_test_build_records/{projectName}_hash{0:8}.json`，有 git 仓库时 hash 使用仓库 URL，否则使用工程绝对路径；每次读取普通 `BuildTarget.ANDROID_TEST` Gradle build 历史时，只选择最近 30 天、同 variant 的最近 3 条记录用于回放。
+当 Gradle compile 成功、Test APK 路径解析成功，且用合并后的 APK 列表完成 `AndroidTestTargetResolver` 校验后，`LibraryTestApkBuildHistory` 会记录该 library androidTest module 的 Gradle task、compile time 与 APK output pattern；记录不再保存完整 compile command 或实际 APK path，也不要求本轮最终 install 成功。记录写入 `~/.jugg/library_test_build_records/{projectName}_hash{0:8}.json`，有 git 仓库时 hash 使用仓库 URL，否则使用工程绝对路径；每次读取普通 `BuildTarget.ANDROID_TEST` Gradle build 历史时，只选择最近 30 天、同 variant 的最近 3 条记录用于回放。
 
 命中缺失分支时，Jugg 会通过 Run tool window balloon 提示 `Library Test APK missing. Run Gradle compile once to build the test APK.`，让用户知道需要一次 Gradle 编译来生成 Test APK baseline。
 

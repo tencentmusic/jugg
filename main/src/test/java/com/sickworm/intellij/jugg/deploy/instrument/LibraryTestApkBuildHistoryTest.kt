@@ -43,14 +43,14 @@ class LibraryTestApkBuildHistoryTest {
     fun `upsert keeps one record per module and variant`() {
         val history = createHistory()
 
-        history.record(record("library1.androidTest", "debugAndroidTest", 1000L, ":library1:assembleDebugAndroidTest", "/old.apk"))
-        history.record(record("library1.androidTest", "debugAndroidTest", 2000L, ":library1:assembleDebugAndroidTest", "/new.apk"))
-        history.record(record("library1.androidTest", "releaseAndroidTest", 1500L, ":library1:assembleReleaseAndroidTest", "/release.apk"))
+        history.record(record("library1.androidTest", "debugAndroidTest", 1000L, ":library1:assembleDebugAndroidTest"))
+        history.record(record("library1.androidTest", "debugAndroidTest", 2000L, ":library1:assembleDebugAndroidTest"))
+        history.record(record("library1.androidTest", "releaseAndroidTest", 1500L, ":library1:assembleReleaseAndroidTest"))
 
         val records = history.load().records
 
         assertEquals(2, records.size)
-        assertEquals("/new.apk", records.first { it.buildVariant == "debugAndroidTest" }.apkPath)
+        assertEquals(":library1:assembleDebugAndroidTest", records.first { it.buildVariant == "debugAndroidTest" }.gradleTask)
         assertEquals(2000L, records.first { it.buildVariant == "debugAndroidTest" }.compiledAt)
     }
 
@@ -121,31 +121,27 @@ class LibraryTestApkBuildHistoryTest {
                     {
                       "moduleName": "library1.androidTest",
                       "buildVariant": "debugAndroidTest",
-                      "compileCommand": "./gradlew :library1:assembleDebugAndroidTest",
+                      "gradleTask": ":library1:assembleDebugAndroidTest",
                       "compiledAt": 1000,
-                      "apkPath": "/tmp/library1.apk",
                       "outputApkPattern": "library1/build/outputs/apk/androidTest/debug/*.apk"
                     },
                     {
                       "moduleName": "",
                       "buildVariant": "debugAndroidTest",
-                      "compileCommand": "./gradlew :blank:assembleDebugAndroidTest",
+                      "gradleTask": ":blank:assembleDebugAndroidTest",
                       "compiledAt": 2000,
-                      "apkPath": "/tmp/blank.apk",
                       "outputApkPattern": "blank/build/outputs/apk/androidTest/debug/*.apk"
                     },
                     {
                       "moduleName": "missingTask.androidTest",
                       "buildVariant": "debugAndroidTest",
                       "compiledAt": 3000,
-                      "apkPath": "/tmp/missing.apk",
                       "outputApkPattern": "missing/build/outputs/apk/androidTest/debug/*.apk"
                     },
                     {
                       "moduleName": "defaultTime.androidTest",
                       "buildVariant": "debugAndroidTest",
-                      "compileCommand": "./gradlew :defaultTime:assembleDebugAndroidTest",
-                      "apkPath": "/tmp/default.apk",
+                      "gradleTask": ":defaultTime:assembleDebugAndroidTest",
                       "outputApkPattern": "default/build/outputs/apk/androidTest/debug/*.apk"
                     }
                   ]
@@ -163,18 +159,18 @@ class LibraryTestApkBuildHistoryTest {
     }
 
     @Test
-    fun `select recent records only uses assemble androidTest task tokens`() {
+    fun `select recent records reads stored gradle task directly`() {
         val history = createHistory()
         val now = 40L * 24 * 60 * 60 * 1000
+        history.record(record("library1.androidTest", "debugAndroidTest", now - 1, ":library1:assembleDebugAndroidTest"))
         history.record(
             record(
-                "library1.androidTest",
+                "library2.androidTest",
                 "debugAndroidTest",
-                now - 1,
-                ":library1:compileDebugAndroidTestKotlin :library1:assembleDebugAndroidTest",
+                now - 2,
+                ":library2:compileDebugAndroidTestKotlin :library2:assembleDebugAndroidTest",
             ),
         )
-        history.record(record("library2.androidTest", "debugAndroidTest", now - 2, ":library2:connectedDebugAndroidTest"))
         history.record(record("library3.androidTest", "debugAndroidTest", now - 3, ":library3:testDebugAndroidTestUnitTest"))
         history.record(record("library4.androidTest", "debugAndroidTest", now - 4, ":library4:compileDebugAndroidTestKotlin"))
         val modules = listOf(
@@ -207,14 +203,12 @@ class LibraryTestApkBuildHistoryTest {
         variant: String,
         time: Long,
         task: String,
-        apkPath: String = "/$moduleName.apk",
     ): LibraryTestApkBuildRecord {
         return LibraryTestApkBuildRecord(
             moduleName = moduleName,
             buildVariant = variant,
-            compileCommand = "./gradlew $task --stacktrace",
+            gradleTask = task,
             compiledAt = time,
-            apkPath = apkPath,
             outputApkPattern = moduleName.substringBefore(".androidTest") + "/build/outputs/apk/androidTest/debug/*.apk",
         )
     }

@@ -39,16 +39,13 @@ class LibraryTestApkBackfillHelper(
     private val recordBuildHistory: (
         module: ModuleInfo,
         plan: LibraryTestApkBackfillPlan,
-        compileCommand: String,
-        apks: List<ApkInfo>,
-    ) -> Unit = { module, plan, compileCommand, apks ->
+    ) -> Unit = { module, plan ->
         LibraryTestApkBuildHistory(pathManager.projectDir, logger = logger).record(
             LibraryTestApkBuildRecord(
                 moduleName = module.name,
                 buildVariant = module.buildVariant,
-                compileCommand = compileCommand,
+                gradleTask = plan.gradleTask,
                 compiledAt = System.currentTimeMillis(),
-                apkPath = apks.firstOrNull()?.files?.firstOrNull()?.apkFile?.absolutePath.orEmpty(),
                 outputApkPattern = plan.outputApkPattern,
             )
         )
@@ -100,7 +97,7 @@ class LibraryTestApkBackfillHelper(
         val mergedApks = mergeApks(data.apks, newApks)
         AndroidTestTargetResolver.resolve(sourcePath, projectDir, projectInfo.modules.values, mergedApks)
         runCatching {
-            recordBuildHistory(module, plan, backfillOptions.compileCommand, newApks)
+            recordBuildHistory(module, plan)
         }.onFailure {
             logger.warn("Failed to record library Test APK build history", it)
         }

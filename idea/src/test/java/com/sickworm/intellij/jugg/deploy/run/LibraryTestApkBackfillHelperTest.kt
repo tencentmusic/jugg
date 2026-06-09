@@ -53,8 +53,8 @@ class LibraryTestApkBackfillHelperTest {
             module = module,
             compileClient = compileClient,
             onApksBackfilled = { backfilledApks = it },
-            recordBuildHistory = { recordModule, _, compileCommand, _ ->
-                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:$compileCommand"
+            recordBuildHistory = { recordModule, plan ->
+                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:${plan.gradleTask}"
             },
         )
 
@@ -73,7 +73,7 @@ class LibraryTestApkBackfillHelperTest {
         assertEquals(result.apks, installedApks)
         verify(helperContext.manager).updateApkInfos(result.apks)
         assertEquals(
-            listOf("library1.androidTest:debugAndroidTest:./gradlew :library1:assembleDebugAndroidTest"),
+            listOf("library1.androidTest:debugAndroidTest::library1:assembleDebugAndroidTest"),
             buildRecords,
         )
     }
@@ -92,8 +92,8 @@ class LibraryTestApkBackfillHelperTest {
             module = module,
             compileClient = compileClient,
             onApksBackfilled = {},
-            recordBuildHistory = { recordModule, _, compileCommand, _ ->
-                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:$compileCommand"
+            recordBuildHistory = { recordModule, plan ->
+                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:${plan.gradleTask}"
             },
         )
 
@@ -125,8 +125,8 @@ class LibraryTestApkBackfillHelperTest {
             module = module,
             compileClient = compileClient,
             onApksBackfilled = {},
-            recordBuildHistory = { recordModule, _, compileCommand, _ ->
-                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:$compileCommand"
+            recordBuildHistory = { recordModule, plan ->
+                buildRecords += "${recordModule.name}:${recordModule.buildVariant}:${plan.gradleTask}"
             },
         )
 
@@ -140,7 +140,7 @@ class LibraryTestApkBackfillHelperTest {
         }
 
         assertEquals(
-            listOf("library1.androidTest:debugAndroidTest:./gradlew :library1:assembleDebugAndroidTest"),
+            listOf("library1.androidTest:debugAndroidTest::library1:assembleDebugAndroidTest"),
             buildRecords,
         )
     }
@@ -160,7 +160,7 @@ class LibraryTestApkBackfillHelperTest {
             module = module,
             compileClient = compileClient,
             onApksBackfilled = {},
-            recordBuildHistory = { _, _, _, _ -> throw IllegalStateException("history failed") },
+            recordBuildHistory = { _, _ -> throw IllegalStateException("history failed") },
         )
 
         val result = helperContext.helper.backfillIfNeeded(
@@ -182,9 +182,7 @@ class LibraryTestApkBackfillHelperTest {
         recordBuildHistory: (
             module: ModuleInfo,
             plan: LibraryTestApkBackfillPlan,
-            compileCommand: String,
-            apks: List<ApkInfo>,
-        ) -> Unit = { _, _, _, _ -> },
+        ) -> Unit = { _, _ -> },
     ): HelperContext {
         return HelperContext().also {
             it.helper = it.createHelper(projectDir, module, compileClient, onApksBackfilled, recordBuildHistory)
@@ -203,8 +201,6 @@ class LibraryTestApkBackfillHelperTest {
             recordBuildHistory: (
                 module: ModuleInfo,
                 plan: LibraryTestApkBackfillPlan,
-                compileCommand: String,
-                apks: List<ApkInfo>,
             ) -> Unit,
         ): LibraryTestApkBackfillHelper {
             val project = mock(Project::class.java)
