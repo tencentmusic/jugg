@@ -54,6 +54,16 @@
     - fixes could cause the IDE to stuck for some time, during initialization after downgrade completion
     - fix untracked file rollbacks on first time compile
 
+- version: 2.6.31
+  date: 2026.06.10
+  updates:
+    - fix remote compile may stop unexpected with NumberFormatException when PTY echoes exit code template
+
+- version: 2.6.30
+  date: 2026.06.09
+  updates:
+    - support Android Studio Quail 1
+
 - version: 2.6.27
   date: 2026.05.26
   updates:

@@ -58,6 +58,16 @@
     - 优化降级后编译初始化时容易出现 IDE 卡主一段时间的问题，现在改为独立进程完成 APK 字节码解析
     - 修复首次编译时，文件无法识别未被 git add 的文件的问题
 
+- version: 2.6.31
+  date: 2026.06.10
+  updates:
+    - 修复远程编译 PTY 回显退出码模板时，偶现 NumberFormatException 导致编译意外中止
+
+- version: 2.6.30
+  date: 2026.06.09
+  updates:
+    - 支持 Android Studio Quail 1
+
 - version: 2.6.27
   date: 2026.05.26
   updates:

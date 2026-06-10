@@ -18,7 +18,8 @@
     <li>[bugfix] Fix Kotlin compile may be failed when multiple projects opened with different Kotlin version</li>
     <li>[bugfix] Fix compile failed when using ./gradlew clean assembleDebug due to clean removing artifacts required by Jugg</li>
 </ol>
-<h2>2.6.30 (2026.06.09)</h2>
+<h2>2.6.31 (2026.06.10)</h2>
+<ol>
 <ol>
     <li>[feature] supports Android Studio Quail 1</li>
     <li>[feature] supports Android Studio Panda 4</li>
@@ -45,6 +46,7 @@
     <li>[bugfix] fix gradle compilation failed when using command like &quot;subDir/gradlew&quot;</li>
     <li>[bugfix] Compat with some module use compileSdk = 36</li>
     <li>[bugfix] fix Windows stuck when configuration UI switch to SyncMode.iFT / SyncMode.RSYNC; fix some ssh stuck when using remote compile</li>
+    <li>[bugfix] fix remote compile may stop unexpected with NumberFormatException when PTY echoes exit code template</li>
 </ol>
 <h2>2.5.0 (2025.11.11)</h2>
 <ol>

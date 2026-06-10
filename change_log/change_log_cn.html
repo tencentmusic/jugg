@@ -18,7 +18,7 @@
     <li>[bugfix] 修复多项目同时打开且 Kotlin 版本不一致时，容易出现编译失败。原因：多项目共享了同一个编译器实例</li>
     <li>[bugfix] 修复使用 ./gradlew clean assembleDebug 时编译失败的问题，原因是 clean 会删除 Jugg 必需的编译产物，现已移至 .gradle/jugg 目录</li>
 </ol>
-<h2>2.6.30 (2026.06.09)</h2>
+<h2>2.6.31 (2026.06.10)</h2>
 <ol>
     <li>[feature] 支持 Android Studio Quail 1</li>
     <li>[feature] 支持 Android Studio Panda 4</li>
@@ -45,6 +45,7 @@
     <li>[bugfix] 兼容子目录调用形式的编译命令 subDir/gradlew :app:assembleDebug</li>
     <li>[bugfix] 兼容部分子模块用了 compileSdk = 36 导致 aapt2 加载失败，降级 gradle</li>
     <li>[bugfix] 修复 Windows UI 切换远程编译时卡死；修复部分远程服务器传输文件卡住</li>
+    <li>[bugfix] 修复远程编译 PTY 回显退出码模板时，偶现 NumberFormatException 导致编译意外中止</li>
 </ol>
 <h2>2.5.0 (2025.11.10)</h2>
 <ol>
