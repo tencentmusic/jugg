@@ -200,6 +200,7 @@ JuggDeployer.optimisticSwap()
           -> push /data/local/tmp/jugg/direct-overlay-*.zip
           -> run-as package sh -c apply script
           -> 删除旧 id
+          -> 删除本次 payload 覆盖的旧文件
           -> unzip files
           -> chmod *.dex 0444
           -> 最后写新 id

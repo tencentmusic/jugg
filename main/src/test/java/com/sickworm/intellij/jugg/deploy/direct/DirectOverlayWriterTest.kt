@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.direct
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito
@@ -61,6 +62,33 @@ class DirectOverlayWriterTest {
         )
 
         assertEquals(DirectOverlayWriteResult.SKIPPED, writer.write(request))
+    }
+
+    @Test
+    fun `write should remove payload targets before unzip`() {
+        val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
+        val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
+        val request = DirectOverlayWriteRequest(
+            packageName = "com.example.app",
+            expectedOverlayId = "old-id",
+            overlayId = "new-id",
+            files = listOf(
+                DirectOverlayWriteFile("com.example.Foo.dex", "dex".toByteArray()),
+                DirectOverlayWriteFile("base.apk/res/layout/main.xml", "layout".toByteArray()),
+            ),
+        )
+
+        assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
+
+        val script = adb.lastScript
+        val removeFooIndex = script.indexOf("rm -f \"\$overlay_dir\"/'com.example.Foo.dex'")
+        val removeLayoutIndex = script.indexOf("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'")
+        val unzipIndex = script.indexOf("unzip -oq")
+        assertTrue(removeFooIndex >= 0)
+        assertTrue(removeLayoutIndex >= 0)
+        assertTrue(removeFooIndex < unzipIndex)
+        assertTrue(removeLayoutIndex < unzipIndex)
+        assertFalse(script.contains("rm -rf \"\$overlay_dir\""))
     }
 
     @Test

@@ -78,11 +78,18 @@ open class DirectOverlayWriter(
                 "echo \"$MARKER APPLYING\"; " +
                 "rm -f \"\$overlay_dir/id\"; " +
                 "rm -rf code_cache/.ll; " +
+                buildRemovePayloadTargetsScript(request.files) +
                 "unzip -oq $remoteZipPath -d \"\$overlay_dir\"; " +
                 "find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +; " +
                 "printf %s $overlayId > \"\$overlay_dir/id\"; " +
                 "echo \"$MARKER OK\"" +
                 "'"
+    }
+
+    private fun buildRemovePayloadTargetsScript(files: List<DirectOverlayWriteFile>): String {
+        return files.joinToString(separator = "") { file ->
+            "rm -f \"\$overlay_dir\"/${shellSingleQuote(file.path)}; "
+        }
     }
 
     private fun isSafeZipPath(path: String): Boolean {
@@ -100,6 +107,10 @@ open class DirectOverlayWriter(
 
     private fun shellDoubleQuote(value: String): String {
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
+    }
+
+    private fun shellSingleQuote(value: String): String {
+        return "'" + value.replace("'", "'\"'\"'") + "'"
     }
 
     companion object {
