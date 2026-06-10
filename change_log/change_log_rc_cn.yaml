@@ -1,3 +1,8 @@
+- version: 2.6.31
+  date: 2026.06.10
+  updates:
+    - 修复远程编译 PTY 回显退出码模板时，偶现 NumberFormatException 导致编译意外中止
+
 - version: 2.6.30
   date: 2026.06.09
   updates:

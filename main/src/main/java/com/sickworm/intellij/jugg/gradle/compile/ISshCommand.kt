@@ -71,8 +71,8 @@ abstract class BaseSshCommand : ISshCommand {
     }
 
     override fun hasFinishWithResult(terminalOutputLine: String): Int? {
-        if (terminalOutputLine.startsWith(resultEcho) && !terminalOutputLine.endsWith("?")) {
-            return terminalOutputLine.substring(resultEcho.length).toInt()
+        if (terminalOutputLine.startsWith(resultEcho)) {
+            return terminalOutputLine.substring(resultEcho.length).trim().toIntOrNull()
         }
         return null
     }
