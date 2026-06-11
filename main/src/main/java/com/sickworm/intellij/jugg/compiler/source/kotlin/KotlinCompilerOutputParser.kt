@@ -80,8 +80,10 @@ class KotlinCompilerOutputParser(
         val tag = contents?.get(2)?.value
 
         val newMessageType = MessageType.getByTag(tag)
-        if (newMessageType != null && currentMessage.isNotEmpty()) {
-            handleCurrentMessage()
+        if (newMessageType != null) {
+            if (currentMessage.isNotEmpty()) {
+                handleCurrentMessage()
+            }
             currentMessageType = newMessageType
         }
 
@@ -179,6 +181,19 @@ class KotlinCompilerOutputParser(
         if (message.contains("java.lang.ClassCastException") && message.contains("parcelize")) {
             isGotParcelizeClassCastException = true
         }
+
+        val exceptionMessage = parseExceptionSummary(message) ?: return
+        files.forEach {
+            innerErrors.getOrPut(it) { mutableListOf() }.add(-1L to exceptionMessage)
+        }
+    }
+
+    private fun parseExceptionSummary(message: String): String? {
+        return message.lineSequence()
+            .firstOrNull { it.contains("exception:") }
+            ?.substringAfter("exception:")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
     }
 
     private fun parseOutputMessage(message: String) {

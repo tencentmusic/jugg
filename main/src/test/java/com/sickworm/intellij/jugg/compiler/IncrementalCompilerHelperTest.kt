@@ -34,6 +34,31 @@ import kotlin.test.assertTrue
 class IncrementalCompilerHelperTest {
 
     @Test
+    fun `should expose compile error details for visible logs`() {
+        val tempDir = Files.createTempDirectory("compile_error_summary").toFile()
+        val compileFile = CompileFile(
+            type = CompileFile.Type.Kotlin,
+            file = File(tempDir, "src/MainActivity.kt"),
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val compileResult = CompileResult(
+            task = CompileTask(listOf(compileFile), File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+            details = listOf(
+                Result.failure(
+                    CompileError(compileFile, listOf(-1L to "java.lang.IllegalArgumentException: 25.0.3"))
+                )
+            ),
+            outputs = emptyList(),
+        )
+
+        assertEquals(
+            "MainActivity.kt: java.lang.IllegalArgumentException: 25.0.3",
+            compileResult.toVisibleErrorMessage(),
+        )
+    }
+
+    @Test
     fun `should await const ref after compile success and before recompile detection on first round`() {
         val tempDir = Files.createTempDirectory("inc_compile_helper_success").toFile()
         val sourceFile = File(tempDir, "src/A.kt").apply {
@@ -156,6 +181,8 @@ class IncrementalCompilerHelperTest {
             compileStatusHolder = CompileStatusHolder.DEFAULT,
         )
         assertFalse(result.isSuccess)
+        assertEquals(compileResult, result.incrementalCompileResult)
+        assertEquals("A.kt:1: compile failed", result.incrementalCompileResult?.toVisibleErrorMessage())
         // compile failure must not enter success branch: getRecompileFiles must not be called
         verify(deployFileManager, never()).getRecompileFiles(any(), any(), any())
     }

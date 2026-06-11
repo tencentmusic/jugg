@@ -184,6 +184,10 @@ class JuggCompilerHelper(
             if (incrementalResult.isSuccess) {
                 return incrementalResult
             } else if (!incrementalResult.isCanFallback && !(uiHandler.isCanceled)) {
+                val visibleErrorMessage = incrementalResult.incrementalCompileResult?.toVisibleErrorMessage().orEmpty()
+                if (visibleErrorMessage.isNotEmpty()) {
+                    logger.warn("\nFound incremental compile error:\n$visibleErrorMessage")
+                }
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 logger.warn("Run again directly will fall back to gradle compile.\n")
                 return incrementalResult

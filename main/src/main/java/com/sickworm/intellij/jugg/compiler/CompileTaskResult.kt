@@ -12,7 +12,7 @@ data class CompileTaskResult(
     val costTime: Long,
     val failedReason: String? = null,
     val incrementalFailedReason: String? = null,
-    /** Not null if isGradleCompile=false and isSuccess=true */
+    /** Incremental compiler result when an incremental compile has run. */
     val incrementalCompileResult: CompileResult? = null,
     /** Compiler error lines from a failed Gradle build; empty for incremental or success. */
     val errorLog: List<String> = emptyList(),
@@ -30,13 +30,19 @@ data class CompileTaskResult(
             hasFileChanges = compileResult.task.isNeedCompile,
         )
 
-        fun incrementalFailed(isCanFallback: Boolean, failedReason: String, hasFileChanges: Boolean = true) = CompileTaskResult(
+        fun incrementalFailed(
+            isCanFallback: Boolean,
+            failedReason: String,
+            hasFileChanges: Boolean = true,
+            compileResult: CompileResult? = null,
+        ) = CompileTaskResult(
             isSuccess = false,
             isGradleCompile = false,
             isCanFallback,
             costTime = 0,
             failedReason = failedReason,
             incrementalFailedReason = failedReason,
+            incrementalCompileResult = compileResult,
             hasFileChanges = hasFileChanges,
         )
 

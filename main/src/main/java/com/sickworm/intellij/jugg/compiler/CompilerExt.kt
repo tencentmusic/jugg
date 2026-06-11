@@ -192,6 +192,21 @@ fun CompileTask.toCancelResult(): CompileResult {
     }, emptyList())
 }
 
+fun CompileResult.toVisibleErrorMessage(maxErrorCount: Int = 5): String {
+    return failedFiles
+        .flatMap { detail ->
+            val compileError = detail.getFailure()
+            compileError.errors.map { error ->
+                val line = error.first
+                val lineText = if (line > 0) ":$line" else ""
+                "${compileError.file.file.name}$lineText: ${error.second}"
+            }
+        }
+        .distinct()
+        .take(maxErrorCount)
+        .joinToString("\n")
+}
+
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
     val origin = this
     return object : ICompileContext by origin {

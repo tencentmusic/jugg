@@ -190,6 +190,18 @@ class KotlinCompileTest {
     }
 
     @Test
+    fun testKotlinCompilerExceptionMessage() {
+        val parser = KotlinCompilerOutputParser(resultTask.files, logger)
+        parser.printStream.println("exception: java.lang.IllegalArgumentException: 25.0.3")
+        parser.printStream.println("\tat org.jetbrains.kotlin.com.intellij.util.lang.JavaVersion.parse(JavaVersion.java:298)")
+        parser.flush()
+
+        val result = parser.getResult(isCompileSuccess = false).first().getFailure()
+
+        assertEquals("java.lang.IllegalArgumentException: 25.0.3", result.errors.first().second)
+    }
+
+    @Test
     fun testKspCompile() {
         val task = createTask("com/sickworm/jugg/demo/testcase/ksp/User.kt")
         val result = kotlinCompiler.compile(task)

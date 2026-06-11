@@ -179,7 +179,7 @@ class IncrementalCompilerHelper(
         return if (isSuccess) {
             CompileTaskResult.incrementalSuccess(compileResult)
         } else {
-            CompileTaskResult.incrementalFailed(false, "Compile failed")
+            CompileTaskResult.incrementalFailed(false, "Compile failed", compileResult = compileResult)
         }
     }
 
