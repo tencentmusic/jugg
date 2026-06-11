@@ -473,6 +473,10 @@ class RemoteGradleCompileClient(
             logger.debug("Find apk: ${findApks.map { it.localFile }}")
         }
 
+        FetchedApkCleaner.clean(
+            gradleCompileSettings.localClasspathStoragePath.apkDir,
+            findApks.map { it.localFile },
+        )
         return GradleCompileResult.success(findApks.map { it.localFile })
     }
 

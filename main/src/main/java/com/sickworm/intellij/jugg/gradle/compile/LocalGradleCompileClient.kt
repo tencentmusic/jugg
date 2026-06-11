@@ -92,6 +92,10 @@ class LocalGradleCompileClient(
             logger.debug("Find apk: ${findApks.map { it.outputFile }}")
         }
 
+        FetchedApkCleaner.clean(
+            juggGradleCompileOptions.localClasspathStoragePath.apkDir,
+            findApks.map { it.outputFile },
+        )
         return GradleCompileResult.success(findApks.map { it.outputFile })
     }
 
