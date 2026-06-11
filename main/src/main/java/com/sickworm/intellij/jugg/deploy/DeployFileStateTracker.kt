@@ -153,9 +153,9 @@ class DeployFileStateTracker(
 
     @Synchronized
     fun getNotStagingDeployedFiles(): List<CompileOutput> {
-        val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
+        val stagingDeployKeys = stagingFiles.values.flatMap { it.deployKeys() }.toSet()
         return deployedFiles.values.filter {
-            if (it.relativeFile.path in stagingFileRelativeSet) {
+            if (it.deployKeys().any { key -> key in stagingDeployKeys }) {
                 return@filter false // staging file
             }
             if (it.relativeFile.path in mergedDexFilePathSet) {
@@ -163,6 +163,15 @@ class DeployFileStateTracker(
             }
             return@filter true
         }
+    }
+
+    private fun CompileOutput.deployKeys(): List<String> {
+        val apkKeys = when {
+            targetApkPaths.isNotEmpty() -> targetApkPaths
+            apkPath != null -> listOf(apkPath)
+            else -> listOf("")
+        }
+        return apkKeys.map { apkPath -> "$apkPath:${relativeFile.path}" }
     }
 
     /**

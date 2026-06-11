@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert.assertEquals
@@ -52,6 +53,28 @@ class DeployFileStateTrackerTest {
         assertTrue(tracker.getCompiledFiles().isEmpty())
     }
 
+    @Test
+    fun getNotStagingDeployedFiles_keepsSameRelativePathForDifferentTargetApks() {
+        val tracker = DeployFileStateTracker()
+        val baseOutput = compileOutput(
+            root = temporaryFolder.newFolder("base_deployed"),
+            relativePath = "resources.arsc",
+            apkPath = "/base.apk",
+            content = "base",
+        )
+        val testOutput = compileOutput(
+            root = temporaryFolder.newFolder("test_staging"),
+            relativePath = "resources.arsc",
+            apkPath = "/androidTest.apk",
+            content = "test",
+        )
+
+        tracker.replaceDeployedFiles(listOf(baseOutput))
+        tracker.addStagingFiles(listOf(testOutput))
+
+        assertEquals(listOf(baseOutput), tracker.getNotStagingDeployedFiles())
+    }
+
     private fun createSourceFile(name: String, content: String): File {
         return temporaryFolder.newFile(name).apply {
             writeText(content)
@@ -73,6 +96,24 @@ class DeployFileStateTrackerTest {
             file = file.absoluteFile,
             baseDir = temporaryFolder.root.absoluteFile,
             module = ModuleInfo.virtualModule,
+        )
+    }
+
+    private fun compileOutput(
+        root: File,
+        relativePath: String,
+        apkPath: String,
+        content: String,
+    ): CompileOutput {
+        val file = File(root, relativePath).apply {
+            parentFile.mkdirs()
+            writeText(content)
+        }
+        return CompileOutput(
+            type = CompileOutput.Type.Res,
+            file = file,
+            baseDir = root,
+            apkPath = apkPath,
         )
     }
 }
