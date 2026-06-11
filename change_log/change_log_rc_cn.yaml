@@ -1,3 +1,9 @@
+- version: 3.0.14
+  date: 2026.06.11
+  isNeedReinstall: true
+  updates:
+    - 支持 debug 按钮断点调试
+
 - version: 3.0.12
   date: 2026.06.05
   isNeedReinstall: true

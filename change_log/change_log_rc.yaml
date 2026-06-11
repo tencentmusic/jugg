@@ -1,3 +1,9 @@
+- version: 3.0.14
+  date: 2026.06.11
+  isNeedReinstall: true
+  updates:
+    - Supports debug button to debug break point
+
 - version: 3.0.12
   date: 2026.06.05
   isNeedReinstall: true
