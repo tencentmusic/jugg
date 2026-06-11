@@ -74,7 +74,7 @@ class DirectOverlaySwapTransport(
             return null
         }
 
-        val preparedRequest = DirectOverlayWriteRequestBuilder().build(
+        val preparedRequest = DirectOverlayWriteRequestBuilder(logger).build(
             packageName,
             overlayUpdate,
             asDeployerCompat,

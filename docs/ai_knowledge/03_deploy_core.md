@@ -196,6 +196,7 @@ JuggDeployer.optimisticSwap()
       -> DirectOverlayStateChecker.checkDevice()
       -> DirectOverlayWriteRequestBuilder.build()
           -> OverlayUpdateBuilder 按 qualifiedPath 去重并保留第一份，避免 full resource push 中原 APK 文件覆盖增量资源
+          -> request builder 按 overlay path 去重并保留第一份，避免 new/modified class 重叠导致 ZIP duplicate entry
       -> DirectOverlayWriter.write()
           -> zip overlay files
           -> push /data/local/tmp/jugg/direct-overlay-*.zip
