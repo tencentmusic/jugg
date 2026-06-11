@@ -150,11 +150,13 @@ data class ModuleBuildPathInfo(
     private val rFilePathDir get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$buildVariant")
 
     // compatible with AGP 9.0+ (no not_namespaced), gradle 8.x, gradle 7.x
-    val rFilePath get() = rFilePathDirAgp9.listFilesRecursively().find { it.name == "R.jar" }
-        ?: File(rFilePathDir, "R.jar").takeIf(File::exists)
-        ?: File(rFilePathDir, "process${buildVariant.camelCompat}Resources/R.jar").takeIf(File::exists)
-        ?: rFilePathDir.listFilesRecursively().find { it.name == "R.jar" }
-        ?: File(rFilePathDir, "R.jar")
+    val rFilePath get() = rFilePathCandidates.newestFile() ?: File(rFilePathDir, "R.jar")
+
+    val rFilePathCandidates get() = (rFilePathDirAgp9.listFilesRecursively().filter { it.name == "R.jar" } +
+        listOfNotNull(File(rFilePathDir, "R.jar").takeIf(File::exists)) +
+        listOfNotNull(File(rFilePathDir, "process${buildVariant.camelCompat}Resources/R.jar").takeIf(File::exists)) +
+        rFilePathDir.listFilesRecursively().filter { it.name == "R.jar" })
+        .distinctByAbsolutePath()
 
     // e.g. AGP 3.4.3 don't have rFilePath, so need use R.jar in library module
     private val libraryRFileDirInLowAgp get() = File(buildDir, "intermediates/compile_only_not_namespaced_r_class_jar/$buildVariant")
@@ -231,6 +233,28 @@ data class ModuleBuildPathInfo(
             return listFiles()?.flatMap {
                 it.listFilesRecursively()
             }?: emptyList()
+        }
+
+        private fun List<File>.newestFile(): File? {
+            var newestFile: File? = null
+            for (file in this) {
+                val currentNewestFile = newestFile
+                if (currentNewestFile == null || file.lastModified() > currentNewestFile.lastModified()) {
+                    newestFile = file
+                }
+            }
+            return newestFile
+        }
+
+        private fun List<File>.distinctByAbsolutePath(): List<File> {
+            val result = mutableListOf<File>()
+            val paths = mutableSetOf<String>()
+            for (file in this) {
+                if (paths.add(file.absolutePath)) {
+                    result.add(file)
+                }
+            }
+            return result
         }
 
         private fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {

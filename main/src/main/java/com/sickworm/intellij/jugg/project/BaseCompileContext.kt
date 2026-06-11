@@ -63,7 +63,9 @@ class BaseCompileContext(
 
     private fun getRFiles(): List<String> {
         return modules.mapNotNull { module ->
-            val rFile = module.value.buildPathInfo.rFilePath
+            val moduleInfo = module.value
+            logRFileCandidates(moduleInfo)
+            val rFile = moduleInfo.buildPathInfo.rFilePath
             if (rFile.exists()) {
                 rFile.absolutePath
             } else {
@@ -72,6 +74,19 @@ class BaseCompileContext(
         }.sortedBy {
             -File(it).length() // sort by file size, to let the biggest R.jar go first
         }
+    }
+
+    private fun logRFileCandidates(moduleInfo: ModuleInfo) {
+        val candidates = moduleInfo.buildPathInfo.rFilePathCandidates
+        if (candidates.size <= 1) {
+            return
+        }
+
+        val selectedRFile = moduleInfo.buildPathInfo.rFilePath
+        val candidateText = candidates.joinToString(separator = "\n") {
+            "  - path=${it.absolutePath}, lastModified=${it.lastModified()}, size=${it.length()}"
+        }
+        logger.debug("R.jar candidates found in module ${moduleInfo.name}, selected=${selectedRFile.absolutePath}\n$candidateText")
     }
 
     override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules() // must run before findApplicationModule()

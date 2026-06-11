@@ -65,4 +65,99 @@ class ModuleBuildPathInfoTest {
         assertEquals(agp8RJar.canonicalPath, info.rFilePath.canonicalPath,
             "rFilePath should resolve to AGP 8 compile_and_runtime_not_namespaced_r_class_jar path")
     }
+
+    @Test
+    fun `rFilePath resolves newest application R jar in AGP 8 directory`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val staleRootRJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
+            1000L
+        )
+        val currentProcessRJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/processDebugResources/R.jar",
+            2000L
+        )
+
+        assertTrue(staleRootRJar.exists())
+        assertEquals(currentProcessRJar.canonicalPath, info.rFilePath.canonicalPath)
+    }
+
+    @Test
+    fun `rFilePath keeps root R jar when it is the newest application R jar`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val currentRootRJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
+            3000L
+        )
+        createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/processDebugResources/R.jar",
+            2000L
+        )
+
+        assertEquals(currentRootRJar.canonicalPath, info.rFilePath.canonicalPath)
+    }
+
+    @Test
+    fun `rFilePath resolves newest application R jar across AGP 8 and AGP 9 directories`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val staleAgp9RJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar",
+            1000L
+        )
+        val currentAgp8RJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/processDebugResources/R.jar",
+            2000L
+        )
+
+        assertTrue(staleAgp9RJar.exists())
+        assertEquals(currentAgp8RJar.canonicalPath, info.rFilePath.canonicalPath)
+    }
+
+    @Test
+    fun `rFilePath keeps matched candidate order when R jars have same modified time`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val agp9RJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar",
+            1000L
+        )
+        createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/processDebugResources/R.jar",
+            1000L
+        )
+
+        assertEquals(agp9RJar.canonicalPath, info.rFilePath.canonicalPath)
+    }
+
+    @Test
+    fun `rFilePathCandidates returns distinct matched R jars`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val rootRJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
+            1000L
+        )
+
+        assertEquals(listOf(rootRJar.canonicalPath), info.rFilePathCandidates.map { it.canonicalPath })
+    }
+
+    private fun createRJar(moduleRootDir: File, relativePath: String, lastModifiedTime: Long): File {
+        val rJar = File(moduleRootDir, relativePath)
+        rJar.parentFile.mkdirs()
+        rJar.createNewFile()
+        assertTrue(rJar.setLastModified(lastModifiedTime), "failed to set lastModifiedTime for ${rJar.path}")
+        return rJar
+    }
 }
