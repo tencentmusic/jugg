@@ -49,6 +49,7 @@
 ```text
 Debug executor + JuggRunConfiguration
   -> JuggDebugProgramRunner.doExecute()
+     先保存所有文档并刷新打开文件/VFS，补齐普通 Run 前的 IDE 文件状态同步
      创建 Jugg 编译/部署 Run content，但不把该 descriptor 交给 Debug executor
   -> JuggManager.runTask()
      标记 isAlwaysRestartApp=true、isDebugRun=true，注册部署完成后的 debug attach 回调
@@ -105,6 +106,7 @@ StartJavaDebuggerSessionKt.startAndroidJavaDebuggerSession(project, client, cons
 - 不要在低层 `JavaDebuggerSessionStarter` 外围继续加 sleep / retry；缺失的是 XDebugger 生命周期接管，不是 client ready 等待。
 - Jugg 编译/部署输出放在 Run tool window 是设计选择；Run window 本身不是断点不可用的根因。
 - Debug run 遇到无文件变化时应直接走空增量部署，不弹 `Confirm Fallback to Gradle`；Debug 的目标是重启并 attach，而不是提示用户回退 Gradle。
+- Debug runner 自定义接管 Debug executor，执行 Jugg 主链路前必须显式保存文档并刷新打开文件/VFS，避免普通 Run 可检测到变更而 Debug 误判 `No file changes`。
 - Java debugger attach flow 会创建真正的 Debug session；Jugg 编译/部署 Run content 在任务收口时应 detach，避免 Debug 成功后留下两个活跃 session。
 - Debug executor 只接管普通 Jugg RunConfiguration；androidTest 的 Debug executor 不走这条 attach 链。
 - 多设备 Debug attach 当前不支持；`JuggDebugSessionManager` 必须先失败并回 Run 输出，避免误 attach 到错误设备。

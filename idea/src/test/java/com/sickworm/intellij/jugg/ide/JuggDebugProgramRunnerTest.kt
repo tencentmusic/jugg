@@ -61,7 +61,7 @@ class JuggDebugProgramRunnerTest {
     @Test
     fun `debug runner does not return jugg console descriptor to debug executor lifecycle`() {
         val presenter = CapturingDebugRunContentPresenter()
-        val runner = JuggDebugProgramRunner(presenter)
+        val runner = JuggDebugProgramRunner(presenter, NoOpRunPreflight())
         val state = Mockito.mock(RunProfileState::class.java)
         val environment = Mockito.mock(ExecutionEnvironment::class.java)
         val project = Mockito.mock(Project::class.java)
@@ -86,6 +86,39 @@ class JuggDebugProgramRunnerTest {
         assertTrue(presenter.descriptor?.displayName == "jugg:app")
     }
 
+    @Test
+    fun `debug runner prepares run file state before execution`() {
+        val presenter = CapturingDebugRunContentPresenter()
+        val preflight = CapturingRunPreflight()
+        val runner = JuggDebugProgramRunner(presenter, preflight)
+        val state = Mockito.mock(RunProfileState::class.java)
+        val environment = Mockito.mock(ExecutionEnvironment::class.java)
+        val project = Mockito.mock(Project::class.java)
+        val executor = Mockito.mock(Executor::class.java)
+        val profile = Mockito.mock(RunProfile::class.java)
+        val executionResult = Mockito.mock(ExecutionResult::class.java)
+        val consoleView = Mockito.mock(ConsoleView::class.java)
+        val processHandler = Mockito.mock(ProcessHandler::class.java)
+        val calls = mutableListOf<String>()
+        preflight.onPrepare = { calls += "prepare" }
+        Mockito.`when`(environment.executor).thenReturn(executor)
+        Mockito.`when`(environment.project).thenReturn(project)
+        Mockito.`when`(environment.runProfile).thenReturn(profile)
+        Mockito.`when`(profile.name).thenReturn("jugg:app")
+        Mockito.`when`(consoleView.component).thenReturn(JPanel())
+        Mockito.`when`(executionResult.executionConsole).thenReturn(consoleView)
+        Mockito.`when`(executionResult.processHandler).thenReturn(processHandler)
+        Mockito.`when`(state.execute(environment.executor, runner)).thenAnswer {
+            calls += "execute"
+            executionResult
+        }
+
+        invokeDoExecute(runner, state, environment)
+
+        assertTrue(calls == listOf("prepare", "execute"))
+        assertTrue(preflight.project === project)
+    }
+
     private fun invokeDoExecute(
         runner: JuggDebugProgramRunner,
         state: RunProfileState,
@@ -108,5 +141,19 @@ class JuggDebugProgramRunnerTest {
             this.project = project
             this.descriptor = descriptor
         }
+    }
+
+    private class CapturingRunPreflight : IJuggRunPreflight {
+        var project: Project? = null
+        var onPrepare: () -> Unit = {}
+
+        override fun prepare(project: Project) {
+            this.project = project
+            onPrepare()
+        }
+    }
+
+    private class NoOpRunPreflight : IJuggRunPreflight {
+        override fun prepare(project: Project) = Unit
     }
 }
