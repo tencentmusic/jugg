@@ -161,6 +161,32 @@ class DirectOverlaySwapTransportTest {
     }
 
     @Test
+    fun `trySwap should request short cleanup script for base install overlay`() {
+        val entry = cacheEntry(isBaseInstall = true)
+        adb.overlayStateId = ""
+        val data = deployData(
+            apkInfo("com.example.app", "/base.apk"),
+            isFullRes = true,
+            overlayNames = listOf("resources.arsc", "res/layout/main.xml"),
+        )
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
+
+        val overlayId = newTransport().trySwap(
+            packageName = "com.example.app",
+            data = data,
+            overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
+        )
+
+        assertNotNull(overlayId)
+        val script = adb.shellScripts.first { it.contains("__JUGG_DIRECT_OVERLAY__") }
+        assertTrue(script.contains("had_overlay_dir=0"))
+        assertFalse(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
+    }
+
+    @Test
     fun `trySwap should fall back when direct path throws`() {
         val entry = cacheEntry()
         adb.overlayStateId = entry.overlayId.sha

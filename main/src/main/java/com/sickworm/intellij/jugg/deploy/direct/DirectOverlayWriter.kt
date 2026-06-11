@@ -70,17 +70,18 @@ open class DirectOverlayWriter(
                 "set -e; " +
                 "overlay_dir=code_cache/.overlay; " +
                 "actual=\"\"; " +
+                "had_overlay_dir=0; " +
                 "if [ -d \"\$overlay_dir\" ]; then " +
+                "had_overlay_dir=1; " +
                 "if [ -f \"\$overlay_dir/id\" ]; then actual=\$(cat \"\$overlay_dir/id\"); " +
                 "else echo \"$MARKER MISSING_ID\"; exit 2; fi; " +
                 "fi; " +
                 "if [ \"\$actual\" != $expectedOverlayId ]; then echo \"$MARKER MISMATCH\"; exit 2; fi; " +
+                buildPreApplyGuardScript(request) +
                 "mkdir -p \"\$overlay_dir\"; " +
                 "echo \"$MARKER APPLYING\"; " +
                 buildHeartbeatScript() +
-                "rm -f \"\$overlay_dir/id\"; " +
-                "rm -rf code_cache/.ll; " +
-                buildRemovePayloadTargetsScript(request) +
+                buildCleanupScript(request) +
                 "unzip -oq $remoteZipPath -d \"\$overlay_dir\"; " +
                 "find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +; " +
                 "printf %s $overlayId > \"\$overlay_dir/id\"; " +
@@ -92,6 +93,22 @@ open class DirectOverlayWriter(
         return "heartbeat() { while true; do echo \"$MARKER HEARTBEAT\"; sleep 1; done; }; " +
                 "heartbeat & heartbeat_pid=\$!; " +
                 "trap \"kill \$heartbeat_pid 2>/dev/null || true\" EXIT; "
+    }
+
+    private fun buildPreApplyGuardScript(request: DirectOverlayWriteRequest): String {
+        if (request.skipPayloadCleanup) {
+            return "if [ \"\$had_overlay_dir\" = \"1\" ]; then echo \"$MARKER MISMATCH\"; exit 2; fi; "
+        }
+        return ""
+    }
+
+    private fun buildCleanupScript(request: DirectOverlayWriteRequest): String {
+        if (request.skipPayloadCleanup) {
+            return "rm -rf code_cache/.ll; "
+        }
+        return "rm -f \"\$overlay_dir/id\"; " +
+                "rm -rf code_cache/.ll; " +
+                buildRemovePayloadTargetsScript(request)
     }
 
     private fun buildRemovePayloadTargetsScript(files: List<DirectOverlayWriteFile>): String {
@@ -154,6 +171,7 @@ data class DirectOverlayWriteRequest(
     val overlayId: String,
     val files: List<DirectOverlayWriteFile>,
     val isFullResourcePush: Boolean = false,
+    val skipPayloadCleanup: Boolean = false,
 )
 
 data class DirectOverlayWriteFile(

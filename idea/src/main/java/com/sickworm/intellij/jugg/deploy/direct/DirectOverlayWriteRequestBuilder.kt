@@ -49,6 +49,7 @@ class DirectOverlayWriteRequestBuilder {
                 overlayId = overlayId.sha,
                 files = files,
                 isFullResourcePush = isFullResourcePush,
+                skipPayloadCleanup = expectedOverlayId.isEmpty(),
             ),
             overlayId = overlayId,
         )

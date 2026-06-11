@@ -195,6 +195,7 @@ JuggDeployer.optimisticSwap()
       -> ensureApplyChangesStartupAgent()
       -> DirectOverlayStateChecker.checkDevice()
       -> DirectOverlayWriteRequestBuilder.build()
+          -> OverlayUpdateBuilder 按 qualifiedPath 去重并保留第一份，避免 full resource push 中原 APK 文件覆盖增量资源
       -> DirectOverlayWriter.write()
           -> zip overlay files
           -> push /data/local/tmp/jugg/direct-overlay-*.zip
@@ -203,6 +204,7 @@ JuggDeployer.optimisticSwap()
           -> 启动 heartbeat，避免 full push 长时间无输出触发 ADB inactive timeout
           -> 删除本次 payload 覆盖的旧文件
           -> full resource push 使用 base.apk 目录级清理，避免逐个 res 文件生成超长 run-as 脚本
+          -> base install 空 overlay id 场景跳过 payload cleanup，避免清数据/NO_DIR 首次 full push 生成大量无效 rm 命令
           -> unzip files
           -> chmod *.dex 0444
           -> 最后写新 id

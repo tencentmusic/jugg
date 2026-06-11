@@ -128,6 +128,34 @@ class DirectOverlayWriterTest {
     }
 
     @Test
+    fun `write should skip payload cleanup when overlay directory is known absent`() {
+        val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
+        val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
+        val request = DirectOverlayWriteRequest(
+            packageName = "com.example.app",
+            expectedOverlayId = "",
+            overlayId = "new-id",
+            files = listOf(
+                DirectOverlayWriteFile("base.apk/resources.arsc", "arsc".toByteArray()),
+                DirectOverlayWriteFile("base.apk/res/layout/main.xml", "layout".toByteArray()),
+                DirectOverlayWriteFile("com.example.Foo.dex", "dex".toByteArray()),
+            ),
+            isFullResourcePush = true,
+            skipPayloadCleanup = true,
+        )
+
+        assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
+
+        val script = adb.lastScript
+        assertTrue(script.contains("had_overlay_dir=0"))
+        assertTrue(script.contains("if [ \"\$had_overlay_dir\" = \"1\" ]; then echo \"__JUGG_DIRECT_OVERLAY__ MISMATCH\"; exit 2; fi"))
+        assertFalse(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'com.example.Foo.dex'"))
+    }
+
+    @Test
     fun `write should reject unsafe package name before pushing files`() {
         val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
         val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
