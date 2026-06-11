@@ -46,6 +46,7 @@ class K2JVMCompilerIsolate {
             logger.debug("kotlin compiler use embedded compiler by user setting")
             if (!::classLoader.isInitialized || isUseProjectCompiler) {
                 classLoader = getIsolateClassLoader(juggPluginClasspathUrls)
+                KotlinCompilerHostCompat.ensureShadedJavaVersionSupported(classLoader, logger)
             }
             isUseProjectCompiler = false
             return
@@ -63,6 +64,7 @@ class K2JVMCompilerIsolate {
 
             logger.debug("compiler not match, currentCompiler: $currentCompiler, expectCompiler: $expectCompiler. try renew classLoader")
             classLoader = getIsolateClassLoader(projectCompilerClasspathUrls, isAllIncluded = true)
+            KotlinCompilerHostCompat.ensureShadedJavaVersionSupported(classLoader, logger)
             // new classLoader by projectCompilerClasspath success, use it
             isUseProjectCompiler = true
             logger.debug("kotlin compiler type: project")
@@ -71,6 +73,7 @@ class K2JVMCompilerIsolate {
             logger.debug("kotlin compiler type: embedded, reason: ${e.message}")
             if (!::classLoader.isInitialized || isUseProjectCompiler) {
                 classLoader = getIsolateClassLoader(juggPluginClasspathUrls)
+                KotlinCompilerHostCompat.ensureShadedJavaVersionSupported(classLoader, logger)
             }
             isUseProjectCompiler = false
         }

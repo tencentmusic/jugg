@@ -308,6 +308,13 @@ class KotlinCompilerInvoker {
             )
         }
 
+        // align with AGP/KGP: resolve java.* from android.jar instead of mounting the host JDK,
+        // which old compilers (< 2.1.20) can not handle on JDK 25+ hosts
+        if (KotlinCompilerHostCompat.shouldUseNoJdk(Runtime.version().feature(), dependencies)) {
+            logger.debug("host JDK ${Runtime.version().feature()} with android.jar dependency, add -no-jdk")
+            compileArgs.add("-no-jdk")
+        }
+
         val fileArgs = task.files.map { it.file.absolutePath }
 
         val command = pluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs + fileArgs

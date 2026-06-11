@@ -319,6 +319,40 @@ main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 
 ---
 
+### 4.9 JDK 25+ 宿主上 Kotlin 编译 INTERNAL_ERROR（shaded JavaVersion 解析失败）
+
+**信号**：日志出现 `kotlin compile result code: INTERNAL_ERROR`，且向上可见：
+
+```
+[KotlinCompiler] exception: java.lang.IllegalArgumentException: 25.0.3
+	at org.jetbrains.kotlin.com.intellij.util.lang.JavaVersion.parse(JavaVersion.java:...)
+	at org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem...
+```
+
+recreate compiler 重试同样失败（根因是宿主环境，与编译器实例无关）。
+
+**根因模式**：Jugg 进程内调用 Kotlin 编译器（`K2JVMCompilerIsolate`），宿主 = IDE 的 JVM。
+< 2.1.20 的编译器 shaded `JavaVersion.parse` 写死接受上限 25（上游 Kotlin 2.1.20 才修复），
+IDE 运行在 JDK 25+ 时 `JavaVersion.current()` 解析宿主版本号直接抛 IAE。
+触发点在 `CoreJrtFileSystem` 把宿主 JDK 挂载为编译输入的初始化代码中。
+
+**修复机制**（`KotlinCompilerHostCompat`，两层叠加）：
+1. classloader 创建后探测 shaded `JavaVersion.current()`，失败则用 `compose(宿主 feature)` 反射预置
+   `current` 缓存字段，绕过坏掉的字符串解析；探测通过（>= 2.1.20 或 JDK <= 24）则零侵入。
+2. 宿主 JDK >= 25 且 classpath 含 android.jar 时给编译命令追加 `-no-jdk`（对齐 AGP/KGP 行为，
+   `java.*` 由 android.jar 提供，不再挂载宿主 JDK）。
+
+**验证**：搜日志 `preset shaded JavaVersion.current to` / `add -no-jdk`。
+
+**关键类**：
+```
+main/.../compiler/source/kotlin/KotlinCompilerHostCompat.kt
+main/.../compiler/source/kotlin/K2JVMCompilerIsolate.kt    # 三处 classloader 创建点接入
+main/.../compiler/source/kotlin/KotlinCompilerInvoker.kt   # -no-jdk 追加
+```
+
+---
+
 ## 5. 排查前：保存现场
 
 **在任何操作前先备份**，避免复现步骤覆盖原始日志：
