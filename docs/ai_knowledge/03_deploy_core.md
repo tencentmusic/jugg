@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-05-23
+> 最后核对：2026-06-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -198,9 +198,11 @@ JuggDeployer.optimisticSwap()
       -> DirectOverlayWriter.write()
           -> zip overlay files
           -> push /data/local/tmp/jugg/direct-overlay-*.zip
-          -> run-as package sh -c apply script
+          -> 以 no-fallback shell 执行 run-as package sh -c apply script，避免非幂等脚本被 ADB fallback 重入
           -> 删除旧 id
+          -> 启动 heartbeat，避免 full push 长时间无输出触发 ADB inactive timeout
           -> 删除本次 payload 覆盖的旧文件
+          -> full resource push 使用 base.apk 目录级清理，避免逐个 res 文件生成超长 run-as 脚本
           -> unzip files
           -> chmod *.dex 0444
           -> 最后写新 id
@@ -215,7 +217,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 ### 6.3 dirty 语义
 
 - writer 在修改 overlay 目录前失败：返回 `SKIPPED`，允许 fallback 旧 Apply Changes。
-- writer 已开始修改 overlay 目录后失败：返回 `FAILED_DIRTY` 并抛 `DirectOverlayDirtyException`，不再继续旧 Apply Changes，避免半提交状态上做伪回退。
+- writer 已开始修改 overlay 目录后失败，或脚本重入时发现 overlay id 已缺失：返回 `FAILED_DIRTY` 并抛 `DirectOverlayDirtyException`，不再继续旧 Apply Changes，避免半提交状态上做伪回退。
 
 ---
 

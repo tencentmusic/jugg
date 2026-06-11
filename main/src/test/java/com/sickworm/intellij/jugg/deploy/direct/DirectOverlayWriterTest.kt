@@ -33,6 +33,7 @@ class DirectOverlayWriterTest {
         val result = writer.write(request)
 
         assertEquals(DirectOverlayWriteResult.SUCCESS, result)
+        assertEquals(1, adb.noFallbackScriptCount)
         assertEquals(1, adb.pushedZipEntries.size)
         assertEquals(
             listOf("base.apk/res/layout/main.xml", "com.example.Foo.dex"),
@@ -44,6 +45,9 @@ class DirectOverlayWriterTest {
         assertTrue(adb.lastScript.contains("rm -f"))
         assertTrue(adb.lastScript.contains("overlay_dir=code_cache/.overlay"))
         assertTrue(adb.lastScript.contains("\$overlay_dir/id"))
+        assertTrue(adb.lastScript.contains("__JUGG_DIRECT_OVERLAY__ HEARTBEAT"))
+        assertTrue(adb.lastScript.contains("heartbeat_pid=\$!"))
+        assertTrue(adb.lastScript.contains("trap \"kill \$heartbeat_pid 2>/dev/null || true\" EXIT"))
         assertTrue(adb.lastScript.contains("unzip -oq"))
         assertTrue(adb.lastScript.contains("find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +"))
         assertTrue(adb.commands.contains("mkdir -p /data/local/tmp/jugg"))
@@ -92,6 +96,38 @@ class DirectOverlayWriterTest {
     }
 
     @Test
+    fun `write should remove base apk directory once for full resource push`() {
+        val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
+        val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
+        val request = DirectOverlayWriteRequest(
+            packageName = "com.example.app",
+            expectedOverlayId = "old-id",
+            overlayId = "new-id",
+            files = listOf(
+                DirectOverlayWriteFile("base.apk/resources.arsc", "arsc".toByteArray()),
+                DirectOverlayWriteFile("base.apk/res/layout/main.xml", "layout".toByteArray()),
+                DirectOverlayWriteFile("base.apk/res/drawable/icon.xml", "drawable".toByteArray()),
+                DirectOverlayWriteFile("com.example.Foo.dex", "dex".toByteArray()),
+            ),
+            isFullResourcePush = true,
+        )
+
+        assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
+
+        val script = adb.lastScript
+        val removeBaseIndex = script.indexOf("rm -rf \"\$overlay_dir\"/'base.apk'")
+        val removeDexIndex = script.indexOf("rm -f \"\$overlay_dir\"/'com.example.Foo.dex'")
+        val unzipIndex = script.indexOf("unzip -oq")
+        assertTrue(removeBaseIndex >= 0)
+        assertTrue(removeDexIndex >= 0)
+        assertTrue(removeBaseIndex < unzipIndex)
+        assertTrue(removeDexIndex < unzipIndex)
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/drawable/icon.xml'"))
+    }
+
+    @Test
     fun `write should reject unsafe package name before pushing files`() {
         val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
         val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
@@ -137,6 +173,20 @@ class DirectOverlayWriterTest {
     @Test
     fun `write should report dirty failure after overlay mutation starts`() {
         val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ APPLYING")
+        val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
+        val request = DirectOverlayWriteRequest(
+            packageName = "com.example.app",
+            expectedOverlayId = "old-id",
+            overlayId = "new-id",
+            files = listOf(DirectOverlayWriteFile("com.example.Foo.dex", "dex".toByteArray())),
+        )
+
+        assertEquals(DirectOverlayWriteResult.FAILED_DIRTY, writer.write(request))
+    }
+
+    @Test
+    fun `write should report dirty failure when a restarted script sees missing overlay id`() {
+        val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ MISSING_ID")
         val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
         val request = DirectOverlayWriteRequest(
             packageName = "com.example.app",
@@ -198,6 +248,7 @@ class DirectOverlayWriterTest {
         val pushedZipEntries = mutableListOf<List<String>>()
         val commands = mutableListOf<String>()
         var lastScript: String = ""
+        var noFallbackScriptCount: Int = 0
 
         override val displayName: String = "fake"
         override val api: Int = 35
@@ -212,6 +263,11 @@ class DirectOverlayWriterTest {
         override fun execAdbShellScript(cmd: String): String {
             lastScript = cmd
             return scriptOutput
+        }
+
+        override fun execAdbShellScriptNoFallback(cmd: String): String {
+            noFallbackScriptCount++
+            return execAdbShellScript(cmd)
         }
 
         override fun push(from: File, to: String): Boolean {

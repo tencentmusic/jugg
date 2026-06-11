@@ -16,6 +16,7 @@ class DirectOverlayWriteRequestBuilder {
         packageName: String,
         overlayUpdate: JuggOverlayUpdate,
         asDeployerCompat: IAsDeployerCompat,
+        isFullResourcePush: Boolean,
     ): DirectOverlayPreparedRequest {
         val overlayFiles = mutableListOf<JuggOverlayFile>()
         val files = mutableListOf<DirectOverlayWriteFile>()
@@ -47,6 +48,7 @@ class DirectOverlayWriteRequestBuilder {
                 expectedOverlayId = expectedOverlayId,
                 overlayId = overlayId.sha,
                 files = files,
+                isFullResourcePush = isFullResourcePush,
             ),
             overlayId = overlayId,
         )

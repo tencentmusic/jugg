@@ -56,6 +56,14 @@ class IdeaDeviceAdb(
         }
     }
 
+    override fun execAdbShellScriptNoFallback(cmd: String): String {
+        synchronized(IdeaDeviceAdb::class.java) {
+            logger.debug("adb script(no fallback) in: sh -c '...'")
+            val escaped = cmd.replace("'", "'\\''")
+            return invokeAdbShellCmd("sh -c '$escaped'")
+        }
+    }
+
     override fun isAdbTransportReady(): Boolean {
         return AdbTransientOffline.isAdbCliTransportReady(serial) || (device.isOnline && isRawShellReady())
     }
@@ -115,26 +123,7 @@ class IdeaDeviceAdb(
 
     private fun execAdbShellCmd(cmd: String, retryCount: Int): String {
         try {
-            val cmdList = cmd.splitIgnoringQuotes()
-            logger.debug("adb in:  adb shell $cmd")
-            logger.debug("adb in:  cmd splits to : $cmdList")
-            val response = adbClient.shell(
-                cmdList.toTypedArray(),
-                timeout = 5L,
-                timeUnit = TimeUnit.SECONDS,
-            )
-            if (response.isNotEmpty()) {
-                val extraMsg = String(response, Charsets.UTF_8).trim { it <= ' ' }
-                val logMsg = if (extraMsg.length > 200) {
-                    extraMsg.substringBefore('\n') + "...(additional lines ${extraMsg.lines().size - 1})"
-                } else {
-                    extraMsg
-                }
-                logger.debug("adb out: $logMsg")
-                return extraMsg
-            }
-            logger.debug("adb out: (empty)")
-            return ""
+            return invokeAdbShellCmd(cmd)
         } catch (e: Exception) {
             logger.debug("invoke execAdbShellCmd failed, retry count $retryCount ", e)
             if (AdbTransientOffline.isOffline(e)) {
@@ -178,6 +167,29 @@ class IdeaDeviceAdb(
                 throw offline
             }
         }
+    }
+
+    private fun invokeAdbShellCmd(cmd: String): String {
+        val cmdList = cmd.splitIgnoringQuotes()
+        logger.debug("adb in:  adb shell $cmd")
+        logger.debug("adb in:  cmd splits to : $cmdList")
+        val response = adbClient.shell(
+            cmdList.toTypedArray(),
+            timeout = 5L,
+            timeUnit = TimeUnit.SECONDS,
+        )
+        if (response.isNotEmpty()) {
+            val extraMsg = String(response, Charsets.UTF_8).trim { it <= ' ' }
+            val logMsg = if (extraMsg.length > 200) {
+                extraMsg.substringBefore('\n') + "...(additional lines ${extraMsg.lines().size - 1})"
+            } else {
+                extraMsg
+            }
+            logger.debug("adb out: $logMsg")
+            return extraMsg
+        }
+        logger.debug("adb out: (empty)")
+        return ""
     }
 
     private fun waitAdbTransportReady(cmd: String): Boolean {

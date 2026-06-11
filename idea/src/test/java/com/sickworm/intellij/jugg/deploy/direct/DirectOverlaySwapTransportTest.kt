@@ -60,6 +60,32 @@ class DirectOverlaySwapTransportTest {
     }
 
     @Test
+    fun `trySwap should use compact base apk cleanup for full resource push`() {
+        val entry = cacheEntry()
+        adb.overlayStateId = entry.overlayId.sha
+        val data = deployData(
+            apkInfo("com.example.app", "/base.apk"),
+            isFullRes = true,
+            overlayNames = listOf("resources.arsc", "res/layout/main.xml", "res/drawable/icon.xml"),
+        )
+        val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(entry, data)
+
+        val overlayId = newTransport().trySwap(
+            packageName = "com.example.app",
+            data = data,
+            overlayUpdate = overlayUpdate,
+            asDeployerCompat = asDeployerCompat,
+        )
+
+        assertNotNull(overlayId)
+        val script = adb.shellScripts.first { it.contains("__JUGG_DIRECT_OVERLAY__") }
+        assertTrue(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/drawable/icon.xml'"))
+    }
+
+    @Test
     fun `trySwap should fall back when device is ready for regular apply changes`() {
         val entry = cacheEntry()
         adb.overlayStateId = entry.overlayId.sha
@@ -218,24 +244,28 @@ class DirectOverlaySwapTransportTest {
         )
     }
 
-    private fun deployData(vararg apkInfos: ApkInfo): JuggDeployData {
+    private fun deployData(
+        vararg apkInfos: ApkInfo,
+        isFullRes: Boolean = false,
+        overlayNames: List<String> = listOf("res/layout/main.xml"),
+    ): JuggDeployData {
         return JuggDeployData(
             apks = apkInfos.toList(),
             newClasses = emptyList(),
             hotFixModifiedClasses = emptyList(),
             hotReloadModifiedClasses = emptyList(),
             effectedClassNodes = emptyList(),
-            overlays = listOf(
+            overlays = overlayNames.mapIndexed { index, name ->
                 DeployItem(
-                    name = "res/layout/main.xml",
+                    name = name,
                     type = CompileOutput.Type.Res,
-                    checksum = 1L,
-                    content = byteArrayOf(1),
+                    checksum = index + 1L,
+                    content = byteArrayOf(index.toByte()),
                     apkPath = apkInfos.first().files.first().apkFile.path,
                 )
-            ),
+            },
             parsedDex = com.sickworm.intellij.jugg.deploy.data.ParsedDex.EMPTY,
-            isFullRes = false,
+            isFullRes = isFullRes,
             isWarmUp = false,
             isPushOverlayOnly = true,
         )

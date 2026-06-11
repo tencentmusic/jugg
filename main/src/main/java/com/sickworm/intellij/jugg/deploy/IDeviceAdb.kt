@@ -37,6 +37,14 @@ interface IDeviceAdb {
     }
 
     /**
+     * Runs a shell script once without transport-level retry or adb-cli fallback.
+     * Use this for non-idempotent scripts that may mutate device state before returning.
+     */
+    fun execAdbShellScriptNoFallback(cmd: String): String {
+        return execAdbShellScript(cmd)
+    }
+
+    /**
      * Runs a long-lived shell command and delivers output line-by-line to [lineConsumer].
      *
      * @param cmd         The shell command to execute (e.g. `am instrument -w -r ...`).

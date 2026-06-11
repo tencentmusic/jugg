@@ -32,10 +32,11 @@ open class DirectOverlayWriter(
                 return DirectOverlayWriteResult.SKIPPED
             }
             scriptStarted = true
-            val output = adb.execAdbShellScript(buildApplyScript(request, remoteZipPath))
+            val output = adb.execAdbShellScriptNoFallback(buildApplyScript(request, remoteZipPath))
             when {
                 output.contains("$MARKER OK") -> DirectOverlayWriteResult.SUCCESS
                 output.contains("$MARKER APPLYING") -> DirectOverlayWriteResult.FAILED_DIRTY
+                output.contains("$MARKER MISSING_ID") -> DirectOverlayWriteResult.FAILED_DIRTY
                 else -> DirectOverlayWriteResult.SKIPPED
             }
         } catch (e: Exception) {
@@ -76,9 +77,10 @@ open class DirectOverlayWriter(
                 "if [ \"\$actual\" != $expectedOverlayId ]; then echo \"$MARKER MISMATCH\"; exit 2; fi; " +
                 "mkdir -p \"\$overlay_dir\"; " +
                 "echo \"$MARKER APPLYING\"; " +
+                buildHeartbeatScript() +
                 "rm -f \"\$overlay_dir/id\"; " +
                 "rm -rf code_cache/.ll; " +
-                buildRemovePayloadTargetsScript(request.files) +
+                buildRemovePayloadTargetsScript(request) +
                 "unzip -oq $remoteZipPath -d \"\$overlay_dir\"; " +
                 "find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +; " +
                 "printf %s $overlayId > \"\$overlay_dir/id\"; " +
@@ -86,10 +88,34 @@ open class DirectOverlayWriter(
                 "'"
     }
 
+    private fun buildHeartbeatScript(): String {
+        return "heartbeat() { while true; do echo \"$MARKER HEARTBEAT\"; sleep 1; done; }; " +
+                "heartbeat & heartbeat_pid=\$!; " +
+                "trap \"kill \$heartbeat_pid 2>/dev/null || true\" EXIT; "
+    }
+
     private fun buildRemovePayloadTargetsScript(files: List<DirectOverlayWriteFile>): String {
         return files.joinToString(separator = "") { file ->
             "rm -f \"\$overlay_dir\"/${shellSingleQuote(file.path)}; "
         }
+    }
+
+    private fun buildRemovePayloadTargetsScript(request: DirectOverlayWriteRequest): String {
+        if (!request.isFullResourcePush) {
+            return buildRemovePayloadTargetsScript(request.files)
+        }
+        val removeBaseApk = request.files.any { it.path.startsWith(BASE_APK_PREFIX) }
+        val baseApkScript = if (removeBaseApk) {
+            "rm -rf \"\$overlay_dir\"/${shellSingleQuote(BASE_APK_DIR)}; "
+        } else {
+            ""
+        }
+        val otherFilesScript = request.files
+            .filterNot { it.path.startsWith(BASE_APK_PREFIX) }
+            .joinToString(separator = "") { file ->
+                "rm -f \"\$overlay_dir\"/${shellSingleQuote(file.path)}; "
+            }
+        return baseApkScript + otherFilesScript
     }
 
     private fun isSafeZipPath(path: String): Boolean {
@@ -116,6 +142,8 @@ open class DirectOverlayWriter(
     companion object {
         private val writeLock = Any()
         private const val MARKER = "__JUGG_DIRECT_OVERLAY__"
+        private const val BASE_APK_DIR = "base.apk"
+        private const val BASE_APK_PREFIX = "$BASE_APK_DIR/"
         private val PACKAGE_NAME_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
 }
@@ -125,6 +153,7 @@ data class DirectOverlayWriteRequest(
     val expectedOverlayId: String,
     val overlayId: String,
     val files: List<DirectOverlayWriteFile>,
+    val isFullResourcePush: Boolean = false,
 )
 
 data class DirectOverlayWriteFile(

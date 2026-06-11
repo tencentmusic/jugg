@@ -74,7 +74,12 @@ class DirectOverlaySwapTransport(
             return null
         }
 
-        val preparedRequest = DirectOverlayWriteRequestBuilder().build(packageName, overlayUpdate, asDeployerCompat)
+        val preparedRequest = DirectOverlayWriteRequestBuilder().build(
+            packageName,
+            overlayUpdate,
+            asDeployerCompat,
+            data.isFullRes,
+        )
         when (DirectOverlayWriter(adb, logger).write(preparedRequest.request)) {
             DirectOverlayWriteResult.SUCCESS -> return preparedRequest.overlayId
             DirectOverlayWriteResult.SKIPPED -> {
