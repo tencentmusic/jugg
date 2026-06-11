@@ -8,12 +8,16 @@ INCLUDE_APKS="yes"
 SKIP_ADB=false
 OPEN_FINDER=true
 PACKAGE_NAME=""
+DEVICE_SERIAL=""
+ADB_TARGET_ARGS=()
+ADB_TARGET_SERIALS=()
+DEVICE_OUTPUT_DIR="device"
 INTERACTIVE_MODE=false
 
 usage() {
   cat <<'USAGE'
 Usage:
-  collect_jugg_scene.command [project_dir] [--output-root DIR] [--include-apks yes|no] [--package-name NAME] [--skip-adb] [--no-open]
+  collect_jugg_scene.command [project_dir] [--output-root DIR] [--include-apks yes|no] [--package-name NAME] [--device-serial SERIAL] [--skip-adb] [--no-open]
 
 Double-click usage:
   Run this .command file, input the Android project directory, then find the
@@ -23,6 +27,9 @@ Notes:
   APK files are copied by default. Use --include-apks no only when size matters.
   Device collection uses adb when available, including pm path, installed APK
   hashes, and dex files under code_cache/.overlay.
+  When multiple devices are connected, pass --device-serial SERIAL or set
+  ANDROID_SERIAL to collect one device. Otherwise all online devices from
+  adb devices are collected.
 USAGE
 }
 
@@ -72,6 +79,11 @@ while [[ $# -gt 0 ]]; do
       PACKAGE_NAME="$2"
       shift 2
       ;;
+    --device|--device-serial)
+      [[ $# -ge 2 ]] || fail "$1 requires a device serial"
+      DEVICE_SERIAL="$2"
+      shift 2
+      ;;
     --skip-adb)
       SKIP_ADB=true
       shift
@@ -104,6 +116,7 @@ fi
 PROJECT_DIR="$(clean_input_path "$PROJECT_DIR")"
 OUTPUT_ROOT="$(clean_input_path "$OUTPUT_ROOT")"
 PACKAGE_NAME="$(clean_input_path "$PACKAGE_NAME")"
+DEVICE_SERIAL="$(clean_input_path "$DEVICE_SERIAL")"
 
 [[ -d "$PROJECT_DIR" ]] || fail "project directory does not exist: $PROJECT_DIR"
 [[ -d "$OUTPUT_ROOT" ]] || fail "output root does not exist: $OUTPUT_ROOT"
@@ -165,6 +178,7 @@ IncludeApks: $INCLUDE_APKS
 SkipAdb: $SKIP_ADB
 OpenFinder: $OPEN_FINDER
 PackageName: ${PACKAGE_NAME:-auto}
+DeviceSerial: ${DEVICE_SERIAL:-all-online}
 SUMMARY
 }
 
@@ -310,32 +324,32 @@ hash_files_under() {
 
 pull_device_apks() {
   local package_name="$1"
-  local package_dir="$OUT_DIR/device/packages/$package_name"
+  local package_dir="$OUT_DIR/$DEVICE_OUTPUT_DIR/packages/$package_name"
   local pm_path_file="$package_dir/pm_path.txt"
   mkdir -p "$package_dir/apk"
 
-  run_capture "device/packages/$package_name/pm_path.txt" adb shell pm path "$package_name"
+  run_capture "$DEVICE_OUTPUT_DIR/packages/$package_name/pm_path.txt" adb "${ADB_TARGET_ARGS[@]}" shell pm path "$package_name"
 
   sed -n 's/^package://p' "$pm_path_file" |
     while IFS= read -r remote_apk; do
       [[ -n "$remote_apk" ]] || continue
       local apk_name
       apk_name="$(basename "$remote_apk")"
-      run_capture "device/packages/$package_name/apk/pull_${apk_name}.log" adb pull "$remote_apk" "$package_dir/apk/$apk_name"
+      run_capture "$DEVICE_OUTPUT_DIR/packages/$package_name/apk/pull_${apk_name}.log" adb "${ADB_TARGET_ARGS[@]}" pull "$remote_apk" "$package_dir/apk/$apk_name"
     done
 }
 
 dump_device_overlay_dex() {
   local package_name="$1"
-  local package_dir="$OUT_DIR/device/packages/$package_name"
-  local overlay_dir="$OUT_DIR/device/packages/$package_name/overlay_dex"
-  local listing_file="$OUT_DIR/device/packages/$package_name/overlay_dex_list.txt"
+  local package_dir="$OUT_DIR/$DEVICE_OUTPUT_DIR/packages/$package_name"
+  local overlay_dir="$OUT_DIR/$DEVICE_OUTPUT_DIR/packages/$package_name/overlay_dex"
+  local listing_file="$OUT_DIR/$DEVICE_OUTPUT_DIR/packages/$package_name/overlay_dex_list.txt"
   local error_log="$package_dir/overlay_dex_pull_errors.log"
   local tmp_error="$package_dir/overlay_dex_pull.tmp"
   mkdir -p "$overlay_dir"
   rm -f "$error_log" "$tmp_error"
 
-  adb shell run-as "$package_name" find code_cache/.overlay -type f -name '*.dex' -print \
+  adb "${ADB_TARGET_ARGS[@]}" shell run-as "$package_name" find code_cache/.overlay -type f -name '*.dex' -print \
     > "$listing_file" 2>&1 || true
 
   sed -n '/^code_cache\/.overlay\/.*\.dex$/p' "$listing_file" |
@@ -343,7 +357,7 @@ dump_device_overlay_dex() {
       local rel="${remote_dex#code_cache/.overlay/}"
       local dest="$overlay_dir/$rel"
       mkdir -p "$(dirname "$dest")"
-      if ! adb exec-out run-as "$package_name" cat "$remote_dex" > "$dest" 2>"$tmp_error"; then
+      if ! adb "${ADB_TARGET_ARGS[@]}" exec-out run-as "$package_name" cat "$remote_dex" > "$dest" 2>"$tmp_error"; then
         {
           echo "Failed to pull $remote_dex"
           cat "$tmp_error"
@@ -358,13 +372,13 @@ dump_device_overlay_dex() {
 }
 
 write_apk_consistency_report() {
-  local report="$OUT_DIR/device/apk_consistency.txt"
+  local report="$OUT_DIR/$DEVICE_OUTPUT_DIR/apk_consistency.txt"
   local local_hashes="$OUT_DIR/meta/local_apk_hashes.txt"
-  local device_hashes="$OUT_DIR/device/device_apk_hashes.txt"
-  mkdir -p "$OUT_DIR/device"
+  local device_hashes="$OUT_DIR/$DEVICE_OUTPUT_DIR/device_apk_hashes.txt"
+  mkdir -p "$OUT_DIR/$DEVICE_OUTPUT_DIR"
 
   hash_files_under "$OUT_DIR/apk" "meta/local_apk_hashes.txt"
-  hash_files_under "$OUT_DIR/device" "device/device_apk_hashes.txt"
+  hash_files_under "$OUT_DIR/$DEVICE_OUTPUT_DIR" "$DEVICE_OUTPUT_DIR/device_apk_hashes.txt"
 
   {
     echo "APK consistency diagnosis"
@@ -383,6 +397,75 @@ write_apk_consistency_report() {
   } > "$report"
 }
 
+select_adb_devices() {
+  local devices_file="$OUT_DIR/device/adb_devices.txt"
+  local target_file="$OUT_DIR/meta/adb_targets.txt"
+  local source=""
+  local serial state rest
+  ADB_TARGET_SERIALS=()
+  mkdir -p "$OUT_DIR/meta"
+
+  if [[ -n "$DEVICE_SERIAL" ]]; then
+    source="--device-serial"
+    ADB_TARGET_SERIALS+=("$DEVICE_SERIAL")
+  elif [[ -n "${ANDROID_SERIAL:-}" ]]; then
+    DEVICE_SERIAL="$ANDROID_SERIAL"
+    source="ANDROID_SERIAL"
+    ADB_TARGET_SERIALS+=("$DEVICE_SERIAL")
+  else
+    while read -r serial state rest; do
+      [[ "$state" == "device" ]] || continue
+      ADB_TARGET_SERIALS+=("$serial")
+    done < "$devices_file"
+    source="adb devices"
+  fi
+
+  {
+    if [[ "${#ADB_TARGET_SERIALS[@]}" -gt 0 ]]; then
+      echo "TargetCount: ${#ADB_TARGET_SERIALS[@]}"
+      echo "SelectionSource: $source"
+      printf 'TargetDevices:'
+      for serial in "${ADB_TARGET_SERIALS[@]}"; do
+        printf ' %s' "$serial"
+      done
+      printf '\n'
+      if [[ "$source" == "adb devices" && "${#ADB_TARGET_SERIALS[@]}" -gt 1 ]]; then
+        echo "Note: multiple online devices found; collecting all online devices. Pass --device-serial to choose one."
+      fi
+    else
+      echo "TargetCount: 0"
+      echo "Note: no online adb device found."
+    fi
+  } > "$target_file"
+  cp "$target_file" "$OUT_DIR/meta/adb_target.txt"
+}
+
+collect_adb_for_device() {
+  local serial="$1"
+  local use_device_subdir="$2"
+
+  ADB_TARGET_ARGS=(-s "$serial")
+  if [[ "$use_device_subdir" == "true" ]]; then
+    DEVICE_OUTPUT_DIR="device/devices/$serial"
+  else
+    DEVICE_OUTPUT_DIR="device"
+  fi
+
+  run_capture "$DEVICE_OUTPUT_DIR/logcat_tail.log" adb "${ADB_TARGET_ARGS[@]}" logcat -d -t 20000
+
+  while IFS= read -r package_name; do
+    [[ -n "$package_name" ]] || continue
+    if [[ ! "$package_name" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$ ]]; then
+      echo "Skip invalid package name: $package_name" >> "$OUT_DIR/$DEVICE_OUTPUT_DIR/package_skip.txt"
+      continue
+    fi
+    pull_device_apks "$package_name"
+    dump_device_overlay_dex "$package_name"
+  done < "$OUT_DIR/meta/package_candidates.txt"
+
+  write_apk_consistency_report
+}
+
 collect_adb_snapshot() {
   if [[ "$SKIP_ADB" == "true" ]]; then
     echo "Skipped by --skip-adb" > "$OUT_DIR/meta/adb_skipped.txt"
@@ -395,20 +478,23 @@ collect_adb_snapshot() {
   fi
 
   run_capture "device/adb_devices.txt" adb devices -l
-  run_capture "device/logcat_tail.log" adb logcat -d -t 20000
+  select_adb_devices
   infer_package_names
 
-  while IFS= read -r package_name; do
-    [[ -n "$package_name" ]] || continue
-    if [[ ! "$package_name" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$ ]]; then
-      echo "Skip invalid package name: $package_name" >> "$OUT_DIR/device/package_skip.txt"
-      continue
-    fi
-    pull_device_apks "$package_name"
-    dump_device_overlay_dex "$package_name"
-  done < "$OUT_DIR/meta/package_candidates.txt"
+  local use_device_subdir="false"
+  if [[ "${#ADB_TARGET_SERIALS[@]}" -gt 1 ]]; then
+    use_device_subdir="true"
+  fi
+  if [[ "${#ADB_TARGET_SERIALS[@]}" -eq 0 ]]; then
+    DEVICE_OUTPUT_DIR="device"
+    write_apk_consistency_report
+    return 0
+  fi
 
-  write_apk_consistency_report
+  local serial
+  for serial in "${ADB_TARGET_SERIALS[@]}"; do
+    collect_adb_for_device "$serial" "$use_device_subdir"
+  done
 }
 
 write_manifest() {

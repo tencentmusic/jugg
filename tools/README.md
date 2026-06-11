@@ -15,6 +15,7 @@ Command-line usage:
 ```bash
 tools/collect_jugg_scene.command /path/to/android/project
 tools/collect_jugg_scene.command /path/to/android/project --package-name com.example.app
+tools/collect_jugg_scene.command /path/to/android/project --device-serial emulator-5554
 tools/collect_jugg_scene.command /path/to/android/project --skip-adb --no-open
 tools/collect_jugg_scene.command /path/to/android/project --output-root /tmp/jugg-scenes
 ```
@@ -28,6 +29,9 @@ Collected content:
 - `build/jugg/classpath`: classpath inventory and mapping-like text files.
 - APK files under `build/jugg/classpath/apk`; copied by default.
 - Git metadata and optional `adb devices` / logcat tail snapshot.
+- ADB device selection metadata in `meta/adb_targets.txt`; when multiple online
+  devices are connected, each device is collected under `device/devices/<serial>`.
+  Pass `--device-serial` or set `ANDROID_SERIAL` to collect only one device.
 - Device APK paths and pulled device APK files when a package name can be
   inferred from Jugg project info or is passed by `--package-name`.
 - Device direct overlay dex files from `run-as <package> code_cache/.overlay`.
