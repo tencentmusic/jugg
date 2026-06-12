@@ -89,6 +89,22 @@ class BaseCompileContext(
         logger.debug("R.jar candidates found in module ${moduleInfo.name}, selected=${selectedRFile.absolutePath}\n$candidateText")
     }
 
+    private fun logJavaClassPathCandidates(moduleInfo: ModuleInfo) {
+        val candidates = moduleInfo.buildPathInfo.javaClassPathCandidates
+        if (candidates.size <= 1) {
+            return
+        }
+
+        val selectedJavaClassPath = moduleInfo.buildPathInfo.javaClassPath
+        val candidateText = candidates.joinToString(separator = "\n") {
+            "  - path=${it.absolutePath}, lastModified=${it.lastModified()}"
+        }
+        logger.debug(
+            "Java classpath candidates found in module ${moduleInfo.name}, " +
+                "selected=${selectedJavaClassPath.absolutePath}\n$candidateText"
+        )
+    }
+
     override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules() // must run before findApplicationModule()
 
     override var applicationModule: ModuleInfo? = findApplicationModule()
@@ -311,6 +327,7 @@ class BaseCompileContext(
         }
 
         printParentTree(moduleInfo.buildPathInfo.javaClassPath, moduleInfo.buildPathInfo.moduleRootDir)
+        logJavaClassPathCandidates(moduleInfo)
         printParentTree(moduleInfo.buildPathInfo.kotlinClassPath, moduleInfo.buildPathInfo.moduleRootDir)
         moduleInfo.moduleDependencies.forEach {
             val dependencyModuleInfo = modules[it.moduleName] ?: run {

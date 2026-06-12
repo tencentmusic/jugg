@@ -140,8 +140,13 @@ data class ModuleBuildPathInfo(
             buildDir,
             "intermediates/javac/$buildVariant/compile${buildVariant.camelCompat}JavaWithJavac/classes"
         )
+
+    val javaClassPathCandidates get() = (listOfNotNull(javaClassPathOld.takeIf(File::exists)) +
+        listOfNotNull(javaClassPathNew.takeIf(File::exists)))
+        .distinctByAbsolutePath()
+
     /** java class path */
-    val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
+    val javaClassPath get() = javaClassPathCandidates.newestFile() ?: javaClassPathNew
     /** after AGP 4.1.1, R.class not storage in buildClassPath */
 
     // AGP 9.0+ uses compile_and_runtime_r_class_jar (without not_namespaced)
@@ -202,7 +207,7 @@ data class ModuleBuildPathInfo(
 
     val syncToLocalPathList get() = customSyncFiles + listOf(generatedSourcePath)
 
-    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
+    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
 
     // use to fetch all class path after full build
     val allBuildPathRelative get() = (listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,

@@ -153,11 +153,114 @@ class ModuleBuildPathInfoTest {
         assertEquals(listOf(rootRJar.canonicalPath), info.rFilePathCandidates.map { it.canonicalPath })
     }
 
+    @Test
+    fun `javaClassPath resolves newest javac output dir when AGP upgrade leaves both paths`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val staleClassesDir = createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/classes",
+            1000L,
+        )
+        val currentCompileJavaDir = createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/compileDebugJavaWithJavac/classes",
+            2000L,
+        )
+
+        assertTrue(staleClassesDir.exists())
+        assertEquals(currentCompileJavaDir.canonicalPath, info.javaClassPath.canonicalPath)
+    }
+
+    @Test
+    fun `javaClassPath keeps classes dir when it is the newest javac output dir`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val currentClassesDir = createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/classes",
+            3000L,
+        )
+        createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/compileDebugJavaWithJavac/classes",
+            2000L,
+        )
+
+        assertEquals(currentClassesDir.canonicalPath, info.javaClassPath.canonicalPath)
+    }
+
+    @Test
+    fun `javaClassPath falls back to classes dir when compileDebugJavaWithJavac is absent`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val classesDir = createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/classes",
+            1000L,
+        )
+
+        assertEquals(classesDir.canonicalPath, info.javaClassPath.canonicalPath)
+    }
+
+    @Test
+    fun `allClassPath includes only resolved javaClassPath when multiple javac output dirs exist`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/classes",
+            1000L,
+        )
+        val currentCompileJavaDir = createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/compileDebugJavaWithJavac/classes",
+            2000L,
+        )
+
+        val javaClasspathEntries = info.allClassPath.filter {
+            it.path.contains("intermediates/javac/debug")
+        }
+
+        assertEquals(listOf(currentCompileJavaDir.canonicalPath), javaClasspathEntries.map { it.canonicalPath })
+    }
+
+    @Test
+    fun `javaClassPathCandidates returns distinct existing javac output dirs`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val classesDir = createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/classes",
+            1000L,
+        )
+        val compileJavaDir = createJavaOutputDir(
+            moduleRootDir,
+            "build/intermediates/javac/debug/compileDebugJavaWithJavac/classes",
+            2000L,
+        )
+
+        assertEquals(
+            listOf(compileJavaDir.canonicalPath, classesDir.canonicalPath),
+            info.javaClassPathCandidates.map { it.canonicalPath },
+        )
+    }
+
     private fun createRJar(moduleRootDir: File, relativePath: String, lastModifiedTime: Long): File {
         val rJar = File(moduleRootDir, relativePath)
         rJar.parentFile.mkdirs()
         rJar.createNewFile()
         assertTrue(rJar.setLastModified(lastModifiedTime), "failed to set lastModifiedTime for ${rJar.path}")
         return rJar
+    }
+
+    private fun createJavaOutputDir(moduleRootDir: File, relativePath: String, lastModifiedTime: Long): File {
+        val outputDir = File(moduleRootDir, relativePath)
+        outputDir.mkdirs()
+        val classFile = File(outputDir, "com/example/Dummy.class")
+        classFile.parentFile.mkdirs()
+        classFile.createNewFile()
+        assertTrue(outputDir.setLastModified(lastModifiedTime), "failed to set lastModifiedTime for ${outputDir.path}")
+        return outputDir
     }
 }
