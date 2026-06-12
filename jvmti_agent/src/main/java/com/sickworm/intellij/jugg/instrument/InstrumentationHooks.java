@@ -13,11 +13,13 @@ import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashSet;
 
 /** @noinspection unused*/
 public class InstrumentationHooks {
 
     public static final String TAG = "jugg-jvmti";
+    private static final HashSet<String> loggedAssetManagerDecisions = new HashSet<>();
 
     public static void handleAttachBaseContextEntry(ContextWrapper contextWrapper, Context base)
         throws Exception {
@@ -26,6 +28,7 @@ public class InstrumentationHooks {
         }
         LogUtils.i(TAG, "handleAttachBaseContextEntry contextWrapper: " + contextWrapper);
         try {
+            ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
             if (isNeedFix) {
@@ -44,6 +47,7 @@ public class InstrumentationHooks {
 
     public static void handleNewApplicationEntry(Instrumentation instrumentation, ClassLoader classLoader, String className, Context base) {
         try {
+            ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
             if (isNeedFix) {
@@ -60,6 +64,7 @@ public class InstrumentationHooks {
 
     public static void handleNewApplicationEntry2(Instrumentation instrumentation, Class<?> clazz, Context base) {
         try {
+            ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
             if (isNeedFix) {
@@ -90,17 +95,15 @@ public class InstrumentationHooks {
         if (isEnableHotfix()) {
             return;
         }
-        LogUtils.d(TAG, "createAssetManagerEnter");
         String resDir = resourcesKey.mResDir;
         isNeedFixThisAssetManager = isNeedFixThisAssetManager(resourcesKey);
-        LogUtils.i(TAG, "createAssetManager resDir: " + resDir + ", isNeedFixThisAssetManager " + isNeedFixThisAssetManager);
+        logAssetManagerDecisionOnce("createAssetManager", resDir, isNeedFixThisAssetManager);
     }
 
     public static AssetManager createAssetManagerExit(AssetManager assetManager) {
         if (isEnableHotfix()) {
             return assetManager;
         }
-        LogUtils.d(TAG, "createAssetManagerExit");
         if (isNeedFixThisAssetManager) {
             tryFixOutSideApk(assetManager);
         }
@@ -113,14 +116,12 @@ public class InstrumentationHooks {
         if (isEnableHotfix()) {
             return;
         }
-        LogUtils.d(TAG, "createAssetManagerNewEnter");
         String resDir = resourcesKey.mResDir;
         isNeedFixThisAssetManagerNew = isNeedFixThisAssetManager(resourcesKey);
-        LogUtils.i(TAG, "createAssetManagerNew resDir: " + resDir + ", isNeedFixThisAssetManagerNew " + isNeedFixThisAssetManagerNew);
+        logAssetManagerDecisionOnce("createAssetManagerNew", resDir, isNeedFixThisAssetManagerNew);
     }
 
     public static AssetManager createAssetManagerNewExit(AssetManager assetManager) {
-        LogUtils.d(TAG, "createAssetManagerNewExit");
         if (!isNeedFixThisAssetManagerNew) {
             return assetManager;
         }
@@ -130,19 +131,43 @@ public class InstrumentationHooks {
     }
 
     /**
-     * Apply changes will inject overlays into AssetManager, no matter whether it's in app or standalone apk.
-     * Resource cannot be found if it created through Context.getPackageManager().getResourcesForApplication
+     * Apply Changes can inject the host overlay into AssetManager for non-host package resources.
+     * WebView provider initialization can fail if its context contains the host overlay package id.
      * <p>
-     * Solution: Here we detect standalone apk and remove Apply changes overlays from AssetManager.
+     * Solution: Keep overlays only for host APK resources and remove them from standalone package contexts.
      */
     private static boolean isNeedFixThisAssetManager(ResourcesKey resourcesKey) {
-        String resDir = resourcesKey.mResDir;
-        // it's a standalone resources, should not insert apply changes overlay
-        return resDir != null && !resDir.startsWith("/data/app");
+        return ApplyChangesOverlayPolicy.shouldRemoveApplyChangesOverlay(resourcesKey);
     }
 
     private static boolean isApplyChangesOverlay(String path) {
         return path.contains("/code_cache/.overlay/");
+    }
+
+    private static synchronized void logAssetManagerDecisionOnce(String hookName, String resDir, boolean shouldFix) {
+        String action = shouldFix ? "fix" : "skip";
+        String key = hookName + ":" + action + ":" + resDir;
+        if (!loggedAssetManagerDecisions.add(key)) {
+            return;
+        }
+        LogUtils.i(TAG, "assetManager hook action=" + action +
+            ", package=" + parsePackageName(resDir) +
+            ", resDir=" + resDir +
+            ", hook=" + hookName);
+    }
+
+    private static String parsePackageName(String resDir) {
+        if (resDir == null) {
+            return "unknown";
+        }
+        String[] parts = resDir.split("/");
+        for (String part : parts) {
+            int suffixIndex = part.lastIndexOf('-');
+            if (suffixIndex > 0 && part.indexOf('.') > 0) {
+                return part.substring(0, suffixIndex);
+            }
+        }
+        return resDir;
     }
 
     private static void tryFixOutSideApk(AssetManager assetManager) {
@@ -156,9 +181,7 @@ public class InstrumentationHooks {
             //noinspection DataFlowIssue
             for (ApkAssets apkAsset : apkAssets) {
                 String assetPath = apkAsset.getAssetPath();
-                if (isApplyChangesOverlay(assetPath)) {
-                    LogUtils.i(TAG, "tryFixOutSideApk remove assetPath: " + assetPath);
-                } else {
+                if (!isApplyChangesOverlay(assetPath)) {
                     newApkAssets.add(apkAsset);
                 }
             }

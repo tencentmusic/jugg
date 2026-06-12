@@ -103,35 +103,45 @@ bool ApplyTransforms(jvmtiEnv* jvmti, JNIEnv* jni,
                      const std::string& cache_path,
                      const std::vector<const Transform*>& transforms) {
   std::vector<jclass> classes;
+  std::vector<const Transform*> resolved_transforms;
   for (const auto& transform : transforms) {
     jclass klass = jni->FindClass(transform->GetClassName().c_str());
     if (klass == nullptr) {
-      ErrEvent("Could not find class for instrumentation: " +
-               transform->GetClassName());
+      ALOGW("Optional hook transform class not found: %s",
+            transform->GetClassName().c_str());
       jni->ExceptionClear();
-      return false;
+      continue;
     }
     classes.push_back(klass);
+    resolved_transforms.push_back(transform);
   }
 
   std::vector<std::string> failed_classes;
   for (int i = 0; i < classes.size(); ++i) {
-    current_transform = transforms[i];
+    current_transform = resolved_transforms[i];
+    jvmtiError error = jvmti->RetransformClasses(1, &classes[i]);
+    current_transform = nullptr;
     bool success = CheckJvmti(
-        jvmti->RetransformClasses(1, &classes[i]),
-        "Could not retransform class: " + transforms[i]->GetClassName());
+        error,
+        "Could not retransform class: " + resolved_transforms[i]->GetClassName());
     jni->DeleteLocalRef(classes[i]);
 
     // We intentionally do not stop if one transformation fails, because it's
     // useful to collect data on every failing transform - and if one is failing
     // due to platform/OEM changes, others might as well.
     if (!success) {
-      failed_classes.push_back(transforms[i]->GetClassName());
+      ALOGW("Optional hook transform retransform failed: %s",
+            resolved_transforms[i]->GetClassName().c_str());
+      failed_classes.push_back(resolved_transforms[i]->GetClassName());
       continue;
     }
+    ALOGI("Optional hook transform retransform success: %s",
+          resolved_transforms[i]->GetClassName().c_str());
   }
-
-  return failed_classes.empty();
+  if (!failed_classes.empty()) {
+    ALOGW("Optional hook transform failed count: %zu", failed_classes.size());
+  }
+  return true;
 }
 
 bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
@@ -226,12 +236,14 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
                      JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, NULL),
                  "Could not enable class file load hook event");
 
-  // Only bother to use transform caching with IWI, since the package manager
-  // will wipe the cache on a normal installation.
-  success &= ApplyTransforms(jvmti, jni, kNoCache, { &application, &appComponentFactory, &resManager, &activityThread });
-
   if (success) {
-    // method may not exists
+    // Hook transforms are optional. Platform and OEM differences must not make
+    // the whole agent unavailable.
+    ApplyTransforms(
+        jvmti,
+        jni,
+        kNoCache,
+        { &application, &appComponentFactory, &resManager, &activityThread });
     ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew });
   }
 
@@ -267,7 +279,7 @@ extern "C" void JNICALL Agent_ClassFileLoadHook(
   dex::Reader reader(class_data, class_data_len);
   auto class_index = reader.FindClassIndex(descriptor.c_str());
   if (class_index == dex::kNoIndex) {
-    // TODO: Handle failure.
+    ALOGW("ClassFileLoadHook could not find class index: %s", name);
     return;
   }
 
@@ -288,6 +300,7 @@ extern "C" void JNICALL Agent_ClassFileLoadHook(
 
   *new_class_data_len = new_image_size;
   *new_class_data = new_image;
+  ALOGI("ClassFileLoadHook transformed: %s, bytes=%zu", name, new_image_size);
 }
 
 bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,

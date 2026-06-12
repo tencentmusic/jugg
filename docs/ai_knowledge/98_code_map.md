@@ -61,7 +61,7 @@
 | platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `BuildGradleBaseCommand`, `BuildIncrementalApkCommand` |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |
-| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | JVMTI native 能力（`native-lib.cpp`）+ App 内 ViewHierarchy LocalSocket Server（`ViewHierarchyServer*`, `ViewTreeDumper`, `ElementFinder`, `ViewTapper`, `LayoutVerifier`, `ViewExpressionEvaluator`, `KuiklyViewResolver`，由 `BootstrapApplication` 初始化） |
+| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/` | JVMTI native 能力（`native-lib.cpp`、`instrumenter.cc`）+ runtime instrument 修复（`ApplyChangesOverlayPolicy` 等）+ App 内 ViewHierarchy LocalSocket Server（`ViewHierarchyServer*`, `ViewTreeDumper`, `ElementFinder`, `ViewTapper`, `LayoutVerifier`, `ViewExpressionEvaluator`, `KuiklyViewResolver`，由 `BootstrapApplication` 初始化） |
 
 ---
 

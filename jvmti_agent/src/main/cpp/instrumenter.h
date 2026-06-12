@@ -137,7 +137,9 @@ class HookTransform : public Transform {
                                        hook.method_name.c_str(),
                                        hook.method_signature.c_str());
       if (!mi.InstrumentMethod(target_method)) {
-          ALOGE("Failed to instrument: %s", GetClassName().c_str());
+          ALOGW("Optional hook method not found: class=%s method=%s signature=%s",
+                GetClassName().c_str(), hook.method_name.c_str(),
+                hook.method_signature.c_str());
       }
     }
   }
