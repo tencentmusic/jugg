@@ -11,7 +11,7 @@
     <li>[feature] 支持 Gradle 9.2.1</li>
     <li>[optimize] 优化降级后编译初始化时容易出现 IDE 卡住一段时间的问题，现在改为独立进程完成 APK 字节码解析</li>
     <li>[optimize] 优化部分场景需要重启 App 1-2 次，简化部署流程。解决方案：实现新的部署通道，不强依赖 apply changes 部署通道</li>
-    <li>[optimize] 大量类部署（>2000) 时自动触发 dex 合并，修复大量类触发启动 OOM 问题</li>
+    <li>[optimize] 大量类部署（>1000) 时自动触发 dex 合并，修复大量类触发启动 OOM 问题</li>
     <li>[optimize] 提高 databinding 部分场景的编译兼容性，如同时修改数据类和 XML 时会编译失败，工程使用 Kotlin 1.7 版本会编译失败等</li>
     <li>[optimize] 修复 Windows 执行 gradle clean 失败，提示日志文件被占用无法删除。改为无锁写入</li>
     <li>[bugfix] 修复 AbstractMethodException，场景：编译多层级 gradle 模块的 Kotlin internal 方法时，概率出现 module-name 和 base APK 不一致</li>

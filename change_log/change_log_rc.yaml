@@ -47,7 +47,7 @@
   date: 2026.02.28
   updates:
     - Supports const reference effect detect
-    - Introduce automatic dex merge during the deployment stage to fix OOM scenarios triggered when deploying a large number of classes (>2000)
+    - Introduce automatic dex merge during the deployment stage to fix OOM scenarios triggered when deploying a large number of classes (>1000)
 
 - version: 3.0.2
   date: 2026.02.21
