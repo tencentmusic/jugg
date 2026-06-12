@@ -376,6 +376,10 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
+        return runTask(options, null, null, null)
+    }
+
     override fun runTask(
         options: JuggRunConfigurationOptions,
         executor: Executor?,

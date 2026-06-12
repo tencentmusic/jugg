@@ -19,6 +19,9 @@ interface IJuggManagerCaller: Disposable {
 
     fun onSyncEvent(syncEvent: SyncEvent)
 
+    @Deprecated("for compatibility")
+    fun runTask(options: JuggRunConfigurationOptions): ExecutionResult
+
     fun runTask(
         options: JuggRunConfigurationOptions,
         executor: Executor?,
