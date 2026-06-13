@@ -39,3 +39,6 @@ jugg-mcp-test-result.md
 .codex
 .codebuddy
 docs/skills/jugg-android-dev-loop/scripts/py/**/__pycache__/
+node_modules/
+docs/wiki/.vitepress/dist/
+docs/wiki/.vitepress/cache/

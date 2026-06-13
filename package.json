@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "wiki:dev": "vitepress dev docs/wiki",
+    "wiki:build": "vitepress build docs/wiki",
+    "wiki:preview": "vitepress preview docs/wiki"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}

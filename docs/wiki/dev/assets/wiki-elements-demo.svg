@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="220" viewBox="0 0 640 220" role="img" aria-labelledby="title desc">
+  <title id="title">Wiki elements demo image</title>
+  <desc id="desc">A simple illustration used by the wiki elements demo page.</desc>
+  <rect width="640" height="220" rx="24" fill="#eef6ff"/>
+  <rect x="36" y="36" width="568" height="148" rx="18" fill="#ffffff" stroke="#7db7ff" stroke-width="4"/>
+  <circle cx="84" cy="84" r="20" fill="#3b82f6"/>
+  <rect x="124" y="68" width="348" height="18" rx="9" fill="#93c5fd"/>
+  <rect x="124" y="104" width="420" height="14" rx="7" fill="#bfdbfe"/>
+  <rect x="124" y="134" width="300" height="14" rx="7" fill="#dbeafe"/>
+  <text x="84" y="169" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#1d4ed8">MD</text>
+</svg>
