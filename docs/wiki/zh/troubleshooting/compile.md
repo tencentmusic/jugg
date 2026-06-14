@@ -93,11 +93,35 @@ kotlin compile result
 1. 代码本身是否能通过 Gradle 编译。
 2. 是否新增、删除或重命名了文件，但 Jugg 没有完整捕获。
 3. 是否修改了依赖或构建脚本。
-4. 是否是受影响源码需要继续补编译。
+4. 是否是受影响源码需要进入重编译/扩散编译。
 
 Jugg 会尝试对部分漏检文件和依赖缺失场景做一次自动修复并重试。如果重试后仍失败，建议执行一次 Gradle 构建重新建立基线。
 
-## 资源 / Manifest 编译失败
+## 增量编译失败
+
+如果看到：
+
+```text
+Found incremental compile error.
+Run again directly will fall back to gradle compile.
+```
+
+先尝试 Sync 一次项目。如果确认 Gradle 编译成功、但 Jugg 增量编译失败，请保留 `compile_latest.log` 和本轮修改文件列表。
+
+## 依赖库增量编译
+
+当检测到 build 文件修改时，Jugg 会弹出确认窗。参考文档中列出的选项包括：
+
+| 选项 | 含义 |
+|---|---|
+| `Fallback to Gradle` | 本轮直接降级为 Gradle 编译 |
+| `Find out changed Libraries` | 执行 Gradle 读取依赖变化，再二次确认 |
+| `Ignore build changes` | 忽略 build 文件变化，继续按增量路径处理 |
+| 关闭弹窗 | 取消本轮操作 |
+
+如果选择找出依赖库变化，Jugg 会先读取依赖差异，再要求确认变化是否符合预期。参考文档中说明整体耗时通常约 `40-80s`。
+
+## 资源 / AndroidManifest 编译失败
 
 资源相关问题通常会出现 aapt2 或 Manifest 相关信息。
 
@@ -166,6 +190,6 @@ build/jugg/database/deploy_history.db/
 ## 相关页面
 
 - [增量编译](../concepts/incremental-compile.md)
-- [编译指南](../guide/compile.md)
+- [编译阶段说明](../guide/compile.md)
 - [资源编译](../capabilities/compile/resource-compile.md)
 - [限制](../reference/limits.md)

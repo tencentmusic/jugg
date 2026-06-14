@@ -1,3 +1,3 @@
-# MCP
+# MCP for Agents
 
 Coming soon.

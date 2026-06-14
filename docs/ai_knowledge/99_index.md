@@ -52,7 +52,8 @@
 | **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_manifest_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`, `04_engineering_ide.md`, `03_deploy_const_ref.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
 | 知识库维护 / 专题文档重整 | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai_knowledge/*` |
-| Wiki 编写准则 / Markdown 元素 / dev-only 页面 | `10_wiki_authoring.md`, `97_maintenance_manual.md` | `docs/wiki/.vitepress/config.mts`, `docs/wiki/dev/elements-demo.md`, `docs/wiki/zh/dev/elements-demo.md` |
+| Wiki 架构 / 本地运行 / 发布 | `10_wiki_architecture.md`, `97_maintenance_manual.md` | `docs/wiki/package.json`, `docs/wiki/.vitepress/config.mts` |
+| Wiki 文章写作 / Markdown 元素 | `10_wiki_authoring.md`, `97_maintenance_manual.md` | `docs/wiki/**/*.md` |
 
 ---
 
@@ -86,7 +87,8 @@
 | `08_cli_tools_list.md` | `jugg` CLI（MCP 封装层）子命令参数与行为差异 |
 | `08_mcp_figma_layout_verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |
 | `09_plugin_runtime_debug.md` | 运行时排查手册：目录结构、日志分析、IDE freeze 证据保全、高频问题根因、TDD 修复流程 |
-| `10_wiki_authoring.md` | Wiki 编写准则：Markdown 支持元素、frontmatter、提示块、工程语义块、dev-only 页面规则与中英文同步约定 |
+| `10_wiki_architecture.md` | Wiki 架构与运行：VitePress 结构、dev-only 页面规则、本地 dev、production build、preview 与发布边界 |
+| `10_wiki_authoring.md` | Wiki 文章编写准则：frontmatter、Markdown 支持元素、提示块、工程语义块、中英文同步与能力篇引用规则 |
 | `97_maintenance_manual.md` | AI 知识库维护手册：专题文档整理标准、结构模板、密度控制、自审清单 |
 
 ---

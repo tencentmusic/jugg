@@ -1,31 +1,24 @@
 ---
-title: 编译
-description: 介绍如何使用 Jugg 编译、理解增量与 Gradle 回退，并处理常见编译结果。
+title: 编译阶段说明
+description: 解释 Jugg Run 内部的编译阶段、增量与 Gradle 回退，以及常见编译结果。
 status: active
 tags:
   - guide
   - compile
 ---
 
-# 编译
+# 编译阶段说明
 
-Jugg 编译通常发生在你点击 Jugg Run、Jugg Debug 或相关工具触发构建时。大多数情况下，你不需要手动选择编译阶段：Jugg 会先尝试增量编译，必要时自动提示或回退到 Gradle。
+Jugg 编译通常发生在你点击 Jugg Run、Jugg Debug、androidTest gutter，或通过 CLI / MCP 触发运行时。大多数日常场景不需要单独打开“编译”页面来决定怎么操作；先看 [运行 App](./run.md)，本页用于解释 Run 过程中看到的编译结果、增量判断和 Gradle 回退。
 
-## 开始一次编译
+## 什么时候需要看本页
 
-常见入口包括：
+适合阅读本页的场景：
 
-- 点击 Jugg Run。
-- 点击 Jugg Debug。
-- 运行 androidTest 相关配置。
-- 通过 Jugg CLI 或 MCP 工具触发编译。
-
-开始前建议确认：
-
-1. 文件已经保存。
-2. Android Studio 没有正在执行耗时同步或索引任务。
-3. 目标设备已连接并处于可部署状态。
-4. 最近至少有一次成功的 Gradle 构建作为基线。
+- Run 输出里出现了增量编译、Gradle 回退或依赖 diff 相关提示。
+- 你想判断某类修改通常会走增量还是 Gradle。
+- `compile` 已经失败，需要定位第一条编译错误。
+- 你在 CLI / MCP 中显式调用 `jugg compile`。
 
 > [!TIP]
 > 如果不确定当前改动是否适合增量，直接运行即可。Jugg 会先判断，不适合时再回退 Gradle。
@@ -42,19 +35,22 @@ Jugg 编译通常发生在你点击 Jugg Run、Jugg Debug 或相关工具触发�
   -> 进入部署
 ```
 
-如果前置检查发现风险较高，Jugg 会跳过增量，进入 Gradle 构建。
+如果前置检查发现风险较高，Jugg 会跳过增量，进入 Gradle 构建。Gradle 构建完成后，Jugg 会重新收集 APK、classpath、project info 等基线数据，后续才能继续稳定增量。
 
 ## 常见修改类型
 
 | 修改类型 | 通常行为 | 说明 |
 |---|---|---|
-| Java / Kotlin 小范围修改 | 增量编译 | 可能继续补编译受影响源码 |
+| Java / Kotlin 小范围修改 | 源码编译 | 可能通过重编译/扩散编译继续处理受影响源码 |
 | layout / drawable / values 修改 | 资源增量编译 | 可能生成 `R.java` 或 ViewBinding/DataBinding 源码 |
-| `AndroidManifest.xml` 简单修改 | Manifest 增量处理 | 复杂合并逻辑可能回退 |
-| assets / native lib 修改 | overlay 下发 | 通常不需要完整 Gradle |
+| `AndroidManifest.xml` 简单修改 | Manifest 增量处理 | 通过更新 APK 并重签名生效 |
+| assets 修改 | overlay 下发 | 通常不需要完整 Gradle |
+| native lib / `.so` 产物修改 | so 更新 | 写入 APK 并重签名；C/C++ 源码仍需先由 Gradle/NDK 产出 `.so` |
 | Gradle 脚本或依赖修改 | 可能回退 Gradle | 取决于依赖变化判断和用户选择 |
+| 仅依赖库版本变化 | 可选择依赖库增量 | 需要用户确认 diff，通常比完整 Gradle 快 |
 | 大批量跨模块修改 | 可能回退 Gradle | Jugg 会优先保证稳定性 |
 | release 混淆相关修改 | 谨慎增量 | 运行时异常时建议 Gradle 验证 |
+| 删除类、资源或 Manifest 节点 | 谨慎处理 | 增量方案通常不彻底表达删除语义，必要时 Gradle |
 
 ## 什么时候会回退 Gradle
 
@@ -70,6 +66,25 @@ Jugg 编译通常发生在你点击 Jugg Run、Jugg Debug 或相关工具触发�
 
 回退并不代表 Jugg 失效。它通常表示当前修改更适合交给 Gradle 处理。
 
+## 依赖库增量编译
+
+当 Jugg 检测到 build 文件变化时，可能会给出几个选择：
+
+| 选择 | 含义 |
+|---|---|
+| Fallback to Gradle | 直接完整 Gradle 构建 |
+| Find out changed Libraries | 执行依赖 diff，确认后只编译变化依赖库 |
+| Ignore build changes | 忽略本次 build 文件变化，继续按增量状态运行 |
+| 关闭弹窗 | 取消本轮运行 |
+
+适合选择依赖库增量的场景：
+
+- 只升级或回退了依赖库。
+- build 文件修改对当前 APK 产物没有影响。
+- 你能确认 diff 结果符合预期。
+
+如果不确定，选择 Gradle 更稳妥。
+
 ## 如何看编译结果
 
 你可以从运行输出或日志中判断当前状态：
@@ -77,7 +92,7 @@ Jugg 编译通常发生在你点击 Jugg Run、Jugg Debug 或相关工具触发�
 | 日志 / 输出 | 含义 |
 |---|---|
 | `Compile files:` | Jugg 正在编译检测到的变化文件 |
-| `Detect effected sources` | 编译成功后发现受影响源码，继续补编译 |
+| `Detect effected sources` | 编译成功后发现受影响源码，进入重编译/扩散编译 |
 | `Compile finished` | 本轮编译结束 |
 | `fallback` / `Fallback` | 当前进入或准备进入 Gradle 回退 |
 | `Found incremental compile error` | 增量编译失败，需要查看具体错误 |
@@ -108,11 +123,28 @@ build/jugg/log/compile_latest.log
 - 修改资源或 layout：直接 Jugg Run，必要时观察是否触发源码补编译。
 - 修改 Gradle、依赖、插件或 source set：优先准备接受 Gradle 回退。
 - 切分支或拉取大量代码后：建议先执行一次 Gradle 构建。
+- 修改 static / companion / Kotlin 顶层声明、启动初始化或单例缓存：编译后主动重启 App 更稳。
+- 删除类、资源或 Manifest 节点后结果异常：优先 Gradle 构建对照。
 - release 问题：先用 Gradle 构建确认是否为增量链路差异。
+
+## 直接降级和取消
+
+当你明确希望用 Gradle 完成本轮构建，可以使用直接降级按钮或 `jugg gradle-build`。常见原因包括：
+
+- 手动删除过部分 `build/` 目录，导致增量依赖缺失。
+- 认为本次增量结果不正确，需要完整 Gradle 对照。
+- 修改了明确不适合增量的注解处理、插桩或构建逻辑。
+
+如果误触发 Gradle 回退，可以取消。取消会停止本轮 Gradle 构建；下一次运行仍会优先尝试增量。
 
 ## 相关页面
 
+- [运行 App](./run.md)
 - [增量编译](../concepts/incremental-compile.md)
+- [源码编译](../capabilities/compile/source-compile.md)
+- [重编译/扩散编译](../capabilities/compile/recompile-propagation.md)
+- [依赖库增量编译](../capabilities/compile/dependency-incremental.md)
 - [资源编译](../capabilities/compile/resource-compile.md)
+- [so 更新](../capabilities/compile/so-update.md)
 - [编译问题排查](../troubleshooting/compile.md)
 - [限制](../reference/limits.md)

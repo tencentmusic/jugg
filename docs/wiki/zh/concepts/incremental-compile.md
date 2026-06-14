@@ -55,7 +55,7 @@ Jugg 会先做一轮轻量检查。如果命中明显不适合增量的场景，
 Jugg 会按文件类型进入不同子阶段。典型顺序是：
 
 ```text
-assets / native lib
+assets / native lib 变更识别
   -> res / AndroidManifest
   -> R.java / R.dex
   -> Java / Kotlin / class
@@ -63,6 +63,8 @@ assets / native lib
 ```
 
 其中资源阶段可能生成 `R.java`、ViewBinding/DataBinding 相关源码，这些源码不会直接部署，而是继续交给源码编译阶段处理。
+
+native lib / `.so` 不属于资源编译。Jugg 会在部署阶段把已有 `.so` 产物写入 APK 并重新签名。
 
 > [!NOTE]
 > 用户不需要手动选择这些阶段。Jugg 会根据变化文件类型自动选择需要执行的部分。
@@ -129,7 +131,7 @@ Jugg 增量编译和 Gradle 构建的关系可以理解为：
 
 ## 相关页面
 
-- [编译指南](../guide/compile.md)
+- [编译阶段说明](../guide/compile.md)
 - [资源编译](../capabilities/compile/resource-compile.md)
 - [编译问题排查](../troubleshooting/compile.md)
 - [限制](../reference/limits.md)

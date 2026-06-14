@@ -1,6 +1,6 @@
 ---
 title: 资源编译
-description: 说明 Jugg 对 res、assets、Manifest、R 文件和资源 overlay 的增量处理能力。
+description: 说明 Jugg 对 res、assets、R 文件和资源 overlay 的增量处理能力。
 status: active
 tags:
   - capability
@@ -10,43 +10,47 @@ tags:
 
 # 资源编译
 
-Jugg 支持对 Android 资源相关文件进行增量编译，并把结果作为 overlay 交给部署阶段。资源编译覆盖的不只是 `res/`，还包括 `assets/`、native lib、`AndroidManifest.xml`、`resources.arsc`、`R.java` 以及部分 ViewBinding/DataBinding 生成产物。
+Jugg 支持对 Android 资源相关文件进行增量编译，并把结果交给部署阶段。资源编译覆盖 `res/`、`assets/`、`resources.arsc`、`R.java` 以及 ViewBinding/DataBinding layout 相关产物交接。
 
-> [!IMPORTANT]
-> 资源增量编译依赖最近一次可用 APK 的资源表。Jugg 会尽量基于最新已部署资源继续 link，但复杂资源结构或构建插件行为仍可能需要 Gradle 回退。
+## 已支持能力
 
-## 支持的资源类型
-
-| 类型 | 示例 | Jugg 处理方式 |
+| 修改类型 | 当前支持情况 | 结果 |
 |---|---|---|
-| 普通资源 | `res/layout/activity_main.xml`、`res/drawable/icon.xml` | 编译为 `.flat`，再 link 为可部署 overlay |
-| values 资源 | `res/values/strings.xml`、`colors.xml` | 编译并更新 `resources.arsc` |
-| Manifest | `AndroidManifest.xml` | 基于已合并 Manifest 做增量 patch |
-| assets | `assets/config.json` | 作为 overlay 下发 |
-| native lib | `jniLibs/**/*.so` | 作为 overlay 下发 |
-| ViewBinding/DataBinding layout | `res/layout/*.xml` | 先生成必要源码或 split XML，再进入资源/源码链路 |
+| 普通 `res/` 文件 | 支持 | 通过 aapt2 compile 生成 `.flat`，再 link 为可部署资源 overlay |
+| `res/values` | 支持 | 更新资源表，产出新的 `resources.arsc` |
+| `assets/` | 支持 | 作为 overlay 下发到目标 APK |
+| `AndroidManifest.xml` | 支持增量 patch | 作为资源 link 输入参与产物生成，最终通过更新 APK 并重签名生效；完整能力见 [AndroidManifest 编译](./manifest.md) |
+| ViewBinding/DataBinding layout | 支持资源阶段交接 | 先处理 split XML / 生成源码，再进入资源和源码编译；完整能力见 [DataBinding/ViewBinding](./databinding-viewbinding.md) |
+| `R.java` / `R.dex` | 由资源 link 触发 | 资源表变化后生成并修正 `R.java`，必要时继续编译为 dex |
 
-## 资源编译链路
+> [!TIP]
+> 如果变更的是 Gradle 配置、source set、variant 或资源生成逻辑，先完成对应 Gradle 构建或 Sync，让 Jugg 基于新的构建结果继续增量。
+
+## 资源编译如何运作
+
+### 资源编译链路
 
 一次资源变化通常会走下面的链路：
 
 ```text
-发现 res / Manifest 变化
+发现 res / AndroidManifest / assets 变化
   -> 按目标 APK 拆分编译任务
-  -> 处理 Manifest diff
-  -> 处理 ViewBinding / DataBinding layout
+  -> 处理 AndroidManifest diff
+  -> 处理 ViewBinding / DataBinding layout 交接
   -> 使用 aapt2 compile 生成 .flat
   -> 使用 aapt2 inclink 生成 resources.arsc、compiled res、R.java
   -> 过滤不应部署的额外产物
-  -> overlay 交给部署，生成源码继续交给源码编译
+  -> 资源 / assets overlay 交给部署，AndroidManifest 相关产物进入 APK 更新与重签名链路
+  -> 生成源码继续交给源码编译
 ```
 
 这里有两个关键点：
 
 1. **资源不是简单复制文件**。大多数 `res/` 文件需要经过 aapt2 编译和 link。
 2. **资源编译可能触发源码编译**。例如 `R.java`、ViewBinding/DataBinding 生成源码会继续进入 Java/Kotlin 编译阶段。
+3. **link 会基于最近一次可用资源表继续进行**。这让多轮资源增量可以叠加，而不是每次都从原始 APK 的旧资源表开始。
 
-## APK scoped 编译
+### APK scoped 编译
 
 在多 APK 或 dynamic feature 场景下，同一个模块的资源可能影响不同 APK。Jugg 会按 APK scoped 编译，而不是把一份资源产物复制到所有 APK。
 
@@ -54,69 +58,40 @@ Jugg 支持对 Android 资源相关文件进行增量编译，并把结果作为
 |---|---|
 | 单 APK | 基于当前 APK 的资源表继续增量 link |
 | base APK | 先更新 base 资源表 |
-| dynamic feature | link 时需要考虑 base APK 的资源表和本轮 base 资源变化 |
+| dynamic feature | link 时考虑 base APK 的资源表和本轮 base 资源变化 |
 | 多 APK 归属 | 每个目标 APK 生成自己的 overlay 产物 |
 
 > [!NOTE]
 > 如果资源 overlay 被下发到错误 APK，通常会表现为运行时找不到资源、资源 ID 异常或 feature 模块资源不一致。
 
-## Manifest 如何处理
+### AndroidManifest 编译
 
-Jugg 不会重新完整运行 Gradle 的 Manifest 合并流程。它会基于最近一次构建得到的 merged manifest，将本轮 Manifest 变化增量 patch 到部署产物中。
+AndroidManifest 在资源链路中作为 aapt2 link 输入参与部署产物生成。Jugg 不重新完整运行 Gradle 的 Manifest 合并流程，而是基于最近一次构建得到的 merged manifest，对本轮 AndroidManifest 变化做增量 patch。
 
-这意味着：
+AndroidManifest 最终不是普通资源 overlay：部署阶段会把更新后的 `AndroidManifest.xml` 写入 APK 并重新签名。AndroidManifest 的支持边界、placeholder 限制和生效方式见 [AndroidManifest 编译](./manifest.md)。
 
-- 普通 Manifest 节点或属性变化可以增量处理。
-- 如果 Manifest 变化依赖复杂 Gradle placeholder、插件生成逻辑或变体切换，可能需要 Gradle 回退。
-- 如果 Manifest 没有真实变化，Jugg 会避免输出根 `AndroidManifest.xml`，防止触发不必要的重打包。
+### so 更新
 
-## ViewBinding 和 DataBinding
+`.so` 更新不属于资源编译，也不叫 so 编译。Jugg 支持基于已有 native lib 产物更新 APK 并重新签名，见 [so 更新](./so-update.md)。
 
-layout 文件变化时，Jugg 会先识别是否需要 ViewBinding/DataBinding 处理。
+### DataBinding/ViewBinding
 
-```text
-layout XML 变化
-  -> 生成 ViewBinding/DataBinding 需要的基础类或触发文件
-  -> 必要时用 split XML 替换原 layout 参与 aapt2 compile
-  -> 生成源码交给源码编译阶段
-```
+layout 文件变化时，资源阶段会先识别是否需要 ViewBinding/DataBinding 处理。必要时，Jugg 会用 split XML 参与 aapt2 compile，并把生成源码交给源码编译阶段。
 
-> [!TIP]
-> 如果你修改 layout 后看到源码编译也被触发，这是正常现象。资源变化可能会产生新的 Java/Kotlin 输入。
+ViewBinding/DataBinding 的生成源码、mapper 处理和源码编译交接见 [DataBinding/ViewBinding](./databinding-viewbinding.md)。
 
-## 资源混淆和 R 文件
+### 资源混淆和 R 文件
 
-在 release 或资源混淆场景下，Jugg 会尽量沿用现有映射信息，保持增量产物和已安装 APK 的资源命名一致。
+在 release 或资源混淆场景下，Jugg 会沿用现有映射信息，使增量产物和已安装 APK 的资源命名保持一致。
 
 资源 link 后会生成 `R.java`。Jugg 会修正并编译它，必要时还会生成 `R.dex`，用于处理 `R.styleable` 或部分无法内联的 `R.*` 引用。
 
-## 常见现象
-
-| 现象 | 可能含义 |
-|---|---|
-| 修改 layout 后同时编译资源和源码 | ViewBinding/DataBinding 或 `R.java` 触发源码链路 |
-| 修改 values 后生成 `resources.arsc` | 资源表需要更新 |
-| dynamic feature 资源异常 | base 与 feature 的资源表可能需要重新对齐 |
-| Manifest 修改后回退 Gradle | 变化可能依赖完整 Manifest 合并或构建逻辑 |
-| aapt2 报错 | 资源本身不合法，或当前增量资源表无法继续 link |
-
-## 适合增量的修改
-
-- 修改普通 layout、drawable、mipmap、values 文件。
-- 修改 assets 中的小文件。
-- 修改简单 Manifest 节点或属性。
-- 修改会触发 ViewBinding/DataBinding 重新生成的 layout。
-
-## 建议回退 Gradle 的修改
-
-- 修改资源目录结构、source set 或 variant 选择规则。
-- 修改影响资源生成的 Gradle 插件配置。
-- 修改复杂 Manifest placeholder 或 manifestPlaceholders 来源。
-- 修改后出现资源 ID、大量 dynamic feature 资源或 release 资源混淆异常。
-
 ## 相关页面
 
-- [增量编译](../../concepts/incremental-compile.md)
-- [编译指南](../../guide/compile.md)
+- [源码编译](./source-compile.md)
+- [AndroidManifest 编译](./manifest.md)
+- [so 更新](./so-update.md)
+- [DataBinding/ViewBinding](./databinding-viewbinding.md)
+- [编译阶段说明](../../guide/compile.md)
 - [编译问题排查](../../troubleshooting/compile.md)
 - [限制](../../reference/limits.md)

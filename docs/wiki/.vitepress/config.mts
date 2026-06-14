@@ -30,15 +30,22 @@ const englishSidebar = {
       text: 'Guide',
       items: [
         { text: 'Overview', link: '/guide/' },
-        { text: 'Compile', link: '/guide/compile' },
-        { text: 'Deploy', link: '/guide/deploy' },
-        { text: 'Android Test', link: '/guide/android-test' },
+        { text: 'Run App', link: '/guide/run' },
         { text: 'Debug', link: '/guide/debug' },
+        { text: 'Android Test', link: '/guide/android-test' },
         { text: 'CLI', link: '/guide/cli' },
         { text: 'MCP', link: '/guide/mcp' },
         { text: 'UI Inspection', link: '/guide/ui-inspection' },
         { text: 'Remote Gradle', link: '/guide/remote-gradle' },
-        { text: 'Custom Compiler', link: '/guide/custom-compiler' }
+        { text: 'Custom Compiler', link: '/guide/custom-compiler' },
+        {
+          text: 'Advanced Results',
+          collapsed: true,
+          items: [
+            { text: 'Compile Stage', link: '/guide/compile' },
+            { text: 'Deploy Results', link: '/guide/deploy' }
+          ]
+        }
       ]
     }
   ],
@@ -76,6 +83,7 @@ const englishSidebar = {
             { text: 'Resource Compile', link: '/capabilities/compile/resource-compile' },
             { text: 'DataBinding and ViewBinding', link: '/capabilities/compile/databinding-viewbinding' },
             { text: 'Manifest', link: '/capabilities/compile/manifest' },
+            { text: 'Native Library Update', link: '/capabilities/compile/so-update' },
             { text: 'Release Compile', link: '/capabilities/compile/release-compile' },
             { text: 'Constant Reference Analysis', link: '/capabilities/compile/const-ref' },
             { text: 'AabResGuard', link: '/capabilities/compile/aab-resguard' },
@@ -113,17 +121,25 @@ const englishSidebar = {
           ]
         },
         {
-          text: 'Tools',
+          text: 'Jugg CLI and Agent Skills',
           collapsed: false,
           items: [
             { text: 'Overview', link: '/capabilities/tools/' },
-            { text: 'CLI', link: '/capabilities/tools/cli' },
-            { text: 'MCP', link: '/capabilities/tools/mcp' },
-            { text: 'MCP Tool Reference', link: '/capabilities/tools/mcp-tool-reference' },
-            { text: 'UI Automation', link: '/capabilities/tools/ui-automation' },
-            { text: 'Layout Verify', link: '/capabilities/tools/layout-verify' },
             { text: 'Agent Skills', link: '/capabilities/tools/agent-skills' },
-            { text: 'Remote Diagnosis', link: '/capabilities/tools/remote-diagnosis' }
+            {
+              text: 'Jugg CLI',
+              collapsed: false,
+              items: [
+                { text: 'Overview', link: '/capabilities/tools/cli' },
+                { text: 'Build and Deploy', link: '/capabilities/tools/cli-build-deploy' },
+                { text: 'Android Test', link: '/capabilities/tools/cli-android-test' },
+                { text: 'Runtime and Device', link: '/capabilities/tools/cli-runtime-device' },
+                { text: 'UI Automation', link: '/capabilities/tools/ui-automation' },
+                { text: 'UI Layout Evidence', link: '/capabilities/tools/layout-verify' },
+                { text: 'Remote Diagnosis', link: '/capabilities/tools/remote-diagnosis' }
+              ]
+            },
+            { text: 'MCP for Agents', link: '/capabilities/tools/mcp' }
           ]
         }
       ]
@@ -175,7 +191,7 @@ const englishSidebar = {
 }
 
 const chineseNav = [
-  { text: '入门', link: '/zh/onboarding/' },
+  { text: '快速开始', link: '/zh/onboarding/' },
   { text: '使用指南', link: '/zh/guide/' },
   { text: '概念', link: '/zh/concepts/' },
   { text: '能力', link: '/zh/capabilities/' },
@@ -187,12 +203,12 @@ const chineseNav = [
 const chineseSidebar = {
   '/zh/onboarding/': [
     {
-      text: '入门',
+      text: '快速开始',
       items: [
         { text: '概览', link: '/zh/onboarding/' },
         { text: '安装', link: '/zh/onboarding/installation' },
         { text: '首次运行', link: '/zh/onboarding/first-run' },
-        { text: 'Agent 设置', link: '/zh/onboarding/agent-setup' }
+        { text: '云开发机配置', link: '/zh/onboarding/agent-setup' }
       ]
     }
   ],
@@ -201,15 +217,22 @@ const chineseSidebar = {
       text: '使用指南',
       items: [
         { text: '概览', link: '/zh/guide/' },
-        { text: '编译', link: '/zh/guide/compile' },
-        { text: '部署', link: '/zh/guide/deploy' },
-        { text: 'Android Test', link: '/zh/guide/android-test' },
+        { text: '运行 App', link: '/zh/guide/run' },
         { text: 'Debug', link: '/zh/guide/debug' },
+        { text: 'Android Test', link: '/zh/guide/android-test' },
         { text: 'CLI', link: '/zh/guide/cli' },
         { text: 'MCP', link: '/zh/guide/mcp' },
         { text: 'UI 检查', link: '/zh/guide/ui-inspection' },
         { text: '远端 Gradle', link: '/zh/guide/remote-gradle' },
-        { text: '自定义编译器', link: '/zh/guide/custom-compiler' }
+        { text: '自定义编译器', link: '/zh/guide/custom-compiler' },
+        {
+          text: '进阶结果说明',
+          collapsed: true,
+          items: [
+            { text: '编译阶段说明', link: '/zh/guide/compile' },
+            { text: '部署结果说明', link: '/zh/guide/deploy' }
+          ]
+        }
       ]
     }
   ],
@@ -242,11 +265,15 @@ const chineseSidebar = {
           collapsed: false,
           items: [
             { text: '概览', link: '/zh/capabilities/compile/' },
-            { text: '增量编译', link: '/zh/capabilities/compile/incremental-compile' },
-            { text: '依赖库增量编译', link: '/zh/capabilities/compile/dependency-incremental' },
+            { text: '源码编译', link: '/zh/capabilities/compile/source-compile' },
+            { text: '重编译/扩散编译', link: '/zh/capabilities/compile/recompile-propagation' },
             { text: '资源编译', link: '/zh/capabilities/compile/resource-compile' },
-            { text: 'DataBinding 与 ViewBinding', link: '/zh/capabilities/compile/databinding-viewbinding' },
-            { text: 'Manifest', link: '/zh/capabilities/compile/manifest' },
+            { text: 'AndroidManifest 编译', link: '/zh/capabilities/compile/manifest' },
+            { text: 'so 更新', link: '/zh/capabilities/compile/so-update' },
+            { text: 'DataBinding/ViewBinding', link: '/zh/capabilities/compile/databinding-viewbinding' },
+            { text: 'Kotlin Compose', link: '/zh/capabilities/compile/kotlin-compose' },
+            { text: '注解器', link: '/zh/capabilities/compile/annotation-processors' },
+            { text: '依赖库增量编译', link: '/zh/capabilities/compile/dependency-incremental' },
             { text: 'Release 编译', link: '/zh/capabilities/compile/release-compile' },
             { text: '常量引用分析', link: '/zh/capabilities/compile/const-ref' },
             { text: 'AabResGuard', link: '/zh/capabilities/compile/aab-resguard' },
@@ -277,24 +304,32 @@ const chineseSidebar = {
           collapsed: false,
           items: [
             { text: '概览', link: '/zh/capabilities/test/' },
-            { text: 'Android Test', link: '/zh/capabilities/test/android-test' },
-            { text: 'Library Test APK', link: '/zh/capabilities/test/library-test-apk' },
+            { text: 'Application Android Test', link: '/zh/capabilities/test/application-android-test' },
+            { text: 'Library Android Test', link: '/zh/capabilities/test/library-android-test' },
             { text: 'Test Results UI', link: '/zh/capabilities/test/test-results-ui' },
             { text: 'Logcat 归因', link: '/zh/capabilities/test/logcat-attribution' }
           ]
         },
         {
-          text: '工具',
+          text: 'Jugg CLI 与 Agent Skills',
           collapsed: false,
           items: [
             { text: '概览', link: '/zh/capabilities/tools/' },
-            { text: 'CLI', link: '/zh/capabilities/tools/cli' },
-            { text: 'MCP', link: '/zh/capabilities/tools/mcp' },
-            { text: 'MCP 工具参考', link: '/zh/capabilities/tools/mcp-tool-reference' },
-            { text: 'UI 自动化', link: '/zh/capabilities/tools/ui-automation' },
-            { text: '布局验证', link: '/zh/capabilities/tools/layout-verify' },
             { text: 'Agent Skills', link: '/zh/capabilities/tools/agent-skills' },
-            { text: '远端诊断', link: '/zh/capabilities/tools/remote-diagnosis' }
+            {
+              text: 'Jugg CLI',
+              collapsed: false,
+              items: [
+                { text: '概览', link: '/zh/capabilities/tools/cli' },
+                { text: '构建与部署', link: '/zh/capabilities/tools/cli-build-deploy' },
+                { text: 'Android Test', link: '/zh/capabilities/tools/cli-android-test' },
+                { text: '运行时与设备', link: '/zh/capabilities/tools/cli-runtime-device' },
+                { text: 'UI 自动化', link: '/zh/capabilities/tools/ui-automation' },
+                { text: 'UI 布局证据', link: '/zh/capabilities/tools/layout-verify' },
+                { text: '远端诊断', link: '/zh/capabilities/tools/remote-diagnosis' }
+              ]
+            },
+            { text: '面向 Agent 的 MCP', link: '/zh/capabilities/tools/mcp' }
           ]
         }
       ]

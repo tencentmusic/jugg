@@ -2,7 +2,7 @@
 
 Jugg 用户文档。
 
-- [入门](./onboarding/)
+- [快速开始](./onboarding/)
 - [使用指南](./guide/)
 - [概念](./concepts/)
 - [能力](./capabilities/)

@@ -1,3 +1,3 @@
-# CLI
+# Jugg CLI
 
 Coming soon.
