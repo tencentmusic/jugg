@@ -84,8 +84,8 @@ class WikiElementRenderer {
 ```
 
 ```bash
-npm run wiki:dev
-npm run wiki:build
+npm run dev
+npm run build
 ```
 
 ```text

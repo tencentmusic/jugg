@@ -12,6 +12,7 @@
 - Wiki 页面应该使用哪些 Markdown 元素。
 - 页面元数据、提示块、工程语义块应该怎么写。
 - dev-only 页面如何约定，避免发布给用户。
+- 如何启动本地实时预览服务，以及如何打包 production 产物。
 - 后续新增 Wiki 编写规范时应该放在哪里。
 
 本页不描述用户功能本身；正式用户内容仍放在 `docs/wiki`。
@@ -22,6 +23,7 @@
 
 | 文件 | 作用 |
 |---|---|
+| `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
 | `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 nav/sidebar/search/dev-only 页面排除。 |
 | `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/zh/dev/elements-demo.md` | 中文 dev-only 元素样板页，只用于开发环境视觉验收。 |
@@ -206,8 +208,9 @@ production build
 验证方式：
 
 ```bash
-JUGG_WIKI_DEV=true npm run wiki:build
-npm run wiki:build
+cd docs/wiki
+JUGG_WIKI_DEV=true npm run build
+npm run build
 ```
 
 production build 后应确认 dist 中不存在 dev-only 页面标题。
@@ -237,7 +240,95 @@ Dev-only demo 页面也应保持中英文各一份，方便分别验证 locale �
 
 ---
 
-## 10. 关联文档
+## 10. 本地预览、打包与发布
+
+Wiki 使用 VitePress，命令入口在 `docs/wiki/package.json`。所有 npm 操作都以 `docs/wiki` 为工作目录；首次拉取或依赖变化后先安装依赖：
+
+```bash
+cd docs/wiki
+npm ci
+```
+
+### 10.1 实时更新预览服务
+
+编辑 Wiki 时使用 dev server：
+
+```bash
+npm run dev
+```
+
+默认启动 VitePress dev server，保存 Markdown 或配置文件后会自动热更新页面。需要固定监听地址或端口时，通过 `--` 继续传 VitePress 参数：
+
+```bash
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+dev 模式会自动包含 dev-only 页面，因为 `docs/wiki/.vitepress/config.mts` 中的 `isWikiDev` 会识别 `vitepress dev`。因此本地视觉验收可以直接访问：
+
+```text
+/dev/elements-demo
+/zh/dev/elements-demo
+```
+
+### 10.2 Production 打包
+
+发布前使用 production build：
+
+```bash
+npm run build
+```
+
+构建产物输出到：
+
+```text
+docs/wiki/.vitepress/dist/
+```
+
+production build 不应带 `JUGG_WIKI_DEV=true`。默认配置会通过 `srcExclude` 排除：
+
+```text
+dev/**
+zh/dev/**
+```
+
+如果需要临时验证 dev-only 页面能否独立构建，可以单独执行：
+
+```bash
+JUGG_WIKI_DEV=true npm run build
+```
+
+该命令只用于开发验收，不作为发布产物。
+
+### 10.3 预览打包产物
+
+`npm run dev` 预览的是源码开发态；发布前还需要预览已经生成的静态产物：
+
+```bash
+npm run preview
+```
+
+需要固定地址或端口时：
+
+```bash
+npm run preview -- --host 127.0.0.1 --port 4173
+```
+
+`npm run preview` 读取 `docs/wiki/.vitepress/dist/`，因此必须先执行 `npm run build`。
+
+### 10.4 发布边界
+
+当前仓库只定义了静态站点打包命令，没有绑定具体托管平台。发布时应把 `docs/wiki/.vitepress/dist/` 作为静态站点根目录交给实际托管系统，例如内部静态资源服务、Nginx、GitHub Pages 或 CI/CD artifact。
+
+发布前检查：
+
+1. 在 `docs/wiki` 下执行 `npm run build` 成功。
+2. 在 `docs/wiki` 下执行 `npm run preview` 检查中英文首页、nav/sidebar、搜索和新增页面。
+3. 确认 production 产物不包含 `dev/elements-demo` 与 `zh/dev/elements-demo`。
+4. 若改动了 nav/sidebar，同时检查英文根路径和中文 `/zh/` 路径。
+
+---
+
+## 11. 关联文档
 
 - `docs/ai_knowledge/97_maintenance_manual.md`：AI 知识库维护质量标准。
 - `docs/ai_knowledge/99_index.md`：AI 文档检索入口和专题目录。
