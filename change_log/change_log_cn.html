@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.0.15 (2026.06.12)</h2>
+<h2>3.0.16 (2026.06.16)</h2>
 <ol>
     <li>[feature] 支持 Jugg CLI skills，让 AI coding agent 可以独立快速完成开发到验收闭环</li>
     <li>[feature] 支持 android test 增量编译</li>
@@ -14,10 +14,14 @@
     <li>[optimize] 大量类部署（>1000) 时自动触发 dex 合并，修复大量类触发启动 OOM 问题</li>
     <li>[optimize] 提高 databinding 部分场景的编译兼容性，如同时修改数据类和 XML 时会编译失败，工程使用 Kotlin 1.7 版本会编译失败等</li>
     <li>[optimize] 修复 Windows 执行 gradle clean 失败，提示日志文件被占用无法删除。改为无锁写入</li>
+    <li>[bugfix] 修复部分机型会出现 WebView crash 的兼容性问题</li>
+    <li>[bugfix] 修复资源文件 > 15000 的工程概率出现部署失败的问题</li>
     <li>[bugfix] 修复 AbstractMethodException，场景：编译多层级 gradle 模块的 Kotlin internal 方法时，概率出现 module-name 和 base APK 不一致</li>
     <li>[bugfix] 修复首次编译时，文件无法识别未被 git add 的文件的问题</li>
     <li>[bugfix] 修复多项目同时打开且 Kotlin 版本不一致时，容易出现编译失败。原因：多项目共享了同一个编译器实例</li>
     <li>[bugfix] 修复使用 ./gradlew clean assembleDebug 时编译失败的问题，原因是 clean 会删除 Jugg 必需的编译产物，现已移至 .gradle/jugg 目录</li>
+    <li>[bugfix] 修复部署失败后可能保留不完整 overlay，导致应用启动资源缺失崩溃</li>
+    <li>[bugfix] 修复远程编译有概率点击停止后没有真正停止</li>
 </ol>
 <h2>2.6.31 (2026.06.10)</h2>
 <ol>

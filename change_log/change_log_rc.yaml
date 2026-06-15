@@ -1,3 +1,11 @@
+- version: 3.0.16
+  date: 2026.06.16
+  updates:
+    - Fix some device occurs WebView crash with compatible issues
+    - Fix deploy may fail in sometime on projects with res size > 15000
+    - Fix incomplete overlay may remain after split full resource deploy failure and cause app startup resource crash
+    - Fix remote compilation might not actually stop after clicking "Stop."
+
 - version: 3.0.14
   date: 2026.06.11
   isNeedReinstall: true

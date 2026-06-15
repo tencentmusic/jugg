@@ -1,3 +1,11 @@
+- version: 3.0.16
+  date: 2026.06.16
+  updates:
+    - 修复部分机型会出现 WebView crash 的兼容性问题
+    - 修复资源文件 > 15000 的工程概率出现部署失败的问题
+    - 修复部署失败后可能保留不完整 overlay，导致应用启动资源缺失崩溃
+    - 修复远程编译有概率点击停止后没有真正停止
+
 - version: 3.0.14
   date: 2026.06.11
   isNeedReinstall: true
