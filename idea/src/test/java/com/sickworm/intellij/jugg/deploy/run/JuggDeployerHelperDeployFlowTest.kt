@@ -240,6 +240,22 @@ class JuggDeployerHelperDeployFlowTest {
         }
     }
 
+    @Test
+    fun `direct overlay full resource deploy bypasses slicing`() {
+        withSingleOverlayPerSlice {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_012)
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            assertEquals(
+                1,
+                fixture.virtualDevice.shellScripts.count { it.contains("__JUGG_DIRECT_OVERLAY__") },
+            )
+            assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+        }
+    }
+
     private fun withSingleOverlayPerSlice(block: () -> Unit) {
         val oldRecordJson = JuggSettings.sliceDeployRecordJson
         JuggSettings.sliceDeployRecordJson = """[{"displayName":"virtual","firstSliceSize":1,"sliceSize":1}]"""

@@ -33,6 +33,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             DeployFlowCaseId.DF_L2_009 -> buildDfL2009()
             DeployFlowCaseId.DF_L2_010 -> buildDfL2010()
             DeployFlowCaseId.DF_L2_011 -> buildDfL2011()
+            DeployFlowCaseId.DF_L2_012 -> buildDfL2012()
         }
     }
 
@@ -321,6 +322,17 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             caseId = DeployFlowCaseId.DF_L2_011,
             deployData = DeployFlowTestSupport.fullResourceDeployData(overlayCount = 3),
             optimisticSwapPolicy = DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.FAIL_SECOND_AFTER_RECORD,
+        )
+    }
+
+    private fun buildDfL2012(): DeployFlowFixture {
+        return buildMatchedNotDeployableFixture(
+            caseId = DeployFlowCaseId.DF_L2_012,
+            recoverRunHost = null,
+            afterRecoverSuccess = null,
+            optimisticSwapPolicy = DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.FORBIDDEN,
+            onInstall = null,
+            deployData = DeployFlowTestSupport.fullResourceDeployData(overlayCount = 3),
         )
     }
 

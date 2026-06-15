@@ -119,11 +119,14 @@ runTask()
   -> INSTALL 时先 stop app
   -> 异步判断是否需要 push JVMTI agent
   -> 删除回滚后的 library dex
-  -> SliceDeployHelper 切片
-  -> 每个 slice 创建 LaunchContext + JuggDeployTask
+  -> 前置判断 Direct Overlay 是否可尝试
+  -> Direct Overlay 可尝试时跳过 SliceDeployHelper；否则按阈值切片
+  -> 每个 deploy data 创建 LaunchContext + JuggDeployTask
   -> 必要时 push agent / restart app / start app / run androidTest
   -> 必要时检查 JVMTI compat issue
 ```
+
+Direct Overlay 的可尝试判断在切片前完成，判断条件与 transport `canTry()` 保持一致：开关开启、调用方允许、设备当前不是 ready deploy、非 install、deploy data 非空。命中后本轮不再进入 `SliceDeployHelper`；`JuggDeployTask` 沿用同一份 `DirectOverlaySwapOptions`，只补充 installer metadata。
 
 切片后只有第一个 slice 保留 except overlay check；后续 slice 会跳过，否则同一轮部署中 overlay id 已变化会导致自我冲突。
 
@@ -184,7 +187,7 @@ timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则�
 
 `DirectOverlaySwapOptions.enabled = settingsEnabled && !isDeviceReadyDeploy && isAllowedByCaller`。
 
-Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。进入 swap 前还要求 Android O 及以上、非 install、deploy data 非空、deployment cache 存在、startup agent 元数据可用或允许跳过、设备当前 overlay id 与预期一致。
+Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。外层在切片前判断是否可尝试 Direct Overlay；真正进入 swap 前仍要求 Android O 及以上、deployment cache 存在、startup agent 元数据可用或允许跳过、设备当前 overlay id 与预期一致。
 
 `isAllowedByCaller` 来自外层 lifecycle；默认主部署链路允许，特殊调用方可显式关闭。Direct Overlay 只替换 overlay update transport，后续 start/restart/androidTest 仍由 `JuggDeployerHelper.runTask()` 收口。
 

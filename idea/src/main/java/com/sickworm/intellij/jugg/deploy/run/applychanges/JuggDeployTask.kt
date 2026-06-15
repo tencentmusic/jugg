@@ -37,7 +37,6 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -65,11 +64,11 @@ class JuggDeployTask(
     fun run(launchContext: LaunchContext): LaunchResult {
         val stopwatch = Stopwatch.createStarted()
         val device = launchContext.device
-        val ideaLogger = logger
         val logger = AdbLogWrapper(logger)
         val ideService = IdeService(project)
+        val installersRoot = installPathProvider.compute()
         val installSession = asDeployerCompat.createInstallSession(
-            installPathProvider.compute(),
+            installersRoot,
             device,
             logger,
             onPrompt = { message ->
@@ -95,13 +94,8 @@ class JuggDeployTask(
             exceptOverlayIds = launchContext.exceptOverlayIds,
             isSkipExceptOverlayCheck = launchContext.isSkipExceptOverlayCheck,
             logger = logger,
-            directOverlaySwapOptions = DirectOverlaySwapOptions.create(
-                settingsEnabled = JuggSettings.isEnableDirectOverlayDeploy,
-                isDeviceReadyDeploy = launchContext.isDeviceReadyDeploy,
-                isAllowedByCaller = launchContext.isAllowDirectOverlayDeploy,
-                logger = ideaLogger,
-                adb = launchContext.deviceAdb,
-                installersRoot = installPathProvider.compute(),
+            directOverlaySwapOptions = launchContext.directOverlaySwapOptions.copy(
+                installersRoot = installersRoot,
                 installerVersion = installSession.installerVersion,
                 deviceAbi = InstallerDeviceAbiResolver.resolve(launchContext.deviceAdb),
             ),
@@ -288,8 +282,7 @@ class LaunchContext(
     val exceptOverlayIds: Map<String, String>,
     val isSkipExceptOverlayCheck: Boolean,
     val compileUiHandler: CompileUiHandler,
-    val isDeviceReadyDeploy: Boolean = true,
-    val isAllowDirectOverlayDeploy: Boolean = true,
+    val directOverlaySwapOptions: DirectOverlaySwapOptions,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
