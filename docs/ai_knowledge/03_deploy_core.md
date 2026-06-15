@@ -208,7 +208,7 @@ JuggDeployer.optimisticSwap()
           -> 删除旧 id
           -> 启动 heartbeat，避免 full push 长时间无输出触发 ADB inactive timeout
           -> 删除本次 payload 覆盖的旧文件
-          -> full resource push 使用 base.apk 目录级清理，避免逐个 res 文件生成超长 run-as 脚本
+          -> full resource push 不清理 base.apk 目录，避免切片部署删除前序 slice；直接 unzip 当前 slice 内容
           -> base install 空 overlay id 场景跳过 payload cleanup，避免清数据/NO_DIR 首次 full push 生成大量无效 rm 命令
           -> unzip files
           -> chmod *.dex 0444

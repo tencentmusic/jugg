@@ -123,6 +123,24 @@ class JuggDeployDataTest {
         assertEquals(listOf(testPath, basePath), data.targetApkPathSample())
     }
 
+    @Test
+    fun `splitData keeps full resource metadata on every slice`() {
+        val data = deployData(
+            overlays = listOf(
+                deployItem("res/layout/first.xml", CompileOutput.Type.Res, basePath, listOf(basePath)),
+                deployItem("res/layout/second.xml", CompileOutput.Type.Res, basePath, listOf(basePath)),
+                deployItem("res/layout/third.xml", CompileOutput.Type.Res, basePath, listOf(basePath)),
+            ),
+            isFullRes = true,
+        )
+
+        val slices = data.splitData(firstMaxOverlaySize = 1, maxOverlaySize = 1)
+
+        assertEquals(3, slices.size)
+        assertEquals(listOf(true, true, true), slices.map { it.isFullRes })
+        assertEquals(listOf(true, true, false), slices.map { it.isPushOverlayOnly })
+    }
+
     private fun apkInfo(applicationId: String, apkPath: String): ApkInfo {
         return ApkInfo(
             files = listOf(ApkFileUnit(applicationId, "", true, File(apkPath))),
@@ -138,6 +156,7 @@ class JuggDeployDataTest {
         updateApkFiles: List<DeployItem> = emptyList(),
         parsedDex: ParsedDex = ParsedDex.EMPTY,
         constRefEffectedSourcePaths: List<String> = emptyList(),
+        isFullRes: Boolean = false,
     ): JuggDeployData {
         return JuggDeployData(
             apks = listOf(baseApk, testApk),
@@ -147,7 +166,7 @@ class JuggDeployDataTest {
             effectedClassNodes = emptyList(),
             overlays = overlays,
             parsedDex = parsedDex,
-            isFullRes = false,
+            isFullRes = isFullRes,
             isWarmUp = false,
             updateApkFiles = updateApkFiles,
             constRefEffectedSourcePaths = constRefEffectedSourcePaths,

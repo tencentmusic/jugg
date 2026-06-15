@@ -121,18 +121,11 @@ open class DirectOverlayWriter(
         if (!request.isFullResourcePush) {
             return buildRemovePayloadTargetsScript(request.files)
         }
-        val removeBaseApk = request.files.any { it.path.startsWith(BASE_APK_PREFIX) }
-        val baseApkScript = if (removeBaseApk) {
-            "rm -rf \"\$overlay_dir\"/${shellSingleQuote(BASE_APK_DIR)}; "
-        } else {
-            ""
-        }
-        val otherFilesScript = request.files
+        return request.files
             .filterNot { it.path.startsWith(BASE_APK_PREFIX) }
             .joinToString(separator = "") { file ->
                 "rm -f \"\$overlay_dir\"/${shellSingleQuote(file.path)}; "
             }
-        return baseApkScript + otherFilesScript
     }
 
     private fun isSafeZipPath(path: String): Boolean {
@@ -159,8 +152,7 @@ open class DirectOverlayWriter(
     companion object {
         private val writeLock = Any()
         private const val MARKER = "__JUGG_DIRECT_OVERLAY__"
-        private const val BASE_APK_DIR = "base.apk"
-        private const val BASE_APK_PREFIX = "$BASE_APK_DIR/"
+        private const val BASE_APK_PREFIX = "base.apk/"
         private val PACKAGE_NAME_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
 }

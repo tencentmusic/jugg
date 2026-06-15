@@ -199,7 +199,10 @@ data class JuggDeployData(
         fun currentSplitOverlaySize() = if (start == 0) firstMaxOverlaySize else maxOverlaySize
         while (remainOverlaySize() > 0) {
             end = (start + currentSplitOverlaySize()).coerceAtMost(overlays.size)
-            val splitData = forDryDeploy(apks).copy(overlays = overlays.subList(start, end))
+            val splitData = forDryDeploy(apks).copy(
+                overlays = overlays.subList(start, end),
+                isFullRes = isFullRes,
+            )
             splitDataList.add(splitData)
             start = end
         }

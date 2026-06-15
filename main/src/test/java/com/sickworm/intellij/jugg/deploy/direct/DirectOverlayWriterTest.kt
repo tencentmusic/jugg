@@ -96,7 +96,7 @@ class DirectOverlayWriterTest {
     }
 
     @Test
-    fun `write should remove base apk directory once for full resource push`() {
+    fun `write should skip base apk cleanup for full resource push`() {
         val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
         val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
         val request = DirectOverlayWriteRequest(
@@ -115,13 +115,11 @@ class DirectOverlayWriterTest {
         assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
 
         val script = adb.lastScript
-        val removeBaseIndex = script.indexOf("rm -rf \"\$overlay_dir\"/'base.apk'")
         val removeDexIndex = script.indexOf("rm -f \"\$overlay_dir\"/'com.example.Foo.dex'")
         val unzipIndex = script.indexOf("unzip -oq")
-        assertTrue(removeBaseIndex >= 0)
         assertTrue(removeDexIndex >= 0)
-        assertTrue(removeBaseIndex < unzipIndex)
         assertTrue(removeDexIndex < unzipIndex)
+        assertFalse(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/drawable/icon.xml'"))
