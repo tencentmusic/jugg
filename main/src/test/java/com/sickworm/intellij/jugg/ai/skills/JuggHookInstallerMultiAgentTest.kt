@@ -334,7 +334,7 @@ class JuggHookInstallerMultiAgentTest {
                   {
                     "matcher": "*",
                     "hooks": [
-                      {"type": "command", "command": "$legacyEditCommand"},
+                      {"type": "command", "command": "${legacyEditCommand.asJsonStringValue()}"},
                       {"type": "command", "command": "python3 /tmp/keep_edit.py"}
                     ]
                   }
@@ -343,7 +343,7 @@ class JuggHookInstallerMultiAgentTest {
                   {
                     "matcher": "*",
                     "hooks": [
-                      {"type": "command", "command": "$legacyCommandCommand"},
+                      {"type": "command", "command": "${legacyCommandCommand.asJsonStringValue()}"},
                       {"type": "command", "command": "python3 /tmp/keep_command.py"}
                     ]
                   }
@@ -386,6 +386,57 @@ class JuggHookInstallerMultiAgentTest {
         )
         val content = settingsFile.readText()
         assertTrue(content.contains("python3 /tmp/keep_edit.py"))
+        assertTrue(content.contains("python3 /tmp/keep_command.py"))
+    }
+
+    @Test
+    fun installForClients_claude_shouldDeduplicateExistingJuggCommandByManagedIdentity() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-claude-dedupe").toFile()
+        val settingsFile = File(userHome, ".claude/settings.json")
+        settingsFile.parentFile.mkdirs()
+        val legacyCommand = """python3 C:\Users\Admin\.jugg\skills\hooks\command.py --client claude"""
+        settingsFile.writeText(
+            """
+            {
+              "hooks": {
+                "PreToolUse": [
+                  {
+                    "matcher": "Bash",
+                    "hooks": [
+                      {"type": "command", "command": "${legacyCommand.asJsonStringValue()}"},
+                      {"type": "command", "command": "python3 /tmp/keep_command.py"}
+                    ]
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+        )
+
+        val summary = JuggHookInstaller.installForClients(
+            clients = setOf(InstallClient.CLAUDE),
+            userHome = userHome,
+            logger = logger,
+        )
+
+        assertTrue(summary.results.all { it.status == "ok" || it.status == "already_installed" })
+        assertEquals(
+            1,
+            countNestedCommandsContaining(
+                settingsFile = settingsFile,
+                eventName = "PreToolUse",
+                matcher = "Bash",
+                commandText = ".jugg",
+            ),
+        )
+        assertNestedCommandMatcher(
+            settingsFile = settingsFile,
+            eventName = "PreToolUse",
+            commandSuffix = "/.jugg/skills/hooks/command.py",
+            matcher = "Bash",
+        )
+        val content = settingsFile.readText()
+        assertFalse(content.contains("C:\\Users\\Admin\\.jugg"))
         assertTrue(content.contains("python3 /tmp/keep_command.py"))
     }
 
@@ -450,6 +501,7 @@ class JuggHookInstallerMultiAgentTest {
     }
 
     private fun findNestedCommand(eventArray: JsonArray, commandSuffix: String, clientArgument: String): Boolean {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         for (item in eventArray) {
             if (!item.isJsonObject) {
                 continue
@@ -459,8 +511,8 @@ class JuggHookInstallerMultiAgentTest {
                 if (!hook.isJsonObject) {
                     continue
                 }
-                val command = hook.asJsonObject.get("command")?.asString ?: continue
-                if (command.contains(commandSuffix) && command.endsWith("--client $clientArgument")) {
+                val command = hook.asJsonObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+                if (command.contains(normalizedSuffix) && command.endsWith("--client $clientArgument")) {
                     return true
                 }
             }
@@ -474,6 +526,7 @@ class JuggHookInstallerMultiAgentTest {
         commandSuffix: String,
         matcher: String,
     ) {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
         for (item in eventArray) {
@@ -489,8 +542,8 @@ class JuggHookInstallerMultiAgentTest {
                 if (!hook.isJsonObject) {
                     continue
                 }
-                val command = hook.asJsonObject.get("command")?.asString ?: continue
-                if (command.contains(commandSuffix)) {
+                val command = hook.asJsonObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+                if (command.contains(normalizedSuffix)) {
                     return
                 }
             }
@@ -504,6 +557,7 @@ class JuggHookInstallerMultiAgentTest {
         commandSuffix: String,
         matcher: String,
     ) {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
         for (item in eventArray) {
@@ -519,8 +573,8 @@ class JuggHookInstallerMultiAgentTest {
                 if (!hook.isJsonObject) {
                     continue
                 }
-                val command = hook.asJsonObject.get("command")?.asString ?: continue
-                if (command.contains(commandSuffix)) {
+                val command = hook.asJsonObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+                if (command.contains(normalizedSuffix)) {
                     throw AssertionError("unexpected matcher=$matcher command=$commandSuffix in ${settingsFile.path}#${eventName}")
                 }
             }
@@ -528,13 +582,14 @@ class JuggHookInstallerMultiAgentTest {
     }
 
     private fun findFlatCommand(eventArray: JsonArray, commandSuffix: String, clientArgument: String): Boolean {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         for (item in eventArray) {
             if (!item.isJsonObject) {
                 continue
             }
             val itemObject: JsonObject = item.asJsonObject
-            val command = itemObject.get("command")?.asString ?: continue
-            if (command.contains(commandSuffix) && command.endsWith("--client $clientArgument")) {
+            val command = itemObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+            if (command.contains(normalizedSuffix) && command.endsWith("--client $clientArgument")) {
                 return true
             }
         }
@@ -547,6 +602,7 @@ class JuggHookInstallerMultiAgentTest {
         commandSuffix: String,
         matcher: String,
     ) {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
         for (item in eventArray) {
@@ -557,8 +613,8 @@ class JuggHookInstallerMultiAgentTest {
             if (itemObject.get("matcher")?.asString != matcher) {
                 continue
             }
-            val command = itemObject.get("command")?.asString ?: continue
-            if (command.contains(commandSuffix)) {
+            val command = itemObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+            if (command.contains(normalizedSuffix)) {
                 return
             }
         }
@@ -571,6 +627,7 @@ class JuggHookInstallerMultiAgentTest {
         commandSuffix: String,
         matcher: String,
     ) {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
         for (item in eventArray) {
@@ -581,11 +638,51 @@ class JuggHookInstallerMultiAgentTest {
             if (itemObject.get("matcher")?.asString != matcher) {
                 continue
             }
-            val command = itemObject.get("command")?.asString ?: continue
-            if (command.contains(commandSuffix)) {
+            val command = itemObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+            if (command.contains(normalizedSuffix)) {
                 throw AssertionError("unexpected matcher=$matcher command=$commandSuffix in ${settingsFile.path}#$eventName")
             }
         }
+    }
+
+    private fun countNestedCommandsContaining(
+        settingsFile: File,
+        eventName: String,
+        matcher: String,
+        commandText: String,
+    ): Int {
+        val normalizedText = commandText.normalizeHookCommandText()
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
+        var count = 0
+        for (item in eventArray) {
+            if (!item.isJsonObject) {
+                continue
+            }
+            val itemObj = item.asJsonObject
+            if (itemObj.get("matcher")?.asString != matcher) {
+                continue
+            }
+            val hooks = itemObj.getAsJsonArray("hooks")
+            for (hook in hooks) {
+                if (!hook.isJsonObject) {
+                    continue
+                }
+                val command = hook.asJsonObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+                if (command.contains(normalizedText)) {
+                    count++
+                }
+            }
+        }
+        return count
+    }
+
+    private fun String.asJsonStringValue(): String {
+        return replace("\\", "\\\\").replace("\"", "\\\"")
+    }
+
+    private fun String.normalizeHookCommandText(): String {
+        return replace('\\', '/')
     }
 
     private fun assertNestedCommandUsesPython3(
@@ -593,6 +690,7 @@ class JuggHookInstallerMultiAgentTest {
         eventName: String,
         commandSuffix: String,
     ) {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
         for (item in eventArray) {
@@ -604,8 +702,8 @@ class JuggHookInstallerMultiAgentTest {
                 if (!hook.isJsonObject) {
                     continue
                 }
-                val command = hook.asJsonObject.get("command")?.asString ?: continue
-                if (command.contains(commandSuffix)) {
+                val command = hook.asJsonObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+                if (command.contains(normalizedSuffix)) {
                     assertTrue("command should start with python3: $command", command.startsWith("python3 "))
                     return
                 }
@@ -619,14 +717,15 @@ class JuggHookInstallerMultiAgentTest {
         eventName: String,
         commandSuffix: String,
     ) {
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val eventArray = root.getAsJsonObject("hooks").getAsJsonArray(eventName)
         for (item in eventArray) {
             if (!item.isJsonObject) {
                 continue
             }
-            val command = item.asJsonObject.get("command")?.asString ?: continue
-            if (command.contains(commandSuffix)) {
+            val command = item.asJsonObject.get("command")?.asString?.normalizeHookCommandText() ?: continue
+            if (command.contains(normalizedSuffix)) {
                 assertTrue("command should start with python3: $command", command.startsWith("python3 "))
                 return
             }

@@ -102,7 +102,8 @@ object JuggHookInstaller {
     }
 
     private fun buildHookCommand(scriptPath: String, clientArgument: String): String {
-        return "$PYTHON3_PREFIX$scriptPath $CLIENT_OPTION $clientArgument"
+        val normalizedScriptPath = scriptPath.replace('\\', '/')
+        return "$PYTHON3_PREFIX\"$normalizedScriptPath\" $CLIENT_OPTION $clientArgument"
     }
 
     private fun buildAdapter(
@@ -268,7 +269,7 @@ object JuggHookInstaller {
             }
             var changed = false
             val event = hooks.ensureArray(eventName).also { changed = changed || it.second }.first
-            changed = removeLegacyWildcardNestedCommand(event, matcher, command) || changed
+            changed = removeLegacyWildcardNestedCommand(event, matcher) || changed
             val entry = findOrCreateMatcherEntry(event, matcher).also { changed = changed || it.second }.first
             val hookArray = entry.ensureArray("hooks").also { changed = changed || it.second }.first
             val commandAdded = ensureNestedCommandHook(hookArray, command)
@@ -278,12 +279,10 @@ object JuggHookInstaller {
         private fun removeLegacyWildcardNestedCommand(
             eventHooks: JsonArray,
             matcher: String?,
-            command: String,
         ): Boolean {
             if (matcher.isNullOrBlank() || matcher == MATCHER_ALL) {
                 return false
             }
-            val legacyCommands = toLegacyScriptCommands(command) + command
             var changed = false
             eventHooks.forEach { element ->
                 if (!element.isJsonObject) {
@@ -304,7 +303,7 @@ object JuggHookInstaller {
                     }
                     val hookObject = hook.asJsonObject
                     val commandValue = hookObject.get("command")?.asString
-                    if (hookObject.get("type")?.asString == "command" && commandValue in legacyCommands) {
+                    if (hookObject.get("type")?.asString == "command" && commandValue.isManagedJuggCommand()) {
                         hookArray.remove(index)
                         changed = true
                     }
@@ -340,21 +339,39 @@ object JuggHookInstaller {
         }
 
         private fun ensureNestedCommandHook(hookArray: JsonArray, command: String): Boolean {
-            val legacyCommands = toLegacyScriptCommands(command) + command
-            hookArray.forEach { element ->
-                if (!element.isJsonObject) return@forEach
+            var foundManagedCommand = false
+            var changed = false
+            var index = 0
+            while (index < hookArray.size()) {
+                val element = hookArray[index]
+                if (!element.isJsonObject) {
+                    index++
+                    continue
+                }
                 val obj = element.asJsonObject
                 if (obj.get("type")?.asString != "command") {
-                    return@forEach
+                    index++
+                    continue
                 }
-                val existingCommand = obj.get("command")?.asString ?: return@forEach
-                if (existingCommand == command) {
-                    return false
+                val existingCommand = obj.get("command")?.asString
+                if (!existingCommand.isManagedJuggCommand()) {
+                    index++
+                    continue
                 }
-                if (existingCommand in legacyCommands) {
-                    obj.addProperty("command", command)
-                    return true
+                if (!foundManagedCommand) {
+                    foundManagedCommand = true
+                    if (existingCommand != command) {
+                        obj.addProperty("command", command)
+                        changed = true
+                    }
+                    index++
+                    continue
                 }
+                hookArray.remove(index)
+                changed = true
+            }
+            if (foundManagedCommand) {
+                return changed
             }
             val commandObj = JsonObject().apply {
                 addProperty("type", "command")
@@ -420,7 +437,7 @@ object JuggHookInstaller {
             }
             var changed = false
             val event = hooks.ensureArray(eventName).also { changed = changed || it.second }.first
-            changed = removeLegacyWildcardFlatCommand(event, matcher, command) || changed
+            changed = removeLegacyWildcardFlatCommand(event, matcher) || changed
             val commandAdded = ensureFlatCommandEntry(event, command, matcher)
             return changed || commandAdded
         }
@@ -428,12 +445,10 @@ object JuggHookInstaller {
         private fun removeLegacyWildcardFlatCommand(
             eventHooks: JsonArray,
             matcher: String?,
-            command: String,
         ): Boolean {
             if (matcher.isNullOrBlank() || matcher == MATCHER_ALL) {
                 return false
             }
-            val legacyCommands = toLegacyScriptCommands(command) + command
             var changed = false
             var index = eventHooks.size() - 1
             while (index >= 0) {
@@ -446,7 +461,7 @@ object JuggHookInstaller {
                 val itemMatcher = itemObject.get("matcher")?.asString
                 val commandValue = itemObject.get("command")?.asString
                 val isLegacyMatcher = itemMatcher == null || itemMatcher == MATCHER_ALL
-                if (isLegacyMatcher && commandValue in legacyCommands) {
+                if (isLegacyMatcher && commandValue.isManagedJuggCommand()) {
                     eventHooks.remove(index)
                     changed = true
                 }
@@ -456,21 +471,39 @@ object JuggHookInstaller {
         }
 
         private fun ensureFlatCommandEntry(eventHooks: JsonArray, command: String, matcher: String?): Boolean {
-            val legacyCommands = toLegacyScriptCommands(command)
-            eventHooks.forEach { element ->
-                if (!element.isJsonObject) return@forEach
+            var foundManagedCommand = false
+            var changed = false
+            var index = 0
+            while (index < eventHooks.size()) {
+                val element = eventHooks[index]
+                if (!element.isJsonObject) {
+                    index++
+                    continue
+                }
                 val obj = element.asJsonObject
-                val existingCommand = obj.get("command")?.asString ?: return@forEach
-                if (existingCommand != command && existingCommand !in legacyCommands) {
-                    return@forEach
+                val existingCommand = obj.get("command")?.asString
+                if (!existingCommand.isManagedJuggCommand()) {
+                    index++
+                    continue
                 }
-                if (matcher == null || obj.get("matcher")?.asString == matcher) {
-                    if (existingCommand in legacyCommands) {
+                if (matcher != null && obj.get("matcher")?.asString != matcher) {
+                    index++
+                    continue
+                }
+                if (!foundManagedCommand) {
+                    foundManagedCommand = true
+                    if (existingCommand != command) {
                         obj.addProperty("command", command)
-                        return true
+                        changed = true
                     }
-                    return false
+                    index++
+                    continue
                 }
+                eventHooks.remove(index)
+                changed = true
+            }
+            if (foundManagedCommand) {
+                return changed
             }
             val entry = JsonObject().apply {
                 addProperty("command", command)
@@ -516,10 +549,8 @@ object JuggHookInstaller {
         return current.asJsonArray to false
     }
 
-    private fun toLegacyScriptCommands(command: String): Set<String> {
-        val pythonCommand = command.substringBefore(" $CLIENT_OPTION ")
-        val bareScriptCommand = pythonCommand.removePrefix(PYTHON3_PREFIX).trim()
-        return setOf(pythonCommand, bareScriptCommand)
+    private fun String?.isManagedJuggCommand(): Boolean {
+        return this != null && contains(".jugg")
     }
 }
 

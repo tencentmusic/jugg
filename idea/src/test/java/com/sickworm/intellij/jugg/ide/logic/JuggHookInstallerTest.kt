@@ -45,14 +45,14 @@ class JuggHookInstallerTest {
                       {
                         "matcher": "*",
                         "hooks": [
-                      {"type": "command", "command": "python3 ${File(userHome, ".jugg/skills/hooks/stop.py").absolutePath} --client claude"}
+                      {"type": "command", "command": "${"python3 ${File(userHome, ".jugg/skills/hooks/stop.py").absolutePath} --client claude".asJsonStringValue()}"}
                         ]
                       }
                     ],
                 "UserPromptSubmit": [
                   {
                     "hooks": [
-                      {"type": "command", "command": "python3 ${File(userHome, ".jugg/skills/hooks/start.py").absolutePath} --client claude"}
+                      {"type": "command", "command": "${"python3 ${File(userHome, ".jugg/skills/hooks/start.py").absolutePath} --client claude".asJsonStringValue()}"}
                     ]
                   }
                 ]
@@ -141,7 +141,7 @@ class JuggHookInstallerTest {
 
         val summary = JuggHookInstaller.installForClaude(userHome, logger)
 
-        assertTrue(summary.results.any { it.path.endsWith(".claude/settings.json") && it.status == "fail" })
+        assertTrue(summary.results.any { it.path.normalizeHookCommandText().endsWith(".claude/settings.json") && it.status == "fail" })
         assertEquals("{invalid-json}", settingsFile.readText())
         assertFalse(File(userHome, ".claude/settings.json.bak").exists())
     }
@@ -211,7 +211,8 @@ class JuggHookInstallerTest {
         if (command == null) {
             return false
         }
-        return command.contains(commandScript) && command.endsWith(" --client $clientArgument")
+        return command.normalizeHookCommandText().contains(commandScript.normalizeHookCommandText()) &&
+            command.endsWith(" --client $clientArgument")
     }
 
     private fun countCommandHooks(
@@ -242,5 +243,13 @@ class JuggHookInstallerTest {
             }
         }
         return count
+    }
+
+    private fun String.asJsonStringValue(): String {
+        return replace("\\", "\\\\").replace("\"", "\\\"")
+    }
+
+    private fun String.normalizeHookCommandText(): String {
+        return replace('\\', '/')
     }
 }
