@@ -252,6 +252,7 @@ class JuggDeployerHelperDeployFlowTest {
                 1,
                 fixture.virtualDevice.shellScripts.count { it.contains("__JUGG_DIRECT_OVERLAY__") },
             )
+            assertEquals(1, fixture.compatBoundary.createInstallSessionInvokeCount)
             assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
         }
     }

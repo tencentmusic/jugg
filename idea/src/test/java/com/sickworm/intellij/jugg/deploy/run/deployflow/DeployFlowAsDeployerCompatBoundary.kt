@@ -31,6 +31,9 @@ class DeployFlowAsDeployerCompatBoundary(
     var makeDebuggerRedefinersInvokeCount: Int = 0
         private set
 
+    var createInstallSessionInvokeCount: Int = 0
+        private set
+
     val optimisticSwapRestartArgs: MutableList<Boolean> = mutableListOf()
 
     override fun createInstallSession(
@@ -40,6 +43,7 @@ class DeployFlowAsDeployerCompatBoundary(
         onPrompt: (String) -> Boolean,
         onMessage: (String) -> Unit,
     ): JuggInstallSession {
+        createInstallSessionInvokeCount++
         val installer = Mockito.mock(Installer::class.java)
         if (installerVersion != null) {
             Mockito.`when`(installer.version).thenReturn(installerVersion)

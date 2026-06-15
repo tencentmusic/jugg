@@ -99,7 +99,7 @@ VirtualDeployDevice
 
 | 接缝 | 改动要点 |
 |------|----------|
-| **`LaunchContext.deviceAdb`** | `JuggDeployTask` / `DirectOverlaySwapOptions` 使用 context 注入的 `IDeviceAdb`，禁止写死 `IdeaDeviceAdb(device)` |
+| **`LaunchContext.deviceAdb`** | `JuggDeployTask` / `DirectOverlaySwapTransport` 使用 context 注入的 `IDeviceAdb`，禁止写死 `IdeaDeviceAdb(device)` |
 | **`JuggDeployerHelper.deviceAdbFactory`** | `executeDeployRunTask` 内所有 `IdeaDeviceAdb(device)` 改为 factory（含 `SliceDeployHelper`、JVMTI 检测等） |
 | **`JuggDeployer` + `JuggDeployTask`** | `deploymentService` 类型改为 **`IJuggDeploymentService`**（可注入）；Task 构造传入与 Helper 相同实例 |
 | **`JuggDeployerHelper.installPathProvider`** | 测试注入 `Computable`（见 §4.3） |

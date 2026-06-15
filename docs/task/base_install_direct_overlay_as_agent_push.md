@@ -290,17 +290,17 @@ class AsStartupAgentPusher(
 2. push 到 device tmp
 3. `run-as cp` → `code_cache/startup_agents/{versionHash}-agent.so`（32-bit-on-64 用 `-agent-alt.so`）
 
-### 6.2 `DirectOverlaySwapOptions` 扩展
+### 6.2 `LaunchContext` 扩展
 
 ```kotlin
-data class DirectOverlaySwapOptions(
-    val enabled: Boolean,
+class LaunchContext(
+    val isDirectOverlaySettingsEnabled: Boolean,
     val isDeviceReadyDeploy: Boolean,
-    val adb: IDeviceAdb?,
-    val installersRoot: String? = null,   // CopyEmbeddedDistributionPaths.get()
-    val installerVersion: String? = null, // AdbInstaller.getVersion()
-    val deviceAbi: String? = null,
-    val arch: Deploy.Arch? = null,
+    val isAllowDirectOverlayDeploy: Boolean,
+    val deviceAdb: IDeviceAdb,
+    val installersRoot: String,
+    val installSession: JuggInstallSession,
+    val deviceAbi: String,
 )
 ```
 

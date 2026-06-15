@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.direct
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.DexComparator
+import com.android.tools.deployer.Installer
 import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
@@ -11,12 +12,15 @@ import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
@@ -60,7 +64,7 @@ class DirectOverlaySwapTransportTest {
     }
 
     @Test
-    fun `trySwap should use compact base apk cleanup for full resource push`() {
+    fun `trySwap should keep base apk directory for full resource push`() {
         val entry = cacheEntry()
         adb.overlayStateId = entry.overlayId.sha
         val data = deployData(
@@ -79,7 +83,7 @@ class DirectOverlaySwapTransportTest {
 
         assertNotNull(overlayId)
         val script = adb.shellScripts.first { it.contains("__JUGG_DIRECT_OVERLAY__") }
-        assertTrue(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
+        assertFalse(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/drawable/icon.xml'"))
@@ -245,16 +249,18 @@ class DirectOverlaySwapTransportTest {
         val installersRoot = tempFolder.newFolder("installers")
         writeAgentInstaller(installersRoot)
         return DirectOverlaySwapTransport(
-            options = DirectOverlaySwapOptions.create(
-                settingsEnabled = true,
-                isDeviceReadyDeploy = isDeviceReadyDeploy,
-                isAllowedByCaller = isAllowedByCaller,
-                logger = logger,
-                adb = adb,
+            launchContext = LaunchContext(
+                device = Mockito.mock(com.android.ddmlib.IDevice::class.java),
+                deviceAdb = adb,
                 installersRoot = installersRoot.absolutePath,
-                installerVersion = "dced2491",
+                installSession = JuggInstallSession(Mockito.mock(Installer::class.java), "dced2491", { true }, {}),
                 deviceAbi = "arm64-v8a",
-                appArch = Deploy.Arch.ARCH_64_BIT,
+                exceptOverlayIds = emptyMap(),
+                isSkipExceptOverlayCheck = false,
+                compileUiHandler = CompileUiHandler.DEFAULT,
+                isDirectOverlaySettingsEnabled = true,
+                isDeviceReadyDeploy = isDeviceReadyDeploy,
+                isAllowDirectOverlayDeploy = isAllowedByCaller,
             ),
             logger = logger,
         )

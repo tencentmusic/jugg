@@ -16,8 +16,8 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
@@ -322,16 +323,24 @@ class JuggDeployerInstallTest {
         val installer = Mockito.mock(Installer::class.java)
         val ideaLogger = Mockito.mock(Logger::class.java)
         val logger = AdbLogWrapper(ideaLogger)
-
-        val deployer = JuggDeployer(
+        val launchContext = LaunchContext(
             device = device,
             deviceAdb = deviceAdb,
-            deploymentService = deploymentService,
+            installersRoot = "/tmp/installers",
             installSession = JuggInstallSession(installer, "test-installer", { true }, {}),
+            deviceAbi = "arm64-v8a",
             exceptOverlayIds = emptyMap(),
             isSkipExceptOverlayCheck = false,
+            compileUiHandler = CompileUiHandler.DEFAULT,
+            isDirectOverlaySettingsEnabled = false,
+            isDeviceReadyDeploy = true,
+            isAllowDirectOverlayDeploy = false,
+        )
+
+        val deployer = JuggDeployer(
+            launchContext = launchContext,
+            deploymentService = deploymentService,
             logger = logger,
-            directOverlaySwapOptions = DirectOverlaySwapOptions.disabled(),
             asDeployerCompat = compat,
         )
         return Fixture(deviceAdb, compat, deploymentService, ideaLogger, logger, deployer)

@@ -11,13 +11,11 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
-import com.sickworm.intellij.jugg.deploy.run.applychanges.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.utils.CopyEmbeddedDistributionPaths
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
@@ -192,19 +190,26 @@ class JuggDeployerHelper(
             removeLibraryDexFiles(data, device)
         }
 
-        val deviceAdb = deviceAdbFactory(device, logger)
-        val directOverlaySwapOptions = DirectOverlaySwapOptions.create(
-            settingsEnabled = JuggSettings.isEnableDirectOverlayDeploy,
-            isDeviceReadyDeploy = isDeviceReadyDeploy,
-            isAllowedByCaller = request.isAllowDirectOverlayDeploy,
+        val launchContextFactory = LaunchContextFactory(
+            project = project,
+            installPathProvider = installPathProvider,
+            asDeployerCompat = asDeployerCompat,
+            deviceAdbFactory = deviceAdbFactory,
             logger = logger,
-            adb = deviceAdb,
         )
-        val isDirectOverlayCandidate = DirectOverlaySwapTransport(directOverlaySwapOptions, logger).canTry(data)
+        val baseLaunchContext = launchContextFactory.create(
+            device = device,
+            exceptOverlayIds = deployHistoryManager.lastDeployOverlayIds,
+            isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
+            compileUiHandler = compileUiHandler,
+            isDeviceReadyDeploy = isDeviceReadyDeploy,
+            isAllowDirectOverlayDeploy = request.isAllowDirectOverlayDeploy,
+        )
+        val isDirectOverlayCandidate = DirectOverlaySwapTransport(baseLaunchContext, logger).canTry(data)
         val dataList = if (isDirectOverlayCandidate) {
             listOf(data)
         } else {
-            val (firstSliceSize, sliceSize) = SliceDeployHelper(logger).get(deviceAdb)
+            val (firstSliceSize, sliceSize) = SliceDeployHelper(logger).get(baseLaunchContext.deviceAdb)
             data.splitData(firstSliceSize, sliceSize)
         }
         logger.debug("deploy_to_device size: ${dataList.size}")
@@ -219,17 +224,9 @@ class JuggDeployerHelper(
                     "overlays: ${splitData.overlays.size}")
             try {
                 val isSliceSkipExceptOverlayCheck = isSkipExceptOverlayCheck || i != 0
-                val launchContext = LaunchContext(
-                    device = device,
-                    deviceAdb = deviceAdb,
-                    exceptOverlayIds = deployHistoryManager.lastDeployOverlayIds,
-                    isSkipExceptOverlayCheck = isSliceSkipExceptOverlayCheck,
-                    compileUiHandler = compileUiHandler,
-                    directOverlaySwapOptions = directOverlaySwapOptions,
-                )
+                val launchContext = baseLaunchContext.withSkipExceptOverlayCheck(isSliceSkipExceptOverlayCheck)
                 val task = JuggDeployTask(
                     project = project,
-                    installPathProvider = installPathProvider,
                     type = androidDeployType.forDeploySlice(i, dataList.lastIndex),
                     data = splitData,
                     deploymentService = deploymentService,

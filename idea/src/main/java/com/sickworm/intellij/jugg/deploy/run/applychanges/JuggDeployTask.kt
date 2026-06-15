@@ -17,24 +17,19 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.ddmlib.IDevice
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.idea.run.IdeService
 import com.google.common.base.Stopwatch
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.apk.ApkInfo
-import com.sickworm.intellij.jugg.compiler.CompileUiHandler
-import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
-import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
-import com.sickworm.intellij.jugg.deploy.direct.InstallerDeviceAbiResolver
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
+import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -53,7 +48,6 @@ import java.util.stream.Collectors
  */
 class JuggDeployTask(
     private val project: Project,
-    private val installPathProvider: Computable<String>,
     private val type: AndroidDeployType,
     private val data: JuggDeployData,
     private val deploymentService: IJuggDeployerDeploymentService = JuggDeploymentService,
@@ -65,40 +59,12 @@ class JuggDeployTask(
         val stopwatch = Stopwatch.createStarted()
         val device = launchContext.device
         val logger = AdbLogWrapper(logger)
-        val ideService = IdeService(project)
-        val installersRoot = installPathProvider.compute()
-        val installSession = asDeployerCompat.createInstallSession(
-            installersRoot,
-            device,
-            logger,
-            onPrompt = { message ->
-                if (launchContext.compileUiHandler.shouldAutoConfirmDeployPrompt(message)) {
-                    logger.warning("Deploy prompt auto-confirmed by compile ui handler: %s", message)
-                    true
-                } else {
-                    ideService.prompt(message)
-                }
-            },
-            onMessage = { message ->
-                launchContext.compileUiHandler.onDeployUiMessage(message)
-                ideService.message(message)
-            },
-        )
 
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
-            device = device,
-            deviceAdb = launchContext.deviceAdb,
+            launchContext = launchContext,
             deploymentService = deploymentService,
-            installSession = installSession,
-            exceptOverlayIds = launchContext.exceptOverlayIds,
-            isSkipExceptOverlayCheck = launchContext.isSkipExceptOverlayCheck,
             logger = logger,
-            directOverlaySwapOptions = launchContext.directOverlaySwapOptions.copy(
-                installersRoot = installersRoot,
-                installerVersion = installSession.installerVersion,
-                deviceAbi = InstallerDeviceAbiResolver.resolve(launchContext.deviceAdb),
-            ),
             asDeployerCompat = asDeployerCompat,
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
@@ -271,19 +237,4 @@ enum class AndroidDeployType {
             }
         }
     }
-}
-
-/**
- * @see [com.android.tools.idea.run.tasks.LaunchContext]
- */
-class LaunchContext(
-    val device: IDevice,
-    val deviceAdb: IDeviceAdb,
-    val exceptOverlayIds: Map<String, String>,
-    val isSkipExceptOverlayCheck: Boolean,
-    val compileUiHandler: CompileUiHandler,
-    val directOverlaySwapOptions: DirectOverlaySwapOptions,
-) {
-    var launchApp: Boolean = false
-    var killBeforeLaunch: Boolean = false
 }

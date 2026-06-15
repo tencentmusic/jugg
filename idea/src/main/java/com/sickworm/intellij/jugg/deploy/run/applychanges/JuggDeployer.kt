@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdbClient
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDeployFailedException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
-import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapOptions
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
@@ -21,6 +20,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 
@@ -28,16 +28,14 @@ import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
  * [com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
  */
 class JuggDeployer(
-    private val device: IDevice,
-    private val deviceAdb: IDeviceAdb,
+    private val launchContext: LaunchContext,
     private val deploymentService: IJuggDeployerDeploymentService,
-    private val installSession: JuggInstallSession,
-    private val exceptOverlayIds: Map<String, String>,
-    private val isSkipExceptOverlayCheck: Boolean,
     private val logger: AdbLogWrapper,
-    private val directOverlaySwapOptions: DirectOverlaySwapOptions = DirectOverlaySwapOptions.disabled(),
     private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
 ) {
+    private val device: IDevice = launchContext.device
+    private val deviceAdb: IDeviceAdb = launchContext.deviceAdb
+    private val installSession: JuggInstallSession = launchContext.installSession
 
     /**
      * Information related to a swap or install.
@@ -177,13 +175,13 @@ class JuggDeployer(
         // Get the list of files from the installed app assuming deployment cache is correct.
         val speculativeDump: JuggDeploymentCacheEntry? = deploymentService.loadEntry(deviceSerial, packageName, logger)
 
-        val exceptOverlayId = exceptOverlayIds[packageName]
+        val exceptOverlayId = launchContext.exceptOverlayIds[packageName]
         logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
                 ", base install: ${speculativeDump?.overlayId?.isBaseInstall}" +
                 ", except overlay id: $exceptOverlayId" +
-                ", isSkipExceptOverlayCheck: $isSkipExceptOverlayCheck")
+                ", isSkipExceptOverlayCheck: ${launchContext.isSkipExceptOverlayCheck}")
 
-        if (!isSkipExceptOverlayCheck) {
+        if (!launchContext.isSkipExceptOverlayCheck) {
             if (exceptOverlayId != speculativeDump?.overlayId?.sha) {
                 // situation 1: using device running on different projects but same package name.
                 // situation 2: using different devices running on one project.
@@ -244,7 +242,7 @@ class JuggDeployer(
         appArch: Deploy.Arch,
     ): JuggOverlayId? {
         speculativeDump ?: return null
-        val transport = DirectOverlaySwapTransport(directOverlaySwapOptions.withAppArch(appArch), logger.logger)
+        val transport = DirectOverlaySwapTransport(launchContext, logger.logger)
         if (!transport.canTry(data)) return null
         return try {
             val overlayUpdate = OverlayUpdateBuilder(asDeployerCompat).build(speculativeDump, data)
@@ -253,6 +251,7 @@ class JuggDeployer(
                 data = data,
                 overlayUpdate = overlayUpdate,
                 asDeployerCompat = asDeployerCompat,
+                appArch = appArch,
             )
         } catch (e: Exception) {
             if (e is DirectOverlayDirtyException) throw e

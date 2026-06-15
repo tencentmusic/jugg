@@ -3,17 +3,18 @@ package com.sickworm.intellij.jugg.deploy.direct
 import com.android.tools.deploy.proto.Deploy
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
+import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 
 /**
  * DirectOverlaySwapTransport replaces the Apply Changes overlay-update transport only.
  * It does not own deploy lifecycle decisions; callers still run through JuggDeployTask and JuggDeployerHelper.
  */
 class DirectOverlaySwapTransport(
-    private val options: DirectOverlaySwapOptions,
+    private val launchContext: LaunchContext,
     private val logger: Logger,
 ) {
 
@@ -22,9 +23,10 @@ class DirectOverlaySwapTransport(
         data: JuggDeployData,
         overlayUpdate: JuggOverlayUpdate,
         asDeployerCompat: IAsDeployerCompat,
+        appArch: Deploy.Arch = Deploy.Arch.ARCH_64_BIT,
     ): JuggOverlayId? {
         return try {
-            trySwapInternal(packageName, data, overlayUpdate, asDeployerCompat)
+            trySwapInternal(packageName, data, overlayUpdate, asDeployerCompat, appArch)
         } catch (e: Exception) {
             if (e is DirectOverlayDirtyException) throw e
             if (e is DirectOverlayDeployFailedException) throw e
@@ -38,8 +40,8 @@ class DirectOverlaySwapTransport(
     }
 
     fun canTry(data: JuggDeployData): Boolean {
-        options.logEnabled(logger)
-        val result = options.enabled && !data.isInstall && !data.isEmpty
+        launchContext.logDirectOverlayEnabled(logger)
+        val result = launchContext.isDirectOverlayEnabled && !data.isInstall && !data.isEmpty
         logger.debug(
             "Direct overlay swap canTry=$result: isInstall=${data.isInstall}, isEmpty=${data.isEmpty}",
         )
@@ -51,18 +53,14 @@ class DirectOverlaySwapTransport(
         data: JuggDeployData,
         overlayUpdate: JuggOverlayUpdate,
         asDeployerCompat: IAsDeployerCompat,
+        appArch: Deploy.Arch,
     ): JuggOverlayId? {
         if (!canTry(data)) {
             return null
         }
 
-        val adb = options.adb ?: run {
-            logger.debug("Direct overlay swap skipped for adb not ready.")
-            return null
-        }
-
-        val deviceAbi = options.deviceAbi ?: InstallerDeviceAbiResolver.resolve(adb)
-        val appArch = options.appArch ?: Deploy.Arch.ARCH_64_BIT
+        val adb = launchContext.deviceAdb
+        val deviceAbi = launchContext.deviceAbi
         ensureApplyChangesStartupAgent(packageName, adb, deviceAbi, appArch)
 
         val expectedDeviceOverlayId = overlayUpdate.cachedDump.overlayId.let {
@@ -98,15 +96,14 @@ class DirectOverlaySwapTransport(
         deviceAbi: String,
         appArch: Deploy.Arch,
     ) {
-        val installersRoot = options.installersRoot
-        val installerVersion = options.installerVersion
-        if (installersRoot == null || installerVersion == null) {
+        val installerVersion = launchContext.installSession.installerVersion
+        if (installerVersion == null) {
             logger.debug("Direct overlay startup agent push skipped for missing installer metadata.")
             return
         }
         AsStartupAgentPusher(
             adb = adb,
-            matryoshkaReader = InstallerMatryoshkaReader(installersRoot, logger),
+            matryoshkaReader = InstallerMatryoshkaReader(launchContext.installersRoot, logger),
             versionHash = installerVersion,
             logger = logger,
         ).pushApplyChangesStartupAgent(packageName, deviceAbi, appArch)
@@ -114,65 +111,3 @@ class DirectOverlaySwapTransport(
 }
 
 class DirectOverlayDirtyException(message: String) : RuntimeException(message)
-
-/**
- * DirectOverlaySwapOptions carries deploy-state facts from the outer lifecycle into the swap transport.
- *
- * [enabled] is derived from [settingsEnabled], [isDeviceReadyDeploy], and [isAllowedByCaller].
- */
-data class DirectOverlaySwapOptions(
-    val settingsEnabled: Boolean,
-    val isDeviceReadyDeploy: Boolean,
-    val isAllowedByCaller: Boolean,
-    val adb: IDeviceAdb?,
-    val installersRoot: String? = null,
-    val installerVersion: String? = null,
-    val deviceAbi: String? = null,
-    val appArch: Deploy.Arch? = null,
-) {
-    val enabled: Boolean
-        get() = settingsEnabled && !isDeviceReadyDeploy && isAllowedByCaller
-
-    fun logEnabled(logger: Logger) {
-        logger.debug(
-            "Direct overlay enabled=$enabled: settingsEnabled=$settingsEnabled, " +
-                "isDeviceReadyDeploy=$isDeviceReadyDeploy, isAllowedByCaller=$isAllowedByCaller",
-        )
-    }
-
-    fun withAppArch(arch: Deploy.Arch): DirectOverlaySwapOptions = copy(appArch = arch)
-
-    companion object {
-        fun create(
-            settingsEnabled: Boolean,
-            isDeviceReadyDeploy: Boolean,
-            isAllowedByCaller: Boolean,
-            logger: Logger,
-            adb: IDeviceAdb?,
-            installersRoot: String? = null,
-            installerVersion: String? = null,
-            deviceAbi: String? = null,
-            appArch: Deploy.Arch? = null,
-        ): DirectOverlaySwapOptions {
-            return DirectOverlaySwapOptions(
-                settingsEnabled = settingsEnabled,
-                isDeviceReadyDeploy = isDeviceReadyDeploy,
-                isAllowedByCaller = isAllowedByCaller,
-                adb = adb,
-                installersRoot = installersRoot,
-                installerVersion = installerVersion,
-                deviceAbi = deviceAbi,
-                appArch = appArch,
-            ).also { it.logEnabled(logger) }
-        }
-
-        fun disabled(): DirectOverlaySwapOptions {
-            return DirectOverlaySwapOptions(
-                settingsEnabled = false,
-                isDeviceReadyDeploy = true,
-                isAllowedByCaller = false,
-                adb = null,
-            )
-        }
-    }
-}

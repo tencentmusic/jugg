@@ -119,14 +119,15 @@ runTask()
   -> INSTALL 时先 stop app
   -> 异步判断是否需要 push JVMTI agent
   -> 删除回滚后的 library dex
+  -> LaunchContextFactory 创建本轮基础 LaunchContext
   -> 前置判断 Direct Overlay 是否可尝试
   -> Direct Overlay 可尝试时跳过 SliceDeployHelper；否则按阈值切片
-  -> 每个 deploy data 创建 LaunchContext + JuggDeployTask
+  -> 每个 deploy data 派生 slice LaunchContext + JuggDeployTask
   -> 必要时 push agent / restart app / start app / run androidTest
   -> 必要时检查 JVMTI compat issue
 ```
 
-Direct Overlay 的可尝试判断在切片前完成，判断条件与 transport `canTry()` 保持一致：开关开启、调用方允许、设备当前不是 ready deploy、非 install、deploy data 非空。命中后本轮不再进入 `SliceDeployHelper`；`JuggDeployTask` 沿用同一份 `DirectOverlaySwapOptions`，只补充 installer metadata。
+`LaunchContextFactory` 统一创建 deviceAdb、install session、installer metadata、Direct Overlay lifecycle facts，以及 deploy prompt/message 回调。Direct Overlay 的可尝试判断在切片前完成，判断条件与 transport `canTry()` 保持一致：开关开启、调用方允许、设备当前不是 ready deploy、非 install、deploy data 非空。命中后本轮不再进入 `SliceDeployHelper`；`JuggDeployTask` 只消费完整 `LaunchContext`，不再二次拼装 Direct Overlay 参数。
 
 切片后只有第一个 slice 保留 except overlay check；后续 slice 会跳过，否则同一轮部署中 overlay id 已变化会导致自我冲突。
 
@@ -185,7 +186,7 @@ timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则�
 
 ### 6.1 触发条件
 
-`DirectOverlaySwapOptions.enabled = settingsEnabled && !isDeviceReadyDeploy && isAllowedByCaller`。
+`LaunchContext.isDirectOverlayEnabled = settingsEnabled && !isDeviceReadyDeploy && isAllowedByCaller`。
 
 Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。外层在切片前判断是否可尝试 Direct Overlay；真正进入 swap 前仍要求 Android O 及以上、deployment cache 存在、startup agent 元数据可用或允许跳过、设备当前 overlay id 与预期一致。
 
@@ -252,7 +253,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 |---|---|
 | `Deploy state not match, start reinstalling app...` | `DeployStateRecover.tryDryDeploy()`、`DirectOverlayStateChecker.checkRecover()` |
 | `OVERLAY_ID_MISMATCH` 或 “state unknown to Studio” | `JuggDeployer.optimisticSwap()` |
-| Direct Overlay 未触发 | `DirectOverlaySwapOptions.logEnabled()`、`DirectOverlaySwapTransport.canTry()` |
+| Direct Overlay 未触发 | `LaunchContext.logDirectOverlayEnabled()`、`DirectOverlaySwapTransport.canTry()` |
 | Direct Overlay 后不能 fallback | `DirectOverlayWriter.write()` |
 | 部署后总是重启 App | `JuggDeployData.isNeedRestartApp`、`JuggDeployerHelper.runTask()` |
 | library dex 回滚后仍生效 | `JuggDeployerHelper.removeLibraryDexFiles()` |
