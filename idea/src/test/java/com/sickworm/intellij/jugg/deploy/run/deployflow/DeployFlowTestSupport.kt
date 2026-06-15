@@ -64,6 +64,33 @@ internal object DeployFlowTestSupport {
         )
     }
 
+    fun fullResourceDeployData(
+        apkInfos: List<ApkInfo> = context.apkInfos,
+        overlayCount: Int,
+    ): JuggDeployData {
+        val apkPath = apkInfos.first().files.first().apkFile.path
+        return JuggDeployData(
+            apks = apkInfos,
+            newClasses = emptyList(),
+            hotFixModifiedClasses = emptyList(),
+            hotReloadModifiedClasses = emptyList(),
+            effectedClassNodes = emptyList(),
+            overlays = (0 until overlayCount).map { index ->
+                DeployItem(
+                    name = "res/layout/full_resource_$index.xml",
+                    type = CompileOutput.Type.Res,
+                    checksum = index.toLong(),
+                    content = byteArrayOf(index.toByte()),
+                    apkPath = apkPath,
+                )
+            },
+            parsedDex = ParsedDex.EMPTY,
+            isFullRes = true,
+            isWarmUp = false,
+            isPushOverlayOnly = false,
+        )
+    }
+
     fun emptyDeployData(apkInfos: List<ApkInfo> = context.apkInfos): JuggDeployData {
         return JuggDeployData(
             apks = apkInfos,

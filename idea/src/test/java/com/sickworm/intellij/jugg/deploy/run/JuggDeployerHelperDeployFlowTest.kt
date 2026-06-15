@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowFixture
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowOverlaySeed
 import com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -204,6 +205,49 @@ class JuggDeployerHelperDeployFlowTest {
         assertFalse(result.hasDeployChanges)
         Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartAppForDebug(fixture.device)
         Mockito.verify(fixture.deployTargetManager, Mockito.never()).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `split full resource deploy restarts activity only on final slice`() {
+        withSingleOverlayPerSlice {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_010)
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            assertEquals(3, fixture.compatBoundary.optimisticSwapInvokeCount)
+            assertEquals(listOf(false, false, true), fixture.compatBoundary.optimisticSwapRestartArgs)
+        }
+    }
+
+    @Test
+    fun `split full resource deploy clears device overlay after partial slice failure`() {
+        withSingleOverlayPerSlice {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_011)
+
+            val result = fixture.helper.deploy(
+                fixture.deployOptions.copy(retryReason = JuggDeployerHelper.DO_NOT_RETRY),
+            )
+
+            assertFalse("deploy should fail on second slice", result.isSuccess)
+            assertEquals(2, fixture.compatBoundary.optimisticSwapInvokeCount)
+            assertFalse("partial overlay directory should be removed", fixture.virtualDevice.hasOverlayDir())
+            assertTrue(
+                fixture.virtualDevice.shellCommands.contains(
+                    "run-as ${DeployFlowOverlaySeed.packageName()} rm -rf code_cache/.overlay",
+                ),
+            )
+        }
+    }
+
+    private fun withSingleOverlayPerSlice(block: () -> Unit) {
+        val oldRecordJson = JuggSettings.sliceDeployRecordJson
+        JuggSettings.sliceDeployRecordJson = """[{"displayName":"virtual","firstSliceSize":1,"sliceSize":1}]"""
+        try {
+            block()
+        } finally {
+            JuggSettings.sliceDeployRecordJson = oldRecordJson
+        }
     }
 
     private fun assertOverlayRecoverMatched(fixture: DeployFlowFixture) {

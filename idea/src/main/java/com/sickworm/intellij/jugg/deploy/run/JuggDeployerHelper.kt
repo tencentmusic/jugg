@@ -196,33 +196,42 @@ class JuggDeployerHelper(
 
         TimeLogger.start("deploy_to_device")
         lateinit var launchResult: LaunchResult
+        var successfulSliceCount = 0
         dataList.forEachIndexed { i, splitData ->
             if (dataList.size > 1) TimeLogger.start("deploy_to_device_slice$i")
             logger.debug("deploy_to_device_slice$i, " +
                     "classes: ${splitData.newClasses.size + splitData.hotFixModifiedClasses.size + splitData.hotReloadModifiedClasses.size}, " +
                     "overlays: ${splitData.overlays.size}")
-            val isSliceSkipExceptOverlayCheck = isSkipExceptOverlayCheck || i != 0
-            val deviceAdb = deviceAdbFactory(device, logger)
-            val launchContext = LaunchContext(
-                device = device,
-                deviceAdb = deviceAdb,
-                exceptOverlayIds = deployHistoryManager.lastDeployOverlayIds,
-                isSkipExceptOverlayCheck = isSliceSkipExceptOverlayCheck,
-                compileUiHandler = compileUiHandler,
-                isDeviceReadyDeploy = isDeviceReadyDeploy,
-                isAllowDirectOverlayDeploy = request.isAllowDirectOverlayDeploy,
-            )
-            val task = JuggDeployTask(
-                project = project,
-                installPathProvider = installPathProvider,
-                type = androidDeployType,
-                data = splitData,
-                deploymentService = deploymentService,
-                asDeployerCompat = asDeployerCompat,
-            )
-            launchResult = task.run(launchContext)
-            if (!launchResult.success) {
-                throw JuggException.applyChangesFailed(launchResult)
+            try {
+                val isSliceSkipExceptOverlayCheck = isSkipExceptOverlayCheck || i != 0
+                val deviceAdb = deviceAdbFactory(device, logger)
+                val launchContext = LaunchContext(
+                    device = device,
+                    deviceAdb = deviceAdb,
+                    exceptOverlayIds = deployHistoryManager.lastDeployOverlayIds,
+                    isSkipExceptOverlayCheck = isSliceSkipExceptOverlayCheck,
+                    compileUiHandler = compileUiHandler,
+                    isDeviceReadyDeploy = isDeviceReadyDeploy,
+                    isAllowDirectOverlayDeploy = request.isAllowDirectOverlayDeploy,
+                )
+                val task = JuggDeployTask(
+                    project = project,
+                    installPathProvider = installPathProvider,
+                    type = androidDeployType.forDeploySlice(i, dataList.lastIndex),
+                    data = splitData,
+                    deploymentService = deploymentService,
+                    asDeployerCompat = asDeployerCompat,
+                )
+                launchResult = task.run(launchContext)
+                if (!launchResult.success) {
+                    throw JuggException.applyChangesFailed(launchResult)
+                }
+                successfulSliceCount++
+            } catch (e: Exception) {
+                if (dataList.size > 1 && successfulSliceCount > 0) {
+                    clearPartialOverlayAfterSliceFailure(device, data)
+                }
+                throw e
             }
             if (dataList.size > 1) TimeLogger.end("deploy_to_device_slice$i", logger)
         }
@@ -343,6 +352,29 @@ class JuggDeployerHelper(
         isRunning = false
 
         return launchResult
+    }
+
+    private fun AndroidDeployType.forDeploySlice(sliceIndex: Int, lastSliceIndex: Int): AndroidDeployType {
+        if (this == AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY && sliceIndex < lastSliceIndex) {
+            return AndroidDeployType.APPLY_CHANGES
+        }
+        return this
+    }
+
+    private fun clearPartialOverlayAfterSliceFailure(device: IDevice, data: JuggDeployData) {
+        val applicationIds = data.apks.map { it.applicationId }.distinct().filter { it.isNotBlank() }
+        if (applicationIds.isEmpty()) {
+            return
+        }
+        val adb = deviceAdbFactory(device, logger)
+        applicationIds.forEach { applicationId ->
+            logger.warn("Split deploy failed after partial success; clearing partial overlay for $applicationId.")
+            runCatching {
+                adb.execAdbShellCmd("run-as $applicationId rm -rf code_cache/.overlay")
+            }.onFailure {
+                logger.warn("Failed to clear partial overlay for $applicationId.", it)
+            }
+        }
     }
 
     private fun removeLibraryDexFiles(data: JuggDeployData, device: IDevice) {

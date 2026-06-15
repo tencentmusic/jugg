@@ -68,6 +68,16 @@ class VirtualDeployDevice(
         idFile.writeText(overlayId)
     }
 
+    fun writeOverlayFile(path: String, content: ByteArray) {
+        val file = File(packageDataDir(), "code_cache/.overlay/$path")
+        file.parentFile?.mkdirs()
+        file.writeBytes(content)
+    }
+
+    fun hasOverlayDir(): Boolean {
+        return File(packageDataDir(), "code_cache/.overlay").exists()
+    }
+
     fun readOverlayId(): String? {
         val idFile = overlayIdFile()
         return if (idFile.isFile) idFile.readText().trim() else null
@@ -147,6 +157,10 @@ class VirtualDeployDevice(
             cmd.startsWith("rm -f /data/local/tmp/jugg/") -> {
                 val remote = cmd.removePrefix("rm -f ").trim()
                 remotePushFiles.remove(remote)?.delete()
+                ""
+            }
+            cmd == "run-as $packageName rm -rf code_cache/.overlay" -> {
+                File(packageDataDir(), "code_cache/.overlay").deleteRecursively()
                 ""
             }
             cmd.contains("run-as $packageName") && cmd.contains("code_cache/startup_agents") && cmd.contains("ls") -> {

@@ -31,6 +31,8 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             DeployFlowCaseId.DF_L2_007 -> buildDfL2007()
             DeployFlowCaseId.DF_L2_008 -> buildDfL2008()
             DeployFlowCaseId.DF_L2_009 -> buildDfL2009()
+            DeployFlowCaseId.DF_L2_010 -> buildDfL2010()
+            DeployFlowCaseId.DF_L2_011 -> buildDfL2011()
         }
     }
 
@@ -307,9 +309,26 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         )
     }
 
+    private fun buildDfL2010(): DeployFlowFixture {
+        return buildDeployableApplyChangesFixture(
+            caseId = DeployFlowCaseId.DF_L2_010,
+            deployData = DeployFlowTestSupport.fullResourceDeployData(overlayCount = 3),
+        )
+    }
+
+    private fun buildDfL2011(): DeployFlowFixture {
+        return buildDeployableApplyChangesFixture(
+            caseId = DeployFlowCaseId.DF_L2_011,
+            deployData = DeployFlowTestSupport.fullResourceDeployData(overlayCount = 3),
+            optimisticSwapPolicy = DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.FAIL_SECOND_AFTER_RECORD,
+        )
+    }
+
     private fun buildDeployableApplyChangesFixture(
         caseId: DeployFlowCaseId,
         deployData: com.sickworm.intellij.jugg.deploy.run.JuggDeployData,
+        optimisticSwapPolicy: DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy =
+            DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.RECORD_SUCCESS,
     ): DeployFlowFixture {
         val virtualDevice = VirtualDeployDevice(DeployFlowOverlaySeed.packageName())
         val deployHistoryManager = DeployFlowTestHistoryManager()
@@ -330,7 +349,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         )
         val compatBoundary = DeployFlowStaticBoundaryMocks.createCompat(
             virtualDevice = virtualDevice,
-            optimisticSwapPolicy = DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.RECORD_SUCCESS,
+            optimisticSwapPolicy = optimisticSwapPolicy,
         )
         val device = virtualDevice.asDdmlibDevice()
         val helper = DeployFlowTestSupport.createHelper(

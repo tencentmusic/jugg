@@ -31,6 +31,8 @@ class DeployFlowAsDeployerCompatBoundary(
     var makeDebuggerRedefinersInvokeCount: Int = 0
         private set
 
+    val optimisticSwapRestartArgs: MutableList<Boolean> = mutableListOf()
+
     override fun createInstallSession(
         installersFolder: String,
         device: IDevice,
@@ -75,7 +77,19 @@ class DeployFlowAsDeployerCompatBoundary(
             )
             OptimisticSwapPolicy.RECORD_SUCCESS -> {
                 optimisticSwapInvokeCount++
+                optimisticSwapRestartArgs += argRestart
                 val rawOverlayId = OverlayId.builder(overlayUpdate.cachedDump.overlayId.raw as OverlayId).build()
+                JuggOverlayId(rawOverlayId, rawOverlayId.sha, rawOverlayId.isBaseInstall)
+            }
+            OptimisticSwapPolicy.FAIL_SECOND_AFTER_RECORD -> {
+                optimisticSwapInvokeCount++
+                optimisticSwapRestartArgs += argRestart
+                if (optimisticSwapInvokeCount >= 2) {
+                    throw IllegalStateException("AGENT_ATTACH_FAILED")
+                }
+                val rawOverlayId = OverlayId.builder(overlayUpdate.cachedDump.overlayId.raw as OverlayId).build()
+                virtualDevice.writeOverlayId(rawOverlayId.sha)
+                virtualDevice.writeOverlayFile("base.apk/res/layout/partial_slice.xml", byteArrayOf(1))
                 JuggOverlayId(rawOverlayId, rawOverlayId.sha, rawOverlayId.isBaseInstall)
             }
         }
@@ -93,5 +107,6 @@ class DeployFlowAsDeployerCompatBoundary(
     enum class OptimisticSwapPolicy {
         FORBIDDEN,
         RECORD_SUCCESS,
+        FAIL_SECOND_AFTER_RECORD,
     }
 }

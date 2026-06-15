@@ -127,6 +127,8 @@ runTask()
 
 切片后只有第一个 slice 保留 except overlay check；后续 slice 会跳过，否则同一轮部署中 overlay id 已变化会导致自我冲突。
 
+当原始部署类型是 `APPLY_CHANGES_AND_RESTART_ACTIVITY` 时，非最后一个 slice 会降级为 `APPLY_CHANGES`，只允许最后一个 slice 触发 restart activity，避免中间态 overlay 被进程启动/重载使用。若切片部署已有成功 slice，后续 slice 失败时，返回失败前必须对本轮涉及的 applicationId 执行 `run-as <applicationId> rm -rf code_cache/.overlay`，清理设备端半提交 overlay。
+
 ---
 
 ## 5. recover / retry 状态机
@@ -230,6 +232,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 
 - `overlay id` 是部署一致性的核心 checkpoint：Jugg history、Studio deployment cache、设备 overlay 目录任一不一致，都可能导致重装或 recover。
 - `exceptOverlayIds` 防止同 package 在不同项目/不同设备间串状态；recover 或同轮切片会按需跳过检查。
+- 切片部署不能留下半提交 overlay：一旦前序 slice 已成功而后续 slice 失败，必须先清理设备端 `code_cache/.overlay` 再返回失败。
 - `JuggDeployData.filterForApks()` 只给 deployer transport 用；不要用裁剪后的 scoped data 更新全局文件状态或历史。
 - `DeployItem.targetApkPaths` 表示真实部署目标；`apkPath` 仍保留旧单 APK 锚点。判断资源/overlay 归属时优先看 `targetApkPaths`。
 - self-targeting library Test APK backfill 成功安装后，必须立即把新 overlay ids merge 到 `deployHistoryManager.lastDeployOverlayIds`，否则第一轮 replay 会误判状态不匹配并重装。
