@@ -16,6 +16,7 @@ class SimpleProcessHandler : ProcessHandler(),
     AnsiEscapeDecoder.ColoredTextAcceptor, IProcessHandler {
 
     private val myAnsiEscapeDecoder = AnsiEscapeDecoder()
+    private val logger = Logger.getInstance("SimpleProcessHandler")
 
     override var cancelAction: (() -> Unit)? = null
 
@@ -24,10 +25,14 @@ class SimpleProcessHandler : ProcessHandler(),
     override var isCanceledByNextTask = false
 
     override fun destroyProcessImpl() {
+        logger.debug("[Jugg] destroyProcessImpl, hasCancelAction=${cancelAction != null}, " +
+            "isTerminating=$isProcessTerminating, isTerminated=$isProcessTerminated, isCanceledByNextTask=$isCanceledByNextTask")
         detachProcessImpl()
     }
 
     override fun detachProcessImpl() {
+        logger.debug("[Jugg] detachProcessImpl, hasCancelAction=${cancelAction != null}, " +
+            "isTerminating=$isProcessTerminating, isTerminated=$isProcessTerminated, isCanceledByNextTask=$isCanceledByNextTask")
         cancelAction?.invoke()
         notifyProcessTerminated(0)
     }

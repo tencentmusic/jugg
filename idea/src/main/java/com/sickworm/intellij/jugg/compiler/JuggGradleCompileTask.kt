@@ -44,8 +44,10 @@ class JuggGradleCompileTask(
     private fun doRun(): GradleCompileResult {
         val outputParser = uiHandler.createOutputParser()
         compileClient.terminalOutputListener = outputParser
+        logger.debug("[Jugg] compile cancel listener registered, client=${compileClient::class.simpleName}")
         uiHandler.listenCancelAction {
             try {
+                logger.debug("[Jugg] compile cancel listener invoked, client=${compileClient::class.simpleName}, uiCanceled=${uiHandler.isCanceled}")
                 compileClient.cancelAction(isByUser = false)
             } catch (e: Exception) {
                 logger.warn("Cancel compile failed with ${e::class.java}", e)
@@ -84,6 +86,7 @@ class JuggGradleCompileTask(
 
         compileClient.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
         uiHandler.listenCancelAction(null)
+        logger.debug("[Jugg] compile cancel listener cleared, client=${compileClient::class.simpleName}")
         // Attach collected error lines to the result so callers can use a compact error summary.
         return if (!result.isSuccess && !isCanceled && outputParser.possibleErrorLog.isNotEmpty()) {
             result.copy(errorLog = outputParser.possibleErrorLog.toList())
@@ -93,4 +96,3 @@ class JuggGradleCompileTask(
     }
 
 }
-

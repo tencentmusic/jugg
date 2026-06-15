@@ -44,10 +44,20 @@ class RemoteGradleCompileClient(
     private var keyPathList = mutableListOf<String>()
     private var isUseKey: Boolean = false // currently no use
     private val remoteCommandCounter = AtomicLong(0L)
+    @Volatile
+    private var currentRemoteCommandName: String? = null
+    @Volatile
+    private var currentRemoteCommandId: Long? = null
+    private var cancelCtrlCAttempts = 0
+    private var lastCancelCtrlCAtMs = Long.MIN_VALUE
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         logger.debug("[Jugg] remote login starts with fresh shell, reuse disabled")
         dispose()
+        isCanceled = false
+        resetCancelCtrlCState()
+        currentRemoteCommandName = null
+        currentRemoteCommandId = null
 
         finalPasswordOrKey = juggGradleCompileOptions.remoteSshPassword
         isUseKey = false
@@ -142,7 +152,6 @@ class RemoteGradleCompileClient(
     }
 
     private fun doLogin(juggGradleCompileOptions: JuggGradleCompileOptions, keyPathList: List<String>, password: String) {
-        isCanceled = false
         val jsch = JSch()
         keyPathList.filter {
             File(it).exists()
@@ -251,16 +260,37 @@ class RemoteGradleCompileClient(
         rawBuffer: StringBuilder,
         deadlineMs: Long,
         command: ISshCommand?,
+        commandId: Long? = null,
         noOutputTimeoutMs: Long? = null,
         onLineMatched: (String) -> Boolean,
     ): PollShellInputResult {
         var lastInterruptCode = IGradleCompileClient.Error.SUCCESS
         val startMs = System.currentTimeMillis()
         var sawOutput = false
-        while (System.currentTimeMillis() < deadlineMs && !isCanceled) {
+        while (System.currentTimeMillis() < deadlineMs) {
             val currentChannel = channel
             if (currentChannel == null || !currentChannel.isConnected || currentChannel.isClosed) {
                 return PollShellInputResult(isMatched = false, isNoOutputTimeout = false)
+            }
+            if (isCanceled) {
+                if (command == null) {
+                    return PollShellInputResult(isMatched = false, isNoOutputTimeout = false)
+                }
+                sendRemoteCtrlCIfDue(command::class.simpleName, commandId)
+                if (isCancelCtrlCExhausted()) {
+                    logger.info("[Jugg][cmd-$commandId] ${command::class.simpleName} did not exit after " +
+                        "$cancelCtrlCAttempts Ctrl+C attempts, disconnect shell")
+                    try {
+                        channel?.disconnect()
+                    } catch (e: Exception) {
+                        logger.debug("cancelAction disconnect channel failed", e)
+                    }
+                    return PollShellInputResult(
+                        isMatched = false,
+                        isNoOutputTimeout = false,
+                        isCancelAttemptsExhausted = true,
+                    )
+                }
             }
             respondTerminalQueries(rawBuffer, commander)
             if (input.available() > 0) {
@@ -594,7 +624,6 @@ class RemoteGradleCompileClient(
     private data class RemoteApk(val remotePath: String, val localFile: File)
 
     private fun checkLoginOnStart(): JuggGradleCompileOptions {
-        isCanceled = false
         val gradleCompileSettings = juggGradleCompileOptions
         if (session?.isConnected != true || channel?.isConnected != true || gradleCompileSettings == null) {
             throw JuggInternalException.notLoginYet()
@@ -729,27 +758,61 @@ class RemoteGradleCompileClient(
             printToStreamInfo("[Jugg] user cancel")
         }
         isCanceled = true
+        logger.info("[Jugg] remote compile cancel requested, sessionConnected=${session?.isConnected}, " +
+            "channelConnected=${channel?.isConnected}, channelClosed=${channel?.isClosed}")
         if (session == null || channel == null) {
-            logger.debug("cancelAction but not login, exit")
+            logger.info("[Jugg] remote compile cancel requested before shell ready")
             return
         }
-        val channel = channel!!
+        cmdExecutor.release()
+        val commandId = currentRemoteCommandId
+        if (commandId == null) {
+            logger.info("[Jugg] remote compile cancel requested with no active remote shell command")
+            return
+        }
+        sendRemoteCtrlCIfDue(currentRemoteCommandName, commandId)
+    }
+
+    private fun sendRemoteCtrlCIfDue(commandName: String?, commandId: Long?) {
+        val currentChannel = channel ?: return
+        if (!markCancelCtrlCAttemptIfDue()) {
+            return
+        }
         try {
-            val commander = PrintStream(channel.outputStream, true)
-            commander.print(String(byteArrayOf(0x03))) // control c
+            val commander = PrintStream(currentChannel.outputStream, true)
+            commander.print(String(byteArrayOf(0x03))) // Ctrl+C
             commander.flush()
-            // iFt/rsync needs control c twice
-            commander.print(String(byteArrayOf(0x03))) // control c
-            commander.flush()
+            logger.info("[Jugg][cmd-$commandId] remote compile cancel sent Ctrl+C attempt " +
+                "$cancelCtrlCAttempts/$CANCEL_CTRL_C_MAX_ATTEMPTS, command=$commandName")
         } catch (e: Exception) {
             logger.debug("cancelAction send Ctrl+C failed", e)
         }
-        cmdExecutor.release()
-        try {
-            channel.disconnect()
-        } catch (e: Exception) {
-            logger.debug("cancelAction disconnect channel failed", e)
+    }
+
+    @Synchronized
+    private fun resetCancelCtrlCState() {
+        cancelCtrlCAttempts = 0
+        lastCancelCtrlCAtMs = Long.MIN_VALUE
+    }
+
+    @Synchronized
+    private fun markCancelCtrlCAttemptIfDue(): Boolean {
+        val now = System.currentTimeMillis()
+        if (cancelCtrlCAttempts >= CANCEL_CTRL_C_MAX_ATTEMPTS) {
+            return false
         }
+        if (cancelCtrlCAttempts > 0 && now - lastCancelCtrlCAtMs < CANCEL_CTRL_C_INTERVAL_MS) {
+            return false
+        }
+        cancelCtrlCAttempts++
+        lastCancelCtrlCAtMs = now
+        return true
+    }
+
+    @Synchronized
+    private fun isCancelCtrlCExhausted(): Boolean {
+        return cancelCtrlCAttempts >= CANCEL_CTRL_C_MAX_ATTEMPTS &&
+            System.currentTimeMillis() - lastCancelCtrlCAtMs >= CANCEL_CTRL_C_INTERVAL_MS
     }
 
     private fun invoke(command: ISshCommand): Int {
@@ -767,6 +830,10 @@ class RemoteGradleCompileClient(
     }
 
     private fun invokeRsyncCommand(command: RsyncCommand): Int {
+        if (isCanceled) {
+            logger.info("[Jugg] skip ${command::class.simpleName} because remote compile is canceled")
+            return IGradleCompileClient.Error.ERROR_CANCELED
+        }
         cmdExecutor.terminalOutputListener = terminalOutputListener
         var lastResult = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
         for (attempt in 0 until RsyncAuthRetryPolicy.MAX_ATTEMPTS) {
@@ -818,6 +885,9 @@ class RemoteGradleCompileClient(
         val sentAt = System.currentTimeMillis()
         val safeCommand = remoteEnvironmentPrefix +
             command.getPrintSafeCommand(isNeedSetChineseLanguage = true, isWindows = false)
+        resetCancelCtrlCState()
+        currentRemoteCommandName = command::class.simpleName
+        currentRemoteCommandId = commandId
         logger.info("[Jugg][cmd-$commandId] send ${command::class.simpleName}")
         logger.debug("[Jugg][cmd-$commandId] safeCommandHash=${safeCommand.hashCode()} length=${safeCommand.length}")
         logger.debug("Jsch invoke command: $commandString")
@@ -827,30 +897,46 @@ class RemoteGradleCompileClient(
         val resultEcho = "(Jugg) ${command::class.simpleName} result: "
         val rawBuffer = StringBuilder()
         var parsedResult: Int? = null
-        val pollResult = pollShellInput(
-            input = input,
-            commander = commander,
-            rawBuffer = rawBuffer,
-            deadlineMs = Long.MAX_VALUE,
-            command = command,
-            noOutputTimeoutMs = NO_OUTPUT_TIMEOUT_MS,
-        ) { line ->
-            val currentResult = command.hasFinishWithResult(line)
-            if (currentResult != null) {
-                val elapsedMs = System.currentTimeMillis() - sentAt
-                logger.debug("[Jugg][cmd-$commandId] ${command::class.simpleName} parsed result line: $line -> $currentResult, elapsed=${elapsedMs}ms")
-                parsedResult = currentResult
-                true
-            } else {
-                if (line.startsWith(resultEcho) && line.endsWith("?")) {
-                    logger.debug("[Jugg][cmd-$commandId] ${command::class.simpleName} skip echoed template line: $line")
+        val pollResult = try {
+            pollShellInput(
+                input = input,
+                commander = commander,
+                rawBuffer = rawBuffer,
+                deadlineMs = Long.MAX_VALUE,
+                command = command,
+                commandId = commandId,
+                noOutputTimeoutMs = NO_OUTPUT_TIMEOUT_MS,
+            ) { line ->
+                val currentResult = command.hasFinishWithResult(line)
+                if (currentResult != null) {
+                    val elapsedMs = System.currentTimeMillis() - sentAt
+                    logger.debug("[Jugg][cmd-$commandId] ${command::class.simpleName} parsed result line: $line -> $currentResult, elapsed=${elapsedMs}ms")
+                    parsedResult = currentResult
+                    true
+                } else {
+                    if (line.startsWith(resultEcho) && line.endsWith("?")) {
+                        logger.debug("[Jugg][cmd-$commandId] ${command::class.simpleName} skip echoed template line: $line")
+                    }
+                    false
                 }
-                false
+            }
+        } finally {
+            if (currentRemoteCommandId == commandId) {
+                currentRemoteCommandName = null
+                currentRemoteCommandId = null
             }
         }
         val elapsedMs = System.currentTimeMillis() - sentAt
 
         if (isCanceled) {
+            if (parsedResult != null) {
+                logger.info("[Jugg][cmd-$commandId] ${command::class.simpleName} exited after cancel, " +
+                    "result=$parsedResult, elapsed=${elapsedMs}ms")
+            } else if (pollResult.isCancelAttemptsExhausted) {
+                logger.info("[Jugg][cmd-$commandId] ${command::class.simpleName} cancel exhausted after ${elapsedMs}ms")
+            } else {
+                logger.info("[Jugg][cmd-$commandId] ${command::class.simpleName} observed cancel after ${elapsedMs}ms")
+            }
             return IGradleCompileClient.Error.ERROR_CANCELED
         }
         if (parsedResult != null) {
@@ -961,6 +1047,7 @@ class RemoteGradleCompileClient(
     private data class PollShellInputResult(
         val isMatched: Boolean,
         val isNoOutputTimeout: Boolean,
+        val isCancelAttemptsExhausted: Boolean = false,
     )
 
     companion object {
@@ -972,5 +1059,8 @@ class RemoteGradleCompileClient(
 
         /** Timeout for commands that produce no shell output at all after being sent. */
         private const val NO_OUTPUT_TIMEOUT_MS = 90_000L
+
+        private const val CANCEL_CTRL_C_MAX_ATTEMPTS = 5
+        private const val CANCEL_CTRL_C_INTERVAL_MS = 1_000L
     }
 }

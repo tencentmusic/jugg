@@ -62,7 +62,10 @@ class JuggRunningTask(
     private val androidTestResultModel: AndroidTestResultModel = AndroidTestResultModel()
 
     private val indicatorListener = object : ProgressIndicatorListener {
-        override fun cancelled() { processHandler.detachProcess() }
+        override fun cancelled() {
+            logger.debug("[Jugg] progress indicator canceled, detach process, processCanceled=${processHandler.isCanceled}")
+            processHandler.detachProcess()
+        }
         override fun stopped() { }
     }
 
@@ -376,7 +379,7 @@ class JuggRunningTask(
     override fun cancel(onFinishListener: () -> Unit) {
         if (isRunning) {
             this.onFinishListener = onFinishListener
-            logger.debug("Try canceling process...")
+            logger.debug("Try canceling process, processCanceled=${processHandler.isCanceled}, isCanceledByNextTask=${processHandler.isCanceledByNextTask}")
             processHandler.isCanceledByNextTask = true
             processHandler.detachProcess()
         } else {
