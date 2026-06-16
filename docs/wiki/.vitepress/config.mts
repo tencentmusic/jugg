@@ -6,7 +6,7 @@ const productionSrcExclude = isWikiDev ? [] : ['dev/**', 'zh/dev/**']
 const englishNav = [
   { text: 'Onboarding', link: '/onboarding/' },
   { text: 'Guide', link: '/guide/' },
-  { text: 'Concepts', link: '/concepts/' },
+  { text: 'How It Works', link: '/concepts/' },
   { text: 'Capabilities', link: '/capabilities/' },
   { text: 'Troubleshooting', link: '/troubleshooting/' },
   { text: 'Reference', link: '/reference/' },
@@ -38,12 +38,17 @@ const englishSidebar = {
         { text: 'UI Inspection', link: '/guide/ui-inspection' },
         { text: 'Remote Gradle', link: '/guide/remote-gradle' },
         { text: 'Custom Compiler', link: '/guide/custom-compiler' },
+        { text: 'Advanced Options', link: '/guide/advanced-options' },
         {
-          text: 'Advanced Results',
+          text: 'Jugg Backend',
           collapsed: true,
           items: [
-            { text: 'Compile Stage', link: '/guide/compile' },
-            { text: 'Deploy Results', link: '/guide/deploy' }
+            { text: 'Overview', link: '/guide/jugg-backend/' },
+            { text: 'Self-hosting Checklist', link: '/guide/jugg-backend/self-hosting' },
+            { text: 'Project Configuration', link: '/guide/jugg-backend/project-config' },
+            { text: 'Plugin Delivery', link: '/guide/jugg-backend/plugin-delivery' },
+            { text: 'Diagnostics', link: '/guide/jugg-backend/diagnostics' },
+            { text: 'Remote Server Apply', link: '/guide/jugg-backend/remote-server-apply' }
           ]
         }
       ]
@@ -51,7 +56,7 @@ const englishSidebar = {
   ],
   '/concepts/': [
     {
-      text: 'Concepts',
+      text: 'How It Works',
       items: [
         { text: 'Overview', link: '/concepts/' },
         { text: 'How Jugg Works', link: '/concepts/how-jugg-works' },
@@ -193,7 +198,7 @@ const englishSidebar = {
 const chineseNav = [
   { text: '快速开始', link: '/zh/onboarding/' },
   { text: '使用指南', link: '/zh/guide/' },
-  { text: '概念', link: '/zh/concepts/' },
+  { text: '实现原理', link: '/zh/concepts/' },
   { text: '能力', link: '/zh/capabilities/' },
   { text: '问题排查', link: '/zh/troubleshooting/' },
   { text: '参考', link: '/zh/reference/' },
@@ -225,12 +230,18 @@ const chineseSidebar = {
         { text: 'UI 检查', link: '/zh/guide/ui-inspection' },
         { text: '远端 Gradle', link: '/zh/guide/remote-gradle' },
         { text: '自定义编译器', link: '/zh/guide/custom-compiler' },
+        { text: '高级选项', link: '/zh/guide/advanced-options' },
+        { text: 'Report Issue', link: '/zh/guide/report-issue' },
         {
-          text: '进阶结果说明',
+          text: 'Jugg 后台',
           collapsed: true,
           items: [
-            { text: '编译阶段说明', link: '/zh/guide/compile' },
-            { text: '部署结果说明', link: '/zh/guide/deploy' }
+            { text: '概览', link: '/zh/guide/jugg-backend/' },
+            { text: '自建接入清单', link: '/zh/guide/jugg-backend/self-hosting' },
+            { text: '项目配置下发', link: '/zh/guide/jugg-backend/project-config' },
+            { text: '插件分发与热更新', link: '/zh/guide/jugg-backend/plugin-delivery' },
+            { text: '诊断上报', link: '/zh/guide/jugg-backend/diagnostics' },
+            { text: '远端机器申请', link: '/zh/guide/jugg-backend/remote-server-apply' }
           ]
         }
       ]
@@ -238,11 +249,24 @@ const chineseSidebar = {
   ],
   '/zh/concepts/': [
     {
-      text: '概念',
+      text: '实现原理',
       items: [
         { text: '概览', link: '/zh/concepts/' },
         { text: 'Jugg 工作原理', link: '/zh/concepts/how-jugg-works' },
-        { text: '增量编译', link: '/zh/concepts/incremental-compile' },
+        {
+          text: '增量编译',
+          collapsed: true,
+          items: [
+            { text: '总览', link: '/zh/concepts/incremental-compile/' },
+            { text: '源码增量编译', link: '/zh/concepts/incremental-compile/source' },
+            { text: '资源增量编译', link: '/zh/concepts/incremental-compile/resource' },
+            { text: 'DataBinding / ViewBinding', link: '/zh/concepts/incremental-compile/databinding-viewbinding' },
+            { text: 'Android Manifest / release', link: '/zh/concepts/incremental-compile/manifest-minify' },
+            { text: 'assets / native lib', link: '/zh/concepts/incremental-compile/assets-native' },
+            { text: '依赖库增量编译', link: '/zh/concepts/incremental-compile/dependency-incremental' },
+            { text: '自定义编译器', link: '/zh/concepts/incremental-compile/custom-compiler' }
+          ]
+        },
         { text: '部署策略', link: '/zh/concepts/deploy-strategy' },
         { text: '回退与限制', link: '/zh/concepts/fallback-and-limits' },
         { text: '项目模型', link: '/zh/concepts/project-model' },

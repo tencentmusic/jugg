@@ -70,22 +70,13 @@ tags:
 
 ## 反馈问题
 
-遇到问题时，不需要手动打包日志：
+遇到问题时，优先用 [Report Issue](../guide/report-issue.md) 上传日志。上传完成后，把 Issue ID 和操作步骤发给维护者。
 
-1. 打开 `Edit Configurations...`。
-2. 选择当前 Jugg 配置。
-3. 点击 `Report issues`。
-4. 上传完成后复制 Issue ID。
-5. 把 Issue ID 和操作步骤发给维护者。
-
-本地日志入口：
-
-```bash
-build/jugg/log/compile_latest.log
-```
+本地日志入口是 `build/jugg/log/compile_latest.log`。
 
 ## 下一步
 
 - [运行 App](../guide/run.md)
+- [Report Issue](../guide/report-issue.md)
 - [编译问题排查](../troubleshooting/compile.md)
 - [部署问题排查](../troubleshooting/deploy.md)

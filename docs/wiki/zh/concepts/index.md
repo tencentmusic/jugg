@@ -1,12 +1,12 @@
 ---
-title: 概念
+title: 实现原理
 description: 了解 Jugg 的核心工作模型：编译、部署、项目模型、测试、工具和兼容边界。
 status: active
 tags:
   - concept
 ---
 
-# 概念
+# 实现原理
 
 本章节解释 Jugg 背后的工作模型，帮助你判断一次 Run 为什么会增量、为什么会回退、为什么有时需要重启 App，以及 Android Test、MCP/CLI 和兼容层如何接入同一套能力。
 
@@ -29,7 +29,7 @@ Jugg 不是完整替代 Gradle 的构建系统。它更像是建立在最近一�
 | 页面 | 适合回答的问题 |
 |---|---|
 | [Jugg 工作原理](./how-jugg-works.md) | 点击 Run 后，Jugg 如何串起编译、部署、状态提交和回退。 |
-| [增量编译](./incremental-compile.md) | 一次增量编译做了什么，什么时候会继续补编译或回退 Gradle。 |
+| [增量编译](./incremental-compile/) | 一次增量编译做了什么，什么时候会继续补编译或回退 Gradle。 |
 | [编译流水线](./compile-pipeline.md) | 资源、Manifest、R、DataBinding/ViewBinding、Java/Kotlin、DEX 如何衔接。 |
 | [部署策略](./deploy-strategy.md) | install、hot reload、hot fix、兼容部署和重启策略如何选择。 |
 | [回退与限制](./fallback-and-limits.md) | 哪些场景容易回退，哪些能力边界不应误判为异常。 |
@@ -45,8 +45,8 @@ Jugg 不是完整替代 Gradle 的构建系统。它更像是建立在最近一�
 初次理解 Jugg，建议按下面顺序阅读：
 
 1. [Jugg 工作原理](./how-jugg-works.md)
-2. [增量编译](./incremental-compile.md)
+2. [增量编译](./incremental-compile/)
 3. [部署策略](./deploy-strategy.md)
 4. [回退与限制](./fallback-and-limits.md)
 
-如果你在排查具体问题，可以直接跳到对应概念页，再进入问题排查章节。
+如果你在排查具体问题，可以直接跳到对应实现原理页面，再进入问题排查章节。

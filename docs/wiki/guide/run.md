@@ -67,6 +67,7 @@ build/jugg/log/compile_latest.log
 
 - [Compile Stage](./compile.md)
 - [Deploy Results](./deploy.md)
+- [Advanced Options](./advanced-options.md)
 - [Debug](./debug.md)
 - [Android Test](./android-test.md)
 - [Fallback and Limits](../concepts/fallback-and-limits.md)

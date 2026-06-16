@@ -4,7 +4,7 @@ User documentation for Jugg.
 
 - [Onboarding](./onboarding/)
 - [Guide](./guide/)
-- [Concepts](./concepts/)
+- [How It Works](./concepts/)
 - [Capabilities](./capabilities/)
 - [Troubleshooting](./troubleshooting/)
 - [Reference](./reference/)

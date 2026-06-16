@@ -22,6 +22,9 @@ tags:
 | 导出布局、定位元素、点击设备 | [UI 检查](./ui-inspection.md) | 给 Agent 或脚本提供 UI 层级、属性查询和触控能力 |
 | 使用云开发机/远端构建 | [远端 Gradle](./remote-gradle.md) | 本地只保留 IDE 与部署，Gradle 构建在远端执行 |
 | 扩展编译阶段 | [自定义编译器](./custom-compiler.md) | 接入业务专用生成、转换或校验逻辑 |
+| 调整 More Options 开关 | [高级选项](./advanced-options.md) | 查看运行策略、工具入口和内部排查项的作用 |
+| 上传问题日志 | [Report Issue](./report-issue.md) | 增量编译、部署或运行结果异常时，上传日志并获取 Issue ID |
+| 自建配置、更新和诊断后台 | [Jugg 后台](./jugg-backend/) | 集中下发项目配置、插件升级、热更新和问题日志 |
 
 ## 一次普通开发循环
 
@@ -44,23 +47,7 @@ tags:
 - 修改 App 启动逻辑、静态初始化、单例缓存或 object 初始化后，如果本轮命中 Hot Reload，主动重启一次 App。
 - 碰到“增量结果不符合预期”时，先做一次 Gradle 构建对照，再提交 Jugg 日志。
 - 给 Agent 使用时优先配置 Jugg CLI Skill；MCP 只在需要直接接入 MCP 客户端时使用。
-
-## 如何判断结果
-
-| 结果 | 含义 |
-|---|---|
-| Jugg Hot Reload / 热重载成功 | 修改已在线生效，通常不重启 App |
-| Jugg Hot Fix / 热修复成功 | 修改已下发，App 会重启后生效 |
-| Gradle 编译安装成功 | 本轮走完整 Gradle 构建和安装，增量基线会被刷新 |
-| Clean Reinstall 成功 | 已清理 App 数据、重新安装，并恢复 Jugg 部署状态 |
-| compile 成功但 deploy 失败 | 编译完成，设备部署或启动阶段失败，需要看部署日志 |
-| androidTest failed | 编译和部署可能已经成功，测试断言或 instrumentation 失败 |
-
-日志统一从这里开始看：
-
-```bash
-build/jugg/log/compile_latest.log
-```
+- 需要提交问题时，使用 [Report Issue](./report-issue.md) 上传日志，再把 Issue ID 发给维护者。
 
 ## 相关页面
 
@@ -69,6 +56,8 @@ build/jugg/log/compile_latest.log
 - [回退与限制](../concepts/fallback-and-limits.md)
 - [编译阶段说明](./compile.md)
 - [部署结果说明](./deploy.md)
+- [高级选项](./advanced-options.md)
+- [Report Issue](./report-issue.md)
 - [编译问题排查](../troubleshooting/compile.md)
 - [部署问题排查](../troubleshooting/deploy.md)
 - [日志文件](../reference/log-files.md)

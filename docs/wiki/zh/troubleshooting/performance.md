@@ -67,6 +67,6 @@ Export incremental apk failed: ...
 
 ## 相关页面
 
-- [增量编译](../concepts/incremental-compile.md)
+- [增量编译](../concepts/incremental-compile/)
 - [依赖库增量编译](../capabilities/compile/dependency-incremental.md)
 - [Gradle 回退](../capabilities/compile/gradle-fallback.md)

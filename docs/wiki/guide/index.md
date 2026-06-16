@@ -20,8 +20,5 @@ Start from the action you take in Android Studio or automation:
 | Inspect UI or tap elements from tools | [UI Inspection](./ui-inspection.md) |
 | Use remote Gradle builds | [Remote Gradle](./remote-gradle.md) |
 | Extend compile behavior | [Custom Compiler](./custom-compiler.md) |
-
-Compile and deploy are part of a normal Jugg Run. The advanced pages explain results and failure modes when you need more detail:
-
-- [Compile Stage](./compile.md)
-- [Deploy Results](./deploy.md)
+| Adjust More Options switches | [Advanced Options](./advanced-options.md) |
+| Self-host update, configuration, and diagnostics services | [Jugg Backend](./jugg-backend/) |

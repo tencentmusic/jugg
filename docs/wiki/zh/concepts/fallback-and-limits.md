@@ -1,6 +1,6 @@
 ---
 title: 回退与限制
-description: 说明 Jugg 为什么会回退 Gradle、哪些场景属于能力边界，以及如何理解回退结果。
+description: 说明 Jugg 哪些场景需要回到 Gradle，以及增量编译方案的边界。
 status: active
 tags:
   - concept
@@ -9,71 +9,50 @@ tags:
 
 # 回退与限制
 
-Jugg 的策略是“能增量时增量，不可靠时回退”。回退不是异常，而是 Jugg 发现当前状态不适合继续使用旁路增量后，选择重新建立可信基线。
+Jugg 的增量编译依赖最近一次可信 Gradle 构建产物。回退 Gradle 的目的，是重新生成 APK、class、注解器生成源码和其他基线产物，让下一轮增量可以继续运行。
 
-## 常见回退原因
+## 常见回退场景
 
-| 场景 | 为什么回退 |
+原文中提到的回退或降级场景包括：
+
+| 场景 | 原因 |
 |---|---|
-| 构建脚本或依赖变化 | 需要重新读取 Gradle 任务、classpath、依赖和产物路径。 |
-| 运行目标切换 | App 与 Android Test 需要不同 APK 和项目快照。 |
-| 文件变化过多 | 增量收益下降，完整构建更可靠。 |
-| 设备不可用或状态不匹配 | 无法证明设备上仍是上次部署基线。 |
-| 上次完整构建失败 | 缺少可信的 APK、classpath 或部署历史。 |
-| 增量编译失败且不能安全修复 | 避免用不完整产物继续部署。 |
-| 部署失败但允许 fallback | 整轮 Run 切回 Gradle 构建和安装。 |
+| 首次运行 | 没有可复用的 Gradle 基线产物 |
+| `build.gradle` 变化 | 构建配置和依赖可能变化，需要重新读取 |
+| 注解处理器或插桩场景 | 可能依赖 Gradle 上下文，增量参数难以确认 |
+| 一次性修改文件很多 | 增量收益下降，完整构建更稳妥 |
+| Manifest 更新 | Manifest 需要写回 APK 并安装 |
+| 设备或部署现场不可信 | 继续部署可能基于错误状态 |
+| 用户主动降级 | 用完整构建刷新基线 |
 
-如果你看到 fallback 提示，优先理解为“Jugg 正在刷新基线”，而不是“增量功能坏了”。
+回退不是增量链路失效，而是重新建立可信起点。
 
-## Jugg 不替代哪些能力
+## 增量方案的边界
 
-Jugg 不负责完整替代 Gradle pipeline。以下场景仍以 Gradle 为权威路径：
+Jugg 不是完整 Gradle pipeline。以下内容仍以 Gradle 构建为准：
 
-- 构建脚本、插件、variant、flavor 或依赖图发生复杂变化。
-- 需要完整生成 APK/AAB 或发布产物。
-- 复杂注解处理、KSP/KAPT、字节码插桩或构建插件副作用。
-- 需要重新建立 Android Test full-build baseline。
-- 远端构建、include build、AGP 输出目录变化等需要重新拉取项目快照的场景。
+- 发布构建和完整 APK / AAB 产物。
+- 复杂构建脚本、Gradle plugin 和 variant 逻辑。
+- 未明确支持的注解处理器、插桩和生成代码。
+- 依赖图复杂变化。
+- 需要完整刷新资源表、Manifest、mapping 或 APK 结构的场景。
 
-Jugg 会尽量识别这些情况；识别不了时，用户也可以手动强制 Gradle 构建。
+原文还提到，大工程并不总能一键接入，仍可能需要适配工程里的特殊场景。
 
-## “没有文件变化”不总是失败
+## 资源增量的限制
 
-看到没有文件变化时，Jugg 的行为取决于上下文：
+Jugg 定制 aapt2 `inclink` 后，可以基于 APK 中的 `resources.arsc` 和 res 内容做增量 link。限制是删除资源 ID 不会立即从资源表中移除，要等下一次 Gradle 构建刷新基线。
 
-- 首次运行或跨项目切换后，可能直接部署以恢复设备状态。
-- Android Test 可以在没有新编译产物时直接重跑 instrumentation。
-- Debug 运行可能直接部署并重启以便 attach。
-- 普通 App Run 在没有变化且不需要部署时，可能提示回退或停止。
+这个限制适用于 debug 开发场景，不能用于生产构建。
 
-因此不要只根据“no file changes”判断本轮失败，要结合最终 compile/deploy 结果看。
+## 设备与版本限制
 
-## 兼容与性能边界
+早期原文中提到，Jugg 的热重载依赖 Android 11 以上设备。后续答辩稿提到，Jugg 增加经典热修复后，设备要求从 Android 11 降到 Android 8。
 
-Jugg 会在可靠性和速度之间做保守选择：
-
-- 热更新受设备、Android 版本、Android Studio deployer 和 JVMTI 能力影响。
-- 首次资源部署可能需要 full resource push，因此比普通源码 hot reload 慢。
-- 多 APK 或 Android Test 场景需要额外做 APK 归属裁剪。
-- release/minify 场景需要额外补偿内联和移除成员，可能触发更多补编译。
-- 大量文件变化时，回退 Gradle 通常比多轮增量更稳定。
-
-## 排查时看什么
-
-如果你想判断为什么回退，优先看：
-
-| 线索 | 含义 |
-|---|---|
-| `Fallback to gradle compile` | 本轮已进入 Gradle 回退。 |
-| `Too many changes` | 文件或模块变化超过增量阈值。 |
-| `Build target changed` | App / Android Test 目标切换，需要刷新基线。 |
-| `Device not ready` | 设备状态不满足增量编译或部署。 |
-| `No file changes` | 当前没有可增量编译的变化，需要结合运行模式判断。 |
-
-详细日志入口见[日志参考](../reference/log-files.md)和[编译问题排查](../troubleshooting/compile.md)。
+设备厂商对 JVMTI / Apply Changes 的支持也可能有差异。答辩稿中提到过鸿蒙 4.2 和小米澎湃 OS 的兼容问题，Jugg 通过自有 JVMTI Agent 或经典热修复路径做兼容。
 
 ## 相关页面
 
-- [增量编译](./incremental-compile.md)
+- [增量编译](./incremental-compile/)
 - [部署策略](./deploy-strategy.md)
 - [项目模型](./project-model.md)

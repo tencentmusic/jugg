@@ -189,7 +189,7 @@ build/jugg/database/deploy_history.db/
 
 ## 相关页面
 
-- [增量编译](../concepts/incremental-compile.md)
+- [增量编译](../concepts/incremental-compile/)
 - [编译阶段说明](../guide/compile.md)
 - [资源编译](../capabilities/compile/resource-compile.md)
 - [限制](../reference/limits.md)

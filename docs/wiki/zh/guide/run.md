@@ -98,6 +98,7 @@ build/jugg/log/compile_latest.log
 
 - [编译阶段说明](./compile.md)
 - [部署结果说明](./deploy.md)
+- [高级选项](./advanced-options.md)
 - [Debug](./debug.md)
 - [Android Test](./android-test.md)
 - [回退与限制](../concepts/fallback-and-limits.md)

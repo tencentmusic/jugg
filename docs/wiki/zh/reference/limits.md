@@ -104,6 +104,6 @@ MCP 和 CLI 是辅助能力，不是完整测试框架或设备自动化平台�
 ## 相关页面
 
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
-- [增量编译](../concepts/incremental-compile.md)
+- [增量编译](../concepts/incremental-compile/)
 - [资源编译](../capabilities/compile/resource-compile.md)
 - [编译问题排查](../troubleshooting/compile.md)

@@ -140,7 +140,7 @@ build/jugg/log/compile_latest.log
 ## 相关页面
 
 - [运行 App](./run.md)
-- [增量编译](../concepts/incremental-compile.md)
+- [增量编译](../concepts/incremental-compile/)
 - [源码编译](../capabilities/compile/source-compile.md)
 - [重编译/扩散编译](../capabilities/compile/recompile-propagation.md)
 - [依赖库增量编译](../capabilities/compile/dependency-incremental.md)

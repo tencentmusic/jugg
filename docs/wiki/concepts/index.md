@@ -1,3 +1,3 @@
-# Concepts
+# How It Works
 
 Coming soon.

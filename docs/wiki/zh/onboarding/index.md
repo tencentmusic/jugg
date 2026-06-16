@@ -56,16 +56,9 @@ Jugg 是面向大规模 Android 工程的秒级增量构建插件。它以 Andro
 
 ## 出问题怎么反馈
 
-1. 打开当前 Jugg Run Configuration。
-2. 点击 `Report issues` 上传日志。
-3. 上传完成后点击 `Copy Issue ID and Close`。
-4. 把 Issue ID 发给维护者，并说明本轮操作和期望结果。
+用 [Report Issue](../guide/report-issue.md) 上传日志。上传完成后，把 Issue ID 发给维护者，并说明本轮操作和期望结果。
 
-日志也可以从工程目录下查看：
-
-```bash
-build/jugg/log/compile_latest.log
-```
+日志也可以从工程目录下查看：`build/jugg/log/compile_latest.log`。
 
 ## 相关页面
 
@@ -73,4 +66,5 @@ build/jugg/log/compile_latest.log
 - [首次运行](./first-run.md)
 - [云开发机配置](./agent-setup.md)
 - [运行 App](../guide/run.md)
+- [Report Issue](../guide/report-issue.md)
 - [回退与限制](../concepts/fallback-and-limits.md)
