@@ -46,6 +46,17 @@ class JuggCompileUiHandlerTest {
     }
 
     @Test
+    fun `default handler is not rpc mode`() {
+        Assert.assertFalse(CompileUiHandler.DEFAULT.isRpcMode)
+    }
+
+    @Test
+    fun `jugg handler exposes rpc mode`() {
+        Assert.assertTrue(createHandler(isRpcMode = true).isRpcMode)
+        Assert.assertFalse(createHandler(isRpcMode = false).isRpcMode)
+    }
+
+    @Test
     fun `onDeployUiMessage should write stdout in IDE mode`() {
         val handler = createHandler(isRpcMode = false)
         val captured = mutableListOf<String>()

@@ -189,7 +189,9 @@ class JuggCompilerHelper(
                     logger.warn("\nFound incremental compile error:\n$visibleErrorMessage")
                 }
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
-                logger.warn("Run again directly will fall back to gradle compile.\n")
+                if (!uiHandler.isRpcMode) {
+                    logger.warn("Run again directly will fall back to gradle compile.\n")
+                }
                 return incrementalResult
             }
         }

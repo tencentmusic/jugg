@@ -28,7 +28,7 @@ import javax.swing.SwingUtilities
 open class JuggCompileUiHandler(
     private val project: Project,
     override var isForceGradleCompile: Boolean,
-    private val isRpcMode: Boolean,
+    override val isRpcMode: Boolean,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     logger: Logger,
     override var processHandler: IProcessHandler = IProcessHandler.DEFAULT,

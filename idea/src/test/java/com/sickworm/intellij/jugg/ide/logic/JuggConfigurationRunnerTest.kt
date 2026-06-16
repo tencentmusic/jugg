@@ -4,6 +4,7 @@ import com.intellij.execution.ExecutionResult
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.openapi.util.Key
+import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
@@ -86,6 +87,18 @@ class JuggConfigurationRunnerTest {
         assertTrue(processHandler.lines.any { it.contains("unresolved reference") })
         assertTrue(processHandler.lines.any { it.contains("Compile finished in 1s") })
         assertTrue(processHandler.lines.any { it.contains("Found incremental compile error") })
+    }
+
+    @Test
+    fun `mcp log collector keeps logs without source-specific filtering`() {
+        val collector = RunLogCollector()
+
+        collector.warn("\nFound incremental compile error. Please see logs for details.", null)
+        collector.warn("Run again directly will fall back to gradle compile.\n", null)
+
+        val logs = collector.getAllLogs()
+        assertTrue(logs.contains("Found incremental compile error"))
+        assertTrue(logs.contains("Run again directly will fall back to gradle compile."))
     }
 
     private class CapturingProcessHandler : IProcessHandler {

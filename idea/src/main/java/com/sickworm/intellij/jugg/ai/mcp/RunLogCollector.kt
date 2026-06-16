@@ -58,4 +58,3 @@ class RunLogCollector : Logger() {
     override fun setLevel(level: Level) {
     }
 }
-

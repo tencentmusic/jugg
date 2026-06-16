@@ -26,6 +26,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
+import org.apache.log4j.Level
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -50,6 +51,8 @@ class JuggCompileHelperTest {
     val temporaryFolder = TemporaryFolder()
 
     companion object {
+        private const val DIRECT_RUN_FALLBACK_HINT = "Run again directly will fall back to gradle compile."
+
         @BeforeClass
         @JvmStatic
         fun initTestEnv() {
@@ -219,7 +222,57 @@ class JuggCompileHelperTest {
         verify(fixture.gitChangeChecker, never()).checkUndetectedFiles(any())
     }
 
-    private fun createFixture(): Fixture {
+    @Test
+    fun compile_incrementalFailure_nonRpcModePrintsDirectRunFallbackHint() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger = logger)
+        prepareIncrementalCompileFailure(fixture)
+        whenever(fixture.uiHandler.isRpcMode).thenReturn(false)
+
+        fixture.helper.compile(fixture.options, fixture.uiHandler)
+
+        assertTrue(logger.messages.any { it.contains(DIRECT_RUN_FALLBACK_HINT) })
+    }
+
+    @Test
+    fun compile_incrementalFailure_rpcModeHidesDirectRunFallbackHint() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger = logger)
+        prepareIncrementalCompileFailure(fixture)
+        whenever(fixture.uiHandler.isRpcMode).thenReturn(true)
+
+        fixture.helper.compile(fixture.options, fixture.uiHandler)
+
+        assertTrue(logger.messages.any { it.contains("Found incremental compile error") })
+        assertFalse(logger.messages.any { it.contains(DIRECT_RUN_FALLBACK_HINT) })
+    }
+
+    private fun prepareIncrementalCompileFailure(fixture: Fixture) {
+        val sourceFile = temporaryFolder.newFile("Broken.kt")
+        val changedFile = ChangedFile(
+            CompileFile.Type.Kotlin,
+            sourceFile,
+            sourceFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+        whenever(fixture.pathManager.projectDir).thenReturn(temporaryFolder.root)
+        whenever(fixture.pathManager.stagingDir).thenReturn(temporaryFolder.newFolder("staging"))
+        whenever(fixture.options.buildTarget).thenReturn(BuildTarget.APP)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUndeployedFiles()).thenReturn(listOf(changedFile))
+        whenever(fixture.dependencyChangeManager.changeStatus)
+            .thenReturn(IDependencyChangeManager.ChangeStatus.NO_CHANGE)
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+
+        val juggCompiler = mock<JuggCompiler>()
+        whenever(juggCompiler.compile(any())).thenAnswer { invocation ->
+            val task = invocation.getArgument<CompileTask>(0)
+            task.allFailed("compile failed")
+        }
+        fixture.helper.juggCompiler = juggCompiler
+    }
+
+    private fun createFixture(logger: Logger = TestGlobal.getLogger()): Fixture {
         val project = mock<Project>()
         whenever(project.basePath).thenReturn("/tmp/jugg-test")
         val pathManager = mock<JuggPathManager>()
@@ -235,7 +288,6 @@ class JuggCompileHelperTest {
         val gradleProjectInfoLocalFetchManager = mock<GradleProjectInfoLocalFetchManager>()
         val gitFileChangesDetector = mock<GitFileChangesDetector>()
         val taskRunnerManager = mock<TaskRunnerManager>()
-        val logger = TestGlobal.getLogger()
         val gitChangeChecker = mock<GitChangesCompileChecker>()
         val uiHandler = mock<CompileUiHandler>()
         val options = mock<JuggGradleCompileOptions>()
@@ -277,6 +329,29 @@ class JuggCompileHelperTest {
             deployTargetManager = deployTargetManager,
             juggRunningTaskStatusManager = juggRunningTaskStatusManager,
         )
+    }
+
+    private class CapturingLogger : Logger() {
+        val messages = mutableListOf<String>()
+
+        override fun isDebugEnabled(): Boolean = true
+        override fun debug(message: String) = Unit
+        override fun debug(t: Throwable?) = Unit
+        override fun debug(message: String, t: Throwable?) = Unit
+        override fun info(message: String) {
+            messages += message
+        }
+        override fun info(message: String, t: Throwable?) {
+            messages += message
+        }
+        override fun warn(message: String, t: Throwable?) {
+            messages += message
+        }
+        override fun error(message: String, t: Throwable?, vararg details: String?) {
+            messages += message
+        }
+        @Suppress("UnstableApiUsage")
+        override fun setLevel(level: Level) = Unit
     }
 
     private fun invokePreprocessIncrementalCompile(

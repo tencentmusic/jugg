@@ -23,6 +23,8 @@ interface CompileUiHandler {
     val isAlwaysRestartApp: Boolean
     /** When true, app launch should wait for debugger before executing app code. */
     val isDebugRun: Boolean get() = false
+    /** When true, the compile flow was triggered by MCP/RPC instead of an IDE Run action. */
+    val isRpcMode: Boolean get() = false
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
     var progressIndicator: ProgressIndicator // injected
