@@ -93,6 +93,15 @@ class DeployRetryHandler(
                 logger.debug("JVMTI is available.") // detectJvmtiCompatIssue will log info
             }
         }
+        if (isAgentNotResponses && deployOptions.isAllowDirectOverlayDeploy && !deployOptions.forceDirectOverlayDeploy) {
+            logger.info("Deploy agent no response, retry once with direct overlay.")
+            val nextDeployOptions = deployOptions.copy(
+                retryReason = reason,
+                isSkipExceptOverlayCheck = true,
+                forceDirectOverlayDeploy = true,
+            )
+            return deployRunHost.redeploy(nextDeployOptions)
+        }
 
         val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH") || reason.contains("unable to recognize the APK")
         val isClassNotFoundException = reason.contains("Class not found")
@@ -166,6 +175,7 @@ class DeployRetryHandler(
                 retryReason = reason,
                 isSkipExceptOverlayCheck = true,
                 isAllowDirectOverlayDeploy = !isDirectDeployFailed && deployOptions.isAllowDirectOverlayDeploy,
+                forceDirectOverlayDeploy = false,
                 timeOutRetryTimes = deployOptions.timeOutRetryTimes + if (isDeployTimeout) 1 else 0,
             )
             return deployRunHost.redeploy(nextDeployOptions)

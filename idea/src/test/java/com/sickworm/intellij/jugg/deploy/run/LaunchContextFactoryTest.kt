@@ -76,9 +76,30 @@ class LaunchContextFactoryTest {
         assertFalse(newContext(isDeviceReadyDeploy = false, isAllowDirectOverlayDeploy = false).isDirectOverlayEnabled)
     }
 
+    @Test
+    fun `direct overlay enabled should allow force retry when device is ready`() {
+        JuggSettings.isEnableDirectOverlayDeploy = true
+
+        assertTrue(
+            newContext(
+                isDeviceReadyDeploy = true,
+                isAllowDirectOverlayDeploy = true,
+                forceDirectOverlayDeploy = true,
+            ).isDirectOverlayEnabled,
+        )
+        assertFalse(
+            newContext(
+                isDeviceReadyDeploy = true,
+                isAllowDirectOverlayDeploy = false,
+                forceDirectOverlayDeploy = true,
+            ).isDirectOverlayEnabled,
+        )
+    }
+
     private fun newContext(
         isDeviceReadyDeploy: Boolean,
         isAllowDirectOverlayDeploy: Boolean,
+        forceDirectOverlayDeploy: Boolean = false,
     ): LaunchContext {
         return newFactory().create(
             device = device,
@@ -87,6 +108,7 @@ class LaunchContextFactoryTest {
             compileUiHandler = CompileUiHandler.DEFAULT,
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
+            forceDirectOverlayDeploy = forceDirectOverlayDeploy,
         )
     }
 

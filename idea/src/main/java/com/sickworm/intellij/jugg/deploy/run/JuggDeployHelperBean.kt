@@ -21,6 +21,8 @@ data class DeployOptions(
     val retryDeployData: JuggDeployData? = null,
     /** When false, retry falls back to Apply Changes instead of direct overlay writer. */
     val isAllowDirectOverlayDeploy: Boolean = true,
+    /** Forces one direct overlay retry for agent-response failures while preserving caller consent. */
+    val forceDirectOverlayDeploy: Boolean = false,
     val androidTestRunSpec: AndroidTestRunSpec? = null,
     val androidTestResultModel: AndroidTestResultModel? = null,
     val startTime: Long = System.currentTimeMillis(),
@@ -57,6 +59,7 @@ data class JuggDeployRunTaskRequest(
     val androidTestResultModel: AndroidTestResultModel? = null,
     val isDeviceReadyDeploy: Boolean = true,
     val isAllowDirectOverlayDeploy: Boolean = true,
+    val forceDirectOverlayDeploy: Boolean = false,
     /** When true, skip app restart/start after this task; a follow-up deploy will launch the app. */
     val deferPostDeployLaunch: Boolean = false,
 ) {
@@ -78,6 +81,7 @@ data class JuggDeployRunTaskRequest(
                 androidTestResultModel = deployOptions.androidTestResultModel,
                 isDeviceReadyDeploy = isDeviceReadyDeploy,
                 isAllowDirectOverlayDeploy = deployOptions.isAllowDirectOverlayDeploy,
+                forceDirectOverlayDeploy = deployOptions.forceDirectOverlayDeploy,
             )
         }
     }

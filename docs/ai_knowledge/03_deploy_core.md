@@ -173,7 +173,8 @@ Direct Overlay recover 只在 `allowDirectOverlayRecover=true` 且 `JuggSettings
 | `REDEPLOY_WITH_COMPAT_MESSAGE` | `appendCompatDeployFiles()` 后 compat redeploy。 |
 | `JVMTI_ERROR_UNMODIFIABLE_CLASS` / `app restart` / redefiner/internal error | fallback 到 HOT_FIX 后 redeploy。 |
 | `INSTRUMENTATION_FAILED` / `IOException occurred` | 不改 payload，直接重试。 |
-| agent no response / deploy timeout | 先检测 JVMTI compat；必要时 compat deploy。 |
+| agent no response | 先检测 JVMTI compat；必要时 compat deploy；JVMTI 可用且调用方允许 direct overlay 时，强制重试一次 direct overlay，避免依赖 agent responses。 |
+| deploy timeout | 先检测 JVMTI compat；必要时 compat deploy；timeout 规则继续按下方计数策略处理。 |
 | overlay id mismatch / class not found / direct deploy failed | recover deploy state 后 redeploy。direct deploy failed 时 recover 禁用 direct overlay（legacy + `isAllowDirectOverlayDeploy=false`）。 |
 | install `INSTALL_FAILED_INVALID_APK` | uninstall 当前 applicationId 集合后重新 install。 |
 | 用户限制、设备丢失、APK install 失败、embedded APK 冲突 | 停止 fallback，向上暴露失败。 |
@@ -186,7 +187,7 @@ timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则�
 
 ### 6.1 触发条件
 
-`LaunchContext.isDirectOverlayEnabled = settingsEnabled && !isDeviceReadyDeploy && isAllowedByCaller`。
+`LaunchContext.isDirectOverlayEnabled = settingsEnabled && isAllowedByCaller && (!isDeviceReadyDeploy || forceDirectOverlayDeploy)`。
 
 Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。外层在切片前判断是否可尝试 Direct Overlay；真正进入 swap 前仍要求 Android O 及以上、deployment cache 存在、startup agent 元数据可用或允许跳过、设备当前 overlay id 与预期一致。
 

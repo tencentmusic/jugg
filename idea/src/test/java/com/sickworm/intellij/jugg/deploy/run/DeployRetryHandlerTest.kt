@@ -207,6 +207,96 @@ class DeployRetryHandlerTest {
     }
 
     @Test
+    fun `tryRetry should force direct overlay once when agent no response and jvmti is available`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(device = device, isLastDevice = true)
+        val deployData = JuggDeployData.forInstall(emptyList())
+
+        val deployRunHost = RecordingDeployRunHost(
+            result = DeployTaskResult(isSuccess = true, costTime = 4L),
+            jvmtiCompatIssueDetected = false,
+        )
+        val handler = createHandler(
+            deployRunHost = deployRunHost,
+            deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
+        )
+
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = "MISSING_AGENT_RESPONSES",
+        )
+
+        assertEquals(deployRunHost.lastResult, result)
+        assertEquals("MISSING_AGENT_RESPONSES", deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(true, deployRunHost.lastRedeployOptions?.isSkipExceptOverlayCheck)
+        assertEquals(true, deployRunHost.lastRedeployOptions?.isAllowDirectOverlayDeploy)
+        assertEquals(true, deployRunHost.lastRedeployOptions?.forceDirectOverlayDeploy)
+    }
+
+    @Test
+    fun `tryRetry should not force direct overlay when caller already disallows direct overlay`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(
+            device = device,
+            isLastDevice = true,
+            isAllowDirectOverlayDeploy = false,
+        )
+        val deployData = JuggDeployData.forInstall(emptyList())
+
+        val deployRunHost = RecordingDeployRunHost(
+            result = DeployTaskResult(isSuccess = true, costTime = 4L),
+            jvmtiCompatIssueDetected = false,
+        )
+        val handler = createHandler(
+            deployRunHost = deployRunHost,
+            deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
+        )
+
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = "MISSING_AGENT_RESPONSES",
+        )
+
+        assertNull(result)
+        assertNull(deployRunHost.lastRedeployOptions)
+    }
+
+    @Test
+    fun `tryRetry should not force direct overlay again after forced direct overlay retry`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(
+            device = device,
+            isLastDevice = true,
+            retryReason = "MISSING_AGENT_RESPONSES",
+            forceDirectOverlayDeploy = true,
+        )
+        val deployData = JuggDeployData.forInstall(emptyList())
+
+        val deployRunHost = RecordingDeployRunHost(
+            result = DeployTaskResult(isSuccess = true, costTime = 4L),
+            jvmtiCompatIssueDetected = false,
+        )
+        val handler = createHandler(
+            deployRunHost = deployRunHost,
+            deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
+        )
+
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = "AGENT_ATTACH_FAILED",
+        )
+
+        assertNull(result)
+        assertNull(deployRunHost.lastRedeployOptions)
+    }
+
+    @Test
     fun `tryRetry should recover deploy state then redeploy on overlay id mismatch`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(device = device, isLastDevice = true)
@@ -331,6 +421,7 @@ class DeployRetryHandlerTest {
         )
 
         assertFalse(deployRunHost.lastRedeployOptions!!.isAllowDirectOverlayDeploy)
+        assertFalse(deployRunHost.lastRedeployOptions!!.forceDirectOverlayDeploy)
         Mockito.verify(deployStateRecover).recoverDeployState(
             device,
             deployOptions.indicator,

@@ -20,9 +20,12 @@ class LaunchContext(
     val isDirectOverlaySettingsEnabled: Boolean,
     val isDeviceReadyDeploy: Boolean,
     val isAllowDirectOverlayDeploy: Boolean,
+    val forceDirectOverlayDeploy: Boolean = false,
 ) {
     val isDirectOverlayEnabled: Boolean
-        get() = isDirectOverlaySettingsEnabled && !isDeviceReadyDeploy && isAllowDirectOverlayDeploy
+        get() = isDirectOverlaySettingsEnabled &&
+            (forceDirectOverlayDeploy || !isDeviceReadyDeploy) &&
+            isAllowDirectOverlayDeploy
 
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
@@ -32,7 +35,8 @@ class LaunchContext(
             "Direct overlay enabled=$isDirectOverlayEnabled: " +
                 "settingsEnabled=$isDirectOverlaySettingsEnabled, " +
                 "isDeviceReadyDeploy=$isDeviceReadyDeploy, " +
-                "isAllowedByCaller=$isAllowDirectOverlayDeploy",
+                "isAllowedByCaller=$isAllowDirectOverlayDeploy, " +
+                "forceDirectOverlayDeploy=$forceDirectOverlayDeploy",
         )
     }
 
@@ -49,6 +53,7 @@ class LaunchContext(
             isDirectOverlaySettingsEnabled = isDirectOverlaySettingsEnabled,
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
+            forceDirectOverlayDeploy = forceDirectOverlayDeploy,
         )
     }
 }

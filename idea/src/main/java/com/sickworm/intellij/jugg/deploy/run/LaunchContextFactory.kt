@@ -29,6 +29,7 @@ class LaunchContextFactory(
         compileUiHandler: CompileUiHandler,
         isDeviceReadyDeploy: Boolean,
         isAllowDirectOverlayDeploy: Boolean,
+        forceDirectOverlayDeploy: Boolean = false,
     ): LaunchContext {
         val deviceAdb = deviceAdbFactory(device, logger)
         val installersRoot = installPathProvider.compute()
@@ -63,6 +64,7 @@ class LaunchContextFactory(
             isDirectOverlaySettingsEnabled = JuggSettings.isEnableDirectOverlayDeploy,
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
+            forceDirectOverlayDeploy = forceDirectOverlayDeploy,
         )
     }
 }
