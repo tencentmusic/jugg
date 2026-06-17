@@ -193,7 +193,7 @@ fun CompileTask.toCancelResult(): CompileResult {
 }
 
 fun CompileResult.toVisibleErrorMessage(maxErrorCount: Int = 5): String {
-    return failedFiles
+    return compiledFailedFiles
         .flatMap { detail ->
             val compileError = detail.getFailure()
             compileError.errors.map { error ->

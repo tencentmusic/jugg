@@ -59,6 +59,61 @@ class IncrementalCompilerHelperTest {
     }
 
     @Test
+    fun `should hide quick failed entries from visible logs`() {
+        val tempDir = Files.createTempDirectory("compile_error_summary").toFile()
+        val sourceFile = CompileFile(
+            type = CompileFile.Type.Kotlin,
+            file = File(tempDir, "src/MainActivity.kt"),
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val manifestFile = CompileFile(
+            type = CompileFile.Type.AndroidManifest,
+            file = File(tempDir, "AndroidManifest.xml"),
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val task = CompileTask(
+            files = listOf(sourceFile, manifestFile),
+            outputDir = File(tempDir, "task_out"),
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+        val compileResult = CompileResult(
+            task = task,
+            details = listOf(
+                Result.failure(
+                    CompileError(manifestFile, listOf(0L to "aapt2 link failed"))
+                )
+            ),
+            outputs = emptyList(),
+        ).quickFailedOthers(task)
+
+        assertEquals(
+            "AndroidManifest.xml: aapt2 link failed",
+            compileResult.toVisibleErrorMessage(),
+        )
+    }
+
+    @Test
+    fun `should return empty visible logs when only quick failed entries exist`() {
+        val tempDir = Files.createTempDirectory("compile_error_summary").toFile()
+        val sourceFile = CompileFile(
+            type = CompileFile.Type.Kotlin,
+            file = File(tempDir, "src/MainActivity.kt"),
+            baseDir = tempDir,
+            module = ModuleInfo.virtualModule,
+        )
+        val task = CompileTask(
+            files = listOf(sourceFile),
+            outputDir = File(tempDir, "task_out"),
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+        val compileResult = CompileResult.empty(task).quickFailedOthers(task)
+
+        assertEquals("", compileResult.toVisibleErrorMessage())
+    }
+
+    @Test
     fun `should await const ref after compile success and before recompile detection on first round`() {
         val tempDir = Files.createTempDirectory("inc_compile_helper_success").toFile()
         val sourceFile = File(tempDir, "src/A.kt").apply {
