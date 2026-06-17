@@ -1,6 +1,6 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.17
+version: 1.0.18
 date: 2026-06-17
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)

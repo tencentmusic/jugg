@@ -71,18 +71,29 @@ Verdict: PASS (compile-only)
 1. **Modify** — Edit source files.
 2. **Deploy** — Run `deploy`. Blocks until completion.
    - On `status: OK` + `isFinal: true` → Step 3.
-   - On error → follow Build Fallback Chain (→ see [Gradle-Build Fallback Mode](##Gradle-Build Fallback Mode)).
+   - On `status: ERROR`:
+     a. Read `message` from JSON output to identify the error.
+     b. Load `error_patterns.md`, apply Error Reviewer to diagnose and fix.
+     c. Re-run `deploy`. Retry budget: max 3 attempts.
+     d. If compile still fails after retries with unexpected/unresolvable errors → **fall back to `gradle-build`** (see [Gradle-Build Fallback](#gradle-build-fallback) below).
 3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Light-Weight On-Device Check](##Light-Weight On-Device Check)).
 
 ---
 
 ## Gradle-Build Fallback Mode
 
-> ⚠️ **`gradle-build` is a heavyweight operation** — it triggers a full Gradle compilation, which is significantly slower than incremental `compile`. Use only as a last resort.
+> ⚠️ **`gradle-build` is a heavyweight operation** — full Gradle compilation, significantly slower than incremental `compile`. Use only as a last resort.
 
-**Trigger conditions** (any one):
+**Trigger conditions** (any one)**:**
 - `compile` retries exhausted (3×) and still failing with unexpected errors that cannot be attributed to source changes.
 - Changes involve unsupported annotation processors or Transform/instrumentation (→ see `policy_incremental_compile_limits.md` for decision rule).
+
+**Before using, self-check**:
+- Is the failure in the compile phase (not deploy transport)? 
+- Did you retry with different fixes, not just re-run? 
+- Is there a concrete reason incremental can't work? 
+
+If unsure on any → stop and ask user first.
 
 **Steps**:
 1. Run `gradle-build`.
