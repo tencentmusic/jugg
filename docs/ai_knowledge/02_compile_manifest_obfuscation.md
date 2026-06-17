@@ -82,6 +82,7 @@ SourceCompiler.compileDexOutputs()
 
 - Manifest 输出为空是有效结果：library manifest 未变更、diff 后无变化时不会输出 `AndroidManifest.xml`，避免触发无意义 APK repackage。
 - `AndroidManifestCompiler` 会把成功合并结果复制回 `tempModule/res/AndroidManifest.xml`；后续 manifest 增量以这个文件优先作为基准，不能只看 Gradle merged manifest。
+- `ModuleBuildPathInfo.mergedManifest` 会在 `merged_manifests` / `merged_manifest` 候选里优先选取最新的 `AndroidManifest.xml`，避免 AGP 升级后旧目录产物遮蔽新目录产物。
 - library manifest 会先和 `oldManifest` 做 CRC 比较；未变化直接跳过，避免对依赖库 manifest 做重复 patch。
 - Manifest merge 会忽略 `tools:*` 属性、manifest `package` 和 application `android:name` 更新；这不是漏合并，而是为了避免增量 patch 覆盖运行时关键身份。
 - release 缺 mapping 不会硬失败：`ClassMinifyCompiler` / `DexMinifyCompiler` 只 warn 并 wrap 原任务结果。排查 release 异常时要先确认日志是否出现 mapping 缺失告警。

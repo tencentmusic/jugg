@@ -189,9 +189,10 @@ data class ModuleBuildPathInfo(
     private val applicationMergedManifestDir get() = File(buildDir, "intermediates/merged_manifests/$buildVariant")
 
     // compatible with AGP 8.x, which path like merged_manifests/debug/processDebugManifest/AndroidManifest.xml
-    // use merged_manifests first, which is the value of multiApkManifestOutputDirectory in AGP 7.X, and Jugg deploy compat mode may modify it instead of merged_manifest
+    // prefer the newest manifest within each directory to avoid stale AGP 7 outputs shadowing the current AGP 8 output
     val mergedManifest get() = listOf(oldLibraryMergedManifestDir, applicationMergedManifestDir, libraryMergedManifestDir)
-        .firstNotNullOfOrNull { it.findManifestInDir() } ?: File(libraryMergedManifestDir, "AndroidManifest.xml")
+        .flatMap { it.findManifestCandidates() }
+        .newestFile() ?: File(libraryMergedManifestDir, "AndroidManifest.xml")
 
     val dataBindingInfoDir get() = File(buildDir, "intermediates/data_binding_base_class_log_artifact/$buildVariant")
     val dataBindingDependencyInfoDir get() = File(buildDir, "intermediates/data_binding_base_class_logs_dependency_artifacts/$buildVariant")
@@ -219,10 +220,33 @@ data class ModuleBuildPathInfo(
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
 
-    private fun File.findManifestInDir(): File? {
-        return File(this, "AndroidManifest.xml").takeIf(File::exists)
-            ?: File(this, "process${buildVariant.camelCompat}Manifest/AndroidManifest.xml").takeIf(File::exists)
-            ?: this.listFilesRecursively().find { it.name == "AndroidManifest.xml" }
+    private fun File.findManifestCandidates(): List<File> {
+        return listOf(
+            File(this, "process${buildVariant.camelCompat}Manifest/AndroidManifest.xml"),
+            File(this, "AndroidManifest.xml"),
+        ).filter { it.exists() } + this.listFilesRecursively().filter { it.name == "AndroidManifest.xml" }
+    }
+
+    private fun List<File>.newestFile(): File? {
+        var newestFile: File? = null
+        for (file in this.distinctByAbsolutePath()) {
+            val currentNewestFile = newestFile
+            if (currentNewestFile == null || file.lastModified() > currentNewestFile.lastModified()) {
+                newestFile = file
+            }
+        }
+        return newestFile
+    }
+
+    private fun List<File>.distinctByAbsolutePath(): List<File> {
+        val result = mutableListOf<File>()
+        val paths = mutableSetOf<String>()
+        for (file in this) {
+            if (paths.add(file.absolutePath)) {
+                result.add(file)
+            }
+        }
+        return result
     }
 
     companion object {
@@ -238,28 +262,6 @@ data class ModuleBuildPathInfo(
             return listFiles()?.flatMap {
                 it.listFilesRecursively()
             }?: emptyList()
-        }
-
-        private fun List<File>.newestFile(): File? {
-            var newestFile: File? = null
-            for (file in this) {
-                val currentNewestFile = newestFile
-                if (currentNewestFile == null || file.lastModified() > currentNewestFile.lastModified()) {
-                    newestFile = file
-                }
-            }
-            return newestFile
-        }
-
-        private fun List<File>.distinctByAbsolutePath(): List<File> {
-            val result = mutableListOf<File>()
-            val paths = mutableSetOf<String>()
-            for (file in this) {
-                if (paths.add(file.absolutePath)) {
-                    result.add(file)
-                }
-            }
-            return result
         }
 
         private fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {

@@ -246,6 +246,61 @@ class ModuleBuildPathInfoTest {
         )
     }
 
+    @Test
+    fun `mergedManifest resolves newest manifest when AGP upgrade leaves stale root manifest`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val staleRootManifest = createManifest(
+            moduleRootDir,
+            "build/intermediates/merged_manifests/debug/AndroidManifest.xml",
+            1000L,
+        )
+        val currentProcessManifest = createManifest(
+            moduleRootDir,
+            "build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml",
+            2000L,
+        )
+
+        assertTrue(staleRootManifest.exists())
+        assertEquals(currentProcessManifest.canonicalPath, info.mergedManifest.canonicalPath)
+    }
+
+    @Test
+    fun `mergedManifest keeps root manifest when it is newer than process manifest`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val currentRootManifest = createManifest(
+            moduleRootDir,
+            "build/intermediates/merged_manifests/debug/AndroidManifest.xml",
+            3000L,
+        )
+        createManifest(
+            moduleRootDir,
+            "build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml",
+            2000L,
+        )
+
+        assertEquals(currentRootManifest.canonicalPath, info.mergedManifest.canonicalPath)
+    }
+
+    @Test
+    fun `mergedManifest keeps configured directory priority when manifests have same modified time`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val applicationManifest = createManifest(
+            moduleRootDir,
+            "build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml",
+            1000L,
+        )
+        createManifest(
+            moduleRootDir,
+            "build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml",
+            1000L,
+        )
+
+        assertEquals(applicationManifest.canonicalPath, info.mergedManifest.canonicalPath)
+    }
+
     private fun createRJar(moduleRootDir: File, relativePath: String, lastModifiedTime: Long): File {
         val rJar = File(moduleRootDir, relativePath)
         rJar.parentFile.mkdirs()
@@ -262,5 +317,13 @@ class ModuleBuildPathInfoTest {
         classFile.createNewFile()
         assertTrue(outputDir.setLastModified(lastModifiedTime), "failed to set lastModifiedTime for ${outputDir.path}")
         return outputDir
+    }
+
+    private fun createManifest(moduleRootDir: File, relativePath: String, lastModifiedTime: Long): File {
+        val manifest = File(moduleRootDir, relativePath)
+        manifest.parentFile.mkdirs()
+        manifest.writeText("<manifest />")
+        assertTrue(manifest.setLastModified(lastModifiedTime), "failed to set lastModifiedTime for ${manifest.path}")
+        return manifest
     }
 }
