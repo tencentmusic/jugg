@@ -118,6 +118,61 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertIn("[JUGG-START]", log_text)
         self.assertIn("hook triggered", log_text)
 
+    def test_start_hook_clears_previous_turn_state_without_status_lookup(self):
+        script = Path(__file__).resolve().parent.parent / "start.py"
+        session_id = "s-start-clear"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            status_marker = Path(home) / "status-called"
+            jugg_bin = Path(home) / ".jugg" / "bin"
+            jugg_bin.mkdir(parents=True, exist_ok=True)
+            jugg_cli = jugg_bin / "jugg.py"
+            jugg_cli.write_text(
+                "#!/usr/bin/env python3\n"
+                "from pathlib import Path\n"
+                f"Path({str(status_marker)!r}).write_text('called', encoding='utf-8')\n"
+                "print('{\"status\":\"OK\",\"data\":{\"hasBeenFullCompiled\":true}}')\n",
+                encoding="utf-8",
+            )
+            jugg_cli.chmod(0o755)
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        "lastWriteTimeMs": 1778668800000,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["Previous.kt"],
+                        "stopBlockCount": 1,
+                        "gradleBlockCount": 1,
+                        "gradleBlockedFingerprint": "previous",
+                        "projectCwd": str(Path(cwd).resolve()),
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "codex"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env=_hook_env(home),
+                check=False,
+            )
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertFalse(status_marker.exists())
+        self.assertNotIn("sessionWriteSeen", state)
+        self.assertNotIn("lastWriteTimeMs", state)
+        self.assertNotIn(SESSION_WRITE_FILE_NAMES_KEY, state)
+        self.assertNotIn("stopBlockCount", state)
+        self.assertNotIn("gradleBlockCount", state)
+        self.assertNotIn("gradleBlockedFingerprint", state)
+        self.assertEqual(str(Path(cwd).resolve()), state.get("projectCwd"))
+
     def test_edit_hook_records_session_write_without_status_lookup(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
         session_id = "s-1"

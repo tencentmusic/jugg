@@ -36,9 +36,8 @@ from hook_common import (
 
 
 GRADLE_BLOCK_MESSAGE = (
-    "You should prefer enabling the jugg-android-dev-loop skill and running Jugg CLI "
-    "compile/deploy/gradle-build instead of verifying with raw Gradle here."
-    "This hook will block only once. If you insist in using raw Gradle, please retry again."
+    "You have jugg-android-dev-loop skill. You should enable the skill and run Jugg CLI "
+    "compile/deploy instead of compiling by Gradle."
 )
 GRADLE_RETRY_WARNING = (
     "Warning: raw Gradle verification is still not the Jugg dev loop. "
