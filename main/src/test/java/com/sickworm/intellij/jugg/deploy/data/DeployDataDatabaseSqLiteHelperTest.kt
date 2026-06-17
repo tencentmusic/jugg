@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
@@ -287,6 +288,21 @@ class DeployDataDatabaseSqLiteHelperTest {
     }
 
     @Test
+    fun testEnableDesugaredWhenAnyApkHasDefaultInterface() {
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
+        helper.init()
+
+        val baseApk = buildParsedApk("base.apk", "Lcom/example/IListener\$DefaultImpls;")
+        val splitApk = buildParsedApk("split.apk", "Lcom/example/SplitClass;")
+        val baseDiff = ParsedApkDiffResult(baseApk.apkFile, updatedApkInfos = 1, isFullUpdate = true)
+        val splitDiff = ParsedApkDiffResult(splitApk.apkFile, updatedApkInfos = 1, isFullUpdate = true)
+
+        helper.saveParsedApkBatch(listOf(baseApk, splitApk), listOf(baseDiff, splitDiff))
+
+        assertTrue(helper.isEnableDesugared())
+    }
+
+    @Test
     fun testUpdateApkInfosMultipleApk() {
         // Scenario: mirror single-APK update flows across two APKs
         // Expectation: diff flags and update results follow the same semantics for each APK
@@ -420,5 +436,31 @@ class DeployDataDatabaseSqLiteHelperTest {
 
     private fun DeployDataDatabaseSqLiteHelper.saveParsedApk(parsedApk: ParsedApk, diffResult: ParsedApkDiffResult): ParsedApkUpdateResult {
         return saveParsedApkBatch(listOf(parsedApk), listOf(diffResult)).first()
+    }
+
+    private fun buildParsedApk(apkName: String, className: String): ParsedApk {
+        val apkFile = File(buildDir, apkName)
+        apkFile.writeText(apkName)
+        apkFile.setLastModified(System.currentTimeMillis())
+        val classNode = ClassNode(
+            dexFileName = "classes.dex",
+            className = className,
+            access = 0,
+            methods = emptyList(),
+            fields = emptyList(),
+            interfaceNames = emptyList(),
+            superClass = "Ljava/lang/Object;",
+            sourceArg = "$apkName.kt",
+            genericSignature = null,
+        )
+        return ParsedApk(
+            apkFile = apkFile,
+            classes = mapOf(className to classNode),
+            dexFiles = emptyMap(),
+            overlayFiles = emptyMap(),
+            methodRefs = emptyMap(),
+            fieldRefs = emptyMap(),
+            subclassRefs = emptyMap(),
+        )
     }
 }

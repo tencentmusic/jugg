@@ -1376,10 +1376,10 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         var isEnableDesugared = true
         DriverManager.getConnection(url).use { connection ->
             runWithTimeCost("isEnableDesugared") {
-                val sql = "SELECT is_enable_desugar FROM apk_info;"
+                val sql = "SELECT MAX(is_enable_desugar) FROM apk_info;"
                 connection.createStatement().use { statement ->
                     val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                    while (resultSet.next()) {
+                    if (resultSet.next() && resultSet.getObject(1) != null) {
                         isEnableDesugared = resultSet.getBoolean(1)
                     }
                 }
