@@ -1,3 +1,8 @@
+- version: 3.0.17
+  date: 2026.06.17
+  updates:
+    - 修复多 APK 场景下 default method 脱糖标记误判，导致增量编译后运行时 AbstractMethodError
+
 - version: 3.0.16
   date: 2026.06.16
   updates:

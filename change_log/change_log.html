@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.0.16 (2026.06.16)</h2>
+<h2>3.0.17 (2026.06.17)</h2>
 <ol>
     <li>[feature] Supports Jugg CLI skills, allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
     <li>[feature] Supports Android test incremental compilation</li>
@@ -22,6 +22,7 @@
     <li>[bugfix] Fix compile failed when using ./gradlew clean assembleDebug due to clean removing artifacts required by Jugg</li>
     <li>[bugfix] Fix incomplete overlay may remain after split full resource deploy failure and cause app startup resource crash</li>
     <li>[bugfix] Fix remote compilation might not actually stop after clicking "Stop."</li>
+    <li>[bugfix] Fix default method desugar flag being misdetected in multi-APK projects, which could cause AbstractMethodError after incremental compilation</li>
 </ol>
 <h2>2.6.31 (2026.06.10)</h2>
 <ol>

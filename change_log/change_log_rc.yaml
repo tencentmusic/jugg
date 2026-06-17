@@ -1,3 +1,8 @@
+- version: 3.0.17
+  date: 2026.06.17
+  updates:
+    - Fix default method desugar flag being misdetected in multi-APK projects, which could cause AbstractMethodError after incremental compilation
+
 - version: 3.0.16
   date: 2026.06.16
   updates:
