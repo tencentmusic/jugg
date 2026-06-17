@@ -30,7 +30,7 @@
 | **app androidTest 支持 / instrumentation 运行链路** | `06_android_test.md`, `06_testing.md` | `JuggAndroidTestRunConfiguration.kt`, `JuggAndroidTestLineMarkerContributor.kt`, `JuggAndroidTestConsoleProperties.kt`, `JuggAndroidTestRerunFailedTestsAction.kt`, `InstrumentationSmRunnerBridge.kt`, `TestLauncher.kt` |
 | 整体架构理解/模块划分 | `98_code_map.md`, `01_architecture.md` | - |
 | 编译失败/回退策略 | `98_code_map.md`, `02_compile_core.md`, `02_compile_source.md` | `idea/.../JuggCompileHelper.kt`, `main/.../JuggCompiler.kt` |
-| 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest_obfuscation.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
+| 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
 | 自定义编译器/编译交互协议 | `98_code_map.md`, `02_compile_custom_ui.md` | `compiler/custom/*`, `compiler/ui/*` |
 | 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md`, `06_testing.md` §7.1 | `idea/.../JuggDeployerHelper.kt`, `idea/.../manager/TopLevelFlowTest` |
 | 常量变化重编译异常（const ref） | `98_code_map.md`, `03_deploy_const_ref.md`, `02_compile_core.md` | `main/.../compiler/constref/*`, `deploy/DeployFileManager.kt`, `deploy/data/DeployDataGenerator.kt` |
@@ -49,7 +49,7 @@
 | MCP UI 验证盲测 / view-inspect | `98_code_map.md`, `08_mcp_layout_verify_design.md`, `08_mcp_ui_verify_checklist.md` | `ai/mcp/actions/*` |
 | figma-layout-verify 内部算法（关系提取/IoU 匹配/容差） | `08_mcp_figma_layout_verify_internals.md` | `ai/mcp/layout/RelationExtractor.kt`, `ElementMatcher.kt`, `RelationVerifier.kt` |
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk`, `main/.../git`, `main/.../logger`, `main/.../server` |
-| **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_manifest_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
+| **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`, `04_engineering_ide.md`, `03_deploy_const_ref.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
 | 知识库维护 / 专题文档重整 | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai_knowledge/*` |
 | Wiki 架构 / 本地运行 / 发布 | `10_wiki_architecture.md`, `97_maintenance_manual.md` | `docs/wiki/package.json`, `docs/wiki/.vitepress/config.mts` |
@@ -66,7 +66,9 @@
 | `02_compile_source.md` | Java/Kotlin/Dex 编译链 |
 | `02_compile_resource.md` | 资源编译与 aapt2 link |
 | `02_compile_databinding.md` | DataBinding/ViewBinding 增量处理 |
-| `02_compile_manifest_obfuscation.md` | Manifest 合并与混淆映射 |
+| `02_compile_manifest.md` | Manifest 增量合并 |
+| `02_compile_obfuscation.md` | release 混淆映射与 `_jugg_fix` |
+| `02_compile_manifest_obfuscation.md` | Manifest 与混淆映射旧引用兼容入口 |
 | `02_compile_custom_ui.md` | 自定义编译器与编译交互协议 |
 | `03_deploy_core.md` | install/code swap/full swap 核心机制 |
 | `03_deploy_const_ref.md` | 常量引用影响分析与常量重编译排查手册 |

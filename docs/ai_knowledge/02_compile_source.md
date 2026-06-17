@@ -9,7 +9,7 @@
 
 本页覆盖源码到 dex 的增量编译主链路：JuggApt/KSP/KAPT 生成源码、DataBinding mapper、Kotlin/Java 编译、dex 生成、minified 变体重映射。它重点记录阶段顺序、失败降级和多 APK target 归属。
 
-资源与 `R.java` 生成见 `02_compile_resource.md`；DataBinding 细节见 `02_compile_databinding.md`；release 混淆和 `_jugg_fix` 见 `02_compile_manifest_obfuscation.md`。
+资源与 `R.java` 生成见 `02_compile_resource.md`；DataBinding 细节见 `02_compile_databinding.md`；release 混淆和 `_jugg_fix` 见 `02_compile_obfuscation.md`。
 
 ---
 
@@ -98,5 +98,6 @@ SourceCompiler.doModuleCompile()
 - 编译核心调度：`02_compile_core.md`
 - 资源编译：`02_compile_resource.md`
 - DataBinding：`02_compile_databinding.md`
-- Manifest/混淆：`02_compile_manifest_obfuscation.md`
+- Manifest 增量合并：`02_compile_manifest.md`
+- 混淆映射：`02_compile_obfuscation.md`
 - 测试策略：`06_testing.md`

@@ -9,7 +9,7 @@
 
 本页覆盖资源相关增量编译：`res/`、`assets/`、native lib 和 manifest 如何变成可部署 overlay。它重点说明 APK-scoped 编译、aapt2 `inclink` 状态、DataBinding/ViewBinding 产物交接和资源过滤边界。
 
-Manifest diff 和 release 混淆见 `02_compile_manifest_obfuscation.md`；DataBinding 详细策略见 `02_compile_databinding.md`；部署如何消费资源 overlay 见 `03_deploy_core.md`。
+Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfuscation.md`；DataBinding 详细策略见 `02_compile_databinding.md`；部署如何消费资源 overlay 见 `03_deploy_core.md`。
 
 ---
 
@@ -87,7 +87,8 @@ JuggCompiler 资源阶段
 
 ## 7. 关联文档
 
-- Manifest/混淆：`02_compile_manifest_obfuscation.md`
+- Manifest 增量合并：`02_compile_manifest.md`
+- 混淆映射：`02_compile_obfuscation.md`
 - 源码编译：`02_compile_source.md`
 - DataBinding：`02_compile_databinding.md`
 - 部署核心：`03_deploy_core.md`
