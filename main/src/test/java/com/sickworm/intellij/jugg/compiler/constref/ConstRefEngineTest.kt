@@ -30,6 +30,46 @@ import kotlin.system.measureTimeMillis
 
 class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     @Test
+    fun `change tracker should expose const definition before and after values`() {
+        val tracker = ConstRefChangeTracker()
+
+        tracker.updateDefinitionDiff(
+            filePath = "Constants.kt",
+            previousDefinitions = listOf(
+                constDefinition(fqClassName = "com.example.Constants", constName = "MAX", constValue = "1"),
+            ),
+            currentDefinitions = listOf(
+                constDefinition(fqClassName = "com.example.Constants", constName = "MAX", constValue = "2"),
+            ),
+        )
+        tracker.updateDefinitionDiff(
+            filePath = "HotSplashIntervalAbt.kt",
+            previousDefinitions = emptyList(),
+            currentDefinitions = listOf(
+                constDefinition(
+                    fqClassName = "com.tencent.wemusic.HotSplashIntervalAbt",
+                    constName = "TAG",
+                    constType = "String",
+                    constValue = "\"HotSplashIntervalAbt\"",
+                ),
+            ),
+        )
+
+        val (changedDefinitions, removedDefinitions) = tracker.peekDefinitionChanges(
+            listOf("Constants.kt", "HotSplashIntervalAbt.kt")
+        )
+
+        assertEquals(emptySet<ConstDefinitionChange>(), removedDefinitions)
+        assertEquals(
+            setOf(
+                "com.example.Constants.MAX: [Int:1] -> [Int:2]",
+                "com.tencent.wemusic.HotSplashIntervalAbt.TAG: <missing> -> [String:\"HotSplashIntervalAbt\"]",
+            ),
+            changedDefinitions.map { it.toLogString() }.toSet(),
+        )
+    }
+
+    @Test
     fun `analyzeOnDemand should analyze target file synchronously`() {
         val rootDir = createTempDirectory("const_ref_scheduler_on_demand")
         File(rootDir, ".git").mkdirs()
@@ -225,10 +265,17 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val logOutput = mutableListOf<String>()
+        val capturingLogger = object : StdLogger("ConstRefEngine") {
+            override fun debug(message: String?) {
+                message?.let { logOutput += it }
+                super.debug(message)
+            }
+        }
         val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = database,
-            logger = logger,
+            logger = capturingLogger,
             backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
@@ -253,6 +300,13 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
             val effectedPaths = effected.map { it.refFilePath }.toSet()
             assertEquals(setOf(userFile.toStdPath(), adminFile.toStdPath()), effectedPaths)
+            assertTrue(
+                "Expected effected definition change log but got: $logOutput",
+                logOutput.any {
+                    it.contains("ConstRefEngine effected definition changes") &&
+                        it.contains("com.example.ConstantsKt.MAX: [Int:1] -> [Int:2]")
+                },
+            )
         } finally {
             scheduler.dispose()
             scope.cancel()
@@ -1880,6 +1934,22 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             engine.dispose()
             scope.cancel()
         }
+    }
+
+    private fun constDefinition(
+        fqClassName: String,
+        constName: String,
+        constType: String = "Int",
+        constValue: String? = null,
+    ): ConstDefinition {
+        return ConstDefinition(
+            filePath = "$fqClassName.kt",
+            packageName = fqClassName.substringBeforeLast('.', ""),
+            fqClassName = fqClassName,
+            constName = constName,
+            constType = constType,
+            constValue = constValue,
+        )
     }
 
     private class StartupDelayBackgroundTaskRunner(

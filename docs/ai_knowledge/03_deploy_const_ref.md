@@ -45,6 +45,7 @@
 | `ConstReferenceCandidate` | Java/Kotlin parser | `ConstRefImpactResolver`, DB | syntax-only 引用事实；不要求目标 const 已被扫描。 |
 | `changedDefinitionKeys` | `ConstRefChangeTracker` | `ConstRefImpactResolver` | 本轮真实变化的 `(fqClassName, constName)`。 |
 | `removedDefinitionKeys` | `ConstRefChangeTracker` | `ConstRefImpactResolver` | `const -> val` 或删除常量时的旧 key，用旧候选索引继续找引用方。 |
+| `ConstDefinitionChange` | `ConstRefChangeTracker` | `ConstRefEngine` 日志 | 结构化保存常量变化前后签名，用于排查“谁触发了跟编”。 |
 | `AnalysisReadiness` | `ConstRefEngine.awaitAnalysis()` | `DeployDataGenerator` | 编译前目标文件是否已完成本轮分析；未 ready 时允许降级。 |
 | `JuggDeployData.constRefEffectedSourcePaths` | `DeployDataGenerator` | 编译循环 / 日志 | ConstRef 额外要求重编译的源码路径。 |
 
@@ -203,6 +204,7 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 排查关键日志（`build/jugg/log/compile_latest.log`）：
 
 - `ConstRefEngine checksum resolve stats`
+- `ConstRefEngine effected definition changes`：打印 `fqClass.const: [type:old] -> [type:new]`；如果旧基线缺失会显示 `<missing> -> [type:new]`，表示本轮无法证明它是实际代码编辑造成的值变化。
 - `const ref effected source files`
 - `Compile success, but found effected source files, continue compile`
 - `analysis not ready` / `awaitAnalysis timeout`

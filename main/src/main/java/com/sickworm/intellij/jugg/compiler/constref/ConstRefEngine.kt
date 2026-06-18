@@ -367,10 +367,13 @@ class ConstRefEngine(
             return emptyList()
         }
         val (changedKeys, removedKeys) = changeTracker.peekDefinitionDiff(changedPaths)
+        val (changedChanges, removedChanges) = changeTracker.peekDefinitionChanges(changedPaths)
         if (changedKeys.isNotEmpty() || removedKeys.isNotEmpty()) {
             logger.debug(
-                "ConstRefEngine effected definition keys, " +
-                    "changedKeys=$changedKeys, removedKeys=$removedKeys, changedPathCount=${changedPaths.size}"
+                "ConstRefEngine effected definition changes, " +
+                    "changed=${changedChanges.toLogString()}, " +
+                    "removed=${removedChanges.toLogString()}, " +
+                    "changedPathCount=${changedPaths.size}"
             )
             synchronized(stateLock) {
                 pendingAckChangedPaths += changedPaths
@@ -381,6 +384,14 @@ class ConstRefEngine(
             changedDefinitionKeys = changedKeys,
             removedDefinitionKeys = removedKeys,
         )
+    }
+
+    private fun Set<ConstDefinitionChange>.toLogString(): String {
+        return if (isEmpty()) {
+            "[]"
+        } else {
+            joinToString(prefix = "[", postfix = "]") { it.toLogString() }
+        }
     }
 
     fun acknowledgeEffectedFilesAfterDeployCommit() {
