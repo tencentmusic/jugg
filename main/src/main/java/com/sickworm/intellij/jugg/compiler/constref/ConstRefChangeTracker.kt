@@ -55,6 +55,14 @@ internal class ConstRefChangeTracker {
         }
     }
 
+    fun peekDefinitionDiff(changedPaths: Collection<String>): Pair<Set<Pair<String, String>>, Set<Pair<String, String>>> {
+        synchronized(lock) {
+            val changedKeys = changedPaths.flatMap { changedDefinitionKeys[it].orEmpty() }.toSet()
+            val removedKeys = changedPaths.flatMap { removedDefinitionKeys[it].orEmpty() }.toSet()
+            return changedKeys to removedKeys
+        }
+    }
+
     fun consumeDefinitionDiff(changedPaths: Collection<String>): Pair<Set<Pair<String, String>>, Set<Pair<String, String>>> {
         synchronized(lock) {
             val changedKeys = changedPaths.flatMap { changedDefinitionKeys.remove(it).orEmpty() }.toSet()

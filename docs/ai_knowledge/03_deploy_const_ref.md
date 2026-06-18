@@ -84,13 +84,17 @@ DeployFileManager.getRecompileFiles()
       -> flush editing file + PRE_COMPILE 分析目标文件
   -> readiness 未 ready: warn 后继续用已完成缓存
   -> ConstRefEffectProvider.getEffectedFiles()
-      -> ConstRefChangeTracker.consumeDefinitionDiff()
+      -> ConstRefChangeTracker.peekDefinitionDiff()
       -> ConstRefImpactResolver.getEffectedFiles()
       -> DB 按 constName 找 candidates，再按 owner/package 规则保守匹配
   -> 写入 JuggDeployData.constRefEffectedSourcePaths
+  -> 部署成功后 DeployFileManager.commit()
+      -> ConstRefEngine.acknowledgeEffectedFilesAfterDeployCommit()
+      -> ConstRefChangeTracker.consumeDefinitionDiff()
 ```
 
 `FULL_SCAN` 不再作为编译前硬门槛；`awaitAnalysis()` 只要求目标变更文件达到本轮分析时间线。查询异常返回空列表，不阻断部署主流程。
+`getEffectedFiles()` 只查询并登记待确认的 definition diff，不在查询阶段清理；只有部署成功 commit 后才 ack 清理，避免“跟编失败后下一次编译漏掉同一批 const-ref 影响”。
 
 ### 4.3 缓存命中链路
 
@@ -176,6 +180,7 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 - `ensureReadyForRecompile()` 异常时 warning，按“未就绪”继续。
 - 未就绪时 warning，仍用当前缓存查询。
 - `getEffectedFiles()` 异常时 warning 后返回空列表，不阻断部署主流程。
+- const-ref definition diff 的清理时机是成功部署后的 commit ack，而不是影响查询本身；编译失败、跟编失败或部署失败时，同一批 const diff 应在下一次编译继续可查。
 - cleanup / vacuum 异常仅 warning，不影响增量编译。
 - Java 只记录可内联类型的 `static final` 字段；Kotlin 支持 top-level、object、companion、嵌套 class/object 的 `const val`。
 - Java/Kotlin parser 都忽略注释和字符串文本中的伪引用。

@@ -265,6 +265,9 @@ class DeployFileManager(
         logger.debug("commit juggDeployData, staging file size: ${stateTracker.getStagingFiles().size}, " +
                 "deployed file size: ${stateTracker.getDeployedFiles()}")
         deployDataGenerator.commitDeployedData(juggDeployData)
+        if (isConstRefTasksEnabled) {
+            constRefEngine.acknowledgeEffectedFilesAfterDeployCommit()
+        }
         stateTracker.commitAndClear { path ->
             logger.debug("remove gradle file: $path")
         }

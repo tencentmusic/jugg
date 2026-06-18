@@ -736,8 +736,9 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 listOf(constantsFile.absolutePath, userFile.absolutePath),
                 timeoutMs = 10_000L,
             )
-            // Consume initial diff so changeTracker is clean
+            // Acknowledge initial diff so changeTracker is clean before A->B.
             scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
 
             // Change to value B ("page_b")
             constantsFile.writeText(
@@ -774,6 +775,68 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 setOf(userFile.toStdPath()),
                 effectedAfterRevert.map { it.refFilePath }.toSet(),
             )
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `getEffectedFiles should keep const diff until deploy commit acknowledgement`() {
+        val rootDir = createTempDirectory("const_ref_scheduler_repeat_effect")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example
+                fun value() = MAX
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, userFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
+
+            constantsFile.writeText(
+                """
+                package com.example
+                const val MAX = 2
+                """.trimIndent()
+            )
+            constantsFile.setLastModified(constantsFile.lastModified() + 1000L)
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val firstEffected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            val secondEffected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+
+            assertEquals(setOf(userFile.toStdPath()), firstEffected.map { it.refFilePath }.toSet())
+            assertEquals(setOf(userFile.toStdPath()), secondEffected.map { it.refFilePath }.toSet())
+
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
+            val afterAck = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertTrue(afterAck.isEmpty())
         } finally {
             scheduler.dispose()
             scope.cancel()

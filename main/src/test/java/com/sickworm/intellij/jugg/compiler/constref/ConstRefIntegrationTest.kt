@@ -328,6 +328,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
             val effectedAfterRealChange = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
             assertEquals(setOf(userFile.toStdPath()), effectedAfterRealChange.map { it.refFilePath }.toSet())
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
 
             // Trigger analysis reuse path (same mtime/checksum mapping) without source changes.
             scheduler.onFileSaved(constantsFile.absolutePath)
@@ -385,6 +386,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
             val effectedAfterRealChange = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
             assertEquals(setOf(userFile.toStdPath()), effectedAfterRealChange.map { it.refFilePath }.toSet())
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
 
             // Simulate downgrade/full-build init path: full scan with mostly reusable cache.
             scheduler.initializeFullScan(listOf(rootDir))

@@ -54,6 +54,7 @@ class ConstRefEngine(
     private val analyzedAt = mutableMapOf<String, Long>()
     private val trackedSourceDirs = mutableListOf<String>()
     private val fullScanReadySourceDirs = mutableSetOf<String>()
+    private val pendingAckChangedPaths = linkedSetOf<String>()
     private var delayedInitialFullScanJob: Job? = null
     private var hasLaunchedInitialFullScan = false
     private val cacheCleaner = ConstRefCacheCleaner(logger)
@@ -365,12 +366,33 @@ class ConstRefEngine(
         if (changedPaths.isEmpty()) {
             return emptyList()
         }
-        val (changedKeys, removedKeys) = changeTracker.consumeDefinitionDiff(changedPaths)
+        val (changedKeys, removedKeys) = changeTracker.peekDefinitionDiff(changedPaths)
+        if (changedKeys.isNotEmpty() || removedKeys.isNotEmpty()) {
+            logger.debug(
+                "ConstRefEngine effected definition keys, " +
+                    "changedKeys=$changedKeys, removedKeys=$removedKeys, changedPathCount=${changedPaths.size}"
+            )
+            synchronized(stateLock) {
+                pendingAckChangedPaths += changedPaths
+            }
+        }
         return impactResolver.getEffectedFiles(
             changedPaths = changedPaths,
             changedDefinitionKeys = changedKeys,
             removedDefinitionKeys = removedKeys,
         )
+    }
+
+    fun acknowledgeEffectedFilesAfterDeployCommit() {
+        val changedPaths = synchronized(stateLock) {
+            pendingAckChangedPaths.toList().also {
+                pendingAckChangedPaths.clear()
+            }
+        }
+        if (changedPaths.isEmpty()) {
+            return
+        }
+        changeTracker.consumeDefinitionDiff(changedPaths)
     }
 
     private fun scheduleDelayedInitialFullScanLocked(normalizedSourceDirs: List<String>, delayMs: Long) {
