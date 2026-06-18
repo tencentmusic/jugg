@@ -1,6 +1,6 @@
 ---
 title: DataBinding / ViewBinding 增量编译
-description: 说明 Jugg 如何在资源阶段和源码阶段处理 DataBinding 与 ViewBinding。
+description: 说明 DataBinding / ViewBinding 为何必须拆成资源阶段和源码阶段处理，两阶段之间如何交接工作区与 layout 信息，以及版本路径漂移、BR 稳定性等边界。
 status: active
 tags:
   - concept
@@ -10,67 +10,48 @@ tags:
 
 # DataBinding / ViewBinding 增量编译
 
-DataBinding / ViewBinding 不是单一阶段完成的。Jugg 在资源阶段处理 layout split、base class 和 stripped XML，在源码阶段处理 DataBinding mapper、BR 和 Java 编译输入。
+DataBinding / ViewBinding 不是单个阶段能完成的：它既要参与资源处理，又要生成 Java/Kotlin 源码。Jugg 把它拆成资源阶段和源码阶段两段，分别处理 base class / stripped XML 和 mapper / BR。
 
-## 两阶段模型
+## 一份功能横跨资源与源码两条链路
+
+layout 不是普通资源。开启 DataBinding / ViewBinding 后，同一份 layout 既要生成进入 APK 的资源（去掉绑定标签后的 stripped XML），又要生成开发者代码引用的绑定类（base class、mapper、BR）。
+
+资源处理和源码编译在 Jugg 里是两个不同阶段，前者先于后者执行。如果把绑定逻辑塞进任意单一阶段，要么资源阶段还拿不到完整源码上下文，要么源码阶段已经错过了资源链接的时机。所以这份功能天然要拆成两段，并且两段之间必须严格交接中间产物。
+
+## 资源阶段与源码阶段的两段交接
 
 ```text
 资源阶段
-  -> 解析 Gradle/Jugg DataBinding 目录
-  -> 处理变化 layout
-  -> 生成 base class、trigger source、stripped XML 和 layout info
+  -> 解析 DataBinding 中间产物目录
+  -> 处理本轮变化的 layout
+  -> 生成 base class、触发源、stripped XML 和 layout 信息
   -> stripped XML 进入资源 overlay
-  -> generated source 转交源码阶段
+  -> 生成的源码转交源码阶段
 
 源码阶段
-  -> 继续消费资源阶段写入的 layout info
-  -> 运行 DataBinding annotation processor
-  -> 生成 mapper holder、BR 和 Java 源码
-  -> 合入 Java 编译输入
+  -> 继续消费资源阶段刚写入的 layout 信息（不重置工作区）
+  -> 运行 DataBinding 注解处理
+  -> 生成 mapper、BR 和 Java 源码
+  -> 合入语言编译输入
 ```
 
-ViewBinding 主要停留在资源阶段。DataBinding 还需要进入 mapper / BR 阶段。
+ViewBinding 基本停在资源阶段；DataBinding 还要进入 mapper / BR 阶段。
 
-## 关键目录
+把它拆成两段后，几个关键约束保证了增量结果与全量构建一致：
 
-Jugg 使用自己的临时工作区保存 DataBinding 中间产物：
+- **源码阶段不重置资源阶段的工作区**：mapper 生成依赖资源阶段刚写入的 layout 信息，如果源码阶段清空工作区，mapper 会缺输入。
+- **备份 Gradle 的 layout 信息**：新增 layout 后又删除时，如果不保留备份，后续完整 Gradle 构建会因为缺 layout 信息文件而失败。Jugg 在工作区里备份一份稳定的 layout 信息来兜底。
+- **BR 字段只追加到末尾**：BR 合并基于上一次 Gradle 生成的 BR，新增字段追加在末尾，保持 BR id 稳定，避免已部署代码里的 BR 引用错位。
+- **`<include>` 关系按 layout 信息补齐**：被引用 layout 的影响范围不是靠扫描 XML 文本得出，而是基于 layout 信息补齐受影响 layout，再交给 mapper 阶段消费。
+- **注解处理走 APT 路径**：当前默认用 Java APT 触发 DataBinding 注解处理；KAPT 失败回退 Java APT 的分支仍保留，但日常行为以 APT 路径为准。
 
-| 路径或状态 | 作用 |
-|---|---|
-| `tempCompileDir/data_binding/<relative module>` | 按模块隔离的 Jugg DataBinding 工作区。 |
-| `dataBindingSourcesOutputDir` | base class、APT 生成源、mapper 和 BR 输出目录。 |
-| `dataBindingStrippedXmlDir` | split 后的 stripped XML，后续进入资源 overlay。 |
-| `tempDataBindingLayoutXmlDir` | 当前轮 layout info merge 目录。 |
-| `backupDataBindingLayoutXmlDir` | 备份 Gradle layout info，避免后续 Gradle 编译缺文件。 |
-| `incrementalDependencyClassesFolder` | 保存 incremental artifact，供后续 include 和 base class 生成使用。 |
-| `mapperDir` | 保存 delegate mapper、full mapper 和历史 incremental mapper。 |
+## 两阶段处理的边界与排查信号
 
-这些目录由 `DataBindingArgsManager` 统一维护。
+跨阶段处理也带来几个容易踩到的边界，排查 layout 异常时可以据此判断：
 
-## 资源阶段
-
-资源阶段由 `ResourceCompiler` 触发 `DataBindingGenBaseClassesCompiler`。它会基于 Gradle 中间产物和当前变化 layout 生成 base class、trigger source 和 stripped XML。
-
-Jugg 会备份 Gradle layout info。这样新增后又删除 layout 时，后续 Gradle 构建仍能看到稳定的 layout info，避免全量构建失败。
-
-## 源码阶段
-
-源码阶段由 `SourceDataBindingProcessor` 触发 `DataBindingGenMapperCompiler`。该阶段不能重置 `DataBindingArgsManager`，因为 mapper 生成依赖资源阶段刚写入的 `tempDataBindingLayoutXmlDir`。
-
-当前默认路径使用 Java APT trigger 运行 DataBinding annotation processor。KAPT 失败后切换 Java APT 的分支仍保留在代码里；排查当前行为时应优先按 APT 路径看。
-
-BR 合并会读取上一次 Gradle 生成的 BR 文件。新增字段追加到末尾，避免 BR id 抖动。
-
-## include 影响
-
-DataBinding 的 `<include>` 关系不是只扫描当前 XML 文本。Jugg 会基于 layout info 补齐受影响 layout，并把相关 layout info 写入当前轮临时目录，再由 mapper 阶段继续消费。
-
-## 约束
-
-- 普通 ViewBinding layout 不应触发 DataBinding mapper。
-- DataBinding stripped XML 会作为资源产物进入 overlay，不能只看 Java 输出判断本轮是否成功。
-- `DataBindingClasspathHelper` 只给 DataBinding processor 准备相关依赖，避免 ARouter 等其他 processor 进入这条旁路。
-- AGP 版本不同会改变中间产物路径；路径问题优先检查 `DataBindingArgsManager` 的候选目录匹配。
+- **版本路径漂移**：不同 AGP 版本下，DataBinding 中间产物的目录位置不同。Jugg 通过候选目录匹配来定位；遇到中间产物找不到，优先怀疑版本路径差异，而不是编译参数。
+- **不能只看 Java 输出判断成功**：stripped XML 是资源产物，会进入资源 overlay；只检查生成的 Java 是否产出，不能说明本轮 layout 处理成功。
+- **ViewBinding 不应触发 mapper**：普通 ViewBinding layout 只走资源阶段，不应进入 DataBinding 的 mapper / BR 处理。
 
 ## 相关页面
 

@@ -1,6 +1,6 @@
 ---
 title: 常量引用分析
-description: 说明 Jugg 如何记录 Java/Kotlin 编译期常量的定义和引用，并在常量值变化后补编译引用方。
+description: 说明编译期常量为什么会让"只编定义方"漏掉内联使用方，Jugg 如何用独立的常量定义与引用索引补编译引用方，以及这套分析的边界。
 status: active
 tags:
   - concept
@@ -10,93 +10,72 @@ tags:
 
 # 常量引用分析
 
-Java 的 `static final` 常量和 Kotlin 的 `const val` 会进入调用方编译结果。只编译常量定义所在文件，不一定能更新引用方。Jugg 为这类变化单独维护一套索引，部署数据生成时再把命中的引用方源码加入下一轮编译。
+扩散编译已经能通过方法、字段和继承关系找回大部分受影响源码，但常量改动是一个例外。开发者只改了一个 `const val` 或 `static final` 的值时，定义方看起来已经重新编译，使用方却可能继续携带旧值运行。
 
-这套逻辑不混在普通 class 结构传播里。普通传播看 method、field、subclass 和 generic signature；常量引用看源码里的常量定义和引用候选。
+常量引用分析补的是这条隐藏链路：它在普通结构传播之外单独追踪可内联常量和可能的使用方，避免“定义方更新了、使用方仍是旧字面量”的增量结果进入设备。
 
-## 索引写入
+## 改常量只编定义方为什么不够
 
-`DeployFileManager` 把 Java/Kotlin 保存、删除和 source dir 初始化事件交给 `ConstRefEngine`。`ConstRefEngine` 不在每次保存时立刻解析当前文件。它会把前一个编辑文件放入 pending，当前文件先标记为 editing；编译前 `awaitAnalysis()` 会把当前 editing 文件冲刷进分析队列。
+Java 的 `static final` 常量和 Kotlin 的 `const val` 有一个容易被忽略的特性：它们在编译期就被内联进了使用方的字节码。引用 `Config.VERSION` 的地方，编译后保存的不是"读取这个常量"的指令，而是常量值本身的字面量。
+
+这让增量编译漏掉一类改动。当你改了常量的值，只重新编译常量定义所在的文件是不够的——所有内联了旧值的使用方都还保留着旧字面量，没有被重新编译。结果是定义方更新了，使用方却仍在用旧值，且这种不一致在编译期毫无征兆。
+
+普通的结构传播也覆盖不到它：常量内联在字节码里没有留下"方法调用"或"字段访问"的引用关系可查。因此常量引用需要一套独立分析。
+
+## 独立的定义与引用候选索引
+
+既然字节码里查不到引用关系，Jugg 就为常量单独维护一套轻量索引，记录两类事实，而不做完整语义解析：
+
+| 索引内容 | 含义 |
+|---|---|
+| 常量定义 | 一个可参与内联的常量：所在文件、包名、类名、常量名、类型和值。 |
+| 引用候选 | 源码里出现的、形态上可能引用某个常量的位置（含常量名、所属类形态、import、包等信息）。 |
+
+关键设计是引用候选**不要求定义方已经被扫描**。两者解耦后，即使全量扫描尚未完成，编译前也能用已完成的缓存先查出一部分结果。
+
+索引的更新对高频保存做了节流：文件保存时，当前正在编辑的文件先标记为"编辑中"，把上一个编辑文件推入待分析队列；编译前再把当前编辑中的文件冲刷进分析，对本轮变化目标做一次解析。
 
 ```text
 文件保存
-  -> ConstRefEngine.onFileSaved()
-  -> 前一个 editing 文件进入 pending
-  -> 当前文件记录为 editing
+  -> 当前文件标记为编辑中，上一个编辑文件进入待分析队列
 
 编译前
-  -> awaitAnalysis()
-  -> flush 当前 editing 文件
-  -> PRE_COMPILE 分析目标文件
+  -> 冲刷当前编辑中的文件
+  -> 对本轮变化的目标文件完成解析
+  -> 用变化后的常量与引用候选匹配，得出受影响的使用方
 ```
 
-解析由 `ConstRefAnalyzer` 分发到 Java/Kotlin parser。写入 SQLite 的不是完整语义解析结果，而是两类事实：
+## 只对真实变化触发
 
-| 数据 | 含义 |
-|---|---|
-| `ConstDefinition` | 一个可参与内联的常量定义，包含文件、包名、类名、常量名、类型和值。 |
-| `ConstReferenceCandidate` | 源码里出现的引用候选，包含 const 名、owner 形式、import、package 等信息。 |
+补编译只应由真实的常量值变化触发。Jugg 对比同一文件前后的常量签名（由类型和值组成），只有签名变化才生成"变更键"。纯空白、格式调整这类不改变签名的编辑不会触发任何重编译。
 
-引用候选不要求定义方已经被扫描。Jugg 在影响查询阶段再用变更后的 definition key 与候选行匹配。这样 full scan 没完成时，编译前仍能用已完成缓存继续查一部分结果。
+删除常量，或把 `const val` 降级成普通 `val`，会进入"被移除键"。这类改动同样会让旧的内联使用方过期，因此影响查询会同时消费变更键和被移除键，用旧的引用候选继续找到使用方。
 
-## 真实变化 key
+## 影响查询与过滤
 
-`ConstRefChangeTracker` 对比同一个文件前后的常量签名。签名由类型和值组成。空白改动不会生成 changed key。
+部署数据生成阶段，常量引用分析在普通结构传播之后单独执行：用本轮变化后的常量定义，去匹配引用候选索引，得出需要补编译的使用方文件，再与普通受影响源码合并，交给下一轮编译。
 
-```text
-previous definitions
-  -> current definitions
-  -> 找出签名变化的 (fqClassName, constName)
-  -> 找出被删除或 const -> val 的旧 key
-```
+命中的使用方会再过滤一遍，保证既不漏编也不冗余：
 
-删除常量，或把 `const val` 改成普通 `val`，会进入 removed key。影响查询会同时消费 changed key 和 removed key。
+- 使用方不能是本轮已经变化的源码文件（它已经在首轮编译里）。
+- 使用方文件必须仍然存在。
+- 同一个"使用方文件 + 常量定义类 + 常量名"只保留一次。
 
-`private const val` 与 `private static final` 不进入 definition 索引。它们只影响声明所在源码文件，本文件已经在首轮编译里。
+匹配规则整体偏保守，原则是宁可多编译也不漏编译。
 
-## 影响查询
+## 索引范围与失败降级
 
-`DeployDataGenerator.buildDeployData()` 在普通 class 影响分析后调用 `ConstRefEffectProvider`：
+为了不阻塞部署主流程，这套分析在收录范围、清理时机和失败处理上都留了明确退路：
 
-```text
-DeployDataGenerator
-  -> ensureReadyForRecompile(changedSourcePaths)
-  -> getEffectedFiles(changedSourcePaths)
-  -> 写入 JuggDeployData.constRefEffectedSourcePaths
-```
+- **私有常量不入索引。** `private const val` 与 `private static final` 只影响声明它的源码文件本身，而该文件已经在首轮编译里，不需要额外跟编引用方。
+- **清理时机在部署成功之后。** 常量变更不在查询阶段清掉，只有整轮部署成功提交后才确认清理。这样如果后续编译、跟编或部署失败，同一批常量变更在下一次编译里仍然可查，不会漏掉这批使用方。
+- **分析超时则降级。** 编译前等待常量分析有超时上限。超时后会记录一条 warn，并改用已完成的缓存继续查询，而不是阻塞部署主流程。
+- **查询异常不阻断部署。** 影响查询本身出错时返回空结果，不会中断本轮部署数据生成。
+- **解析范围有限。** Java 只记录可内联类型的 `static final` 字段；Kotlin 记录顶层、object、companion 以及嵌套 class / object 中的 `const val`。注释和字符串里的伪引用会被忽略。
 
-`ConstRefImpactResolver` 会把命中的引用方过滤一遍：
+## 缓存复用
 
-- 引用方不能是本轮已经变化的源码文件。
-- 引用方文件必须仍然存在。
-- 同一个 `refFilePath + defFqClassName + constName` 只保留一次。
-
-`CompileEffectAnalyzer` 再把 `constRefEffectedSourcePaths` 转成源码文件，和普通 `effectedClassNodes` 的源码结果合并，交给下一轮编译。
-
-## 清理时机
-
-常量 diff 不在查询阶段清掉。部署成功后，`DeployFileManager.commit()` 才会调用 `ConstRefEngine.acknowledgeEffectedFilesAfterDeployCommit()`。
-
-这个顺序来自代码里的状态边界：查询只是在构造本轮 `JuggDeployData`。如果后面的重编译或部署失败，同一批 const diff 还要在下一次编译里继续可查。
-
-## 缓存
-
-常量索引使用两个 SQLite 文件：
-
-| 文件 | 用途 |
-|---|---|
-| `const_ref_shared.db` | 存源码 checksum、analysis head、definitions、reference candidates。 |
-| `repo_fingerprint.db` | 存 repo/worktree 共享的文件指纹，减少重复解析。 |
-
-`ConstRefSessionCache` 只做会话内热点缓存。DB 才是跨轮影响查询的来源。
-
-## 边界
-
-- `awaitAnalysis()` 超时后返回未 ready，部署数据生成会记录 warn，并用已完成缓存继续查。
-- `getEffectedFiles()` 异常时返回空列表，不阻断部署数据生成。
-- Java parser 只记录可内联类型的 `static final` 字段。
-- Kotlin parser 记录 top-level、object、companion、嵌套 class/object 中的 `const val`。
-- Java/Kotlin parser 会忽略注释和字符串里的伪引用。
+常量索引以本地缓存形式落盘，并按文件指纹复用解析结果：未变化的文件可以直接复用已有指纹，跨同一仓库的多个 worktree 也能共享指纹，减少冷启动时的重复解析。会话内还有一层热点缓存加速点查，但跨轮的影响查询始终以落盘缓存为准。
 
 ## 相关页面
 

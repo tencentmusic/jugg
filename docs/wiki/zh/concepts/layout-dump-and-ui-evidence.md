@@ -1,6 +1,6 @@
 ---
 title: 布局 dump 与 UI 证据
-description: 说明 Jugg 的 layout-dump 如何通过 App 内 ViewHierarchy 服务导出页面结构，并形成 UI 检查证据。
+description: 说明 layout-dump 为什么不用截图、也不是公开 layout-verify，而是通过 App 内 ViewHierarchy 通道导出视图树形成 UI 证据，以及它的边界。
 status: active
 tags:
   - concept
@@ -10,85 +10,69 @@ tags:
 
 # 布局 dump 与 UI 证据
 
-`layout-dump` 是 Jugg MCP/CLI 里的特殊能力。它不是简单读取一张截图，也不是调用公开的 `layout-verify`。当前公开链路是：App 内 ViewHierarchy 服务导出视图树，Jugg 写出 HTML artifact，后续 `view-locate`、`view-inspect`、`tap` 复用同一套 App 内通道。
+`layout-dump` 是 Jugg MCP/CLI 里的一项 UI 检查能力。它既不是简单读取一张截图，也不是某种公开的批量布局校验。它通过 App 内的视图树通道导出当前页面结构，写成可读的 HTML 证据，`view-locate`、`view-inspect`、`tap` 再复用同一条通道。
 
-## 公开工具边界
+## 截图与批量断言都不足以支撑 UI 证据
 
-`McpToolActionRegistry.defaultActions()` 注册了这些 UI 工具：
+Agent 要判断 UI 是否正确，最直接的想法是截图。但截图只是像素，无法回答“这个元素存不存在、它的 bounds 和间距是多少、某个属性是什么值”这类结构问题，也不能作为可搜索、可复算的证据。另一个想法是提供一个一次性吃下大量断言的批量校验工具，但这类工具把判定逻辑藏在内部、口径不透明，结果难以解释，也容易给出看似通过实则没采到证据的结论。
 
-| 工具 | 状态 | 用途 |
-|---|---|---|
-| `layout-dump` | 已注册 | 导出页面结构 HTML。 |
-| `view-locate` | 已注册 | 按 text/resourceId/contentDesc 查节点和 bounds。 |
-| `view-inspect` | 已注册 | 在 App 侧执行 getter 链，读取 View 属性。 |
-| `activity-stack` | 已注册 | 读取当前 Activity 栈。 |
-| `tap` | 已注册 | 坐标、百分比或元素选择器触控。 |
-| `wait-logs` | 已注册 | 等待日志 marker、crash 或 timeout。 |
+## 从 App 内视图树导出结构化证据
 
-`layout-verify` 和 `figma-layout-verify` 有 action 类，但没有注册到 `defaultActions()`。它们不是当前公开 MCP 工具。
-
-## dump 链路
-
-`LayoutDumpHelper.dump()` 是公开 `layout-dump` 的核心入口：
+当前公开链路是：从 App 内的视图树服务导出页面结构，Jugg 把它转成 HTML 证据产物；需要精确数据时，再用同一条通道上的工具逐项取证。
 
 ```text
 layout-dump
-  -> DeviceSelectionResolver 选择在线设备
-  -> McpAppReadyGuard 等待目标 App 可观察
-  -> ViewHierarchyClient.dumpLayout()
-  -> App 内 ViewHierarchy server 返回 JSON 或远端文件路径
-  -> LayoutDumpHelper 拉取/写入本地 JSON
-  -> 按 density 把 bounds / padding 从 px 转 dp
-  -> LayoutHtmlConverter 生成 HTML
-  -> MCP result 返回 HTML artifact 路径
+  -> 选择在线设备
+  -> 等待目标 App 进入可观察状态
+  -> 通过 App 内视图树通道导出视图树
+  -> 按设备 density 把 bounds / padding 从 px 换算成 dp
+  -> 生成 HTML 证据产物并返回路径
 ```
 
-公开结果只返回 HTML 文件路径和 `contentBytes`。中间 JSON 会保存在本地，但代码注释写明它给内部消费者使用，不是公开 API。
-
-## App 内 ViewHierarchy 通道
-
-`ViewHierarchyClient` 通过 `adb forward` 连接 App 内 LocalSocket server。`dumpLayout()` 发送 action：
+公开结果只返回 HTML 证据的路径和内容。`layout-dump` 给 Agent 阅读全局结构，需要精确数据时继续用专项工具：
 
 ```text
-action = "layout_dump"
-params:
-  rootLayout
-  excludeGone
-  topWindowOnly
+layout-dump   -> 看页面结构与候选节点
+view-locate   -> 按 text / resourceId / contentDesc 查节点，返回 bounds / size / 命中数 / 命中列表
+view-inspect  -> 读取 View 的 getter 属性与 density
+tap           -> 需要交互时执行触控
 ```
 
-App 侧可能直接返回 payload JSON，也可能返回远端文件路径。`LayoutDumpHelper` 会把远端文件 pull 到本地，再统一转 HTML。
+### App 内视图树通道
 
-这条链路依赖 App 内 ViewHierarchy server。socket 不可用时，当前公开流程不会自动换成 uiautomator。
+这条链路依赖运行中 App 内的视图树服务。IDE 侧通过 `adb forward` 连到 App 内的 LocalSocket，发送导出请求，App 侧返回视图树数据（可能直接返回内容，也可能返回远端文件路径再由 Jugg 拉回本地）。`view-locate`、`view-inspect`、`tap` 都复用这同一条通道，因此它们看到的是同一棵实时视图树。
 
-## 单位
+### 当前公开的 UI 工具
 
-App 侧返回的布局数据包含 density。`LayoutDumpHelper` 会读取 `deviceInfo.density`，再把节点里的 `bounds` 和 `padding` 从 px 转成 dp。
+| 工具 | 用途 |
+|---|---|
+| `layout-dump` | 导出页面结构 HTML。 |
+| `view-locate` | 按 text / resourceId / contentDesc 查节点和 bounds。 |
+| `view-inspect` | 读取 View 的 getter 属性。 |
+| `activity-stack` | 读取当前 Activity 栈。 |
+| `tap` | 按坐标、百分比或元素选择器触控。 |
+| `wait-logs` | 等待日志 marker、crash 或 timeout。 |
+
+部分历史上的批量布局校验能力当前没有作为公开工具暴露，不应在流程中承诺可直接调用。
+
+## 单位换算
+
+App 侧返回的布局数据带有 density。Jugg 会按 density 把节点的 `bounds` 和 `padding` 从 px 换算成 dp，再返回：
 
 ```text
-dp = (px / density).toInt()
+dp = px / density
 ```
 
-转换会递归处理普通子节点和 `composeNodes`。`view-locate` 返回的 bounds 也按 dp 口径使用。
+换算会递归处理普通子节点与 Compose 节点，`view-locate` 返回的 bounds 也按 dp 口径。间距与对齐可以由 Agent 基于这些 dp bounds 直接计算，例如相邻元素的水平/垂直间距、中心点坐标。
 
-## 与 locate / inspect / tap 的关系
+## 取证链路的前提与约束
 
-`layout-dump` 给 Agent 阅读全局结构。需要精确定位时，继续用 `view-locate`：
+用好这条链路需要记住几条前提：
 
-```text
-layout-dump
-  -> 看页面结构和候选节点
-view-locate
-  -> 返回 bounds / size / matchCount / matches
-view-inspect
-  -> 读取 getter 值和 density
-tap
-  -> 需要交互时执行触控
-```
-
-`view-locate` 多命中时会返回 `matchCount` 和 `matches`。元素模式的 `tap` 遇到多命中不会执行，需要先消歧。
-
-`view-inspect` 可以读隐藏节点属性。隐藏节点属性可以作为状态证据，不能证明节点可点击。
+- 这条链路依赖 App 内视图树服务。socket 不可用时，当前公开流程不会自动切换到 uiautomator，应先排查 App 是否在前台、是否可观察。
+- `view-locate` 多命中时会返回命中数和命中列表；元素模式的 `tap` 遇到多命中不会执行，需要先用更强的选择器或坐标消歧。
+- `view-inspect` 可以读隐藏节点的属性。隐藏节点属性可以作为状态证据，但不能证明该节点当前可点击。
+- 所有几何数据以 dp 为口径；拿到 px 值时必须先经 density 换算，不要直接和 dp 混用。
 
 ## 相关页面
 

@@ -1,6 +1,6 @@
 ---
 title: JVMTI Agent
-description: 说明 Apply Changes 中 JVMTI Agent 的作用，以及 Jugg 为什么需要自有 Agent 做设备兼容。
+description: 从 Apply Changes 依赖 JVMTI 在线替换 class 这一前提出发，说明真实设备上为何会出现热重载失效，Jugg 如何用自有 Agent 在 Application 创建时修正环境并在不可用时退回热修复，以及相关边界。
 status: active
 tags:
   - concept
@@ -10,39 +10,50 @@ tags:
 
 # JVMTI Agent
 
-JVMTI 是 JVM 暴露的调试接口，Android 8.0 以后也支持类似能力。Apply Changes 基于 JVMTI 实现运行时 class 替换，也就是热重载。
+JVMTI 是 JVM 暴露的底层接口，Android 8.0 起也支持类似能力。Apply Changes 正是基于 JVMTI 的类重定义能力，在运行时把改动后的 class 实现替换进正在运行的进程，也就是热重载。
 
-Jugg 复用 Apply Changes 通道完成热重载，同时也在设备兼容问题上引入了自己的 JVMTI Agent。
+Jugg 复用这条在线替换能力，但不能假设所有设备都满足同一套运行时前提。自有 Agent 的价值在于把“能不能热重载”从事前假设变成启动期检测：能修正环境时修正，无法取得 JVMTI 能力时退回更兼容的热修复路径。
 
-## Apply Changes 中的 Agent
+## 在线替换 class 在真实设备上的两类失效
 
-Apply Changes 的运行时替换流程包括：
+热重载的理想前提是：改动后的 class 字节码下发到设备，运行时通过 JVMTI 把旧实现替换掉，进程不重启、改动即时生效。但这条前提在真实设备上会被两类环境问题打破。
 
-```text
-生成 APK
-  -> IDE 比较新旧 APK，找出变化 class 和资源
-  -> push agent.so 到 code_cache/startup_agents
-  -> push 增量文件到 code_cache/.overlay
-  -> attach agent 到 App 虚拟机
-  -> 通过 JVMTI RedefineClasses 替换 class 实现
-  -> 通过启动加载逻辑在重启后恢复增量部署
-```
+第一类是加载时机问题。在线替换依赖运行时能正确找到并加载增量 DEX，而部分系统会提前 ClassLoader 的初始化时机。等到要应用增量 DEX 时，ClassLoader 已经按旧路径初始化完毕，增量产物的搜索逻辑失效，热重载看似执行了却没有真正生效。
 
-Apply Changes 还会把 `instruments.jar` 加入 bootstrap class loader，并修改 `DexPathList`、`LoadedApk`、`ResourcesManager` 等运行时逻辑，使 DEX、native lib 和资源 overlay 可以被加载。
+第二类是设备兼容问题。部分设备或机型上 JVMTI 能力根本取不到。此时再怎么下发 class 字节码，运行时也无法完成在线替换。
 
-## Jugg 为什么需要自己的 Agent
+问题的本质是：热重载把“运行时一定支持在线替换”当成了前提，而真实设备的系统定制和兼容差异让这个前提并不总是成立。要让部署在各种设备上稳定，就需要在运行时主动检测环境、并在不可用时有退路。
 
-部分系统会提前 ClassLoader 初始化时机，导致 Apply Changes 修改 Dex 搜索逻辑失效。Jugg 因此构建了自有 JVMTI Agent，在 Application 创建时检测 ClassLoader；如果 Dex 没有正确加载，则重新触发 ClassLoader 创建。
+## Jugg 自有 Agent：启动时检测并修正环境
 
-部分设备系统也可能存在 JVMTI 兼容问题。Jugg 不只依赖 JVMTI 绕过，而是在 JVMTI 不可用时切到经典热修复，以提高部署兼容性。
+为此 Jugg 构建了自己的 JVMTI Agent，让它在 App 进程启动、Application 创建的时机介入，先确认运行时环境是否满足在线替换，再决定怎么走。
 
-## 与热重载和热修复的关系
+- **重建 ClassLoader 修正加载时机**：Agent 在 Application 创建时检测 ClassLoader 是否正确加载了增量 DEX。如果因为系统提前初始化导致没有正确加载，就重新触发 ClassLoader 创建，把增量产物的加载路径补回去，让后续热重载能真正生效。
+- **检测 JVMTI 是否可用**：Agent 启动时尝试取得 JVMTI 能力，并把“可用 / 不可用”的结果落成设备上的标记。取得失败的设备会被记下来，后续不再反复尝试在线替换，直接走更兼容的路径。
+- **不可用时退回经典热修复**：当某台设备确认 JVMTI 不可用，Jugg 不再依赖在线替换，而是切到经典热修复——在 App 重启后插入新的 DEX、native lib 或资源路径让新产物生效。覆盖面更广，代价是需要重启。
 
-热重载依赖 JVMTI 在线替换 class 实现，不需要重启 App，但不支持所有类结构变化。
+## 围绕真实设备的环境对抗
 
-热修复通过插入 DEX、native lib 或资源路径，让重启后的 App 读取新增量产物。它不依赖同一套 JVMTI class redefine 能力，覆盖面更广，但通常需要重启。
+让自有 Agent 在各种设备上稳定工作，还要处理几处具体的环境差异：
 
-Jugg 的部署策略是在能热重载时优先热重载，不适合时转向热修复或更保守路径。
+- **部署后再推 Agent 的时序原因**：Apply Changes 首次部署会清理 App 的启动期 agent，可能把 Jugg Agent 一起删掉。因此 Jugg 把 Agent 的推送放在部署之后，并且只在 App 重启后才检测 JVMTI 是否可用——启动期 agent 只有进程启动时才会被系统加载，检测早了拿不到结果。
+- **HarmonyOS 的 DEX 路径修复**：在部分定制系统（如 HarmonyOS 4.2 及以上）上，应用的 DEX 加载路径与原生 Android 不一致。Jugg 会下发一个兼容修复信号，让运行时修正加载路径。这个信号只是路径修复，并不代表 JVMTI 不可用。
+- **32 位与 64 位的 Agent 选择**：32 位与 64 位应用进程需要不同的 Agent 二进制，Jugg 按目标进程的架构选择对应版本，选错会导致 Agent 加载失败。
+
+## 与热重载、热修复的关系
+
+| 路径 | 依赖 | 是否重启 App | 适用范围 |
+|---|---|---|---|
+| 热重载 | JVMTI 在线替换 class | 通常不重启 | 结构未变的 class 修改 |
+| 热修复 | 经典 DEX / native lib / 资源路径插入 | 通常需要重启 | 覆盖面更广，含结构变化和 JVMTI 不可用场景 |
+
+Jugg 的取舍很直接：能热重载时优先热重载，把改动即时应用、不打断运行状态；运行时环境不支持时，退向热修复或更保守的路径，保证部署仍能完成。自有 Agent 的作用，就是让“能不能热重载”这个判断建立在真实设备检测之上，而不是事前假设。
+
+## 在线替换的边界与前提
+
+在线替换的能力边界仍然来自 JVMTI 本身：删方法、改签名、改字段等结构变化无法在线替换，只能走热修复并重启。能不能在线替换的判断也有时间前提——启动期 agent 只在进程启动时加载，因此 JVMTI 可用性只能在 App 重启后才能确认，这让首次判断带有一次重启代价。
+
+为了不重复付出这种代价，某台设备一旦确认 JVMTI 不可用，就会被记下来，后续直接走兼容部署，不再反复尝试在线替换，避免无谓的失败重试。需要区分的是，HarmonyOS 的 DEX 路径修复信号只是修正加载路径，并不代表 JVMTI 不可用，不应按不可用来处理。
 
 ## 相关页面
 

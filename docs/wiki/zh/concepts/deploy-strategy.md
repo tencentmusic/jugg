@@ -1,6 +1,6 @@
 ---
 title: 部署策略
-description: 说明 Jugg 如何在热重载、热修复和 APK 更新之间选择部署方式。
+description: 从增量产物无法整包刷新这一前提出发，说明 Jugg 如何按产物类型和设备状态在热重载、热修复、APK 更新和重装之间选择部署路径，以及每条路径的边界与代价。
 status: active
 tags:
   - concept
@@ -9,58 +9,71 @@ tags:
 
 # 部署策略
 
-Jugg 增量编译通常不会生成完整 APK，只会生成 DEX、资源、assets 等局部产物。部署阶段要把这些产物应用到设备，并让改动生效。
+增量编译通常只产出局部产物：少量 DEX、resource overlay、assets，或者必须写回 APK 的 Manifest 与 native lib。部署阶段要把这些产物应用到设备上并让改动生效，是把增量速度收益保留到“看见运行结果”这一步的最后一环。
 
-Jugg 使用混合部署策略。能在线更新的内容优先走 Apply Changes / JVMTI；需要改 APK 内容的产物走 update apk；不适合在线热重载的 class 走热修复。设备状态不可信时，会先 recover 或重装来恢复基线。
+部署策略的核心问题是：局部产物不能一概用整包重装处理，否则会把增量编译省下的时间重新花在传输、安装和重启上。Jugg 按产物类型和设备状态选择热重载、热修复、APK 更新或恢复重装，让本轮改动以尽量小的代价生效。
 
-## 热重载：Apply Changes / JVMTI
+## 常规重装的固定代价
 
-Apply Changes 使用 JVMTI 的类重定义能力，可以在运行时替换 class 实现。Jugg 复用这条通道，向 Android Studio deployer 提供上次部署 ID、新类字节码、可热重载类字节码和资源 overlay 等数据。
+如果每次改动都重新安装整个 APK，部署阶段就回到了与本轮改动大小无关的固定开销：完整 APK 要重新传输、校验、安装，应用进程要重启，运行时状态全部丢失。在大型工程里，这部分耗时与增量编译省下的时间处于同一量级，会把前面省下的收益重新交回去。
 
-这个路径适合结构未变的 class 修改，以及可以通过 overlay 生效的资源或 assets 变化。它的限制也来自 JVMTI：删除方法、修改方法签名、修改字段等结构变化，通常不能在线热重载。
+问题的本质是：增量产物是“局部的”，而重装是“整体的”。直接用整体动作去应用局部产物，既慢又会丢状态。Jugg 因此不把重装当默认路径，而是根据本轮产物类型和设备当前状态，选择代价最小、且能保证结果正确的应用方式。
 
-部署时，`JuggDeployData` 会把结构未变的 class 放入 `hotReloadModifiedClasses`。如果本轮不需要重启 App，部署任务会选择 `APPLY_CHANGES`；如果需要重建 Activity，则使用 `APPLY_CHANGES_AND_RESTART_ACTIVITY`。
+## 按产物与设备状态选择路径
 
-## APK 更新：update apk
-
-有些产物不能靠普通 overlay 生效。Manifest、配套的 `resources.arsc`、native lib 会进入 `updateApkFiles`。
+Jugg 使用混合部署策略：能在线生效的内容优先在线替换，必须改 APK 内容的产物走 APK 更新，不能在线替换的 class 走重启后生效的热修复，设备状态不可信时先恢复基线、必要时才重装。
 
 ```text
-JuggDeployData.updateApkFiles 非空
-  -> IncrementalDeployHelper.updateApk()
-  -> 把文件写入目标 APK
-  -> 重新签名 APK
-  -> recoverDeployState(isInstallUpdateApk=true)
-  -> 安装更新后的 APK
+增量产物
+  -> 可在线替换的 class、可经 overlay 生效的资源/assets：热重载
+  -> 结构变化、已加载或需重启才能生效的 class：热修复
+  -> Manifest、resources.arsc、native lib 等必须写回 APK 的产物：APK 更新
+  -> 设备状态与本地基线对不上：先恢复，必要时重装
 ```
 
-update apk 不是完整 Gradle 构建。它基于当前 APK，把本轮必须写回 APK 的文件插进去并重签名。签名配置缺失时，这条路径会失败并允许回退。
+| 路径 | 适用产物与状态 | 对用户的可见结果 |
+|---|---|---|
+| 热重载 | 方法体等结构未变、可在线替换的 class，以及能经 overlay 生效的资源、assets | 尽量不重启 App，改动即时生效 |
+| 热修复 | class 结构变化、目标 class 已被加载，或需要 overlay 恢复 | 通常需要重启 App 后生效 |
+| APK 更新 | Manifest、配套 `resources.arsc`、native lib 等无法靠普通 overlay 生效的文件 | 写回当前 APK、重新签名后安装 |
+| 重装 / Gradle fallback | APK 需要完整刷新，或设备状态不可信 | 重新建立设备与本地基线 |
 
-## 热修复
+### 热重载：复用 Apply Changes 通道
 
-热修复是在 App 启动时插入新的 DEX、native lib 或资源路径，让新产物优先生效。它覆盖面比在线 class redefine 更宽，但通常需要重启 App。
+Apply Changes 利用 JVMTI 的类重定义能力在运行时替换 class 实现。Jugg 复用这条通道下发可在线替换的 class 字节码和资源 overlay，不再为在线替换另起一套传输机制。
 
-典型做法包括：
+这条路径只适合结构未发生变化的 class 修改，以及能通过 overlay 生效的资源或 assets。它的边界直接来自 JVMTI：删除方法、修改方法签名、修改字段等结构变化，运行时无法在线替换。本轮如果不需要重启就走纯在线替换；如果只需要重建界面，就在替换后触发 Activity 重启。
 
-- 把新的 DEX 插入 `BaseDexClassLoader` 的 `pathList.dexElements` 前面。
-- 把新的 native lib 路径插入 `pathList.nativeLibraryPathElements`。
-- 构造新的 `AssetManager`，通过 `addAssetPath` 加载资源包，并更新 `ResourcesManager` 中的资源引用。
+### APK 更新：写回当前 APK
 
-Jugg 会把不适合热重载的 class 放入 hot fix 路径。发生 JVMTI 不兼容、class redefine 失败或用户启用兼容部署时，也可能从热重载退到热修复。
-
-## Jugg 的混合策略
-
-判断逻辑如下：
+有些产物无法靠普通 overlay 生效。Manifest、与之配套的 `resources.arsc`、native lib 必须真正写进 APK 才能被系统正确加载。
 
 ```text
-编译产物成为 JuggDeployData
-  -> hotReloadModifiedClasses 非空：优先 Apply Changes / JVMTI
-  -> hotFixModifiedClasses 非空：重启 App 后走热修复
-  -> updateApkFiles 非空：写回 APK、重签名并安装
-  -> 设备状态不匹配：recover，必要时重装
+本轮产生需写回 APK 的文件
+  -> 基于当前 APK 把这些文件插入进去
+  -> 重新签名
+  -> 恢复部署状态后安装更新后的 APK
 ```
 
-实际部署时，这三类可以出现在同一轮数据里。Jugg 会先处理需要 update apk 的产物，保证 APK 内容和签名已经更新；再根据 class 和 overlay 数据选择 Apply Changes、重建 Activity、重启 App 或兼容热修复。retry 过程中如果检测到 JVMTI / Apply Changes 兼容问题，会把可热重载数据转换为 HOT_FIX 再部署。
+APK 更新不是一次完整 Gradle 构建：它基于设备上当前的 APK，只把本轮必须写回的文件替换进去再重签。因此它依赖可用的签名配置——签名缺失时这条路径会失败，并允许回退到更保守的路径。
+
+### 热修复：重启后让新产物优先生效
+
+热修复在 App 启动时插入新的 DEX、native lib 或资源路径，让重启后的进程优先读取本轮新产物。它的覆盖面比在线类替换更宽，能处理结构变化和已加载 class，但代价是通常需要重启 App。
+
+它依赖的是经典的运行时加载机制，而非同一套在线类重定义能力：把新 DEX 接到 `BaseDexClassLoader` 的加载路径前部、把新 native lib 路径接入 so 搜索路径、构造新的 `AssetManager` 加载资源包并更新运行时资源引用。
+
+## 同一轮的混合与降级
+
+这几类产物可以出现在同一轮里。Jugg 会先处理需要写回 APK 的产物，保证 APK 内容与签名已经更新，再根据 class 和 overlay 数据决定走在线替换、重建 Activity、重启 App 还是兼容热修复。
+
+降级是这套策略的安全网。当设备的 JVMTI 不兼容、在线类替换失败，或用户主动启用兼容部署时，本轮原本计划在线替换的 class 会转为热修复重新下发。判断在线替换是否可行只能基于真实设备反馈，因此降级往往发生在一次尝试失败之后，而不是事前假设。
+
+## 混合部署的边界
+
+这套策略的能力边界都来自运行时与产物本身的限制。删方法、改签名、改字段等结构变化无法热重载，只能走热修复并重启；当设备运行时不支持在线类替换时，本轮原本计划的在线替换也会整体降级为热修复，部署仍能完成，但同样需要重启。APK 更新这条路径则依赖可用的签名配置，签名缺失时它会失败，并回退到更保守的路径。
+
+多类产物可以出现在同一轮里，但应用顺序是固定的：先更新 APK，再决定 class 与 overlay 的应用方式。所有这些路径还共享一个隐含前提——增量部署假设设备仍停在上一轮成功状态；一旦状态对不上，本轮会先恢复基线、必要时重装，这部分代价见[部署状态与恢复](./deploy-state-recover.md)。
 
 ## 相关页面
 

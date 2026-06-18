@@ -1,6 +1,6 @@
 ---
 title: Android Test 流程
-description: 说明 Android Test 如何复用 Jugg 编译部署链路，并在部署后执行 instrumentation。
+description: 说明 Android Test 为什么复用 Jugg 编译部署链路而非另起测试通道，部署后如何执行 instrumentation，以及当前的能力边界。
 status: active
 tags:
   - concept
@@ -9,59 +9,59 @@ tags:
 
 # Android Test 流程
 
-Android Test 不是一条独立于 Jugg 的测试通道。它先复用 Jugg 的 Gradle 基线、增量编译、APK 归属和部署策略，再在部署成功后执行 instrumentation，并把输出映射到测试结果视图。
+Android Test 不是一条独立于 Jugg 的测试通道。它先复用 Jugg 的 Gradle 基线、增量编译、APK 归属和部署策略，再在部署成功后执行 instrumentation，把测试结果送回 Run 窗口。
 
-## 运行模型
+## 测试改一行也走一遍完整构建
 
-Android Test 模式使用 `BuildTarget.ANDROID_TEST`。这个 target 表示当前会话同时关注被测 app APK 和 test APK，不表示 androidTest 变成独立应用。
+androidTest 的日常工作模式是反复改一个测试方法、跑一次、看结果。如果每次都用 Gradle 完整构建被测 app 与 test 两个 APK 再安装，固定开销会随工程规模累积，和“只改了一个测试方法”这件事完全不成比例。但 androidTest 又不能简单当成普通 app run：它同时关注被测 app APK 和 test APK，测试代码的归属、安装顺序和运行方式都和普通启动不同。
+
+## 复用增量链路，部署后再 instrument
+
+Android Test 模式使用构建目标 `BuildTarget=ANDROID_TEST`。这个目标表示当前会话同时关注被测 app APK 和 test APK，并不表示 androidTest 变成一个独立运行的应用。它把测试的编译部署直接接到 Jugg 已有的增量链路上，只在末端补上 instrumentation：
 
 ```text
-App Run Configuration 开启 Android Test
-  -> Gradle full build 产出 app APK 与 test APK 基线
-  -> sourcePath 锚定 test class 或 method
-  -> app / androidTest 变化进入增量编译
-  -> 部署阶段按 APK 归属拆分 deploy data
+App 运行配置开启 Android Test
+  -> Gradle 完整构建产出 app APK 与 test APK 基线
+  -> 锚定要运行的测试 class 或 method
+  -> app 与 androidTest 源码变化进入增量编译
+  -> 部署阶段按 APK 归属拆分，分别投放到被测 app 与 test APK
   -> 部署成功后执行 am instrument
-  -> instrumentation 输出进入 console 和 Test Results
+  -> instrumentation 输出进入 Run 窗口与测试结果树
 ```
 
-如果基线缺失、构建参数不可信，或本轮变化超出增量边界，应回到 Gradle 构建。
+这样一来，改一个测试方法走的还是增量编译和增量部署，只有基线缺失、构建参数不可信或变化超出增量边界时才回到 Gradle 完整构建。
 
-## APK 归属
+### APK 归属
 
-Android Test 会同时处理 app APK 和 test APK。app 源码变化部署到被测 app；`src/androidTest` 源码变化部署到对应 test APK。
+Android Test 会同时处理被测 app APK 和 test APK：app 源码变化部署到被测 app；`src/androidTest` 下的测试源码变化部署到对应的 test APK。部署阶段会按应用包名拆分要投放的数据，并保证 app APK 先于 test APK 安装，避免两者互相错投。
 
-self-targeting library Android Test 还需要补齐 library test APK。缺失时，Jugg 会按 sourcePath 命中结果做单模块 Test APK 懒加载，并在成功后记录 build history。
+self-targeting 的 library Android Test 还需要补齐一个 library test APK。这个 APK 缺失时，Jugg 会按当前锚定的测试目标只为命中的那个模块补一次 test APK 构建，成功后记录构建历史，供后续直接复用，而不是每次都全量重建。
 
-## 目标选择
+### 目标选择
 
-`sourcePath` 是 Android Test 目标锚点：
+测试目标由当前锚定的源码位置决定，几个入口对应不同粒度：
 
 | 入口 | 目标 |
 |---|---|
-| class gutter | test class |
-| method gutter | test method |
-| rerun failed | 失败 leaf tests |
-| CLI `instrument` | sourcePath 指向的 class 或 method |
+| class 行号标记（gutter） | 整个测试 class |
+| method 行号标记（gutter） | 单个测试 method |
+| rerun failed | 上一轮失败的叶子用例 |
+| CLI `instrument` | 锚定位置指向的 class 或 method |
 
-rerun failed 会把失败节点转成新的 test filters，不会反写 Run Configuration 的 General 页测试范围。
+rerun failed 会把失败节点转成新的测试过滤条件单独重跑，不会反写运行配置 General 页里的测试范围。
 
 ## 输出归档
 
-instrumentation 运行后，Jugg 会解析测试输出并渲染到 Run 窗口。logcat 会按设备和测试 method 归档，失败用例可以用于后续 rerun failed。
+instrumentation 运行后，Jugg 会解析 `am instrument` 的输出并渲染到 Run 窗口的测试结果树，支持测试节点的源码跳转与失败用例 rerun。logcat 会按设备和测试 method 归档：每台设备从本轮启动时刻开始采集，再按测试 method 的生命周期边界把日志归到对应用例，避免历史日志污染当前方法详情。多设备运行时，每台设备的部署和 instrumentation 结果各自独立收口。
 
-```text
-am instrument output
-  -> InstrumentationOutputParser
-  -> AndroidTestResultModel
-  -> InstrumentationConsoleRenderer / SM Test Runner
-```
+大范围回归可以分两步：先用一次 CLI `instrument` 让 Jugg 完成编译、部署和目标 APK 刷新；该命令成功后，app 与 androidTest 的源码变更都已写入对应 APK，此时可以直接用 `adb shell am instrument` 跑更大范围的 class / package / suite 回归。
 
 ## 边界
 
-- Android Test 仍依赖可信 Gradle baseline。
-- androidTest resource 增量、androidTestAnnotationProcessor / androidTestKapt、常驻 test harness 和 Debug Executor 不是当前主路径。
-- 多设备运行时，每台设备的部署和 instrumentation 结果独立收口。
+- Android Test 仍依赖可信的 Gradle 基线；基线缺失或不可信时回到 Gradle。
+- androidTest 资源增量、androidTest 专用注解处理、常驻 test harness 和 Debug 执行器不是当前主路径。
+- instrumentation 结果与部署状态分离：测试断言失败仍按测试失败返回，但已成功的部署状态会正常推进，避免下次重跑因状态错位而重新编译或重装。
+- 多设备运行时，每台设备的部署与 instrumentation 结果独立收口，任一设备失败都会让整轮 Run 失败。
 
 ## 相关页面
 

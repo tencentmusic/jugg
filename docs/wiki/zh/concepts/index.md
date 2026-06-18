@@ -8,7 +8,11 @@ tags:
 
 # 实现原理
 
-这一章解释 Jugg 的运行模型。读完后，你应该能判断一次 Run 为什么走增量、为什么回到 Gradle、为什么有时需要重启 App，以及 Android Test、MCP/CLI 和兼容层各自接在什么位置。
+这一章解释 Jugg 的运行模型。重点不是复述内部类名，而是回答三个问题：
+
+- 为什么一次小改动可以跳过完整 Gradle Run。
+- Jugg 如何用 Gradle 基线、增量编译、影响分析和混合部署把结果送到设备。
+- 哪些场景必须回到 Gradle，不能当成 Jugg 异常。
 
 如果你只想完成日常操作，请先看[使用指南](../guide/)。如果你遇到具体失败，请看[问题排查](../troubleshooting/)。
 
@@ -22,7 +26,7 @@ Jugg 不替代 Gradle。它依赖最近一次可信 Gradle 构建留下的 APK�
 4. 根据历史索引判断哪些产物可以热更新，哪些需要补编译、重启或重装。
 5. 把部署结果提交为新的历史状态，供下一轮增量继续使用。
 
-所以，小范围源码或资源改动通常能很快生效；构建脚本、依赖或运行目标变化则可能回到 Gradle。Jugg 不会强行绕过无法确认的构建步骤。
+小范围源码或资源改动通常能很快生效；构建脚本、依赖或运行目标变化则可能回到 Gradle。Jugg 不会强行绕过无法确认的构建步骤。
 
 ## 页面导读
 
@@ -33,7 +37,7 @@ Jugg 不替代 Gradle。它依赖最近一次可信 Gradle 构建留下的 APK�
 | [编译调度流程](./compile-pipeline.md) | Run 如何进入增量或 Gradle，staging、补编译和失败收口如何推进。 |
 | [部署策略](./deploy-strategy.md) | install、hot reload、hot fix、兼容部署和重启策略如何选择。 |
 | [回退与限制](./fallback-and-limits.md) | 哪些场景容易回退，哪些能力边界不应误判为异常。 |
-| [工程上下文获取](./project-model.md) | IDE、Gradle 和 include build 信息如何合并成 `JuggProjectInfo`。 |
+| [工程上下文获取](./project-model.md) | IDE、Gradle 和 include build 信息如何合并成统一的项目快照。 |
 | [部署数据与影响分析](./deploy-data-and-impact.md) | 为什么改一个类会牵动调用方、子类、资源或 release 补偿。 |
 | [部署状态与恢复](./deploy-state-recover.md) | history、deployment cache 和设备 overlay id 如何决定 recover 或 reinstall。 |
 | [JVMTI Agent](./jvmti-agent.md) | Jugg 为什么需要运行时 agent，以及它如何影响兼容部署。 |

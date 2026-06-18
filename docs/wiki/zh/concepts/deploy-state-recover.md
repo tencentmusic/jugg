@@ -1,6 +1,6 @@
 ---
 title: 部署状态与恢复
-description: 说明 Jugg 如何用部署历史、deployment cache 和设备 overlay id 判断是否能继续增量部署。
+description: 从“增量部署依赖上一轮成功状态”出发，说明 Jugg 如何用三处一致性 checkpoint 判断设备是否可信、状态不一致时如何恢复基线，以及状态提交顺序和恢复路径的边界。
 status: active
 tags:
   - concept
@@ -10,103 +10,68 @@ tags:
 
 # 部署状态与恢复
 
-Jugg 的增量部署依赖上一次成功部署留下的状态。状态对不上时，本轮不能直接把新 overlay 写到设备上。Jugg 会先 recover：能 dry deploy 证明状态一致，就继续增量；证明不了，就重新安装 APK 并重置本地部署状态。
+增量部署不是凭空把 overlay 写到设备上，而是建立在“设备仍停在上一轮成功状态”这个前提之上。一旦这个前提不成立，本轮直接写新 overlay 就会让设备进入既不是旧状态、也不是新状态的中间态。
 
-## 三个状态来源
+状态恢复解决的是增量部署最容易被忽略的前置条件：设备、本地历史和 Apply Changes cache 必须对同一轮成功结果达成一致。Jugg 先用多处 checkpoint 判断设备是否可信，不可信时再恢复或重装基线，而不是继续叠加新的差异。
 
-部署状态来自三处：
+## 增量部署依赖上一轮成功状态
 
-| 来源 | 保存的东西 | 作用 |
+增量部署只下发“相对上一轮的差异”。这意味着设备当前的内容必须正好等于上一轮部署成功后的内容，差异叠上去才是正确结果。如果设备被其他途径改动过——重装过、被系统清理过、或换了一个工程部署——差异的基准就错了，叠加结果不可预测。
+
+因此每轮增量部署前，Jugg 都要先确认设备状态可信。判断依据是三处独立记录的一致性 checkpoint。
+
+## 三处一致性 checkpoint
+
+| checkpoint | 记录的内容 | 用途 |
 |---|---|---|
-| `DeployHistoryManager` | Jugg 自己记录的上次部署数据和 overlay id | 判断本地历史。 |
-| `JuggDeploymentService` | Android Studio deployment cache entry | 给 deployer / Direct Overlay 提供 checkpoint。 |
-| 设备端 `code_cache/.overlay` | 当前应用实际使用的 overlay id 和 overlay 文件 | 判断设备是否还停在预期状态。 |
+| Jugg 自维护的部署历史 | 上一轮下发的部署数据和 overlay id | 本地视角的“上轮成功状态”。 |
+| Apply Changes 的 deployment cache | Apply Changes 通道记录的部署快照 | 在线替换链路的一致性凭据。 |
+| 设备端 overlay id | 设备上当前实际生效的 overlay id 与文件 | 设备视角的真实状态。 |
 
-这三处任一不一致，都可能触发 recover 或 reinstall。
+这三处分别来自本地、Apply Changes 通道和设备，是三个独立的事实来源。只有三者相互对得上，才能认为设备仍停在预期状态。任意一处对不上——例如本地历史为空但设备上却有 overlay、或设备 overlay id 与预期不符——本轮就把状态视为不可信，转入恢复流程而不是继续叠加差异。
 
-## 状态提交顺序
+## 状态不可信时如何恢复
 
-部署历史只能在整轮部署成功后提交。编译产物会先进入 staging，部署成功后再同时推进 deploy history、文件状态和 overlay checkpoint。
+恢复的目标是把设备和本地基线重新对齐。Jugg 不会一上来就重装，而是先做一次试探性校验：用一份不产生真实业务变更的部署，验证设备是否还能在预期基线上正常接受 overlay。
+
+```text
+状态可能不可信
+  -> 先做试探性校验
+  -> 校验通过：证明设备仍在预期基线，继续本轮增量
+  -> 校验失败 / App 未安装 / App 已被外部更新：重装 APK
+  -> 重装后清空本地已部署数据，重建基线
+```
+
+试探性校验通过，说明设备状态其实可信，本轮可以继续增量，省下一次重装；校验失败或根本没法校验（App 未安装、已被外部更新），则只能重装 APK，并把本地记录的已部署数据、资源产物和暂存状态清空，重新建立基线。
+
+> [!NOTE]
+> 用户在日志里看到 `Deploy state not match, start reinstalling app...` 这类提示，或出现 `OVERLAY_ID_MISMATCH` 字样时，对应的就是某处 checkpoint 对不上、Jugg 选择重装恢复基线。这通常不是错误，而是 Jugg 主动放弃一次不可信的增量。下一步无需特别处理，等重装完成后继续即可。
+
+## 状态提交顺序：要么一起前进，要么都不动
+
+恢复机制要可靠，前提是“上一轮成功状态”本身被正确记录。这里有一条硬约束：部署历史只能在整轮部署成功之后提交，且三处状态必须一起前进。
 
 ```text
 编译成功
-  -> changed / compiled 文件进入 staging
-  -> buildDeployData() 使用 staging + history 生成 payload
-  -> deploy 成功
-  -> 更新 deploy history
-  -> DeployFileManager.commit(deployData)
-  -> 写入 lastDeployOverlayIds
+  -> 变化产物先进入暂存，不动历史
+  -> 用暂存产物加历史生成本轮下发数据
+  -> 部署成功
+  -> 同时推进：部署历史、文件状态、设备 overlay id
 ```
 
-这个顺序不能随意调整。history、文件状态和 overlay id 必须一起前进，否则下一轮 recover 可能看到不一致的 checkpoint，从而触发 reinstall 或错误回退。
+顺序不能颠倒，也不能只提交其中一部分。如果部署还没成功就更新了历史，或者只更新了历史却没更新 overlay id，下一轮校验就会看到自相矛盾的 checkpoint，从而误判状态不可信、触发不必要的重装或错误回退。换句话说，半提交的状态比没有状态更危险。
 
-## recover 流程
+## Direct Overlay 的恢复分支
 
-`DeployStateRecover.recoverDeployState()` 负责恢复基线：
+[Direct Overlay](../capabilities/deploy/direct-overlay.md) 是一条在设备非就绪时直接写入 overlay 的旁路。当它启用且调用方允许时，恢复阶段可以更轻：直接比对 deployment cache 和设备 overlay id，状态匹配就不必启动 App 做完整的试探性校验。
 
-```text
-recoverDeployState()
-  -> clean reinstall: 先 pm clear
-  -> 需要 dry deploy: tryDryDeploy()
-  -> dry deploy 成功: 不重装
-  -> dry deploy 失败 / app updated / clean reinstall: install apks
-  -> resetAfterReinstall()
-```
+但这条旁路有一个明确的退路约束：一旦 Direct Overlay 写入本身失败过，后续恢复会主动关闭这条旁路，改走需要启动 App 的常规试探性校验，重新下发时也不再使用 Direct Overlay。这样做是因为写入失败可能已经让设备 overlay 目录处于半提交状态，此时再走旁路校验会基于不可信的现场做判断。
 
-`tryDryDeploy()` 先检查 App 是否安装。未安装时返回 `APP_NOT_INSTALLED`。已安装时，Jugg 会先尝试 Direct Overlay 状态检查；结果未知时，再启动 App，等待 deployable，然后跑 dry deploy payload。
+## 恢复的代价与约束
 
-```text
-tryDryDeploy()
-  -> app 未安装: APP_NOT_INSTALLED
-  -> DirectOverlayStateChecker.checkRecover()
-     -> MATCHED: SUCCESS
-     -> MISMATCHED: FAILED
-     -> UNKNOWN: 继续 legacy dry deploy
-  -> restart app + waitingForDeployable()
-  -> run dry deploy payload
-```
+恢复机制能保证状态可信，但本身也有代价和必须守住的约束。最直接的代价是重装：试探性校验失败时只能重装并重建基线，这一轮失去增量速度收益，换取后续状态可信。为了不把不可信现场带进下一轮，半提交状态必须被清理——切片部署中如果前面的片段已成功、后面的片段失败，必须先清掉设备端已写入的 overlay 再返回失败，否则下一轮会基于半提交现场误判。出于同样的原因，Direct Overlay 一旦写入失败，本轮及后续恢复都会退回常规路径，不再走这条旁路。
 
-reinstall 成功后，`DeployFileManager.resetAfterReinstall()` 会清掉 deployed data、resource APK 和 staging 状态。
-
-## Direct Overlay 的 recover 分支
-
-Direct Overlay recover 只在两个条件同时满足时参与：
-
-- 调用方允许 `allowDirectOverlayRecover`。
-- `JuggSettings.isEnableDirectOverlayDeploy` 已开启。
-
-命中后，recover 可以直接检查 deployment cache 和设备 overlay。状态匹配时不需要启动 App 做 legacy dry deploy。
-
-direct deploy failed 之后的 retry 会把 `allowDirectOverlayRecover` 关掉。后续 recover 走 legacy dry deploy，并且 redeploy 时也禁用 Direct Overlay。
-
-## retry 如何进入 recover
-
-`DeployRetryHandler` 根据失败原因选择下一步。以下失败会进入 recover 后 redeploy：
-
-| 失败信号 | 处理 |
-|---|---|
-| overlay id mismatch | recover deploy state 后 redeploy。 |
-| class not found | recover deploy state 后 redeploy。 |
-| direct deploy failed | 禁用 Direct Overlay recover，legacy recover 后 redeploy。 |
-
-其它失败不一定进 recover。比如 JVMTI class redefine 不兼容会转 HOT_FIX；install `INSTALL_FAILED_INVALID_APK` 会 uninstall 当前 applicationId 后重新 install。
-
-## scoped data 的边界
-
-`JuggDeployTask` 会按 applicationId 和 APK 把 `JuggDeployData` 裁成 scoped data，再交给 deployer transport。这个裁剪结果只能用于一次 transport 调用。
-
-不能用 scoped data 更新全局历史。全局状态只能用原始 `JuggDeployData` 在整轮成功后提交。
-
-## checkpoint 判断
-
-| 场景 | 判断方式 |
-|---|---|
-| 普通增量部署 | 比对预期 overlay id 和设备端 overlay id |
-| Recover | 对比 Jugg history、deployment cache 和设备状态 |
-| Direct Overlay | 先确认 cache 存在且设备 overlay id 匹配，再写入新 overlay |
-| base install 空 overlay id | 允许 expected overlay id 为空字符串 |
-
-当 cache 缺失、history 为空但 cache 有值、或设备 overlay id 与预期不一致时，Jugg 会把状态视为不可信，进入 recover 或 reinstall。
+还有一条贯穿始终的约束：裁剪后的数据不能更新全局状态。下发给单个 APK 的部署数据是按目标裁剪出来的临时数据，只能用于该次传输；全局部署历史只能用整轮原始数据在成功后提交，否则全局基线会被局部数据污染。
 
 ## 相关页面
 

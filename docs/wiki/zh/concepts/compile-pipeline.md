@@ -1,6 +1,6 @@
 ---
 title: 编译调度流程
-description: 说明 Jugg 如何从一次 Run 进入增量或 Gradle 编译，并在增量编译中推进 staging、补编译和失败收口。
+description: 说明 Jugg 如何在一次 Run 中决定走增量还是 Gradle，如何推进 staging 产物、扩散补编译，以及失败后如何单次重试或回退。
 status: active
 tags:
   - concept
@@ -10,147 +10,78 @@ tags:
 
 # 编译调度流程
 
-这篇不讲 Java、Kotlin、资源分别怎么编译。那些内容在增量编译子页里。
+这页不讲 Java、Kotlin、资源各自怎么编译，那些内容在[增量编译](./incremental-compile/)子页里。这里只讲调度层：一次 Run 如何决定走增量还是 Gradle，增量产物如何进入 staging，什么时候继续补编译，什么时候停下并回退。
 
-这里讲 Jugg 的调度层：一次 Run 如何决定走增量还是 Gradle，增量结果如何写入 staging，什么时候继续补编译，什么时候停止并回退。
+调度层存在两个直接影响体验的问题：判定太重会吃掉增量收益，判定太松又可能把本应回退 Gradle 的场景误当成可增量。Jugg 因此用分层判定先排除不可信现场，再用 staging、扩散补编译和单次重试控制后续流程。
 
-## 调度入口
+## 判定本身的开销与误判风险
 
-IDE 侧入口是 `JuggCompilerHelper.compile()`。它先记录本轮 compile 时间戳，然后进入 `doCompile()`。
+增量编译只有在"判断现在能不能安全增量"这一步足够便宜时才划算。如果每次 Run 都要重新解析整个工程才能下结论，省下的编译时间会被判定开销吃掉。
 
-```text
-JuggCompilerHelper.compile()
-  -> 等待增量初始化完成
-  -> 等待 pending file processing
-  -> preprocessIncrementalCompile()
-  -> 可以增量: incrementalCompile()
-  -> 需要回退: gradleCompile()
-```
+更隐蔽的是误判风险。一次 Run 的安全性取决于多个互相独立的条件：用户是否主动要求全量、构建脚本或依赖是否变化、目标设备状态是否可信、本轮改动规模是否超出增量收益区间。任何一个条件被忽略，都可能把一个本应回退 Gradle 的场景误判成"可增量"，让设备拿到与全量构建不一致的产物，直到运行时才暴露问题。
 
-`preprocessIncrementalCompile()` 返回 `null` 才会进入增量编译。返回失败结果时，后续会走 Gradle。
+## 分层判定：先排除不可增量，再进入增量
 
-## 编译前检查
+Jugg 把判定拆成一组从粗到细、可短路的检查。任何一条命中，就直接给出回退或失败结论，不再往下走；全部通过才进入增量编译。
 
-增量编译前会做几类检查：
-
-| 检查 | 结果 |
+| 判定 | 命中后的处理 |
 |---|---|
-| 用户强制 Gradle | 返回 `Force fallback`。 |
-| build target 变化 | 强制 Gradle，重新生成 app / androidTest 对应 APK。 |
-| 设备状态不可用 | 返回设备状态里的失败原因。 |
-| 变化源码过多或模块过多 | 返回 `Too many changes`。 |
-| build file 变化 | 读取依赖 diff，按依赖变化结果决定是否还能增量。 |
-| 部署状态不支持增量编译 | 返回 deploy state message。 |
+| 用户强制全量 | 直接回退 Gradle。 |
+| 构建目标（app / androidTest）变化 | 回退 Gradle，重建对应 APK 基线。 |
+| 目标设备状态不可信 | 返回设备状态给出的失败原因，不进入增量。 |
+| 改动文件或涉及模块过多 | 判定继续增量未必比 Gradle 更快，返回"改动过多"。 |
+| 构建脚本变化 | 读取依赖变化结果，再决定是否仍可走依赖库增量。 |
+| 部署状态不支持增量 | 返回当前部署状态的限制原因。 |
 
-文件回滚检查也在这里做。Jugg 会用部署历史过滤未真正变化的文件，命中的文件会从 changed set 中移除。
+判定阶段还会用部署历史做一次文件回滚过滤：如果某个文件被改回了已经部署过的内容，它会被移出本轮变化集合，避免无意义的重编译。
 
-## 增量编译循环
+这套分层判定的设计目标是"廉价地证伪"。绝大多数日常 Run 在前几条就能确认可增量，无需触发更重的依赖解析或设备校验。
 
-增量循环由 `IncrementalCompilerHelper.compile()` 负责。它把 `ChangedFile` 转成 `CompileFile`，再交给 `JuggCompiler.compile()`。
+## staging 推进：产物先暂存，成功才提交
 
-```text
-undeployed ChangedFile
-  -> CompileFile
-  -> CompileTask(stagingDir)
-  -> JuggCompiler.compile()
-  -> 首轮更新 uncompiled 状态
-  -> outputs 写入 staging
-  -> 成功后查询 recompile files
-  -> 有受影响源码或 redex class: 递归进入下一轮
-```
-
-首轮成功文件会从未编译集合中移除。后续补编译轮不再更新这组状态，避免把派生出来的重编译文件当成用户原始改动。
-
-所有编译产物都会先写入 staging。部署阶段只消费 staging 中的有效产物。
-
-## `JuggCompiler` 阶段编排
-
-`JuggCompiler` 接收同一批 `CompileFile`，按内置阶段拆分：
+进入增量后，本轮所有编译产物先写入 staging 暂存区，而不是直接更新全局基线和部署历史。部署阶段只消费 staging 中本轮有效的产物。
 
 ```text
-AssetOverlayCompiler
-  -> 处理 asset / native lib，输出 overlay 或 native lib item
-ResourceOverlayCompiler
-  -> resource / Manifest 先编译到 tmp_resource
-  -> res overlay 移到 staging/overlays
-  -> R.java 交给 SourceCompiler
-  -> DataBinding / ViewBinding 生成源转给源码阶段
-RDexForSubmoduleCompiler
-  -> 必要时生成 R.dex
-SourceCompiler
-  -> JuggApt / DataBinding mapper / Kotlin / Java / Dex / Minify
+检测到的变化文件
+  -> 按类型进入各编译链路
+  -> 产物写入 staging
+  -> 首轮成功后查询是否还有受影响源码
+  -> 整轮部署成功后才提交为新的历史状态
 ```
 
-任一阶段失败后，`quickFailedOthers()` 会把还没执行的输入标记为跳过失败。取消信号来自 `CompileTask.isShouldCancel`，子阶段会快速收口。
+这里有一条关键状态边界：只有整轮部署成功后，staging 才提交为新的历史基线；失败轮不能更新全局历史。否则下一轮会以一个不完整的基线继续增量，造成累积性偏差。
 
-## 编译任务和输出契约
+## 成功后的扩散补编译
 
-调度层只认这几类对象：
+只编译直接改动的文件并不安全。改动文件本身可能编译通过，但删除方法、修改字段签名或给抽象父类新增抽象方法时，旧的调用方或子类会在运行时抛出 `NoSuchMethodError`、`AbstractMethodError`。
 
-| 对象 | 作用 |
-|---|---|
-| `CompileTask` | 一批输入文件、输出目录、父任务和取消状态。 |
-| `CompileFile` | 输入文件类型、文件路径、baseDir、所属 module。 |
-| `CompileResult.details` | 每个输入文件成功、失败或被 quick-fail。 |
-| `CompileResult.outputs` | 编译产物，后续写入 staging。 |
-| `CompileOutput.apkPath` | 旧单 APK 锚点。 |
-| `CompileOutput.targetApkPaths` | 产物实际影响的 APK 集合。 |
+因此一轮成功后，调度层会基于新旧 class 结构对比和引用索引，查出还需要重新编译的源码，把它们当作新输入递归进入下一轮编译。这里有两条去重约束保证扩散收敛：
 
-多 APK 场景下，部署侧看 `targetApkPaths`。`apkPath` 仍保留旧单 APK 语义，不能只靠它判断资源、dex 或 Manifest 的真实目标。
+- 首轮成功的文件会从待编译集合移除；后续补编译轮不再更新这组状态，避免把派生出来的重编译文件误当成用户的原始改动。
+- 同一轮 Run 内，对相同影响已经跟编过的源码不再重复跟编；只有出现新的触发来源时才继续下一轮。
 
-## 模块和 APK 分流
+扩散补编译的机制细节见[重编译 / 扩散编译](./incremental-compile/recompile-propagation.md)。
 
-`BaseCompiler` 提供两层分流。
+## 失败后的单次重试与回退
 
-第一层是 module 分流：
+增量失败不会立刻回退 Gradle，而是先做一次有针对性的重试解析。重试只进行一次，按以下顺序尝试修复：
 
-```text
-CompileTask
-  -> splitModuleAndCompile()
-  -> 非 androidTest module 一组
-  -> androidTest module 单独一组
-  -> 按 modulesWithOrder 编译
-```
+- 出现 `unresolved reference`、`cannot find symbol` 这类符号缺失错误时，刷新 Git 变化，把工程关闭期间或切分支带来的遗漏文件补进本轮。
+- 命中依赖缺失类错误时，刷新编译上下文后再编一次。
 
-androidTest module 的分组 key 包含 module root，避免同名测试模块被合并。
+重试仍失败时，分两种收口：如果失败不可自动回退，返回当前增量失败结果，并提示下一次运行将走 Gradle；如果可以回退，则进入 Gradle 重建基线。
 
-第二层是 APK 分流：
+增量成功后还有一次异步 Git 补检。它只在补检发现"新的待编译文件"时才再触发一轮增量；仅仅是已编译文件的部署状态变化，不会重复触发。
 
-```text
-splitApkAndCompile()
-  -> moduleBelongsApkMap 找到模块影响的 APK
-  -> 一个模块可属于多个 APK
-  -> 每个 APK 单独调用 doApkCompile()
-  -> 子编译器输出必须保留 targetApkPaths
-```
+## 多 APK 下的产物归属
 
-资源、Manifest 和 assets 这类产物会走 APK scoped 输出。target 丢失时，部署阶段会把产物发到错误 APK 或漏发。
+多 APK 工程里，资源、Manifest、assets 这类产物必须带上它真正影响的 APK 集合。调度层按模块所属的 APK 分流编译，一个模块可以属于多个 APK。如果产物丢失了目标 APK 归属，部署阶段会把它发到错误的 APK 或漏发，因此这是分流环节的强约束。
 
-## 成功后的继续编译
+## 调度边界
 
-一轮成功后，Jugg 会调用 `DeployFileManager.getRecompileFiles()`。
-
-返回结果分两类：
-
-- `effectedSourceFiles`：受 method/field/subclass/generic/const-ref 影响的源码。
-- `redexClasses`：需要重新转 dex 的 class。
-
-`ContinueCompileEffectFilter` 会过滤已经满足过的触发键，避免同一批影响反复进入下一轮。Kotlin top-level file facade 命中时，可以突破上一轮已编译过滤。
-
-## 失败后的重试和回退
-
-增量失败后只重试一次。重试由 `IncrementalCompileRetryResolverChain` 决定：
-
-```text
-GitChangesRetryResolver
-  -> unresolved reference / cannot find symbol 时刷新 Git 变化
-IncrementalCompileRetryResolver
-  -> 依赖缺失关键词命中时更新 compile context
-```
-
-重试仍失败时，结果返回给 `JuggCompilerHelper`。如果失败不可自动回退，Jugg 会返回当前增量失败结果；如果可以回退，后续进入 `gradleCompile()`。
-
-增量成功后还会等待一次异步 Git 补检。补检发现新的待编译文件时，Jugg 会再跑一次增量编译。
+- 增量失败的自动重试只有一次；一次重试无法恢复就进入回退判定，不会反复重试。
+- 扩散范围越大，本轮要编译的文件越多；当扩散范围过大时，继续增量未必比直接 Gradle 更快，此时分层判定会倾向回退。
+- 调度依赖一个可信的 Gradle 基线。构建脚本、依赖、注解处理器或生成代码无法由本轮增量结果确认时，必须回到 Gradle 刷新基线（见[回退与限制](./fallback-and-limits.md)）。
 
 ## 相关页面
 

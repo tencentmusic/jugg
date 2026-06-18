@@ -1,6 +1,6 @@
 ---
 title: 资源增量编译
-description: 说明 Jugg 如何通过 aapt2 compile 和定制 inclink 编译 res 资源，并生成资源 overlay。
+description: 说明 aapt2 原生 link 在大型工程中的固定耗时来源，以及 Jugg 如何用定制 inclink 把资源链接转为内存级 overlay 注入，并交代它的边界与代价。
 status: active
 tags:
   - concept
@@ -10,75 +10,73 @@ tags:
 
 # 资源增量编译
 
-Android 资源需要经过 aapt2 处理后才能进入 APK。Jugg 复用 Gradle 生成的资源基线，只编译本轮变化的资源文件，再通过定制 aapt2 `inclink` 生成可部署的资源 overlay。
+Android 资源要经过 aapt2 处理后才能进入 APK。Jugg 复用最近一次 Gradle 构建留下的资源基线，只编译本轮变化的资源文件，再通过定制 aapt2 的 `inclink` 生成可部署的资源 overlay。
 
-## aapt2 compile 与 link
+资源增量的关键问题不在 `compile`，而在原生 `link` 缺少局部状态缓存。Jugg 的资源链路围绕这个固定耗时展开：先复用 Gradle 基线，再把 link 上下文常驻到 aapt2 daemon，最后用 overlay 交给部署阶段。
 
-aapt2 把资源编译拆成两步：
+## 原生 link 缺少局部状态缓存
+
+aapt2 把资源处理拆成 `compile` 和 `link` 两步：
 
 ```text
 aapt2 compile
-  -> 把单个 XML、图片等资源编译为 .flat 中间产物
+  -> 把单个 XML、图片等资源编译为中间产物（flat）
 
 aapt2 link
-  -> 读取所有 .flat 和 Manifest
+  -> 读取全部 flat、Manifest 和符号表
   -> 分配资源 ID
-  -> 输出 res、resources.arsc、AndroidManifest.xml 和 R.java
+  -> 输出 resources.arsc、二进制资源、Manifest 和 R.java
 ```
 
-`compile` 可以按单文件执行，耗时通常较低。`link` 需要读取完整输入并分配资源 ID，大工程中仍可能有 10 秒以上耗时。
+`compile` 可以按单文件执行，耗时通常很低。瓶颈在 `link`：它没有局部状态缓存，每次都要全量读取所有 flat 中间产物、重建完整资源表并分配资源 ID。这个开销与本轮改动大小无关——即使只改一个 XML，link 也要把整个工程的资源重新链接一遍。在百万行级、数百依赖的工程里，单次 link 有 10 到 15 秒的固定耗时。
 
-## Jugg 的 inclink
+## inclink 把 link 上下文常驻内存
 
-Jugg 定制 aapt2，新增 `inclink` 命令，把 link 拆成加载和增量链接：
+Jugg 定制了 aapt2，新增 `inclink` 命令，把一次性的全量链接拆成「加载基线」和「增量注入」两个动作：
 
 ```text
-inclink --load
-  -> 从 APK 读取 res、resources.arsc、Manifest 和必要 symbol
-  -> 在 aapt2 daemon 中缓存 LinkContext
+加载基线（一次）
+  -> 直接从 APK 读取 resources.arsc、二进制资源、Manifest 和必要符号
+  -> 把链接上下文常驻为内存级缓存
 
-inclink
-  -> 接收本轮变化资源编译出的 .flat
+增量链接（每轮）
+  -> 接收本轮变化资源编译出的 flat
   -> 在缓存上下文中新增或覆盖资源
-  -> 输出 resources.arsc、compiled res、Manifest 和可选 R.java
+  -> 输出 resources.arsc、二进制资源、Manifest 和可选 R.java
 ```
 
-这套方案的目标是减少重复 IO 和全量资源表构建。参考资料中的数据是：资源 link 耗时从 10 到 15 秒降低到约 0.2 秒，部分 `inclink` 命令约 100 毫秒。
+基线只需加载一次，之后日常增量就从「全量 link」转为「轻量级 overlay 注入」。历史测试数据中，资源链接耗时从 10 到 15 秒降到约 0.2 秒，部分 `inclink` 调用约 100 毫秒。如果本轮没有新增资源 ID，还可以跳过 `R.java` 生成，省去后续对 `R.java` 的编译。
 
-如果本轮没有新增资源 ID，`inclink` 可以跳过 `R.java` 生成，避免后续继续编译 `R.java`。
+这里有两个关键的工程取舍。
 
-## 为什么从 APK 加载
+第一，基线直接从 APK 的 `resources.arsc` 载入，得到的就是最终资源表，不需要回读所有历史 flat，也不需要额外固化资源 ID 的步骤。第二，`resources.arsc` 不保存 `styleable` 信息，Jugg 会从 APK 的 DEX 中导出 `R.styleable` 声明，在加载基线时一并补回，保证自定义属性引用可用。
 
-`inclink --load` 直接读取 APK 中的 `resources.arsc`，得到最终资源表。这样不需要读取所有历史 `.flat`，也不需要通过 `--emit-ids` / `--stable-ids` 固化 ID。
+如果当前 APK 已经被 Jugg 部署过新的 `resources.arsc`，加载基线时会优先用已部署的资源表和 Manifest 组成临时资源 APK，而不是只读原始 APK，避免在过期资源表上继续链接。
 
-但 `resources.arsc` 不保存 `styleable` 信息。Jugg 会从 APK 的 dex 中导出 `R.styleable` 声明，并在 `inclink --load` 时额外导入。
+## 资源阶段的流转
 
-## 资源阶段链路
+资源阶段串联 Manifest 增量、flat 编译和增量链接，并在最后过滤掉不应部署的额外产物：
 
 ```text
-ResourceOverlayCompiler
-  -> 按 APK scoped 拆分输入
-  -> AndroidManifestCompiler 生成可选 Manifest overlay
-  -> ResourceCompiler 编译 changed res 为 .flat
-  -> ArscCompiler loadTable / inclink
-  -> ResourceOverlayCompiler 过滤不应部署的额外产物
-  -> 输出 resources.arsc、res overlay、Manifest 和 R.java
+资源变化输入
+  -> 按目标 APK 拆分输入
+  -> 生成可选的 Manifest overlay
+  -> 把变化资源编译为 flat
+  -> 加载基线资源表，注入本轮 flat
+  -> 过滤不应部署的额外产物
+  -> 输出 resources.arsc、资源 overlay、Manifest 和 R.java
 ```
 
-多 APK 场景下，资源编译不会把同一份输出复制到所有 APK。每个 APK 都有自己的资源表、package id、Manifest 和 dynamic feature 依赖关系，因此 Jugg 会按 APK 单独 link。
+layout 资源在进入 aapt2 前会先经过 DataBinding / ViewBinding 处理；资源阶段生成的 Java/Kotlin 源不会直接部署，而是回流到源码阶段继续编译（见 [DataBinding / ViewBinding](./databinding-viewbinding.md)）。
 
-## 与 DataBinding / ViewBinding 的关系
+## inclink 的代价与适用边界
 
-layout 资源进入 aapt2 前，`ResourceCompiler` 会先处理 DataBinding / ViewBinding。资源阶段负责生成 base class、split XML、stripped XML 和触发源码；DataBinding mapper 和 BR 合并交给源码阶段继续处理。
+常驻缓存换来的速度有几条必须接受的约束，也决定了它只适合日常 debug 增量：
 
-资源阶段产生的 Java/Kotlin 源不会直接部署，会回流到 `SourceCompiler`。
-
-## 约束
-
-- 资源删除不会立刻从 `resources.arsc` 中移除，对应资源 ID 会保留到下一次 Gradle 构建刷新基线。
-- `ArscCompiler` 为每个 APK 缓存一个 `Aapt2DaemonInvoker`。invoker 死亡或 link 失败后会释放，下轮重新加载资源表。
-- dynamic feature 编译依赖 base APK。base 资源表更新后，feature link 需要带上 base 本轮 flat 文件，保持资源 ID 一致。
-- 如果当前 APK 已经部署过新的 `resources.arsc`，Jugg 会优先用已部署资源表和 Manifest 组成临时 res APK，而不是只读原始 APK。
+- **资源表只增不减**：删除资源后，对应资源 ID 不会立刻从 `resources.arsc` 中消失，要等下一次 Gradle 构建刷新基线。因此 `inclink` 面向 debug 开发，不用于生产构建。
+- **多 APK 各自链接**：每个 APK 的资源表、package id、Manifest 和 dynamic feature 依赖关系都可能不同，资源不会把同一份输出复制给所有 APK，而是按 APK 单独链接。
+- **dynamic feature 依赖 base**：base 资源表更新后，feature 链接需要带上 base 本轮的 flat，保持资源 ID 一致。
+- **缓存失效会重载**：当资源链接的常驻进程失效或链接失败时，会释放缓存，下一轮重新加载基线资源表。
 
 ## 相关页面
 

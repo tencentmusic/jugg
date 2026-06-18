@@ -1,6 +1,6 @@
 ---
 title: 自定义编译器
-description: 说明 Jugg 自定义编译器如何通过 jar、SPI 和 CompileOrder 插入增量编译阶段。
+description: 说明工程特有的前后处理为何不应写进内置编译链，Jugg 如何用 jar + ServiceLoader + 阶段插入点接入自定义编译器，以及异步下载、类加载冲突等边界。
 status: active
 tags:
   - concept
@@ -10,41 +10,28 @@ tags:
 
 # 自定义编译器
 
-不同工程可能有自己的编译前后处理，例如识别特定配置文件、构建协议包、生成模板代码或使用定制产物路径。Jugg 不把这些业务逻辑写进内置编译链，而是通过后台配置和自定义编译器 SPI 接入。
+不同工程常有自己的编译前后处理：识别特定配置文件、构建协议包、生成模板代码或使用定制产物路径。这类逻辑因工程而异，把它们写进 Jugg 的内置编译链并不合适。
 
-自定义编译器运行在 Jugg 增量编译流程内。它可以补充 asset、resource、source、minify、dex 等阶段，但不替代完整 Gradle task graph。
+## 工程特有逻辑不该污染内置链
 
-## 装载流程
+内置编译链要对所有用户稳定通用。一旦把某个工程特有的前后处理（比如某种协议包生成）硬编码进去，既会让内置链膨胀，也会把只对一部分工程有效的行为强加给所有用户。但这些处理又确实需要嵌入增量流程的特定阶段，不能简单地放在编译之外。
 
-自定义编译器以 jar 形式提供。jar 可以是本地路径，也可以由后台下发远端地址。Jugg 收到配置后，会校验路径和 md5，再通过 `ServiceLoader` 创建编译器实例。
+## 用 jar + ServiceLoader + 阶段插入点接入
 
-```text
-server config / local config
-  -> CustomCompilerManager 解析 jar 路径
-  -> 校验本地 jar 或下载远端 jar
-  -> 校验 md5
-  -> URLClassLoader 加载 jar
-  -> ServiceLoader 加载 ICompilerCreator
-  -> ICompilerCreator 创建 ICompiler
-```
+Jugg 通过外置 jar 接入自定义编译器，用 JVM 标准的 `ServiceLoader` 发现实现，再按声明的阶段插入点嵌入增量流程。它能补充 asset、resource、source、minify、dex 等阶段的前后处理，但不替代完整的 Gradle task graph。
 
-`null` 配置不会清空旧状态。只有收到非 null 列表时，Jugg 才会重新计算有效 jar，并清理不再使用的缓存。
-
-远端 jar 下载是异步的。如果本轮编译开始时 jar 还没有下载完成，本轮可能不会执行对应自定义编译器；下载成功后会清空已创建的编译器缓存，下轮编译再重新加载。
-
-## SPI 接口
-
-自定义 jar 需要提供 `ICompilerCreator` 的服务声明。`ICompilerCreator` 根据当前 `ICompileContext` 和 `Disposable` 创建 `ICompiler`。
+装载流程如下：
 
 ```text
-META-INF/services/com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator
-  -> ICompilerCreator
-  -> ICompiler
+本地或远端 jar 配置
+  -> 解析 jar 路径
+  -> 校验本地 jar，或下载远端 jar
+  -> 校验文件指纹（md5）
+  -> 用独立 ClassLoader 加载 jar
+  -> 通过 ServiceLoader 发现并创建自定义编译器实例
 ```
 
-`ICompiler.order` 决定它插入哪个阶段。jar 的加载时机不等于执行时机；执行位置由 `CompileOrder` 和具体内置编译器暴露的 before / after 区间共同决定。
-
-## 插入点
+加载 jar 的时机不等于执行时机。每个自定义编译器声明一个插入点，决定它嵌在哪个内置阶段的前后：
 
 | 插入点 | 语义 |
 |---|---|
@@ -53,33 +40,19 @@ META-INF/services/com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator
 | `beforeRes` / `afterRes` | 资源阶段前后 |
 | `beforeSource` / `afterSource` | Java / Kotlin / class 输入阶段前后 |
 | `beforeMinify` / `afterMinify` | release 混淆处理前后 |
-| `beforeDex` / `afterDex` | dex 阶段前后 |
+| `beforeDex` / `afterDex` | DEX 阶段前后 |
 | `atLast` | 整轮编译较晚的扩展点 |
 
-`BaseCompiler` 会在内置阶段前执行 before hook，在内置阶段后执行 after hook。
+before 插入点可以过滤后续输入，或把工程特有文件转成内置链能处理的输入；after 插入点拿到的是内置阶段产物，适合继续生成或整理部署产物。已有接入场景包括：协议文件变化时触发指定脚本并构建协议包，以及模板代码生成。
 
-before hook 可以通过 `consumeFiles()` 过滤后续输入，也可以把工程特有文件转成内置编译链能处理的输入。after hook 拿到的是内置阶段产物转换后的 `CompileFile`，适合继续生成或整理部署产物。
+## 自定义编译器的加载与执行边界
 
-## 典型链路
+外置接入带来灵活性，也意味着加载时机、类隔离和异常处理各有约束：
 
-```text
-BaseCompileContext.customCompilers
-  -> CustomCompilerManager.getCustomCompilers()
-  -> ServiceLoader 创建 ICompiler
-  -> BaseCompiler.compile(task)
-     -> executeBeforeCustomCompilers()
-     -> 内置 doCompile()
-     -> executeAfterCustomCompilers()
-```
-
-已有接入场景包括：JOOX 协议文件变化时，通过自定义编译器触发指定脚本并构建协议包；模板代码生成也可以放在这一类扩展里。
-
-## 失败与类加载边界
-
-- 自定义编译器抛出的异常会被 `BaseCompiler` 捕获，Jugg 打印 warn，并把当前 task 收口为失败。
-- 自定义 jar 的 parent classloader 是 Jugg 当前 classloader，可以复用 Jugg API。
-- jar 内如果打包了与 Jugg 冲突的依赖版本，类加载行为可能不可预期。
-- `CompileUiHandler.DEFAULT` 是无 UI 默认实现；CLI 或测试场景不会弹出确认窗口。
+- **远端 jar 异步下载，本轮可能不执行**：远端 jar 在后台下载，如果本轮编译开始时还没下载完成，本轮可能不会执行对应自定义编译器；下载完成后会让下一轮重新加载。
+- **类加载冲突不可预期**：自定义 jar 复用 Jugg 当前 ClassLoader 作为 parent，可以调用 Jugg 公开 API；但如果 jar 内打包了与 Jugg 冲突的依赖版本，类加载行为会变得不可预期。
+- **异常收口为失败**：自定义编译器抛出的异常会被捕获、打印 warn，并把当前任务收口为失败，不会穿透到 IDE 进程。
+- **空配置不清状态**：收到空（`null`）配置时不会清空已有状态，只有收到非空列表才会重算有效 jar 并清理废弃缓存。
 
 ## 相关页面
 

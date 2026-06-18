@@ -17,63 +17,61 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
 
 | 子文档 | 内容 |
 |---|---|
-| [源码增量编译](./source.md) | Java、Kotlin、Dex 和 default method 脱糖处理。 |
+| [源码增量编译](./source.md) | Java、Kotlin、DEX 与关闭脱糖后的 default method 处理。 |
 | [重编译 / 扩散编译](./recompile-propagation.md) | 首轮编译后如何根据 class 结构和引用索引继续补编译源码。 |
 | [常量引用分析](./const-ref.md) | Java/Kotlin 编译期常量变化后如何补编译引用方。 |
-| [资源增量编译](./resource.md) | aapt2 compile / link、Jugg 定制 `inclink`、资源表加载和资源 overlay。 |
-| [DataBinding / ViewBinding](./databinding-viewbinding.md) | layout split、base class、mapper、BR 和两阶段处理。 |
-| [Android Manifest 编译与 release 增量编译](./manifest-minify.md) | Manifest 增量合并、release mapping、`_jugg_fix` 桥接类。 |
-| [assets 与 native lib](./assets-native.md) | assets overlay 与 native lib update apk。 |
-| [依赖库增量编译](./dependency-incremental.md) | build 文件确认、Gradle dependency diff、变化库差分编译和部署处理。 |
-| [自定义编译器](./custom-compiler.md) | 自定义 jar 装载、SPI 创建、`CompileOrder` 插入点和 hook 语义。 |
+| [资源增量编译](./resource.md) | aapt2 compile / link、Jugg 定制的 `inclink` 内存级缓存、资源表加载与资源 overlay。 |
+| [DataBinding / ViewBinding](./databinding-viewbinding.md) | layout split、base class、mapper、BR 与两阶段处理。 |
+| [Android Manifest 编译与 release 增量编译](./manifest-minify.md) | Manifest 增量合并、release mapping 重映射与 release 桥接补偿。 |
+| [assets 与 native lib](./assets-native.md) | assets overlay 与需要写回 APK 的 native lib。 |
+| [依赖库增量编译](./dependency-incremental.md) | 构建文件确认、依赖变化对比、变化库差分编译与部署处理。 |
+| [自定义编译器](./custom-compiler.md) | 自定义编译器装载、扩展点插入位置与 hook 语义。 |
 
 ## 主流程
+
+增量编译分两种入口：需要刷新基线时走一次完整 Gradle，日常开发只处理变化文件。
 
 ```text
 首次运行或需要刷新基线
   -> 执行 Gradle 构建
   -> 收集 APK、class、资源表、Manifest、DataBinding 中间产物和依赖信息
-  -> 初始化项目快照、APK 解析数据库和部署记录
+  -> 初始化项目快照与增量编译所需的索引
 
 后续增量运行
   -> 检测 IDE 与 Git 记录中的变化文件
-  -> 按文件类型进入 assets、res、source、manifest 等编译链路
-  -> 输出 dex、resources.arsc、res overlay、assets、Manifest 或 APK 更新文件
-  -> 分析受影响源码和 redex class，必要时继续下一轮编译
+  -> 按文件类型进入 assets、资源、源码、Manifest 等编译链路
+  -> 输出 DEX、resources.arsc、资源 overlay、assets、Manifest 或需写回 APK 的文件
+  -> 分析受影响源码和需重转 DEX 的 class，必要时继续下一轮编译
   -> 将 staging 产物交给部署阶段
 ```
 
 ## 文件变化来源
 
-Jugg 同时使用 IDE 文件事件、Git 补检和部署历史。IDE 文件事件覆盖工程打开期间的实时修改；Git 补检用于工程关闭期间的修改、切分支、回滚和多仓库联调；部署历史用于判断变化是否已经成功部署过。
+Jugg 同时使用三种变化来源，互相补齐覆盖面：
 
-编译成功后，Jugg 会记录文件的 `lastModified` 与 `length` 快照。迟到的 IDE 文件事件如果快照没有变化，不会把已编译文件重新放回待编译集合。
+- IDE 文件事件覆盖工程打开期间的实时修改。
+- Git 补检覆盖工程关闭期间的修改、切分支、回滚和多仓库联调。
+- 部署历史用于判断变化是否已经成功部署过。
+
+编译成功后，Jugg 会记录文件的修改时间与长度快照。迟到的 IDE 文件事件如果快照没有变化，不会把已编译文件重新放回待编译集合，避免无意义的重复编译。
 
 ## 编译上下文
 
-增量编译需要复用 Gradle 结果，包括模块路径、源码目录、Manifest 路径、variant、模块依赖、库依赖、Java/Kotlin 参数、APK 路径和 DataBinding 中间产物。
+增量编译需要复用 Gradle 结果，包括模块路径、源码目录、Manifest 路径、variant、模块依赖、库依赖、Java/Kotlin 编译参数、APK 路径和 DataBinding 中间产物。
 
-Jugg 会把这些信息合并成项目快照，并在 `build/jugg` 下维护编译和部署相关数据。常见数据包括 APK 解析数据库、编译上下文记录、部署记录、项目快照和源码索引。APK 解析数据库来自 dex 解析结果，后续扩散编译、default method 处理和部署数据生成都会读取它。
+Jugg 把这些信息合并成一份项目快照，并在 `build/jugg` 下维护增量编译和部署所需的本地索引。其中一份关键索引来自对基线 APK / DEX 的解析结果，后续的扩散补编译、default method 处理和部署数据生成都会读取它来还原引用关系。
 
 ## 阶段顺序
 
+一轮增量编译按固定的阶段语义推进，前一阶段的产物可能成为后一阶段的输入：
+
 ```text
-JuggCompiler
-  -> AssetOverlayCompiler
-  -> ResourceOverlayCompiler
-     -> AndroidManifestCompiler
-     -> ResourceCompiler
-     -> ArscCompiler
-  -> RDexForSubmoduleCompiler
-  -> SourceCompiler
-     -> JuggApt / DataBinding mapper
-     -> Kotlin
-     -> Java
-     -> Dex
-     -> Minify
+assets / native lib
+  -> 资源（含 Manifest、resources.arsc）
+  -> 源码（注解处理与 DataBinding 生成源 -> Kotlin -> Java -> DEX -> minify）
 ```
 
-资源阶段可能生成 `R.java` 和 DataBinding/ViewBinding 源码。这些文件不会在资源阶段结束，而是转交给源码阶段继续编译。
+资源阶段可能生成 `R.java` 和 DataBinding / ViewBinding 源码。这些文件不会在资源阶段结束，而是转交给源码阶段继续编译。源码阶段内部的顺序也是固定的：生成源码必须早于语言编译，Kotlin 必须早于 Java，minify 必须在 DEX 之后（顺序原因见[源码增量编译](./source.md)）。
 
 ## 何时回到 Gradle
 
@@ -86,7 +84,7 @@ JuggCompiler
 - 注解处理器、插桩、生成代码或其他 Gradle 上下文无法确认。
 - 增量编译失败且重试策略无法恢复。
 
-Gradle 回退成功后，Jugg 会重新收集构建产物，刷新项目快照、APK 解析数据库和部署记录。
+Gradle 回退成功后，Jugg 会重新收集构建产物，刷新项目快照与增量编译所需的本地索引。
 
 ## 相关页面
 

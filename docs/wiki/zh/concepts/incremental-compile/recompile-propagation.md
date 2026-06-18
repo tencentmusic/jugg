@@ -1,6 +1,6 @@
 ---
 title: 重编译 / 扩散编译
-description: 说明 Jugg 如何在首轮源码编译后继续查找受影响源码，并触发下一轮增量编译。
+description: 说明 Jugg 为什么不能只编译直接改动的文件，如何用新旧 class 结构对比加引用索引补编译受影响源码，以及这套传播的收敛边界。
 status: active
 tags:
   - concept
@@ -10,81 +10,76 @@ tags:
 
 # 重编译 / 扩散编译
 
-Jugg 的首轮源码编译只处理本轮直接变化的文件。编译成功后，Jugg 会用新旧 class 结构和 APK 引用索引查一遍：有没有旧源码也需要重新编译。
+日常增量编译的目标是尽量少编文件，但“少编”不能只看本轮改了哪些源码。一次改动可能改变旧 APK 中其他 class 的调用前提：调用方、子类或泛型使用方没有被重新编译时，设备上会同时存在新定义和旧引用。
 
-如果有，`IncrementalCompilerHelper` 会把这些源码还原成 `ChangedFile`，递归进入下一轮增量编译。日志里会看到：
+扩散编译解决的就是这个缺口：首轮编译成功后，再判断哪些旧源码会被这次结构变化影响，把它们补进下一轮编译。这样 Jugg 才能在不回到完整 Gradle 构建的前提下，尽量保持增量结果与全量构建一致。
 
-```text
-Compile success, but found effected source files, continue compile.
-```
+## 编译成功不等于运行安全
 
-## 从部署数据开始
+最朴素的增量做法是只编译本轮直接改动的文件。但这在结构性改动下并不安全：当你删除一个方法、修改字段签名，或给抽象父类新增抽象方法时，改动文件自己能编译通过，可它的旧调用方和旧子类还停留在 APK 里，没有被重新编译。
 
-重编译判断发生在编译成功之后。`DeployFileManager.getRecompileFiles()` 会调用 `DeployDataGenerator.buildDeployData()`，先构造一份部署数据，再从里面取出需要重编译的源码。
+这类不一致不会在编译期暴露，而是等到运行时调用那段旧代码才抛出 `NoSuchMethodError`、`AbstractMethodError`。换句话说，"编译成功"并不等于"运行安全"，缺的是一轮对受影响范围的补编译。
+
+## 结构对比与引用索引：补出受影响范围
+
+补回这一轮的关键，是先弄清"谁会受影响"。Jugg 在首轮源码编译成功后，再做一次扩散分析：先看本轮 class 的结构变了什么，再反查谁引用了这些变化，把受影响的旧源码拉进下一轮编译。
 
 ```text
 首轮编译成功
-  -> staging 写入 DeployItem
-  -> DeployFileManager.getRecompileFiles()
-  -> DeployDataGenerator.buildDeployData()
-  -> CompileEffectAnalyzer 还原源码文件
-  -> IncrementalCompilerHelper 进入下一轮
+  -> 解析本轮 DEX，新 class 与基线 class 做结构对比
+  -> 把差异归成几类结构信号
+  -> 用引用索引反查受影响的调用方、子类和源码
+  -> 把这些源码当作新输入，递归进入下一轮编译
 ```
 
-这里的部署数据还不是已提交状态。只有整轮部署成功后，`DeployFileManager.commit()` 才会推进历史。
+这里的"受影响范围"还只是本轮的待编译判断，不是已生效状态。只有整轮部署成功后，相关历史才会提交推进；如果后续编译或部署失败，同一批影响在下一次编译中仍然可查。
 
-## class 结构信号
+### 结构对比产出的信号
 
-`DeployDataGenerator` 解析本轮 dex，拿新 class 与数据库里的旧 class 对比。`ClassNodeComparator` 把差异压成几类信号：
+新旧 class 对比会把差异压成几类信号，每类信号对应一种反查方向：
 
-| 信号 | 后续用途 |
+| 结构变化 | 反查方向 |
 |---|---|
-| 方法删除、签名变化、有效 access flag 变化 | 查 method caller。 |
-| 字段删除 | 查 field caller。 |
-| 抽象父类或接口新增 abstract 方法 | 查子类。 |
-| 类级 generic signature 变化 | 查直接 member caller 和子类。 |
+| 方法删除、签名变化、有效访问修饰变化 | 查方法调用方。 |
+| 字段删除 | 查字段访问方。 |
+| 抽象父类或接口新增抽象方法 | 查所有子类。 |
+| 类级泛型签名变化 | 查直接成员调用方，并沿继承链查子类。 |
 
-`R$xxx` class 不进入 method/field 传播。资源修复可能产生大量 R 字段变化，直接传播会把太多引用 R 的源码拉进重编译。
+仅仅是方法体内部逻辑变化，不会进入上述信号——那种改动可以直接在线替换，无需扩散。
 
-## 六步传播
+### 反查如何收敛
 
-`DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()` 用 APK / 已部署数据库里的引用表做查询。当前代码按六步收敛：
+反查依据的是对基线 APK 和已部署产物建立的引用索引（谁调用了谁、谁继承了谁）。它按一条固定路径收敛，避免无限展开：
 
-```text
-1. 把变化 method / field / abstract / generic class 转成 DB classId
-2. 对非 static 变化方法查 subclass_refs，补出虚方法分发下的子类 method ref
-3. 查 method_refs / field_refs，找到直接调用方或访问方
-4. 对新增 abstract method 的 class/interface 递归找子类
-5. 对 generic signature 变化类查 caller，并递归找子类
-6. 把 classId 反查 class name / source，生成 EffectedClassNode(SOURCE)
-```
+1. 把变化的方法、字段、抽象方法、泛型类映射到索引中的类标识。
+2. 对非静态的变化方法，沿继承关系补出子类在虚方法分发下也会受影响的调用点。
+3. 查引用关系，找到直接调用变化方法或访问变化字段的类。
+4. 对新增抽象方法的抽象类 / 接口，递归向下找子类。
+5. 对泛型签名变化的类，查它的直接成员调用方，并递归找子类。
+6. 把命中的类反查回源码路径，交给下一轮编译。
 
-Step 2 有一个容易看错的点：static 方法会保留在 `changedMethodRefsWithSubclasses` 里，供 Step 3 查直接调用；但 static 方法不能作为子类遍历的起点。代码里用 access flag 过滤了这件事。
+## 传播的防御性约束
 
-## 下一轮过滤
+收敛路径之外，这套传播的可信度还建立在几条明确约束上，它们既防漏编也防误编：
 
-影响传播不能无限循环。`IncrementalCompilerHelper` 会过滤已经处理过的结果：
+- **R 类不参与方法 / 字段传播。** 资源修复会产生大量 R 字段变化，如果直接传播，会把所有引用 R 的源码都拉进重编译。R 类因此整体跳过结构传播。
+- **静态方法不作为子类遍历的起点。** 静态方法没有虚方法分发，本不该沿继承链向下扩散；但它仍要保留在"直接调用方"的查询里。Jugg 用访问修饰把这两件事区分开：静态方法能被第 3 步查到直接调用方，但不会触发第 2 步的子类级联，避免 lambda、合成方法这类静态方法引发整棵子类树的误重编译。
+- **下一轮去重。** 上一轮已经编译过的源码不会重复编译；同一轮内对相同影响也只跟编一次。只有出现新的触发来源（例如某个定义方结构变化后首次要求重编它的调用方）才会继续下一轮。Kotlin 顶层声明门面是一个例外，它命中时可以突破"上一轮已编译"的过滤再编一次。
 
-- 排除上一轮已经编译过的源码。
-- 对同一个 session 内已经满足过的影响触发键，不再重复跟编。
-- Kotlin top-level file facade 命中时，可以突破“上一轮已编译”过滤再编一次。
+## release / minify 下的额外补偿
 
-触发键来自 `ContinueCompileEffectFilter`。普通 class 传播用 `effectedPath + effectedByClasses`；const-ref 使用自己的批次键。
+release 变体经过 R8 / ProGuard 处理后，扩散分析还要额外查两类补偿场景：
 
-## release/minify 补偿
-
-minified 场景还会查两类补偿：
-
-| 类型 | 来源 | 处理 |
+| 场景 | 现象 | 处理 |
 |---|---|---|
-| `MINIFY_MEMBER_REMOVED` | 增量 dex 引用了 APK 中已被 R8/ProGuard 移除的类或成员 | 交给 `DexMinifyCompiler` 补偿。 |
-| `INLINE_IMPL_CHANGE` | `InlineMethodDetector` 从 mapping 找到曾经被 inline 的调用方 | 交给 `DexMinifyCompiler` 补偿。 |
+| 引用了已被移除的类或成员 | 本轮 DEX 引用了在 APK 里已被 R8 / ProGuard 裁剪掉的类或成员 | 走 minify 字节码补偿。 |
+| 内联实现已变化 | 从 `mapping.txt` 找到曾经被内联进别处的方法，其调用方持有旧内联副本 | 走 minify 字节码补偿。 |
 
-同一个 class 如果已经是 `SOURCE`，merge 时保留 `SOURCE`。源码重编译的修复范围大于字节码补偿，反过来不成立。
+源码重编译的修复能力强于字节码补偿：同一个类如果已经被判定为需要源码重编译，合并时保留源码重编译，不再降级为字节码补偿。
 
-## 与 const-ref 的关系
+## 与常量引用的关系
 
-常量引用不走 method/field/subclass 表。`DeployDataGenerator` 会单独调用 `ConstRefEffectProvider`，结果写进 `JuggDeployData.constRefEffectedSourcePaths`。`CompileEffectAnalyzer` 最后把它和普通受影响源码合并。
+编译期常量（`const val` / `static final`）的内联不走方法 / 字段 / 子类这套结构传播，而是用一套独立的常量定义与引用索引单独分析，最后再把命中的源码与普通受影响源码合并进下一轮。原因见[常量引用分析](./const-ref.md)。
 
 ## 相关页面
 
