@@ -41,10 +41,10 @@ jugg restart
 
 构建类命令会阻塞到终态，Agent 不需要手工轮询。结果里需要区分编译和部署两个维度：
 
-- `isCompileSuccess=true`：编译阶段成功。
-- `isDeploySuccess=true`：部署或安装启动阶段成功。
-- `detail`：失败时的诊断摘要，Gradle 长日志会保留头尾预览。
-- `full log` / `logPath`：完整日志位置。
+- **`isCompileSuccess=true`**：编译阶段成功。
+- **`isDeploySuccess=true`**：部署或安装启动阶段成功。
+- **`detail`**：失败时的诊断摘要，Gradle 长日志会保留头尾预览。
+- **`full log` / `logPath`**：完整日志位置。
 
 `gradle-build` 可能出现编译成功但部署失败，例如设备不可用或启动失败；此时不能只看 `isCompileSuccess`。
 

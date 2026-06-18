@@ -12,6 +12,8 @@ tags:
 
 Jugg CLI 是 Agent 和终端用户访问 Jugg 插件能力的命令行入口。它把 MCP 工具封装成稳定子命令，负责项目解析、端口发现、异步编译轮询和面向人或脚本的输出格式。
 
+本页用于判断 CLI 能完成哪些任务、什么时候适合使用。精确命令、参数和别名不在这里展开，见 [CLI 命令参考](../../reference/cli-commands.md)。
+
 ## 可完成的任务
 
 | 用户任务 | 当前支持情况 | 输入输出边界 |
@@ -28,16 +30,6 @@ Jugg CLI 是 Agent 和终端用户访问 Jugg 插件能力的命令行入口。�
 python3 {SKILL_DIR}/scripts/jugg.py [全局参数] <subcommand> [子命令参数]
 python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 ```
-
-常用全局参数：
-
-| 参数 | 作用 |
-|---|---|
-| `--project-dir <path>` | 明确指定目标项目，跳过当前目录到已初始化项目的自动匹配 |
-| `--console=plain` | 默认的人类可读输出，适合 Agent 和脚本日志 |
-| `--console=rich` | 人工终端交互输出，带 spinner |
-| `--console=json` | 输出 MCP `structuredContent` JSON，适合需要结构化解析的 Agent |
-| `--if-compiling wait|interrupt` | 控制已有 compile/deploy 任务运行时是等待还是打断 |
 
 > [!TIP]
 > Agent 场景优先使用 `plain` 或 `json`。`rich` 会刷新终端行，不适合作为模型上下文里的稳定输出。
@@ -57,10 +49,10 @@ CLI
 
 ## 子命令分组
 
-- [构建与部署](./cli-build-deploy.md)：`compile`、`deploy`、`gradle-build`、`clean-reinstall`、`restart`
-- [Android Test](./cli-android-test.md)：`instrument`
-- [运行时与设备](./cli-runtime-device.md)：`status`、`devices`、`activity-stack`、`wait-logs`
-- [UI 自动化](./ui-automation.md)：`layout-dump`、`view-locate`、`view-inspect`、`tap`
-- [远端诊断](./remote-diagnosis.md)：`ssh-info`
+- **[构建与部署](./cli-build-deploy.md)**：`compile`、`deploy`、`gradle-build`、`clean-reinstall`、`restart`
+- **[Android Test](./cli-android-test.md)**：`instrument`
+- **[运行时与设备](./cli-runtime-device.md)**：`status`、`devices`、`activity-stack`、`wait-logs`
+- **[UI 自动化](./ui-automation.md)**：`layout-dump`、`view-locate`、`view-inspect`、`tap`
+- **[远端诊断](./remote-diagnosis.md)**：`ssh-info`
 
 精确参数和输出字段见 [CLI 命令参考](../../reference/cli-commands.md) 与 [MCP 工具参考](../../reference/mcp-tools.md)。

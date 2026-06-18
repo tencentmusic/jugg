@@ -1,6 +1,6 @@
 ---
 title: 部署能力
-description: 汇总 Jugg 部署相关能力，帮助判断本轮修改会安装、热更新、重启还是恢复部署状态。
+description: 汇总 Jugg 部署相关能力，用于判断本轮修改会安装、热更新、重启还是恢复部署状态。
 status: active
 tags:
   - capability
@@ -35,7 +35,7 @@ Jugg 部署能力承接编译产物，把 APK、dex、资源 overlay、Manifest�
 | [JVMTI Runtime](./jvmti-runtime.md) | 支持部署后准备 Jugg agent 并检测兼容性 | 支撑兼容部署、运行时插桩和后续工具能力 |
 
 > [!IMPORTANT]
-> 部署策略由本轮编译结果和设备状态共同决定。Gradle 编译成功通常走 install；Jugg 增量编译成功通常进入增量部署，失败时可能 recover、retry 或回退 Gradle。
+> 部署策略由本轮编译结果和设备状态共同决定。Gradle 编译成功后走 install；Jugg 增量编译成功后进入增量部署，失败时按失败类型进入 recover、retry 或 Gradle 回退。
 
 ## 部署链路如何串起来
 
@@ -49,7 +49,7 @@ Run 触发
   -> 成功后提交部署历史与 overlay checkpoint
 ```
 
-用户通常不需要手动选择部署类型。Jugg 会根据 class 结构变化、资源和 APK 更新、设备是否 ready、overlay checkpoint 是否匹配等信息决定本轮策略。
+用户不需要手动选择部署类型。Jugg 会根据 class 结构变化、资源和 APK 更新、设备是否 ready、overlay checkpoint 是否匹配等信息决定本轮策略。
 
 ## 相关页面
 

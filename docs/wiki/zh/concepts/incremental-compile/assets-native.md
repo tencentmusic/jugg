@@ -1,6 +1,6 @@
 ---
 title: assets 与 native lib
-description: 说明 assets 为何能走普通 overlay 而 native lib 必须写回 APK，以及两者在部署方式上的能力差异与边界。
+description: 解释 assets 为何能走普通 overlay 而 native lib 必须写回 APK，以及两者在部署方式上的差异。
 status: active
 tags:
   - concept
@@ -13,9 +13,9 @@ tags:
 
 `assets/` 和 native lib 都不需要 aapt2，也不属于 Java/Kotlin 源码编译。但它们的部署方式不同：assets 可以作为普通 overlay 叠加生效，native lib 必须写回 APK。
 
-## 并非所有产物都能叠加生效
+## 不是所有产物都能叠加生效
 
-增量部署的快路径是 overlay：把变化文件作为附加层叠在已安装 APK 之上，不重装整包。但这条快路径有前提——运行时必须能从 overlay 路径读到这类文件。
+增量部署的快路径是 overlay：把变化文件作为附加层叠在已安装 APK 之上，不重装整包。但这条快路径有前提，运行时必须能从 overlay 路径读到这类文件。
 
 `assets/` 满足这个前提，系统会从 overlay 读取。native lib（`.so`）不满足：动态库的加载路径绑定在 APK 内，运行时不会从普通 overlay 加载新的 `.so`。所以这两类文件虽然都绕过了 aapt2，部署方式却必须分开。
 

@@ -22,7 +22,7 @@ build/jugg/log/compile_latest.log
 如果这个快捷文件不存在，可以查看同目录下最新的 `compile_*.log`。
 
 > [!TIP]
-> 提交问题前，建议先备份 `build/jugg/log/` 和 `build/jugg/database/`。这些目录能帮助判断 Jugg 的增量状态、部署历史和资源/类索引是否一致。
+> 提交问题前，建议先备份 `build/jugg/log/` 和 `build/jugg/database/`。这些目录能用于判断 Jugg 的增量状态、部署历史和资源/类索引是否一致。
 
 ## 常见现象速查
 

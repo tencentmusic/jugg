@@ -38,7 +38,7 @@ Run 选中多台设备
   -> 否则展示失败原因
 ```
 
-每台设备都有自己的 deployment cache、overlay id 和 ready 状态。因此一台设备可能直接 Hot Reload，另一台设备可能 recover 后 reinstall；最终结果由 Run 层统一收口。
+每台设备都有自己的 deployment cache、overlay id 和 ready 状态。因此同一轮 Run 会按设备分别选择 Hot Reload、recover 或 reinstall，再由 Run 层统一收口最终结果。
 
 ## 与部署历史的关系
 

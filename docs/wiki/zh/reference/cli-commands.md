@@ -9,9 +9,9 @@ tags:
 
 # CLI 命令
 
-`jugg` CLI 是 MCP 工具的命令行封装，用于在终端或 Agent workflow 中触发编译、部署、测试、日志等待和 UI 检查。
+本页是 `jugg` CLI 的命令和参数速查。它不说明 CLI 适合哪些场景；能力范围和使用建议见 [Jugg CLI](../capabilities/tools/cli.md)，按步骤使用见 [CLI 使用指南](../guide/cli.md)。
 
-## 基本格式
+## 命令格式
 
 ```bash
 jugg [--console=plain|rich|json] [--project-dir <path>] [--if-compiling wait|interrupt] <subcommand> [options]

@@ -1,5 +1,5 @@
 ---
-title: Report Issue
+title: 报告问题
 description: 说明如何通过 Jugg 上传问题日志，以及 Issue ID 代表什么。
 status: active
 tags:
@@ -8,9 +8,9 @@ tags:
   - logs
 ---
 
-# Report Issue
+# 报告问题
 
-`Report Issue` 用来把本地 Jugg 日志和设备错误日志上传到团队后台。它适合在增量编译失败、部署失败、运行结果不符合预期时使用。
+报告问题功能用来把本地 Jugg 日志和设备错误日志上传到团队后台。它适合在增量编译失败、部署失败、运行结果不符合预期时使用。
 
 ## 从哪里打开
 
@@ -18,11 +18,12 @@ tags:
 
 1. 打开 `Edit Configurations...`。
 2. 选择当前 Jugg 配置。
-3. 点击 `Report issues`。
+3. 点击 `Report Issues`。
 4. 确认后等待上传完成。
-5. 复制 Issue ID，连同操作步骤发给维护者。
+5. 上传完成后，在弹窗里点击 `Copy Issue ID and Close`。
+6. 把复制的 Issue ID 粘贴给 Jugg 插件维护人员，并附上本轮操作步骤。
 
-插件内部入口是 `ReportIssueAction`。触发后会弹出确认框，随后在后台收集工程信息、dump 目标设备的错误 logcat，并上传日志包。
+触发后会弹出确认框，随后在后台收集工程信息、dump 目标设备的错误 logcat，并上传日志包。
 
 ## 会上传什么
 

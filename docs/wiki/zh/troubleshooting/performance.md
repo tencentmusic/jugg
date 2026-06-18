@@ -45,10 +45,10 @@ No file changes. will fallback to gradle compile.
 
 当检测到 build 文件修改时，弹窗选项包括：
 
-- `Fallback to Gradle`：降级为 Gradle 编译。
-- `Find out changed Libraries`：找出依赖库变化。
-- `Ignore build changes`：忽略 build 文件变更。
-- 关闭弹窗：取消。
+- **`Fallback to Gradle`**：降级为 Gradle 编译。
+- **`Find out changed Libraries`**：找出依赖库变化。
+- **`Ignore build changes`**：忽略 build 文件变更。
+- **关闭弹窗**：取消。
 
 如果只是升级依赖库，优先确认变化列表符合预期后再继续增量编译。
 
@@ -63,7 +63,7 @@ Not all files are compiled:
 Export incremental apk failed: ...
 ```
 
-先确保所有改动已经完成编译，再重新导出。
+先确认所有改动已经完成编译，再重新导出。
 
 ## 相关页面
 

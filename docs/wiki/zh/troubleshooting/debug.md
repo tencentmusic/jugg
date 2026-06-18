@@ -23,7 +23,7 @@ Jugg Debug 会先完成 Jugg 编译和部署，再尝试 attach Java debugger。
 
 ## 多设备不支持
 
-Jugg Debug 当前只支持单设备 attach。如果 Run 选择了多个设备，部署可能能执行，但 Debug attach 会失败。
+Jugg Debug 当前只支持单设备 attach。Run 选择多个设备时，部署阶段可以执行，但 Debug attach 会失败。
 
 处理方式：
 

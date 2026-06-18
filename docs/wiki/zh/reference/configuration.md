@@ -9,7 +9,9 @@ tags:
 
 # 配置
 
-Jugg 配置主要来自 Android Studio Run Configuration、IDE 全局设置、项目级 `build/jugg/` 缓存和少量用户级目录。用户通常只需要通过 Jugg UI 或 CLI 参数修改配置，不建议手动编辑缓存文件。
+本页是配置含义和落点速查，覆盖 Android Studio Run Configuration、IDE 全局设置、CLI/MCP 一次性参数、项目级目录和用户级目录。它不说明每个按钮在哪里点击；More Options 里的低频操作入口见 [高级选项](../guide/advanced-options.md)。
+
+用户通常只需要通过 Jugg UI 或 CLI 参数修改配置，不建议手动编辑缓存文件。
 
 ## Run Configuration 选项
 

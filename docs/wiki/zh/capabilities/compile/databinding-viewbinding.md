@@ -11,34 +11,32 @@ tags:
 
 # DataBinding/ViewBinding
 
-Jugg 支持 DataBinding / ViewBinding 相关 layout 修改的增量处理。它会先在资源阶段处理 layout split、base class 或 trigger source，再在源码阶段生成 mapper、BR 并继续 Java/Kotlin 编译。
+Jugg 支持 DataBinding / ViewBinding 相关 layout 修改的增量处理。它会把 layout 修改转成资源产物和生成源码，再继续进入资源编译与源码编译。本页只说明支持范围和使用边界，两阶段交接机制见 [DataBinding / ViewBinding 增量编译原理](../../concepts/incremental-compile/databinding-viewbinding.md)。
 
 ## 已支持能力
 
-| 修改类型 | 当前支持情况 | 生效方式 |
+| 修改类型 | 当前支持情况 | 用户可见结果 |
 |---|---|---|
-| ViewBinding layout 修改 | 支持 | 生成 binding base classes，继续资源与源码链路 |
-| DataBinding layout 修改 | 支持 | 生成 stripped XML、trigger source、mapper 和 BR |
-| `<include>` 影响 | 支持基于 layout info 补齐 | 找到受影响 layout info 后参与 mapper 生成 |
-| Kotlin 源参与 DataBinding | 支持重试路径 | APT 失败后可先编译 Kotlin class 再重试 mapper |
-| Gradle layout info 维护 | 支持 | 将增量 layout info 复制回 Gradle 目录，避免后续 Gradle 缺基线 |
+| ViewBinding layout 修改 | 支持 | binding 相关源码会被更新并继续编译 |
+| DataBinding layout 修改 | 支持 | mapper、BR 等相关源码会被更新并继续编译 |
+| `<include>` 影响 | 支持基于 layout info 补齐 | 被 include 关系影响的 layout 会一起进入生成源码更新 |
+| Kotlin 源参与 DataBinding | 支持重试路径 | Kotlin 相关 class 准备完成后，DataBinding 生成可继续推进 |
+| Gradle layout info 维护 | 支持 | 后续 Gradle 构建仍能拿到必要 layout 基线 |
 
 > [!TIP]
 > 如果是首次启用 DataBinding/ViewBinding、升级 AGP，或修改相关 Gradle 配置，先执行 Gradle 构建或 Sync，让中间产物路径和 layout info 成为新基线。
 
-## DataBinding / ViewBinding 如何生效
+## 触发与结果
 
 ```text
-layout 资源变化
-  -> 资源阶段识别 DataBinding / ViewBinding
-  -> 生成 split XML、base classes 或 DataBinding trigger
-  -> split XML 进入 aapt2 compile/link
-  -> 生成源码进入 SourceCompiler
-  -> DataBinding mapper / BR 生成
-  -> Kotlin / Java / dex 继续编译
+DataBinding / ViewBinding layout 变化
+  -> 更新资源侧产物
+  -> 更新绑定相关生成源码
+  -> 继续资源编译和源码编译
+  -> 部署阶段应用结果
 ```
 
-ViewBinding 通常停留在 base class 生成和源码编译；DataBinding 还需要 annotation processor 生成 mapper、BR 和增量 holder。
+用户需要关注的是：layout 修改不只生成资源 overlay；本轮涉及 `R`、binding class 或 mapper 变化时，还会追加 Java/Kotlin 编译。日志中看到多阶段编译是正常现象。
 
 ## 关键边界
 
@@ -51,3 +49,4 @@ ViewBinding 通常停留在 base class 生成和源码编译；DataBinding 还�
 - [资源编译](./resource-compile.md)
 - [注解器](./annotation-processors.md)
 - [源码编译](./source-compile.md)
+- [DataBinding / ViewBinding 增量编译原理](../../concepts/incremental-compile/databinding-viewbinding.md)

@@ -57,10 +57,10 @@ tags:
 
 ## 4. 链接
 
-- 站内链接：[使用指南概览](/zh/guide/)
-- 相对链接：[日志排查](../troubleshooting/logs.md)
-- 外部链接：[VitePress](https://vitepress.dev/)
-- 锚点链接：[跳转到提示块](#_9-提示块)
+- **站内链接**：[使用指南概览](/zh/guide/)
+- **相对链接**：[日志排查](../troubleshooting/logs.md)
+- **外部链接**：[VitePress](https://vitepress.dev/)
+- **锚点链接**：[跳转到提示块](#_9-提示块)
 
 ## 5. 表格
 

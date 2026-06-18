@@ -1,6 +1,6 @@
 ---
 title: Android Manifest 编译与 release 增量编译
-description: 说明 Manifest 为何不能走普通资源 overlay、增量现场缺少完整 merge 上下文的应对方式，以及 release 场景如何保持混淆 mapping 一致，并交代各自的边界。
+description: 解释 Manifest 为何不能走普通资源 overlay、增量现场缺少完整 merge 上下文时如何处理，以及 release 场景如何保持混淆 mapping 一致。
 status: active
 tags:
   - concept
@@ -11,9 +11,9 @@ tags:
 
 # Android Manifest 编译与 release 增量编译
 
-日常 debug 增量希望只处理本轮变化，但有两类产物不能简单按“变化文件 -> overlay”理解：Manifest 决定 APK 的安装与运行身份，release DEX 必须匹配已安装 APK 的混淆结果。它们都站在完整 Gradle 构建的边界上，直接重做会很重，跳过又会让设备结果不可信。
+日常 debug 增量希望只处理本轮变化，但有两类产物不能按“变化文件 -> overlay”理解：Manifest 决定 APK 的安装与运行身份，release DEX 必须匹配已安装 APK 的混淆结果。它们都站在完整 Gradle 构建的边界上，直接重做会很重，跳过又会让设备结果不可信。
 
-这页把两条链路放在一起，是因为它们解决的是同一个增量难题：在现场拿不到完整构建上下文时，如何只补必要部分，同时不破坏 APK 身份和混淆 mapping。Manifest 增量处理 APK 里的 `AndroidManifest.xml`；release 增量处理混淆后 APK 与本轮 DEX 的命名一致性。
+这页把两条链路放在一起，因为它们面对同一个增量难题：现场拿不到完整构建上下文时，如何只补必要部分，同时不破坏 APK 身份和混淆 mapping。Manifest 增量处理 APK 里的 `AndroidManifest.xml`；release 增量处理混淆后 APK 与本轮 DEX 的命名一致性。
 
 ## Android Manifest 增量
 
@@ -43,7 +43,7 @@ Manifest 产物不会按普通资源 overlay 下发，而是进入「需要写�
 
 ### Manifest 增量的过滤与约束
 
-打补丁的前提是只动真实变化的节点，因此这条链路有两处刻意的过滤与保护：
+打补丁的前提是只动真实变化的节点，所以这条链路有两处过滤与保护：
 
 - **空输出是有效结果**：库 Manifest 未变化、内容校验一致或比对后没有真实变更时，不输出 `AndroidManifest.xml`，避免触发无意义的 APK 重打包。
 - **忽略身份相关字段**：合并会忽略 `tools:*` 属性、manifest `package` 以及 application `android:name` 的更新，避免增量补丁覆盖运行时身份。这不是漏合并，而是刻意的保护。
@@ -71,7 +71,7 @@ Jugg 读取已安装 APK 或增量数据目录中的 `mapping.txt`，在 DEX 阶
 
 ### release 增量的降级与触发边界
 
-重映射依赖 mapping 是否就位，也决定了它何时会牵动整包刷新，对应两条边界：
+重映射依赖 mapping 是否就位，也决定了它何时会牵动整包刷新。这里有两条边界：
 
 - **mapping 缺失降级**：找不到 `mapping.txt` 时只打印 warn 并继续，不会硬失败。排查 release 增量异常时，应先确认日志里 mapping 是否加载成功。
 - **release ≠ update apk**：release 增量本身只让 DEX 对齐已安装 APK 的混淆结果；只有 Manifest、`resources.arsc`、native lib 等需要写回 APK 的产物，才会触发 `update apk` 模式。

@@ -17,9 +17,9 @@ Code Swap 用于把可在线替换的 class 变化应用到正在运行的 App�
 | 修改类型 | 当前支持情况 | 部署策略 |
 |---|---|---|
 | 方法体修改 | 支持 | 通过 Apply Changes 的 class redefine 能力在线替换 |
-| 可 hot reload 的 class 修改 | 支持 | 进入 `HOT_RELOAD` payload，尽量不重启 App |
+| 可 hot reload 的 class 修改 | 支持 | 进入 `HOT_RELOAD` payload，优先不重启 App |
 | 空变更或纯 overlay 更新 | 支持跳过 redefiner | 不创建 debugger redefiner，避免误触发 class swap |
-| 新增 class | 支持下发，但通常不只走 code swap | 进入 overlay 或 hot fix 路径 |
+| 新增 class | 支持下发，不作为纯 code swap | 进入 overlay 或 hot fix 路径 |
 | 字段、方法签名、继承或泛型结构变化 | 不作为纯 code swap | 触发 hot fix、full swap、重编译或重装判断 |
 
 > [!TIP]

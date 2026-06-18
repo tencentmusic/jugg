@@ -9,14 +9,14 @@ tags:
 
 # 限制
 
-Jugg 追求的是在常见开发循环中减少完整 Gradle 构建次数，而不是替代 Android Gradle Plugin、Gradle 或 Android Studio 的所有能力。本页列出使用时需要知道的主要边界。
+Jugg 追求的是在常见开发循环中减少完整 Gradle 构建次数，而不是替代 Android Gradle Plugin、Gradle 或 Android Studio 的所有能力。本页只汇总跨编译、部署、Debug、androidTest 和工具链的总边界；单项能力是否支持、触发什么结果，见对应能力页。
 
 > [!IMPORTANT]
 > 当 Jugg 行为和 Gradle 构建结果不一致时，以 Gradle / Android Studio 原生构建结果为准。建议执行一次完整 Gradle 构建重新建立基线。
 
 ## 总体边界
 
-| 领域 | Jugg 优先支持 | 可能需要回退 |
+| 领域 | Jugg 优先支持 | 需要回退或原生验证的场景 |
 |---|---|---|
 | 源码修改 | 小范围 Java/Kotlin 修改 | 大批量跨模块修改、复杂编译器插件行为 |
 | 资源修改 | 常见 `res/`、`assets/`、Manifest 修改 | source set、variant、复杂资源生成逻辑变化 |
@@ -27,7 +27,7 @@ Jugg 追求的是在常见开发循环中减少完整 Gradle 构建次数，而�
 
 ## 编译限制
 
-以下变化更容易触发 Gradle 回退，或者建议主动执行 Gradle 构建：
+以下变化更容易触发 Gradle 回退，或者建议主动执行 Gradle 构建。更深的原因说明见 [回退与限制](../concepts/fallback-and-limits.md)。
 
 - 修改 Gradle 脚本、插件配置、版本目录或依赖声明。
 - 切换 build variant、build target、运行配置或 androidTest 目标。
@@ -37,7 +37,7 @@ Jugg 追求的是在常见开发循环中减少完整 Gradle 构建次数，而�
 - release 场景中遇到混淆、反射、注解或类型引用相关运行时异常。
 
 > [!WARNING]
-> 如果变更依赖 Gradle task 的副作用，例如生成源码、复制资源、重写 Manifest 或修改 classpath，Jugg 不一定能完整复现该 task 行为。
+> 变更依赖 Gradle task 的副作用时，例如生成源码、复制资源、重写 Manifest 或修改 classpath，应执行 Gradle 构建刷新基线。Jugg 不承诺复现任意 Gradle task 行为。
 
 ## 部署限制
 

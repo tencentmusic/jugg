@@ -223,6 +223,13 @@ const chineseSidebar = {
       items: [
         { text: '概览', link: '/zh/guide/' },
         { text: '运行 App', link: '/zh/guide/run' },
+        { text: '降级 Gradle 编译', link: '/zh/guide/downgrade-gradle' },
+        { text: '导出增量 APK', link: '/zh/guide/export-incremental-apk' },
+        { text: '重启 App', link: '/zh/guide/restart-app' },
+        { text: '清理数据', link: '/zh/guide/clean-data' },
+        { text: '多设备选择', link: '/zh/guide/multi-device' },
+        { text: 'Android RemoteViews', link: '/zh/guide/android-remoteviews' },
+        { text: '设备兼容部署', link: '/zh/guide/compat-device' },
         { text: 'Debug', link: '/zh/guide/debug' },
         { text: 'Android Test', link: '/zh/guide/android-test' },
         { text: 'CLI', link: '/zh/guide/cli' },
@@ -231,7 +238,7 @@ const chineseSidebar = {
         { text: '远端 Gradle', link: '/zh/guide/remote-gradle' },
         { text: '自定义编译器', link: '/zh/guide/custom-compiler' },
         { text: '高级选项', link: '/zh/guide/advanced-options' },
-        { text: 'Report Issue', link: '/zh/guide/report-issue' },
+        { text: '报告问题', link: '/zh/guide/report-issue' },
         {
           text: 'Jugg 后台',
           collapsed: true,
@@ -255,7 +262,7 @@ const chineseSidebar = {
         { text: 'Jugg 工作原理', link: '/zh/concepts/how-jugg-works' },
         {
           text: '增量编译',
-          collapsed: true,
+          collapsed: false,
           items: [
             { text: '总览', link: '/zh/concepts/incremental-compile/' },
             { text: '源码增量编译', link: '/zh/concepts/incremental-compile/source' },
@@ -390,7 +397,6 @@ const chineseSidebar = {
         { text: 'MCP 工具', link: '/zh/reference/mcp-tools' },
         { text: '配置', link: '/zh/reference/configuration' },
         { text: '日志文件', link: '/zh/reference/log-files' },
-        { text: '模块', link: '/zh/reference/modules' },
         { text: '限制', link: '/zh/reference/limits' }
       ]
     }

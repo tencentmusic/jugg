@@ -1,6 +1,6 @@
 ---
 title: 运行 App
-description: 从 Android Studio 的 Jugg Run 入口出发，说明一次运行如何自动完成编译、部署、启动和结果判断。
+description: 从 Android Studio 的 Jugg Run 入口出发，说明怎么选择配置、选择设备、点击 Run，并判断本轮结果。
 status: active
 tags:
   - guide
@@ -9,7 +9,7 @@ tags:
 
 # 运行 App
 
-日常开发时，通常不需要先手动“编译”，再手动“部署”。修改代码或资源后，选择 Jugg Run Configuration，点击 Android Studio 的 Run 按钮即可。Jugg 会在一次运行中自动完成文件保存、变化检测、编译、部署和启动。
+日常开发时，修改代码或资源后直接点击 Jugg Run。你不需要把“编译”和“部署”拆开操作；Jugg 会保存文件、判断变化、更新设备并启动 App。
 
 ## 什么时候直接点 Run
 
@@ -18,20 +18,20 @@ tags:
 - 修改 Java / Kotlin 方法体、layout、drawable、values、assets 等常见文件。
 - 修改后想马上在设备上验证 App 表现。
 - 不确定本次改动能否增量处理，希望 Jugg 自动判断。
-- 希望必要时自动回退到 Gradle，而不是手动切换流程。
+- 希望必要时自动降级到 Gradle，而不是手动切换流程。
 
-不适合只依赖一次 Run 的场景：
+需要准备 Gradle 对照或额外操作的场景：
 
 - 刚切分支、拉取大量代码，或改了 Gradle 插件 / 依赖配置。
 - 明确需要清 App 数据并重装。
 - 正在验证 release 构建、注解处理、字节码插桩或完整 Gradle 链路。
 
-这些场景仍然可以从 Jugg Run 开始，但要准备接受 Gradle 回退，或直接使用 Clean Reinstall / 直接 Gradle。
+这些场景仍然可以从 Jugg Run 开始，但要准备接受 Gradle 降级，或直接使用清理数据、降级 Gradle 编译。
 
 ## 在 Android Studio 里怎么操作
 
 1. 确认使用的是 Jugg Run Configuration，而不是原生 App configuration。
-2. 选择目标设备；如果要 Debug，只选择一个设备。
+2. 选择目标设备。普通 Run 可以选择多台设备；Debug 只选择一台。
 3. 保存或等待 Jugg 自动保存当前修改。
 4. 点击 Run。
 5. 在 Run tool window 里看本轮结果。
@@ -45,13 +45,13 @@ Jugg Run
   -> 保存文件并刷新文件状态
   -> 检查设备、安装状态和文件变化
   -> 优先尝试增量编译
-  -> 不适合增量时提示或回退 Gradle
+  -> 必要时提示或降级 Gradle
   -> 编译成功后自动部署到设备
   -> 根据修改类型选择 Hot Reload、Hot Fix、安装或重启
   -> 输出本轮运行结果
 ```
 
-这条链路里，“编译”和“部署”是内部阶段，不是用户日常必须分开执行的两个动作。你主要关注入口、结果和下一步处理。
+编译和设备更新是内部阶段。日常使用时，先看 Run tool window 里的最终结果，再决定是否重启、清数据或降级 Gradle。
 
 ## 运行结果怎么看
 
@@ -68,12 +68,12 @@ Jugg Run
 
 | 你想做什么 | 推荐入口 |
 |---|---|
-| 清 App 数据并重装 | Clean Reinstall |
-| 完整 Gradle 构建一次 | 直接 Gradle / `jugg gradle-build` |
+| 清 App 数据并重装 | [清理数据](./clean-data.md) |
+| 完整 Gradle 构建一次 | [降级 Gradle 编译](./downgrade-gradle.md) / `jugg gradle-build` |
 | 改完后马上进断点 | Debug |
 | 跑 `src/androidTest` | 测试 gutter 或 Android Test Run Configuration |
 | 给 Agent 或脚本触发运行 | `jugg deploy` 或 Jugg CLI Skill |
-| App 没重启但你改了启动初始化逻辑 | Restart |
+| App 没重启但你改了启动初始化逻辑 | [重启 App](./restart-app.md) |
 
 > [!NOTE]
 > Hot Reload 不会重新执行所有已经初始化过的逻辑。修改启动逻辑、单例缓存、static / companion / Kotlin 顶层声明后，即使本轮显示 Hot Reload，也建议主动 Restart 一次。
@@ -96,8 +96,12 @@ build/jugg/log/compile_latest.log
 
 ## 相关页面
 
-- [编译阶段说明](./compile.md)
-- [部署结果说明](./deploy.md)
+- [降级 Gradle 编译](./downgrade-gradle.md)
+- [重启 App](./restart-app.md)
+- [清理数据](./clean-data.md)
+- [多设备选择](./multi-device.md)
+- [Android RemoteViews](./android-remoteviews.md)
+- [设备兼容部署](./compat-device.md)
 - [高级选项](./advanced-options.md)
 - [Debug](./debug.md)
 - [Android Test](./android-test.md)

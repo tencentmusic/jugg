@@ -1,6 +1,6 @@
 ---
 title: Android Test 流程
-description: 说明 Android Test 为什么复用 Jugg 编译部署链路而非另起测试通道，部署后如何执行 instrumentation，以及当前的能力边界。
+description: 解释 Android Test 为什么复用 Jugg 编译部署链路，部署后如何执行 instrumentation，以及当前能力边界。
 status: active
 tags:
   - concept
@@ -13,7 +13,7 @@ Android Test 不是一条独立于 Jugg 的测试通道。它先复用 Jugg 的 
 
 ## 测试改一行也走一遍完整构建
 
-androidTest 的日常工作模式是反复改一个测试方法、跑一次、看结果。如果每次都用 Gradle 完整构建被测 app 与 test 两个 APK 再安装，固定开销会随工程规模累积，和“只改了一个测试方法”这件事完全不成比例。但 androidTest 又不能简单当成普通 app run：它同时关注被测 app APK 和 test APK，测试代码的归属、安装顺序和运行方式都和普通启动不同。
+androidTest 的日常工作模式是反复改一个测试方法、跑一次、看结果。Gradle 完整构建需要同时处理被测 app 与 test 两个 APK，再完成安装；这些固定开销与“只改了一个测试方法”的变化范围不成比例。但 androidTest 又不能简单当成普通 app run：它同时关注被测 app APK 和 test APK，测试代码的归属、安装顺序和运行方式都和普通启动不同。
 
 ## 复用增量链路，部署后再 instrument
 
@@ -29,7 +29,7 @@ App 运行配置开启 Android Test
   -> instrumentation 输出进入 Run 窗口与测试结果树
 ```
 
-这样一来，改一个测试方法走的还是增量编译和增量部署，只有基线缺失、构建参数不可信或变化超出增量边界时才回到 Gradle 完整构建。
+改一个测试方法时，走的仍是增量编译和增量部署；只有基线缺失、构建参数不可信或变化超出增量边界时，才回到 Gradle 完整构建。
 
 ### APK 归属
 
@@ -54,13 +54,13 @@ rerun failed 会把失败节点转成新的测试过滤条件单独重跑，不�
 
 instrumentation 运行后，Jugg 会解析 `am instrument` 的输出并渲染到 Run 窗口的测试结果树，支持测试节点的源码跳转与失败用例 rerun。logcat 会按设备和测试 method 归档：每台设备从本轮启动时刻开始采集，再按测试 method 的生命周期边界把日志归到对应用例，避免历史日志污染当前方法详情。多设备运行时，每台设备的部署和 instrumentation 结果各自独立收口。
 
-大范围回归可以分两步：先用一次 CLI `instrument` 让 Jugg 完成编译、部署和目标 APK 刷新；该命令成功后，app 与 androidTest 的源码变更都已写入对应 APK，此时可以直接用 `adb shell am instrument` 跑更大范围的 class / package / suite 回归。
+大范围回归可以分两步走：先用一次 CLI `instrument` 让 Jugg 完成编译、部署和目标 APK 刷新；该命令成功后，app 与 androidTest 的源码变更都已写入对应 APK，此时可以直接用 `adb shell am instrument` 跑更大范围的 class / package / suite 回归。
 
 ## 边界
 
 - Android Test 仍依赖可信的 Gradle 基线；基线缺失或不可信时回到 Gradle。
 - androidTest 资源增量、androidTest 专用注解处理、常驻 test harness 和 Debug 执行器不是当前主路径。
-- instrumentation 结果与部署状态分离：测试断言失败仍按测试失败返回，但已成功的部署状态会正常推进，避免下次重跑因状态错位而重新编译或重装。
+- **instrumentation 结果与部署状态分离**：测试断言失败仍按测试失败返回，但已成功的部署状态会正常推进，避免下次重跑因状态错位而重新编译或重装。
 - 多设备运行时，每台设备的部署与 instrumentation 结果独立收口，任一设备失败都会让整轮 Run 失败。
 
 ## 相关页面

@@ -1,6 +1,6 @@
 ---
 title: DataBinding / ViewBinding 增量编译
-description: 说明 DataBinding / ViewBinding 为何必须拆成资源阶段和源码阶段处理，两阶段之间如何交接工作区与 layout 信息，以及版本路径漂移、BR 稳定性等边界。
+description: 解释 DataBinding / ViewBinding 为何必须拆成资源阶段和源码阶段处理，以及两阶段之间如何交接工作区与 layout 信息。
 status: active
 tags:
   - concept
@@ -16,7 +16,7 @@ DataBinding / ViewBinding 不是单个阶段能完成的：它既要参与资源
 
 layout 不是普通资源。开启 DataBinding / ViewBinding 后，同一份 layout 既要生成进入 APK 的资源（去掉绑定标签后的 stripped XML），又要生成开发者代码引用的绑定类（base class、mapper、BR）。
 
-资源处理和源码编译在 Jugg 里是两个不同阶段，前者先于后者执行。如果把绑定逻辑塞进任意单一阶段，要么资源阶段还拿不到完整源码上下文，要么源码阶段已经错过了资源链接的时机。所以这份功能天然要拆成两段，并且两段之间必须严格交接中间产物。
+资源处理和源码编译在 Jugg 里是两个不同阶段，前者先于后者执行。如果把绑定逻辑塞进任意单一阶段，要么资源阶段还拿不到完整源码上下文，要么源码阶段已经错过了资源链接的时机。所以这份功能要拆成两段，并且两段之间必须严格交接中间产物。
 
 ## 资源阶段与源码阶段的两段交接
 
@@ -35,9 +35,9 @@ layout 不是普通资源。开启 DataBinding / ViewBinding 后，同一份 lay
   -> 合入语言编译输入
 ```
 
-ViewBinding 基本停在资源阶段；DataBinding 还要进入 mapper / BR 阶段。
+ViewBinding 产物在资源阶段完成生成并转交后续编译；DataBinding 还要在源码阶段继续生成 mapper、BR 和 Java 源码。
 
-把它拆成两段后，几个关键约束保证了增量结果与全量构建一致：
+拆成两段后，几条约束保证了增量结果与全量构建一致：
 
 - **源码阶段不重置资源阶段的工作区**：mapper 生成依赖资源阶段刚写入的 layout 信息，如果源码阶段清空工作区，mapper 会缺输入。
 - **备份 Gradle 的 layout 信息**：新增 layout 后又删除时，如果不保留备份，后续完整 Gradle 构建会因为缺 layout 信息文件而失败。Jugg 在工作区里备份一份稳定的 layout 信息来兜底。
@@ -47,7 +47,7 @@ ViewBinding 基本停在资源阶段；DataBinding 还要进入 mapper / BR 阶�
 
 ## 两阶段处理的边界与排查信号
 
-跨阶段处理也带来几个容易踩到的边界，排查 layout 异常时可以据此判断：
+跨阶段处理也带来几个边界，排查 layout 异常时可以据此判断：
 
 - **版本路径漂移**：不同 AGP 版本下，DataBinding 中间产物的目录位置不同。Jugg 通过候选目录匹配来定位；遇到中间产物找不到，优先怀疑版本路径差异，而不是编译参数。
 - **不能只看 Java 输出判断成功**：stripped XML 是资源产物，会进入资源 overlay；只检查生成的 Java 是否产出，不能说明本轮 layout 处理成功。

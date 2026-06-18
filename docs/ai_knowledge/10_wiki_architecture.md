@@ -1,6 +1,6 @@
 # Wiki 架构与运行
 
-> 最后核对：2026-06-14
+> 最后核对：2026-06-18
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -19,6 +19,7 @@
 |---|---|
 | `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
 | `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 nav/sidebar/search/dev-only 页面排除。 |
+| `~/Documents/shell/publish_jugg_wiki.sh` | Wiki 后台发布脚本：打包 production 产物并同步到 `ali` / `yun` 后台 Wiki 根目录。 |
 | `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/zh/dev/elements-demo.md` | 中文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/dev/assets/wiki-elements-demo.svg` | Demo 页使用的示例图片资源。 |
@@ -161,9 +162,39 @@ npm run preview -- --host 127.0.0.1 --port 4173
 
 ---
 
-## 8. 发布边界
+## 8. 后台发布约定
 
-当前仓库只定义了静态站点打包命令，没有绑定具体托管平台。发布时应把 `docs/wiki/.vitepress/dist/` 作为静态站点根目录交给实际托管系统，例如内部静态资源服务、Nginx、GitHub Pages 或 CI/CD artifact。
+后台项目 `jugg_backend` 约定以运行目录下的相对目录 `./wiki` 作为 Wiki 静态根目录。后台启动后不会缓存静态文件列表，发布脚本用 `rsync --delete` 更新该目录后，请求会读取最新文件。
+
+后台路由约定：
+
+```text
+/      -> ./wiki/index.html
+/wiki  -> redirect /zh/
+其他路径 -> ./wiki 下同名文件、目录 index.html 或 .html 文件
+```
+
+`/` 必须保留给英文根页面，因为 VitePress 的英文 locale 默认位于根路径；`/wiki` 作为中文默认入口跳转到 `/zh/`。不要只把 `zh/index.html` 内容直接返回给 `/wiki`，否则 VitePress 客户端会按浏览器当前路径 `/wiki` 查找页面并渲染 404。
+
+本机发布脚本：
+
+```bash
+~/Documents/shell/publish_jugg_wiki.sh
+```
+
+脚本执行内容：
+
+1. 进入 `docs/wiki`。
+2. 执行 `npm ci` 与 `npm run build`。
+3. 校验 `docs/wiki/.vitepress/dist/zh/index.html` 存在。
+4. 同步 production 产物到两台后台服务器：
+
+```text
+ali:/var/www/jugg_backend/wiki
+yun:~/jugg_backend/wiki
+```
+
+其中 `ali` 的 `/var/www/jugg_backend/wiki` 通常需要 sudo 权限。脚本会先同步产物到登录用户 home 下的临时目录，再通过交互式 `sudo` 在服务器内更新 `/var/www/jugg_backend/wiki`，执行时可能提示输入 `ali` 用户的 sudo 密码。
 
 发布前检查：
 
@@ -171,6 +202,7 @@ npm run preview -- --host 127.0.0.1 --port 4173
 2. 在 `docs/wiki` 下执行 `npm run preview` 检查中英文首页、nav/sidebar、搜索和新增页面。
 3. 确认 production 产物不包含 `dev/elements-demo` 与 `zh/dev/elements-demo`。
 4. 若改动了 nav/sidebar，同时检查英文根路径和中文 `/zh/` 路径。
+5. 发布后检查后台 `/`、`/wiki`、`/zh/` 和至少一个静态资源路径。
 
 ---
 

@@ -112,7 +112,7 @@ jugg tap --x-percent 50 --y-percent 90
 - 对文本重复的按钮，优先加 `resource-id` 或 `class-name`。
 - 点击后用 `layout-dump`、`activity-stack` 或 `wait-logs` 验证结果。
 - 不要把隐藏节点当成点击目标；隐藏节点可用于属性检查，但不适合触控。
-- 所有 bounds / padding 坐标以 dp 表示，和截图像素不一定一一对应。
+- 所有 bounds / padding 坐标以 dp 表示，截图像素以 px 表示，两者需要按 density 换算。
 
 ## 常见问题
 

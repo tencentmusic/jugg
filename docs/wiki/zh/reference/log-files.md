@@ -9,6 +9,8 @@ tags:
 
 # 日志文件
 
+本页用于在排查或反馈问题时快速定位日志和 artifact。它只列路径、格式和关键词；具体问题的判断步骤见 [问题排查](../troubleshooting/)。
+
 Jugg 的主日志位于项目目录下的 `build/jugg/log/`。排查编译、部署、Debug、MCP 和运行时问题时，通常先看 `compile_latest.log`。
 
 ## 日志路径
@@ -67,7 +69,7 @@ Jugg 的主日志位于项目目录下的 `build/jugg/log/`。排查编译、部
 | `allLogsPath` | 全量原始日志落盘路径。 |
 | `truncated` | 返回日志是否被截断。 |
 
-`layout-dump`、`activity-stack` 等工具也可能在 `artifacts` 或 `data` 中返回文件路径，通常位于 `build/jugg/mcp_fetch/`。
+`layout-dump`、`activity-stack` 等工具返回文件路径时，会放在 `artifacts` 或 `data` 中，路径位于 `build/jugg/mcp_fetch/`。
 
 ## 排查建议
 

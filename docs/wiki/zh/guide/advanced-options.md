@@ -1,6 +1,6 @@
 ---
 title: 高级选项
-description: 说明 Jugg Run Configuration 的 More Options 菜单中各项开关和工具入口的作用。
+description: 说明 More Options 中日常场景不常用的体验开关、工具入口和测试排查入口。
 status: active
 tags:
   - guide
@@ -9,17 +9,15 @@ tags:
 
 # 高级选项
 
-Jugg Run Configuration 里的 More Options 会把运行行为、工具入口和少量内部调试入口放在一起。日常只建议在明确需要改变运行策略时调整这些选项；不确定时保持默认。
+More Options 里有一些低频开关和工具入口。本页只保留日常场景不常用的选项；常用动作放在对应的场景页。
 
 ## Run Options
 
 | 选项 | 作用 |
 |---|---|
-| Confirm fallback when no file changes | 没有检测到文件变化、但本轮需要回退 Gradle 时先弹窗确认；关闭后会直接回退 Gradle。 |
+| Confirm fallback when no file changes | 没有检测到文件变化、但本轮需要降级 Gradle 时先弹窗确认；关闭后会直接降级。 |
 | Always restart app after deployment | 每次部署完成后都重启 App，适合修改启动逻辑、单例缓存、static / companion / Kotlin 顶层声明后保持结果可预期。 |
 | Auto fallback to gradle when deploy error | 部署失败且错误可回退时，自动改走 Gradle 构建和安装。 |
-| Embedded to APK(for Android RemoteViews) | 将增量变更嵌入 APK，让 Android RemoteViews 等依赖 APK 内容的场景也能拿到更新；开启后部署会更慢。 |
-| Force use compat deploy for `<device>` | 对指定已连接设备强制使用兼容部署路径，并触发下一次重新安装；适合设备 JVMTI / Apply Changes 兼容性异常。 |
 
 ## Tools
 
@@ -50,5 +48,6 @@ Jugg Run Configuration 里的 More Options 会把运行行为、工具入口和�
 ## 相关页面
 
 - [运行 App](./run.md)
-- [部署结果说明](./deploy.md)
+- [重启 App](./restart-app.md)
+- [降级 Gradle 编译](./downgrade-gradle.md)
 - [CLI](./cli.md)

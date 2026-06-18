@@ -1,6 +1,6 @@
 ---
 title: 增量编译
-description: 说明 Jugg 如何基于 Gradle 基线产物检测变化文件，并按源码、资源、Manifest、DataBinding、依赖库等类型生成局部部署产物。
+description: 解释 Jugg 如何基于 Gradle 基线产物检测变化文件，并按源码、资源、Manifest、DataBinding、依赖库等类型生成局部部署产物。
 status: active
 tags:
   - concept
@@ -47,7 +47,7 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
 
 ## 文件变化来源
 
-Jugg 同时使用三种变化来源，互相补齐覆盖面：
+Jugg 同时使用三种变化来源，彼此补齐覆盖面：
 
 - IDE 文件事件覆盖工程打开期间的实时修改。
 - Git 补检覆盖工程关闭期间的修改、切分支、回滚和多仓库联调。
@@ -63,7 +63,7 @@ Jugg 把这些信息合并成一份项目快照，并在 `build/jugg` 下维护�
 
 ## 阶段顺序
 
-一轮增量编译按固定的阶段语义推进，前一阶段的产物可能成为后一阶段的输入：
+一轮增量编译按固定阶段推进，前一阶段的产物可能成为后一阶段的输入：
 
 ```text
 assets / native lib
@@ -75,7 +75,7 @@ assets / native lib
 
 ## 何时回到 Gradle
 
-以下情况通常需要 Gradle 回退：
+以下情况通常要回到 Gradle：
 
 - 首次运行，没有可复用的 APK、class、资源表和中间产物。
 - 用户强制 Gradle 编译。

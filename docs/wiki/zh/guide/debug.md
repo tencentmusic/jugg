@@ -11,15 +11,15 @@ tags:
 
 Jugg Debug 用于替代“先 Jugg Run，再手动 Attach debugger”的流程。点击 Debug 后，Jugg 会复用普通编译和部署链路，部署成功后以 debug 模式重启 App，并请求 Android Studio 原生 Java debugger attach。
 
-## 适用场景
+## 使用场景
 
-适合：
+Jugg Debug 适合：
 
 - 你希望修改代码后直接进入断点调试。
 - App 启动很快，手动点击 Attach 容易错过时机。
 - 不想手动打开开发者选项里的 waiting debugger。
 
-不适合：
+当前边界：
 
 - 多设备同时 Debug。
 - androidTest Debug。

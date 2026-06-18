@@ -1,6 +1,6 @@
 ---
 title: 布局 dump 与 UI 证据
-description: 说明 layout-dump 为什么不用截图、也不是公开 layout-verify，而是通过 App 内 ViewHierarchy 通道导出视图树形成 UI 证据，以及它的边界。
+description: 解释 layout-dump 为什么不用截图、也不是公开 layout-verify，而是通过 App 内 ViewHierarchy 通道导出视图树形成 UI 证据。
 status: active
 tags:
   - concept
@@ -14,7 +14,7 @@ tags:
 
 ## 截图与批量断言都不足以支撑 UI 证据
 
-Agent 要判断 UI 是否正确，最直接的想法是截图。但截图只是像素，无法回答“这个元素存不存在、它的 bounds 和间距是多少、某个属性是什么值”这类结构问题，也不能作为可搜索、可复算的证据。另一个想法是提供一个一次性吃下大量断言的批量校验工具，但这类工具把判定逻辑藏在内部、口径不透明，结果难以解释，也容易给出看似通过实则没采到证据的结论。
+Agent 要判断 UI 是否正确，最直接的想法是截图。但截图只是像素，无法回答“这个元素存不存在、它的 bounds 和间距是多少、某个属性是什么值”这类结构问题，也不能作为可搜索、可复算的证据。批量校验工具也有类似问题：它把判定逻辑藏在内部，口径不透明，结果难以解释；采证不足时，表面的通过结果没有排查价值。
 
 ## 从 App 内视图树导出结构化证据
 
@@ -40,7 +40,7 @@ tap           -> 需要交互时执行触控
 
 ### App 内视图树通道
 
-这条链路依赖运行中 App 内的视图树服务。IDE 侧通过 `adb forward` 连到 App 内的 LocalSocket，发送导出请求，App 侧返回视图树数据（可能直接返回内容，也可能返回远端文件路径再由 Jugg 拉回本地）。`view-locate`、`view-inspect`、`tap` 都复用这同一条通道，因此它们看到的是同一棵实时视图树。
+这条链路依赖运行中 App 内的视图树服务。IDE 侧通过 `adb forward` 连到 App 内的 LocalSocket，发送导出请求；App 侧直接返回视图树内容，或返回远端文件路径再由 Jugg 拉回本地。`view-locate`、`view-inspect`、`tap` 都复用这同一条通道，因此它们看到的是同一棵实时视图树。
 
 ### 当前公开的 UI 工具
 
@@ -63,7 +63,7 @@ App 侧返回的布局数据带有 density。Jugg 会按 density 把节点的 `b
 dp = px / density
 ```
 
-换算会递归处理普通子节点与 Compose 节点，`view-locate` 返回的 bounds 也按 dp 口径。间距与对齐可以由 Agent 基于这些 dp bounds 直接计算，例如相邻元素的水平/垂直间距、中心点坐标。
+换算会递归处理普通子节点与 Compose 节点，`view-locate` 返回的 bounds 也按 dp 口径。Agent 可以基于这些 dp bounds 直接计算间距与对齐，例如相邻元素的水平/垂直间距、中心点坐标。
 
 ## 取证链路的前提与约束
 

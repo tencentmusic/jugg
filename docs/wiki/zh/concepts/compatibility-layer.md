@@ -1,6 +1,6 @@
 ---
 title: 兼容层
-description: 说明 Android Studio 部署能力为什么不是稳定边界，Jugg 如何用自有抽象、按版本选择实现和显式分发隔离这些差异，以及兜底的边界。
+description: 解释 Android Studio 部署能力为什么不是稳定边界，Jugg 如何用自有抽象、按版本实现和显式分发隔离这些差异。
 status: active
 tags:
   - concept
@@ -13,7 +13,7 @@ Jugg 是 IDE 插件，既依赖 IntelliJ 平台接口，也要复用 Android Stu
 
 ## 部署能力不是稳定的公开边界
 
-Jugg 需要复用 Android Studio 的安装、Apply Changes、overlay swap 和 Java debugger attach 能力。但这些能力对插件来说并不是有稳定契约的公开 API，它们在不同 Android Studio 版本之间会发生形态漂移：
+Jugg 需要复用 Android Studio 的安装、Apply Changes、overlay swap 和 Java debugger attach 能力。但这些能力对插件来说不是有稳定契约的公开 API，不同 Android Studio 版本之间会变：
 
 - 部署运行时的类型可能迁移包名。
 - 安装方式、安装器、相关 UI 服务等对象可能更换构造方式。
@@ -21,7 +21,7 @@ Jugg 需要复用 Android Studio 的安装、Apply Changes、overlay swap 和 Ja
 - debugger attach 入口可能迁移。
 - 新版 IDE 可能直接移除旧的部署运行时。
 
-如果主流程直接 import 这些内部类型，问题不会停在“某个功能不可用”。JVM 在类加载阶段就会解析被引用的类型，一旦升级后的 Android Studio 删除或改名了旧类型，插件可能在项目打开阶段就抛出 `NoClassDefFoundError` 或 `NoSuchMethodError`，业务还没开始就初始化失败。
+主流程直接 import 这些内部类型时，问题不会停在“某个功能不可用”。JVM 在类加载阶段就会解析被引用的类型；升级后的 Android Studio 删除或改名旧类型后，插件会在项目打开阶段抛出 `NoClassDefFoundError` 或 `NoSuchMethodError`，业务还没开始就初始化失败。
 
 ## 主流程只面对 Jugg 自有抽象
 
@@ -34,7 +34,7 @@ Jugg 部署主流程
   -> Android Studio 部署运行时
 ```
 
-这套抽象由几个关键设计支撑：
+这套抽象靠几项设计支撑：
 
 - **按版本选择实现**：门面在初始化时读取当前 Android Studio 版本，选定优先实现；真正调用某个兼容能力时再分发到具体版本实现。
 - **显式分发而非通用 Proxy**：兼容门面不使用会在启动期反射解析接口全部方法签名的通用动态代理。否则一旦某个版本已移除旧部署类型，启动期的方法签名解析就会先于业务兜底直接终止插件初始化。改用显式分发后，只有在实际调用某个方法时才接触对应版本类型，并在那一刻捕获 API 形态差异错误。
@@ -56,7 +56,7 @@ Quail 是一个典型边界：它不再携带旧的部署运行时，部署 API 
 
 ## 兜底只覆盖 API 形态差异
 
-这套兼容设计有明确的作用范围：
+兼容设计有明确的作用范围：
 
 - 兼容兜底只处理 Android Studio 的 API 形态差异。安装失败、设备离线、payload 不合法这类业务错误不会被吞掉，否则用户会被引向错误的恢复路径；业务失败仍走部署重试、状态恢复或 Gradle 回退。
 - 主流程不直接引用 Android Studio 的部署运行时类型；新版本出现差异时，应新增或调整对应版本实现，而不是把版本分支写进部署编排层。

@@ -1,6 +1,6 @@
 ---
 title: 编译能力
-description: 汇总 Jugg 编译相关能力，帮助判断哪些修改可增量处理、哪些场景会回退 Gradle。
+description: 汇总 Jugg 编译相关能力，用于判断哪些修改可增量处理、哪些场景会回退 Gradle。
 status: active
 tags:
   - capability

@@ -26,7 +26,7 @@ Jugg MCP 是插件暴露给 Agent 的本地 JSON-RPC 服务。它与 CLI 使用�
 
 同时打开多个 Android Studio 时，端口会在范围内递增。客户端应先发现端口或使用 CLI 的端口发现能力。
 
-## 基本调用模型
+## 调用模型
 
 MCP 工具返回的业务结果位于 `structuredContent`：
 
@@ -75,20 +75,20 @@ CLI 已经内置轮询。如果直接使用 MCP，需要自己轮询 `get-compil
 相对直接配置 MCP，CLI 的优势是：
 
 - CLI 与 skill 打包在一起，Agent 更容易获得正确使用说明。
-- CLI 能组合命令、脚本和管道，MCP 调用更笨重。
+- CLI 能组合命令、脚本和管道，更适合终端与 Agent 的连续操作。
 - CLI 内置异步轮询和 heartbeat，减少 Agent 自己轮询消耗。
 - CLI 输出模式可选，适合人工、Agent 和脚本。
-- 同时存在 CLI 和 MCP 时，Agent 可能随机选择工具，反而降低稳定性。
+- 同时暴露 CLI 和 MCP 时，应在 Agent 说明中固定首选入口，避免同一任务混用两套调用方式。
 
 ## 什么时候直接使用 MCP
 
-适合：
+MCP 适合：
 
 - 你的平台只能配置 MCP server。
 - 需要统一从 MCP client 管理所有工具。
 - 需要直接读取 MCP `tools/list` schema。
 
-不适合：
+其它场景通常优先使用 CLI：
 
 - 普通终端使用。
 - 让 Agent 在代码修改后做编译验证。

@@ -9,7 +9,7 @@ tags:
 
 # 部署结果说明
 
-Jugg 部署发生在 Run 的编译阶段成功之后。你通常不需要先手动编译、再手动部署；先看 [运行 App](./run.md)。本页用于解释 Run 结束后看到的 Hot Reload、Hot Fix、安装、恢复状态、重装和多设备结果。
+Jugg 部署发生在 Run 的编译阶段成功之后。日常使用先看 [运行 App](./run.md)，不需要先手动编译、再手动部署。本页用于解释 Run 结束后看到的 Hot Reload、Hot Fix、安装、恢复状态、重装和多设备结果。
 
 ## 什么时候需要看本页
 
@@ -27,32 +27,35 @@ Jugg 部署发生在 Run 的编译阶段成功之后。你通常不需要先手�
 | Install | 安装 APK 并启动 App | 首次运行、Gradle 构建后、部署状态需要重建 |
 | Hot Reload | 不重启 App 或只重建 Activity | 方法体等小范围代码变化、资源/asset 变化 |
 | Hot Fix | 重启 App 后生效 | 类结构变化、静态初始化相关变化、兼容部署 |
-| Compat Hot Fix | 使用经典热修复路径，通常会重启 | Android 11 以下设备或部分 Apply Changes 兼容问题 |
+| Compat Hot Fix | 使用经典热修复路径并重启 | 用户开启兼容部署，或 Jugg 检测到当前设备需要兼容路径 |
 | Clean Reinstall | 清数据并重装 APK | 你明确需要清理 App 数据、测试安装或恢复基线 |
 
 > [!NOTE]
-> Hot Reload 不等于所有代码都会重新执行。修改启动逻辑、单例初始化、static / companion / Kotlin 顶层声明后，如果 App 没有重启，旧进程中的已初始化状态可能仍然存在。
+> Hot Reload 不等于所有代码都会重新执行。修改启动逻辑、单例初始化、static / companion / Kotlin 顶层声明后，未重启的 App 会继续保留旧进程里的已初始化状态。
 
 ## 什么时候会重启 App
 
-通常情况下：
+按变化类型判断：
 
-- 修改 `res` 或 `assets`，不一定需要重启 App。
-- 只改方法体，类、方法、字段签名不变时，通常可以 Hot Reload。
-- 修改类结构、字段、方法签名、继承关系或需要推送完整 overlay 时，通常会 Hot Fix 并重启。
-- 开启兼容模式后，会走经典热修复路径，基本每轮都需要重启。
-- Jugg Debug 会强制以 debug 模式重启 App，确保进程等待 debugger attach。
+- 修改 `res` 或 `assets`，优先走 overlay 生效。
+- 只改方法体，类、方法、字段签名不变时，优先 Hot Reload。
+- 修改类结构、字段、方法签名、继承关系或需要推送完整 overlay 时，走 Hot Fix 并重启。
+- 开启兼容模式后，走经典热修复路径并重启。
+- Jugg Debug 会强制以 debug 模式重启 App，让进程等待 debugger attach。
 
 如果你修改的是只在进程启动时执行一次的逻辑，即使本轮提示 Hot Reload，也建议点击 Restart 或用 `jugg restart`。
 
 ## 兼容模式
 
-兼容模式用于绕开部分设备或系统对 Android Studio Apply Changes / JVMTI 的兼容问题。典型场景包括：
+兼容模式会让指定设备改走经典热修复路径，不再优先依赖在线热重载。它主要用于处理当前设备在普通部署路径上反复失败的情况。
 
-- Android 8/9/10 设备默认不依赖 Apply Changes 的在线部署能力。
-- 部分 Android 11 设备部署资源后可能出现 AssetManager native crash。
-- 小米 HyperOS、鸿蒙或厂商定制系统出现 JVMTI / classloader 兼容问题。
-- App 自身实现了资源或类加载 hook，与 Apply Changes 产生冲突。
+常见触发信号包括：
+
+- Jugg 明确提示需要 `fallback to compat deploy`。
+- `agent no response`、`deploy timeout` 等失败在重试后仍不能恢复。
+- 同一工程只在某台设备上反复部署失败。
+- 部署资源后，App 反复出现资源读取异常、`AssetManager` 相关崩溃或启动失败。
+- App 自身有资源加载、类加载或热修复 hook，普通热重载后结果不符合预期。
 
 连接设备后，可以在 More Options 中为指定设备开启兼容部署。该设置会按设备持久化，跨工程生效。
 
@@ -67,7 +70,7 @@ Jugg 部署发生在 Run 的编译阶段成功之后。你通常不需要先手�
 
 ## 多设备部署
 
-多设备部署会逐台执行。最终结果中只要有任一设备失败，本轮就会显示失败；如果失败可回退且自动回退开启，Jugg 可能把整轮 Run 回退到 Gradle，而不是只重跑失败设备。
+多设备部署会逐台执行。最终结果中只要有任一设备失败，本轮就会显示失败；当失败允许回退且自动回退开启时，Jugg 会把整轮 Run 回退到 Gradle，而不是只重跑失败设备。
 
 Debug attach 当前只支持单设备。如果要使用 Jugg Debug，请只选择一个目标设备。
 
@@ -77,7 +80,7 @@ Debug attach 当前只支持单设备。如果要使用 Jugg Debug，请只选�
 |---|---|
 | 提示 App 未启动或不可 debug | 确认 App 是 debug 包，ADB 没被其它 Android Studio 占用 |
 | 提示恢复部署状态失败 | 尝试重新运行；仍失败时执行 Clean Reinstall |
-| `MISSING_AGENT_RESPONSE` 或 deploy timeout | 优先考虑设备 JVMTI / Apply Changes 兼容问题，尝试兼容模式 |
+| `MISSING_AGENT_RESPONSE` 或 deploy timeout | 先看本轮是否已经重试；同一设备反复出现时，再尝试兼容模式 |
 | 修改后没检测到文件变化 | 取消后重新运行，必要时 Sync 一次 |
 | 部署后代码没生效 | 重启 App 或主动 Gradle 构建对照 |
 

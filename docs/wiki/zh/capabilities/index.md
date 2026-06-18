@@ -1,6 +1,6 @@
 ---
 title: Jugg 能力概览
-description: 按编译、部署、测试和工具入口汇总 Jugg 当前支持范围，帮助用户快速判断应查看哪类能力页。
+description: 按编译、部署、测试和工具入口汇总 Jugg 当前支持范围，用于判断应查看哪类能力页。
 status: active
 tags:
   - capability

@@ -10,7 +10,7 @@ tags:
 
 # Library Android Test
 
-Jugg 支持运行 library 模块的 self-targeting Android Test。此类测试有自己的 Test APK 和 runtime package，Jugg 会在 sourcePath 命中目标 library androidTest 后，确保本轮部署和 instrumentation 使用正确的 Test APK。
+Jugg 支持运行 library 模块的 self-targeting Android Test。此类测试有自己的 Test APK 和 runtime package，Jugg 会在 sourcePath 命中目标 library androidTest 后，让本轮部署和 instrumentation 使用对应的 Test APK。
 
 ## Library 测试场景
 

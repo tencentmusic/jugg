@@ -40,10 +40,10 @@ tap failed. Reason: Unable to resolve package name for ViewHierarchy server.
 
 处理方式：
 
-- `Unsupported action`：只使用 `tap`、`long-press` 或 `swipe`。
-- `swipe action does not support element mode`：滑动使用坐标或百分比，不使用元素 selector。
-- `No matching UI element found`：放宽或修正 `text`、`resourceId`、`contentDesc`。
-- `<n> elements matched`：增加 selector 条件，让目标唯一。
+- **`Unsupported action`**：只使用 `tap`、`long-press` 或 `swipe`。
+- **`swipe action does not support element mode`**：滑动使用坐标或百分比，不使用元素 selector。
+- **`No matching UI element found`**：放宽或修正 `text`、`resourceId`、`contentDesc`。
+- **`<n> elements matched`**：增加 selector 条件，让目标唯一。
 - 屏幕尺寸或 packageName 解析失败时，先确认设备在线和运行配置可解析包名。
 
 ## view-inspect / ui-find
