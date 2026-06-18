@@ -1,0 +1,376 @@
+:root {
+  --vp-font-family-base: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --vp-font-family-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --vp-c-brand-1: #3574f0;
+  --vp-c-brand-2: #2f65d4;
+  --vp-c-brand-3: #548af7;
+  --vp-c-brand-soft: rgba(53, 116, 240, 0.12);
+
+  --vp-c-bg: #f4f5f7;
+  --vp-c-bg-alt: #eceef2;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: #f0f2f5;
+  --vp-c-text-1: #1f2328;
+  --vp-c-text-2: #59616d;
+  --vp-c-text-3: #7a828e;
+  --vp-c-divider: rgba(32, 36, 42, 0.13);
+  --vp-c-gutter: rgba(32, 36, 42, 0.1);
+
+  --vp-code-block-bg: #2b2d30;
+  --vp-code-line-highlight-color: rgba(53, 116, 240, 0.16);
+  --vp-code-copy-code-bg: rgba(255, 255, 255, 0.08);
+  --vp-code-copy-code-hover-bg: rgba(255, 255, 255, 0.14);
+
+  --jugg-run: #3574f0;
+  --jugg-apply: #2ebd85;
+  --jugg-icon: #d1d0d0;
+  --jugg-panel: #ffffff;
+  --jugg-panel-soft: #f7f8fa;
+  --jugg-panel-border: rgba(32, 36, 42, 0.12);
+  --jugg-tool-window: #f8f9fb;
+}
+
+.dark {
+  --vp-c-brand-1: #6aa1ff;
+  --vp-c-brand-2: #4d86ea;
+  --vp-c-brand-3: #8bb7ff;
+  --vp-c-brand-soft: rgba(106, 161, 255, 0.14);
+
+  --vp-c-bg: #1e1f22;
+  --vp-c-bg-alt: #25262b;
+  --vp-c-bg-elv: #2b2d30;
+  --vp-c-bg-soft: #25272c;
+  --vp-c-text-1: #f2f3f5;
+  --vp-c-text-2: #c3c7cf;
+  --vp-c-text-3: #8f96a3;
+  --vp-c-divider: rgba(209, 208, 208, 0.14);
+  --vp-c-gutter: rgba(209, 208, 208, 0.1);
+
+  --vp-code-block-bg: #2b2d30;
+  --jugg-run: #6aa1ff;
+  --jugg-apply: #55cfa1;
+  --jugg-icon: #d1d0d0;
+  --jugg-panel: #2b2d30;
+  --jugg-panel-soft: #25272c;
+  --jugg-panel-border: rgba(209, 208, 208, 0.12);
+  --jugg-tool-window: #232428;
+}
+
+body {
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg);
+  letter-spacing: 0;
+}
+
+.VPNavBar .content-body {
+  border-bottom: 1px solid var(--vp-c-divider);
+  background: color-mix(in srgb, var(--vp-c-bg) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.VPNavBarTitle .title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.VPNavBarTitle .title::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.04)),
+    url("/assets/run_configuration.svg") center / 19px 19px no-repeat,
+    var(--vp-c-bg-elv);
+  box-shadow: inset 0 0 0 1px var(--jugg-panel-border);
+}
+
+.VPNavBarTitle .title span {
+  font-weight: 760;
+}
+
+.VPNavBarMenuLink {
+  position: relative;
+  padding: 0 12px;
+  color: var(--vp-c-text-2);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.VPNavBarMenu .VPNavBarMenuLink {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.VPNavBarMenuLink::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  bottom: 0;
+  left: 12px;
+  height: 2px;
+  border-radius: 999px 999px 0 0;
+  background: transparent;
+}
+
+.VPNavBarMenuLink:hover,
+.VPNavBarMenuLink.active {
+  color: var(--jugg-run);
+}
+
+.VPNavBarMenuLink:hover::after {
+  background: color-mix(in srgb, var(--jugg-run) 42%, transparent);
+}
+
+.VPNavBarMenuLink.active::after {
+  background: var(--jugg-run);
+}
+
+.DocSearch-Button {
+  border: 1px solid var(--jugg-panel-border) !important;
+  border-radius: 6px !important;
+  background: var(--jugg-panel) !important;
+  box-shadow: none !important;
+}
+
+.DocSearch-Button:hover {
+  border-color: color-mix(in srgb, var(--jugg-run) 42%, var(--jugg-panel-border)) !important;
+}
+
+.VPSidebar {
+  border-right: 1px solid var(--vp-c-divider);
+  background: var(--jugg-tool-window);
+}
+
+.VPSidebarItem.level-0 > .item .text {
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.VPSidebarItem.level-1 > .item .text,
+.VPSidebarItem.level-2 > .item .text,
+.VPSidebarItem.level-3 > .item .text {
+  font-size: 14px;
+}
+
+.VPSidebarItem .item {
+  border-radius: 0;
+}
+
+.VPSidebarItem .item:hover {
+  background: transparent;
+}
+
+.VPSidebarItem .item:hover .text {
+  color: var(--jugg-run);
+}
+
+.VPSidebarItem.is-active > .item .link > .text {
+  color: var(--jugg-run);
+  font-weight: 720;
+}
+
+.VPSidebarItem.is-active > .item .indicator {
+  background: var(--jugg-run);
+}
+
+.VPDoc.has-aside .content-container {
+  max-width: 760px;
+}
+
+.vp-doc {
+  letter-spacing: 0;
+}
+
+.vp-doc h1 {
+  position: relative;
+  margin-bottom: 26px;
+  max-width: 860px;
+  color: var(--vp-c-text-1);
+  font-size: clamp(1.72rem, 2.7vw, 2.06rem);
+  line-height: 1.2;
+  font-weight: 740;
+  letter-spacing: 0;
+}
+
+.vp-doc h1::after {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 2px;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: var(--jugg-run);
+}
+
+.vp-doc h2 {
+  margin-top: 44px;
+  border-top: 1px solid var(--vp-c-divider);
+  padding-top: 24px;
+  color: var(--vp-c-text-1);
+  font-size: 1.32rem;
+  line-height: 1.36;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.vp-doc h3 {
+  color: var(--vp-c-text-1);
+  font-size: 1.08rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.vp-doc p,
+.vp-doc li {
+  color: var(--vp-c-text-2);
+  font-size: 15.5px;
+  line-height: 1.86;
+}
+
+.vp-doc > div > p:first-of-type,
+.vp-doc h1 + p {
+  color: var(--vp-c-text-1);
+  font-size: 16px;
+  line-height: 1.84;
+}
+
+.vp-doc a {
+  color: var(--jugg-run);
+  text-underline-offset: 3px;
+}
+
+.vp-doc strong {
+  color: var(--vp-c-text-1);
+  font-weight: 720;
+}
+
+.vp-doc code {
+  border: 1px solid color-mix(in srgb, var(--jugg-run) 18%, var(--jugg-panel-border));
+  border-radius: 4px;
+  padding: 0.12em 0.38em;
+  color: color-mix(in srgb, var(--jugg-run) 70%, var(--vp-c-text-1));
+  background: color-mix(in srgb, var(--vp-c-brand-soft) 44%, transparent);
+  font-size: 0.9em;
+}
+
+.vp-doc div[class*="language-"] {
+  overflow: hidden;
+  border: 1px solid var(--jugg-panel-border);
+  border-radius: 6px;
+  background: var(--vp-code-block-bg);
+  box-shadow: none;
+}
+
+.vp-doc div[class*="language-"]::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 13px;
+  width: 32px;
+  height: 7px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, var(--jugg-icon) 0 22%, transparent 22% 38%, var(--jugg-run) 38% 60%, transparent 60% 76%, var(--jugg-apply) 76%);
+  opacity: 0.42;
+}
+
+.vp-doc div[class*="language-"] > span.lang {
+  top: 8px;
+  right: 12px;
+  color: var(--vp-c-text-3);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.vp-doc div[class*="language-"] pre {
+  padding-top: 38px;
+  background: transparent !important;
+}
+
+.vp-doc div[class*="language-"] code {
+  background: transparent;
+}
+
+.vp-doc table {
+  display: table;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--jugg-panel-border);
+  border-radius: 6px;
+  background: var(--jugg-panel);
+}
+
+.vp-doc tr {
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.vp-doc tr:nth-child(2n) {
+  background: color-mix(in srgb, var(--jugg-panel-soft) 72%, transparent);
+}
+
+.vp-doc th {
+  color: var(--vp-c-text-1);
+  font-size: 12.5px;
+  font-weight: 720;
+  background: var(--jugg-panel-soft);
+}
+
+.vp-doc td {
+  color: var(--vp-c-text-2);
+}
+
+.vp-doc blockquote {
+  border-left: 3px solid var(--jugg-run);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--vp-c-brand-soft) 52%, transparent);
+}
+
+.VPDocAsideOutline .outline-title {
+  color: var(--vp-c-text-1);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.VPDocOutlineItem .outline-link {
+  line-height: 1.65;
+}
+
+@media (max-width: 960px) {
+  .VPDoc.has-aside .content-container {
+    max-width: 100%;
+  }
+
+  .vp-doc h1 {
+    font-size: 1.72rem;
+  }
+
+  .vp-doc h2 {
+    margin-top: 40px;
+  }
+
+  .vp-doc table {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .DocSearch-Button,
+  .VPSidebarItem .item,
+  .vp-doc div[class*="language-"],
+  .vp-doc table {
+    transition: border-color 160ms ease, background-color 160ms ease;
+  }
+
+  .vp-doc div[class*="language-"]:hover,
+  .vp-doc table:hover {
+    border-color: color-mix(in srgb, var(--jugg-run) 38%, var(--jugg-panel-border));
+  }
+}
