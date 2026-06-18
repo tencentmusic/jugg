@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
@@ -74,10 +75,15 @@ class CompileEffectAnalyzer(
 
         val startTime = System.currentTimeMillis()
         val effectedSourceFiles = getEffectedSourceFiles(obfuscatedClasses.sources, moduleInfos)
+        val topLevelFacadeEffectedSourcePaths = getTopLevelFacadeEffectedSourcePaths(
+            compiledFiles = compiledFiles,
+            effectedClassNodes = obfuscatedClasses,
+        )
         val recompileFiles = RecompileFiles(
             (effectedSourceFiles + constRefEffectedSourceFiles).distinctBy { it.stdAbsPath },
             emptyList(),
             juggDeployData,
+            topLevelFacadeEffectedSourcePaths,
         )
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("find recompile files cost: $costTime ms")
@@ -178,6 +184,51 @@ class CompileEffectAnalyzer(
             logger.warn("getEffectedSourceFiles: missing source files: $missingFiles")
         }
         return sourceFiles
+    }
+
+    /**
+     * Finds source files that need one more compile because Kotlin may resolve old top-level file facade
+     * signatures from `.kotlin_module` before using the changed source declaration.
+     */
+    private fun getTopLevelFacadeEffectedSourcePaths(
+        compiledFiles: List<ChangedFile>,
+        effectedClassNodes: List<EffectedClassNode>,
+    ): Set<String> {
+        val sourceEffectNodes = effectedClassNodes.sources
+        if (sourceEffectNodes.isEmpty()) {
+            return emptySet()
+        }
+        val extensionClassesByClassPath = mutableMapOf<String, Set<String>>()
+        return compiledFiles
+            .asSequence()
+            .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
+            .filter { changedFile ->
+                val matchedNodes = sourceEffectNodes.filter { it.sourceFileName == changedFile.file.name }
+                if (matchedNodes.isEmpty()) {
+                    return@filter false
+                }
+                val kotlinClassPath = changedFile.module.buildPathInfo.kotlinClassPath
+                val extensionClasses = extensionClassesByClassPath.getOrPut(kotlinClassPath.absolutePath) {
+                    val kmModuleMerger = KmModuleMergerForCompilation(kotlinClassPath)
+                    kmModuleMerger.loadAndMerge()
+                    kmModuleMerger.getExtensionClasses().toSet()
+                }
+                if (extensionClasses.isEmpty()) {
+                    return@filter false
+                }
+                val isEffectedByTopLevelFacade = matchedNodes.any { node ->
+                    node.effectedByClasses.any { extensionClasses.contains(it) }
+                }
+                if (isEffectedByTopLevelFacade) {
+                    logger.debug(
+                        "getRecompileFiles: ${changedFile.file.name} is effected by top level facade, " +
+                            "extensionClasses=$extensionClasses, effectNodes=$matchedNodes",
+                    )
+                }
+                isEffectedByTopLevelFacade
+            }
+            .map { it.file.absolutePath }
+            .toSet()
     }
 
     private fun List<EffectedClassNode>.fillMissingSourceFile(moduleInfos: Map<String, ModuleInfo>): List<EffectedClassNode> {
@@ -287,4 +338,5 @@ class RecompileFiles(
     val effectedSourceFiles: List<File>,
     val redexClasses: List<ChangedFile>,
     val juggDeployData: JuggDeployData,
+    val topLevelFacadeEffectedSourcePaths: Set<String> = emptySet(),
 )

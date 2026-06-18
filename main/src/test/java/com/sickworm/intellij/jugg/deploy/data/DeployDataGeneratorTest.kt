@@ -7,12 +7,15 @@ import com.sickworm.intellij.jugg.compiler.source.DexCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.deploy.classNameToPath
 import com.sickworm.intellij.jugg.deploy.classSigName
+import com.sickworm.intellij.jugg.deploy.CompileEffectAnalyzer
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -342,19 +345,24 @@ class DeployDataGeneratorTest {
         generator.init(projectInfo.apkInfos, emptyList())
 
         val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val topLevelFile = File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/TopLevelClass1.kt")
+        val invokeFile = File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/InvokeClass2.kt")
+        val sourceBaseDir = File(assetsAndroidDir, "app/src/main/java")
+        val moduleInfos = context.modules
+        val module = moduleInfos.getValue("app")
         val compileTask = CompileTask(
             files = listOf(
                 CompileFile(
                     CompileFile.Type.Kotlin,
-                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/TopLevelClass1.kt"),
+                    topLevelFile,
                     File(assetsAndroidModifySourceDir, "app/src/main/java"),
                     context.tempModule,
                     dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
                 ),
                 CompileFile(
                     CompileFile.Type.Kotlin,
-                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/InvokeClass2.kt"),
-                    File(assetsAndroidDir, "app/src/main/java"),
+                    invokeFile,
+                    sourceBaseDir,
                     context.tempModule,
                     dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
                 ),
@@ -368,6 +376,26 @@ class DeployDataGeneratorTest {
         val deployItems = compileResult.outputs.map { it.toDeployItem() }
         val deployData = generator.buildDeployData(deployItems)
         assertEquals(listOf("InvokeClass2.kt"), deployData.effectedSourceFileNames.sorted())
+
+        val sourceFileManager = SourceFileManager(assetsAndroidDir, buildDir, logger)
+        sourceFileManager.init(moduleInfos.values.flatMap { it.sourceDirs })
+        val recompileFiles = CompileEffectAnalyzer(
+            pathManager = JuggPathManager(assetsAndroidDir),
+            deployDataGenerator = generator,
+            sourceFileManager = sourceFileManager,
+            logger = logger,
+        ).getRecompileFiles(
+            stagingFiles = compileResult.outputs,
+            compiledFiles = listOf(
+                ChangedFile(CompileFile.Type.Kotlin, topLevelFile, File(assetsAndroidModifySourceDir, "app/src/main/java"), module),
+                ChangedFile(CompileFile.Type.Kotlin, invokeFile, sourceBaseDir, module),
+            ),
+            moduleInfos = moduleInfos,
+            isMinified = false,
+            isCompilingEffectedSourceFiles = false,
+            classObfuscator = null,
+        )
+        assertTrue(recompileFiles.topLevelFacadeEffectedSourcePaths.contains(invokeFile.absolutePath))
     }
 
     /**

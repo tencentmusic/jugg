@@ -124,6 +124,7 @@ class IncrementalCompilerHelper(
                 satisfiedEffectTriggers = compileLoopStatus.satisfiedEffectTriggers,
                 pendingEffectTriggerKeys = compileLoopStatus.pendingEffectTriggerKeys,
                 juggDeployData = juggDeployData,
+                topLevelFacadeEffectedSourcePaths = recompileFiles.topLevelFacadeEffectedSourcePaths,
             )
             TimeLogger.end("CheckEffectByTopLevelClass", logger)
 

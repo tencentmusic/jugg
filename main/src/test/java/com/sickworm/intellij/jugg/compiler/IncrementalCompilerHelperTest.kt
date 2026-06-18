@@ -179,7 +179,7 @@ class IncrementalCompilerHelperTest {
 
         val inOrder = Mockito.inOrder(compiler, deployFileManager)
         inOrder.verify(compiler).compile(any())
-        inOrder.verify(deployFileManager).awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
+        inOrder.verify(deployFileManager, Mockito.atLeastOnce()).awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
         inOrder.verify(deployFileManager).getRecompileFiles(false, false, null)
     }
 
@@ -650,6 +650,71 @@ class IncrementalCompilerHelperTest {
     }
 
     @Test
+    fun `should continue compile last round source when getRecompileFiles marks top level facade effect`() {
+        val tempDir = Files.createTempDirectory("inc_compile_helper_top_level_facade").toFile()
+        val callerFile = File(tempDir, "src/Caller.kt").apply {
+            parentFile.mkdirs()
+            writeText("class Caller\n")
+        }
+        val callerChanged = changedFile(callerFile, tempDir)
+        val deployData = deployDataWithSourceEffects(
+            listOf(
+                EffectedClassNode(
+                    className = "Lcom/example/Caller;",
+                    sourceFileName = "Caller.kt",
+                    effectedByClasses = listOf("Lcom/example/TopLevelClassKt;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+            ),
+        )
+        val successResult = { files: List<CompileFile> ->
+            CompileResult(
+                task = CompileTask(files, File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+                details = files.map { Result.success(it) },
+                outputs = emptyList(),
+            )
+        }
+        val compiler: JuggCompiler = mock()
+        val compileContext: ICompileContext = mock()
+        val pathManager: JuggPathManager = mock()
+        val deployStateManager: IDeployStateManager = mock()
+        val deployFileManager: DeployFileManager = mock()
+        val fileChangesHandler: IFileChangesHandler = mock()
+        val retryResolver: IIncrementalCompileRetryResolver = mock()
+        whenever(compiler.context).thenReturn(compileContext)
+        whenever(compileContext.mappingFile).thenReturn(null)
+        whenever(compileContext.isMinified).thenReturn(false)
+        whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
+        whenever(compiler.compile(any())).thenAnswer { invocation ->
+            successResult(invocation.getArgument<CompileTask>(0).files)
+        }
+        whenever(fileChangesHandler.filter(any())).thenAnswer { invocation ->
+            invocation.getArgument<List<File>>(0).map { file -> changedFile(file, tempDir) }
+        }
+        whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        doNothing().whenever(deployFileManager).updateUncompiledFiles(any(), any())
+        doNothing().whenever(deployFileManager).addStagingFiles(any())
+        doNothing().whenever(deployFileManager).awaitConstRefAnalysis(any())
+        whenever(deployFileManager.getRecompileFiles(any(), any(), isNull())).thenReturn(
+            RecompileFiles(
+                effectedSourceFiles = listOf(callerFile),
+                redexClasses = emptyList(),
+                juggDeployData = deployData,
+                topLevelFacadeEffectedSourcePaths = setOf(callerFile.absolutePath),
+            ),
+        )
+        val helper = buildHelper(compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, retryResolver)
+        val result = helper.compile(
+            undeployedFiles = listOf(callerChanged),
+            uiHandler = CompileUiHandler.DEFAULT,
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        assertTrue(result.isSuccess)
+        verify(compiler, Mockito.times(2)).compile(any())
+    }
+
+    @Test
     fun `should stop continue compile when effect trigger already satisfied`() {
         val tempDir = Files.createTempDirectory("inc_compile_effect_trigger_satisfied").toFile()
         val safeModeFile = File(tempDir, "src/SafeMode.kt").apply {
@@ -687,6 +752,33 @@ class IncrementalCompilerHelperTest {
             juggDeployData = deployData,
         )
         assertTrue(filtered.isEmpty())
+    }
+
+    @Test
+    fun `should recompile last round source when effected by top level facade`() {
+        val tempDir = Files.createTempDirectory("inc_compile_top_level_facade").toFile()
+        val callerFile = File(tempDir, "src/Caller.kt").apply {
+            parentFile.mkdirs()
+            writeText("class Caller\n")
+        }
+        val deployData = deployDataWithSourceEffects(
+            listOf(
+                EffectedClassNode(
+                    className = "Lcom/example/Caller;",
+                    sourceFileName = "Caller.kt",
+                    effectedByClasses = listOf("Lcom/example/TopLevelClassKt;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+            ),
+        )
+        val filtered = ContinueCompileEffectFilter.filterUncompiledEffectedFiles(
+            changedFiles = listOf(changedFile(callerFile, tempDir)),
+            lastRoundCompiledPaths = setOf(callerFile.absolutePath),
+            satisfiedEffectTriggers = emptySet(),
+            topLevelFacadeEffectedSourcePaths = setOf(callerFile.absolutePath),
+            juggDeployData = deployData,
+        )
+        assertEquals(listOf(callerFile.absolutePath), filtered.map { it.file.absolutePath })
     }
 
     @Test

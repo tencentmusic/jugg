@@ -25,12 +25,14 @@ internal object ContinueCompileEffectFilter {
         satisfiedEffectTriggers: MutableSet<String>,
         pendingEffectTriggerKeys: MutableMap<String, String>,
         juggDeployData: JuggDeployData,
+        topLevelFacadeEffectedSourcePaths: Set<String> = emptySet(),
     ): List<ChangedFile> {
         consumePendingEffectTriggers(justCompiledFiles, satisfiedEffectTriggers, pendingEffectTriggerKeys)
         return filterUncompiledEffectedFiles(
             changedFiles = changedFiles,
             lastRoundCompiledPaths = lastRoundCompiledPaths,
             satisfiedEffectTriggers = satisfiedEffectTriggers,
+            topLevelFacadeEffectedSourcePaths = topLevelFacadeEffectedSourcePaths,
             juggDeployData = juggDeployData,
             logSkips = true,
         )
@@ -54,12 +56,14 @@ internal object ContinueCompileEffectFilter {
         changedFiles: List<ChangedFile>,
         lastRoundCompiledPaths: Set<String>,
         satisfiedEffectTriggers: Set<String>,
+        topLevelFacadeEffectedSourcePaths: Set<String> = emptySet(),
         juggDeployData: JuggDeployData,
     ): List<ChangedFile> {
         return filterUncompiledEffectedFiles(
             changedFiles = changedFiles,
             lastRoundCompiledPaths = lastRoundCompiledPaths,
             satisfiedEffectTriggers = satisfiedEffectTriggers,
+            topLevelFacadeEffectedSourcePaths = topLevelFacadeEffectedSourcePaths,
             juggDeployData = juggDeployData,
             logSkips = false,
         )
@@ -101,24 +105,26 @@ internal object ContinueCompileEffectFilter {
         changedFiles: List<ChangedFile>,
         lastRoundCompiledPaths: Set<String>,
         satisfiedEffectTriggers: Set<String>,
+        topLevelFacadeEffectedSourcePaths: Set<String>,
         juggDeployData: JuggDeployData,
         logSkips: Boolean,
     ): List<ChangedFile> {
         val pending = mutableListOf<ChangedFile>()
         changedFiles.forEach { changedFile ->
             val path = changedFile.file.absolutePath
+            val triggerKey = resolveEffectTriggerKey(changedFile, juggDeployData)
             when {
-                lastRoundCompiledPaths.contains(path) -> {
-                    if (logSkips) {
-                        logger.debug(
-                            "CheckEffectByTopLevelClass ${changedFile.file.name} is in last round compiled set, skip",
-                        )
-                    }
-                }
-                satisfiedEffectTriggers.contains(resolveEffectTriggerKey(changedFile, juggDeployData)) -> {
+                satisfiedEffectTriggers.contains(triggerKey) -> {
                     if (logSkips) {
                         logger.debug(
                             "CheckEffectByTopLevelClass ${changedFile.file.name} effect trigger already satisfied, skip",
+                        )
+                    }
+                }
+                lastRoundCompiledPaths.contains(path) && !topLevelFacadeEffectedSourcePaths.contains(path) -> {
+                    if (logSkips) {
+                        logger.debug(
+                            "CheckEffectByTopLevelClass ${changedFile.file.name} is in last round compiled set, skip",
                         )
                     }
                 }

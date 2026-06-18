@@ -116,7 +116,7 @@ JuggCompiler.doCompile(task)
 - 首轮成功文件会通过 `DeployFileManager.updateUncompiledFiles()` 从待编译集合移除；后续影响传播轮不再更新这组状态，避免把派生重编译误当成用户原始变更。
 - 成功编译的文件会记录 `lastModified + length` 快照。迟到的 IDE 文件事件如果快照未变，会被忽略，避免已编译未部署文件重新回到未编译状态。
 - Git 补检有两层：失败时 resolver 可刷新 Git 发现漏掉的新文件并重试一次；成功后 `GitChangesCompileChecker` 只在出现新的待编译文件时再触发一轮。
-- 影响传播会排除本次已经编译过的文件，但 Kotlin top-level/extension 相关场景可能强制重编，入口在 `CheckEffectByTopLevelClass` 日志段。
+- 影响传播会排除上一轮已经编译过的文件，但 Kotlin top-level file facade 相关场景会例外：`getRecompileFiles()` 会读取 `.kotlin_module` 的 file facade 列表，若调用方 source 的 `effectedByClasses` 命中这些 facade，则通过 `topLevelFacadeEffectedSourcePaths` 标记允许再编译一次。
 - `BaseCompiler` 是所有子编译器的模板层，负责类型校验、模块/androidTest 分批、APK 分流和 custom compiler hook；单个子编译器内部顺序优先直接读对应实现。
 - `splitModuleAndCompile()` 会把 androidTest module 单独分批，且 androidTest 的 module 分组 key 包含 module root，避免同名测试模块被合并。
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
@@ -140,7 +140,7 @@ JuggCompiler.doCompile(task)
 - 当前 chain 顺序：
   1. `GitChangesRetryResolver`（`idea` 层）：检测 `unresolved reference / cannot find symbol` 类错误 → 触发 `GitFileChangesDetector.updateChangedFiles()` → 若发现新文件则重试一次。
   2. `IncrementalCompileRetryResolver`：检测依赖缺失关键词 → 更新 compile context → 有变化则重试一次。
-- 影响传播重编译：基于 `DeployFileManager.getRecompileFiles(...)`；`IncrementalCompilerHelper` continue compile 过滤两层：（1）排除**上一轮**已编译源文件（`lastRoundCompiledPaths`）；（2）排除本 session 内已按相同影响触发键跟编过的源文件（`ContinueCompileEffectFilter.resolveUncompiledEffectedFiles`：派发跟编前 `schedulePendingEffectTriggers` 写入 `pendingEffectTriggerKeys`，子帧在过滤前先消费 pending 写入 `satisfiedEffectTriggers`；键为 `effectedPath + effectedByClasses` 或 const-ref 批次）。更早轮次若出现**新的**触发方（如定义方 B 结构变化后首次要求重编调用方 A）仍会进入下一轮；同一 `CrashDataSource -> SafeMode` 键不会乒乓重复跟编。
+- 影响传播重编译：基于 `DeployFileManager.getRecompileFiles(...)`；`IncrementalCompilerHelper` continue compile 过滤两层：（1）排除**上一轮**已编译源文件（`lastRoundCompiledPaths`），但 `RecompileFiles.topLevelFacadeEffectedSourcePaths` 标记的 Kotlin top-level file facade 调用方可突破该过滤；（2）排除本 session 内已按相同影响触发键跟编过的源文件（`ContinueCompileEffectFilter.resolveUncompiledEffectedFiles`：派发跟编前 `schedulePendingEffectTriggers` 写入 `pendingEffectTriggerKeys`，子帧在过滤前先消费 pending 写入 `satisfiedEffectTriggers`；键为 `effectedPath + effectedByClasses` 或 const-ref 批次）。更早轮次若出现**新的**触发方（如定义方 B 结构变化后首次要求重编调用方 A）仍会进入下一轮；同一 `CrashDataSource -> SafeMode` 键不会乒乓重复跟编。
 - 编译成功后的 Git 补检（`GitChangesCompileChecker`）：仅当 Git 刷新后出现**新的待编译**文件（`!hasCompiledOnce`）才触发二次增量编译；已在当轮编译完成、仅因 undeployed 集合成员变化的文件（如 Kuikly 改写 `KuiklyCoreEntry.kt` 且快照未变）不触发。异步 Git 任务可能在 Kotlin 编译结束前完成，`getAsyncResultWithTimeout` 会按路径用当前 `DeployFileManager` 状态再校验一次，避免缓存的 `ChangedFile` 仍显示 `compiledTimes=0` 而误触发 `compile again`。
 
 ---
