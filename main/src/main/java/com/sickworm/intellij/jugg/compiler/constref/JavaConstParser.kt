@@ -267,6 +267,9 @@ class JavaConstParser(
         typeDeclaration.members
             .filterIsInstance<FieldDeclaration>()
             .forEach { fieldDeclaration ->
+                if (fieldDeclaration.isPrivate) {
+                    return@forEach
+                }
                 if (!fieldDeclaration.isFinal || (!fieldDeclaration.isStatic && !isInterfaceField(fieldDeclaration, typeDeclaration))) {
                     return@forEach
                 }

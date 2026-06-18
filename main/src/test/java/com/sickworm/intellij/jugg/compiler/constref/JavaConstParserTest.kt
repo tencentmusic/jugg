@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -33,6 +34,36 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
         assertTrue(definitions.any { it.fqClassName == "com.example.Constants" && it.constName == "MAX" })
         assertTrue(definitions.any { it.fqClassName == "com.example.Constants" && it.constName == "NAME" })
         assertTrue(definitions.any { it.fqClassName == "com.example.Constants.Inner" && it.constName == "FLAG" })
+    }
+
+    @Test
+    fun `should skip private java constant definitions`() {
+        val rootDir = createTempDirectory("java_private_const_defs")
+        val constantsFile = File(rootDir, "Constants.java").apply {
+            writeText(
+                """
+                package com.example;
+
+                public class Constants {
+                    private static final int PRIVATE_MAX = 1;
+                    public static final int PUBLIC_MAX = 2;
+                    static class Inner {
+                        private static final String PRIVATE_NAME = "private";
+                        static final String PACKAGE_NAME = "package";
+                    }
+                }
+                """.trimIndent()
+            )
+        }
+
+        val parser = JavaConstParser(logger)
+        val definitions = parser.parseDefinitions(constantsFile)
+        val names = definitions.map { it.constName }.toSet()
+
+        assertFalse(names.contains("PRIVATE_MAX"))
+        assertFalse(names.contains("PRIVATE_NAME"))
+        assertTrue(names.contains("PUBLIC_MAX"))
+        assertTrue(names.contains("PACKAGE_NAME"))
     }
 
     @Test

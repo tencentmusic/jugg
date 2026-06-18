@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -42,6 +43,47 @@ class KotlinConstParserTest : ConstRefTempDirCleanupSupport() {
             assertTrue(definitions.any { it.fqClassName == "com.example.Holder" && it.constName == "FLAG" })
             assertTrue(definitions.any { it.fqClassName == "com.example.Config" && it.constName == "DEFAULT" })
             assertTrue(definitions.any { it.fqClassName == "com.example.Config.Nested" && it.constName == "LIMIT" })
+        } finally {
+            parser.dispose()
+        }
+    }
+
+    @Test
+    fun `should skip private kotlin constant definitions`() {
+        val rootDir = createTempDirectory("kotlin_private_const_defs")
+        val constantsFile = File(rootDir, "Config.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                private const val PRIVATE_TOP = "top"
+                const val PUBLIC_TOP = "top"
+
+                object Holder {
+                    private const val PRIVATE_FLAG = true
+                    const val PUBLIC_FLAG = true
+                }
+
+                class Config {
+                    companion object {
+                        private const val PRIVATE_DEFAULT = "private"
+                        const val PUBLIC_DEFAULT = "public"
+                    }
+                }
+                """.trimIndent()
+            )
+        }
+
+        val parser = KotlinConstParser(logger)
+        try {
+            val definitions = parser.parseDefinitions(constantsFile)
+            val names = definitions.map { it.constName }.toSet()
+            assertFalse(names.contains("PRIVATE_TOP"))
+            assertFalse(names.contains("PRIVATE_FLAG"))
+            assertFalse(names.contains("PRIVATE_DEFAULT"))
+            assertTrue(names.contains("PUBLIC_TOP"))
+            assertTrue(names.contains("PUBLIC_FLAG"))
+            assertTrue(names.contains("PUBLIC_DEFAULT"))
         } finally {
             parser.dispose()
         }

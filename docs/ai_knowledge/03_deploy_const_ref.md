@@ -182,6 +182,7 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 - 未就绪时 warning，仍用当前缓存查询。
 - `getEffectedFiles()` 异常时 warning 后返回空列表，不阻断部署主流程。
 - const-ref definition diff 的清理时机是成功部署后的 commit ack，而不是影响查询本身；编译失败、跟编失败或部署失败时，同一批 const diff 应在下一次编译继续可查。
+- `private const val` 与 `private static final` 不进入 definition 索引和 diff；它们只影响声明所在源码文件，本文件已在首批编译内，不需要额外跟编引用方。
 - cleanup / vacuum 异常仅 warning，不影响增量编译。
 - Java 只记录可内联类型的 `static final` 字段；Kotlin 支持 top-level、object、companion、嵌套 class/object 的 `const val`。
 - Java/Kotlin parser 都忽略注释和字符串文本中的伪引用。

@@ -314,6 +314,176 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should not return effected files when only private const changes`() {
+        val rootDir = createTempDirectory("const_ref_private_const_change")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                private const val TAG = "old"
+                const val PUBLIC_MAX = 1
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.PUBLIC_MAX
+                val value = PUBLIC_MAX
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, userFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
+
+            constantsFile.writeText(
+                """
+                package com.example
+                private const val TAG = "new"
+                const val PUBLIC_MAX = 1
+                """.trimIndent()
+            )
+            constantsFile.setLastModified(constantsFile.lastModified() + 1000L)
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertTrue(effected.isEmpty())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should return effected files when private const becomes visible`() {
+        val rootDir = createTempDirectory("const_ref_private_to_visible")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                private const val TAG = "tag"
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example.user
+                import com.example.TAG
+                val value = TAG
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, userFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
+
+            constantsFile.writeText(
+                """
+                package com.example
+                const val TAG = "tag"
+                """.trimIndent()
+            )
+            constantsFile.setLastModified(constantsFile.lastModified() + 1000L)
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(setOf(userFile.toStdPath()), effected.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should return effected files when visible const becomes private`() {
+        val rootDir = createTempDirectory("const_ref_visible_to_private")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val TAG = "tag"
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example.user
+                import com.example.TAG
+                val value = TAG
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, userFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
+
+            constantsFile.writeText(
+                """
+                package com.example
+                private const val TAG = "tag"
+                """.trimIndent()
+            )
+            constantsFile.setLastModified(constantsFile.lastModified() + 1000L)
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(setOf(userFile.toStdPath()), effected.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `should find effected file when reference is scanned before definition`() {
         val rootDir = createTempDirectory("const_ref_scan_order_independent")
         File(rootDir, ".git").mkdirs()

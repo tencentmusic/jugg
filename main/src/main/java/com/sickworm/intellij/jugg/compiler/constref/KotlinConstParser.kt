@@ -54,7 +54,7 @@ class KotlinConstParser(
             val definitions = mutableListOf<ConstDefinition>()
 
             ktFile.declarations.filterIsInstance<KtProperty>().forEach { property ->
-                if (!property.hasModifier(KtTokens.CONST_KEYWORD)) {
+                if (!property.isVisibleConstDefinition()) {
                     return@forEach
                 }
                 definitions += ConstDefinition(
@@ -440,7 +440,7 @@ class KotlinConstParser(
         val fqClassName = if (packageName.isBlank()) className else "$packageName.$className"
 
         classOrObject.declarations.filterIsInstance<KtProperty>().forEach { property ->
-            if (!property.hasModifier(KtTokens.CONST_KEYWORD)) {
+            if (!property.isVisibleConstDefinition()) {
                 return@forEach
             }
             definitions += ConstDefinition(
@@ -456,7 +456,7 @@ class KotlinConstParser(
         if (classOrObject is KtClass) {
             classOrObject.companionObjects.forEach { companion ->
                 companion.declarations.filterIsInstance<KtProperty>().forEach companionProperty@{ property ->
-                    if (!property.hasModifier(KtTokens.CONST_KEYWORD)) {
+                    if (!property.isVisibleConstDefinition()) {
                         return@companionProperty
                     }
                     definitions += ConstDefinition(
@@ -482,6 +482,10 @@ class KotlinConstParser(
                     definitions = definitions,
                 )
             }
+    }
+
+    private fun KtProperty.isVisibleConstDefinition(): Boolean {
+        return hasModifier(KtTokens.CONST_KEYWORD) && !hasModifier(KtTokens.PRIVATE_KEYWORD)
     }
 
     private fun parseKtFile(sourceFile: File): KtFile? {
