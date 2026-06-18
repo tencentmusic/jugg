@@ -1,3 +1,13 @@
+---
+title: Agent Skills
+description: 说明 Agent Skills 如何把编辑、编译、部署和验证组织成 Jugg 工作流。
+status: active
+tags:
+  - capability
+  - tools
+  - agent
+---
+
 # Agent Skills
 
 Agent Skills 是面向 AI 代码助手的 Jugg 工作流入口。它把 Android 项目里的“修改代码 -> 编译 -> 部署 -> 验证 -> 继续迭代”固定成可执行流程，并通过 Jugg CLI 调用 IDE 插件里的编译、部署、测试和运行时观察能力。

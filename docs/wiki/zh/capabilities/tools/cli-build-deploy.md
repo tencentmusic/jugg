@@ -1,3 +1,13 @@
+---
+title: 构建与部署 CLI
+description: 说明 Jugg CLI 如何触发编译、部署、Gradle 回退、重装和重启。
+status: active
+tags:
+  - capability
+  - tools
+  - cli
+---
+
 # 构建与部署
 
 构建与部署命令用于让 Agent 或终端用户在不离开命令行的情况下触发 Jugg 编译、部署、Gradle 回退、清数据重装和 App 重启。

@@ -1,3 +1,14 @@
+---
+title: 运行时与设备 CLI
+description: 说明 Jugg CLI 如何读取状态、设备、Activity 栈和 App 日志。
+status: active
+tags:
+  - capability
+  - tools
+  - cli
+  - runtime
+---
+
 # 运行时与设备
 
 运行时与设备命令用于在编译部署之外读取当前 Jugg 状态、设备列表、Activity 栈和 App 日志窗口。它们常用于 Agent 判断下一步应编译、部署、等待日志还是先处理设备问题。

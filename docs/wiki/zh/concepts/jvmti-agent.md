@@ -16,7 +16,7 @@ Jugg 复用 Apply Changes 通道完成热重载，同时也在设备兼容问题
 
 ## Apply Changes 中的 Agent
 
-原文描述的 Apply Changes 流程包括：
+Apply Changes 的运行时替换流程包括：
 
 ```text
 生成 APK
@@ -32,9 +32,9 @@ Apply Changes 还会把 `instruments.jar` 加入 bootstrap class loader，并修
 
 ## Jugg 为什么需要自己的 Agent
 
-答辩稿中提到，鸿蒙 4.2 上出现过增量部署不生效问题。原因是系统提前了 ClassLoader 初始化时机，导致 Apply Changes 修改 Dex 搜索逻辑失效。Jugg 因此构建了自有 JVMTI Agent，在 Application 创建时检测 ClassLoader；如果 Dex 没有正确加载，则重新触发 ClassLoader 创建。
+部分系统会提前 ClassLoader 初始化时机，导致 Apply Changes 修改 Dex 搜索逻辑失效。Jugg 因此构建了自有 JVMTI Agent，在 Application 创建时检测 ClassLoader；如果 Dex 没有正确加载，则重新触发 ClassLoader 创建。
 
-答辩稿还提到，小米澎湃 OS 存在 JVMTI 兼容问题。Jugg 没有继续依赖 JVMTI 绕过，而是引入经典热修复，在 JVMTI 不可用时自动切换，以提高部署兼容性。
+部分设备系统也可能存在 JVMTI 兼容问题。Jugg 不只依赖 JVMTI 绕过，而是在 JVMTI 不可用时切到经典热修复，以提高部署兼容性。
 
 ## 与热重载和热修复的关系
 

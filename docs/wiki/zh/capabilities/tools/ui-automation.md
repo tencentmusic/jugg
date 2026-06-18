@@ -1,3 +1,13 @@
+---
+title: UI 自动化
+description: 说明 Agent 如何读取页面结构、定位元素、查询 View 属性并执行基础触控。
+status: active
+tags:
+  - capability
+  - tools
+  - ui
+---
+
 # UI 自动化
 
 UI 自动化命令用于让 Agent 在设备上读取页面结构、定位元素、查询 View 属性并执行基础触控。当前公开能力围绕 App 内 ViewHierarchy 通道构建，不依赖 uiautomator 回退。

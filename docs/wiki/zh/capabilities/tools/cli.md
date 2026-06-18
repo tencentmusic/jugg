@@ -1,3 +1,13 @@
+---
+title: Jugg CLI
+description: 说明 Agent 和终端用户如何通过 Jugg CLI 访问插件能力。
+status: active
+tags:
+  - capability
+  - tools
+  - cli
+---
+
 # Jugg CLI
 
 Jugg CLI 是 Agent 和终端用户访问 Jugg 插件能力的命令行入口。它把 MCP 工具封装成稳定子命令，负责项目解析、端口发现、异步编译轮询和面向人或脚本的输出格式。

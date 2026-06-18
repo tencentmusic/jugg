@@ -1,3 +1,14 @@
+---
+title: UI 布局证据
+description: 说明 Agent 如何使用公开 UI 工具形成可复核的布局判断。
+status: active
+tags:
+  - capability
+  - tools
+  - ui
+  - layout
+---
+
 # UI 布局证据
 
 UI 布局证据页说明 Agent 如何用当前公开的 UI 工具形成可复核的布局判断。当前公开流程是“采集实际 View 信息，再由 Agent 计算 expected / actual / diff / verdict”，不是调用未注册的批量 layout-verify 工具。

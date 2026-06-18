@@ -17,7 +17,9 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
 
 | 子文档 | 内容 |
 |---|---|
-| [源码增量编译](./source.md) | Java、Kotlin、Dex、扩散编译和 default method 脱糖处理。 |
+| [源码增量编译](./source.md) | Java、Kotlin、Dex 和 default method 脱糖处理。 |
+| [重编译 / 扩散编译](./recompile-propagation.md) | 首轮编译后如何根据 class 结构和引用索引继续补编译源码。 |
+| [常量引用分析](./const-ref.md) | Java/Kotlin 编译期常量变化后如何补编译引用方。 |
 | [资源增量编译](./resource.md) | aapt2 compile / link、Jugg 定制 `inclink`、资源表加载和资源 overlay。 |
 | [DataBinding / ViewBinding](./databinding-viewbinding.md) | layout split、base class、mapper、BR 和两阶段处理。 |
 | [Android Manifest 编译与 release 增量编译](./manifest-minify.md) | Manifest 增量合并、release mapping、`_jugg_fix` 桥接类。 |
@@ -88,7 +90,7 @@ Gradle 回退成功后，Jugg 会重新收集构建产物，刷新项目快照�
 
 ## 相关页面
 
-- [编译流水线](../compile-pipeline.md)
+- [编译调度流程](../compile-pipeline.md)
 - [部署数据与影响分析](../deploy-data-and-impact.md)
 - [回退与限制](../fallback-and-limits.md)
 - [源码编译能力](../../capabilities/compile/source-compile.md)

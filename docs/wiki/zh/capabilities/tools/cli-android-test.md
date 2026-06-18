@@ -1,3 +1,14 @@
+---
+title: Android Test CLI
+description: 说明 jugg instrument 如何从 androidTest 源文件锚点运行 class 或 method 级测试。
+status: active
+tags:
+  - capability
+  - tools
+  - cli
+  - android-test
+---
+
 # Android Test
 
 `jugg instrument` 用于从 androidTest 源文件锚点运行 class 或 method 级测试。它会复用 Jugg 的编译和部署链路，把 app 与 test APK 更新到设备后再执行 instrumentation。

@@ -259,6 +259,8 @@ const chineseSidebar = {
           items: [
             { text: '总览', link: '/zh/concepts/incremental-compile/' },
             { text: '源码增量编译', link: '/zh/concepts/incremental-compile/source' },
+            { text: '重编译 / 扩散编译', link: '/zh/concepts/incremental-compile/recompile-propagation' },
+            { text: '常量引用分析', link: '/zh/concepts/incremental-compile/const-ref' },
             { text: '资源增量编译', link: '/zh/concepts/incremental-compile/resource' },
             { text: 'DataBinding / ViewBinding', link: '/zh/concepts/incremental-compile/databinding-viewbinding' },
             { text: 'Android Manifest / release', link: '/zh/concepts/incremental-compile/manifest-minify' },
@@ -269,12 +271,13 @@ const chineseSidebar = {
         },
         { text: '部署策略', link: '/zh/concepts/deploy-strategy' },
         { text: '回退与限制', link: '/zh/concepts/fallback-and-limits' },
-        { text: '项目模型', link: '/zh/concepts/project-model' },
-        { text: '编译流水线', link: '/zh/concepts/compile-pipeline' },
+        { text: '工程上下文获取', link: '/zh/concepts/project-model' },
+        { text: '编译调度流程', link: '/zh/concepts/compile-pipeline' },
         { text: '部署数据与影响分析', link: '/zh/concepts/deploy-data-and-impact' },
+        { text: '部署状态与恢复', link: '/zh/concepts/deploy-state-recover' },
         { text: 'JVMTI Agent', link: '/zh/concepts/jvmti-agent' },
         { text: 'Android Test 流程', link: '/zh/concepts/android-test-flow' },
-        { text: 'MCP 与 CLI', link: '/zh/concepts/mcp-and-cli' },
+        { text: '布局 dump 与 UI 证据', link: '/zh/concepts/layout-dump-and-ui-evidence' },
         { text: '兼容层', link: '/zh/concepts/compatibility-layer' }
       ]
     }

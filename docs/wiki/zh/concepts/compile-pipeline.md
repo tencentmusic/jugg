@@ -1,62 +1,160 @@
 ---
-title: 编译流水线
-description: 说明 Jugg 如何把变化文件按类型编译为 DEX、资源、assets、Manifest 和其他部署产物。
+title: 编译调度流程
+description: 说明 Jugg 如何从一次 Run 进入增量或 Gradle 编译，并在增量编译中推进 staging、补编译和失败收口。
 status: active
 tags:
   - concept
   - compile
+  - scheduling
 ---
 
-# 编译流水线
+# 编译调度流程
 
-Jugg 的编译流水线从变化文件开始，输出部署阶段需要的局部产物。它不会重新生成完整 APK，而是根据文件类型进入不同处理路径。
+这篇不讲 Java、Kotlin、资源分别怎么编译。那些内容在增量编译子页里。
 
-## 输入类型
+这里讲 Jugg 的调度层：一次 Run 如何决定走增量还是 Gradle，增量结果如何写入 staging，什么时候继续补编译，什么时候停止并回退。
 
-原文中涉及的输入类型包括：
+## 调度入口
 
-| 输入 | 处理方式 |
-|---|---|
-| Java 源码 | 调用 `javac` 编译为 class |
-| Kotlin 源码 | 调用 `K2JVMCompiler` 编译为 class |
-| class | 通过 D8 转成 dex |
-| res 资源 | 通过 aapt2 compile 和 Jugg 定制 `inclink` 编译 |
-| assets | 不需要编译，直接作为增量部署文件 |
-| native lib | 作为 APK 更新文件处理 |
-| Manifest | 编译为二进制 Manifest 后写回 APK |
-| 依赖库变化 | 对 jar、资源、assets 做差分后复用现有编译流程 |
-
-## 阶段顺序
-
-典型顺序如下：
+IDE 侧入口是 `JuggCompilerHelper.compile()`。它先记录本轮 compile 时间戳，然后进入 `doCompile()`。
 
 ```text
-变化文件
-  -> assets / native lib 处理
-  -> res / Manifest 编译
-  -> 必要时生成 R.java
-  -> Kotlin / Java 编译
-  -> class 转 dex
-  -> 扩散编译检查
-  -> 交给部署阶段
+JuggCompilerHelper.compile()
+  -> 等待增量初始化完成
+  -> 等待 pending file processing
+  -> preprocessIncrementalCompile()
+  -> 可以增量: incrementalCompile()
+  -> 需要回退: gradleCompile()
 ```
 
-资源阶段可能生成 `R.java`。如果资源 ID 有新增，`R.java` 还需要进入 Java 编译；如果没有新增 ID，`inclink` 可以跳过 `R.java` 生成，减少后续编译耗时。
+`preprocessIncrementalCompile()` 返回 `null` 才会进入增量编译。返回失败结果时，后续会走 Gradle。
 
-## 为什么会有多轮编译
+## 编译前检查
 
-第一轮只处理直接变化文件并不总是足够。删除方法、修改字段签名、给抽象父类新增抽象方法等场景，会影响调用方或子类。
+增量编译前会做几类检查：
 
-Jugg 会通过 APK 解析数据库查询引用关系和子类关系，把受影响源码加入下一轮编译。这就是原文中提到的扩散编译。
+| 检查 | 结果 |
+|---|---|
+| 用户强制 Gradle | 返回 `Force fallback`。 |
+| build target 变化 | 强制 Gradle，重新生成 app / androidTest 对应 APK。 |
+| 设备状态不可用 | 返回设备状态里的失败原因。 |
+| 变化源码过多或模块过多 | 返回 `Too many changes`。 |
+| build file 变化 | 读取依赖 diff，按依赖变化结果决定是否还能增量。 |
+| 部署状态不支持增量编译 | 返回 deploy state message。 |
 
-## 与 Gradle 的区别
+文件回滚检查也在这里做。Jugg 会用部署历史过滤未真正变化的文件，命中的文件会从 changed set 中移除。
 
-Gradle task 通常以模块为单位处理输入，并由完整任务图决定构建顺序。Jugg 复用最近一次 Gradle 构建结果，只处理变化文件和必要的受影响文件。
+## 增量编译循环
 
-这能减少日常小改动耗时；代价是当构建脚本、依赖、注解处理器或其他 Gradle 上下文不可信时，需要回到 Gradle 重新建立基线。
+增量循环由 `IncrementalCompilerHelper.compile()` 负责。它把 `ChangedFile` 转成 `CompileFile`，再交给 `JuggCompiler.compile()`。
+
+```text
+undeployed ChangedFile
+  -> CompileFile
+  -> CompileTask(stagingDir)
+  -> JuggCompiler.compile()
+  -> 首轮更新 uncompiled 状态
+  -> outputs 写入 staging
+  -> 成功后查询 recompile files
+  -> 有受影响源码或 redex class: 递归进入下一轮
+```
+
+首轮成功文件会从未编译集合中移除。后续补编译轮不再更新这组状态，避免把派生出来的重编译文件当成用户原始改动。
+
+所有编译产物都会先写入 staging。部署阶段只消费 staging 中的有效产物。
+
+## `JuggCompiler` 阶段编排
+
+`JuggCompiler` 接收同一批 `CompileFile`，按内置阶段拆分：
+
+```text
+AssetOverlayCompiler
+  -> 处理 asset / native lib，输出 overlay 或 native lib item
+ResourceOverlayCompiler
+  -> resource / Manifest 先编译到 tmp_resource
+  -> res overlay 移到 staging/overlays
+  -> R.java 交给 SourceCompiler
+  -> DataBinding / ViewBinding 生成源转给源码阶段
+RDexForSubmoduleCompiler
+  -> 必要时生成 R.dex
+SourceCompiler
+  -> JuggApt / DataBinding mapper / Kotlin / Java / Dex / Minify
+```
+
+任一阶段失败后，`quickFailedOthers()` 会把还没执行的输入标记为跳过失败。取消信号来自 `CompileTask.isShouldCancel`，子阶段会快速收口。
+
+## 编译任务和输出契约
+
+调度层只认这几类对象：
+
+| 对象 | 作用 |
+|---|---|
+| `CompileTask` | 一批输入文件、输出目录、父任务和取消状态。 |
+| `CompileFile` | 输入文件类型、文件路径、baseDir、所属 module。 |
+| `CompileResult.details` | 每个输入文件成功、失败或被 quick-fail。 |
+| `CompileResult.outputs` | 编译产物，后续写入 staging。 |
+| `CompileOutput.apkPath` | 旧单 APK 锚点。 |
+| `CompileOutput.targetApkPaths` | 产物实际影响的 APK 集合。 |
+
+多 APK 场景下，部署侧看 `targetApkPaths`。`apkPath` 仍保留旧单 APK 语义，不能只靠它判断资源、dex 或 Manifest 的真实目标。
+
+## 模块和 APK 分流
+
+`BaseCompiler` 提供两层分流。
+
+第一层是 module 分流：
+
+```text
+CompileTask
+  -> splitModuleAndCompile()
+  -> 非 androidTest module 一组
+  -> androidTest module 单独一组
+  -> 按 modulesWithOrder 编译
+```
+
+androidTest module 的分组 key 包含 module root，避免同名测试模块被合并。
+
+第二层是 APK 分流：
+
+```text
+splitApkAndCompile()
+  -> moduleBelongsApkMap 找到模块影响的 APK
+  -> 一个模块可属于多个 APK
+  -> 每个 APK 单独调用 doApkCompile()
+  -> 子编译器输出必须保留 targetApkPaths
+```
+
+资源、Manifest 和 assets 这类产物会走 APK scoped 输出。target 丢失时，部署阶段会把产物发到错误 APK 或漏发。
+
+## 成功后的继续编译
+
+一轮成功后，Jugg 会调用 `DeployFileManager.getRecompileFiles()`。
+
+返回结果分两类：
+
+- `effectedSourceFiles`：受 method/field/subclass/generic/const-ref 影响的源码。
+- `redexClasses`：需要重新转 dex 的 class。
+
+`ContinueCompileEffectFilter` 会过滤已经满足过的触发键，避免同一批影响反复进入下一轮。Kotlin top-level file facade 命中时，可以突破上一轮已编译过滤。
+
+## 失败后的重试和回退
+
+增量失败后只重试一次。重试由 `IncrementalCompileRetryResolverChain` 决定：
+
+```text
+GitChangesRetryResolver
+  -> unresolved reference / cannot find symbol 时刷新 Git 变化
+IncrementalCompileRetryResolver
+  -> 依赖缺失关键词命中时更新 compile context
+```
+
+重试仍失败时，结果返回给 `JuggCompilerHelper`。如果失败不可自动回退，Jugg 会返回当前增量失败结果；如果可以回退，后续进入 `gradleCompile()`。
+
+增量成功后还会等待一次异步 Git 补检。补检发现新的待编译文件时，Jugg 会再跑一次增量编译。
 
 ## 相关页面
 
+- [工程上下文获取](./project-model.md)
 - [增量编译](./incremental-compile/)
+- [重编译 / 扩散编译](./incremental-compile/recompile-propagation.md)
 - [部署数据与影响分析](./deploy-data-and-impact.md)
-- [回退与限制](./fallback-and-limits.md)

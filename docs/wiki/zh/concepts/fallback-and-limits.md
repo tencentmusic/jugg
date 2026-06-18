@@ -13,7 +13,7 @@ Jugg 的增量编译依赖最近一次可信 Gradle 构建产物。回退 Gradle
 
 ## 常见回退场景
 
-原文中提到的回退或降级场景包括：
+回退通常来自三类信号：没有可信基线、当前修改超出旁路增量能力、设备或部署现场不可信。
 
 | 场景 | 原因 |
 |---|---|
@@ -25,19 +25,19 @@ Jugg 的增量编译依赖最近一次可信 Gradle 构建产物。回退 Gradle
 | 设备或部署现场不可信 | 继续部署可能基于错误状态 |
 | 用户主动降级 | 用完整构建刷新基线 |
 
-回退不是增量链路失效，而是重新建立可信起点。
+这些场景的共同点是：继续走增量可能基于错误上下文运行。回退不是增量链路失效，而是重新建立可信起点。具体触发条件和用户操作建议见 [Gradle 回退](../capabilities/compile/gradle-fallback.md)。
 
 ## 增量方案的边界
 
 Jugg 不是完整 Gradle pipeline。以下内容仍以 Gradle 构建为准：
 
-- 发布构建和完整 APK / AAB 产物。
+- 完整发布构建和正式 APK / AAB 产物。
 - 复杂构建脚本、Gradle plugin 和 variant 逻辑。
 - 未明确支持的注解处理器、插桩和生成代码。
 - 依赖图复杂变化。
 - 需要完整刷新资源表、Manifest、mapping 或 APK 结构的场景。
 
-原文还提到，大工程并不总能一键接入，仍可能需要适配工程里的特殊场景。
+大工程不一定能一键覆盖所有特殊构建逻辑。遇到工程自定义插件、非标准生成代码或复杂 variant 逻辑时，应先用 Gradle 刷新基线，再判断能否纳入 Jugg 增量路径。
 
 ## 资源增量的限制
 
@@ -47,12 +47,10 @@ Jugg 定制 aapt2 `inclink` 后，可以基于 APK 中的 `resources.arsc` 和 r
 
 ## 设备与版本限制
 
-早期原文中提到，Jugg 的热重载依赖 Android 11 以上设备。后续答辩稿提到，Jugg 增加经典热修复后，设备要求从 Android 11 降到 Android 8。
-
-设备厂商对 JVMTI / Apply Changes 的支持也可能有差异。答辩稿中提到过鸿蒙 4.2 和小米澎湃 OS 的兼容问题，Jugg 通过自有 JVMTI Agent 或经典热修复路径做兼容。
+设备厂商对 JVMTI / Apply Changes 的支持可能有差异。Jugg 会通过自有 JVMTI Agent、兼容部署或经典热修复路径降低设备差异影响，但设备能力仍会影响本轮能否在线替换、是否需要重启，或是否需要重新安装。
 
 ## 相关页面
 
 - [增量编译](./incremental-compile/)
 - [部署策略](./deploy-strategy.md)
-- [项目模型](./project-model.md)
+- [工程上下文获取](./project-model.md)

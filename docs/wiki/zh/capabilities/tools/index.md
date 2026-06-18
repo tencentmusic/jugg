@@ -1,3 +1,13 @@
+---
+title: Jugg CLI 与 Agent Skills
+description: 汇总 Agent Skills、Jugg CLI、MCP 和 UI 自动化相关工具能力。
+status: active
+tags:
+  - capability
+  - tools
+  - overview
+---
+
 # Jugg CLI 与 Agent Skills
 
 本节介绍 Agent 在 Android 项目中驱动 Jugg 时会使用的自动化入口。目录按 Agent Skill 工作流、Jugg CLI 任务域，以及 Agent 直接访问 MCP 的方式组织。

@@ -1,3 +1,13 @@
+---
+title: 远端诊断
+description: 说明何时通过 SSH 诊断远端构建环境或设备相关问题。
+status: active
+tags:
+  - capability
+  - tools
+  - diagnosis
+---
+
 # 远端诊断
 
 远端诊断用于在本地日志和 Jugg CLI 结果不足以定位问题时，向用户申请 SSH 排障信息。它不是默认调试入口，只有在需要访问远端构建环境或设备相关上下文时才使用。

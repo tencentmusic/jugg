@@ -1,3 +1,13 @@
+---
+title: 面向 Agent 的 MCP
+description: 说明 Agent 如何通过本地 JSON-RPC MCP 接口调用 Jugg 插件能力。
+status: active
+tags:
+  - capability
+  - tools
+  - mcp
+---
+
 # 面向 Agent 的 MCP
 
 Jugg MCP 是 IDE 插件暴露给 Agent 的本地 JSON-RPC 接口。Agent 可以通过它列出项目、触发编译部署、查询状态、读取 UI 层级、定位 View、执行触控并等待日志结果。
