@@ -154,15 +154,26 @@ class DeployFileStateTracker(
     @Synchronized
     fun getNotStagingDeployedFiles(): List<CompileOutput> {
         val stagingDeployKeys = stagingFiles.values.flatMap { it.deployKeys() }.toSet()
+        val stagingDexRelativePaths = stagingFiles.values
+            .filter { it.type == CompileOutput.Type.Dex }
+            .map { it.relativeFile.path }
+            .toSet()
         return deployedFiles.values.filter {
             if (it.deployKeys().any { key -> key in stagingDeployKeys }) {
                 return@filter false // staging file
+            }
+            if (it.isLossyDexHistory() && it.relativeFile.path in stagingDexRelativePaths) {
+                return@filter false // staging dex shadows recovered history without APK scope
             }
             if (it.relativeFile.path in mergedDexFilePathSet) {
                 return@filter false // merged dex file
             }
             return@filter true
         }
+    }
+
+    private fun CompileOutput.isLossyDexHistory(): Boolean {
+        return type == CompileOutput.Type.Dex && apkPath == null && targetApkPaths.isEmpty()
     }
 
     private fun CompileOutput.deployKeys(): List<String> {
