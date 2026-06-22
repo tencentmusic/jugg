@@ -247,6 +247,17 @@ class JuggCompileHelperTest {
         assertFalse(logger.messages.any { it.contains(DIRECT_RUN_FALLBACK_HINT) })
     }
 
+    @Test
+    fun compile_incrementalFailure_doesNotPrintDuplicatedVisibleErrorSummary() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger = logger)
+        prepareIncrementalCompileFailure(fixture)
+
+        fixture.helper.compile(fixture.options, fixture.uiHandler)
+
+        assertFalse(logger.messages.any { it.contains("Found incremental compile error:\n") })
+    }
+
     private fun prepareIncrementalCompileFailure(fixture: Fixture) {
         val sourceFile = temporaryFolder.newFile("Broken.kt")
         val changedFile = ChangedFile(
