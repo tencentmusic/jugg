@@ -1,3 +1,8 @@
+- version: 3.0.20
+  date: 2026.06.23
+  updates:
+    - 优化 Agent hook 门禁提示，明确 Jugg skill 与 raw Gradle 验证的处理要求和显式跳过原因
+
 - version: 3.0.19
   date: 2026.06.23
   updates:

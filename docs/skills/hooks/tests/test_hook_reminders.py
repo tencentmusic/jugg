@@ -848,7 +848,7 @@ class HookReminderDecisionTest(unittest.TestCase):
 
         self.assertEqual(0, first.returncode)
         self.assertEqual(0, second.returncode)
-        self.assertNotIn("instead of verifying with raw Gradle here", first.stderr)
+        self.assertNotIn("COMMAND GATE", first.stderr)
         self.assertNotIn("Allowing this repeated command attempt", second.stderr)
 
     def test_command_hook_blocks_first_and_allows_second_when_pending(self):
@@ -890,7 +890,8 @@ class HookReminderDecisionTest(unittest.TestCase):
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
 
         self.assertEqual(2, first.returncode)
-        self.assertIn("instead of verifying with raw Gradle here", first.stderr)
+        self.assertIn("COMMAND GATE", first.stderr)
+        self.assertIn("Jugg CLI verification skipped: <reason>", first.stderr)
         self.assertIn("Jugg status:", first.stderr)
         self.assertIn("enabledAndroidTest: true", first.stderr)
         self.assertIn("pendingModifiedFiles: Pending.kt", first.stderr)
@@ -926,7 +927,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stderr)
         self.assertEqual("deny", response.get("permission"))
-        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
+        self.assertIn("COMMAND GATE", response.get("agent_message", ""))
 
     def test_command_hook_uses_cursor_permission_json_for_repeated_warning(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -1006,7 +1007,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         response = json.loads(result.stdout)
         self.assertEqual(0, result.returncode)
         self.assertEqual("deny", response.get("permission"))
-        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
+        self.assertIn("COMMAND GATE", response.get("agent_message", ""))
 
     def test_command_hook_uses_cursor_workspace_roots_when_project_cwd_is_absent(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -1075,7 +1076,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         response = json.loads(result.stdout)
         self.assertEqual(0, result.returncode)
         self.assertEqual("deny", response.get("permission"))
-        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
+        self.assertIn("COMMAND GATE", response.get("agent_message", ""))
 
     def test_command_hook_blocks_windows_cursor_utf16_command_payload(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -1109,7 +1110,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         response = json.loads(result.stdout.decode("utf-8"))
         self.assertEqual(0, result.returncode)
         self.assertEqual("deny", response.get("permission"))
-        self.assertIn("instead of verifying with raw Gradle here", response.get("agent_message", ""))
+        self.assertIn("COMMAND GATE", response.get("agent_message", ""))
 
     def test_command_hook_ignores_state_project_cwd_for_non_cursor_clients(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -1139,7 +1140,7 @@ class HookReminderDecisionTest(unittest.TestCase):
                 )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("instead of verifying with raw Gradle here", result.stderr)
+        self.assertIn("COMMAND GATE", result.stderr)
 
     def test_command_hook_records_project_cwd_from_payload_cwd_for_shell_write(self):
         script = Path(__file__).resolve().parent.parent / "command.py"
@@ -1234,7 +1235,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             state = json.loads(state_file.read_text(encoding="utf-8"))
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("instead of verifying with raw Gradle here", result.stderr)
+        self.assertIn("COMMAND GATE", result.stderr)
         self.assertEqual(1, state.get("gradleBlockCount"))
         self.assertNotEqual(old_fingerprint, state.get("gradleBlockedFingerprint"))
 
@@ -1328,7 +1329,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             warning_payload = json.loads(allowed.stdout)
 
         self.assertEqual(2, blocked.returncode)
-        self.assertIn("instead of verifying with raw Gradle here", blocked.stderr)
+        self.assertIn("COMMAND GATE", blocked.stderr)
         self.assertEqual(0, allowed.returncode)
         self.assertEqual("", allowed.stderr)
         self.assertIn("systemMessage", warning_payload)
@@ -1488,7 +1489,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("instead of verifying with raw Gradle here", result.stderr)
+        self.assertIn("COMMAND GATE", result.stderr)
 
     def test_edit_hook_ignores_gemini_write_file_for_docs(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"

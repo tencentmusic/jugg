@@ -1,3 +1,8 @@
+- version: 3.0.20
+  date: 2026.06.23
+  updates:
+    - Improve agent hook gate messages for Jugg skill and raw Gradle verification, making required handling and explicit skip reasons clearer
+
 - version: 3.0.19
   date: 2026.06.23
   updates:

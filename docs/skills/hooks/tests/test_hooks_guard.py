@@ -99,7 +99,7 @@ class StopHookGuardTest(unittest.TestCase):
 
         self.assertEqual(0, first.returncode)
         self.assertEqual(0, second.returncode)
-        self.assertNotIn("complete verification before stopping", first.stderr.lower())
+        self.assertNotIn("stop gate", first.stderr.lower())
         self.assertNotIn("allowing session stop after a repeated stop attempt", second.stderr.lower())
 
     def test_stop_hook_blocks_first_and_allows_second_when_pending(self):
@@ -140,7 +140,8 @@ class StopHookGuardTest(unittest.TestCase):
             state = json.loads(_state_file(home, cwd, session_id).read_text(encoding="utf-8"))
 
         self.assertEqual(2, first.returncode)
-        self.assertIn("complete verification before stopping", first.stderr)
+        self.assertIn("STOP GATE", first.stderr)
+        self.assertIn("Jugg dev loop skipped: <reason>", first.stderr)
         self.assertIn("Jugg status:", first.stderr)
         self.assertIn("enabledAndroidTest: true", first.stderr)
         self.assertIn("pendingModifiedFiles: PendingOne.kt, PendingTwo.kt", first.stderr)
@@ -174,7 +175,7 @@ class StopHookGuardTest(unittest.TestCase):
         response = json.loads(result.stdout)
         self.assertEqual(0, result.returncode)
         self.assertIn("followup_message", response)
-        self.assertIn("complete verification before stopping", response["followup_message"])
+        self.assertIn("STOP GATE", response["followup_message"])
 
     def test_stop_hook_uses_cursor_workspace_roots_when_project_cwd_is_absent(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
@@ -232,7 +233,7 @@ class StopHookGuardTest(unittest.TestCase):
                 )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("complete verification before stopping", result.stderr)
+        self.assertIn("STOP GATE", result.stderr)
 
     def test_stop_hook_uses_codex_system_message_for_repeated_pending_warning(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
@@ -313,7 +314,7 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertEqual(2, result.returncode)
         self.assertFalse(response["continue"])
         self.assertIn("stopReason", response)
-        self.assertIn("complete verification before stopping", response["stopReason"])
+        self.assertIn("STOP GATE", response["stopReason"])
         self.assertIn("HookStop.kt", response["stopReason"])
         self.assertEqual("", result.stderr)
 
@@ -337,7 +338,7 @@ class StopHookGuardTest(unittest.TestCase):
             )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("complete verification before stopping", result.stderr)
+        self.assertIn("STOP GATE", result.stderr)
 
     def test_stop_hook_emits_codebuddy_system_message_on_repeated_stop(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
@@ -391,7 +392,7 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stderr)
         self.assertIn("followup_message", response)
-        self.assertIn("complete verification before stopping", response["followup_message"])
+        self.assertIn("STOP GATE", response["followup_message"])
         self.assertIn("HookStop.kt", response["followup_message"])
 
     def test_stop_hook_silently_allows_repeated_cursor_stop(self):
@@ -568,7 +569,7 @@ class StopHookGuardTest(unittest.TestCase):
             )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("complete verification before stopping", result.stderr)
+        self.assertIn("STOP GATE", result.stderr)
 
 
 if __name__ == "__main__":

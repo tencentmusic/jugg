@@ -31,7 +31,7 @@ Prompt：请验证 agent hooks 是否会被你的真实文件变更和命令动�
 期望：
 
 - 新增隔离 Android 源码文件后，Agent 不应看到 `You modified Android source files.` 软提醒；后续第一次 raw Gradle 被阻断即证明 hook 已记录本会话写入状态。
-- 第一次 raw Gradle 尝试被 command hook 阻断，Agent 能看到原文包含 `instead of verifying with raw Gradle here`，退出码应体现阻断。
+- 第一次 raw Gradle 尝试被 command hook 阻断，Agent 能看到原文包含 `COMMAND GATE`、`Jugg CLI verification skipped: <reason>`，退出码应体现阻断。
 - 第二次 raw Gradle 尝试应被放行。Codex/Claude 应能看到原文包含 `Allowing this repeated command attempt`；Cursor/Gemini 可静默放行，报告写明未收到第二次 warning 但命令已执行即可。
 - `jugg gradle-build` 不应被识别为 raw Gradle 拦截目标。
 - 如果 hook 没有被 Agent 真实动作触发，本 case 判定为 `FAIL`。
@@ -57,7 +57,7 @@ Prompt：请验证 stop hook 是否会被你的真实结束会话动作触发。
 
 期望：
 
-- 首次结束会话应被 stop hook 阻断，Agent 能看到原文包含 `you should enable the jugg-android-dev-loop skill and complete verification before stopping`，并包含 `Modified files: HookStopTrigger.kt`。
+- 首次结束会话应被 stop hook 阻断，Agent 能看到原文包含 `STOP GATE`、`Jugg dev loop skipped: <reason>`，并包含 `pendingModifiedFiles: HookStopTrigger.kt`。
 - 第二次结束会话应放行（会话能够结束）。
   - **Cursor/Gemini**：重复 stop 可静默放行；报告写明 Agent 是否收到第二次 warning、会话是否已结束即可。
   - **Codex / Claude**：Agent 链路 PASS 以「第二次能结束会话」为准；第二次 warning 是否可见由「人工确认（Codex / Claude）」记录，**不要求** Agent 复述该 warning。执行人填「否」时，在报告中标注为已知限制（`systemMessage` 未进入 Agent 上下文），不因此记 Agent FAIL。

@@ -32,8 +32,11 @@ from hook_common import (
 )
 
 STOP_BLOCK_MESSAGE = (
-    "Android code changes were detected in this session. "
-    "You should enable the jugg-android-dev-loop skill to verify code changes before stopping. "
+    "STOP GATE: Handle `jugg-android-dev-loop` before final response. "
+    "Pending Android/Jugg changes were detected; enable the skill unless this is analysis-only/explanation-only "
+    "work or verification is blocked by missing env/device. "
+    "If skipped, say `Jugg dev loop skipped: <reason>`. "
+    "Do not silently ignore this gate or replace it with a compile suggestion."
 )
 STOP_BLOCK_RETRY_WARNING = (
     "Notice: Jugg detect pending Android changes remain; allowing session stop after a repeated stop attempt. "

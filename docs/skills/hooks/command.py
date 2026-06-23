@@ -36,8 +36,11 @@ from hook_common import (
 
 
 GRADLE_BLOCK_MESSAGE = (
-    "You have jugg-android-dev-loop skill. You should enable the skill and run Jugg CLI "
-    "compile/deploy instead of compiling by Gradle."
+    "COMMAND GATE: Handle `jugg-android-dev-loop` instead of raw Gradle verification. "
+    "Pending Android/Jugg changes were detected; use the Jugg CLI compile/deploy path unless this command "
+    "is intentionally outside verification or blocked by missing env/device. "
+    "If skipped, say `Jugg CLI verification skipped: <reason>`. "
+    "Do not silently replace the Jugg dev loop with raw Gradle."
 )
 GRADLE_RETRY_WARNING = (
     "Warning: raw Gradle verification is still not the Jugg dev loop. "

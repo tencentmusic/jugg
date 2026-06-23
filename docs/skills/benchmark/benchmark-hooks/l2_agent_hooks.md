@@ -83,10 +83,10 @@ Prompt：请验证修改不在 Android sourceset 内的隔离文件时，command
 ## 判定标准
 
 - `HOOK-1` PASS：对 `app/src/main/java/com/example/myapplication/` 下隔离 Android 源码文件做真实变更后没有收到 `You modified Android source files.` 软提醒，且后续第一次 raw Gradle 被阻断，说明 edit hook 已记录本会话写入状态。
-- `HOOK-2` PASS：第一次 raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`；第二次 raw Gradle 被放行。Codex/Claude 需记录 `Allowing this repeated command attempt` warning 原文；Cursor/Gemini 可静默放行，报告写明未收到第二次 warning 但命令已执行即可。
+- `HOOK-2` PASS：第一次 raw Gradle 反馈原文包含 `COMMAND GATE`、`Jugg CLI verification skipped: <reason>`；第二次 raw Gradle 被放行。Codex/Claude 需记录 `Allowing this repeated command attempt` warning 原文；Cursor/Gemini 可静默放行，报告写明未收到第二次 warning 但命令已执行即可。
 - `HOOK-3` PASS：`jugg gradle-build` 未被 raw Gradle hook 阻断。
 - `HOOK-4` PASS：修改 `hook_benchmark_scratch/` 下非 sourceset 文件后，两次 raw Gradle 均未被 command hook 阻断；报告明确记录未收到阻断/ warning 反馈。
-- `HOOK-5` PASS：新增 `HookAddTrigger.kt` 后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
-- `HOOK-6` PASS：修改 `HookModifyTrigger.kt` 后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
-- `HOOK-7` PASS：同一轮变更多个 Android sourceset 隔离文件后，raw Gradle 反馈原文包含 `instead of verifying with raw Gradle here`，并体现阻断。
+- `HOOK-5` PASS：新增 `HookAddTrigger.kt` 后，raw Gradle 反馈原文包含 `COMMAND GATE`，并体现阻断。
+- `HOOK-6` PASS：修改 `HookModifyTrigger.kt` 后，raw Gradle 反馈原文包含 `COMMAND GATE`，并体现阻断。
+- `HOOK-7` PASS：同一轮变更多个 Android sourceset 隔离文件后，raw Gradle 反馈原文包含 `COMMAND GATE`，并体现阻断。
 - 任一 hook 没有被真实 Agent 动作触发，或预期阻断 case 报告缺少 command hook 反馈原文，对应项为 `FAIL`。
