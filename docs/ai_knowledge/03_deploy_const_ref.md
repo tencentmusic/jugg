@@ -95,6 +95,7 @@ DeployFileManager.getRecompileFiles()
 ```
 
 `FULL_SCAN` 不再作为编译前硬门槛；`awaitAnalysis()` 只要求目标变更文件达到本轮分析时间线。查询异常返回空列表，不阻断部署主流程。
+递归跟编轮次（`isCompilingEffectedSourceFiles=true`）不会再次传入 `constRefChangedSourcePaths`；ConstRef 只消费用户本轮原始源码变更，避免由结构影响跟编出的源码再次触发同一批 const-ref 查询。
 `getEffectedFiles()` 只查询并登记待确认的 definition diff，不在查询阶段清理；只有部署成功 commit 后才 ack 清理，避免“跟编失败后下一次编译漏掉同一批 const-ref 影响”。
 
 ### 4.3 缓存命中链路
@@ -136,7 +137,7 @@ analyzeFiles()
 - 受影响文件查询先定位 definition key，再匹配 latest candidate rows，最后按当前 worktree 还原绝对路径，仅返回本地存在文件。
 - 支持 `queryClassesBySimpleNames` 通过 `simple_class_id + const_name_id` 索引实现点查，避免全表扫描。
 - 使用共享 SQLite 长连接，避免高频建连；latest 版本选择追加 `checksum` 作为稳定 tie-breaker。
-- `PRAGMA schema_version=6`，不兼容时重建。
+- `PRAGMA schema_version=7`，不兼容时重建；parser 可见性规则或索引语义变化必须 bump version，避免旧库中的 stale definition/candidate 继续参与影响分析。
 
 ### 5.2 `RepoSharedFingerprintStore`
 

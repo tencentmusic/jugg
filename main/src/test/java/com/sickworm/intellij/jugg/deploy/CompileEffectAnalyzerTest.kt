@@ -1,6 +1,22 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
+import com.sickworm.intellij.jugg.deploy.data.ParsedDex
+import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import java.io.File
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -91,5 +107,107 @@ class CompileEffectAnalyzerTest {
     fun `isBootClasspathClass returns false for third party library classes`() {
         assertFalse("Lcom/google/android/material/tabs/TabLayout;".isBootClasspathClass)
         assertFalse("Lcom/appsflyer/MultipleInstallBroadcastReceiver;".isBootClasspathClass)
+    }
+
+    @Test
+    fun `getRecompileFiles passes changed source paths to const ref on first round`() {
+        val deployDataGenerator = mockDeployDataGenerator()
+        val analyzer = newAnalyzer(deployDataGenerator)
+        val sourceFile = File.createTempFile("MainTabActivity", ".java")
+        sourceFile.deleteOnExit()
+        val changedFile = ChangedFile(
+            type = CompileFile.Type.Java,
+            file = sourceFile,
+            baseDir = sourceFile.parentFile,
+            module = ModuleInfo.virtualModule,
+        )
+
+        analyzer.getRecompileFiles(
+            stagingFiles = emptyList(),
+            compiledFiles = listOf(changedFile),
+            moduleInfos = emptyMap(),
+            isMinified = false,
+            isCompilingEffectedSourceFiles = false,
+            classObfuscator = null,
+        )
+
+        verify(deployDataGenerator).buildDeployData(
+            items = eq(emptyList<DeployItem>()),
+            isWarmUp = eq(false),
+            isNeedCheckRecompile = eq(true),
+            isNeedCheckRecompileMinifyRemovedClass = eq(false),
+            isCompilingEffectedSourceFiles = eq(false),
+            constRefChangedSourcePaths = eq(listOf(sourceFile.stdAbsPath)),
+        )
+    }
+
+    @Test
+    fun `getRecompileFiles skips const ref changed source paths on effected source round`() {
+        val deployDataGenerator = mockDeployDataGenerator()
+        val analyzer = newAnalyzer(deployDataGenerator)
+        val sourceFile = File.createTempFile("ColdSplashAdActivity", ".kt")
+        sourceFile.deleteOnExit()
+        val changedFile = ChangedFile(
+            type = CompileFile.Type.Kotlin,
+            file = sourceFile,
+            baseDir = sourceFile.parentFile,
+            module = ModuleInfo.virtualModule,
+        )
+
+        analyzer.getRecompileFiles(
+            stagingFiles = emptyList(),
+            compiledFiles = listOf(changedFile),
+            moduleInfos = emptyMap(),
+            isMinified = false,
+            isCompilingEffectedSourceFiles = true,
+            classObfuscator = null,
+        )
+
+        verify(deployDataGenerator).buildDeployData(
+            items = eq(emptyList<DeployItem>()),
+            isWarmUp = eq(false),
+            isNeedCheckRecompile = eq(true),
+            isNeedCheckRecompileMinifyRemovedClass = eq(false),
+            isCompilingEffectedSourceFiles = eq(true),
+            constRefChangedSourcePaths = eq(emptyList()),
+        )
+    }
+
+    private fun newAnalyzer(deployDataGenerator: DeployDataGenerator): CompileEffectAnalyzer {
+        return CompileEffectAnalyzer(
+            pathManager = mock<JuggPathManager>(),
+            deployDataGenerator = deployDataGenerator,
+            sourceFileManager = mock<SourceFileManager>(),
+            logger = mock<Logger>(),
+        )
+    }
+
+    private fun mockDeployDataGenerator(): DeployDataGenerator {
+        val deployDataGenerator = mock<DeployDataGenerator>()
+        whenever(
+            deployDataGenerator.buildDeployData(
+                items = any(),
+                isWarmUp = any(),
+                isNeedCheckRecompile = any(),
+                isNeedCheckRecompileMinifyRemovedClass = any(),
+                isCompilingEffectedSourceFiles = any(),
+                constRefChangedSourcePaths = any(),
+            )
+        ).thenReturn(emptyDeployData())
+        return deployDataGenerator
+    }
+
+    private fun emptyDeployData(): JuggDeployData {
+        return JuggDeployData(
+            apks = emptyList(),
+            newClasses = emptyList(),
+            hotFixModifiedClasses = emptyList(),
+            hotReloadModifiedClasses = emptyList(),
+            effectedClassNodes = emptyList(),
+            overlays = emptyList(),
+            parsedDex = ParsedDex.EMPTY,
+            isFullRes = false,
+            isWarmUp = false,
+        )
     }
 }

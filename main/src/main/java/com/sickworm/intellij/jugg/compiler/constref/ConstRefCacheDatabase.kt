@@ -2410,7 +2410,7 @@ class ConstRefCacheDatabase(
     }
 
     companion object {
-        private const val DB_SCHEMA_VERSION = 6
+        private const val DB_SCHEMA_VERSION = 7
         private const val MAX_MTIME_QUERY_ROWS_PER_BATCH = 250
         private const val MAX_STRING_QUERY_ROWS_PER_BATCH = 500
         private const val STRING_ID_CACHE_MAX_ENTRIES = 8192

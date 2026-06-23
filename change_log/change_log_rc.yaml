@@ -1,3 +1,9 @@
+- version: 3.0.19
+  date: 2026.06.23
+  updates:
+    - Fix stale const reference cache may cause blank source edits to trigger unexpected recompilation
+    - Avoid repeated const reference checks during effected source recompilation rounds
+
 - version: 3.0.18
   date: 2026.06.23
   updates:

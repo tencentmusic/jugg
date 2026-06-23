@@ -11,6 +11,38 @@ import java.sql.DriverManager
 
 class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
+    fun `should recreate schema 6 database after const ref rule version bump`() {
+        val dbDir = createTempDirectory("const_ref_db_schema_bump")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db")
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeUpdate("CREATE TABLE old_const_definitions(id INTEGER PRIMARY KEY, const_name TEXT)")
+                statement.executeUpdate("INSERT INTO old_const_definitions(const_name) VALUES('STALE_PRIVATE_CONST')")
+                statement.executeUpdate("PRAGMA schema_version = 6")
+            }
+        }
+
+        val database = ConstRefCacheDatabase(dbFile, logger)
+        database.close()
+
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("PRAGMA schema_version").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertEquals(7, resultSet.getInt(1))
+                }
+                statement.executeQuery(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='old_const_definitions'"
+                ).use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertEquals(0, resultSet.getInt(1))
+                }
+            }
+        }
+    }
+
+    @Test
     fun `should query effected files by changed constant definition`() {
         val dbDir = createTempDirectory("const_ref_db")
         File(dbDir, ".git").mkdirs()

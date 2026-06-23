@@ -46,13 +46,18 @@ class CompileEffectAnalyzer(
             .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
             .map { it.file.stdAbsPath }
             .distinct()
+        val constRefChangedSourcePaths = if (isCompilingEffectedSourceFiles) {
+            emptyList()
+        } else {
+            changedSourcePaths
+        }
 
         val juggDeployData = deployDataGenerator.buildDeployData(
             deployItems,
             isNeedCheckRecompile = true,
             isNeedCheckRecompileMinifyRemovedClass = isMinified,
             isCompilingEffectedSourceFiles = isCompilingEffectedSourceFiles,
-            constRefChangedSourcePaths = changedSourcePaths,
+            constRefChangedSourcePaths = constRefChangedSourcePaths,
         )
 
         val obfuscatedClasses = juggDeployData.effectedClassNodes.map {
