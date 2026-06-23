@@ -301,13 +301,14 @@
 **返回 data**：
 - `hasDevice`：boolean，设备已连接时为 `true`
 - `needFallback`：boolean，需要 Gradle 全量构建时为 `true`
+- `executionType`：`local` / `remote`，当前 Jugg run configuration 的 Gradle fallback 执行环境；AI command hook 在 `remote` 时会对 raw Gradle 命令强制先 block 一次
 - `stateMessage`：当前状态的可读原因
 - `pendingModifiedFiles`：`{ total: number, <Type>: number, ... }`，按 `CompileFile.Type` 分类统计未编译文件数量
 - `files`：未编译文件绝对路径列表，**最多 20 个**
 - `detail`：未截断时为空字符串；截断时为自然语言描述，如 `"Showing 20 of 25 files. 5 more files are not listed."`
 - `lastFileModifiedTime`：最近未编译文件的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无文件时为空字符串）
 - `lastCompileTime`：最近一次调用 `compile` / `deploy` / `gradle-build` 的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无记录时为空字符串）；AI hooks 用它判断当前 Agent 会话写入是否已被 Jugg 验证覆盖
-- `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线；AI hooks 仅在该字段为 `true` 时启用 raw Gradle guard 与 stop guard，并且 guard 还要求当前 Agent 会话已有写入工具触发记录，且该写入时间晚于 `lastCompileTime`
+- `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线；AI hooks 仅在该字段为 `true` 时启用 raw Gradle guard 与 stop guard。command hook 对 `executionType=remote` 会跳过会话写入与 pending file 覆盖判断，仍按“一次 block、重复放行”处理
 - `enabledAndroidTest`：最近一次 full build 基线是否以 AndroidTest target 初始化（`true` 表示当时开启了 `enableAndroidTest`）
 - `isCompiling`：boolean，当前是否有 Jugg compile/deploy 运行任务在执行（对齐 `JuggConfigurationRunner.isCompiling`）
 

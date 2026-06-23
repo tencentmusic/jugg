@@ -549,6 +549,7 @@ def format_status_summary(structured: dict[str, Any]) -> str:
     for key in (
         "hasDevice",
         "needFallback",
+        "executionType",
         "hasBeenFullCompiled",
         "enabledAndroidTest",
         "pendingModifiedFiles",
@@ -580,6 +581,23 @@ def has_pending_files(file_counts: dict[str, Any]) -> bool:
         if safe_int(value) > 0:
             return True
     return False
+
+
+def status_execution_type(structured: dict[str, Any]) -> str:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return ""
+    execution_type = data.get("executionType")
+    return execution_type.strip().lower() if isinstance(execution_type, str) else ""
+
+
+def status_is_remote_compile(structured: dict[str, Any]) -> bool:
+    data = structured.get("data", {})
+    if not isinstance(data, dict):
+        return False
+    if status_execution_type(structured) == "remote":
+        return True
+    return data.get("isRemoteCompile") is True
 
 
 def status_allows_hooks(structured: dict[str, Any]) -> bool:

@@ -31,6 +31,8 @@ from hook_common import (
     remember_project_cwd,
     session_write_needs_verification,
     state_file_path,
+    status_execution_type,
+    status_is_remote_compile,
     write_hook_state,
 )
 
@@ -98,6 +100,7 @@ def pending_fingerprint(structured: dict[str, Any]) -> str:
     payload = {
         "pendingModifiedFiles": extract_file_counts(structured),
         "files": files,
+        "executionType": status_execution_type(structured),
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha1(encoded.encode("utf-8")).hexdigest()
@@ -162,14 +165,15 @@ def main() -> int:
         emit_cursor_empty_response(args.client)
         return 0
 
-    if not has_session_write_seen(state):
-        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because no session write was recorded")
-        emit_cursor_empty_response(args.client)
-        return 0
-
     structured = read_status_snapshot(home, project_cwd)
     if structured is None:
         debug_log("JUGG-COMMAND", "exit: project is not available to jugg")
+        emit_cursor_empty_response(args.client)
+        return 0
+
+    is_remote_compile = status_is_remote_compile(structured)
+    if not is_remote_compile and not has_session_write_seen(state):
+        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because no session write was recorded")
         emit_cursor_empty_response(args.client)
         return 0
 
@@ -179,7 +183,7 @@ def main() -> int:
     except (TypeError, ValueError):
         block_count = 0
 
-    if not has_pending:
+    if not is_remote_compile and not has_pending:
         if block_count > 0:
             state["gradleBlockCount"] = 0
             state.pop("gradleBlockedFingerprint", None)
@@ -188,7 +192,7 @@ def main() -> int:
         emit_cursor_empty_response(args.client)
         return 0
 
-    if not session_write_needs_verification(state, structured):
+    if not is_remote_compile and not session_write_needs_verification(state, structured):
         if block_count > 0:
             state["gradleBlockCount"] = 0
             state.pop("gradleBlockedFingerprint", None)

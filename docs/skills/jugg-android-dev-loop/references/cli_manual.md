@@ -228,7 +228,7 @@ python3 {SKILL_DIR}/scripts/jugg.py status [--refresh-changes <true|false>]
 
 `status` does not refresh changed files by default. Pass `--refresh-changes true` to refresh git-tracked changed files before reading status.
 
-`status` returns `data.enabledAndroidTest`. Reuse an existing hook block's `Jugg status` output when it is already in context; otherwise run `--console=json status` before choosing the androidTest / `instrument` route. `enabledAndroidTest=true` means the latest persisted full-build baseline used AndroidTest target.
+`status` returns `data.executionType` and `data.enabledAndroidTest`. `executionType=remote` means the current Jugg run configuration uses remote Gradle fallback; command hooks block the first raw Gradle attempt in that mode even when the current agent session has no recorded source write. Reuse an existing hook block's `Jugg status` output when it is already in context; otherwise run `--console=json status` before choosing the androidTest / `instrument` route. `enabledAndroidTest=true` means the latest persisted full-build baseline used AndroidTest target.
 
 If a user asks to run androidTest or instrumented unit tests and `enabledAndroidTest=false`, do not run `instrument`. Tell the user to open the Jugg App Run Configuration, enable Android Test / `enableAndroidTest`, run the configuration once with a full build / `gradle-build`, then re-check `status` until `data.enabledAndroidTest=true`.
 

@@ -27,6 +27,7 @@ def _write_fake_jugg_cli(
     files: list[str] | None = None,
     last_compile_time: str = "",
     enabled_android_test: bool = False,
+    execution_type: str = "local",
     expected_cwd: str | None = None,
 ) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
@@ -53,6 +54,7 @@ def _write_fake_jugg_cli(
         "        'needFallback': False,\n"
         "        'hasBeenFullCompiled': True,\n"
         f"        'enabledAndroidTest': {enabled_android_test_python},\n"
+        f"        'executionType': {execution_type!r},\n"
         f"        'pendingModifiedFiles': {{'total': {total}}},\n"
         f"        'files': {files_json},\n"
         f"        'lastCompileTime': {last_compile_time!r},\n"
@@ -1357,6 +1359,41 @@ class HookReminderDecisionTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stderr)
+
+    def test_command_hook_blocks_once_for_remote_compile_without_session_write(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        session_id = "session-remote-compile"
+        payload = {
+            "session": {"id": session_id},
+            "tool_name": "Bash",
+            "tool_input": {"command": "./gradlew :app:assembleDebug"},
+        }
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            _write_fake_jugg_cli(home, total=0, execution_type="remote")
+            first = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env=_hook_env(home),
+                check=False,
+            )
+            second = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env=_hook_env(home),
+                check=False,
+            )
+
+        self.assertEqual(2, first.returncode)
+        self.assertIn("COMMAND GATE", first.stderr)
+        self.assertIn("executionType: remote", first.stderr)
+        self.assertEqual(0, second.returncode)
+        self.assertIn("Allowing this repeated command attempt", second.stderr)
 
     def test_command_hook_allows_pending_files_after_session_write_was_verified(self):
         script = Path(__file__).resolve().parent.parent / "command.py"

@@ -235,6 +235,7 @@ jugg status [--refresh-changes <true|false>]
 
 关键字段：
 
+- `executionType`：当前 Jugg run configuration 的 Gradle fallback 执行环境，取值 `local` / `remote`；AI command hook 在 `remote` 时会对 raw Gradle 命令强制先 block 一次，不再要求本次 Agent 会话先出现文件写入记录。
 - `enabledAndroidTest`：最近一次持久化 full-build baseline 是否使用 AndroidTest target，不等同于单纯 UI toggle。
 - `isCompiling`：当前是否有 compile/deploy 任务在运行；CLI 的 compile 类命令会用它做触发前等待。
 

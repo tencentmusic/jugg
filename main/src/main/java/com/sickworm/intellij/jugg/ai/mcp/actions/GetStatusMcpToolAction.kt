@@ -58,6 +58,11 @@ class GetStatusMcpToolAction(
                             type = "boolean",
                             description = "True when a full Gradle build is required (state is READY_FULL_COMPILE).",
                         ),
+                        "executionType" to McpJsonSchemaProperty(
+                            type = "string",
+                            `enum` = listOf("local", "remote"),
+                            description = "Current Gradle fallback execution type from the active Jugg run configuration.",
+                        ),
                         "stateMessage" to McpJsonSchemaProperty(
                             type = "string",
                             description = "Human-readable reason for current state.",
@@ -101,6 +106,7 @@ class GetStatusMcpToolAction(
                     required = listOf(
                         "hasDevice",
                         "needFallback",
+                        "executionType",
                         "stateMessage",
                         "pendingModifiedFiles",
                         "files",
@@ -175,6 +181,7 @@ class GetStatusMcpToolAction(
         val data: Map<String, Any> = mapOf(
             "hasDevice" to (runtime.deployTargetManager.hasDevice),
             "needFallback" to needFallback,
+            "executionType" to runtime.forceGradleCompileHelper.resolveExecutionType(),
             "stateMessage" to deployState.msg,
             "pendingModifiedFiles" to pendingModifiedFiles,
             "files" to files,

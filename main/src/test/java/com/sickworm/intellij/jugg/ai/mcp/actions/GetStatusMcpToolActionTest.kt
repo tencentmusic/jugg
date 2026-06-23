@@ -82,6 +82,22 @@ class GetStatusMcpToolActionTest {
     }
 
     @Test
+    fun testStatusReturnsGradleExecutionType() {
+        val runtime = runtimeWith(
+            deployState = JuggDeployState.READY,
+            hasDevice = true,
+            uncompiledFiles = emptyList(),
+            executionType = "remote",
+        )
+
+        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertEquals("remote", data["executionType"])
+    }
+
+    @Test
     fun testStatusReturnsRecordedLastCompileTime() {
         val deployState = JuggDeployState.READY
         val runtime = runtimeWith(deployState = deployState, hasDevice = true, uncompiledFiles = emptyList())
@@ -458,6 +474,7 @@ class GetStatusMcpToolActionTest {
         uncompiledFilesProvider: (() -> List<ChangedFile>)? = null,
         statusRefresh: () -> Unit = {},
         isCompiling: Boolean = false,
+        executionType: String = "local",
     ): IMcpRuntime {
         val deployStateManager = object : IDeployStateManager {
             override fun updateDeployState(): JuggDeployState = deployState
@@ -481,7 +498,7 @@ class GetStatusMcpToolActionTest {
                     throw UnsupportedOperationException("not used in this test")
                 override fun executeGradleCompileBlocking(autoConfirm: Boolean, useCleanAndReinstall: Boolean): GradleCompileExecutionResult =
                     throw UnsupportedOperationException("not used in this test")
-                override fun resolveExecutionType(): String = "local"
+                override fun resolveExecutionType(): String = executionType
                 override fun requestRemoteSshInfo(requestedBy: String, reason: String): RemoteSshInfoResult =
                     RemoteSshInfoResult(approved = false, message = "not used in this test")
             }
