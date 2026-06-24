@@ -64,6 +64,8 @@ IDE project opened
 
 `recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。
 
+`DeployFileManager` 可在构造期直接创建 `ConstRefEngine` 对象，但 `ConstRefEngine` 构造期不能初始化 SQLite database、repo fingerprint store 或 impact resolver，避免全局 SQLite 缓存损坏阻断 manager 创建。这些 ConstRef runtime 资源由 `ConstRefEngine` 在 `updateModuleInfos()`、源码变更事件、编译前 readiness、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化；失败后降级为 no-op，主初始化、编译和部署继续。
+
 ### 4.2 Gradle Sync 到上下文重建
 
 ```text
@@ -120,6 +122,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 |---|---|
 | 插件初始化后没有 manager | `JuggInitializer.instanceSet`、`JuggLoader`、`JuggManagerCreator.create()` |
 | 启动期长时间卡住 | `09_plugin_runtime_debug.md`，再看 `JuggManager.init()` background task 和 `ConstRefEngine` 启动扫描 |
+| 启动期 SQLite corrupt | `ConstRefEngine` 构造期不应初始化 SQLite runtime；检查 `ConstRefCacheDatabase` 损坏重建与 no-op fallback 日志 |
 | 默认 Run 配置没有生成 | `JuggManager.tryCreateRunConfigurations()` 与 `AsDeployerCompat.getSuggestRunConfigurations()` |
 | Sync 后 project info / dependency 状态异常 | `JuggManager.onSyncEvent()`、`updateProjectInfo()`、`CompileContextManager.updateCompileContext()` |
 | Run UI 状态错乱或取消后下轮误判 | `JuggRunningTask.run()` finally 中 hasRun / processHandler / logger listener 收口 |

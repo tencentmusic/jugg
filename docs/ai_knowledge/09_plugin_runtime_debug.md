@@ -88,6 +88,7 @@ ${projectRoot}/.gradle/jugg/
 | ConstRef 启动延后 | `ConstRefEngine defer initial full scan until startup stabilizes` |
 | ConstRef 限速实值 | `ConstRefEngine io throttle enabled` |
 | ConstRef 全扫进度 | `ConstRefEngine full scan progress` |
+| ConstRef 降级 | `fallback to no-op const-ref` |
 | IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
 | 重混淆结果 | `Obfuscated:` |
 | 重混淆注解问题 | `visitAnnotation` / `mapType` |
@@ -144,7 +145,18 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 - `docs/task` 历史方案用于解释背景，不代表全部已落地；
 - 若源码默认值与运行日志不一致，优先怀疑 IDE 中加载的插件产物未更新，或系统属性覆盖。
 
-### 4.1.2 Jugg Debug 断点不生效
+### 4.1.2 ConstRef SQLite 缓存损坏
+
+**信号**：`idea.log` 或插件初始化栈出现 `SQLITE_CORRUPT` / `SQLITE_NOTADB` / `database disk image is malformed`，类名落在 `ConstRefCacheDatabase.ensureSchema()`、`ConstRefCacheDatabase.init()`、`DeployFileManager.<init>` 或 `JuggManager.<init>` 附近。
+
+**当前期望行为**：
+- `DeployFileManager` 可直接创建 `ConstRefEngine`，但 `ConstRefEngine` 构造不应初始化 SQLite runtime；`JuggManager.<init>` 不应因 ConstRef DB 异常失败。
+- `ConstRefCacheDatabase` 初始化遇到损坏库时会重建 `~/.jugg/const_ref/const_ref_shared.db` 及其 WAL/SHM。
+- 若 DB 重建或 `RepoSharedFingerprintStore` 初始化仍失败，日志应出现 `fallback to no-op const-ref`，后续编译/部署按无 ConstRef 继续。
+
+**人工恢复**：若仍因文件权限或磁盘状态导致无法重建，可关闭 IDE 后删除 `~/.jugg/const_ref/const_ref_shared.db*` 和 `~/.jugg/const_ref/repo_fingerprint.db*`，重新打开项目。
+
+### 4.1.3 Jugg Debug 断点不生效
 
 **信号**：Jugg Debug 启动后 App 显示等待/已 attach，但断点不打勾或点击后不 suspend；原生 Android Studio Debug / Attach 可以命中同一断点。
 

@@ -1585,8 +1585,8 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
-            assertEquals(500L, readPrivateLong(engine, "fullScanIoThrottleSleepMs"))
-            assertEquals(200, readPrivateInt(engine, "fullScanIoThrottleEveryNFiles"))
+            assertEquals(3000L, readPrivateLong(engine, "fullScanIoThrottleSleepMs"))
+            assertEquals(50, readPrivateInt(engine, "fullScanIoThrottleEveryNFiles"))
             assertEquals(500L, readPrivateLong(engine, "fileChangeIoThrottleSleepMs"))
             assertEquals(200, readPrivateInt(engine, "fileChangeIoThrottleEveryNFiles"))
             assertEquals(0L, readPrivateLong(engine, "preCompileIoThrottleSleepMs"))

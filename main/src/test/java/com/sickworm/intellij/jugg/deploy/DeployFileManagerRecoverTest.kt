@@ -1,11 +1,15 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.mock.logger
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import kotlinx.coroutines.Job
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
@@ -22,6 +26,54 @@ class DeployFileManagerRecoverTest {
             action.run()
             return Job()
         }
+    }
+
+    @Test
+    fun constRefFailureShouldNotBlockDeployFileManagerFlow() {
+        val testRoot = Files.createTempDirectory("deploy-const-ref-failure-test").toFile()
+        val globalRoot = File(testRoot, "global")
+        val pathManager = JuggPathManager(
+            projectDir = testRoot,
+            globalJuggRootDir = globalRoot,
+        )
+        pathManager.constRefSharedDbFile.apply {
+            parentFile.mkdirs()
+            writeText("not a sqlite database")
+        }
+        pathManager.repoFingerprintDbFile.mkdirs()
+        val deployFileManager = DeployFileManager(
+            pathManager = pathManager,
+            backgroundTaskRunner = immediateRunner,
+            logger = logger,
+        )
+        assertEquals("not a sqlite database", pathManager.constRefSharedDbFile.readText())
+
+        deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
+
+        val sourceDir = File(testRoot, "src").apply { mkdirs() }
+        val sourceFile = File(sourceDir, "Constants.kt").apply { writeText("const val VALUE = 1") }
+        val moduleInfo = ModuleInfo.virtualModule.copy(sourceDirs = listOf(sourceDir))
+
+        deployFileManager.updateModuleInfos(mapOf(moduleInfo.name to moduleInfo), mappingFile = null)
+        deployFileManager.addChangedFile(
+            listOf(
+                ChangedFile(
+                    type = CompileFile.Type.Kotlin,
+                    file = sourceFile,
+                    baseDir = sourceDir,
+                    module = moduleInfo,
+                )
+            )
+        )
+        deployFileManager.awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
+        val recompileFiles = deployFileManager.getRecompileFiles(
+            isMinified = false,
+            isCompilingEffectedSourceFiles = false,
+            classObfuscator = null,
+        )
+        deployFileManager.dispose()
+
+        assertTrue(recompileFiles.effectedSourceFiles.isEmpty())
     }
 
     @Test

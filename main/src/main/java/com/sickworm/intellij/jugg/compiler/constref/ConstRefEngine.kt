@@ -26,22 +26,90 @@ import kotlin.system.measureTimeMillis
 /**
  * Coordinates const-ref analysis lifecycle and exposes readiness/impact APIs to deploy flow.
  */
-class ConstRefEngine(
+class ConstRefEngine private constructor(
     private val analyzer: ConstRefAnalyzer,
-    private val database: ConstRefCacheDatabase,
     private val logger: Logger,
     private val backgroundTaskRunner: IBackgroundTaskRunner,
-    private val repoSharedFingerprintStore: RepoSharedFingerprintStore,
     private val startupStabilizationDelayMs: Long = 10_000L,
+    private val runtimeFactory: () -> ConstRefRuntime,
+    initialRuntimeState: ConstRefRuntimeState,
 ) {
+    constructor(
+        analyzer: ConstRefAnalyzer,
+        dbFile: File,
+        repoFingerprintDbFile: File,
+        logger: Logger,
+        backgroundTaskRunner: IBackgroundTaskRunner,
+        startupStabilizationDelayMs: Long = 10_000L,
+    ) : this(
+        analyzer = analyzer,
+        logger = logger,
+        backgroundTaskRunner = backgroundTaskRunner,
+        startupStabilizationDelayMs = startupStabilizationDelayMs,
+        runtimeFactory = {
+            var database: ConstRefCacheDatabase? = null
+            try {
+                database = ConstRefCacheDatabase(dbFile, logger)
+                val repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, repoFingerprintDbFile)
+                ConstRefRuntime(
+                    database = database,
+                    repoSharedFingerprintStore = repoSharedFingerprintStore,
+                    impactResolver = ConstRefImpactResolver(database),
+                )
+            } catch (t: Throwable) {
+                try {
+                    database?.close()
+                } catch (_: Throwable) {
+                }
+                throw t
+            }
+        },
+        initialRuntimeState = ConstRefRuntimeState.NotInitialized,
+    )
+
+    constructor(
+        analyzer: ConstRefAnalyzer,
+        database: ConstRefCacheDatabase,
+        logger: Logger,
+        backgroundTaskRunner: IBackgroundTaskRunner,
+        repoSharedFingerprintStore: RepoSharedFingerprintStore,
+        startupStabilizationDelayMs: Long = 10_000L,
+    ) : this(
+        analyzer = analyzer,
+        logger = logger,
+        backgroundTaskRunner = backgroundTaskRunner,
+        startupStabilizationDelayMs = startupStabilizationDelayMs,
+        runtimeFactory = {
+            ConstRefRuntime(
+                database = database,
+                repoSharedFingerprintStore = repoSharedFingerprintStore,
+                impactResolver = ConstRefImpactResolver(database),
+            )
+        },
+        initialRuntimeState = ConstRefRuntimeState.Ready(
+            ConstRefRuntime(
+                database = database,
+                repoSharedFingerprintStore = repoSharedFingerprintStore,
+                impactResolver = ConstRefImpactResolver(database),
+            )
+        ),
+    )
+
     private val maxAnalyzedHistory = 4096
     private val analysisMutex = Mutex()
     private val sceneTaskScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @OptIn(ExperimentalCoroutinesApi::class)
     private val fullScanDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val runtimeLock = Any()
+    private var runtimeState = initialRuntimeState
+    private val database: ConstRefCacheDatabase
+        get() = requireRuntime("database").database
+    private val repoSharedFingerprintStore: RepoSharedFingerprintStore
+        get() = requireRuntime("repoSharedFingerprintStore").repoSharedFingerprintStore
+    private val impactResolver: ConstRefImpactResolver
+        get() = requireRuntime("impactResolver").impactResolver
     private val stateLock = Any()
     private val changeTracker = ConstRefChangeTracker()
-    private val impactResolver = ConstRefImpactResolver(database)
     private val sessionCache = ConstRefSessionCache(
         fileCacheMaxFiles = readPositiveIntProperty(SESSION_FILE_CACHE_MAX_PROPERTY, DEFAULT_SESSION_FILE_CACHE_MAX),
         lookupCacheMaxKeys = readPositiveIntProperty(SESSION_LOOKUP_CACHE_MAX_PROPERTY, DEFAULT_SESSION_LOOKUP_CACHE_MAX),
@@ -50,6 +118,7 @@ class ConstRefEngine(
     private val pendingAnalyzeFiles = linkedSetOf<String>()
     private val pendingDeleteCleanupPaths = linkedSetOf<String>()
     private var deleteCleanupJob: Job? = null
+    private var cacheCleanupJob: Job? = null
     private var currentEditingFile: String? = null
     private val analyzedAt = mutableMapOf<String, Long>()
     private val trackedSourceDirs = mutableListOf<String>()
@@ -94,7 +163,6 @@ class ConstRefEngine(
                     "onDemand=${formatThrottle(onDemandIoThrottleSleepMs, onDemandIoThrottleEveryNFiles)}"
             )
         }
-        scheduleCacheCleanup()
     }
 
     fun onFileSaved(filePath: String) {
@@ -130,6 +198,9 @@ class ConstRefEngine(
             .filter { isSourceFile(it) }
             .distinct()
         if (targetPaths.isEmpty()) {
+            return AnalysisReadiness.READY
+        }
+        if (getRuntime("awaitAnalysis") == null) {
             return AnalysisReadiness.READY
         }
         val startAt = System.currentTimeMillis()
@@ -271,7 +342,7 @@ class ConstRefEngine(
                     )
                 } catch (e: ExecutionException) {
                     analysisFailed = true
-                    logger.warn("ConstRefEngine analyzeOnDemand failed: ${e.cause?.message}")
+                    disableRuntime("analyzeOnDemand failed", e.cause ?: e)
                 } finally {
                     executor.shutdownNow()
                 }
@@ -339,7 +410,12 @@ class ConstRefEngine(
             .map { it.toStdPath() }
             .distinct()
             .toList()
-        database.registerPathHints(normalizedSourceDirs)
+        runCatching {
+            database.registerPathHints(normalizedSourceDirs)
+        }.onFailure {
+            disableRuntime("initializeFullScan failed", it)
+            return
+        }
         synchronized(stateLock) {
             trackedSourceDirs.clear()
             trackedSourceDirs += normalizedSourceDirs
@@ -359,31 +435,36 @@ class ConstRefEngine(
     }
 
     fun getEffectedFiles(changedFilePaths: Collection<String>): List<EffectedConstRef> {
-        val changedPaths = changedFilePaths
-            .map { File(it).toStdPath() }
-            .filter { isSourceFile(it) }
-            .distinct()
-        if (changedPaths.isEmpty()) {
-            return emptyList()
-        }
-        val (changedKeys, removedKeys) = changeTracker.peekDefinitionDiff(changedPaths)
-        val (changedChanges, removedChanges) = changeTracker.peekDefinitionChanges(changedPaths)
-        if (changedKeys.isNotEmpty() || removedKeys.isNotEmpty()) {
-            logger.debug(
-                "ConstRefEngine effected definition changes, " +
-                    "changed=${changedChanges.toLogString()}, " +
-                    "removed=${removedChanges.toLogString()}, " +
-                    "changedPathCount=${changedPaths.size}"
-            )
-            synchronized(stateLock) {
-                pendingAckChangedPaths += changedPaths
+        return runCatching {
+            val changedPaths = changedFilePaths
+                .map { File(it).toStdPath() }
+                .filter { isSourceFile(it) }
+                .distinct()
+            if (changedPaths.isEmpty()) {
+                return emptyList()
             }
+            val (changedKeys, removedKeys) = changeTracker.peekDefinitionDiff(changedPaths)
+            val (changedChanges, removedChanges) = changeTracker.peekDefinitionChanges(changedPaths)
+            if (changedKeys.isNotEmpty() || removedKeys.isNotEmpty()) {
+                logger.debug(
+                    "ConstRefEngine effected definition changes, " +
+                        "changed=${changedChanges.toLogString()}, " +
+                        "removed=${removedChanges.toLogString()}, " +
+                        "changedPathCount=${changedPaths.size}"
+                )
+                synchronized(stateLock) {
+                    pendingAckChangedPaths += changedPaths
+                }
+            }
+            impactResolver.getEffectedFiles(
+                changedPaths = changedPaths,
+                changedDefinitionKeys = changedKeys,
+                removedDefinitionKeys = removedKeys,
+            )
+        }.getOrElse {
+            disableRuntime("getEffectedFiles failed", it)
+            emptyList()
         }
-        return impactResolver.getEffectedFiles(
-            changedPaths = changedPaths,
-            changedDefinitionKeys = changedKeys,
-            removedDefinitionKeys = removedKeys,
-        )
     }
 
     private fun Set<ConstDefinitionChange>.toLogString(): String {
@@ -470,6 +551,11 @@ class ConstRefEngine(
     }
 
     fun dispose() {
+        val runtime = synchronized(runtimeLock) {
+            val state = runtimeState
+            runtimeState = ConstRefRuntimeState.Disabled("disposed")
+            (state as? ConstRefRuntimeState.Ready)?.runtime
+        }
         synchronized(stateLock) {
             delayedInitialFullScanJob?.cancel()
             delayedInitialFullScanJob = null
@@ -477,15 +563,83 @@ class ConstRefEngine(
                 it.scheduledJob?.cancel()
                 it.runningJob?.cancel()
             }
+            cacheCleanupJob?.cancel()
+            cacheCleanupJob = null
         }
         sceneTaskScope.cancel()
         analyzer.dispose()
-        database.close()
+        runtime?.database?.close()
     }
 
-    private fun scheduleCacheCleanup() {
-        backgroundTaskRunner.runBackgroundSafe("ConstRefEngine#cacheCleanup") {
-            cacheCleaner.cleanupIfNeeded(database, repoSharedFingerprintStore)
+    private fun scheduleCacheCleanup(runtime: ConstRefRuntime) {
+        cacheCleanupJob = backgroundTaskRunner.runBackgroundSafe(
+            jobName = "ConstRefEngine#cacheCleanup",
+            delayMs = CACHE_CLEANUP_DELAY_MS,
+            isNeedLog = false,
+        ) {
+            runCatching {
+                cacheCleaner.cleanupIfNeeded(runtime.database, runtime.repoSharedFingerprintStore)
+            }.onFailure {
+                disableRuntime("cacheCleanup failed", it)
+            }
+        }
+    }
+
+    private fun requireRuntime(actionName: String): ConstRefRuntime {
+        return getRuntime(actionName) ?: throw ConstRefRuntimeUnavailableException(actionName)
+    }
+
+    private fun getRuntime(actionName: String): ConstRefRuntime? {
+        val runtime = synchronized(runtimeLock) {
+            when (val state = runtimeState) {
+                is ConstRefRuntimeState.Ready -> state.runtime
+                is ConstRefRuntimeState.Disabled -> null
+                ConstRefRuntimeState.NotInitialized -> {
+                    runCatching {
+                        runtimeFactory()
+                    }.onSuccess {
+                        runtimeState = ConstRefRuntimeState.Ready(it)
+                        logger.debug("ConstRefEngine runtime initialized by $actionName")
+                    }.onFailure {
+                        disableRuntimeLocked("runtime init failed by $actionName", it)
+                    }.getOrNull()
+                }
+            }
+        }
+        if (runtime != null && actionName != "cacheCleanup") {
+            scheduleCacheCleanupOnce(runtime)
+        }
+        return runtime
+    }
+
+    private var hasScheduledCacheCleanup = false
+
+    private fun scheduleCacheCleanupOnce(runtime: ConstRefRuntime) {
+        synchronized(runtimeLock) {
+            if (hasScheduledCacheCleanup || runtimeState !is ConstRefRuntimeState.Ready) {
+                return
+            }
+            hasScheduledCacheCleanup = true
+        }
+        scheduleCacheCleanup(runtime)
+    }
+
+    private fun disableRuntime(message: String, throwable: Throwable) {
+        synchronized(runtimeLock) {
+            disableRuntimeLocked(message, throwable)
+        }
+    }
+
+    private fun disableRuntimeLocked(message: String, throwable: Throwable) {
+        val runtime = (runtimeState as? ConstRefRuntimeState.Ready)?.runtime
+        runtimeState = ConstRefRuntimeState.Disabled(message)
+        runCatching {
+            runtime?.database?.close()
+        }.onFailure {
+            logger.warn("ConstRefEngine runtime close after failure failed", it)
+        }
+        if (throwable !is ConstRefRuntimeUnavailableException) {
+            logger.warn("ConstRefEngine $message, fallback to no-op const-ref", throwable)
         }
     }
 
@@ -1397,6 +1551,8 @@ class ConstRefEngine(
             }
             try {
                 action()
+            } catch (t: Throwable) {
+                disableRuntime("scene ${scene.name} failed", t)
             } finally {
                 synchronized(stateLock) {
                     val state = sceneTaskStates.getValue(scene)
@@ -1575,6 +1731,21 @@ class ConstRefEngine(
         var runningJob: Job? = null,
     )
 
+    private data class ConstRefRuntime(
+        val database: ConstRefCacheDatabase,
+        val repoSharedFingerprintStore: RepoSharedFingerprintStore,
+        val impactResolver: ConstRefImpactResolver,
+    )
+
+    private sealed class ConstRefRuntimeState {
+        object NotInitialized : ConstRefRuntimeState()
+        data class Ready(val runtime: ConstRefRuntime) : ConstRefRuntimeState()
+        data class Disabled(val reason: String) : ConstRefRuntimeState()
+    }
+
+    private class ConstRefRuntimeUnavailableException(actionName: String) :
+        IllegalStateException("ConstRef runtime is unavailable for $actionName")
+
     companion object {
         private const val IO_THROTTLE_MS_PROPERTY = "jugg.constref.io.throttle.ms"
         private const val IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.io.throttle.every"
@@ -1604,6 +1775,7 @@ class ConstRefEngine(
         private const val DEFAULT_SESSION_LOOKUP_CACHE_MAX = 4000
         private const val DEFAULT_SESSION_CACHE_TTL_MS = 15L * 60L * 1000L
         private const val DEFAULT_BATCH_SIZE = 50
+        private const val CACHE_CLEANUP_DELAY_MS = 120_000L
         private const val SLOW_PHASE_THRESHOLD_MS = 500L
         private const val DETAILED_LOG_FILE_THRESHOLD = 5
         private const val PER_FILE_ANALYZE_TIMEOUT_MS = 5_000L

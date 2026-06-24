@@ -8,8 +8,6 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.compiler.toCompileOutput
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
-import com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase
-import com.sickworm.intellij.jugg.compiler.constref.RepoSharedFingerprintStore
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefEngine
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
@@ -45,27 +43,12 @@ class DeployFileManager(
      */
     private val sourceFileManager = SourceFileManager(pathManager.projectDir, pathManager.databaseDir, logger.getInstance("SourceFileManager"))
 
-    private val constRefCacheDatabase = ConstRefCacheDatabase(
-        pathManager.constRefSharedDbFile,
-        logger.getInstance("ConstRefCacheDatabase"),
-    )
-
-    private val repoSharedFingerprintStore = run {
-        val fingerprintLogger = logger.getInstance("RepoSharedFingerprintStore")
-        logger.debug("Const-ref db paths: sharedDb=${pathManager.constRefSharedDbFile.absolutePath}, " +
-                    "repoFingerprintDb=${pathManager.repoFingerprintDbFile.absolutePath}")
-        RepoSharedFingerprintStore(
-            logger = fingerprintLogger,
-            dbFile = pathManager.repoFingerprintDbFile,
-        )
-    }
-
     private val constRefEngine = ConstRefEngine(
         analyzer = ConstRefAnalyzer(logger.getInstance("ConstRefAnalyzer")),
-        database = constRefCacheDatabase,
+        dbFile = pathManager.constRefSharedDbFile,
+        repoFingerprintDbFile = pathManager.repoFingerprintDbFile,
         logger = logger.getInstance("ConstRefEngine"),
         backgroundTaskRunner = backgroundTaskRunner,
-        repoSharedFingerprintStore = repoSharedFingerprintStore,
     )
 
     private val constRefEffectProvider = object : ConstRefEffectProvider {

@@ -35,8 +35,20 @@ class ConstRefCacheDatabase(
     fun init() {
         SqLiteDriverLoader.load(logger)
         dbFile.parentFile?.mkdirs()
-        ensureSharedConnectionLocked()
+        try {
+            initExistingDatabase()
+        } catch (t: Throwable) {
+            if (!isCorruptDatabaseError(t)) {
+                throw t
+            }
+            logger.warn("ConstRefCacheDatabase recreate db due to malformed database: dbFile=${dbFile.absolutePath}", t)
+            recreateDatabase()
+            runPassiveWalCheckpoint()
+        }
+    }
 
+    private fun initExistingDatabase() {
+        ensureSharedConnectionLocked()
         var needRecreate = false
         var recreateReason = ""
         withConnection { connection ->
@@ -56,6 +68,7 @@ class ConstRefCacheDatabase(
         }
         logger.warn("ConstRefCacheDatabase recreate db due to incompatible schema: $recreateReason")
         recreateDatabase()
+        runPassiveWalCheckpoint()
     }
 
     /** Runs a non-blocking WAL checkpoint to merge pending WAL frames into the main db file. */
@@ -1307,13 +1320,9 @@ class ConstRefCacheDatabase(
     private fun recreateDatabase() {
         closeConnectionLocked()
         stringIdCache.clear()
-        runCatching {
-            dbFile.delete()
-            File("${dbFile.absolutePath}-wal").delete()
-            File("${dbFile.absolutePath}-shm").delete()
-        }.onFailure {
-            logger.warn("delete old const-ref db file failed, dbFile=${dbFile.absolutePath}", it)
-        }
+        deleteOrMoveAside(dbFile)
+        deleteOrMoveAside(File("${dbFile.absolutePath}-wal"))
+        deleteOrMoveAside(File("${dbFile.absolutePath}-shm"))
         withConnection { connection ->
             ensureSchema(connection)
         }
@@ -1426,6 +1435,37 @@ class ConstRefCacheDatabase(
                 return resultSet.getInt(1)
             }
         }
+    }
+
+    private fun deleteOrMoveAside(file: File) {
+        if (!file.exists()) {
+            return
+        }
+        if (file.delete()) {
+            return
+        }
+        val backupFile = File(file.parentFile, "${file.name}.corrupt.${System.currentTimeMillis()}")
+        if (file.renameTo(backupFile)) {
+            logger.warn("ConstRefCacheDatabase move old db file aside, from=${file.absolutePath}, to=${backupFile.absolutePath}")
+            return
+        }
+        throw IllegalStateException("delete old const-ref db file failed, file=${file.absolutePath}")
+    }
+
+    private fun isCorruptDatabaseError(t: Throwable): Boolean {
+        var current: Throwable? = t
+        while (current != null) {
+            val message = current.message.orEmpty().lowercase()
+            if (message.contains("sqlite_corrupt") ||
+                message.contains("sqlite_notadb") ||
+                message.contains("database disk image is malformed") ||
+                message.contains("file is not a database")
+            ) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     private fun tableExists(connection: Connection, tableName: String): Boolean {
@@ -2309,9 +2349,14 @@ class ConstRefCacheDatabase(
             }
         }
         val connection = DriverManager.getConnection(url)
-        applyConnectionPragmas(connection)
-        sharedConnection = connection
-        return connection
+        try {
+            applyConnectionPragmas(connection)
+            sharedConnection = connection
+            return connection
+        } catch (t: Throwable) {
+            runCatching { connection.close() }
+            throw t
+        }
     }
 
     private fun closeConnectionLocked() {

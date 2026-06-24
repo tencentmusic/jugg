@@ -11,6 +11,31 @@ import java.sql.DriverManager
 
 class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
+    fun `should recreate malformed database during init`() {
+        val dbDir = createTempDirectory("const_ref_db_malformed")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db").apply {
+            writeText("not a sqlite database")
+        }
+
+        val database = ConstRefCacheDatabase(dbFile, logger)
+        database.close()
+
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("PRAGMA integrity_check").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertEquals("ok", resultSet.getString(1))
+                }
+                statement.executeQuery("PRAGMA schema_version").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertEquals(7, resultSet.getInt(1))
+                }
+            }
+        }
+    }
+
+    @Test
     fun `should recreate schema 6 database after const ref rule version bump`() {
         val dbDir = createTempDirectory("const_ref_db_schema_bump")
         File(dbDir, ".git").mkdirs()
@@ -663,7 +688,7 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
             )
         )
 
-        assertTrue(cachedStringCount(database) <= 4096)
+        assertTrue(cachedStringCount(database) <= 8192)
     }
 
     @Test
