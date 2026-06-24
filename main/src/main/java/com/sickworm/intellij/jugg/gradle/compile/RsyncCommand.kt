@@ -77,9 +77,10 @@ class RsyncSyncFileCommand(
     localProjectIftPath: String,
     remoteProjectPath: String,
     remoteProjectSyncRelativePath: String,
+    excludePatterns: List<String> = emptyList(),
 ) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
-    private val rsyncArguments = getRsyncArguments(remoteProjectSyncRelativePath)
+    private val rsyncArguments = getRsyncArguments(remoteProjectSyncRelativePath, excludePatterns)
     override val baseCommand: String = """${RsyncCompatibleHelper.rsyncPath} $sshArguments $rsyncArguments $localProjectIftPath $remoteProjectPath"""
 }
 

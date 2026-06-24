@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide.bean
 
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -10,6 +11,7 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
 
 class JuggGradleCompileOptionsTest {
 
@@ -103,6 +105,49 @@ class JuggGradleCompileOptionsTest {
             )
         } finally {
             parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun parseRemoteSyncExcludePatterns_shouldIgnoreBlankLinesAndComments() {
+        val patterns = parseRemoteSyncExcludePatterns(
+            """
+            # generated files
+            app/src/debug/mock/**
+
+            local-temp/
+            **/*.keystore
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("app/src/debug/mock/**", "local-temp/", "**/*.keystore"), patterns)
+    }
+
+    @Test
+    fun parseRemoteSyncExcludePatterns_shouldAcceptSemicolonSeparatedInput() {
+        val patterns = parseRemoteSyncExcludePatterns(
+            "app/src/debug/mock/**; local-temp/; **/*.keystore"
+        )
+
+        assertEquals(listOf("app/src/debug/mock/**", "local-temp/", "**/*.keystore"), patterns)
+    }
+
+    @Test
+    fun parseRemoteSyncExcludePatterns_shouldKeepCommaSeparatedInputCompatible() {
+        val patterns = parseRemoteSyncExcludePatterns(
+            "app/src/debug/mock/**, local-temp/, **/*.keystore"
+        )
+
+        assertEquals(listOf("app/src/debug/mock/**", "local-temp/", "**/*.keystore"), patterns)
+    }
+
+    @Test
+    fun parseRemoteSyncExcludePatterns_shouldRejectRootOrParentPaths() {
+        assertFailsWith<JuggException> {
+            parseRemoteSyncExcludePatterns("/shared/cache/**")
+        }
+        assertFailsWith<JuggException> {
+            parseRemoteSyncExcludePatterns("../shared/cache/**")
         }
     }
 

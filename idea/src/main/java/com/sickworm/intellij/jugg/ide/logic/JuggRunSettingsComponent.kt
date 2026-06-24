@@ -23,7 +23,6 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.dependency.htmlWarning
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.awt.Dimension
-import java.awt.GridLayout
 import java.awt.Toolkit
 import java.awt.datatransfer.Clipboard
 import java.awt.datatransfer.StringSelection
@@ -96,6 +95,14 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val environmentVariablesTextField = JBTextField().also {
         it.emptyText.text = "e.g. JAVA_HOME=/root/openjdk17; VAR=value"
     }
+    private val remoteSyncExcludePatternsLabel = JLabel("Additional exclude patterns:")
+    private val remoteSyncExcludePatternsTextField = JBTextField().also {
+        it.emptyText.text = "e.g. app/src/debug/mock/**; local-temp/; **/*.dat"
+        it.toolTipText = "<html>Additional rsync exclude patterns, separated by semicolon and relative to current project root.<br/>" +
+                "This is not gitignore, and no need *.class because it already added in defaults.<br/>" +
+                "Examples: app/src/debug/mock/**; local-temp/; **/*.dat<br/>" +
+                "Leading / and parent paths are not supported.</html>"
+    }
 
     private val applyServerActionLink = ActionLink("Apply server")
     private val copyRemoteConfigActionLink = ActionLink("Copy config")
@@ -103,7 +110,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val remoteCompilePanel = JPanel().also {
         it.alignmentX = LEFT_ALIGNMENT
         it.border = IdeBorderFactory.createTitledBorder("Remote Compile Options")
-        it.layout = GridLayout(0, 1, 5, 5)
+        it.layout = BoxLayout(it, BoxLayout.Y_AXIS)
     }
     private val remoteComponentList = listOf<Pair<JComponent, JComponent?>>(
         Pair(enableSyncAllProjectsCheckBox, null),
@@ -119,6 +126,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         Pair(httpProxyIpLabel, httpProxyIpTextField),
         Pair(httpProxyPortLabel, httpProxyPortTextField),
         Pair(environmentVariablesLabel, environmentVariablesTextField),
+        Pair(remoteSyncExcludePatternsLabel, remoteSyncExcludePatternsTextField),
     )
 
     private val filteredRsyncLabel = listOf(localToRemoteIftConfigNameLabel, remoteToLocalIftConfigNameLabel)
@@ -222,6 +230,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
         environmentVariablesTextField.text = settings.environmentVariables ?: ""
+        remoteSyncExcludePatternsTextField.text = formatRemoteSyncExcludePatternsForField(settings.remoteSyncExcludePatterns)
 
         tipsContainer.removeAll()
         if (configName == SuggestRunConfiguration.DEFAULT.runConfigName) {
@@ -307,7 +316,17 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             it.httpProxyIp = component.httpProxyIpTextField.text
             it.httpProxyPort = component.httpProxyPortTextField.text.toIntOrNull() ?: 0
             it.environmentVariables = component.environmentVariablesTextField.text
+            it.remoteSyncExcludePatterns = component.remoteSyncExcludePatternsTextField.text
         }
+    }
+
+    private fun formatRemoteSyncExcludePatternsForField(patterns: String?): String {
+        return patterns.orEmpty()
+            .split(Regex("[;,\\r\\n]+"))
+            .asSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("; ")
     }
 
     private fun doUpload(project: Project) {
@@ -389,7 +408,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         syncModePanel.preferredSize = Dimension(300, syncModePanel.preferredSize.height)
         val actionLinkPanel = createPairPanel(applyServerActionLink, copyRemoteConfigActionLink, isMaxRight = false, marginBetween = 8, marginHorizontal = 0)
         val topPanel = createPairPanel(syncModePanel, actionLinkPanel, isAlignEnd = true, marginHorizontal = 0)
-        remoteCompilePanel.add(topPanel)
+        val remoteRows = mutableListOf<JComponent>(topPanel)
 
         remoteComponentList.forEach {
             val isFilteredByRsync = when (syncMode) {
@@ -404,7 +423,13 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
                 }
             }
             if (!isFilteredByRsync) {
-                remoteCompilePanel.add(createPairPanel(it.first, it.second, leftWidth = 260))
+                remoteRows.add(createPairPanel(it.first, it.second, leftWidth = 260))
+            }
+        }
+        remoteRows.forEachIndexed { index, row ->
+            remoteCompilePanel.add(row)
+            if (index != remoteRows.lastIndex) {
+                remoteCompilePanel.add(Box.createVerticalStrut(5))
             }
         }
         remoteCompilePanel.maximumSize = Dimension(Int.MAX_VALUE, remoteCompilePanel.preferredSize.height)

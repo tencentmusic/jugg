@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.bean.parseRemoteSyncExcludePatterns
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 
@@ -33,6 +34,7 @@ fun JuggRunConfigurationOptions.toCompileOptions(
         SyncMode.values().find { it.modeName == options.syncMode } ?: SyncMode.IFT,
         options.environmentVariables ?: "",
         buildTarget = if (options.enableAndroidTest) BuildTarget.ANDROID_TEST else BuildTarget.APP,
+        remoteSyncExcludePatterns = parseRemoteSyncExcludePatterns(options.remoteSyncExcludePatterns ?: ""),
     )
 }
 
@@ -57,6 +59,7 @@ fun JuggRunConfigurationOptions.toRunConfigurationTemplate(): RunConfigurationTe
         httpProxyPort = options.httpProxyPort,
         syncMode = options.syncMode,
         environmentVariables = options.environmentVariables,
+        remoteSyncExcludePatterns = options.remoteSyncExcludePatterns,
     )
 }
 
@@ -77,4 +80,5 @@ fun JuggRunConfigurationOptions.setDefaultRemoteOption(template: RunConfiguratio
     isSyncAllProjects = template.isSyncAllProjects
     syncMode = template.syncMode
     environmentVariables = template.environmentVariables
+    remoteSyncExcludePatterns = template.remoteSyncExcludePatterns
 }

@@ -34,7 +34,9 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     /** When true, Jugg compiles both the app and androidTest APKs using Gradle fallback. */
     var enableAndroidTest by property(false)
 
+    /** Project-root relative rsync glob patterns excluded from remote source sync. */
+    var remoteSyncExcludePatterns by string()
+
     // new options must add to the end because property persist is in order
 
 }
-

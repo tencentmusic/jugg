@@ -32,6 +32,28 @@ fun JuggGradleCompileOptions.requestedGradleTasks(): Set<String> {
         .toSet()
 }
 
+fun parseRemoteSyncExcludePatterns(rawPatterns: String): List<String> {
+    return rawPatterns.split(Regex("[;,\\r\\n]+")).asSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .map { normalizeRemoteSyncExcludePattern(it) }
+        .toList()
+}
+
+private fun normalizeRemoteSyncExcludePattern(pattern: String): String {
+    val normalized = pattern.replace('\\', '/')
+    val isWindowsAbsolute = normalized.length >= 2 && normalized[1] == ':'
+    val hasParentSegment = normalized.split('/').any { it == ".." }
+    val hasShellQuote = normalized.any { it == '\'' || it == '"' }
+    if (normalized.startsWith("/") || isWindowsAbsolute || hasParentSegment || hasShellQuote) {
+        throw JuggException.runConfigInvalid(
+            "Run configuration argument [Remote sync exclude patterns] contains invalid pattern: $pattern\n" +
+                    "Patterns must be relative to current project root.",
+        )
+    }
+    return normalized
+}
+
 private fun inferRequestedApplicationAndroidTestVariant(
     modules: Map<String, ModuleInfo>,
     requestedTasks: Set<String>,
@@ -214,6 +236,10 @@ data class JuggGradleCompileOptions(
      * Output APK patterns matching [libraryTestApkGradleTasks].
      */
     val libraryTestApkOutputPatterns: List<String> = emptyList(),
+    /**
+     * Project-root relative rsync glob patterns skipped during local-to-remote source sync.
+     */
+    val remoteSyncExcludePatterns: List<String> = emptyList(),
 ) {
 
 

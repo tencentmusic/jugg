@@ -1,15 +1,19 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.intellij.ui.components.JBTextField
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.awt.Component
 import java.awt.Container
 import javax.swing.BoxLayout
 import javax.swing.JCheckBox
+import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JTextField
 
 class JuggRunSettingsComponentTest {
 
@@ -46,6 +50,75 @@ class JuggRunSettingsComponentTest {
 
         assertEquals(0, component.x)
         assertEquals(wrapper.width, component.width)
+    }
+
+    @Test
+    fun `remote exclude patterns should round trip between settings and component`() {
+        val component = JuggRunSettingsComponent()
+        component.updateUi(JuggRunConfigurationOptions().apply {
+            isRemoteCompile = true
+            syncMode = SyncMode.RSYNC_SIMPLE.modeName
+            remoteSyncExcludePatterns = "app/src/debug/mock/**\n**/*.keystore"
+        }, "jugg:test")
+
+        val textField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
+        assertEquals("app/src/debug/mock/**; **/*.keystore", textField.text)
+
+        textField.text = "local-temp/; **/*.dat"
+        val options = JuggRunConfigurationOptions()
+        component.updateJuggRunConfigurationOptions(options)
+
+        assertEquals("local-temp/; **/*.dat", options.remoteSyncExcludePatterns)
+    }
+
+    @Test
+    fun `remote exclude patterns should use semicolon in tooltip without owning placeholder hint`() {
+        val component = JuggRunSettingsComponent()
+        val textField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
+
+        assertTrue(textField.emptyText.text.isNotBlank())
+        assertTrue(textField.emptyText.text.contains(";"))
+        assertTrue(textField.toolTipText.contains(";"))
+    }
+
+    @Test
+    fun `remote exclude patterns should explain rsync matching difference from gitignore`() {
+        val component = JuggRunSettingsComponent()
+        val label = readPrivateField<JLabel>(component, "remoteSyncExcludePatternsLabel")
+        val textField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
+
+        assertEquals("Additional exclude patterns:", label.text)
+        assertTrue(textField.toolTipText.contains("not gitignore"))
+        assertTrue(textField.toolTipText.contains("*.class"))
+    }
+
+    @Test
+    fun `remote single line fields should not stretch to exclude patterns height`() {
+        val component = JuggRunSettingsComponent()
+        component.updateUi(JuggRunConfigurationOptions().apply {
+            isRemoteCompile = true
+            syncMode = SyncMode.IFT.modeName
+        }, "jugg:test")
+
+        layoutInWideParent(component, width = 1200, height = component.preferredSize.height)
+
+        val userTextField = readPrivateField<JTextField>(component, "userTextField")
+        assertEquals(userTextField.preferredSize.height, userTextField.height)
+    }
+
+    @Test
+    fun `remote exclude patterns should use single line field height`() {
+        val component = JuggRunSettingsComponent()
+        component.updateUi(JuggRunConfigurationOptions().apply {
+            isRemoteCompile = true
+            syncMode = SyncMode.IFT.modeName
+        }, "jugg:test")
+
+        layoutInWideParent(component, width = 1200, height = component.preferredSize.height)
+
+        val userTextField = readPrivateField<JTextField>(component, "userTextField")
+        val excludePatternsTextField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
+        assertEquals(userTextField.height, excludePatternsTextField.height)
     }
 
     private fun <T> readPrivateField(target: Any, fieldName: String): T {
