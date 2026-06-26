@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -342,7 +343,7 @@ class ConstRefEngine private constructor(
                     )
                 } catch (e: ExecutionException) {
                     analysisFailed = true
-                    disableRuntime("analyzeOnDemand failed", e.cause ?: e)
+                    logger.warn("ConstRefEngine analyzeOnDemand failed, degrade to no-op for this analysis", e.cause ?: e)
                 } finally {
                     executor.shutdownNow()
                 }
@@ -413,7 +414,7 @@ class ConstRefEngine private constructor(
         runCatching {
             database.registerPathHints(normalizedSourceDirs)
         }.onFailure {
-            disableRuntime("initializeFullScan failed", it)
+            logger.warn("ConstRefEngine initializeFullScan failed, skip full scan for this round", it)
             return
         }
         synchronized(stateLock) {
@@ -462,7 +463,7 @@ class ConstRefEngine private constructor(
                 removedDefinitionKeys = removedKeys,
             )
         }.getOrElse {
-            disableRuntime("getEffectedFiles failed", it)
+            logger.warn("ConstRefEngine getEffectedFiles failed, return empty effected files", it)
             emptyList()
         }
     }
@@ -580,7 +581,7 @@ class ConstRefEngine private constructor(
             runCatching {
                 cacheCleaner.cleanupIfNeeded(runtime.database, runtime.repoSharedFingerprintStore)
             }.onFailure {
-                disableRuntime("cacheCleanup failed", it)
+                logger.warn("ConstRefEngine cacheCleanup failed", it)
             }
         }
     }
@@ -622,12 +623,6 @@ class ConstRefEngine private constructor(
             hasScheduledCacheCleanup = true
         }
         scheduleCacheCleanup(runtime)
-    }
-
-    private fun disableRuntime(message: String, throwable: Throwable) {
-        synchronized(runtimeLock) {
-            disableRuntimeLocked(message, throwable)
-        }
     }
 
     private fun disableRuntimeLocked(message: String, throwable: Throwable) {
@@ -1551,8 +1546,10 @@ class ConstRefEngine private constructor(
             }
             try {
                 action()
+            } catch (_: CancellationException) {
+                // Normal during scene rescheduling or engine disposal.
             } catch (t: Throwable) {
-                disableRuntime("scene ${scene.name} failed", t)
+                logger.warn("ConstRefEngine scene ${scene.name} failed", t)
             } finally {
                 synchronized(stateLock) {
                     val state = sceneTaskStates.getValue(scene)

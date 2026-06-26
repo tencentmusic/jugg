@@ -109,7 +109,7 @@ analyzeFiles()
   -> analysis miss: parser 解析 definitions + reference candidates 后落库
 ```
 
-`ConstRefEngine` 不直接拼 DB 路径；`DeployFileManager` 从 `JuggPathManager.constRefSharedDbFile` 和 `repoFingerprintDbFile` 注入，并可在构造期直接创建 `ConstRefEngine` 对象。SQLite database、repo fingerprint store 与 impact resolver 属于 `ConstRefEngine` 内部 runtime，不能在 `ConstRefEngine` 构造期初始化；它们在 `updateModuleInfos()`、保存/删除事件、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化。初始化或调用失败后本轮进程熔断为 no-op，编译/部署主流程继续。
+`ConstRefEngine` 不直接拼 DB 路径；`DeployFileManager` 从 `JuggPathManager.constRefSharedDbFile` 和 `repoFingerprintDbFile` 注入，并可在构造期直接创建 `ConstRefEngine` 对象。SQLite database、repo fingerprint store 与 impact resolver 属于 `ConstRefEngine` 内部 runtime，不能在 `ConstRefEngine` 构造期初始化；它们在 `updateModuleInfos()`、保存/删除事件、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化。runtime 初始化失败后本轮进程熔断为 no-op；初始化成功后的运行期分析、影响查询、full scan、cleanup 或调度异常只降级当前操作，编译/部署主流程继续，后续 ConstRef 调用仍可重试。
 
 ---
 
@@ -186,7 +186,7 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 - const-ref definition diff 的清理时机是成功部署后的 commit ack，而不是影响查询本身；编译失败、跟编失败或部署失败时，同一批 const diff 应在下一次编译继续可查。
 - `private const val` 与 `private static final` 不进入 definition 索引和 diff；它们只影响声明所在源码文件，本文件已在首批编译内，不需要额外跟编引用方。
 - cleanup / vacuum 异常仅 warning，不影响增量编译。
-- ConstRef 是可选系统：DB 初始化、fingerprint store 初始化、full scan、保存/删除分析、pre-compile readiness、on-demand 分析、effected files 查询、commit ack、dispose 任一环节失败都只记录 warning 并降级为 no-op，不允许影响 Run / compile / deploy 主流程。
+- ConstRef 是可选系统：DB / fingerprint store 初始化失败会把本进程 ConstRef runtime 降级为 no-op；full scan、保存/删除分析、pre-compile readiness、on-demand 分析、effected files 查询、cleanup、commit ack 等运行期失败只影响当前操作，不允许影响 Run / compile / deploy 主流程，也不应永久禁用已初始化 runtime。调度取消（如 `CancellationException`）属于正常重排/释放信号，不视为 runtime 故障。
 - Java 只记录可内联类型的 `static final` 字段；Kotlin 支持 top-level、object、companion、嵌套 class/object 的 `const val`。
 - Java/Kotlin parser 都忽略注释和字符串文本中的伪引用。
 

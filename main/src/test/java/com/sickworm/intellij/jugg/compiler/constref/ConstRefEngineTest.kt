@@ -2063,6 +2063,77 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `analyzeOnDemand failure should not disable runtime`() {
+        val rootDir = createTempDirectory("const_ref_analyze_failure_no_disable")
+        File(rootDir, ".git").mkdirs()
+        val sourceFile = File(rootDir, "Broken.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val BROKEN = 1
+                """.trimIndent()
+            )
+        }
+
+        val failingAnalyzer = mock<ConstRefAnalyzer>()
+        whenever(failingAnalyzer.parseDefinitions(any())).thenReturn(emptyMap())
+        whenever(failingAnalyzer.resetEnvironment()).thenThrow(IllegalStateException("reset failed"))
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = failingAnalyzer,
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            val readiness = engine.analyzeOnDemand(listOf(sourceFile.absolutePath))
+
+            assertTrue("analyzeOnDemand should degrade to ready after runtime operation failure", readiness.isReady)
+            assertRuntimeNotDisabled(engine)
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `getEffectedFiles failure should not disable runtime`() {
+        val rootDir = createTempDirectory("const_ref_effected_failure_no_disable")
+        File(rootDir, ".git").mkdirs()
+        val sourceFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val VALUE = 1
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            database.close()
+
+            val effectedFiles = engine.getEffectedFiles(listOf(sourceFile.absolutePath))
+
+            assertTrue("getEffectedFiles should degrade to empty after runtime operation failure", effectedFiles.isEmpty())
+            assertRuntimeNotDisabled(engine)
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `analyzeOnDemand should stay ready during concurrent file change analysis`() {
         val rootDir = createTempDirectory("const_ref_on_demand_concurrent")
         File(rootDir, ".git").mkdirs()
@@ -2119,6 +2190,16 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             constName = constName,
             constType = constType,
             constValue = constValue,
+        )
+    }
+
+    private fun assertRuntimeNotDisabled(engine: ConstRefEngine) {
+        val field = engine.javaClass.getDeclaredField("runtimeState")
+        field.isAccessible = true
+        val runtimeState = field.get(engine)
+        assertFalse(
+            "ConstRef runtime should remain enabled after operation-level failure",
+            runtimeState.javaClass.simpleName.contains("Disabled"),
         )
     }
 
