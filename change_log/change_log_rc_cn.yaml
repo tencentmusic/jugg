@@ -1,3 +1,8 @@
+- version: 2.6.32
+  date: 2026.06.26
+  updates:
+    - 修复复用 Android Studio 部署缓存文件导致的 ClassCastException
+
 - version: 2.6.31
   date: 2026.06.10
   updates:

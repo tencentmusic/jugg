@@ -1,3 +1,8 @@
+- version: 2.6.32
+  date: 2026.06.26
+  updates:
+    - fix ClassCastException caused by reusing Android Studio deployment cache file
+
 - version: 2.6.31
   date: 2026.06.10
   updates:

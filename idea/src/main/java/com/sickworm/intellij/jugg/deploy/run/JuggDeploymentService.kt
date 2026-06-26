@@ -18,7 +18,7 @@ import kotlin.system.measureTimeMillis
 object JuggDeploymentService : IJuggDeployerDeploymentService {
 
     private val lock = Object()
-    private val deploymentCacheDbFile = File(PathManager.getSystemPath(), ".deploy_cache.db")
+    private val deploymentCacheDbFile = File(PathManager.getSystemPath(), ".jugg_deploy_cache.db")
 
     private val deploymentCacheStore: JuggDeploymentCacheStore by lazy {
         JuggDeploymentCacheStore(deploymentCacheDbFile)
