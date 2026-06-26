@@ -2,6 +2,8 @@
   date: 2026.06.26
   updates:
     - 修复复用 Android Studio 部署缓存文件导致的 ClassCastException
+    - 修复服务切换将上传服务器加入 forbid list 后，上传日志失败
+    - 上传日志支持遍历已配置服务器重试
 
 - version: 2.6.31
   date: 2026.06.10

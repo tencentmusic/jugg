@@ -43,6 +43,10 @@ class JuggServerChooser(logger: Logger) {
 
         val oldServerUrl = JuggSettings.serverUrl
         val newServerUrl = selectServer(this.serverRules)?.url
+        if (newServerUrl.isNullOrBlank()) {
+            logger.debug("Choose server failed, keep current server: $oldServerUrl")
+            return
+        }
         if (oldServerUrl == newServerUrl) {
             logger.debug("No need update server, still use $oldServerUrl")
         } else {
@@ -79,8 +83,12 @@ class JuggServerChooser(logger: Logger) {
      * Update server with forbid url.
      */
     fun updateServerWithForbidCurrentUrl(forbidUrl: String?): Boolean {
-        if (forbidUrl == null) {
-            logger.debug("forbidUrl is null, skip.")
+        if (isSetCustomServer) {
+            logger.debug("User set custom server, skip forbid update.")
+            return false
+        }
+        if (forbidUrl.isNullOrBlank()) {
+            logger.debug("forbidUrl is null or blank, skip.")
             return false
         }
         if (forbidUrl in forbidUrls) {
@@ -97,13 +105,42 @@ class JuggServerChooser(logger: Logger) {
             return false
         }
 
+        val nextServerUrl = selectServer(serverRules, forbidUrls + forbidUrl)?.url
+        if (nextServerUrl.isNullOrBlank() || nextServerUrl == forbidUrl) {
+            logger.debug("No available alternative server for $forbidUrl, keep current server.")
+            return false
+        }
+
         forbidUrls.add(forbidUrl)
         logger.debug("Update server with forbid url: $forbidUrl")
-        updateServer(serverRules)
-        return JuggSettings.serverUrl != forbidUrl // update success
+        logger.debug("Update server from $forbidUrl to $nextServerUrl")
+        JuggSettings.serverUrl = nextServerUrl
+        JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + SERVER_EXPIRE_AFTER_TIME
+        return true
     }
 
-    private fun selectServer(serverRules: List<ServerRule>?): ServerRule? {
+    /**
+     * Return upload candidates without filtering forbid urls.
+     */
+    fun getUploadServerUrls(): List<String> {
+        val rules = serverRules ?: getEmbeddedServers()
+        return (listOfNotNull(JuggSettings.serverUrl) + rules.map { it.url })
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+    }
+
+    fun updateServerAfterUploadSuccess(serverUrl: String) {
+        if (serverUrl.isBlank()) {
+            return
+        }
+        if (JuggSettings.serverUrl != serverUrl) {
+            logger.debug("Update server from ${JuggSettings.serverUrl} to $serverUrl after upload success")
+            JuggSettings.serverUrl = serverUrl
+        }
+    }
+
+    private fun selectServer(serverRules: List<ServerRule>?, forbiddenUrls: Set<String> = forbidUrls): ServerRule? {
         logger.debug("Update server rules: $serverRules")
         if (serverRules.isNullOrEmpty()) {
             logger.debug("No server rule found.")
@@ -111,7 +148,7 @@ class JuggServerChooser(logger: Logger) {
         }
 
         serverRules.forEach { serverRule ->
-            if (serverRule.url in forbidUrls) {
+            if (serverRule.url in forbiddenUrls) {
                 logger.debug("${serverRule.url} in forbid list, ignore")
                 return@forEach
             }

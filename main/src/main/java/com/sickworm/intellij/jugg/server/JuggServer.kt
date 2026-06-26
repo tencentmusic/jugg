@@ -56,10 +56,6 @@ class JuggServer(
 
     private val juggServerChooser = JuggServerChooser(logger)
     private val serverUrl: String? get() = JuggSettings.serverUrl
-    private val reportEventUrl get() = "$serverUrl/report_event"
-    private val checkUpdateUrl get() = "$serverUrl/check_update"
-    private val reportIssueUrl get() = "$serverUrl/report_issue"
-    private val checkHotUpdateUrl get() = "$serverUrl/check_hot_update"
 
 
     private val username: String = getUserName()
@@ -92,15 +88,15 @@ class JuggServer(
     private var reportLock = Mutex() // report only one event in the same time
 
     fun checkUpdate(onComplete: (VersionData) -> Unit): Job = launch {
+        val serverUrl = serverUrl?.takeIf { it.isNotBlank() }
         if (serverUrl == null) {
-            logger.debug("checkUpdate skip: serverUrl is null")
+            logger.debug("checkUpdate skip: serverUrl is null or blank")
             return@launch
         }
 
-        val serverUrl = serverUrl
         try {
             val request: Request = Request.Builder()
-                .url("$checkUpdateUrl?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}")
+                .url("$serverUrl/check_update?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}")
                 .get()
                 .build()
 
@@ -183,19 +179,7 @@ class JuggServer(
                 }
 
                 zipTo(destFile, files)
-                var uploadResult: UploadResult
-                try {
-                    uploadResult = uploadFile(destFile)
-                } catch (e: Exception) {
-                    logger.warn("upload file error", e)
-                    uploadResult = UploadResult.fail(e.message ?: "Unknown exception")
-                }
-                if (!uploadResult.isSuccess) {
-                    logger.warn("upload file failed, update server, current: $serverUrl")
-                    juggServerChooser.updateServerIfExpired(isForce = true)
-                    logger.warn("update server end, current: $serverUrl")
-                    uploadResult = uploadFile(destFile)
-                }
+                val uploadResult = uploadFileWithFallback(destFile)
 
                 if (!uploadResult.isSuccess) {
                     logger.warn("reportAndUploadLogs failed: ${uploadResult.errorMessage}")
@@ -214,6 +198,32 @@ class JuggServer(
                 }
             }
         }
+    }
+
+    private suspend fun uploadFileWithFallback(file: File): UploadResult {
+        val serverUrls = juggServerChooser.getUploadServerUrls()
+        if (serverUrls.isEmpty()) {
+            logger.warn("upload file skip: no server url")
+            return UploadResult.fail("serverUrl is null or blank")
+        }
+
+        var lastUploadResult = UploadResult.fail("Unknown exception")
+        serverUrls.forEach { uploadServerUrl ->
+            val uploadResult = try {
+                logger.debug("try upload file to $uploadServerUrl")
+                uploadFile(file, uploadServerUrl)
+            } catch (e: Exception) {
+                logger.warn("upload file to $uploadServerUrl error", e)
+                UploadResult.fail(e.message ?: "Unknown exception")
+            }
+            if (uploadResult.isSuccess) {
+                juggServerChooser.updateServerAfterUploadSuccess(uploadServerUrl)
+                return uploadResult
+            }
+            logger.warn("upload file to $uploadServerUrl failed: ${uploadResult.errorMessage}")
+            lastUploadResult = uploadResult
+        }
+        return lastUploadResult
     }
 
     private fun zipTo(destFile: File, sourceFiles: List<File>) {
@@ -253,10 +263,10 @@ class JuggServer(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun uploadFile(file: File) = suspendCancellableCoroutine { continuation ->
-        if (serverUrl == null) {
-            logger.debug("upload file skip: serverUrl is null")
-            continuation.resume(UploadResult.fail("serverUrl is null"), null)
+    private suspend fun uploadFile(file: File, uploadServerUrl: String) = suspendCancellableCoroutine { continuation ->
+        if (uploadServerUrl.isBlank()) {
+            logger.debug("upload file skip: serverUrl is null or blank")
+            continuation.resume(UploadResult.fail("serverUrl is null or blank"), null)
             return@suspendCancellableCoroutine
         }
 
@@ -265,7 +275,7 @@ class JuggServer(
         builder.addFormDataPart("file" , file.name, file.asRequestBody("application/zip".toMediaTypeOrNull()))
         val requestBody = builder.build()
         val request = Request.Builder()
-            .url(reportIssueUrl)
+            .url("${uploadServerUrl.trim()}/report_issue")
             .post(requestBody)
             .build()
         client.newCall(request).enqueue(object : Callback {
@@ -305,14 +315,15 @@ class JuggServer(
         try {
             juggServerChooser.updateServerIfExpired()
 
+            val serverUrl = serverUrl?.takeIf { it.isNotBlank() }
             if (serverUrl == null) {
-                logger.debug("report ${data.action} skip: serverUrl is null")
+                logger.debug("report ${data.action} skip: serverUrl is null or blank")
                 return
             }
 
             val content = Gson().toJson(data)
             val request: Request = Request.Builder()
-                .url(reportEventUrl)
+                .url("$serverUrl/report_event")
                 .post(content.toRequestBody("application/json".toMediaTypeOrNull()))
                 .build()
 
@@ -349,13 +360,14 @@ class JuggServer(
 
     fun checkHotUpdate(isPositiveCheckout: Boolean): HotUpdateData? {
         try {
+            val serverUrl = serverUrl?.takeIf { it.isNotBlank() }
             if (serverUrl == null) {
-                logger.debug("checkHotUpdate skip: serverUrl is null")
+                logger.debug("checkHotUpdate skip: serverUrl is null or blank")
                 return null
             }
 
             val request: Request = Request.Builder()
-                .url("$checkHotUpdateUrl?version=$version" +
+                .url("$serverUrl/check_hot_update?version=$version" +
                         "&requestToken=$$requestToken" +
                         "&username=${URLEncoder.encode(username, "UTF-8")}" +
                         "&projectName=${URLEncoder.encode(projectId, "UTF-8")}" +
