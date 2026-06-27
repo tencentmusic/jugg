@@ -2,6 +2,7 @@
   date: 2026.06.24
   updates:
     - Fix ConstRef runtime failures from malformed SQLite caches blocking Jugg startup, compile, or deploy flows
+    - Retry report issue upload across configured servers
 
 - version: 3.0.20
   date: 2026.06.23

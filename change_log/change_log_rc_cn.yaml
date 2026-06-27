@@ -2,6 +2,7 @@
   date: 2026.06.24
   updates:
     - 修复 ConstRef 运行时因 SQLite 缓存损坏阻断 Jugg 启动、编译或部署流程的问题
+    - 上传日志支持遍历已配置服务器重试
 
 - version: 3.0.20
   date: 2026.06.23

@@ -24,8 +24,7 @@
     <li>[bugfix] Fix remote compilation might not actually stop after clicking "Stop."</li>
     <li>[bugfix] Fix default method desugar flag being misdetected in multi-APK projects, which could cause AbstractMethodError after incremental compilation</li>
 </ol>
-<h2>2.6.31 (2026.06.10)</h2>
-<ol>
+<h2>2.6.32 (2026.06.26)</h2>
 <ol>
     <li>[feature] supports Android Studio Quail 1</li>
     <li>[feature] supports Android Studio Panda 4</li>
@@ -43,6 +42,7 @@
     <li>[optimize] improve compatibility with android.enableJetifier=false, avoid compilation failed by dependencies missing</li>
     <li>[optimize] compat with "classes compiled by an unstable version of the Kotlin compiler"</li>
     <li>[optimize] scroll content when content too much in remote compile application</li>
+    <li>[optimize] Retry report issue upload across configured servers</li>
     <li>[bugfix] fix dependency may be missing if ide name is like 'example.lib_common.lib2.main~1'</li>
     <li>[bugfix] fix report issues failed sometimes</li>
     <li>[bugfix] fix compat issue with Kotlin 1.3 and Gradle 6.1</li>
@@ -53,6 +53,7 @@
     <li>[bugfix] Compat with some module use compileSdk = 36</li>
     <li>[bugfix] fix Windows stuck when configuration UI switch to SyncMode.iFT / SyncMode.RSYNC; fix some ssh stuck when using remote compile</li>
     <li>[bugfix] fix remote compile may stop unexpected with NumberFormatException when PTY echoes exit code template</li>
+    <li>[bugfix] fix report issue upload failure after server fallback marks the upload server as forbidden</li>
 </ol>
 <h2>2.5.0 (2025.11.11)</h2>
 <ol>
