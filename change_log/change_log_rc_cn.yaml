@@ -1,3 +1,9 @@
+- version: 3.0.22
+  date: 2026.06.27
+  updates:
+    - 修复新增 Additional exclude patterns 后 Run/Debug 配置面板远程编译输入框被拉高的问题
+    - 优化 Additional exclude patterns 提示与解析，改为使用分号分隔 rsync pattern，并兼容旧的逗号分隔配置
+
 - version: 3.0.21
   date: 2026.06.24
   updates:

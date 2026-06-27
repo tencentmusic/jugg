@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.0.17 (2026.06.17)</h2>
+<h2>3.0.22 (2026.06.27)</h2>
 <ol>
     <li>[feature] Supports Jugg CLI skills, allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
     <li>[feature] Supports Android test incremental compilation</li>
@@ -23,6 +23,8 @@
     <li>[bugfix] Fix incomplete overlay may remain after split full resource deploy failure and cause app startup resource crash</li>
     <li>[bugfix] Fix remote compilation might not actually stop after clicking "Stop."</li>
     <li>[bugfix] Fix default method desugar flag being misdetected in multi-APK projects, which could cause AbstractMethodError after incremental compilation</li>
+    <li>[bugfix] Fix Run/Debug configuration remote compile fields being stretched after adding additional exclude patterns</li>
+    <li>[bugfix] Improve Additional exclude patterns hint and parsing to use semicolon-separated rsync patterns while keeping old comma-separated values compatible</li>
 </ol>
 <h2>2.6.32 (2026.06.26)</h2>
 <ol>

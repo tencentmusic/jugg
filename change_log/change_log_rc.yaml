@@ -1,3 +1,9 @@
+- version: 3.0.22
+  date: 2026.06.27
+  updates:
+    - Fix Run/Debug configuration remote compile fields being stretched after adding additional exclude patterns
+    - Improve Additional exclude patterns hint and parsing to use semicolon-separated rsync patterns while keeping old comma-separated values compatible
+
 - version: 3.0.21
   date: 2026.06.24
   updates:
