@@ -25,6 +25,10 @@ class GradleProjectInfoReaderManager(
 
     fun readAndSave() {
         try {
+            if (rootProject.projectDir.name == "buildSrc") {
+                println("Jugg: skip readProjectInfo.gradle for buildSrc: ${rootProject.projectDir}")
+                return
+            }
             val isDiffMode = rootProject.properties[PARAM_DIFF_MODE] == "true"
             val includeAndroidTestSourceSet = includeAndroidTestSourceSet()
             println("Jugg: readProjectInfo.gradle execute start, diffMode: $isDiffMode, " +
