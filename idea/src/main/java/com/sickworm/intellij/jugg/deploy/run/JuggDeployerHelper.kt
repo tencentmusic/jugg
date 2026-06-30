@@ -736,6 +736,7 @@ class JuggDeployerHelper(
             incDeployData.apks, deployItems + deployedItems)
         logger.debug("Embedding APK finished, isSuccess: $isSuccess, failedReason: $failedReason")
         if (!isSuccess) {
+            logger.warn("Embedding APK failed. Reason: $failedReason")
             return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = deployOptions.costTime(), failedReason = failedReason)
         }
 
