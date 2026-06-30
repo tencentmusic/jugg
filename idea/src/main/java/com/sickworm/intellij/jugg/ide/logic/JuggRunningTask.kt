@@ -102,7 +102,7 @@ class JuggRunningTask(
             val isSuccess = if (runResult.isGradleCompile) runResult.isCompileSuccess else runResult.isDeploySuccess
             val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask
             dependencyChangeManager.onEndBuilding(isSuccess, isCanceled)
-            if (runResult.isGradleCompile && !isCanceled) {
+            if (runResult.isGradleCompile && !processHandler.isCanceled) {
                 deployHistoryManager.isLastFullCompileFailed = !runResult.isCompileSuccess
             }
             compileUiHandler.onEnd(runResult)
