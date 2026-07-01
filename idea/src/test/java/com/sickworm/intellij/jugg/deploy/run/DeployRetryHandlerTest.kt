@@ -175,21 +175,16 @@ class DeployRetryHandlerTest {
     }
 
     @Test
-    fun `tryRetry should redeploy with compat data when agent timeout and jvmti compat issue detected`() {
+    fun `tryRetry should prefer direct overlay retry when legacy jvmti compat issue is detected`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(device = device, isLastDevice = true)
         val deployData = JuggDeployData.forInstall(emptyList())
-        val compatData = JuggDeployData.forInstall(emptyList()).copy(isCompatDeploy = true)
-
-        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
-        Mockito.`when`(deployFileManager.appendCompatDeployFiles(deployData)).thenReturn(compatData)
 
         val deployRunHost = RecordingDeployRunHost(
             result = DeployTaskResult(isSuccess = true, costTime = 4L),
             jvmtiCompatIssueDetected = true,
         )
         val handler = createHandler(
-            deployFileManager = deployFileManager,
             deployRunHost = deployRunHost,
             deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
         )
@@ -202,8 +197,9 @@ class DeployRetryHandlerTest {
         )
 
         assertEquals(deployRunHost.lastResult, result)
-        assertEquals(compatData, deployRunHost.lastRedeployOptions?.retryDeployData)
-        assertEquals("MISSING_AGENT_RESPONSES", deployRunHost.lastRedeployOptions?.retryReason)
+        assertNull(deployRunHost.lastRedeployOptions?.retryDeployData)
+        assertEquals(DeployRetryHandler.JVMTI_STUCK_RETRY_REASON, deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(true, deployRunHost.lastRedeployOptions?.forceDirectOverlayDeploy)
     }
 
     @Test
@@ -229,27 +225,42 @@ class DeployRetryHandlerTest {
         )
 
         assertEquals(deployRunHost.lastResult, result)
-        assertEquals("MISSING_AGENT_RESPONSES", deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(DeployRetryHandler.JVMTI_STUCK_RETRY_REASON, deployRunHost.lastRedeployOptions?.retryReason)
         assertEquals(true, deployRunHost.lastRedeployOptions?.isSkipExceptOverlayCheck)
         assertEquals(true, deployRunHost.lastRedeployOptions?.isAllowDirectOverlayDeploy)
         assertEquals(true, deployRunHost.lastRedeployOptions?.forceDirectOverlayDeploy)
+        assertEquals(1, deployRunHost.lastRedeployOptions?.timeOutRetryTimes)
     }
 
     @Test
-    fun `tryRetry should not force direct overlay when caller already disallows direct overlay`() {
+    fun `tryRetry should use stuck retry when caller already disallows direct overlay`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(
             device = device,
             isLastDevice = true,
             isAllowDirectOverlayDeploy = false,
+            timeOutRetryTimes = 2,
         )
         val deployData = JuggDeployData.forInstall(emptyList())
+        val deployStateRecover = Mockito.mock(DeployStateRecover::class.java)
+        Mockito.`when`(
+            deployStateRecover.recoverDeployState(
+                device,
+                deployOptions.indicator,
+                false,
+                deployOptions.isSkipExceptOverlayCheck,
+                false,
+                deployOptions.compileUiHandler,
+                false,
+            ),
+        ).thenReturn(true to false)
 
         val deployRunHost = RecordingDeployRunHost(
             result = DeployTaskResult(isSuccess = true, costTime = 4L),
             jvmtiCompatIssueDetected = false,
         )
         val handler = createHandler(
+            deployStateRecover = deployStateRecover,
             deployRunHost = deployRunHost,
             deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
         )
@@ -261,26 +272,43 @@ class DeployRetryHandlerTest {
             reason = "MISSING_AGENT_RESPONSES",
         )
 
-        assertNull(result)
-        assertNull(deployRunHost.lastRedeployOptions)
+        assertEquals(deployRunHost.lastResult, result)
+        assertEquals(DeployRetryHandler.JVMTI_STUCK_RETRY_REASON, deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(false, deployRunHost.lastRedeployOptions?.isAllowDirectOverlayDeploy)
+        assertEquals(false, deployRunHost.lastRedeployOptions?.forceDirectOverlayDeploy)
+        assertEquals(3, deployRunHost.lastRedeployOptions?.timeOutRetryTimes)
     }
 
     @Test
-    fun `tryRetry should not force direct overlay again after forced direct overlay retry`() {
+    fun `tryRetry should use stuck retry after forced direct overlay retry`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(
             device = device,
             isLastDevice = true,
-            retryReason = "MISSING_AGENT_RESPONSES",
+            retryReason = DeployRetryHandler.JVMTI_STUCK_RETRY_REASON,
             forceDirectOverlayDeploy = true,
+            timeOutRetryTimes = 2,
         )
         val deployData = JuggDeployData.forInstall(emptyList())
+        val deployStateRecover = Mockito.mock(DeployStateRecover::class.java)
+        Mockito.`when`(
+            deployStateRecover.recoverDeployState(
+                device,
+                deployOptions.indicator,
+                false,
+                deployOptions.isSkipExceptOverlayCheck,
+                false,
+                deployOptions.compileUiHandler,
+                true,
+            ),
+        ).thenReturn(true to false)
 
         val deployRunHost = RecordingDeployRunHost(
             result = DeployTaskResult(isSuccess = true, costTime = 4L),
             jvmtiCompatIssueDetected = false,
         )
         val handler = createHandler(
+            deployStateRecover = deployStateRecover,
             deployRunHost = deployRunHost,
             deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
         )
@@ -292,8 +320,11 @@ class DeployRetryHandlerTest {
             reason = "AGENT_ATTACH_FAILED",
         )
 
-        assertNull(result)
-        assertNull(deployRunHost.lastRedeployOptions)
+        assertEquals(deployRunHost.lastResult, result)
+        assertEquals(DeployRetryHandler.JVMTI_STUCK_RETRY_REASON, deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(true, deployRunHost.lastRedeployOptions?.isAllowDirectOverlayDeploy)
+        assertEquals(false, deployRunHost.lastRedeployOptions?.forceDirectOverlayDeploy)
+        assertEquals(3, deployRunHost.lastRedeployOptions?.timeOutRetryTimes)
     }
 
     @Test

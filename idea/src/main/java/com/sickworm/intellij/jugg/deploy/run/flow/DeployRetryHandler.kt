@@ -81,27 +81,7 @@ class DeployRetryHandler(
         val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
         // got: "MessagePipeWrapper read() timeout (5000ms)" and throw by JuggDeployer.optimisticSwap
         val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
-        if (isAgentNotResponses || isDeployTimeout) {
-            logger.info("Deploy agent no response, going to detect JVMTI is available.")
-            // try detect compat issues
-            if (deployRunHost.detectJvmtiCompatIssue(deployOptions.device, deployData)) {
-                logger.warn("Detect JVMTI compat issue, fallback to compat deploy mode.")
-                nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
-                val nextDeployOptions = deployOptions.copy(retryReason = reason, retryDeployData = nextRetryDeployData, isSkipExceptOverlayCheck = true)
-                return deployRunHost.redeploy(nextDeployOptions)
-            } else {
-                logger.debug("JVMTI is available.") // detectJvmtiCompatIssue will log info
-            }
-        }
-        if (isAgentNotResponses && deployOptions.isAllowDirectOverlayDeploy && !deployOptions.forceDirectOverlayDeploy) {
-            logger.info("Deploy agent no response, retry once with direct overlay.")
-            val nextDeployOptions = deployOptions.copy(
-                retryReason = reason,
-                isSkipExceptOverlayCheck = true,
-                forceDirectOverlayDeploy = true,
-            )
-            return deployRunHost.redeploy(nextDeployOptions)
-        }
+        val isJvmtiDeployStuck = isAgentNotResponses || isDeployTimeout
 
         val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH") || reason.contains("unable to recognize the APK")
         val isClassNotFoundException = reason.contains("Class not found")
@@ -111,16 +91,29 @@ class DeployRetryHandler(
 
         val reinstallWhenTimeout = deployOptions.timeOutRetryTimes == 2 // try to reinstall apk at the third time
         val stopRetryWhenTimeout = deployOptions.timeOutRetryTimes >= 3
-        if (isDeployTimeout && stopRetryWhenTimeout) {
+        if (isJvmtiDeployStuck && stopRetryWhenTimeout) {
             logger.warn("Deploy timeout, retry times: ${deployOptions.timeOutRetryTimes}, stop retry.")
             return null
         }
 
-        if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout || isDirectDeployFailed) {
+        if (isAgentNotResponses && deployOptions.isAllowDirectOverlayDeploy
+            && !deployOptions.forceDirectOverlayDeploy
+            && deployOptions.timeOutRetryTimes == 0) {
+            logger.info("Deploy agent no response, retry once with direct overlay.")
+            val nextDeployOptions = deployOptions.copy(
+                retryReason = JVMTI_STUCK_RETRY_REASON,
+                isSkipExceptOverlayCheck = true,
+                forceDirectOverlayDeploy = true,
+                timeOutRetryTimes = deployOptions.timeOutRetryTimes + 1,
+            )
+            return deployRunHost.redeploy(nextDeployOptions)
+        }
+
+        if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isJvmtiDeployStuck || isDirectDeployFailed) {
             var isRetryDirectly = false
             @Suppress("KotlinConstantConditions")
             when {
-                isDeployTimeout -> {
+                isJvmtiDeployStuck -> {
                     val isNeedReduce = deployData.overlays.size >= JuggSettings.overlayDeploySplitSizeFirstSlice
                     if (isNeedReduce) {
                         logger.warn("Got deploy timeout exception, reduce overlay and retry")
@@ -172,11 +165,11 @@ class DeployRetryHandler(
                 }
             }
             val nextDeployOptions = deployOptions.copy(
-                retryReason = reason,
+                retryReason = if (isJvmtiDeployStuck) JVMTI_STUCK_RETRY_REASON else reason,
                 isSkipExceptOverlayCheck = true,
                 isAllowDirectOverlayDeploy = !isDirectDeployFailed && deployOptions.isAllowDirectOverlayDeploy,
                 forceDirectOverlayDeploy = false,
-                timeOutRetryTimes = deployOptions.timeOutRetryTimes + if (isDeployTimeout) 1 else 0,
+                timeOutRetryTimes = deployOptions.timeOutRetryTimes + if (isJvmtiDeployStuck) 1 else 0,
             )
             return deployRunHost.redeploy(nextDeployOptions)
         }
@@ -237,6 +230,10 @@ class DeployRetryHandler(
     }
 
     companion object {
+        // This marker is intentionally stable and never includes the retry count.
+        // JuggDeployerHelper compares retryReason with the next real exception reason;
+        // retry convergence is controlled by timeOutRetryTimes instead.
+        const val JVMTI_STUCK_RETRY_REASON = "__jugg_jvmti_stuck_retry__"
         const val REDEPLOY_WITH_COMPAT_MESSAGE = "Detect JVMTI compatibility issue, need to fallback to compat deploy."
     }
 }

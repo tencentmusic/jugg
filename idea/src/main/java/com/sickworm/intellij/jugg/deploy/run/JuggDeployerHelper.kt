@@ -180,6 +180,10 @@ class JuggDeployerHelper(
             // stop first, avoid confusing by user why App is stopped after installed later
             deployTargetManager.stopApp(device)
         }
+        if (request.forceDirectOverlayDeploy) {
+            // stop first, because HOT_RELOAD is not supported in direct overlay deploy
+            deployTargetManager.stopApp(device)
+        }
 
         val detectJob = taskRunnerManager.runAsyncSafe("isNeedPushAgentAfterDeploy") {
             val adb = deviceAdbFactory(device, logger)
