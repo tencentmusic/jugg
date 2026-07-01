@@ -118,6 +118,7 @@ class ConstRefEngine private constructor(
     )
     private val pendingAnalyzeFiles = linkedSetOf<String>()
     private val pendingDeleteCleanupPaths = linkedSetOf<String>()
+    private val pendingDeleteRequeuePaths = linkedSetOf<String>()
     private var deleteCleanupJob: Job? = null
     private var cacheCleanupJob: Job? = null
     private var currentEditingFile: String? = null
@@ -179,6 +180,13 @@ class ConstRefEngine private constructor(
 
     fun onFileDeleted(filePath: String) {
         val stdPath = File(filePath).toStdPath()
+        val shouldCleanup = synchronized(stateLock) {
+            mayAffectConstRefIndexLocked(stdPath)
+        }
+        if (!shouldCleanup) {
+            logger.debug("ConstRefEngine skip delete cleanup for non-source path=$stdPath")
+            return
+        }
         synchronized(stateLock) {
             pendingAnalyzeFiles.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             if (currentEditingFile == stdPath || currentEditingFile?.startsWith("$stdPath/") == true) {
@@ -1615,18 +1623,121 @@ class ConstRefEngine private constructor(
                         snapshot
                     }
                     paths.forEach { deletedPath ->
-                        try {
-                            if (isSourceFile(deletedPath)) {
-                                database.removeFile(deletedPath)
-                            }
-                            database.removeFilesByPrefix("$deletedPath/")
-                        } catch (t: Exception) {
-                            logger.warn("ConstRefEngine delete cleanup failed, path=$deletedPath", t)
+                        val cleanupSucceeded = cleanupDeletedPathWithRetry(deletedPath)
+                        if (!cleanupSucceeded) {
+                            requeueDeleteCleanupLater(deletedPath)
                         }
                     }
                 }
             }
         }
+    }
+
+    private suspend fun cleanupDeletedPathWithRetry(deletedPath: String): Boolean {
+        var attempt = 1
+        var delayMs = DELETE_CLEANUP_INITIAL_RETRY_DELAY_MS
+        while (attempt <= DELETE_CLEANUP_MAX_ATTEMPTS) {
+            val elapsedMs = measureTimeMillis {
+                try {
+                    if (isSourceFile(deletedPath)) {
+                        database.removeFile(deletedPath)
+                    }
+                    database.removeFilesByPrefix("$deletedPath/")
+                    logger.debug(
+                        "ConstRefEngine delete cleanup finished, path=$deletedPath, " +
+                            "attempt=$attempt"
+                    )
+                    return true
+                } catch (t: Exception) {
+                    if (!isSqliteBusy(t)) {
+                        logger.warn(
+                            "ConstRefEngine delete cleanup failed, path=$deletedPath, " +
+                                "attempt=$attempt",
+                            t,
+                        )
+                        return true
+                    }
+                    if (attempt >= DELETE_CLEANUP_MAX_ATTEMPTS) {
+                        logger.warn(
+                            "ConstRefEngine delete cleanup busy, requeue path=$deletedPath, " +
+                                "attempt=$attempt",
+                            t,
+                        )
+                        return false
+                    }
+                    logger.warn(
+                        "ConstRefEngine delete cleanup busy, retry path=$deletedPath, " +
+                            "attempt=$attempt, waitMs=$delayMs",
+                        t,
+                    )
+                }
+            }
+            logger.debug(
+                "ConstRefEngine delete cleanup attempt cost, path=$deletedPath, " +
+                    "attempt=$attempt, costMs=$elapsedMs"
+            )
+            delay(delayMs)
+            delayMs = (delayMs * 2).coerceAtMost(DELETE_CLEANUP_MAX_RETRY_DELAY_MS)
+            attempt++
+        }
+        return false
+    }
+
+    private fun requeueDeleteCleanupLater(path: String) {
+        synchronized(stateLock) {
+            if (!pendingDeleteRequeuePaths.add(path)) {
+                return
+            }
+        }
+        sceneTaskScope.launch(Dispatchers.IO) {
+            delay(DELETE_CLEANUP_REQUEUE_DELAY_MS)
+            synchronized(stateLock) {
+                pendingDeleteRequeuePaths.remove(path)
+            }
+            enqueueDeleteCleanup(path)
+        }
+    }
+
+    private fun mayAffectConstRefIndexLocked(path: String): Boolean {
+        if (trackedSourceDirs.isEmpty()) {
+            return isSourceFile(path) && !isIgnoredConstRefDeletePath(path)
+        }
+        val relatedSourceDir = trackedSourceDirs
+            .filter { sourceDir -> path == sourceDir || path.startsWith("$sourceDir/") }
+            .maxByOrNull { it.length }
+            ?: return false
+        if (isSourceFile(path)) {
+            return true
+        }
+        return path == relatedSourceDir || isDirectoryPathCandidate(path)
+    }
+
+    private fun isIgnoredConstRefDeletePath(path: String): Boolean {
+        val normalizedPath = path.replace('\\', '/')
+        return normalizedPath.contains("/build/intermediates/") ||
+            normalizedPath.contains("/build/tmp/") ||
+            normalizedPath.contains("/.gradle/") ||
+            normalizedPath.contains("/.idea/")
+    }
+
+    private fun isDirectoryPathCandidate(path: String): Boolean {
+        val name = path.substringAfterLast('/')
+        return !name.contains('.')
+    }
+
+    private fun isSqliteBusy(throwable: Throwable): Boolean {
+        var current: Throwable? = throwable
+        while (current != null) {
+            val message = current.message.orEmpty().lowercase()
+            if (message.contains("sqlite_busy") ||
+                message.contains("database is locked") ||
+                message.contains("database file is locked")
+            ) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     private fun isSceneActiveLocked(scene: AnalyzeScene): Boolean {
@@ -1776,6 +1887,10 @@ class ConstRefEngine private constructor(
         private const val SLOW_PHASE_THRESHOLD_MS = 500L
         private const val DETAILED_LOG_FILE_THRESHOLD = 5
         private const val PER_FILE_ANALYZE_TIMEOUT_MS = 5_000L
+        private const val DELETE_CLEANUP_INITIAL_RETRY_DELAY_MS = 200L
+        private const val DELETE_CLEANUP_MAX_RETRY_DELAY_MS = 5_000L
+        private const val DELETE_CLEANUP_MAX_ATTEMPTS = 3
+        private const val DELETE_CLEANUP_REQUEUE_DELAY_MS = 30_000L
 
         private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
             return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue

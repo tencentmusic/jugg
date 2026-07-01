@@ -17,11 +17,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.io.File
+import java.sql.SQLException
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -1342,6 +1345,175 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         } finally {
             releaseLock.countDown()
             lockHolder.join(5_000L)
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `onFileDeleted should skip build output class cleanup`() {
+        val rootDir = createTempDirectory("const_ref_delete_skip_class")
+        File(rootDir, ".git").mkdirs()
+        val sourceDir = File(rootDir, "src/main/java").apply { mkdirs() }
+        val classFile = File(rootDir, "build/tmp/kotlin-classes/debug/com/example/BuildOutput.class").apply {
+            parentFile.mkdirs()
+            writeText("compiled")
+        }
+
+        val database = mock<ConstRefCacheDatabase>()
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.initializeFullScan(listOf(sourceDir))
+            classFile.delete()
+            engine.onFileDeleted(classFile.absolutePath)
+
+            assertFalse(
+                "build output deletion should not enqueue const-ref DB cleanup",
+                waitUntil(timeoutMs = 500L, intervalMs = 30L) {
+                    runCatching {
+                        verify(database).removeFilesByPrefix("${classFile.toStdPath()}/")
+                    }.isSuccess
+                },
+            )
+            verify(database, never()).removeFile(any())
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `onFileDeleted should cleanup source file index`() {
+        val rootDir = createTempDirectory("const_ref_delete_source_file")
+        File(rootDir, ".git").mkdirs()
+        val sourceDir = File(rootDir, "src/main/java").apply { mkdirs() }
+        val sourceFile = File(sourceDir, "com/example/Deleted.kt").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                package com.example
+                const val DELETED = 1
+                """.trimIndent()
+            )
+        }
+
+        val database = mock<ConstRefCacheDatabase>()
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.initializeFullScan(listOf(sourceDir))
+            sourceFile.delete()
+            engine.onFileDeleted(sourceFile.absolutePath)
+
+            assertTrue(
+                "source file deletion should cleanup exact file index",
+                waitUntil {
+                    runCatching {
+                        verify(database).removeFile(sourceFile.toStdPath())
+                    }.isSuccess
+                },
+            )
+            verify(database, atLeastOnce()).removeFilesByPrefix("${sourceFile.toStdPath()}/")
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `onFileDeleted should cleanup source directory index`() {
+        val rootDir = createTempDirectory("const_ref_delete_source_dir")
+        File(rootDir, ".git").mkdirs()
+        val sourceDir = File(rootDir, "src/main/java").apply { mkdirs() }
+        val deletedPackageDir = File(sourceDir, "com/example").apply { mkdirs() }
+
+        val database = mock<ConstRefCacheDatabase>()
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.initializeFullScan(listOf(sourceDir))
+            deletedPackageDir.delete()
+            engine.onFileDeleted(deletedPackageDir.absolutePath)
+
+            assertTrue(
+                "source directory deletion should cleanup path prefix",
+                waitUntil {
+                    runCatching {
+                        verify(database).removeFilesByPrefix("${deletedPackageDir.toStdPath()}/")
+                    }.isSuccess
+                },
+            )
+            verify(database, never()).removeFile(any())
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `delete cleanup should retry sqlite busy before dropping task`() {
+        val rootDir = createTempDirectory("const_ref_delete_busy_retry")
+        File(rootDir, ".git").mkdirs()
+        val sourceDir = File(rootDir, "src/main/java").apply { mkdirs() }
+        val sourceFile = File(sourceDir, "com/example/Deleted.kt").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                package com.example
+                const val DELETED = 1
+                """.trimIndent()
+            )
+        }
+
+        val database = mock<ConstRefCacheDatabase>()
+        var prefixAttempt = 0
+        doAnswer {
+            prefixAttempt++
+            if (prefixAttempt <= 2) {
+                throw SQLException("[SQLITE_BUSY] The database file is locked")
+            }
+            Unit
+        }.whenever(database).removeFilesByPrefix("${sourceFile.toStdPath()}/")
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = database,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.initializeFullScan(listOf(sourceDir))
+            sourceFile.delete()
+            engine.onFileDeleted(sourceFile.absolutePath)
+
+            assertTrue(
+                "busy cleanup should retry and eventually succeed",
+                waitUntil(timeoutMs = 2_000L) {
+                    prefixAttempt >= 3
+                },
+            )
+            verify(database, times(3)).removeFilesByPrefix("${sourceFile.toStdPath()}/")
+        } finally {
             engine.dispose()
             scope.cancel()
         }
