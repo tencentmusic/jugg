@@ -58,7 +58,8 @@ class CompileContextManager(
         logger.debug("setCompileContext")
         ensureInitProjectInfo()
         this.compileContextInfo = compileContextInfo
-        updateCompileContextByFullBuildInfo(compileContextInfo)
+        val copyModules = buildEffectiveModules(getProjectInfo().modules, compileContextInfo)
+        compileContextInside.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
     /**
@@ -77,10 +78,10 @@ class CompileContextManager(
         if (isNeedReloadProjectInfo) {
             updateProjectInfoFromIde(isNeedReloadProjectInfo = true)
             juggProjectInfoMerger.afterSync(projectInfoSerializer, currentBuildTarget())
-            compileContextInside.update(modules = getProjectInfo().modules)
-            compileContextInfo?.let {
-                updateCompileContextByFullBuildInfo(it)
-            }
+            compileContextInside.update(
+                apkInfos = compileContextInfo?.apkInfos,
+                modules = buildEffectiveModules(getProjectInfo().modules),
+            )
         }
 
         var isFixGradleProjectInfo = false
@@ -135,10 +136,10 @@ class CompileContextManager(
 
         allGradleProjectInfoSerializerList = getAllGradleProjectInfo()
         juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList, buildTarget)
-        compileContextInside.update(modules = getProjectInfo().modules)
-        compileContextInfo?.let {
-            updateCompileContextByFullBuildInfo(it)
-        }
+        compileContextInside.update(
+            apkInfos = compileContextInfo?.apkInfos,
+            modules = buildEffectiveModules(getProjectInfo().modules),
+        )
     }
 
     private fun getAllGradleProjectInfo(): List<ProjectInfoSerializer> {
@@ -181,7 +182,7 @@ class CompileContextManager(
         logger.debug("updateCustomClasspath: $moduleCustomConfigs")
         this.moduleCustomConfigs = moduleCustomConfigs
 
-        compileContextInside.update(modules = getProjectInfo().modules)
+        compileContextInside.update(modules = buildEffectiveModules(getProjectInfo().modules))
     }
 
     fun ensureInitProjectInfo() {
@@ -210,8 +211,15 @@ class CompileContextManager(
         return deployHisManager.getFullBuildInfo()?.buildTarget ?: BuildTarget.APP
     }
 
-    private fun updateCompileContextByFullBuildInfo(compileContextInfo: CompileContextInfo) {
-        val guessBuildPathBaseDir: File? = getProjectInfo().modules.firstNotNullOfOrNull { (name, module) ->
+    private fun buildEffectiveModules(
+        baseModules: Map<String, ModuleInfo>,
+        compileContextInfo: CompileContextInfo? = this.compileContextInfo,
+    ): Map<String, ModuleInfo> {
+        if (compileContextInfo == null) {
+            return baseModules
+        }
+
+        val guessBuildPathBaseDir: File? = baseModules.firstNotNullOfOrNull { (name, module) ->
             val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name] ?: return@firstNotNullOfOrNull null
             val relativePath = module.buildPathInfo.buildDir.relativeTo(module.buildPathInfo.projectRootDir)
             if (newBuildPathInfo.buildDir.endsWith(relativePath)) {
@@ -221,7 +229,7 @@ class CompileContextManager(
             }
         }
 
-        val copyModules: Map<String, ModuleInfo> = getProjectInfo().modules.map { (name, module) ->
+        return baseModules.map { (name, module) ->
             val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name]
             if (newBuildPathInfo != null) {
                 return@map name to module.copy(buildPathInfo = newBuildPathInfo.copy(
@@ -254,7 +262,6 @@ class CompileContextManager(
                 return@map name to module
             }
         }.toMap()
-        compileContextInside.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
     private fun createCompileContext(): BaseCompileContext {
@@ -270,7 +277,7 @@ class CompileContextManager(
             androidHome = androidHome,
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
             tempModuleDir = File(pathManager.compileRootDir, "temp_module"),
-            modules = getProjectInfo().modules,
+            modules = buildEffectiveModules(getProjectInfo().modules),
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHisManager,
