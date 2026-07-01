@@ -1,3 +1,10 @@
+- version: 3.0.24
+  date: 2026.07.01
+  updates:
+    - support python 3.7 for jugg scripts
+    - serialize const ref sqlite writes by db path
+    - avoid jvmti stuck retry reason dedupe
+
 - version: 3.0.22
   date: 2026.06.27
   updates:

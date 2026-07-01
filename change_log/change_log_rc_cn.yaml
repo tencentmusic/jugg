@@ -1,3 +1,10 @@
+- version: 3.0.24
+  date: 2026.07.01
+  updates:
+    - jugg agents 脚本支持 python 3.7
+    - 优化常量引用数据库报错问题
+    - 优化部署超时重试逻辑
+
 - version: 3.0.22
   date: 2026.06.27
   updates:
