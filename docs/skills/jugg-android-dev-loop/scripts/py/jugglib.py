@@ -4,6 +4,8 @@ Provides: port detection, projectDir resolution, record session management,
           HTTP dispatch, JSON parsing utilities, async compile polling.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re

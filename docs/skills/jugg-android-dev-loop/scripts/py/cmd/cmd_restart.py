@@ -1,5 +1,7 @@
 """cmd_restart — restart app."""
 
+from __future__ import annotations
+
 import json
 import sys
 import os

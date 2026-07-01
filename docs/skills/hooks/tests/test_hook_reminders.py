@@ -1,5 +1,7 @@
 """Tests for command and edit hook behaviors."""
 
+from __future__ import annotations
+
 import hashlib
 import importlib.util
 import json

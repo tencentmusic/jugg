@@ -1,0 +1,22 @@
+{
+  "jugg_cli": {
+    "path": "docs/skills/jugg-android-dev-loop/scripts",
+    "min_python": "3.7",
+    "runtime_commands": [
+      ["{python}", "-m", "py_compile", "{files}"],
+      ["{python}", "docs/skills/jugg-android-dev-loop/scripts/jugg.py", "--help"],
+      ["{python}", "docs/skills/jugg-android-dev-loop/scripts/py/test_jugglib.py"],
+      ["{python}", "docs/skills/jugg-android-dev-loop/scripts/py/test_cmd_status.py"]
+    ]
+  },
+  "agent_hooks": {
+    "path": "docs/skills/hooks",
+    "min_python": "3.7",
+    "runtime_commands": [
+      ["{python}", "-m", "py_compile", "{files}"],
+      ["{python}", "-m", "unittest", "docs/skills/hooks/tests/test_hook_common_logging.py"],
+      ["{python}", "-m", "unittest", "docs/skills/hooks/tests/test_hooks_guard.py"],
+      ["{python}", "-m", "unittest", "docs/skills/hooks/tests/test_hook_reminders.py"]
+    ]
+  }
+}

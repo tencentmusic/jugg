@@ -1,5 +1,7 @@
 """Tests for hook debug logging and payload logging switches."""
 
+from __future__ import annotations
+
 import importlib.util
 import json
 import os

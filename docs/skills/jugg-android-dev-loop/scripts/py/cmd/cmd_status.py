@@ -1,5 +1,7 @@
 """cmd_status — return current Jugg deploy state and uncompiled file summary."""
 
+from __future__ import annotations
+
 import json
 import sys
 import os

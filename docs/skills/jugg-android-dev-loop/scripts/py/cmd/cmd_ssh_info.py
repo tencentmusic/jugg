@@ -1,5 +1,7 @@
 """cmd_ssh_info — request remote SSH troubleshooting info when enable remote compile."""
 
+from __future__ import annotations
+
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

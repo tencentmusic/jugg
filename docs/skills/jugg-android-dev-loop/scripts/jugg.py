@@ -7,6 +7,24 @@ Dispatches to subcommand handlers that wrap Jugg MCP tools.
 import sys
 import os
 
+MIN_PYTHON = (3, 7)
+
+
+def _ensure_python_version() -> None:
+    if sys.version_info >= MIN_PYTHON:
+        return
+    current = ".".join(str(part) for part in sys.version_info[:3])
+    required = ".".join(str(part) for part in MIN_PYTHON)
+    print(
+        f"jugg: Python {required}+ is required, current Python is {current}. "
+        "Please upgrade python3 or adjust PATH so `python3` points to a supported interpreter.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+
+_ensure_python_version()
+
 # Ensure the py/ subdirectory is on the path so jugglib and cmd can be imported
 # Use realpath to resolve symlinks so the py/ directory is found correctly
 # when this script is invoked via the wrapper symlink (e.g. ~/.local/bin/jugg -> ~/.jugg/bin/jugg)

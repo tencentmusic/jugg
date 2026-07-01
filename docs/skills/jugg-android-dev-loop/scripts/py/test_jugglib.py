@@ -1,5 +1,7 @@
 """Tests for jugglib compile_call message selection logic."""
 
+from __future__ import annotations
+
 import io
 import os
 import sys
@@ -54,11 +56,10 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
 
     def _run_compile_call(self, initial: dict, poll_final: dict) -> str:
         """Helper: patch dependencies, run compile_call, return captured stdout."""
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call") as mock_raw_call,
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call") as mock_raw_call:
             # First call: compile tool; subsequent calls: get-compile-status
             def side_effect(port, tool, params):
                 if tool == "compile":
@@ -68,10 +69,9 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
             mock_raw_call.side_effect = side_effect
 
             captured = io.StringIO()
-            with (
-                patch("sys.stdout", captured),
-                patch("sys.stderr", new_callable=io.StringIO),
-            ):
+            with \
+                patch("sys.stdout", captured), \
+                patch("sys.stderr", new_callable=io.StringIO):
                 jugglib.compile_call("compile")
 
         return captured.getvalue()
@@ -80,13 +80,12 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
         """Plain compile-like calls should print a start progress line before blocking work."""
         initial = _make_compile_response("success", "Compile succeeded immediately.")
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": initial}}),
-            patch("sys.stderr", new_callable=io.StringIO) as stderr,
-            patch("sys.stdout", new_callable=io.StringIO),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": initial}}), \
+            patch("sys.stderr", new_callable=io.StringIO) as stderr, \
+            patch("sys.stdout", new_callable=io.StringIO):
             jugglib.compile_call("gradle-build", progress_msg="Running Gradle build")
 
         self.assertIn("Running Gradle build...", stderr.getvalue())
@@ -99,13 +98,12 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
         jugglib.json_mode = True
 
         try:
-            with (
-                patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-                patch.object(jugglib, "resolve_port", return_value=12320),
-                patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": initial}}),
-                patch("sys.stderr", new_callable=io.StringIO) as stderr,
-                patch("sys.stdout", new_callable=io.StringIO),
-            ):
+            with \
+                patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+                patch.object(jugglib, "resolve_port", return_value=12320), \
+                patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": initial}}), \
+                patch("sys.stderr", new_callable=io.StringIO) as stderr, \
+                patch("sys.stdout", new_callable=io.StringIO):
                 jugglib.compile_call("gradle-build", progress_msg="Running Gradle build")
         finally:
             jugglib.json_mode = original_json_mode
@@ -114,12 +112,11 @@ class TestCompileCallMessageOnSuccess(unittest.TestCase):
 
     def test_keyboard_interrupt_exits_without_traceback(self):
         """Ctrl-C should be converted to a short message instead of an unhandled traceback."""
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call", side_effect=KeyboardInterrupt),
-            patch("sys.stderr", new_callable=io.StringIO) as stderr,
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call", side_effect=KeyboardInterrupt), \
+            patch("sys.stderr", new_callable=io.StringIO) as stderr:
             with self.assertRaises(SystemExit) as cm:
                 jugglib.compile_call("gradle-build", progress_msg="Running Gradle build")
 
@@ -195,11 +192,10 @@ class TestCompileCallMessageOnFailure(unittest.TestCase):
             },
         }
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}):
             captured = io.StringIO()
             with patch("sys.stderr", captured):
                 with self.assertRaises(SystemExit):
@@ -224,11 +220,10 @@ class TestCompileCallMessageOnFailure(unittest.TestCase):
             },
         }
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}):
             captured = io.StringIO()
             with patch("sys.stderr", captured):
                 with self.assertRaises(SystemExit):
@@ -253,11 +248,10 @@ class TestCompileCallMessageOnFailure(unittest.TestCase):
             },
         }
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}):
             captured = io.StringIO()
             with patch("sys.stderr", captured):
                 with self.assertRaises(SystemExit):
@@ -286,11 +280,10 @@ class TestCompileCallMessageOnFailure(unittest.TestCase):
             },
         }
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": structured}}):
             captured = io.StringIO()
             with patch("sys.stderr", captured):
                 with self.assertRaises(SystemExit):
@@ -329,14 +322,13 @@ class TestCompileIdleWait(unittest.TestCase):
         status_busy = _status_response(True)
         status_idle = _status_response(False)
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call") as mock_raw_call,
-            patch.object(jugglib.time, "sleep") as mock_sleep,
-            patch("sys.stderr", new_callable=io.StringIO),
-            patch("sys.stdout", new_callable=io.StringIO),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call") as mock_raw_call, \
+            patch.object(jugglib.time, "sleep") as mock_sleep, \
+            patch("sys.stderr", new_callable=io.StringIO), \
+            patch("sys.stdout", new_callable=io.StringIO):
             mock_raw_call.side_effect = [
                 status_busy,
                 status_busy,
@@ -353,7 +345,7 @@ class TestCompileIdleWait(unittest.TestCase):
                 ("status", {"projectDir": "/proj", "refreshChanges": False}),
                 ("compile", {"projectDir": "/proj"}),
             ],
-            [(call.args[1], call.args[2]) for call in mock_raw_call.call_args_list],
+            [(call[0][1], call[0][2]) for call in mock_raw_call.call_args_list],
         )
         mock_sleep.assert_called_with(5.0)
 
@@ -361,13 +353,12 @@ class TestCompileIdleWait(unittest.TestCase):
         jugglib.if_compiling = "interrupt"
         initial = _make_compile_response("success", "Compile succeeded immediately.")
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": initial}}) as mock_raw_call,
-            patch("sys.stderr", new_callable=io.StringIO),
-            patch("sys.stdout", new_callable=io.StringIO),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": initial}}) as mock_raw_call, \
+            patch("sys.stderr", new_callable=io.StringIO), \
+            patch("sys.stdout", new_callable=io.StringIO):
             jugglib.compile_call("compile")
 
         mock_raw_call.assert_called_once_with(12320, "compile", {"projectDir": "/proj"})
@@ -377,13 +368,12 @@ class TestCompileIdleWait(unittest.TestCase):
         initial = _make_compile_response("success", "Compile succeeded immediately.")
         status_idle = _status_response(False)
 
-        with (
-            patch.object(jugglib, "resolve_project_dir", return_value="/proj"),
-            patch.object(jugglib, "resolve_port", return_value=12320),
-            patch.object(jugglib, "raw_call") as mock_raw_call,
-            patch("sys.stderr", new_callable=io.StringIO),
-            patch("sys.stdout", new_callable=io.StringIO),
-        ):
+        with \
+            patch.object(jugglib, "resolve_project_dir", return_value="/proj"), \
+            patch.object(jugglib, "resolve_port", return_value=12320), \
+            patch.object(jugglib, "raw_call") as mock_raw_call, \
+            patch("sys.stderr", new_callable=io.StringIO), \
+            patch("sys.stdout", new_callable=io.StringIO):
             mock_raw_call.side_effect = [
                 status_idle,
                 {"result": {"structuredContent": initial}},
@@ -395,7 +385,7 @@ class TestCompileIdleWait(unittest.TestCase):
                 ("status", {"projectDir": "/proj", "refreshChanges": False}),
                 ("compile", {"projectDir": "/proj"}),
             ],
-            [(call.args[1], call.args[2]) for call in mock_raw_call.call_args_list],
+            [(call[0][1], call[0][2]) for call in mock_raw_call.call_args_list],
         )
 
     def test_on_waiting_not_called_when_already_idle(self):
@@ -418,12 +408,11 @@ class TestCompileIdleWait(unittest.TestCase):
         fetch_results = [True, True, True, True, False]
         monotonic_values = [0.0, 10.0, 29.0, 30.0]
 
-        with (
-            patch.object(jugglib, "_fetch_is_compiling", side_effect=fetch_results),
-            patch.object(jugglib.time, "sleep"),
-            patch.object(jugglib.time, "monotonic", side_effect=monotonic_values),
-            patch("sys.stderr", new_callable=io.StringIO) as stderr,
-        ):
+        with \
+            patch.object(jugglib, "_fetch_is_compiling", side_effect=fetch_results), \
+            patch.object(jugglib.time, "sleep"), \
+            patch.object(jugglib.time, "monotonic", side_effect=monotonic_values), \
+            patch("sys.stderr", new_callable=io.StringIO) as stderr:
             jugglib.wait_for_compile_idle(12320, "/proj")
 
         output = stderr.getvalue()
@@ -438,10 +427,9 @@ class TestPollCompileWaitTimeout(unittest.TestCase):
         initial = _make_compile_response("running", "Compile started.")
         final = _make_poll_response("success")
 
-        with (
-            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": final}}) as mock_raw_call,
-            patch.object(jugglib.time, "sleep") as mock_sleep,
-        ):
+        with \
+            patch.object(jugglib, "raw_call", return_value={"result": {"structuredContent": final}}) as mock_raw_call, \
+            patch.object(jugglib.time, "sleep") as mock_sleep:
             structured = jugglib.poll_compile(12320, "/proj", initial)
 
         self.assertEqual("success", structured.get("data", {}).get("status"))
@@ -457,13 +445,12 @@ class TestPollCompileWaitTimeout(unittest.TestCase):
         running = _make_poll_response("running", "Compiling files (3/12)...")
         final = _make_poll_response("success")
 
-        with (
-            patch.object(jugglib, "raw_call", side_effect=[
-                {"result": {"structuredContent": running}},
-                {"result": {"structuredContent": final}},
-            ]),
-            patch("sys.stderr", new_callable=io.StringIO) as stderr,
-        ):
+        with \
+            patch.object(jugglib, "raw_call", side_effect=[ \
+                {"result": {"structuredContent": running}}, \
+                {"result": {"structuredContent": final}}, \
+            ]), \
+            patch("sys.stderr", new_callable=io.StringIO) as stderr:
             structured = jugglib.poll_compile(12320, "/proj", initial)
 
         self.assertEqual("success", structured.get("data", {}).get("status"))
@@ -475,16 +462,15 @@ class TestPollCompileWaitTimeout(unittest.TestCase):
         running = _make_poll_response("running", "Compiling files (3/12)...")
         final = _make_poll_response("success")
 
-        with (
-            patch.object(jugglib, "raw_call", side_effect=[
-                {"result": {"structuredContent": running}},
-                {"result": {"structuredContent": running}},
-                {"result": {"structuredContent": running}},
-                {"result": {"structuredContent": final}},
-            ]),
-            patch.object(jugglib.time, "monotonic", side_effect=[0.0, 10.0, 29.0]),
-            patch("sys.stderr", new_callable=io.StringIO) as stderr,
-        ):
+        with \
+            patch.object(jugglib, "raw_call", side_effect=[ \
+                {"result": {"structuredContent": running}}, \
+                {"result": {"structuredContent": running}}, \
+                {"result": {"structuredContent": running}}, \
+                {"result": {"structuredContent": final}}, \
+            ]), \
+            patch.object(jugglib.time, "monotonic", side_effect=[0.0, 10.0, 29.0]), \
+            patch("sys.stderr", new_callable=io.StringIO) as stderr:
             jugglib.poll_compile(12320, "/proj", initial)
 
         output = stderr.getvalue()
@@ -500,13 +486,12 @@ class TestPollCompileWaitTimeout(unittest.TestCase):
         spinner_label = ["Running Gradle build"]
 
         try:
-            with (
-                patch.object(jugglib, "raw_call", side_effect=[
-                    {"result": {"structuredContent": running}},
-                    {"result": {"structuredContent": final}},
-                ]),
-                patch("sys.stderr", new_callable=io.StringIO) as stderr,
-            ):
+            with \
+                patch.object(jugglib, "raw_call", side_effect=[ \
+                    {"result": {"structuredContent": running}}, \
+                    {"result": {"structuredContent": final}}, \
+                ]), \
+                patch("sys.stderr", new_callable=io.StringIO) as stderr:
                 jugglib.poll_compile(12320, "/proj", initial, progress_label=spinner_label)
         finally:
             jugglib.spinner_enabled = original_spinner_enabled
@@ -522,13 +507,12 @@ class TestPollCompileWaitTimeout(unittest.TestCase):
         final = _make_poll_response("success")
 
         try:
-            with (
-                patch.object(jugglib, "raw_call", side_effect=[
-                    {"result": {"structuredContent": running}},
-                    {"result": {"structuredContent": final}},
-                ]),
-                patch("sys.stderr", new_callable=io.StringIO) as stderr,
-            ):
+            with \
+                patch.object(jugglib, "raw_call", side_effect=[ \
+                    {"result": {"structuredContent": running}}, \
+                    {"result": {"structuredContent": final}}, \
+                ]), \
+                patch("sys.stderr", new_callable=io.StringIO) as stderr:
                 jugglib.poll_compile(12320, "/proj", initial)
         finally:
             jugglib.json_mode = original_json_mode
@@ -551,12 +535,11 @@ class TestSpinnerRendering(unittest.TestCase):
             label[0] = "Executed :jooxlivelib:createFullJarDebug..."
 
         try:
-            with (
-                patch("sys.stderr.isatty", return_value=True),
-                patch("sys.stderr.write", side_effect=lambda text: writes.append(text)),
-                patch("sys.stderr.flush"),
-                patch.object(jugglib.time, "sleep", side_effect=fake_sleep),
-            ):
+            with \
+                patch("sys.stderr.isatty", return_value=True), \
+                patch("sys.stderr.write", side_effect=lambda text: writes.append(text)), \
+                patch("sys.stderr.flush"), \
+                patch.object(jugglib.time, "sleep", side_effect=fake_sleep):
                 jugglib._run_spinner(stop_event, label)
         finally:
             jugglib.spinner_enabled = original_spinner_enabled

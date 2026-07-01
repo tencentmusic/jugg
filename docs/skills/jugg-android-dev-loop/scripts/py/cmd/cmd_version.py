@@ -1,5 +1,7 @@
 """cmd_version — show CLI version and plugin version from all initialized projects."""
 
+from __future__ import annotations
+
 import json
 import sys
 import os

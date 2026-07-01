@@ -21,6 +21,11 @@ cp -R ./jugg-android-dev-loop ~/.claude/skills/
 The skill already bundles the `jugg` CLI (`scripts/jugg` / `scripts/jugg.cmd`).
 You can ask the AI agent to install it to your PATH — see `jugg-android-dev-loop/references/guide_install_cli.md`.
 
+Python requirements:
+
+- Jugg CLI requires Python 3.7+ as `python3`.
+- Agent hooks require Python 3.7+ as `python3`.
+
 ---
 
 ## Hook Setup (Manual)
