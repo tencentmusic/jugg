@@ -114,6 +114,17 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
+    fun `force direct overlay retry bypasses ready deploy state`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+
+        val result = fixture.helper.deploy(fixture.deployOptions.copy(forceDirectOverlayDeploy = true))
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
+        assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+    }
+
+    @Test
     fun `DF-L2-007 swap phase device mismatch falls back to Apply Changes without reinstall`() {
         val swapMismatchOverlayId = "swap-phase-mismatch-overlay"
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_007)

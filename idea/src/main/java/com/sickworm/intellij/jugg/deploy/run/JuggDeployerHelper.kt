@@ -204,6 +204,7 @@ class JuggDeployerHelper(
             compileUiHandler = compileUiHandler,
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = request.isAllowDirectOverlayDeploy,
+            forceDirectOverlayDeploy = request.forceDirectOverlayDeploy,
         )
         val isDirectOverlayCandidate = DirectOverlaySwapTransport(baseLaunchContext, logger).canTry(data)
         val dataList = if (isDirectOverlayCandidate) {
