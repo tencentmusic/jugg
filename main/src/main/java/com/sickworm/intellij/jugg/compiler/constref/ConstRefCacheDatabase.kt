@@ -8,6 +8,7 @@ import java.sql.DriverManager
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.util.LinkedHashMap
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Persist and query const-ref analysis snapshots in a repo-relative/global sqlite database.
@@ -18,6 +19,7 @@ class ConstRefCacheDatabase(
 ) {
     private val maxDefinitionKeysPerQuery = 400
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
+    private val dbWriteLock = ConstRefDbWriteLockRegistry.lockFor(dbFile)
     private var sharedConnection: Connection? = null
     private val repoRootByKey = mutableMapOf<String, String>()
     private val worktreeRootByKey = mutableMapOf<String, String>()
@@ -33,17 +35,19 @@ class ConstRefCacheDatabase(
 
     @Synchronized
     fun init() {
-        SqLiteDriverLoader.load(logger)
-        dbFile.parentFile?.mkdirs()
-        try {
-            initExistingDatabase()
-        } catch (t: Throwable) {
-            if (!isCorruptDatabaseError(t)) {
-                throw t
+        withDbWriteLock {
+            SqLiteDriverLoader.load(logger)
+            dbFile.parentFile?.mkdirs()
+            try {
+                initExistingDatabase()
+            } catch (t: Throwable) {
+                if (!isCorruptDatabaseError(t)) {
+                    throw t
+                }
+                logger.warn("ConstRefCacheDatabase recreate db due to malformed database: dbFile=${dbFile.absolutePath}", t)
+                recreateDatabase()
+                runPassiveWalCheckpoint()
             }
-            logger.warn("ConstRefCacheDatabase recreate db due to malformed database: dbFile=${dbFile.absolutePath}", t)
-            recreateDatabase()
-            runPassiveWalCheckpoint()
         }
     }
 
@@ -74,7 +78,7 @@ class ConstRefCacheDatabase(
     /** Runs a non-blocking WAL checkpoint to merge pending WAL frames into the main db file. */
     @Synchronized
     fun runPassiveWalCheckpoint() {
-        withConnection { connection ->
+        withWriteConnection { connection ->
             connection.createStatement().use { statement ->
                 statement.execute("PRAGMA wal_checkpoint(PASSIVE)")
             }
@@ -192,7 +196,7 @@ class ConstRefCacheDatabase(
     fun touchFileAnalysis(filePath: String, lastModified: Long, checksum: Long): Boolean {
         val repoIdentity = resolveRepoIdentity(filePath) ?: return false
         val nowMs = System.currentTimeMillis()
-        return withConnection { connection ->
+        return withWriteConnection { connection ->
             val interner = StringInterner(connection)
             val repoId = interner.id(repoIdentity.repoKey)
             val pathId = interner.id(repoIdentity.relativePath)
@@ -216,7 +220,7 @@ class ConstRefCacheDatabase(
                 }
                 if (updatedRows <= 0) {
                     connection.rollback()
-                    return@withConnection false
+                    return@withWriteConnection false
                 }
 
                 upsertMtimeMap(
@@ -293,9 +297,8 @@ class ConstRefCacheDatabase(
     ) {
         val repoIdentity = resolveRepoIdentity(filePath) ?: return
         val nowMs = System.currentTimeMillis()
-        withConnection { connection ->
+        withWriteTransaction(clearStringCacheOnFailure = true) { connection ->
             val interner = StringInterner(connection)
-            connection.autoCommit = false
             try {
                 interner.prewarm(collectStrings(repoIdentity, definitions, references, referenceCandidates))
                 val fileId = upsertAnalysisHead(connection, interner, repoIdentity, checksum, nowMs, nowMs)
@@ -373,14 +376,8 @@ class ConstRefCacheDatabase(
                     checksum = checksum,
                     updatedAt = nowMs,
                 )
-                connection.commit()
-            } catch (t: Throwable) {
-                connection.rollback()
-                stringIdCache.clear()
-                throw t
             } finally {
                 interner.close()
-                connection.autoCommit = true
             }
         }
     }
@@ -404,9 +401,8 @@ class ConstRefCacheDatabase(
             return
         }
         val nowMs = System.currentTimeMillis()
-        withConnection { connection ->
+        withWriteTransaction(clearStringCacheOnFailure = true) { connection ->
             val interner = StringInterner(connection)
-            connection.autoCommit = false
             try {
                 interner.prewarm(collectBatchDefinitionStrings(resolvedBatch))
                 resolvedBatch.forEach { (repoIdentity, entry) ->
@@ -461,14 +457,8 @@ class ConstRefCacheDatabase(
                         updatedAt = nowMs,
                     )
                 }
-                connection.commit()
-            } catch (t: Throwable) {
-                connection.rollback()
-                stringIdCache.clear()
-                throw t
             } finally {
                 interner.close()
-                connection.autoCommit = true
             }
         }
     }
@@ -489,9 +479,8 @@ class ConstRefCacheDatabase(
             return
         }
         val nowMs = System.currentTimeMillis()
-        withConnection { connection ->
+        withWriteTransaction(clearStringCacheOnFailure = true) { connection ->
             val interner = StringInterner(connection)
-            connection.autoCommit = false
             try {
                 interner.prewarm(collectBatchAnalysisStrings(resolvedBatch))
                 resolvedBatch.forEach { (repoIdentity, entry) ->
@@ -566,14 +555,8 @@ class ConstRefCacheDatabase(
                         updatedAt = nowMs,
                     )
                 }
-                connection.commit()
-            } catch (t: Throwable) {
-                connection.rollback()
-                stringIdCache.clear()
-                throw t
             } finally {
                 interner.close()
-                connection.autoCommit = true
             }
         }
     }
@@ -624,12 +607,11 @@ class ConstRefCacheDatabase(
     fun updateFileLastModified(filePath: String, lastModified: Long) {
         val repoIdentity = resolveRepoIdentity(filePath) ?: return
         val nowMs = System.currentTimeMillis()
-        withConnection { connection ->
+        withWriteTransaction(clearStringCacheOnFailure = true) { connection ->
+            val checksum = queryLatestChecksum(connection, repoIdentity.repoKey, repoIdentity.relativePath) ?: return@withWriteTransaction
             val interner = StringInterner(connection)
-            val checksum = queryLatestChecksum(connection, repoIdentity.repoKey, repoIdentity.relativePath) ?: return@withConnection
             val repoId = interner.id(repoIdentity.repoKey)
             val pathId = interner.id(repoIdentity.relativePath)
-            connection.autoCommit = false
             try {
                 upsertMtimeMap(
                     connection = connection,
@@ -656,14 +638,8 @@ class ConstRefCacheDatabase(
                     statement.setLong(4, checksum)
                     statement.executeUpdate()
                 }
-                connection.commit()
-            } catch (t: Throwable) {
-                connection.rollback()
-                stringIdCache.clear()
-                throw t
             } finally {
                 interner.close()
-                connection.autoCommit = true
             }
         }
     }
@@ -671,40 +647,31 @@ class ConstRefCacheDatabase(
     @Synchronized
     fun removeFile(filePath: String) {
         val repoIdentity = resolveRepoIdentity(filePath) ?: return
-        withConnection { connection ->
-            val worktreeId = findStringId(connection, repoIdentity.worktreeKey) ?: return@withConnection
-            val repoId = findStringId(connection, repoIdentity.repoKey) ?: return@withConnection
-            val pathId = findStringId(connection, repoIdentity.relativePath) ?: return@withConnection
-            connection.autoCommit = false
-            try {
-                connection.prepareStatement(
-                    """
-                    DELETE FROM file_checksum_mtime_map
-                    WHERE worktree_id = ?
-                      AND path_id = ?
-                    """.trimIndent()
-                ).use { statement ->
-                    statement.setLong(1, worktreeId)
-                    statement.setLong(2, pathId)
-                    statement.executeUpdate()
-                }
-                connection.prepareStatement(
-                    """
-                    DELETE FROM file_analysis_head
-                    WHERE repo_id = ?
-                      AND path_id = ?
-                    """.trimIndent()
-                ).use { statement ->
-                    statement.setLong(1, repoId)
-                    statement.setLong(2, pathId)
-                    statement.executeUpdate()
-                }
-                connection.commit()
-            } catch (t: Throwable) {
-                connection.rollback()
-                throw t
-            } finally {
-                connection.autoCommit = true
+        withWriteTransaction { connection ->
+            val worktreeId = findStringId(connection, repoIdentity.worktreeKey) ?: return@withWriteTransaction
+            val repoId = findStringId(connection, repoIdentity.repoKey) ?: return@withWriteTransaction
+            val pathId = findStringId(connection, repoIdentity.relativePath) ?: return@withWriteTransaction
+            connection.prepareStatement(
+                """
+                DELETE FROM file_checksum_mtime_map
+                WHERE worktree_id = ?
+                  AND path_id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setLong(1, worktreeId)
+                statement.setLong(2, pathId)
+                statement.executeUpdate()
+            }
+            connection.prepareStatement(
+                """
+                DELETE FROM file_analysis_head
+                WHERE repo_id = ?
+                  AND path_id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setLong(1, repoId)
+                statement.setLong(2, pathId)
+                statement.executeUpdate()
             }
         }
     }
@@ -713,61 +680,52 @@ class ConstRefCacheDatabase(
     fun removeFilesByPrefix(prefixPath: String) {
         val repoIdentity = resolveRepoIdentity(prefixPath.removeSuffix("/")) ?: return
         val relativePath = repoIdentity.relativePath.trim('/')
-        withConnection { connection ->
-            val worktreeId = findStringId(connection, repoIdentity.worktreeKey) ?: return@withConnection
-            val repoId = findStringId(connection, repoIdentity.repoKey) ?: return@withConnection
-            connection.autoCommit = false
-            try {
-                if (relativePath.isBlank()) {
-                    connection.prepareStatement(
-                        "DELETE FROM file_checksum_mtime_map WHERE worktree_id = ?"
-                    ).use { statement ->
-                        statement.setLong(1, worktreeId)
-                        statement.executeUpdate()
-                    }
-                    connection.prepareStatement(
-                        "DELETE FROM file_analysis_head WHERE repo_id = ?"
-                    ).use { statement ->
-                        statement.setLong(1, repoId)
-                        statement.executeUpdate()
-                    }
-                } else {
-                    val likePattern = "$relativePath/%"
-                    connection.prepareStatement(
-                        """
-                        DELETE FROM file_checksum_mtime_map
-                        WHERE worktree_id = ?
-                          AND path_id IN (
-                              SELECT id FROM strings WHERE value = ? OR value LIKE ?
-                          )
-                        """.trimIndent()
-                    ).use { statement ->
-                        statement.setLong(1, worktreeId)
-                        statement.setString(2, relativePath)
-                        statement.setString(3, likePattern)
-                        statement.executeUpdate()
-                    }
-                    connection.prepareStatement(
-                        """
-                        DELETE FROM file_analysis_head
-                        WHERE repo_id = ?
-                          AND path_id IN (
-                              SELECT id FROM strings WHERE value = ? OR value LIKE ?
-                          )
-                        """.trimIndent()
-                    ).use { statement ->
-                        statement.setLong(1, repoId)
-                        statement.setString(2, relativePath)
-                        statement.setString(3, likePattern)
-                        statement.executeUpdate()
-                    }
+        withWriteTransaction { connection ->
+            val worktreeId = findStringId(connection, repoIdentity.worktreeKey) ?: return@withWriteTransaction
+            val repoId = findStringId(connection, repoIdentity.repoKey) ?: return@withWriteTransaction
+            if (relativePath.isBlank()) {
+                connection.prepareStatement(
+                    "DELETE FROM file_checksum_mtime_map WHERE worktree_id = ?"
+                ).use { statement ->
+                    statement.setLong(1, worktreeId)
+                    statement.executeUpdate()
                 }
-                connection.commit()
-            } catch (t: Throwable) {
-                connection.rollback()
-                throw t
-            } finally {
-                connection.autoCommit = true
+                connection.prepareStatement(
+                    "DELETE FROM file_analysis_head WHERE repo_id = ?"
+                ).use { statement ->
+                    statement.setLong(1, repoId)
+                    statement.executeUpdate()
+                }
+            } else {
+                val likePattern = "$relativePath/%"
+                connection.prepareStatement(
+                    """
+                    DELETE FROM file_checksum_mtime_map
+                    WHERE worktree_id = ?
+                      AND path_id IN (
+                          SELECT id FROM strings WHERE value = ? OR value LIKE ?
+                      )
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setLong(1, worktreeId)
+                    statement.setString(2, relativePath)
+                    statement.setString(3, likePattern)
+                    statement.executeUpdate()
+                }
+                connection.prepareStatement(
+                    """
+                    DELETE FROM file_analysis_head
+                    WHERE repo_id = ?
+                      AND path_id IN (
+                          SELECT id FROM strings WHERE value = ? OR value LIKE ?
+                      )
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setLong(1, repoId)
+                    statement.setString(2, relativePath)
+                    statement.setString(3, likePattern)
+                    statement.executeUpdate()
+                }
             }
         }
     }
@@ -1208,10 +1166,10 @@ class ConstRefCacheDatabase(
      */
     @Synchronized
     fun cleanupIfNeeded(nowMs: Long = System.currentTimeMillis(), force: Boolean = false): CleanupResult {
-        val cleanupStats = withConnection { connection ->
+        val cleanupStats = withWriteTransaction { connection ->
             val lastCleanupAt = readMetaLong(connection, META_LAST_CLEANUP_AT) ?: 0L
             if (!force && nowMs - lastCleanupAt < CLEANUP_INTERVAL_MS) {
-                return@withConnection CleanupResult(
+                return@withWriteTransaction CleanupResult(
                     executed = false,
                     removedExpiredMtimeRows = 0,
                     removedOverflowMtimeRows = 0,
@@ -1223,88 +1181,79 @@ class ConstRefCacheDatabase(
                 )
             }
 
-            connection.autoCommit = false
-            try {
-                val removedExpiredMtimeRows = executeDelete(
-                    connection = connection,
-                    sql = "DELETE FROM file_checksum_mtime_map WHERE updated_at < ?",
-                    params = arrayOf(nowMs - MTIME_MAP_TTL_MS),
-                )
-                val removedOverflowMtimeRows = executeDelete(
-                    connection = connection,
-                    sql = """
-                        DELETE FROM file_checksum_mtime_map
-                        WHERE rowid IN (
-                            SELECT rowid FROM (
-                                SELECT rowid,
-                                       ROW_NUMBER() OVER (
-                                           PARTITION BY worktree_id, path_id
-                                           ORDER BY updated_at DESC, last_modified DESC
-                                       ) AS rank_num
-                                FROM file_checksum_mtime_map
-                            ) ranked
-                            WHERE ranked.rank_num > ?
-                        )
-                    """.trimIndent(),
-                    params = arrayOf(MAX_MTIME_ENTRIES_PER_FILE),
-                )
+            val removedExpiredMtimeRows = executeDelete(
+                connection = connection,
+                sql = "DELETE FROM file_checksum_mtime_map WHERE updated_at < ?",
+                params = arrayOf(nowMs - MTIME_MAP_TTL_MS),
+            )
+            val removedOverflowMtimeRows = executeDelete(
+                connection = connection,
+                sql = """
+                    DELETE FROM file_checksum_mtime_map
+                    WHERE rowid IN (
+                        SELECT rowid FROM (
+                            SELECT rowid,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY worktree_id, path_id
+                                       ORDER BY updated_at DESC, last_modified DESC
+                                   ) AS rank_num
+                            FROM file_checksum_mtime_map
+                        ) ranked
+                        WHERE ranked.rank_num > ?
+                    )
+                """.trimIndent(),
+                params = arrayOf(MAX_MTIME_ENTRIES_PER_FILE),
+            )
 
-                val removedExpiredAnalysisRows = executeDelete(
-                    connection = connection,
-                    sql = "DELETE FROM file_analysis_head WHERE last_access_at < ?",
-                    params = arrayOf(nowMs - ANALYSIS_TTL_MS),
-                )
-                val removedOverflowAnalysisRows = executeDelete(
-                    connection = connection,
-                    sql = """
-                        DELETE FROM file_analysis_head
-                        WHERE rowid IN (
-                            SELECT rowid FROM (
-                                SELECT rowid,
-                                       ROW_NUMBER() OVER (
-                                           PARTITION BY repo_id, path_id
-                                           ORDER BY last_access_at DESC, analyzed_at DESC
-                                       ) AS rank_num
-                                FROM file_analysis_head
-                            ) ranked
-                            WHERE ranked.rank_num > ?
-                        )
-                    """.trimIndent(),
-                    params = arrayOf(MAX_ANALYSIS_ENTRIES_PER_FILE),
-                )
-                val removedOrphanMtimeRows = executeDelete(
-                    connection = connection,
-                    sql = """
-                        DELETE FROM file_checksum_mtime_map
-                        WHERE NOT EXISTS (
-                            SELECT 1
+            val removedExpiredAnalysisRows = executeDelete(
+                connection = connection,
+                sql = "DELETE FROM file_analysis_head WHERE last_access_at < ?",
+                params = arrayOf(nowMs - ANALYSIS_TTL_MS),
+            )
+            val removedOverflowAnalysisRows = executeDelete(
+                connection = connection,
+                sql = """
+                    DELETE FROM file_analysis_head
+                    WHERE rowid IN (
+                        SELECT rowid FROM (
+                            SELECT rowid,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY repo_id, path_id
+                                       ORDER BY last_access_at DESC, analyzed_at DESC
+                                   ) AS rank_num
                             FROM file_analysis_head
-                            WHERE file_analysis_head.repo_id = file_checksum_mtime_map.repo_id
-                              AND file_analysis_head.path_id = file_checksum_mtime_map.path_id
-                              AND file_analysis_head.checksum = file_checksum_mtime_map.checksum
-                        )
-                    """.trimIndent(),
-                    params = emptyArray(),
-                )
+                        ) ranked
+                        WHERE ranked.rank_num > ?
+                    )
+                """.trimIndent(),
+                params = arrayOf(MAX_ANALYSIS_ENTRIES_PER_FILE),
+            )
+            val removedOrphanMtimeRows = executeDelete(
+                connection = connection,
+                sql = """
+                    DELETE FROM file_checksum_mtime_map
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM file_analysis_head
+                        WHERE file_analysis_head.repo_id = file_checksum_mtime_map.repo_id
+                          AND file_analysis_head.path_id = file_checksum_mtime_map.path_id
+                          AND file_analysis_head.checksum = file_checksum_mtime_map.checksum
+                    )
+                """.trimIndent(),
+                params = emptyArray(),
+            )
 
-                writeMetaLong(connection, META_LAST_CLEANUP_AT, nowMs)
-                connection.commit()
-                CleanupResult(
-                    executed = true,
-                    removedExpiredMtimeRows = removedExpiredMtimeRows,
-                    removedOverflowMtimeRows = removedOverflowMtimeRows,
-                    removedExpiredAnalysisRows = removedExpiredAnalysisRows,
-                    removedOverflowAnalysisRows = removedOverflowAnalysisRows,
-                    removedOrphanMtimeRows = removedOrphanMtimeRows,
-                    checkpointExecuted = false,
-                    vacuumExecuted = false,
-                )
-            } catch (t: Throwable) {
-                connection.rollback()
-                throw t
-            } finally {
-                connection.autoCommit = true
-            }
+            writeMetaLong(connection, META_LAST_CLEANUP_AT, nowMs)
+            CleanupResult(
+                executed = true,
+                removedExpiredMtimeRows = removedExpiredMtimeRows,
+                removedOverflowMtimeRows = removedOverflowMtimeRows,
+                removedExpiredAnalysisRows = removedExpiredAnalysisRows,
+                removedOverflowAnalysisRows = removedOverflowAnalysisRows,
+                removedOrphanMtimeRows = removedOrphanMtimeRows,
+                checkpointExecuted = false,
+                vacuumExecuted = false,
+            )
         }
         if (!cleanupStats.executed) {
             return cleanupStats
@@ -1323,7 +1272,7 @@ class ConstRefCacheDatabase(
         deleteOrMoveAside(dbFile)
         deleteOrMoveAside(File("${dbFile.absolutePath}-wal"))
         deleteOrMoveAside(File("${dbFile.absolutePath}-shm"))
-        withConnection { connection ->
+        withWriteConnection { connection ->
             ensureSchema(connection)
         }
     }
@@ -2253,10 +2202,10 @@ class ConstRefCacheDatabase(
     }
 
     private fun runCheckpointAndVacuumIfNeeded(nowMs: Long, force: Boolean): MaintenanceResult {
-        return withConnection { connection ->
+        return withWriteConnection { connection ->
             val lastVacuumAt = readMetaLong(connection, META_LAST_VACUUM_AT) ?: 0L
             if (!force && nowMs - lastVacuumAt < VACUUM_INTERVAL_MS) {
-                return@withConnection MaintenanceResult(
+                return@withWriteConnection MaintenanceResult(
                     checkpointExecuted = false,
                     vacuumExecuted = false,
                 )
@@ -2335,6 +2284,40 @@ class ConstRefCacheDatabase(
 
     private inline fun <T> withConnection(block: (Connection) -> T): T {
         return block(ensureSharedConnectionLocked())
+    }
+
+    private inline fun <T> withWriteConnection(block: (Connection) -> T): T {
+        return withDbWriteLock {
+            withConnection(block)
+        }
+    }
+
+    private inline fun <T> withWriteTransaction(
+        clearStringCacheOnFailure: Boolean = false,
+        block: (Connection) -> T,
+    ): T {
+        return withWriteConnection { connection ->
+            connection.autoCommit = false
+            try {
+                val result = block(connection)
+                connection.commit()
+                result
+            } catch (t: Throwable) {
+                connection.rollback()
+                if (clearStringCacheOnFailure) {
+                    stringIdCache.clear()
+                }
+                throw t
+            } finally {
+                connection.autoCommit = true
+            }
+        }
+    }
+
+    private inline fun <T> withDbWriteLock(block: () -> T): T {
+        synchronized(dbWriteLock) {
+            return block()
+        }
     }
 
     private fun ensureSharedConnectionLocked(): Connection {
@@ -2477,5 +2460,15 @@ class ConstRefCacheDatabase(
          * making Phase 1 definitions visible to Phase 2 DB queries.
          */
         internal const val PHASE1_ANALYZED_AT_SENTINEL = Long.MAX_VALUE
+    }
+}
+
+private object ConstRefDbWriteLockRegistry {
+    private val locks = ConcurrentHashMap<String, Any>()
+
+    fun lockFor(dbFile: File): Any {
+        val key = runCatching { dbFile.canonicalFile.absolutePath }
+            .getOrElse { dbFile.absoluteFile.absolutePath }
+        return locks.getOrPut(key) { Any() }
     }
 }

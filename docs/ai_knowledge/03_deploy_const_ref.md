@@ -135,6 +135,7 @@ analyzeFiles()
 - `file_analysis_head` / `const_definitions` / `const_reference_candidates` 通过 `file_id` 共享分析结果，避免在高频引用索引里重复保存长路径。
 - `file_checksum_mtime_map` 通过 `worktree_id + path_id` 隔离项目本地基线。
 - 写入侧先预热当前批次的字符串 ID，减少 full scan / batch analysis 的逐行 `strings` 查询；进程内 `stringIdCache` 是有上限的 LRU 辅助缓存。
+- 同 IDE 进程内按 DB path 共享写锁，public 写入口和 maintenance 写入串行，降低多 Project 多 connection 写同一全局 DB 的锁竞争；读查询不额外串行。
 - 受影响文件查询先定位 definition key，再匹配 latest candidate rows，最后按当前 worktree 还原绝对路径，仅返回本地存在文件。
 - 支持 `queryClassesBySimpleNames` 通过 `simple_class_id + const_name_id` 索引实现点查，避免全表扫描。
 - 使用共享 SQLite 长连接，避免高频建连；latest 版本选择追加 `checksum` 作为稳定 tie-breaker。

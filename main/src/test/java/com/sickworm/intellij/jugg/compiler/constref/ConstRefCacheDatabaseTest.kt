@@ -3,11 +3,16 @@ package com.sickworm.intellij.jugg.compiler.constref
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.sql.DriverManager
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.system.measureTimeMillis
 
 class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
@@ -829,6 +834,75 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         assertEquals("MAX", latestDefinitions.first().constName)
     }
 
+    @Test
+    fun `same db path write entries should share process write lock`() {
+        val dbDir = createTempDirectory("const_ref_db_same_write_lock")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db")
+        val databaseA = ConstRefCacheDatabase(dbFile, logger)
+        val databaseB = ConstRefCacheDatabase(dbFile, logger)
+        try {
+            assertSame(databaseWriteLock(databaseA), databaseWriteLock(databaseB))
+        } finally {
+            databaseA.close()
+            databaseB.close()
+        }
+    }
+
+    @Test
+    fun `different db path write entries should not share process write lock`() {
+        val dbDirA = createTempDirectory("const_ref_db_write_lock_a")
+        val dbDirB = createTempDirectory("const_ref_db_write_lock_b")
+        File(dbDirA, ".git").mkdirs()
+        File(dbDirB, ".git").mkdirs()
+        val databaseA = ConstRefCacheDatabase(File(dbDirA, "const_ref_test.db"), logger)
+        val databaseB = ConstRefCacheDatabase(File(dbDirB, "const_ref_test.db"), logger)
+        try {
+            assertNotSame(databaseWriteLock(databaseA), databaseWriteLock(databaseB))
+        } finally {
+            databaseA.close()
+            databaseB.close()
+        }
+    }
+
+    @Test
+    fun `same db path public write should wait for process write lock`() {
+        val dbDir = createTempDirectory("const_ref_db_write_lock_wait")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db")
+        val databaseA = ConstRefCacheDatabase(dbFile, logger)
+        val databaseB = ConstRefCacheDatabase(dbFile, logger)
+        val sourceDir = File(dbDir, "src").apply { mkdirs() }
+        val writeLock = databaseWriteLock(databaseA)
+        val lockReady = CountDownLatch(1)
+        val releaseLock = CountDownLatch(1)
+        val lockHolder = Thread {
+            synchronized(writeLock) {
+                lockReady.countDown()
+                releaseLock.await(2, TimeUnit.SECONDS)
+            }
+        }
+        lockHolder.start()
+        try {
+            assertTrue("write lock should be held before public write", lockReady.await(2, TimeUnit.SECONDS))
+            val releaseThread = Thread {
+                Thread.sleep(250L)
+                releaseLock.countDown()
+            }
+            releaseThread.start()
+            val elapsedMs = measureTimeMillis {
+                databaseB.removeFilesByPrefix(sourceDir.absolutePath)
+            }
+            releaseThread.join(2_000L)
+            assertTrue("same db path public write should wait for shared lock, elapsedMs=$elapsedMs", elapsedMs >= 200L)
+        } finally {
+            releaseLock.countDown()
+            lockHolder.join(2_000L)
+            databaseA.close()
+            databaseB.close()
+        }
+    }
+
     private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {
         val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
         File(worktreeGitDir, "commondir").writeText("../../\n")
@@ -840,6 +914,12 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         field.isAccessible = true
         val cache = field.get(database) as Map<*, *>
         return cache.size
+    }
+
+    private fun databaseWriteLock(database: ConstRefCacheDatabase): Any {
+        val field = ConstRefCacheDatabase::class.java.getDeclaredField("dbWriteLock")
+        field.isAccessible = true
+        return field.get(database)
     }
 
     // ---- simple_class_name index tests ----
