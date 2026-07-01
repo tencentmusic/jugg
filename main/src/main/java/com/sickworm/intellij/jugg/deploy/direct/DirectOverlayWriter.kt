@@ -33,14 +33,16 @@ open class DirectOverlayWriter(
             }
             scriptStarted = true
             val output = adb.execAdbShellScriptNoFallback(buildApplyScript(request, remoteZipPath))
-            when {
+            val result = when {
                 output.contains("$MARKER OK") -> DirectOverlayWriteResult.SUCCESS
                 output.contains("$MARKER APPLYING") -> DirectOverlayWriteResult.FAILED_DIRTY
                 output.contains("$MARKER MISSING_ID") -> DirectOverlayWriteResult.FAILED_DIRTY
                 else -> DirectOverlayWriteResult.SKIPPED
             }
+            logFailureOutput(result, output)
+            result
         } catch (e: Exception) {
-            logger.debug("Direct overlay write failed.", e)
+            logger.debug("Direct overlay write failed. scriptStarted=$scriptStarted", e)
             if (scriptStarted) {
                 DirectOverlayWriteResult.FAILED_DIRTY
             } else {
@@ -50,6 +52,14 @@ open class DirectOverlayWriter(
             runCatching { adb.execAdbShellCmd("rm -f $remoteZipPath") }
             zipFile.delete()
         }
+    }
+
+    private fun logFailureOutput(result: DirectOverlayWriteResult, output: String) {
+        if (result == DirectOverlayWriteResult.SUCCESS) {
+            return
+        }
+        val fullOutput = output.ifBlank { "(empty)" }
+        logger.debug("Direct overlay shell output, result=$result:\n$fullOutput")
     }
 
     private fun writeZip(zipFile: File, files: List<DirectOverlayWriteFile>) {
