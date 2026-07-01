@@ -123,7 +123,7 @@ open class DirectOverlayWriter(
 
     private fun buildRemovePayloadTargetsScript(files: List<DirectOverlayWriteFile>): String {
         return files.joinToString(separator = "") { file ->
-            "rm -f \"\$overlay_dir\"/${shellSingleQuote(file.path)}; "
+            "rm -f \"\$overlay_dir\"/${shellDoubleQuotePathSegment(file.path)}; "
         }
     }
 
@@ -134,7 +134,7 @@ open class DirectOverlayWriter(
         return request.files
             .filterNot { it.path.startsWith(BASE_APK_PREFIX) }
             .joinToString(separator = "") { file ->
-                "rm -f \"\$overlay_dir\"/${shellSingleQuote(file.path)}; "
+                "rm -f \"\$overlay_dir\"/${shellDoubleQuotePathSegment(file.path)}; "
             }
     }
 
@@ -155,8 +155,12 @@ open class DirectOverlayWriter(
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
     }
 
-    private fun shellSingleQuote(value: String): String {
-        return "'" + value.replace("'", "'\"'\"'") + "'"
+    private fun shellDoubleQuotePathSegment(value: String): String {
+        return "\"" + value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("$", "\\$")
+            .replace("`", "\\`") + "\""
     }
 
     companion object {

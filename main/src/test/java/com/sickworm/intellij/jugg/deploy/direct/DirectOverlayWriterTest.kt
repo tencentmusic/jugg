@@ -85,14 +85,37 @@ class DirectOverlayWriterTest {
         assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
 
         val script = adb.lastScript
-        val removeFooIndex = script.indexOf("rm -f \"\$overlay_dir\"/'com.example.Foo.dex'")
-        val removeLayoutIndex = script.indexOf("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'")
+        val removeFooIndex = script.indexOf("rm -f \"\$overlay_dir\"/\"com.example.Foo.dex\"")
+        val removeLayoutIndex = script.indexOf("rm -f \"\$overlay_dir\"/\"base.apk/res/layout/main.xml\"")
         val unzipIndex = script.indexOf("unzip -oq")
         assertTrue(removeFooIndex >= 0)
         assertTrue(removeLayoutIndex >= 0)
         assertTrue(removeFooIndex < unzipIndex)
         assertTrue(removeLayoutIndex < unzipIndex)
         assertFalse(script.contains("rm -rf \"\$overlay_dir\""))
+    }
+
+    @Test
+    fun `write should escape dollar signs in cleanup paths`() {
+        val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
+        val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
+        val request = DirectOverlayWriteRequest(
+            packageName = "com.example.app",
+            expectedOverlayId = "old-id",
+            overlayId = "new-id",
+            files = listOf(
+                DirectOverlayWriteFile(
+                    "com.tencent.wemusic.vipcenter.UserInfoSlideDialog\$\$ExternalSyntheticLambda5.dex",
+                    "dex".toByteArray(),
+                ),
+            ),
+        )
+
+        assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
+
+        val script = adb.lastScript
+        assertTrue(script.contains("UserInfoSlideDialog\\\$\\\$ExternalSyntheticLambda5.dex"))
+        assertFalse(script.contains("UserInfoSlideDialog\$\$ExternalSyntheticLambda5.dex'"))
     }
 
     @Test
@@ -115,14 +138,14 @@ class DirectOverlayWriterTest {
         assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
 
         val script = adb.lastScript
-        val removeDexIndex = script.indexOf("rm -f \"\$overlay_dir\"/'com.example.Foo.dex'")
+        val removeDexIndex = script.indexOf("rm -f \"\$overlay_dir\"/\"com.example.Foo.dex\"")
         val unzipIndex = script.indexOf("unzip -oq")
         assertTrue(removeDexIndex >= 0)
         assertTrue(removeDexIndex < unzipIndex)
         assertFalse(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
-        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
-        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
-        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/drawable/icon.xml'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"base.apk/resources.arsc\""))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"base.apk/res/layout/main.xml\""))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"base.apk/res/drawable/icon.xml\""))
     }
 
     @Test
@@ -148,9 +171,9 @@ class DirectOverlayWriterTest {
         assertTrue(script.contains("had_overlay_dir=0"))
         assertTrue(script.contains("if [ \"\$had_overlay_dir\" = \"1\" ]; then echo \"__JUGG_DIRECT_OVERLAY__ MISMATCH\"; exit 2; fi"))
         assertFalse(script.contains("rm -rf \"\$overlay_dir\"/'base.apk'"))
-        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/resources.arsc'"))
-        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'base.apk/res/layout/main.xml'"))
-        assertFalse(script.contains("rm -f \"\$overlay_dir\"/'com.example.Foo.dex'"))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"base.apk/resources.arsc\""))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"base.apk/res/layout/main.xml\""))
+        assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"com.example.Foo.dex\""))
     }
 
     @Test
