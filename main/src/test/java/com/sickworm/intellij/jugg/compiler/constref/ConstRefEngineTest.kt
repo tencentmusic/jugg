@@ -1745,6 +1745,104 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `background full scan parse failure should use debug log only`() {
+        val rootDir = createTempDirectory("const_ref_background_parse_log")
+        File(rootDir, ".git").mkdirs()
+        val sourceDir = File(rootDir, "src").apply { mkdirs() }
+        File(sourceDir, "Constants.kt").writeText(
+            """
+            package com.example
+            const val MAX = 1
+            """.trimIndent()
+        )
+        val analyzer = mock<ConstRefAnalyzer>()
+        whenever(analyzer.parseDefinitions(any())).thenThrow(RuntimeException("parse failed"))
+        whenever(analyzer.parseReferenceCandidates(any())).thenReturn(emptyMap())
+        val debugLogs = Collections.synchronizedList(mutableListOf<String>())
+        val warnLogs = Collections.synchronizedList(mutableListOf<String>())
+        val capturingLogger = object : StdLogger("ConstRefEngine") {
+            override fun debug(message: String?) {
+                message?.let { debugLogs += it }
+                super.debug(message)
+            }
+
+            override fun warn(message: String?, t: Throwable?) {
+                message?.let { warnLogs += it }
+                super.warn(message, t)
+            }
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = analyzer,
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = capturingLogger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            startupStabilizationDelayMs = 0L,
+        )
+        try {
+            engine.initializeFullScan(listOf(sourceDir))
+
+            assertTrue(
+                "background parse failure should be logged as debug, debug=${snapshotLogs(debugLogs)}",
+                waitUntil {
+                    snapshotLogs(debugLogs).any { it.contains("failed to parse definitions") }
+                },
+            )
+            assertFalse(
+                "background parse failure should not be logged as warn, warn=${snapshotLogs(warnLogs)}",
+                snapshotLogs(warnLogs).any { it.contains("failed to parse definitions") },
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `user triggered on demand parse failure should use warn log`() {
+        val rootDir = createTempDirectory("const_ref_user_parse_log")
+        File(rootDir, ".git").mkdirs()
+        val sourceFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val analyzer = mock<ConstRefAnalyzer>()
+        whenever(analyzer.parseDefinitions(any())).thenThrow(RuntimeException("parse failed"))
+        whenever(analyzer.parseReferenceCandidates(any())).thenReturn(emptyMap())
+        val warnLogs = mutableListOf<String>()
+        val capturingLogger = object : StdLogger("ConstRefEngine") {
+            override fun warn(message: String?, t: Throwable?) {
+                message?.let { warnLogs += it }
+                super.warn(message, t)
+            }
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = analyzer,
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = capturingLogger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            engine.analyzeOnDemand(listOf(sourceFile.absolutePath))
+
+            assertTrue(
+                "user triggered parse failure should be logged as warn, warn=$warnLogs",
+                warnLogs.any { it.contains("failed to parse definitions") },
+            )
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `should use scene specific throttle defaults`() {
         val rootDir = createTempDirectory("const_ref_default_scene_throttle")
         File(rootDir, ".git").mkdirs()

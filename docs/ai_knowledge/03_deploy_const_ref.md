@@ -182,12 +182,12 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 - companion const 会同时匹配 `Owner.CONST` 与 `Owner.Companion.CONST` 形态。
 - `const` 被降级为普通 `val` 或删除时，`removedDefinitionKeys` 会继续命中旧候选索引。
 - `awaitAnalysis()` 成功条件是目标文件 `analyzedAt >= 等待开始时间`；full scan ready 不再阻塞编译。
-- `ensureReadyForRecompile()` 异常时 warning，按“未就绪”继续。
+- `ensureReadyForRecompile()` / `analyzeOnDemand()` / `getEffectedFiles()` 等用户主动等待或查询链路异常时 warning，并按降级语义继续。
 - 未就绪时 warning，仍用当前缓存查询。
 - `getEffectedFiles()` 异常时 warning 后返回空列表，不阻断部署主流程。
 - const-ref definition diff 的清理时机是成功部署后的 commit ack，而不是影响查询本身；编译失败、跟编失败或部署失败时，同一批 const diff 应在下一次编译继续可查。
 - `private const val` 与 `private static final` 不进入 definition 索引和 diff；它们只影响声明所在源码文件，本文件已在首批编译内，不需要额外跟编引用方。
-- cleanup / vacuum 异常仅 warning，不影响增量编译；删除 cleanup 遇到 SQLite busy/locked 会在后台有限重试，仍失败时去重后延迟重新入队。
+- full scan、file change 分析、cache cleanup、delete cleanup 等后台链路异常仅 debug，不影响增量编译；删除 cleanup 遇到 SQLite busy/locked 会在后台有限重试，仍失败时去重后延迟重新入队。
 - ConstRef 是可选系统：DB / fingerprint store 初始化失败会把本进程 ConstRef runtime 降级为 no-op；full scan、保存/删除分析、pre-compile readiness、on-demand 分析、effected files 查询、cleanup、commit ack 等运行期失败只影响当前操作，不允许影响 Run / compile / deploy 主流程，也不应永久禁用已初始化 runtime。调度取消（如 `CancellationException`）属于正常重排/释放信号，不视为 runtime 故障。
 - Java 只记录可内联类型的 `static final` 字段；Kotlin 支持 top-level、object、companion、嵌套 class/object 的 `const val`。
 - Java/Kotlin parser 都忽略注释和字符串文本中的伪引用。

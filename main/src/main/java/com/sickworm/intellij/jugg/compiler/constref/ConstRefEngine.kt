@@ -422,7 +422,7 @@ class ConstRefEngine private constructor(
         runCatching {
             database.registerPathHints(normalizedSourceDirs)
         }.onFailure {
-            logger.warn("ConstRefEngine initializeFullScan failed, skip full scan for this round", it)
+            logger.debug("ConstRefEngine initializeFullScan failed, skip full scan for this round, reason=${it.message}")
             return
         }
         synchronized(stateLock) {
@@ -589,7 +589,7 @@ class ConstRefEngine private constructor(
             runCatching {
                 cacheCleaner.cleanupIfNeeded(runtime.database, runtime.repoSharedFingerprintStore)
             }.onFailure {
-                logger.warn("ConstRefEngine cacheCleanup failed", it)
+                logger.debug("ConstRefEngine cacheCleanup failed, reason=${it.message}")
             }
         }
     }
@@ -639,10 +639,10 @@ class ConstRefEngine private constructor(
         runCatching {
             runtime?.database?.close()
         }.onFailure {
-            logger.warn("ConstRefEngine runtime close after failure failed", it)
+            logger.debug("ConstRefEngine runtime close after failure failed, reason=${it.message}")
         }
         if (throwable !is ConstRefRuntimeUnavailableException) {
-            logger.warn("ConstRefEngine $message, fallback to no-op const-ref", throwable)
+            logRuntimeFailure(message, throwable)
         }
     }
 
@@ -805,9 +805,12 @@ class ConstRefEngine private constructor(
                     val definitions = runCatching {
                         analyzer.parseDefinitions(listOf(state.file))[state.path].orEmpty()
                     }.getOrElse { error ->
-                        logger.warn(
-                            "ConstRefEngine failed to parse definitions, " +
-                                "file=${state.file.name}, reason=${error.message}"
+                        val message = "ConstRefEngine failed to parse definitions, " +
+                            "file=${state.file.name}, reason=${error.message}"
+                        logSceneWarningOrDebug(
+                            scene = scene,
+                            throwable = error,
+                            message = message,
                         )
                         emptyList()
                     }
@@ -888,9 +891,12 @@ class ConstRefEngine private constructor(
                     val referenceCandidates = runCatching {
                         analyzer.parseReferenceCandidates(listOf(file))[readState.path].orEmpty()
                     }.getOrElse { error ->
-                        logger.warn(
-                            "ConstRefEngine failed to parse reference candidates, " +
-                                "file=${file.name}, reason=${error.message}"
+                        val message = "ConstRefEngine failed to parse reference candidates, " +
+                            "file=${file.name}, reason=${error.message}"
+                        logSceneWarningOrDebug(
+                            scene = scene,
+                            throwable = error,
+                            message = message,
                         )
                         emptyList()
                     }
@@ -1557,7 +1563,7 @@ class ConstRefEngine private constructor(
             } catch (_: CancellationException) {
                 // Normal during scene rescheduling or engine disposal.
             } catch (t: Throwable) {
-                logger.warn("ConstRefEngine scene ${scene.name} failed", t)
+                logSceneWarningOrDebug(scene, "ConstRefEngine scene ${scene.name} failed", t)
             } finally {
                 synchronized(stateLock) {
                     val state = sceneTaskStates.getValue(scene)
@@ -1643,39 +1649,21 @@ class ConstRefEngine private constructor(
                         database.removeFile(deletedPath)
                     }
                     database.removeFilesByPrefix("$deletedPath/")
-                    logger.debug(
-                        "ConstRefEngine delete cleanup finished, path=$deletedPath, " +
-                            "attempt=$attempt"
-                    )
+                    logger.debug("ConstRefEngine delete cleanup finished, path=$deletedPath, attempt=$attempt")
                     return true
                 } catch (t: Exception) {
                     if (!isSqliteBusy(t)) {
-                        logger.warn(
-                            "ConstRefEngine delete cleanup failed, path=$deletedPath, " +
-                                "attempt=$attempt",
-                            t,
-                        )
+                        logger.debug("ConstRefEngine delete cleanup failed, path=$deletedPath, attempt=$attempt")
                         return true
                     }
                     if (attempt >= DELETE_CLEANUP_MAX_ATTEMPTS) {
-                        logger.warn(
-                            "ConstRefEngine delete cleanup busy, requeue path=$deletedPath, " +
-                                "attempt=$attempt",
-                            t,
-                        )
+                        logger.debug("ConstRefEngine delete cleanup busy, requeue path=$deletedPath, attempt=$attempt")
                         return false
                     }
-                    logger.warn(
-                        "ConstRefEngine delete cleanup busy, retry path=$deletedPath, " +
-                            "attempt=$attempt, waitMs=$delayMs",
-                        t,
-                    )
+                    logger.debug("ConstRefEngine delete cleanup busy, retry path=$deletedPath, attempt=$attempt, waitMs=$delayMs")
                 }
             }
-            logger.debug(
-                "ConstRefEngine delete cleanup attempt cost, path=$deletedPath, " +
-                    "attempt=$attempt, costMs=$elapsedMs"
-            )
+            logger.debug("ConstRefEngine delete cleanup attempt cost, path=$deletedPath, attempt=$attempt, costMs=$elapsedMs")
             delay(delayMs)
             delayMs = (delayMs * 2).coerceAtMost(DELETE_CLEANUP_MAX_RETRY_DELAY_MS)
             attempt++
@@ -1738,6 +1726,40 @@ class ConstRefEngine private constructor(
             current = current.cause
         }
         return false
+    }
+
+    private fun logSceneWarningOrDebug(scene: AnalyzeScene, message: String, throwable: Throwable? = null) {
+        if (scene.isUserTriggered()) {
+            if (throwable == null) {
+                logger.warn(message)
+            } else {
+                logger.warn(message, throwable)
+            }
+            return
+        }
+        logger.debug(withThrowableReason(message, throwable))
+    }
+
+    private fun logRuntimeFailure(message: String, throwable: Throwable) {
+        if (isUserTriggeredRuntimeAction(message)) {
+            logger.warn("ConstRefEngine $message, fallback to no-op const-ref", throwable)
+        } else {
+            logger.debug(
+                "ConstRefEngine $message, fallback to no-op const-ref, " +
+                    "reason=${throwable.message}"
+            )
+        }
+    }
+
+    private fun isUserTriggeredRuntimeAction(message: String): Boolean {
+        return message.contains("awaitAnalysis") ||
+            message.contains("analyzeOnDemand") ||
+            message.contains("getEffectedFiles")
+    }
+
+    private fun withThrowableReason(message: String, throwable: Throwable?): String {
+        val reason = throwable?.message ?: return message
+        return "$message, reason=$reason"
     }
 
     private fun isSceneActiveLocked(scene: AnalyzeScene): Boolean {
@@ -1832,6 +1854,11 @@ class ConstRefEngine private constructor(
         FILE_CHANGE,
         PRE_COMPILE,
         ON_DEMAND,
+        ;
+
+        fun isUserTriggered(): Boolean {
+            return this == PRE_COMPILE || this == ON_DEMAND
+        }
     }
 
     private data class SceneTaskState(
