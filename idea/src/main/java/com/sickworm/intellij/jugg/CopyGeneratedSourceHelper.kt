@@ -44,8 +44,6 @@ internal fun calculateSyncToLocalPaths(modules: Collection<ModuleInfo>): List<Pa
             module.projectRootDir,
             module.moduleRootDir,
             module.buildVariant,
-            module.buildPathInfo.customClasspath,
-            module.buildPathInfo.customSyncFilePath,
         ).buildDir
         module.buildPathInfo.syncToLocalPathList.map { fileOrDirInClasspath ->
             fileOrDirInClasspath to fileOrDirInClasspath.changeBaseDir(module.buildPathInfo.buildDir, localBuildDir)
