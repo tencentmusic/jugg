@@ -155,8 +155,9 @@ layout: page
 
 <style>
 .jugg-home {
-  --home-line: color-mix(in srgb, var(--vp-c-divider) 88%, transparent);
-  --home-panel: color-mix(in srgb, var(--vp-c-bg-elv) 92%, var(--vp-c-bg));
+  --home-line: rgba(13, 50, 37, 0.12);
+  --home-panel: color-mix(in srgb, var(--vp-c-bg-elv) 94%, #f7faf9);
+  --home-panel-soft: #f7faf9;
   --home-muted: var(--vp-c-text-2);
   box-sizing: border-box;
   width: min(1120px, calc(100vw - 40px));
@@ -239,6 +240,16 @@ layout: page
   background: var(--jugg-run);
 }
 
+.jugg-button:hover {
+  border-color: color-mix(in srgb, var(--jugg-apply) 56%, var(--home-line));
+  color: var(--jugg-run);
+}
+
+.jugg-button.primary:hover {
+  color: white;
+  background: color-mix(in srgb, var(--jugg-run) 88%, #0a1310);
+}
+
 .jugg-pipeline {
   max-width: 100%;
   border: 1px solid var(--home-line);
@@ -283,7 +294,7 @@ layout: page
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: var(--jugg-run);
+  background: var(--jugg-apply);
 }
 
 .jugg-pipeline strong {
@@ -319,7 +330,7 @@ layout: page
 
 .jugg-evidence strong {
   display: block;
-  color: var(--vp-c-text-1);
+  color: var(--jugg-run);
   font-family: var(--vp-font-family-mono);
   font-size: 25px;
   line-height: 1.1;
@@ -367,6 +378,13 @@ layout: page
   border-radius: 8px;
   padding: 18px;
   background: var(--home-panel);
+}
+
+.jugg-entry:hover,
+.jugg-capability-grid a:hover,
+.jugg-directory-grid a:hover {
+  border-color: color-mix(in srgb, var(--jugg-apply) 58%, var(--home-line));
+  background: var(--home-panel-soft);
 }
 
 .jugg-entry span {
@@ -427,6 +445,24 @@ layout: page
   font-size: 14px;
   font-weight: 700;
   text-align: center;
+}
+
+.dark .jugg-home {
+  --home-line: rgba(172, 194, 185, 0.17);
+  --home-panel: color-mix(in srgb, var(--jugg-panel) 92%, var(--vp-c-bg));
+  --home-panel-soft: color-mix(in srgb, var(--jugg-panel-soft) 88%, var(--jugg-apply) 5%);
+}
+
+.dark .jugg-button.primary {
+  border-color: #10b981;
+  color: #f2fff9;
+  background: #10b981;
+}
+
+.dark .jugg-button.primary:hover {
+  border-color: #059669;
+  color: #f2fff9;
+  background: #059669;
 }
 
 @media (max-width: 920px) {
