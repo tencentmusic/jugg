@@ -76,6 +76,7 @@ dp = px / density
 
 ## 相关页面
 
+- [Jugg Runtime](./jugg-runtime.md)
 - [UI 检查指南](../guide/ui-inspection.md)
 - [UI 自动化能力](../capabilities/tools/ui-automation.md)
 - [UI 布局证据能力](../capabilities/tools/layout-verify.md)

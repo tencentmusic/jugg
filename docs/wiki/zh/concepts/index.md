@@ -40,6 +40,8 @@ Jugg 不替代 Gradle。它依赖最近一次可信 Gradle 构建留下的 APK�
 | [工程上下文获取](./project-model.md) | IDE、Gradle 和 include build 信息如何合并成统一的项目快照。 |
 | [部署数据与影响分析](./deploy-data-and-impact.md) | 为什么改一个类会牵动调用方、子类、资源或 release 补偿。 |
 | [部署状态与恢复](./deploy-state-recover.md) | history、deployment cache 和设备 overlay id 如何决定 recover 或 reinstall。 |
+| [兼容部署](./compat-deploy.md) | 当设备不适合在线热重载时，Jugg 如何切换到兼容热修复路径。 |
+| [Jugg Runtime](./jugg-runtime.md) | App 进程内 runtime 如何支撑热修复、兼容检测和 UI 工具。 |
 | [JVMTI Agent](./jvmti-agent.md) | Jugg 为什么需要运行时 agent，以及它如何影响兼容部署。 |
 | [Android Test 流程](./android-test-flow.md) | androidTest 如何复用编译部署链路，并在部署后运行 instrumentation。 |
 | [布局 dump 与 UI 证据](./layout-dump-and-ui-evidence.md) | layout-dump 如何通过 App 内 ViewHierarchy 服务导出 HTML 证据。 |

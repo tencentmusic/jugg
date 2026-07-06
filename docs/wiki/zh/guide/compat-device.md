@@ -39,6 +39,7 @@ Force use compat deploy for <device>
 
 ## 相关页面
 
+- [兼容部署原理](../concepts/compat-deploy.md)
 - [运行 App](./run.md)
 - [多设备选择](./multi-device.md)
 - [清理数据](./clean-data.md)

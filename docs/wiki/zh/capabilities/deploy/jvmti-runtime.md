@@ -46,6 +46,7 @@ Jugg 把 agent push 放在部署之后，是为了避免 Android Studio Apply Ch
 
 ## 关联能力
 
+- [Jugg Runtime](../../concepts/jugg-runtime.md)
 - [Restart](./restart.md)
 - [Recover 与 Retry](./recover-and-retry.md)
 - [Direct Overlay](./direct-overlay.md)

@@ -282,6 +282,8 @@ const chineseSidebar = {
         { text: '编译调度流程', link: '/zh/concepts/compile-pipeline' },
         { text: '部署数据与影响分析', link: '/zh/concepts/deploy-data-and-impact' },
         { text: '部署状态与恢复', link: '/zh/concepts/deploy-state-recover' },
+        { text: '兼容部署', link: '/zh/concepts/compat-deploy' },
+        { text: 'Jugg Runtime', link: '/zh/concepts/jugg-runtime' },
         { text: 'JVMTI Agent', link: '/zh/concepts/jvmti-agent' },
         { text: 'Android Test 流程', link: '/zh/concepts/android-test-flow' },
         { text: '布局 dump 与 UI 证据', link: '/zh/concepts/layout-dump-and-ui-evidence' },

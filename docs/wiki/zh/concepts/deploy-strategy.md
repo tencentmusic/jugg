@@ -79,6 +79,7 @@ APK 更新不是一次完整 Gradle 构建。它基于设备上当前的 APK，�
 
 - [部署数据与影响分析](./deploy-data-and-impact.md)
 - [部署状态与恢复](./deploy-state-recover.md)
+- [兼容部署](./compat-deploy.md)
 - [JVMTI Agent](./jvmti-agent.md)
 - [回退与限制](./fallback-and-limits.md)
 - [Android Manifest 编译与 release 增量编译](./incremental-compile/manifest-minify.md)
