@@ -62,6 +62,32 @@ class JuggCompileTest {
     }
 
     @Test
+    fun compileStyleableResourceChangeIncludesMainRStyleableDexOutput() {
+        val attrsFile = File(assetsAndroidModifySourceDir, "app/src/main/res/values/attrs.xml")
+        val task = CompileTask(
+            listOf(CompileFile(CompileFile.Type.Resource, attrsFile, attrsFile.parentFile.parentFile, mockModule)),
+            stagingDir,
+        )
+        val result = juggCompiler.compile(task)
+
+        assertTrue(result.isAllSuccess)
+
+        val rStyleableDex = File(
+            task.outputDir,
+            "classes/${androidApkPackage.replace(".", "/")}/R\$styleable.dex"
+        )
+        assertTrue(rStyleableDex.exists(), "R\$styleable.dex should be compiled")
+        assertTrue(
+            String(rStyleableDex.readBytes(), Charsets.ISO_8859_1).contains("test_add_styleable_value"),
+            "R\$styleable.dex should include changed styleable fields"
+        )
+        assertTrue(
+            result.outputs.any { it.file == rStyleableDex },
+            "R\$styleable.dex should be included in compile outputs"
+        )
+    }
+
+    @Test
     fun compileMultiJavaAndAsset() {
         val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask
         val result = juggCompiler.compile(task)

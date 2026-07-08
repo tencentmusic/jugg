@@ -208,6 +208,7 @@ class JuggCompiler(
             }
             // we need to add R.dex to compile result, because R.styleable fields won't inlined
             // and R.* won't inline if using kotlinx.android.synthetic
+            compileResult += CompileResult(task, emptyList(), rJavaResultOutputs)
             compileResult += rDexResult.copy(task = task)
         }
         checkQuickStop()?.let { return it }

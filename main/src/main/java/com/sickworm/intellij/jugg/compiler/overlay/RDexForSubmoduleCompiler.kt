@@ -27,7 +27,7 @@ class RDexForSubmoduleCompiler(
         // if input has no files, we only generate R.dex once
         val isRFileUpdated = task.files.any { it.type == CompileFile.Type.DexToChangePackageName }
         if (isRFileUpdated) {
-            logger.debug("R file has update, going to regenerate R.dex for all modules")
+            logger.debug("R file has update, going to regenerate R.dex for all submodules")
             generatedModules.clear()
         }
         return super.doCompile(task)
@@ -38,14 +38,14 @@ class RDexForSubmoduleCompiler(
         val rDexOutputFile = File(rDexOutputDir, "R.dex")
         val isNeedGenerate = rDexOutputFile.exists() && !generatedModules.contains(module.name) && (module != context.tempModule)
         if (!isNeedGenerate) {
-            logger.debug("Module ${module.name} has no R file update, skip generate R.dex")
+            logger.debug("Module ${module.name} has no R file update, skip generate submodule R.dex")
             return CompileResult(task, emptyList(), emptyList())
         }
 
         val packageName = run getPackageName@{
             val manifestFile = module.manifestFile
             if (manifestFile == null || !manifestFile.exists()) {
-                logger.debug("Module ${module.name} has no manifest file, skip generate R.dex")
+                logger.debug("Module ${module.name} has no manifest file, skip generate submodule R.dex")
                 return CompileResult(task, emptyList(), emptyList())
             }
 
@@ -64,7 +64,7 @@ class RDexForSubmoduleCompiler(
             }
 
             if (packageName == context.packageName) {
-                logger.debug("Module ${module.name} is main module (packageName $packageName is same as application package), no need generate R.dex")
+                logger.debug("Module ${module.name} is main module (packageName $packageName is same as application package), no need generate submodule R.dex")
                 return CompileResult(task, emptyList(), emptyList())
             }
             packageName
@@ -73,7 +73,7 @@ class RDexForSubmoduleCompiler(
         val destRDexFiles = run convertDexFiles@{
             val sourceRDexFiles = rDexOutputDir.listFiles()?.filter { it.isFile && it.extension == "dex" }
             if (sourceRDexFiles.isNullOrEmpty()) {
-                logger.debug("Module ${module.name} has no R.dex files in $rDexOutputDir, skip generate R.dex")
+                logger.debug("Module ${module.name} has no R.dex files in $rDexOutputDir, skip generate submodule R.dex")
                 return CompileResult(task, emptyList(), emptyList())
             }
             logger.debug("going to generate R.dex for module ${module.name}, package name is $packageName, source R.dex files are $sourceRDexFiles")
