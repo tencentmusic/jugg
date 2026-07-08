@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-08
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -25,7 +25,7 @@
 | 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo`, `JuggPathManager`, `JuggGlobalPathManager`, `ModuleApkBelongs` | `project/data`, `project` | 模块、路径、依赖等快照；项目信息读取/序列化；项目级路径与 `~/.jugg` 全局路径统一管理；模块到 APK 归属封装，包含 base + self-targeting library Test APK all-view | 稳定 | 2026-05-17 |
 | 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency` | 依赖变更检测策略 | 稳定 | 2025-01-20 |
 | Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script` | 通过 Gradle 反射读取模块信息 | 稳定 | 2025-01-20 |
-| Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `ApkLookupPlanner`, `CmdExecutor` | `gradle/compile` | 本地/远端 Gradle 构建执行；AndroidTest 下区分 required app/app-test APK 与 optional history library Test APK 收集 | 稳定 | 2026-05-17 |
+| Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `GradleWrapperRepairer`, `ApkLookupPlanner`, `CmdExecutor` | `gradle/compile` | 本地/远端 Gradle 构建执行；`GradleWrapperRepairer` 在已有 wrapper properties 时补齐缺失 wrapper 启动文件；AndroidTest 下区分 required app/app-test APK 与 optional history library Test APK 收集 | 稳定 | 2026-07-08 |
 | MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `ai/mcp/` | MCP HTTP + JSON-RPC 处理 | 稳定 | 2026-04-26 |
 | MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner`, `LayoutDumpHelper`, `LayoutHtmlConverter`, `WaitLogsMcpToolAction`, `CrashDetector`, `LastDeployTimestampRegistry` | `ai/mcp/actions`, `ai/mcp/util` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理；`LayoutDumpHelper` 封装 layout_dump 核心逻辑（设备解析、px→dp、公开 HTML 输出、内部 JSON 文件），`LayoutHtmlConverter` 将 JSON 视图树转为精简 HTML（含虚拟节点裁剪）；`WaitLogsMcpToolAction` 阻塞式等待 App 日志（marker/crash/timeout 判停）；`CrashDetector` 复用 crash 信号识别；`LastDeployTimestampRegistry` 记录 deploy/restart 时刻作为日志起点 | 稳定 | 2026-04-19 |
 | AI 技能安装 | `JuggSkillInstaller`, `JuggHookInstaller`, `CodexPermissionRuleInstaller`, `JuggCliAutoUpdater`, `ClientSetupDocExporter`, `IAgentInstaller`, `agents/*` | `ai/skills` | 安装/更新 `jugg-android-dev-loop` skill、CLI 与 hooks（资源来源 `docs/skills/*.zip`）；Windows CLI 安装由 `JuggSkillInstaller` 写入用户级 PATH，macOS/Linux 创建 `~/.local/bin/jugg` symlink；Codex skill 安装时同步写入 `rules/default.rules` 的 Jugg CLI `prefix_rule`，并导出 `agent_setup.md`；`IAgentInstaller` 统一描述各 agent 的 skill/hook/rules 安装目标，Installer 仅保留调度 | 稳定 | 2026-06-08 |
