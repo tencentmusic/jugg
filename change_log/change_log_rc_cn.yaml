@@ -1,3 +1,8 @@
+- version: 3.0.26
+  date: 2026.07.08
+  updates:
+    - 修复新增 declare-styleable 后，主包 R.styleable dex 未随增量部署导致 NoSuchFieldError
+
 - version: 3.0.24
   date: 2026.07.01
   updates:

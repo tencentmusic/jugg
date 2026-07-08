@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.0.24 (2026.07.01)</h2>
+<h2>3.0.26 (2026.07.08)</h2>
 <ol>
     <li>[feature] Supports Jugg CLI skills, allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
     <li>[feature] Supports Android test incremental compilation</li>
@@ -25,6 +25,7 @@
     <li>[bugfix] Fix default method desugar flag being misdetected in multi-APK projects, which could cause AbstractMethodError after incremental compilation</li>
     <li>[bugfix] Fix Run/Debug configuration remote compile fields being stretched after adding additional exclude patterns</li>
     <li>[bugfix] Improve Additional exclude patterns hint and parsing to use semicolon-separated rsync patterns while keeping old comma-separated values compatible</li>
+    <li>[bugfix] Fix NoSuchFieldError after adding declare-styleable when main R.styleable dex was omitted from incremental deployment</li>
 </ol>
 <h2>2.6.32 (2026.06.26)</h2>
 <ol>

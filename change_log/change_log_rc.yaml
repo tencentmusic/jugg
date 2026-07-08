@@ -1,3 +1,8 @@
+- version: 3.0.26
+  date: 2026.07.08
+  updates:
+    - fix NoSuchFieldError after adding declare-styleable when main R.styleable dex was omitted from incremental deployment
+
 - version: 3.0.24
   date: 2026.07.01
   updates:
