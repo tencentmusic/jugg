@@ -1,3 +1,8 @@
+- version: 3.0.27
+  date: 2026.07.08
+  updates:
+    - auto repair incomplete Gradle Wrapper launch files when gradle-wrapper.properties already exists
+
 - version: 3.0.26
   date: 2026.07.08
   updates:
