@@ -80,6 +80,7 @@ abstract class ReadProjectInfoGradleCompatTestBase {
         assetDir: String,
         task: String = "help",
         extraArgs: List<String> = emptyList(),
+        afterRun: (File, ProcessResult) -> Unit = { _, _ -> },
     ): ProcessResult {
         val assetSource = File(System.getProperty("user.dir"), "src/test/assets/$assetDir")
         val fixtureDir = Files.createTempDirectory("jugg_android_fixture_${gradleVersion.replace('.', '_')}").toFile()
@@ -99,6 +100,7 @@ abstract class ReadProjectInfoGradleCompatTestBase {
                 "--no-daemon",
                 *extraArgs.toTypedArray(),
             )
+            afterRun(fixtureDir, result)
             return result
         } finally {
             fixtureDir.deleteRecursively()

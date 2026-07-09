@@ -3,6 +3,8 @@ package com.sickworm.intellij.jugg.gradle.script
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Verifies that readProjectInfo.gradle.kts compiles and runs correctly on Gradle 7.3.3,
@@ -50,6 +52,38 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
             extraArgs = listOf("-P${PARAM_INJECT_ENABLE}=true"),
         )
         assertEquals(0, result.exitCode, "Gradle $gradleVersion manifest task failed.\n${result.output}")
+    }
+
+    @Test
+    fun generatedScript_shouldSkipRuntimeInjectionWhenDisabled() {
+        val result = assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp7",
+            task = ":app:processDebugManifest",
+            extraArgs = listOf(
+                "-P${PARAM_INJECT_ENABLE}=false",
+            ),
+        ) { fixtureDir, gradleResult ->
+            assertEquals(0, gradleResult.exitCode, "Gradle $gradleVersion manifest task failed.\n${gradleResult.output}")
+            val manifests = File(fixtureDir, "app/build/intermediates")
+                .walkTopDown()
+                .filter { it.name == "AndroidManifest.xml" }
+                .map { it.readText() }
+                .toList()
+            assertTrue(manifests.isNotEmpty(), "merged manifest not found.\n${gradleResult.output}")
+            assertFalse(
+                manifests.any { it.contains("com.sickworm.intellij.jugg.hotfix.BootstrapApplication") },
+                "Disabled runtime injection must not inject BootstrapApplication.\n${gradleResult.output}",
+            )
+            assertFalse(
+                manifests.any { it.contains("com.sickworm.intellij.jugg.hotfix.raw.application") },
+                "Disabled runtime injection must not inject raw application metadata.\n${gradleResult.output}",
+            )
+        }
+        assertEquals(0, result.exitCode, "Gradle $gradleVersion manifest task failed.\n${result.output}")
+        assertTrue(
+            result.output.contains("Jugg: injectApplication is not enable, ignore"),
+            "Gradle output should explain why runtime injection was skipped.\n${result.output}",
+        )
     }
 
     override fun buildProjectFiles(projectDir: File) {

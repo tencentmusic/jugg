@@ -70,6 +70,17 @@ class IsNormalGradleCommandTest {
     }
 
     @Test
+    fun compatibleDeploymentEnabled_shouldEnableRuntimeInjectionProperty() {
+        val command = CompileProjectCommand(
+            "./gradlew :app:customDebugTask",
+            "/root/projects/projectABC",
+            "readProjectInfo.gradle",
+        ).baseCommand
+
+        assertEquals(true, command.contains("-Pjugg.inject.application.enable=true"), command)
+    }
+
+    @Test
     fun appBuildTarget_shouldIgnoreLibraryTestTasksProperty() {
         val command = CompileProjectCommand(
             "./gradlew :app:customDebugTask",

@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-09
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -99,6 +99,7 @@ DeployRetryHandler.tryRetry()
 - 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
 - 修改 `jvmti_agent` 里的 native、Java runtime、setup script 或 bundle 内容后，必须递增 `agentVersion`；否则设备端已有 `{AGENT_VERSION}` 目录会让 `isAgentBundlePushed()` 误认为无需更新。
 - 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。
+- Java runtime 入口由 `HotfixLoader` 统一做设备 API 判定；API < 26 时 `init()` 会在访问 `Context.getCodeCacheDir()` 前 return，`install()` / `installDex()` / `isNeedEnableHotfix()` 也会短路。这个判断不改变 Gradle 构建产物，`BootstrapApplication` 注入仍只受 `jugg.inject.application.enable` 控制。
 
 ---
 
