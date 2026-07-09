@@ -443,6 +443,60 @@ class DeployDataGeneratorTest {
     }
 
     @Test
+    fun testCompanionExtIntNullableDescriptorChangeTriggersInvokerRecompile() {
+        val originalClassName = "com.sickworm.jugg.demo.testcase.ktcompanionext.CompanionExtensionsKt"
+        val originalMethod = getParsedDex(originalClassName)
+            .classDeployItems
+            .single()
+            .classNode
+            .methods
+            .single { it.name == "toString" }
+        assertEquals(
+            "(Lcom/sickworm/jugg/demo/testcase/ktcompanionext/PlayerDefine\$State\$Companion;I)Ljava/lang/String;",
+            originalMethod.desc,
+        )
+
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/ktcompanionext/CompanionExtensions.kt"),
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    context.tempModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/ktcompanionext/CompanionExtClass.kt"),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    context.tempModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val modifiedMethod = ApkParser()
+            .parseDex(deployItems)
+            .classDeployItems
+            .flatMap { it.classNodes }
+            .single { it.className == originalClassName.classSigName }
+            .methods
+            .single { it.name == "toString" }
+        assertEquals(
+            "(Lcom/sickworm/jugg/demo/testcase/ktcompanionext/PlayerDefine\$State\$Companion;Ljava/lang/Integer;)Ljava/lang/String;",
+            modifiedMethod.desc,
+        )
+
+        val deployData = generator.buildDeployData(deployItems)
+        assertEquals(listOf("CompanionExtInvoker.kt"), deployData.effectedSourceFileNames.sorted())
+    }
+
+    @Test
     fun testEffectSourceByAddingKotlinDefaultParamOnTopLevelFunction2() {
         val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
