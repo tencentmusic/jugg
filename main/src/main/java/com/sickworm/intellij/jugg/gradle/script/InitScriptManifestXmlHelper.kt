@@ -74,7 +74,9 @@ class InitScriptManifestXmlHelper(
 
     private fun putMetaData(application: Element, name: String, value: String) {
         val metaData = findMetaData(application, name)
-            ?: application.ownerDocument.createElement(TAG_META_DATA).also(application::appendChild)
+            ?: application.ownerDocument.createElement(TAG_META_DATA).also {
+                application.appendChild(it)
+            }
         metaData.setAndroidAttribute(ATTRIBUTE_NAME, name)
         metaData.setAndroidAttribute(ATTRIBUTE_VALUE, value)
     }
