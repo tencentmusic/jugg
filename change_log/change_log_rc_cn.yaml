@@ -1,3 +1,8 @@
+- version: 3.0.28
+  date: 2026.07.10
+  updates:
+    - 修复 Gradle 6.8 下项目信息初始化脚本编译失败
+
 - version: 3.0.27
   date: 2026.07.08
   updates:

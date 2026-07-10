@@ -1,3 +1,8 @@
+- version: 3.0.28
+  date: 2026.07.10
+  updates:
+    - fix project info init script compilation on Gradle 6.8
+
 - version: 3.0.27
   date: 2026.07.08
   updates:
