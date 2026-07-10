@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "vitepress dev .",
     "build": "vitepress build .",
+    "check:homepage": "vitepress build . && node scripts/check-homepage-render.mjs",
     "preview": "vitepress preview ."
   },
   "devDependencies": {

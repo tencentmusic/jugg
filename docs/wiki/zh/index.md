@@ -5,522 +5,154 @@ layout: page
 ---
 
 <main class="jugg-home">
-  <section class="jugg-hero">
+  <section class="jugg-hero" aria-labelledby="jugg-home-title">
     <div class="jugg-hero-copy">
-      <p class="jugg-kicker">Android Studio plugin</p>
-      <h1>Jugg</h1>
-      <p class="jugg-lead">
-        <span>大规模 Android 工程的增量编译与部署。</span>
-        <span>基于 Gradle 产物，只处理本轮变化；</span>
-        <span>状态不可信时回到 Gradle。</span>
+      <div class="jugg-product-mark">
+        <img src="/assets/run_configuration.svg" alt="" width="28" height="28">
+        <span>Android Studio plugin</span>
+      </div>
+      <h1 id="jugg-home-title">Jugg</h1>
+      <p class="jugg-hero-statement">让日常 Android Run<br>只处理本轮变化</p>
+      <p class="jugg-hero-detail">
+        复用 Gradle 可信产物，增量编译并按设备状态部署。条件不满足时，自动回到 Gradle 重建基线。
       </p>
       <div class="jugg-actions">
-        <a class="jugg-button primary" href="/zh/onboarding/">快速开始</a>
-        <a class="jugg-button" href="/zh/concepts/how-jugg-works">了解工作原理</a>
+        <a class="jugg-button primary" href="/zh/onboarding/">开始接入 <span aria-hidden="true">→</span></a>
+        <a class="jugg-button secondary" href="/zh/reference/compatibility">查看兼容范围</a>
       </div>
     </div>
-    <div class="jugg-pipeline" aria-label="Jugg run pipeline">
-      <div class="jugg-pipeline-head">
-        <span>RUN</span>
-        <span>trusted baseline</span>
+    <div class="jugg-run-scene" aria-label="一次典型的 Jugg Run 决策记录">
+      <div class="jugg-run-toolbar">
+        <span class="jugg-run-title">Jugg Run · example</span>
+        <span class="jugg-run-target">app · Pixel 8</span>
+        <span class="jugg-run-live"><i></i> running</span>
       </div>
-      <ol>
+      <div class="jugg-run-baseline">
+        <span>BASELINE</span>
+        <strong>Gradle output verified</strong>
+        <small>project model · APK · device history</small>
+      </div>
+      <ol class="jugg-run-log">
         <li>
-          <strong>Detect changes</strong>
-          <span>读取源码、资源、Manifest 与设备状态变化</span>
+          <time>0.00s</time>
+          <span class="jugg-log-state blue">CHECK</span>
+          <p><strong>6 files changed</strong><small>Kotlin 4 · resources 2</small></p>
         </li>
         <li>
-          <strong>Compile delta</strong>
-          <span>复用 Gradle 基线，只编译变化与受影响部分</span>
+          <time>0.18s</time>
+          <span class="jugg-log-state green">BUILD</span>
+          <p><strong>Compile affected sources</strong><small>Reuse trusted Gradle classpath</small></p>
         </li>
         <li>
-          <strong>Stage artifacts</strong>
-          <span>生成 DEX、resource overlay、assets 等局部产物</span>
+          <time>1.42s</time>
+          <span class="jugg-log-state green">DEPLOY</span>
+          <p><strong>Code swap + restart</strong><small>Selected from artifact and device state</small></p>
         </li>
-        <li>
-          <strong>Deploy safely</strong>
-          <span>按产物和设备状态选择热替换、重启或重装</span>
+        <li class="complete">
+          <time>2.31s</time>
+          <span class="jugg-log-state done">DONE</span>
+          <p><strong>App launched</strong><small>Incremental state committed</small></p>
         </li>
       </ol>
+      <div class="jugg-run-foot">
+        <span>不确定时不会冒险继续增量</span>
+        <a href="/zh/concepts/fallback-and-limits">查看回退规则 →</a>
+      </div>
     </div>
   </section>
 
-  <section class="jugg-evidence" aria-label="Usage evidence">
+  <section class="jugg-trust" aria-label="Jugg 可靠性原则">
     <div>
-      <strong>&lt; 3s</strong>
-      <span>平均编译耗时</span>
+      <span>可信起点</span>
+      <strong>Gradle 构建产物</strong>
+      <p>不另造一套完整构建结果。</p>
     </div>
     <div>
-      <strong>40k+</strong>
-      <span>月编译次数</span>
+      <span>每轮决策</span>
+      <strong>改动与设备状态</strong>
+      <p>编译和部署策略都有当前依据。</p>
     </div>
     <div>
-      <strong>800k+</strong>
-      <span>累计编译次数</span>
-    </div>
-    <div>
-      <strong>36k+ h</strong>
-      <span>累计节省等待</span>
+      <span>安全收口</span>
+      <strong>回退、重启或重装</strong>
+      <p>状态不可信时先恢复一致性。</p>
     </div>
   </section>
 
-  <section class="jugg-section">
-    <div class="jugg-section-head">
-      <p class="jugg-kicker">Start here</p>
-      <h2>按你的当前任务进入</h2>
-    </div>
-    <div class="jugg-entry-grid">
-      <a href="/zh/onboarding/" class="jugg-entry">
+  <section class="jugg-start jugg-band">
+    <header class="jugg-section-head">
+      <p class="jugg-eyebrow">First run</p>
+      <h2>三步完成第一次增量 Run</h2>
+      <p>先建立可信基线，再把日常小改动交给 Jugg。</p>
+    </header>
+    <ol class="jugg-step-list">
+      <li>
         <span>01</span>
-        <strong>第一次接入</strong>
-        <p>安装插件、生成运行配置，并完成第一次可信 Gradle 基线。</p>
-      </a>
-      <a href="/zh/guide/run" class="jugg-entry">
+        <div>
+          <strong>安装插件</strong>
+          <p>在 Android Studio 中安装 Jugg，并打开现有 Android 工程。</p>
+        </div>
+      </li>
+      <li>
         <span>02</span>
-        <strong>日常运行 App</strong>
-        <p>了解点击运行后，增量编译、部署和取消操作如何表现。</p>
-      </a>
-      <a href="/zh/concepts/how-jugg-works" class="jugg-entry">
+        <div>
+          <strong>建立 Gradle 基线</strong>
+          <p>首次运行完成完整构建，收集后续增量所需的可信产物。</p>
+        </div>
+      </li>
+      <li>
         <span>03</span>
-        <strong>理解机制边界</strong>
-        <p>从 Gradle 基线、资源 link、扩散编译到混合部署看完整链路。</p>
-      </a>
-      <a href="/zh/troubleshooting/" class="jugg-entry">
-        <span>04</span>
-        <strong>定位异常现象</strong>
-        <p>按编译、部署、运行时、日志和性能现象找到第一跳入口。</p>
-      </a>
-    </div>
+        <div>
+          <strong>继续日常开发</strong>
+          <p>修改源码或资源，再次点击 Run 查看本轮增量决策。</p>
+        </div>
+      </li>
+    </ol>
+    <a class="jugg-text-link" href="/zh/onboarding/">打开完整接入指南 <span aria-hidden="true">→</span></a>
   </section>
 
-  <section class="jugg-section jugg-capabilities">
-    <div class="jugg-section-head">
-      <p class="jugg-kicker">What Jugg optimizes</p>
-      <h2>减少日常 Run 中与小改动不成比例的固定耗时</h2>
-    </div>
-    <div class="jugg-capability-grid">
+  <section class="jugg-safety jugg-band">
+    <header class="jugg-section-head">
+      <p class="jugg-eyebrow">Safety model</p>
+      <h2>快，不建立在跳过正确性上</h2>
+      <p>Jugg 只在现有状态能够解释本轮变化时使用增量路径。</p>
+    </header>
+    <div class="jugg-decision-list">
       <a href="/zh/capabilities/compile/source-compile">
-        <strong>源码增量编译</strong>
-        <span>Java / Kotlin 变化源码与受影响源码</span>
-      </a>
-      <a href="/zh/capabilities/compile/resource-compile">
-        <strong>资源增量编译</strong>
-        <span>定制 aapt2 inclink，复用资源表上下文</span>
+        <span class="jugg-decision-signal green">状态可信</span>
+        <strong>只编译变化与受影响部分</strong>
+        <small>源码、资源、Manifest 与依赖影响共同决定编译范围</small>
       </a>
       <a href="/zh/capabilities/deploy/hot-reload">
-        <strong>混合部署</strong>
-        <span>热替换、重启、overlay、重装按状态选择</span>
+        <span class="jugg-decision-signal blue">产物可部署</span>
+        <strong>按结果选择热替换、重启或 overlay</strong>
+        <small>部署方式由本轮产物和设备历史决定</small>
       </a>
       <a href="/zh/capabilities/compile/gradle-fallback">
-        <strong>Gradle 回退</strong>
-        <span>工程或设备状态不可信时重建基线</span>
-      </a>
-      <a href="/zh/guide/remote-gradle">
-        <strong>远端 Gradle</strong>
-        <span>复用远端构建机资源，降低本机完整构建等待</span>
-      </a>
-      <a href="/zh/capabilities/test/application-android-test">
-        <strong>Android Test</strong>
-        <span>覆盖测试 APK、运行结果和 logcat 归因链路</span>
+        <span class="jugg-decision-signal amber">状态不确定</span>
+        <strong>回到 Gradle，重新建立可信基线</strong>
+        <small>构建配置、依赖或关键状态变化时优先保证一致性</small>
       </a>
     </div>
   </section>
 
-  <section class="jugg-section jugg-boundary">
-    <div>
-      <p class="jugg-kicker">Safety model</p>
-      <h2>Jugg 不替代 Gradle</h2>
-    </div>
-    <p>
-      Jugg 把 Gradle 构建结果作为可信起点。首次运行、修改构建文件、依赖或编译参数变化、注解处理器或插桩结果无法确认、设备部署历史不一致时，会回到 Gradle 并重新收集基线产物。
-    </p>
+  <section class="jugg-paths jugg-band">
+    <header class="jugg-section-head">
+      <p class="jugg-eyebrow">Explore</p>
+      <h2>从你现在要做的事继续</h2>
+    </header>
+    <nav class="jugg-path-grid" aria-label="文档入口">
+      <a href="/zh/guide/run"><strong>运行 App</strong><span>日常 Run、取消与可见结果</span></a>
+      <a href="/zh/concepts/how-jugg-works"><strong>理解工作原理</strong><span>基线、影响分析与部署决策</span></a>
+      <a href="/zh/capabilities/"><strong>检查能力范围</strong><span>源码、资源、部署与测试支持</span></a>
+      <a href="/zh/troubleshooting/"><strong>定位异常</strong><span>从现象、日志和运行结果开始</span></a>
+      <a href="/zh/guide/remote-gradle"><strong>配置远端 Gradle</strong><span>降低本机完整构建等待</span></a>
+      <a href="/zh/reference/"><strong>查阅参考</strong><span>兼容性、配置、命令与限制</span></a>
+    </nav>
   </section>
 
-  <section class="jugg-section jugg-directory">
-    <div class="jugg-section-head">
-      <p class="jugg-kicker">Directory</p>
-      <h2>完整文档目录</h2>
-    </div>
-    <div class="jugg-directory-grid">
-      <a href="/zh/onboarding/">快速开始</a>
-      <a href="/zh/guide/">使用指南</a>
-      <a href="/zh/concepts/">实现原理</a>
-      <a href="/zh/capabilities/">能力</a>
-      <a href="/zh/troubleshooting/">问题排查</a>
-      <a href="/zh/reference/">参考</a>
-      <a href="/">English</a>
-    </div>
-  </section>
+  <footer class="jugg-home-footer">
+    <p>Jugg 不替代 Gradle。它让可信基线之上的日常迭代更短。</p>
+    <a href="/">English</a>
+  </footer>
 </main>
-
-<style>
-.jugg-home {
-  --home-line: rgba(13, 50, 37, 0.12);
-  --home-panel: color-mix(in srgb, var(--vp-c-bg-elv) 94%, #f7faf9);
-  --home-panel-soft: #f7faf9;
-  --home-muted: var(--vp-c-text-2);
-  box-sizing: border-box;
-  width: min(1120px, calc(100vw - 40px));
-  margin: 0 auto;
-  padding: 72px 0 88px;
-}
-
-.jugg-home * {
-  box-sizing: border-box;
-}
-
-.jugg-home a {
-  text-decoration: none;
-}
-
-.jugg-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
-  gap: 48px;
-  align-items: center;
-}
-
-.jugg-kicker {
-  margin: 0 0 12px;
-  color: var(--jugg-run);
-  font-family: var(--vp-font-family-mono);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.jugg-hero h1 {
-  margin: 0;
-  color: var(--vp-c-text-1);
-  font-size: clamp(56px, 8vw, 112px);
-  line-height: 0.92;
-  font-weight: 780;
-  letter-spacing: 0;
-}
-
-.jugg-lead {
-  max-width: 680px;
-  margin: 28px 0 0;
-  color: var(--vp-c-text-1);
-  font-size: clamp(18px, 2.2vw, 24px);
-  line-height: 1.58;
-  font-weight: 560;
-  letter-spacing: 0;
-  overflow-wrap: anywhere;
-}
-
-.jugg-lead span {
-  display: block;
-}
-
-.jugg-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 32px;
-}
-
-.jugg-button {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  border: 1px solid var(--home-line);
-  border-radius: 6px;
-  padding: 0 16px;
-  color: var(--vp-c-text-1);
-  background: var(--home-panel);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.jugg-button.primary {
-  border-color: var(--jugg-run);
-  color: white;
-  background: var(--jugg-run);
-}
-
-.jugg-button:hover {
-  border-color: color-mix(in srgb, var(--jugg-apply) 56%, var(--home-line));
-  color: var(--jugg-run);
-}
-
-.jugg-button.primary:hover {
-  color: white;
-  background: color-mix(in srgb, var(--jugg-run) 88%, #0a1310);
-}
-
-.jugg-pipeline {
-  max-width: 100%;
-  border: 1px solid var(--home-line);
-  border-radius: 8px;
-  background: var(--home-panel);
-  overflow: hidden;
-}
-
-.jugg-pipeline-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid var(--home-line);
-  padding: 12px 14px;
-  color: var(--vp-c-text-3);
-  font-family: var(--vp-font-family-mono);
-  font-size: 12px;
-}
-
-.jugg-pipeline ol {
-  display: grid;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.jugg-pipeline li {
-  position: relative;
-  padding: 18px 18px 18px 44px;
-}
-
-.jugg-pipeline li + li {
-  border-top: 1px solid var(--home-line);
-}
-
-.jugg-pipeline li::before {
-  content: "";
-  position: absolute;
-  top: 24px;
-  left: 18px;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--jugg-apply);
-}
-
-.jugg-pipeline strong {
-  display: block;
-  color: var(--vp-c-text-1);
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-}
-
-.jugg-pipeline span {
-  display: block;
-  margin-top: 6px;
-  color: var(--home-muted);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.jugg-evidence {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 56px;
-  border-top: 1px solid var(--home-line);
-  border-bottom: 1px solid var(--home-line);
-}
-
-.jugg-evidence div {
-  padding: 22px 20px;
-}
-
-.jugg-evidence div + div {
-  border-left: 1px solid var(--home-line);
-}
-
-.jugg-evidence strong {
-  display: block;
-  color: var(--jugg-run);
-  font-family: var(--vp-font-family-mono);
-  font-size: 25px;
-  line-height: 1.1;
-}
-
-.jugg-evidence span {
-  display: block;
-  margin-top: 8px;
-  color: var(--home-muted);
-  font-size: 14px;
-}
-
-.jugg-section {
-  margin-top: 72px;
-}
-
-.jugg-section-head {
-  max-width: 760px;
-}
-
-.jugg-section h2 {
-  margin: 0;
-  color: var(--vp-c-text-1);
-  font-size: clamp(26px, 3vw, 36px);
-  line-height: 1.24;
-  font-weight: 750;
-  letter-spacing: 0;
-}
-
-.jugg-entry-grid,
-.jugg-capability-grid,
-.jugg-directory-grid {
-  display: grid;
-  gap: 12px;
-  margin-top: 28px;
-}
-
-.jugg-entry-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.jugg-entry,
-.jugg-capability-grid a {
-  border: 1px solid var(--home-line);
-  border-radius: 8px;
-  padding: 18px;
-  background: var(--home-panel);
-}
-
-.jugg-entry:hover,
-.jugg-capability-grid a:hover,
-.jugg-directory-grid a:hover {
-  border-color: color-mix(in srgb, var(--jugg-apply) 58%, var(--home-line));
-  background: var(--home-panel-soft);
-}
-
-.jugg-entry span {
-  color: var(--vp-c-text-3);
-  font-family: var(--vp-font-family-mono);
-  font-size: 12px;
-}
-
-.jugg-entry strong,
-.jugg-capability-grid strong {
-  display: block;
-  margin-top: 20px;
-  color: var(--vp-c-text-1);
-  font-size: 16px;
-}
-
-.jugg-entry p,
-.jugg-capability-grid span,
-.jugg-boundary p {
-  margin: 10px 0 0;
-  color: var(--home-muted);
-  font-size: 14px;
-  line-height: 1.72;
-}
-
-.jugg-capability-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.jugg-capability-grid strong {
-  margin-top: 0;
-}
-
-.jugg-boundary {
-  display: grid;
-  grid-template-columns: 0.7fr 1fr;
-  gap: 40px;
-  border-top: 1px solid var(--home-line);
-  border-bottom: 1px solid var(--home-line);
-  padding: 32px 0;
-}
-
-.jugg-boundary p {
-  margin: 0;
-  font-size: 15px;
-}
-
-.jugg-directory-grid {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-}
-
-.jugg-directory-grid a {
-  border: 1px solid var(--home-line);
-  border-radius: 6px;
-  padding: 14px 12px;
-  color: var(--vp-c-text-1);
-  background: var(--home-panel);
-  font-size: 14px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.dark .jugg-home {
-  --home-line: rgba(172, 194, 185, 0.17);
-  --home-panel: color-mix(in srgb, var(--jugg-panel) 92%, var(--vp-c-bg));
-  --home-panel-soft: color-mix(in srgb, var(--jugg-panel-soft) 88%, var(--jugg-apply) 5%);
-}
-
-.dark .jugg-button.primary {
-  border-color: #10b981;
-  color: #f2fff9;
-  background: #10b981;
-}
-
-.dark .jugg-button.primary:hover {
-  border-color: #059669;
-  color: #f2fff9;
-  background: #059669;
-}
-
-@media (max-width: 920px) {
-  .jugg-hero,
-  .jugg-boundary {
-    grid-template-columns: 1fr;
-  }
-
-  .jugg-entry-grid,
-  .jugg-capability-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .jugg-directory-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .jugg-home {
-    width: calc(100vw - 28px);
-    max-width: calc(100vw - 28px);
-    margin-right: 14px;
-    margin-left: 14px;
-    padding: 44px 0 64px;
-  }
-
-  .jugg-hero {
-    gap: 32px;
-  }
-
-  .jugg-lead {
-    max-width: calc(100vw - 28px);
-    font-size: 18px;
-    line-height: 1.56;
-    word-break: break-all;
-  }
-
-  .jugg-pipeline-head {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-
-  .jugg-pipeline-head span {
-    min-width: 0;
-  }
-
-  .jugg-evidence,
-  .jugg-entry-grid,
-  .jugg-capability-grid,
-  .jugg-directory-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .jugg-evidence div + div {
-    border-top: 1px solid var(--home-line);
-    border-left: 0;
-  }
-}
-</style>
