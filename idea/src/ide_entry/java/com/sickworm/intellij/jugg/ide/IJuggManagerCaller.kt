@@ -33,6 +33,10 @@ interface IJuggManagerCaller: Disposable {
 
     fun restartApp()
 
+    fun cleanAndReinstall()
+
+    fun resetJuggCache()
+
     fun reportIssue()
 
     fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup

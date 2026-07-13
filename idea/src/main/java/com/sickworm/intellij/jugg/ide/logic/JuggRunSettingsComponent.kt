@@ -3,12 +3,8 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.google.gson.GsonBuilder
-import com.intellij.ide.DataManager
-import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.openapi.ui.popup.JBPopup
-import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.IdeBorderFactory
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
@@ -17,6 +13,7 @@ import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.IJuggRunSettingsComponent
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
 import com.sickworm.intellij.jugg.ide.ui.RemoteCompileApplierDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -43,7 +40,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         it.layout = BoxLayout(it, BoxLayout.X_AXIS)
     }
 
-    private var moreOptionsButton: DropDownLink<String> = DropDownLink("More options", emptyList()).also {
+    private val openControlPanelLink = ActionLink("More options").also {
         it.border = JBUI.Borders.empty(0, 4)
     }
 
@@ -176,31 +173,10 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         updateRemoteUi(enableRemoteCompileCheckBox.isSelected, syncModeComboBox.selectedItem?.toString())
     }
 
-    private fun createMoreOptionsButton(project: Project): DropDownLink<String> {
-        val popupBuilder: (DropDownLink<String>) -> JBPopup = { _ ->
-            val options = JuggRunConfigurationOptions()
-            updateJuggRunConfigurationOptions(options)
-
-            val title = "More Options"
-            val group = JuggInitializer.getManager(project)?.getMoreOptions(options) ?: DefaultActionGroup()
-            val dataContext = DataManager.getInstance().getDataContext(moreOptionsButton)
-            val popup = JBPopupFactory.getInstance().createActionGroupPopup(
-                title, group, dataContext,
-                JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, true,
-                null, -1
-            )
-            popup
-        }
-
-        return DropDownLink("More options", popupBuilder).also {
-            it.border = JBUI.Borders.empty(0, 4)
-        }
-    }
-
     private fun updateTopButtons() {
         topButtonsContainer.removeAll()
         topButtonsContainer.add(Box.createHorizontalGlue())
-        topButtonsContainer.add(moreOptionsButton)
+        topButtonsContainer.add(openControlPanelLink)
         topButtonsContainer.maximumSize = Dimension(Int.MAX_VALUE, topButtonsContainer.preferredSize.height)
     }
 
@@ -250,7 +226,9 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             reportIssueActionLink.addActionListener {
                 doUpload(project)
             }
-            moreOptionsButton = createMoreOptionsButton(project)
+            openControlPanelLink.addActionListener {
+                JuggControlPanel.openSettings(project)
+            }
             updateTopButtons()
         }
 

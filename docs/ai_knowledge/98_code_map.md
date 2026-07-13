@@ -49,6 +49,7 @@
 | 运行配置 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggRunConfiguration.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/JuggDebugProgramRunner.kt` | run config 定义；`JuggDebugProgramRunner` 接管 Jugg + Debug executor，让 Debug 按钮可用 |
 | androidTest 运行入口 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunConfiguration.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributor.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsoleProperties.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsAction.kt` | app `src/androidTest` gutter 与临时 RunConfig，生成 `AndroidTestRunSpec` 后进入 Jugg run pipeline；androidTest run 使用 SM Test Runner console，支持 Test Results 树、source navigation 与 rerun failed |
 | More Options 工具菜单 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More options 下拉分组与工具项（含 MCP/skill 安装入口） |
+| Jugg Control Panel | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggToolWindowFactory.kt`, `JuggControlPanel.kt`, `OpenJuggControlPanelAction.kt` | 项目级右侧 `Jugg Running Pannel` Tool Window；Factory 与打开 Action 均为 `DumbAware`，索引期间可用；当前使用原生 IntelliJ 控件和固定 mock 数据还原 Overview / Logs / Settings 评审布局，不接真实日志、设置或 compile / deploy 动作；Run Configuration 的 `More options` 直接打开 Settings |
 | Gradle Sync 监听 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncListener.kt` | Sync 事件上报 Jugg |
 
 ---

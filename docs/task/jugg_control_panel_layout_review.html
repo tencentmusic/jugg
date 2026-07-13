@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jugg Running Pannel Layout Review</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --canvas: #15171a;
+      --chrome: #202226;
+      --surface: #26292e;
+      --surface-raised: #2d3036;
+      --surface-selected: #35445a;
+      --border: #3a3d43;
+      --border-soft: #31343a;
+      --text: #e4e6eb;
+      --text-secondary: #aeb3bc;
+      --text-muted: #787e88;
+      --blue: #4b8fde;
+      --blue-hover: #5c9be6;
+      --green: #72b879;
+      --yellow: #d5a63d;
+      --red: #d46868;
+      --purple: #aa8bd8;
+      --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      background: #101114;
+      color: var(--text);
+      font: 13px/1.45 var(--ui);
+    }
+
+    button, input { font: inherit; }
+
+    button:focus-visible,
+    input:focus-visible {
+      outline: 2px solid #68a5ea;
+      outline-offset: 1px;
+    }
+
+    .review-bar {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 10px 18px;
+      background: #17191d;
+      border-bottom: 1px solid #2c2f34;
+    }
+
+    .review-title {
+      min-width: 245px;
+    }
+
+    .review-title strong {
+      display: block;
+      font-size: 14px;
+      letter-spacing: .01em;
+    }
+
+    .review-title span {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .review-hint {
+      margin-left: auto;
+      max-width: 520px;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .workspace {
+      height: calc(100vh - 58px);
+      min-height: 690px;
+      padding: 18px;
+    }
+
+    .ide {
+      width: 100%;
+      height: 100%;
+      min-height: 650px;
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr) 420px;
+      grid-template-rows: 42px minmax(0, 1fr) 24px;
+      grid-template-areas:
+        "toolbar toolbar toolbar"
+        "project editor jugg"
+        "status status status";
+      overflow: hidden;
+      background: var(--canvas);
+      border: 1px solid #303238;
+      border-radius: 7px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, .28);
+    }
+
+    .ide-toolbar {
+      grid-area: toolbar;
+      display: grid;
+      grid-template-columns: 224px 1fr auto;
+      align-items: center;
+      background: #2a2c31;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .window-dots { padding-left: 14px; color: #777d86; letter-spacing: 3px; }
+
+    .run-cluster {
+      justify-self: center;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .run-config {
+      min-width: 178px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      background: #23252a;
+      border: 1px solid #41444b;
+      border-radius: 4px;
+      color: var(--text-secondary);
+    }
+
+    .toolbar-icon {
+      width: 28px;
+      height: 28px;
+      display: inline-grid;
+      place-items: center;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #aeb4bd;
+    }
+
+    .toolbar-icon.run { color: #69bf77; }
+    .toolbar-icon:hover { background: #373a40; }
+
+    .toolbar-actions { display: flex; gap: 2px; padding-right: 10px; }
+
+    .project-pane {
+      grid-area: project;
+      min-width: 0;
+      background: #202226;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .tool-title {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-soft);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .tree { padding: 8px 6px; color: #b8bdc5; }
+    .tree-row { height: 23px; display: flex; align-items: center; gap: 6px; padding: 0 6px; white-space: nowrap; }
+    .tree-row.indent { padding-left: 22px; }
+    .tree-row.indent-2 { padding-left: 38px; }
+    .tree-row.active { background: #2d4059; border-radius: 3px; color: #fff; }
+    .folder { color: #d4a953; }
+    .kotlin { color: #a48ad8; font-weight: 700; }
+
+    .editor {
+      grid-area: editor;
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 34px minmax(0, 1fr);
+      background: #1e1f22;
+      overflow: hidden;
+    }
+
+    .editor-tabs {
+      display: flex;
+      background: #24262a;
+      border-bottom: 1px solid #33363b;
+    }
+
+    .editor-tab {
+      min-width: 156px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-right: 1px solid #33363b;
+      color: #bfc3ca;
+      background: #1e1f22;
+    }
+
+    .code {
+      overflow: hidden;
+      padding: 18px 0;
+      font: 12px/1.75 var(--mono);
+      color: #bcbfc6;
+      counter-reset: line;
+      background:
+        linear-gradient(90deg, #1e1f22 0 48px, #25272b 48px 49px, #1e1f22 49px);
+    }
+
+    .code-line {
+      display: block;
+      min-width: 780px;
+      padding-left: 66px;
+      white-space: pre;
+    }
+
+    .code-line::before {
+      counter-increment: line;
+      content: counter(line);
+      position: absolute;
+      width: 36px;
+      margin-left: -54px;
+      text-align: right;
+      color: #5f646d;
+    }
+
+    .kw { color: #cf8e6d; }
+    .type { color: #56a8f5; }
+    .str { color: #6aab73; }
+    .fn { color: #d5b778; }
+    .comment { color: #7a7e85; }
+
+    .jugg-panel {
+      grid-area: jugg;
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 36px 35px minmax(0, 1fr);
+      background: #202226;
+      border-left: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .jugg-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .jugg-mark {
+      width: 18px;
+      height: 18px;
+      display: grid;
+      place-items: center;
+      border-radius: 4px;
+      background: #d29837;
+      color: #1b1d20;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .jugg-titlebar strong { font-size: 12px; }
+
+    .ready-state {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+
+    .state-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+    .panel-tabs {
+      display: flex;
+      align-items: end;
+      gap: 2px;
+      padding: 0 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-tab {
+      height: 34px;
+      padding: 0 12px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .panel-tab.active {
+      color: #fff;
+      border-bottom-color: var(--blue);
+    }
+
+    .panel-page {
+      min-height: 0;
+      overflow: auto;
+      display: none;
+    }
+
+    .panel-page.active { display: block; }
+
+    .section {
+      padding: 12px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .eyebrow {
+      margin-bottom: 8px;
+      color: #8f959e;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .context-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .context-name { font-weight: 650; }
+
+    .link-button {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #6ca6e6;
+      cursor: pointer;
+    }
+
+    .context-head .link-button { margin-left: auto; }
+
+    .context-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 12px;
+      margin-top: 7px;
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+
+    .context-meta span::before { content: "·"; margin-right: 7px; color: #646a73; }
+    .context-meta span:first-child::before { display: none; }
+
+    .strategy-line {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #a9d8af;
+      font-size: 11px;
+    }
+
+    .task-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .task-state { font-size: 14px; font-weight: 650; }
+    .task-summary { color: var(--text-secondary); font-size: 11px; }
+    .task-time { margin-left: auto; color: var(--text-muted); font: 11px var(--mono); }
+
+    .actions-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .action-button {
+      min-height: 34px;
+      padding: 7px 9px;
+      border: 1px solid #454950;
+      border-radius: 4px;
+      background: #30333a;
+      color: #e5e7eb;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .action-button:hover { background: #383c43; border-color: #555b64; }
+    .action-button.primary { background: #34649a; border-color: #437db9; }
+    .action-button.primary:hover { background: #3d70aa; }
+
+    .action-button small {
+      display: block;
+      margin-top: 2px;
+      color: #9ea4ad;
+      font-size: 10px;
+    }
+
+    .action-button.primary small { color: #c9ddf4; }
+
+    .timeline {
+      position: relative;
+      margin-left: 7px;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      bottom: 9px;
+      left: 5px;
+      width: 1px;
+      background: #454950;
+    }
+
+    .timeline-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      min-height: 31px;
+      gap: 6px;
+    }
+
+    .timeline-dot {
+      z-index: 1;
+      width: 11px;
+      height: 11px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--green);
+      color: #18201a;
+      font-size: 8px;
+      font-weight: 800;
+    }
+
+    .timeline-detail { color: var(--text-muted); font-size: 10px; }
+    .timeline-time { color: #8c929b; font: 10px var(--mono); }
+
+    .health-line {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 7px;
+      color: var(--text-secondary);
+    }
+
+    .health-line + .health-line { margin-top: 9px; }
+    .health-icon { color: var(--yellow); }
+
+    .activity-row {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: 6px 0;
+      border-top: 1px solid #2d3035;
+      font-size: 11px;
+    }
+
+    .activity-row:first-of-type { border-top: 0; }
+    .activity-time { color: var(--text-muted); font-family: var(--mono); }
+    .activity-kind { color: var(--text-secondary); }
+    .success { color: var(--green); }
+    .failed { color: var(--red); }
+
+    .logs-toolbar {
+      min-height: 76px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 9px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .log-sources {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      padding: 2px;
+      background: #17191c;
+      border: 1px solid #41454c;
+      border-radius: 4px;
+    }
+
+    .log-source {
+      height: 25px;
+      border: 0;
+      border-radius: 3px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 10px;
+      cursor: pointer;
+    }
+
+    .log-source.active {
+      background: #39404a;
+      color: #fff;
+    }
+
+    .search {
+      height: 27px;
+      min-width: 0;
+      flex: 1;
+      padding: 0 8px;
+      color: var(--text);
+      background: #17191c;
+      border: 1px solid #454950;
+      border-radius: 4px;
+    }
+
+    .filter-button {
+      height: 27px;
+      padding: 0 8px;
+      color: var(--text-secondary);
+      background: #2c2f34;
+      border: 1px solid #44484f;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .log-layout { height: calc(100% - 76px); min-height: 0; }
+    .log-console {
+      height: 100%;
+      overflow: auto;
+      padding: 9px 10px 20px;
+      background: #17191c;
+      font: 10.5px/1.65 var(--mono);
+      color: #b8bdc5;
+    }
+
+    .log-line { display: grid; grid-template-columns: 76px 62px 118px minmax(0, 1fr); gap: 8px; white-space: nowrap; }
+    .log-time { color: #707680; }
+    .log-level.info { color: #75a8dc; }
+    .log-level.debug { color: #777e87; }
+    .log-level.warn { color: var(--yellow); }
+    .log-class { color: #a78bd1; overflow: hidden; text-overflow: ellipsis; }
+    .log-message { color: #c4c8cf; overflow: hidden; text-overflow: ellipsis; }
+    .log-message strong { color: #e0e3e8; font-weight: 600; }
+
+    .settings-page { padding: 10px; }
+
+    .settings-search { margin-bottom: 10px; width: 100%; flex: none; }
+
+    .settings-group {
+      margin-bottom: 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .settings-group-title {
+      padding: 8px 10px;
+      background: #272a2f;
+      border-bottom: 1px solid var(--border-soft);
+      font-weight: 650;
+      font-size: 11px;
+    }
+
+    .setting-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 10px;
+      border-top: 1px solid #2e3136;
+    }
+
+    .setting-row:first-child { border-top: 0; }
+    .setting-label { display: block; }
+    .setting-help { display: block; margin-top: 2px; color: var(--text-muted); font-size: 10px; }
+
+    .switch {
+      width: 30px;
+      height: 16px;
+      position: relative;
+      border: 0;
+      border-radius: 10px;
+      background: #4a4e55;
+      cursor: pointer;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #d9dce1;
+      transition: transform 140ms ease;
+    }
+
+    .switch.on { background: #3978b8; }
+    .switch.on::after { transform: translateX(14px); }
+
+    .value-button {
+      min-width: 92px;
+      height: 27px;
+      padding: 0 8px;
+      color: var(--text-secondary);
+      background: #2c2f34;
+      border: 1px solid #44484f;
+      border-radius: 4px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .more-wrap { position: relative; }
+    .more-wrap > .action-button { width: 100%; height: 100%; }
+
+    .more-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 5px);
+      z-index: 5;
+      width: 228px;
+      display: none;
+      padding: 5px;
+      background: #2c2f34;
+      border: 1px solid #4a4e55;
+      border-radius: 5px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+
+    .more-menu.open { display: block; }
+
+    .more-item {
+      width: 100%;
+      min-height: 28px;
+      padding: 5px 8px;
+      border: 0;
+      border-radius: 3px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .more-item:hover { background: #3a3e45; }
+    .more-item.danger { color: #e49a9a; }
+    .menu-separator { height: 1px; margin: 4px 3px; background: #44484f; }
+
+    .ide-status {
+      grid-area: status;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 9px;
+      background: #282b30;
+      border-top: 1px solid #3a3d43;
+      color: #999fa8;
+      font-size: 10px;
+    }
+
+    .ide-status .branch { margin-left: auto; }
+
+    .toast {
+      position: fixed;
+      right: 28px;
+      bottom: 30px;
+      z-index: 10;
+      padding: 10px 13px;
+      border: 1px solid #4a4f57;
+      border-radius: 5px;
+      background: #2d3035;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+      color: #eceef1;
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 1040px) {
+      .review-hint { display: none; }
+      .ide { grid-template-columns: 0 minmax(0, 1fr) 390px; }
+      .project-pane { visibility: hidden; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="review-bar">
+    <div class="review-title">
+      <strong>Jugg Running Pannel · Right Tool Window</strong>
+      <span>右侧停靠布局与信息层级验收基线</span>
+    </div>
+    <div class="review-hint">
+      默认宽度 420px。布局按本稿验收，控件皮肤与主题由 IntelliJ 原生组件提供。
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="ide" id="ideFrame" aria-label="Android Studio Jugg 面板布局模拟">
+      <div class="ide-toolbar">
+        <div class="window-dots">● ● ●</div>
+        <div class="run-cluster">
+          <div class="run-config"><span>app · Jugg</span><span>⌄</span></div>
+          <button class="toolbar-icon run" aria-label="Run">▶</button>
+          <button class="toolbar-icon" aria-label="Debug">◆</button>
+          <button class="toolbar-icon" aria-label="More">⋮</button>
+        </div>
+        <div class="toolbar-actions">
+          <button class="toolbar-icon" aria-label="Search">⌕</button>
+          <button class="toolbar-icon" aria-label="Settings">⚙</button>
+        </div>
+      </div>
+
+      <aside class="project-pane">
+        <div class="tool-title"><span>Project</span><span>⌄</span></div>
+        <div class="tree">
+          <div class="tree-row"><span>⌄</span><span class="folder">▰</span><span>jugg_f1</span></div>
+          <div class="tree-row indent"><span>⌄</span><span class="folder">▰</span><span>android_demo_project</span></div>
+          <div class="tree-row indent-2"><span>⌄</span><span class="folder">▰</span><span>app</span></div>
+          <div class="tree-row indent-2"><span class="kotlin">K</span><span>MainActivity.kt</span></div>
+          <div class="tree-row indent"><span>⌄</span><span class="folder">▰</span><span>idea</span></div>
+          <div class="tree-row indent-2 active"><span class="kotlin">K</span><span>JuggRunningTask.kt</span></div>
+          <div class="tree-row indent"><span>›</span><span class="folder">▰</span><span>main</span></div>
+          <div class="tree-row indent"><span>›</span><span class="folder">▰</span><span>docs</span></div>
+        </div>
+      </aside>
+
+      <section class="editor">
+        <div class="editor-tabs">
+          <div class="editor-tab"><span class="kotlin">K</span><span>JuggRunningTask.kt</span><span>×</span></div>
+        </div>
+        <div class="code" aria-hidden="true">
+          <span class="code-line"><span class="kw">class</span> <span class="type">JuggRunningTask</span>(</span>
+          <span class="code-line">    <span class="kw">private val</span> project: <span class="type">Project</span>,</span>
+          <span class="code-line">    <span class="kw">private val</span> compileHelper: <span class="type">JuggCompileHelper</span>,</span>
+          <span class="code-line">    <span class="kw">private val</span> deployerHelper: <span class="type">JuggDeployerHelper</span>,</span>
+          <span class="code-line">) {</span>
+          <span class="code-line"></span>
+          <span class="code-line">    <span class="comment">// Compile and deploy the current changes.</span></span>
+          <span class="code-line">    <span class="kw">fun</span> <span class="fn">run</span>() {</span>
+          <span class="code-line">        uiHandler.<span class="fn">onStart</span>(<span class="str">"Preparing Jugg task"</span>)</span>
+          <span class="code-line">        <span class="kw">val</span> compileResult = compileHelper.<span class="fn">compile</span>()</span>
+          <span class="code-line">        <span class="kw">if</span> (!compileResult.isSuccess) <span class="kw">return</span></span>
+          <span class="code-line"></span>
+          <span class="code-line">        <span class="kw">val</span> deployResult = deployerHelper.<span class="fn">deploy</span>(compileResult)</span>
+          <span class="code-line">        uiHandler.<span class="fn">onEnd</span>(deployResult)</span>
+          <span class="code-line">    }</span>
+          <span class="code-line">}</span>
+        </div>
+      </section>
+
+      <aside class="jugg-panel">
+        <div class="jugg-titlebar">
+          <span class="jugg-mark">J</span>
+          <strong>Jugg Running Pannel</strong>
+          <div class="ready-state"><span class="state-dot"></span><span id="readyText">Ready</span><span>↻</span></div>
+        </div>
+        <nav class="panel-tabs" aria-label="Jugg 页面">
+          <button class="panel-tab active" data-page="overview">Overview</button>
+          <button class="panel-tab" data-page="logs">Logs</button>
+          <button class="panel-tab" data-page="settings">Settings</button>
+        </nav>
+
+        <section class="panel-page overview-page active" data-panel="overview">
+          <div class="right-overview">
+            <div class="section">
+              <div class="context-head"><span class="context-name">run Jugg</span><button class="link-button">Edit configuration</button></div>
+              <div class="context-meta"><span>app · debug</span><span>com.sickworm.demo</span><span>Pixel 8 API 35</span><span>3 changed files</span></div>
+              <div class="strategy-line"><span>✓</span><span>Hot reload is available</span></div>
+            </div>
+            <div class="section">
+              <div class="eyebrow">Current task</div>
+              <div class="task-row">
+                <div><div class="task-state" id="taskStateRight">Idle</div><div class="task-summary" id="taskSummaryRight">Last deploy 14:32 · Hot reload</div></div>
+                <div class="task-time" id="taskTimeRight">1.8s</div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="eyebrow">Quick actions</div>
+              <div class="actions-grid">
+                <button class="action-button primary demo-action" data-action="Full Gradle Build">Full Gradle Build<small>Build, install and launch</small></button>
+                <button class="action-button demo-action" data-action="Restart App">Restart App<small>Pixel 8 API 35</small></button>
+                <button class="action-button demo-action" data-action="Clean & Reinstall">Clean &amp; Reinstall<small>Clears app data</small></button>
+                <div class="more-wrap">
+                  <button class="action-button" id="moreActionsButton">More…<small>Maintenance tools</small></button>
+                  <div class="more-menu" id="moreActionsMenu" role="menu">
+                    <button class="more-item" data-menu-action="Gradle Clean">Gradle Clean</button>
+                    <button class="more-item" data-menu-action="Reinitialize Jugg">Reinitialize Jugg</button>
+                    <button class="more-item" data-menu-action="Open Jugg Directory">Open Jugg Directory</button>
+                    <div class="menu-separator"></div>
+                    <button class="more-item" data-menu-action="Install Jugg Skills">Install Jugg Skills</button>
+                    <button class="more-item" data-menu-action="Check for Updates">Check for Updates</button>
+                    <button class="more-item" data-menu-action="Report Issue">Report Issue</button>
+                    <div class="menu-separator"></div>
+                    <button class="more-item danger" data-menu-action="Reset Jugg Cache">Reset Jugg Cache…</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="eyebrow">Last deploy</div>
+              <div class="timeline">
+                <div class="timeline-row"><span class="timeline-dot">✓</span><span>Detect changes <small class="timeline-detail">3 files</small></span><span class="timeline-time">120ms</span></div>
+                <div class="timeline-row"><span class="timeline-dot">✓</span><span>Compile <small class="timeline-detail">2 Kotlin · 1 resource</small></span><span class="timeline-time">860ms</span></div>
+                <div class="timeline-row"><span class="timeline-dot">✓</span><span>Deploy <small class="timeline-detail">Code swap</small></span><span class="timeline-time">540ms</span></div>
+                <div class="timeline-row"><span class="timeline-dot">✓</span><span>Resume app</span><span class="timeline-time">210ms</span></div>
+              </div>
+              <button class="link-button open-logs">View related logs →</button>
+            </div>
+            <div class="section">
+              <div class="eyebrow">Project health</div>
+              <div class="health-line"><span class="health-icon">▲</span><span>Gradle project info may be outdated</span><button class="link-button">Sync</button></div>
+              <div class="health-line"><span class="success">✓</span><span>Deploy baseline is ready</span><span></span></div>
+            </div>
+            <div class="section">
+              <div class="eyebrow">Recent activity</div>
+              <div class="activity-row"><span class="activity-time">14:32</span><span class="activity-kind">Deploy · Hot reload</span><span class="success">Success</span></div>
+              <div class="activity-row"><span class="activity-time">14:28</span><span class="activity-kind">CLI · restart</span><span class="success">Success</span></div>
+              <div class="activity-row"><span class="activity-time">14:20</span><span class="activity-kind">Gradle build</span><span class="failed">Failed</span></div>
+            </div>
+          </div>
+
+        </section>
+
+        <section class="panel-page logs-page" data-panel="logs">
+          <div class="logs-toolbar">
+            <div class="log-sources" aria-label="日志类型">
+              <button class="log-source active" data-log-source="all">Deploy</button>
+              <button class="log-source" data-log-source="runtime">Runtime</button>
+              <button class="log-source" data-log-source="mcp">CLI / MCP</button>
+            </div>
+            <input class="search" id="logSearch" aria-label="搜索日志" placeholder="Search logs">
+            <button class="filter-button">All levels ⌄</button>
+            <button class="filter-button">Current task ⌄</button>
+            <button class="filter-button">Follow</button>
+            <button class="filter-button" title="Clear view, open file, export diagnostics">⋮</button>
+          </div>
+          <div class="log-layout">
+            <div class="log-console" id="logConsole">
+              <div class="log-line" data-source="deploy runtime"><span class="log-time">14:32:08.012</span><span class="log-level info">INFO</span><span class="log-class">JuggRunningTask</span><span class="log-message"><strong>Jugg compile started</strong></span></div>
+              <div class="log-line" data-source="deploy runtime"><span class="log-time">14:32:08.119</span><span class="log-level debug">DEBUG</span><span class="log-class">FileChangesHandler</span><span class="log-message">3 changed files detected</span></div>
+              <div class="log-line" data-source="deploy runtime"><span class="log-time">14:32:08.983</span><span class="log-level info">INFO</span><span class="log-class">JuggCompiler</span><span class="log-message">Incremental compile finished · 860ms</span></div>
+              <div class="log-line" data-source="deploy runtime"><span class="log-time">14:32:09.021</span><span class="log-level debug">DEBUG</span><span class="log-class">JuggDeployerHelper</span><span class="log-message">deploy start · device=Pixel_8_API_35</span></div>
+              <div class="log-line" data-source="deploy runtime"><span class="log-time">14:32:09.553</span><span class="log-level info">INFO</span><span class="log-class">JuggDeployer</span><span class="log-message">Code swap applied successfully</span></div>
+              <div class="log-line" data-source="deploy runtime"><span class="log-time">14:32:09.771</span><span class="log-level info">INFO</span><span class="log-class">JuggRunningTask</span><span class="log-message"><strong>Deploy completed · total 1.8s</strong></span></div>
+              <div class="log-line" data-source="mcp"><span class="log-time">14:28:11.002</span><span class="log-level debug">DEBUG</span><span class="log-class">McpToolInvoker</span><span class="log-message">[MCP][TOOL] restart · CLI · success · 420ms</span></div>
+              <div class="log-line" data-source="runtime"><span class="log-time">14:20:41.241</span><span class="log-level warn">WARN</span><span class="log-class">GradleCompile</span><span class="log-message">Compile project failed, check build output</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-page settings-page" data-panel="settings">
+          <input class="search settings-search" id="settingsSearch" aria-label="搜索设置" placeholder="Search settings">
+          <div class="settings-group" data-settings-group>
+            <div class="settings-group-title">Run behavior</div>
+            <div class="setting-row"><div><span class="setting-label">Confirm fallback when no files changed</span><span class="setting-help">Ask before running a full Gradle build.</span></div><button class="switch on" aria-label="切换设置"></button></div>
+            <div class="setting-row"><div><span class="setting-label">Always restart app after deployment</span><span class="setting-help">Disables hot reload when a restart is safer.</span></div><button class="switch" aria-label="切换设置"></button></div>
+          </div>
+          <div class="settings-group" data-settings-group>
+            <div class="settings-group-title">Deployment</div>
+            <div class="setting-row"><div><span class="setting-label">Quick deploy</span><span class="setting-help">Skip app startup when direct overlay is available.</span></div><button class="switch on" aria-label="切换设置"></button></div>
+            <div class="setting-row"><div><span class="setting-label">Auto fallback after deploy failure</span><span class="setting-help">Recover with a full Gradle build.</span></div><button class="switch" aria-label="切换设置"></button></div>
+            <div class="setting-row"><div><span class="setting-label">Embed changes into APK</span><span class="setting-help">Supports Android RemoteViews with a slower deploy.</span></div><button class="switch" aria-label="切换设置"></button></div>
+          </div>
+          <div class="settings-group" data-settings-group>
+            <div class="settings-group-title">Compiler</div>
+            <div class="setting-row"><div><span class="setting-label">Use project Kotlin compiler</span><span class="setting-help">Matches the compiler configured by the project.</span></div><button class="switch on" aria-label="切换设置"></button></div>
+            <div class="setting-row"><div><span class="setting-label">Backup classpath</span><span class="setting-help">May improve recovery at the cost of extra storage.</span></div><button class="switch" aria-label="切换设置"></button></div>
+          </div>
+          <div class="settings-group" data-settings-group>
+            <div class="settings-group-title">Device compatibility</div>
+            <div class="setting-row"><div><span class="setting-label">Pixel 8 API 35</span><span class="setting-help">Default deploy strategy · emulator-5554</span></div><button class="value-button">Automatic ⌄</button></div>
+          </div>
+          <div class="settings-group" data-settings-group>
+            <div class="settings-group-title">Integrations</div>
+            <div class="setting-row"><div><span class="setting-label">Jugg CLI and skills</span><span class="setting-help">CLI 1.8.0 · Codex installed</span></div><button class="value-button">Manage…</button></div>
+            <div class="setting-row"><div><span class="setting-label">Update channel</span><span class="setting-help">Current plugin version is up to date.</span></div><button class="value-button">Check now</button></div>
+            <div class="setting-row"><div><span class="setting-label">Custom server URL</span><span class="setting-help">Use the default Jugg service when empty.</span></div><button class="value-button">Configure…</button></div>
+          </div>
+          <div class="settings-group" data-settings-group>
+            <div class="settings-group-title">Advanced</div>
+            <div class="setting-row"><div><span class="setting-label">Developer mode</span><span class="setting-help">Shows diagnostic and test-only actions.</span></div><button class="switch" aria-label="切换设置"></button></div>
+            <div class="setting-row"><div><span class="setting-label">Reset settings</span><span class="setting-help">Restore Jugg project settings to defaults.</span></div><button class="value-button">Reset…</button></div>
+          </div>
+        </section>
+      </aside>
+
+      <footer class="ide-status"><span>Jugg ready</span><span>Pixel 8 API 35</span><span class="branch">develop</span><span>UTF-8</span><span>4 spaces</span></footer>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const tabs = [...document.querySelectorAll('.panel-tab')];
+    const pages = [...document.querySelectorAll('.panel-page')];
+    const toast = document.getElementById('toast');
+    const moreActionsButton = document.getElementById('moreActionsButton');
+    const moreActionsMenu = document.getElementById('moreActionsMenu');
+    let activeLogSource = 'deploy';
+
+    function openPage(name) {
+      tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.page === name));
+      pages.forEach(page => page.classList.toggle('active', page.dataset.panel === name));
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    tabs.forEach(tab => tab.addEventListener('click', () => openPage(tab.dataset.page)));
+    document.querySelectorAll('.open-logs').forEach(button => button.addEventListener('click', () => openPage('logs')));
+
+    moreActionsButton.addEventListener('click', event => {
+      event.stopPropagation();
+      moreActionsMenu.classList.toggle('open');
+    });
+
+    document.addEventListener('click', () => moreActionsMenu.classList.remove('open'));
+    document.querySelectorAll('[data-menu-action]').forEach(item => {
+      item.addEventListener('click', () => showToast(item.dataset.menuAction));
+    });
+
+    document.querySelectorAll('.demo-action').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.action;
+        document.getElementById('readyText').textContent = 'Running';
+        document.getElementById('taskStateRight').textContent = action;
+        document.getElementById('taskSummaryRight').textContent = 'Started from Jugg Control Panel';
+        document.getElementById('taskTimeRight').textContent = '0.0s';
+        showToast(`${action} started`);
+        window.setTimeout(() => document.getElementById('readyText').textContent = 'Ready', 1600);
+      });
+    });
+
+    document.querySelectorAll('.switch').forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        toggle.classList.toggle('on');
+        showToast('Setting saved');
+      });
+    });
+
+    function filterLogs() {
+      const keyword = document.getElementById('logSearch').value.trim().toLowerCase();
+      document.querySelectorAll('.log-line').forEach(line => {
+        const matchesSource = line.dataset.source.split(' ').includes(activeLogSource);
+        const matchesKeyword = !keyword || line.textContent.toLowerCase().includes(keyword);
+        line.style.display = matchesSource && matchesKeyword ? 'grid' : 'none';
+      });
+    }
+
+    document.querySelectorAll('.log-source').forEach(button => {
+      button.addEventListener('click', () => {
+        activeLogSource = button.dataset.logSource;
+        document.querySelectorAll('.log-source').forEach(item => item.classList.toggle('active', item === button));
+        filterLogs();
+      });
+    });
+
+    document.getElementById('logSearch').addEventListener('input', filterLogs);
+    filterLogs();
+
+    document.getElementById('settingsSearch').addEventListener('input', event => {
+      const keyword = event.target.value.trim().toLowerCase();
+      document.querySelectorAll('[data-settings-group]').forEach(group => {
+        group.style.display = !keyword || group.textContent.toLowerCase().includes(keyword) ? 'block' : 'none';
+      });
+    });
+  </script>
+</body>
+</html>

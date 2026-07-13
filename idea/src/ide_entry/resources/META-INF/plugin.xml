@@ -64,8 +64,19 @@
         <notificationGroup id="Jugg Notification"
                            displayType="BALLOON"
                            key="notification.group.name"/>
+        <toolWindow id="Jugg Running Pannel"
+                    anchor="right"
+                    icon="/res/icons/run_configuration.svg"
+                    factoryClass="com.sickworm.intellij.jugg.ide.ui.JuggToolWindowFactory"/>
     </extensions>
     <actions>
+        <action id="jugg.OpenControlPanelAction"
+                class="com.sickworm.intellij.jugg.ide.ui.OpenJuggControlPanelAction"
+                text="Open Jugg Control Panel"
+                description="Open the Jugg project control panel"
+                icon="/res/icons/run_configuration.svg">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
         <action id="jugg.RestartAppAction"
                 class="com.sickworm.intellij.jugg.ide.ui.RestartAppAction"
                 text="Restart App"

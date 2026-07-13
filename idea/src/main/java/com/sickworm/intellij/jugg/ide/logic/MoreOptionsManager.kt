@@ -151,7 +151,7 @@ class MoreOptionsManager(
 
         createOption(
             name = "Clean and reset Jugg",
-            onSet = { cleanAndResetJugg() }
+            onSet = { resetJuggCache() }
         )
 
         createSplitLine("Function switches")
@@ -331,7 +331,7 @@ class MoreOptionsManager(
         dialog.show()
     }
 
-    private fun cleanAndResetJugg() {
+    fun resetJuggCache() {
         logger.info("[options] cleanAndResetJugg")
         val isConfirmed = CommonConfirmDialog.showAndGetResult(
             "Confirm Clean and Reset Jugg",

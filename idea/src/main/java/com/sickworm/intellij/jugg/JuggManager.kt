@@ -594,6 +594,16 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    /** Starts a full Gradle build that clears app data before reinstalling the selected app. */
+    override fun cleanAndReinstall() {
+        forceGradleCompileHelper.executeGradleCompile(autoConfirm = true, useCleanAndReinstall = true)
+    }
+
+    /** Resets the Jugg cache through the existing maintenance flow. */
+    override fun resetJuggCache() {
+        createMoreOptionsManager().resetJuggCache()
+    }
+
     fun forceReInstallNextTime() {
         juggConfigurationRunner.forceReInstallNextTime()
     }
