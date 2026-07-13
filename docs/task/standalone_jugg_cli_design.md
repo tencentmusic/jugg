@@ -24,9 +24,9 @@
 首期运行结构：
 
 ```text
-                         ┌─ IDEA Runtime Adapter
+                         ┌─ IDEA Runtime Environment
 Jugg Runtime Engine ─────┤
-                         └─ Standalone Runtime Adapter
+                         └─ Standalone Runtime Environment
                                   │
                                   └─ MCP daemon / Python jugg CLI
 ```
@@ -76,9 +76,220 @@ CI 命令继续保持一次性进程、显式参数和现有产物语义。Stand
 
 Quail 目标 class 为 Java 21，因此 `:standalone_deployer` 与 `:cmd_line:standalone` 使用 Java 21；`:cmd_line:ci` 继续保持 Java 11。
 
-## 3. 锁与并发模型
+## 3. Runtime 能力现状与领域划分
 
-### 3.1 TaskRunnerManager 改造结论
+### 3.1 尚未下沉到 main 的能力
+
+以下能力当前位于 `idea`，`cmd_line` 无法直接复用：
+
+| 能力 | 当前实现 | 下沉方向 |
+|---|---|---|
+| 项目 Runtime 生命周期 | `JuggManager` | 提取 `JuggProjectRuntime`，负责初始化、恢复、重载和销毁 |
+| IDEA 项目注册与 MCP 路由 | `JuggInitializer`、`JuggManagerCreator` | IDEA 保留项目入口；standalone 使用独立 registry |
+| 任务调度、进度、串行和上报 | `TaskRunnerManager` | 拆出共享 `JuggTaskManager`，IDEA 只呈现进度和 EDT 关联 |
+| Compile Context 管理 | `CompileContextManager` | 拆出共享 `CompileContextManager` 核心和 IDEA project model 读取逻辑 |
+| Gradle project info 更新调度 | `GradleProjectInfoLocalFetchManager` | 下沉 Gradle 调度主体，移除 IDEA `Project` 和 `TaskRunnerManager` 依赖 |
+| IDEA VFS 监听 | `FileChangesDetector` | 保留 IDEA 实现；standalone 使用 WatchService |
+| Git 变化补偿 | `GitFileChangesDetector` | 下沉，在共享文件变化域中使用 |
+| 远端 generated source 回写 | `CopyGeneratedSourceHelper` | 下沉，关联共享任务管理器 |
+| deployment cache 实现 | `JuggDeploymentService`、`JuggDeploymentCacheStore` | 随部署域一起下沉 |
+| 插件 hot update | `JuggHotUpdateDownloader` | 拆分更新检查/下载与 IDEA 插件安装 |
+| UI、设置页和诊断入口 | `MoreOptionsManager`、IDE dialogs | IDEA 保留表现层，调用共享领域服务 |
+| Run/Debug/Test UI | `JuggConfigurationRunner`、Debug attach、SM Runner | IDEA 保留，不进入 standalone runtime |
+
+### 3.2 已在 main 但尚未具备 standalone 语义的能力
+
+#### Runtime Settings
+
+`JuggSettings` 位于 `main`，但通过 IntelliJ `PropertiesComponent` 持久化。`platform_compat` 中的实现只是进程内 Map，不能在进程退出后保存，也不能在 IDEA 与 standalone 间共享。
+
+下沉后使用领域仓储：
+
+```text
+IRuntimeSettingsRepository
+├── IdeaRuntimeSettingsRepository
+└── FileRuntimeSettingsRepository
+```
+
+共享运行设置必须覆盖会影响 compile/deploy/history 语义的开关，包括 Direct Overlay、兼容部署、project Kotlin compiler、backup classpath、device compat record 和 slice deploy record。
+
+#### Dependency Change
+
+`DependencyChangeManagerByGradle` 已在 `main`，但确认流程依赖 `PlatformApi.showChangeConfirmDialog()`。下沉后由领域策略决定：
+
+```text
+IDependencyChangePolicy
+├── IdeaDependencyChangePolicy
+└── CliDependencyChangePolicy
+```
+
+CLI 策略根据配置、命令参数或 MCP confirmation 返回继续增量、Gradle rebuild、取消等结果，不模拟 IDEA dialog。
+
+#### Project Info Merge
+
+`JuggProjectInfoMerger` 已在 `main`，但当前以 IDE project info 为 base。项目模型域需要支持两种明确模式：
+
+```text
+IDEA Runtime: IDE model + Gradle model
+Standalone Runtime: Gradle model only
+```
+
+Standalone 不构造假的 IDE project info。
+
+#### Jugg Server 与 MCP
+
+`JuggServer`、MCP 协议和多数 action 已在 `main`，但仍存在 plugin version、`Project.basePath`、设备和 IDEA run runner 等 host 语义。需要关联运行时元数据、项目目录和共享领域服务，不能仅依赖 platform mock。
+
+#### Custom Compiler
+
+`CustomConfigManager`、`CustomCompilerManager` 已在 `main`，主体可复用，但必须纳入 `JuggProjectRuntime` 生命周期：初始化、配置 reload、jar 下载、custom classpath、embedded APK 和 dispose 必须在 IDEA/standalone 行为一致。
+
+### 3.3 已基本可直接复用的能力
+
+- `JuggPathManager`
+- `CustomConfigManager`
+- `FileChangesHandler`
+- `DeployHistoryManager`
+- `JuggRunningTaskStatusManager`
+- Gradle project info reader/serializer
+- `JuggProjectInfo` / `ModuleInfo`
+- `JuggServerChooser`
+- `McpFetchCleaner`
+- `JuggCliAutoUpdater`
+- dependency diff 纯计算
+- Git manager
+- compile/deploy 数据模型
+
+`JuggCliAutoUpdater`、`McpFetchCleaner` 等全局或后台任务仍需确定唯一执行 owner，或使用全局 named lock 避免 IDEA 与 daemon 重复写入。
+
+### 3.4 项目运行域
+
+新增共享聚合对象：
+
+```text
+JuggProjectRuntime
+├── ProjectLifecycleManager
+├── ProjectModelManager
+├── CompileContextManager
+├── FileChangeManager
+├── DependencyChangeManager
+├── RuntimeSettingsManager
+├── CustomConfigManager
+├── CustomCompilerManager
+├── JuggTaskManager
+├── JuggCompileOrchestrator
+├── JuggDeployOrchestrator
+├── RuntimeMaintenanceManager
+├── RuntimeDiagnosticsManager
+└── McpToolInvoker
+```
+
+`JuggProjectRuntime` 负责领域对象生命周期和协作顺序，不包含 Swing、RunManager、IDE notification、IDE project service 等表现层能力。
+
+关键生命周期：
+
+```text
+initialize
+→ load settings/custom config
+→ recover project model and compile context
+→ recover APK/deploy/file state
+→ bind compiler/custom compiler/file rules
+→ start file monitor and background maintenance
+→ ready
+```
+
+project info 变化后的重新关联顺序保持现有语义：
+
+```text
+DeployFileManager
+→ JuggCompiler
+→ FileChangesHandler
+→ GitFileChangesDetector
+→ CustomCompilerManager
+```
+
+### 3.5 IDEA Manager 薄化
+
+`JuggManager` 最终只承担：
+
+- 创建 IDEA 运行环境并组装 `JuggProjectRuntime`。
+- 把 Gradle Sync、VFS、Run、Debug、AndroidTest 等 IDEA 事件转换为领域事件。
+- 把 IDEA UI 操作转成领域命令。
+- 关联 IDEA console、dialog、notification、Debug attach、SM Test Runner。
+- 随 IDEA project 生命周期初始化和销毁 runtime。
+
+建议组装入口：
+
+```text
+IdeaJuggRuntimeAssembler
+├── IdeaProjectModelReader
+├── IdeaFileChangeMonitor
+├── IdeaRuntimeSettingsRepository
+├── IdeaDependencyChangePolicy
+├── IdeaTaskPresentation
+├── IdeaApplyChangesExecutor
+└── JuggProjectRuntime
+```
+
+Standalone 对应：
+
+```text
+StandaloneJuggRuntimeAssembler
+├── GradleProjectModelReader
+├── WatchServiceFileChangeMonitor
+├── FileRuntimeSettingsRepository
+├── CliDependencyChangePolicy
+├── StandaloneTaskPresentation
+├── StandaloneApplyChangesExecutor
+└── JuggProjectRuntime
+```
+
+领域对象通过 assembler 完成构建和关联；业务代码不使用无业务语义的依赖获取器，也不扩展一个包揽所有能力的 `PlatformApi`。
+
+### 3.6 文件变化一致性
+
+共享 `FileChangeManager` 负责：
+
+- changed/deleted/rename 归一化。
+- `FileChangesHandler` 过滤。
+- `DeployFileManager` 状态更新。
+- build file 变化通知。
+- Git reconcile。
+- compile-on-save。
+- pending file-processing barrier。
+
+IDEA 使用 VFS monitor，standalone 使用 WatchService monitor；两者都必须保留 `beginFileProcessing/endFileProcessing` 的一致性屏障。WatchService overflow 后执行完整 Git reconcile。
+
+### 3.7 后台维护和全局资源 owner
+
+`RuntimeMaintenanceManager` 管理：
+
+- compiler warm-up。
+- project info 延迟复查。
+- deployment cache 预加载。
+- MCP fetch 清理。
+- CLI/skills 更新。
+- server update/custom config 检查。
+- standalone runtime/deployer resource 校验。
+
+双 Runtime 下，CLI/skills 更新、全局 cache、runtime resource 解压等操作必须指定唯一 owner 或使用全局 named lock。IDEA plugin hot update 保留在 IDEA；standalone distribution update 由 standalone runtime 独立处理。
+
+### 3.8 诊断和运维能力
+
+共享 `RuntimeDiagnosticsManager` 负责收集：
+
+- runtime/project/config 摘要。
+- compile/deploy 日志。
+- project info 和 dependency diff。
+- device/logcat 状态。
+- lock owner 和 job 状态。
+- runtime/deployer binary metadata。
+
+IDEA 的 report dialog 和 standalone 的 `jugg doctor/report` 只负责展示和触发。Clean/reset、custom server、update、skills install 等命令也应通过明确的领域服务执行。
+
+## 4. 锁与并发模型
+
+### 4.1 TaskRunnerManager 改造结论
 
 当前 `TaskRunnerManager` 使用 `synchronized(this)`：
 
@@ -99,7 +310,7 @@ TaskRunnerManager / StandaloneTaskRunner
 
 锁实现使用 JVM 进程内可重入锁 + NIO `FileChannel.tryLock/lock`。外层第一次进入时获取文件锁，嵌套调用只增加当前进程持有计数，避免相同任务链重复获取同一个文件锁。
 
-### 3.2 项目运行锁
+### 4.2 项目运行锁
 
 项目锁路径：
 
@@ -151,7 +362,7 @@ CLI 原有 `--if-compiling wait|interrupt` 继续保留：
 - `interrupt` 只允许中断同 runtime 管理的任务；不能直接终止另一个进程的任务。
 - 另一个 runtime 持锁时，`interrupt` 返回 owner 信息，由用户显式决定是否切换 runtime。
 
-### 3.3 设备 + package 锁
+### 4.3 设备 + package 锁
 
 首期不增加独立的 host 侧设备/package 文件锁。
 
@@ -175,7 +386,7 @@ CLI 原有 `--if-compiling wait|interrupt` 继续保留：
 ~/.jugg/locks/deploy/<deviceSerial>/<applicationId>.lock
 ```
 
-### 3.4 全局 deployment cache 锁
+### 4.4 全局 deployment cache 锁
 
 全局 deployment cache 不能只依赖项目锁。
 
@@ -210,7 +421,7 @@ project lock
 → global deployment cache lock
 ```
 
-### 3.5 Runtime 切换
+### 4.5 Runtime 切换
 
 项目锁释放后允许另一个 runtime 接管。接管时检查：
 
@@ -230,11 +441,11 @@ owner 变化后：
 4. deploy 前复用现有 recover 状态机校验 cache/history/device。
 5. 不因 owner 变化直接重装；只有现有 recover 判断失败时才 reinstall。
 
-## 4. Standalone Apply Changes Backend
+## 5. Standalone Apply Changes 实现
 
-### 4.1 固定 Quail 实现
+### 5.1 固定 Quail 实现
 
-Standalone backend 以以下安装目录作为实现和二进制事实来源：
+Standalone deployer 实现以以下安装目录作为实现和二进制事实来源：
 
 ```text
 /Applications/Android Studio Quail 1.app
@@ -262,11 +473,11 @@ Installer resources size: about 23 MB
 5. 只引入实际需要的第三方基础依赖，不携带完整 IDEA/Android Studio jar。
 6. installer、agent、app-server 直接复用 Quail 二进制产物。
 
-由于 standalone backend 运行在独立 daemon JVM，保留原包名不会与 IDEA 插件内的 Android Studio deployer class 发生 classloader 冲突。
+由于 standalone deployer 运行在独立 daemon JVM，保留原包名不会与 IDEA 插件内的 Android Studio deployer class 发生 classloader 冲突。
 
 首期不尝试把 Quail deployer 降级编译到 Java 11。Standalone 发行物使用 Java 21，避免因字节码版本、JDK API 和依赖版本差异引入额外适配。CI 发行物仍使用 Java 11，两者独立构建。
 
-### 4.2 二进制资源
+### 5.2 二进制资源
 
 资源按版本存放：
 
@@ -297,12 +508,12 @@ Standalone runtime 首次启动时将资源释放到：
 
 运行时必须校验 metadata 和文件 SHA-256，禁止 deployer Java 实现与 installer 二进制版本混用。
 
-### 4.3 接口拆分
+### 5.3 接口拆分
 
-现有 `IAsDeployerCompat` 同时承载 IDEA 集成和 deployer transport。新增平台中立接口：
+现有 `IAsDeployerCompat` 同时承载 IDEA 集成和 deployer transport。新增部署领域接口：
 
 ```text
-IApplyChangesBackend
+IApplyChangesExecutor
 ├── createInstallSession
 ├── install
 ├── parseApks
@@ -318,23 +529,23 @@ IApplyChangesBackend
 实现：
 
 ```text
-IdeaApplyChangesBackend
+IdeaApplyChangesExecutor
   → 委托现有 AsDeployerCompat
 
-StandaloneApplyChangesBackend
+StandaloneApplyChangesExecutor
   → 使用 :standalone_deployer 固定 Quail 实现
 ```
 
-IDEA 专属能力继续保留在 `IAsDeployerCompat` 或拆出的 `IIdeaDeployIntegration`：
+IDEA 专属能力继续保留在 `IAsDeployerCompat` 或拆出的 `IIdeaDeployEnvironment`：
 
 - IDE 设备选择。
 - IDE module info。
 - IDEA Run Configuration。
 - Debug attach。
-- Android Studio DeploymentService adapter。
+- Android Studio DeploymentService 桥接。
 - Android Studio 版本兼容分发。
 
-### 4.4 部署编排下沉
+### 5.4 部署编排下沉
 
 以下能力需要在替换 IDEA 类型后下沉为共享 Runtime Engine：
 
@@ -349,7 +560,7 @@ IDEA 专属能力继续保留在 `IAsDeployerCompat` 或拆出的 `IIdeaDeployIn
 保留在 IDEA 的内容：
 
 - IDEA 设备选择 UI。
-- `Project`/console/prompt adapter。
+- `Project`/console/prompt 关联。
 - Android Studio Debug attach。
 - AndroidTest SM Test Runner UI。
 
@@ -357,11 +568,11 @@ IDEA 专属能力继续保留在 `IAsDeployerCompat` 或拆出的 `IIdeaDeployIn
 
 ```text
 JuggDeployOrchestrator        // main，共享状态机和 lifecycle
-IdeaDeployRuntimeHost         // idea，IDE prompt/UI/device adapter
-StandaloneDeployRuntimeHost   // cmd_line/standalone，CLI log/device adapter
+IdeaDeployEnvironment         // idea，关联 IDE prompt/UI/device
+StandaloneDeployEnvironment   // cmd_line/standalone，关联 CLI log/device
 ```
 
-### 4.5 HOT RELOAD 边界
+### 5.5 HOT RELOAD 边界
 
 首期必须跑通完整 Quail Apply Changes：
 
@@ -379,7 +590,7 @@ Direct Overlay 继续作为 recover/非 ready 旁路，不能替代在线 HOT RE
 
 Quail `makeDebuggerRedefiners()` 当前为空映射，Standalone 不实现 IDEA debugger redefiner；普通 HOT RELOAD 使用 Quail 现代 deployer pipeline。
 
-## 5. platform_compat 边界
+## 6. platform_compat 边界
 
 保留 `platform_compat/base_api`，但不继续模拟完整 IDEA runtime。
 
@@ -397,9 +608,9 @@ Quail `makeDebuggerRedefiners()` 当前为空映射，Standalone 不实现 IDEA 
 
 禁止为了 standalone 给 mock `Project` 增加 RunManager、ServiceManager、VFS 等完整行为。
 
-## 6. Standalone Run Configuration
+## 7. Standalone Run Configuration
 
-### 6.1 配置来源
+### 7.1 配置来源
 
 `SuggestRunConfiguration` 已废弃，本方案不再复用。
 
@@ -415,7 +626,7 @@ Gradle project info 读取链增加默认 CLI Run Configuration 识别能力，�
 
 生成结果必须记录推断来源，不能静默把 fallback 结果描述为 IDE 配置。
 
-### 6.2 配置文件
+### 7.2 配置文件
 
 生成配置：
 
@@ -458,7 +669,7 @@ IDE 和 standalone 只写 `cli_run_config.json`，不覆盖 `.local.json`。
 
 远端编译密码、token 等 secret 不写入项目配置。需要时通过环境变量引用或现有安全配置读取。
 
-### 6.3 写入时机
+### 7.3 写入时机
 
 IDEA Runtime：
 
@@ -476,7 +687,7 @@ CI Runtime：
 - 默认不写该配置，保持现有 CI 产物语义。
 - 如未来需要复用，必须通过显式参数开启。
 
-### 6.4 跨平台命令
+### 7.4 跨平台命令
 
 配置保留逻辑 Gradle command/task；执行前按宿主系统解析 wrapper：
 
@@ -485,9 +696,9 @@ CI Runtime：
 
 禁止依赖 `/bin/bash -c` 执行配置命令。
 
-## 7. Standalone Runtime
+## 8. Standalone Runtime
 
-### 7.1 daemon
+### 8.1 daemon
 
 Standalone daemon 负责：
 
@@ -511,7 +722,7 @@ capabilities
 
 当两种 runtime 同时存在时，CLI 根据 `projectDir` 查询已初始化项目；同一项目同时存在时，默认使用当前持有项目锁或最近成功运行的 runtime，并允许显式指定 runtime。
 
-### 7.2 设备层
+### 8.2 设备层
 
 Standalone 使用真实 ddmlib 初始化 `AndroidDebugBridge`，实现：
 
@@ -523,7 +734,7 @@ Standalone 使用真实 ddmlib 初始化 `AndroidDebugBridge`，实现：
 
 生产实现统一使用 `ProcessBuilder` / ddmlib API，不复用 test 中依赖 `/bin/bash` 的 `CmdAdb`。
 
-### 7.3 Windows
+### 8.3 Windows
 
 设计阶段同时覆盖：
 
@@ -536,27 +747,132 @@ Standalone 使用真实 ddmlib 初始化 `AndroidDebugBridge`，实现：
 
 Windows 独立验收，不以 macOS/Linux 通过代替。
 
-## 8. 分阶段实施步骤
+## 9. 分会话实施步骤
 
-### Step 1：锁框架与 TaskRunnerManager 改造
+每个 Step 独立会话实施、验证和提交。除明确说明外，不在同一会话同时推进相邻 Step。实际修改业务代码前，必须先按 `06_testing.md` 确定 L1/L2/L3 测试路径并写失败测试。
 
-目标：双 Runtime 具备安全共享文件系统的基础。
+### Step 1：建立项目运行域，薄化 JuggManager
+
+目标：先完成行为保持型架构调整，不接 standalone，不修改现有用户行为。
 
 任务：
 
-- 在 `main` 新增跨进程 named lock 框架。
-- `TaskRunnerManager` 将 `synchronized(this)` 替换为项目锁。
-- 实现项目锁诊断元数据和 `PROJECT_RUNTIME_BUSY`。
-- `JuggDeploymentCacheStore` 使用全局 cache 锁、reload-before-write 和原子替换。
-- 定义 lock order。
+- 在 `main` 建立 `JuggProjectRuntime` 和项目生命周期状态。
+- 建立 `IdeaJuggRuntimeAssembler`，组装 IDEA 运行环境和共享领域对象。
+- `JuggManager` 改为薄 facade，只保留 IDEA 事件转换、UI 关联和生命周期转发。
+- 保持 `IJuggManagerCaller` 对外行为兼容。
+- 将 `recoverDeployContext`、组件重新关联顺序和 dispose 生命周期收口到 `JuggProjectRuntime`。
+- 暂不移动 compile/deploy 具体实现，先建立清晰领域边界。
 
 验证性任务：
 
+- IDEA 项目初始化、历史恢复、Run、关闭行为与改造前一致。
+- 现有 MCP project routing 不变。
+- 现有 IDEA 顶层 Flow 定向回归。
+
+### Step 2：任务域、项目锁和后台任务
+
+目标：让 IDEA 与后续 standalone 使用同一任务串行、锁和后台任务语义。
+
+任务：
+
+- 在 `main` 建立 `JuggTaskManager`、`ProjectExecutionLock` 和全局 named lock。
+- IDEA 的 `TaskRunnerManager` 只负责 `Task.Backgroundable`、ProgressIndicator 和 EDT 表现，实际任务交给 `JuggTaskManager`。
+- 项目写任务使用跨进程项目锁。
+- `JuggDeploymentCacheStore` 使用全局 cache 锁、reload-before-write 和原子替换。
+- 建立 `RuntimeMaintenanceManager`，统一管理 warm-up、延迟复查、MCP fetch cleanup 等后台任务。
+- 定义锁顺序、任务取消和 dispose 语义。
+
+验证性任务：
+
+- IDEA Task UI 和任务串行行为不变。
 - 两个 JVM 进程竞争同一项目锁，最多一个进入写事务。
 - owner 正常退出和异常退出后锁均可释放。
 - 不同项目并发写 global deployment cache 不丢 entry。
 
-### Step 2：CLI Run Configuration
+### Step 3：项目模型与 Compile Context 下沉
+
+目标：让共享 Runtime 可以从 IDEA model 或纯 Gradle model 建立相同领域项目模型。
+
+任务：
+
+- 拆分 `CompileContextManager` 的领域核心与 IDEA model 读取逻辑。
+- 建立 `ProjectModelManager`。
+- IDEA 使用 IDE model + Gradle model；standalone 模式支持 Gradle model only。
+- 下沉 `GradleProjectInfoLocalFetchManager` 的 Gradle 调度主体。
+- 下沉 `CopyGeneratedSourceHelper`。
+- 明确 project info fingerprint、generation、恢复和重新关联顺序。
+
+验证性任务：
+
+- IDEA Sync 后 project info、classpath、module/APK 归属不变。
+- Gradle model only 可建立有效 `BaseCompileContext`。
+- project info 变化后各组件按既定顺序重新关联。
+- remote generated source 回写行为不变。
+
+### Step 4：文件变化与依赖变化领域下沉
+
+目标：统一 IDEA VFS 和 standalone WatchService 的变化处理语义。
+
+任务：
+
+- 建立共享 `FileChangeManager`。
+- 下沉 `GitFileChangesDetector`。
+- IDEA 保留 `IdeaFileChangeMonitor`，将 VFS 事件交给共享 manager。
+- 新增 `WatchServiceFileChangeMonitor`，处理 rename/delete/overflow/debounce。
+- 保留 pending file-processing barrier。
+- 将 dependency change 确认从 `PlatformApi` 收口为 `IDependencyChangePolicy`。
+- IDEA 和 CLI 分别实现对应领域策略。
+
+验证性任务：
+
+- VFS、Git checkout/pull、外部编辑、rename/delete 结果一致。
+- compile 不会抢在 pending file event 落库前执行。
+- WatchService overflow 后 Git reconcile 能恢复完整状态。
+- build/dependency 变化在 IDEA 与 CLI 策略下得到确定结果。
+
+### Step 5：运行设置、Custom Config 与扩展能力
+
+目标：让两个 Runtime 使用一致的 effective settings、文件规则、classpath 和 custom compiler。
+
+任务：
+
+- 定义 `RuntimeSettings` 领域模型和 `IRuntimeSettingsRepository`。
+- IDEA 设置仓储读取现有 `PropertiesComponent`，同时写入共享 effective settings。
+- standalone 设置仓储读取文件配置。
+- 将 `JuggSettings` 调整为领域设置 facade，逐步移除直接全局存取。
+- 将 `CustomConfigManager`、`CustomCompilerManager` 纳入 `JuggProjectRuntime` 生命周期。
+- 对齐 server custom config、build file rules、ignored rules、module custom classpath、embedded APK。
+- 明确双 Runtime 的配置更新和冲突规则。
+
+验证性任务：
+
+- IDEA 设置读取和 UI 修改行为不变。
+- IDEA 写入后 standalone 可读取相同 effective settings。
+- custom compiler、embedded APK 和 custom classpath 行为一致。
+- secret 不写入共享项目配置。
+
+### Step 6：Server、诊断、更新和运维能力
+
+目标：补齐非 compile/deploy 的 runtime control plane。
+
+任务：
+
+- `JuggServer` 使用 standalone runtime metadata，不依赖 plugin metadata。
+- 下沉可共享的 update check、下载、校验逻辑；IDEA plugin install/restart 保留在 IDEA。
+- 建立 `RuntimeDiagnosticsManager`。
+- 建立 clean/reset、custom server、doctor/report 等领域命令。
+- 明确 CLI/skills auto update 唯一 owner 和全局锁。
+- 明确 MCP fetch、runtime resources、deployer resources 的清理和版本策略。
+
+验证性任务：
+
+- IDEA update/report 行为不变。
+- standalone runtime metadata、doctor/report 内容完整。
+- 双 Runtime 不会并发写坏 CLI、skills 或 runtime resources。
+- server 下发 custom config 后两个 Runtime 行为一致。
+
+### Step 7：CLI Run Configuration
 
 目标：CLI 无需 IDEA Run Configuration 即可获得稳定 build profile。
 
@@ -573,9 +889,9 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 
 - 单 app、非 `app` module、多 application module、custom variant 场景生成结果稳定。
 - IDE Gradle build 后 CLI 可直接读取并执行同一 task/APK output。
-- `.local.json` 不被 IDE 覆盖。
+- `.local.json` 不被 IDEA 覆盖。
 
-### Step 3：模块和进程骨架
+### Step 8：Standalone 模块和进程骨架
 
 目标：建立 standalone daemon，但暂不完成部署。
 
@@ -583,7 +899,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 
 - `cmd_line` 拆分为 `:cmd_line:ci` 和 `:cmd_line:standalone`，分别使用 Java 11 和 Java 21。
 - 保留现有 `:cmd_line` CI 构建任务/产物兼容入口。
-- 新增 daemon、project registry、runtime holder。
+- 新增 daemon、project registry 和 `StandaloneJuggRuntimeAssembler`。
 - 实现 standalone MCP runtime。
 - `IMcpRuntime` 增加 `projectDir`，MCP action 不再读取 `Project.basePath`。
 - 保持 CI 命令和分发兼容。
@@ -594,9 +910,9 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 - `version`、`status`、`list-projects` 正常。
 - IDEA runtime 和 standalone runtime 可同时启动。
 
-### Step 4：反编译 Quail Standalone Deployer
+### Step 9：反编译 Quail Standalone Deployer
 
-目标：一次完成最小、可发行的 standalone deployer backend，不依赖完整 Android Studio jar。
+目标：一次完成最小、可发行的 standalone deployer 实现，不依赖完整 Android Studio jar。
 
 任务：
 
@@ -605,7 +921,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 - 引入最小 protobuf、ddmlib、utility 依赖。
 - 打包 installer/agent/app-server 二进制。
 - 生成 metadata 和 SHA-256 校验。
-- 实现 `StandaloneApplyChangesBackend`。
+- 实现 `StandaloneApplyChangesExecutor`。
 
 验证性任务：
 
@@ -614,20 +930,20 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 - 直接调用 `OptimisticApkSwapper` 完成 class HOT RELOAD。
 - 资源 HOT RELOAD 生效。
 - App 进程和 Activity 不发生非预期重启。
-- installer/Java backend 版本不匹配时启动失败并给出明确错误。
+- installer/Java 实现版本不匹配时启动失败并给出明确错误。
 
-### Step 5：部署编排下沉
+### Step 10：部署编排下沉
 
 目标：IDEA 与 standalone 复用同一 deploy lifecycle。
 
 任务：
 
-- 引入 `IApplyChangesBackend`。
+- 引入 `IApplyChangesExecutor`。
 - 下沉 `JuggDeployTask`、`JuggDeployer`、LaunchContext 核心。
 - 下沉 recover、retry、Direct Overlay lifecycle。
-- 拆分 `JuggDeployOrchestrator` 和两个 runtime host。
-- IDEA adapter 委托现有 `AsDeployerCompat`。
-- standalone adapter 委托 Quail backend。
+- 建立 `JuggDeployOrchestrator` 和两个部署运行环境。
+- IDEA 部署环境关联现有 `AsDeployerCompat`。
+- standalone 部署环境关联 Quail 实现。
 
 验证性任务：
 
@@ -635,7 +951,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 - Standalone install、HOT RELOAD、HOT FIX、recover、retry 通过。
 - 同一项目在 IDEA/standalone 间切换后可恢复。
 
-### Step 6：编译与部署完整串联
+### Step 11：编译与部署完整串联
 
 目标：实现完整 CLI 用户链路。
 
@@ -656,7 +972,7 @@ jugg init
 - compile job、取消、轮询和日志。
 - Runtime 切换 generation 检查。
 
-### Step 7：三平台发行和验收
+### Step 12：三平台发行和验收
 
 任务：
 
@@ -668,23 +984,29 @@ jugg init
 - runtime update 和版本兼容。
 - installer 资源完整性校验。
 
-## 9. 测试策略
+## 10. 测试策略
 
 实现必须按 TDD 顺序推进。
 
 ### L1
 
-- CLI Run Configuration 推断、merge、序列化。
+- Runtime settings、CLI Run Configuration 推断、merge、序列化。
+- Project model fingerprint/generation。
+- File change 归一化和 dependency decision policy。
 - lock metadata 和 lock key。
 - deployment cache 原子读写。
 - Quail deployer 数据模型和协议解析中的确定性逻辑。
 
 ### L2
 
+- `JuggProjectRuntime` 初始化、恢复、重新关联和销毁协作。
+- IDEA project model 与 Gradle-only model 的等价契约。
+- VFS/WatchService/Git reconcile 协作。
+- settings/custom config/custom compiler 生命周期。
 - 两个进程竞争项目锁。
 - 不同项目并发写 global deployment cache。
 - Standalone runtime、project registry、MCP job 协作。
-- IDEA/standalone Apply Changes backend 契约一致性。
+- IDEA/standalone Apply Changes executor 契约一致性。
 - 不增加设备/package 锁时的并发部署收敛验证。
 
 ### L3
@@ -702,21 +1024,23 @@ jugg init
 
 CI 目录迁移必须定向回归现有 `CmdLineTest`，证明 CI 参数和产物语义不变。
 
-## 10. 首期不做
+## 11. 首期不做
 
 - AS 插件改为 daemon 薄客户端。
 - IDEA Debug attach 迁移到 standalone。
 - 用 mock `Project` 模拟完整 IntelliJ service container。
-- 支持多版本 standalone deployer backend。
+- 支持多版本 standalone deployer 实现。
 - 用 Direct Overlay 替代完整 HOT RELOAD。
 - 自动展示和选择多个 Run Configuration 候选。
 
-## 11. 完成标准
+## 12. 完成标准
 
 首期完成必须同时满足：
 
 - 不启动 IDEA 时，Python `jugg deploy` 可完成真实 HOT RELOAD。
 - IDEA 和 standalone 使用共享 deploy 编排，不存在两套 recover/retry 实现。
+- `JuggManager` 只保留 IDEA 环境组装、事件转换和表现层关联，不再持有完整运行域业务编排。
+- IDEA 与 standalone 使用同一个 `JuggProjectRuntime` 生命周期和领域服务。
 - IDEA 和 standalone 不会并发写坏同一项目状态。
 - 不同项目并发写 global deployment cache 不丢数据。
 - IDEA/standalone Runtime 切换后状态可恢复。
