@@ -115,7 +115,7 @@ ${projectRoot}/.gradle/jugg/
 
 **已知根因**（已修复，供参考）：
 - `FileChangesDetector.afterVfsChange()` 在 EDT 调用 `DeployFileManager.addChangedFile()`，与编译线程持有的 `@Synchronized` 锁竞争，导致 EDT 阻塞 ~150ms
-- 修复：EDT 调用时通过 `IBackgroundTaskRunner.runBackgroundSafe()` 异步派发
+- 修复：EDT 调用时通过 `TaskRunnerManager.runBackgroundSafe()` 异步派发
 - `processFileChanged()` 与 `tryCreateRunConfigurations()` 曾共同使用 `JuggManager` 实例锁；后台目录扫描长时间持锁时，Gradle Sync 的 EDT 回调会阻塞在 Run Configuration 创建入口
 - 修复：文件变化处理与 Run Configuration 创建使用两个独立锁，只保留各自业务域内的串行语义
 - VFS 目录事件可能包含工程无关的全局目录，旧实现会先递归 `listFiles()`，再逐文件判断是否属于 Jugg 变更范围；多工程并行时会重复扫描并长时间占用文件变化处理锁
@@ -125,8 +125,8 @@ ${projectRoot}/.gradle/jugg/
 ```
 idea/.../project/FileChangesDetector.kt       # VFS 事件监听（afterVfsChange 在 EDT）
 main/.../deploy/DeployFileManager.kt          # addChangedFile / removeChangedFile
-main/.../project/BackgroundTaskRunner.kt      # IBackgroundTaskRunner.isOnEdt
-idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationManager.isDispatchThread）
+main/.../project/TaskRunnerManager.kt         # 后台派发、isOnEdt、项目/全局锁和 Job 生命周期
+idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThread 与 IDEA Task 执行/进度
 ```
 
 ### 4.1.1 启动后长时间卡死（`postInit / InitialVfsRefresh / clangd / ConstRef` 竞争）

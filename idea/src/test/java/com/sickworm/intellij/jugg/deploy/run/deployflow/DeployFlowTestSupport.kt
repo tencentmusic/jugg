@@ -20,7 +20,6 @@ import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -138,7 +137,7 @@ internal object DeployFlowTestSupport {
             deployHistoryManager = deployHistoryManager,
             deployStateManager = deployStateManager,
             deployRunHost = recoverRunHost,
-            deploymentService = JuggDeploymentService,
+            deploymentService = DeployFlowMockBackend.deploymentService,
             deviceAdbFactory = deviceAdbFactory,
             logger = ideaLogger,
             ideDeployStateHelper = ideDeployStateHelper,
@@ -156,7 +155,7 @@ internal object DeployFlowTestSupport {
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = taskRunnerManager,
             logger = ideaLogger,
-            deploymentService = JuggDeploymentService,
+            deploymentService = DeployFlowMockBackend.deploymentService,
             deviceAdbFactory = deviceAdbFactory,
             installPathProvider = installPathProvider,
             asDeployerCompat = asDeployerCompat,

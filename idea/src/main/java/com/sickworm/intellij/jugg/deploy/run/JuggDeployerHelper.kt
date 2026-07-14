@@ -74,7 +74,7 @@ class JuggDeployerHelper(
             deployFileManager.updateApks(apks)
         },
     ),
-    private val deploymentService: IJuggDeployerDeploymentService = JuggDeploymentService,
+    private val deploymentService: IJuggDeployerDeploymentService,
     private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
     private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { device, ideaLogger ->
         IdeaDeviceAdb(device, ideaLogger)

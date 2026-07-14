@@ -4,7 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import kotlinx.coroutines.Job
 
 /**
@@ -14,7 +14,7 @@ import kotlinx.coroutines.Job
 class GitChangesCompileChecker(
     private val gitFileChangesDetector: GitFileChangesDetector,
     private val deployFileManager: DeployFileManager,
-    private val backgroundTaskRunner: IBackgroundTaskRunner,
+    private val taskRunnerManager: TaskRunnerManager,
     private val logger: Logger,
 ) {
 
@@ -49,7 +49,7 @@ class GitChangesCompileChecker(
 
     fun checkUndetectedFilesAsync(compilingFiles: List<ChangedFile>) {
         val check = AsyncCheck()
-        check.job = backgroundTaskRunner.runBackgroundSafe("Check Undetected Files") {
+        check.job = taskRunnerManager.runBackgroundSafe("Check Undetected Files") {
             check.result = checkUndetectedFiles(compilingFiles)
         }
         asyncCheck = check

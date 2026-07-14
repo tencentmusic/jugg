@@ -21,6 +21,12 @@ class JuggPathManager(
     val databaseDir = File(juggRootDir, "database")
     val logDir = File(juggRootDir, "log")
     val mcpFetchDir = File(juggRootDir, "mcp_fetch")
+    val runtimeLockFile = File(juggRootDir, "runtime.lock")
+    val runtimeLockOwnerFile = File(juggRootDir, "runtime.lock.owner.json")
+
+    val deploymentCacheDir = File(juggRootDir, "deploy_cache")
+    val deploymentCacheDbFile = File(deploymentCacheDir, ".deploy_cache.db")
+    val deploymentCacheTempFile = File(deploymentCacheDir, ".deploy_cache.db.tmp")
 
     val tmpDir = File(juggRootDir, "tmp")
     val diagnosticsDir = File(tmpDir, "diagnostics")

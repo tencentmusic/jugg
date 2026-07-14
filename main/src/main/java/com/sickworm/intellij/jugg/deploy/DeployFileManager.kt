@@ -20,8 +20,8 @@ import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
@@ -30,7 +30,7 @@ import java.io.File
  */
 class DeployFileManager(
     private val pathManager: JuggPathManager,
-    private var backgroundTaskRunner: IBackgroundTaskRunner,
+    private val taskRunnerManager: TaskRunnerManager,
     private val logger: Logger,
 ) {
     private val isConstRefTasksEnabled: Boolean
@@ -48,7 +48,7 @@ class DeployFileManager(
         dbFile = pathManager.constRefSharedDbFile,
         repoFingerprintDbFile = pathManager.repoFingerprintDbFile,
         logger = logger.getInstance("ConstRefEngine"),
-        backgroundTaskRunner = backgroundTaskRunner,
+        taskRunnerManager = taskRunnerManager,
     )
 
     private val constRefEffectProvider = object : ConstRefEffectProvider {
@@ -114,7 +114,7 @@ class DeployFileManager(
         logger.debug("add changed files, size: ${files.size}, paths: $files")
         val newFiles = stateTracker.addChangedFiles(files)
 
-        backgroundTaskRunner.runBackgroundSafe("DeployFileManager#updateSourceFiles") {
+        taskRunnerManager.runBackgroundSafe("DeployFileManager#updateSourceFiles") {
             sourceFileManager.updateFiles(newFiles, emptyList())
         }
         files.filter {
@@ -136,7 +136,7 @@ class DeployFileManager(
     fun removeChangedFile(files: List<File>) {
         stateTracker.removeChangedFiles(files)
 
-        backgroundTaskRunner.runBackgroundSafe("DeployFileManager#removeSourceFiles") {
+        taskRunnerManager.runBackgroundSafe("DeployFileManager#removeSourceFiles") {
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
         }
         files.forEach {

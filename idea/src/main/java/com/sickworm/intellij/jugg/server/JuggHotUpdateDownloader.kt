@@ -13,6 +13,8 @@ import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.HotUpdateLoadManifest
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -25,7 +27,11 @@ import javax.swing.SwingUtilities
  * Download hot update jars from Jugg server.
  * Jugg has one isolate instance for each project, but only one instance will do the download work.
  */
-class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Logger) {
+class JuggHotUpdateDownloader(
+    private val juggServer: JuggServer,
+    private val taskRunnerManager: TaskRunnerManager,
+    loggerArg: Logger,
+) {
 
     private val logger = loggerArg.getInstance("JuggHotUpdateDownloader")
     private val hotUpdateDataFile = File(JuggHotUpdateManager.hotUpdateDir, "hot_update_data.json")
@@ -36,9 +42,39 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         get() = PluginManagerCore.getPlugin(PluginId.getId("com.sickworm.intellij.jugg"))
 
     fun init(project: Project) {
+        publishEmbeddedIfNeeded()
         start()
-        notifyHotUpdateIfNeeded(project)
-        notifyInstallUpdateIfNeeded(project)
+        processHotUpdateNotification(project)
+        taskRunnerManager.runGlobalWriteLocked("Process installed update notification") {
+            notifyInstallUpdateIfNeeded(project)
+        }
+    }
+
+    private fun processHotUpdateNotification(project: Project) {
+        taskRunnerManager.runGlobalWriteLocked("Process hot update notification") {
+            notifyHotUpdateIfNeeded(project)
+            val referencedJarNames = JuggHotUpdateManager.activeLoadManifest
+                ?.jarFileNames
+                ?.toSet()
+                .orEmpty()
+            JuggHotUpdateManager.cleanupExpiredJars(
+                JuggHotUpdateManager.storageDir,
+                referencedJarNames,
+                System.currentTimeMillis(),
+            ).forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
+        }
+    }
+
+    private fun publishEmbeddedIfNeeded() {
+        if (!JuggHotUpdateManager.hotUpdateDir.exists()) {
+            return
+        }
+        val embeddedLibDir = ideaPluginDescriptor?.pluginPath?.resolve("lib")?.toFile() ?: return
+        taskRunnerManager.runGlobalWriteLocked("Publish embedded hot update") {
+            if (JuggHotUpdateManager.publishEmbeddedIfNeeded(embeddedLibDir)) {
+                logEvent("publish embedded hot update: ${JuggHotUpdateManager.currentEmbeddedBuildTime}")
+            }
+        }
     }
 
     private fun start() {
@@ -131,8 +167,13 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         return hotUpdateData
     }
 
-    @Synchronized
     fun downloadAndInstallUpdate(hotUpdateData: HotUpdateData) {
+        taskRunnerManager.runGlobalWriteLocked("Download hot update") {
+            downloadAndInstallUpdateLocked(hotUpdateData)
+        }
+    }
+
+    private fun downloadAndInstallUpdateLocked(hotUpdateData: HotUpdateData) {
         // 0. check has been installed and not reboot yet
         if (isUpdatedThisRuntime) {
             logEvent("downloadHotUpdate isUpdatedThisRuntime=true, just mark it success")
@@ -141,6 +182,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
 
         // 1. compare with current hot update data
         logEvent("downloadHotUpdate start, target dir: ${JuggHotUpdateManager.storageDir}")
+        JuggHotUpdateManager.storageDir.mkdirs()
         var currentHotUpdateData: HotUpdateData? = null
         if (hotUpdateDataFile.exists()) {
             try {
@@ -196,16 +238,17 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
 
         val tmpHotUpdateDataFile = File("${hotUpdateDataFile.path}.tmp")
         tmpHotUpdateDataFile.writeText(Gson().toJson(hotUpdateData))
-        hotUpdateDataFile.delete()
-        tmpHotUpdateDataFile.renameTo(hotUpdateDataFile)
+        JuggHotUpdateManager.replaceFile(tmpHotUpdateDataFile, hotUpdateDataFile)
 
         if (hotUpdateData.isNeedReinstall) {
-            // is not compatible with hot update, do not update loadListFile, just installPlugin
+            // is not compatible with hot update, do not update load manifest, just installPlugin
         } else {
-            JuggHotUpdateManager.loadListFile.delete()
-            val tmpLoadListFile = File("${JuggHotUpdateManager.loadListFile.path}.tmp")
-            tmpLoadListFile.writeText(hotUpdateData.uniqueNames.joinToString("\n"))
-            tmpLoadListFile.renameTo(JuggHotUpdateManager.loadListFile)
+            JuggHotUpdateManager.publishLoadManifest(
+                HotUpdateLoadManifest(
+                    JuggHotUpdateManager.currentEmbeddedBuildTime,
+                    hotUpdateData.uniqueNames,
+                )
+            )
         }
 
         // 5. zip and install, also install it if is hot update
@@ -282,8 +325,8 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         if (!isNeedInstallOneTime) {
             return false
         }
-        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }.toSet()
-        val jarFiles = jarFileNames.map { jarFileName ->
+        val loadManifest = JuggHotUpdateManager.activeLoadManifest ?: return false
+        val jarFiles = loadManifest.jarFileNames.map { jarFileName ->
             val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
             if (!jarFile.exists()) {
                 logEvent("installPluginForLowerVersion hot update jar file not found: $jarFile, exit")
@@ -293,12 +336,17 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         }
 
         juggServer.launchSafe {
-            val isSuccess = installPlugin(jarFiles)
+            val isSuccess = taskRunnerManager.runGlobalWriteLocked("Install hot update for legacy plugin") {
+                installPlugin(jarFiles).also { success ->
+                    if (success) {
+                        isUpdatedThisRuntime = true
+                    }
+                }
+            }
             logEvent("installPluginForLowerVersion isSuccess $isSuccess")
             if (isSuccess) {
-                isUpdatedThisRuntime = true
                 SwingUtilities.invokeLater {
-                    notifyHotUpdateIfNeeded(project)
+                    processHotUpdateNotification(project)
                 }
             }
         }

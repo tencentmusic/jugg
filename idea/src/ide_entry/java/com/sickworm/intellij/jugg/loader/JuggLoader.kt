@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.*
+import com.sickworm.intellij.jugg.project.HotUpdateLoadManifest
 import java.io.File
 import java.lang.reflect.Proxy
 
@@ -35,12 +36,9 @@ class JuggLoader(val project: Project, val projectDir: File) {
     private fun createInstance(project: Project, projectDir: File) {
         val classLoader: ClassLoader
         val creatorName: String
-        if (JuggHotUpdateManager.isEmbeddedUpdated) {
-            JuggHotUpdateManager.clearHotUpdate()
-            classLoader = getOriginClassLoader()
-            creatorName = "embedded_updated"
-        } else if (JuggHotUpdateManager.isHotUpdateAvailable) {
-            classLoader = getHotUpdateClassLoader()
+        val loadManifest = JuggHotUpdateManager.activeLoadManifest
+        if (loadManifest != null) {
+            classLoader = getHotUpdateClassLoader(loadManifest)
             creatorName = "hot_update"
         } else {
             classLoader = getOriginClassLoader()
@@ -71,26 +69,26 @@ class JuggLoader(val project: Project, val projectDir: File) {
         } as IJuggManagerCaller
     }
 
-    private fun getHotUpdateClassLoader(): ClassLoader {
+    private fun getHotUpdateClassLoader(loadManifest: HotUpdateLoadManifest): ClassLoader {
+        val currentCacheKey = getCacheKey(loadManifest)
         if (cacheHotUpdateClassLoader != null) {
-            if (cacheKey == getCacheKey()) {
+            if (cacheKey == currentCacheKey) {
                 return cacheHotUpdateClassLoader!!
             }
         }
 
-        cacheHotUpdateClassLoader = createHotUpdateClassLoader()
-        cacheKey = getCacheKey()
+        cacheHotUpdateClassLoader = createHotUpdateClassLoader(loadManifest)
+        cacheKey = currentCacheKey
         return cacheHotUpdateClassLoader!!
     }
 
-    private fun createHotUpdateClassLoader(): ClassLoader {
-        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }.toSet()
-        clearOutdatedJarBeforeFirstTimeLoad(jarFileNames)
-        val jarFiles = jarFileNames.map { jarFileName ->
+    private fun createHotUpdateClassLoader(loadManifest: HotUpdateLoadManifest): ClassLoader {
+        val jarFiles = loadManifest.jarFileNames.map { jarFileName ->
             val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
             if (!jarFile.exists()) {
                 throw IllegalStateException("Jugg hot update jar file not found: $jarFile")
             }
+            jarFile.setLastModified(System.currentTimeMillis())
             return@map jarFile
         }
 
@@ -135,26 +133,11 @@ class JuggLoader(val project: Project, val projectDir: File) {
             "com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec",
         )
 
-        private var isFirstTimeLoad = true
-
-        @Synchronized
-        private fun clearOutdatedJarBeforeFirstTimeLoad(jarFileNames: Set<String>) {
-            if (!isFirstTimeLoad) {
-                return
-            }
-            isFirstTimeLoad = false
-            JuggHotUpdateManager.storageDir.listFiles()?.forEach {
-                if (!jarFileNames.contains(it.name)) {
-                    it.delete()
-                }
-            }
-        }
-
         private var cacheKey: String? = null
         private var cacheHotUpdateClassLoader: ClassLoader? = null
 
-        private fun getCacheKey(): String {
-            return JuggHotUpdateManager.loadListFile.lastModified().toString()
+        private fun getCacheKey(loadManifest: HotUpdateLoadManifest): String {
+            return "${loadManifest.baseEmbeddedBuildTime}:${loadManifest.jarFileNames.joinToString(",")}"
         }
     }
 }

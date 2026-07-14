@@ -80,7 +80,7 @@ Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 
 |---|---|---|
 | 项目 Runtime 生命周期 | `JuggManager` | 当前由 IDEA 协调初始化、恢复、关联和释放；先下沉项目模型、文件变化、配置与编译部署领域，具备真实复用对象后再建立具体 `JuggProjectRuntime` 聚合 |
 | IDEA 项目注册与 MCP 路由 | `JuggInitializer`、`JuggManagerCreator` | IDEA 保留项目入口；standalone 使用独立 registry |
-| 任务调度、进度、串行和上报 | `TaskRunnerManager` | `TaskRunnerManager` 直接下沉 `main`，保留共享串行/取消/上报语义；IDEA 以 adapter 提供 `Task.Backgroundable`、进度与 EDT 表现 |
+| 任务调度、进度、串行和上报 | `TaskRunnerManager` | `TaskRunnerManager` 直接下沉 `main`，保留共享串行/取消/上报语义；IDEA 仅以 adapter 提供 `Task.Backgroundable`、进度与 EDT 表现，事件上报直接使用共享 `JuggServer` |
 | Compile Context 管理 | `CompileContextManager` | 拆出共享 `CompileContextManager` 核心和 IDEA project model 读取逻辑 |
 | Gradle project info 更新调度 | `GradleProjectInfoLocalFetchManager` | 下沉 Gradle 调度主体，移除 IDEA `Project` 和 `TaskRunnerManager` 依赖 |
 | IDEA VFS 监听 | `FileChangesDetector` | 保留 IDEA 实现；standalone 使用 WatchService |
@@ -100,7 +100,7 @@ Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 
 
 新版统一使用 `~/.jugg/settings.json`。首次新版 IDEA 启动时读取旧 `PropertiesComponent`：仅回填 JSON 中缺失字段，JSON 已有字段永远优先。standalone 当前只读取已存在的 JSON；文件不存在时使用内存默认值，不创建该文件。
 
-JSON 写入使用全局 settings named lock、临时文件和原子替换，避免 IDEA 的迁移或后续设置修改产生半写入文件。
+JSON 写入使用统一全局写锁、临时文件和原子替换，避免 IDEA 的迁移或后续设置修改产生半写入文件。
 
 下沉后使用领域仓储：
 
@@ -159,7 +159,7 @@ Standalone 不构造假的 IDE project info。
 - Git manager
 - compile/deploy 数据模型
 
-`JuggCliAutoUpdater`、`McpFetchCleaner` 等全局或后台任务仍需确定唯一执行 owner，或使用全局 named lock 避免 IDEA 与 daemon 重复写入。
+`JuggCliAutoUpdater` 等全局写任务必须进入统一全局写锁；`McpFetchCleaner` 只清理项目级目录，继续作为普通后台任务执行。
 
 ### 3.4 项目运行域
 
@@ -180,7 +180,6 @@ JuggProjectRuntime
 ├── JuggCompileOrchestrator
 ├── JuggDeployOrchestrator
 ├── IDeployStateManager
-├── RuntimeMaintenanceManager
 ├── RuntimeDiagnosticsManager
 └── McpToolInvoker
 ```
@@ -251,7 +250,7 @@ StandaloneJuggRuntimeAssembler
 ├── WatchServiceFileChangeMonitor
 ├── FileRuntimeSettingsRepository
 ├── CliDependencyChangePolicy
-├── StandaloneTaskPresentation
+├── StandaloneHostTaskExecutor
 ├── StandaloneApplyChangesExecutor
 └── JuggProjectRuntime
 ```
@@ -272,9 +271,11 @@ StandaloneJuggRuntimeAssembler
 
 IDEA 使用 VFS monitor，standalone 使用 WatchService monitor；两者都必须保留 `beginFileProcessing/endFileProcessing` 的一致性屏障。WatchService overflow 后执行完整 Git reconcile。
 
-### 3.7 后台维护和全局资源 owner
+### 3.7 后台任务和全局资源 owner
 
-`RuntimeMaintenanceManager` 管理：
+`TaskRunnerManager` 统一管理无锁、项目锁和固定全局写锁任务，并跟踪 Job 以便 Runtime dispose 时取消尚未执行的任务。当前任务包括：
+
+后台任务只保留 `runBackgroundSafe()`：`isProjectWrite`、`isGlobalWrite` 默认均为 `false`，普通后台任务不获取写锁；两者互斥，分别选择项目锁或统一全局写锁。`runTaskSafe()` 使用相同的锁选择语义；其默认仍为项目写任务，设置 `isGlobalWrite=true` 时会自动关闭项目锁与增量编译阻塞默认值。业务调用不再传递全局锁名字，也不需要在 action 内手工组合锁。
 
 - compiler warm-up。
 - project info 延迟复查。
@@ -284,7 +285,9 @@ IDEA 使用 VFS monitor，standalone 使用 WatchService monitor；两者都必�
 - server update/custom config 检查。
 - standalone runtime/deployer resource 校验。
 
-双 Runtime 下，CLI/skills 更新、全局 runtime resource 解压、settings 写入和 hot update 写入必须指定唯一 owner 或使用全局 named lock。hot update 复用 `~/.jugg/hot_update`：下载、校验、metadata 与 load list 写入使用同一把全局锁。IDEA 保留插件安装/重启；standalone 只下载并在下一次 daemon 启动时加载 jar，不在当前进程热更新。若更新标记 `isNeedReinstall=true`，standalone 只下载和记录，不写入下一次启动的 `load_list`。
+双 Runtime 下，CLI/skills 更新、全局 runtime resource 解压、settings 写入、library Test APK build history 和 hot update 写入统一使用 `~/.jugg/locks/global.lock`。IDEA 与 standalone 共享 `jars/` 和新的 `load_manifest.json` 完整快照，不兼容旧 `load_list.txt`。启动 Loader 不进入任务域或全局锁，只校验 manifest 的 embedded build time、读取 jar 列表并刷新所用 jar 的修改时间，不删除任何文件。IDEA hot update 初始化仅在 `hot_update` 目录已经存在时，于全局锁内将当前 packaged jars 发布到同一 manifest；目录不存在时不得主动创建。服务器更新继续原子替换该 manifest。未引用且超过 90 天的 jar 由下载端在写锁内清理。IDEA 保留插件安装/重启；standalone 在下一次 daemon 启动时加载同一快照，不在当前进程热更新。若更新标记 `isNeedReinstall=true`，只下载和记录，不更新 load manifest。
+
+锁能力统一从 `TaskRunnerManager` 暴露：常规任务使用实例 API；runtime resource 首次解压、history 持久化和手册导出等尚未进入 TaskRunner 生命周期、但确实需要写全局文件的基础设施入口使用 `TaskRunnerManager.runGlobalWriteLocked()` 静态入口。hot update Loader 是无锁只读 bootstrap，不依赖 TaskRunner。`ExecutionLockManager.kt` 中的 Runtime identity、owner、锁接口和文件锁实现全部为 `internal` / `private`，调用方不再感知任何锁实现类型。
 
 ### 3.8 诊断和运维能力
 
@@ -303,24 +306,24 @@ IDEA 的 report dialog 和 standalone 的 `jugg doctor/report` 只负责展示�
 
 ### 4.1 TaskRunnerManager 改造结论
 
-当前 `TaskRunnerManager` 使用 `synchronized(this)`：
+改造前的 `TaskRunnerManager` 使用 `synchronized(this)`：
 
 - 只能串行同一个 JVM 内、同一个 `TaskRunnerManager` 实例的任务。
 - 无法协调 IDEA 与 standalone 两个进程。
 - 无法协调不同项目实例对 `~/.jugg` 全局文件的并发写入。
 
-保留“所有项目写任务通过 TaskRunnerManager 执行”的设计，将 `TaskRunnerManager` 直接下沉到 `main`，移除 `Project`、`Task.Backgroundable`、ProgressIndicator 和 EDT 依赖，形成可被 IDEA 与 standalone 共用的跨进程任务与锁框架。IDEA 表现层通过 adapter 关联后台任务和进度。
+当前已保留“所有项目写任务通过 TaskRunnerManager 执行”的设计，并将 `TaskRunnerManager` 下沉到 `main`，移除 `Project`、`Task.Backgroundable`、ProgressIndicator 和 EDT 依赖，形成可被 IDEA 与 standalone 共用的跨进程任务与锁框架。IDEA 表现层通过 adapter 关联后台任务和进度；任务完成事件直接交给两端已有的 `JuggServer`，不额外定义 reporter adapter。
 
 建议职责：
 
 ```text
 TaskRunnerManager
-  -> IExecutionLockManager
+  -> IExecutionLockManager (internal)
        -> project lock
-       -> global named lock
+       -> fixed global write lock
 ```
 
-锁实现使用 JVM 进程内可重入锁 + NIO `FileChannel.tryLock/lock`。外层第一次进入时获取文件锁，嵌套调用只增加当前进程持有计数，避免相同任务链重复获取同一个文件锁。
+锁实现使用 JVM 进程内可重入锁 + NIO `FileChannel.tryLock/lock`。外层第一次进入时获取文件锁，嵌套调用只增加当前进程持有计数，避免相同任务链重复获取同一个文件锁。不同 Runtime/classloader 可能各自持有一份 JVM 锁表；遇到同进程 `OverlappingFileLockException` 时按短间隔等待重试，仍以文件锁作为最终串行依据。
 
 ### 4.2 项目运行锁
 
@@ -693,7 +696,7 @@ Standalone daemon 负责：
 - 项目 registry。
 - project runtime 生命周期。
 - 编译/deploy job。
-- 项目锁和全局 named lock。
+- 项目锁和固定全局写锁。
 - 设备发现。
 - runtime resource 解压和版本校验。
 - 4 小时无外部有效活动后的自动退出。
@@ -750,7 +753,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | 方案设计 | 进行中 | 保留既有 docs commits，方案随实施反馈持续修订 |
 | Step 0 | 已跳过 | 当前决策不单独实施 Java 11 deployer PoC，后续进入 deployer Step 时再完成对应可行性验证 |
 | Step 1 | 已完成 | 已下沉部署状态边界；review 后删除预建的共享 Runtime 与 IDEA 转发 adapters，Runtime 聚合调整到具体领域能力下沉之后 |
-| Step 2–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 2 | 已完成 | 任务域、项目/全局锁、IDEA task adapter、后台 Job 生命周期和项目级 deployment cache 已落地；review 改进已合入 |
+| Step 3–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -792,6 +796,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 当前保留的真实 Host 边界：
 
 - `IHostDeployStateResolver`
+- `IHostTaskExecutor`
 
 已完成验证：
 
@@ -816,15 +821,36 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 
 ### Step 2：任务域、项目锁和后台任务
 
+实现状态：已完成。`TaskRunnerManager` 已下沉 `main`，通过 `IHostTaskExecutor` 隔离 IDEA `Task.Backgroundable` 执行 / `ProgressIndicator` 与 CLI 无 UI 执行；`FileExecutionLockManager` 使用进程内可重入锁和 NIO 文件锁串行项目写事务，并写入 owner metadata，诊断读取会清理异常退出遗留的 stale metadata。完整 `JuggRunningTask`、项目初始化/更新、文件变化处理和 deployment cache 读写已进入项目锁。后台与 Host task 通过互斥的 `isProjectWrite` / `isGlobalWrite` 直接选择项目锁或固定全局写锁；CLI 自动更新、skills 安装、hot update 下载写入、runtime resource 解压与 library Test APK build history 已补齐全局写协调。hot update Loader 保持无 TaskRunner 的只读 bootstrap，IDEA 与 standalone 共享新的 load manifest；embedded packaged jars 的同步内聚在 hot update 初始化并受全局锁保护。下载端原子发布快照并按 90 天保留期清理未引用 jar。TaskRunner 统一跟踪 Job，并在 `JuggManager.dispose()` 时取消尚未执行的任务。已进入写事务的任务允许完成，避免强制中断造成半提交状态。
+
+原用于隔离 IDEA 模块的 `IBackgroundTaskRunner` / `CoroutineBackgroundTaskRunner` 已删除。`TaskRunnerManager` 下沉后成为唯一任务编排入口，IDEA 与现有 CLI 都直接持有完整实例；Host task 的实际提交由 `IHostTaskExecutor` 完成，IDEA 使用 `HostTaskExecutor`，CLI 使用无 UI executor，并通过 `runtimeType=standalone`、`runtimeVersion` 参与同一套项目/全局锁。命令结束时先 dispose TaskRunner、再取消 CoroutineScope。`TaskRunnerManager.dispatcher` 固定返回其实际 CoroutineScope dispatcher，供 ConstRef 等共享组件调度子任务。`ITaskEventReporter` 与 IDEA 的单行转发实现已删除，TaskRunner 直接通过注入的 `JuggServer` 上报完成事件。
+
+`runTaskSafe` 已拆分 `isProjectWrite` 与 `isBlockIncrementalCompile`：只有获取项目锁后才按需设置 `isInitializingIncrementalCompile`，无项目锁却要求阻塞增量编译的组合会被直接拒绝。`ExecutionLockManager.kt` 不再提供公共声明，Runtime identity 由 TaskRunner 构造参数在内部创建；无 TaskRunner 生命周期但需要写全局文件的基础设施调用 TaskRunner 静态全局写入口，纯读取 bootstrap 不引入该依赖。`JuggManager` 与 `JuggDeploymentCacheStore` 都通过 `TaskRunnerManager` 使用项目锁。`JuggDeploymentService` 是项目级实例，保留 Runtime 本地 `memoryCache`，磁盘 cache 固定保存到 `<projectDir>/build/jugg/deploy_cache/.deploy_cache.db`，锁内同步刷新磁盘快照并使用临时文件原子替换。
+
+已完成验证：
+
+- `ProjectExecutionLockTest`（L2，双 JVM 项目锁竞争、正常/异常退出、重入与 metadata，以及固定全局锁跨项目/跨入口/跨 classloader 锁表串行）
+- `JuggDeploymentCacheStoreTest`（L1/L2，原子替换、项目隔离、双 Runtime 串行写入）
+- `TaskRunnerManagerTest`（L2，锁内 initializing、参数约束、实际 Scope dispatcher、项目/全局后台锁、Host task 直接上报 `JuggServer` 及 dispose）
+- `JuggHotUpdateManagerTest`（L1，hot update 快照原子替换与 90 天 jar 清理）
+- `JuggDeployerInstallTest#hot update bootstrap does not depend on task runner`（L2，Loader bootstrap 依赖边界）
+- `JuggDeployerInstallTest#production code uses task runner instead of execution lock types`（L2，生产调用点不引用锁实现类型）
+- `LibraryTestApkBuildHistoryTest`（L1，跨实例并发写不丢记录）
+- `JuggDeployerInstallTest`、`JuggDeployerHelperDeployFlowTest`（L2）
+- `TopLevelFlowTest#testInstallAndLaunch`（L3）
+- `CmdLineTest`（CLI 使用统一 TaskRunner 完成增量构建）、`:idea:compileKotlin`
+
 目标：让 IDEA 与后续 standalone 使用同一任务串行、锁和后台任务语义。
 
 任务：
 
-- 将 `TaskRunnerManager` 下沉到 `main`，建立 `ProjectExecutionLock` 和全局 named lock。
+- 将 `TaskRunnerManager` 下沉到 `main`，建立 `ProjectExecutionLock` 和固定全局写锁。
 - IDEA 以 adapter 提供 `Task.Backgroundable`、ProgressIndicator 和 EDT 表现。
 - 项目写任务使用跨进程项目锁。
 - `JuggDeploymentCacheStore` 改为项目级服务，使用项目锁和原子替换。
-- 建立 `RuntimeMaintenanceManager`，统一管理 warm-up、延迟复查、MCP fetch cleanup 等后台任务。
+- 由 `TaskRunnerManager` 统一管理 warm-up、延迟复查、MCP fetch cleanup 等后台任务及其 Job 生命周期。
+- 拆分项目写锁和增量编译阻塞语义，状态只在获取项目锁后变更。
+- 保留项目 Runtime 本地 deployment `memoryCache`，Step 10 直接适配 Runtime 切换失效。
 - 定义锁顺序、任务取消和 dispose 语义。
 
 验证性任务：
@@ -944,6 +970,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 
 - 保持单一 `:cmd_line` 模块和现有 CI 包名/任务/产物；新增 `cmdline.standalone` 包，全部使用 Java 11。
 - 新增 daemon、project registry 和 `StandaloneJuggRuntimeAssembler`。
+- 建立持久化 Runtime owner identity 与 owner change 事件，区分当前持锁 metadata 和上次 Runtime owner。
 - 实现 standalone MCP runtime。
 - `IMcpRuntime` 增加 `projectDir`，MCP action 不再读取 `Project.basePath`。
 - Python 内部发现策略支持普通 CLI 自动拉起 standalone；hook 仅在 complete flag 存在时拉起。
@@ -992,6 +1019,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 - 建立 `JuggDeployOrchestrator` 和两个部署运行环境。
 - IDEA 部署环境关联现有 `AsDeployerCompat`。
 - standalone 部署环境关联 Quail 实现。
+- 适配现有 `JuggDeploymentService.memoryCache`；Runtime owner、runtime version 或 deployment cache generation 变化时清理并从项目级磁盘 cache 恢复。
 
 验证性任务：
 

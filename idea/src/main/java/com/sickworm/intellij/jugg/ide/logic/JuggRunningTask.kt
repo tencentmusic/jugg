@@ -33,6 +33,7 @@ import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.LastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.PrintWriter
@@ -64,6 +65,7 @@ class JuggRunningTask(
     private val initIncrementalCompileTask: () -> Unit,
     private val compileUiHandler: CompileUiHandler,
     private val eventModel: JuggControlPanelModel,
+    private val taskRunnerManager: TaskRunnerManager,
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
@@ -92,6 +94,12 @@ class JuggRunningTask(
         private set
 
     override fun run(indicator: ProgressIndicator) {
+        taskRunnerManager.runProjectWriteLocked("Run Jugg") {
+            runLocked(indicator)
+        }
+    }
+
+    private fun runLocked(indicator: ProgressIndicator) {
         val loggerListener = createRunProjectLogListener(processHandler)
         var isNeedResetHasRun = false
         try {

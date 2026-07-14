@@ -4,10 +4,9 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.createImmediateTestTaskRunnerManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import kotlinx.coroutines.Job
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,17 +15,7 @@ import java.nio.file.Files
 
 class DeployFileManagerRecoverTest {
 
-    private val immediateRunner = object : IBackgroundTaskRunner {
-        override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job {
-            action.run()
-            return Job()
-        }
-
-        override fun runBackgroundSafe(jobName: String, delayMs: Long, isNeedLog: Boolean, action: Runnable): Job {
-            action.run()
-            return Job()
-        }
-    }
+    private val taskRunnerManager = createImmediateTestTaskRunnerManager()
 
     @Test
     fun constRefFailureShouldNotBlockDeployFileManagerFlow() {
@@ -43,7 +32,7 @@ class DeployFileManagerRecoverTest {
         pathManager.repoFingerprintDbFile.mkdirs()
         val deployFileManager = DeployFileManager(
             pathManager = pathManager,
-            backgroundTaskRunner = immediateRunner,
+            taskRunnerManager = taskRunnerManager,
             logger = logger,
         )
         assertEquals("not a sqlite database", pathManager.constRefSharedDbFile.readText())
@@ -81,7 +70,7 @@ class DeployFileManagerRecoverTest {
         val testRoot = Files.createTempDirectory("deploy-recover-duplicate-dex-test").toFile()
         val deployFileManager = DeployFileManager(
             pathManager = JuggPathManager(testRoot),
-            backgroundTaskRunner = immediateRunner,
+            taskRunnerManager = taskRunnerManager,
             logger = logger,
         )
         deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
@@ -157,7 +146,7 @@ class DeployFileManagerRecoverTest {
         val testRoot = Files.createTempDirectory("deploy-recover-multi-apk-dex-test").toFile()
         val deployFileManager = DeployFileManager(
             pathManager = JuggPathManager(testRoot),
-            backgroundTaskRunner = immediateRunner,
+            taskRunnerManager = taskRunnerManager,
             logger = logger,
         )
         deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)

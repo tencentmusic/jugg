@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IdeSyncProblemResolver
 import com.sickworm.intellij.jugg.mock.TestGlobal
@@ -96,6 +97,7 @@ class JuggManagerFullBuildFlowTest {
             deployTargetManager = mock<IDeployTargetManager>(),
             deployStateManager = mock<DeployStateManager>(),
             taskRunnerManager = mock<TaskRunnerManager>(),
+            deploymentService = mock<JuggDeploymentService>(),
             customCompilerManager = mock<CustomCompilerManager>(),
             deployFileManager = mock<DeployFileManager>(),
             compileContextManager = compileContextManager,

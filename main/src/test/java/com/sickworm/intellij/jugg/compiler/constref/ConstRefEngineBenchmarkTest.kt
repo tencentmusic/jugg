@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.constref
 
 import com.intellij.openapi.diagnostic.DefaultLogger
-import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.createTestTaskRunnerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -104,7 +104,7 @@ class ConstRefEngineBenchmarkTest {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(sharedDb, logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, repoFingerprintDb),
         )
 
@@ -506,7 +506,7 @@ class ConstRefEngineBenchmarkTest {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(sharedDb, logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, repoFingerprintDb),
         )
         val heapAfterInit = heapUsedMb()
@@ -563,7 +563,7 @@ class ConstRefEngineBenchmarkTest {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(sharedDb, logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, repoFingerprintDb),
         )
 

@@ -5,9 +5,15 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
+import java.util.UUID
 
 /**
  * Persists successful library Test APK backfill builds for later AndroidTest Gradle replay.
@@ -41,12 +47,15 @@ class LibraryTestApkBuildHistory(
     }
 
     fun record(record: LibraryTestApkBuildRecord) {
-        val oldData = load()
-        val records = oldData.records
-            .filterNot { it.moduleName == record.moduleName && it.buildVariant == record.buildVariant }
-            .plus(record)
-            .sortedByDescending { it.compiledAt }
-        save(oldData.copy(updatedAt = System.currentTimeMillis(), records = records))
+        val globalRootDir = recordDir.absoluteFile.parentFile ?: recordDir
+        TaskRunnerManager.runGlobalWriteLocked("Update library Test APK build history", globalRootDir) {
+            val oldData = load()
+            val records = oldData.records
+                .filterNot { it.moduleName == record.moduleName && it.buildVariant == record.buildVariant }
+                .plus(record)
+                .sortedByDescending { it.compiledAt }
+            save(oldData.copy(updatedAt = System.currentTimeMillis(), records = records))
+        }
     }
 
     fun selectRecentForAndroidTest(
@@ -75,7 +84,30 @@ class LibraryTestApkBuildHistory(
     private fun save(data: LibraryTestApkBuildHistoryData) {
         val file = recordFile()
         file.parentFile?.mkdirs()
-        file.writeText(gson.toJson(data), Charsets.UTF_8)
+        val tempFile = File(file.parentFile, "${file.name}.${UUID.randomUUID()}.tmp")
+        try {
+            FileOutputStream(tempFile).use { output ->
+                output.write(gson.toJson(data).toByteArray(Charsets.UTF_8))
+                output.flush()
+                output.fd.sync()
+            }
+            moveAtomically(tempFile, file)
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    private fun moveAtomically(source: File, target: File) {
+        try {
+            Files.move(
+                source.toPath(),
+                target.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
     }
 
     private fun String.isAndroidTestAssembleTask(): Boolean {

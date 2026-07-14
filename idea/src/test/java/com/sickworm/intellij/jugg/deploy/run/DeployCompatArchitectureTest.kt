@@ -116,7 +116,7 @@ class DeployCompatArchitectureTest {
         )
 
         val storeText = findRepoFile(
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentCacheStore.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt",
         ).readText()
         listOf(
             "Class.forName",

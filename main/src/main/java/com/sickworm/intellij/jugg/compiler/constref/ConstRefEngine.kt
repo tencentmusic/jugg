@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -30,7 +30,7 @@ import kotlin.system.measureTimeMillis
 class ConstRefEngine private constructor(
     private val analyzer: ConstRefAnalyzer,
     private val logger: Logger,
-    private val backgroundTaskRunner: IBackgroundTaskRunner,
+    private val taskRunnerManager: TaskRunnerManager,
     private val startupStabilizationDelayMs: Long = 10_000L,
     private val runtimeFactory: () -> ConstRefRuntime,
     initialRuntimeState: ConstRefRuntimeState,
@@ -40,12 +40,12 @@ class ConstRefEngine private constructor(
         dbFile: File,
         repoFingerprintDbFile: File,
         logger: Logger,
-        backgroundTaskRunner: IBackgroundTaskRunner,
+        taskRunnerManager: TaskRunnerManager,
         startupStabilizationDelayMs: Long = 10_000L,
     ) : this(
         analyzer = analyzer,
         logger = logger,
-        backgroundTaskRunner = backgroundTaskRunner,
+        taskRunnerManager = taskRunnerManager,
         startupStabilizationDelayMs = startupStabilizationDelayMs,
         runtimeFactory = {
             var database: ConstRefCacheDatabase? = null
@@ -72,13 +72,13 @@ class ConstRefEngine private constructor(
         analyzer: ConstRefAnalyzer,
         database: ConstRefCacheDatabase,
         logger: Logger,
-        backgroundTaskRunner: IBackgroundTaskRunner,
+        taskRunnerManager: TaskRunnerManager,
         repoSharedFingerprintStore: RepoSharedFingerprintStore,
         startupStabilizationDelayMs: Long = 10_000L,
     ) : this(
         analyzer = analyzer,
         logger = logger,
-        backgroundTaskRunner = backgroundTaskRunner,
+        taskRunnerManager = taskRunnerManager,
         startupStabilizationDelayMs = startupStabilizationDelayMs,
         runtimeFactory = {
             ConstRefRuntime(
@@ -502,7 +502,7 @@ class ConstRefEngine private constructor(
                 "delayMs=$delayMs, sourceDirCount=${normalizedSourceDirs.size}"
         )
         var scheduledJob: Job? = null
-        scheduledJob = backgroundTaskRunner.runBackgroundSafe(
+        scheduledJob = taskRunnerManager.runBackgroundSafe(
             jobName = "ConstRefEngine#deferInitialFullScan",
             delayMs = delayMs,
             isNeedLog = false,
@@ -581,7 +581,7 @@ class ConstRefEngine private constructor(
     }
 
     private fun scheduleCacheCleanup(runtime: ConstRefRuntime) {
-        cacheCleanupJob = backgroundTaskRunner.runBackgroundSafe(
+        cacheCleanupJob = taskRunnerManager.runBackgroundSafe(
             jobName = "ConstRefEngine#cacheCleanup",
             delayMs = CACHE_CLEANUP_DELAY_MS,
             isNeedLog = false,
@@ -1539,7 +1539,7 @@ class ConstRefEngine private constructor(
         sceneState.scheduledJob?.cancel()
         val dispatcher = when (scene) {
             AnalyzeScene.FULL_SCAN -> fullScanDispatcher
-            else -> backgroundTaskRunner.dispatcher
+            else -> taskRunnerManager.dispatcher
         }
         var scheduledJob: Job? = null
         scheduledJob = sceneTaskScope.launch(dispatcher, start = CoroutineStart.LAZY) {

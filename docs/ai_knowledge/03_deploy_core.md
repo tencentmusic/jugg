@@ -32,7 +32,7 @@
 | `DirectOverlaySwapTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
 | `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 `run-as` 原子写入设备 `code_cache/.overlay`，新 overlay id 最后提交。 |
 | `DirectOverlayStateChecker` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayStateChecker.kt` | recover 校验 history/cache/device 三路一致；swap 前只校验 device overlay。 |
-| `DeployHistoryManager` / `JuggDeploymentService` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与 Android Studio deployment cache。Direct Overlay recover 同时依赖二者。 |
+| `DeployHistoryManager` / `JuggDeploymentService` / `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与项目级 deployment cache。Service 保留 Runtime 本地内存命中，磁盘 checkpoint 在项目锁内刷新并原子替换，Direct Overlay recover 同时依赖二者。 |
 
 ---
 
@@ -98,6 +98,8 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> JuggDeploymentService.storeEntry()
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
 ```
+
+deployment cache 固定保存到 `<projectDir>/build/jugg/deploy_cache/.deploy_cache.db`。`JuggDeploymentService` 是项目 Runtime 实例，不再使用 `~/.jugg` 全局 singleton；同一 Runtime 优先读取 `memoryCache`，写入同步更新内存和磁盘 checkpoint。磁盘读写由项目锁串行，写入先落临时文件并 flush，再原子替换目标文件。
 
 install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。安装失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案。
 
@@ -248,7 +250,8 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 
 ## 7. 隐形约束
 
-- `overlay id` 是部署一致性的核心 checkpoint：Jugg history、Studio deployment cache、设备 overlay 目录任一不一致，都可能导致重装或 recover。
+- `overlay id` 是部署一致性的核心 checkpoint：Jugg history、项目级 deployment cache、设备 overlay 目录任一不一致，都可能导致重装或 recover。
+- deployment cache 属于项目状态；`memoryCache` 只能属于单个项目 Runtime。IDEA/standalone 切换时必须失效旧 Runtime 内存缓存，并在项目锁内读取磁盘最新快照，不能复用跨项目或跨 Runtime 缓存。
 - `exceptOverlayIds` 防止同 package 在不同项目/不同设备间串状态；recover 或同轮切片会按需跳过检查。
 - 切片部署不能留下半提交 overlay：一旦前序 slice 已成功而后续 slice 失败，必须先清理设备端 `code_cache/.overlay` 再返回失败。
 - `JuggDeployData.filterForApks()` 只给 deployer transport 用；不要用裁剪后的 scoped data 更新全局文件状态或历史。

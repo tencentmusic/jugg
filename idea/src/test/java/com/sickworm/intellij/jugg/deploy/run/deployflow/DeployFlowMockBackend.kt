@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.deploy.run.deployflow
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
+import com.sickworm.intellij.jugg.createTestTaskRunnerManager
+import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.direct.MatryoshkaFixtureWriter
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
@@ -10,6 +12,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.JuggMockProject
 import com.sickworm.intellij.jugg.mock.TestGlobal
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 /**
@@ -19,6 +22,13 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
 
     private var installPath: String? = null
     private const val AS_INSTALLER_VERSION = "dced2491"
+    private val servicePathManager = JuggPathManager(
+        File(System.getProperty("java.io.tmpdir"), "jugg-deploy-flow-project"),
+    )
+    val deploymentService = JuggDeploymentService(
+        servicePathManager,
+        JuggDeploymentCacheStore(servicePathManager.deploymentCacheDbFile, createTestTaskRunnerManager(servicePathManager)),
+    )
 
     override fun buildFixture(caseId: DeployFlowCaseId): DeployFlowFixture {
         return when (caseId) {
@@ -43,8 +53,8 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         JuggSettings.isEmbeddedToApk = false
         JuggSettings.isEnableDirectOverlayDeploy = true
         installPath = ensureMatryoshkaInstallersRoot()
-        JuggDeploymentService.deploymentCacheDbFile.parentFile?.mkdirs()
-        JuggDeploymentService.preInit(com.sickworm.intellij.jugg.mock.logger)
+        deploymentService.deploymentCacheDbFile.parentFile?.mkdirs()
+        deploymentService.preInit(com.sickworm.intellij.jugg.mock.logger)
     }
 
     private fun ensureMatryoshkaInstallersRoot(): String {
@@ -79,7 +89,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         val deployData = DeployFlowTestSupport.incrementalDeployData()
         val deployHistoryManager = DeployFlowTestHistoryManager()
         val historyOverlayId = DeployFlowOverlaySeed.seedHistoryAndCacheOnly(
-            deploymentService = JuggDeploymentService,
+            deploymentService = deploymentService,
             deployHistoryManager = deployHistoryManager,
             virtualDevice = virtualDevice,
         )
@@ -106,7 +116,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             onAfterInstallRecoverTask = Runnable {
                 DeployFlowOverlaySeed.restoreDeploymentCacheAfterMockInstall(
                     virtualDevice = virtualDevice,
-                    deploymentService = JuggDeploymentService,
+                    deploymentService = deploymentService,
                     deployHistoryManager = deployHistoryManager,
                 )
                 ideDeployStateHelper.signalInstallCompletedForRecoverWait()
@@ -184,7 +194,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         val deployHistoryManager = DeployFlowTestHistoryManager()
         val seededOverlayId = DeployFlowOverlaySeed.seedMatchedTriple(
             virtualDevice = virtualDevice,
-            deploymentService = JuggDeploymentService,
+            deploymentService = deploymentService,
             deployHistoryManager = deployHistoryManager,
         )
         val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalDeployable() }
@@ -244,7 +254,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         val deployData = DeployFlowTestSupport.incrementalDeployData()
         val deployHistoryManager = DeployFlowTestHistoryManager()
         val historyOverlayId = DeployFlowOverlaySeed.seedHistoryAndCacheOnly(
-            deploymentService = JuggDeploymentService,
+            deploymentService = deploymentService,
             deployHistoryManager = deployHistoryManager,
             virtualDevice = virtualDevice,
         )
@@ -269,7 +279,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             onAfterInstallRecoverTask = Runnable {
                 DeployFlowOverlaySeed.restoreBaseInstallCacheAfterMockInstall(
                     virtualDevice = virtualDevice,
-                    deploymentService = JuggDeploymentService,
+                    deploymentService = deploymentService,
                     deployHistoryManager = deployHistoryManager,
                 )
                 ideDeployStateHelper.signalInstallCompletedForRecoverWait()
@@ -346,7 +356,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         val deployHistoryManager = DeployFlowTestHistoryManager()
         val seededOverlayId = DeployFlowOverlaySeed.seedMatchedTriple(
             virtualDevice = virtualDevice,
-            deploymentService = JuggDeploymentService,
+            deploymentService = deploymentService,
             deployHistoryManager = deployHistoryManager,
         )
         val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalDeployable() }
@@ -404,7 +414,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         val deployHistoryManager = DeployFlowTestHistoryManager()
         val seededOverlayId = DeployFlowOverlaySeed.seedMatchedTriple(
             virtualDevice = virtualDevice,
-            deploymentService = JuggDeploymentService,
+            deploymentService = deploymentService,
             deployHistoryManager = deployHistoryManager,
         )
         val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalNotDeployable() }
