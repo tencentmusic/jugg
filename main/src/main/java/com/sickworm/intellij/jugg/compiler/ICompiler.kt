@@ -251,7 +251,9 @@ data class CompileError(
     /** file to be compiled */
     val file: CompileFile,
     /** will be empty if [file] looks good but compiler still stopped because there is another error file */
-    val errors: List<Pair<Long, String>> // <Line, Message>
+    val errors: List<Pair<Long, String>>, // <Line, Message>
+    /** True only when the language compiler directly attributes a diagnostic to [file]. */
+    val hasDirectSourceDiagnostic: Boolean = false,
 ) {
     val errorMessages get() = errors.joinToString("\n") { it.second }
 }

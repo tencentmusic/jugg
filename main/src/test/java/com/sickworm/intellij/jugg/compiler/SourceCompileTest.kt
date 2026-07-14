@@ -140,6 +140,91 @@ class SourceCompileTest {
         }
     }
 
+    @Test
+    fun juggAptRetry_shouldKeepChangedKuiklyEntryWhenOtherKotlinFileFails() {
+        val module = TestGlobal.applicationModule
+        val trackingContext = TrackingCompileContext(TestGlobal.context)
+        val trackingSourceCompiler = SourceCompiler(trackingContext, TestGlobal.mockParentDisposable)
+        val sourceBaseDir = module.sourceDirs.first()
+        val pageFile = File(sourceBaseDir, "TestPage.kt").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                package com.example.kuikly
+
+                // import com.tencent.kuikly.core.annotations.Page
+
+                annotation class Page(val value: String)
+
+                @Page("test/page")
+                class TestPage
+                """.trimIndent(),
+            )
+        }
+        val unrelatedFile = File(sourceBaseDir, "UnrelatedBroken.kt").apply {
+            writeText(
+                """
+                package com.example.kuikly
+
+                class UnrelatedBroken {
+                    fun value(): String = missingValue
+                }
+                """.trimIndent(),
+            )
+        }
+        val entryFile = File(module.buildPathInfo.generatedKspSourcePath, "KuiklyCoreEntry.kt").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                package com.example.kuikly
+
+                object BridgeManager {
+                    fun registerPageRouter(route: String, creator: () -> Any?) = Unit
+                }
+
+                object KuiklyCoreEntry {
+                    fun triggerRegisterPages() {
+                    }
+                }
+                """.trimIndent(),
+            )
+        }
+
+        try {
+            val task = CompileTask(
+                files = listOf(pageFile, unrelatedFile).map { file ->
+                    CompileFile(
+                        type = CompileFile.Type.Kotlin,
+                        file = file,
+                        baseDir = sourceBaseDir,
+                        module = module,
+                    )
+                },
+                outputDir = File(TestGlobal.buildDir, "staging_kuikly_unrelated_failure"),
+                compileStatusHolder = CompileStatusHolder.DEFAULT,
+            )
+
+            val result = trackingSourceCompiler.compile(task)
+            result.printCompileErrors()
+            assertTrue(!result.isAllSuccess, "The unrelated Kotlin error should keep the compile failed.")
+
+            val addedPaths = trackingContext.addedChangedFiles.map { it.file.absolutePath }
+            assertTrue(
+                entryFile.absolutePath in addedPaths,
+                "KuiklyCoreEntry should be tracked after JuggApt rewrites it.",
+            )
+            val removedPaths = trackingContext.removedChangedFiles.map { it.absolutePath }
+            assertTrue(
+                entryFile.absolutePath !in removedPaths,
+                "An unrelated Kotlin diagnostic must not remove KuiklyCoreEntry from changed files.",
+            )
+        } finally {
+            pageFile.delete()
+            unrelatedFile.delete()
+            entryFile.delete()
+        }
+    }
+
     private fun assertCompileResult(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = { _ ->
             emptyList()

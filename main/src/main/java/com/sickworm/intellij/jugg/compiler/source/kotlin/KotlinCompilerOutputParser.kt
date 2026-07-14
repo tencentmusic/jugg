@@ -47,7 +47,11 @@ class KotlinCompilerOutputParser(
         return files.map { file ->
             val errorDetails = innerErrors[file]
             if (errorDetails != null) {
-                Result.failure(CompileError(file, errorDetails))
+                Result.failure(CompileError(
+                    file = file,
+                    errors = errorDetails,
+                    hasDirectSourceDiagnostic = file in directErrorFiles,
+                ))
             } else if (innerOutputs.keys.any { it.absolutePath == file.file.absolutePath}) {
                 Result.success(file)
             } else {
@@ -69,6 +73,7 @@ class KotlinCompilerOutputParser(
         private set
 
     private val innerErrors = mutableMapOf<CompileFile, MutableList<Pair<Long, String>>>()
+    private val directErrorFiles = mutableSetOf<CompileFile>()
     /** Map<SourceFile, List<OutputClassFile>> */
     private val innerOutputs = mutableMapOf<File, MutableList<File>>()
 
@@ -169,6 +174,7 @@ class KotlinCompilerOutputParser(
         if (!innerErrors.containsKey(file)) {
             innerErrors[file] = mutableListOf()
         }
+        directErrorFiles += file
         innerErrors[file]?.add(line to message)
 
         // replace to absolute path to make it clickable in IDE

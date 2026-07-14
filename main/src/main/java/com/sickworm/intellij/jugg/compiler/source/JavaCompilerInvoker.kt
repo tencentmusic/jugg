@@ -236,7 +236,17 @@ class JavaCompilerInvoker {
                 }
             }
             
-            CompileResult(task, compileItems.map { Result.failure(CompileError(it.file, it.errors)) }, emptyList())
+            CompileResult(
+                task,
+                compileItems.map { item ->
+                    Result.failure(CompileError(
+                        file = item.file,
+                        errors = item.errors,
+                        hasDirectSourceDiagnostic = item.errors.isNotEmpty(),
+                    ))
+                },
+                emptyList(),
+            )
         }
     }
 

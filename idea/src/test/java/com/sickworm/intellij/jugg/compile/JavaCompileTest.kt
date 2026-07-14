@@ -34,6 +34,23 @@ class JavaCompileTest {
         assertCompileResultFailed(task, result, mapOf(errorTask.files[0] to 2))
     }
 
+    @Test
+    fun javaCompileError_shouldOnlyMarkDiagnosticSourceAsDirect() {
+        val task = CompileTask(
+            files = errorTask.files + helloWorldTask.files,
+            outputDir = stagingDir,
+        )
+
+        val result = javaCompiler.compile(task)
+        val errorsByFile = result.failedFiles.associate { failed ->
+            val error = failed.getFailure()
+            error.file.file.name to error
+        }
+
+        assertTrue(errorsByFile.getValue("ErrorJavaFile.java").hasDirectSourceDiagnostic)
+        assertTrue(!errorsByFile.getValue("HelloWorldJavaFile.java").hasDirectSourceDiagnostic)
+    }
+
     val externalDepTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/jugg/test/JavaFileWithExternalDep.java"),
         stagingDir,
         dependencies = listOf(

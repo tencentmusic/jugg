@@ -55,7 +55,7 @@ SourceCompiler.doModuleCompile()
   -> compileLanguageStagesWithRetry()
        -> KotlinCompiler 先编译 Kotlin + JuggApt Kotlin
        -> JavaCompiler 再编译 Java + JuggApt Java + KAPT Java + DataBinding Java
-       -> 若失败命中 JuggApt 产物，移除 changed-file 登记并无 JuggApt 重试一次
+       -> 若真实源码诊断直接指向 JuggApt 产物，移除 changed-file 登记并无 JuggApt 重试一次
   -> compileDexOutputs()
        -> DexCompiler 编译 class / 原始 class 输入
        -> minified 场景交给 DexMinifyCompiler；非 minified 直接返回 dex + 非 class 附属产物
@@ -68,8 +68,9 @@ SourceCompiler.doModuleCompile()
 ## 5. 隐形约束 / 设计思路 / 已知边界
 
 - `collectJuggAptGeneratedFiles()` 是 fail-open：处理器异常只 warn，然后继续主编译。不要把 JuggApt warn 直接等同于整轮编译失败。
-- JuggApt 生成文件会被登记为 changed file；如果随后语言编译失败且失败文件命中 JuggApt 产物，重试前会 `removeChangedFile()`，避免错误 shadow source 持续污染后续轮次。
-- JuggApt 降级只重试一次，且只在失败文件属于本轮 JuggApt 产物时触发；普通 Kotlin/Java 编译失败不会进入该分支。
+- JuggApt 生成文件会被登记为 changed file；只有语言编译器把真实源码诊断直接归因到 JuggApt 产物时，重试前才会 `removeChangedFile()`，避免错误 shadow source 持续污染后续轮次。
+- Kotlin 批量编译失败时，无直接诊断的同批文件可能被标记为通用失败；Java 同批文件也可能只有空错误列表。这类连带失败不会撤销 JuggApt changed-file tracking，生成文件会保留到后续轮次继续编译。
+- JuggApt 降级只重试一次，且只在直接源码诊断指向本轮 JuggApt 产物时触发；普通 Kotlin/Java 编译失败不会进入该分支。
 - Kotlin 编译失败时，非 Kotlin 输入会被标记为 skipped，避免 Java 阶段在缺少 Kotlin class 的情况下继续产生误导性错误。
 - `compileDexOutputs()` 会把语言阶段非 class 输出保留下来；这些通常是 generated source 或其他不直接进入 dex 的附属产物。
 - minified 场景下 dex 先写到 `context.tempCompileDir/un_minify`，再由 `DexMinifyCompiler` 输出到最终 task outputDir；排查路径时不要只看最终目录。

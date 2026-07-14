@@ -234,6 +234,8 @@ class JuggCompilerTest {
         val pageSource = """
             package com.example.myapplication
 
+            // import com.tencent.kuikly.core.annotations.Page
+
             annotation class Page(val route: String)
 
             @Page("$route")
@@ -267,6 +269,78 @@ class JuggCompilerTest {
             val entryContent = generatedEntryFile.readText()
             assertTrue(entryContent.contains("""BridgeManager.registerPageRouter("$route")"""))
             assertTrue(entryContent.contains("com.example.myapplication.JuggAptPage()"))
+        }
+    }
+
+    @Test
+    fun testKotlinPageShouldCompileGeneratedEntryAfterUnrelatedFailureFixed() {
+        val route = "jugg_retry_page"
+        val sourceDir = File(assetsAndroidDir, "app/src/main/java/com/example/myapplication")
+        val pageSourceFile = File(sourceDir, "JuggAptRetryPage.kt")
+        val unrelatedSourceFile = File(sourceDir, "JuggAptUnrelated.kt")
+        val generatedEntryFile = File(assetsAndroidDir, "app/build/generated/ksp/debug/kotlin/KuiklyCoreEntry.kt")
+        val pageSource = """
+            package com.example.myapplication
+
+            // import com.tencent.kuikly.core.annotations.Page
+
+            annotation class Page(val route: String)
+
+            @Page("$route")
+            class JuggAptRetryPage
+        """.trimIndent()
+        val brokenUnrelatedSource = """
+            package com.example.myapplication
+
+            class JuggAptUnrelated {
+                fun value(): String = missingValue
+            }
+        """.trimIndent()
+        val validUnrelatedSource = """
+            package com.example.myapplication
+
+            class JuggAptUnrelated {
+                fun value(): String = "fixed"
+            }
+        """.trimIndent()
+        val entrySource = """
+            package com.example.myapplication.generated
+
+            object BridgeManager {
+                fun registerPageRouter(route: String, creator: () -> Any?) {
+                }
+            }
+
+            object KuiklyCoreEntry {
+                fun triggerRegisterPages() {
+                }
+            }
+        """.trimIndent()
+
+        withPatchedFiles(
+            pageSourceFile to pageSource,
+            unrelatedSourceFile to brokenUnrelatedSource,
+            generatedEntryFile to entrySource,
+        ) {
+            jugg.notifyFileChanges(listOf(pageSourceFile, unrelatedSourceFile))
+            jugg.compileChangedFiles()
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isNotEmpty())
+
+            unrelatedSourceFile.writeText(validUnrelatedSource)
+            jugg.notifyFileChanges(listOf(unrelatedSourceFile))
+            jugg.compileChangedFiles()
+
+            assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
+            val pageDexFile = File(
+                jugg.pathManager.stagingDir,
+                "classes/${androidApkPackage.replace('.', '/')}/JuggAptRetryPage.dex",
+            )
+            assertTrue(pageDexFile.exists(), "Expected page dex exists: ${pageDexFile.absolutePath}")
+            val entryDexFile = File(
+                jugg.pathManager.stagingDir,
+                "classes/com/example/myapplication/generated/KuiklyCoreEntry.dex",
+            )
+            assertTrue(entryDexFile.exists(), "Expected generated entry dex exists: ${entryDexFile.absolutePath}")
         }
     }
 

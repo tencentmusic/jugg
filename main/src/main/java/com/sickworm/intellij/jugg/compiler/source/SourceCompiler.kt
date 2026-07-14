@@ -282,8 +282,10 @@ class SourceCompiler(
             .map { "${it.type}:${it.file.absolutePath}" }
             .toHashSet()
         return compileResult.failedFiles.any { failed ->
-            val failedFile = failed.file
-            "${failedFile.type}:${failedFile.file.absolutePath}" in juggAptFileSet
+            val compileError = failed.getFailure()
+            val failedFile = compileError.file
+            val isJuggAptFile = "${failedFile.type}:${failedFile.file.absolutePath}" in juggAptFileSet
+            isJuggAptFile && compileError.hasDirectSourceDiagnostic
         }
     }
 
