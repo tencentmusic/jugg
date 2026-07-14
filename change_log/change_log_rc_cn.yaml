@@ -1,3 +1,8 @@
+- version: 3.0.30
+  date: 2026.07.14
+  updates:
+    - 修复无关 Kotlin 或 Java 编译错误导致 JuggApt 生成文件被撤销，后续 Kuikly 页面无法部署的问题
+
 - version: 3.0.29
   date: 2026.07.14
   updates:

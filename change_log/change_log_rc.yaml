@@ -1,3 +1,8 @@
+- version: 3.0.30
+  date: 2026.07.14
+  updates:
+    - fix JuggApt generated files being dropped after unrelated Kotlin or Java compilation errors, which could skip subsequent Kuikly page deployment
+
 - version: 3.0.29
   date: 2026.07.14
   updates:
