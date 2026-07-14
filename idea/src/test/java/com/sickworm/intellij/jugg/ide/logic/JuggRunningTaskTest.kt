@@ -67,36 +67,6 @@ class JuggRunningTaskTest {
     }
 
     @Test
-    fun `skip deploy triggers init for remote gradle compile`() {
-        val shouldInit = shouldInitIncrementalAfterSkipDeploy(
-            isSkipDeploy = true,
-            isGradleCompile = true,
-            isRemoteCompile = true,
-        )
-        assertTrue(shouldInit)
-    }
-
-    @Test
-    fun `skip deploy does not trigger init for local gradle compile`() {
-        val shouldInit = shouldInitIncrementalAfterSkipDeploy(
-            isSkipDeploy = true,
-            isGradleCompile = true,
-            isRemoteCompile = false,
-        )
-        assertFalse(shouldInit)
-    }
-
-    @Test
-    fun `skip deploy does not trigger init for incremental compile`() {
-        val shouldInit = shouldInitIncrementalAfterSkipDeploy(
-            isSkipDeploy = true,
-            isGradleCompile = false,
-            isRemoteCompile = true,
-        )
-        assertFalse(shouldInit)
-    }
-
-    @Test
     fun `normal run detaches process when task stops`() {
         assertTrue(shouldDetachProcessOnTaskStop(isProcessCanceled = false))
     }
