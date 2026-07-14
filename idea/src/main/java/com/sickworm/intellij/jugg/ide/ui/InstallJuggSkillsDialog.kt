@@ -287,7 +287,7 @@ class InstallJuggSkillsDialog(
                         promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
                     }
                 }
-            }, isNeedShowIndicator = true, isBlockIncrementalCompile = false)
+            }, isGlobalWrite = true, isBlockIncrementalCompile = false)
         }
 
         /** Installs CLI first (no Python needed), then hooks after Python runtime preflight. */

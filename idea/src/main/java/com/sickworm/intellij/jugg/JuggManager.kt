@@ -19,6 +19,7 @@ import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.ide.*
@@ -47,6 +48,7 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
+import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -62,13 +64,15 @@ class JuggManager @TestOnly constructor(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, logger),
-    private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, JuggLogger.getInstance(project, "DeployHistoryManager")),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: IDeployStateManager = DeployStateManager(deployTargetManager, deployHistoryManager, IdeaHostDeployStateResolver(project), JuggLogger.getInstance(project, "DeployStateManager")),
-    private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope),
+    private val hostTaskExecutor: HostTaskExecutor = HostTaskExecutor(project),
+    private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(logger, deployStateManager, juggServer, hostTaskExecutor, pathManager, "idea", juggServer.version, coroutineScope),
+    private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, taskRunnerManager, logger),
+    private val deploymentService: JuggDeploymentService = JuggDeploymentService(pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager)),
     private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
     private val deployFileManager: DeployFileManager = DeployFileManager(pathManager,taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager, customCompilerManager),
@@ -87,6 +91,7 @@ class JuggManager @TestOnly constructor(
         compileContextManager,
         juggServer,
         taskRunnerManager,
+        deploymentService = deploymentService,
     ),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, gitFileChangesDetector, taskRunnerManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
@@ -141,7 +146,7 @@ class JuggManager @TestOnly constructor(
             // init project info async
             runTaskSafe("Init project info", ::recoverDeployContext)
             // init deployment service async
-            JuggDeploymentService.preInit(logger)
+            deploymentService.preInit(logger)
 
             logger.debug("Checking updates...")
             juggServer.checkUpdate {
@@ -154,7 +159,7 @@ class JuggManager @TestOnly constructor(
                 juggHotUpdateDownloader.init(project)
             }
 
-            taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000) {
+            taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000, isGlobalWrite = true) {
                 JuggCliAutoUpdater.checkAndUpdate(logger.getInstance("JuggCliAutoUpdater"))
             }
             taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
@@ -230,7 +235,7 @@ class JuggManager @TestOnly constructor(
 
         // check dependency again to avoid missing dependency(in ide little chance)
         if (isAfterSync) {
-            taskRunnerManager.runBackgroundSafe("Check Project Info Delay", delayMs = 5000L) {
+            taskRunnerManager.runBackgroundSafe("Check Project Info Delay", delayMs = 5000L, isProjectWrite = true) {
                 updateProjectInfo(isAfterSync = false)
             }
         }
@@ -590,7 +595,7 @@ class JuggManager @TestOnly constructor(
         if (isRemoteCompile || JuggSettings.isEnableBackupClasspath) {
             logger.info("Fetching classpath...")
             val backupProjectInfo = juggCompilerHelper.fetchClasspath(
-                isRemoteCompile, projectInfo, taskRunnerManager.currentIndicator, coroutineScope)
+                isRemoteCompile, projectInfo, hostTaskExecutor.currentIndicator, coroutineScope)
             if (backupProjectInfo == null) {
                 if (isRemoteCompile) {
                     logger.warn("Fetch classpath failed, unable to init incremental compile. Please check log for details.")
@@ -673,7 +678,7 @@ class JuggManager @TestOnly constructor(
 
     private fun createMoreOptionsManager(): MoreOptionsManager {
         return MoreOptionsManager(
-            this, pathManager, taskRunnerManager,
+            this, pathManager, taskRunnerManager, hostTaskExecutor,
             deployHistoryManager, deployTargetManager, dependencyChangeManager,
             juggCompilerHelper, juggServer, juggHotUpdateDownloader, logger,
         )
@@ -827,7 +832,7 @@ class JuggManager @TestOnly constructor(
                 // beginFileProcessing() must be called synchronously here to prevent compile
                 // from starting before the async task below has a chance to run
                 deployStateManager.beginFileProcessing()
-                taskRunnerManager.runBackgroundSafe("Process file changed", isNeedLog = false) {
+                taskRunnerManager.runBackgroundSafe("Process file changed", isNeedLog = false, isProjectWrite = true) {
                     try {
                         processFileChanged(changedFiles, deletedFiles, from = "ide")
                     } finally {
@@ -864,6 +869,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("project ${pathManager.projectDir} dispose")
         controlPanelController.clear()
         deployFileManager.dispose()
+        taskRunnerManager.dispose()
         coroutineScope.cancel()
     }
 
@@ -899,7 +905,7 @@ class JuggManager @TestOnly constructor(
             }
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-                compileUiHandler, controlPanelController.model, androidTestRunSpec,
+                compileUiHandler, controlPanelController.model, taskRunnerManager, androidTestRunSpec,
                 controlPanelController = controlPanelController,
             )
 

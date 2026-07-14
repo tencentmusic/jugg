@@ -2,9 +2,13 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.*
 
 /**
@@ -94,19 +98,37 @@ fun List<File>.relativePathForPrintSafe(baseDirPath: File): List<File> {
 }
 
 fun copyResource(resourcePath: String): File {
-    val storePath = JuggGlobalPathManager.resourceFile(resourcePath)
-    val isAlwaysUpdate = false
-    if (storePath.exists() && !isAlwaysUpdate) {
-        return storePath
-    }
-    storePath.parentFile.mkdirs()
-    JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { ins ->
-        storePath.outputStream().use { ous ->
-            ins.copyTo(ous)
+    return TaskRunnerManager.runGlobalWriteLocked("Extract runtime resource") {
+        val storePath = JuggGlobalPathManager.resourceFile(resourcePath)
+        if (storePath.exists()) {
+            return@runGlobalWriteLocked storePath
         }
+        storePath.parentFile.mkdirs()
+        val tempFile = File(storePath.parentFile, "${storePath.name}.${UUID.randomUUID()}.tmp")
+        try {
+            JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            moveResourceAtomically(tempFile, storePath)
+        } finally {
+            tempFile.delete()
+        }
+        storePath.setExecutable(true)
+        storePath
     }
-    storePath.setExecutable(true)
-    return storePath
+}
+
+private fun moveResourceAtomically(source: File, target: File) {
+    try {
+        Files.move(
+            source.toPath(),
+            target.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+            StandardCopyOption.ATOMIC_MOVE,
+        )
+    } catch (_: AtomicMoveNotSupportedException) {
+        Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
 }
 
 private val osName = System.getProperty("os.name").lowercase(Locale.getDefault())

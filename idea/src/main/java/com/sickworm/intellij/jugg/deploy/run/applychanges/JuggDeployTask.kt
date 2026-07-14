@@ -27,7 +27,6 @@ import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
@@ -50,7 +49,7 @@ class JuggDeployTask(
     private val project: Project,
     private val type: AndroidDeployType,
     private val data: JuggDeployData,
-    private val deploymentService: IJuggDeployerDeploymentService = JuggDeploymentService,
+    private val deploymentService: IJuggDeployerDeploymentService,
     private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask"),
 ) {

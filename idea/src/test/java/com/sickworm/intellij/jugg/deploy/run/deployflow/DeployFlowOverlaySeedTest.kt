@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy.run.deployflow
 
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
-import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.logger
@@ -18,14 +17,14 @@ class DeployFlowOverlaySeedTest {
         val history = DeployFlowTestHistoryManager()
         val overlayId = DeployFlowOverlaySeed.seedMatchedTriple(
             virtualDevice = virtualDevice,
-            deploymentService = JuggDeploymentService,
+            deploymentService = DeployFlowMockBackend.deploymentService,
             deployHistoryManager = history,
         )
         val checker = DirectOverlayStateChecker(
             adb = virtualDevice.asIDeviceAdb(),
             logger = logger,
             deployHistoryManager = history,
-            deploymentService = JuggDeploymentService,
+            deploymentService = DeployFlowMockBackend.deploymentService,
         )
         val result = checker.checkRecover(virtualDevice.serial, DeployFlowOverlaySeed.packageName())
         assertEquals(

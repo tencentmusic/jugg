@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ai.skills
 
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import java.io.File
 import java.io.FileNotFoundException
 
@@ -18,14 +19,17 @@ object ClientSetupDocExporter {
         @Suppress("UNUSED_PARAMETER") projectDir: File,
         userHome: File = File(System.getProperty("user.home")),
     ): File {
-        val bundledSkillsDir = JuggSkillInstaller.ensureBundledSkillsHome(userHome)
-        val setupDocFile = File(bundledSkillsDir, SETUP_DOC_RELATIVE_PATH)
-        if (!File(bundledSkillsDir, SKILL_NAME).isDirectory) {
-            throw FileNotFoundException("Resource not found: $SKILL_NAME")
+        val globalRootDir = File(userHome, ".jugg")
+        return TaskRunnerManager.runGlobalWriteLocked("Export client setup guide", globalRootDir) {
+            val bundledSkillsDir = JuggSkillInstaller.ensureBundledSkillsHome(userHome)
+            val setupDocFile = File(bundledSkillsDir, SETUP_DOC_RELATIVE_PATH)
+            if (!File(bundledSkillsDir, SKILL_NAME).isDirectory) {
+                throw FileNotFoundException("Resource not found: $SKILL_NAME")
+            }
+            if (!setupDocFile.isFile) {
+                throw FileNotFoundException("Resource not found: $SETUP_DOC_RELATIVE_PATH")
+            }
+            setupDocFile
         }
-        if (!setupDocFile.isFile) {
-            throw FileNotFoundException("Resource not found: $SETUP_DOC_RELATIVE_PATH")
-        }
-        return setupDocFile
     }
 }

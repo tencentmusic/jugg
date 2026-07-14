@@ -382,7 +382,7 @@ class JuggDeployerHelperDeployFlowTest {
             adb = fixture.virtualDevice.asIDeviceAdb(),
             logger = logger,
             deployHistoryManager = fixture.deployHistoryManager,
-            deploymentService = JuggDeploymentService,
+            deploymentService = DeployFlowMockBackend.deploymentService,
         )
         assertEquals(
             DirectOverlayStateCheckResult.MATCHED,

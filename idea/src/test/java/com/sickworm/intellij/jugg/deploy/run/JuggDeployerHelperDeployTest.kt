@@ -479,6 +479,7 @@ class JuggDeployerHelperDeployTest {
             compileContextManager = compileContextManager,
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
+            deploymentService = Mockito.mock(IJuggDeployerDeploymentService::class.java),
             logger = TestGlobal.getLogger(),
             stateRecover = deployStateRecover,
             retryHandler = deployRetryHandler,

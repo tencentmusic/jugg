@@ -5,53 +5,39 @@ import com.android.utils.ILogger
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.CachedOverlayId
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureTimeMillis
 
 /**
- * copied from [com.android.tools.idea.run.DeploymentService]
- * * optimize deployment cache size
- * * provides synchronized and async api
- * * provides preInit
+ * Provides the project-scoped deployment cache used by IDEA deploy and recover flows.
+ * Disk snapshots are refreshed under the shared project lock so another runtime can safely take over.
  */
-object JuggDeploymentService : IJuggDeploymentService, IJuggDeployerDeploymentService {
+class JuggDeploymentService(
+    pathManager: JuggPathManager,
+    private val deploymentCacheStore: JuggDeploymentCacheStore,
+) : IJuggDeploymentService, IJuggDeployerDeploymentService {
 
-    private val lock = Object()
-    val deploymentCacheDbFile = JuggGlobalPathManager.deployCacheDbFile
-
-    private val deploymentCacheStore: JuggDeploymentCacheStore by lazy {
-        JuggDeploymentCacheStore(deploymentCacheDbFile)
-    }
-
-    private var memoryCache: ConcurrentHashMap<String, JuggDeploymentCacheEntry> = ConcurrentHashMap()
+    val deploymentCacheDbFile = pathManager.deploymentCacheDbFile
+    private val memoryCache = ConcurrentHashMap<String, JuggDeploymentCacheEntry>()
 
     fun preInit(logger: Logger) {
-        postWithLock {
-            val costTime = measureTimeMillis {
-                deploymentCacheStore.preInit()
-            }
-            logger.debug("JuggDeploymentService.preInit, cost ${costTime}ms")
+        val costTime = measureTimeMillis {
+            deploymentCacheStore.preInit()
         }
+        logger.debug("JuggDeploymentService.preInit, cost ${costTime}ms")
     }
 
     override fun storeEntry(deviceSerial: String, packageName: String, newFiles: List<Apk>, overlayId: JuggOverlayId, logger: ILogger) {
         val storeStartTime = System.currentTimeMillis()
+        val key = "$deviceSerial:$packageName"
 
-        // store to memory
-        val key = String.format("%s:%s", deviceSerial, packageName)
         memoryCache[key] = AsDeployerCompat.createDeploymentCacheEntry(newFiles, overlayId)
-
-        // persist to db asynchronously
-        postWithLock {
-            logger.info("JuggDeploymentService.storeEntry, start")
-            deploymentCacheStore.store(deviceSerial, packageName, newFiles.toCacheEntry(overlayId))
-            logger.info("JuggDeploymentService.storeEntry, end, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
-        }
+        logger.info("JuggDeploymentService.storeEntry, start")
+        deploymentCacheStore.store(deviceSerial, packageName, newFiles.toCacheEntry(overlayId))
+        logger.info("JuggDeploymentService.storeEntry, end, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
     }
 
     override fun loadCachedOverlayId(deviceSerial: String, packageName: String, logger: Logger): CachedOverlayId? {
@@ -61,15 +47,11 @@ object JuggDeploymentService : IJuggDeploymentService, IJuggDeployerDeploymentSe
     }
 
     override fun loadEntry(deviceSerial: String, packageName: String, logger: ILogger): JuggDeploymentCacheEntry? {
-        // load from memory
-        val memCache = memoryCache[String.format("%s:%s", deviceSerial, packageName)]
-        if (memCache != null) {
+        memoryCache["$deviceSerial:$packageName"]?.let {
             logger.info("JuggDeploymentService.loadEntry, load from memory cache")
-            return memCache
+            return it
         }
-
-        // load from db
-        val dbResult = withLock { deploymentCacheStore.load(deviceSerial, packageName) }
+        val dbResult = deploymentCacheStore.load(deviceSerial, packageName)
             ?.toDeploymentCacheEntry()
         logger.info("JuggDeploymentService.loadEntry, load from db, result: $dbResult")
         return dbResult
@@ -100,20 +82,5 @@ object JuggDeploymentService : IJuggDeploymentService, IJuggDeployerDeploymentSe
             )
         }
         return AsDeployerCompat.createDeploymentCacheEntry(parsedApks, restoredOverlayId)
-    }
-
-
-    private fun <T> withLock(block: JuggDeploymentService.() -> T): T {
-        synchronized(lock) {
-            return JuggDeploymentService.block()
-        }
-    }
-
-    private fun postWithLock(block: JuggDeploymentService.() -> Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            synchronized(lock) {
-                JuggDeploymentService.block()
-            }
-        }
     }
 }

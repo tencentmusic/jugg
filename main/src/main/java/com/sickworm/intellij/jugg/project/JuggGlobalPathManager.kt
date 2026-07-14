@@ -26,4 +26,6 @@ object JuggGlobalPathManager {
     fun hotUpdateDir(rootDir: File = this.rootDir): File = File(rootDir, "hot_update")
 
     fun deployCacheDbFile(rootDir: File = this.rootDir): File = File(rootDir, "deploy_cache/.deploy_cache.db")
+
+    fun globalLockFile(rootDir: File = this.rootDir): File = File(rootDir, "locks/global.lock")
 }

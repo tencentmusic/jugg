@@ -15,14 +15,4 @@ class JuggGlobalPathManagerTest {
             JuggGlobalPathManager.resourceFile("/tools/darwin/aapt2", rootDir),
         )
     }
-
-    @Test
-    fun deployCacheDbFile_shouldUseDeployCacheDirectory() {
-        val rootDir = File("/tmp/jugg-home/.jugg")
-
-        assertEquals(
-            File(rootDir, "deploy_cache/.deploy_cache.db"),
-            JuggGlobalPathManager.deployCacheDbFile(rootDir),
-        )
-    }
 }

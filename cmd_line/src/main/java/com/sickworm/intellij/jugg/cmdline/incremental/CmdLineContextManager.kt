@@ -11,10 +11,11 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.BaseCompileContext
-import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.FileChangesHandler
+import com.sickworm.intellij.jugg.project.IHostTaskExecutor
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -29,24 +30,6 @@ class CmdLineContextManager(
     coroutineScope: CoroutineScope,
     private val logger: Logger,
 ) {
-
-    val disposer = object : Disposable {
-        override fun dispose() {
-            deployFileManager.dispose()
-        }
-    }
-
-    val fileChangesHandler = FileChangesHandler(
-        pathManager.projectDir,
-        pathManager.juggRootDir,
-        logger,
-    )
-
-    val deployFileManager = DeployFileManager(
-        pathManager,
-        CoroutineBackgroundTaskRunner(coroutineScope),
-        logger,
-    )
 
     val deployStateManager = object : IDeployStateManager {
         override val deployState: JuggDeployState = JuggDeployState.READY
@@ -71,13 +54,49 @@ class CmdLineContextManager(
         }
     }
 
+    val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
+
+    val taskRunnerManager = TaskRunnerManager(
+        logger = logger,
+        deployStateManager = deployStateManager,
+        juggServer = juggServer,
+        hostTaskExecutor = object : IHostTaskExecutor {
+            override val isOnEdt: Boolean = false
+
+            override fun submit(title: String, cancelText: String, showIndicator: Boolean, action: Runnable) {
+                action.run()
+            }
+        },
+        pathManager = pathManager,
+        runtimeType = "standalone",
+        runtimeVersion = juggServer.version,
+        coroutineScope = coroutineScope,
+    )
+
+    val disposer = object : Disposable {
+        override fun dispose() {
+            taskRunnerManager.dispose()
+            deployFileManager.dispose()
+        }
+    }
+
+    val fileChangesHandler = FileChangesHandler(
+        pathManager.projectDir,
+        pathManager.juggRootDir,
+        logger,
+    )
+
+    val deployFileManager = DeployFileManager(
+        pathManager,
+        taskRunnerManager,
+        logger,
+    )
+
     val dependencyMissingResolver = object : IIncrementalCompileRetryResolver {
         override fun resolve(compileResult: CompileResult): Boolean {
             return false
         }
     }
-
-    val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
 
     val customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
 

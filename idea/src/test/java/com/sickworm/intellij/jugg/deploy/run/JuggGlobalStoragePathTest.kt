@@ -14,12 +14,4 @@ class JuggGlobalStoragePathTest {
             JuggHotUpdateManager.hotUpdateDir.absolutePath,
         )
     }
-
-    @Test
-    fun deploymentCache_shouldUseDotJuggDeployCache() {
-        assertEquals(
-            File(System.getProperty("user.home"), ".jugg/deploy_cache/.deploy_cache.db").absolutePath,
-            JuggDeploymentService.deploymentCacheDbFile.absolutePath,
-        )
-    }
 }

@@ -21,11 +21,13 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -45,6 +47,7 @@ import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetch
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.server.JuggServer
+import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -387,8 +390,21 @@ class MockJugg(
 
         val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), coroutineScope)
         customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
-        taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
+        taskRunnerManager = TaskRunnerManager(
+            logger,
+            deployStateManager,
+            juggServer,
+            HostTaskExecutor(project),
+            pathManager,
+            "idea",
+            "test",
+            coroutineScope,
+        )
         deployFileManager = DeployFileManager(pathManager, taskRunnerManager, logger)
+        val deploymentService = JuggDeploymentService(
+            pathManager,
+            JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager),
+        )
 
         if (isMockCompileContextManager) {
             compileContextManager = mock(CompileContextManager::class.java)
@@ -401,18 +417,19 @@ class MockJugg(
         }
 
         juggDeployerHelper = JuggDeployerHelper(
-            project,
-            deployTargetManager,
-            deployFileManager,
-            deployHistoryManager,
-            deployStateManager,
-            dependencyChangeManager,
-            JuggRunningTaskStatusManager(),
-            compileContextManager,
-            juggServer,
-            taskRunnerManager,
-            logger,
-        ) {
+            project = project,
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployStateManager = deployStateManager,
+            dependencyChangeManager = dependencyChangeManager,
+            juggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
+            compileContextManager = compileContextManager,
+            juggServer = juggServer,
+            taskRunnerManager = taskRunnerManager,
+            logger = logger,
+            deploymentService = deploymentService,
+            installPathProvider = {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
                 downloader.makeSureComponentIsInPlace()
@@ -421,7 +438,8 @@ class MockJugg(
             assertTrue(isInPlace)
 
             downloader.installerFilePath.absolutePath
-        }
+            },
+        )
 
         gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, logger)
 

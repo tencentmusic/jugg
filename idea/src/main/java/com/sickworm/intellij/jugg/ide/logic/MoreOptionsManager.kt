@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.*
@@ -31,6 +32,7 @@ class MoreOptionsManager(
     private val juggManager: JuggManager,
     private val pathManager: JuggPathManager,
     private val taskRunnerManager: TaskRunnerManager,
+    private val hostTaskExecutor: HostTaskExecutor,
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployTargetManager: IDeployTargetManager,
     private val dependencyChangeManager: IDependencyChangeManager,
@@ -258,7 +260,7 @@ class MoreOptionsManager(
                 JuggCompileUiHandler(juggManager.project,
                     isForceGradleCompile = true, isRpcMode = false,
                     compileOptions, logger,
-                    progressIndicator = taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
+                    progressIndicator = hostTaskExecutor.currentIndicator ?: DumbProgressIndicator.INSTANCE,
                 ),
                 isOnlyFetchResult = true,
             )
@@ -302,7 +304,7 @@ class MoreOptionsManager(
         taskRunnerManager.runBackgroundSafe("Check updates") {
             val hotUpdateData = juggHotUpdateDownloader.checkHotUpdate(isPositiveCheck = true)
             dialog.setHotUpdateData(hotUpdateData) {
-                taskRunnerManager.runBackgroundSafe("Download updates") {
+                taskRunnerManager.runBackgroundSafe("Download updates", isGlobalWrite = true) {
                     try {
                         juggHotUpdateDownloader.downloadAndInstallUpdate(hotUpdateData!!)
                         dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {

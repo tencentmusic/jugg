@@ -6,9 +6,8 @@ import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.IncrementalCompilerHelper
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import kotlinx.coroutines.Job
+import com.sickworm.intellij.jugg.project.createImmediateTestTaskRunnerManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,17 +19,7 @@ import org.mockito.Mockito
 
 class DeployFileManagerDexMergeTest {
 
-    private val immediateRunner = object : IBackgroundTaskRunner {
-        override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job {
-            action.run()
-            return Job()
-        }
-
-        override fun runBackgroundSafe(jobName: String, delayMs: Long, isNeedLog: Boolean, action: Runnable): Job {
-            action.run()
-            return Job()
-        }
-    }
+    private val taskRunnerManager = createImmediateTestTaskRunnerManager()
 
     @Test
     fun testGetDeployDataTriggerDexMergeAndRebuildDeployData() {
@@ -51,7 +40,7 @@ class DeployFileManagerDexMergeTest {
         }.use {
             val deployFileManager = DeployFileManager(
                 pathManager = pathManager,
-                backgroundTaskRunner = immediateRunner,
+                taskRunnerManager = taskRunnerManager,
                 logger = logger,
             )
 
@@ -99,7 +88,7 @@ class DeployFileManagerDexMergeTest {
         }.use {
             val deployFileManager = DeployFileManager(
                 pathManager = pathManager,
-                backgroundTaskRunner = immediateRunner,
+                taskRunnerManager = taskRunnerManager,
                 logger = logger,
             )
 
