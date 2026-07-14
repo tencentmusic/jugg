@@ -39,7 +39,7 @@ class JuggCompilerHelper(
     private val pathManager: JuggPathManager,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
-    private val deployStateManager: DeployStateManager,
+    private val deployStateManager: IDeployStateManager,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager,

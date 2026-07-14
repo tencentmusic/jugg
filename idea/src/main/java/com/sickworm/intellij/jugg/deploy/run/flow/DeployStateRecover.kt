@@ -21,7 +21,7 @@ open class DeployStateRecover(
     private val deployTargetManager: IDeployTargetManager,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
-    private val deployStateManager: DeployStateManager,
+    private val deployStateManager: IDeployStateManager,
     private val deployRunHost: IJuggDeployHelperRunHost,
     private val deploymentService: IJuggDeploymentService,
     private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb,

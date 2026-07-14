@@ -78,7 +78,7 @@ Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 
 
 | 能力 | 当前实现 | 下沉方向 |
 |---|---|---|
-| 项目 Runtime 生命周期 | `JuggManager` | 提取 `JuggProjectRuntime`，负责初始化、恢复、重载和销毁 |
+| 项目 Runtime 生命周期 | `JuggManager` | 当前由 IDEA 协调初始化、恢复、关联和释放；先下沉项目模型、文件变化、配置与编译部署领域，具备真实复用对象后再建立具体 `JuggProjectRuntime` 聚合 |
 | IDEA 项目注册与 MCP 路由 | `JuggInitializer`、`JuggManagerCreator` | IDEA 保留项目入口；standalone 使用独立 registry |
 | 任务调度、进度、串行和上报 | `TaskRunnerManager` | `TaskRunnerManager` 直接下沉 `main`，保留共享串行/取消/上报语义；IDEA 以 adapter 提供 `Task.Backgroundable`、进度与 EDT 表现 |
 | Compile Context 管理 | `CompileContextManager` | 拆出共享 `CompileContextManager` 核心和 IDEA project model 读取逻辑 |
@@ -141,7 +141,7 @@ Standalone 不构造假的 IDE project info。
 
 #### Custom Compiler
 
-`CustomConfigManager`、`CustomCompilerManager` 已在 `main`，主体可复用，但必须纳入 `JuggProjectRuntime` 生命周期：初始化、配置 reload、jar 下载、custom classpath、embedded APK 和 dispose 必须在 IDEA/standalone 行为一致。
+`CustomConfigManager`、`CustomCompilerManager` 已在 `main`，主体可复用；配置 reload、jar 下载、custom classpath、embedded APK 和 dispose 需先形成共享的具体领域流程，再纳入后续 `JuggProjectRuntime` 聚合。
 
 ### 3.3 已基本可直接复用的能力
 
@@ -163,11 +163,12 @@ Standalone 不构造假的 IDE project info。
 
 ### 3.4 项目运行域
 
-新增共享聚合对象：
+共享 Runtime 聚合后置到项目模型、文件变化、配置与编译部署领域完成下沉之后。`JuggProjectRuntime` 使用具体类和组合，不通过继承扩展，也不预建 lifecycle、controller、binder 等单实现接口。
+
+目标聚合对象：
 
 ```text
 JuggProjectRuntime
-├── ProjectLifecycleManager
 ├── ProjectModelManager
 ├── CompileContextManager
 ├── FileChangeManager
@@ -185,6 +186,17 @@ JuggProjectRuntime
 ```
 
 `JuggProjectRuntime` 负责领域对象生命周期和协作顺序，不包含 Swing、RunManager、IDE notification、IDE project service 等表现层能力。
+
+只在 IDEA 与 standalone 已存在真实差异实现时保留 Host 接口：
+
+```text
+IHostTaskExecutor
+IHostDeployStateResolver
+IProjectModelSource
+IFileChangeMonitor
+IApplyChangesExecutor
+IRuntimeConfigRepository（仅配置来源确有差异时）
+```
 
 关键生命周期：
 
@@ -212,30 +224,30 @@ DeployFileManager
 
 `JuggManager` 最终只承担：
 
-- 创建 IDEA 运行环境并组装 `JuggProjectRuntime`。
+- 持有由 `IdeaRuntimeAssembler` 创建的具体 `JuggProjectRuntime`，不继承 Runtime。
 - 把 Gradle Sync、VFS、Run、Debug、AndroidTest 等 IDEA 事件转换为领域事件。
 - 把 IDEA UI 操作转成领域命令。
 - 关联 IDEA console、dialog、notification、Debug attach、SM Test Runner。
 - 随 IDEA project 生命周期初始化和销毁 runtime。
 
-建议组装入口：
+IDEA Runtime：
 
 ```text
-IdeaJuggRuntimeAssembler
-├── IdeaProjectModelReader
-├── IdeaFileChangeMonitor
-├── IdeaRuntimeSettingsRepository
-├── IdeaDependencyChangePolicy
-├── IdeaTaskPresentation
-├── IdeaApplyChangesExecutor
+JuggManager
 └── JuggProjectRuntime
+    ├── IdeaProjectModelSource
+    ├── IdeaFileChangeMonitor
+    ├── IdeaRuntimeSettingsRepository
+    ├── IdeaDependencyChangePolicy
+    ├── HostTaskExecutor
+    └── IdeaApplyChangesExecutor
 ```
 
 Standalone 对应：
 
 ```text
 StandaloneJuggRuntimeAssembler
-├── GradleProjectModelReader
+├── GradleProjectModelSource
 ├── WatchServiceFileChangeMonitor
 ├── FileRuntimeSettingsRepository
 ├── CliDependencyChangePolicy
@@ -244,7 +256,7 @@ StandaloneJuggRuntimeAssembler
 └── JuggProjectRuntime
 ```
 
-领域对象通过 assembler 完成构建和关联；业务代码不使用无业务语义的依赖获取器，也不扩展一个包揽所有能力的 `PlatformApi`。
+领域对象通过具体 assembler 完成一次性构建和关联，assembler 不抽接口。业务代码不使用无业务语义的依赖获取器，也不扩展一个包揽所有能力的 `PlatformApi`。
 
 ### 3.6 文件变化一致性
 
@@ -731,7 +743,32 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 
 每个 Step 独立会话实施、验证和提交。除明确说明外，不在同一会话同时推进相邻 Step。实际修改业务代码前，必须先按 `06_testing.md` 确定 L1/L2/L3 测试路径并写失败测试。
 
+### 9.1 当前进度
+
+| 阶段 | 状态 | 说明 |
+|---|---|---|
+| 方案设计 | 进行中 | 保留既有 docs commits，方案随实施反馈持续修订 |
+| Step 0 | 已跳过 | 当前决策不单独实施 Java 11 deployer PoC，后续进入 deployer Step 时再完成对应可行性验证 |
+| Step 1 | 已完成 | 已下沉部署状态边界；review 后删除预建的共享 Runtime 与 IDEA 转发 adapters，Runtime 聚合调整到具体领域能力下沉之后 |
+| Step 2–12 | 待实施 | 按本文顺序在独立会话中推进 |
+
+### 9.2 Commit 规范
+
+- 每个完成并通过验证的 Step squash 为单一两行 commit message。
+- 第一行固定使用：`[feature][WIP] supports standalone cli`
+- 第二行使用：`[feature] stepN <summary>`
+- Step 1 使用：
+
+  ```text
+  [feature][WIP] supports standalone cli
+  [feature] step1 establish project runtime
+  ```
+
+- Step 内部的 TDD、重构、文档同步和修正提交在阶段完成后统一 squash，不保留零散 `[refactor]`、`[docs]` 提交。
+
 ### Step 0：Java 11 Standalone Deployer 可行性门槛
+
+实现状态：已跳过独立实施。Java 11 字节码、真实 HOT RELOAD 和二进制协议兼容性要求继续保留，并入 Step 9/10 的 deployer 实现与验收。
 
 目标：在下沉 Runtime 前证明 Java 11 路线可完成真正 HOT RELOAD，避免后续架构改造建立在不可运行的 deployer 上。
 
@@ -748,19 +785,28 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 - Java 11 PoC 可完成真实 base install、class HOT RELOAD、resource HOT RELOAD，且 App 进程与 Activity 不发生非预期重启。
 - deployer Java 实现和 installer/agent/app-server 二进制不匹配时明确失败。
 
-### Step 1：建立项目运行域，薄化 JuggManager
+### Step 1：建立项目运行边界，校准 Runtime 聚合时机
 
-目标：先完成行为保持型架构调整，不接 standalone，不修改现有用户行为。
+实现状态：已完成。部署状态计算已下沉 `main`，并通过 `IHostDeployStateResolver` 隔离 IDEA 设备状态读取。初版曾建立抽象 `JuggProjectRuntime` 和五个 IDEA lifecycle/controller/binder adapters；review 后确认这些边界只有单一转发实现，已全部删除。当前配置刷新、历史恢复、Compile Context 关联、文件变化与 dispose 继续由 `JuggManager` 直接表达，待 Step 3-6 的具体领域能力下沉后，再以组合方式建立共享 Runtime。
+
+当前保留的真实 Host 边界：
+
+- `IHostDeployStateResolver`
+
+已完成验证：
+
+- `DeployStateManagerTest`（L1/L2）
+- `TopLevelFlowTest#testInstallAndLaunch`（L3）
+- `:idea:compileKotlin`
+
+目标：先下沉已有真实平台差异，不为尚未下沉的领域逻辑预建 Runtime 接口，不接 standalone，不修改现有用户行为。
 
 任务：
 
-- 在 `main` 建立 `JuggProjectRuntime` 和项目生命周期状态。
-- 建立 `IdeaJuggRuntimeAssembler`，组装 IDEA 运行环境和共享领域对象。
-- 将 `IDeployStateManager` 纳入 `JuggProjectRuntime`，以 host deploy state resolver 隔离 IDEA 设备状态读取。
-- `JuggManager` 改为薄 facade，只保留 IDEA 事件转换、UI 关联和生命周期转发。
-- 保持 `IJuggManagerCaller` 对外行为兼容。
-- 将 `recoverDeployContext`、组件重新关联顺序和 dispose 生命周期收口到 `JuggProjectRuntime`。
-- 暂不移动 compile/deploy 具体实现，先建立清晰领域边界。
+- 将 `DeployStateManager` 下沉 `main`，以 host deploy state resolver 隔离 IDEA 设备状态读取。
+- 保留 `IJuggManagerCaller` 对外行为兼容。
+- 配置、Compile Context、文件变化等逻辑在共享具体实现出现前继续由 `JuggManager` 协调。
+- Runtime 聚合待项目模型、文件变化、配置和编译部署领域下沉后建立，并采用组合而非继承。
 
 验证性任务：
 
@@ -839,7 +885,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 - 新版 IDEA 首次启动时从 `PropertiesComponent` 回填 `~/.jugg/settings.json` 缺失字段。
 - standalone 只读取已存在的 `settings.json`；文件缺失时使用默认值且不创建文件。
 - 将 `JuggSettings` 调整为领域设置 facade，逐步移除直接全局存取。
-- 将 `CustomConfigManager`、`CustomCompilerManager` 纳入 `JuggProjectRuntime` 生命周期。
+- 先形成可由 IDEA 与 standalone 直接复用的配置生命周期，再纳入后续 Runtime 聚合。
 - 对齐 server custom config、build file rules、ignored rules、module custom classpath、embedded APK。
 - 明确双 Runtime 的配置更新和冲突规则。
 

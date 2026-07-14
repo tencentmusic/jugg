@@ -1,30 +1,20 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.mock.JuggMockProject
-import com.sickworm.intellij.jugg.mock.TestGlobal
+import com.intellij.openapi.diagnostic.Logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
-import kotlin.io.path.createTempDirectory
 
 class DeployStateManagerTest {
 
-    init {
-        TestGlobal.init()
-    }
-
     private fun createManager(): DeployStateManager {
-        val project: Project = JuggMockProject(TestGlobal.projectInfo.projectRoot)
-        JuggLogger.register(project, createTempDirectory("deploy_state_manager_test_log").toFile())
         return DeployStateManager(
-            project = project,
-            deployTargetManager = mock<IDeployTargetManager>(),
-            deployHistoryManager = mock<IDeployHistoryManager>(),
-            ideDeployStateHelper = mock<IIdeDeployStateHelper>(),
+            deployTargetManager = mock(),
+            deployHistoryManager = mock(),
+            hostDeployStateResolver = mock(),
+            logger = Logger.getInstance("DeployStateManagerTest"),
         )
     }
 

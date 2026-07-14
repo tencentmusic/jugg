@@ -47,7 +47,7 @@ class JuggDeployerHelper(
     private val deployTargetManager: IDeployTargetManager,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
-    private val deployStateManager: DeployStateManager,
+    private val deployStateManager: IDeployStateManager,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager,
     private val compileContextManager: CompileContextManager,

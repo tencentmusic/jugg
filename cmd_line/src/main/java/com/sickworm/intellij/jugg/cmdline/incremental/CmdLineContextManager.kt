@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
+import com.android.ddmlib.IDevice
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileResult
@@ -48,8 +49,25 @@ class CmdLineContextManager(
     )
 
     val deployStateManager = object : IDeployStateManager {
+        override val deployState: JuggDeployState = JuggDeployState.READY
+        override var isBuildFileChanged: Boolean = false
+        override var whatBuildFileChanged: String = ""
+        override var isInitializingIncrementalCompile: Boolean = false
+
         override fun updateDeployState(): JuggDeployState {
             return JuggDeployState.READY
+        }
+
+        override fun getDeployState(device: IDevice): JuggDeployState = JuggDeployState.READY
+
+        override fun beginFileProcessing() = Unit
+
+        override fun endFileProcessing() = Unit
+
+        override fun hasPendingFileProcessing(): Boolean = false
+
+        override fun waitForPendingFileProcessing(timeoutMs: Long): FileProcessingWaitResult {
+            return FileProcessingWaitResult(false, 0, 0L, 0)
         }
     }
 

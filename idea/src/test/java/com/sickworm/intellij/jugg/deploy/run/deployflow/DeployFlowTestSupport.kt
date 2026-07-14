@@ -12,7 +12,7 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
+import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.context
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -169,13 +170,13 @@ internal object DeployFlowTestSupport {
         project: Project,
         deployTargetManager: IDeployTargetManager,
         deployHistoryManager: IDeployHistoryManager,
-        ideDeployStateHelper: IIdeDeployStateHelper,
+        ideDeployStateHelper: IHostDeployStateResolver,
     ): DeployStateManager {
         return DeployStateManager(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployHistoryManager = deployHistoryManager,
-            ideDeployStateHelper = ideDeployStateHelper,
+            hostDeployStateResolver = ideDeployStateHelper,
+            logger = JuggLogger.getInstance(project, "DeployStateManager"),
         )
     }
 

@@ -21,7 +21,8 @@
 | `JuggLoader` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 隔离加载 Jugg manager，支持热更新/embedded jars fallback |
 | `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | 设置 `PlatformApi.impl`、注册项目日志、创建/释放 `JuggManager` |
 | `JuggHotUpdateDownloader` | `idea/src/main/java/com/sickworm/intellij/jugg/server/JuggHotUpdateDownloader.kt` | 定时检查更新、按缺失 jar 下载并校验 md5、更新 load list，并准备重启后的标准插件安装 |
-| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDE 侧总装配器，连接 compile、deploy、project info、dependency、MCP、server、UI |
+| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | 当前 IDEA 项目协调入口，负责配置刷新、历史恢复、Compile Context 关联、文件变化处理、Run/UI/MCP 和资源释放；共享 Runtime 聚合待具体领域能力下沉后建立 |
+| `DeployStateManager` / `IdeaHostDeployStateResolver` | `main/.../deploy/DeployStateManager.kt`, `idea/.../deploy/IdeaHostDeployStateResolver.kt` | 共享部署状态计算；隔离 Android Studio 设备状态读取 |
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 按钮后的后台任务，串联编译、部署、状态回写、Run tool window |
 | `JuggDebugProgramRunner` / `JuggDebugSessionManager` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggDebugProgramRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggDebugSessionManager.kt` | 接管 Jugg + Debug executor，让 Debug 按钮可用；Jugg 编译/部署输出挂到 Run tool window，部署成功后限制单设备并通过兼容层 attach Java debugger |
 | `JuggConfigurationRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggConfigurationRunner.kt` | 创建并运行 `JuggRunningTask`，维护是否正在编译和下一轮强制重装 |
@@ -63,8 +64,8 @@ IDE project opened
   -> JuggManagerCreator.create()
      设置 IdeaPlatformApi，创建 JuggPathManager，注册 JuggLogger
   -> JuggManager.init()
-     初始化 AsDeployerCompat、custom config、默认 run config、min api、project info 打印
-  -> recoverDeployContext()
+     刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录，并创建默认 run config
+  -> JuggManager.recoverDeployContext()
      从 deploy history 恢复 compile context、APK、changed files，避免无必要全量构建
   -> background tasks
      预初始化 deployment service、检查更新、自动更新 Jugg CLI、清理 MCP fetch cache
@@ -75,6 +76,8 @@ IDE project opened
 插件热更新依赖一条刻意收窄的 ClassLoader 边界。`JuggLoader` 根据 load list 选择 embedded 或 hot-update jars，并用代理把 `IJuggManagerCreator` / `IJuggManagerCaller` 调用跨回稳定 ClassLoader；创建热更新实例失败时直接回退 embedded jars，保证项目仍能打开。`loader`、`ide`、IntelliJ API 以及少量跨边界 DTO 固定由原 ClassLoader 加载，避免 IDE 已注册 extension/action 的 class identity 改变；`JuggManagerCreator` 例外由热更新 ClassLoader 加载，使主要业务实现能够替换。
 
 更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip 并调用 `PluginInstaller.installAfterRestart()`，确保下次 IDE 启动落到标准安装版本；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
+
+Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 直接释放 deploy file runtime 与 coroutine scope。
 
 `DeployFileManager` 可在构造期直接创建 `ConstRefEngine` 对象，但 `ConstRefEngine` 构造期不能初始化 SQLite database、repo fingerprint store 或 impact resolver，避免全局 SQLite 缓存损坏阻断 manager 创建。这些 ConstRef runtime 资源由 `ConstRefEngine` 在 `updateModuleInfos()`、源码变更事件、编译前 readiness、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化；失败后降级为 no-op，主初始化、编译和部署继续。
 
@@ -91,7 +94,7 @@ JuggGradleSyncListener
      STARTED/FAILED: 通知 dependencyChangeManager
   -> CompileContextManager.updateCompileContext()
   -> GradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
-  -> reInitOnCompileContextUpdate()
+  -> JuggManager.rebindCompileContext()
      更新 DeployFileManager、JuggCompiler、FileChangesHandler、GitFileChangesDetector、CustomCompilerManager
 ```
 

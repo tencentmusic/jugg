@@ -32,8 +32,9 @@
 ### 3.1 启动与初始化
 
 1. `JuggLoader` / `JuggInitializer` 触发初始化。  
-2. `JuggManager` 装配编译、部署、项目、MCP 运行时。  
-3. Sync 事件经 `JuggGradleSyncListener` 进入 `JuggManager.onSyncEvent`。
+2. `JuggManager` 组装当前 IDEA 侧项目协作对象，负责配置刷新、历史恢复、Compile Context 关联和资源释放。
+3. `JuggManager` 接收初始化、Sync、Run、UI 与 MCP 请求；已下沉能力直接使用 `main` 的领域实现。
+4. Sync 事件经 `JuggGradleSyncListener` 进入 `JuggManager.onSyncEvent`，更新 ProjectInfo 与 Compile Context。
 
 ### 3.2 Run 主流程
 
@@ -58,6 +59,8 @@
 
 - **增量优先，失败可回退**：优先走旁路增量，必要时回退 Gradle。
 - **main 与 idea 解耦**：`main` 提供核心逻辑，`idea` 注入平台实现。
+- **Runtime 聚合后置**：项目模型、文件变化、配置和编译/部署编排形成可复用的具体领域实现后，再建立共享 Runtime 聚合；当前不为单一 IDEA 实现预建生命周期、binder 或 controller 接口。
+- **设备状态隔离**：共享 `DeployStateManager` 依赖 `IHostDeployStateResolver`，IDEA 设备状态读取由 `IdeaHostDeployStateResolver` 提供。
 - **兼容层隔离**：AS 版本差异集中在 `deploy_compat`，减少业务污染。
 - **协议内聚**：MCP 在 `main/.../ai/mcp` 独立分层，不与 IDE UI 逻辑强耦合。
 - **稳定 UI 桥接**：`ide_entry` 只通过 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载热更新 Panel，不暴露 Model、Event 或 UI DTO。
