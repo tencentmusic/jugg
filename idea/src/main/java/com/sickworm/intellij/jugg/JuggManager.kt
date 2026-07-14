@@ -67,7 +67,7 @@ class JuggManager @TestOnly constructor(
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, JuggLogger.getInstance(project, "DeployHistoryManager")),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
-    private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
+    private val deployStateManager: IDeployStateManager = DeployStateManager(deployTargetManager, deployHistoryManager, IdeaHostDeployStateResolver(project), JuggLogger.getInstance(project, "DeployStateManager")),
     private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope),
     private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
     private val deployFileManager: DeployFileManager = DeployFileManager(pathManager,taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),

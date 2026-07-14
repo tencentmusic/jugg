@@ -1,20 +1,20 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
 import com.android.ddmlib.IDevice
-import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
+import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Drives [com.sickworm.intellij.jugg.deploy.DeployStateManager] through [IIdeDeployStateHelper] for deploy-flow tests.
+ * Drives [com.sickworm.intellij.jugg.deploy.DeployStateManager] through [IHostDeployStateResolver] for deploy-flow tests.
  */
-class DeployFlowIdeDeployStateHelper : IIdeDeployStateHelper {
+class DeployFlowIdeDeployStateHelper : IHostDeployStateResolver {
 
     private val recoverWaitOkBudget = AtomicInteger(0)
     private val alwaysDeployable = AtomicBoolean(false)
 
-    override fun getIdeDeployState(device: IDevice?, packageName: String?): IdeDeployState {
+    override fun resolve(device: IDevice?, packageName: String?): IdeDeployState {
         if (alwaysDeployable.get()) {
             return IdeDeployState.ok
         }

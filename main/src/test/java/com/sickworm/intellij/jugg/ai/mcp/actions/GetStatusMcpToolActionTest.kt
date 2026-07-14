@@ -505,9 +505,9 @@ class GetStatusMcpToolActionTest {
         isCompiling: Boolean = false,
         executionType: String = "local",
     ): IMcpRuntime {
-        val deployStateManager = object : IDeployStateManager {
-            override fun updateDeployState(): JuggDeployState = deployState
-        }
+        val deployStateManager = Mockito.mock(IDeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.deployState).thenReturn(deployState)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(deployState)
         val mockDeployFileManager = Mockito.mock(DeployFileManager::class.java)
         val filesProvider = uncompiledFilesProvider ?: { uncompiledFiles }
         Mockito.`when`(mockDeployFileManager.getUncompiledFiles()).thenAnswer { filesProvider() }

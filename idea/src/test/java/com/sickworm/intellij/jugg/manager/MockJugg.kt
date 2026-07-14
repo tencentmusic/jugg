@@ -18,7 +18,7 @@ import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
+import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
@@ -84,8 +84,8 @@ class MockJugg(
     private val adbDeviceHelper = AdbDeviceHelper()
     private var currentApkInfos = projectInfo.apkInfos
 
-    private val ideDeployStateHelper = object : IIdeDeployStateHelper {
-        override fun getIdeDeployState(device: IDevice?, packageName: String?): IdeDeployState {
+    private val ideDeployStateHelper = object : IHostDeployStateResolver {
+        override fun resolve(device: IDevice?, packageName: String?): IdeDeployState {
             return if (adbDeviceHelper.hasLaunchedApp(packageName!!)) {
                 IdeDeployState.ok
             } else {
@@ -377,7 +377,12 @@ class MockJugg(
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
-        deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
+        deployStateManager = DeployStateManager(
+            deployTargetManager,
+            deployHistoryManager,
+            ideDeployStateHelper,
+            logger,
+        )
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
         val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), coroutineScope)

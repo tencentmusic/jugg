@@ -5,7 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.deploy.DeployStateManager
+import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.ReportEventData
 import kotlinx.coroutines.*
@@ -18,7 +18,7 @@ import kotlin.system.measureTimeMillis
 class TaskRunnerManager(
     private val project: Project,
     private val logger: Logger,
-    private val deployStateManager: DeployStateManager,
+    private val deployStateManager: IDeployStateManager,
     private val juggServer: JuggServer,
     coroutineScope: CoroutineScope,
 ): CoroutineScope by coroutineScope, IBackgroundTaskRunner {
