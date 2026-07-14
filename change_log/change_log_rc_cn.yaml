@@ -1,3 +1,8 @@
+- version: 3.0.29
+  date: 2026.07.14
+  updates:
+    - 修复本地或远程 Gradle 仅编译后未初始化增量编译，导致后续部署重复全量构建的问题
+
 - version: 3.0.28
   date: 2026.07.10
   updates:

@@ -1,3 +1,8 @@
+- version: 3.0.29
+  date: 2026.07.14
+  updates:
+    - initialize incremental compilation after local or remote Gradle compile-only runs to avoid an unnecessary full build before deployment
+
 - version: 3.0.28
   date: 2026.07.10
   updates:
