@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.mock.projectInfo
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Test
+import java.io.File
 import kotlin.test.*
 
 class TopLevelFlowWithGitTest {
@@ -165,5 +166,31 @@ class TopLevelFlowWithGitTest {
         println("\n\nstart deploy 3")
         jugg2.deploy()
         assertEquals(0, jugg2.deployFileManager.getStagingFiles().size)
+    }
+
+    @Test
+    fun incrementalCompileFailureKeepsFallbackStateAfterGitRefresh() {
+        val jugg = MockJugg()
+        val gitManager = GitManager(jugg.projectDir)
+        gitManager.init()
+        gitManager.addAllAndCommit("first commit")
+        jugg.dryFullCompile()
+        val sourceFile = File(
+            jugg.projectDir,
+            "app/src/main/java/com/example/myapplication/MainActivity.kt",
+        )
+
+        changeAndRevert(
+            sourceFile,
+            "Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)",
+            "MissingReference()",
+        ) {
+            jugg.notifyFileChanges(listOf(sourceFile))
+            jugg.compileChangedFiles()
+
+            val failedFile = jugg.deployFileManager.getUncompiledFiles().single()
+            assertEquals(1, failedFile.compiledTimes)
+            assertTrue(jugg.deployFileManager.isNoFileChanges())
+        }
     }
 }

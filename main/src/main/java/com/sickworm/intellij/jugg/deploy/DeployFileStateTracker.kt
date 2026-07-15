@@ -218,6 +218,9 @@ class DeployFileStateTracker(
 
         if (remainUncompiledFiles.isNotEmpty()) {
             uncompiledFiles.putAll(remainUncompiledFiles)
+            remainUncompiledFiles.values.forEach {
+                markHandled(it.file)
+            }
         }
     }
 
@@ -241,9 +244,6 @@ class DeployFileStateTracker(
     }
 
     private fun isHandledSnapshot(changedFile: ChangedFile): Boolean {
-        if (uncompiledFiles.containsKey(changedFile.file.stdPath)) {
-            return false
-        }
         val currentSnapshot = FileSnapshot.from(changedFile.file)
         val handledSnapshot = handledFileSnapshots[changedFile.file.stdAbsPath]
         if (currentSnapshot != handledSnapshot) {
@@ -259,15 +259,11 @@ class DeployFileStateTracker(
     private fun markNeedsCompile(changedFile: ChangedFile) {
         uncompiledFiles[changedFile.file.stdPath] = changedFile
         compiledFiles.remove(changedFile.file.stdPath)
-        removeHandledSnapshot(changedFile.file)
+        markHandled(changedFile.file)
     }
 
     private fun markHandled(file: File) {
         handledFileSnapshots[file.stdAbsPath] = FileSnapshot.from(file)
-    }
-
-    private fun removeHandledSnapshot(file: File) {
-        handledFileSnapshots.remove(file.stdAbsPath)
     }
 
     private fun removeHandledSnapshots(file: File) {

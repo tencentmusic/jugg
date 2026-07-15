@@ -5,6 +5,8 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -51,6 +53,57 @@ class DeployFileStateTrackerTest {
         assertEquals(listOf(nextChangedFile), newFiles)
         assertEquals(listOf(nextChangedFile), tracker.getUncompiledFiles())
         assertTrue(tracker.getCompiledFiles().isEmpty())
+    }
+
+    @Test
+    fun addChangedFiles_ignoresSameSnapshotAfterFailedCompile() {
+        val tracker = DeployFileStateTracker()
+        val sourceFile = createSourceFile("MainActivity.kt", "class MainActivity")
+        val failedChangedFile = changedFile(sourceFile)
+        tracker.addChangedFiles(listOf(failedChangedFile))
+        tracker.updateUncompiledFiles(emptyList(), listOf(compileFile(sourceFile)))
+
+        tracker.addChangedFiles(listOf(changedFile(sourceFile)))
+
+        val uncompiledFile = tracker.getUncompiledFiles().single()
+        assertSame(failedChangedFile, uncompiledFile)
+        assertEquals(1, uncompiledFile.compiledTimes)
+        assertTrue(tracker.isNoFileChanges())
+    }
+
+    @Test
+    fun addChangedFiles_reopensFailedFileWhenSnapshotChanges() {
+        val tracker = DeployFileStateTracker()
+        val sourceFile = createSourceFile("MainActivity.kt", "class MainActivity")
+        tracker.addChangedFiles(listOf(changedFile(sourceFile)))
+        tracker.updateUncompiledFiles(emptyList(), listOf(compileFile(sourceFile)))
+
+        Thread.sleep(2)
+        sourceFile.writeText("class MainActivity { fun changed() = Unit }")
+        val changedAgainFile = changedFile(sourceFile)
+        tracker.addChangedFiles(listOf(changedAgainFile))
+
+        val uncompiledFile = tracker.getUncompiledFiles().single()
+        assertSame(changedAgainFile, uncompiledFile)
+        assertEquals(0, uncompiledFile.compiledTimes)
+        assertFalse(tracker.isNoFileChanges())
+    }
+
+    @Test
+    fun resetKeepingRecentUncompiled_preservesSnapshotForRetainedFailedFile() {
+        val tracker = DeployFileStateTracker()
+        val sourceFile = createSourceFile("MainActivity.kt", "class MainActivity")
+        val failedChangedFile = changedFile(sourceFile)
+        tracker.addChangedFiles(listOf(failedChangedFile))
+        tracker.updateUncompiledFiles(emptyList(), listOf(compileFile(sourceFile)))
+
+        tracker.resetKeepingRecentUncompiled(sourceFile.lastModified() - 1)
+        tracker.addChangedFiles(listOf(changedFile(sourceFile)))
+
+        val uncompiledFile = tracker.getUncompiledFiles().single()
+        assertSame(failedChangedFile, uncompiledFile)
+        assertEquals(1, uncompiledFile.compiledTimes)
+        assertTrue(tracker.isNoFileChanges())
     }
 
     @Test
