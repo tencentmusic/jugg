@@ -1,3 +1,9 @@
+- version: 3.0.31
+  date: 2026.07.15
+  updates:
+    - 修复编译失败后收到内容未变化的 IDE 或 Git 文件事件时失败状态被重置，导致下次运行无法正确降级的问题
+    - 修复 App Run 开启 Android Test 后，无文件变化时被误判为 androidTest 运行并跳过降级确认弹窗的问题
+
 - version: 3.0.30
   date: 2026.07.14
   updates:

@@ -1,3 +1,9 @@
+- version: 3.0.31
+  date: 2026.07.15
+  updates:
+    - preserve failed compile state when unchanged IDE or Git file events arrive, so the next run can still fall back after a compile failure
+    - fix app runs with Android Test enabled skipping the no-file-changes fallback dialog
+
 - version: 3.0.30
   date: 2026.07.14
   updates:
