@@ -100,11 +100,12 @@ class JuggCompilerHelper(
     fun compile(
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
+        isAndroidTestRun: Boolean = false,
     ): CompileTaskResult {
         // Record compile-tool invocation baseline for MCP status/hook gating.
         LastCompileTimestampRegistry.INSTANCE.recordNow(pathManager.projectDir.absolutePath)
         logger.trace("[PERF] JuggCompileHelper.compile entered, thread=${Thread.currentThread().name}")
-        val result = doCompile(options, uiHandler)
+        val result = doCompile(options, uiHandler, isAndroidTestRun)
 
         if (uiHandler.isCanceled) {
             logger.warn("Compile canceled.")
@@ -121,6 +122,7 @@ class JuggCompilerHelper(
     private fun doCompile(
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
+        isAndroidTestRun: Boolean,
     ): CompileTaskResult {
         if (deployStateManager.isInitializingIncrementalCompile) {
             logger.info("Waiting Jugg initializing finish...")
@@ -153,7 +155,7 @@ class JuggCompilerHelper(
         if (!isGradleCompile) {
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
-            incrementalResult = incrementalCompile(uiHandler, options.buildTarget)
+            incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
 
             // Strategy 2: Step2 Wait for async git check and force recompile if new files found
             logger.trace("[PERF] gitChangeChecker.getAsyncResultWithTimeout start, thread=${Thread.currentThread().name}")
@@ -164,7 +166,7 @@ class JuggCompilerHelper(
                 logger.warn("Git check after compile timeout, the repository is tooooo big?? File changes may not reliable.")
             } else if (foundResult.isFoundNewChangedFiles) {
                 logger.info("Git check after compile, found ${foundResult.foundFilesSize} new file(s) after compile success, compile again.")
-                incrementalResult = incrementalCompile(uiHandler, options.buildTarget)
+                incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
             } else {
                 logger.debug("Git check after compile found no new changed files.")
             }
@@ -530,6 +532,7 @@ class JuggCompilerHelper(
     fun incrementalCompile(
         uiHandler: CompileUiHandler,
         buildTarget: BuildTarget = BuildTarget.APP,
+        isAndroidTestRun: Boolean = false,
     ): CompileTaskResult {
 
         val compiler = juggCompiler ?: run {
@@ -539,7 +542,7 @@ class JuggCompilerHelper(
 
         if (deployFileManager.isNoFileChanges() && !dependencyChangeManager.isNeedCompilation) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
-            if (uncompiledFiles.isEmpty() && buildTarget == BuildTarget.ANDROID_TEST) {
+            if (uncompiledFiles.isEmpty() && buildTarget == BuildTarget.ANDROID_TEST && isAndroidTestRun) {
                 logger.info("No file changes for androidTest, but current run should deploy directly.")
                 return CompileTaskResult.incrementalSuccess(
                     CompileResult.empty(uiHandler.createCompileStatusHolder()),

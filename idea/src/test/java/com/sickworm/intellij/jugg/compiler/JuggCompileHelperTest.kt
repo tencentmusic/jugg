@@ -129,12 +129,37 @@ class JuggCompileHelperTest {
         whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
         fixture.helper.juggCompiler = mock<JuggCompiler>()
 
-        val result = fixture.helper.incrementalCompile(fixture.uiHandler, BuildTarget.ANDROID_TEST)
+        val result = fixture.helper.incrementalCompile(
+            fixture.uiHandler,
+            BuildTarget.ANDROID_TEST,
+            isAndroidTestRun = true,
+        )
 
         assertTrue(result.isSuccess)
         assertFalse(result.isGradleCompile)
         assertFalse(result.hasFileChanges)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
+        verify(fixture.helper.juggCompiler!!, never()).compile(any())
+    }
+
+    @Test
+    fun incrementalCompile_noFileChanges_appRunWithAndroidTestBuildTarget_showsFallbackConfirm() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        whenever(fixture.uiHandler.confirmFallbackWhenNoFileChanges()).thenReturn(ConfirmResult.POSITIVE)
+        fixture.juggRunningTaskStatusManager.setHasRun("device-1")
+        fixture.helper.juggCompiler = mock<JuggCompiler>()
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler, BuildTarget.ANDROID_TEST)
+
+        assertFalse(result.isSuccess)
+        assertTrue(result.isCanFallback)
+        assertFalse(result.hasFileChanges)
+        verify(fixture.uiHandler).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }
 

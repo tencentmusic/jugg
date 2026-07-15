@@ -170,11 +170,15 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
      * Deploy changes to device connected by adb.
      */
     fun deploy() {
-        deploy(null)
+        deploy(null, enableAndroidTest = false)
     }
 
     fun deployAndroidTest(spec: AndroidTestRunSpec) {
-        deploy(spec)
+        deploy(spec, enableAndroidTest = true)
+    }
+
+    fun deployAppWithAndroidTestEnabled() {
+        deploy(null, enableAndroidTest = true)
     }
 
     /**
@@ -194,7 +198,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         juggManager.updateDeployState()
     }
 
-    private fun deploy(androidTestRunSpec: AndroidTestRunSpec?) {
+    private fun deploy(androidTestRunSpec: AndroidTestRunSpec?, enableAndroidTest: Boolean) {
         // In this state, Jugg will wait app launched, so we need to update state asynchronously
         val shouldUpdateStateAsync = deployStateManager.deployState.state == JuggDeployState.State.READY_INCREMENTAL_COMPILE
         if (shouldUpdateStateAsync) {
@@ -204,7 +208,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
             }.start()
         }
 
-        juggManager.runTask(createRunOptions(androidTestRunSpec != null), null, null, androidTestRunSpec)
+        juggManager.runTask(createRunOptions(enableAndroidTest), null, null, androidTestRunSpec)
         if (androidTestRunSpec == null) {
             waitingLaunchAppAndCheck()
         }
@@ -245,6 +249,14 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
     fun readLatestProjectLog(): String {
         return File(pathManager.logDir, "compile_latest.log").takeIf { it.exists() }?.readText().orEmpty()
+    }
+
+    fun readProjectLogsSince(timestamp: Long): String {
+        return pathManager.logDir.listFiles().orEmpty()
+            .filter { it.name.startsWith("compile_") && !it.name.startsWith("compile_latest") }
+            .filter { it.lastModified() >= timestamp }
+            .sortedBy { it.lastModified() }
+            .joinToString("\n") { it.readText() }
     }
 
     /**

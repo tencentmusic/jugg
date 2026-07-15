@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
 import org.junit.Before
 import org.junit.ClassRule
@@ -65,5 +66,25 @@ class AndroidTestTopLevelFlowTest {
             projectLog.contains("Apply Changes successfully finished"),
             "Expected incremental Jugg deploy log, got:\n$projectLog",
         )
+    }
+
+    @Test
+    fun appRunWithAndroidTestBuildTargetUsesNormalNoChangeFlow() {
+        val oldConfirmSetting = JuggSettings.isConfirmFallbackWhenNoFileChanges
+        try {
+            JuggSettings.isConfirmFallbackWhenNoFileChanges = false
+            val logStart = System.currentTimeMillis()
+            jugg.deployAndroidTest(AndroidTestRunSpec(TEST_CLASS, "targetContextUsesAppPackage"))
+            // The first app run establishes hasRun after the androidTest full build resets it.
+            jugg.deployAppWithAndroidTestEnabled()
+
+            jugg.deployAppWithAndroidTestEnabled()
+
+            val projectLog = jugg.readProjectLogsSince(logStart)
+            assertTrue(projectLog.contains("No file changes. will fallback to gradle compile."), projectLog)
+            assertFalse(projectLog.contains("No file changes for androidTest, but current run should deploy directly."), projectLog)
+        } finally {
+            JuggSettings.isConfirmFallbackWhenNoFileChanges = oldConfirmSetting
+        }
     }
 }

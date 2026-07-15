@@ -153,7 +153,11 @@ class JuggRunningTask(
         val detailMap = mutableMapOf<String, String>()
         detailMap["isForceGradleCompile"] = compileUiHandler.isForceGradleCompile.toString()
 
-        val compileTaskResult = juggCompileHelper.compile(options, compileUiHandler)
+        val compileTaskResult = juggCompileHelper.compile(
+            options,
+            compileUiHandler,
+            isAndroidTestRun = androidTestRunSpec != null,
+        )
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
         detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"

@@ -33,12 +33,14 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 
 入口：`main/src/main/java/com/sickworm/intellij/jugg/compiler/BuildTarget.kt`
 
-| Target | 编译范围 | 启动策略 |
-|--------|----------|----------|
-| `APP` | app variant | `am start` |
-| `ANDROID_TEST` | app variant + androidTest variant | `am instrument` |
+| Target | 编译范围 |
+|--------|----------|
+| `APP` | app variant |
+| `ANDROID_TEST` | app variant + androidTest variant |
 
-`BuildTarget.ANDROID_TEST` 只是一层运行会话 tag，不把 androidTest 当成独立 app 运行模式。普通 app run 仍默认走 `APP`，避免影响既有行为。
+`BuildTarget` 只描述编译范围，不决定本轮启动方式。App RunConfig 开启 `enableAndroidTest` 后，即使执行普通 App Run，也会使用 `BuildTarget.ANDROID_TEST` 维护 app APK 与 test APK baseline；是否执行 `am instrument` 由本轮 `AndroidTestRunSpec` 是否非空决定，为空时仍执行普通 app launch。
+
+因此，无文件变化时只有 `BuildTarget.ANDROID_TEST` 且本轮存在 `AndroidTestRunSpec` 才能走 androidTest 直接部署分支；普通 App Run 不能仅根据 `BuildTarget` 跳过无文件变化确认。
 
 ### 2.2 test APK 识别
 
