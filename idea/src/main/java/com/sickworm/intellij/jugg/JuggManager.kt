@@ -222,7 +222,9 @@ class JuggManager @TestOnly constructor(
         val currentListNames = currentList.map { it.name }
         logger.debug("JuggConfigurationType currentList: $currentListNames")
 
-        val currentListNamesExceptDefault = currentList.filter { it.name != SuggestRunConfiguration.DEFAULT.runConfigName }
+        val currentListNamesExceptDefault = currentList.filterNot {
+            SuggestRunConfiguration.isDefaultRunConfigName(it.name)
+        }
         if (currentListNamesExceptDefault.isNotEmpty() && !isSyncFinished) {
             logger.debug("Not sync finished and exits non-default configs is not empty, skip create default run configuration")
             return
@@ -271,7 +273,9 @@ class JuggManager @TestOnly constructor(
         }
 
         // select if first created except default
-        val settingsListExceptDefault = settingsList.filter { it.name != SuggestRunConfiguration.DEFAULT.runConfigName }
+        val settingsListExceptDefault = settingsList.filterNot {
+            SuggestRunConfiguration.isDefaultRunConfigName(it.name)
+        }
         if (currentListNamesExceptDefault.isEmpty() && settingsListExceptDefault.isNotEmpty()) {
             val settings = settingsListExceptDefault[0]
             RunManager.getInstance(project).selectedConfiguration = settings

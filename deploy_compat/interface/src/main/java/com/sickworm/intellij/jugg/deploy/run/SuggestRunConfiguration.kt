@@ -15,6 +15,10 @@ data class SuggestRunConfiguration(
             return runConfigName.substringAfter(RUN_CONFIG_PREFIX)
         }
 
+        fun isDefaultRunConfigName(runConfigName: String): Boolean {
+            return runConfigName == DEFAULT.runConfigName || runConfigName.startsWith("Unnamed")
+        }
+
         val DEFAULT: SuggestRunConfiguration
             get() = SuggestRunConfiguration(
                 moduleName = "app",
