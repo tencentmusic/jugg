@@ -8,9 +8,9 @@ import com.sickworm.intellij.jugg.compiler.source.SourceDataBindingProcessor
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.mock.TestGlobal.assetsAndroidDir
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.deploy.instrument
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

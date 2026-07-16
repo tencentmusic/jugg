@@ -9,9 +9,9 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.PluginInfoReader
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import com.sickworm.intellij.jugg.server.protocols.VersionData

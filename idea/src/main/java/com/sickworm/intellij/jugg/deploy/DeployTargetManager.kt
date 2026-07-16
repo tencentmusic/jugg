@@ -5,8 +5,8 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.JuggInternalException
 
 class DeployTargetManager(
     private val project: Project,

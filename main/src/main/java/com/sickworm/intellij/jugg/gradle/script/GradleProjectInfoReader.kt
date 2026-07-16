@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.data.*
-import com.sickworm.intellij.jugg.project.data.Dependency
-import com.sickworm.intellij.jugg.project.data.ModuleDependency
+import com.sickworm.intellij.jugg.project.info.*
+import com.sickworm.intellij.jugg.project.info.Dependency
+import com.sickworm.intellij.jugg.project.info.ModuleDependency
 import org.gradle.api.*
 import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier

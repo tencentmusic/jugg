@@ -17,6 +17,7 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
@@ -33,6 +34,7 @@ import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueResultDialog
+import com.sickworm.intellij.jugg.gradle.compile.CopyGeneratedSourceHelper
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -43,9 +45,21 @@ import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.FileChangesDetector
+import com.sickworm.intellij.jugg.project.change.FileChangesHandler
+import com.sickworm.intellij.jugg.project.change.FileChangesListener
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
+import com.sickworm.intellij.jugg.project.info.ProjectInfoReader
+import com.sickworm.intellij.jugg.project.runtime.CustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.runtime.HostTaskExecutor

@@ -6,8 +6,8 @@ import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.IncrementalCompilerHelper
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.createImmediateTestTaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.createImmediateTestTaskRunnerManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -9,8 +9,8 @@ import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

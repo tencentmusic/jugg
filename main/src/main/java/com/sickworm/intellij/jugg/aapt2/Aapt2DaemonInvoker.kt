@@ -1,13 +1,13 @@
 package com.sickworm.intellij.jugg.aapt2
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.JuggInternalException
 import com.sickworm.intellij.jugg.compiler.copyResource
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isLinux
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import java.io.*
 import java.util.*
 

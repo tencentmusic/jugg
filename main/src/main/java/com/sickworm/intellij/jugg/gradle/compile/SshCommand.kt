@@ -5,8 +5,8 @@ import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.script.GradleApplicationInjector
 import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import kotlin.math.max
 

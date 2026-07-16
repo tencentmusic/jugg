@@ -6,8 +6,8 @@ import com.jcraft.jsch.ChannelShell
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.Session
+import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.project.JuggException
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.mockito.Mockito

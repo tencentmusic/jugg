@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.instrument
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.Disposable
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import java.io.File
 import kotlin.jvm.Throws

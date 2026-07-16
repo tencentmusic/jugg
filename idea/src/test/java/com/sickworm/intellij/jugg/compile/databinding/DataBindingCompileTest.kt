@@ -563,7 +563,7 @@ open class DataBindingCompileTest {
         val packagePath = (context.getModulePackageName(module)
             ?: throw IllegalStateException("module package name not found for ${module.name}"))
             .replace(".", "/")
-        val commonMapperOutputs = if (module.moduleType == com.sickworm.intellij.jugg.project.data.ModuleInfo.Type.Library) {
+        val commonMapperOutputs = if (module.moduleType == com.sickworm.intellij.jugg.project.info.ModuleInfo.Type.Library) {
             listOf("androidx/databinding/DataBindingComponent.java")
         } else {
             listOf(

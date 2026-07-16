@@ -5,8 +5,8 @@ package com.sickworm.intellij.jugg.compiler.databinding
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.jar.JarFile

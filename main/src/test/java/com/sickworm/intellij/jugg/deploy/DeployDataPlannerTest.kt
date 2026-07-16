@@ -6,9 +6,9 @@ import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.data.ResourceApkGenerator
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

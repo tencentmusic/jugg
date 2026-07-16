@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.loader
 
-import com.sickworm.intellij.jugg.project.HotUpdateLoadManifest
+import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
 import org.junit.Test
 import java.nio.file.Files
 import kotlin.test.assertEquals

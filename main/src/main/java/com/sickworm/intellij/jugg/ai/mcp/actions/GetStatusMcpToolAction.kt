@@ -10,8 +10,8 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId

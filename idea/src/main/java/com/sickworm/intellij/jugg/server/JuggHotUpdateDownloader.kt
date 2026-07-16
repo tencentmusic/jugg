@@ -13,8 +13,8 @@ import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.HotUpdateLoadManifest
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive

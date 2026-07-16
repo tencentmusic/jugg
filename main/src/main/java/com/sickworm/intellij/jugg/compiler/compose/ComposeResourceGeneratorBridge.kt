@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler.compose
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
+import com.sickworm.intellij.jugg.project.info.ComposeResourceInfo
 import java.io.File
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method

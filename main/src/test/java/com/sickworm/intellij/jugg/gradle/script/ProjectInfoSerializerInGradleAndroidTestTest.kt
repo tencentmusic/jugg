@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
-import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
-import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ComposeResourceDirectory
+import com.sickworm.intellij.jugg.project.info.ComposeResourceInfo
+import com.sickworm.intellij.jugg.project.info.ComposeResourceSupportStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

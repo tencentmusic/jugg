@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.constref
 
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.createTestTaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.createTestTaskRunnerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

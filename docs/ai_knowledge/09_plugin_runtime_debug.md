@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-16
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -55,7 +55,7 @@ ${projectRoot}/.gradle/jugg/
 ~/.jugg/const_ref/                     # 跨项目常量引用缓存（全局）
 ```
 
-**代码位置**：`main/src/main/java/.../project/JuggPathManager.kt`
+**代码位置**：`main/src/main/java/.../project/runtime/JuggPathManager.kt`
 
 ---
 
@@ -123,9 +123,9 @@ ${projectRoot}/.gradle/jugg/
 
 **关键类**：
 ```
-idea/.../project/FileChangesDetector.kt       # VFS 事件监听（afterVfsChange 在 EDT）
+idea/.../project/change/FileChangesDetector.kt # VFS 事件监听（afterVfsChange 在 EDT）
 main/.../deploy/DeployFileManager.kt          # addChangedFile / removeChangedFile
-main/.../project/TaskRunnerManager.kt         # 后台派发、isOnEdt、项目/全局锁和 Job 生命周期
+main/.../project/runtime/TaskRunnerManager.kt # 后台派发、isOnEdt、项目/全局锁和 Job 生命周期
 idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThread 与 IDEA Task 执行/进度
 ```
 

@@ -7,7 +7,7 @@ import com.googlecode.d2j.reader.MultiDexFileReader
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.compiler.obfuscation.R8MappingReader
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test

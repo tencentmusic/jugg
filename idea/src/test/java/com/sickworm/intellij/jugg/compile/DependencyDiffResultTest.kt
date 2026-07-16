@@ -3,9 +3,9 @@ package com.sickworm.intellij.jugg.compile
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import com.sickworm.intellij.jugg.mock.context
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

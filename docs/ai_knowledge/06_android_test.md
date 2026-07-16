@@ -63,9 +63,9 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 
 入口：
 
-- `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt`
-- `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`
 
 androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
@@ -116,7 +116,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
 入口：
 
-- `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongsUtils.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongs.kt`
 

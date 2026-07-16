@@ -19,7 +19,7 @@ import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.MatchCandidate
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.VerifyResult
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.nio.charset.StandardCharsets
 

@@ -10,8 +10,8 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 
 class IdeaMcpRuntime(
     override val logger: Logger,

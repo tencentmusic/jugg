@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
@@ -11,7 +11,7 @@ import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefEngine
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.ConstRefEffectProvider
 import com.sickworm.intellij.jugg.deploy.data.ConstRefReadiness
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
@@ -20,8 +20,8 @@ import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 

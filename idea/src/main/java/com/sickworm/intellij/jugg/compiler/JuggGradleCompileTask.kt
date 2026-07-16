@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
  import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import kotlinx.coroutines.*
 import java.io.PrintWriter
 import java.io.StringWriter

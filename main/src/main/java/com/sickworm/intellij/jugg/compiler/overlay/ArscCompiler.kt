@@ -6,9 +6,9 @@ import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.JuggInternalException
 import java.util.zip.ZipFile
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap

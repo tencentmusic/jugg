@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.*
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.*
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.project.dependency.LibraryDependencySet
 import com.sickworm.intellij.jugg.project.dependency.UpdatedLibraryDependency

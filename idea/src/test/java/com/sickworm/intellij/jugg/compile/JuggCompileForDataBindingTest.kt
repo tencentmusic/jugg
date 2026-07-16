@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compile
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

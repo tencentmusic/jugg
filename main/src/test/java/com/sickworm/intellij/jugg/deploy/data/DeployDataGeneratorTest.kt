@@ -13,9 +13,9 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.Before
 import org.junit.Test
 import java.io.File

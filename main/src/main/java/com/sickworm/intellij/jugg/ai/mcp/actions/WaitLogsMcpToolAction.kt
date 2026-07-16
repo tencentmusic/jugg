@@ -15,7 +15,7 @@ import com.sickworm.intellij.jugg.ai.mcp.util.CrashDetector
 import com.sickworm.intellij.jugg.ai.mcp.util.CrashSignal
 import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit

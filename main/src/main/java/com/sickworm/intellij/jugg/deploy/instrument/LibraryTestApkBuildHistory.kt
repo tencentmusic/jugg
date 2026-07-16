@@ -4,9 +4,9 @@ import com.google.gson.GsonBuilder
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.AtomicMoveNotSupportedException

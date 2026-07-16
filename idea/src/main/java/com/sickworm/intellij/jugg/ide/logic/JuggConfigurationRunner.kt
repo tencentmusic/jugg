@@ -35,8 +35,8 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.util.concurrent.FutureTask
 import javax.swing.SwingUtilities
 

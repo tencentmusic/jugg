@@ -6,7 +6,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /**
  * ModuleApkBelongsUtils resolves module-to-APK ownership across base and dynamic-feature APK artifacts.

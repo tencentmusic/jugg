@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /**
  * ModuleApkBelongs stores module-to-APK ownership with a primary APK view and optional extra APK targets.

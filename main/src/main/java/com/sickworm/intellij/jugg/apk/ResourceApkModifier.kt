@@ -5,7 +5,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.data.SigningConfig
+import com.sickworm.intellij.jugg.project.info.SigningConfig
 import java.io.File
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry

@@ -6,7 +6,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.ByteArrayOutputStream

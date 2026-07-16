@@ -22,7 +22,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.TestFilter
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before

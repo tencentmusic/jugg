@@ -6,7 +6,7 @@ import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.toDeployItem
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import java.io.File
 
 /**

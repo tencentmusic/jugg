@@ -5,7 +5,7 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis

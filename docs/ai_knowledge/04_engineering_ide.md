@@ -32,7 +32,7 @@
 | `JuggControlPanelHost` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggControlPanelHost.kt` | 稳定 ClassLoader 中只持有 `JComponent` 的 Tool Window 宿主；通过 `JuggInitializer.getManager(project)` 获取热更新实现 |
 | `JuggControlPanelModel` / `JuggEvent` | `main/src/main/java/com/sickworm/intellij/jugg/ide/controlpanel/` | 无 Project/Swing 依赖的项目 facts、任务状态和结构化核心事件；只公开两个入口类，投影与枚举使用嵌套类型，供 IDE、MCP 与后续 CLI 复用 |
 | `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | 热更新层项目级持有 Model/Panel，刷新 IDE facts、编排 Sync/App events 与 Panel 动作，并在 Manager dispose 时 clear 稳定 Host |
-| `CompileContextManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt` | 项目信息、编译上下文、部署上下文的 IDE 侧同步 |
+| `CompileContextManager` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt` | 项目信息、编译上下文、部署上下文的 IDE 侧同步 |
 | `MoreOptionsManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More Options 菜单，挂载 Gradle compile、restart、skills、report 等操作 |
 | `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 仅在存在有效 Jugg Run Configuration 时创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
 

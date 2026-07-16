@@ -39,10 +39,10 @@ import com.sickworm.intellij.jugg.mock.androidApkPackage
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.FileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.project.change.FileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create

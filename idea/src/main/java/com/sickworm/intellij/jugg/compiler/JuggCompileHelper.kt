@@ -9,6 +9,7 @@ import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -22,9 +23,14 @@ import com.sickworm.intellij.jugg.ide.bean.withGradleCacheRefresh
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.*
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.info.ClasspathBackupHelper
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager

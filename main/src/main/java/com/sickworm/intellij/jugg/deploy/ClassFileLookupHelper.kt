@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.util.zip.ZipFile
 

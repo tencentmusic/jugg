@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.security.MessageDigest
 

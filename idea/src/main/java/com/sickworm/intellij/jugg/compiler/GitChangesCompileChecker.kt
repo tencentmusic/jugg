@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import kotlinx.coroutines.Job
 
 /**

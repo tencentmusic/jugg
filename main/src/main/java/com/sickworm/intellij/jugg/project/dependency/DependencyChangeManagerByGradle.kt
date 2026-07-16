@@ -4,9 +4,9 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager.ChangeStatus
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

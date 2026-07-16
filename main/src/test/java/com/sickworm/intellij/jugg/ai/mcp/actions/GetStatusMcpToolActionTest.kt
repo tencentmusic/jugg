@@ -22,9 +22,9 @@ import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test

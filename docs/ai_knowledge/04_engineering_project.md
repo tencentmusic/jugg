@@ -17,16 +17,17 @@
 
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
-| `JuggProjectInfo` / `ModuleInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | Gradle 项目/模块快照，记录 AGP R8 classpath、source/res/manifest/classpath/dependency/applicationId/androidTest 等信息 |
-| `ModuleBuildPathInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | 多 AGP 版本及自定义 Gradle build directory 的输出路径兼容推断 |
-| `JuggPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt` | 项目级 Jugg 文件布局：project info、compile context、deploy history、classpath、日志、MCP fetch cache |
-| `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggGlobalPathManager.kt` | 用户级 `~/.jugg` 文件布局：hot update、deploy cache、resource 等 |
+| `JuggProjectInfo` / `ModuleInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt` | Gradle 项目/模块快照，记录 AGP R8 classpath、source/res/manifest/classpath/dependency/applicationId/androidTest 等信息 |
+| `ModuleBuildPathInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt` | 多 AGP 版本及自定义 Gradle build directory 的输出路径兼容推断 |
+| `JuggPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt` | 项目级 Jugg 文件布局：project info、compile context、deploy history、classpath、日志、MCP fetch cache |
+| `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggGlobalPathManager.kt` | 用户级 `~/.jugg` 文件布局：hot update、history、resource 等 |
 | `GradleProjectInfoReaderManager` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt` | Gradle init script 入口，读取/保存 project info、include build、dependency diff、androidTest task 注入 |
 | `GradleScriptWriter` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleScriptWriter.kt` | 把插件内置 `readProjectInfo.gradle.kts` 与 runtime jar 写到稳定目录，供本地、远端和 CLI 通过 `-I` 注入 |
 | `GradleProjectInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt` | 通过 Gradle 反射读取 module、variant、source set、classpath、依赖、androidTest synthetic module |
 | `GradleVariantCollector` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleVariantCollector.kt` | 配置阶段通过 Android Components API 收集 variant 名称，作为 AGP 9 移除 legacy variant API 后的回退数据源 |
 | `ProjectInfoSerializerInGradle` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/ProjectInfoSerializerInGradle.kt` | Gradle 脚本侧 project info JSON 序列化 |
-| `JuggProjectInfoMerger` | `main/src/main/java/com/sickworm/intellij/jugg/project/merger/JuggProjectInfoMerger.kt` | 合并 IDE/Gradle/include build/project info，生成编译上下文使用的模块视图 |
+| `JuggProjectInfoMerger` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfoMerger.kt` | 合并 IDE/Gradle/include build/project info，生成编译上下文使用的模块视图 |
+| `BaseCompileContext` / `CompileContextManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/`、`idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/` | 共享编译上下文与 IDE 侧 ProjectInfo/Compile Context 管理 |
 | `GradleProjectInfoLocalFetchManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/dependency/GradleProjectInfoLocalFetchManager.kt` | IDE 侧调度本地 project info 读取和依赖变化检测 |
 | `LocalGradleCompileClient` / `RemoteGradleCompileClient` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/` | 本地/远端 Gradle 构建、APK 查找、classpath 拉取与 diff 参数拼装 |
 | `GradleWrapperRepairer` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleWrapperRepairer.kt` | 在 `JuggCompilerHelper.gradleCompile()` 真正执行 Gradle 前，针对已有 `gradle-wrapper.properties` 的工程补齐缺失 wrapper 启动文件 |
@@ -167,6 +168,7 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 |---|---|
 | `LocalGradleCompileClient` | 本机执行 Gradle、收集 app/test APK、读取 library Test APK build history、fetch classpath |
 | `RemoteGradleCompileClient` | 远端执行 Gradle、拉回产物/日志/diff，并处理远端项目路径差异 |
+| `CopyGeneratedSourceHelper` | 远端 Gradle 编译完成后，将 classpath backup 中的 generated/custom sync 产物回写本地模块 build 目录 |
 | `SshCommand` | 拼装远端 Gradle 参数，包括 `jugg.diffMode`、`jugg.incDeployTimes`、`jugg.libraryTestTasks` |
 | `ApkLookupPlanner` / `FindOutputCommand` | 根据 required/optional APK 规则定位输出产物 |
 | `GradleDependencyDiffer` | diff mode 下输出依赖变化结果，供 dependency manager 判断是否需要用户确认 |

@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.isWindows
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import kotlinx.coroutines.*
 import java.io.IOException
 import java.io.PrintStream

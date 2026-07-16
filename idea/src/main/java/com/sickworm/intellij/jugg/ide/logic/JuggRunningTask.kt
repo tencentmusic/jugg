@@ -31,9 +31,9 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
-import com.sickworm.intellij.jugg.project.LastCompileProjectRegistry
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.ILastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.runtime.LastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.PrintWriter

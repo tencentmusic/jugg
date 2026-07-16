@@ -16,7 +16,7 @@
 | 能力 | 核心入口 | 作用 |
 |------|----------|------|
 | 日志 | `main/src/main/java/com/sickworm/intellij/jugg/logger/JuggLogger.kt`、`FileLogger.kt`、`TimeLogger.kt` | 项目级 / 全局日志分发、`compile_latest.log` 快捷入口、阶段耗时埋点 |
-| 路径与临时产物 | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt`、`JuggGlobalPathManager.kt`、`ExpiredArtifactCleaner.kt` | 项目级 `build/jugg`、稳定 `.gradle/jugg`、用户级 `~/.jugg` 文件归属，以及项目级过期产物清理 |
+| 路径与临时产物 | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt`、`JuggGlobalPathManager.kt`、`main/src/main/java/com/sickworm/intellij/jugg/project/ExpiredArtifactCleaner.kt` | 项目级 `build/jugg`、稳定 `.gradle/jugg`、用户级 `~/.jugg` 文件归属，以及项目级过期产物清理 |
 | APK 修改 | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkFileModifier.kt`、`ResourceApkModifier.kt` | APK 插入、替换、zipalign、签名与资源 APK 增量更新 |
 | Git worktree | `main/src/main/java/com/sickworm/intellij/jugg/git/GitManager.kt`、`WorktreeFileRepository.kt` | Git 变更识别；worktree 下把 HEAD 操作定向到 worktree-local HEAD |
 | 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt` | core 层调用 UI、设备、Gradle、MCP host 能力的抽象边界 |

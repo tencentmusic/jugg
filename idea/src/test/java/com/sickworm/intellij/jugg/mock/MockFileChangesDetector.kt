@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.mock
 
-import com.sickworm.intellij.jugg.project.FileChangesListener
-import com.sickworm.intellij.jugg.project.IFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.FileChangesListener
+import com.sickworm.intellij.jugg.project.change.IFileChangesDetector
 import java.io.File
 
 class MockFileChangesDetector: IFileChangesDetector {
