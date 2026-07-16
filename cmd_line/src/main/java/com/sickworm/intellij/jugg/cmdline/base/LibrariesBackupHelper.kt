@@ -3,9 +3,9 @@ package com.sickworm.intellij.jugg.cmdline.base
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption

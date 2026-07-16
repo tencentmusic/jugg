@@ -7,7 +7,7 @@ import org.jetbrains.annotations.TestOnly
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.tree.ClassNode
 import com.sickworm.intellij.jugg.org.objectweb.asm.tree.FieldNode
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.InputStream

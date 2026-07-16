@@ -93,7 +93,7 @@ class ReadProjectInfoScriptContentTest {
         assertTrue(managerText.contains("const val PARAM_DIFF_MODE = \"jugg.diffMode\""))
         assertTrue(managerText.contains("const val PARAM_INC_DEPLOY_TIMES = \"jugg.incDeployTimes\""))
 
-        val modelText = readSource("src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt")
+        val modelText = readSource("src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt")
         assertTrue(modelText.contains("companion object"))
         assertTrue(modelText.contains("const val DEFAULT_BUILD_VARIANT = \"debug\""))
         assertTrue(modelText.contains("val virtualModule = ModuleInfo("))
@@ -108,7 +108,7 @@ class ReadProjectInfoScriptContentTest {
         val manifestInfoText = readSource("src/main/java/com/sickworm/intellij/jugg/compiler/manifest/XmlAndroidManifestInfo.kt")
         assertFalse(manifestInfoText.contains("private set"))
 
-        val pathManagerText = readSource("src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt")
+        val pathManagerText = readSource("src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt")
         assertTrue(pathManagerText.contains("companion object"))
         assertTrue(pathManagerText.contains("const val RSYNC_PUSH_CONFIG_DIR_ARGUMENTS"))
         assertTrue(pathManagerText.contains("const val RSYNC_FETCH_DIFF_DIR_ARGUMENTS"))
@@ -211,7 +211,7 @@ class ReadProjectInfoScriptContentTest {
     fun generatedScript_shouldInlineCurrentProjectInfoVersion() {
         val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
         assertNotNull(scriptText)
-        val sourceText = readSource("src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfoSerialize.kt")
+        val sourceText = readSource("src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfoSerialize.kt")
 
         val sourceVersion = requireNotNull("""VERSION = (\d+)""".toRegex().find(sourceText)?.groupValues?.get(1))
         assertTrue(scriptText.contains("val VERSION = $sourceVersion"))

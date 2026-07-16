@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.PluginInfoReader
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 
 /**
  * VersionMcpToolAction implements MCP tool `version`.

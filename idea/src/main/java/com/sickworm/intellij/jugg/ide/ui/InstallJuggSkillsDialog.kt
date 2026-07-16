@@ -22,7 +22,7 @@ import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
 import com.sickworm.intellij.jugg.ai.skills.JuggSkillInstaller
 import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout

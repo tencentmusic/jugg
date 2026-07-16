@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.data.Variant
+import com.sickworm.intellij.jugg.project.info.Variant
 import org.gradle.api.Project
 
 private val variantCollectorKey = "com.sickworm.intellij.jugg.collectedVariants"

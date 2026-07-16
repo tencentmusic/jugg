@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.JuggInternalException
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File

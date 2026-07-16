@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler.source.apt
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /**
  * IJuggAptProcessor defines one custom generated-source rewriter in Jugg APT pipeline.

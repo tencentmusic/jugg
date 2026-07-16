@@ -11,21 +11,18 @@ for (final def file in scriptDirectory.listFiles()) {
         willCollectFiles.add(file)
     }
 }
-File dataDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/data")
-File projectInfoSerializeFile = new File(dataDirectory, "JuggProjectInfoSerialize.kt")
-for (final def file in dataDirectory.listFiles()) {
-    if (file.name.endsWith(".java") || file.name.endsWith(".kt")) {
-        willCollectFiles.add(file)
-    }
-}
-willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt"))
+File projectInfoDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/info")
+File projectInfoSerializeFile = new File(projectInfoDirectory, "JuggProjectInfoSerialize.kt")
+willCollectFiles.add(new File(projectInfoDirectory, "JuggProjectInfo.kt"))
+willCollectFiles.add(projectInfoSerializeFile)
+willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt"))
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/dependency/DependencyDiffResult.kt"))
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/compiler/manifest/XmlAndroidManifestInfo.kt"))
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/compiler/manifest/XmlParser.kt"))
 
 def sortWeight = { File file ->
     String path = file.absolutePath.replace('\\', '/')
-    if (path.endsWith('/project/JuggPathManager.kt')) {
+    if (path.endsWith('/project/runtime/JuggPathManager.kt')) {
         return 1
     }
     if (path.endsWith('/project/dependency/DependencyDiffResult.kt')) {

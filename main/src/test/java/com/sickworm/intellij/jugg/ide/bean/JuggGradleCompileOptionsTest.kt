@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg.ide.bean
 
 import com.sickworm.intellij.jugg.compiler.BuildTarget
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.Variant
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.LocalClasspathStoragePathManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.Variant
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files

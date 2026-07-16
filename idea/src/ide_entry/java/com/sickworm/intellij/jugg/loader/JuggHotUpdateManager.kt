@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.loader
 
 import com.google.gson.Gson
-import com.sickworm.intellij.jugg.project.HotUpdateLoadManifest
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files

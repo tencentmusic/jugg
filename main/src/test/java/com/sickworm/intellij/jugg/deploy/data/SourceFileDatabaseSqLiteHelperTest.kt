@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import junit.framework.TestCase.assertTrue
 import org.junit.Test
 import java.io.File

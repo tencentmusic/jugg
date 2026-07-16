@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.*
-import com.sickworm.intellij.jugg.project.HotUpdateLoadManifest
+import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
 import java.io.File
 import java.lang.reflect.Proxy
 

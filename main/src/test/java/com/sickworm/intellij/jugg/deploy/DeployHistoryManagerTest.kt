@@ -7,9 +7,9 @@ import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.FileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.FileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.Before
 import org.junit.Test
 import java.io.File

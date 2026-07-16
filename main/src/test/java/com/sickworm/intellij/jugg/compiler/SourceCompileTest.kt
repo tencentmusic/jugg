@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.mock.TestGlobal.assetsAndroidDir
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

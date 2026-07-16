@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParseException
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParser
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceSelection
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 
 /**

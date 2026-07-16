@@ -24,7 +24,7 @@ import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
@@ -265,8 +265,8 @@ class JuggDeployerInstallTest {
     @Test
     fun `production code uses task runner instead of execution lock types`() {
         val allowedFiles = setOf(
-            findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/TaskRunnerManager.kt").canonicalFile,
-            findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/ExecutionLockManager.kt").canonicalFile,
+            findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/runtime/TaskRunnerManager.kt").canonicalFile,
+            findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/runtime/ExecutionLockManager.kt").canonicalFile,
         )
         val productionFiles = listOf(
             "main/src/main",

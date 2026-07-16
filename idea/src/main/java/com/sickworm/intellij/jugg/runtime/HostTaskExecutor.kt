@@ -4,7 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.project.IHostTaskExecutor
+import com.sickworm.intellij.jugg.project.runtime.IHostTaskExecutor
 import java.lang.Runnable
 
 /** Executes shared runtime tasks through IDEA background tasks and progress indicators. */

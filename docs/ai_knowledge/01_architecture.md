@@ -21,6 +21,10 @@
 | IDE 入口层 | `idea/src/ide_entry` | 插件加载、初始化、Run Configuration、Sync 事件与稳定 JComponent UI 桥接 |
 | IDE 业务层 | `idea/src/main` | 编译/部署任务编排、UI、运行期策略 |
 | 核心逻辑层 | `main/src/main/java/com/sickworm/intellij/jugg` | 编译、部署、项目模型、Gradle、MCP、工具能力 |
+| 项目信息域 | `main/.../project/info` | 项目模型、序列化、合并与模块身份策略 |
+| 项目变化域 | `main/.../project/change` + `idea/.../project/change` | 文件变化检测契约、过滤和 IDE VFS/Git detector |
+| 任务与锁域 | `main/.../project/runtime/TaskRunnerManager.kt`, `ExecutionLockManager.kt` | 统一任务串行、项目/全局跨进程锁、后台 Job 跟踪、完成事件上报和 dispose 取消；IDEA 仅提供任务展示 adapter，完成事件直接交给共享 `JuggServer` |
+| 编译上下文域 | `main/.../compiler/context` + `idea/.../compiler/context` | 共享编译上下文与 IDE 侧 ProjectInfo/Compile Context 生命周期 |
 | 兼容层 | `deploy_compat/*` | Android Studio 版本 API 适配 |
 | 平台桩层 | `platform_compat/base_api` | API mock，支撑非 IDE 场景编译/测试 |
 | 运行时层 | `jvmti_agent/src/main/cpp` | JVMTI agent 与兼容部署支撑 |

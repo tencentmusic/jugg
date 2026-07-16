@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.deploy.CachedOverlayId
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureTimeMillis
 

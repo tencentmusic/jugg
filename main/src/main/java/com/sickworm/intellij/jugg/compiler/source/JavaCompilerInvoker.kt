@@ -5,8 +5,8 @@ package com.sickworm.intellij.jugg.compiler.source
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import javax.tools.*
 import javax.tools.JavaCompiler

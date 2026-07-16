@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
-import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
+import com.sickworm.intellij.jugg.project.runtime.LocalClasspathStoragePathManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test

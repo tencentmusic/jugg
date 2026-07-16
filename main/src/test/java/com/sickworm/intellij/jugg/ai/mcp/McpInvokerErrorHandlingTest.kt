@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
-import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
+import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 import org.junit.Assert
 import org.junit.Test
 

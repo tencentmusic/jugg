@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg.compiler.compose
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
-import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ComposeResourceInfo
+import com.sickworm.intellij.jugg.project.info.ComposeResourceDirectory
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.CompileTask

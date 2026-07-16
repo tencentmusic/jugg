@@ -3,9 +3,9 @@ package com.sickworm.intellij.jugg.ide.bean
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.gradle.script.camelCompat
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.runtime.LocalClasspathStoragePathManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

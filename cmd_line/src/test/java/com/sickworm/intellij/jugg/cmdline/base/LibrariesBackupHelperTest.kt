@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.cmdline.base
 
 import com.sickworm.intellij.jugg.cmdline.StdLogger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

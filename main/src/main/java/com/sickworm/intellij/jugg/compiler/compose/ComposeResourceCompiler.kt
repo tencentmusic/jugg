@@ -11,10 +11,10 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
 import com.sickworm.intellij.jugg.compiler.toCancelResult
-import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
-import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
-import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ComposeResourceDirectory
+import com.sickworm.intellij.jugg.project.info.ComposeResourceInfo
+import com.sickworm.intellij.jugg.project.info.ComposeResourceSupportStatus
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /** Prepares Compose resources and compiles their generated Kotlin without Gradle. */

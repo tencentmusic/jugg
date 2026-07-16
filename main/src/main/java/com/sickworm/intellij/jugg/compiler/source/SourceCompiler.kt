@@ -7,8 +7,8 @@ import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompi
 import com.sickworm.intellij.jugg.compiler.obfuscation.DexMinifyCompiler
 import com.sickworm.intellij.jugg.compiler.source.apt.JuggAptCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.util.LinkedHashMap
 

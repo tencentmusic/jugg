@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals

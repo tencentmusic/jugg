@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.instrument
 
 import com.sickworm.intellij.jugg.gradle.script.camelCompat
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /**
  * Derives the narrow Gradle build task and APK lookup pattern for one missing library Test APK.

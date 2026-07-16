@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.compiler.overlay.RDexForSubmoduleCompiler
 import com.sickworm.intellij.jugg.compiler.source.JavaCompilerInvoker
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

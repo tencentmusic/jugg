@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.skills
 
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import java.io.File
 import java.io.FileNotFoundException
 

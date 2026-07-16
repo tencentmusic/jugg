@@ -4,7 +4,7 @@ import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.JuggInternalException
 import java.lang.StringBuilder
 import java.util.*
 

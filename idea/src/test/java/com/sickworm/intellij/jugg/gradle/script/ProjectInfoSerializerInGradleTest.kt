@@ -4,7 +4,7 @@ import com.sickworm.intellij.jugg.manager.MockJugg
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.BeforeClass

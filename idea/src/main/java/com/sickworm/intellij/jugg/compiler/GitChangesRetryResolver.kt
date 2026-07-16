@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 
 /**
  * Incremental compile retry resolver that handles "cannot find symbol / unresolved reference" errors

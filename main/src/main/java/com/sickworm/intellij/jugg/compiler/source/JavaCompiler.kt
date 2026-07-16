@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler.source
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /**
  * JavaCompiler compiles Java sources for a module through JavaCompilerInvoker and participates in source-stage hook ordering.
