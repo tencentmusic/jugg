@@ -521,7 +521,11 @@ class JuggCompilerHelper(
                 val runResult = runGradleLibraryDiff(options, uiHandler.createOutputParser())
                 val costTime = (System.currentTimeMillis() - startTime) / 1000
                 logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
-                step2Result = uiHandler.confirmDependencyChanges(dependencyChangeManager, runResult)
+                step2Result = uiHandler.confirmDependencyChanges(runResult)
+
+                if (step2Result != ConfirmResult.CANCEL) {
+                    dependencyChangeManager.applyDependencyChangeDecision(runResult, step2Result.isConfirmed)
+                }
 
                 if (step2Result == ConfirmResult.POSITIVE) {
                     compileContextManager.updateTempLibraries(

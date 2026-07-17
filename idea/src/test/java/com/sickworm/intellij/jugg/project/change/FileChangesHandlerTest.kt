@@ -225,22 +225,24 @@ class FileChangesHandlerTest {
 
     @Test
     fun testBuild() {
-        withTemporaryFile("app/src/main/aidl/ITest.aidl") {
-            val buildTestCase = listOf(
-                "build.gradle" to true,
-                "local.properties" to true,
-                "gradle.properties" to true,
-                "settings.gradle" to true,
-                "app/build.gradle" to true,
-                "app/src/main/aidl/ITest.aidl" to true,
-                "../build.gradle" to true, // root build file is part of the IDE project
-                "app_other/build.gradle" to false, // ignore if not exists
-            )
+        withTemporaryFile("local.properties") {
+            withTemporaryFile("app/src/main/aidl/ITest.aidl") {
+                val buildTestCase = listOf(
+                    "build.gradle" to true,
+                    "local.properties" to true,
+                    "gradle.properties" to true,
+                    "settings.gradle" to true,
+                    "app/build.gradle" to true,
+                    "app/src/main/aidl/ITest.aidl" to true,
+                    "../build.gradle" to true, // root build file is part of the IDE project
+                    "app_other/build.gradle" to false, // ignore if not exists
+                )
 
-            buildTestCase.forEach { (path, result) ->
-                val file = pathManager.projectDir.resolve(path)
-                val isMatch = handler.filter(listOf(file)).isNotEmpty()
-                assertEquals(result, isMatch, "file: $path")
+                buildTestCase.forEach { (path, result) ->
+                    val file = pathManager.projectDir.resolve(path)
+                    val isMatch = handler.filter(listOf(file)).isNotEmpty()
+                    assertEquals(result, isMatch, "file: $path")
+                }
             }
         }
     }

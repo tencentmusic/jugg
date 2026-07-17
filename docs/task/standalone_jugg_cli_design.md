@@ -114,15 +114,15 @@ IRuntimeSettingsRepository
 
 #### Dependency Change
 
-`DependencyChangeManagerByGradle` 已在 `main`，但确认流程依赖 `PlatformApi.showChangeConfirmDialog()`。下沉后由领域策略决定：
+`DependencyChangeManagerByGradle` 已在 `main`，但确认流程依赖 `PlatformApi.showChangeConfirmDialog()`。下沉后复用现有编译交互边界：
 
 ```text
-IDependencyChangePolicy
-├── IdeaDependencyChangePolicy
-└── CliDependencyChangePolicy
+CompileUiHandler.confirmDependencyChanges()
+├── JuggCompileUiHandler（IDEA dialog）
+└── Standalone CompileUiHandler（配置、命令参数或 MCP confirmation）
 ```
 
-CLI 策略根据配置、命令参数或 MCP confirmation 返回继续增量、Gradle rebuild、取消等结果，不模拟 IDEA dialog。
+`IDependencyChangeManager` 只应用确认结果，不感知 dialog 或 Host 类型。CLI handler 返回继续增量、Gradle rebuild、取消等确定结果，不模拟 IDEA dialog。
 
 #### Project Info Merge
 
@@ -236,7 +236,7 @@ JuggManager
     ├── IdeaProjectModelSource
     ├── IdeaFileChangeMonitor
     ├── IdeaRuntimeSettingsRepository
-    ├── IdeaDependencyChangePolicy
+    ├── JuggCompileUiHandler
     ├── HostTaskExecutor
     └── IdeaApplyChangesExecutor
 ```
@@ -248,7 +248,7 @@ StandaloneJuggRuntimeAssembler
 ├── GradleProjectModelSource
 ├── WatchServiceFileChangeMonitor
 ├── FileRuntimeSettingsRepository
-├── CliDependencyChangePolicy
+├── Standalone CompileUiHandler
 ├── StandaloneHostTaskExecutor
 ├── StandaloneApplyChangesExecutor
 └── JuggProjectRuntime
@@ -752,7 +752,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 1 | 已完成 | 已下沉部署状态边界；review 后删除预建的共享 Runtime 与 IDEA 转发 adapters，Runtime 聚合调整到具体领域能力下沉之后 |
 | Step 2 | 已完成 | 任务域、项目/全局锁、IDEA task adapter、后台 Job 生命周期和项目级 deployment cache 已落地；review 改进已合入 |
 | Step 3 | 已完成 | 项目模型、Compile Context 核心与本地 Gradle project info 调度已下沉；IDEA/Gradle-only source 已落地 |
-| Step 4–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 4 | 已完成 | 文件变化处理与 Git reconcile 已下沉，共享 WatchService monitor 与 dependency policy 已落地 |
+| Step 5–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -906,6 +907,22 @@ DeployFileManager
 
 ### Step 4：文件变化与依赖变化领域下沉
 
+实现状态：已完成。新增共享 `FileChangeManager`，统一 changed/delete 过滤、`DeployFileManager` 更新、build-file 依赖状态、Git reconcile 和 pending file-processing barrier。IDEA VFS 只通过 `IdeaFileChangeMonitor` 上报事件；共享 `WatchServiceFileChangeMonitor` 递归监听项目目录，支持 debounce、create/modify/delete、rename 的 delete+create 归一化，并在 overflow 时触发完整 Git reconcile。`.git`、`.gradle`、`.idea` 和 `build` 输出目录不进入 WatchService，避免构建产物产生无效事件风暴。
+
+`GitFileChangesDetector` 已从 `idea` 下沉到 `main`。`DependencyChangeManagerByGradle` 与 `DependencyChangeManagerBySync` 不再调用 `PlatformApi.showChangeConfirmDialog()`；该 API 已从 `IPlatformApi` 删除。依赖确认复用已有 `CompileUiHandler`：IDEA 的 `JuggCompileUiHandler` 展示现有 dialog，CLI/standalone handler 接受命令或 runtime config 给出的确定结果；`IDependencyChangeManager` 只负责应用结果。
+
+当前 compile-on-save 的设置读取和实际 compile 触发仍由 `JuggManager` 完成：共享 manager 返回 `FileChangeResult`，IDEA 根据现有 `JuggSettings.compileOnSave` 调用编译。待 Step 5 下沉 settings、Step 10 下沉 compile orchestrator 后，再将该最后触发点纳入共享 Runtime；文件变化落库和 pending barrier 已完全共享。
+
+已完成验证：
+
+- `FileChangeManagerTest`（L2，changed/delete/build-file/Git、pending barrier 与任务取消释放）
+- `WatchServiceFileChangeMonitorTest`（L2，真实 create/rename/delete）
+- `GitFileChangesDetectorTest`（L2，Git recover 与缺失 undeployed file）
+- `DependencyChangeManagerByGradleTest`（L1/L2，manager 应用确认结果后的状态）
+- `DeployStateManagerTest`、`FileChangesHandlerTest`、`GitChangesCompileCheckerTest`、`JuggCompileHelperTest`（L2）
+- `TopLevelFlowTest#testInstallAndLaunch`（L3）
+- `CmdLineTest`、`:idea:compileKotlin`、`:idea:compileTestKotlin`、`:cmd_line:compileTestKotlin`
+
 目标：统一 IDEA VFS 和 standalone WatchService 的变化处理语义。
 
 任务：
@@ -915,8 +932,8 @@ DeployFileManager
 - IDEA 保留 `IdeaFileChangeMonitor`，将 VFS 事件交给共享 manager。
 - 新增 `WatchServiceFileChangeMonitor`，处理 rename/delete/overflow/debounce。
 - 保留 pending file-processing barrier。
-- 将 dependency change 确认从 `PlatformApi` 收口为 `IDependencyChangePolicy`。
-- IDEA 和 CLI 分别实现对应领域策略。
+- 将 dependency change 确认从 `PlatformApi` 收口到已有 `CompileUiHandler`。
+- IDEA 和 CLI 分别通过对应 handler 提供确定结果，dependency manager 只应用结果。
 
 验证性任务：
 

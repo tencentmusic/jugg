@@ -17,7 +17,6 @@ import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
-import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito
@@ -171,10 +170,7 @@ class JuggDebugSessionManagerTest {
         override fun confirmFallbackWhenNoFileChanges(): ConfirmResult = ConfirmResult.NEGATIVE
         override fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult =
             BuildChangesConfirmResult.FALLBACK
-        override fun confirmDependencyChanges(
-            dependencyChangeManager: IDependencyChangeManager,
-            runResult: DependencyDiffResultSet?,
-        ): ConfirmResult = ConfirmResult.POSITIVE
+        override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult = ConfirmResult.POSITIVE
         override fun confirmEmbeddedToApk(): ConfirmResult = ConfirmResult.POSITIVE
         override fun updateIndicatorText(text: String) = Unit
         override fun listenCancelAction(listener: (() -> Unit)?) = Unit

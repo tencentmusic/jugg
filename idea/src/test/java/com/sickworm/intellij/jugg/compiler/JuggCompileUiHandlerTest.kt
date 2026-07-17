@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import org.junit.Assert
 import org.junit.Test
 import org.mockito.Mockito
@@ -61,6 +62,13 @@ class JuggCompileUiHandlerTest {
     @Test
     fun `force gradle handler keeps cache refresh request`() {
         Assert.assertTrue(createHandler(isGradleCacheRefreshRequested = true).isGradleCacheRefreshRequested)
+    }
+
+    @Test
+    fun `confirmDependencyChanges returns POSITIVE in rpc mode`() {
+        val result = createHandler(isRpcMode = true).confirmDependencyChanges(DependencyDiffResultSet.createEmpty())
+
+        Assert.assertEquals(ConfirmResult.POSITIVE, result)
     }
 
     @Test

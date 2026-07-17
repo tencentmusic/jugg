@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -506,12 +505,6 @@ class WaitLogsMcpToolActionTest {
                 cancelButtonText: String?,
                 isShowCancelButton: Boolean,
             ) = false
-
-            override fun showChangeConfirmDialog(
-                diffResult: DependencyDiffResult?,
-                isRunLater: Boolean,
-                logger: com.intellij.openapi.diagnostic.Logger,
-            ) = throw UnsupportedOperationException()
 
             override fun showUserAndPasswordInputDialog(
                 content: String,

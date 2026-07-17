@@ -22,7 +22,7 @@ class GitFileChangesDetector(
     private val deployFileManager: DeployFileManager,
     private val taskRunnerManager: TaskRunnerManager,
     loggerArg: Logger,
-): IFileChangesDetector {
+) {
 
     private val logger = loggerArg.getInstance("GitFileChangesDetector")
 
@@ -123,7 +123,7 @@ class GitFileChangesDetector(
             .distinctBy { it.path }
     }
 
-    override fun startListen(listener: FileChangesListener) {
+    fun startListen(listener: FileChangesListener) {
         this.listener = listener
     }
 

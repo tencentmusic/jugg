@@ -17,15 +17,15 @@ import java.nio.file.Paths
 /**
  * Listen file changes in project by Intellij callback
  */
-class FileChangesDetector(
+class IdeaFileChangeMonitor(
     private val project: Project,
     private val projectDir: File,
 ) :
-    IFileChangesDetector,
+    IFileChangeMonitor,
     Disposable
 {
 
-    private val logger = JuggLogger.getInstance(project, "FileChangesDetector")
+    private val logger = JuggLogger.getInstance(project, "IdeaFileChangeMonitor")
 
     private var listener: FileChangesListener? = null
 
@@ -55,7 +55,7 @@ class FileChangesDetector(
     }
 
     private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
-        logger.trace("[PERF] FileChangesDetector.notifyFileChanges, thread=${Thread.currentThread().name}, eventSize=${events.size}")
+        logger.trace("[PERF] IdeaFileChangeMonitor.notifyFileChanges, thread=${Thread.currentThread().name}, eventSize=${events.size}")
         val changedFiles = mutableListOf<File>()
         val deletedFiles = mutableListOf<File>()
 

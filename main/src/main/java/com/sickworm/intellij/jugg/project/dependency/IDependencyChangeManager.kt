@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import java.io.File
 
@@ -17,7 +16,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
-    fun tryShowChangeConfirmDialog(specificDependencyDiffResultSet: DependencyDiffResultSet? = null, isRunCompileLater: Boolean = false): ConfirmResult
+    fun applyDependencyChangeDecision(diffResultSet: DependencyDiffResultSet?, isConfirmed: Boolean)
 
     fun getNewLibraryFiles(): List<ChangedFile>
 

@@ -2,8 +2,6 @@ package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager.ChangeStatus
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -31,21 +29,10 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
         tempModule = compileContext.tempModule
     }
 
-    override fun tryShowChangeConfirmDialog(
-        specificDependencyDiffResultSet: DependencyDiffResultSet?,
-        isRunCompileLater: Boolean
-    ): ConfirmResult {
-        logger.debug("tryShowChangeConfirmDialog hasChanges: ${specificDependencyDiffResultSet?.hasChanges} isRunCompileLater: $isRunCompileLater")
-        if (isRunCompileLater) {
-            // only handles action that run immediately
-            return ConfirmResult.INVALID
-        }
-        diffResultSet = specificDependencyDiffResultSet ?: DependencyDiffResultSet.createEmpty()
-        val confirmResult = PlatformApi.showChangeConfirmDialog(specificDependencyDiffResultSet?.diffResult, false, logger)
-        if (confirmResult != ConfirmResult.CANCEL) {
-            onConfirmIncrementalCompile(confirmResult.isConfirmed)
-        }
-        return confirmResult
+    override fun applyDependencyChangeDecision(diffResultSet: DependencyDiffResultSet?, isConfirmed: Boolean) {
+        logger.debug("applyDependencyChangeDecision hasChanges: ${diffResultSet?.hasChanges}, isConfirmed: $isConfirmed")
+        this.diffResultSet = diffResultSet ?: DependencyDiffResultSet.createEmpty()
+        onConfirmIncrementalCompile(isConfirmed)
     }
 
     override fun getNewLibraryFiles(): List<ChangedFile> {

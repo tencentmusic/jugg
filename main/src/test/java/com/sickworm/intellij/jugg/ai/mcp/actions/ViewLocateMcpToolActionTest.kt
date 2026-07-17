@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -227,12 +226,6 @@ class ViewLocateMcpToolActionTest {
             cancelButtonText: String?,
             isShowCancelButton: Boolean,
         ): Boolean = false
-
-        override fun showChangeConfirmDialog(
-            diffResult: DependencyDiffResult?,
-            isRunLater: Boolean,
-            logger: Logger,
-        ) = throw UnsupportedOperationException("not used")
 
         override fun showUserAndPasswordInputDialog(
             content: String,
