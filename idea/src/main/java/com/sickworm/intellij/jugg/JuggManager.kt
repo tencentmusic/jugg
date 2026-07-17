@@ -49,13 +49,14 @@ import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
-import com.sickworm.intellij.jugg.project.change.ChangedFile
-import com.sickworm.intellij.jugg.project.change.FileChangesDetector
+import com.sickworm.intellij.jugg.project.change.FileChangeManager
+import com.sickworm.intellij.jugg.project.change.FileChangeResult
+import com.sickworm.intellij.jugg.project.change.FileChangeSource
 import com.sickworm.intellij.jugg.project.change.FileChangesHandler
-import com.sickworm.intellij.jugg.project.change.FileChangesListener
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.change.IFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.change.IdeaFileChangeMonitor
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
@@ -83,7 +84,7 @@ class JuggManager @TestOnly constructor(
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
-    private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
+    private val fileChangesDetector: IFileChangeMonitor = IdeaFileChangeMonitor(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, JuggLogger.getInstance(project, "DeployHistoryManager")),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: IDeployStateManager = DeployStateManager(deployTargetManager, deployHistoryManager, IdeaHostDeployStateResolver(project), JuggLogger.getInstance(project, "DeployStateManager")),
@@ -100,6 +101,7 @@ class JuggManager @TestOnly constructor(
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, compileEnvironmentSource, logger),
     private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, deployFileManager, taskRunnerManager, logger),
+    private val fileChangeManager: FileChangeManager = FileChangeManager(fileChangesHandler, deployFileManager, dependencyChangeManager, gitFileChangesDetector, deployStateManager, taskRunnerManager, JuggLogger.getInstance(project, "FileChangeManager")),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(
         project,
         deployTargetManager,
@@ -142,7 +144,6 @@ class JuggManager @TestOnly constructor(
         eventModel = controlPanelController.model,
     )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
-    private val fileChangeLock = Any()
     private val runConfigurationLock = Any()
 
     constructor(
@@ -241,14 +242,10 @@ class JuggManager @TestOnly constructor(
 
         // reinit compiler after update compile context
         if (isUpdated) {
-            reInitOnCompileContextUpdate()
+            rebindCompileContext()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
             if (!juggConfigurationRunner.isCompiling) {
                 warmUpCompile()
-                launch {
-                    // do it async to let warmUpCompile run
-                    dependencyChangeManager.tryShowChangeConfirmDialog(isRunCompileLater = true)
-                }
             }
         }
 
@@ -477,7 +474,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
-        processFileChanged(deployContextRecoverInfo.changedFiles, emptyList(), from = "recover")
+        handleFileChangeResult(fileChangeManager.processFileChanges(deployContextRecoverInfo.changedFiles, emptyList(), FileChangeSource.RECOVER))
 
         logger.debug("Deploy history recover successfully, no need full compile.")
     }
@@ -491,67 +488,6 @@ class JuggManager @TestOnly constructor(
         }
 
         return deployState
-    }
-
-    private fun processFileChanged(
-        changedFiles: List<File>,
-        deletedFiles: List<File>,
-        from: String, // recover / ide / git
-    ) = synchronized(fileChangeLock) {
-        logger.trace("[PERF] JuggManager.processFileChanged from=$from, changedSize=${changedFiles.size}, deletedSize=${deletedFiles.size}")
-        // prints file changed info
-        if (deletedFiles.isNotEmpty()) {
-            // not strict rules, just print it out for debug
-            val simpleFilterFiles = changedFiles.filter {
-                !it.path.contains("build") &&
-                        !it.path.contains(".idea") &&
-                        !it.path.contains(".git") &&
-                        it.name != ".DS_Store"
-            }
-            if (simpleFilterFiles.isNotEmpty()) {
-                logger.debug("Detect file deleted: ${simpleFilterFiles.map { it.name }}")
-            }
-            deployFileManager.removeChangedFile(deletedFiles)
-        }
-        if (changedFiles.isNotEmpty()) {
-            // not strict rules, just print it out for debug
-            val simpleFilterFiles = changedFiles.filter {
-                !it.path.contains("build") &&
-                    !it.path.contains(".idea") &&
-                    !it.path.contains(".git") &&
-                    !it.path.contains(".gradle") &&
-                    it.name != ".DS_Store"
-            }
-            if (simpleFilterFiles.isNotEmpty()) {
-                logger.debug("Detect file changed (before filter): ${simpleFilterFiles.map { it.path }}")
-            }
-        }
-
-        val realChangedFiles = fileChangesHandler.filter(changedFiles)
-        if (realChangedFiles.isEmpty()) {
-            controlPanelController.refresh()
-            return
-        }
-        logger.debug("Detect file changed (size=${realChangedFiles.size}): ${realChangedFiles.map { it.file.name }}")
-
-        deployFileManager.addChangedFile(realChangedFiles)
-
-        val isBuildFileChanged = realChangedFiles.any { it.type == CompileFile.Type.BuildFile }
-        if (isBuildFileChanged || from == "recover") {
-            val allBuildFiles = deployFileManager.getUndeployedFiles()
-                .filter { it.type == CompileFile.Type.BuildFile }
-                .map { it.file }
-            dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
-        }
-
-        if (from == "ide") {
-            gitFileChangesDetector.onSourceFileChanged(realChangedFiles)
-        }
-
-        if (JuggSettings.compileOnSave) {
-            runTaskSafe("Compile Changes", ::compileChanges)
-        }
-        controlPanelController.refresh()
     }
 
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
@@ -850,13 +786,14 @@ class JuggManager @TestOnly constructor(
         return mcpInvoker.invokeMcp(request)
     }
 
-    private fun reInitOnCompileContextUpdate() {
-        deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules, compileContextManager.compileContext.mappingFile)
-        val juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
+    private fun rebindCompileContext() {
+        val context = compileContextManager.compileContext
+        deployFileManager.updateModuleInfos(context.modules, context.mappingFile)
+        val juggCompiler = JuggCompiler(context, this)
         juggCompilerHelper.juggCompiler = juggCompiler
-        fileChangesHandler.init(compileContextManager.compileContext)
-        gitFileChangesDetector.init(pathManager.projectDir, compileContextManager.compileContext.modules)
-        customCompilerManager.init(compileContextManager.compileContext, juggCompiler)
+        fileChangesHandler.init(context)
+        fileChangeManager.init(pathManager.projectDir, context.modules)
+        customCompilerManager.init(context, juggCompiler)
     }
 
     private fun initCompile(
@@ -878,38 +815,26 @@ class JuggManager @TestOnly constructor(
             compileContextManager.setCompileContext(compileContextInfo)
             deployFileManager.init(finalApkInfos, deployedFiles, startCompileTime)
             dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)
-            reInitOnCompileContextUpdate()
+            rebindCompileContext()
         }
         logger.debug("Init compile cost ${costTime}ms")
+        startFileMonitoring()
+    }
 
-        fileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
-                // is on EDT thread, will be stuck when using lock
-                logger.trace("[PERF] fileChangesDetector.onFileChanges callback, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}")
-                // beginFileProcessing() must be called synchronously here to prevent compile
-                // from starting before the async task below has a chance to run
-                deployStateManager.beginFileProcessing()
-                taskRunnerManager.runBackgroundSafe("Process file changed", isNeedLog = false, isProjectWrite = true) {
-                    try {
-                        processFileChanged(changedFiles, deletedFiles, from = "ide")
-                    } finally {
-                        deployStateManager.endFileProcessing()
-                    }
-                }
-            }
-        })
-        gitFileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
-                logger.trace("[PERF] gitFileChangesDetector.onFileChanges callback, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}")
-                processFileChanged(changedFiles, deletedFiles, from = "git")
-            }
-        })
-
+    private fun startFileMonitoring() {
+        fileChangeManager.start(fileChangesDetector, ::handleFileChangeResult)
         logger.info("Jugg init complete, start listening file changes.")
 
         if (JuggSettings.isEnableWarmUp) {
             warmUpCompile()
         }
+    }
+
+    private fun handleFileChangeResult(result: FileChangeResult) {
+        if (result.hasChanges && JuggSettings.compileOnSave) {
+            runTaskSafe("Compile Changes", ::compileChanges)
+        }
+        controlPanelController.refresh()
     }
 
     private fun warmUpCompile() {

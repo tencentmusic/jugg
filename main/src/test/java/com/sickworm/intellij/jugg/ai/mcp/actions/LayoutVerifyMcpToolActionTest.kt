@@ -2530,7 +2530,6 @@ class LayoutVerifyMcpToolActionTest {
         private val adbByDevice: Map<IDevice, IDeviceAdb>,
     ) : com.sickworm.intellij.jugg.platform.IPlatformApi {
         override fun showDialog(title: String, content: String, okButtonText: String?, cancelButtonText: String?, isShowCancelButton: Boolean): Boolean = false
-        override fun showChangeConfirmDialog(diffResult: com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult?, isRunLater: Boolean, logger: com.intellij.openapi.diagnostic.Logger): com.sickworm.intellij.jugg.ide.bean.ConfirmResult = throw UnsupportedOperationException()
         override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean, defaultInputText: String?, title: String?): String? = null
         override fun allAvailableJavaHomes(): List<String> = emptyList()
         override fun getGradleJdkPath(project: com.intellij.openapi.project.Project, logger: com.intellij.openapi.diagnostic.Logger): String? = null

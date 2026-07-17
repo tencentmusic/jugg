@@ -32,6 +32,7 @@
 | `ICompileEnvironmentSource` / `IdeaCompileEnvironmentSource` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileEnvironmentSource.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaCompileEnvironmentSource.kt` | 在 Compile Context 创建或 Gradle fetch 执行时读取当前 Android SDK 与 Gradle 环境，standalone 可注入固定环境 |
 | `BaseCompileContext` / `CompileContextManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/` | 共享编译上下文生命周期、full-build path 覆盖与 custom classpath 应用，不依赖 IDEA model API |
 | `GradleProjectInfoLocalFetchManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/dependency/GradleProjectInfoLocalFetchManager.kt` | 通过共享 `TaskRunnerManager` 调度本地 Gradle project info 读取和依赖变化通知，保留项目锁与 Host task 语义 |
+| `CompileUiHandler` / `JuggCompileUiHandler` | `main/.../compiler/CompileUiHandler.kt`, `idea/.../compiler/JuggCompileUiHandler.kt` | 将依赖变化后的 incremental/rebuild/cancel 决策与 PlatformApi 解耦；IDEA 展示 dialog，standalone handler 接受确定配置，manager 只应用结果 |
 | `LocalGradleCompileClient` / `RemoteGradleCompileClient` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/` | 本地/远端 Gradle 构建、APK 查找、classpath 拉取与 diff 参数拼装 |
 | `GradleWrapperRepairer` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleWrapperRepairer.kt` | 在 `JuggCompilerHelper.gradleCompile()` 真正执行 Gradle 前，针对已有 `gradle-wrapper.properties` 的工程补齐缺失 wrapper 启动文件 |
 | `ComposeResourceInfo` / `ComposeResourceDirectory` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt` | 保存 Compose generator classpath/package/public flag、asset 相对路径，以及 source set 到默认/自定义资源目录的对应关系 |
@@ -149,7 +150,7 @@ JuggManager.onSyncEvent()
   -> CompileContextManager
      应用 custom classpath，更新 effective model 与 Compile Context
   -> JuggManager.rebindCompileContext()
-     DeployFileManager / JuggCompiler / FileChangesHandler / GitFileChangesDetector / CustomCompilerManager 重新绑定新上下文
+     DeployFileManager / JuggCompiler / FileChangesHandler / FileChangeManager(GitFileChangesDetector) / CustomCompilerManager 重新绑定新上下文
 ```
 
 项目快照更新不是单纯替换 JSON。它会影响 classpath、module-to-APK 归属、文件变更过滤、自定义编译器、依赖变化确认和部署历史恢复。
@@ -246,7 +247,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | include build 模块缺失 | `gradle_include_builds.txt` 与 `JuggProjectInfoMerger` |
 | 同名 app 合并后 R.jar 指向外部工程 | `JuggProjectInfoMerger` 的主 Gradle Application + R.jar 存在性保护日志 |
 | 自定义 build directory 后找不到 APK 输出 | `ModuleBuildPathInfo.buildDirRelativePath`、`AsDeployerCompat.getSuggestRunConfigurations()`、`LocalGradleCompileClient`、`FindOutputCommand` |
-| 依赖变化未感知 | `GradleDependencyDiffer`、`DependencyChangeManagerByGradle` / `DependencyChangeManagerBySync` |
+| 依赖变化未感知或确认结果不符合 Runtime | `GradleDependencyDiffer`、`DependencyChangeManagerByGradle` / `DependencyChangeManagerBySync`、对应 `CompileUiHandler` 实现 |
 | library androidTest target package 异常 | 实际 Test APK manifest、`buildAndroidTestModuleInfo()`、`LibraryTestApkBuildHistory` |
 | Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
 | Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |

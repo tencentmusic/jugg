@@ -21,7 +21,9 @@
 | `JuggLoader` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 隔离加载 Jugg manager，支持热更新/embedded jars fallback |
 | `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | 设置 `PlatformApi.impl`、注册项目日志、创建/释放 `JuggManager` |
 | `JuggHotUpdateDownloader` | `idea/src/main/java/com/sickworm/intellij/jugg/server/JuggHotUpdateDownloader.kt` | 定时检查更新、按缺失 jar 下载并校验 md5、更新 load list，并准备重启后的标准插件安装 |
-| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | 当前 IDEA 项目协调入口，负责配置刷新、历史恢复、Compile Context 关联、文件变化处理、Run/UI/MCP 和资源释放；共享 Runtime 聚合待具体领域能力下沉后建立 |
+| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDEA 项目协调入口，负责配置刷新、历史恢复、Compile Context 关联、monitor 接线、Run/UI/MCP 和资源释放；文件变化处理已委托共享 manager |
+| `FileChangeManager` / `IdeaFileChangeMonitor` | `main/.../project/change/FileChangeManager.kt`, `idea/.../project/change/IdeaFileChangeMonitor.kt` | 共享 changed/delete/build-file/Git/pending barrier 处理；IDEA 侧仅将 VFS 事件适配到 monitor 契约 |
+| `CompileUiHandler` / `JuggCompileUiHandler` | `main/.../compiler/CompileUiHandler.kt`, `idea/.../compiler/JuggCompileUiHandler.kt` | 编译流程的 Host 交互边界；IDEA 复用现有 dependency dialog，manager 只应用确认结果 |
 | `HostTaskExecutor` | `idea/src/main/java/com/sickworm/intellij/jugg/runtime/HostTaskExecutor.kt` | `TaskRunnerManager` 的 IDEA 执行适配，关联 `Task.Backgroundable`、ProgressIndicator 与 EDT 状态 |
 | `DeployStateManager` / `IdeaHostDeployStateResolver` | `main/.../deploy/DeployStateManager.kt`, `idea/.../deploy/IdeaHostDeployStateResolver.kt` | 共享部署状态计算；隔离 Android Studio 设备状态读取 |
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 按钮后的后台任务，串联编译、部署、状态回写、Run tool window |
@@ -81,7 +83,7 @@ IDE project opened
 
 更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip 并调用 `PluginInstaller.installAfterRestart()`，确保下次 IDE 启动落到标准安装版本；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
 
-Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 关闭本地 Gradle project info executor，并释放 deploy file runtime、TaskRunner 与 coroutine scope。
+Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → FileChangeManager/GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 关闭本地 Gradle project info executor，并释放 deploy file runtime、TaskRunner 与 coroutine scope。
 
 `CompileContextManager` 与 `GradleProjectInfoLocalFetchManager` 已下沉 `main`。IDEA 通过 `IdeaProjectModelSource` 提供 host model，通过 `IdeaCompileEnvironmentSource` 按使用时读取 Android SDK 与 Gradle 环境；本地 Gradle project info fetch 继续使用共享 `TaskRunnerManager` 保留项目锁、后台任务和进度语义，不再持有 IDEA `Project`。
 
@@ -102,7 +104,7 @@ JuggGradleSyncListener
   -> IdeaProjectModelSource + JuggProjectInfoMerger
   -> GradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
   -> JuggManager.rebindCompileContext()
-     更新 DeployFileManager、JuggCompiler、FileChangesHandler、GitFileChangesDetector、CustomCompilerManager
+     更新 DeployFileManager、JuggCompiler、FileChangesHandler、FileChangeManager/GitFileChangesDetector、CustomCompilerManager
 ```
 
 Sync 成功会重置 hasRun，避免旧运行状态让“无文件变化”判断污染下一轮。
@@ -112,6 +114,8 @@ Sync 完成或被 IDE 标记为 `SKIPPED` 后，`tryCreateRunConfigurations()` �
 建议配置的 APK output pattern 从 Android Studio Android model 的实际 build folder 生成，支持 `${moduleDir}/build` 和项目根集中式 `build/${moduleName}`。该路径只用于创建新的 Jugg Configuration；Sync 不修改已有配置的 APK output pattern。
 
 Composite build 使用 IDE 完整模块名生成唯一身份：root build 会移除根项目名前缀，例如 `Root.app -> app -> :app:assembleDebug`；included build 保留 build 前缀，例如 `SMCommon.app -> SMCommon.app -> :SMCommon:app:assembleDebug`。创建 Configuration 时还会按 suggestion 提供的唯一 Gradle task 做批内去重，避免附加参数差异或多个 Android Run Configuration 指向同一模块时生成 `(1)` 重复项。
+
+IDEA VFS 事件由 `IdeaFileChangeMonitor` 转成 changed/delete 批次后交给 `FileChangeManager`。共享 manager 在项目写锁内更新 deploy file 和 dependency 状态，并用 `DeployStateManager.beginFileProcessing/endFileProcessing` 保证编译不会抢在事件落库前开始；Git checkout/pull 的补偿检测也位于 `main`。compile-on-save 的设置读取与最终编译调用暂留 `JuggManager`，共享 manager 只返回本批次是否存在有效变化。
 
 ### 4.3 Run 到编译部署
 

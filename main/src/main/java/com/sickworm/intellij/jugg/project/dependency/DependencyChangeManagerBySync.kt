@@ -3,8 +3,6 @@ package com.sickworm.intellij.jugg.project.dependency
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
@@ -156,60 +154,13 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
     }
 
     @Synchronized
-    override fun tryShowChangeConfirmDialog(
-        specificDependencyDiffResultSet: DependencyDiffResultSet?,
-        isRunCompileLater: Boolean
-    ): ConfirmResult {
-        if (!hasInit) return ConfirmResult.INVALID
-        logger.debug("try show change confirm dialog, isFromIde: $isRunCompileLater, isCurrentSyncFromGradle: $isCurrentSyncFromGradle")
-        if (isCurrentSyncFromGradle && isRunCompileLater) {
-            logger.debug("try show change confirm dialog, current sync is gradle, ignore show dialog")
-            return ConfirmResult.INVALID
+    override fun applyDependencyChangeDecision(diffResultSet: DependencyDiffResultSet?, isConfirmed: Boolean) {
+        if (!hasInit) return
+        if (diffResultSet != null) {
+            diffResult = diffResultSet.diffResult
+            diffResultWithFull = diffResultSet.diffResultWithFull
         }
-
-        val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > 0 &&
-                compareInfo.startBuildingTime > 0 &&
-                compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
-
-        if (isRunCompileLater) {
-            if (isBuilding || isSyncing) {
-                logger.debug("skip show change confirm dialog, is building or syncing")
-                return ConfirmResult.INVALID
-            }
-            if (!isBuildChangedAfterBuild) {
-                val isContentUpdate = diffResult.updatedLibraries.isNotEmpty() && diffResult.updatedLibraries.any { it.isContentUpdate }
-                if (!isContentUpdate) {
-                    // avoid showing confirm dialog after project opened and synced, and no build file updated
-                    // but if there is any content update libraries, we should still show it, because
-                    // content update could happen without build file changed
-                    logger.debug("skip show change confirm dialog, isBuildChangedAfterBuild=false and isContentUpdate=false")
-                    return ConfirmResult.INVALID
-                }
-            }
-            if (!diffResult.hasChanges && isBuildChangedAfterBuild) {
-                logger.debug("no changed libraries")
-                if (lastBuildDependencies == null || fullBuildDependencies == null) {
-                    logger.debug("show change confirm dialog, lastBuildDependencies or fullBuildDependencies is null")
-                    PlatformApi.showDialog(
-                        title = "Jugg: Dependency Incremental Compile Not Available",
-                        content = """<html>
-                    |<p>Please <b>sync</b> project once to enable dependency incremental compile.<br>
-                    |</p>
-                    |</html>
-                    |""".trimMargin(),
-                        okButtonText = "OK, I got it!",
-                        isShowCancelButton = false,
-                    )
-                }
-                return ConfirmResult.INVALID
-            }
-        }
-
-        val confirmResult = PlatformApi.showChangeConfirmDialog(diffResult, isRunCompileLater, logger)
-        if (confirmResult != ConfirmResult.CANCEL) {
-            onConfirmIncrementalCompile(confirmResult.isConfirmed)
-        }
-        return confirmResult
+        onConfirmIncrementalCompile(isConfirmed)
     }
 
     @Synchronized

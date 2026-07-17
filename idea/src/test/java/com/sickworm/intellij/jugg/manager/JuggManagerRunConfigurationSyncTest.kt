@@ -31,8 +31,9 @@ import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.FileChangeManager
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.change.IFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.runtime.CustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
@@ -793,7 +794,7 @@ class JuggManagerRunConfigurationSyncTest {
             juggServer = mock<JuggServer>(),
             juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
             fileChangesHandler = fileChangesHandler,
-            fileChangesDetector = mock<IFileChangesDetector>(),
+            fileChangesDetector = mock<IFileChangeMonitor>(),
             deployHistoryManager = deployHistoryManager,
             deployTargetManager = mock<IDeployTargetManager>(),
             deployStateManager = mock<DeployStateManager>(),
@@ -808,6 +809,7 @@ class JuggManagerRunConfigurationSyncTest {
             dependencyChangeManager = mock<IDependencyChangeManager>(),
             gradleProjectInfoLocalFetchManager = mock<GradleProjectInfoLocalFetchManager>(),
             gitFileChangesDetector = mock<GitFileChangesDetector>(),
+            fileChangeManager = mock<FileChangeManager>(),
             juggDeployerHelper = mock<JuggDeployerHelper>(),
             juggCompilerHelper = mock<JuggCompilerHelper>(),
             customConfigManager = mock<CustomConfigManager>(),

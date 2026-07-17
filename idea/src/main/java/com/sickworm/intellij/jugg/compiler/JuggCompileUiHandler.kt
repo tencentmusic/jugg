@@ -20,8 +20,8 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
-import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.io.File
 import javax.swing.SwingUtilities
 
@@ -85,11 +85,11 @@ open class JuggCompileUiHandler(
         return BuildChangesConfirmDialog.showAndGetResult(project, changedBuildFiles)
     }
 
-    override fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?): ConfirmResult {
+    override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult {
         if (isRpcMode) {
             return ConfirmResult.POSITIVE
         }
-        return dependencyChangeManager.tryShowChangeConfirmDialog(runResult)
+        return DependencyChangeDialogHelper(logger).showChangeConfirmDialog(runResult?.diffResult, false)
     }
 
     override fun confirmEmbeddedToApk(): ConfirmResult {

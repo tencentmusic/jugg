@@ -8,10 +8,8 @@ import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import java.io.File
 
 /**
@@ -27,12 +25,6 @@ interface IPlatformApi {
         cancelButtonText: String? = null,
         isShowCancelButton: Boolean = true,
     ): Boolean
-
-    fun showChangeConfirmDialog(
-        diffResult: DependencyDiffResult?,
-        isRunLater: Boolean,
-        logger: Logger,
-    ): ConfirmResult
 
     fun showUserAndPasswordInputDialog(
         content: String,

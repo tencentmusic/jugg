@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
@@ -20,8 +19,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
-import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.ai.mcp.IdeaMcpRuntime
 import org.jetbrains.plugins.gradle.settings.GradleSettings
 import java.io.File
@@ -36,10 +33,6 @@ class IdeaPlatformApi : IPlatformApi {
         isShowCancelButton: Boolean
     ): Boolean {
         return CommonConfirmDialog.showAndGetResult(title, content, okButtonText, cancelButtonText, isShowCancelButton)
-    }
-
-    override fun showChangeConfirmDialog(diffResult: DependencyDiffResult?, isRunLater: Boolean, logger: Logger): ConfirmResult {
-        return DependencyChangeDialogHelper(logger).showChangeConfirmDialog(diffResult, isRunLater)
     }
 
     override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean, defaultInputText: String?, title: String?): String? {
