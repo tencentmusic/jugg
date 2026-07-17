@@ -33,7 +33,9 @@
 | `JuggControlPanelHost` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggControlPanelHost.kt` | 稳定 ClassLoader 中只持有 `JComponent` 的 Tool Window 宿主；通过 `JuggInitializer.getManager(project)` 获取热更新实现 |
 | `JuggControlPanelModel` / `JuggEvent` | `main/src/main/java/com/sickworm/intellij/jugg/ide/controlpanel/` | 无 Project/Swing 依赖的项目 facts、任务状态和结构化核心事件；只公开两个入口类，投影与枚举使用嵌套类型，供 IDE、MCP 与后续 CLI 复用 |
 | `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | 热更新层项目级持有 Model/Panel，刷新 IDE facts、编排 Sync/App events 与 Panel 动作，并在 Manager dispose 时 clear 稳定 Host |
-| `CompileContextManager` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt` | 项目信息、编译上下文、部署上下文的 IDE 侧同步 |
+| `CompileContextManager` / `IProjectModelSource` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt` | 共享 effective project model 与 Compile Context 生命周期 |
+| `IdeaProjectModelSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaProjectModelSource.kt` | IDEA module/JDK/source root 读取，以及 IDE + Gradle project info merge 输入 |
+| `IdeaCompileEnvironmentSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaCompileEnvironmentSource.kt` | 在 Compile Context 创建或本地 Gradle fetch 执行时读取当前 Android SDK 与 Gradle 环境 |
 | `MoreOptionsManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More Options 菜单，挂载 Gradle compile、restart、skills、report 等操作 |
 | `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 仅在存在有效 Jugg Run Configuration 时创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
 
@@ -46,6 +48,7 @@
 | `instanceSet` | `JuggInitializer` | 以 project basePath 为 key 保存 `JuggLoader`；最后一个项目释放时停止 `McpLocalServer` |
 | `JuggPathManager` | `JuggManagerCreator` / `JuggManager` | 项目级 `build/jugg` 路径、日志、数据库、classpath、MCP fetch cache 的根 |
 | `CompileContext` | `CompileContextManager` | Gradle/project info 更新后重建；被 compiler、deploy file manager、自定义编译器消费 |
+| effective project model | `CompileContextManager` | source model 与 module custom classpath 合并后的内存模型；当前不额外持久化 identity 状态 |
 | deploy history / deploy state | `DeployHistoryManager` / `DeployStateManager` | full build 后初始化，增量部署成功后 commit；启动时可从历史恢复 |
 | hasRun / selected devices | `JuggRunningTaskStatusManager` | 决定“首次运行”、stop/cancel 后是否重置，以及 hook/status 语义 |
 | run UI process handler | `CompileUiHandler` / `JuggRunningTask` | 承载日志、进度、取消状态；androidTest 时接入 Test Results console |
@@ -78,7 +81,9 @@ IDE project opened
 
 更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip 并调用 `PluginInstaller.installAfterRestart()`，确保下次 IDE 启动落到标准安装版本；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
 
-Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 直接释放 deploy file runtime、TaskRunner 与 coroutine scope。
+Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 关闭本地 Gradle project info executor，并释放 deploy file runtime、TaskRunner 与 coroutine scope。
+
+`CompileContextManager` 与 `GradleProjectInfoLocalFetchManager` 已下沉 `main`。IDEA 通过 `IdeaProjectModelSource` 提供 host model，通过 `IdeaCompileEnvironmentSource` 按使用时读取 Android SDK 与 Gradle 环境；本地 Gradle project info fetch 继续使用共享 `TaskRunnerManager` 保留项目锁、后台任务和进度语义，不再持有 IDEA `Project`。
 
 `DeployFileManager` 可在构造期直接创建 `ConstRefEngine` 对象，但 `ConstRefEngine` 构造期不能初始化 SQLite database、repo fingerprint store 或 impact resolver，避免全局 SQLite 缓存损坏阻断 manager 创建。这些 ConstRef runtime 资源由 `ConstRefEngine` 在 `updateModuleInfos()`、源码变更事件、编译前 readiness、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化；失败后降级为 no-op，主初始化、编译和部署继续。
 
@@ -94,6 +99,7 @@ JuggGradleSyncListener
      SKIPPED: 同步 Active Build Variant 对应 run config，updateProjectInfo(isAfterSync = false)
      STARTED/FAILED: 通知 dependencyChangeManager
   -> CompileContextManager.updateCompileContext()
+  -> IdeaProjectModelSource + JuggProjectInfoMerger
   -> GradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
   -> JuggManager.rebindCompileContext()
      更新 DeployFileManager、JuggCompiler、FileChangesHandler、GitFileChangesDetector、CustomCompilerManager

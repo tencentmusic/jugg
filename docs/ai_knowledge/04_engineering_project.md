@@ -27,11 +27,14 @@
 | `GradleVariantCollector` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleVariantCollector.kt` | 配置阶段通过 Android Components API 收集 variant 名称，作为 AGP 9 移除 legacy variant API 后的回退数据源 |
 | `ProjectInfoSerializerInGradle` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/ProjectInfoSerializerInGradle.kt` | Gradle 脚本侧 project info JSON 序列化 |
 | `JuggProjectInfoMerger` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfoMerger.kt` | 合并 IDE/Gradle/include build/project info，生成编译上下文使用的模块视图 |
-| `BaseCompileContext` / `CompileContextManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/`、`idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/` | 共享编译上下文与 IDE 侧 ProjectInfo/Compile Context 管理 |
-| `GradleProjectInfoLocalFetchManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/dependency/GradleProjectInfoLocalFetchManager.kt` | IDE 侧调度本地 project info 读取和依赖变化检测 |
+| `IProjectModelSource` / `GradleProjectModelSource` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt` | IDEA/Gradle-only project model source 边界；Gradle-only 模式合并 root 与 include-build 快照 |
+| `IdeaProjectModelSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaProjectModelSource.kt` | 读取 IDEA module/JDK/source roots，并以 IDE model 为 base 合并 Gradle/include build 快照 |
+| `ICompileEnvironmentSource` / `IdeaCompileEnvironmentSource` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileEnvironmentSource.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaCompileEnvironmentSource.kt` | 在 Compile Context 创建或 Gradle fetch 执行时读取当前 Android SDK 与 Gradle 环境，standalone 可注入固定环境 |
+| `BaseCompileContext` / `CompileContextManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/` | 共享编译上下文生命周期、full-build path 覆盖与 custom classpath 应用，不依赖 IDEA model API |
+| `GradleProjectInfoLocalFetchManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/dependency/GradleProjectInfoLocalFetchManager.kt` | 通过共享 `TaskRunnerManager` 调度本地 Gradle project info 读取和依赖变化通知，保留项目锁与 Host task 语义 |
 | `LocalGradleCompileClient` / `RemoteGradleCompileClient` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/` | 本地/远端 Gradle 构建、APK 查找、classpath 拉取与 diff 参数拼装 |
 | `GradleWrapperRepairer` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleWrapperRepairer.kt` | 在 `JuggCompilerHelper.gradleCompile()` 真正执行 Gradle 前，针对已有 `gradle-wrapper.properties` 的工程补齐缺失 wrapper 启动文件 |
-| `ComposeResourceInfo` / `ComposeResourceDirectory` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | 保存 Compose generator classpath/package/public flag、asset 相对路径，以及 source set 到默认/自定义资源目录的对应关系 |
+| `ComposeResourceInfo` / `ComposeResourceDirectory` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt` | 保存 Compose generator classpath/package/public flag、asset 相对路径，以及 source set 到默认/自定义资源目录的对应关系 |
 | 插件发行合规门禁 | `idea/build.gradle`、`third_party`、`tools/generate_third_party_compliance.rb` | 将第三方 NOTICE、许可证、公开源码 revision、修改声明、104 行清单和 SPDX SBOM 打入插件；对应源码保留在公开 Git revision，并在 `buildPlugin` 后校验产物完整性、源码 SHA-256 与源码 revision 一致性 |
 
 ---
@@ -88,6 +91,12 @@ project info 的 `sourceDirs` 可以保留 build directory 下的 generated sour
 
 androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVariant` 固定为 `debugAndroidTest`，并通过 `instrumentationTargetPackage` 标记为测试模块。IDE project info 创建时会使用 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型 test package / target package 信息；Chipmunk / Narwhal feature / Otter / Panda 继承链在 library self-targeting 场景下会 fallback 到 `selectedBasicVariant.testApplicationId`、`androidProject.testNamespace` 或 `${androidProject.namespace}.test`。只有 test package 与 target package 都有效时才把 IDE `.androidTest` module 标记为 androidTest module；`uninitialized.application.id` 会视为无效。若已有 Gradle project info，IDE 侧 `.androidTest` synthetic module 还必须出现在 Gradle androidTest module 集合中；若没有 Gradle 快照，则退化为要求 source root 下存在 Java/Kotlin 源码。Gradle merge 时这些 test 字段仍以 Gradle 非空值优先，并会丢弃 IDE-only androidTest module。
 
+### 3.3 Effective model
+
+IDEA 使用 `IdeaProjectModelSource`，保持“IDE model + Gradle model”；standalone/无 IDE 场景使用 `GradleProjectModelSource`，直接合并 root 与 include-build Gradle 快照，不创建空壳 IDE project info。`BuildTarget.APP` 会过滤 Gradle-only androidTest module，`BuildTarget.ANDROID_TEST` 才纳入。
+
+`CompileContextManager` 持有 source model，并在内存中应用 module custom classpath 得到 effective model。当前没有依赖跨 Runtime model identity 的生产消费者，因此不持久化额外 fingerprint/generation 状态；若后续 runtime cache 失效策略需要该能力，应由具体消费者和恢复协议共同引入。
+
 ---
 
 ## 4. 核心调用链路
@@ -132,12 +141,14 @@ Compose metadata 读取是严格结构门禁：未应用 `org.jetbrains.compose`
 JuggManager.onSyncEvent()
   -> updateProjectInfo()
   -> CompileContextManager.updateCompileContext()
-  -> CompileContextManager.doGetAllModulesByModuleManager()
+  -> IdeaProjectModelSource
      创建 IDE project info，并基于完整 IDE Android 模型 androidTest artifact 信息标记 IDE androidTest module
   -> JuggProjectInfoMerger
-     合并 IDE project info、Gradle project info、include build project info、custom config
+     合并 IDE project info、Gradle project info、include build project info
      同名 Application 路径冲突时，仅在主 Gradle 快照存在真实 R.jar 时采用该 Application
-  -> reInitOnCompileContextUpdate()
+  -> CompileContextManager
+     应用 custom classpath，更新 effective model 与 Compile Context
+  -> JuggManager.rebindCompileContext()
      DeployFileManager / JuggCompiler / FileChangesHandler / GitFileChangesDetector / CustomCompilerManager 重新绑定新上下文
 ```
 

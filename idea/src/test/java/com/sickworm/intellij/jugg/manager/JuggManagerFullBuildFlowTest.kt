@@ -7,6 +7,8 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.compiler.context.IdeaCompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -100,6 +102,8 @@ class JuggManagerFullBuildFlowTest {
             deploymentService = mock<JuggDeploymentService>(),
             customCompilerManager = mock<CustomCompilerManager>(),
             deployFileManager = mock<DeployFileManager>(),
+            compileEnvironmentSource = mock<IdeaCompileEnvironmentSource>(),
+            projectModelSource = mock<IdeaProjectModelSource>(),
             compileContextManager = compileContextManager,
             juggRunningTaskStatusManager = mock<IJuggRunningTaskStatusManager>(),
             dependencyChangeManager = mock<IDependencyChangeManager>(),

@@ -82,7 +82,7 @@ Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 
 | IDEA 项目注册与 MCP 路由 | `JuggInitializer`、`JuggManagerCreator` | IDEA 保留项目入口；standalone 使用独立 registry |
 | 任务调度、进度、串行和上报 | `TaskRunnerManager` | `TaskRunnerManager` 直接下沉 `main`，保留共享串行/取消/上报语义；IDEA 仅以 adapter 提供 `Task.Backgroundable`、进度与 EDT 表现，事件上报直接使用共享 `JuggServer` |
 | Compile Context 管理 | `CompileContextManager` | 拆出共享 `CompileContextManager` 核心和 IDEA project model 读取逻辑 |
-| Gradle project info 更新调度 | `GradleProjectInfoLocalFetchManager` | 下沉 Gradle 调度主体，移除 IDEA `Project` 和 `TaskRunnerManager` 依赖 |
+| Gradle project info 更新调度 | `GradleProjectInfoLocalFetchManager` | 下沉 Gradle 调度主体，移除 IDEA `Project` 依赖，继续使用共享 `TaskRunnerManager` 保留项目锁和 Host task 语义 |
 | IDEA VFS 监听 | `FileChangesDetector` | 保留 IDEA 实现；standalone 使用 WatchService |
 | Git 变化补偿 | `GitFileChangesDetector` | 下沉，在共享文件变化域中使用 |
 | 远端 generated source 回写 | `CopyGeneratedSourceHelper` | 下沉，关联共享任务管理器 |
@@ -169,7 +169,6 @@ Standalone 不构造假的 IDE project info。
 
 ```text
 JuggProjectRuntime
-├── ProjectModelManager
 ├── CompileContextManager
 ├── FileChangeManager
 ├── DependencyChangeManager
@@ -426,9 +425,7 @@ project lock
 
 - 上次 runtime owner。
 - runtime version。
-- project info fingerprint。
-- compile context generation。
-- deploy history generation。
+- 持久化 project / compile / deploy context 的兼容性。
 - deployment cache entry。
 - 设备 overlay id。
 
@@ -754,7 +751,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 0 | 已跳过 | 当前决策不单独实施 Java 11 deployer PoC，后续进入 deployer Step 时再完成对应可行性验证 |
 | Step 1 | 已完成 | 已下沉部署状态边界；review 后删除预建的共享 Runtime 与 IDEA 转发 adapters，Runtime 聚合调整到具体领域能力下沉之后 |
 | Step 2 | 已完成 | 任务域、项目/全局锁、IDEA task adapter、后台 Job 生命周期和项目级 deployment cache 已落地；review 改进已合入 |
-| Step 3–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 3 | 已完成 | 项目模型、Compile Context 核心与本地 Gradle project info 调度已下沉；IDEA/Gradle-only source 已落地 |
+| Step 4–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -862,16 +860,42 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 
 ### Step 3：项目模型与 Compile Context 下沉
 
+实现状态：已完成。新增共享 `IProjectModelSource`、`ProjectModelResult` 与 `GradleProjectModelSource`；`CompileContextManager` 已整体下沉 `main`，直接持有 source model，并应用 module custom classpath 得到 effective model。仅把 IDEA Module/VFS/JDK model 读取保留在 `IdeaProjectModelSource`。IDEA 继续以 IDE model 为 base 合并 Gradle/include-build 快照，Gradle-only source 不构造假的 IDE model，并按 `BuildTarget` 过滤 androidTest module。
+
+当前没有依赖跨 Runtime project model identity 的生产消费者，因此不新增 fingerprint/generation 和对应状态文件；如后续 runtime cache 失效策略需要，再由具体消费者与恢复协议共同引入。`GradleProjectInfoLocalFetchManager` 已下沉 `main`，移除 IDEA `Project` 依赖，并继续通过共享 `TaskRunnerManager` 异步执行以保留项目锁、进度和任务上报语义。`ICompileEnvironmentSource` 让 Compile Context 在创建时读取 Android SDK、本地 Gradle fetch 在每次执行时读取 Gradle 环境，避免 Runtime 构造期缓存。`CopyGeneratedSourceHelper` 已位于 `main`，本 Step 保持其共享 TaskRunner 与 remote generated/custom sync 回写语义不变。
+
+IDEA project info 更新后仍由 `JuggManager.rebindCompileContext()` 按以下顺序重新关联：
+
+```text
+DeployFileManager
+→ JuggCompiler
+→ FileChangesHandler
+→ GitFileChangesDetector
+→ CustomCompilerManager
+```
+
+已完成验证：
+
+- `ProjectModelSourceTest`（L1/L2，Gradle-only model、androidTest target 过滤、`BaseCompileContext` 创建）
+- `ProjectModelFlowTest`（L2，local fetch 经共享 TaskRunner 提交并保留项目任务边界）
+- `JuggProjectInfoMergerAndroidTestTest`（L1，IDE/Gradle merge 行为）
+- `CompileContextManagerBuildPathInfoTest`（L2，full-build path、custom sync path、merge rebind 边界与环境读取时机）
+- `CompileEnvironmentSourceTest`（L1/L2，IDE Gradle 环境按调用实时读取）
+- `CompileContextManagerAndroidTestFilterTest`（L1）
+- `CopyGeneratedSourceHelperTest`（L1，remote generated/custom sync 路径映射）
+- `TopLevelFlowTest#testInstallAndLaunch`（L3）
+- `:idea:compileKotlin`
+
 目标：让共享 Runtime 可以从 IDEA model 或纯 Gradle model 建立相同领域项目模型。
 
 任务：
 
 - 拆分 `CompileContextManager` 的领域核心与 IDEA model 读取逻辑。
-- 建立 `ProjectModelManager`。
+- 建立 IDEA/Gradle-only `IProjectModelSource` 边界，由 `CompileContextManager` 管理 effective model。
 - IDEA 使用 IDE model + Gradle model；standalone 模式支持 Gradle model only。
 - 下沉 `GradleProjectInfoLocalFetchManager` 的 Gradle 调度主体。
 - 下沉 `CopyGeneratedSourceHelper`。
-- 明确 project info fingerprint、generation、恢复和重新关联顺序。
+- 明确 project info 刷新和重新关联顺序。
 
 验证性任务：
 
@@ -1067,7 +1091,7 @@ jugg init
 ### L1
 
 - Runtime settings JSON 迁移、CLI Run Configuration 推断、配置集合与指针序列化。
-- Project model fingerprint/generation。
+- Gradle-only project model 加载与 module 过滤。
 - File change 归一化和 dependency decision policy。
 - lock metadata 和 lock key。
 - 项目级 deployment cache 原子读写。
