@@ -1,16 +1,14 @@
 package com.sickworm.intellij.jugg.project.dependency
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
 import com.sickworm.intellij.jugg.compiler.BuildTarget
-import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
@@ -24,14 +22,14 @@ import java.util.concurrent.CountDownLatch
  * Only run when [markIsNeedUpdate] to true.
  */
 class GradleProjectInfoLocalFetchManager(
-    private val project: Project,
     private val pathManager: JuggPathManager,
     private val compileContextManager: CompileContextManager,
     private val taskRunnerManager: TaskRunnerManager,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val deployHistoryManager: IDeployHistoryManager,
+    private val compileEnvironmentSource: ICompileEnvironmentSource,
     loggerArg: Logger,
-): Disposable {
+): AutoCloseable {
 
     private val logger = loggerArg.getInstance("GradleProjectInfoLocalFetchManager")
 
@@ -247,7 +245,7 @@ class GradleProjectInfoLocalFetchManager(
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")
             dependencyChangeManager.onStartSyncing(isFromIde = false)
-            val result = cmdExecutor.invoke(localFetchCommand, LocalGradleCompileClient.buildCompileEnv(project, logger))
+            val result = cmdExecutor.invoke(localFetchCommand, compileEnvironmentSource.buildCompileEnv(logger))
             TimeLogger.end("localFetch", logger)
             logger.debug("runUpdateIfNeeded end, result: $result")
 
@@ -269,7 +267,7 @@ class GradleProjectInfoLocalFetchManager(
         return SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(Date(this))
     }
 
-    override fun dispose() {
+    override fun close() {
         cmdExecutor.release()
     }
 }

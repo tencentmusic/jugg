@@ -65,7 +65,8 @@ Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style s
 
 - `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt`
-- `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaProjectModelSource.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt`
 
 androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
@@ -81,7 +82,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
 判断 androidTest module 使用 `ModuleInfo.isAndroidTestModule`，即 `instrumentationTargetPackage != null`；`.androidTest` 后缀只作为 IDE module 补齐候选，不作为最终身份判断。
 
-当 Gradle project info 不可用或缺少 androidTest synthetic module 时，`CompileContextManager#doGetAllModulesByModuleManager()` 会在创建 IDE project info 阶段逐个处理 IDE 侧 `.androidTest` module：
+当 Gradle project info 不可用或缺少 androidTest synthetic module 时，`IdeaProjectModelSource#readProjectInfoFromIde()` 会在创建 IDE project info 阶段逐个处理 IDE 侧 `.androidTest` module：
 
 - `.androidTest` 后缀只用于 `ModulePathMergePolicy` 判定 IDE module 创建候选；最终身份仍由补齐后的 `instrumentationTargetPackage != null` 表示。
 - `sourceDirs` 来自 IDE module source roots，并额外纳入 androidTest IDE module 的 test source root 类型，因此支持自定义 androidTest source root，不再硬编码标准目录。
@@ -116,7 +117,8 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
 入口：
 
-- `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongsUtils.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongs.kt`
 

@@ -10,6 +10,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
@@ -40,6 +41,8 @@ import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.CompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.project.change.FileChangesHandler
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
@@ -412,8 +415,22 @@ class MockJugg(
         } else {
             val compileModuleManager = mock(ModuleManager::class.java)
             doReturn(emptyArray<com.intellij.openapi.module.Module>()).`when`(compileModuleManager).modules
-            compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager,
-                moduleManager = compileModuleManager, customCompilerManager = customCompilerManager)
+            val projectModelSource = IdeaProjectModelSource(
+                project,
+                pathManager,
+                moduleManager = compileModuleManager,
+                logger = logger,
+            )
+            compileContextManager = CompileContextManager(
+                pathManager = pathManager,
+                projectModelSource = projectModelSource,
+                deployFileManager = deployFileManager,
+                deployHistoryManager = deployHistoryManager,
+                customCompilerManager = customCompilerManager,
+                compileEnvironmentSource = CompileEnvironmentSource(context.androidHome, emptyList()),
+                scene = ICompileContext.Scene.IDE,
+                logger = logger,
+            )
         }
 
         juggDeployerHelper = JuggDeployerHelper(
@@ -441,7 +458,7 @@ class MockJugg(
             },
         )
 
-        gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, logger)
+        gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, CompileEnvironmentSource(context.androidHome, emptyList()), logger)
 
         JuggLogger.listenProjectLog(project, logger)
     }

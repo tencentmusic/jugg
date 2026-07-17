@@ -19,7 +19,7 @@ import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
-import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.ai.mcp.IdeaMcpRuntime
@@ -124,7 +124,7 @@ class IdeaPlatformApi : IPlatformApi {
         val androidHome = System.getenv("ANDROID_HOME")
         logger.debug("ANDROID_HOME: $androidHome")
 
-        var androidHomePath = CompileContextManager.getAndroidSdkRootDir(logger)?.absolutePath
+        var androidHomePath = IdeaProjectModelSource.getAndroidSdkRootDir(logger)?.absolutePath
         if (androidHomePath == null) {
             logger.debug("can't find androidHomePath in modules, use ANDROID_HOME $androidHome instead")
             androidHomePath = androidHome

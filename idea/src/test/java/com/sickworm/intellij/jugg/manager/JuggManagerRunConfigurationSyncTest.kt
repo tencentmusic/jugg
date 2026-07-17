@@ -10,6 +10,8 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.compiler.context.IdeaCompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
@@ -21,6 +23,7 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
@@ -795,8 +798,11 @@ class JuggManagerRunConfigurationSyncTest {
             deployTargetManager = mock<IDeployTargetManager>(),
             deployStateManager = mock<DeployStateManager>(),
             taskRunnerManager = mock<TaskRunnerManager>(),
+            deploymentService = mock<JuggDeploymentService>(),
             customCompilerManager = mock<CustomCompilerManager>(),
             deployFileManager = mock<DeployFileManager>(),
+            compileEnvironmentSource = mock<IdeaCompileEnvironmentSource>(),
+            projectModelSource = mock<IdeaProjectModelSource>(),
             compileContextManager = mock<CompileContextManager>(),
             juggRunningTaskStatusManager = mock<IJuggRunningTaskStatusManager>(),
             dependencyChangeManager = mock<IDependencyChangeManager>(),

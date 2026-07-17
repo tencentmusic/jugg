@@ -18,6 +18,8 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.IdeaCompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
@@ -88,11 +90,13 @@ class JuggManager @TestOnly constructor(
     private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, taskRunnerManager, logger),
     private val deploymentService: JuggDeploymentService = JuggDeploymentService(pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager)),
     private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
-    private val deployFileManager: DeployFileManager = DeployFileManager(pathManager,taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),
-    private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager, customCompilerManager),
+    private val deployFileManager: DeployFileManager = DeployFileManager(pathManager, taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),
+    private val compileEnvironmentSource: IdeaCompileEnvironmentSource = IdeaCompileEnvironmentSource(project),
+    private val projectModelSource: IdeaProjectModelSource = IdeaProjectModelSource(project, pathManager, logger = JuggLogger.getInstance(project, "IdeaProjectModelSource")),
+    private val compileContextManager: CompileContextManager = CompileContextManager(pathManager, projectModelSource, deployFileManager, deployHistoryManager, customCompilerManager, compileEnvironmentSource, ICompileContext.Scene.IDE, JuggLogger.getInstance(project, "CompileContextManager")),
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
-    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, logger),
+    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, compileEnvironmentSource, logger),
     private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, deployFileManager, taskRunnerManager, logger),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(
         project,
@@ -146,7 +150,6 @@ class JuggManager @TestOnly constructor(
 
     override fun init() {
         Disposer.register(this, juggCompilerHelper)
-        Disposer.register(this, gradleProjectInfoLocalFetchManager)
         runTaskSafe("Init Jugg", {
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             loadCustomConfig()
@@ -882,6 +885,7 @@ class JuggManager @TestOnly constructor(
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
         controlPanelController.clear()
+        gradleProjectInfoLocalFetchManager.close()
         deployFileManager.dispose()
         taskRunnerManager.dispose()
         coroutineScope.cancel()
