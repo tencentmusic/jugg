@@ -227,7 +227,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
                 doUpload(project)
             }
             openControlPanelLink.addActionListener {
-                JuggControlPanel.openSettings(project)
+                closeRunConfigurationAndOpenSettings(project)
             }
             updateTopButtons()
         }
@@ -297,6 +297,20 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             it.httpProxyPort = component.httpProxyPortTextField.text.toIntOrNull() ?: 0
             it.environmentVariables = component.environmentVariablesTextField.text
             it.remoteSyncExcludePatterns = component.remoteSyncExcludePatternsTextField.text
+        }
+    }
+
+    private fun closeRunConfigurationAndOpenSettings(project: Project) {
+        val rootPane = SwingUtilities.getRootPane(openControlPanelLink)
+        val defaultButton = rootPane?.defaultButton
+        if (defaultButton == null) {
+            JuggControlPanel.openSettings(project)
+            return
+        }
+
+        defaultButton.doClick()
+        SwingUtilities.invokeLater {
+            if (!rootPane.isShowing) JuggControlPanel.openSettings(project)
         }
     }
 

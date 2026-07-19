@@ -35,6 +35,7 @@ import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JRootPane
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.JToggleButton
@@ -104,7 +105,7 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `more options should open control panel settings`() {
+    fun `more options should apply and close run configuration before opening settings`() {
         TestGlobal.init()
         val project = mockProject()
         val panel = createPanel(project)
@@ -121,9 +122,18 @@ class JuggRunSettingsComponentTest {
 
         val component = JuggRunSettingsComponent()
         component.initUpload(project)
+        var defaultActionInvoked = false
+        JRootPane().apply {
+            defaultButton = javax.swing.JButton().apply {
+                addActionListener { defaultActionInvoked = true }
+            }
+            contentPane = JPanel().apply { add(component) }
+        }
         val link = readPrivateField<ActionLink>(component, "openControlPanelLink")
         link.doClick()
+        javax.swing.SwingUtilities.invokeAndWait {}
 
+        assertTrue(defaultActionInvoked)
         assertEquals("More options", link.text)
         assertEquals(2, tabs.selectedIndex)
     }
