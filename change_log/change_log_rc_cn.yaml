@@ -130,10 +130,6 @@
 
 - version: 3.0.2
   date: 2026.02.21
-  updates:
-
-- version: 3.0.0
-  date: 2026.02.11
   isNeedReinstall: true
   updates:
     - 支持 mcp 和配套 skills，让 AI coding agent 可以独立快速完成开发到验收闭环
