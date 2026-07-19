@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.compiler.context.BaseCompileContext
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.change.FileChangesHandler
 import com.sickworm.intellij.jugg.project.runtime.IHostTaskExecutor
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
@@ -75,6 +76,7 @@ class CmdLineContextManager(
 
     val disposer = object : Disposable {
         override fun dispose() {
+            customCompilerManager.close()
             taskRunnerManager.dispose()
             deployFileManager.dispose()
         }
@@ -105,6 +107,7 @@ class CmdLineContextManager(
     lateinit var compileContext: ICompileContext
 
     fun init(): ICompileContext {
+        juggServer.initialize()
         compileContext = createCompileContext()
         return compileContext
     }

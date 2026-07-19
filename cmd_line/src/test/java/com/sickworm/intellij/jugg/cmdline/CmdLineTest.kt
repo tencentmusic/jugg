@@ -2,9 +2,11 @@ package com.sickworm.intellij.jugg.cmdline
 
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CmdLineTest {
@@ -29,6 +31,8 @@ class CmdLineTest {
 
         val apks = outputDir.listFiles { file -> file.name.endsWith(".apk") } ?: emptyArray()
         assertEquals(1, apks.size)
+        val settingsFile = JuggGlobalPathManager.settingsFile
+        assertFalse(settingsFile.exists() && settingsFile.readText().contains("\"isEnableBackupClasspath\""))
     }
 
     @Test

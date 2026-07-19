@@ -165,7 +165,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         val backupClasspathJob = coroutineScope.launch {
             logger.info("Backup classpath start.")
             RsyncCompatibleHelper.init(logger)
-            JuggSettings.isEnableBackupClasspath = true
+            JuggSettings.isForceEnableBackupClasspath = true
             val costTime = measureTimeMillis {
                 try {
                     val currentIndicator = object : DumbProgressIndicator() {

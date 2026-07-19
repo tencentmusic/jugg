@@ -7,7 +7,9 @@ import java.io.File
  */
 object JuggGlobalPathManager {
 
-    val rootDir = File(System.getProperty("user.home"), ".jugg")
+    /** Active global storage root, overridable before or during a runtime session. */
+    @Volatile
+    var rootDir = System.getProperty("jugg.root.dir")?.let(::File) ?: File(System.getProperty("user.home"), ".jugg")
 
     val hotUpdateDir: File
         get() = hotUpdateDir(rootDir)
@@ -18,6 +20,9 @@ object JuggGlobalPathManager {
     val actionDbFile: File
         get() = File(rootDir, "action.db")
 
+    val settingsFile: File
+        get() = settingsFile(rootDir)
+
     fun resourceFile(resourcePath: String, rootDir: File = this.rootDir): File {
         val relativePath = resourcePath.trimStart('/', File.separatorChar)
         return File(File(rootDir, "resources"), relativePath)
@@ -26,6 +31,8 @@ object JuggGlobalPathManager {
     fun hotUpdateDir(rootDir: File = this.rootDir): File = File(rootDir, "hot_update")
 
     fun deployCacheDbFile(rootDir: File = this.rootDir): File = File(rootDir, "deploy_cache/.deploy_cache.db")
+
+    fun settingsFile(rootDir: File = this.rootDir): File = File(rootDir, "settings.json")
 
     fun globalLockFile(rootDir: File = this.rootDir): File = File(rootDir, "locks/global.lock")
 }

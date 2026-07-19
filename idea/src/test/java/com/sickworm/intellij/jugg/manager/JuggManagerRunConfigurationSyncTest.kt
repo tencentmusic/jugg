@@ -35,7 +35,7 @@ import com.sickworm.intellij.jugg.project.change.FileChangeManager
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.runtime.CustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
@@ -812,7 +812,7 @@ class JuggManagerRunConfigurationSyncTest {
             fileChangeManager = mock<FileChangeManager>(),
             juggDeployerHelper = mock<JuggDeployerHelper>(),
             juggCompilerHelper = mock<JuggCompilerHelper>(),
-            customConfigManager = mock<CustomConfigManager>(),
+            projectCustomConfigManager = mock<ProjectCustomConfigManager>(),
             ideSyncProblemResolver = mock<IdeSyncProblemResolver>(),
         )
         return Fixture(

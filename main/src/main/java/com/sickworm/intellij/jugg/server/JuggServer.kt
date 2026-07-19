@@ -26,6 +26,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.net.URLEncoder
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 /**
@@ -64,8 +65,10 @@ class JuggServer(
     private var sessionSubId: Int = 0
 
     private val client = OkHttpClient()
+    private val initialized = AtomicBoolean()
 
-    init {
+    fun initialize() {
+        if (!initialized.compareAndSet(false, true)) return
         logger.debug("init finished, version: $version, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
         if (juggServerChooser.hasAvailableServer()) {
             launch {

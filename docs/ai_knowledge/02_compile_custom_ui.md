@@ -38,7 +38,7 @@
 | `CustomCompilerInfo.path` | server config | 可以是绝对路径、相对 `projectDir` 路径、或 `http(s)` URL |
 | `CustomCompilerInfo.md5` | server config | 本地已有 jar 必须匹配；远端下载后也必须匹配，不匹配会删除 |
 | `customCompilerJars` | `CustomCompilerManager` 内存状态 | 当前有效 jar 列表；废弃 jar 会从 `customCompilerDir` 清理 |
-| `customCompilers` | `CustomCompilerManager` 懒加载缓存 | 首次 `getCustomCompilers()` 时通过 `ServiceLoader` 创建，`resetCompilerJars()` 后清空并下次重建 |
+| `customCompilers` | `CustomCompilerManager` 懒加载缓存 | 首次 `getCustomCompilers()` 时通过 `ServiceLoader` 创建；每批 compiler 注册到 manager 内部的 `Disposable` compatibility scope，配置/jar 列表变化、下载完成或 manager `close()` 时先释放旧实例，再关闭旧 classloader |
 | `ICompiler.order` | 自定义编译器实现 | 决定被哪个 `BaseCompiler` 的 before/after hook 执行 |
 
 ---
@@ -47,12 +47,14 @@
 
 ### 4.1 配置到 jar 状态
 
-`JuggManager` 收到 server config 后交给 `CustomCompilerManager` 维护 jar 状态。这里不需要记住单文件内的方法顺序，只需要关注四个规则：
+`ProjectCustomConfigManager` 将 local/server custom config 统一交给 `CustomCompilerManager` 维护 jar 状态。这里不需要记住单文件内的方法顺序，只需要关注四个规则：
 
 - `null` config 不清空旧状态；非 null 列表才会重算有效 jar。
 - 本地 jar 必须存在且 md5 匹配才进入 `customCompilerJars`。
 - 远端 jar 先复用缓存；缓存不存在时后台下载，下载后校验 md5。
-- 下载成功或缓存变化后会清空已创建的 `customCompilers`，下次 `getCustomCompilers()` 再懒加载 SPI。
+- 下载成功、配置或显式 jar 列表变化后会清空已创建的 `customCompilers` 并关闭旧 `URLClassLoader`，下次 `getCustomCompilers()` 再懒加载 SPI；manager `close()` 也会释放 loader。
+- `CustomCompilerManager` 对外实现 `AutoCloseable`，初始化只接收 `ICompileContext`；`Disposable` 仅保留为 `ICompilerCreator` SPI 的内部兼容 scope。
+- 运行期 custom config 应用进入项目写锁，避免正在编译时释放旧 compiler scope 或 classloader。
 
 ### 4.2 SPI 实例到编译阶段
 

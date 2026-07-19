@@ -4,43 +4,54 @@ package com.sickworm.intellij.jugg.ide.bean
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.intellij.ide.util.PropertiesComponent
+import com.google.gson.JsonElement
+import com.google.gson.JsonNull
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.runtime.JsonRuntimeSettingsRepository
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
+import java.io.File
 import kotlin.reflect.KProperty
 
 /**
  * JuggSettings stores persisted and effective settings that control Jugg compile/deploy behavior.
- * Collaboration: Fields are persisted through [PropertiesDelegate], then consumed by IDE/server/compiler/deploy flows.
- * Data Contract: Persisted entries are keyed under `jugg.*`; `final*` getters expose effective switches composed from base flags.
+ * Collaboration: Fields are persisted through [JsonRuntimeSettingsRepository], then consumed by IDE/server/compiler/deploy flows.
+ * Data Contract: Persisted entries use property names as JSON keys; `final*` getters expose effective switches composed from base flags.
  */
 object JuggSettings {
 
-    private val propertiesComponent get() = PropertiesComponent.getInstance()
+    private val logger by lazy { JuggLogger.getGlobalLogger("JuggSettings") }
+    private var storageCache: Storage? = null
 
-    var compileOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
+    /** Fills missing JSON fields from a legacy source and refreshes effective values on next access. */
+    @Synchronized
+    fun migrate(legacyValues: Map<String, JsonElement>): Boolean {
+        val success = createRepository(JuggGlobalPathManager.rootDir).mergeMissing(legacyValues)
+        storageCache = null
+        return success
+    }
 
-    var deployOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
+    var compileOnSave by setting(false)
+    var deployOnSave by setting(false)
 
     // default compile settings
-    private var defaultCompileSettingsJson: String by propertiesComponent.delegate(defaultValue = "")
-
+    private var defaultCompileSettingsJson by setting("")
 
     // Run options start
 
-    var isConfirmFallbackWhenNoFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
-
-    var isAlwaysRestartAppAfterDeployment: Boolean by propertiesComponent.delegate(defaultValue = false)
-
-    var isAutoFallbackToGradleWhenDeployError: Boolean by propertiesComponent.delegate(defaultValue = false)
-
-    var isEmbeddedToApk: Boolean by propertiesComponent.delegate(defaultValue = false)
+    var isConfirmFallbackWhenNoFileChanges by setting(true)
+    var isAlwaysRestartAppAfterDeployment by setting(false)
+    var isAutoFallbackToGradleWhenDeployError by setting(false)
+    var isEmbeddedToApk by setting(false)
 
     // Run options end
 
     /** whether check checksum to make sure file is really change when file changes */
-    var isCheckChecksumWhenFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
+    var isCheckChecksumWhenFileChanges by setting(true)
 
     /**
      * Enable init gradle scripts when gradle compile.
@@ -63,26 +74,28 @@ object JuggSettings {
      * For Xiaomi HyperOS, some apps may get "MISSING_AGENT_RESPONSES", Jugg will use hot fix deployment solution to compat with it.
      * For Device API lower than 30, Jugg will use hot fix deployment solution to compat with it.
      */
-    var isEnableCompatibleDeploymentMode: Boolean = true
+    var isEnableCompatibleDeploymentMode by setting(true)
     val finalIsEnableCompatibleDeploymentMode get() = isEnableInjectGradleCompile && isEnableCompatibleDeploymentMode
 
     /**
      * Enables direct overlay deploy shortcuts that do not require the app process to be online.
      */
-    var isEnableDirectOverlayDeploy: Boolean by propertiesComponent.delegate(defaultValue = true)
-
-    var isUseProjectKotlinCompiler: Boolean by propertiesComponent.delegate(keyName = "isUseProjectKotlinCompiler_v3", defaultValue = true)
+    var isEnableDirectOverlayDeploy by setting(true)
+    var isUseProjectKotlinCompiler by setting(true)
 
     /** limit max source modules to compile for better performance */
     var maxCompileSourceModules = 25
+
     /**
      * Limit max source files to compile for better performance.
      * Kotlin counts 3 and java counts 2, because I found that Kotlin generate 3 classes for each source file average,
      * and Java generate 2 classes for each source file average.
      */
     var maxCompileSourceFilePoints = 180
+
     /** limit min compiler error to recreate once */
     const val minErrorToRecreateCompiler = 30
+
     /** source file size to trigger detect rollback */
     const val sourceFileSizeToTriggerDetectRollback = 20
 
@@ -109,15 +122,17 @@ object JuggSettings {
      */
     const val overlayDeploySplitSizeFirstSlice = 10_000
 
-    var isEnableBackupClasspath: Boolean by propertiesComponent.delegate(keyName = "isEnableBackupClasspath_v2", defaultValue = false)
+    var isEnableBackupClasspath by setting(false)
+
+    /** Process-only override used by CLI compilation without changing shared user settings. */
+    var isForceEnableBackupClasspath = false
+    val finalIsEnableBackupClasspath get() = isForceEnableBackupClasspath || isEnableBackupClasspath
+
     // windows not support rsync, so disable backup classpath
     var isCanUseBackupClasspath: Boolean = !isWindows
-
-    var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")
-
-    var sliceDeployRecordJson: String by propertiesComponent.delegate(defaultValue = "")
-
-    var isIgnoreWontCompileModules: Boolean by propertiesComponent.delegate(defaultValue = false)
+    var deviceCompatRecordJson by setting("")
+    var sliceDeployRecordJson by setting("")
+    var isIgnoreWontCompileModules by setting(false)
 
     /**
      * Master switch for const-ref analysis tasks.
@@ -148,63 +163,57 @@ object JuggSettings {
             defaultCompileSettingsJson = Gson().toJson(value)
         }
 
-    var serverUrl: String? by propertiesComponent.delegate(defaultValue = null)
-    var serverExpireTimeMill: Long by propertiesComponent.delegate(defaultValue = 0L)
-}
+    var serverUrl by nullableStringSetting()
+    var serverExpireTimeMill by setting(0L)
 
-/**
- * Use PropertiesComponent to delegate variable.
- */
-private fun PropertiesComponent.delegate(keyName: String? = null, defaultValue: Any? = null): PropertiesDelegate {
-    return PropertiesDelegate(this, keyName, defaultValue)
-}
-
-/**
- * PropertiesDelegate property delegate that bridges Kotlin properties to [PropertiesComponent] key-value storage.
- * Data Contract: Supports Int/Float/Boolean/Long/String only; unsupported types throw [IllegalArgumentException].
- */
-private class PropertiesDelegate(
-    private val propertiesComponent: PropertiesComponent,
-    /** property key，use KProperty.name if not specific，KProperty.name is the name of variable and won't change if use proguard */
-    private val keyName: String? = null,
-    /** default value. use internal default value if not specific. */
-    private val defaultValue: Any? = null
-) {
-
-    inline operator fun <reified T> getValue(obj: Any, property: KProperty<*>): T {
-        val name = "jugg." + (keyName?: property.name)
-        return doGetValue(name, T::class.java) as T
-    }
-
-    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "RemoveRedundantQualifierName")
-    fun doGetValue(name: String, clazz: Class<*>): Any {
-        return  when (clazz) {
-            java.lang.Integer::class.java, Int::class.java -> propertiesComponent.getInt(name, (defaultValue as? Int?: 0))
-            java.lang.Float::class.java, Float::class.java -> propertiesComponent.getFloat(name, (defaultValue as? Float?: 0f))
-            java.lang.Boolean::class.java, Boolean::class.java -> propertiesComponent.getBoolean(name, (defaultValue as? Boolean?: false))
-            java.lang.Long::class.java, Long::class.java -> {
-                val defaultValue = defaultValue as? Long ?: 0L
-                propertiesComponent.getValue(name, defaultValue.toString()).toLongOrNull() ?: defaultValue
-            }
-            String::class.java -> propertiesComponent.getValue(name, (defaultValue as? String?: ""))
-            else -> throw IllegalArgumentException("PropertiesDelegate not support class $clazz")
+    @Synchronized
+    private fun <T> read(name: String, defaultValue: T, fromJson: (JsonElement) -> T): T {
+        val value = storage().values.get(name) ?: return defaultValue
+        return try {
+            fromJson(value)
+        } catch (_: Exception) {
+            defaultValue
         }
     }
 
-    inline operator fun <reified T> setValue(obj: Any, property: KProperty<*>, i: T) {
-        val name = "jugg." + (keyName?: property.name)
-        doSetValue(name, T::class.java, i)
+    @Synchronized
+    private fun <T> write(name: String, value: T, toJson: (T) -> JsonElement) {
+        val jsonValue = toJson(value)
+        val storage = storage()
+        storage.values.add(name, jsonValue)
+        storage.repository.update(name, jsonValue)
     }
 
-    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "RemoveRedundantQualifierName")
-    fun <T> doSetValue(name: String, clazz: Class<*>, i: T) {
-        return when (clazz) {
-            java.lang.Integer::class.java, Int::class.java -> propertiesComponent.setValue(name, i as Int, (defaultValue as? Int?: 0))
-            java.lang.Float::class.java, Float::class.java -> propertiesComponent.setValue(name, i as Float, (defaultValue as? Float?: 0f))
-            java.lang.Boolean::class.java, Boolean::class.java -> propertiesComponent.setValue(name, i as Boolean, (defaultValue as? Boolean?: false))
-            java.lang.Long::class.java, Long::class.java -> propertiesComponent.setValue(name, i.toString(), (defaultValue as? Long ?: 0L).toString())
-            String::class.java -> propertiesComponent.setValue(name, i as String?, (defaultValue as? String?: ""))
-            else -> throw IllegalArgumentException("PropertiesDelegate not support class $clazz")
+    @Synchronized
+    private fun storage(): Storage {
+        val rootDir = JuggGlobalPathManager.rootDir
+        storageCache?.takeIf { it.rootDir == rootDir }?.let { return it }
+        return Storage(rootDir, createRepository(rootDir)).also {
+            storageCache = it
         }
+    }
+
+    private fun createRepository(rootDir: File): JsonRuntimeSettingsRepository {
+        return JsonRuntimeSettingsRepository(JuggGlobalPathManager.settingsFile(rootDir), rootDir, logger)
+    }
+
+    private fun setting(defaultValue: Boolean) = Setting(defaultValue, { it.asBoolean }, ::JsonPrimitive)
+    private fun setting(defaultValue: String) = Setting(defaultValue, { it.asString }, ::JsonPrimitive)
+    private fun setting(defaultValue: Long) = Setting(defaultValue, { it.asLong }, ::JsonPrimitive)
+    private fun nullableStringSetting() = Setting<String?>(null, { if (it.isJsonNull) null else it.asString }, { it?.let(::JsonPrimitive) ?: JsonNull.INSTANCE })
+
+    private class Storage(
+        val rootDir: File,
+        val repository: JsonRuntimeSettingsRepository,
+        val values: JsonObject = repository.load(),
+    )
+
+    private class Setting<T>(
+        private val defaultValue: T,
+        private val fromJson: (JsonElement) -> T,
+        private val toJson: (T) -> JsonElement,
+    ) {
+        operator fun getValue(owner: JuggSettings, property: KProperty<*>): T = owner.read(property.name, defaultValue, fromJson)
+        operator fun setValue(owner: JuggSettings, property: KProperty<*>, value: T) = owner.write(property.name, value, toJson)
     }
 }

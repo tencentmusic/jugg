@@ -12,6 +12,9 @@ plugins {
 }
 
 test {
+    def juggTestRootDir = file("$buildDir/test-jugg-home")
+    systemProperty "jugg.root.dir", juggTestRootDir.absolutePath
+    doFirst { juggTestRootDir.deleteDir() }
     minHeapSize = "512m" // initial heap size
     maxHeapSize = "4096m" // maximum heap size
     jvmArgs '-XX:MaxPermSize=152m' // mem argument for the test JVM

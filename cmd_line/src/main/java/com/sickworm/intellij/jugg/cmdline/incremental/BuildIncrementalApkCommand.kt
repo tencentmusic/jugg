@@ -68,7 +68,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
     private fun getCompilerHelper(): IncrementalCompilerHelper {
         val juggCompiler = JuggCompiler(contextManager.compileContext, contextManager.disposer)
         contextManager.customCompilerManager.setCustomCompilerJars(params.customCompilerJars)
-        contextManager.customCompilerManager.init(contextManager.compileContext, juggCompiler)
+        contextManager.customCompilerManager.init(contextManager.compileContext)
 
         return IncrementalCompilerHelper(
             juggCompiler,

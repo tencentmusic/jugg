@@ -69,7 +69,8 @@ IDE project opened
   -> JuggManagerCreator.create()
      设置 IdeaPlatformApi，创建 JuggPathManager，注册 JuggLogger
   -> JuggManager.init()
-     刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录，并创建默认 run config
+     注册同步生命周期资源，再由 Init Jugg 后台任务首次转换并迁移旧 PropertiesComponent 字段，失败时下次启动重试，然后显式初始化 JuggServer；settings 在首次访问时自动加载
+     通过 ProjectCustomConfigManager 刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录，并创建默认 run config
   -> JuggManager.recoverDeployContext()
      从 deploy history 恢复 compile context、APK、changed files，避免无必要全量构建
   -> background tasks
@@ -82,7 +83,7 @@ IDE project opened
 
 更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip 并调用 `PluginInstaller.installAfterRestart()`，确保下次 IDE 启动落到标准安装版本；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
 
-Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → FileChangeManager/GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 关闭本地 Gradle project info executor，并释放 deploy file runtime、TaskRunner 与 coroutine scope。
+Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → FileChangeManager/GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 关闭本地 Gradle project info executor，并释放 custom compiler classloader、deploy file runtime、TaskRunner 与 coroutine scope。
 
 `CompileContextManager` 与 `GradleProjectInfoLocalFetchManager` 已下沉 `main`。IDEA 通过 `IdeaProjectModelSource` 提供 host model，通过 `IdeaCompileEnvironmentSource` 按使用时读取 Android SDK 与 Gradle 环境；本地 Gradle project info fetch 继续使用共享 `TaskRunnerManager` 保留项目锁、后台任务和进度语义，不再持有 IDEA `Project`。
 

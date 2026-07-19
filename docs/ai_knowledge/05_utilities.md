@@ -22,7 +22,7 @@
 | 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt` | core 层调用 UI、设备、Gradle、MCP host 能力的抽象边界 |
 | 远端服务 | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt`、`JuggServerChooser.kt`、`JuggEventLocalStore.kt`、`JuggRemoteCompileApplier.kt` | 上报、版本检测、server failover、全局本地事件记录与远端编译 apply；缺少内置配置时仅明确设置的自定义服务器可启用后台 |
 | 问题诊断 | `main/src/main/java/com/sickworm/intellij/jugg/diagnostics/IssueReportBundleBuilder.kt`、`IssueReportUploader.kt` | 白名单诊断包、脱敏、manifest 校验与单一 HTTPS endpoint 上传 |
-| 配置模型 | `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt`、`JuggGradleCompileOptions.kt` | 持久化设置、运行参数、Gradle task 派生与远端编译参数 |
+| 配置模型 | `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt`、`project/runtime/JsonRuntimeSettingsRepository.kt`、`ProjectCustomConfigManager.kt`、`JuggGradleCompileOptions.kt` | IDEA/standalone 共享设置、project custom config 生命周期、运行参数与 Gradle task 派生 |
 
 ---
 
@@ -46,8 +46,26 @@ JuggManager 初始化
 ```text
 需要 Jugg 自有全局文件
   -> JuggGlobalPathManager 统一落到 ~/.jugg
-  -> resources / hot_update / deploy_cache 等不再散落到项目 build 目录
+  -> settings.json / action.db / resources / hot_update / skills / library_test_build_records 等跨项目状态集中管理
+  -> 写入统一通过 ~/.jugg/locks/global.lock 串行，文件快照使用临时文件和原子替换
   -> 项目级编译缓存、日志、DB 仍由 JuggPathManager 留在 build/jugg
+```
+
+```text
+IDEA Runtime settings 初始化
+  -> JuggManager 的 Init Jugg 后台任务读取旧 PropertiesComponent 并转换为 legacy fields，不阻塞 init 调用线程
+  -> JuggSettings.migrateLegacyJuggSettings() 通过 IDEA adapter 读取旧属性，只回填 settings.json 缺失字段，已有 JSON 值优先
+  -> 成功后在 PropertiesComponent 记录迁移完成；失败不阻断启动且不清理旧属性，下次启动继续重试
+  -> 首次 persisted setting get/set 自动加载 JSON，之后按字段同步持久化修改
+
+Standalone/CLI Runtime settings
+  -> 首次 persisted setting get/set 通过 JsonRuntimeSettingsRepository 读取同一 settings.json
+  -> 文件缺失时使用 JuggSettings 默认值且不创建文件
+
+Project custom config
+  -> ProjectCustomConfigManager 私有持有 ProjectCustomConfigStore
+  -> local custom_config.json 优先于 server default_custom_config.json
+  -> refresh/updateDefaultConfig 统一应用 server、文件规则、classpath、custom compiler 与 embedded APK
 ```
 
 ---
@@ -63,6 +81,7 @@ JuggManager 初始化
 - 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`，不展示地址或尝试 fallback。
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、deployment cache、DB、日志优先 project-local；跨项目复用的 hot update、history、hook / resource 文件优先 `JuggGlobalPathManager`，写事务进入固定全局锁。
+- `settings.json` 写入使用固定全局锁、临时文件和原子替换；同进程更新由 `JuggSettings` 串行，字段修改会在锁内基于最新磁盘快照更新，避免双 Runtime 的不同字段互相覆盖；IDEA legacy migration 只补缺失字段，不能覆盖已存在 JSON 值。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 切换后 `JuggSettings` 会自动丢弃旧 root 缓存，测试通过独立 root 隔离真实用户设置。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
 - 远端编译的 Exclude patterns 控制 local-to-remote 源文件同步中的可配置排除规则。`.gradle` 和 `build` 保持原有固定 include/exclude 顺序：默认排除目录，同时放行 `.gradle/jugg/**`、`build/jugg/config/**` 等 Jugg 必需文件，用户不能通过该字段移除这两项。未自定义时使用并展示 `local.properties`、`.idea/`、`*.iml`、`.git/objects/`、`.git/modules/`、`.cxx/`；用户修改后只使用保存的可配置列表，明确清空表示不应用这些可配置默认排除。旧版本 Additional exclude patterns 没有自定义标记，升级后按未设置处理。配置用分号或换行分隔 rsync glob（逗号仅用于输入兼容），所有同步模式都将 pattern 按用户输入原样交给 rsync，作用域以本次实际传输根为准；`.git/` 可匹配任意层级的同名目录，`/.git/` 仅匹配传输根目录。它不是 gitignore 语义，`..`、引号和 Windows 绝对路径始终不支持。
