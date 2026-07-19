@@ -7,6 +7,7 @@ import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.application.PathManager
@@ -61,10 +62,11 @@ import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetch
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.info.ProjectInfoReader
-import com.sickworm.intellij.jugg.project.runtime.CustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.migrateLegacyJuggSettings
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
@@ -116,7 +118,7 @@ class JuggManager @TestOnly constructor(
         deploymentService = deploymentService,
     ),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, gitFileChangesDetector, taskRunnerManager),
-    private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
+    private val projectCustomConfigManager: ProjectCustomConfigManager = ProjectCustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "ProjectCustomConfigManager"), juggServer, fileChangesHandler, deployHistoryManager, compileContextManager, customCompilerManager),
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
@@ -154,14 +156,10 @@ class JuggManager @TestOnly constructor(
     override fun init() {
         Disposer.register(this, juggCompilerHelper)
         runTaskSafe("Init Jugg", {
-            AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
-            loadCustomConfig()
+            JuggSettings.migrateLegacyJuggSettings(PropertiesComponent.getInstance())
+            juggServer.initialize()
+            initializeRuntime()
             tryCreateRunConfigurations(isSyncFinished = false)
-            IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
-            ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
-            deployHistoryManager.checkProjectDirChanged()
-            clearLegacySystemJuggDir()
-            logger.info("Start jugg finished.")
 
             // init project info async
             runTaskSafe("Init project info", ::recoverDeployContext)
@@ -170,12 +168,10 @@ class JuggManager @TestOnly constructor(
 
             logger.debug("Checking updates...")
             juggServer.checkUpdate {
-                val checkUpdateHandler = CheckUpdateHandler(
-                    project, juggServer.version, customConfigManager,
-                    JuggLogger.getInstance(project, "CheckUpdateHandler"),
-                )
-                checkUpdateHandler.handle(it)
-                loadCustomConfig()
+                val checkUpdateHandler = CheckUpdateHandler(project, juggServer.version, projectCustomConfigManager, JuggLogger.getInstance(project, "CheckUpdateHandler"))
+                taskRunnerManager.runProjectWriteLocked("Apply server custom config") {
+                    checkUpdateHandler.handle(it)
+                }
                 juggHotUpdateDownloader.init(project)
             }
 
@@ -199,22 +195,14 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    private fun loadCustomConfig() {
-        try {
-            if (!customConfigManager.isConfigChanged()) {
-                return
-            }
-            customConfigManager.config?.let { config ->
-                juggServer.updateServer(config.servers)
-                fileChangesHandler.updateBuildFileRules(config.buildFileRules, config.moduleCustomConfigs?.map { it.moduleStdPath } ?: emptyList())
-                deployHistoryManager.updateDontFilterIgnoredFileRules(config.dontFilterIgnoredFileRules)
-                compileContextManager.updateCustomClasspath(config.moduleCustomConfigs ?: emptyList())
-                customCompilerManager.updateCustomCompilers(config.customCompilers)
-            }
-        } catch (e: Exception) {
-            // maybe structure is updated
-            logger.info("loadCustomConfig failed", e)
-        }
+    private fun initializeRuntime() {
+        projectCustomConfigManager.refresh()
+        AsDeployerCompat.init(logger)
+        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
+        ProjectInfoReader(project, logger).printInfo()
+        deployHistoryManager.checkProjectDirChanged()
+        clearLegacySystemJuggDir()
+        logger.info("Start jugg finished.")
     }
 
     private fun updateProjectInfo(
@@ -793,7 +781,7 @@ class JuggManager @TestOnly constructor(
         juggCompilerHelper.juggCompiler = juggCompiler
         fileChangesHandler.init(context)
         fileChangeManager.init(pathManager.projectDir, context.modules)
-        customCompilerManager.init(context, juggCompiler)
+        customCompilerManager.init(context)
     }
 
     private fun initCompile(
@@ -806,9 +794,12 @@ class JuggManager @TestOnly constructor(
         deployStateManager.isBuildFileChanged = false
 
         var finalApkInfos = compileContextInfo.apkInfos
-        logger.debug("hasEmbeddedApks: ${customConfigManager.hasEmbeddedApks()}")
-        if (customConfigManager.hasEmbeddedApks()) {
-            finalApkInfos = customConfigManager.fillApkInfosWithEmbeddedApks(finalApkInfos, pathManager.localClasspathStoragePathManager.embeddedApkDir)
+        logger.debug("hasEmbeddedApks: ${projectCustomConfigManager.hasEmbeddedApks()}")
+        if (projectCustomConfigManager.hasEmbeddedApks()) {
+            finalApkInfos = projectCustomConfigManager.fillApkInfosWithEmbeddedApks(
+                finalApkInfos,
+                pathManager.localClasspathStoragePathManager.embeddedApkDir,
+            )
         }
 
         val costTime = measureTimeMillis {
@@ -854,6 +845,12 @@ class JuggManager @TestOnly constructor(
         })
     }
 
+    private fun prepareRun() {
+        taskRunnerManager.runProjectWriteLocked("Refresh custom config") {
+            projectCustomConfigManager.refresh()
+        }
+    }
+
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
         taskRunnerManager.runTaskSafe(jobName, action, isNeedShowIndicator)
     }
@@ -862,6 +859,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("project ${pathManager.projectDir} dispose")
         controlPanelController.clear()
         gradleProjectInfoLocalFetchManager.close()
+        customCompilerManager.close()
         deployFileManager.dispose()
         taskRunnerManager.dispose()
         coroutineScope.cancel()
@@ -904,7 +902,7 @@ class JuggManager @TestOnly constructor(
             )
 
             // try reload custom config if changed
-            loadCustomConfig()
+            prepareRun()
             ProgressManager.getInstance().run(task)
 
             return task

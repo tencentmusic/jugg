@@ -102,13 +102,14 @@ Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 
 
 JSON 写入使用统一全局写锁、临时文件和原子替换，避免 IDEA 的迁移或后续设置修改产生半写入文件。
 
-下沉后使用领域仓储：
+共享设置直接由 `JuggSettings` 持有默认值和内存 effective fields，底层只保留通用 JSON 字段仓储：
 
 ```text
-IRuntimeSettingsRepository
-├── IdeaRuntimeSettingsRepository（负责一次性迁移）
+JuggSettings
 └── JsonRuntimeSettingsRepository
 ```
+
+IDEA 旧 `PropertiesComponent` 仅由 `JuggManager.init()` 提交的 `Init Jugg` 后台任务通过 `JuggSettings.migrateLegacyJuggSettings()` 扩展入口转换为字段 Map，并回填缺失字段；成功后记录迁移完成标记，迁移失败不阻断启动、不清理旧属性，下次启动继续重试。IDEA 与 standalone 均在首次 persisted setting get/set 时自动读取 JSON，文件缺失时直接使用 `JuggSettings` 默认值。
 
 共享运行设置必须覆盖会影响 compile/deploy/history 语义的开关，包括 Direct Overlay、兼容部署、project Kotlin compiler、backup classpath、device compat record 和 slice deploy record。
 
@@ -141,12 +142,14 @@ Standalone 不构造假的 IDE project info。
 
 #### Custom Compiler
 
-`CustomConfigManager`、`CustomCompilerManager` 已在 `main`，主体可复用；配置 reload、jar 下载、custom classpath、embedded APK 和 dispose 需先形成共享的具体领域流程，再纳入后续 `JuggProjectRuntime` 聚合。
+`ProjectCustomConfigManager`、`CustomCompilerManager` 已在 `main`，主体可复用；前者隐藏项目配置文件存储并统一负责 reload、server default 更新、custom classpath 和 embedded APK，后者负责 jar 下载、SPI 装载与 compiler 生命周期，再纳入后续 `JuggProjectRuntime` 聚合。
+
+共享 `main` 组件持有 classloader、流或其他可关闭资源时，生命周期接口优先使用 `AutoCloseable`，不向 standalone 领域 API 暴露 IntelliJ `Disposable`。只有第三方/SPI 签名明确要求 `Disposable` 时，才允许在组件内部保留最小 compatibility scope，并由组件的 `close()` 统一释放；IDEA adapter 在自身 dispose 生命周期中调用 `close()`。
 
 ### 3.3 已基本可直接复用的能力
 
 - `JuggPathManager`
-- `CustomConfigManager`
+- `ProjectCustomConfigManager`
 - `FileChangesHandler`
 - `DeployHistoryManager`
 - `JuggRunningTaskStatusManager`
@@ -172,8 +175,8 @@ JuggProjectRuntime
 ├── CompileContextManager
 ├── FileChangeManager
 ├── DependencyChangeManager
-├── RuntimeSettingsManager
-├── CustomConfigManager
+├── JuggSettings
+├── ProjectCustomConfigManager
 ├── CustomCompilerManager
 ├── TaskRunnerManager
 ├── JuggCompileOrchestrator
@@ -235,7 +238,7 @@ JuggManager
 └── JuggProjectRuntime
     ├── IdeaProjectModelSource
     ├── IdeaFileChangeMonitor
-    ├── IdeaRuntimeSettingsRepository
+    ├── JuggSettings（启动时迁移 IDEA legacy fields）
     ├── JuggCompileUiHandler
     ├── HostTaskExecutor
     └── IdeaApplyChangesExecutor
@@ -247,7 +250,7 @@ Standalone 对应：
 StandaloneJuggRuntimeAssembler
 ├── GradleProjectModelSource
 ├── WatchServiceFileChangeMonitor
-├── FileRuntimeSettingsRepository
+├── JuggSettings（直接读取共享 JSON）
 ├── Standalone CompileUiHandler
 ├── StandaloneHostTaskExecutor
 ├── StandaloneApplyChangesExecutor
@@ -753,7 +756,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 2 | 已完成 | 任务域、项目/全局锁、IDEA task adapter、后台 Job 生命周期和项目级 deployment cache 已落地；review 改进已合入 |
 | Step 3 | 已完成 | 项目模型、Compile Context 核心与本地 Gradle project info 调度已下沉；IDEA/Gradle-only source 已落地 |
 | Step 4 | 已完成 | 文件变化处理与 Git reconcile 已下沉，共享 WatchService monitor 与 dependency policy 已落地 |
-| Step 5–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 5 | 已完成 | 共享 Runtime Settings、IDEA 旧设置迁移、统一 custom config 生命周期与 custom compiler reload/dispose 已落地 |
+| Step 6–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -944,11 +948,27 @@ DeployFileManager
 
 ### Step 5：运行设置、Custom Config 与扩展能力
 
+实现状态：已完成。`JuggSettings` 保留原 `ide.bean` 包名，直接持有设置 schema、默认值与内存 effective fields，底层复用只处理原始 JSON 字段的 `JsonRuntimeSettingsRepository`；不再保留 `RuntimeSettings`、manager 或 repository interface。IDEA 由 `JuggManager.init()` 提交的 `Init Jugg` 后台任务调用 IDEA 模块提供的 `JuggSettings.migrateLegacyJuggSettings()` 扩展入口，读取旧 `jugg.*` 属性并只回填 `~/.jugg/settings.json` 缺失字段；已有 JSON 字段始终优先。迁移成功后在 `PropertiesComponent` 记录完成标记；失败不阻断启动、不清理旧属性，本次使用现有 JSON/default，下次启动继续重试。IDEA 与 standalone 不再显式调用 load，首次 persisted setting get/set 自动读取 JSON；文件缺失时使用内存默认值且不创建文件。JSON 写入统一使用全局写锁、临时文件和原子替换，同进程 setter 全程串行。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 可切换，settings 缓存会自动跟随 root，测试任务使用独立 root 避免污染真实用户配置。
+
+新增共享 `ProjectCustomConfigManager`，私有持有 `ProjectCustomConfigStore`，统一负责 refresh、server default 更新，并应用 server rules、build file rules、ignored rules、module custom classpath、custom compiler 与 embedded APK。项目级 `custom_config.json` 优先于 server 写入的 `default_custom_config.json`，本地配置删除后回退到 default；应用失败会失效缓存并在下次 refresh 重试。`JuggManager` 不再保留 refresh wrapper，运行期配置应用统一进入项目写锁。`CustomCompilerManager` 实现 `AutoCloseable`，不再接收外部 `Disposable`；仅为 `ICompilerCreator` SPI 在内部持有最小 `Disposable` compatibility scope。配置或显式 jar 列表变化时释放旧 compiler scope、清理缓存并关闭旧 `URLClassLoader`，IDEA/CLI 生命周期结束时统一调用 `close()`。
+
+`JuggServer` 构造函数只创建对象，不读取 settings、不启动后台任务；IDEA 在 legacy migration 后、CLI 在 Runtime 初始化时显式调用幂等 `initialize()`，首次 settings 访问由该流程自动触发。`JuggGlobalPathManager.settingsFile` 保留，继续集中记录 Jugg 全局文件位置。
+
+已完成验证：
+
+- `JsonRuntimeSettingsRepositoryTest`（L1，缺失文件、按字段合并、迁移失败重试和跨 Runtime 更新）
+- `JuggSettingsTest`（L1，自动加载、root 切换、进程级 override 与 migration cache 刷新）
+- `IdeaRuntimeSettingsMigrationTest`（L2，只转换显式保存的旧 IDEA properties）
+- `ProjectCustomConfigurationFlowTest`（L2，custom config 优先级、失败重试、default 即时应用和真实 ServiceLoader compiler 切换释放）
+- `TopLevelFlowTest#testInstallAndLaunch`（L3）
+- `CmdLineTest#buildIncrementalApkWithCustomCompilers`（CLI custom compiler 回归）
+- `:idea:compileKotlin`、`:cmd_line:compileTestKotlin`
+
 目标：让两个 Runtime 使用一致的 effective settings、文件规则、classpath 和 custom compiler。
 
 任务：
 
-- 定义 `RuntimeSettings` 领域模型和 `IRuntimeSettingsRepository`。
+- 设置 schema、默认值与 effective fields 只保留在 `JuggSettings`，JSON repository 不感知领域模型。
 - 新版 IDEA 首次启动时从 `PropertiesComponent` 回填 `~/.jugg/settings.json` 缺失字段。
 - standalone 只读取已存在的 `settings.json`；文件缺失时使用默认值且不创建文件。
 - 将 `JuggSettings` 调整为领域设置 facade，逐步移除直接全局存取。

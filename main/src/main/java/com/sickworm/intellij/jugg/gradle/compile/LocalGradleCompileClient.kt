@@ -218,7 +218,7 @@ class LocalGradleCompileClient(
             logger.info("isCanUseBackupClasspath is false, skip fetchClasspathResult")
             return null
         }
-        if (!JuggSettings.isEnableBackupClasspath) {
+        if (!JuggSettings.finalIsEnableBackupClasspath) {
             logger.info("isSupportsBackupClasspath is false, skip fetchClasspathResult")
             return null
         }
