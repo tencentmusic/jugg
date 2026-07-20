@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.ai.skills.JuggCliAutoUpdater
 import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.InstallJuggSkillsDialog
+import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -42,6 +43,7 @@ import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.lang.Runnable
+import javax.swing.JComponent
 import kotlin.system.measureTimeMillis
 
 
@@ -94,8 +96,17 @@ class JuggManager @TestOnly constructor(
     private val forceGradleCompileHelper: ForceGradleCompileHelper = IdeaForceGradleCompileHelper(project, juggConfigurationRunner,
         deployFileManager, taskRunnerManager,
         compileContextManager, logger)
+    private val controlPanelController = JuggControlPanelController(
+        project = project,
+        manager = this,
+        deployTargetManager = deployTargetManager,
+        deployHistoryManager = deployHistoryManager,
+        deployFileManager = deployFileManager,
+    )
     private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
-        IdeaMcpRuntime(logger.getInstance("McpRuntime"), project, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector))
+        IdeaMcpRuntime(logger.getInstance("McpRuntime"), project, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector),
+        eventModel = controlPanelController.model,
+    )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
     private val fileChangeLock = Any()
     private val runConfigurationLock = Any()
@@ -200,6 +211,7 @@ class JuggManager @TestOnly constructor(
 
     override fun onSyncEvent(syncEvent: SyncEvent) {
         logger.debug("onSyncEvent: $syncEvent")
+        controlPanelController.recordSyncEvent(syncEvent)
         try {
             when (syncEvent) {
                 SyncEvent.SUCCEEDED -> {
@@ -589,9 +601,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun restartApp() {
-        AsDeployerCompat.getSelectedDevices(project)?.forEach {
-            deployTargetManager.restartApp(it)
-        }
+        controlPanelController.restartApp()
     }
 
     /** Starts a full Gradle build that clears app data before reinstalling the selected app. */
@@ -637,6 +647,10 @@ class JuggManager @TestOnly constructor(
             logger.warn("getJuggRunSettingsComponent failed: ", e)
             throw e
         }
+    }
+
+    override fun getJuggControlPanel(page: String): JComponent {
+        return controlPanelController.getPanel(page)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -739,6 +753,7 @@ class JuggManager @TestOnly constructor(
 
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
+        controlPanelController.clear()
         deployFileManager.dispose()
         coroutineScope.cancel()
     }
@@ -775,7 +790,7 @@ class JuggManager @TestOnly constructor(
             }
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-                compileUiHandler, androidTestRunSpec,
+                compileUiHandler, controlPanelController.model, androidTestRunSpec,
             )
 
             // try reload custom config if changed
@@ -786,4 +801,5 @@ class JuggManager @TestOnly constructor(
         }
 
     }
+
 }

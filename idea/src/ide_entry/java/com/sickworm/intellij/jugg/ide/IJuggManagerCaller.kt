@@ -9,6 +9,7 @@ import com.intellij.openapi.actionSystem.ActionGroup
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import javax.swing.JComponent
 
 /**
  * API that IDE will call to interact with JuggManager.
@@ -42,6 +43,8 @@ interface IJuggManagerCaller: Disposable {
     fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup
 
     fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent
+
+    fun getJuggControlPanel(page: String): JComponent
 
     fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse
 

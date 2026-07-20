@@ -1,5 +1,7 @@
 # Jugg Control Panel UI 方案
 
+> 真实数据源、结构化事件、ClassLoader 桥接与 EDT 更新方案见 [`jugg_control_panel_data_source_design.md`](jugg_control_panel_data_source_design.md)。
+
 ## 1. 背景与目标
 
 当前 Jugg 的入口分散在三处：
@@ -177,9 +179,9 @@ Detect changes → Compile → Deploy → Launch / Resume / Instrument
 - 成功、运行中、跳过、warning、失败状态。
 - 耗时。
 - 关键结果，例如 `12 Kotlin / 3 Java`、`Code swap`、`2 devices`。
-- 点击阶段直接打开 Logs，并自动带入 task id、时间范围和 class tag 过滤。
+- 点击阶段直接打开 Logs，并自动带入 task id、category 和 status 过滤。
 
-失败时在失败阶段下方显示“发生了什么”和“下一步”，技术堆栈留在日志页。例如：
+失败时在失败阶段下方显示“发生了什么”和“下一步”；技术堆栈留在 Run Tool Window 或 full logs，Logs 页只展示结构化失败事件。例如：
 
 ```text
 Deploy failed on Pixel 8
@@ -207,11 +209,11 @@ The device rejected code swap. Run a full Gradle build to recover.
 
 日志页使用二级 segmented tabs：
 
-1. `Deploy`：按一次 compile/deploy task 聚合，适合看用户主链路。
-2. `Runtime`：读取 `build/jugg/log/compile_latest.log`，保留完整 ClassName、level 和 timestamp。
-3. `CLI / MCP`：展示外部调用记录，包括 CLI/MCP tool、开始时间、耗时、结果和关联 task。
+1. `Deploy`：展示 COMPILE、DEPLOY、APP 核心事件，并按一次 task 聚合。
+2. `Runtime`：展示 SYNC、COMPILE、DEPLOY、APP 等 IDE 核心事件。
+3. `CLI / MCP`：展示外部调用事件，包括 tool、开始时间、耗时、结果和关联 task。
 
-MVP 不要求拆成三份物理日志。可以复用同一主日志，通过 `[ClassName]`、`[MCP][TOOL]`、task 时间窗和结构化事件做逻辑视图。
+三类视图都来自 `JuggControlPanelModel` 的同一结构化 events，不读取或解析 raw log。完整技术日志继续保存在 `compile_latest.log` 和 Run Tool Window，通过 `Open full logs` 按需打开。
 
 ### 5.2 顶部工具条
 
@@ -223,8 +225,8 @@ MVP 不要求拆成三份物理日志。可以复用同一主日志，通过 `[C
 overflow 内包含：
 
 - Device：多设备场景筛选。
-- `Clear view`：只清当前视图，不删除日志文件。
-- `Open file`：使用 IDE editor 打开真实日志文件。
+- `Clear view`：只清当前筛选/滚动视图，不删除 Model events。
+- `Open full logs`：使用 IDE editor 打开真实日志文件。
 - `Export diagnostics`：导出相关日志和项目摘要，用于上报问题。
 
 日志正文使用等宽字体、tabular timestamp，搜索命中只改变背景，不同时改变字号、字重和边框。
@@ -245,15 +247,15 @@ overflow 内包含：
 - projectDir。
 - 脱敏后的 arguments。
 - result summary。
-- 关联的 compile/deploy task id 与日志入口。
+- 关联的 compile/deploy task id、事件入口与 full logs 入口。
 
 必须脱敏 SSH password、token、环境变量中的 secret、Authorization header 等字段。默认不展示完整 JSON-RPC payload。
 
 ### 5.4 空态和错误态
 
-- 无日志：`No Jugg task has run in this project yet.`，提供 `Run Jugg` 或 `Full Gradle Build`。
-- 主日志不存在：说明 `compile_latest.log` 是 best-effort 链接，并尝试打开最新的 `compile_*.log`。
-- 日志文件轮转：保持当前 task 的已加载内容，并提示可切换到新日志。
+- 无事件：`No Jugg activity yet.`，提供 `Run Jugg` 或 `Full Gradle Build`。
+- Model 尚未接入：显示 initializing 状态，不回退到固定 mock events。
+- 用户点击 `Open full logs` 但日志文件不存在：提示先运行一次 Jugg，不影响 events 视图。
 
 ## 6. Settings 设计
 
@@ -368,11 +370,11 @@ overflow 内包含：
 
 建议新增：
 
-- `JuggToolWindowFactory`：注册和创建 Tool Window。
-- `JuggControlPanel`：Overview / Logs / Settings 页面容器。
-- `JuggControlPanelModel`：面向 UI 的项目状态快照。
-- `JuggTaskEvent` / `JuggTaskSnapshot`：统一描述编译、部署和 CLI/MCP 任务阶段。
-- `JuggLogViewModel`：日志 tail、过滤、task 时间窗和文件轮转。
+- `JuggControlPanelHost`：稳定 ClassLoader 下的 JComponent Wrapper，通过 `JuggInitializer.getManager(project)` 挂载真实 Panel。
+- `JuggControlPanel`：热更新 ClassLoader 下的 Overview / Logs / Settings 页面容器。
+- `JuggControlPanelModel`：下沉到 `main` 的 UI 无关 facts、events、snapshot 和订阅模型，IDE/CLI 共用。
+- `JuggEvent` / `JuggControlPanelModel.TaskSnapshot`：统一描述 sync、compile、deploy、app、CLI/MCP 核心事件和任务阶段。
+- `MockJuggControlPanelModel`：使用真实 event API 构造并切换评审场景，不保留 UI 内置 MockData。
 
 公共类和复杂核心方法按项目规范添加英文介绍性注释。
 
@@ -382,34 +384,37 @@ overflow 内包含：
 - 将 MoreOptionsManager、RestartAppAction、GradleCompileAction 背后的业务动作收敛到可复用的项目级 action/service，再由 Tool Window 和 AnAction 调用。
 - 设置继续使用 `JuggSettings` 作为事实来源，首期不迁移持久化 key。
 - Run Configuration 参数继续使用 `JuggRunConfigurationOptions`。
-- compile/deploy 进度优先订阅现有 task/progress 状态；不要为 Overview 再启动一套任务状态机。
-- CLI/MCP 日志优先在 `McpToolInvoker` 边界补充结构化、脱敏后的调用事件，并关联 compile job。
+- Overview、Timeline、Logs 统一消费 `JuggControlPanelModel` events，不再分别维护 task/progress/log 状态机。
+- CLI/MCP 在 `McpToolInvoker` / `CompileJobManager` 边界记录结构化、脱敏后的调用事件，并关联 task id。
+- `ide_entry` 只暴露 `IJuggManagerCaller.getJuggControlPanel(page): JComponent`，不暴露 Model/Event/DTO。
 
 ### 9.3 性能要求
 
-- Tool Window 未打开时不持续解析大日志。
-- 打开 Logs 后增量 tail，避免定时全文件重读。
-- UI 更新合并到合理频率，日志高频写入不能逐行阻塞 EDT。
-- 大日志只保留有限内存窗口，完整内容由 `Open file` 交给 IDE editor。
+- Model 与 Tool Window 可见性无关，始终记录有限数量的核心 events。
+- Tool Window 隐藏时停止 EDT 渲染，但不丢失 sync、compile、deploy、CLI/MCP 事件。
+- UI 更新合并到合理频率，批量事件不能逐条阻塞 EDT。
+- events 使用固定内存上限；完整技术日志由 `Open full logs` 交给 IDE editor。
 
 ## 10. 分阶段落地
 
-### Phase 1：统一入口 MVP
+### Phase 1：稳定入口与基础真实数据
 
-- 注册 Jugg Tool Window。
+- 注册稳定 `JuggControlPanelHost`，真实 Panel 由 JuggManager 以 JComponent 返回。
+- 在 `main` 建立 `JuggControlPanelModel`、Event 和 Snapshot。
 - Overview Context Header、Current Task、Quick Actions。
 - Settings 迁移 More Options 中的正常用户设置。
-- Logs 展示 `compile_latest.log`，支持搜索、level、follow、open file。
+- 移除 UI 内置 MockData，Mock Model 走同一数据绑定路径。
 - Run Configuration 的 `More options` 改为 Settings 深链，保留旧入口名称兼容用户习惯。
 
 验收重点：用户不再需要进入 Run Configuration 才能执行维护操作或修改全局设置。
 
-### Phase 2：任务时间线与调用关联
+### Phase 2：统一 Events 与任务时间线
 
 - Deploy Timeline。
 - Recent Activity。
-- CLI/MCP 调用列表与脱敏参数。
-- task id、时间窗、日志筛选关联。
+- Logs 展示结构化核心 events，支持 source、level、task、search 和 follow。
+- CLI/MCP 调用事件与脱敏参数。
+- task id 与事件筛选关联。
 - Project Health 和可执行修复建议。
 
 ### Phase 3：诊断与入口收敛
@@ -427,16 +432,17 @@ overflow 内包含：
 | 验证目标 | 建议层级 | 建议落点 |
 |---|---|---|
 | action enablement、任务阶段、错误恢复建议等多类协作 | L2 | 复用或扩展 `idea/src/test/.../ide/logic` 下现有协作测试，避免为每个 UI Helper 新建单文件 Mockito 测试 |
-| Tool Window action 触发后复用真实 Jugg 编排入口 | L2 | `idea/src/test/.../manager/JuggControlPanelFlowTest.kt`，覆盖 UI command → manager/service → result state |
+| Stable Host 挂载 JComponent、真实/Mock Model 切换 | L2 | 追加到现有 `JuggRunSettingsComponentTest`，不新建单文件 Mock 测试 |
+| Event 归约、唯一终态、容量上限 | L1 | `main/src/test/.../ide/controlpanel/JuggControlPanelModelTest.kt` |
 | 未改变 Run → compile → deploy 语义 | L3 | 回归 `idea/src/test/.../manager/TopLevelFlowTest` 中至少一条真实部署场景 |
 | plugin.xml Tool Window / action 注册 | L2 | 追加到现有 `JuggPluginActionRegistrationTest` 或同类注册测试，不重复建测试类 |
-| 日志过滤与轮转若抽成复杂确定性解析 | L1 | 仅满足 `06_testing.md §2` 协议/日志解析白名单时新增或追加测试 |
 
 定向验证示例：
 
 ```bash
+./gradlew :main:test --tests "com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModelTest"
 ./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.logic.JuggPluginActionRegistrationTest"
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.manager.JuggControlPanelFlowTest"
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.ide.logic.JuggRunSettingsComponentTest"
 ./gradlew :idea:test --tests "com.sickworm.intellij.jugg.manager.TopLevelFlowTest"
 ./gradlew :idea:compileKotlin
 ```
@@ -448,7 +454,7 @@ overflow 内包含：
 1. Control Panel 是项目级控制台，不取代 Run Configuration。
 2. Overview 首屏最多三个主动作，更多能力通过固定 More 菜单渐进展示。
 3. `Gradle Clean`、`Clean & Reinstall`、`Reset Jugg Cache` 必须是三个独立语义。
-4. 日志先做逻辑视图，不为 UI 盲目拆分物理日志文件。
+4. Logs 展示统一结构化核心 events；raw log 仅通过 `Open full logs` 按需打开。
 5. CLI/MCP 调用必须脱敏，并与 compile/deploy task 关联。
 6. 首期保留现有工具栏和 More Options，稳定后再收敛入口。
 7. 视觉遵循 IntelliJ Platform，时间线是唯一重点表达，避免把 Tool Window 设计成独立 Dashboard 产品。

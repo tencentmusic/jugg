@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolAction
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import org.junit.Assert
 import org.junit.Before
 
@@ -31,7 +32,10 @@ abstract class McpInvokerTestBase {
         return McpBaseInvoker()
     }
 
-    protected fun newToolInvoker(currentProjectDir: String = "/tmp/projectA"): IMcpInvoker {
+    protected fun newToolInvoker(
+        currentProjectDir: String = "/tmp/projectA",
+        eventModel: JuggControlPanelModel? = null,
+    ): IMcpInvoker {
         val definitionByName = McpToolActionRegistry.defaultActions().associateBy { it.toolName }
         fun def(name: String): McpToolDefinition = definitionByName.getValue(name).definition
 
@@ -219,6 +223,7 @@ abstract class McpInvokerTestBase {
             currentProjectDir = currentProjectDir,
             runtime = McpRuntimeHolder.runtime,
             toolRegistry = McpToolRegistry(McpToolActionRegistry(fakeActions)),
+            eventModel = eventModel,
         )
     }
 

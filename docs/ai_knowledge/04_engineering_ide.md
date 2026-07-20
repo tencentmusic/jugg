@@ -26,6 +26,9 @@
 | `JuggConfigurationRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggConfigurationRunner.kt` | 创建并运行 `JuggRunningTask`，维护是否正在编译和下一轮强制重装 |
 | `JuggCompileHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | IDE 侧增量/Gradle 回退判定与 compile 入口 |
 | `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | IDE 侧设备部署、recover、retry、agent 协同入口 |
+| `JuggControlPanelHost` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggControlPanelHost.kt` | 稳定 ClassLoader 中只持有 `JComponent` 的 Tool Window 宿主；通过 `JuggInitializer.getManager(project)` 获取热更新实现 |
+| `JuggControlPanelModel` / `JuggEvent` | `main/src/main/java/com/sickworm/intellij/jugg/ide/controlpanel/` | 无 Project/Swing 依赖的项目 facts、任务状态和结构化核心事件；只公开两个入口类，投影与枚举使用嵌套类型，供 IDE、MCP 与后续 CLI 复用 |
+| `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | 热更新层项目级持有 Model/Panel，刷新 IDE facts、编排 Sync/App events 与 Panel 动作，并在 Manager dispose 时 clear 稳定 Host |
 | `CompileContextManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt` | 项目信息、编译上下文、部署上下文的 IDE 侧同步 |
 | `MoreOptionsManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More Options 菜单，挂载 Gradle compile、restart、skills、report 等操作 |
 | `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
@@ -43,6 +46,7 @@
 | hasRun / selected devices | `JuggRunningTaskStatusManager` | 决定“首次运行”、stop/cancel 后是否重置，以及 hook/status 语义 |
 | run UI process handler | `CompileUiHandler` / `JuggRunningTask` | 承载日志、进度、取消状态；androidTest 时接入 Test Results console |
 | file change / Run Configuration locks | `JuggManager` | 文件变化处理与 Run Configuration 创建分别串行，禁止通过 `JuggManager` 实例锁跨业务域互相阻塞 |
+| control panel snapshot | `JuggControlPanelModel` | `JuggControlPanelController` 项目级持有；保存 Context、Settings、当前 compile/deploy task、last deploy、health 与最近 200 条核心事件；MCP、Sync、App 事件只进入历史，不覆盖运行任务 |
 
 ---
 
@@ -100,7 +104,7 @@ JuggRunConfiguration / JuggAndroidTestRunConfiguration
   -> JuggManager.runTask(options, executor, runProfile, androidTestRunSpec)
   -> JuggConfigurationRunner.runTask()
   -> JuggRunningTask.run()
-     dependency start、Run tool window 状态、JuggLogger listener、server report
+     dependency start、Run tool window 状态、JuggLogger listener、server report、结构化 task event
   -> JuggCompileHelper.compile()
      可能走增量，也可能 fallback 到 Gradle
   -> JuggDeployerHelper.deploy()
@@ -108,6 +112,8 @@ JuggRunConfiguration / JuggAndroidTestRunConfiguration
   -> compileUiHandler.onEnd()
      回写 hasRun、停止日志监听、更新 UI
 ```
+
+一次 Run 使用唯一 taskId。Compile、每台设备 Deploy、fallback、取消、异常和聚合终态都进入同一个 events 体系；`JuggControlPanelModel` 只接受一个终态，Current Task、Timeline、Last Deploy、Recent Activity 和 Logs 不维护第二套任务状态。
 
 androidTest 运行必须把 `androidTestRunSpec`、`executor`、`runProfile` 一起传入 `JuggManager.runTask()`，否则 Test Results console、source navigation、rerun failed 不能完整接入。
 
@@ -119,7 +125,12 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 
 - 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；配置名包含 variant，APK 路径使用 IDE model 的实际 build folder。Sync 后如果没有可用配置会短暂重试，并只在检测到 Active Build Variant command 变化时自动切换。
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
-- `Jugg Running Pannel` 使用 Run Configuration icon；当前为原生 IntelliJ 控件实现的固定 mock 视觉评审版本，Overview 按 Context / Current Task / Quick Actions / Last Deploy / Project Health / Recent Activity 排列，Logs 与 Settings 只操作内存预览数据，不读取日志、不持久化设置，也不触发 compile / deploy 等业务动作。
+- `Jugg Running Pannel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
+- `OpenJuggControlPanelAction` 位于 `ide_entry`，只调用 Host；`JuggInitializer` 不引用 Host。Manager dispose 委托 Controller clear Host，JuggManager 自身不保存 Panel、事件枚举或 Sync taskId。
+- Overview、Timeline、Last Deploy、Recent Activity 和 Logs 统一消费 `JuggControlPanelModel` snapshot。Logs 只展示 sync、compile、deploy、app、CLI/MCP 等结构化核心事件，支持来源、级别、当前任务和搜索过滤，不读取或轮询 `compile_latest.log`。
+- MCP lifecycle 固定记录 `MCP request` / `MCP response`，tool 与结果摘要进入 detail。
+- Context/Health 读取 Run Configuration、selected devices、package、changed files、baseline 与 deploy history；Settings 的七个开关直接读写 `JuggSettings`。无真实后端的预览设置和动作不显示。
+- `MockJuggControlPanelModel` 只通过真实 Model API 构造测试场景；Panel 在 real/mock model 之间切换时复用同一个订阅和 render 路径，不保留 UI 内置 `MockData`。
 - `JuggToolWindowFactory` 与 `OpenJuggControlPanelAction` 均实现 `DumbAware`；Panel 不依赖索引，IDE 处于 indexing / dumb mode 时仍可创建和打开。
 - Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Pannel` 并选中 Settings；Tools 菜单的独立 action 仍从 Overview 打开。
 - `Check Jugg Update` 独立 action 经 `JuggManager.checkUpdates()` 复用 `MoreOptionsManager.checkUpdates()`，行为与 More Options 中的更新检查一致。
@@ -139,6 +150,8 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 | 默认 Run 配置没有生成 | `JuggManager.tryCreateRunConfigurations()` 与 `AsDeployerCompat.getSuggestRunConfigurations()` |
 | Sync 后 project info / dependency 状态异常 | `JuggManager.onSyncEvent()`、`updateProjectInfo()`、`CompileContextManager.updateCompileContext()` |
 | Run UI 状态错乱或取消后下轮误判 | `JuggRunningTask.run()` finally 中 hasRun / processHandler / logger listener 收口 |
+| Panel 数据不刷新或热更新后仍显示旧组件 | `JuggControlPanelHost`、`JuggInitializer.getManager(project)`、`JuggManager.getJuggControlPanel()` 与 Panel subscription dispose |
+| Panel Logs 内容不可读或缺事件 | 检查 `JuggManager.onSyncEvent()`、`JuggRunningTask`、`McpToolInvoker` 的结构化事件生产；Panel 不应读取 raw log |
 | Jugg Debug attach 后断点不可用 | `04_engineering_debug_attach.md`，确认 WAITING、`Connected to the target VM` 与 `XDebugSession` |
 | androidTest 有结果但 Test Results 不完整 | `JuggManager.runTask()` 参数传递，确认 `executor` / `runProfile` / `androidTestRunSpec` 都非空 |
 | skill / hook 安装入口异常 | `MoreOptionsManager`、`InstallJuggSkillsDialog`、`JuggSkillInstaller` |

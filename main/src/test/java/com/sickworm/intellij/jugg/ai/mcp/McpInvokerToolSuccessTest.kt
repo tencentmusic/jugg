@@ -1,12 +1,38 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.mock.TestPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import org.junit.Assert
 import org.junit.Test
 
 class McpInvokerToolSuccessTest : McpInvokerTestBase() {
+
+    @Test
+    fun testToolCallRecordsStructuredLifecycleEvents() {
+        val model = JuggControlPanelModel()
+        val invoker = newToolInvoker(eventModel = model)
+
+        invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 4,
+                params = mapOf(
+                    "name" to "compile",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA"),
+                ),
+            )
+        )
+
+        val events = model.snapshot().recentEvents
+        Assert.assertEquals(2, events.size)
+        Assert.assertEquals(listOf("MCP request", "MCP response"), events.map { it.title })
+        Assert.assertEquals(listOf(JuggEvent.Status.STARTED, JuggEvent.Status.SUCCEEDED), events.map { it.status })
+        Assert.assertTrue(events.all { it.source == JuggEvent.Source.MCP })
+        Assert.assertTrue(events.last().isTaskTerminal)
+    }
 
     @Test
     fun testListProjectsAcceptedWithoutProjectDir() {

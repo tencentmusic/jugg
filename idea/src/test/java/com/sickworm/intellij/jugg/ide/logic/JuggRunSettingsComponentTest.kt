@@ -13,11 +13,17 @@ import com.intellij.ui.content.ContentManager
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
+import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
+import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
+import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito
@@ -33,12 +39,19 @@ import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.JToggleButton
 
+private typealias JuggPanelContext = JuggControlPanelModel.Context
+private typealias JuggEventCategory = JuggEvent.Category
+private typealias JuggEventLevel = JuggEvent.Level
+private typealias JuggEventPhase = JuggEvent.Phase
+private typealias JuggEventSource = JuggEvent.Source
+private typealias JuggEventStatus = JuggEvent.Status
+
 class JuggRunSettingsComponentTest {
 
     @Test
     fun `control panel preview should match approved native layout structure`() {
         TestGlobal.init()
-        val panel = JuggControlPanel(mockProject())
+        val panel = createPanel()
         val tabs = findComponent<JBTabbedPane>(panel)
         val quickActions = findNamedComponent<JPanel>(panel, "quickActions")
         val sectionNames = descendants(panel)
@@ -81,20 +94,20 @@ class JuggRunSettingsComponentTest {
             "settings.group.runBehavior",
             "settings.group.deployment",
             "settings.group.compiler",
-            "settings.group.deviceCompatibility",
             "settings.group.integrations",
             "settings.group.advanced",
         ), settingGroupNames)
-        assertEquals(8, descendants(panel).filterIsInstance<OnOffButton>().count())
+        assertEquals(7, descendants(panel).filterIsInstance<OnOffButton>().count())
         assertEquals(listOf("logs.source.deploy", "logs.source.runtime", "logs.source.cliMcp"), logSources)
-        assertTrue(buttonTexts.containsAll(listOf("All levels ⌄", "Current task ⌄", "Follow", "⋮")))
+        assertTrue(buttonTexts.containsAll(listOf("All levels ⌄", "Current task ⌄", "Follow")))
+        assertTrue("⋮" !in buttonTexts)
     }
 
     @Test
     fun `more options should open control panel settings`() {
         TestGlobal.init()
         val project = mockProject()
-        val panel = JuggControlPanel(project)
+        val panel = createPanel(project)
         val tabs = findComponent<JTabbedPane>(panel)!!
         val content = Mockito.mock(Content::class.java)
         val contentManager = Mockito.mock(ContentManager::class.java)
@@ -113,6 +126,70 @@ class JuggRunSettingsComponentTest {
 
         assertEquals("More options", link.text)
         assertEquals(2, tabs.selectedIndex)
+    }
+
+    @Test
+    fun `control panel host replaces the hot reload component`() {
+        val host = JuggControlPanelHost()
+        val first = JPanel()
+        val second = JPanel()
+
+        host.setImpl(first)
+        host.setImpl(second)
+
+        assertEquals(1, host.componentCount)
+        assertSame(second, host.getComponent(0))
+    }
+
+    @Test
+    fun `control panel renders the latest model snapshot`() {
+        TestGlobal.init()
+        val model = JuggControlPanelModel()
+        val panel = createPanel(model = model)
+
+        model.updateContext(JuggPanelContext(
+            configuration = "run demo",
+            packageName = "com.sickworm.demo",
+            devices = listOf("Pixel 8 API 35"),
+            changedFileCount = 3,
+            hasBaseline = true,
+        ))
+        model.record(JuggEvent(
+            taskId = "task-1",
+            source = JuggEventSource.IDE,
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = JuggEventStatus.STARTED,
+            level = JuggEventLevel.INFO,
+            title = "Compiling 3 changed files",
+            timestamp = 1L,
+        ))
+        javax.swing.SwingUtilities.invokeAndWait {}
+
+        assertEquals("run demo", findNamedComponent<JLabel>(panel, "overview.configuration")?.text)
+        assertEquals("3 changed files", findNamedComponent<JLabel>(panel, "overview.changedFiles")?.text)
+        assertEquals("Pixel 8 API 35", findNamedComponent<JLabel>(panel, "overview.devices")?.text)
+        assertEquals("Compiling 3 changed files", findNamedComponent<JLabel>(panel, "overview.currentTask")?.text)
+    }
+
+    @Test
+    fun `mock model uses the same rendering path and can switch back to real data`() {
+        TestGlobal.init()
+        val realModel = JuggControlPanelModel().apply {
+            updateContext(JuggPanelContext(configuration = "real configuration"))
+        }
+        val panel = createPanel(model = realModel)
+        val mockModel = MockJuggControlPanelModel().apply {
+            load(MockJuggControlPanelModel.Scenario.RUNNING)
+        }
+
+        panel.bindModel(mockModel.model)
+        javax.swing.SwingUtilities.invokeAndWait {}
+        assertEquals("Mock Jugg Run", findNamedComponent<JLabel>(panel, "overview.configuration")?.text)
+
+        panel.bindModel(realModel)
+        javax.swing.SwingUtilities.invokeAndWait {}
+        assertEquals("real configuration", findNamedComponent<JLabel>(panel, "overview.configuration")?.text)
     }
 
     @Test
@@ -232,6 +309,14 @@ class JuggRunSettingsComponentTest {
         val project = Mockito.mock(Project::class.java)
         Mockito.doReturn(Mockito.mock(RunManager::class.java)).`when`(project).getService(RunManager::class.java)
         return project
+    }
+
+    private fun createPanel(
+        project: Project = mockProject(),
+        model: JuggControlPanelModel = JuggControlPanelModel(),
+    ): JuggControlPanel {
+        val controller = Mockito.mock(JuggControlPanelController::class.java)
+        return JuggControlPanel(project, model, controller)
     }
 
     private inline fun <reified T : Component> findNamedComponent(component: Component, name: String): T? {

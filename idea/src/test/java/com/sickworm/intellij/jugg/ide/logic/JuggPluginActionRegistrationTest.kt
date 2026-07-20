@@ -31,6 +31,7 @@ class JuggPluginActionRegistrationTest {
         assertEquals("com.sickworm.intellij.jugg.ide.ui.OpenJuggControlPanelAction", action.getAttribute("class"))
         assertTrue(DumbAware::class.java.isAssignableFrom(Class.forName(toolWindow.getAttribute("factoryClass"))))
         assertTrue(DumbAware::class.java.isAssignableFrom(Class.forName(action.getAttribute("class"))))
+        Class.forName("com.sickworm.intellij.jugg.ide.JuggControlPanelHost")
     }
 
     private fun pluginAction(id: String): org.w3c.dom.Element {

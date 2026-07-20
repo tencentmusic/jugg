@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
+import java.util.UUID
 
 /**
  * McpToolInvoker validates MCP JSON-RPC requests, dispatches tool actions, and maps execution results to JSON-RPC responses.
@@ -12,6 +15,7 @@ class McpToolInvoker(
     private val runtime: IMcpRuntime,
     private val toolRegistry: McpToolRegistry = McpToolRegistry(),
     private val resultMapper: McpResultMapper = McpResultMapper(),
+    private val eventModel: JuggControlPanelModel? = null,
 ) : IMcpInvoker {
     private val logger = Logger.getInstance("McpToolInvoker")
     private val requestValidator = McpRequestValidator(currentProjectDir, toolRegistry)
@@ -43,12 +47,51 @@ class McpToolInvoker(
                 message = "Tool not found: ${request.toolName}",
             )
 
-        val toolResult = action.execute(request.arguments, runtime)
+        val taskId = UUID.randomUUID().toString()
+        val startTime = System.currentTimeMillis()
+        recordStarted(taskId, request, startTime)
+        val toolResult = try {
+            action.execute(request.arguments, runtime)
+        } catch (e: Throwable) {
+            recordCompleted(taskId, request.toolName, startTime, succeeded = false, e.message)
+            throw e
+        }
+        val succeeded = toolResult.status != McpToolStatus.ERROR
+        recordCompleted(taskId, request.toolName, startTime, succeeded, toolResult.message)
         // Business-level errors (where the tool executed but results were unexpected) should consistently use
         // toolSuccess, with success/failure distinguished via structuredContent.status.
         // This prevents isError=true from causing the MCP client to display them as framework-level
         // errors, while still preserving full data like artifacts.
         return resultMapper.toolSuccess(id = id, toolResult = toolResult)
+    }
+
+    private fun recordStarted(taskId: String, request: McpValidationResult.ToolsCall, startTime: Long) {
+        eventModel?.record(JuggEvent(
+            taskId = taskId,
+            source = JuggEvent.Source.MCP,
+            category = JuggEvent.Category.MCP,
+            phase = JuggEvent.Phase.PREPARING,
+            status = JuggEvent.Status.STARTED,
+            level = JuggEvent.Level.INFO,
+            title = "MCP request",
+            detail = "${request.toolName} · ${request.projectDir}",
+            timestamp = startTime,
+        ))
+    }
+
+    private fun recordCompleted(taskId: String, toolName: String, startTime: Long, succeeded: Boolean, detail: String?) {
+        eventModel?.record(JuggEvent(
+            taskId = taskId,
+            source = JuggEvent.Source.MCP,
+            category = JuggEvent.Category.MCP,
+            phase = JuggEvent.Phase.COMPLETED,
+            status = if (succeeded) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.FAILED,
+            level = if (succeeded) JuggEvent.Level.INFO else JuggEvent.Level.WARN,
+            title = "MCP response",
+            detail = listOfNotNull(toolName, detail).joinToString(" · "),
+            durationMillis = System.currentTimeMillis() - startTime,
+            isTaskTerminal = true,
+        ))
     }
 
 }

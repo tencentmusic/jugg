@@ -23,6 +23,8 @@ import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -34,7 +36,14 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.UUID
 import javax.swing.SwingUtilities
+
+private typealias JuggEventCategory = JuggEvent.Category
+private typealias JuggEventLevel = JuggEvent.Level
+private typealias JuggEventPhase = JuggEvent.Phase
+private typealias JuggEventSource = JuggEvent.Source
+private typealias JuggEventStatus = JuggEvent.Status
 
 /**
  * Implementation of compilation and deployment.
@@ -53,6 +62,7 @@ class JuggRunningTask(
     private val juggDeployHelper: JuggDeployerHelper,
     private val initIncrementalCompileTask: () -> Unit,
     private val compileUiHandler: CompileUiHandler,
+    private val eventModel: JuggControlPanelModel,
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
@@ -60,6 +70,9 @@ class JuggRunningTask(
 
     private val processHandler: IProcessHandler get() = compileUiHandler.processHandler
     private val androidTestResultModel: AndroidTestResultModel = AndroidTestResultModel()
+    private val eventTaskId = UUID.randomUUID().toString()
+    private val eventStartedAt = System.currentTimeMillis()
+    private var hasTerminalEvent = false
 
     private val indicatorListener = object : ProgressIndicatorListener {
         override fun cancelled() {
@@ -80,6 +93,13 @@ class JuggRunningTask(
                 RuntimeMockUtils.runTest(logger)
                 return
             }
+
+            recordEvent(
+                category = JuggEventCategory.COMPILE,
+                phase = JuggEventPhase.PREPARING,
+                status = JuggEventStatus.STARTED,
+                title = "Jugg task started",
+            )
 
             statusManager.isProjectSwitchedThisRun =
                 lastCompileProjectRegistry.detectSwitch(options.projectRootPath)
@@ -106,12 +126,14 @@ class JuggRunningTask(
                 deployHistoryManager.isLastFullCompileFailed = !runResult.isCompileSuccess
             }
             compileUiHandler.onEnd(runResult)
+            finishRunEvent(runResult)
         } catch (e: Throwable) {
             val sw = StringWriter()
             val pw = PrintWriter(sw)
             e.printStackTrace(pw)
             logger.warn("Run stop unexpected with ${e::class.java}:\n$sw\nRun stop unexpected.")
             dependencyChangeManager.onEndBuilding(isSuccess = false, isCancelled = false)
+            finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.FAILED, "Jugg task failed", e.message)
             compileUiHandler.onEnd(RunResult.FAILED)
         } finally {
             isRunning = false
@@ -124,6 +146,9 @@ class JuggRunningTask(
                 statusManager.resetHasRun()
             } else {
                 statusManager.setHasRun(deployTargetManager.getDeviceNameList())
+            }
+            if (!hasTerminalEvent && isCanceled) {
+                finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.CANCELED, "Jugg task canceled")
             }
             JuggLogger.stopListenProjectLog(project, loggerListener)
             stop(indicator)
@@ -153,6 +178,13 @@ class JuggRunningTask(
         val detailMap = mutableMapOf<String, String>()
         detailMap["isForceGradleCompile"] = compileUiHandler.isForceGradleCompile.toString()
 
+        recordEvent(
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = JuggEventStatus.STARTED,
+            title = if (compileUiHandler.isForceGradleCompile) "Gradle compile started" else "Incremental compile started",
+        )
+
         val compileTaskResult = juggCompileHelper.compile(
             options,
             compileUiHandler,
@@ -173,6 +205,14 @@ class JuggRunningTask(
             costTime = compileTaskResult.costTime
             detail = Gson().toJson(detailMap)
         }
+        recordEvent(
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = if (compileTaskResult.isSuccess) JuggEventStatus.SUCCEEDED else JuggEventStatus.FAILED,
+            title = if (compileTaskResult.isSuccess) "Compile completed" else "Compile failed",
+            detail = compileTaskResult.failedReason,
+            durationMillis = compileTaskResult.costTime,
+        )
 
         if (!compileTaskResult.isSuccess) {
             failedAndActiveRunWindowIfNotCanceled()
@@ -205,6 +245,13 @@ class JuggRunningTask(
             if (compileTaskResult.isGradleCompile) {
                 initIncrementalCompileTask.invoke()
             }
+            recordEvent(
+                category = JuggEventCategory.DEPLOY,
+                phase = JuggEventPhase.DEPLOYING,
+                status = JuggEventStatus.FAILED,
+                title = "Deploy failed",
+                detail = failedReason,
+            )
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true,
                 isDeploySuccess = false, isNeedResetHasRun = compileTaskResult.isGradleCompile, isCancel = processHandler.isCanceled,
                 failedReason = failedReason)
@@ -212,6 +259,13 @@ class JuggRunningTask(
 
         var totalDeployTime = 0L
         val deployTaskResultList = mutableListOf<DeployTaskResult>()
+        recordEvent(
+            category = JuggEventCategory.DEPLOY,
+            phase = JuggEventPhase.DEPLOYING,
+            status = JuggEventStatus.STARTED,
+            title = "Deploy started",
+            detail = devices.joinToString { it.name },
+        )
         val isMultipleDevices = devices.size > 1
         devices.forEachIndexed { index, device ->
             val isLastDevice = index == devices.size - 1
@@ -266,6 +320,13 @@ class JuggRunningTask(
             } else {
                 // fallback to gradle compile
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
+                recordEvent(
+                    category = JuggEventCategory.DEPLOY,
+                    phase = JuggEventPhase.DEPLOYING,
+                    status = JuggEventStatus.WARNING,
+                    title = "Deploy fallback requested",
+                    detail = failedReason,
+                )
                 notifyFallback(project, failedReason)
                 compileUiHandler.isForceGradleCompile = true
                 return doRun(options)
@@ -331,6 +392,14 @@ class JuggRunningTask(
         if (deployTaskResult.isSuccess) {
             notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType, suffix, deployTaskResult.hasDeployChanges)
         }
+        recordEvent(
+            category = JuggEventCategory.DEPLOY,
+            phase = JuggEventPhase.DEPLOYING,
+            status = if (deployTaskResult.isSuccess) JuggEventStatus.SUCCEEDED else JuggEventStatus.FAILED,
+            title = if (deployTaskResult.isSuccess) "Deploy to ${device.name} completed" else "Deploy to ${device.name} failed",
+            detail = deployTaskResult.failedReason,
+            durationMillis = deployTaskResult.costTime,
+        )
 
         logger.debug("deployDevice: ${device.desc}, isMultipleDevices=$isMultipleDevices, isLastDevice=$isLastDevice, deployTaskResult=$deployTaskResult")
         return deployTaskResult
@@ -360,6 +429,51 @@ class JuggRunningTask(
             return
         }
         compileUiHandler.showRunWindow()
+    }
+
+    private fun finishEvent(
+        category: JuggEventCategory,
+        status: JuggEventStatus,
+        title: String,
+        detail: String? = null,
+        durationMillis: Long = System.currentTimeMillis() - eventStartedAt,
+    ) {
+        if (hasTerminalEvent) return
+        hasTerminalEvent = true
+        recordEvent(category, JuggEventPhase.COMPLETED, status, title, detail, durationMillis, isTerminal = true)
+    }
+
+    private fun finishRunEvent(result: RunResult) {
+        when {
+            result.isCancel -> finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.CANCELED, "Jugg task canceled")
+            !result.isCompileSuccess -> finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.FAILED, "Compile failed", result.failedReason)
+            result.isDeploySuccess -> finishEvent(JuggEventCategory.DEPLOY, JuggEventStatus.SUCCEEDED, "Deploy completed")
+            result.failedReason != null -> finishEvent(JuggEventCategory.DEPLOY, JuggEventStatus.FAILED, "Deploy failed", result.failedReason)
+            else -> finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.SUCCEEDED, "Compile completed without deploy")
+        }
+    }
+
+    private fun recordEvent(
+        category: JuggEventCategory,
+        phase: JuggEventPhase,
+        status: JuggEventStatus,
+        title: String,
+        detail: String? = null,
+        durationMillis: Long? = null,
+        isTerminal: Boolean = false,
+    ) {
+        eventModel.record(JuggEvent(
+            taskId = eventTaskId,
+            source = JuggEventSource.IDE,
+            category = category,
+            phase = phase,
+            status = status,
+            level = if (status in setOf(JuggEventStatus.FAILED, JuggEventStatus.WARNING)) JuggEventLevel.WARN else JuggEventLevel.INFO,
+            title = title,
+            detail = detail,
+            durationMillis = durationMillis,
+            isTaskTerminal = isTerminal,
+        ))
     }
 
     private fun stop(indicator: ProgressIndicator) {
