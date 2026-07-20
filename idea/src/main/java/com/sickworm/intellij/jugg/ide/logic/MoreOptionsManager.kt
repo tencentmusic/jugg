@@ -20,11 +20,12 @@ import com.sickworm.intellij.jugg.ide.ui.InstallJuggSkillsDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
-import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
+import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.*
 
@@ -38,7 +39,7 @@ class MoreOptionsManager(
     private val dependencyChangeManager: IDependencyChangeManager,
     private val juggCompilerHelper: JuggCompilerHelper,
     private val juggServer: JuggServer,
-    private val juggHotUpdateDownloader: JuggHotUpdateDownloader,
+    private val ideaHotUpdateCoordinator: IdeaHotUpdateCoordinator,
     logger: Logger,
 ) {
 
@@ -277,7 +278,14 @@ class MoreOptionsManager(
 
     private fun setCustomServerUrl() {
         logger.info("[options] setNewServerUrl")
-        juggServer.setCustomServer()
+        val serverUrl = PlatformApi.showUserAndPasswordInputDialog(
+            title = "Set Custom Server",
+            content = "Here to set custom server url for redirecting uploading compilation cost, reporting issues etc.",
+            defaultInputText = juggServer.customServerUrl,
+        ) ?: return
+        taskRunnerManager.runBackgroundSafe("Set custom server", isGlobalWrite = true) {
+            juggServer.setCustomServer(serverUrl)
+        }
     }
 
     private fun enableCompatibleDeploymentMode() {
@@ -302,11 +310,11 @@ class MoreOptionsManager(
         val dialog = CheckUpdatesProgressDialog()
 
         taskRunnerManager.runBackgroundSafe("Check updates") {
-            val hotUpdateData = juggHotUpdateDownloader.checkHotUpdate(isPositiveCheck = true)
+            val hotUpdateData = ideaHotUpdateCoordinator.checkHotUpdate(isPositiveCheck = true)
             dialog.setHotUpdateData(hotUpdateData) {
                 taskRunnerManager.runBackgroundSafe("Download updates", isGlobalWrite = true) {
                     try {
-                        juggHotUpdateDownloader.downloadAndInstallUpdate(hotUpdateData!!)
+                        ideaHotUpdateCoordinator.downloadAndInstallUpdate(hotUpdateData!!)
                         dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
                             if (hotUpdateData.isNeedReinstall) {
                                 // necessary to async, or restart will not work

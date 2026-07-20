@@ -29,11 +29,12 @@ import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Rule
@@ -92,8 +93,9 @@ class JuggManagerFullBuildFlowTest {
             pathManager = pathManager,
             coroutineScope = coroutineScope,
             logger = logger,
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
             juggServer = mock<JuggServer>(),
-            juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
+            ideaHotUpdateCoordinator = mock<IdeaHotUpdateCoordinator>(),
             fileChangesHandler = mock<IFileChangesHandler>(),
             fileChangesDetector = mock<IFileChangeMonitor>(),
             deployHistoryManager = deployHistoryManager,

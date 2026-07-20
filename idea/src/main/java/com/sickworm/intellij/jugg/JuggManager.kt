@@ -63,9 +63,11 @@ import com.sickworm.intellij.jugg.project.info.ProjectInfoReader
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.runtime.migrateLegacyJuggSettings
-import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
+import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
 import kotlinx.coroutines.*
@@ -82,15 +84,16 @@ class JuggManager @TestOnly constructor(
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
-    private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, logger),
+    private val runtimeInfo: RuntimeInfo = RuntimeInfo("idea", PluginInfoReader.getPluginVersion(), PlatformApi.getIdeVersion(), PluginInfoReader.getPluginCompileTimestamp()),
+    private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, runtimeInfo, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
     private val fileChangesDetector: IFileChangeMonitor = IdeaFileChangeMonitor(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, JuggLogger.getInstance(project, "DeployHistoryManager")),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: IDeployStateManager = DeployStateManager(deployTargetManager, deployHistoryManager, IdeaHostDeployStateResolver(project), JuggLogger.getInstance(project, "DeployStateManager")),
     private val hostTaskExecutor: HostTaskExecutor = HostTaskExecutor(project),
-    private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(logger, deployStateManager, juggServer, hostTaskExecutor, pathManager, "idea", juggServer.version, coroutineScope),
-    private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, taskRunnerManager, logger),
+    private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(logger, deployStateManager, juggServer, hostTaskExecutor, pathManager, runtimeInfo.runtimeType, runtimeInfo.runtimeVersion, coroutineScope),
+    private val ideaHotUpdateCoordinator: IdeaHotUpdateCoordinator = IdeaHotUpdateCoordinator(juggServer, taskRunnerManager, logger),
     private val deploymentService: JuggDeploymentService = JuggDeploymentService(pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager)),
     private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
     private val deployFileManager: DeployFileManager = DeployFileManager(pathManager, taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),
@@ -170,7 +173,7 @@ class JuggManager @TestOnly constructor(
                 taskRunnerManager.runProjectWriteLocked("Apply server custom config") {
                     checkUpdateHandler.handle(it)
                 }
-                juggHotUpdateDownloader.init(project)
+                ideaHotUpdateCoordinator.init(project)
             }
 
             taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000, isGlobalWrite = true) {
@@ -621,7 +624,7 @@ class JuggManager @TestOnly constructor(
         return MoreOptionsManager(
             this, pathManager, taskRunnerManager, hostTaskExecutor,
             deployHistoryManager, deployTargetManager, dependencyChangeManager,
-            juggCompilerHelper, juggServer, juggHotUpdateDownloader, logger,
+            juggCompilerHelper, juggServer, ideaHotUpdateCoordinator, logger,
         )
     }
 

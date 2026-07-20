@@ -50,6 +50,7 @@ class CmdLineTest {
     }
 
     private fun doBuildIncrementalApk(modify: (() -> List<File>), revert: (() -> Unit), extraArgs: (() -> Array<String>)? = null) {
+        Global.buildOutputDir.deleteRecursively()
         buildBase()
 
         // backup juggRootDir and delete origin for test

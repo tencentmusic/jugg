@@ -289,7 +289,7 @@ class JuggDeployerInstallTest {
     fun `hot update bootstrap does not depend on task runner`() {
         listOf(
             "idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt",
-            "idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggHotUpdateManager.kt",
+            "idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggHotUpdateBootstrap.kt",
         ).forEach { path ->
             val source = findRepoFile(path).readText()
             assertFalse(

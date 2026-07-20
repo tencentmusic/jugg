@@ -22,6 +22,8 @@
 | 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt` | core 层调用 UI、设备、Gradle、MCP host 能力的抽象边界 |
 | 远端服务 | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt`、`JuggServerChooser.kt`、`JuggEventLocalStore.kt`、`JuggRemoteCompileApplier.kt` | 上报、版本检测、server failover、全局本地事件记录与远端编译 apply；缺少内置配置时仅明确设置的自定义服务器可启用后台 |
 | 问题诊断 | `main/src/main/java/com/sickworm/intellij/jugg/diagnostics/IssueReportBundleBuilder.kt`、`IssueReportUploader.kt` | 白名单诊断包、脱敏、manifest 校验与单一 HTTPS endpoint 上传 |
+| Runtime 信息 | `project/runtime/RuntimeInfo.kt` | Host 显式提供 runtime type/version、host version 与 build time，供 Server、锁和 hot update 使用 |
+| Hot update | `server/JuggHotUpdateManager.kt`、`idea/.../server/IdeaHotUpdateCoordinator.kt`、`idea/.../loader/JuggHotUpdateBootstrap.kt` | 共享下载校验、原子发布与清理；IDEA 检查和安装编排；Loader 启动前只读 manifest |
 | 配置模型 | `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt`、`project/runtime/JsonRuntimeSettingsRepository.kt`、`ProjectCustomConfigManager.kt`、`JuggGradleCompileOptions.kt` | IDEA/standalone 共享设置、project custom config 生命周期、运行参数与 Gradle task 派生 |
 
 ---
@@ -68,6 +70,21 @@ Project custom config
   -> refresh/updateDefaultConfig 统一应用 server、文件规则、classpath、custom compiler 与 embedded APK
 ```
 
+```text
+Runtime info
+  -> Host 创建 RuntimeInfo(runtimeType/runtimeVersion/hostVersion/buildTime)
+  -> JuggServer 只消费注入 info，不读取 Project、plugin manifest 或 PlatformApi
+  -> TaskRunner 从 info 中使用 runtime type/version 建立锁 owner identity
+```
+
+```text
+Hot update
+  -> JuggHotUpdateManager 在固定全局锁内下载、MD5 校验并原子发布 jar 与 hot_update_data.json
+  -> compatible update 发布完整 load_manifest.json；isNeedReinstall=true 不替换 manifest
+  -> IDEA adapter 保留 plugin install/restart；standalone 后续在下次 daemon 启动加载同一 manifest
+  -> JuggHotUpdateBootstrap 在 Loader 创建 runtime classloader 前无锁只读 manifest
+```
+
 ---
 
 ## 4. 隐形约束
@@ -83,6 +100,9 @@ Project custom config
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、deployment cache、DB、日志优先 project-local；跨项目复用的 hot update、history、hook / resource 文件优先 `JuggGlobalPathManager`，写事务进入固定全局锁。
 - `settings.json` 写入使用固定全局锁、临时文件和原子替换；同进程更新由 `JuggSettings` 串行，字段修改会在锁内基于最新磁盘快照更新，避免双 Runtime 的不同字段互相覆盖；IDEA legacy migration 只补缺失字段，不能覆盖已存在 JSON 值。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 切换后 `JuggSettings` 会自动丢弃旧 root 缓存，测试通过独立 root 隔离真实用户设置。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
+- `JuggServer` 的 runtime identity 必须由 Host 注入 `RuntimeInfo`；IDEA、CI、standalone 不得在共享 Server 内推断 plugin/IDE metadata。事件保留后端兼容的 `version/ide_version` 字段，实际值分别来自 `runtimeVersion/hostVersion`；`runtimeType` 仅用于 Runtime 锁 owner identity，不进入事件上报。
+- hot update jar 和 metadata 写入必须经过 `JuggHotUpdateManager` 的全局锁与原子替换；`isNeedReinstall=true` 不得更新 active load manifest。loader bootstrap 只读 manifest、校验 embedded build time 并刷新使用中 jar 的 mtime。
+- 未引用 hot update jar 保留 90 天；MCP fetch artifact 独立按 30 天清理。runtime/deployer 内容版本资源策略推迟到 standalone deployer 落地时确定。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
 - 远端编译的 Exclude patterns 控制 local-to-remote 源文件同步中的可配置排除规则。`.gradle` 和 `build` 保持原有固定 include/exclude 顺序：默认排除目录，同时放行 `.gradle/jugg/**`、`build/jugg/config/**` 等 Jugg 必需文件，用户不能通过该字段移除这两项。未自定义时使用并展示 `local.properties`、`.idea/`、`*.iml`、`.git/objects/`、`.git/modules/`、`.cxx/`；用户修改后只使用保存的可配置列表，明确清空表示不应用这些可配置默认排除。旧版本 Additional exclude patterns 没有自定义标记，升级后按未设置处理。配置用分号或换行分隔 rsync glob（逗号仅用于输入兼容），所有同步模式都将 pattern 按用户输入原样交给 rsync，作用域以本次实际传输根为准；`.git/` 可匹配任意层级的同名目录，`/.git/` 仅匹配传输根目录。它不是 gitignore 语义，`..`、引号和 Windows 绝对路径始终不支持。
 
@@ -98,6 +118,8 @@ Project custom config
 | worktree 下变更识别错乱 | `GitManager` 与 `WorktreeFileRepository` |
 | `main` 测试中平台能力报错 | `PlatformApi.impl` 注入点与 `platform_compat/base_api` 桩 |
 | 远端服务地址异常或频繁切换 | `JuggServerChooser`、`JuggSettings.serverUrl/serverExpireTimeMill` |
+| report issue 缺项目信息或日志 | `ProjectInfoReader.printInfo()`、`DeployTargetManager.dumpErrorLogs()`、`JuggServer.reportAndUploadLogs()` |
+| hot update 下载成功但下次启动未加载 | `JuggHotUpdateManager.loadManifestFile`、`JuggHotUpdateBootstrap`、runtime `buildTime` 与 loader embedded build time 是否一致 |
 
 ---
 

@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-07-16
+> 最后核对：2026-07-20
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -53,9 +53,13 @@ ${projectRoot}/.gradle/jugg/
 └── jugg-runtime.jar
 
 ~/.jugg/const_ref/                     # 跨项目常量引用缓存（全局）
+~/.jugg/locks/global.lock              # IDEA / standalone 全局写锁
+~/.jugg/hot_update/                    # 已校验 update jars、hot_update_data.json、load_manifest.json
 ```
 
 **代码位置**：`main/src/main/java/.../project/runtime/JuggPathManager.kt`
+
+当前 `reportIssue()` 继续通过 `ProjectInfoReader.printInfo()`、设备 logcat dump 和 `JuggServer.reportAndUploadLogs()` 收集信息，不额外生成 runtime diagnostics JSON。standalone doctor/report 在真实命令入口落地时再设计共享诊断模型。
 
 ---
 
