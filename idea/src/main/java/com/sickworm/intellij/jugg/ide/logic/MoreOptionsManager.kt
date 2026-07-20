@@ -306,7 +306,6 @@ class MoreOptionsManager(
                     try {
                         juggHotUpdateDownloader.downloadAndInstallUpdate(hotUpdateData!!)
                         dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
-                            dialog.disposeIfNeeded()
                             if (hotUpdateData.isNeedReinstall) {
                                 // necessary to async, or restart will not work
                                 CoroutineScope(Dispatchers.IO).launch {

@@ -10,6 +10,18 @@ import java.awt.datatransfer.Clipboard
 import java.awt.datatransfer.StringSelection
 import javax.swing.*
 
+private fun closeOwnerAndRun(ownerRootPane: JRootPane?, action: () -> Unit) {
+    val defaultButton = ownerRootPane?.defaultButton
+    if (defaultButton == null) {
+        action()
+        return
+    }
+
+    defaultButton.doClick()
+    SwingUtilities.invokeLater {
+        if (!ownerRootPane.isShowing) action()
+    }
+}
 
 class CheckUpdatesProgressDialog : DialogWrapper(true) {
 
@@ -19,6 +31,7 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
     private val progressBar: JProgressBar = JProgressBar().also {
         it.isIndeterminate = true
     }
+    private var onOkAction: (() -> Unit)? = null
 
     init {
         title = "Check Updates"
@@ -50,10 +63,15 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
         return mainPanel
     }
 
+    override fun doOKAction() {
+        onOkAction?.invoke()
+    }
+
     fun setHotUpdateData(hotUpdateData: HotUpdateData?, onConfirmUpdate: () -> Unit) {
         progressBar.isVisible = false
         SwingUtilities.invokeLater {
             if (hotUpdateData == null || !hotUpdateData.isNeedUpdate) {
+                onOkAction = null
                 textLabel.text = "Jugg is already the latest version."
                 getButton(okAction)?.isVisible = false
                 getButton(cancelAction)?.isVisible = true
@@ -63,8 +81,7 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
                 okAction.isEnabled = true
                 cancelAction.isEnabled = true
                 setCancelButtonText("Cancel")
-                getButton(okAction)?.removeAll()
-                getButton(okAction)?.addActionListener {
+                onOkAction = {
                     startDownload(hotUpdateData.targetVersion)
                     onConfirmUpdate()
                 }
@@ -91,13 +108,17 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
                     getButton(okAction)?.text = "Reopen projects"
                 }
                 okAction.isEnabled = true
-                getButton(okAction)?.removeAll()
-                getButton(okAction)?.addActionListener {
-                    onConfirmReopenProject?.invoke()
+                val ownerRootPane = getWindow()?.owner?.let { SwingUtilities.getRootPane(it) }
+                onOkAction = {
+                    close(OK_EXIT_CODE)
+                    closeOwnerAndRun(ownerRootPane) {
+                        onConfirmReopenProject?.invoke()
+                    }
                 }
 
                 getButton(cancelAction)?.isVisible = false
             } else {
+                onOkAction = null
                 textLabel.text = "Update failed, reason: $failedReason. Please report to the admin."
                 getButton(okAction)?.isVisible = false
                 getButton(cancelAction)?.isVisible = true
@@ -111,4 +132,3 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
         clipboard.setContents(stringSelection, null)
     }
 }
-
