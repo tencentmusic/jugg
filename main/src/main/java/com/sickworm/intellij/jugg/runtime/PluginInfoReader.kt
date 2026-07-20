@@ -31,4 +31,8 @@ object PluginInfoReader {
     fun getPluginVersion(): String {
         return juggPluginInfoManifest?.mainAttributes?.getValue("Version") ?: "unknown"
     }
+
+    fun getPluginCompileTimestamp(): String {
+        return juggPluginInfoManifest?.mainAttributes?.getValue("Compile-Timestamp").orEmpty()
+    }
 }

@@ -36,7 +36,7 @@ class JuggLoader(val project: Project, val projectDir: File) {
     private fun createInstance(project: Project, projectDir: File) {
         val classLoader: ClassLoader
         val creatorName: String
-        val loadManifest = JuggHotUpdateManager.activeLoadManifest
+        val loadManifest = JuggHotUpdateBootstrap.activeLoadManifest
         if (loadManifest != null) {
             classLoader = getHotUpdateClassLoader(loadManifest)
             creatorName = "hot_update"
@@ -84,7 +84,7 @@ class JuggLoader(val project: Project, val projectDir: File) {
 
     private fun createHotUpdateClassLoader(loadManifest: HotUpdateLoadManifest): ClassLoader {
         val jarFiles = loadManifest.jarFileNames.map { jarFileName ->
-            val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
+            val jarFile = JuggHotUpdateBootstrap.storageDir.resolve(jarFileName)
             if (!jarFile.exists()) {
                 throw IllegalStateException("Jugg hot update jar file not found: $jarFile")
             }

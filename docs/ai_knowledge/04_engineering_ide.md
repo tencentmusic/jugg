@@ -20,8 +20,7 @@
 | `JuggInitializer` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | 项目级插件实例注册、释放、Sync 事件转发、MCP local server 生命周期 |
 | `JuggLoader` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 隔离加载 Jugg manager，支持热更新/embedded jars fallback |
 | `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | 设置 `PlatformApi.impl`、注册项目日志、创建/释放 `JuggManager` |
-| `JuggHotUpdateDownloader` | `idea/src/main/java/com/sickworm/intellij/jugg/server/JuggHotUpdateDownloader.kt` | 定时检查更新、按缺失 jar 下载并校验 md5、更新 load list，并准备重启后的标准插件安装 |
-| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDEA 项目协调入口，负责配置刷新、历史恢复、Compile Context 关联、monitor 接线、Run/UI/MCP 和资源释放；文件变化处理已委托共享 manager |
+| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDEA 项目协调入口，注入 IDEA runtime metadata，负责配置刷新、历史恢复、Compile Context 关联、monitor 接线、Run/UI/MCP 和资源释放；文件变化与 control plane 已委托共享 manager |
 | `FileChangeManager` / `IdeaFileChangeMonitor` | `main/.../project/change/FileChangeManager.kt`, `idea/.../project/change/IdeaFileChangeMonitor.kt` | 共享 changed/delete/build-file/Git/pending barrier 处理；IDEA 侧仅将 VFS 事件适配到 monitor 契约 |
 | `CompileUiHandler` / `JuggCompileUiHandler` | `main/.../compiler/CompileUiHandler.kt`, `idea/.../compiler/JuggCompileUiHandler.kt` | 编译流程的 Host 交互边界；IDEA 复用现有 dependency dialog，manager 只应用确认结果 |
 | `HostTaskExecutor` | `idea/src/main/java/com/sickworm/intellij/jugg/runtime/HostTaskExecutor.kt` | `TaskRunnerManager` 的 IDEA 执行适配，关联 `Task.Backgroundable`、ProgressIndicator 与 EDT 状态 |
@@ -70,12 +69,12 @@ IDE project opened
   -> JuggManagerCreator.create()
      设置 IdeaPlatformApi，创建 JuggPathManager，注册 JuggLogger
   -> JuggManager.init()
-     注册同步生命周期资源，再由 Init Jugg 后台任务首次转换并迁移旧 PropertiesComponent 字段，失败时下次启动重试，然后显式初始化 JuggServer；settings 在首次访问时自动加载
+     创建 IDEA RuntimeInfo，再由 Init Jugg 后台任务首次转换并迁移旧 PropertiesComponent 字段，失败时下次启动重试，然后显式初始化 Host-neutral JuggServer；settings 在首次访问时自动加载
      通过 ProjectCustomConfigManager 刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录，并创建默认 run config
   -> JuggManager.recoverDeployContext()
      从 deploy history 恢复 compile context、APK、changed files，避免无必要全量构建
   -> background tasks
-     预初始化 deployment service、检查更新、自动更新 Jugg CLI、清理 MCP fetch cache
+     预初始化 deployment service、检查更新；CLI/skills auto update 在全局锁内执行，MCP fetch cleanup 保持普通后台任务
 ```
 
 `recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。
@@ -158,6 +157,8 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - `JuggToolWindowFactory` 与 `OpenJuggControlPanelAction` 均实现 `DumbAware`；Panel 不依赖索引，IDE 处于 indexing / dumb mode 时仍可创建和打开。
 - Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Pannel` 并选中 Settings；Settings 包含持久化的 compat deploy 开关，切换后同步更新 deployer API 下限并清理已下发的 Jugg JVMTI agent；Tools 菜单的独立 action 仍从 Overview 打开。
 - `Check Jugg Update` 独立 action 经 `JuggManager.checkUpdates()` 复用 `MoreOptionsManager.checkUpdates()`，行为与 More Options 中的更新检查一致；从 Run Configuration 触发更新时，执行 `Reopen IDE` / `Reopen projects` 前会先关闭更新弹窗和外层 Run Configuration，避免模态窗口阻塞 reopen。
+- hot update 的下载、MD5 校验、embedded jar 同步、metadata/load manifest 发布和过期清理由共享 `JuggHotUpdateManager` 完成；`IdeaHotUpdateCoordinator` 保留 IDEA 定时检查、频控、notification、plugin install/restart 与 reopen project。`JuggHotUpdateBootstrap` 在 Loader 创建 hot-update classloader 前无锁只读 manifest。
+- `Set custom server URL` 的 dialog 留在 `MoreOptionsManager`，输入结果通过不产生任务事件上报的全局锁后台任务交给 `JuggServer` 写共享 settings；`Clean and reset Jugg` 保持原有直接删除项目状态并 reopen project 的行为。
 - `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；安装 CLI 或 hooks 前先检测 Python 3.7+（`python3` 优先，`python` 回退），未满足时不写入 CLI 或 hook 配置。成功安装 Claude hooks 且检测到 CC Switch 配置目录时，安装结果关闭后会提示用户导出 Common Config JSON，不提供单独的 CC Switch 安装选项，也不直接修改 CC Switch 配置。选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 Codex home（优先 `CODEX_HOME`，否则 `~/.codex`）下 `rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认，并在安装日志记录 rules file、prefix 与 installed/already_installed/fail 状态；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。
 - CLI/MCP/RPC 在 EDT 上读取 IDE 当前选择项、Jugg configuration 列表和配置 options。优先使用当前选中的 Jugg configuration；选择项不可用或不是 Jugg configuration 时，先按最近一次成功 Gradle full build 的 `compileCommand + buildTarget` 完全匹配，再按 `compileCommand` 完全匹配，最后回退到列表中的首个 Jugg 配置。同层存在多个匹配项时使用该层首项；最终首项兜底会打印 `warn`，同时以精简 `debug` 日志记录 selected、full build、resolution source 与 chosen configuration。运行时会创建对应 Run content，但默认不激活 Run tool window；失败等需要用户注意的场景才显式 show。
 - `reportIssue()` 在准备诊断数据和上传期间使用模态进度窗口；生成经过脱敏的白名单诊断候选项后，确认窗口说明运行环境日志已脱敏并用于问题分析，只展示最近 10 个 Jugg 日志文件的路径和 KB/MB 大小，默认全选，并将 Jugg 日志置顶且锁定选择。上传按钮显示 `Upload logs`；选择仅保存时切换为 `Create Diagnostics Bundle`，生成后由系统文件管理器选中 ZIP。Report ID 保持为 8 位小写十六进制。上传固定提交到 `https://jugg.sickworm.com/report_issue`，不展示或持久化上传地址；结果页不展示临时 ZIP 路径。`build/jugg/tmp/diagnostics` 中达到 7 天的文件在项目启动后的延迟清理时机单独清理。

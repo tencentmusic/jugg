@@ -88,7 +88,7 @@ Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 
 | 远端 generated source 回写 | `CopyGeneratedSourceHelper` | 下沉，关联共享任务管理器 |
 | deployment cache 实现 | `JuggDeploymentService`、`JuggDeploymentCacheStore` | 随部署域一起下沉 |
 | 部署状态 | `DeployStateManager` | 以 `IDeployStateManager` 作为 Runtime 依赖，补齐部署可行性、build-file 状态和 pending file-processing barrier；默认实现随部署域下沉 |
-| 插件 hot update | `JuggHotUpdateDownloader` | 拆分共享检查/下载/校验、IDEA 插件安装和 standalone 下次启动加载 |
+| 插件 hot update | `IdeaHotUpdateCoordinator`、`JuggHotUpdateManager` | IDEA 保留检查调度、通知、插件安装和重启；共享下载校验、文件发布与 standalone 下次启动加载 |
 | UI、设置页和诊断入口 | `MoreOptionsManager`、IDE dialogs | IDEA 保留表现层，调用共享领域服务 |
 | Run/Debug/Test UI | `JuggConfigurationRunner`、Debug attach、SM Runner | IDEA 保留，不进入 standalone runtime |
 
@@ -182,7 +182,6 @@ JuggProjectRuntime
 ├── JuggCompileOrchestrator
 ├── JuggDeployOrchestrator
 ├── IDeployStateManager
-├── RuntimeDiagnosticsManager
 └── McpToolInvoker
 ```
 
@@ -293,16 +292,9 @@ IDEA 使用 VFS monitor，standalone 使用 WatchService monitor；两者都必�
 
 ### 3.8 诊断和运维能力
 
-共享 `RuntimeDiagnosticsManager` 负责收集：
+本阶段不预建统一 diagnostics/maintenance manager。IDEA 继续使用现有 `ProjectInfoReader`、logcat dump 和 `JuggServer.reportAndUploadLogs()`；TaskRunner 不为尚未落地的 doctor 命令增加 job/task 观测状态。
 
-- runtime/project/config 摘要。
-- compile/deploy 日志。
-- project info 和 dependency diff。
-- device/logcat 状态。
-- lock owner 和 job 状态。
-- runtime/deployer binary metadata。
-
-IDEA 的 report dialog 和 standalone 的 `jugg doctor/report` 只负责展示和触发。Clean/reset、custom server、update、skills install 等命令也应通过明确的领域服务执行。
+standalone 的 `doctor/report`、clean/reset 等命令在出现真实调用入口时，再从 IDEA 与 standalone 的共同数据需求提取聚焦服务。custom server、CLI/skills update 和 MCP fetch cleanup 当前继续由既有业务对象负责，调用方通过 `TaskRunnerManager` 选择项目锁或全局锁。
 
 ## 4. 锁与并发模型
 
@@ -757,7 +749,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 3 | 已完成 | 项目模型、Compile Context 核心与本地 Gradle project info 调度已下沉；IDEA/Gradle-only source 已落地 |
 | Step 4 | 已完成 | 文件变化处理与 Git reconcile 已下沉，共享 WatchService monitor 与 dependency policy 已落地 |
 | Step 5 | 已完成 | 共享 Runtime Settings、IDEA 旧设置迁移、统一 custom config 生命周期与 custom compiler reload/dispose 已落地 |
-| Step 6–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 6 | 已完成 | Server RuntimeInfo 与共享 JuggHotUpdateManager 已落地；诊断、运维门面和资源版本策略延后到真实 standalone 调用出现时 |
+| Step 7–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -983,25 +976,41 @@ DeployFileManager
 - custom compiler、embedded APK 和 custom classpath 行为一致。
 - JSON 迁移不覆盖已有设置；IDEA 与 standalone 对有效 settings 的读取一致。
 
-### Step 6：Server、诊断、更新和运维能力
+### Step 6：Server 和 Hot Update 下沉
 
-目标：补齐非 compile/deploy 的 runtime control plane。
+实现状态：已完成。新增 `RuntimeInfo`，由 IDEA、CI 和后续 standalone 显式提供 `runtimeType/runtimeVersion/hostVersion/buildTime`；`JuggServer` 不再读取 `Project`、`PluginInfoReader` 或 `PlatformApi`，事件上报继续保留后端兼容的 `version/ide_version` 字段，`runtimeType` 仅用于 Runtime 锁 owner identity。custom server 输入已从 `JuggServerChooser` 的 Host dialog 中移除，IDEA 获取输入后通过后台全局写任务调用共享 `JuggServer` 写入 settings。
+
+hot update 的下载、MD5 校验、原子 jar/metadata/load manifest 发布、embedded jar 同步和过期清理统一下沉到 `JuggHotUpdateManager`。IDEA `IdeaHotUpdateCoordinator` 保留定时检查、频控、通知、插件安装/重启和 reopen project；standalone 后续通过 `JuggServer` 检查更新后复用同一 manager，并在下一次 daemon 启动读取共享 manifest。`isNeedReinstall=true` 只记录已校验 jar 和 update metadata，不替换 active load manifest。
+
+Loader 创建 hot-update classloader 前只通过 `JuggHotUpdateBootstrap` 读取 manifest、embedded build time 和 jar 路径。该 bootstrap 无锁、只读、不依赖 `TaskRunnerManager`，避免把 hot-update runtime 类型穿过 parent/child classloader 边界。
+
+本 Step 不新增 diagnostics/maintenance control plane，不修改 TaskRunner 的 job/task 观测模型；IDEA report、CLI/skills update、MCP fetch cleanup 和 clean/reset 继续由既有调用链承担。runtime/deployer 内容版本资源推迟到 Step 9，在真实 deployer binary 布局明确后以 `JuggResourceManager` 落地。
+
+已完成验证：
+
+- `RuntimeInfoFlowTest`（L2，Server runtime info 与 custom server Host 边界）
+- `JuggHotUpdateManagerTest`（L1/L2，下载校验、embedded 发布、清理和 compatible/reinstall manifest 边界）
+- `JuggHotUpdateBootstrapTest`（L1，Loader manifest 只读与 embedded build 匹配）
+- `TaskRunnerManagerTest`、`ProjectCustomConfigurationFlowTest`（L2）
+- `JuggServerTest`、`JuggDeployerInstallTest`、`JuggCliAutoUpdaterTest`（L1/L2）
+- `CmdLineTest`、`TopLevelFlowTest#testInstallAndLaunch`、`:idea:compileKotlin`
+
+目标：解除 Server 与 hot update 对 IDEA/plugin runtime 的依赖，不预建尚无 standalone 调用方的 control plane。
 
 任务：
 
-- `JuggServer` 使用 standalone runtime metadata，不依赖 plugin metadata。
+- `JuggServer` 使用 Host 注入的 `RuntimeInfo`，不依赖 plugin metadata。
 - 下沉可共享的 update check、下载、校验逻辑；IDEA plugin install/restart 保留在 IDEA。
 - standalone 复用 `~/.jugg/hot_update` 下载与 metadata，更新只在下一次 daemon 启动加载；`isNeedReinstall=true` 不写入 standalone load list。
-- 建立 `RuntimeDiagnosticsManager`。
-- 建立 clean/reset、custom server、doctor/report 等领域命令。
-- 明确 CLI/skills auto update 唯一 owner 和全局锁。
-- 明确 MCP fetch、runtime resources、deployer resources 的清理和版本策略。
+- Loader bootstrap 保持无锁只读，不依赖 runtime 任务域。
+- 保持 IDEA report、TaskRunner job 状态和现有运维行为不变。
+- runtime/deployer resource 版本策略推迟到 Step 9。
 
 验证性任务：
 
 - IDEA update/report 行为不变。
-- standalone runtime metadata、doctor/report 内容完整。
-- 双 Runtime 不会并发写坏 CLI、skills 或 runtime resources。
+- IDEA、CI 和后续 standalone 的 runtime info 均由 Host 显式提供。
+- 双 Runtime 不会并发写坏 hot update jar、metadata 或 load manifest。
 - server 下发 custom config 后两个 Runtime 行为一致。
 
 ### Step 7：CLI Run Configuration

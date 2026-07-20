@@ -3,15 +3,13 @@ package com.sickworm.intellij.jugg.server
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
-import com.sickworm.intellij.jugg.runtime.PluginInfoReader
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import com.sickworm.intellij.jugg.server.protocols.VersionData
@@ -31,22 +29,20 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * JuggServer coordinates plugin-to-backend interactions including event reporting, update checks, log upload, and remote config retrieval.
- * Collaboration: Uses [JuggServerChooser] for server failover, [OkHttpClient] for HTTP requests, [JuggSettings]/[PluginInfoReader] for runtime metadata, and [PlatformApi] for host-side integration.
+ * Collaboration: Uses [JuggServerChooser] for server failover, [OkHttpClient] for HTTP requests, and injected [RuntimeInfo] for host-neutral identity.
  * Data Contract: Request identity is derived from [projectId], [username], and [requestToken]; [afterFullCompile] increments [sessionId], and [onCompile] increments [sessionSubId].
  */
 class JuggServer(
     private val projectName: String,
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope,
+    private val runtimeInfo: RuntimeInfo,
     loggerArg: Logger,
     private val eventLocalStore: JuggEventLocalStore = JuggEventLocalStore(
         JuggGlobalPathManager.actionDbFile,
         loggerArg.getInstance("JuggEventLocalStore"),
     ),
 ): CoroutineScope by coroutineScope {
-
-    constructor(project: Project, pathManager: JuggPathManager, coroutineScope: CoroutineScope)
-            : this(project.name, pathManager, coroutineScope, JuggLogger.getInstance(project, "JuggServer"))
 
     private var logger: Logger = loggerArg.getInstance("JuggServer")
 
@@ -56,7 +52,7 @@ class JuggServer(
 
     private val username: String = getUserName()
 
-    val version: String = PluginInfoReader.getPluginVersion()
+    val version: String = runtimeInfo.runtimeVersion
 
     private val projectId: String by lazy { getName(projectName) }
     private val requestToken = (pathManager.projectDir.path + "_" + username).md5.substring(0, 8)
@@ -142,7 +138,7 @@ class JuggServer(
 
     private fun ReportEventData.fillCommonData(): ReportEventData {
         version = this@JuggServer.version
-        ideVersion = PlatformApi.getIdeVersion()
+        ideVersion = this@JuggServer.runtimeInfo.hostVersion
         username = this@JuggServer.username
         projectId = this@JuggServer.projectId
         sessionId = "${this@JuggServer.sessionId}_${this@JuggServer.sessionSubId}"
@@ -200,9 +196,12 @@ class JuggServer(
         }
     }
 
-    fun setCustomServer() {
-        juggServerChooser.setCustomServer()
+    fun setCustomServer(serverUrl: String) {
+        juggServerChooser.setCustomServer(serverUrl)
     }
+
+    val customServerUrl: String
+        get() = juggServerChooser.customServerUrl
 
     fun checkHotUpdate(isPositiveCheckout: Boolean): HotUpdateData? {
         if (!juggServerChooser.hasAvailableServer()) {
@@ -278,7 +277,7 @@ class JuggServer(
 
 
 /**
- * ReportEventData carries version, ideVersion, username, and projectId.
+ * ReportEventData carries version, host version, username, and projectId.
  */
 data class ReportEventData(
     @SerializedName("version")

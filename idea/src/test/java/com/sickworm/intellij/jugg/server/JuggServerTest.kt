@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.server
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -29,6 +30,7 @@ class JuggServerTest {
             projectDir.name,
             JuggPathManager(projectDir),
             CoroutineScope(Dispatchers.IO),
+            RuntimeInfo("idea", "test", "test", "test"),
             logger,
             JuggEventLocalStore(databaseFile, logger),
         )

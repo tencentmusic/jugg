@@ -5,7 +5,6 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import java.net.InetAddress
 
@@ -36,6 +35,9 @@ class JuggServerChooser(logger: Logger) {
                 JuggSettings.serverExpireTimeMill = 0
             }
         }
+
+    val customServerUrl: String
+        get() = if (isSetCustomServer) JuggSettings.serverUrl.orEmpty() else ""
 
     /**
      * Update server rules and select server on project opened.
@@ -157,7 +159,7 @@ class JuggServerChooser(logger: Logger) {
     private fun isReachable(host: String): Boolean {
         try {
             val address = InetAddress.getByName(host)
-            val reachable = address.isReachable(5000) // 5000毫秒超时时间
+            val reachable = address.isReachable(5000) // 5-second timeout
 
             if (reachable) {
                 logger.debug("$host is reachable")
@@ -172,24 +174,17 @@ class JuggServerChooser(logger: Logger) {
         return false
     }
 
-    fun setCustomServer() {
-        val newServerUrl = PlatformApi.showUserAndPasswordInputDialog(
-            title = "Set Custom Server",
-            content = "Here to set custom server url for redirecting uploading compilation cost, reporting issues etc.",
-            defaultInputText = if (isSetCustomServer) JuggSettings.serverUrl else "",
-        )
-        logger.debug("New server url: $newServerUrl")
-        if (newServerUrl == null) {
-            logger.debug("User not input server url, skip update.")
-            return
-        } else if (newServerUrl.isEmpty()) {
+    fun setCustomServer(newServerUrl: String) {
+        val normalizedUrl = newServerUrl.trim()
+        logger.debug("New server url: $normalizedUrl")
+        if (normalizedUrl.isEmpty()) {
             logger.debug("User input empty server url, set to default.")
             isSetCustomServer = false
             updateServerIfExpired()
             return
         } else {
             logger.debug("User input server url, set to custom.")
-            JuggSettings.serverUrl = newServerUrl
+            JuggSettings.serverUrl = normalizedUrl
             isSetCustomServer = true
         }
     }

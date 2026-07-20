@@ -10,33 +10,35 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.zipFiles
 import com.sickworm.intellij.jugg.ide.logic.PluginVersionComparator
 import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
-import com.sickworm.intellij.jugg.loader.JuggHotUpdateManager
+import com.sickworm.intellij.jugg.loader.JuggHotUpdateBootstrap
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.io.File
 import java.nio.file.Path
-import java.security.MessageDigest
 import javax.swing.SwingUtilities
 
-/**
- * Download hot update jars from Jugg server.
- * Jugg has one isolate instance for each project, but only one instance will do the download work.
- */
-class JuggHotUpdateDownloader(
+/** Coordinates IDEA update checks, notifications, plugin installation, restart, and project reopening. */
+class IdeaHotUpdateCoordinator(
     private val juggServer: JuggServer,
     private val taskRunnerManager: TaskRunnerManager,
     loggerArg: Logger,
 ) {
 
-    private val logger = loggerArg.getInstance("JuggHotUpdateDownloader")
-    private val hotUpdateDataFile = File(JuggHotUpdateManager.hotUpdateDir, "hot_update_data.json")
-    private val hotUpdateFlag = File(JuggHotUpdateManager.hotUpdateDir, "first_update_flag")
-    private val installUpdateFlag = File(JuggHotUpdateManager.hotUpdateDir, "install_update_flag")
+    private val logger = loggerArg.getInstance("IdeaHotUpdateCoordinator")
+    private val juggHotUpdateManager = JuggHotUpdateManager(
+        juggServer,
+        taskRunnerManager,
+        JuggHotUpdateBootstrap.currentEmbeddedBuildTime,
+        JuggHotUpdateBootstrap.hotUpdateDir,
+        logger,
+    )
+    private val hotUpdateDataFile = juggHotUpdateManager.hotUpdateDataFile
+    private val hotUpdateFlag = File(juggHotUpdateManager.hotUpdateDir, "first_update_flag")
+    private val installUpdateFlag = File(juggHotUpdateManager.hotUpdateDir, "install_update_flag")
 
     private val ideaPluginDescriptor: IdeaPluginDescriptor?
         get() = PluginManagerCore.getPlugin(PluginId.getId("com.sickworm.intellij.jugg"))
@@ -53,27 +55,21 @@ class JuggHotUpdateDownloader(
     private fun processHotUpdateNotification(project: Project) {
         taskRunnerManager.runGlobalWriteLocked("Process hot update notification") {
             notifyHotUpdateIfNeeded(project)
-            val referencedJarNames = JuggHotUpdateManager.activeLoadManifest
+            val referencedJarNames = JuggHotUpdateBootstrap.activeLoadManifest
                 ?.jarFileNames
                 ?.toSet()
                 .orEmpty()
-            JuggHotUpdateManager.cleanupExpiredJars(
-                JuggHotUpdateManager.storageDir,
-                referencedJarNames,
-                System.currentTimeMillis(),
-            ).forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
+            juggHotUpdateManager.cleanupExpiredJars(referencedJarNames).forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
         }
     }
 
     private fun publishEmbeddedIfNeeded() {
-        if (!JuggHotUpdateManager.hotUpdateDir.exists()) {
+        if (!juggHotUpdateManager.hotUpdateDir.exists()) {
             return
         }
         val embeddedLibDir = ideaPluginDescriptor?.pluginPath?.resolve("lib")?.toFile() ?: return
-        taskRunnerManager.runGlobalWriteLocked("Publish embedded hot update") {
-            if (JuggHotUpdateManager.publishEmbeddedIfNeeded(embeddedLibDir)) {
-                logEvent("publish embedded hot update: ${JuggHotUpdateManager.currentEmbeddedBuildTime}")
-            }
+        if (juggHotUpdateManager.publishEmbeddedIfNeeded(embeddedLibDir)) {
+            logEvent("publish embedded hot update: ${JuggHotUpdateBootstrap.currentEmbeddedBuildTime}")
         }
     }
 
@@ -180,80 +176,11 @@ class JuggHotUpdateDownloader(
             return
         }
 
-        // 1. compare with current hot update data
-        logEvent("downloadHotUpdate start, target dir: ${JuggHotUpdateManager.storageDir}")
-        JuggHotUpdateManager.storageDir.mkdirs()
-        var currentHotUpdateData: HotUpdateData? = null
-        if (hotUpdateDataFile.exists()) {
-            try {
-                currentHotUpdateData = Gson().fromJson(hotUpdateDataFile.readText(), HotUpdateData::class.java)
-            } catch (e: Exception) {
-                logEvent("downloadHotUpdate get currentHotUpdateData failed: $e")
-            }
-        }
-        val oldCurrentJarFiles = JuggHotUpdateManager.storageDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
-        val needDownloadJars = hotUpdateData.uniqueNames.toMutableSet()
-        oldCurrentJarFiles.forEach {
-            needDownloadJars.remove(it)
-        }
+        val updateResult = juggHotUpdateManager.prepareUpdate(hotUpdateData)
 
-        // 2. download missing jars
-        logEvent("downloadHotUpdate needDownloadJars: $needDownloadJars")
-        val downloadFiles = mutableListOf<File>()
-        needDownloadJars.forEach { key ->
-            val jarFileInfo = hotUpdateData.jarFileInfos.first { it.uniqueName == key }
-            val tmpDownloadFile = File(JuggHotUpdateManager.storageDir, "$key.tmp")
-            tmpDownloadFile.delete()
-            logEvent("download $key start, url ${jarFileInfo.url}")
-            try {
-                juggServer.downloadFile(jarFileInfo.url, tmpDownloadFile)
-                val fileMd5 = tmpDownloadFile.md5()
-                if (fileMd5 != jarFileInfo.md5) {
-                    throw IllegalStateException("md5 check failed, expect: ${jarFileInfo.md5}, actual: $fileMd5")
-                }
-            } catch (e: Exception) {
-                logEvent("download $key failed: $e")
-                throw e
-            }
-            logEvent("download $key finished")
-            val downloadFile = File(JuggHotUpdateManager.storageDir, key)
-            downloadFile.delete()
-            tmpDownloadFile.renameTo(downloadFile)
-            downloadFiles.add(downloadFile)
-        }
-
-        // 3. check whether jar files is complete
-        val expectJarFiles = hotUpdateData.uniqueNames.map {
-            File(JuggHotUpdateManager.storageDir, it).path
-        }
-        val currentJarFiles = JuggHotUpdateManager.storageDir.listFiles()?.map { it.path } ?: emptySet()
-        val missingJarFiles = expectJarFiles.filter { !currentJarFiles.contains(it) }
-        if (missingJarFiles.isNotEmpty()) {
-            logEvent("jar file missing after downloaded: $missingJarFiles")
-            throw IllegalStateException("jar file missing after downloaded: $missingJarFiles")
-        }
-
-        // 4. record new hot update data
-        logEvent("downloadHotUpdate write new hot update data")
-
-        val tmpHotUpdateDataFile = File("${hotUpdateDataFile.path}.tmp")
-        tmpHotUpdateDataFile.writeText(Gson().toJson(hotUpdateData))
-        JuggHotUpdateManager.replaceFile(tmpHotUpdateDataFile, hotUpdateDataFile)
-
-        if (hotUpdateData.isNeedReinstall) {
-            // is not compatible with hot update, do not update load manifest, just installPlugin
-        } else {
-            JuggHotUpdateManager.publishLoadManifest(
-                HotUpdateLoadManifest(
-                    JuggHotUpdateManager.currentEmbeddedBuildTime,
-                    hotUpdateData.uniqueNames,
-                )
-            )
-        }
-
-        // 5. zip and install, also install it if is hot update
+        // Install remains IDEA-only; standalone loads the prepared manifest on its next daemon start.
         logEvent("downloadHotUpdate install plugin")
-        val isInstallSuccess = installPlugin(expectJarFiles.map { File(it) })
+        val isInstallSuccess = installPlugin(updateResult.jarFiles)
         if (!isInstallSuccess && hotUpdateData.isNeedReinstall) {
             logEvent("downloadHotUpdate install failed")
             return
@@ -268,7 +195,7 @@ class JuggHotUpdateDownloader(
         }
 
         val detailMap = mapOf(
-            "from_version" to currentHotUpdateData?.targetVersion,
+            "from_version" to updateResult.previousVersion,
             "to_version" to hotUpdateData.targetVersion,
         )
         juggServer.report {
@@ -282,7 +209,7 @@ class JuggHotUpdateDownloader(
     @Synchronized
     private fun installPlugin(expectJarFiles: List<File>): Boolean {
         logEvent("downloadHotUpdate install")
-        val zipFile = File(JuggHotUpdateManager.hotUpdateDir, "jugg_plugin_${System.currentTimeMillis()}.zip")
+        val zipFile = File(juggHotUpdateManager.hotUpdateDir, "jugg_plugin_${System.currentTimeMillis()}.zip")
         zipFile.zipFiles(expectJarFiles, "jugg/lib/")
         if (!zipFile.exists() || zipFile.length() <= 0) {
             logEvent("downloadHotUpdate zip file is invalid, skip install")
@@ -325,9 +252,9 @@ class JuggHotUpdateDownloader(
         if (!isNeedInstallOneTime) {
             return false
         }
-        val loadManifest = JuggHotUpdateManager.activeLoadManifest ?: return false
+        val loadManifest = JuggHotUpdateBootstrap.activeLoadManifest ?: return false
         val jarFiles = loadManifest.jarFileNames.map { jarFileName ->
-            val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
+            val jarFile = JuggHotUpdateBootstrap.storageDir.resolve(jarFileName)
             if (!jarFile.exists()) {
                 logEvent("installPluginForLowerVersion hot update jar file not found: $jarFile, exit")
                 return false
@@ -353,8 +280,6 @@ class JuggHotUpdateDownloader(
         return true
     }
 
-    private val HotUpdateData.uniqueNames get() = jarFileInfos.map { it.uniqueName }
-
     companion object {
         private const val START_DELAY_MILL = 2 * 60 * 1000L // 2 minutes
         /** request every hour */
@@ -364,16 +289,10 @@ class JuggHotUpdateDownloader(
 
         private var lastRequestTime = 0L
 
-        private val globalLogger = JuggLogger.getGlobalLogger("JuggHotUpdateDownloader")
+        private val globalLogger = JuggLogger.getGlobalLogger("IdeaHotUpdateCoordinator")
 
         private fun logEvent(msg: String, e: Throwable? = null) {
             globalLogger.debug(msg, e)
-        }
-
-        private fun File.md5(): String {
-            val md = MessageDigest.getInstance("MD5")
-            md.update(readBytes())
-            return md.digest().joinToString("") { "%02x".format(it) }
         }
 
         @Volatile

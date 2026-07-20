@@ -150,6 +150,17 @@ class TaskRunnerManagerTest {
     }
 
     @Test
+    fun `background task does not report completion through jugg server`() {
+        val juggServer = mock<JuggServer>()
+        val manager = newManager(ImmediateExecutionLockManager(), juggServer = juggServer)
+
+        val job = manager.runBackgroundSafe("background maintenance", action = Runnable {})
+        runBlocking { job.join() }
+
+        verify(juggServer, never()).report(any<ReportEventData>())
+    }
+
+    @Test
     fun `global host task runs under global lock without changing incremental compile state`() {
         val lockManager = ImmediateExecutionLockManager()
         val deployStateManager = RecordingDeployStateManager()

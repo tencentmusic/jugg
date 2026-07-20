@@ -46,6 +46,7 @@ import com.sickworm.intellij.jugg.compiler.context.CompileEnvironmentSource
 import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.project.change.FileChangesHandler
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -397,7 +398,7 @@ class MockJugg(
         )
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
-        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), coroutineScope)
+        val juggServer = JuggServer(project.name, JuggPathManager(File(project.basePath)), coroutineScope, RuntimeInfo("idea", "test", "test", "test"), logger)
         customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
         taskRunnerManager = TaskRunnerManager(
             logger,

@@ -37,11 +37,12 @@ import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.ide.logic.IdeSyncProblemResolver
-import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
+import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -791,8 +792,9 @@ class JuggManagerRunConfigurationSyncTest {
             pathManager = pathManager,
             coroutineScope = CoroutineScope(Dispatchers.Unconfined),
             logger = mock<Logger>(),
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
             juggServer = mock<JuggServer>(),
-            juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
+            ideaHotUpdateCoordinator = mock<IdeaHotUpdateCoordinator>(),
             fileChangesHandler = fileChangesHandler,
             fileChangesDetector = mock<IFileChangeMonitor>(),
             deployHistoryManager = deployHistoryManager,
