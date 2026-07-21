@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.intellij.execution.RunManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
@@ -7,6 +8,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.context.IdeaCompileEnvironmentSource
 import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
@@ -21,18 +23,17 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IdeSyncProblemResolver
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
-import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
-import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.change.FileChangeManager
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
-import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
-import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
@@ -117,6 +118,7 @@ class JuggManagerFullBuildFlowTest {
             juggCompilerHelper = juggCompilerHelper,
             projectCustomConfigManager = mock<ProjectCustomConfigManager>(),
             ideSyncProblemResolver = mock<IdeSyncProblemResolver>(),
+            runManager = mock<RunManager>(),
         )
 
         manager.initIncrementalCompileAfterFullBuild(1L, options)
@@ -183,8 +185,9 @@ class JuggManagerFullBuildFlowTest {
             pathManager = pathManager,
             coroutineScope = CoroutineScope(Dispatchers.Unconfined),
             logger = logger,
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
             juggServer = mock<JuggServer>(),
-            juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
+            ideaHotUpdateCoordinator = mock<IdeaHotUpdateCoordinator>(),
             fileChangesHandler = mock<IFileChangesHandler>(),
             fileChangesDetector = mock<IFileChangeMonitor>(),
             deployHistoryManager = deployHistoryManager,
@@ -206,6 +209,7 @@ class JuggManagerFullBuildFlowTest {
             juggCompilerHelper = mock<JuggCompilerHelper>(),
             projectCustomConfigManager = mock<ProjectCustomConfigManager>(),
             ideSyncProblemResolver = ideSyncProblemResolver,
+            runManager = mock<RunManager>(),
         )
 
         manager.initIncrementalCompileAfterFullBuild(1L, options)

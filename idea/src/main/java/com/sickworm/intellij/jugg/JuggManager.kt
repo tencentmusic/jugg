@@ -5,8 +5,8 @@ import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.RunManager
+import com.intellij.execution.RunManagerListener
 import com.intellij.execution.RunnerAndConfigurationSettings
-import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
@@ -62,6 +62,8 @@ import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.info.ProjectInfoReader
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.CliRunConfigurationStore
+import com.sickworm.intellij.jugg.project.runtime.IdeaCliRunConfigurationManager
 import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
@@ -121,7 +123,8 @@ class JuggManager @TestOnly constructor(
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, gitFileChangesDetector, taskRunnerManager),
     private val projectCustomConfigManager: ProjectCustomConfigManager = ProjectCustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "ProjectCustomConfigManager"), juggServer, fileChangesHandler, deployHistoryManager, compileContextManager, customCompilerManager),
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
-    ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
+    private val runManager: RunManager = RunManager.getInstance(project),
+) : IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
     companion object {
         private const val MAX_RUN_CONFIG_RETRIES = 7
@@ -148,7 +151,8 @@ class JuggManager @TestOnly constructor(
     )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
     private val runConfigurationLock = Any()
-
+    private val cliRunConfigurationStore = CliRunConfigurationStore(pathManager)
+    private val ideaCliRunConfigurationManager = IdeaCliRunConfigurationManager(runManager, compileContextManager, cliRunConfigurationStore)
     constructor(
         project2: Project,
         pathManager: JuggPathManager,
@@ -156,6 +160,7 @@ class JuggManager @TestOnly constructor(
 
     override fun init() {
         Disposer.register(this, juggCompilerHelper)
+        observeRunConfigurationSelection()
         runTaskSafe("Init Jugg", {
             JuggSettings.migrateLegacyJuggSettings(PropertiesComponent.getInstance())
             juggServer.initialize()
@@ -253,12 +258,10 @@ class JuggManager @TestOnly constructor(
             when (syncEvent) {
                 SyncEvent.SUCCEEDED -> {
                     ideSyncProblemResolver.onIdeSyncSucceeded()
-                    tryCreateRunConfigurations(isSyncFinished = true)
-                    runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = true) })
+                    runTaskSafe("Update project info", { updateProjectInfoAndRunConfigurations(isAfterSync = true) })
                 }
                 SyncEvent.SKIPPED -> {
-                    tryCreateRunConfigurations(isSyncFinished = true)
-                    runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = false) })
+                    runTaskSafe("Update project info", { updateProjectInfoAndRunConfigurations(isAfterSync = false) })
                 }
                 SyncEvent.STARTED -> {
                     dependencyChangeManager.onStartSyncing(isFromIde = true)
@@ -272,71 +275,29 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    private fun updateProjectInfoAndRunConfigurations(isAfterSync: Boolean) {
+        updateProjectInfo(isAfterSync)
+        synchronized(runConfigurationLock) {
+            ideaCliRunConfigurationManager.reconcileActiveBuildVariants()
+        }
+    }
+
     private fun tryCreateRunConfigurations(
         isSyncFinished: Boolean,
         maxRetryCount: Int = MAX_RUN_CONFIG_RETRIES,
     ): Unit = synchronized(runConfigurationLock) {
-        TimeLogger.start("tryCreateDefaultRunConfiguration")
-        val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
-        val currentListNames = currentList.map { it.name }
-        logger.debug("JuggConfigurationType currentList: $currentListNames")
-
-        val currentListNamesExceptDefault = currentList.filterNot {
-            SuggestRunConfiguration.isDefaultRunConfigName(it.name)
-        }
-        if (currentListNamesExceptDefault.isNotEmpty() && !isSyncFinished) {
-            logger.debug("Not sync finished and exits non-default configs is not empty, skip create default run configuration")
-            return@synchronized
-        }
-
-        val suggestRunConfiguration =
-            try {
-                AsDeployerCompat.getSuggestRunConfigurations(
-                    currentListNames, project,
-                    logger.getInstance("GetSuggestRunConfigurations"),
-                    isNeedDefaultRunConfig = false,
-                )
-            } catch (e: Throwable) {
-                logger.warn("Get suggest run configuration failed ", e)
-                if (TestModeManager.isTestMode) {
-                    throw e
-                }
-                emptyList()
+        val isReady = try {
+            taskRunnerManager.runProjectWriteLocked("Initialize CLI run configuration") {
+                ideaCliRunConfigurationManager.ensureConfiguration()
             }
-        logger.debug("Suggest run configurations: $suggestRunConfiguration")
-        if (suggestRunConfiguration.isEmpty()) {
-            logger.debug("No suggest run configuration")
-            if (isSyncFinished && maxRetryCount <= 0) {
-                logger.debug("Could not create a run configuration after retries")
+        } catch (e: Throwable) {
+            logger.warn("Initialize CLI run configuration failed", e)
+            if (TestModeManager.isTestMode) {
+                throw e
             }
-            if (currentListNamesExceptDefault.isEmpty() && isSyncFinished && maxRetryCount > 0) {
-                val attempt = MAX_RUN_CONFIG_RETRIES - maxRetryCount
-                val delayMs = RUN_CONFIG_RETRY_BASE_DELAY_MS * (1L shl attempt)
-                logger.debug("No current run configuration, retry #${attempt + 1} after ${delayMs}ms")
-                launch {
-                    delay(delayMs)
-                    tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
-                }
-            }
-            return@synchronized
+            false
         }
-
-        val runManager = RunManager.getInstance(project)
-        val settingsList = createRunConfigurations(runManager, currentList, suggestRunConfiguration)
-
-        val settingsListExceptDefault = settingsList.filterNot {
-            SuggestRunConfiguration.isDefaultRunConfigName(it.name)
-        }
-        if (currentListNamesExceptDefault.isEmpty() && settingsListExceptDefault.isNotEmpty()) {
-            runManager.selectedConfiguration = settingsListExceptDefault[0]
-        } else if (isSyncFinished) {
-            trySelectActiveBuildVariantConfiguration(
-                runManager,
-                currentList + settingsList,
-                suggestRunConfiguration,
-            )
-        }
-        if (currentListNamesExceptDefault.isNotEmpty() || settingsListExceptDefault.isNotEmpty()) {
+        if (isReady) {
             SwingUtilities.invokeLater {
                 if (!project.isDisposed) {
                     ToolWindowManager.getInstance(project)
@@ -345,101 +306,15 @@ class JuggManager @TestOnly constructor(
                 }
             }
         }
-        TimeLogger.end("tryCreateDefaultRunConfiguration", logger)
-    }
-
-    /** Creates missing Jugg configurations while preserving existing configurations with the same compile command. */
-    private fun createRunConfigurations(
-        runManager: RunManager,
-        currentList: List<RunnerAndConfigurationSettings>,
-        suggestions: List<SuggestRunConfiguration>,
-    ): List<RunnerAndConfigurationSettings> {
-        val distinctSuggestions = suggestions.distinctBy { suggestionTargetIdentity(it.compileCommand) }
-        val existingCommands = currentList.mapNotNull {
-            (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
+        if (!isReady && isSyncFinished && maxRetryCount > 0) {
+            val attempt = MAX_RUN_CONFIG_RETRIES - maxRetryCount
+            val delayMs = RUN_CONFIG_RETRY_BASE_DELAY_MS * (1L shl attempt)
+            logger.debug("CLI run configuration is not ready, retry #${attempt + 1} after ${delayMs}ms")
+            launch {
+                delay(delayMs)
+                tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
+            }
         }
-        val usedNames = currentList.map { it.name }.toMutableList()
-        val settingsList = distinctSuggestions
-            .filterNot { suggestion ->
-                existingCommands.any { matchesCompileTarget(it, suggestion.compileCommand) }
-            }
-            .map { suggest ->
-                val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
-                val preferredName = if (SuggestRunConfiguration.isDefaultRunConfigName(suggest.runConfigName) ||
-                    suggest.baseRunConfigName in usedNames
-                ) {
-                    suggest.runConfigName
-                } else {
-                    suggest.baseRunConfigName
-                }
-                val name = RunManager.suggestUniqueName(preferredName, usedNames)
-                usedNames.add(name)
-                runManager.createConfiguration(name, factory).also { settings ->
-                    (settings.configuration as JuggRunConfiguration).state?.let {
-                        it.compileCommand = suggest.compileCommand
-                        it.outputApkName = suggest.outputApkPath
-                        it.setDefaultRemoteOption(JuggSettings.defaultCompileSettings)
-                    }
-                    settings.isActivateToolWindowBeforeRun = false
-                }
-            }
-        settingsList.forEach(runManager::addConfiguration)
-        return settingsList
-    }
-
-    /** Selects the active variant only when the current selection is a Jugg configuration. */
-    private fun trySelectActiveBuildVariantConfiguration(
-        runManager: RunManager,
-        availableSettings: List<RunnerAndConfigurationSettings>,
-        suggestions: List<SuggestRunConfiguration>,
-    ) {
-        val selectedSettings = runManager.selectedConfiguration ?: return
-        val selectedState = (selectedSettings.configuration as? JuggRunConfiguration)?.state ?: return
-        val selectedModuleName = SuggestRunConfiguration.getModuleNameByRunConfigName(selectedSettings.name)
-        val selectedCompileCommand = selectedState.compileCommand ?: return
-        val activeVariant = suggestions.firstOrNull {
-            it.moduleName == selectedModuleName &&
-                suggestionGradleTask(it.compileCommand)?.let { task ->
-                    task !in gradleTaskTokens(selectedCompileCommand)
-                } == true
-        } ?: return
-        val activeSettings = availableSettings.firstOrNull {
-            val compileCommand = (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
-                ?: return@firstOrNull false
-            matchesCompileTarget(compileCommand, activeVariant.compileCommand)
-        } ?: return
-        logger.info("Active Build Variant changed, select ${activeSettings.name} configuration.")
-        runManager.selectedConfiguration = activeSettings
-    }
-
-    private fun suggestionTargetIdentity(compileCommand: String): String {
-        return suggestionGradleTask(compileCommand)?.let { "task:$it" }
-            ?: "command:${compileCommand.trim()}"
-    }
-
-    private fun matchesCompileTarget(existingCommand: String, suggestionCommand: String): Boolean {
-        val suggestedTask = suggestionGradleTask(suggestionCommand)
-            ?: return existingCommand.trim() == suggestionCommand.trim()
-        return suggestedTask in gradleTaskTokens(existingCommand)
-    }
-
-    private fun suggestionGradleTask(compileCommand: String): String? {
-        return gradleTaskTokens(compileCommand).singleOrNull()
-    }
-
-    private fun gradleTaskTokens(compileCommand: String): Set<String> {
-        val executableNames = setOf("gradle", "gradlew", "gradle.bat", "gradlew.bat")
-        return compileCommand.split(Regex("\\s+"))
-            .asSequence()
-            .map { it.trim().trim('\'', '"') }
-            .filter {
-                it.isNotEmpty() &&
-                    it.substringAfterLast('/').substringAfterLast('\\') !in executableNames &&
-                    !it.startsWith("-") &&
-                    !it.contains("=")
-            }
-            .map { it.trimStart(':') }
-            .toSet()
     }
 
     @TestOnly
@@ -478,7 +353,6 @@ class JuggManager @TestOnly constructor(
 
         return deployState
     }
-
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
         return runTask(options, null, null, null)
     }
@@ -560,6 +434,13 @@ class JuggManager @TestOnly constructor(
         if (apkInfos.isEmpty()) {
             logger.warn("Init compile failed for no apk found")
             return
+        }
+        try {
+            taskRunnerManager.runProjectWriteLocked("Update CLI run configuration after Gradle build") {
+                ideaCliRunConfigurationManager.updateAfterSuccessfulGradleBuild(options)
+            }
+        } catch (e: Throwable) {
+            logger.warn("Update CLI run configuration after Gradle build failed", e)
         }
         val compileContextInfo = deployHistoryManager.reInitAfterFullCompiled(
             FullBuildInfo(options.compileCommand, options.buildTarget, System.currentTimeMillis()),
@@ -805,6 +686,42 @@ class JuggManager @TestOnly constructor(
 
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
         taskRunnerManager.runTaskSafe(jobName, action, isNeedShowIndicator)
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
+    private fun observeRunConfigurationSelection() {
+        project.messageBus.connect(this).subscribe(RunManagerListener.TOPIC, object : RunManagerListener {
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun runConfigurationSelected(settings: RunnerAndConfigurationSettings?) {
+                taskRunnerManager.runBackgroundSafe("Select CLI run configuration", isProjectWrite = true) {
+                    try {
+                        ideaCliRunConfigurationManager.onRunConfigurationSelected(settings)
+                    } catch (e: Throwable) {
+                        logger.warn("Update current CLI run configuration failed", e)
+                    }
+                }
+            }
+
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun runConfigurationAdded(settings: RunnerAndConfigurationSettings) {
+                updateConfiguration(settings)
+            }
+
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun runConfigurationChanged(settings: RunnerAndConfigurationSettings) {
+                updateConfiguration(settings)
+            }
+
+            private fun updateConfiguration(settings: RunnerAndConfigurationSettings) {
+                taskRunnerManager.runBackgroundSafe("Update CLI run configuration", isProjectWrite = true) {
+                    try {
+                        ideaCliRunConfigurationManager.onRunConfigurationChanged(settings)
+                    } catch (e: Throwable) {
+                        logger.warn("Update CLI run configuration failed", e)
+                    }
+                }
+            }
+        })
     }
 
     override fun dispose() {

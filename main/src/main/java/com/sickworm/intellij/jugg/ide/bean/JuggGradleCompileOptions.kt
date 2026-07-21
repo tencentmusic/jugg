@@ -429,8 +429,11 @@ data class JuggGradleCompileOptions(
     }
 
     fun toSafeString(): String {
-        val string = toString()
+        var string = toString()
         val replacePasswordDesc = if (remoteSshPassword.isNotEmpty()) "(has_password)" else "(no_password)"
-        return string.replace("remoteSshPassword=$remoteSshPassword", "remoteSshPassword=$replacePasswordDesc")
+        string = string.replace("remoteSshPassword=$remoteSshPassword", "remoteSshPassword=$replacePasswordDesc")
+        string = string.replace("compileCommand=$compileCommand", "compileCommand=(redacted)")
+        string = string.replace("environmentVariables=$environmentVariables", "environmentVariables=(redacted)")
+        return string
     }
 }
