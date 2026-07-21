@@ -60,6 +60,10 @@
             android:name="com.sickworm.jugg.demo.testcase.minify.MinifyTestActivity"
             android:exported="true"
         />
+        <provider
+            android:name="com.sickworm.jugg.demo.testcase.applicationcontext.ApplicationContextProbeProvider"
+            android:authorities="${applicationId}.application-context-probe"
+            android:exported="false" />
         <meta-data android:name="com.test.metadata" android:value="0" /> <!-- do not wrap line for test replace -->
     </application>
 

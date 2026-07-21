@@ -11,6 +11,7 @@ import android.content.pm.ApplicationInfo
 import android.util.Log
 import com.sickworm.jugg.demo.testcase.appcomponentfactory.TestInitialize.objAfterAttach
 import com.sickworm.jugg.demo.testcase.appcomponentfactory.TestInitialize.objBeforeAttach
+import com.sickworm.jugg.demo.testcase.appcomponentfactory.TestInitialize.describe
 
 @Suppress("unused")
 class MyAppComponentFactory : AppComponentFactory() {
@@ -32,7 +33,10 @@ class MyAppComponentFactory : AppComponentFactory() {
     }
 
     override fun instantiateProvider(cl: ClassLoader, className: String): ContentProvider {
-        Log.i("MyAppComponentFactory", "instantiateProvider: $className, classLoader: $cl")
+        Log.i(
+            "MyAppComponentFactory",
+            "instantiateProvider: $className, classLoader: $cl, rawApplication: ${describe(TestInitialize.application)}",
+        )
         initTest()
         return super.instantiateProvider(cl, className)
     }

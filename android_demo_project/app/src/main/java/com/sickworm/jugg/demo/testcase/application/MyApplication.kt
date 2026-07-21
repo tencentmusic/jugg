@@ -9,6 +9,7 @@ class MyApplication: Application() {
 
     override fun attachBaseContext(base: Context?) {
         Log.i("MyApplication", "attachBaseContext in: $base")
+        TestInitialize.application = this
         TestInitialize.initBeforeAttach()
         super.attachBaseContext(base)
         Log.i("MyApplication", "attachBaseContext out")
