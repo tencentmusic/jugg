@@ -126,7 +126,7 @@ class JuggGradleCompileOptionsTest {
     @Test
     fun parseRemoteSyncExcludePatterns_shouldAcceptSemicolonSeparatedInput() {
         val patterns = parseRemoteSyncExcludePatterns(
-            "app/src/debug/mock/**; local-temp/; **/*.keystore"
+            "app/src/debug/mock/**; local-temp/; **/*.keystore",
         )
 
         assertEquals(listOf("app/src/debug/mock/**", "local-temp/", "**/*.keystore"), patterns)
@@ -135,17 +135,21 @@ class JuggGradleCompileOptionsTest {
     @Test
     fun parseRemoteSyncExcludePatterns_shouldKeepCommaSeparatedInputCompatible() {
         val patterns = parseRemoteSyncExcludePatterns(
-            "app/src/debug/mock/**, local-temp/, **/*.keystore"
+            "app/src/debug/mock/**, local-temp/, **/*.keystore",
         )
 
         assertEquals(listOf("app/src/debug/mock/**", "local-temp/", "**/*.keystore"), patterns)
     }
 
     @Test
-    fun parseRemoteSyncExcludePatterns_shouldRejectRootOrParentPaths() {
-        assertFailsWith<JuggException> {
-            parseRemoteSyncExcludePatterns("/shared/cache/**")
-        }
+    fun parseRemoteSyncExcludePatterns_shouldAllowRootPattern() {
+        val patterns = parseRemoteSyncExcludePatterns("/.git/")
+
+        assertEquals(listOf("/.git/"), patterns)
+    }
+
+    @Test
+    fun parseRemoteSyncExcludePatterns_shouldRejectParentPaths() {
         assertFailsWith<JuggException> {
             parseRemoteSyncExcludePatterns("../shared/cache/**")
         }

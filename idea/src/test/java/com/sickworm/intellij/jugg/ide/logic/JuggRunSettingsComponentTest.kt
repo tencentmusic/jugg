@@ -90,6 +90,8 @@ class JuggRunSettingsComponentTest {
         assertEquals("Additional exclude patterns:", label.text)
         assertTrue(textField.toolTipText.contains("not gitignore"))
         assertTrue(textField.toolTipText.contains("*.class"))
+        assertTrue(textField.toolTipText.contains("applied as entered"))
+        assertTrue(textField.toolTipText.contains("Leading /"))
     }
 
     @Test

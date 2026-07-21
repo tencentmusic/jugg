@@ -8,7 +8,7 @@ class SyncFileCommandTest {
 
     @Test
     fun rsyncArguments_shouldOnlyKeepDotGradleJuggDirectory() {
-        val arguments = SyncFileCommand.getRsyncArguments("demo")
+        val arguments = SyncFileCommand.getRsyncArguments("demo", emptyList())
 
         assertTrue(arguments.contains("--include='/demo/.gradle/'"))
         assertTrue(arguments.contains("--include='/demo/.gradle/jugg/'"))
@@ -22,15 +22,16 @@ class SyncFileCommandTest {
     }
 
     @Test
-    fun rsyncArguments_shouldPrefixExcludePatternsWithProjectRelativePath() {
+    fun rsyncArguments_shouldKeepExcludePatternsRaw() {
         val arguments = SyncFileCommand.getRsyncArguments(
             "demo",
-            listOf("app/src/debug/mock/**", "local-temp/", "**/*.keystore"),
+            listOf(".git/", "/.git/", "app/src/debug/mock/**"),
         )
 
-        assertTrue(arguments.contains("--exclude='/demo/app/src/debug/mock/**'"))
-        assertTrue(arguments.contains("--exclude='/demo/local-temp/'"))
-        assertTrue(arguments.contains("--exclude='/demo/**/*.keystore'"))
+        assertTrue(arguments.contains("--exclude='.git/'"))
+        assertTrue(arguments.contains("--exclude='/.git/'"))
+        assertTrue(arguments.contains("--exclude='app/src/debug/mock/**'"))
+        assertFalse(arguments.contains("--exclude='/demo/.git/'"))
     }
 
     @Test
@@ -40,8 +41,7 @@ class SyncFileCommandTest {
             listOf("app/src/debug/mock/**"),
         )
 
-        assertTrue(arguments.contains("--exclude='/app/src/debug/mock/**'"))
-        assertFalse(arguments.contains("--exclude='//app/src/debug/mock/**'"))
+        assertTrue(arguments.contains("--exclude='app/src/debug/mock/**'"))
     }
 
     @Test

@@ -45,10 +45,10 @@ private fun normalizeRemoteSyncExcludePattern(pattern: String): String {
     val isWindowsAbsolute = normalized.length >= 2 && normalized[1] == ':'
     val hasParentSegment = normalized.split('/').any { it == ".." }
     val hasShellQuote = normalized.any { it == '\'' || it == '"' }
-    if (normalized.startsWith("/") || isWindowsAbsolute || hasParentSegment || hasShellQuote) {
+    if (isWindowsAbsolute || hasParentSegment || hasShellQuote) {
         throw JuggException.runConfigInvalid(
             "Run configuration argument [Remote sync exclude patterns] contains invalid pattern: $pattern\n" +
-                    "Patterns must be relative to current project root.",
+                    "Windows absolute paths, parent paths, and quotes are not supported.",
         )
     }
     return normalized
@@ -237,7 +237,7 @@ data class JuggGradleCompileOptions(
      */
     val libraryTestApkOutputPatterns: List<String> = emptyList(),
     /**
-     * Project-root relative rsync glob patterns skipped during local-to-remote source sync.
+     * Rsync glob patterns skipped during local-to-remote source sync.
      */
     val remoteSyncExcludePatterns: List<String> = emptyList(),
 ) {

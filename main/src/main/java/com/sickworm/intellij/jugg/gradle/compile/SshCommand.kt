@@ -94,7 +94,10 @@ class SyncFileCommand(
 
     companion object {
 
-        fun getRsyncArguments(projectRelativePath: String, excludePatterns: List<String> = emptyList()): String {
+        fun getRsyncArguments(
+            projectRelativePath: String,
+            excludePatterns: List<String>,
+        ): String {
             var buildDirPath = "/$projectRelativePath/build"
             if (buildDirPath.startsWith("//")) {
                 buildDirPath = buildDirPath.substring(1)
@@ -109,16 +112,14 @@ class SyncFileCommand(
                 .replace("--exclude='/.gradle", "--exclude='$dotGradlePath")
                 .replace("--include='/build", "--include='$buildDirPath")
                 .replace("--exclude='/build", "--exclude='$buildDirPath")
-            val userExcludeArguments = buildExcludeArguments(projectRelativePath, excludePatterns)
+            val userExcludeArguments = buildExcludeArguments(excludePatterns)
             return "-av --delete $configDirArguments $userExcludeArguments --exclude='build/' --exclude='local.properties' --exclude='.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
         }
 
-        private fun buildExcludeArguments(projectRelativePath: String, excludePatterns: List<String>): String {
-            val normalizedProjectPath = projectRelativePath.replace('\\', '/').trim('/')
-            val prefix = if (normalizedProjectPath.isEmpty()) "/" else "/$normalizedProjectPath/"
+        private fun buildExcludeArguments(excludePatterns: List<String>): String {
             return excludePatterns.joinToString(" ") { pattern ->
-                val normalizedPattern = pattern.replace('\\', '/').trimStart('/')
-                "--exclude='$prefix$normalizedPattern'"
+                val normalizedPattern = pattern.replace('\\', '/')
+                "--exclude='$normalizedPattern'"
             }
         }
     }

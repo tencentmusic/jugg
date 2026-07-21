@@ -97,11 +97,13 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     }
     private val remoteSyncExcludePatternsLabel = JLabel("Additional exclude patterns:")
     private val remoteSyncExcludePatternsTextField = JBTextField().also {
-        it.emptyText.text = "e.g. app/src/debug/mock/**; local-temp/; **/*.dat"
-        it.toolTipText = "<html>Additional rsync exclude patterns, separated by semicolon and relative to current project root.<br/>" +
+        it.emptyText.text = "e.g. .git; /.git/; local-temp/; **/*.dat (rsync patterns)"
+        it.toolTipText = "<html>Additional rsync exclude patterns separated by semicolon.<br/>" +
+                "Patterns are applied as entered relative to the actual transfer root.<br/>" +
+                "Leading / anchors a pattern to the transfer root.<br/>" +
                 "This is not gitignore, and no need *.class because it already added in defaults.<br/>" +
-                "Examples: app/src/debug/mock/**; local-temp/; **/*.dat<br/>" +
-                "Leading / and parent paths are not supported.</html>"
+                "Examples: .git; /.git/; local-temp/**; **/*.dat<br/>" +
+                "Parent paths are not supported.</html>"
     }
 
     private val applyServerActionLink = ActionLink("Apply server")
