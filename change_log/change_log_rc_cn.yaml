@@ -1,3 +1,9 @@
+- version: 3.0.32
+  date: 2026.07.21
+  updates:
+    - 优化 Jugg Run Configuration 生成逻辑，生成名称仍以 Unnamed 开头时自动重建
+    - 修复远端同步额外排除规则被自动添加项目路径前缀的问题
+
 - version: 3.0.31
   date: 2026.07.15
   updates:
