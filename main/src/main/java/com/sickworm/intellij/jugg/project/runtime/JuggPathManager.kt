@@ -39,6 +39,8 @@ class JuggPathManager(
     val tmpGradleProjectInfo = File(tmpDir, "project_infos")
 
     val configDir = File(juggRootDir, "config")
+    val runConfigurationsDir = File(configDir, "run_configurations")
+    val currentRunConfigurationFile = File(configDir, "current_run_configuration.json")
 
     val projectInfosDir = File(databaseDir, "project_infos.db")
     val ideProjectInfoFile = File(projectInfosDir, "project_infos.json")

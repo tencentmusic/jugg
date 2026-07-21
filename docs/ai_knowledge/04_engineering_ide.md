@@ -37,6 +37,7 @@
 | `CompileContextManager` / `IProjectModelSource` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt` | 共享 effective project model 与 Compile Context 生命周期 |
 | `IdeaProjectModelSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaProjectModelSource.kt` | IDEA module/JDK/source root 读取，以及 IDE + Gradle project info merge 输入 |
 | `IdeaCompileEnvironmentSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaCompileEnvironmentSource.kt` | 在 Compile Context 创建或本地 Gradle fetch 执行时读取当前 Android SDK 与 Gradle 环境 |
+| `IdeaCliRunConfigurationManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/runtime/IdeaCliRunConfigurationManager.kt` | 将 IDEA Jugg Run Configuration 导入共享 CLI 配置集合，维护稳定 id、当前指针和 Gradle 成功后的实际配置 |
 | `MoreOptionsManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More Options 菜单，挂载 Gradle compile、restart、skills、report 等操作 |
 | `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 仅在存在有效 Jugg Run Configuration 时创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
 
@@ -55,6 +56,7 @@
 | run UI process handler | `CompileUiHandler` / `JuggRunningTask` | 承载日志、进度、取消状态；androidTest 时接入 Test Results console |
 | file change / Run Configuration locks | `JuggManager` | 文件变化处理与 Run Configuration 创建分别串行，禁止通过 `JuggManager` 实例锁跨业务域互相阻塞 |
 | control panel snapshot | `JuggControlPanelModel` | `JuggControlPanelController` 项目级持有；保存待处理文件、当前阶段、原始 compile/deploy 事实、会话成功统计、有界 Recent Runs 与最近 200 条核心事件；MCP、Sync、App 事件只进入事件历史，不覆盖运行任务 |
+| CLI run configuration collection | `CliRunConfigurationStore` / `IdeaCliRunConfigurationManager` | `build/jugg/config/run_configurations/<id>.json` 保存独立配置，`current_run_configuration.json` 保存当前 UUID；IDEA 配置自身持久化同一稳定 id |
 
 ---
 
@@ -70,7 +72,7 @@ IDE project opened
      设置 IdeaPlatformApi，创建 JuggPathManager，注册 JuggLogger
   -> JuggManager.init()
      创建 IDEA RuntimeInfo，再由 Init Jugg 后台任务首次转换并迁移旧 PropertiesComponent 字段，失败时下次启动重试，然后显式初始化 Host-neutral JuggServer；settings 在首次访问时自动加载
-     通过 ProjectCustomConfigManager 刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录，并创建默认 run config
+     通过 ProjectCustomConfigManager 刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录；导入已有 Jugg Run Configuration，缺失时由 Gradle project info 生成确定性默认配置
   -> JuggManager.recoverDeployContext()
      从 deploy history 恢复 compile context、APK、changed files，避免无必要全量构建
   -> background tasks
@@ -97,8 +99,8 @@ Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → Jugg
 JuggGradleSyncListener
   -> JuggInitializer.onSyncEvent(project, syncEvent)
   -> JuggManager.onSyncEvent()
-     SUCCEEDED: 同步 Active Build Variant 对应 run config，updateProjectInfo(isAfterSync = true)
-     SKIPPED: 同步 Active Build Variant 对应 run config，updateProjectInfo(isAfterSync = false)
+     SUCCEEDED: updateProjectInfo(isAfterSync = true)，reconcile Active Build Variant CLI run configuration
+     SKIPPED: updateProjectInfo(isAfterSync = false)，reconcile Active Build Variant CLI run configuration
      STARTED/FAILED: 通知 dependencyChangeManager
   -> CompileContextManager.updateCompileContext()
   -> IdeaProjectModelSource + JuggProjectInfoMerger
@@ -109,11 +111,11 @@ JuggGradleSyncListener
 
 Sync 成功会重置 hasRun，避免旧运行状态让“无文件变化”判断污染下一轮。
 
-Sync 完成或被 IDE 标记为 `SKIPPED` 后，`tryCreateRunConfigurations()` 会读取 Android Studio 当前 Active Build Variant 对应的 Gradle command，并按需创建对应 Jugg Configuration。项目原来没有可用 Jugg Configuration 时，首次创建后自动选择；已有 Jugg Configuration 且当前 selected Configuration 不是 Jugg 时只创建、不改变选择；当前 selected Configuration 是 Jugg 且不包含 suggestion 提供的唯一 Gradle task 时，自动选择同模块的目标 Configuration。模块首个 Configuration 沿用 `jugg:<module>`，该名称已存在时使用 `jugg:<module>:<variant>`，目标 Gradle task 已存在时直接复用。匹配以 suggestion 中的唯一 task 为基准，已有命令中的 `--offline`、`-Pxxx` 等附加参数不影响复用，因此用户为同一 variant 定制的 Gradle 参数会保留；切回该 variant 时也优先复用已有配置。suggestion 无法解析出唯一 task 时，创建去重退回完整 command 匹配，并禁止自动切换当前 Configuration。`FullBuildInfo.compileCommand` 不参与 Sync 阶段的 Configuration 创建和自动切换，仅用于 CLI/MCP/RPC 运行时的历史配置兜底，以及切换后首次 Run 的基线判断；command 不一致时，`JuggCompileHelper.preprocessIncrementalCompile()` 会强制走 Gradle full build，成功后刷新基线。
+Sync 完成或被 IDE 标记为 `SKIPPED` 后，先更新 effective `JuggProjectInfo`，再由 `IdeaCliRunConfigurationManager.reconcileActiveBuildVariants()` 为每个 application module 补齐当前 `buildVariant` 对应的 Jugg Configuration。候选配置由 `CliRunConfigurationGenerator.generateForModule()` 确定性生成；同 module + variant 已存在时完全保留名称、command、APK output、远端参数和环境变量。当前 selected Configuration 不是 Jugg 时只创建、不改变选择和 CLI current pointer；当前选择是 Jugg 时，只切换到同 module 的 active variant 并更新 pointer。该流程不依赖已废弃的 `SuggestRunConfiguration`，也不导入普通 Android Run Configuration。
 
 建议配置的 APK output pattern 从 Android Studio Android model 的实际 build folder 生成，支持 `${moduleDir}/build` 和项目根集中式 `build/${moduleName}`。该路径只用于创建新的 Jugg Configuration；Sync 不修改已有配置的 APK output pattern。
 
-Composite build 使用 IDE 完整模块名生成唯一身份：root build 会移除根项目名前缀，例如 `Root.app -> app -> :app:assembleDebug`；included build 保留 build 前缀，例如 `SMCommon.app -> SMCommon.app -> :SMCommon:app:assembleDebug`。创建 Configuration 时还会按 suggestion 提供的唯一 Gradle task 做批内去重，避免附加参数差异或多个 Android Run Configuration 指向同一模块时生成 `(1)` 重复项。
+Composite build 的自动生成身份沿用 project info 中的 `moduleStdPath + buildVariant`，Gradle task 和稳定 UUID 均由该身份生成；已有配置优先按解析后的 module/variant 复用，无法解析时按 `moduleName + variant` best-effort 匹配。
 
 IDEA VFS 事件由 `IdeaFileChangeMonitor` 转成 changed/delete 批次后交给 `FileChangeManager`。共享 manager 在项目写锁内更新 deploy file 和 dependency 状态，并用 `DeployStateManager.beginFileProcessing/endFileProcessing` 保证编译不会抢在事件落库前开始；Git checkout/pull 的补偿检测也位于 `main`。compile-on-save 的设置读取与最终编译调用暂留 `JuggManager`，共享 manager 只返回本批次是否存在有效变化。
 
@@ -143,7 +145,8 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 
 ## 5. UI 与工具入口
 
-- 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；配置名包含 variant，APK 路径使用 IDE model 的实际 build folder。Sync 后如果没有可用配置会短暂重试，并只在检测到 Active Build Variant command 变化时自动切换。
+- 默认 Run 配置由 `CliRunConfigurationGenerator` 基于 Gradle project info 推断，不再使用 `SuggestRunConfiguration`；优先 `app` application module，否则按稳定排序选择，variant 使用当前 `buildVariant`，缺失时为 `debug`。IDEA 只导入 Jugg Run Configuration，选择/修改事件在项目锁内更新共享配置或指针。
+- IDEA Runtime 的 CLI/MCP Gradle 调用优先当前选中的 Jugg Run Configuration；未选中 Jugg 时按最近成功 full build 的 command + target、command、列表首项依次回退。Gradle build 成功且 APK 已确认后回写本轮实际 task、APK pattern 和远端字段。
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
 - `Jugg Running Pannel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
 - `OpenJuggControlPanelAction` 位于 `ide_entry`，只调用 Host；`JuggInitializer` 不引用 Host。Manager dispose 委托 Controller clear Host，JuggManager 自身不保存 Panel、事件枚举或 Sync taskId。
@@ -172,7 +175,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 | 插件初始化后没有 manager | `JuggInitializer.instanceSet`、`JuggLoader`、`JuggManagerCreator.create()` |
 | 启动期长时间卡住 | `09_plugin_runtime_debug.md`，再看 `JuggManager.init()` background task 和 `ConstRefEngine` 启动扫描 |
 | 启动期 SQLite corrupt | `ConstRefEngine` 构造期不应初始化 SQLite runtime；检查 `ConstRefCacheDatabase` 损坏重建与 no-op fallback 日志 |
-| 默认 Run 配置没有生成 | `JuggManager.tryCreateRunConfigurations()` 与 `AsDeployerCompat.getSuggestRunConfigurations()` |
+| 默认 Run 配置没有生成或指针错误 | `JuggManager.tryCreateRunConfigurations()`、`IdeaCliRunConfigurationManager`、`build/jugg/config/run_configurations/` 与 `current_run_configuration.json` |
 | Sync 后 project info / dependency 状态异常 | `JuggManager.onSyncEvent()`、`updateProjectInfo()`、`CompileContextManager.updateCompileContext()` |
 | Run UI 状态错乱或取消后下轮误判 | `JuggRunningTask.run()` finally 中 hasRun / processHandler / logger listener 收口 |
 | Panel 数据不刷新或热更新后仍显示旧组件 | `JuggControlPanelHost`、`JuggInitializer.getManager(project)`、`JuggManager.getJuggControlPanel()` 与 Panel subscription dispose |

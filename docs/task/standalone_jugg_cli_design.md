@@ -617,6 +617,8 @@ Quail `makeDebuggerRedefiners()` 当前为空映射，Standalone 不实现 IDEA 
 
 生成结果必须记录推断来源，不能静默把 fallback 结果描述为 IDE 配置。
 
+Gradle Sync 完成后，IDEA 先刷新 effective `JuggProjectInfo`，再为每个 application module reconcile 当前 `buildVariant`。同 module + variant 已存在时保留全部用户字段，只在缺失时确定性创建。当前选择是 Jugg 配置时切换到同 module 的 active variant；当前选择不是 Jugg 时不改变 IDEA 选择和 CLI current pointer。该流程不恢复 `SuggestRunConfiguration`，也不导入普通 Android Run Configuration。
+
 ### 7.2 JSON 配置集合
 
 ```text
@@ -750,7 +752,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 4 | 已完成 | 文件变化处理与 Git reconcile 已下沉，共享 WatchService monitor 与 dependency policy 已落地 |
 | Step 5 | 已完成 | 共享 Runtime Settings、IDEA 旧设置迁移、统一 custom config 生命周期与 custom compiler reload/dispose 已落地 |
 | Step 6 | 已完成 | Server RuntimeInfo 与共享 JuggHotUpdateManager 已落地；诊断、运维门面和资源版本策略延后到真实 standalone 调用出现时 |
-| Step 7–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 7 | 已完成 | 共享 CLI Run Configuration schema、确定性默认推断、配置集合/指针、IDEA 导入/选择监听和 Gradle 成功回写已落地 |
+| Step 8–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -1014,6 +1017,25 @@ Loader 创建 hot-update classloader 前只通过 `JuggHotUpdateBootstrap` 读�
 - server 下发 custom config 后两个 Runtime 行为一致。
 
 ### Step 7：CLI Run Configuration
+
+实现状态：已完成。新增共享 `CliRunConfiguration`、`CliRunConfigurationGenerator`、`CliRunConfigurationSerializer` 与 `CliRunConfigurationStore`，配置分别保存到 `build/jugg/config/run_configurations/<id>.json`，当前指针保存到 `current_run_configuration.json`。配置文件使用临时文件和原子替换，POSIX 平台限制为当前用户读写；配置 id 为 UUID，Gradle project info 默认配置使用 module path + variant 生成确定性 UUID，IDEA 配置将 id 持久化到 `JuggRunConfigurationOptions`，重命名不改变 id。
+
+默认配置不再使用 `SuggestRunConfiguration`。生成顺序为最近成功配置、名为 `app` 的 application module、其余 application module 稳定排序；variant 优先当前 `buildVariant`，缺失时使用 `debug`。`debug/release` flavor variant 的 APK 路径按 `<flavor>/<buildType>` 生成。IDEA 首次发现未绑定的 Jugg Run Configuration 时导入全部 Jugg 配置，普通 Android Run Configuration 不导入；选择、增加或修改 Jugg 配置时在项目锁内更新配置或指针，并忽略已经过期的异步选择事件。IDEA Runtime 的 MCP/CLI Gradle 调用优先当前选中的 Jugg 配置，不再固定执行列表第一个配置。
+
+Active Build Variant 同步已改为基于 effective `JuggProjectInfo` 的 reconcile：Sync 更新模型后，为每个 application module 生成当前 variant 候选，复用同 module + variant 的已有配置并保留自定义字段，只补齐缺失配置；仅在当前选择为 Jugg 时切换同 module variant。文件扫描使用 Runtime 实例内锁串行，不占用 project lock，因此不会阻塞该 Sync 写事务。
+
+Gradle build 成功且 APK 已确认后，当前配置会回写本轮实际 `compileCommand`、APK pattern、module、variant、build target 与远端编译字段。远端密码保留在配置文件中，但配置 `toString()` 与 `JuggGradleCompileOptions.toSafeString()` 不输出密码、Gradle command 或环境变量。
+
+本 Step 已提供 standalone 可直接复用的 generator/store/toCompileOptions 边界；实际 `jugg init` 与 standalone Gradle build 调用点随 Step 8/11 的 Runtime/编译链建立后接入，不重复实现配置协议。
+
+已完成验证：
+
+- `CliRunConfigurationTest`（L1，单 app、非 `app`/多 application、custom variant、最近成功配置优先、稳定 id、配置集合/指针 JSON 与敏感字段日志收口）
+- `IdeaCliRunConfigurationFlowTest`（L2，IDEA 导入、重命名 id、当前指针、过期选择事件、Gradle 成功回写）
+- `JuggConfigurationRunnerTest#selected jugg configuration has priority for cli invocation`（L2）
+- `CmdLineTest`（CI 行为回归）
+- `TopLevelFlowTest#testInstallAndLaunch`（L3）
+- `:idea:compileKotlin`
 
 目标：CLI 无需 IDEA Run Configuration 即可获得稳定 build profile。
 

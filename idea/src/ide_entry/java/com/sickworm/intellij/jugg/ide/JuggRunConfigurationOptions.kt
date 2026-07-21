@@ -40,6 +40,9 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     /** Whether remoteSyncExcludePatterns replaces Jugg defaults. */
     var isRemoteSyncExcludePatternsCustomized by property(false)
 
+    /** Stable id of the shared project-level CLI run configuration. */
+    var cliRunConfigurationId by string()
+
     // new options must add to the end because property persist is in order
 
 }

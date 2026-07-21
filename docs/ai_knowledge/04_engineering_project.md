@@ -20,6 +20,7 @@
 | `JuggProjectInfo` / `ModuleInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt` | Gradle 项目/模块快照，记录 AGP R8 classpath、source/res/manifest/classpath/dependency/applicationId/androidTest 等信息 |
 | `ModuleBuildPathInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt` | 多 AGP 版本及自定义 Gradle build directory 的输出路径兼容推断 |
 | `JuggPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt` | 项目级 Jugg 文件布局：project info、compile context、deploy history、classpath、日志、MCP fetch cache |
+| `CliRunConfiguration` / `CliRunConfigurationStore` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/CliRunConfiguration.kt` | IDEA/standalone 共享 build profile、Gradle project info 默认推断、独立配置 JSON 与当前指针原子持久化 |
 | `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggGlobalPathManager.kt` | 用户级 `~/.jugg` 文件布局：hot update、history、resource 等 |
 | `GradleProjectInfoReaderManager` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt` | Gradle init script 入口，读取/保存 project info、include build、dependency diff、androidTest task 注入 |
 | `GradleScriptWriter` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleScriptWriter.kt` | 把插件内置 `readProjectInfo.gradle.kts` 与 runtime jar 写到稳定目录，供本地、远端和 CLI 通过 `-I` 注入 |
@@ -52,6 +53,8 @@
 | `build/jugg/database/project_infos.db/is_dirty` | project info 管理 | 标记需要更新 project info |
 | `build/jugg/classpath/` | Gradle/full build fetch | 本地 classpath、APK、library backup、embedded APK |
 | `~/.jugg/library_test_build_records` | androidTest history | 记录 self-targeting library Test APK 构建历史 |
+| `build/jugg/config/run_configurations/<id>.json` | IDEA / standalone | 独立 CLI build profile；id 为稳定 UUID，重命名不改变 id |
+| `build/jugg/config/current_run_configuration.json` | IDEA / standalone | 当前配置指针，只保存 schemaVersion 与 configId |
 
 `GradleProjectInfoReaderManager` 优先读取 Gradle property `jugg.projectDir` 作为 IDE project dir；当 Gradle root 与 IDE project root 不一致时，不能直接用 `rootProject.rootDir` 推断 Jugg 文件位置。
 
@@ -97,6 +100,8 @@ androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVari
 IDEA 使用 `IdeaProjectModelSource`，保持“IDE model + Gradle model”；standalone/无 IDE 场景使用 `GradleProjectModelSource`，直接合并 root 与 include-build Gradle 快照，不创建空壳 IDE project info。`BuildTarget.APP` 会过滤 Gradle-only androidTest module，`BuildTarget.ANDROID_TEST` 才纳入。
 
 `CompileContextManager` 持有 source model，并在内存中应用 module custom classpath 得到 effective model。当前没有依赖跨 Runtime model identity 的生产消费者，因此不持久化额外 fingerprint/generation 状态；若后续 runtime cache 失效策略需要该能力，应由具体消费者和恢复协议共同引入。
+
+`CliRunConfigurationGenerator` 同样消费 effective Gradle project info：最近成功配置优先，其次选择名为 `app` 的 application module，再按 module path/name 稳定排序；variant 取 `buildVariant`，缺失时使用 `debug`。默认 UUID 由 module path + variant 确定性生成，`Debug` / `Release` flavor variant 的 APK 目录按 `<flavor>/<buildType>` 推断。Gradle 成功后会用实际 compile options 回写当前配置，避免长期依赖默认推断。
 
 ---
 
@@ -232,6 +237,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - diff mode 只输出依赖差异并清理临时 project info；非 diff mode 才写正式 `gradle_project_infos.json`。
 - 依赖 diff 的用户确认是正确性边界，不要为了“自动化”直接把 `CHANGED_NOT_SYNCED` 改成 `INCREMENTAL_COMPILE`。diff 失败或用户拒绝时应保持 Gradle rebuild 语义；diff 无依赖变化时也只有用户明确选择忽略 build file 变化后才能继续增量。
 - androidTest task 注入发生在 Gradle task graph finalization 之前；如果请求任务名和真实 task path 对不上，注入会静默打印 “no requested task found” 并跳过。
+- CLI run configuration 文件包含远端编译密码，写入使用临时文件 + 原子替换，并在 POSIX 平台限制为当前用户读写；日志和诊断不得输出密码、Gradle command 或环境变量。
 
 ---
 
