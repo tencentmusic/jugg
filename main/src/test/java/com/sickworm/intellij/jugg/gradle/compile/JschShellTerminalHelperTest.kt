@@ -1,11 +1,35 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
+import com.jcraft.jsch.ChannelShell
+import com.jcraft.jsch.JSch
+import com.jcraft.jsch.JSchException
+import com.jcraft.jsch.Session
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.project.JuggException
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
+import org.mockito.Mockito
+import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argThat
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class JschShellTerminalHelperTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
 
     @Test
     fun respondToCursorPositionQuery() {
@@ -75,5 +99,79 @@ class JschShellTerminalHelperTest {
     fun shellReadyProbeCommandUsesSingleLineEcho() {
         assertTrue(JschShellTerminalHelper.SHELL_READY_PROBE_COMMAND.contains("(Jugg) ShellReady result: \$?"))
         assertTrue(!JschShellTerminalHelper.SHELL_READY_PROBE_COMMAND.contains("\n"))
+    }
+
+    @Test
+    fun passwordLoginSuccessDoesNotSearchAvailableKeys() {
+        val originalUserHome = System.getProperty("user.home")
+        val sshDir = temporaryFolder.root.resolve(".ssh").also { it.mkdirs() }
+        sshDir.resolve("id_test").writeText("-----BEGIN PRIVATE KEY-----\n")
+        System.setProperty("user.home", temporaryFolder.root.absolutePath)
+
+        val session = mock<Session>()
+        val shell = mock<ChannelShell>()
+        val logger = mock<Logger>()
+        val options = mock<JuggGradleCompileOptions>()
+        whenever(options.remoteSshPassword).thenReturn("password")
+        whenever(options.remoteSshUser).thenReturn("user")
+        whenever(options.remoteSshIp).thenReturn("host")
+        whenever(options.remoteSshPort).thenReturn(22)
+        whenever(options.httpProxyIp).thenReturn("")
+        whenever(options.environmentVariables).thenReturn("")
+        whenever(session.getConfig("PubkeyAcceptedAlgorithms")).thenReturn("ssh-ed25519")
+        whenever(session.openChannel("shell")).thenReturn(shell)
+        whenever(shell.inputStream).thenReturn(
+            ByteArrayInputStream("(Jugg) ShellReady result: 0\n".toByteArray()),
+        )
+        whenever(shell.outputStream).thenReturn(ByteArrayOutputStream())
+        whenever(shell.isConnected).thenReturn(true)
+        whenever(shell.isClosed).thenReturn(false)
+
+        try {
+            Mockito.mockConstruction(JSch::class.java) { jsch, _ ->
+                whenever(jsch.getSession(any(), any(), any())).thenReturn(session)
+            }.use {
+                val remoteClient = RemoteGradleCompileClient(mock<Project>(), logger = logger)
+                remoteClient.login(options)
+                remoteClient.dispose()
+            }
+
+            verify(logger, never()).debug(argThat<String> { startsWith("found keys in .ssh") })
+        } finally {
+            System.setProperty("user.home", originalUserHome)
+        }
+    }
+
+    @Test
+    fun passwordLoginFailureSearchesAvailableKeysBeforeFallback() {
+        val originalUserHome = System.getProperty("user.home")
+        val sshDir = temporaryFolder.root.resolve(".ssh").also { it.mkdirs() }
+        sshDir.resolve("id_test").writeText("-----BEGIN PRIVATE KEY-----\n")
+        System.setProperty("user.home", temporaryFolder.root.absolutePath)
+
+        val session = mock<Session>()
+        val logger = mock<Logger>()
+        val options = mock<JuggGradleCompileOptions>()
+        whenever(options.remoteSshPassword).thenReturn("password")
+        whenever(options.remoteSshUser).thenReturn("user")
+        whenever(options.remoteSshIp).thenReturn("host")
+        whenever(options.remoteSshPort).thenReturn(22)
+        whenever(options.httpProxyIp).thenReturn("")
+        whenever(session.getConfig("PubkeyAcceptedAlgorithms")).thenReturn("ssh-ed25519")
+        whenever(session.connect()).thenThrow(JSchException("Auth fail"))
+
+        try {
+            Mockito.mockConstruction(JSch::class.java) { jsch, _ ->
+                whenever(jsch.getSession(any(), any(), any())).thenReturn(session)
+            }.use {
+                val remoteClient = RemoteGradleCompileClient(mock<Project>(), logger = logger)
+                assertFailsWith<JuggException> { remoteClient.login(options) }
+                remoteClient.dispose()
+            }
+
+            verify(logger, atLeastOnce()).debug(argThat<String> { startsWith("found keys in .ssh") })
+        } finally {
+            System.setProperty("user.home", originalUserHome)
+        }
     }
 }
