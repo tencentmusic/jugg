@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.viewhierarchy;
 
 import android.util.DisplayMetrics;
-import android.view.View;
 import android.widget.TextView;
 
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
@@ -11,9 +10,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
- * LayoutVerifier performs assertion-based UI property verification on live View objects.
+ * LayoutVerifier performs assertion-based UI property verification on one Dragonfly snapshot.
  * Supports both single-element property assertions (assert) and two-element relation checks (relation).
  * All pixel values are always converted to dp using DisplayMetrics.density.
  * textSizeSp is always in sp using scaledDensity.
@@ -99,19 +99,31 @@ public class LayoutVerifier {
             case "exists":
                 return buildPassResult("exists", true, "exists", "dp");
             case "visibility":
+                if (!target.hasProperty("visibility")) {
+                    return unavailable(property, target);
+                }
                 return assertText(target.visibility, op, assertParams.optString("value", "visible"), "visibility");
             case "clickable":
+                if (!target.hasProperty("clickable")) {
+                    return unavailable(property, target);
+                }
                 return assertBoolean(target.clickable, assertParams.optBoolean("value", true), "clickable");
             case "enabled":
-                return assertBoolean(target.view.isEnabled(), assertParams.optBoolean("value", true), "enabled");
+                if (!target.hasProperty("enabled")) {
+                    return unavailable(property, target);
+                }
+                return assertBoolean(target.enabled, assertParams.optBoolean("value", true), "enabled");
             case "text":
                 return assertText(target.text, op, assertParams.optString("value", ""), "text");
             case "alpha":
-                return assertDouble(target.view.getAlpha(), op, assertParams.optDouble("value", 1.0), "alpha", null);
+                if (!target.hasProperty("alpha")) {
+                    return unavailable(property, target);
+                }
+                return assertDouble(target.alpha, op, assertParams.optDouble("value", 1.0), "alpha", null);
             case "textColor":
-                return assertTextColor(target.view, op, assertParams.optString("value", ""));
+                return assertTextColor(target, op, assertParams.optString("value", ""));
             case "textSizeSp":
-                return assertTextSizeSp(target.view, op, assertParams.optDouble("value", 0));
+                return assertTextSizeSp(target, op, assertParams.optDouble("value", 0));
             case "bounds.width":
                 return assertInt(boundsWidth(target), op, assertParams.optInt("value", 0), "bounds.width");
             case "bounds.height":
@@ -125,14 +137,17 @@ public class LayoutVerifier {
             case "bounds.bottom":
                 return assertInt(target.bounds.bottom, op, assertParams.optInt("value", 0), "bounds.bottom");
             case "padding.left":
-                return assertInt(target.view.getPaddingLeft(), op, assertParams.optInt("value", 0), "padding.left");
+                return assertPadding(target, op, assertParams, property, target.padding.left);
             case "padding.top":
-                return assertInt(target.view.getPaddingTop(), op, assertParams.optInt("value", 0), "padding.top");
+                return assertPadding(target, op, assertParams, property, target.padding.top);
             case "padding.right":
-                return assertInt(target.view.getPaddingRight(), op, assertParams.optInt("value", 0), "padding.right");
+                return assertPadding(target, op, assertParams, property, target.padding.right);
             case "padding.bottom":
-                return assertInt(target.view.getPaddingBottom(), op, assertParams.optInt("value", 0), "padding.bottom");
+                return assertPadding(target, op, assertParams, property, target.padding.bottom);
             case "backgroundColor": {
+                if (target.view == null) {
+                    return unavailable(property, target);
+                }
                 android.graphics.drawable.Drawable bg = target.view.getBackground();
                 if (bg instanceof android.graphics.drawable.ColorDrawable) {
                     int color = ((android.graphics.drawable.ColorDrawable) bg).getColor();
@@ -292,22 +307,69 @@ public class LayoutVerifier {
         return pass ? buildPassResult(message, actual, expected, null) : buildFailResult(message, actual, expected, null);
     }
 
-    private JSONObject assertTextColor(View view, String op, String expected) throws JSONException {
-        if (!(view instanceof TextView)) {
-            return errorResult("textColor assertion requires a TextView; got " + view.getClass().getSimpleName(), null);
+    private JSONObject assertTextColor(MatchedElement target, String op, String expected) throws JSONException {
+        int color;
+        if (target.view instanceof TextView) {
+            color = ((TextView) target.view).getCurrentTextColor();
+        } else if (target.view != null) {
+            return errorResult(
+                "textColor assertion requires a TextView; got " + target.view.getClass().getSimpleName(),
+                null
+            );
+        } else if (target.properties.containsKey("textColor")) {
+            String actualHex = normalizeColor(target.properties.get("textColor"));
+            if (actualHex == null) {
+                return unavailable("textColor", target);
+            }
+            String normalizedExpected = expected != null ? expected.toUpperCase(Locale.ROOT) : "";
+            return assertText(actualHex, op, normalizedExpected, "textColor");
+        } else {
+            return unavailable("textColor", target);
         }
-        int color = ((TextView) view).getCurrentTextColor();
-        String actualHex = ViewNode.colorToHex(color).toUpperCase();
-        String normalizedExpected = expected != null ? expected.toUpperCase() : "";
+        String actualHex = ViewNode.colorToHex(color).toUpperCase(Locale.ROOT);
+        String normalizedExpected = expected != null ? expected.toUpperCase(Locale.ROOT) : "";
         return assertText(actualHex, op, normalizedExpected, "textColor");
     }
 
-    private JSONObject assertTextSizeSp(View view, String op, double expected) throws JSONException {
-        if (!(view instanceof TextView)) {
-            return errorResult("textSizeSp assertion requires a TextView; got " + view.getClass().getSimpleName(), null);
+    private String normalizeColor(String value) {
+        if (value == null || "Unspecified".equals(value)) {
+            return null;
         }
-        float textSizePx = ((TextView) view).getTextSize();
-        double actualSp = textSizePx / displayMetrics.scaledDensity;
+        String hex = value.trim().replace("#", "");
+        if (hex.startsWith("0x") || hex.startsWith("0X")) {
+            hex = hex.substring(2);
+        }
+        if (hex.length() == 6) {
+            hex = "FF" + hex;
+        }
+        if (hex.length() != 8) {
+            return null;
+        }
+        try {
+            Long.parseLong(hex, 16);
+            return "#" + hex.toUpperCase(Locale.ROOT);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private JSONObject assertTextSizeSp(MatchedElement target, String op, double expected) throws JSONException {
+        double actualSp;
+        if (target.view instanceof TextView) {
+            float textSizePx = ((TextView) target.view).getTextSize();
+            actualSp = textSizePx / displayMetrics.scaledDensity;
+        } else if (target.view != null) {
+            return errorResult(
+                "textSizeSp assertion requires a TextView; got " + target.view.getClass().getSimpleName(),
+                null
+            );
+        } else {
+            Double composeTextSize = parseTextUnit(target.properties.get("fontSize"));
+            if (composeTextSize == null) {
+                return unavailable("textSizeSp", target);
+            }
+            actualSp = composeTextSize;
+        }
         boolean pass;
         switch (op) {
             case "gte":
@@ -322,6 +384,41 @@ public class LayoutVerifier {
         }
         String message = "textSizeSp = " + String.format("%.1f", actualSp) + "sp (expected: " + op + " " + expected + "sp)";
         return pass ? buildPassResult(message, actualSp, expected, "sp") : buildFailResult(message, actualSp, expected, "sp");
+    }
+
+    private JSONObject assertPadding(
+        MatchedElement target,
+        String op,
+        JSONObject assertParams,
+        String property,
+        int actual
+    ) throws JSONException {
+        if (!target.hasProperty("padding")) {
+            return unavailable(property, target);
+        }
+        return assertInt(actual, op, assertParams.optInt("value", 0), property);
+    }
+
+    private Double parseTextUnit(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (!normalized.endsWith("sp")) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(normalized.substring(0, normalized.length() - 2).trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private JSONObject unavailable(String property, MatchedElement target) {
+        return errorResult(
+            "property " + property + " unavailable for node " + target.describe(),
+            null
+        );
     }
 
     // ---- Relation helpers ----

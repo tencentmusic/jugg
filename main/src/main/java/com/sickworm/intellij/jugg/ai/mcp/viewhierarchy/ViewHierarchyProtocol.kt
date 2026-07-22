@@ -26,6 +26,7 @@ data class ViewHierarchyResponse(
 data class LayoutDumpResult(
     val payloadJson: String?,
     val remoteFilePath: String?,
+    val errorMessage: String? = null,
 )
 
 /**

@@ -82,7 +82,11 @@ open class ViewHierarchyClient(
             )
         ) ?: return null
         if (!response.isOk()) {
-            return null
+            return LayoutDumpResult(
+                payloadJson = null,
+                remoteFilePath = null,
+                errorMessage = response.message ?: "layout_dump failed",
+            )
         }
         val data = response.data ?: return null
 

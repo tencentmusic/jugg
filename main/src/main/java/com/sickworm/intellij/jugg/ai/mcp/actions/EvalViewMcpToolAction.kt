@@ -168,10 +168,9 @@ class EvalViewMcpToolAction : McpToolAction {
                     )
 
                 if (evalResult.errorMessage != null) {
-                    return@executeWithRuntimeObserveRetry McpToolResult(
-                        status = McpToolStatus.ERROR,
-                        message = "view_inspect failed. Reason: ${evalResult.errorMessage}",
-                        errorCode = McpErrorCode.INTERNAL_ERROR,
+                    return@executeWithRuntimeObserveRetry ViewHierarchyFailureDiagnoser.toolError(
+                        toolName,
+                        evalResult.errorMessage,
                     )
                 }
 

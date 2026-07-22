@@ -106,6 +106,9 @@ compile/deploy/gradle-build/instrument
 
 - `layout-dump` 公开 HTML artifact；内部 JSON 文件只给 `view-locate` 等实现消费。
 - `ViewHierarchyClient` 使用 App 内 LocalSocket Server-only 通道，不走 uiautomator 回退。
+- App 侧 ViewHierarchy 统一由 `DragonflyHierarchySource` 提取 Android View 与 Compose 节点；dump、selector、元素点击、getter 查询和旧布局验证不再维护独立 ViewTree 数据源，MCP 参数、响应 envelope 和 HTML artifact 不变。
+- Android 节点继续使用 Dragonfly 暴露的原始 View 执行 `performClick` / getter；Compose 节点当前以 bounds 中心 MotionEvent 点击，并对 Dragonfly 节点对象执行 getter，缺失能力返回明确错误。
+- 无 id 节点使用确定性 `_vir_id_<hash>`；只有 Dragonfly window/children 顺序与 UI 结构不变时才保证跨请求一致，不作为业务稳定身份。
 - 多进程场景按“主进程优先 -> 其余 PID -> `jugg_vh` 兼容名”尝试 socket。
 - `ElementFinder` 在 selector 命中前过滤不可操作节点：可见、已显示、非零尺寸、有效 bounds。
 - ViewHierarchy socket 响应包含 `version`；当前客户端为 warn-only，版本不匹配只告警。

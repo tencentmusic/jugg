@@ -195,18 +195,20 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
-| `rootLayout` | string | 否 | 节点 id，仅返回该子树（推荐 short id，如 `"content"`） |
+| `rootLayout` | string | 否 | 节点 id，仅返回该子树（推荐 short id，如 `"content"`）；指定后自动跨窗口查找 |
 | `includeGone` | boolean | 否 | `true` 时包含 GONE 节点（默认 `false`） |
 | `allWindows` | boolean | 否 | `true` 时导出所有窗口（默认 `false`，仅 top window） |
 
 **行为要点**：
 - 走 App 进程内 `ViewHierarchyServer`（LocalSocket），**不回退 uiautomator**。
+- App 侧节点数据源为 Dragonfly；传统 Android View 与 Compose 节点统一适配为原有 `windows/root/children` JSON，公开 MCP/HTML 格式不变。Dragonfly 无法枚举窗口时，窗口根列表 Best-effort 降级到旧 `ActivityThread` / `WindowManagerGlobal` 反射路径，根节点仍交给 Dragonfly 提取。
 - HTML 侧虚拟节点裁剪：无语义内容的结构性节点自动裁剪。
-- 服务端剪枝：`MAX_DEPTH=60`，`MAX_NODE_COUNT=5000`。超限时 `truncated:true`。
+- Jugg snapshot 剪枝：`MAX_DEPTH=60`，`MAX_NODE_COUNT=5000`。限制作用于 Dragonfly 返回后的标准化阶段，dump、selector、tap、inspect、verify 都只能访问该范围；超限时 `truncated:true`。若 Dragonfly 原始提取阶段先失败，则无法返回 `truncated:true`。
 - 所有 `bounds`/`padding` 单位为 dp（`dp = (int)(px / density)`）。
-- 虚拟 ID 格式 `_vir_id_<index>`，可直接用于 `tap` 的 `resourceId`。
+- 虚拟 ID 格式 `_vir_id_<hash>`；Dragonfly window/children 遍历顺序和 UI 结构不变时跨请求一致，可用于后续 selector，但不保证列表重排或页面重组后仍指向同一业务节点。
 - `className` 仅保留简单类名；`id` 去掉包名前缀。
 - Kuikly 框架控件（`KRRichTextView` 等）text 通过 `KuiklyViewResolver` 反射提取。
+- 纯 Java 工程没有 Kotlin runtime 时返回 `FEATURE_NOT_SUPPORTED` 和“本工程没有 kotlin 依赖，不支持此功能”。Compose runtime/tooling 不兼容时由拆分后的 Dragonfly Compose 能力局部收口，不切换到旧节点数据源。
 - socket 不可连时：先 `restart` 一次 → 若仍失败 `gradle-build` → `deploy` → `restart` → 重试。
 
 ---
@@ -227,7 +229,7 @@
 
 ### `view-inspect`
 
-通过反射查询 View getter 方法链，返回原始值。
+通过反射查询实时 Dragonfly snapshot 中节点的 getter 方法链，返回原始值。Android 节点以原始 View 为查询对象，Compose 节点以 Dragonfly 节点对象为查询对象。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -240,6 +242,7 @@
 - 返回 `data.values[]`，每项含 `expression`/`value`/`type`/`error`。
 - 返回 `data.density`（设备像素密度），便于 px→dp 换算。
 - 可读取仍在 View 树中的隐藏节点属性；隐藏节点不应作为点击目标。
+- Compose 节点只支持其运行时对象实际暴露的 getter；Android View 专属 getter 会在对应 expression 返回 error。
 - 与 `view-locate` 分工：坐标计算用 `view-locate`；属性查询用 `view-inspect`。
 
 ---
@@ -283,6 +286,7 @@
 **行为要点**：
 - `swipe` 仅支持坐标/百分比模式，不支持元素模式。
 - 元素模式多匹配时不执行，返回 `ERROR` + 匹配元素摘要。
+- 元素模式使用实时 Dragonfly snapshot。Android 节点优先 `View.performClick()`；Compose 节点当前向所属 root View 的 bounds 中心派发 MotionEvent，不保证等价于 Semantics action，也不能可靠判断 disabled/stale。
 - 执行前检查 `topActivity` 稳定性（连续 2 次相同且 onResume，最长等待 5s）。
 - 百分比换算结果做边界钳制 `[0, size-1]`。
 - 推荐交互顺序：`layout-dump + element tap` → `layout-dump + coordinate tap` → 外部截图证据（若可用）+ percent/coordinate tap。当前 MCP `screenshot` action 未注册，不能作为默认公开工具。
@@ -390,6 +394,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 | `NO_DEVICE` | 无可用设备 |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态，需唤醒/解锁后重试 |
 | `APP_NOT_FOREGROUND` | 目标 App 不在前台，需切回目标 App 后重试 |
+| `FEATURE_NOT_SUPPORTED` | 当前工程不支持该能力，例如纯 Java 工程缺少 Dragonfly 所需 Kotlin runtime |
 | `INTERNAL_ERROR` | 内部错误 |
 
 ---

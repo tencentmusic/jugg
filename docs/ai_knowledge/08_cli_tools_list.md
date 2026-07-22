@@ -254,11 +254,12 @@ jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 
 | CLI flag | MCP 参数 | 说明 |
 |----------|----------|------|
-| `--root-layout` / `--rootLayout` | `rootLayout` | 只导出指定节点子树 |
+| `--root-layout` / `--rootLayout` | `rootLayout` | 跨窗口查找并只导出指定节点子树 |
 | `--include-gone` / `--includeGone` | `includeGone=true` | 包含 GONE 节点 |
 | `--all-windows` / `--allWindows` | `allWindows=true` | 导出所有窗口 |
 
 公开输出是 HTML artifact；内部 JSON 仅供 `view-locate` / 布局验证实现消费。
+App 侧所有 UI 查询和动作统一通过 Dragonfly 实时 snapshot；传统 Android View 与 Compose 节点保持原有 HTML/JSON 字段格式。纯 Java 工程明确返回不支持；Compose tooling 不兼容时由 Dragonfly 局部收口，不回退旧 ViewTree。5000 节点/60 层 snapshot 截断范围同时约束 dump、selector、tap、inspect 和 verify。
 
 ### `view-locate`
 
@@ -290,6 +291,7 @@ jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>)
 | 位置参数 | `expressions[]` |
 
 表达式使用 getter/query 方法调用格式，例如 `getText()`、`getVisibility()`、`isEnabled()`。
+Android 节点读取原始 View；Compose 节点读取 Dragonfly 节点对象，因此 View 专属 getter 可能返回单项 error。
 
 ### `tap`
 
@@ -316,6 +318,8 @@ jugg tap [--action tap|long-press|swipe]
 | `--content-desc` / `--contentDesc` | `contentDesc` | 元素模式 selector |
 | `--class-name` / `--className` | `className` | 元素模式 AND 过滤 |
 | `--duration` | `duration` | 手势时长，ms |
+
+元素模式 selector 与 dump 使用同一 Dragonfly 节点模型。Compose 节点当前按 bounds 中心向所属 root View 派发 MotionEvent；尚不等价于 Compose Semantics action，也不能可靠识别 disabled/stale 节点。
 
 `swipe` 在坐标模式必须提供 end 坐标；百分比模式必须提供 end 百分比坐标。
 

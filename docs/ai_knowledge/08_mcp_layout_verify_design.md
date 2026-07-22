@@ -1,6 +1,6 @@
 # MCP UI 布局验证设计
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-22
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -34,7 +34,7 @@ activity-stack
 | `TapMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/TapMcpToolAction.kt` | 公开 `tap`，支持坐标、百分比和元素选择器模式 |
 | `McpAppReadyGuard` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpAppReadyGuard.kt` | runtime observe/mutate 工具的 App 在线、前台和设备交互态检查 |
 | `ViewHierarchyClient` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt` | IDE 侧 LocalSocket 客户端，连接 App 内 ViewHierarchy server |
-| `ViewHierarchyServer*` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | App 内视图树、点击、反射查询服务 |
+| `ViewHierarchyServer*` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | App 内视图树、点击、反射查询服务；`DragonflyHierarchySource` 为 dump、selector、tap、inspect、verify 提供每请求实时 snapshot |
 | `LayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutVerifyMcpToolAction.kt` | 未注册的旧批量断言 action；只能作为历史实现或内部参考 |
 | `FigmaLayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/FigmaLayoutVerifyMcpToolAction.kt` | 未注册的 Figma 关系验证 action；算法细节见 `08_mcp_figma_layout_verify_internals.md` |
 
@@ -63,13 +63,15 @@ activity-stack
 activity-stack
   -> 确认当前页面，避免在错误 Activity 上采证
 layout-dump
-  -> App 内 ViewHierarchy LocalSocket dump
+  -> App 内 ViewHierarchy LocalSocket 调用 Dragonfly 提取 Android View + Compose 节点
+  -> DragonflyHierarchySource 适配为原有 windows/root/children JSON
   -> LayoutDumpHelper 输出 HTML artifact，并保留内部 JSON
 view-locate
   -> 复用内部 JSON，按 text/resourceId/contentDesc 精确匹配节点
   -> 返回 bounds/position/size/matchCount/matches
 view-inspect
-  -> 通过 ViewHierarchyClient 在 App 侧执行 getter 链
+  -> 通过 ViewHierarchyClient 在 App 侧抓取实时 Dragonfly snapshot
+  -> Android 节点对原始 View、Compose 节点对 Dragonfly 节点对象执行 getter 链
   -> 返回 expression/value/type/density
 ```
 
@@ -131,6 +133,14 @@ tap
 | 注册表是公开能力的唯一可靠入口 | action 类存在不代表 MCP 可调用；先看 `defaultActions()` / `tools/list` |
 | `layout-dump` 公开 HTML，不公开内部 JSON | Agent 不应依赖内部 JSON 文件路径作为稳定接口 |
 | ViewHierarchy 是 App 内 LocalSocket Server-only | socket 不可用时不要假设会自动回退 uiautomator |
+| Dragonfly 窗口枚举有旧路径降级 | Dragonfly 返回空或枚举失败时，以 `ActivityThread` / `WindowManagerGlobal` Best-effort 补根窗口，节点仍由 Dragonfly 转换；这不是旧 ViewTree 数据源回退 |
+| 纯 Java 工程不支持 Dragonfly | 没有 Kotlin runtime 时直接返回“Kotlin runtime is unavailable; this feature is not supported”和 `FEATURE_NOT_SUPPORTED`；`layout-dump`、`view-locate`、`view-inspect` 及元素模式 tap/long-press 使用相同错误语义，不重试瞬态错误流程 |
+| snapshot 范围同时约束查询和动作 | 5000 节点/60 层限制发生在 Dragonfly 原始提取之后；selector、tap、inspect、verify 无法访问被截断范围，原始提取先失败时也没有 `truncated:true` |
+| Compose action 仍是坐标降级 | 元素模式 `tap` 可按 Compose text/虚拟 id 命中，但当前只向所属 root View 的 bounds 中心派发 MotionEvent，不等价于 Semantics action，也无法可靠判断 disabled/stale |
+| Compose inspect 属性有限 | 当前只能反射 Dragonfly 节点现有 getter；Android View 专属 getter 会在对应 expression 返回 error |
+| Compose layout verify 属性有限 | text、bounds 和几何关系可用；Dragonfly 未提供的 clickable/enabled/padding/alpha/background 等属性返回 unavailable |
+| Compose 虚拟 ID 依赖确定性遍历 | window/children 顺序和 UI 结构不变时跨请求一致；重排、插入或重组可能改变 ID |
+| Dragonfly Compose 依赖宿主 Compose runtime/tooling 兼容性 | Compose 能力已拆为独立 AAR，并在不兼容时局部收口；具体版本覆盖仍需目标 App 验证 |
 | `view-locate` 目前只按 text/resourceId/contentDesc 匹配 | `figmaNode` 参数存在于 schema，但当前实现没有用它做 IoU 选择 |
 | `view-locate` 多命中仍返回首个节点 | `matchCount > 1` 时必须消歧，不能把首个节点当作稳定断言或点击目标 |
 | `view-inspect` 可读隐藏节点 | hidden/GONE 节点属性可作为状态证据，但不能证明可点击 |

@@ -20,15 +20,15 @@ public class ViewTapper {
      * Tap a matched element. Returns true when click dispatch is accepted.
      */
     public boolean tap(MatchedElement element) {
-        if (element == null || element.view == null) {
+        if (element == null) {
             return false;
         }
 
         try {
-            if (element.view.isClickable() && element.view.performClick()) {
+            if (element.view != null && element.view.isClickable() && element.view.performClick()) {
                 return true;
             }
-            return dispatchTapToRoot(element.window.rootView, element.centerX, element.centerY);
+            return dispatchTapToRoot(element.rootView, element.centerX, element.centerY);
         } catch (Throwable t) {
             LogUtils.e(TAG, "tap failed", t);
             return false;
@@ -39,15 +39,15 @@ public class ViewTapper {
      * Long press a matched element. Returns true when long press dispatch is accepted.
      */
     public boolean longPress(MatchedElement element, long durationMs) {
-        if (element == null || element.view == null) {
+        if (element == null) {
             return false;
         }
         long holdDuration = Math.max(50L, durationMs);
         try {
-            if (element.view.isLongClickable() && element.view.performLongClick()) {
+            if (element.view != null && element.view.isLongClickable() && element.view.performLongClick()) {
                 return true;
             }
-            return dispatchLongPressToRoot(element.window.rootView, element.centerX, element.centerY, holdDuration);
+            return dispatchLongPressToRoot(element.rootView, element.centerX, element.centerY, holdDuration);
         } catch (Throwable t) {
             LogUtils.e(TAG, "longPress failed", t);
             return false;
@@ -55,17 +55,14 @@ public class ViewTapper {
     }
 
     /**
-     * Tap by absolute screen coordinates. Windows are checked in reverse order
-     * to favor top-most overlays.
+     * Tap by absolute screen coordinates. Root views are expected in top-to-bottom order.
      */
-    public boolean tapCoordinate(List<WindowInfo> windows, int x, int y) {
-        if (windows == null || windows.isEmpty()) {
+    public boolean tapCoordinate(List<View> rootViews, int x, int y) {
+        if (rootViews == null || rootViews.isEmpty()) {
             return false;
         }
 
-        for (int i = windows.size() - 1; i >= 0; i--) {
-            WindowInfo window = windows.get(i);
-            View root = window.rootView;
+        for (View root : rootViews) {
             if (root == null) {
                 continue;
             }
@@ -80,7 +77,7 @@ public class ViewTapper {
             }
         }
 
-        return dispatchTapToRoot(windows.get(0).rootView, x, y);
+        return dispatchTapToRoot(rootViews.get(0), x, y);
     }
 
     private boolean dispatchTapToRoot(View rootView, int screenX, int screenY) {
@@ -122,19 +119,32 @@ public class ViewTapper {
 
         long downTime = SystemClock.uptimeMillis();
         MotionEvent down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, localX, localY, 0);
-        MotionEvent up = MotionEvent.obtain(downTime, downTime + durationMs, MotionEvent.ACTION_UP, localX, localY, 0);
-
         try {
             boolean downHandled = rootView.dispatchTouchEvent(down);
-            SystemClock.sleep(durationMs);
-            boolean upHandled = rootView.dispatchTouchEvent(up);
-            return downHandled || upHandled;
+            boolean scheduled = rootView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    MotionEvent up = MotionEvent.obtain(
+                        downTime,
+                        SystemClock.uptimeMillis(),
+                        MotionEvent.ACTION_UP,
+                        localX,
+                        localY,
+                        0
+                    );
+                    try {
+                        rootView.dispatchTouchEvent(up);
+                    } finally {
+                        up.recycle();
+                    }
+                }
+            }, durationMs);
+            return downHandled || scheduled;
         } catch (Throwable t) {
             LogUtils.e(TAG, "dispatchLongPressToRoot failed", t);
             return false;
         } finally {
             down.recycle();
-            up.recycle();
         }
     }
 }

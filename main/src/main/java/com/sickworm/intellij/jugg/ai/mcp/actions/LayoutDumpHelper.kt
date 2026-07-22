@@ -106,6 +106,12 @@ internal object LayoutDumpHelper {
                         packageName = packageName,
                         fallbackMessage = "ViewHierarchy server is unavailable or returned invalid response",
                     )
+                if (!dumpResult.errorMessage.isNullOrBlank()) {
+                    return@executeWithRuntimeObserveRetry ViewHierarchyFailureDiagnoser.toolError(
+                        callerToolName,
+                        dumpResult.errorMessage,
+                    )
+                }
 
                 val payloadJson = dumpResult.payloadJson
                 val remoteFilePath = dumpResult.remoteFilePath

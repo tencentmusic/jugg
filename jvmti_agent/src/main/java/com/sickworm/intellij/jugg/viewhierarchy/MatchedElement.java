@@ -6,14 +6,21 @@ import org.json.JSONException;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.Collections;
+import java.util.Map;
+
+import top.kokomi.dragonfly.node.HierarchyNode;
+
 /**
- * MatchedElement captures one selector match and keeps the original View reference
- * for follow-up tap execution.
+ * MatchedElement keeps the normalized node and its optional runtime objects for follow-up actions.
  */
 final class MatchedElement {
 
+    final HierarchyNode hierarchyNode;
     final View view;
-    final WindowInfo window;
+    final View rootView;
+    final ViewNode node;
+    final Map<String, String> properties;
     final String text;
     final String resourceId;
     final String contentDesc;
@@ -23,29 +30,42 @@ final class MatchedElement {
     final int centerY;
     final String visibility;
     final boolean clickable;
+    final boolean enabled;
+    final float alpha;
+    final ViewNode.Padding padding;
 
     MatchedElement(
+        HierarchyNode hierarchyNode,
         View view,
-        WindowInfo window,
-        String text,
-        String resourceId,
-        String contentDesc,
-        String className,
-        ViewNode.Bounds bounds,
-        String visibility,
-        boolean clickable
+        View rootView,
+        ViewNode node,
+        Map<String, String> properties
     ) {
+        this.hierarchyNode = hierarchyNode;
         this.view = view;
-        this.window = window;
-        this.text = text;
-        this.resourceId = resourceId;
-        this.contentDesc = contentDesc;
-        this.className = className;
-        this.bounds = bounds;
-        this.centerX = bounds.centerX();
-        this.centerY = bounds.centerY();
-        this.visibility = visibility;
-        this.clickable = clickable;
+        this.rootView = rootView;
+        this.node = node;
+        this.properties = properties == null ? Collections.emptyMap() : properties;
+        this.text = node.text;
+        this.resourceId = node.id;
+        this.contentDesc = node.contentDesc;
+        this.className = node.className;
+        this.bounds = node.bounds;
+        this.centerX = node.bounds.centerX();
+        this.centerY = node.bounds.centerY();
+        this.visibility = node.visibility;
+        this.clickable = node.clickable;
+        this.enabled = node.enabled;
+        this.alpha = node.alpha;
+        this.padding = node.padding;
+    }
+
+    Object inspectTarget() {
+        return view != null ? view : hierarchyNode;
+    }
+
+    boolean hasProperty(String property) {
+        return view != null || properties.containsKey(property);
     }
 
     JSONObject toJson() throws JSONException {

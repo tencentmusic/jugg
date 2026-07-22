@@ -163,6 +163,7 @@ python3 {SKILL_DIR}/scripts/jugg.py tap --x-percent 50 --y-percent 80 --action s
 - `--action {tap|long-press|swipe}` — default: `tap`.
 - `swipe` requires `--end-x/--end-y` or `--end-x-percent/--end-y-percent`.
 - All flags also accept camelCase (= MCP param name), e.g. `--resourceId`, `--xPercent`.
+- Element selectors use the same Dragonfly node model as layout dump. Compose taps currently dispatch a MotionEvent at node center and cannot guarantee Semantics action, disabled-state, or stale-node behavior.
 
 ---
 
@@ -197,16 +198,19 @@ python3 {SKILL_DIR}/scripts/jugg.py view-inspect --content-desc "Avatar" "getWid
 - Selector: `--text`/`--resource-id`/`--content-desc` (at least one), with optional `--class-name`.
 - `<expr>`: read-only getter/query method expression. Common: `getText()`, `getVisibility()`, `getWidth()`, `getHeight()`, `getTextSize()`, `getCurrentTextColor()`, `getBackground()`, `getTranslationX()`, `getTranslationY()`, `getAlpha()`, `isClickable()`, `isEnabled()`.
 - `view-inspect` may read non-clickable hidden views that stay in the hierarchy; hidden views are not safe tap targets.
+- Android nodes inspect their original View; Compose nodes inspect the Dragonfly node object, so Android View-only getters return a per-expression error.
 - Output: expression/value/type pairs + density for px→dp conversion.
 
 ### `layout-dump`
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py layout-dump
-python3 {SKILL_DIR}/scripts/jugg.py layout-dump --root-layout content_frame   # subtree only (View resource name, not R.id.xxx)
+python3 {SKILL_DIR}/scripts/jugg.py layout-dump --root-layout content_frame   # cross-window subtree (View resource name, not R.id.xxx)
 python3 {SKILL_DIR}/scripts/jugg.py layout-dump --include-gone                # include GONE views
 python3 {SKILL_DIR}/scripts/jugg.py layout-dump --all-windows                 # all windows (dialogs, popups)
 ```
+
+All app-side UI queries and actions use a fresh Dragonfly snapshot while keeping the existing HTML output. The 5000-node/60-level snapshot boundary also limits selectors, taps, inspections, and verification. Java-only projects return an explicit unsupported error. A Compose virtual ID remains stable only while Dragonfly traversal order and UI structure are unchanged. Compose element taps currently dispatch a MotionEvent at the node center rather than invoking a Semantics action.
 
 Output: HTML file with full UI hierarchy.
 

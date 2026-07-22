@@ -548,15 +548,13 @@ class TapMcpToolAction : McpToolAction {
             }
 
             is FindAndTapResult.Failure -> {
-                McpToolResult(
-                    status = McpToolStatus.ERROR,
-                    message = "tap failed. Reason: ViewHierarchy server error: ${serverResult.message}",
+                ViewHierarchyFailureDiagnoser.toolError(
+                    toolName = action,
+                    errorMessage = "ViewHierarchy server error: ${serverResult.message}",
                     data = mapOf(
                         "action" to action,
                         "mode" to "element",
                     ),
-                    artifacts = emptyList(),
-                    errorCode = McpErrorCode.INTERNAL_ERROR,
                 )
             }
         }

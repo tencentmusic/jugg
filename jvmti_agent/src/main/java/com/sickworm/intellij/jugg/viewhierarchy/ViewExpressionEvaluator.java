@@ -83,6 +83,9 @@ public class ViewExpressionEvaluator {
     // ---- Expression parsing ----
 
     static List<MethodCall> parseChain(String expression) throws EvalException {
+        if (expression == null || expression.trim().isEmpty()) {
+            throw new EvalException("expression is empty");
+        }
         List<MethodCall> result = new ArrayList<>();
         int pos = 0;
         int len = expression.length();

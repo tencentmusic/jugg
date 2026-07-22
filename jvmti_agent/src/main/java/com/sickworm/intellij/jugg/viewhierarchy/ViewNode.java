@@ -30,7 +30,6 @@ public class ViewNode {
     /** Diagnostic message for this node (e.g. resolve failure from custom view resolvers). */
     public String message = "";
     public final List<ViewNode> children = new ArrayList<>();
-    public final List<ComposeNode> composeNodes = new ArrayList<>();
 
     /**
      * Shorten resource id by stripping the package prefix before the slash.
@@ -95,14 +94,6 @@ public class ViewNode {
                 childArray.put(child.toJson());
             }
             json.put("children", childArray);
-        }
-
-        if (!composeNodes.isEmpty()) {
-            JSONArray composeArray = new JSONArray();
-            for (ComposeNode composeNode : composeNodes) {
-                composeArray.put(composeNode.toJson());
-            }
-            json.put("composeNodes", composeArray);
         }
 
         return json;

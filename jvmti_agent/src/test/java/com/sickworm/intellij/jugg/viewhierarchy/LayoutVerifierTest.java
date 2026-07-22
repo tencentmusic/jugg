@@ -42,6 +42,71 @@ public class LayoutVerifierTest {
         Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
     }
 
+    @Test
+    public void verify_shouldReportUnavailableComposeViewProperty() throws JSONException {
+        ViewNode node = new ViewNode();
+        node.id = "_vir_id_1";
+        node.text = "Compose";
+        node.className = "Text";
+        node.bounds.right = 100;
+        node.bounds.bottom = 40;
+        MatchedElement composeElement = new MatchedElement(
+            null,
+            null,
+            Mockito.mock(View.class),
+            node,
+            Collections.emptyMap()
+        );
+        Map<String, MatchedElement> elements = new HashMap<>();
+        elements.put("_vir_id_1", composeElement);
+        LayoutVerifier verifier = new LayoutVerifier(
+            new FixedElementFinder(elements),
+            makeDisplayMetrics(1.0f, 1.0f)
+        );
+
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("_vir_id_1"));
+        params.put("assert", assertProperty("enabled"));
+
+        JSONObject response = verifier.verify(params);
+
+        Assert.assertEquals("error", response.getString("status"));
+        Assert.assertTrue(response.getString("message").contains("unavailable"));
+    }
+
+    @Test
+    public void verify_shouldUseRawComposeTextColor() throws JSONException {
+        ViewNode node = new ViewNode();
+        node.id = "_vir_id_2";
+        node.text = "Compose";
+        node.className = "Text";
+        node.bounds.right = 100;
+        node.bounds.bottom = 40;
+        Map<String, String> properties = new HashMap<>();
+        properties.put("textColor", "FF000000");
+        MatchedElement composeElement = new MatchedElement(
+            null,
+            null,
+            Mockito.mock(View.class),
+            node,
+            properties
+        );
+        LayoutVerifier verifier = new LayoutVerifier(
+            new FixedElementFinder(Collections.singletonMap("_vir_id_2", composeElement)),
+            makeDisplayMetrics(1.0f, 1.0f)
+        );
+
+        JSONObject assertParams = assertProperty("textColor");
+        assertParams.put("value", "#FF000000");
+        JSONObject params = new JSONObject();
+        params.put("target", selectorById("_vir_id_2"));
+        params.put("assert", assertParams);
+
+        JSONObject response = verifier.verify(params);
+
+        Assert.assertEquals("PASS", response.getJSONObject("data").getString("result"));
+    }
+
     // ---- Test: target not found → ERROR with candidates list ----
 
     @Test
@@ -586,16 +651,24 @@ public class LayoutVerifierTest {
     }
 
     private MatchedElement makeElement(String resourceId, String text, View view, ViewNode.Bounds bounds) {
+        ViewNode node = new ViewNode();
+        node.className = view.getClass().getSimpleName();
+        node.id = "com.example:id/" + resourceId;
+        node.text = text;
+        node.bounds = bounds;
+        node.clickable = view.isClickable();
+        node.enabled = view.isEnabled();
+        node.alpha = view.getAlpha();
+        node.padding.left = view.getPaddingLeft();
+        node.padding.top = view.getPaddingTop();
+        node.padding.right = view.getPaddingRight();
+        node.padding.bottom = view.getPaddingBottom();
         return new MatchedElement(
+            null,
             view,
-            new WindowInfo("activity", "Main", null),
-            text,
-            "com.example:id/" + resourceId,
-            "",
-            view.getClass().getSimpleName(),
-            bounds,
-            "visible",
-            false
+            null,
+            node,
+            Collections.emptyMap()
         );
     }
 
@@ -663,7 +736,7 @@ public class LayoutVerifierTest {
         private final Map<String, MatchedElement> byResourceId;
 
         FixedElementFinder(Map<String, MatchedElement> byResourceId) {
-            super(new EmptyViewTreeDumper());
+            super(DragonflyHierarchySource.Snapshot.empty());
             this.byResourceId = byResourceId;
         }
 
@@ -695,12 +768,4 @@ public class LayoutVerifierTest {
         }
     }
 
-    // ---- Minimal ViewTreeDumper stub (no actual windows) ----
-
-    private static final class EmptyViewTreeDumper extends ViewTreeDumper {
-        @Override
-        public List<WindowInfo> getAllWindows() {
-            return Collections.emptyList();
-        }
-    }
 }

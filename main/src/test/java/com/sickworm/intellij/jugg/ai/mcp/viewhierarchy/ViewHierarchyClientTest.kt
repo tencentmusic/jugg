@@ -125,6 +125,26 @@ class ViewHierarchyClientTest {
         Assert.assertTrue(client.versionWarnings.isEmpty())
     }
 
+    @Test
+    fun testDumpLayoutKeepsServerErrorMessage() {
+        val client = StubViewHierarchyClient(
+            adb = FakeDeviceAdb(emptyMap()),
+            packageName = "com.example.app",
+            socketCandidates = listOf("jugg_vh"),
+            responsesBySocket = mapOf(
+                "jugg_vh" to ViewHierarchyResponse(
+                    status = "error",
+                    message = "本工程没有 kotlin 依赖，不支持此功能",
+                    data = null,
+                ),
+            ),
+        )
+
+        val result = client.dumpLayout()
+
+        Assert.assertEquals("本工程没有 kotlin 依赖，不支持此功能", result?.errorMessage)
+    }
+
     private fun okResponse(version: String = "1.0"): ViewHierarchyResponse {
         return ViewHierarchyResponse(
             status = "ok",

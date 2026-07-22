@@ -10,6 +10,24 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
  */
 internal object ViewHierarchyFailureDiagnoser {
 
+    fun toolError(
+        toolName: String,
+        errorMessage: String,
+        data: Map<String, Any> = emptyMap(),
+    ): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "$toolName failed. Reason: $errorMessage",
+            data = data,
+            artifacts = emptyList(),
+            errorCode = if (errorMessage.contains(NO_KOTLIN_MESSAGE)) {
+                McpErrorCode.FEATURE_NOT_SUPPORTED
+            } else {
+                McpErrorCode.INTERNAL_ERROR
+            },
+        )
+    }
+
     fun unavailableResult(
         toolName: String,
         adb: IDeviceAdb,
@@ -128,6 +146,7 @@ internal object ViewHierarchyFailureDiagnoser {
     }
 
     private const val ACTIVITY_DUMP_COMMAND = "dumpsys activity activities"
+    private const val NO_KOTLIN_MESSAGE = "Kotlin runtime is unavailable; this feature is not supported"
     private val WAKEFULNESS_PATTERN = Regex("""mWakefulness=([A-Za-z]+)""")
     private val SCREEN_STATE_PATTERN = Regex("""screenState=([A-Z_]+)""")
     private val INTERACTIVE_STATE_PATTERN = Regex("""interactiveState=([A-Z_]+)""")

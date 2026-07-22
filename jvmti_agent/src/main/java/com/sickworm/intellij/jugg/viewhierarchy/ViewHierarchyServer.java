@@ -38,13 +38,8 @@ public class ViewHierarchyServer {
 
     private final Context appContext;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final ViewTreeDumper viewTreeDumper = new ViewTreeDumper();
-    private final ElementFinder elementFinder = new ElementFinder(viewTreeDumper);
+    private final DragonflyHierarchySource hierarchySource = new DragonflyHierarchySource();
     private final ViewTapper viewTapper = new ViewTapper();
-    private final LayoutVerifier layoutVerifier = new LayoutVerifier(
-        elementFinder,
-        android.content.res.Resources.getSystem().getDisplayMetrics()
-    );
 
     private volatile boolean running;
 
@@ -258,7 +253,7 @@ public class ViewHierarchyServer {
             String rootLayout = optString(params, "rootLayout");
             boolean excludeGone = optBoolean(params, "excludeGone", false);
             boolean topWindowOnly = optBoolean(params, "topWindowOnly", true);
-            return ok(viewTreeDumper.dumpWindowsJson(rootLayout, excludeGone, topWindowOnly));
+            return ok(hierarchySource.dumpWindowsJson(rootLayout, excludeGone, topWindowOnly));
         } catch (Throwable t) {
             LogUtils.e(TAG, "doLayoutDump failed", t);
             return error("layout_dump failed: " + t.getMessage(), null);
@@ -273,6 +268,7 @@ public class ViewHierarchyServer {
         boolean topWindowOnly = optBoolean(params, "topWindowOnly", true);
 
         try {
+            ElementFinder elementFinder = captureFinder(topWindowOnly);
             List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly);
             return ok(buildElementsData(matches));
         } catch (Throwable t) {
@@ -300,6 +296,7 @@ public class ViewHierarchyServer {
         String actionName = isLongPress ? "find_and_long_press" : "find_and_tap";
 
         try {
+            ElementFinder elementFinder = captureFinder(topWindowOnly);
             List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly);
             if (matches.isEmpty()) {
                 List<MatchedElement> candidates = elementFinder.findClickableCandidates(5, topWindowOnly);
@@ -343,7 +340,7 @@ public class ViewHierarchyServer {
         }
 
         try {
-            boolean tapped = viewTapper.tapCoordinate(viewTreeDumper.getAllWindows(), x, y);
+            boolean tapped = viewTapper.tapCoordinate(hierarchySource.capture(false).rootViews(), x, y);
             JSONObject data = new JSONObject();
             data.put("x", x);
             data.put("y", y);
@@ -360,6 +357,10 @@ public class ViewHierarchyServer {
 
     private JSONObject doVerify(JSONObject params) {
         try {
+            LayoutVerifier layoutVerifier = new LayoutVerifier(
+                captureFinder(true),
+                android.content.res.Resources.getSystem().getDisplayMetrics()
+            );
             return layoutVerifier.verify(params);
         } catch (Throwable t) {
             LogUtils.e(TAG, "doVerify failed", t);
@@ -384,6 +385,7 @@ public class ViewHierarchyServer {
                 return error("eval_view requires non-empty 'expressions' array.", null);
             }
 
+            ElementFinder elementFinder = captureFinder(true);
             List<MatchedElement> matches = elementFinder.findInspectable(
                 text, resourceId, contentDesc, className, true);
 
@@ -411,7 +413,10 @@ public class ViewHierarchyServer {
             }
 
             MatchedElement target = matches.get(0);
-            android.view.View view = target.view;
+            Object inspectTarget = target.inspectTarget();
+            if (inspectTarget == null) {
+                return error("Matched element has no inspectable runtime object.", null);
+            }
 
             JSONArray values = new JSONArray();
             for (int i = 0; i < expressions.length(); i++) {
@@ -420,7 +425,7 @@ public class ViewHierarchyServer {
                 entry.put("expression", expr);
                 try {
                     ViewExpressionEvaluator.Result result =
-                        ViewExpressionEvaluator.evaluate(view, expr);
+                        ViewExpressionEvaluator.evaluate(inspectTarget, expr);
                     entry.put("value", result.jsonValue == null
                         ? JSONObject.NULL : result.jsonValue);
                     entry.put("type", result.typeName);
@@ -434,7 +439,7 @@ public class ViewHierarchyServer {
             }
 
             JSONObject data = new JSONObject();
-            data.put("className", view.getClass().getName());
+            data.put("className", inspectTarget.getClass().getName());
             data.put("resourceId", ViewNode.shortenId(target.resourceId));
             data.put("density", android.content.res.Resources.getSystem()
                 .getDisplayMetrics().density);
@@ -469,7 +474,12 @@ public class ViewHierarchyServer {
         return sb.toString();
     }
 
-    private JSONObject buildElementsData(List<MatchedElement> matches) throws Exception {        JSONObject data = new JSONObject();
+    private ElementFinder captureFinder(boolean topWindowOnly) {
+        return new ElementFinder(hierarchySource.capture(topWindowOnly));
+    }
+
+    private JSONObject buildElementsData(List<MatchedElement> matches) throws Exception {
+        JSONObject data = new JSONObject();
         JSONArray elements = new JSONArray();
         for (MatchedElement match : matches) {
             elements.put(match.toMatchedElementJson());
