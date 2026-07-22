@@ -56,7 +56,7 @@ open class DataBindingCompileTest {
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
 //            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java",
-            "com/example/myapplication/DataBindingInfo.kt",
+            "com/example/myapplication/DataBindingInfo.java",
             "layout/activity_data_binding_java_demo.xml",
         ))
 
@@ -94,7 +94,7 @@ open class DataBindingCompileTest {
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
-            "com/example/library1/DataBindingInfo.kt",
+            "com/example/library1/DataBindingInfo.java",
             "layout/activity_data_binding_java_demo_library1.xml",
         ))
 
@@ -224,7 +224,7 @@ open class DataBindingCompileTest {
             assertTrue(result.isAllSuccess)
             checkOutputFiles(result, listOf(
 //                "com/example/myapplication/databinding/ActivityDataBindingNewBinding.java",
-                "com/example/myapplication/DataBindingInfo.kt",
+                "com/example/myapplication/DataBindingInfo.java",
                 "layout/activity_data_binding_new.xml",
             ))
 
@@ -246,7 +246,7 @@ open class DataBindingCompileTest {
             assertTrue(result.isAllSuccess)
             checkOutputFiles(result, listOf(
 //                "com/example/myapplication/databinding/ActivityDataBindingNew2Binding.java",
-                "com/example/myapplication/DataBindingInfo.kt",
+                "com/example/myapplication/DataBindingInfo.java",
                 "layout/activity_data_binding_new2.xml",
             ))
 
@@ -268,7 +268,7 @@ open class DataBindingCompileTest {
             assertTrue(result.isAllSuccess)
             checkOutputFiles(result, listOf(
 //                "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBinding.java",
-                "com/example/myapplication/DataBindingInfo.kt",
+                "com/example/myapplication/DataBindingInfo.java",
                 "layout/activity_data_binding_old_include.xml",
             ))
 

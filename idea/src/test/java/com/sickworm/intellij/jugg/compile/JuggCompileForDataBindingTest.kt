@@ -500,10 +500,10 @@ class JuggCompileForDataBindingTest {
     }
 
     /**
-     * Test Case 6: DataBinding should use kapt when databinding dependencies are in kapt configuration
+     * Test Case 6: DataBinding should keep using apt when databinding dependencies are in kapt configuration
      */
     @Test
-    fun testDataBindingUseKaptWhenDependenciesPresent() {
+    fun testDataBindingAlwaysUsesApt() {
         val module = context.modules.values.first()
         val fakeKaptJar = File(buildDir, "tmp/databinding-compiler-7.2.2.jar")
         fakeKaptJar.parentFile.mkdirs()
@@ -516,7 +516,7 @@ class JuggCompileForDataBindingTest {
         val moduleWithKapt = module.copy(kaptDependencies = listOf(kaptDependency))
 
         val argsManager = DataBindingArgsManager(context, moduleWithKapt)
-        assertFalse(argsManager.isJava, "DataBinding should use kapt when databinding dependency is in kaptDependencies")
+        assertTrue(argsManager.isJava, "DataBinding should use apt even when databinding dependency is in kaptDependencies")
     }
 
     /**

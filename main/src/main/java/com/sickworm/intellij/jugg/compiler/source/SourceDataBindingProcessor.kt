@@ -81,7 +81,8 @@ class SourceDataBindingProcessor(
             TimeLogger.end("databinding_mapper", logger)
 
             if (!result.isAllSuccess) {
-                if (DataBindingArgsManager.isLastFallbackAptFailed && isCanRetryAfterKotlinCompile) {
+                val hasKotlinSource = task.files.any { it.type == CompileFile.Type.Kotlin }
+                if (hasKotlinSource && isCanRetryAfterKotlinCompile) {
                     logger.info("DataBinding failed with apt, retry with source compilation one time.")
                     isCanRetryAfterKotlinCompile = false
                     val kotlinCompileTask = CompileTask(

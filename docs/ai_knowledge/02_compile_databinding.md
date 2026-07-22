@@ -48,7 +48,7 @@
 | `dataBindingDependencyArtifacts` | `DataBindingArgsManager` | Mapper APT 的 setter store 输入目录；不同来源保留在独立子目录，避免同名 JSON 覆盖 |
 | `setterStoreCacheDir` | `DataBindingArgsManager` | module + variant 隔离的稳定缓存目录，不随当前轮 DataBinding 工作区 reset；保存 baseline hash 和 merged store generation |
 | `mapperDir` | `DataBindingArgsManager` | 保存 delegate mapper、full mapper、历史 incremental mapper 源 |
-| `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` | `DataBindingArgsManager.Companion` | KAPT fallback APT 分支的跨阶段状态；当前默认 APT 路径下通常只用于失败重试判断 |
+| `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` | `DataBindingArgsManager.Companion` | KAPT fallback APT 分支的兼容状态；默认 APT 路径的 Kotlin class 重试由 `SourceDataBindingProcessor` 根据当前任务是否含 Kotlin 源决定 |
 
 ---
 
@@ -99,7 +99,7 @@ SourceCompiler.prepareSourceCompile()
 - mapper 使用 `DataBinderMapperImpl_Inc_N` 增量编号；`N` 来自已部署 dex 中同包名 inc mapper 的数量。
 - 源码阶段不能调用 `argsManager.reset()`，因为 mapper 生成依赖资源阶段刚写入的 `tempDataBindingLayoutXmlDir`。
 - 当前 `isFallbackApt = true`，DataBinding mapper 默认走 Java APT trigger；KAPT 失败 fallback 分支保留在代码中，但排查当前行为时应先按 APT 路径看。
-- fallback APT 也失败时通过 `isLastFallbackAptFailed` 通知 `SourceDataBindingProcessor` 先编译 Kotlin class 后再重试一次 mapper 生成。
+- DataBinding mapper 失败且当前任务含 Kotlin 源时，`SourceDataBindingProcessor` 会先编译 Kotlin class，再重试一次 mapper 生成；第二次失败不再重试。正常成功路径仍只有一次 DataBinding processor invocation。
 - `DataBindingClasspathHelper` 只给 DataBinding 相关依赖做 annotation processing，避免 ARouter 等其他 processor 进入这条旁路。
 - Mapper APT 对 project module 优先复用 Jugg merged store；没有有效 cache 时回到当前 variant 最近一次 Gradle 完整构建生成的模块 `*-setter_store.json`。AAR transform 根目录下的 `data-binding/*-setter_store.json` 仍全部收集。
 - adapter declaration source 变化时复用 Mapper 的同一次官方 APT/KAPT；Jugg 读取其 current-module store，只解析容器和 declaring type，用于替换同一类型的历史记录，不自行推导 adapter 方法签名。
