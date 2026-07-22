@@ -350,6 +350,10 @@ class SourceCompileDataBindingTest {
                     "initially fails in prepareSourceCompile. The retry should skip DataBinding " +
                     "and compile language sources first."
             )
+            assertTrue(
+                result.isAllSuccess,
+                "DataBinding mapper failure should remain fail-open after language compilation succeeds."
+            )
 
             // Verify no duplicate class outputs exist in the result.
             // Bug scenario: in the retry path, the second compileLanguageStages call

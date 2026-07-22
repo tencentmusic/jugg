@@ -4,6 +4,7 @@ package com.sickworm.intellij.jugg.compiler.databinding
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
@@ -16,12 +17,12 @@ import java.util.jar.JarFile
 object DataBindingClasspathHelper {
 
     /**
-     * Classpath carries aptDependencies, kotlinPlugins, and adapterJson.
+     * Classpath carries annotation processor dependencies, Kotlin plugins, and setter stores.
      */
     data class Classpath(
         val aptDependencies: List<File>,
         val kotlinPlugins: List<File>,
-        val adapterJson: List<File>,
+        val setterStoreFiles: List<File>,
     )
 
     private val databindingDependencies = listOf(
@@ -59,13 +60,7 @@ object DataBindingClasspathHelper {
             throw IllegalStateException("DataBinding apt not found, missing dependencies: $missingDependencies. " +
                     "Fallback to gradle once may fix this issue.")
         }
-        // ~/.gradle/caches/transforms-3/37ceb468e4faf5883fcae514a0e5195b/transformed/databinding-adapters-7.2.2/
-        // data-binding/androidx.databinding.library.baseAdapters-setter_store.json
-        val adapterJson = adapterDependency?.file?.parentFile?.parentFile
-            ?.resolve("data-binding")
-            ?.listFiles()
-            ?.filter { it.name.endsWith("-setter_store.json") }
-            ?: emptyList()
+        val setterStoreFiles = findModuleSetterStores(modules) + findLibrarySetterStores(modules)
 
         var kaptPlugin: File? = null
         if (!isApt) {
@@ -79,8 +74,36 @@ object DataBindingClasspathHelper {
         return Classpath(
             filteredDependencies.map { it.file },
             if (kaptPlugin == null) emptyList() else listOf(kaptPlugin),
-            adapterJson
+            setterStoreFiles.distinctBy { it.absolutePath }.sortedBy { it.absolutePath }
         )
+    }
+
+    private fun findModuleSetterStores(modules: List<ModuleInfo>): List<File> {
+        return modules.flatMap { module ->
+            File(
+                module.buildPathInfo.buildDir,
+                "intermediates/data_binding_artifact/${module.buildVariant}",
+            ).listFilesRecursively().filter(::isSetterStore)
+        }
+    }
+
+    private fun findLibrarySetterStores(modules: List<ModuleInfo>): List<File> {
+        return modules
+            .flatMap { it.libraryDependencies }
+            .flatMap { it.file.possibleArtifactRoots() }
+            .distinctBy { it.absolutePath }
+            .map { File(it, "data-binding") }
+            .flatMap { it.listFilesRecursively() }
+            .filter(::isSetterStore)
+    }
+
+    private fun File.possibleArtifactRoots(): List<File> {
+        val start = if (isDirectory) this else parentFile ?: return emptyList()
+        return generateSequence(start) { it.parentFile }.take(3).toList()
+    }
+
+    private fun isSetterStore(file: File): Boolean {
+        return file.isFile && file.name.endsWith("-setter_store.json")
     }
 
     private fun filterNonDataBindingAnnotationProcessor(

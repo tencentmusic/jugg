@@ -1,6 +1,6 @@
 # 编译系统：DataBinding / ViewBinding
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-22
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -28,7 +28,7 @@
 | `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | 资源阶段：split layout XML，生成 ViewBinding base classes 或 DataBinding trigger file |
 | `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | 源码阶段：运行 DataBinding annotation processor，生成增量 mapper holder，合并 library/app BR |
 | `LayoutIncludeAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LayoutIncludeAnalyzer.kt` | 找到当前变更 layout 通过 `<include>` 影响到的 layout info |
-| `DataBindingClasspathHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingClasspathHelper.kt` | 为 DataBinding annotation processor 准备 compiler classpath、plugin、adapter json |
+| `DataBindingClasspathHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingClasspathHelper.kt` | 为 DataBinding annotation processor 准备 compiler classpath、plugin 和 Gradle/AAR setter stores |
 | `DataBindingTemplates` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingTemplates.kt` | 生成 mapper delegate、full mapper、incremental holder 模板 |
 
 ---
@@ -44,6 +44,7 @@
 | `backupDataBindingLayoutXmlDir` | `DataBindingArgsManager.reset()` | 备份 Gradle layout info，避免新增后删除文件导致 Gradle 后续编译失败 |
 | `incrementalDependencyClassesFolder` | `DataBindingArgsManager` | 保存 incremental artifact，供下轮 include 和 base class 生成使用 |
 | `dataBindingPreProcessorSources` | `DataBindingArgsManager` | DataBinding annotation processor trigger source 目录 |
+| `dataBindingDependencyArtifacts` | `DataBindingArgsManager` | Mapper APT 的 setter store 输入目录；不同来源保留在独立子目录，避免同名 JSON 覆盖 |
 | `mapperDir` | `DataBindingArgsManager` | 保存 delegate mapper、full mapper、历史 incremental mapper 源 |
 | `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` | `DataBindingArgsManager.Companion` | KAPT fallback APT 分支的跨阶段状态；当前默认 APT 路径下通常只用于失败重试判断 |
 
@@ -72,6 +73,8 @@ SourceCompiler.prepareSourceCompile()
         -> 不 reset argsManager，继续消费资源阶段写入的 layout info
         -> runAnnotationProcessor()
            -> LayoutIncludeAnalyzer.findAllIncludePath(resource)
+           -> DataBindingClasspathHelper 收集当前模块/父模块的 Gradle setter store 和全部 AAR setter store
+           -> 按来源隔离复制到 dataBindingDependencyArtifacts，由官方 DataBinding processor 递归加载并合并
            -> 当前默认：JavaCompilerInvoker apt-only
            -> 保留分支：KotlinCompilerInvoker kapt
               -> kapt 失败时切到 Java APT fallback 重试一次
@@ -92,6 +95,10 @@ SourceCompiler.prepareSourceCompile()
 - 当前 `isFallbackApt = true`，DataBinding mapper 默认走 Java APT trigger；KAPT 失败 fallback 分支保留在代码中，但排查当前行为时应先按 APT 路径看。
 - fallback APT 也失败时通过 `isLastFallbackAptFailed` 通知 `SourceDataBindingProcessor` 先编译 Kotlin class 后再重试一次 mapper 生成。
 - `DataBindingClasspathHelper` 只给 DataBinding 相关依赖做 annotation processing，避免 ARouter 等其他 processor 进入这条旁路。
+- Mapper APT 会复用当前 variant 最近一次 Gradle 完整构建生成的模块 `*-setter_store.json`，并收集所有 AAR transform 根目录下的 `data-binding/*-setter_store.json`；Jugg 不解析或手工合并 JSON。
+- 不同 setter store 按来源复制到独立子目录，因为官方 DataBinding processor 会递归读取 dependency artifacts；直接平铺会让同名 store 相互覆盖。
+- 当前方案只保证复用最近一次 Gradle 基线。若本轮修改的当前源码或最近一次构建源码包含 `@BindingAdapter` / `@BindingMethods` 等声明，`JuggCompileHelper` 会在增量编译前回退 Gradle，避免继续使用旧 store；完整增量方案见 `docs/task/databinding_setter_store_incremental_design.md`。
+- Mapper 在 Kotlin 预编译重试后仍失败时保持 fail-open：记录警告并继续源码编译，允许不影响生成结果的 DataBinding XML 改动继续增量部署。
 - `copyToGradleDir()` 不是普通输出复制，它是为了让 Gradle 后续编译看到稳定的 layout info，避免新增后删除文件导致全量 Gradle 失败。
 
 ---
@@ -115,6 +122,7 @@ SourceCompiler.prepareSourceCompile()
 | 明明启用了 DataBinding 但未进入 mapper 阶段 | `DataBindingArgsManager.isUseDataBinding()` 与 module `packageName` |
 | ViewBinding class 未生成 | `DataBindingGenBaseClassesCompiler.splitLayoutXml()` / `generateBaseClasses()` |
 | DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志 |
+| 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 日志是否包含 app/module/AAR 对应 setter store，再确认最近一次 Gradle 完整构建是否已生成该声明 |
 | BR 缺字段或 id 抖动 | `mergeLibraryBr()` / `mergeAppBr()` 的 baseline BR 与 current incremental BR |
 | `<include>` 修改后引用方未更新 | `LayoutIncludeAnalyzer.findAllIncludePath()` 和 `tempDataBindingLayoutXmlDir` 内容 |
 | Gradle 后续编译因 layout info 文件缺失失败 | `DataBindingArgsManager.backupDataBindingLayoutXmlDir` 与 `copyToGradleDir()` |

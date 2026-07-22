@@ -58,6 +58,16 @@ class JuggCompilerHelper(
 ): Disposable, IIncrementalCompileFallbackChecker {
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
+        private val DATA_BINDING_ADAPTER_ANNOTATIONS = listOf(
+            "BindingAdapter",
+            "BindingMethod",
+            "BindingMethods",
+            "BindingConversion",
+            "InverseBindingAdapter",
+            "InverseBindingMethod",
+            "InverseBindingMethods",
+            "InverseMethod",
+        )
     }
 
     var juggCompiler: JuggCompiler? = null
@@ -425,6 +435,10 @@ class JuggCompilerHelper(
         val undeployedSourceFiles = undeployedFiles.filter {
             it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
         }
+        if (hasDataBindingAdapterDeclarationChanged(undeployedSourceFiles)) {
+            logger.info("DataBinding adapter declaration changed, will fallback to gradle compile.")
+            return CompileTaskResult.incrementalFailed(true, "DataBinding adapter declaration changed")
+        }
         val undeployedSourceModules = undeployedSourceFiles.map {
             it.module.name + "_" + it.type
         }.toSet()
@@ -455,6 +469,27 @@ class JuggCompilerHelper(
         }
 
         return null
+    }
+
+    private fun hasDataBindingAdapterDeclarationChanged(sourceFiles: List<ChangedFile>): Boolean {
+        if (sourceFiles.isEmpty()) {
+            return false
+        }
+        if (sourceFiles.any { it.file.hasDataBindingAdapterDeclaration() }) {
+            return true
+        }
+        return deployHistoryManager.getLastBuildFiles(sourceFiles)
+            .mapNotNull { it.second }
+            .any { it.hasDataBindingAdapterDeclaration() }
+    }
+
+    private fun File.hasDataBindingAdapterDeclaration(): Boolean {
+        val source = runCatching { readText() }.getOrDefault("")
+        return DATA_BINDING_ADAPTER_ANNOTATIONS.any { annotation ->
+            source.contains("@$annotation")
+                || source.contains("androidx.databinding.$annotation")
+                || source.contains("android.databinding.$annotation")
+        }
     }
 
     private fun checkLibraryIncrementalCompile(options: JuggGradleCompileOptions, uiHandler: CompileUiHandler) {

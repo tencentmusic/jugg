@@ -327,6 +327,31 @@ class JuggCompileForDataBindingTest {
         println("✓ Existing DataBinding test still works - backward compatibility maintained")
     }
 
+    @Test
+    fun testBooleanVisibilityBindingAdapterFromGradleSetterStore() {
+        val layoutFile = File(
+            assetsAndroidDir,
+            "app/src/main/res/layout/activity_data_binding_boolean_visibility_demo.xml",
+        )
+
+        val result = juggCompiler.compile(CompileHelper.makeTask(layoutFile))
+
+        result.printCompileErrors()
+        assertTrue(result.isAllSuccess, "Boolean visibility adapter compilation should succeed")
+        CompileHelper.checkOutputFiles(result, listOf(
+            "androidx/databinding/DataBinderMapperImpl.dex",
+            "androidx/databinding/DataBindingComponent.dex",
+            "com/example/myapplication/BR.dex",
+            "com/example/myapplication/DataBinderMapperImpl.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Full.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Inc_1.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingBooleanVisibilityDemoBinding.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingBooleanVisibilityDemoBindingImpl.dex",
+            "res/layout/activity_data_binding_boolean_visibility_demo.xml",
+            "resources.arsc",
+        ))
+    }
+
     /**
      * Test Case 5: DataBinding with source change - negative test
      *

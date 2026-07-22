@@ -45,6 +45,10 @@
             android:exported="true"
         />
         <activity
+            android:name="com.sickworm.jugg.demo.testcase.databinding.DataBindingBooleanVisibilityDemoActivity"
+            android:exported="true"
+        />
+        <activity
             android:name="com.sickworm.jugg.demo.testcase.ksp.MoshiDemoActivity"
             android:exported="true"
         />

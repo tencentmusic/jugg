@@ -345,10 +345,11 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         )
         val subContext = context.subContext(argsManager.dataBindingKaptOutputDir)
         val classpath = DataBindingClasspathHelper.getClasspath(argsManager.isJava, context, module, logger)
-        classpath.adapterJson.forEach {
-            logger.debug("classpath adapterJson: $it")
-            val targetFile = File(argsManager.dataBindingDependencyArtifacts, it.name)
-            it.copyTo(targetFile, overwrite = true)
+        classpath.setterStoreFiles.forEachIndexed { index, setterStoreFile ->
+            logger.debug("classpath setterStoreFile: $setterStoreFile")
+            val targetFile = File(argsManager.dataBindingDependencyArtifacts, "$index/${setterStoreFile.name}")
+            targetFile.parentFile.mkdirs()
+            setterStoreFile.copyTo(targetFile, overwrite = true)
         }
 
         val aptResult: CompileResult

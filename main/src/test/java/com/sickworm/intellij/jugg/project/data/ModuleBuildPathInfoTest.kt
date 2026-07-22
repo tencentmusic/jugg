@@ -28,6 +28,20 @@ class ModuleBuildPathInfoTest {
         )
     }
 
+    @Test
+    fun `allBuildPathRelative includes data binding artifact output`() {
+        val projectRootDir = File("/tmp/jugg-project")
+        val moduleRootDir = File(projectRootDir, "app")
+        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "release")
+
+        assertTrue(
+            info.allBuildPathRelative.any {
+                it.path == File("build/intermediates/data_binding_artifact/release").path
+            },
+            "data_binding_artifact should be included in synced build outputs"
+        )
+    }
+
     /**
      * AGP 9.0+ renamed compile_and_runtime_not_namespaced_r_class_jar to compile_and_runtime_r_class_jar.
      * Jugg should resolve R.jar correctly for the new namespaced path.

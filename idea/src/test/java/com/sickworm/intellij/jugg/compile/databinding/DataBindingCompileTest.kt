@@ -29,6 +29,8 @@ open class DataBindingCompileTest {
         "com/sickworm/jugg/demo/testcase/databinding/DataBindingKotlinDemoActivity.kt")
     private val javaLayoutFile get() = File(resBaseDir, "layout/activity_data_binding_java_demo.xml")
     private val kotlinLayoutFile get() = File(resBaseDir, "layout/activity_data_binding_kotlin_demo.xml")
+    private val booleanVisibilityLayoutFile get() =
+        File(resBaseDir, "layout/activity_data_binding_boolean_visibility_demo.xml")
     private val library1JavaLayoutFile get() = File(library1ResBaseDir, "layout/activity_data_binding_java_demo_library1.xml")
     private val library1KotlinActivityFile get() = File(
         library1JavaBaseDir,
@@ -63,6 +65,21 @@ open class DataBindingCompileTest {
         val result2 = mapperCompiler.compile(bindingTask)
         assertTrue(result2.isAllSuccess)
         checkDataBindingOutputs(compileTask, result2, 1)
+        assertFallback()
+    }
+
+    @Test
+    fun customBindingAdapterFromGradleSetterStoreShouldCompile() {
+        val compileTask = makeTask(booleanVisibilityLayoutFile)
+
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val baseResult = baseClassCompiler.compile(compileTask)
+        assertTrue(baseResult.isAllSuccess)
+
+        val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+        val mapperResult = mapperCompiler.compile(createBindingTask(compileTask, baseResult))
+        assertTrue(mapperResult.isAllSuccess, "expected Gradle setter store adapter to be available")
+        checkDataBindingOutputs(compileTask, mapperResult, 1)
         assertFallback()
     }
 

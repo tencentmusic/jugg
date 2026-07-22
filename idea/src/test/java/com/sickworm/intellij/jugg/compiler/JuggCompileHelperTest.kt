@@ -248,6 +248,59 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun checkFallback_bindingAdapterSourceChanged_requiresGradleCompile() {
+        val fixture = createFixture()
+        val sourceFile = temporaryFolder.newFile("BindingAdapters.kt").apply {
+            writeText(
+                """
+                import androidx.databinding.BindingAdapter
+
+                @BindingAdapter("android:visibility")
+                fun setVisibility(view: android.view.View, visible: Boolean) = Unit
+                """.trimIndent()
+            )
+        }
+        val changedFile = ChangedFile(
+            CompileFile.Type.Kotlin,
+            sourceFile,
+            sourceFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(changedFile))
+
+        assertEquals("DataBinding adapter declaration changed", fixture.helper.checkFallback())
+    }
+
+    @Test
+    fun checkFallback_bindingAdapterRemoved_requiresGradleCompile() {
+        val fixture = createFixture()
+        val sourceFile = temporaryFolder.newFile("RemovedBindingAdapters.kt").apply {
+            writeText("fun ordinaryMethod() = Unit")
+        }
+        val previousSourceFile = temporaryFolder.newFile("PreviousBindingAdapters.kt").apply {
+            writeText(
+                """
+                import androidx.databinding.BindingAdapter
+
+                @BindingAdapter("android:visibility")
+                fun setVisibility(view: android.view.View, visible: Boolean) = Unit
+                """.trimIndent()
+            )
+        }
+        val changedFile = ChangedFile(
+            CompileFile.Type.Kotlin,
+            sourceFile,
+            sourceFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(changedFile))
+        whenever(fixture.deployHistoryManager.getLastBuildFiles(listOf(changedFile)))
+            .thenReturn(listOf(changedFile to previousSourceFile))
+
+        assertEquals("DataBinding adapter declaration changed", fixture.helper.checkFallback())
+    }
+
+    @Test
     fun compile_incrementalFailure_nonRpcModePrintsDirectRunFallbackHint() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger = logger)
@@ -358,6 +411,7 @@ class JuggCompileHelperTest {
             helper = helper,
             pathManager = pathManager,
             deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
             dependencyChangeManager = dependencyChangeManager,
             gitChangeChecker = gitChangeChecker,
             uiHandler = uiHandler,
@@ -408,6 +462,7 @@ class JuggCompileHelperTest {
         val helper: JuggCompilerHelper,
         val pathManager: JuggPathManager,
         val deployFileManager: DeployFileManager,
+        val deployHistoryManager: IDeployHistoryManager,
         val deployTargetManager: IDeployTargetManager,
         val dependencyChangeManager: IDependencyChangeManager,
         val gitChangeChecker: GitChangesCompileChecker,
