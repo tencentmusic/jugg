@@ -66,6 +66,11 @@ public class BootstrapApplication extends Application {
         LogUtils.i(TAG, "attachBaseContext done");
     }
 
+    @Override
+    public Context getApplicationContext() {
+        return rawApplication != null ? rawApplication : super.getApplicationContext();
+    }
+
     @Override public void onCreate() {
         LogUtils.i(TAG, "onCreate start");
         if (rawApplication != null) {
