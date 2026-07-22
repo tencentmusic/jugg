@@ -352,6 +352,137 @@ class JuggCompileForDataBindingTest {
         ))
     }
 
+    @Test
+    fun testNewBindingAdapterAndLayoutCompileIncrementally() {
+        val adapterFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/java/com/sickworm/jugg/demo/testcase/databinding/IncrementalBindingAdapters.kt",
+        )
+        val layoutFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/res/layout/activity_data_binding_incremental_setter_store.xml",
+        )
+        val module = context.modules.values.first()
+        val task = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    adapterFile,
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    module,
+                ),
+                CompileFile(
+                    CompileFile.Type.Resource,
+                    layoutFile,
+                    File(assetsAndroidModifySourceDir, "app/src/main/res"),
+                    module,
+                ),
+            ),
+            outputDir = CompileHelper.outputDir,
+        )
+
+        val result = juggCompiler.compile(task)
+
+        result.printCompileErrors()
+        assertTrue(
+            result.isAllSuccess,
+            "A newly added BindingAdapter should be available to a layout in the same incremental compile",
+        )
+        CompileHelper.checkOutputFiles(result, listOf(
+            "com/sickworm/jugg/demo/testcase/databinding/IncrementalBindingAdapters.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreBinding.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreBindingImpl.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Inc_1.dex",
+            "res/layout/activity_data_binding_incremental_setter_store.xml",
+            "resources.arsc",
+        ))
+    }
+
+    @Test
+    fun testNewBindingAdapterIsReusedByNextIncrementalCompile() {
+        val adapterFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/java/com/sickworm/jugg/demo/testcase/databinding/IncrementalBindingAdapters.kt",
+        )
+        val secondLayout = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/res/layout/activity_data_binding_incremental_setter_store_second.xml",
+        )
+        val baselineLayout = File(
+            assetsAndroidDir,
+            "app/src/main/res/layout/activity_data_binding_boolean_visibility_demo.xml",
+        )
+        val module = context.modules.values.first()
+        val firstResult = juggCompiler.compile(
+            CompileTask(
+                files = listOf(CompileFile(
+                    CompileFile.Type.Kotlin,
+                    adapterFile,
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    module,
+                )),
+                outputDir = CompileHelper.outputDir,
+            ),
+        )
+        firstResult.printCompileErrors()
+        assertTrue(firstResult.isAllSuccess, "Adapter-only compile should generate the setter store")
+
+        val secondResult = juggCompiler.compile(CompileHelper.makeTask(secondLayout, baselineLayout))
+
+        secondResult.printCompileErrors()
+        assertTrue(secondResult.isAllSuccess, "The next incremental compile should reuse the generated setter store")
+        CompileHelper.checkOutputFiles(secondResult, listOf(
+            "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreSecondBinding.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreSecondBindingImpl.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingBooleanVisibilityDemoBindingImpl.dex",
+            "res/layout/activity_data_binding_incremental_setter_store_second.xml",
+            "res/layout/activity_data_binding_boolean_visibility_demo.xml",
+            "resources.arsc",
+        ))
+    }
+
+    @Test
+    fun testJavaBindingAdapterAndLayoutCompileIncrementally() {
+        val adapterFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/java/com/sickworm/jugg/demo/testcase/databinding/IncrementalJavaBindingAdapters.java",
+        )
+        val layoutFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/res/layout/activity_data_binding_incremental_java_setter_store.xml",
+        )
+
+        val module = context.modules.values.first()
+        val result = juggCompiler.compile(
+            CompileTask(
+                listOf(
+                    CompileFile(
+                        CompileFile.Type.Java,
+                        adapterFile,
+                        File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                        module,
+                    ),
+                    CompileFile(
+                        CompileFile.Type.Resource,
+                        layoutFile,
+                        File(assetsAndroidModifySourceDir, "app/src/main/res"),
+                        module,
+                    ),
+                ),
+                CompileHelper.outputDir,
+            ),
+        )
+
+        result.printCompileErrors()
+        assertTrue(result.isAllSuccess, "Java BindingAdapter should be processed by APT")
+        CompileHelper.checkOutputFiles(result, listOf(
+            "com/sickworm/jugg/demo/testcase/databinding/IncrementalJavaBindingAdapters.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingIncrementalJavaSetterStoreBindingImpl.dex",
+            "res/layout/activity_data_binding_incremental_java_setter_store.xml",
+            "resources.arsc",
+        ))
+    }
+
     /**
      * Test Case 5: DataBinding with source change - negative test
      *

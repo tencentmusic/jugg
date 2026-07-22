@@ -248,7 +248,7 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun checkFallback_bindingAdapterSourceChanged_requiresGradleCompile() {
+    fun checkFallback_bindingAdapterSourceChanged_allowsIncrementalCompile() {
         val fixture = createFixture()
         val sourceFile = temporaryFolder.newFile("BindingAdapters.kt").apply {
             writeText(
@@ -268,11 +268,11 @@ class JuggCompileHelperTest {
         )
         whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(changedFile))
 
-        assertEquals("DataBinding adapter declaration changed", fixture.helper.checkFallback())
+        assertEquals(null, fixture.helper.checkFallback())
     }
 
     @Test
-    fun checkFallback_bindingAdapterRemoved_requiresGradleCompile() {
+    fun checkFallback_bindingAdapterRemoved_allowsIncrementalCompile() {
         val fixture = createFixture()
         val sourceFile = temporaryFolder.newFile("RemovedBindingAdapters.kt").apply {
             writeText("fun ordinaryMethod() = Unit")
@@ -297,7 +297,7 @@ class JuggCompileHelperTest {
         whenever(fixture.deployHistoryManager.getLastBuildFiles(listOf(changedFile)))
             .thenReturn(listOf(changedFile to previousSourceFile))
 
-        assertEquals("DataBinding adapter declaration changed", fixture.helper.checkFallback())
+        assertEquals(null, fixture.helper.checkFallback())
     }
 
     @Test

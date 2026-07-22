@@ -1,128 +1,177 @@
-# DataBinding setter store 完整增量方案（方案 B）
+# DataBinding setter store 增量合并方案（方案 B）
 
-## 1. 背景与当前结论
+## 1. 背景与结论
 
-方案 A 已支持在 layout 增量编译时复用最近一次 Gradle 完整构建产生的模块 setter store，并同时加载全部 AAR 中的 setter store。该方案可以覆盖“自定义 `BindingAdapter` 已存在，只修改或新增使用它的 layout”的场景。
+方案 A 已支持 layout 增量编译时复用最近一次 Gradle 完整构建生成的 module setter store，并加载全部 AAR setter store。但新增或修改 `@BindingAdapter` 后，后续 layout 仍需要看到本轮 processor 生成的新声明。
 
-方案 A 不更新模块 setter store，因此以下场景仍需要完整增量能力：
+官方 DataBinding processor 的单次 invocation 已按以下顺序执行：
 
-- 新增、删除或修改 `@BindingAdapter` 方法。
-- 修改 `@BindingMethods`、`@BindingConversion` 等会改变 DataBinding setter 解析结果的声明。
-- 修改 adapter 的参数类型、属性名、命名空间或多属性组合。
-- adapter 所在 library module 变化后，下游 module 的 layout 立即引用新声明。
+```text
+ProcessMethodAdapters
+  -> 扫描本轮 BindingAdapter 等声明
+  -> 更新内存中的完整 BindingAdapterStore
+  -> 输出 current-module setter store
+ProcessExpressions
+  -> 使用同一个内存 store 生成 BindingImpl / Mapper
+ProcessBindable
+```
 
-方案 B 的核心结论是：**不对 `setter_store.json` 做字段级增量合并，而是按模块重新生成一份完整 store，并在成功后原子替换缓存。**
+因此 B1 不增加独立 setter-store processor，也不执行第二次 APT/KAPT：
 
-## 2. 为什么不能直接补丁 JSON
+> 复用 `DataBindingGenMapperCompiler` 已有的一次 APT/KAPT；processor 成功后，将其输出的 current-module setter store 合入 Jugg merged store，供下一轮编译复用。
 
-DataBinding annotation processor 当前轮输出只表达本轮识别到的声明，不等价于模块完整状态。直接把新 JSON 合入旧 JSON 会留下这些问题：
+DataBinding 逻辑全部收敛在 `SourceCompiler` 的 DataBinding 子流程，不暴露到 `JuggCompiler` 主流程。
 
-- 删除或重命名 adapter 后，旧记录无法可靠移除。
-- 方法签名、属性组合和优先级变化时，旧记录可能与新记录同时存在。
-- 多文件声明同名属性时，需要遵循官方 processor 的冲突与覆盖规则。
-- JSON 属于 AGP/DataBinding 内部协议，跨版本字段和语义可能变化。
+## 2. 编译流程
 
-因此 Jugg 应把 JSON 当作不透明产物，让对应 AGP 版本的官方 processor 生成和读取。
+```text
+SourceCompiler
+  -> SourceDataBindingProcessor
+     -> layout 变化或当前 source 含 adapter declaration 时触发
+     -> DataBindingGenMapperCompiler
+        -> DataBindingClasspathHelper 提供上轮 merged store；不存在时提供 Gradle baseline
+        -> 一次 Java APT / Kotlin KAPT
+           -> 当前声明加入 processor 内存 store
+           -> 同轮 layout 直接使用当前声明
+           -> 输出 current-module setter store
+        -> DataBindingSetterStoreCache.merge(baseline, currentModuleStore)
+        -> 有 layout 时继续生成 incremental Mapper / BindingImpl / BR
+        -> adapter-only 时只更新 store，随后进入普通源码编译
+  -> Kotlin / Java / Dex compile
+```
 
-## 3. 目标数据模型
+同轮新增 adapter 和 layout 不依赖已落盘 merged store，因为 `ProcessExpressions` 直接消费当前 invocation 的内存 store。落盘 merge 只为后续轮次服务。
 
-缓存按 `project + module + variant + AGP/DataBinding version` 隔离，至少维护：
+## 3. merge 模型
 
-1. `adapter source index`
-   - 记录模块内可能声明 DataBinding adapter 的 Java/Kotlin 源文件。
-   - 记录文件指纹，用于识别新增、修改和删除。
-   - 索引只负责确定“哪些源需要参与完整 store 重建”，不自行解释 setter store JSON。
+### 3.1 输入
 
-2. `module setter store`
-   - 由官方 DataBinding processor 对该模块全部 adapter declaration sources 生成。
-   - 只有生成成功才替换上一版缓存。
+- Gradle baseline：最近一次完整构建生成的 module setter store。
+- previous merged：baseline hash 相同时，上一轮 Jugg 发布的 merged store。
+- current-module store：本轮官方 processor 输出，只包含本轮送入 processor 的声明。
 
-3. `dependency setter stores`
-   - 外部 AAR 继续直接读取 transform 产物。
-   - project library module 优先读取该模块最新的 Jugg store；没有时读取 Gradle 基线 store。
+### 3.2 合并步骤
 
-4. `attribute impact index`
-   - 记录 layout 使用的绑定属性，用于 adapter 变化后定位受影响 layout。
-   - 第一阶段可以保守地重编译下游模块全部 DataBinding layout，后续再缩小到属性级影响范围。
+```text
+base = valid previous merged ?: Gradle baseline
+currentTypes = declaring types from current-module store
+remove currentTypes from base
+merge current-module store into base
+validate
+atomic publish
+```
 
-## 4. 编译流程
+用当前声明类型替换已有记录，可以覆盖同一个 adapter class 内的属性新增、属性修改、参数或方法描述变化，同时保留其他 Gradle baseline 和历史增量声明。
 
-### 4.1 初始化
+Jugg 不解析 Java/Kotlin 方法签名，不自行构造 setter store；所有新记录均来自对应版本的官方 processor。
 
-首次启用或缓存失效时：
+## 4. 缓存模型
 
-1. 扫描模块 Java/Kotlin source roots，建立 adapter source index。
-2. 以全部 adapter declaration sources 运行官方 Java APT/Kotlin KAPT。
-3. 生成模块完整 setter store 到临时目录。
-4. 校验 processor 成功且目标 store 存在后，原子替换模块缓存。
-5. Mapper APT 使用新缓存、project dependency stores 和 AAR stores。
+缓存按 `project + module + variant` 隔离，并通过 Gradle baseline SHA-256 校验：
 
-初始化扫描只筛选含 DataBinding adapter 注解的候选源码，避免把模块全部业务源码长期加入 processor 输入。
+```text
+setter_store_cache/<module-key>/
+├── current
+└── generations/
+    └── <generation-id>/
+        ├── baseline.sha256
+        └── merged/
+            └── <module-package>-setter_store.json
+```
 
-### 4.2 普通源码或 layout 变化
+`current` 是原子发布的 generation 指针。新 generation 完整写入并校验成功后才替换指针；失败时保留上一版有效 store。
 
-- 未涉及 adapter declaration source：直接复用模块缓存，行为等同方案 A。
-- layout 变化：根据现有 DataBinding layout info 进入 Mapper APT，不重建 store。
+B1 不保存 DataBinding compiler jar 指纹：processor 已停止维护，当前已验证 setter store schema 为 `version = 5`。如未来 processor 恢复演进，再将 compiler 指纹加入 cache identity。
 
-### 4.3 adapter 声明变化
+## 5. JSON 处理范围
 
-1. 根据 ChangedFile 更新 adapter source index；删除文件必须从索引移除。
-2. 使用更新后的**全部 adapter declaration sources**重建模块完整 store。
-3. Java 声明走 APT，Kotlin 声明走 KAPT；混合模块按官方 DataBinding processor 可见性要求准备双方 classpath。
-4. store 生成失败时保留旧缓存，但本次增量编译必须失败或触发 Gradle fallback，不能继续部署旧语义。
-5. store 成功后原子替换缓存，并重编译受影响的 DataBinding layout/mapper。
-6. library module 的 store 变化时，向依赖它的 application/library modules 传播失效。
+merge 和 declaring type 替换覆盖：
 
-## 5. 一致性与失效规则
+- `adapterMethods`
+- `renamedMethods`
+- `conversionMethods`
+- `untaggableTypes`
+- `multiValueAdapters`
+- `inverseAdapters`
+- `inverseMethods`
+- `twoWayMethods`
 
-以下任一条件变化时，丢弃对应模块的 Jugg store 并重新初始化：
+规则：
 
-- build variant、namespace/package、AGP/DataBinding compiler 版本变化。
-- source roots 或 project module dependency graph 变化。
-- 最近一次 Gradle 基线 store 的路径、时间戳或内容指纹变化。
-- Jugg 缓存格式版本变化。
-- 完整 Gradle clean 后基线产物消失或重新生成。
+- `version` 和 `useAndroidX` 必须兼容。
+- 完全相同 key/value 允许去重。
+- 相同完整 key 对应不同 value 时判定冲突，不猜测文件顺序。
+- 未知 schema、缺少必要字段、冲突或回读失败时不发布新 generation。
 
-写缓存使用临时目录加原子 rename。重建过程中不覆盖可用旧缓存，防止进程中断留下半份 JSON。
+## 6. 支持边界
 
-## 6. 失败与降级策略
+B1 支持：
 
-- 无法识别的 Kotlin 注解形态、processor 崩溃、store 缺失或依赖 classpath 不完整：本轮停止增量部署并提示执行 Gradle 构建。
-- Jugg store 不可用但 adapter 声明本轮未变化：允许回退到当前 variant 的 Gradle 基线 store。
-- adapter 声明本轮已变化：禁止静默使用旧 Gradle/Jugg store，否则 layout 可能编译成功但运行语义错误。
-- 外部 AAR store 缺失时保持官方 processor 的报错，不由 Jugg 猜测 adapter 签名。
+- 同轮新增 Kotlin `@BindingAdapter` 与使用它的 layout。
+- 同轮新增 Java `@BindingAdapter` 与使用它的 layout。
+- adapter-only 编译后，下一轮 layout 复用 merged store。
+- 同一声明类型仍存在时，使用 current-module store 替换该类型的历史记录。
+- Gradle baseline 与其他增量 adapter 记录保留。
 
-## 7. 分阶段落地建议
+B1 不处理删除语义：
 
-### B1：安全重建
+- 删除 adapter source。
+- 当前 source 移除全部 DataBinding adapter declaration。
+- adapter declaring class 改名，导致旧 declaring type 无法由当前 store 确定。
 
-- 建立 adapter source index。
-- adapter 源变化时重建当前模块完整 store。
-- 下游影响先按模块全量 DataBinding layout 处理。
-- 失败时明确回退 Gradle，不做旧 store 静默部署。
+这些场景不扩展 `FileChangesHandler`、`JuggManager`、`DeployFileManager` 或源码删除模型，保持与其他增量编译删除限制一致。
 
-### B2：影响范围收窄
+## 7. fallback 与失败策略
 
-- 建立属性到 layout 的反向索引。
-- 仅重新处理使用受影响属性的 layout，以及 `<include>` 传播链。
-- 增加 project library module store 变化的精确下游传播。
+- `JuggCompileHelper` 只移除 BindingAdapter declaration 的前置 Gradle fallback，使请求能够进入 `SourceCompiler`。
+- processor 失败、未生成预期 current-module store、baseline 缺失、JSON 不兼容或 merge 冲突时，沿现有增量失败链路处理。
+- adapter declaration 未变化且 cache 无效时，允许直接使用 Gradle baseline。
+- 不改变 `SourceCompiler` 现有 Mapper fail-open/fallback 行为，避免扩大本功能语义范围。
 
-### B3：版本兼容与性能
+## 8. 分阶段范围
 
-- 覆盖 AGP 7.x、8.x、9.x 的 processor 参数与中间产物差异。
-- 对无 adapter 变化的源码编译跳过索引扫描和 store 重建。
-- 增加缓存命中率、重建耗时和 fallback 原因日志。
+### B1：当前 module
 
-## 8. 测试要求
+- 单次 APT/KAPT 同时处理 adapter 与 Mapper。
+- 维护当前 module merged store。
+- Java、Kotlin、同轮使用和跨轮复用测试。
 
-- L1：adapter source index 的新增、修改、删除、重命名和缓存失效规则。
-- L2：Java/Kotlin/mixed adapter declarations 生成完整 store；失败时旧缓存不被覆盖。
-- L3：
-  - 新增 boolean `android:visibility` adapter 后，无 Gradle 构建即可编译并部署使用它的 layout。
-  - 修改 adapter 参数类型后，旧签名不再可用，新签名可用。
-  - 删除 adapter 后，引用它的 layout 必须明确编译失败。
-  - library module adapter 变化能触发 application module mapper/layout 更新。
+### B2：project library 传播
 
-## 9. 方案边界
+- library merged store 变化后通知下游 module。
+- 下游重新处理受影响的 DataBinding layout。
+- 增加 application/library 组合测试。
 
-方案 B 解决的是 adapter 声明自身的增量更新。方案 A 仍作为基线与降级能力保留：普通 layout 修改优先复用现有完整 store，只有 adapter declaration source 变化才触发模块 store 重建。
+### B3：影响范围与性能
+
+- 属性到 layout 的反向索引。
+- 仅重编译使用受影响属性的 layout 和 `<include>` 传播链。
+
+## 9. 测试要求
+
+### L1
+
+- current-module store 合入 baseline 并保留无关记录。
+- 相同 declaring type 的新记录替换旧记录。
+- 多轮 generated store 累积结果稳定。
+- 冲突时上一版 merged store 不被覆盖。
+
+### L2
+
+- 同轮 Kotlin adapter + layout。
+- adapter-only 后下一轮 layout 复用。
+- Java adapter + layout。
+- 新 adapter 与 Gradle baseline 原有 adapter 同时可用。
+- `JuggCompileHelper` 不再前置 fallback。
+
+### L3
+
+- 真实 demo 中新增 adapter 与 layout，不执行 Gradle build 即可编译并部署。
+
+## 10. 非目标
+
+- 不修改 DataBinding processor。
+- 不自行解析 adapter 方法语义。
+- 不增加独立 setter-store compiler stage。
+- 不改造源码删除事件链路。
+- B1 不实现 project library 向 application 的传播。

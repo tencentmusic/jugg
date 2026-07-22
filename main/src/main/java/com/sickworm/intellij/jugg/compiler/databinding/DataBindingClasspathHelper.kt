@@ -60,7 +60,7 @@ object DataBindingClasspathHelper {
             throw IllegalStateException("DataBinding apt not found, missing dependencies: $missingDependencies. " +
                     "Fallback to gradle once may fix this issue.")
         }
-        val setterStoreFiles = findModuleSetterStores(modules) + findLibrarySetterStores(modules)
+        val setterStoreFiles = findModuleSetterStores(context, modules) + findLibrarySetterStores(modules)
 
         var kaptPlugin: File? = null
         if (!isApt) {
@@ -78,12 +78,18 @@ object DataBindingClasspathHelper {
         )
     }
 
-    private fun findModuleSetterStores(modules: List<ModuleInfo>): List<File> {
-        return modules.flatMap { module ->
-            File(
-                module.buildPathInfo.buildDir,
-                "intermediates/data_binding_artifact/${module.buildVariant}",
-            ).listFilesRecursively().filter(::isSetterStore)
+    fun getGradleModuleSetterStore(module: ModuleInfo): File? {
+        return File(
+            module.buildPathInfo.buildDir,
+            "intermediates/data_binding_artifact/${module.buildVariant}",
+        ).listFilesRecursively().filter(::isSetterStore).sortedBy { it.absolutePath }.firstOrNull()
+    }
+
+    private fun findModuleSetterStores(context: ICompileContext, modules: List<ModuleInfo>): List<File> {
+        return modules.mapNotNull { module ->
+            val baseline = getGradleModuleSetterStore(module) ?: return@mapNotNull null
+            val argsManager = DataBindingArgsManager(context, module)
+            DataBindingSetterStoreCache(argsManager.setterStoreCacheDir).getMergedStore(baseline) ?: baseline
         }
     }
 

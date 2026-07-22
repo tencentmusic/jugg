@@ -9,6 +9,26 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.*
 
+private val DATA_BINDING_ADAPTER_ANNOTATIONS = listOf(
+    "BindingAdapter",
+    "BindingMethod",
+    "BindingMethods",
+    "BindingConversion",
+    "InverseBindingAdapter",
+    "InverseBindingMethod",
+    "InverseBindingMethods",
+    "InverseMethod",
+)
+
+internal fun File.hasDataBindingAdapterDeclaration(): Boolean {
+    val source = runCatching { readText() }.getOrDefault("")
+    return DATA_BINDING_ADAPTER_ANNOTATIONS.any { annotation ->
+        source.contains("@$annotation")
+            || source.contains("androidx.databinding.$annotation")
+            || source.contains("android.databinding.$annotation")
+    }
+}
+
 /**
  * DataBinding compiler step 2:
  * Generate XXXDataBindingImpl.java in generated/kapt/source
@@ -36,6 +56,13 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         argsManager = DataBindingArgsManager(context, module)
+        val adapterSources = task.files.filter {
+            (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin)
+                && it.file.hasDataBindingAdapterDeclaration()
+        }
+        if (adapterSources.any { it.type == CompileFile.Type.Kotlin }) {
+            argsManager.isJava = false
+        }
         DataBindingArgsManager.isLastFallbackAptFailed = false
 
         if (!argsManager.isUseDataBinding) {
@@ -53,7 +80,17 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 //        argsManager.reset()
 
         try {
-            runAnnotationProcessor(task, module)
+            val generatedStore = runAnnotationProcessor(task, module)
+            if (adapterSources.isNotEmpty()) {
+                val baseline = DataBindingClasspathHelper.getGradleModuleSetterStore(module)
+                    ?: error("Gradle DataBinding setter store not found for module ${module.name}")
+                val currentStore = generatedStore
+                    ?: error("DataBinding processor produced no setter store for module ${module.name}")
+                DataBindingSetterStoreCache(argsManager.setterStoreCacheDir).merge(baseline, currentStore)
+            }
+            if (task.files.none { it.type == CompileFile.Type.Resource }) {
+                return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+            }
             generateIncrementalMapperHolder()
             mergeLibraryBr()
             mergeAppBr()
@@ -314,7 +351,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     /**
      * Run apt，generate DataBindingImpl.java、BR.java、DataMapping.
      */
-    private fun runAnnotationProcessor(task: CompileTask, module: ModuleInfo) {
+    private fun runAnnotationProcessor(task: CompileTask, module: ModuleInfo): File? {
         logger.debug("runAnnotationProcessor in")
 
         val source = if (argsManager.isJava) {
@@ -345,6 +382,8 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         )
         val subContext = context.subContext(argsManager.dataBindingKaptOutputDir)
         val classpath = DataBindingClasspathHelper.getClasspath(argsManager.isJava, context, module, logger)
+        argsManager.dataBindingAarOutDir.clearDir()
+        argsManager.dataBindingDependencyArtifacts.clearDir()
         classpath.setterStoreFiles.forEachIndexed { index, setterStoreFile ->
             logger.debug("classpath setterStoreFile: $setterStoreFile")
             val targetFile = File(argsManager.dataBindingDependencyArtifacts, "$index/${setterStoreFile.name}")
@@ -386,7 +425,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 logger.warn("Kapt failed, retry with apt once")
                 argsManager.isJava = true
                 val retryAptTask = CompileTask(task.files + aptTriggerFile, task.outputDir, task)
-                try {
+                val generatedStore = try {
                     runAnnotationProcessor(retryAptTask, module)
                 } catch (e: Exception) {
                     // Fallback apt also failed; mark so SourceCompiler can retry
@@ -395,16 +434,21 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                     throw e
                 }
                 DataBindingArgsManager.isKaAptRetryAptSuccess = true
-                return
+                return generatedStore
             }
         }
         if (!aptResult.isAllSuccess) {
             throw RuntimeException("Failed to compile annotation process task: $aptResult")
         }
-        if (aptResult.outputs.isEmpty()) {
+        val generatedStore = argsManager.dataBindingAarOutDir.listFilesRecursively()
+            .filter { it.name.endsWith("-setter_store.json") }
+            .sortedBy { it.absolutePath }
+            .firstOrNull()
+        if (aptResult.outputs.isEmpty() && generatedStore == null) {
             throw RuntimeException("No annotation process task output")
         }
         logger.debug("runAnnotationProcessor apt output: ${aptResult.outputs.joinToString(", ") { it.file.name }}")
+        return generatedStore
     }
 
     /**

@@ -5,7 +5,9 @@ import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Test
+import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class TopLevelFlowTest {
 
@@ -57,5 +59,40 @@ class TopLevelFlowTest {
             hotFixModifiedClassesSize = 1, hotReloadModifiedClassesSize = 4)
 
         jugg.deploy()
+    }
+
+    @Test
+    fun testDeployIncrementalDataBindingSetterStore() {
+        testInstallAndLaunch()
+
+        changeAndRevert(
+            "IncrementalBindingAdapters.kt" to "IncrementalBindingAdapters.kt",
+            directory = "app/src/main/java/com/sickworm/jugg/demo/testcase/databinding",
+        ) { sourceFiles ->
+            changeAndRevert(
+                "activity_data_binding_incremental_setter_store.xml" to
+                    "activity_data_binding_incremental_setter_store.xml",
+                directory = "app/src/main/res/layout",
+            ) { resourceFiles ->
+                jugg.notifyFileChanges(sourceFiles + resourceFiles)
+                jugg.compileChangedFiles()
+
+                assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+                assertTrue(File(
+                    jugg.pathManager.stagingDir,
+                    "classes/com/sickworm/jugg/demo/testcase/databinding/IncrementalBindingAdapters.dex",
+                ).isFile)
+                assertTrue(File(
+                    jugg.pathManager.stagingDir,
+                    "classes/com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreBindingImpl.dex",
+                ).isFile)
+                val deployData = jugg.deployFileManager.getDeployData()
+                assertTrue(deployData.overlays.any {
+                    it.name.endsWith("activity_data_binding_incremental_setter_store.xml")
+                })
+
+                jugg.deploy()
+            }
+        }
     }
 }

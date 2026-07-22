@@ -20,12 +20,21 @@ object GradleBuildHelper {
     }
 
     fun appAssembleDebug(initScriptPath: String? = null) {
-        val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug --no-daemon $initArg", null, assetsAndroidDir)
+        val command = if (isWindows) {
+            mutableListOf("cmd.exe", "/c", "gradlew")
+        } else {
+            mutableListOf("./gradlew")
+        }
+        command += listOf(":app:assembleDebug", "--no-daemon")
+        if (initScriptPath != null) {
+            command += listOf("-I", initScriptPath)
+        }
+        val process = ProcessBuilder(command)
+            .directory(assetsAndroidDir)
+            .redirectErrorStream(true)
+            .start()
         println("\n----------- assembleDebug start -----------\n")
         println(String(process.inputStream.readBytes()))
-        println()
-        println(String(process.errorStream.readBytes()))
         println("\n-----------  assembleDebug end  -----------\n")
         val result = process.waitFor()
         if (result != 0) {
