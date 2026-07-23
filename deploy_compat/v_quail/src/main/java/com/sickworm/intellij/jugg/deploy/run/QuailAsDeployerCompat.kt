@@ -34,6 +34,7 @@ import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.AndroidRunConfigurationType
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.DeploymentService
+import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.util.DebuggerRedefiner
 import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
@@ -62,7 +63,8 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
     }
 
     override fun getSelectedDevices(project: Project): List<IDevice>? {
-        return getConnectedDevices(project)
+        val deployTarget = DeployTargetContext().currentDeployTargetProvider.getDeployTarget(project)
+        return deployTarget.launchDevices(project).ifReady?.takeIf { it.isNotEmpty() }
     }
 
     override fun getConnectedDevices(project: Project): List<IDevice>? {

@@ -1,6 +1,6 @@
 # 工程化：兼容层与命令行模块
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -61,6 +61,8 @@ IDE 部署主路径（例如 `JuggDeployerHelper` / `JuggDeployTask` / `JuggDepl
 Debug attach 同样必须走 `IAsDeployerCompat.attachJavaDebugger()`，不要在 IDE 主路径直接 import Android Studio debugger 内部类。Giraffe 及后续兼容实现先通过 `AndroidDebugClientReadyWaiter` 反射调用 AS `waitForClientReadyForDebug`，等待目标 app 的 `ClientData.DebuggerStatus.WAITING`；随后通过 `AndroidStudioDebuggerAttachStarter` 反射调用 AS 原生 `AndroidConnectDebugger.closeOldSessionAndRun(project, AndroidJavaDebugger(), client, null)`，让 Android Studio 自身创建/激活 `XDebugSession` 与 Debug tool window。低版本默认返回“不支持”，调用方负责在 Run 输出和通知中展示明确原因。
 
 Quail 的 deployer API 已迁移到 `com.android.tools.deployer.common` 与 `com.android.tools.deployer.install` 包，`OptimisticApkUpdater` 不存在。`deploy_compat/v_quail` 必须独立实现，不继承 legacy compat 链，避免 superclass 或方法签名在启动期解析旧 root deployer 类型。
+
+Quail 的设备选择仍通过 `DeployTargetContext` 获取当前 deploy target，并调用 `launchDevices(project).ifReady` 读取 IDE 中实际选中的设备。不能用 ADB 已连接设备列表代替选中列表，否则单选设备时会错误部署到所有在线设备；该返回列表同时保留 multiple devices 的选择顺序。
 
 ### 3.2 平台抽象
 
