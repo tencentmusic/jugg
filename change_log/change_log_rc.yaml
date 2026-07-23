@@ -1,3 +1,10 @@
+- version: 3.0.33
+  date: 2026.07.23
+  updates:
+    - expose the raw Application context during ContentProvider startup in compatible deployment mode
+    - support DataBinding @BindingAdapter annotation
+    - isolate Kotlin DataBinding KAPT from the Android Studio runtime to avoid KAPT failures
+
 - version: 3.0.32
   date: 2026.07.21
   updates:

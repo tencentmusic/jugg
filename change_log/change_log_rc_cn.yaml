@@ -1,3 +1,10 @@
+- version: 3.0.33
+  date: 2026.07.23
+  updates:
+    - 修复 ContentProvider 启动阶段无法获取原始 Application Context 的问题
+    - 支持 DataBinding @BindingAdapter 注解
+    - Kotlin DataBinding KAPT 与 Android Studio 运行时隔离，修复 KAPT 失败问题
+
 - version: 3.0.32
   date: 2026.07.21
   updates:
