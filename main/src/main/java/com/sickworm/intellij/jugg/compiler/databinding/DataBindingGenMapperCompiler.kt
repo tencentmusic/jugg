@@ -171,8 +171,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             mergeAppBr()
             return getOutput(task, module)
         } catch (e: Exception) {
-            logger.debug("DataBindingGenMapperCompiler error ", e)
-            logger.warn("Compile DataBinding failed: ${e.message}")
+            logger.debug("Compile DataBinding failed: ${e.message}", e)
             return CompileResult(
                 task,
                 task.files.map { Result.failure(CompileError(it, listOf(-1L to e.message.toString()))) },

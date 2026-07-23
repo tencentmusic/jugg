@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compile.databinding
 
 import android.databinding.tool.ext.toCamelCase
+import com.intellij.openapi.diagnostic.Logger
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compile.CompileHelper
 import com.sickworm.intellij.jugg.compiler.*
@@ -17,6 +18,22 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 open class DataBindingCompileTest {
+
+    private class CapturingWarnLogger(
+        val warningMessages: MutableList<String> = mutableListOf(),
+        val infoMessages: MutableList<String> = mutableListOf(),
+    ) : StdLogger("DataBindingCompileTest") {
+
+        override fun deriveTag(tag: String): Logger = CapturingWarnLogger(warningMessages, infoMessages)
+
+        override fun info(message: String?) {
+            infoMessages.add(message.orEmpty())
+        }
+
+        override fun warn(message: String?, t: Throwable?) {
+            warningMessages.add(message.orEmpty())
+        }
+    }
 
     private val javaBaseDir get() = File(assetsAndroidDir, "app/src/main/java")
     private val resBaseDir get() = File(assetsAndroidDir, "app/src/main/res")
@@ -129,6 +146,54 @@ open class DataBindingCompileTest {
         assertTrue(result.outputs.any { it.relativeFile.path.endsWith("activity_data_binding_kotlin_demo_library1.xml") },
             "expected databinding layout output, actual: ${result.outputs.joinToString { it.relativeFile.path }}")
         assertFallback()
+    }
+
+    @Test
+    fun kotlinAccessorRetry_shouldNotWarnWhenRetrySucceeds() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        val capturingLogger = CapturingWarnLogger()
+        val stableContext = context.copy(logger = capturingLogger)
+        val module = stableContext.modules.values.first()
+
+        withPatchedFiles(
+            kotlinActivityFile to kotlinActivityFile.readText()
+                .replace("User(\"John\", 44)", "User(\"John\", 44, \"SG\")")
+                .replace("val age: Int\n    )", "val age: Int,\n        val countryOrRegion: String\n    )"),
+            kotlinLayoutFile to kotlinLayoutFile.readText().replace(
+                "    </LinearLayout>",
+                """
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@{user.countryOrRegion}"/>
+
+                </LinearLayout>
+                """.trimIndent(),
+            ),
+        ) {
+            val task = CompileTask(
+                listOf(
+                    CompileFile(CompileFile.Type.Kotlin, kotlinActivityFile, javaBaseDir, module),
+                    CompileFile(CompileFile.Type.Resource, kotlinLayoutFile, resBaseDir, module),
+                ),
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+
+            val result = JuggCompiler(stableContext, mockParentDisposable).compile(task)
+
+            assertTrue(result.isAllSuccess, "expected Kotlin accessor retry compile success")
+            assertTrue(
+                capturingLogger.infoMessages.any { it.contains("retry with source compilation") },
+                "expected DataBinding mapper retry after Kotlin compilation",
+            )
+            assertTrue(
+                capturingLogger.warningMessages.none { it.contains("Compile DataBinding failed") },
+                "successful retry should not expose intermediate DataBinding warning: ${capturingLogger.warningMessages}",
+            )
+        }
     }
 
     @Test
