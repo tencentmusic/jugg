@@ -41,7 +41,18 @@ class SourceDataBindingProcessor(
      * @return CompileResult with generated Java files
      */
     fun processDataBindingMapper(task: CompileTask, module: ModuleInfo): CompileResult {
+        return processDataBindingMapper(task, module, isKotlinAdapterPrepared = false)
+    }
+
+    private fun processDataBindingMapper(
+        task: CompileTask,
+        module: ModuleInfo,
+        isKotlinAdapterPrepared: Boolean,
+    ): CompileResult {
         val argsManager = DataBindingArgsManager(context, module)
+        val kotlinAdapterSources = task.files.filter {
+            it.type == CompileFile.Type.Kotlin && it.file.hasDataBindingAdapterDeclaration()
+        }
         val hasAdapterDeclaration = task.files.any {
             (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin)
                 && it.file.hasDataBindingAdapterDeclaration()
@@ -66,8 +77,24 @@ class SourceDataBindingProcessor(
         TimeLogger.start("databinding_mapper")
 
         try {
+            if (kotlinAdapterSources.isNotEmpty() && !isKotlinAdapterPrepared) {
+                val prepareResult = prepareKotlinAdapter(task, module, kotlinAdapterSources)
+                if (prepareResult != null) {
+                    TimeLogger.end("databinding_mapper", logger)
+                    return prepareResult
+                }
+            }
+
             // Create DataBinding Mapper compilation task
-            val sourceFiles = task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
+            val sourceFiles = task.files.filter {
+                (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin)
+                    && it !in kotlinAdapterSources
+            }
+            val hasRemainingAdapterDeclaration = sourceFiles.any { it.file.hasDataBindingAdapterDeclaration() }
+            if (layoutInfoFiles.isEmpty() && !hasRemainingAdapterDeclaration) {
+                TimeLogger.end("databinding_mapper", logger)
+                return CompileResult(task, emptyList(), emptyList())
+            }
             val dataBindingTask = CompileTask(
                 files = layoutInfoFiles.map {
                     CompileFile(CompileFile.Type.Resource, it, it.parentFile, module)
@@ -81,12 +108,12 @@ class SourceDataBindingProcessor(
             TimeLogger.end("databinding_mapper", logger)
 
             if (!result.isAllSuccess) {
-                val hasKotlinSource = task.files.any { it.type == CompileFile.Type.Kotlin }
-                if (hasKotlinSource && isCanRetryAfterKotlinCompile) {
+                val retryKotlinSources = sourceFiles.filter { it.type == CompileFile.Type.Kotlin }
+                if (retryKotlinSources.isNotEmpty() && isCanRetryAfterKotlinCompile) {
                     logger.info("DataBinding failed with apt, retry with source compilation one time.")
                     isCanRetryAfterKotlinCompile = false
                     val kotlinCompileTask = CompileTask(
-                        files = task.files.filter { it.type == CompileFile.Type.Kotlin },
+                        files = retryKotlinSources,
                         outputDir = File(context.tempCompileDir, "kotlin"),
                         parentTask = task,
                     )
@@ -94,7 +121,7 @@ class SourceDataBindingProcessor(
                     logger.debug("Kotlin compile for databinding retry result: ${kotlinCompileResult.isAllSuccess}")
                     if (kotlinCompileResult.isAllSuccess) {
                         // one more time!
-                        return processDataBindingMapper(task, module)
+                        return processDataBindingMapper(task, module, isKotlinAdapterPrepared = true)
                     }
                 }
                 logger.warn("Processing data binding failed.")
@@ -110,6 +137,38 @@ class SourceDataBindingProcessor(
                 emptyList()
             )
         }
+    }
+
+    /**
+     * Generates the Kotlin adapter store, compiles the adapter class, then publishes the store.
+     * Returns a failed result when either compilation step fails.
+     */
+    private fun prepareKotlinAdapter(
+        task: CompileTask,
+        module: ModuleInfo,
+        kotlinAdapterSources: List<CompileFile>,
+    ): CompileResult? {
+        val adapterTask = CompileTask(
+            files = kotlinAdapterSources,
+            outputDir = File(context.tempCompileDir, "databinding_adapter_store"),
+            parentTask = task,
+        )
+        val storeResult = dataBindingGenMapperCompiler.generateKotlinAdapterStore(adapterTask, module)
+        if (!storeResult.isAllSuccess) return storeResult
+
+        val kotlinCompileResult = kotlinCompiler.compile(
+            CompileTask(
+                files = kotlinAdapterSources,
+                outputDir = File(context.tempCompileDir, "kotlin_adapter"),
+                parentTask = task,
+            ),
+        )
+        if (!kotlinCompileResult.isAllSuccess) return kotlinCompileResult
+
+        val generatedStore = storeResult.outputs.singleOrNull()?.file
+            ?: error("Isolated DataBinding KAPT produced no setter store output")
+        dataBindingGenMapperCompiler.mergeKotlinAdapterStore(module, generatedStore)
+        return null
     }
 
     /**

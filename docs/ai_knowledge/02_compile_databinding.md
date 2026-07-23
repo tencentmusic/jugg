@@ -10,7 +10,7 @@
 本页聚焦 DataBinding/ViewBinding 在 Jugg 增量编译里的两阶段处理：
 
 - 资源阶段如何生成 base classes、stripped XML 和 DataBinding 触发源。
-- 源码阶段如何通过一次 DataBinding annotation processor invocation 处理 adapter declaration、维护 merged setter store、生成 mapper holder 并合并 BR。
+- 源码阶段如何保持 Mapper APT 默认路径，并对 Kotlin adapter 条件运行隔离 KAPT，维护 merged setter store、生成 mapper holder 并合并 BR。
 - 各阶段之间依赖哪些 Gradle 中间产物与 Jugg 临时目录。
 
 不重复资源编译与 Java/Kotlin 编译主链；对应内容见 `02_compile_resource.md` 与 `02_compile_source.md`。
@@ -26,7 +26,7 @@
 | `SourceDataBindingProcessor` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceDataBindingProcessor.kt` | 在源码编译前协调 DataBinding mapper 生成和失败重试 |
 | `DataBindingArgsManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingArgsManager.kt` | 统一维护 DataBinding/ViewBinding 的临时目录、Gradle 中间产物路径、触发源和 mapper/BR 路径 |
 | `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | 资源阶段：split layout XML，生成 ViewBinding base classes 或 DataBinding trigger file |
-| `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | 源码阶段：一次 APT/KAPT 同时处理当前 adapter declaration、生成 current-module store 和 Mapper，并提交 merged store cache |
+| `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | 源码阶段：Mapper 使用 APT；Kotlin adapter 变化时先用隔离 KAPT 生成 current-module store，adapter class 成功后提交 merged store cache |
 | `DataBindingSetterStoreCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingSetterStoreCache.kt` | 将官方 processor 生成的 current-module store 合入 Gradle baseline/上一版 merged store并原子发布 |
 | `LayoutIncludeAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LayoutIncludeAnalyzer.kt` | 找到当前变更 layout 通过 `<include>` 影响到的 layout info |
 | `DataBindingClasspathHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingClasspathHelper.kt` | 为 DataBinding annotation processor 准备 compiler classpath、plugin 和 Gradle/AAR setter stores |
@@ -46,6 +46,7 @@
 | `incrementalDependencyClassesFolder` | `DataBindingArgsManager` | 保存 incremental artifact，供下轮 include 和 base class 生成使用 |
 | `dataBindingPreProcessorSources` | `DataBindingArgsManager` | DataBinding annotation processor trigger source 目录 |
 | `dataBindingDependencyArtifacts` | `DataBindingArgsManager` | Mapper APT 的 setter store 输入目录；不同来源保留在独立子目录，避免同名 JSON 覆盖 |
+| `kotlinAdapterKaptAarOutDir` / `kotlinAdapterKaptLayoutInfoDir` | `DataBindingArgsManager` | Kotlin adapter 专用隔离 KAPT 输出；layout info 使用空目录，避免 store merge 前提前解析 layout |
 | `setterStoreCacheDir` | `DataBindingArgsManager` | module + variant 隔离的稳定缓存目录，不随当前轮 DataBinding 工作区 reset；保存 baseline hash 和 merged store generation |
 | `mapperDir` | `DataBindingArgsManager` | 保存 delegate mapper、full mapper、历史 incremental mapper 源 |
 | `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` | `DataBindingArgsManager.Companion` | KAPT fallback APT 分支的兼容状态；默认 APT 路径的 Kotlin class 重试由 `SourceDataBindingProcessor` 根据当前任务是否含 Kotlin 源决定 |
@@ -71,15 +72,19 @@ ResourceCompiler
 ```text
 SourceCompiler.prepareSourceCompile()
   -> SourceDataBindingProcessor.processDataBindingMapper()
+     -> 本轮含 Kotlin adapter declaration
+        -> DataBindingGenMapperCompiler.generateKotlinAdapterStore()
+           -> KotlinCompilerInvoker 使用 Gradle JVM 子进程运行项目 KAPT
+           -> 空 layoutInfoDir，仅生成 current-module setter store
+        -> 普通 KotlinCompiler 先生成 adapter class
+        -> DataBindingSetterStoreCache.merge()
      -> DataBindingGenMapperCompiler.doModuleCompile()
         -> 不 reset argsManager，继续消费资源阶段写入的 layout info
         -> runAnnotationProcessor()
            -> LayoutIncludeAnalyzer.findAllIncludePath(resource)
            -> DataBindingClasspathHelper 对 project module 优先选择有效 merged store，否则使用 Gradle baseline，并收集全部 AAR setter store
            -> 按来源隔离复制到 dataBindingDependencyArtifacts，由官方 DataBinding processor 递归加载并合并
-           -> 当前默认：JavaCompilerInvoker apt-only
-           -> 保留分支：KotlinCompilerInvoker kapt
-              -> kapt 失败时切到 Java APT fallback 重试一次
+           -> Mapper 固定使用 JavaCompilerInvoker apt-only
            -> 官方 ProcessMethodAdapters 先把当前声明加入内存 store并输出 current-module store
            -> 官方 ProcessExpressions 随后使用同一内存 store生成 BindingImpl / Mapper
         -> 当前任务含 adapter declaration 时，将 current-module store 合入 DataBindingSetterStoreCache
@@ -98,11 +103,12 @@ SourceCompiler.prepareSourceCompile()
 - BR 合并使用 `LinkedHashMap` 保持声明顺序稳定；新增字段追加到末尾，避免 BR id 抖动。
 - mapper 使用 `DataBinderMapperImpl_Inc_N` 增量编号；`N` 来自已部署 dex 中同包名 inc mapper 的数量。
 - 源码阶段不能调用 `argsManager.reset()`，因为 mapper 生成依赖资源阶段刚写入的 `tempDataBindingLayoutXmlDir`。
-- 当前 `isFallbackApt = true`，DataBinding mapper 默认走 Java APT trigger；KAPT 失败 fallback 分支保留在代码中，但排查当前行为时应先按 APT 路径看。
+- DataBinding Mapper 固定走 Java APT trigger。只有本轮出现 Kotlin adapter declaration 时，才在 Mapper 前通过 Gradle JVM 子进程运行项目 KAPT，生成官方 current-module setter store。
+- 隔离 KAPT 直接启动项目 `K2JVMCompiler` CLI，并为 javac internal packages 添加 module exports/opens，避免旧 KAPT 继承 Android Studio 宿主 JBR 的 module 限制。
 - DataBinding mapper 失败且当前任务含 Kotlin 源时，`SourceDataBindingProcessor` 会先编译 Kotlin class，再重试一次 mapper 生成；第二次失败不再重试。正常成功路径仍只有一次 DataBinding processor invocation。
 - `DataBindingClasspathHelper` 只给 DataBinding 相关依赖做 annotation processing，避免 ARouter 等其他 processor 进入这条旁路。
 - Mapper APT 对 project module 优先复用 Jugg merged store；没有有效 cache 时回到当前 variant 最近一次 Gradle 完整构建生成的模块 `*-setter_store.json`。AAR transform 根目录下的 `data-binding/*-setter_store.json` 仍全部收集。
-- adapter declaration source 变化时复用 Mapper 的同一次官方 APT/KAPT；Jugg 读取其 current-module store，只解析容器和 declaring type，用于替换同一类型的历史记录，不自行推导 adapter 方法签名。
+- Java adapter declaration 继续由 Mapper APT 同轮处理；Kotlin adapter declaration 先由隔离 KAPT 生成 current-module store，adapter class 编译成功后再 merge，并由 Mapper APT 消费。Jugg 只解析 store 容器和 declaring type，不自行推导 adapter 方法签名。
 - 不同 setter store 按来源复制到独立子目录，因为官方 DataBinding processor 会递归读取 dependency artifacts；直接平铺会让同名 store 相互覆盖。
 - 当前模块支持 adapter declaration 新增、同一 declaring type 的修改和跨轮复用，不再因声明变化前置回退 Gradle；删除源码、移除全部声明和 declaring class 改名不在 B1 范围。
 - Mapper 失败保持 SourceCompiler 既有失败/重试策略，本功能不扩大其语义。

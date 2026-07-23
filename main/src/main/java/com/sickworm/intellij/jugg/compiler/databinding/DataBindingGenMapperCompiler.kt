@@ -57,11 +57,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         argsManager = DataBindingArgsManager(context, module)
         val adapterSources = task.files.filter {
-            (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin)
-                && it.file.hasDataBindingAdapterDeclaration()
-        }
-        if (adapterSources.any { it.type == CompileFile.Type.Kotlin }) {
-            argsManager.isJava = false
+            it.type == CompileFile.Type.Java && it.file.hasDataBindingAdapterDeclaration()
         }
         DataBindingArgsManager.isLastFallbackAptFailed = false
 
@@ -104,6 +100,47 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 emptyList())
         }
 
+    }
+
+    /**
+     * Generates a setter store for changed Kotlin adapter declarations in an isolated KAPT
+     * process. The caller publishes it only after the adapter class compiles successfully.
+     */
+    internal fun generateKotlinAdapterStore(task: CompileTask, module: ModuleInfo): CompileResult {
+        argsManager = DataBindingArgsManager(context, module)
+        if (!argsManager.isUseDataBinding) {
+            return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+        }
+        return try {
+            val generatedStore = runKotlinAdapterKapt(task, module)
+            CompileResult(
+                task,
+                task.files.map { Result.success(it) },
+                listOf(
+                    CompileOutput(
+                        CompileOutput.Type.OtherNotDeployed,
+                        generatedStore,
+                        argsManager.kotlinAdapterKaptAarOutDir,
+                    ),
+                ),
+            )
+        } catch (e: Exception) {
+            logger.debug("Generate Kotlin DataBinding adapter store failed", e)
+            logger.warn("Generate Kotlin DataBinding adapter store failed: ${e.message}")
+            CompileResult(
+                task,
+                task.files.map { Result.failure(CompileError(it, listOf(-1L to e.message.toString()))) },
+                emptyList(),
+            )
+        }
+    }
+
+    /** Publishes a generated Kotlin adapter setter store into the module incremental cache. */
+    internal fun mergeKotlinAdapterStore(module: ModuleInfo, generatedStore: File) {
+        argsManager = DataBindingArgsManager(context, module)
+        val baseline = DataBindingClasspathHelper.getGradleModuleSetterStore(module)
+            ?: error("Gradle DataBinding setter store not found for module ${module.name}")
+        DataBindingSetterStoreCache(argsManager.setterStoreCacheDir).merge(baseline, generatedStore)
     }
 
     private fun createFieldsMapFromBrFile(brFile: File): MutableMap<String, String> {
@@ -383,13 +420,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         val subContext = context.subContext(argsManager.dataBindingKaptOutputDir)
         val classpath = DataBindingClasspathHelper.getClasspath(argsManager.isJava, context, module, logger)
         argsManager.dataBindingAarOutDir.clearDir()
-        argsManager.dataBindingDependencyArtifacts.clearDir()
-        classpath.setterStoreFiles.forEachIndexed { index, setterStoreFile ->
-            logger.debug("classpath setterStoreFile: $setterStoreFile")
-            val targetFile = File(argsManager.dataBindingDependencyArtifacts, "$index/${setterStoreFile.name}")
-            targetFile.parentFile.mkdirs()
-            setterStoreFile.copyTo(targetFile, overwrite = true)
-        }
+        prepareSetterStoreDependencies(classpath.setterStoreFiles)
 
         val aptResult: CompileResult
         if (argsManager.isJava) {
@@ -451,10 +482,67 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         return generatedStore
     }
 
+    private fun runKotlinAdapterKapt(task: CompileTask, module: ModuleInfo): File {
+        val adapterSources = task.files.filter {
+            it.type == CompileFile.Type.Kotlin && it.file.hasDataBindingAdapterDeclaration()
+        }
+        check(adapterSources.isNotEmpty()) { "No Kotlin DataBinding adapter source found" }
+        argsManager.kotlinAdapterKaptAarOutDir.clearDir()
+        argsManager.kotlinAdapterKaptLayoutInfoDir.clearDir()
+
+        val classpath = DataBindingClasspathHelper.getClasspath(false, context, module, logger)
+        prepareSetterStoreDependencies(classpath.setterStoreFiles)
+        val options = KotlinCompilerInvoker.Options(
+            isEnableKapt = true,
+            isCanAutoRetry = false,
+            kaptOptions = prepareAnnotationProcessorOptions(
+                module = module,
+                aarOutDir = argsManager.kotlinAdapterKaptAarOutDir,
+                layoutInfoDir = argsManager.kotlinAdapterKaptLayoutInfoDir,
+            ),
+            kaptDependencies = classpath.aptDependencies,
+            kotlinPlugins = classpath.kotlinPlugins,
+            javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir),
+            executionMode = KotlinCompilerInvoker.ExecutionMode.ISOLATED_PROCESS,
+        )
+        val kaptTask = CompileTask(
+            files = adapterSources,
+            outputDir = File(context.tempCompileDir, "databinding_adapter_kapt"),
+            parentTask = task,
+        )
+        val kaptResult = KotlinCompilerInvoker().compile(
+            context.subContext(argsManager.kotlinAdapterKaptOutputDir),
+            module,
+            kaptTask,
+            logger,
+            options,
+        )
+        check(kaptResult.isAllSuccess) { "Isolated DataBinding KAPT failed: $kaptResult" }
+        return argsManager.kotlinAdapterKaptAarOutDir.listFilesRecursively()
+            .filter { it.name.endsWith("-setter_store.json") }
+            .sortedBy { it.absolutePath }
+            .firstOrNull()
+            ?: error("Isolated DataBinding KAPT produced no setter store for module ${module.name}")
+    }
+
+    private fun prepareSetterStoreDependencies(setterStoreFiles: List<File>) {
+        argsManager.dataBindingDependencyArtifacts.clearDir()
+        setterStoreFiles.forEachIndexed { index, setterStoreFile ->
+            logger.debug("classpath setterStoreFile: $setterStoreFile")
+            val targetFile = File(argsManager.dataBindingDependencyArtifacts, "$index/${setterStoreFile.name}")
+            targetFile.parentFile.mkdirs()
+            setterStoreFile.copyTo(targetFile, overwrite = true)
+        }
+    }
+
     /**
      * Prepare annotation processor options.
      */
-    private fun prepareAnnotationProcessorOptions(module: ModuleInfo): Map<String, String> {
+    private fun prepareAnnotationProcessorOptions(
+        module: ModuleInfo,
+        aarOutDir: File = argsManager.dataBindingAarOutDir,
+        layoutInfoDir: File = argsManager.tempDataBindingLayoutXmlDir,
+    ): Map<String, String> {
         val artifactType = when (module.moduleType) {
             ModuleInfo.Type.Application -> "APPLICATION"
             ModuleInfo.Type.DynamicFeature -> "FEATURE"
@@ -464,7 +552,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             "android.databinding.incremental" to "1", // not figure out how to let it work for now
             "android.databinding.minApi" to module.minSdkVersion.toString(),
             "android.databinding.classLogDir" to argsManager.dataBindingArtifactFolder.path,
-            "android.databinding.aarOutDir" to argsManager.dataBindingAarOutDir.path,
+            "android.databinding.aarOutDir" to aarOutDir.path,
             "android.databinding.exportClassListOutFile" to argsManager.dataBindingExportClassListOutFile.path,
             "android.databinding.enableDebugLogs" to "1",
             "android.databinding.dependencyArtifactsDir" to argsManager.dataBindingDependencyArtifacts.path,
@@ -476,7 +564,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             "android.databinding.isTestVariant" to "0",
             "android.databinding.baseFeatureInfoDir" to argsManager.dataBindingBaseFeatureInfoDir.path,
             "android.databinding.printEncodedErrorLogs" to "1",
-            "android.databinding.layoutInfoDir" to argsManager.tempDataBindingLayoutXmlDir.path,
+            "android.databinding.layoutInfoDir" to layoutInfoDir.path,
             "useAndroidX" to argsManager.isUseAndroidX.toString(),
         )
     }

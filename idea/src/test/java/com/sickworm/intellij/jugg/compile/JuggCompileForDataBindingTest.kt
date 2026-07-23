@@ -388,6 +388,15 @@ class JuggCompileForDataBindingTest {
             result.isAllSuccess,
             "A newly added BindingAdapter should be available to a layout in the same incremental compile",
         )
+        val argsManager = DataBindingArgsManager(context, module)
+        val generatedStore = argsManager.kotlinAdapterKaptAarOutDir
+            .walkTopDown()
+            .firstOrNull { it.name.endsWith("-setter_store.json") }
+        assertTrue(generatedStore != null, "Isolated KAPT should generate a Kotlin adapter setter store")
+        assertTrue(
+            generatedStore.readText().contains("juggIncrementalVisibility"),
+            "The isolated KAPT setter store should contain the new Kotlin BindingAdapter",
+        )
         CompileHelper.checkOutputFiles(result, listOf(
             "com/sickworm/jugg/demo/testcase/databinding/IncrementalBindingAdapters.dex",
             "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreBinding.dex",

@@ -20,6 +20,12 @@ import kotlin.collections.filter
  */
 class KotlinCompilerInvoker {
 
+    /** Selects whether the Kotlin compiler runs in the IDE process or a child JVM. */
+    enum class ExecutionMode {
+        IN_PROCESS,
+        ISOLATED_PROCESS,
+    }
+
     private var hasRetryCompile = false
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
@@ -102,6 +108,7 @@ class KotlinCompilerInvoker {
         val kspDependencies: List<File> = emptyList(),
         val kotlinPlugins: List<File> = emptyList(),
         val kotlinExtensions: List<File> = emptyList(),
+        val executionMode: ExecutionMode = ExecutionMode.IN_PROCESS,
     )
 
     fun compile(
@@ -335,7 +342,19 @@ class KotlinCompilerInvoker {
             forceCompilerOutputDebug = options.isEnableKapt,
         )
         val exitCode = try {
-            kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
+            if (options.executionMode == ExecutionMode.ISOLATED_PROCESS) {
+                check(!classpath.isNullOrEmpty()) { "Project Kotlin compiler classpath is required for isolated compilation" }
+                KotlinCompilerProcessRunner(logger).exec(
+                    compileEnv = context.cmdCompileEnv,
+                    projectDir = context.projectDir,
+                    task = task,
+                    compilerClasspath = classpath,
+                    compilerArgs = command,
+                    outputStream = outputParser.printStream,
+                )
+            } else {
+                kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
+            }
         } catch (e: Exception) {
             logger.error("invoke kotlin compile failed", e)
             ExitCode.INTERNAL_ERROR

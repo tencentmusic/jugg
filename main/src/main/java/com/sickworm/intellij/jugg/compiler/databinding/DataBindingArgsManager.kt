@@ -61,6 +61,9 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     val dataBindingExportClassListOutFile get() = file(tempCompileDir, "intermediates/data_binding_export_class_list/${moduleInfo.buildVariant}/kapt${moduleInfo.buildVariant.camel}Kotlin")
     val dataBindingBaseFeatureInfoDir get() = dir(tempCompileDir, "intermediates/base_feature_info") // no output
     val dataBindingKaptOutputDir get() = "other/kapt/output"
+    val kotlinAdapterKaptAarOutDir get() = dir(tempCompileDir, "other/kotlin_adapter_kapt/data_binding_artifact")
+    val kotlinAdapterKaptLayoutInfoDir get() = dir(tempCompileDir, "other/kotlin_adapter_kapt/layout_info")
+    val kotlinAdapterKaptOutputDir get() = "other/kotlin_adapter_kapt/output"
     val setterStoreCacheDir get() = dir(
         context.tempModule.buildPathInfo.buildDir,
         "data_binding_setter_store/$moduleRelativePath/${moduleInfo.buildVariant}",

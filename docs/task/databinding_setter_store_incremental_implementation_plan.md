@@ -2,7 +2,7 @@
 
 ## 1. 目标
 
-复用 `DataBindingGenMapperCompiler` 已有的一次 APT/KAPT，在当前 module 内支持：
+保持 Mapper APT 默认快速路径，并只在 Kotlin adapter declaration 变化时运行隔离 KAPT，在当前 module 内支持：
 
 - 当前轮 adapter declaration 对同轮 layout 立即可见。
 - processor 输出的 current-module setter store 合入持久化 merged store。
@@ -19,26 +19,29 @@ SourceCompiler
   -> SourceDataBindingProcessor
      -> DataBindingGenMapperCompiler
         -> DataBindingClasspathHelper: merged store ?: Gradle baseline
-        -> existing Java APT / Kotlin KAPT, exactly once
+        -> Kotlin adapter: isolated project KAPT in Gradle JVM
         -> official current-module setter store
+        -> compile Kotlin adapter class
         -> DataBindingSetterStoreCache.merge()
+        -> Java Mapper APT
         -> layout 存在时继续生成 Mapper / BindingImpl / BR
         -> adapter-only 时返回并继续普通源码编译
 ```
 
-官方 processor 在一次 invocation 内先执行 `ProcessMethodAdapters`，再执行 `ProcessExpressions`，因此当前 adapter 不依赖第二次 processor 即可被同轮 layout 使用。
+Java adapter 仍由一次 Mapper APT处理；Kotlin adapter 需要先通过 KAPT stub/processor生成 store。Java APT不能直接处理 Kotlin source，也不能以普通 classpath class 替代 KAPT annotation round。
 
 ## 3. TDD 执行清单
 
 | 测试文件 | 层级 | 场景 |
 |----------|------|------|
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinCompilerProcessRunnerTest.kt` | L1 | Gradle JVM选择、JDK module flags |
 | `main/src/test/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingSetterStoreCacheTest.kt` | L1 | generated store 合入 baseline，保留无关记录 |
 | 同上 | L1 | 同一 declaring type 替换旧记录 |
 | 同上 | L1 | 多轮 generated store 累积 |
 | 同上 | L1 | 冲突不覆盖上一版 merged store |
-| `idea/src/test/java/com/sickworm/intellij/jugg/compile/JuggCompileForDataBindingTest.kt` | L2 | 同轮 Kotlin adapter + layout |
-| 同上 | L2 | adapter-only 后下一轮 layout 复用 |
-| 同上 | L2 | Java adapter + layout |
+| `idea/src/test/java/com/sickworm/intellij/jugg/compile/JuggCompileForDataBindingTest.kt` | L3 | 同轮 Kotlin adapter + layout |
+| 同上 | L3 | adapter-only 后下一轮 layout 复用 |
+| 同上 | L3 | Java adapter + layout |
 | 同上 | L2 | Gradle baseline 原有 adapter 保留 |
 | `idea/src/test/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelperTest.kt` | L2 | adapter declaration 不再前置 fallback |
 | `idea/src/test/java/com/sickworm/intellij/jugg/manager/TopLevelFlowTest.kt` | L3 | 真实 demo 编译和部署 |
@@ -50,18 +53,19 @@ SourceCompiler
 ### 4.1 `DataBindingGenMapperCompiler`
 
 - adapter declaration 检测内联在 DataBinding compiler 文件内。
-- Java adapter 使用现有 APT；Kotlin adapter 使用现有 KAPT。
+- Java adapter 使用现有 Mapper APT；Kotlin adapter 使用隔离 KAPT store phase。
 - APT/KAPT 成功后读取 `dataBindingAarOutDir` 中的 current-module setter store。
 - 有 adapter declaration 时调用 `DataBindingSetterStoreCache.merge()`。
 - 有 layout 时保持 Mapper holder、BR merge 和输出逻辑。
 - adapter-only 时不要求 Mapper 文件存在，只更新 store 后返回成功。
-- 不新增第二次 annotation processor invocation。
+- Kotlin adapter 变化时允许一次 KAPT store invocation + 一次 Mapper APT；其他场景保持一次 APT。
 
 ### 4.2 `SourceDataBindingProcessor`
 
 - 原有 DataBinding trigger source 仍可触发 Mapper。
 - 当前 Java/Kotlin source 含 adapter declaration 时也触发 processor。
 - 无 layout 但有 adapter declaration 时允许 adapter-only processor 路径。
+- Kotlin adapter store 生成成功后先编译 adapter class，再进入 Mapper APT。
 - 不承担 JSON cache 实现。
 
 ### 4.3 `DataBindingSetterStoreCache`
@@ -82,11 +86,18 @@ SourceCompiler
 
 ### 4.5 `DataBindingArgsManager`
 
-- 仅保留稳定的 `setterStoreCacheDir`。
-- 复用现有 `dataBindingAarOutDir` 作为本轮官方 processor store 输出目录。
-- 不增加 setter-only delta 工作目录。
+- 保留稳定的 `setterStoreCacheDir`。
+- Kotlin adapter KAPT与 Mapper APT 使用独立 aar/layout/output 工作目录。
 
-### 4.6 `JuggCompileHelper`
+### 4.6 `KotlinCompilerInvoker` / `KotlinCompilerProcessRunner`
+
+- 普通编译默认继续使用进程内 `K2JVMCompilerIsolate`。
+- 增加 opt-in isolated execution mode，仅由 Kotlin DataBinding adapter 使用。
+- 从 `ICompileContext.cmdCompileEnv` 读取 Gradle `JAVA_HOME`。
+- 子进程直接启动项目 `K2JVMCompiler` main，复用现有 CLI 参数和输出解析器。
+- JDK 9+ 为 kapt/javac internal packages 添加 exports/opens；支持取消和超时。
+
+### 4.7 `JuggCompileHelper`
 
 - 仅移除 BindingAdapter declaration 的前置 Gradle fallback。
 - 不附加 `oldSource`，不保留 deleted source，不增加 DataBinding 编译职责。
