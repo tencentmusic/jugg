@@ -57,10 +57,6 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
     ): List<SuggestRunConfiguration> {
         val result = mutableListOf<SuggestRunConfiguration>()
 
-        val existsModuleForRunConfig = existsRunConfigNames.map {
-            SuggestRunConfiguration.getModuleNameByRunConfigName(it)
-        }.toSet()
-
         // returns empty with new created project, have to use allConfigurationsList and filter by myself
 //        var androidConfigSettings = RunManager.getInstance(project)
 //            .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
@@ -78,11 +74,6 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
                         "is null, ignore")
                 return@forEach
             }
-            if (suggestRunConfig.moduleName in existsModuleForRunConfig) {
-                logger.debug("getSuggestRunConfigurations: runConfig ${configSettings.name} already has relative " +
-                        "Jugg config ${suggestRunConfig.runConfigName}, ignore")
-                return@forEach
-            }
             logger.debug("getSuggestRunConfigurations: add suggest runConfig $suggestRunConfig")
             result.add(suggestRunConfig)
         }
@@ -92,7 +83,7 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
             return listOf(SuggestRunConfiguration.DEFAULT)
         }
 
-        return result
+        return result.distinctBy { it.compileCommand to it.outputApkPath }
     }
 
     private fun getSuggestRunConfiguration(settings: RunnerAndConfigurationSettings,
@@ -116,9 +107,9 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
             gradleAndroidModel ?: return null
 
             // get compile command
-            val moduleName = gradleAndroidModel.moduleName.split('.').last()
-            val taskName = gradleAndroidModel.mainArtifact.assembleTaskName
-            val compileCommand = "./gradlew :$moduleName:$taskName"
+            val moduleName = SuggestRunConfiguration.resolveModuleName(module, project)
+            val taskName = gradleAndroidModel.mainArtifact.assembleTaskName ?: return null
+            val compileCommand = SuggestRunConfiguration.createCompileCommand(moduleName, taskName)
 
             // get apk
             val projectPath = project.basePath!!
@@ -138,7 +129,12 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
             val apkPath = moduleRelativePath.replace("\\", "/") + "/build/outputs/apk/$productFlavorPath$buildType/*.apk"
             logger.debug("getSuggestRunConfiguration use apk output path: $apkPath")
 
-            return SuggestRunConfiguration(moduleName, compileCommand, apkPath)
+            return SuggestRunConfiguration(
+                moduleName = moduleName,
+                compileCommand = compileCommand,
+                outputApkPath = apkPath,
+                variantName = gradleAndroidModel.selectedVariant.name,
+            )
         } catch (e: Exception) {
             logger.debug("getSuggestRunConfiguration for ${settings.name} error, ignore", e)
             return null

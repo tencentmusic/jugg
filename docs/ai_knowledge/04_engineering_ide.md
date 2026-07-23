@@ -72,8 +72,8 @@ IDE project opened
 JuggGradleSyncListener
   -> JuggInitializer.onSyncEvent(project, syncEvent)
   -> JuggManager.onSyncEvent()
-     SUCCEEDED: 创建 run config，updateProjectInfo(isAfterSync = true)
-     SKIPPED: 创建 run config，updateProjectInfo(isAfterSync = false)
+     SUCCEEDED: 同步 Active Build Variant 对应 run config，updateProjectInfo(isAfterSync = true)
+     SKIPPED: 同步 Active Build Variant 对应 run config，updateProjectInfo(isAfterSync = false)
      STARTED/FAILED: 通知 dependencyChangeManager
   -> CompileContextManager.updateCompileContext()
   -> GradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
@@ -82,6 +82,12 @@ JuggGradleSyncListener
 ```
 
 Sync 成功会重置 hasRun，避免旧运行状态让“无文件变化”判断污染下一轮。
+
+Sync 完成或被 IDE 标记为 `SKIPPED` 后，`tryCreateRunConfigurations()` 会读取 Android Studio 当前 Active Build Variant 对应的 Gradle assemble command，并按需创建对应 Jugg Configuration。项目原来没有可用 Jugg Configuration 时，首次创建后自动选择；已有 Jugg Configuration 且当前 selected Configuration 不是 Jugg 时只创建、不改变选择；当前 selected Configuration 是 Jugg 且 command 与 Active Build Variant 不一致时，自动选择同模块的目标 Configuration。模块首个 Configuration 沿用 `jugg:<module>`，该名称已存在时使用 `jugg:<module>:<variant>`，目标 command 已存在时直接复用。`FullBuildInfo.compileCommand` 不参与 Configuration 选择，仅用于切换后首次 Run 的基线判断；command 不一致时，`JuggCompileHelper.preprocessIncrementalCompile()` 会强制走 Gradle full build，成功后刷新基线。
+
+建议配置的 APK output pattern 从 Android Studio Android model 的实际 build folder 生成，支持 `${moduleDir}/build` 和项目根集中式 `build/${moduleName}`。Sync 时，如果已有 Jugg Configuration 的路径仍符合旧版自动生成特征（位于任意模块的 `/build/outputs/apk/` 且以 `.apk` 结尾），会自动迁移为当前建议路径；用户手工填写的其他路径保持不变。
+
+Configuration 优先通过 Android Studio 的 `GradleProjectPath` 获取真实 Gradle project path 与 build root，不依赖 IDE module 展示名中的 `.main`、`.debug` 等 source-set 后缀。root build 例如 `path=:app -> app -> :app:assembleDebug`；included build 会结合 external project identity，例如 `SMCommon + :app -> SMCommon.app -> :SMCommon:app:assembleDebug`。该增强路径使用反射且整体捕获 `Throwable`，任何 API、反射或数据异常都会回退到原有 IDE module name 规则。创建 Configuration 时还会按 compile command 做批内去重，避免多个 Android Run Configuration 指向同一模块时生成 `(1)` 重复项。
 
 ### 4.3 Run 到编译部署
 
@@ -107,7 +113,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 
 ## 5. UI 与工具入口
 
-- 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；Sync 后如果没有可用配置会短暂重试。
+- 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；模块首个配置沿用旧名称，出现同名配置时追加 variant，APK 路径使用 IDE model 的实际 build folder。Sync 后如果没有可用配置会短暂重试，并只在检测到 Active Build Variant command 变化时自动切换。
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
 - `Check Jugg Update` 独立 action 经 `JuggManager.checkUpdates()` 复用 `MoreOptionsManager.checkUpdates()`，行为与 More Options 中的更新检查一致。
 - `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 Codex home（优先 `CODEX_HOME`，否则 `~/.codex`）下 `rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认，并在安装日志记录 rules file、prefix 与 installed/already_installed/fail 状态；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。

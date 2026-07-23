@@ -261,23 +261,17 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         isNeedDefaultRunConfig: Boolean,
     ): List<SuggestRunConfiguration> {
         val result = mutableListOf<SuggestRunConfiguration>()
-        val existsModuleForRunConfig = existsRunConfigNames.map {
-            SuggestRunConfiguration.getModuleNameByRunConfigName(it)
-        }.toSet()
-
         val androidConfigSettings = RunManager.getInstance(project).allSettings
             .filter { it.type is AndroidRunConfigurationType }
         androidConfigSettings.forEach { configSettings ->
             val suggestRunConfig = getSuggestRunConfiguration(configSettings, project, logger) ?: return@forEach
-            if (suggestRunConfig.moduleName !in existsModuleForRunConfig) {
-                result.add(suggestRunConfig)
-            }
+            result.add(suggestRunConfig)
         }
 
         if (result.isEmpty() && existsRunConfigNames.isEmpty() && isNeedDefaultRunConfig) {
             return listOf(SuggestRunConfiguration.DEFAULT)
         }
-        return result
+        return result.distinctBy { it.compileCommand to it.outputApkPath }
     }
 
     override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo? {
@@ -326,9 +320,9 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
             val runConfig = settings.configuration as AndroidRunConfiguration
             val module = runConfig.modules.firstOrNull() ?: return null
             val gradleAndroidModel = GradleAndroidModel.get(module) ?: return null
-            val moduleName = gradleAndroidModel.moduleName.split('.').last()
-            val taskName = gradleAndroidModel.mainArtifact.assembleTaskName
-            val compileCommand = "./gradlew :$moduleName:$taskName"
+            val moduleName = SuggestRunConfiguration.resolveModuleName(module, project)
+            val taskName = gradleAndroidModel.mainArtifact.assembleTaskName ?: return null
+            val compileCommand = SuggestRunConfiguration.createCompileCommand(moduleName, taskName)
             val projectPath = project.basePath ?: return null
             val buildType = gradleAndroidModel.selectedVariant.buildType
             val productFlavorPath = gradleAndroidModel.selectedVariant.productFlavors
@@ -339,7 +333,12 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
                 ?: ""
             val moduleRelativePath = gradleAndroidModel.rootDirPath.relativeTo(File(projectPath)).path
             val apkPath = moduleRelativePath.replace("\\", "/") + "/build/outputs/apk/$productFlavorPath$buildType/*.apk"
-            SuggestRunConfiguration(moduleName, compileCommand, apkPath)
+            SuggestRunConfiguration(
+                moduleName = moduleName,
+                compileCommand = compileCommand,
+                outputApkPath = apkPath,
+                variantName = gradleAndroidModel.selectedVariant.name,
+            )
         } catch (e: Exception) {
             logger.debug("getSuggestRunConfiguration for ${settings.name} error, ignore", e)
             null

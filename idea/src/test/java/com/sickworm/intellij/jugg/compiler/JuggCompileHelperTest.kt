@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.JuggCompiler
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.RecompileFiles
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -248,6 +249,20 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun preprocessIncrementalCompile_compileCommandChanged_forcesGradleFallback() {
+        val fixture = createFixture()
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleRelease")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("Compile command changed", result.failedReason)
+    }
+
+    @Test
     fun checkFallback_bindingAdapterSourceChanged_allowsIncrementalCompile() {
         val fixture = createFixture()
         val sourceFile = temporaryFolder.newFile("BindingAdapters.kt").apply {
@@ -448,14 +463,14 @@ class JuggCompileHelperTest {
         helper: JuggCompilerHelper,
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
-    ) {
+    ): CompileTaskResult? {
         val method = JuggCompilerHelper::class.java.getDeclaredMethod(
             "preprocessIncrementalCompile",
             JuggGradleCompileOptions::class.java,
             CompileUiHandler::class.java,
         )
         method.isAccessible = true
-        method.invoke(helper, options, uiHandler)
+        return method.invoke(helper, options, uiHandler) as CompileTaskResult?
     }
 
     private data class Fixture(

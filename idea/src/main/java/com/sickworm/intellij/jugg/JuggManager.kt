@@ -4,6 +4,7 @@ import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.RunManager
+import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
@@ -200,7 +201,7 @@ class JuggManager @TestOnly constructor(
                     runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = true) })
                 }
                 SyncEvent.SKIPPED -> {
-                    tryCreateRunConfigurations(isSyncFinished = false)
+                    tryCreateRunConfigurations(isSyncFinished = true)
                     runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = false) })
                 }
                 SyncEvent.STARTED -> {
@@ -257,30 +258,77 @@ class JuggManager @TestOnly constructor(
             return
         }
 
-        val settingsList = suggestRunConfiguration.map { suggest ->
-            val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
-            val settings = RunManager.getInstance(project).createConfiguration(suggest.runConfigName, factory)
-            (settings.configuration as JuggRunConfiguration).state?.let {
-                it.compileCommand = suggest.compileCommand
-                it.outputApkName = suggest.outputApkPath
-                it.setDefaultRemoteOption(JuggSettings.defaultCompileSettings)
-            }
-            settings.isActivateToolWindowBeforeRun = false
-            settings
-        }
-        settingsList.forEach {
-            RunManager.getInstance(project).addConfiguration(it)
-        }
+        val runManager = RunManager.getInstance(project)
+        val settingsList = createRunConfigurations(runManager, currentList, suggestRunConfiguration)
 
-        // select if first created except default
         val settingsListExceptDefault = settingsList.filterNot {
             SuggestRunConfiguration.isDefaultRunConfigName(it.name)
         }
         if (currentListNamesExceptDefault.isEmpty() && settingsListExceptDefault.isNotEmpty()) {
-            val settings = settingsListExceptDefault[0]
-            RunManager.getInstance(project).selectedConfiguration = settings
+            runManager.selectedConfiguration = settingsListExceptDefault[0]
+        } else if (isSyncFinished) {
+            trySelectActiveBuildVariantConfiguration(
+                runManager,
+                currentList + settingsList,
+                suggestRunConfiguration,
+            )
         }
         TimeLogger.end("tryCreateDefaultRunConfiguration", logger)
+    }
+
+    /** Creates missing Jugg configurations while preserving existing configurations with the same compile command. */
+    private fun createRunConfigurations(
+        runManager: RunManager,
+        currentList: List<RunnerAndConfigurationSettings>,
+        suggestions: List<SuggestRunConfiguration>,
+    ): List<RunnerAndConfigurationSettings> {
+        val existingCommands = currentList.mapNotNull {
+            (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
+        }.toSet()
+        val usedNames = currentList.map { it.name }.toMutableList()
+        val settingsList = suggestions.distinctBy { it.compileCommand }
+            .filterNot { it.compileCommand in existingCommands }
+            .map { suggest ->
+                val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
+                val preferredName = if (SuggestRunConfiguration.isDefaultRunConfigName(suggest.runConfigName) ||
+                    suggest.baseRunConfigName in usedNames
+                ) {
+                    suggest.runConfigName
+                } else {
+                    suggest.baseRunConfigName
+                }
+                val name = RunManager.suggestUniqueName(preferredName, usedNames)
+                usedNames.add(name)
+                runManager.createConfiguration(name, factory).also { settings ->
+                    (settings.configuration as JuggRunConfiguration).state?.let {
+                        it.compileCommand = suggest.compileCommand
+                        it.outputApkName = suggest.outputApkPath
+                        it.setDefaultRemoteOption(JuggSettings.defaultCompileSettings)
+                    }
+                    settings.isActivateToolWindowBeforeRun = false
+                }
+            }
+        settingsList.forEach(runManager::addConfiguration)
+        return settingsList
+    }
+
+    /** Selects the active variant only when the current selection is a Jugg configuration. */
+    private fun trySelectActiveBuildVariantConfiguration(
+        runManager: RunManager,
+        availableSettings: List<RunnerAndConfigurationSettings>,
+        suggestions: List<SuggestRunConfiguration>,
+    ) {
+        val selectedSettings = runManager.selectedConfiguration ?: return
+        val selectedState = (selectedSettings.configuration as? JuggRunConfiguration)?.state ?: return
+        val selectedModuleName = SuggestRunConfiguration.getModuleNameByRunConfigName(selectedSettings.name)
+        val activeVariant = suggestions.firstOrNull {
+            it.moduleName == selectedModuleName && it.compileCommand != selectedState.compileCommand
+        } ?: return
+        val activeSettings = availableSettings.firstOrNull {
+            (it.configuration as? JuggRunConfiguration)?.state?.compileCommand == activeVariant.compileCommand
+        } ?: return
+        logger.info("Active Build Variant changed, select ${activeSettings.name} configuration.")
+        runManager.selectedConfiguration = activeSettings
     }
 
     @TestOnly
