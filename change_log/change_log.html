@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.0.34 (2026.07.23)</h2>
+<h2>3.0.35 (2026.07.23)</h2>
 <ol>
     <li>[feature] Supports Jugg CLI skills, allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
     <li>[feature] Supports Android test incremental compilation</li>
@@ -30,6 +30,7 @@
     <li>[bugfix] Fix project info init script compilation on Gradle 6.8</li>
     <li>[bugfix] Hide recoverable DataBinding compilation failures from user-visible warnings while preserving debug logs</li>
     <li>[bugfix] Respect the selected devices on Android Studio Quail instead of deploying to all connected devices</li>
+    <li>[bugfix] Fix incremental compilation losing the application R.jar when composite builds contain duplicate app module names</li>
 </ol>
 <h2>2.6.32 (2026.06.26)</h2>
 <ol>

@@ -1,3 +1,8 @@
+- version: 3.0.35
+  date: 2026.07.23
+  updates:
+    - fix incremental compilation losing the application R.jar when composite builds contain duplicate app module names
+
 - version: 3.0.34
   date: 2026.07.23
   updates:

@@ -1,3 +1,8 @@
+- version: 3.0.35
+  date: 2026.07.23
+  updates:
+    - 修复复合工程存在同名 app 模块时 Application R.jar 丢失，导致增量编译找不到 R 的问题
+
 - version: 3.0.34
   date: 2026.07.23
   updates:
