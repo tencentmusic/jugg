@@ -48,6 +48,57 @@ class JuggProjectInfoMergerAndroidTestTest {
     }
 
     @Test
+    fun `doMerge uses primary Gradle application and its latest R jar when IDE path conflicts`() {
+        val tempRoot = Files.createTempDirectory("jugg_duplicate_app_test_").toFile()
+        val mainProjectDir = File(tempRoot, "main").apply { mkdirs() }
+        val rootAppDir = File(mainProjectDir, "app").apply { mkdirs() }
+        val includedAppDir = File(tempRoot, "SMCommon/app").apply { mkdirs() }
+        val now = System.currentTimeMillis()
+        createRJar(
+            rootAppDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
+            now - 10_000,
+        )
+        val latestRootRJar = createRJar(
+            rootAppDir,
+            "build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar",
+            now - 5_000,
+        )
+        createRJar(
+            includedAppDir,
+            "build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar",
+            now,
+        )
+
+        val ideApp = applicationModule(mainProjectDir, includedAppDir, ModuleInfo.Type.Unknown)
+        val primaryGradleApp = applicationModule(mainProjectDir, rootAppDir, ModuleInfo.Type.Application)
+        val includedGradleApp = applicationModule(mainProjectDir, includedAppDir, ModuleInfo.Type.Application)
+        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app" to ideApp)))
+        val primaryGradleFile = saveToTempFile(JuggProjectInfo(mapOf("app" to primaryGradleApp)))
+        val includedGradleFile = saveToTempFile(JuggProjectInfo(mapOf("app" to includedGradleApp)))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            val result = merger.afterLocalFetch(
+                listOf(
+                    ProjectInfoSerializer(primaryGradleFile, logger),
+                    ProjectInfoSerializer(includedGradleFile, logger),
+                ),
+                BuildTarget.APP,
+            )
+
+            val mergedApp = result.mergedInfo!!.modules.getValue("app")
+            assertEquals(rootAppDir, mergedApp.moduleRootDir)
+            assertEquals(latestRootRJar, mergedApp.buildPathInfo.rFilePath)
+        } finally {
+            ideFile.delete()
+            primaryGradleFile.delete()
+            includedGradleFile.delete()
+            tempRoot.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `doMerge keeps main module debug variant when gradle androidTest shares module root`() {
         val downloadDir = File("/project/module_libs/common/download")
         val mainGradle = ModuleInfo.virtualModule.copy(
@@ -270,6 +321,29 @@ class JuggProjectInfoMergerAndroidTestTest {
         } finally {
             ideFile.delete()
             gradleFile.delete()
+        }
+    }
+
+    private fun applicationModule(
+        projectDir: File,
+        moduleDir: File,
+        type: ModuleInfo.Type,
+    ): ModuleInfo {
+        return ModuleInfo.virtualModule.copy(
+            name = "app",
+            moduleType = type,
+            moduleRootDir = moduleDir,
+            projectRootDir = projectDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug"),
+        )
+    }
+
+    private fun createRJar(moduleDir: File, relativePath: String, lastModified: Long): File {
+        return File(moduleDir, relativePath).apply {
+            parentFile.mkdirs()
+            writeBytes(byteArrayOf())
+            check(setLastModified(lastModified))
         }
     }
 

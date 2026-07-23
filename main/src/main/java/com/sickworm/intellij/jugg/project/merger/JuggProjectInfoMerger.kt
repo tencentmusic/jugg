@@ -94,10 +94,16 @@ class JuggProjectInfoMerger(
                 "ideUpdateTime ${ideUpdateTime.timeStampToTime()}")
 
         val gradleProjectInfoModules = mutableMapOf<String, ModuleInfo>()
-        localFetch.forEach { projectInfoSerializer ->
+        var primaryGradleModulePaths = emptySet<String>()
+        localFetch.forEachIndexed { index, projectInfoSerializer ->
             val gradleProjectInfo = projectInfoSerializer.load()
             logger.debug("localFetch file: ${projectInfoSerializer.dataFile.path }, " +
                     "modules: ${gradleProjectInfo?.modules?.map { it.key }}")
+            if (index == 0) {
+                primaryGradleModulePaths = gradleProjectInfo?.modules?.values
+                    ?.mapTo(mutableSetOf()) { it.moduleStdPath }
+                    ?: emptySet()
+            }
             gradleProjectInfo?.modules?.forEach { moduleInfo ->
                 if (!gradleProjectInfoModules.containsKey(moduleInfo.key)) {
                     gradleProjectInfoModules[moduleInfo.key] = moduleInfo.value
@@ -120,7 +126,8 @@ class JuggProjectInfoMerger(
             logger.debug("ide project info is older than gradle project info, isNeedUpdateLibraryDependency=true")
         }
 
-        val result = doMerge(ideProjectInfo, gradleProjectInfo, isNeedUpdateLibraryDependency, buildTarget)
+        val result = doMerge(ideProjectInfo, gradleProjectInfo, primaryGradleModulePaths,
+            isNeedUpdateLibraryDependency, buildTarget)
         logger.debug("merge result: $result")
 
         TimeLogger.end("merge", logger)
@@ -130,6 +137,7 @@ class JuggProjectInfoMerger(
     private fun doMerge(
         ideProjectInfo: JuggProjectInfo,
         gradleProjectInfo: JuggProjectInfo,
+        primaryGradleModulePaths: Set<String>,
         isNeedUpdateDependency: Boolean,
         buildTarget: BuildTarget,
     ): JuggProjectInfoMergeResult {
@@ -185,6 +193,10 @@ class JuggProjectInfoMerger(
                 // project that won't be compiled will be empty and moduleType will be Unknown
                 logger.debug("module $name type is unknown, won't merge")
                 mergedModules[name] = moduleInfo
+                return@forEach
+            }
+            resolveApplicationPathConflict(name, moduleInfo, gradleModuleInfo, primaryGradleModulePaths)?.let {
+                mergedModules[name] = it
                 return@forEach
             }
 
@@ -275,6 +287,49 @@ class JuggProjectInfoMerger(
         logger.debug("modules not found in gradleModuleInfo, won't merge: $noMergeModules")
 
         return mergeResult.copy(mergedInfo = JuggProjectInfo(mergedModules))
+    }
+
+    /**
+     * Resolves same-name Application modules that point to different Gradle roots.
+     * The primary Gradle module is selected only when its latest R.jar candidate exists;
+     * otherwise the caller keeps the normal IDE/Gradle field merge behavior.
+     */
+    private fun resolveApplicationPathConflict(
+        name: String,
+        ideModuleInfo: ModuleInfo,
+        gradleModuleInfo: ModuleInfo,
+        primaryGradleModulePaths: Set<String>,
+    ): ModuleInfo? {
+        if (gradleModuleInfo.moduleType != ModuleInfo.Type.Application ||
+            ideModuleInfo.moduleStdPath == gradleModuleInfo.moduleStdPath
+        ) {
+            return null
+        }
+
+        val selectedRFile = gradleModuleInfo.buildPathInfo.rFilePath
+        val isPrimaryGradleModule = gradleModuleInfo.moduleStdPath in primaryGradleModulePaths
+        if (!isPrimaryGradleModule || !selectedRFile.exists()) {
+            logger.debug(
+                "Application module path conflict keeps normal merge, name=$name, " +
+                        "ideModulePath=${ideModuleInfo.moduleStdPath}, " +
+                        "gradleModulePath=${gradleModuleInfo.moduleStdPath}, " +
+                        "isPrimaryGradleModule=$isPrimaryGradleModule, " +
+                        "selectedRJar=${selectedRFile.absolutePath}, rJarExists=${selectedRFile.exists()}"
+            )
+            return null
+        }
+
+        val candidateText = gradleModuleInfo.buildPathInfo.rFilePathCandidates.joinToString(", ") {
+            "${it.absolutePath}(lastModified=${it.lastModified()})"
+        }
+        logger.debug(
+            "Application module path conflict resolved with primary Gradle module, name=$name, " +
+                    "ideModulePath=${ideModuleInfo.moduleStdPath}, " +
+                    "gradleModulePath=${gradleModuleInfo.moduleStdPath}, " +
+                    "selectedRJar=${selectedRFile.absolutePath}, " +
+                    "rJarLastModified=${selectedRFile.lastModified()}, candidates=[$candidateText]"
+        )
+        return gradleModuleInfo
     }
 
     private fun <T, K> mergeWithBase(moduleName: String, type: String,

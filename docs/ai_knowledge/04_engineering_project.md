@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-07-22
+> 最后核对：2026-07-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -93,6 +93,7 @@ JuggManager.onSyncEvent()
      创建 IDE project info，并基于完整 IDE Android 模型 androidTest artifact 信息标记 IDE androidTest module
   -> JuggProjectInfoMerger
      合并 IDE project info、Gradle project info、include build project info、custom config
+     同名 Application 路径冲突时，仅在主 Gradle 快照存在真实 R.jar 时采用该 Application
   -> reInitOnCompileContextUpdate()
      DeployFileManager / JuggCompiler / FileChangesHandler / GitFileChangesDetector / CustomCompilerManager 重新绑定新上下文
 ```
@@ -141,6 +142,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `ModuleBuildPathInfo.javaClassPath` 在 `intermediates/javac/<variant>/classes` 与 `compile<Variant>JavaWithJavac/classes` 并存时同样按 `lastModifiedTime` 选择最新目录；`allClassPath` 只挂载解析后的单一 Java 输出目录，避免 AGP 升级后旧目录 shadow 新 class。
 - `readProjectInfo.gradle.kts` 读取依赖时使用上次 project info 做 CRC 缓存，但不能只依赖缓存，因为 transitive dependency 信息可能不完整。
 - include build 会把各自的 `gradle_project_infos.json` 复制成 `include_build_N_gradle_project_infos.json`，主工程只通过列表文件引用。
+- IDE 可能把不同 Gradle build 中的同名模块都简化为相同 simple name。若同名模块分别指向不同相对路径，只有 Gradle 侧模块明确为 `Application`、来自主 Gradle 快照且存在真实 R.jar 时，才完整保留该 Gradle Application；多个 R.jar 候选继续由 `ModuleBuildPathInfo.rFilePath` 按修改时间选择最新产物。条件不满足时仍走原有字段合并，普通 Library 不受影响。冲突日志会记录 IDE/Gradle 模块路径、是否属于主快照、候选 R.jar 和最终选择。
 - diff mode 只输出依赖差异并清理临时 project info；非 diff mode 才写正式 `gradle_project_infos.json`。
 - androidTest task 注入发生在 Gradle task graph finalization 之前；如果请求任务名和真实 task path 对不上，注入会静默打印 “no requested task found” 并跳过。
 
@@ -155,6 +157,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | AGP 升级后找不到 R.jar / manifest / data binding 输出 | `ModuleBuildPathInfo` 对应属性 |
 | project info JSON 缺字段 | `ModuleInfo` 字段同步清单、`ProjectInfoSerializerInGradle`、`JuggProjectInfoMerger` |
 | include build 模块缺失 | `gradle_include_builds.txt` 与 `JuggProjectInfoMerger` |
+| 同名 app 合并后 R.jar 指向外部工程 | `JuggProjectInfoMerger` 的主 Gradle Application + R.jar 存在性保护日志 |
 | 找不到 APK 输出 | `LocalGradleCompileClient`、`ApkLookupPlanner`、`FindOutputCommand` |
 | 依赖变化未感知 | `GradleDependencyDiffer`、`DependencyChangeManagerByGradle` / `DependencyChangeManagerBySync` |
 | library androidTest target package 异常 | 实际 Test APK manifest、`buildAndroidTestModuleInfo()`、`LibraryTestApkBuildHistory` |
