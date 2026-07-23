@@ -1,6 +1,6 @@
 # 编译系统：DataBinding / ViewBinding
 
-> 最后核对：2026-07-22
+> 最后核对：2026-07-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -104,6 +104,8 @@ SourceCompiler.prepareSourceCompile()
 - mapper 使用 `DataBinderMapperImpl_Inc_N` 增量编号；`N` 来自已部署 dex 中同包名 inc mapper 的数量。
 - 源码阶段不能调用 `argsManager.reset()`，因为 mapper 生成依赖资源阶段刚写入的 `tempDataBindingLayoutXmlDir`。
 - DataBinding Mapper 固定走 Java APT trigger。只有本轮出现 Kotlin adapter declaration 时，才在 Mapper 前通过 Gradle JVM 子进程运行项目 KAPT，生成官方 current-module setter store。
+- 源码 adapter 声明检测只在模块确认启用 DataBinding 后执行，非 DataBinding 模块直接跳过。检测覆盖 `BindingAdapter`、`BindingMethod(s)`、`BindingConversion`、`InverseBindingAdapter`、`InverseBindingMethod(s)`、`InverseMethod` 和 `Untaggable`，支持简单名、`androidx.databinding` / `android.databinding` 完整包名及 Kotlin alias import；注释、名称前后缀和嵌套类型名不视为声明。
+- `Bindable` 属于 BR 生成语义，不复用 adapter setter store 检测与隔离 KAPT 路径；`BindingBuildInfo` 继续由 Jugg 生成的 trigger file 驱动。
 - 隔离 KAPT 直接启动项目 `K2JVMCompiler` CLI，并为 javac internal packages 添加 module exports/opens，避免旧 KAPT 继承 Android Studio 宿主 JBR 的 module 限制。
 - DataBinding mapper 失败且当前任务含 Kotlin 源时，`SourceDataBindingProcessor` 会先编译 Kotlin class，再重试一次 mapper 生成；第二次失败不再重试。正常成功路径仍只有一次 DataBinding processor invocation。
 - `DataBindingClasspathHelper` 只给 DataBinding 相关依赖做 annotation processing，避免 ARouter 等其他 processor 进入这条旁路。

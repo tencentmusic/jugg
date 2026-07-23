@@ -1,16 +1,22 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
+import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
+import com.sickworm.intellij.jugg.compiler.databinding.hasDataBindingAdapterDeclaration
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
+import com.sickworm.intellij.jugg.compiler.source.SourceDataBindingProcessor
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.mock.TestGlobal.assetsAndroidDir
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SourceCompileDataBindingTest {
@@ -26,6 +32,107 @@ class SourceCompileDataBindingTest {
     @After
     fun tearDown() {
         DataBindingArgsManager.isForceUseAptInTest = null
+    }
+
+    @Test
+    fun dataBindingAdapterDeclaration_shouldRecognizeSupportedAnnotations() {
+        val sourceFile = File(TestGlobal.buildDir, "adapter_detection/BindingAdapters.kt")
+        val annotations = listOf(
+            "BindingAdapter",
+            "BindingMethod",
+            "BindingMethods",
+            "BindingConversion",
+            "InverseBindingAdapter",
+            "InverseBindingMethod",
+            "InverseBindingMethods",
+            "InverseMethod",
+            "Untaggable",
+        )
+
+        annotations.forEach { annotation ->
+            sourceFile.parentFile.mkdirs()
+            sourceFile.writeText("@$annotation(\"value\")\nfun bind() = Unit")
+            assertTrue(sourceFile.hasDataBindingAdapterDeclaration(), annotation)
+        }
+
+        sourceFile.writeText("@androidx.databinding.BindingAdapter(\"value\")\nfun bind() = Unit")
+        assertTrue(sourceFile.hasDataBindingAdapterDeclaration())
+
+        sourceFile.writeText("@android.databinding.BindingAdapter(\"value\")\nfun bind() = Unit")
+        assertTrue(sourceFile.hasDataBindingAdapterDeclaration())
+
+        sourceFile.writeText(
+            """
+            import androidx.databinding.BindingAdapter as JuggBindingAdapter
+
+            @JuggBindingAdapter("value")
+            fun bind() = Unit
+            """.trimIndent()
+        )
+        assertTrue(sourceFile.hasDataBindingAdapterDeclaration())
+    }
+
+    @Test
+    fun dataBindingAdapterDeclaration_shouldIgnoreCommentsAndLongerNames() {
+        val sourceFile = File(TestGlobal.buildDir, "adapter_detection/NotBindingAdapters.kt")
+        sourceFile.parentFile.mkdirs()
+        sourceFile.writeText(
+            """
+            // @BindingAdapter("comment")
+            /*
+             * @InverseBindingAdapter("blockComment")
+             * androidx.databinding.BindingConversion
+            */
+            @BindingAdapterFactory
+            annotation class BindingAdapterFactory
+            @BindingAdapter.Factory
+            annotation class NestedBindingAdapterFactory
+            """.trimIndent()
+        )
+
+        assertFalse(sourceFile.hasDataBindingAdapterDeclaration())
+    }
+
+    @Test
+    fun sourceDataBindingProcessor_shouldSkipNonDataBindingModule() {
+        val moduleRoot = File(TestGlobal.buildDir, "non_databinding_module")
+        val module = TestGlobal.applicationModule.copy(
+            moduleRootDir = moduleRoot,
+            projectRootDir = TestGlobal.buildDir,
+            sourceDirs = listOf(File(moduleRoot, "src/main/java")),
+            buildPathInfo = ModuleBuildPathInfo(TestGlobal.buildDir, moduleRoot, "debug"),
+            isUseDataBinding = false,
+        )
+        val sourceFile = File(module.sourceDirs.first(), "CustomBindingAdapter.kt").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                annotation class BindingAdapter
+
+                @BindingAdapter
+                class CustomBindingAdapter
+                """.trimIndent()
+            )
+        }
+        val context = TestGlobal.context
+        val processor = SourceDataBindingProcessor(
+            DataBindingGenMapperCompiler(
+                context.subContext("non_databinding_mapper"),
+                TestGlobal.mockParentDisposable,
+            ),
+            KotlinCompiler(context.subContext("non_databinding_kotlin"), TestGlobal.mockParentDisposable),
+            context,
+            TestGlobal.logger,
+        )
+        val task = CompileTask(
+            files = listOf(CompileFile(CompileFile.Type.Kotlin, sourceFile, sourceFile.parentFile, module)),
+            outputDir = File(TestGlobal.buildDir, "non_databinding_output"),
+        )
+
+        val result = processor.processDataBindingMapper(task, module)
+
+        assertTrue(result.isAllSuccess)
+        assertTrue(result.outputs.isEmpty())
     }
 
     @Test

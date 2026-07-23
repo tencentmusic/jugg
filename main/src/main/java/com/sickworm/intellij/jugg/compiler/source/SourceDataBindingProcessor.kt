@@ -50,6 +50,9 @@ class SourceDataBindingProcessor(
         isKotlinAdapterPrepared: Boolean,
     ): CompileResult {
         val argsManager = DataBindingArgsManager(context, module)
+        if (!argsManager.isUseDataBinding) {
+            return CompileResult(task, emptyList(), emptyList())
+        }
         val kotlinAdapterSources = task.files.filter {
             it.type == CompileFile.Type.Kotlin && it.file.hasDataBindingAdapterDeclaration()
         }

@@ -18,15 +18,94 @@ private val DATA_BINDING_ADAPTER_ANNOTATIONS = listOf(
     "InverseBindingMethod",
     "InverseBindingMethods",
     "InverseMethod",
+    "Untaggable",
 )
 
+private val dataBindingAdapterAnnotationNames = DATA_BINDING_ADAPTER_ANNOTATIONS.joinToString("|")
+private val dataBindingAdapterAnnotationPattern = Regex(
+    """@\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*:\s*)?(?:(?:androidx|android)\.databinding\.)?(?:$dataBindingAdapterAnnotationNames)(?=\s|\(|$)"""
+)
+private val dataBindingAdapterAliasImportPattern = Regex(
+    """(?m)^\s*import\s+(?:androidx|android)\.databinding\.(?:$dataBindingAdapterAnnotationNames)\s+as\s+([A-Za-z_][A-Za-z0-9_]*|`[^`\r\n]+`)\s*$"""
+)
+
+/** Detects DataBinding annotations without treating comments or longer identifiers as declarations. */
 internal fun File.hasDataBindingAdapterDeclaration(): Boolean {
-    val source = runCatching { readText() }.getOrDefault("")
-    return DATA_BINDING_ADAPTER_ANNOTATIONS.any { annotation ->
-        source.contains("@$annotation")
-            || source.contains("androidx.databinding.$annotation")
-            || source.contains("android.databinding.$annotation")
+    val source = runCatching { readText().withoutComments() }.getOrDefault("")
+    if (dataBindingAdapterAnnotationPattern.containsMatchIn(source)) return true
+    return dataBindingAdapterAliasImportPattern.findAll(source).any { match ->
+        val alias = Regex.escape(match.groupValues[1])
+        Regex("""@\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*:\s*)?$alias(?=\s|\(|$)""")
+            .containsMatchIn(source)
     }
+}
+
+/** Removes line and block comments while preserving quoted text and line boundaries. */
+private fun String.withoutComments(): String {
+    val result = StringBuilder(length)
+    var index = 0
+    var blockCommentDepth = 0
+    var isLineComment = false
+    var quote = ""
+    var isEscaped = false
+    while (index < length) {
+        if (isLineComment) {
+            if (this[index] == '\n') {
+                result.append('\n')
+                isLineComment = false
+            }
+            index++
+            continue
+        }
+        if (blockCommentDepth > 0) {
+            when {
+                startsWith("/*", index) -> blockCommentDepth++
+                startsWith("*/", index) -> blockCommentDepth--
+                this[index] == '\n' -> result.append('\n')
+            }
+            index += if (startsWith("/*", index) || startsWith("*/", index)) 2 else 1
+            continue
+        }
+        if (quote.isNotEmpty()) {
+            if (quote == "\"\"\"" && startsWith(quote, index)) {
+                result.append(quote)
+                index += quote.length
+                quote = ""
+                continue
+            }
+            val char = this[index++]
+            result.append(char)
+            if (quote.length == 1) {
+                if (isEscaped) isEscaped = false
+                else if (char == '\\') isEscaped = true
+                else if (char == quote[0]) quote = ""
+            }
+            continue
+        }
+        when {
+            startsWith("//", index) -> {
+                result.append(' ')
+                isLineComment = true
+                index += 2
+            }
+            startsWith("/*", index) -> {
+                result.append(' ')
+                blockCommentDepth = 1
+                index += 2
+            }
+            startsWith("\"\"\"", index) -> {
+                quote = "\"\"\""
+                result.append(quote)
+                index += quote.length
+            }
+            this[index] == '\"' || this[index] == '\'' -> {
+                quote = this[index].toString()
+                result.append(this[index++])
+            }
+            else -> result.append(this[index++])
+        }
+    }
+    return result.toString()
 }
 
 /**
