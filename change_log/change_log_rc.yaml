@@ -1,3 +1,9 @@
+- version: 3.0.34
+  date: 2026.07.23
+  updates:
+    - hide recoverable DataBinding compilation failures from user-visible warnings while preserving debug logs
+    - respect the selected devices on Android Studio Quail instead of deploying to all connected devices
+
 - version: 3.0.33
   date: 2026.07.23
   updates:

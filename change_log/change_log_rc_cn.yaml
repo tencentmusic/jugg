@@ -1,3 +1,9 @@
+- version: 3.0.34
+  date: 2026.07.23
+  updates:
+    - 隐藏可恢复的 DataBinding 编译失败警告，仅保留调试日志
+    - 修复 Android Studio Quail 单选设备时错误部署到所有已连接设备的问题
+
 - version: 3.0.33
   date: 2026.07.23
   updates:

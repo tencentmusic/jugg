@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.0.33 (2026.07.23)</h2>
+<h2>3.0.34 (2026.07.23)</h2>
 <ol>
     <li>[feature] 支持 Jugg CLI skills，让 AI coding agent 可以独立快速完成开发到验收闭环</li>
     <li>[feature] 支持 android test 增量编译</li>
@@ -28,6 +28,8 @@
     <li>[bugfix] 优化 Additional exclude patterns 提示与解析，改为使用分号分隔 rsync pattern，并兼容旧的逗号分隔配置</li>
     <li>[bugfix] 修复新增 declare-styleable 后，主包 R.styleable dex 未随增量部署导致 NoSuchFieldError</li>
     <li>[bugfix] 修复 Gradle 6.8 下项目信息初始化脚本编译失败</li>
+    <li>[bugfix] 隐藏可恢复的 DataBinding 编译失败警告，仅保留调试日志</li>
+    <li>[bugfix] 修复 Android Studio Quail 单选设备时错误部署到所有已连接设备的问题</li>
 </ol>
 <h2>2.6.32 (2026.06.26)</h2>
 <ol>

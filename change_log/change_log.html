@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.0.33 (2026.07.23)</h2>
+<h2>3.0.34 (2026.07.23)</h2>
 <ol>
     <li>[feature] Supports Jugg CLI skills, allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop</li>
     <li>[feature] Supports Android test incremental compilation</li>
@@ -28,6 +28,8 @@
     <li>[bugfix] Improve Additional exclude patterns hint and parsing to use semicolon-separated rsync patterns while keeping old comma-separated values compatible</li>
     <li>[bugfix] Fix NoSuchFieldError after adding declare-styleable when main R.styleable dex was omitted from incremental deployment</li>
     <li>[bugfix] Fix project info init script compilation on Gradle 6.8</li>
+    <li>[bugfix] Hide recoverable DataBinding compilation failures from user-visible warnings while preserving debug logs</li>
+    <li>[bugfix] Respect the selected devices on Android Studio Quail instead of deploying to all connected devices</li>
 </ol>
 <h2>2.6.32 (2026.06.26)</h2>
 <ol>
