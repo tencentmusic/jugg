@@ -62,7 +62,7 @@ Debug attach 同样必须走 `IAsDeployerCompat.attachJavaDebugger()`，不要�
 
 Quail 的 deployer API 已迁移到 `com.android.tools.deployer.common` 与 `com.android.tools.deployer.install` 包，`OptimisticApkUpdater` 不存在。`deploy_compat/v_quail` 必须独立实现，不继承 legacy compat 链，避免 superclass 或方法签名在启动期解析旧 root deployer 类型。
 
-Quail 的设备选择仍通过 `DeployTargetContext` 获取当前 deploy target，并调用 `launchDevices(project).ifReady` 读取 IDE 中实际选中的设备。不能用 ADB 已连接设备列表代替选中列表，否则单选设备时会错误部署到所有在线设备；该返回列表同时保留 multiple devices 的选择顺序。
+Meerkat～Panda 与 Quail 的设备选择通过 `DeployTargetContext` 获取当前 deploy target，再调用无启动副作用的 `getAndroidDevices(project)` 读取 IDE 选中顺序。只有全部选中设备都已运行并可解析为 `IDevice` 时才返回完整列表；任一选中 AVD 未运行时返回空，不启动 AVD，也不静默执行部分设备。不能用 ADB 已连接设备列表代替选中列表，否则单选设备时会错误部署到所有在线设备。
 
 ### 3.2 平台抽象
 

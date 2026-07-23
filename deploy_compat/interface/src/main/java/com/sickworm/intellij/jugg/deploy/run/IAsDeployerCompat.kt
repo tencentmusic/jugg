@@ -23,6 +23,10 @@ interface IAsDeployerCompat {
 
     fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider
 
+    /**
+     * Returns devices selected in the IDE that are already running.
+     * This method must not boot virtual devices.
+     */
     fun getSelectedDevices(project: Project): List<IDevice>?
 
     fun getConnectedDevices(project: Project): List<IDevice>?

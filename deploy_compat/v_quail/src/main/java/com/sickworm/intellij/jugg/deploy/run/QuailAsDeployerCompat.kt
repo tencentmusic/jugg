@@ -64,7 +64,11 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
 
     override fun getSelectedDevices(project: Project): List<IDevice>? {
         val deployTarget = DeployTargetContext().currentDeployTargetProvider.getDeployTarget(project)
-        return deployTarget.launchDevices(project).ifReady?.takeIf { it.isNotEmpty() }
+        val selectedDevices = deployTarget.getAndroidDevices(project)
+        val readyDevices = selectedDevices.mapNotNull { it.ddmlibDevice }
+        return readyDevices.takeIf {
+            it.isNotEmpty() && it.size == selectedDevices.size
+        }
     }
 
     override fun getConnectedDevices(project: Project): List<IDevice>? {

@@ -1,6 +1,6 @@
 # 部署系统：端到端流程（Run 到设备）
 
-> 最后核对：2026-05-23  
+> 最后核对：2026-07-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -50,8 +50,9 @@ JuggRunningTask.run()
   -> JuggCompileHelper.compile()
   -> 编译失败: show Run window + 返回失败 RunResult
   -> skip deploy: 返回编译成功但部署未执行的 RunResult
+  -> 单次读取 IDE 选中且已运行的设备快照
   -> 无设备: Gradle 编译时重建增量上下文，返回部署失败
-  -> 逐台设备 deployDevice()
+  -> 按快照顺序逐台设备 deployDevice()
   -> 汇总 DeployTaskResult 列表
   -> 全部成功: 打印最终成功日志，Gradle 编译后 initIncrementalCompileTask()
   -> 部分失败且允许 fallback: 设置 force Gradle 后递归 doRun()
@@ -75,7 +76,8 @@ Gradle 编译对应 `isInstall=true`；增量编译对应 `isInstall=false`。�
 ### 4.3 多设备汇总与 fallback
 
 ```text
-selected devices
+selected and running devices snapshot
+  -> 任一选中设备未运行: 整轮视为无设备，不启动 AVD，不执行部分设备
   -> 按选择顺序逐台 deploy
   -> deploy type 取最高优先级: INSTALL > EMBEDDED > COMPAT_HOT_FIX > HOT_FIX > HOT_RELOAD
   -> 任一设备失败: 检查所有失败是否 isCanFallback
@@ -92,6 +94,8 @@ selected devices
 - `CompileTaskResult.isGradleCompile` 同时影响 deploy 路径、成功后是否 `initIncrementalCompileTask()`、以及 `isLastFullCompileFailed` 状态。
 - Gradle 编译成功但部署失败时，仍可能需要重建增量上下文；否则下一轮增量能力会丢失。
 - `isSkipDeploy` 不是部署成功；它会让本轮 `isDeploySuccess=false`，并要求下次用户触发时不要因为 hasRun 状态误判无变更。
+- 设备选择是无副作用查询；Meerkat～Panda 与 Quail 不会因 Run、状态刷新或 MCP 查询自动启动未运行的 AVD。
+- Run 主链路只读取一次设备快照，避免 `hasDevice` 与实际部署之间选择状态变化。
 - 多设备只在最后一台成功部署后推进部分全局状态；部署核心细节见 `03_deploy_core.md`。
 - Run 层拿到的是 `DeployTaskResult.isCanFallback`，具体哪些失败可 fallback 由 `DeployRetryHandler` / deploy core 决定。
 - `juggServer.report(action="compile"/"deploy")` 是观测侧上报；不要把上报成功当作编译或部署成功。
@@ -102,8 +106,8 @@ selected devices
 
 | 现象 | 优先入口 |
 |---|---|
-| Run 卡在编译/部署边界 | `JuggRunningTask.doRun()` 中 compile success 后的 `isSkipDeploy`、`hasDevice`、`deployDevice()` 分支 |
-| 编译成功但没有部署 | `CompileUiHandler.isSkipDeploy`、`deployTargetManager.hasDevice`、`CompileTaskResult.isGradleCompile` |
+| Run 卡在编译/部署边界 | `JuggRunningTask.doRun()` 中 compile success 后的 `isSkipDeploy`、设备快照、`deployDevice()` 分支 |
+| 编译成功但没有部署 | `CompileUiHandler.isSkipDeploy`、`deployTargetManager.getSelectedDevices()`、`CompileTaskResult.isGradleCompile` |
 | 多设备只有部分成功 | `JuggRunningTask.doRun()` 汇总 `deployTaskResultList` 的 fallback 分支 |
 | 失败后整轮变成 Gradle 编译 | `DeployTaskResult.isCanFallback` 与 `JuggSettings.isAutoFallbackToGradleWhenDeployError` |
 | Gradle install 后下一轮增量状态异常 | `initIncrementalCompileTask()` 调用点与 `deployHistoryManager.isLastFullCompileFailed` |

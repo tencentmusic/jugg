@@ -10,14 +10,10 @@ open class MeerkatAsDeployerCompat: IguanaAsDeployerCompat() {
     override fun getSelectedDevices(project: Project): List<IDevice>? {
         val deployTargetContext = DeployTargetContext()
         val deployTarget: DeployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
-
-        // find the first available devices
-        val deviceFutures = deployTarget.launchDevices(project)
-        val devices = deviceFutures.ifReady
-        if (!devices.isNullOrEmpty()) {
-            return devices
+        val selectedDevices = deployTarget.getAndroidDevices(project)
+        val readyDevices = selectedDevices.mapNotNull { it.ddmlibDevice }
+        return readyDevices.takeIf {
+            it.isNotEmpty() && it.size == selectedDevices.size
         }
-
-        return null
     }
 }

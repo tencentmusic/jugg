@@ -16,7 +16,7 @@ interface IDeployTargetManager {
     fun getApks(): List<ApkInfo>
 
     /**
-     * @return devices that selected by IDE select box. Will boot AVD if needed.
+     * @return devices selected in the IDE that are already running. This method must not boot virtual devices.
      */
     fun getSelectedDevices(): List<IDevice>
 
@@ -49,11 +49,11 @@ interface IDeployTargetManager {
 
     fun getDeviceNameList(): String? {
         return try {
-            val device = getSelectedDevices()
-            if (device.isEmpty()) {
+            val devices = getSelectedDevices()
+            if (devices.isEmpty()) {
                 return null
             }
-            getSelectedDevices().joinToString(", ") { it.name }
+            devices.joinToString(", ") { it.name }
         } catch (e: Exception) {
             null
         }
