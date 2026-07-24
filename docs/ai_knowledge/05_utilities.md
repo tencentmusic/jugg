@@ -1,6 +1,6 @@
 # 公共工具模块（Utilities）
 
-> 最后核对：2026-07-21
+> 最后核对：2026-07-24
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -56,6 +56,7 @@ JuggManager 初始化
 - `JuggLogger.getInstance(...)` 要求对应 project key 已注册；未注册会 fail fast，排查“拿不到 logger”先看初始化时机，而不是补空 logger。
 - `FileLogger` 的 `compile_latest.log` 是 best-effort 快捷入口；真实滚动文件仍是 `compile_yyyy-MM-dd_HH-mm-ss.%g.log`，日志丢失排查要同时看当前主文件和 `compile_latest-1.log`。
 - `TimeLogger.start/end` 以字符串 tag 配对；同一 tag 被跨阶段复用会污染耗时判断，新增高频埋点前先确认 tag 唯一性。
+- `TaskRunnerManager.runTaskSafe` 仅在后台任务失败时上报任务名、耗时与异常信息；成功任务不发送事件。
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、DB、日志优先 project-local；跨项目复用资源、deploy cache、hook / resource 文件优先 `JuggGlobalPathManager`。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。

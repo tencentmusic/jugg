@@ -98,12 +98,12 @@ class TaskRunnerManager(
                         }
                     }
 
-                    reportEventData.action = jobName
-                    reportEventData.costTime = System.currentTimeMillis() - startTime
-                    juggServer.report(reportEventData)
+                    if (!reportEventData.isSuccess) {
+                        reportEventData.action = jobName
+                        reportEventData.costTime = System.currentTimeMillis() - startTime
+                        juggServer.report(reportEventData)
 
-                    if (jobName == "Init project info") {
-                        if (!reportEventData.isSuccess) {
+                        if (jobName == "Init project info") {
                             // compatible with com.intellij.serviceContainer.AlreadyDisposedException: Already disposed: Module: 'xxx' (disposed)
                             logger.debug("retry $jobName after ${retryInitDelayMill}ms") // maybe
                             launch {
@@ -111,9 +111,9 @@ class TaskRunnerManager(
                                 retryInitDelayMill *= 2
                                 runTaskSafe(jobName, action, isNeedShowIndicator)
                             }
-                        } else {
-                            retryInitDelayMill = 3_000L
                         }
+                    } else if (jobName == "Init project info") {
+                        retryInitDelayMill = 3_000L
                     }
                 }
                 if (isBlockIncrementalCompile) {
