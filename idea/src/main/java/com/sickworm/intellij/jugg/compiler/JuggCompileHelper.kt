@@ -233,30 +233,7 @@ class JuggCompilerHelper(
         deployHistoryManager.beforeFullCompiled(deployFileManager.getUndeployedFiles())
 
         if (effectiveOptions.isRemoteCompile) {
-            // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
-            if (!gradleProjectInfoLocalFetchManager.isProjectInfoAvailable) {
-                // project info not fetched, run it during remote gradle compile
-                // local compile will auto run after build finish
-                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
-                    isForce = true,
-                    specificCompileCommand = effectiveOptions.compileCommand,
-                    buildTarget = effectiveOptions.buildTarget,
-                )
-            } else {
-                val changedBuildFiles = deployFileManager.getUndeployedFiles().filter {
-                    it.type == CompileFile.Type.BuildFile
-                }
-                val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
-                logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
-                if (changedBuildFiles.isNotEmpty()) {
-                    gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true, lastBuildModifiedTime)
-                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
-                        isForce = false,
-                        specificCompileCommand = effectiveOptions.compileCommand,
-                        buildTarget = effectiveOptions.buildTarget,
-                    )
-                }
-            }
+            prepareRemoteProjectInfo(effectiveOptions)
         }
 
         GradleScriptWriter(pathManager, logger).writeInitGradleFile()
@@ -277,6 +254,33 @@ class JuggCompilerHelper(
         }
 
         return result
+    }
+
+    private fun prepareRemoteProjectInfo(options: JuggGradleCompileOptions) {
+        val isCompileCommandChanged = isCompileCommandChanged(options)
+        if (!gradleProjectInfoLocalFetchManager.isProjectInfoAvailable || isCompileCommandChanged) {
+            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
+                isForce = true,
+                specificCompileCommand = options.compileCommand,
+                buildTarget = options.buildTarget,
+            )
+            return
+        }
+
+        val changedBuildFiles = deployFileManager.getUndeployedFiles().filter {
+            it.type == CompileFile.Type.BuildFile
+        }
+        logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
+        if (changedBuildFiles.isEmpty()) {
+            return
+        }
+        val lastBuildModifiedTime = changedBuildFiles.maxOf { it.file.lastModified() }
+        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true, lastBuildModifiedTime)
+        gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
+            isForce = false,
+            specificCompileCommand = options.compileCommand,
+            buildTarget = options.buildTarget,
+        )
     }
 
     private fun withLibraryTestApkHistory(options: JuggGradleCompileOptions): JuggGradleCompileOptions {
@@ -377,8 +381,7 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Build target changed to ${options.buildTarget}")
         }
 
-        val lastCompileCommand = deployHistoryManager.getFullBuildInfo()?.compileCommand
-        if (lastCompileCommand != null && lastCompileCommand != options.compileCommand) {
+        if (isCompileCommandChanged(options)) {
             logger.info("Compile command changed, forcing Gradle full compile.")
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
         }
@@ -411,6 +414,11 @@ class JuggCompilerHelper(
             }
         }
         return null
+    }
+
+    private fun isCompileCommandChanged(options: JuggGradleCompileOptions): Boolean {
+        val lastCompileCommand = deployHistoryManager.getFullBuildInfo()?.compileCommand
+        return lastCompileCommand != null && lastCompileCommand != options.compileCommand
     }
 
     /**

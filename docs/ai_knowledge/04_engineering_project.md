@@ -145,6 +145,8 @@ APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生�
 
 本地 project info 读取属于后台维护任务，其 Gradle stdout/stderr 统一记录为 `debug`，不得打印用户可见的 `warn`；读取结果仍通过同步状态和返回值参与后续上下文更新。
 
+远程编译切换 compile command 时，即使本地已有 Gradle project info，也必须使用当前命令启动一次本地 project info dry-run。该刷新与远程构建并行；远程 full build 完成后，初始化增量编译会在读取 project info 和拉取 classpath 前等待最新刷新结束，避免继续按旧 variant 拼装 classpath 同步路径。刷新期间收到新的强制请求时会串行补跑最新请求。如果远程 full build 成功后 classpath 拉取失败，本轮不初始化增量编译，同时保留已有 compile context 与 deploy history。
+
 APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileClient` 会按本轮找到的 APK 文件清理 `build/jugg/classpath/apk/`，删除不属于本轮拉取结果的旧文件；查找或拉取失败时不清理旧缓存。
 
 ---

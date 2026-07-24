@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.CountDownLatch
 
 /**
  * Trigger [update] to get [JuggProjectInfo] if build file is changed.
@@ -51,8 +52,11 @@ class GradleProjectInfoLocalFetchManager(
     val isProjectInfoAvailable: Boolean get() = pathManager.gradleProjectInfoFile.exists()
             && deployHistoryManager.getFullBuildInfo()?.compileCommand != null
 
-    @Volatile
     private var isUpdating: Boolean = false
+    private var pendingUpdate: Pair<String?, BuildTarget>? = null
+
+    @Volatile
+    private var updateCompletion = CountDownLatch(0)
 
     private val cmdExecutor = CmdExecutor(logger, isLogAllDebug = true)
 
@@ -91,6 +95,7 @@ class GradleProjectInfoLocalFetchManager(
      * 1. init compile finished after project opened/build finished
      * 2. start remote compile
      */
+    @Synchronized
     fun runUpdateIfNeeded(
         isForce: Boolean = false,
         specificCompileCommand: String? = null,
@@ -101,20 +106,84 @@ class GradleProjectInfoLocalFetchManager(
         compileContextManager.ensureInitProjectInfo()
 
         logger.debug("runUpdateIfNeeded isNeedUpdate $isNeedUpdate, isUpdating $isUpdating, isForce: $isForce")
-        if (isUpdating || (!isForce && !isNeedUpdate)) {
+        if (!isForce && !isNeedUpdate) {
             logger.debug("no need execute update, exit")
             return
         }
 
-        taskRunnerManager.runTaskSafe("Update project info from gradle", {
-            update(specificCompileCommand, buildTarget)
-        }, isBlockIncrementalCompile = false)
+        if (isUpdating) {
+            if (isForce) {
+                pendingUpdate = specificCompileCommand to buildTarget
+            }
+            logger.debug("project info is updating, exit")
+            return
+        }
+
+        isUpdating = true
+        pendingUpdate = specificCompileCommand to buildTarget
+        val completion = CountDownLatch(1)
+        updateCompletion = completion
+        try {
+            taskRunnerManager.runTaskSafe("Update project info from gradle", {
+                processUpdates(completion)
+            }, isBlockIncrementalCompile = false)
+        } catch (e: Throwable) {
+            finishUpdates(completion)
+            throw e
+        }
+    }
+
+    /** Waits until the latest scheduled project info refresh finishes. */
+    fun waitForUpdate() {
+        while (true) {
+            val completion = updateCompletion
+            if (completion.count > 0) {
+                logger.debug("waiting for project info update")
+            }
+            try {
+                completion.await()
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                logger.debug("wait for project info update interrupted", e)
+                return
+            }
+            if (completion === updateCompletion) {
+                return
+            }
+        }
+    }
+
+    /** Runs refreshes serially and completes only after the latest queued request. */
+    private fun processUpdates(completion: CountDownLatch) {
+        try {
+            while (true) {
+                val request = synchronized(this) {
+                    pendingUpdate.also {
+                        pendingUpdate = null
+                        if (it == null) {
+                            isUpdating = false
+                            completion.countDown()
+                        }
+                    }
+                } ?: return
+                update(request.first, request.second)
+            }
+        } finally {
+            if (completion.count > 0) {
+                finishUpdates(completion)
+            }
+        }
     }
 
     @Synchronized
+    private fun finishUpdates(completion: CountDownLatch) {
+        isUpdating = false
+        pendingUpdate = null
+        completion.countDown()
+    }
+
     private fun update(specificCompileCommand: String?, buildTarget: BuildTarget): Boolean {
         try {
-            isUpdating = true
             GradleScriptWriter(pathManager, logger).writeInitGradleFile()
             compileContextManager.ensureInitProjectInfo()
 
@@ -169,8 +238,6 @@ class GradleProjectInfoLocalFetchManager(
         } catch (e: Exception) {
             logger.warn("runUpdateIfNeeded exception", e)
             return false
-        } finally {
-            isUpdating = false
         }
     }
 

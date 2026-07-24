@@ -518,6 +518,8 @@ class JuggManager @TestOnly constructor(
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
         if (!isRemoteCompile) {
             compileContextManager.updateCompileContextAfterLocalFetch(options.buildTarget)
+        } else {
+            gradleProjectInfoLocalFetchManager.waitForUpdate()
         }
 
         var projectInfo = compileContextManager.getProjectInfo()

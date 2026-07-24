@@ -263,6 +263,26 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun prepareRemoteProjectInfo_compileCommandChanged_startsCurrentCommandRefresh() {
+        val fixture = createFixture()
+        val compileCommand = "./gradlew :app:assembleDevDebug"
+        whenever(fixture.options.compileCommand).thenReturn(compileCommand)
+        whenever(fixture.options.buildTarget).thenReturn(BuildTarget.APP)
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleProdDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isProjectInfoAvailable).thenReturn(true)
+
+        invokePrepareRemoteProjectInfo(fixture.helper, fixture.options)
+
+        verify(fixture.gradleProjectInfoLocalFetchManager).runUpdateIfNeeded(
+            isForce = true,
+            specificCompileCommand = compileCommand,
+            buildTarget = BuildTarget.APP,
+        )
+    }
+
+    @Test
     fun checkFallback_bindingAdapterSourceChanged_allowsIncrementalCompile() {
         val fixture = createFixture()
         val sourceFile = temporaryFolder.newFile("BindingAdapters.kt").apply {
@@ -428,6 +448,7 @@ class JuggCompileHelperTest {
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
             dependencyChangeManager = dependencyChangeManager,
+            gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
             gitChangeChecker = gitChangeChecker,
             uiHandler = uiHandler,
             options = options,
@@ -473,6 +494,18 @@ class JuggCompileHelperTest {
         return method.invoke(helper, options, uiHandler) as CompileTaskResult?
     }
 
+    private fun invokePrepareRemoteProjectInfo(
+        helper: JuggCompilerHelper,
+        options: JuggGradleCompileOptions,
+    ) {
+        val method = JuggCompilerHelper::class.java.getDeclaredMethod(
+            "prepareRemoteProjectInfo",
+            JuggGradleCompileOptions::class.java,
+        )
+        method.isAccessible = true
+        method.invoke(helper, options)
+    }
+
     private data class Fixture(
         val helper: JuggCompilerHelper,
         val pathManager: JuggPathManager,
@@ -480,6 +513,7 @@ class JuggCompileHelperTest {
         val deployHistoryManager: IDeployHistoryManager,
         val deployTargetManager: IDeployTargetManager,
         val dependencyChangeManager: IDependencyChangeManager,
+        val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
         val gitChangeChecker: GitChangesCompileChecker,
         val uiHandler: CompileUiHandler,
         val options: JuggGradleCompileOptions,
