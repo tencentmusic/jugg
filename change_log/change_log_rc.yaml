@@ -1,3 +1,15 @@
+- version: 3.1.0
+  date: 2026.07.24
+  updates:
+    - sync Jugg run configurations with the active Android Studio Build Variant
+    - support custom Gradle build directories across compilation, deployment, and remote synchronization
+    - keep background Gradle project information logs at debug level
+    - use the Gradle JDK configured in Android Studio for local Gradle execution
+    - avoid starting selected but stopped virtual devices during Run or device status checks
+    - improve Gradle fallback when Jugg runtime injection is stale, including per-variant injection and a cache-refresh retry
+    - refresh remote Gradle project information before remote compilation when the compile command changes
+    - decode Windows Gradle command output as UTF-8 with GBK fallback
+
 - version: 3.0.35
   date: 2026.07.23
   updates:
