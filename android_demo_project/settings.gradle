@@ -1,3 +1,6 @@
 include ':app'
 include ':library1'
+if (providers.gradleProperty('enableKmpComposeFixture').orNull == 'true') {
+    include ':kmpCompose'
+}
 rootProject.name='My Application'

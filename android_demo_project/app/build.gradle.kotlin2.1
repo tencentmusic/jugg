@@ -24,7 +24,7 @@ apply from: './aabResGuard.gradle'
 
 android {
     namespace 'com.example.myapplication'
-    compileSdkVersion 33
+    compileSdkVersion 34
     buildToolsVersion "30.0.3"
     defaultConfig {
         applicationId "com.example.myapplication"
@@ -127,4 +127,7 @@ dependencies {
     ksp 'com.squareup.moshi:moshi-kotlin-codegen:1.14.0'
 
     implementation project(':library1')
+    if (project.findProperty('enableKmpComposeFixture') == 'true') {
+        implementation project(':kmpCompose')
+    }
 }

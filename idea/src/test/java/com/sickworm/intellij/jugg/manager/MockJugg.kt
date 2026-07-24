@@ -4,6 +4,7 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.log.LogWrapper
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.sickworm.intellij.jugg.JuggManager
@@ -58,7 +59,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class MockJugg(val projectDir: File = projectInfo.projectRoot) {
+class MockJugg(
+    val projectDir: File = projectInfo.projectRoot,
+    private val compileCommand: String = "./gradlew :app:assembleDebug",
+    private val isIdeSynced: Boolean = false,
+) {
 
     lateinit var project: JuggMockProject
     lateinit var juggManager: JuggManager
@@ -300,7 +305,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
     private fun createRunOptions(enableAndroidTest: Boolean): JuggRunConfigurationOptions {
         return JuggRunConfigurationOptions().also {
-            it.compileCommand = "./gradlew :app:assembleDebug"
+            it.compileCommand = compileCommand
             it.outputApkName = projectInfo.apkPath
             it.enableAndroidTest = enableAndroidTest
         }
@@ -408,6 +413,12 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
     }
 
     private fun renewManager() {
+        if (isIdeSynced) {
+            PropertiesComponent.getInstance(project).setValue(
+                "lastSyncSuccessTime_${AsDeployerCompat.ideVersion}",
+                System.currentTimeMillis().toString(),
+            )
+        }
         juggManager = JuggManager(
             project,
             coroutineScope = coroutineScope,

@@ -3,8 +3,18 @@ package com.sickworm.intellij.jugg.manager
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.mock.androidApkPackage
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
+import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
+import com.sickworm.intellij.jugg.mock.GradleBuildHelper
+import com.sickworm.intellij.jugg.mock.logger
+import com.sickworm.intellij.jugg.mock.projectInfo
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import org.junit.AfterClass
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -359,6 +369,152 @@ class JuggCompilerTest {
                     else -> file.writeText(oldContent)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Reproduces KMP Compose resource generation and commonMain compiler argument failures.
+ */
+class KmpComposeFlowReproTest {
+
+    companion object {
+        private const val FIXTURE_COMPILE_COMMAND =
+            "./gradlew :app:assembleDebug -PenableKmpComposeFixture=true"
+        private val pathManager = JuggPathManager(projectInfo.projectRoot)
+        private val projectInfoFiles = listOf(pathManager.ideProjectInfoFile, pathManager.gradleProjectInfoFile)
+        private val projectInfoBackups = mutableMapOf<File, ByteArray?>()
+
+        @BeforeClass
+        @JvmStatic
+        fun prepareFixture() {
+            AssembleAndroidProjectOnce.ensure()
+            projectInfoFiles.forEach { file ->
+                projectInfoBackups[file] = file.takeIf { it.exists() }?.readBytes()
+            }
+
+            try {
+                GradleBuildHelper.switchKotlinVersion("2.1")
+                assembleFixture()
+                writeCommonMainIdeProjectInfo()
+            } catch (throwable: Throwable) {
+                restoreFixture()
+                throw throwable
+            }
+        }
+
+        @AfterClass
+        @JvmStatic
+        fun restoreFixture() {
+            try {
+                GradleBuildHelper.switchKotlinVersion("1.7")
+            } finally {
+                projectInfoBackups.forEach { (file, content) ->
+                    if (content == null) {
+                        file.delete()
+                    } else {
+                        file.parentFile?.mkdirs()
+                        file.writeBytes(content)
+                    }
+                }
+            }
+        }
+
+        private fun assembleFixture() {
+            val initScript = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts").absoluteFile
+            val command = listOf(
+                "./gradlew",
+                ":app:assembleDebug",
+                "--no-daemon",
+                "-PenableKmpComposeFixture=true",
+                "-I",
+                initScript.absolutePath,
+            )
+            val process = ProcessBuilder(command)
+                .directory(projectInfo.projectRoot)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            val exitCode = process.waitFor()
+            check(exitCode == 0) {
+                "KMP Compose fixture assemble failed:\n$output"
+            }
+        }
+
+        private fun writeCommonMainIdeProjectInfo() {
+            val gradleProjectInfo = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).load()
+                ?: error("KMP Compose Gradle project info was not generated")
+            val parentModule = gradleProjectInfo.modules["kmpCompose"]
+                ?: error("kmpCompose module was not found in Gradle project info")
+            val commonMainModule = ModuleInfo.virtualModule.copy(
+                name = "kmpCompose.commonMain",
+                moduleType = ModuleInfo.Type.Unknown,
+                moduleRootDir = parentModule.moduleRootDir,
+                projectRootDir = parentModule.projectRootDir,
+                sourceDirs = listOf(File(parentModule.moduleRootDir, "src/commonMain/kotlin")),
+                buildVariant = parentModule.buildVariant,
+                buildPathInfo = parentModule.buildPathInfo,
+            )
+            ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(
+                JuggProjectInfo(mapOf(commonMainModule.name to commonMainModule))
+            )
+        }
+    }
+
+    @Test
+    fun reproduceComposeResourceChangeIsFilteredAndAccessorStaysStale() {
+        val resourceFile = File(
+            projectInfo.projectRoot,
+            "kmpCompose/src/commonMain/composeResources/values/strings.xml",
+        )
+        val sourceFile = File(
+            projectInfo.projectRoot,
+            "kmpCompose/src/commonMain/kotlin/com/sickworm/jugg/demo/kmp/ComposeResourceConsumer.kt",
+        )
+
+        changeAndRevert(resourceFile, "</resources>", "    <string name=\"incremental_title\">Incremental title</string>\n</resources>") {
+            changeAndRevert(sourceFile, "baseline_title", "incremental_title") {
+                val jugg = MockJugg(
+                    compileCommand = FIXTURE_COMPILE_COMMAND,
+                    isIdeSynced = true,
+                )
+                jugg.dryFullCompile()
+                jugg.notifyFileChanges(listOf(resourceFile, sourceFile))
+
+                val changedFiles = jugg.deployFileManager.getUncompiledFiles()
+                assertEquals(listOf(sourceFile.canonicalFile), changedFiles.map { it.file.canonicalFile })
+
+                jugg.compileChangedFiles()
+
+                val log = jugg.readLatestProjectLog()
+                assertTrue(log.contains("unresolved reference") && log.contains("incremental_title"), log)
+            }
+        }
+    }
+
+    @Test
+    fun reproduceCommonMainCompileMissesMultiplatformArguments() {
+        val sourceFile = File(
+            projectInfo.projectRoot,
+            "kmpCompose/src/commonMain/kotlin/com/sickworm/jugg/demo/kmp/PlatformLabel.kt",
+        )
+
+        changeAndRevert(sourceFile, "platformMarker(): String = \"baseline\"", "platformMarker(): String = \"changed\"") {
+            val jugg = MockJugg(
+                compileCommand = FIXTURE_COMPILE_COMMAND,
+                isIdeSynced = true,
+            )
+            jugg.dryFullCompile()
+            jugg.notifyFileChanges(listOf(sourceFile))
+            jugg.compileChangedFiles()
+
+            val log = jugg.readLatestProjectLog()
+            assertTrue(
+                log.contains("expect") &&
+                    log.contains("actual") &&
+                    log.contains("only in multiplatform projects"),
+                log,
+            )
         }
     }
 }
