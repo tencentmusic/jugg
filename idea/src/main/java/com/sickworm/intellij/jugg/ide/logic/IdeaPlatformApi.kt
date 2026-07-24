@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ide.logic
 
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.externalSystem.service.execution.ExternalSystemJdkUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -22,6 +23,7 @@ import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.ai.mcp.IdeaMcpRuntime
+import org.jetbrains.plugins.gradle.settings.GradleSettings
 import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {
@@ -59,15 +61,14 @@ class IdeaPlatformApi : IPlatformApi {
     }
 
     override fun getGradleJdkPath(project: Project, logger: Logger): String? {
-        var gradleJdkPath: String? = null
-
         val javaHome = System.getenv("JAVA_HOME")
         logger.debug("JAVA_HOME: $javaHome")
 
+        var gradleJdkPath = getConfiguredGradleJdkPath(project, logger)
         val rootModule = AsDeployerCompat.getModuleManager(project).modules.find {
             it.name == project.name
         }
-        if (rootModule != null) {
+        if (gradleJdkPath == null && rootModule != null) {
             val moduleRootManager = ModuleRootManager.getInstance(rootModule)
             val jdk: Sdk? = moduleRootManager.sdk
             if (jdk != null && jdk.sdkType == JavaSdk.getInstance() && jdk.homePath != null) {
@@ -97,6 +98,26 @@ class IdeaPlatformApi : IPlatformApi {
             logger.debug("final use gradleJdkPath: $gradleJdkPath")
         }
         return gradleJdkPath
+    }
+
+    private fun getConfiguredGradleJdkPath(project: Project, logger: Logger): String? {
+        return try {
+            val gradleSettings = GradleSettings.getInstance(project)
+            val projectSettings = project.basePath?.let { gradleSettings.getLinkedProjectSettings(it) }
+                ?: gradleSettings.linkedProjectsSettings.firstOrNull()
+            val gradleJvm = projectSettings?.gradleJvm
+            if (gradleJvm.isNullOrEmpty()) {
+                logger.debug("Gradle JVM is not configured in IDE settings")
+                null
+            } else {
+                val path = ExternalSystemJdkUtil.getJdk(project, gradleJvm)?.homePath
+                logger.debug("found gradleJdkPath in IDE Gradle settings: $gradleJvm, path: $path")
+                path
+            }
+        } catch (e: Exception) {
+            logger.debug("can't resolve Gradle JVM from IDE settings", e)
+            null
+        }
     }
 
     override fun getAndroidHomePath(logger: Logger): String? {
