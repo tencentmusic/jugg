@@ -126,7 +126,12 @@ class GradleProjectInfoReader(
             moduleRootDir = project.projectDir,
             projectRootDir = ideProjectDir,
             // set defaults to non-android modules, will update later in updateVariantAndSignConfigs for android modules
-            buildPathInfo = ModuleBuildPathInfo(ideProjectDir, project.projectDir, "debug"),
+            buildPathInfo = ModuleBuildPathInfo(
+                ideProjectDir,
+                project.projectDir,
+                "debug",
+                buildDirRelativePath = project.layout.buildDirectory.get().asFile.relativeTo(ideProjectDir).path
+            ),
             gradleModuleName = project.name,
         )
 
@@ -381,7 +386,12 @@ class GradleProjectInfoReader(
             buildVariant = buildVariant,
             variants = variants,
             signingConfigs = signingConfigs,
-            buildPathInfo = ModuleBuildPathInfo(ideProjectDir, project.projectDir, buildVariant),
+            buildPathInfo = ModuleBuildPathInfo(
+                ideProjectDir,
+                project.projectDir,
+                buildVariant,
+                buildDirRelativePath = project.layout.buildDirectory.get().asFile.relativeTo(ideProjectDir).path
+            ),
         )
     }
 
@@ -789,11 +799,7 @@ class GradleProjectInfoReader(
                 name = "${appModuleInfo.name}.androidTest",
                 moduleType = ModuleInfo.Type.Library,
                 buildVariant = androidTestBuildVariant,
-                buildPathInfo = ModuleBuildPathInfo(
-                    appModuleInfo.projectRootDir,
-                    appModuleInfo.moduleRootDir,
-                    androidTestBuildVariant,
-                ),
+                buildPathInfo = appModuleInfo.buildPathInfo.copy(buildVariant = androidTestBuildVariant),
                 applicationId = resolvedTestAppId,
                 instrumentationTargetPackage = targetPackage,
                 sourceDirs = sourceDirs,

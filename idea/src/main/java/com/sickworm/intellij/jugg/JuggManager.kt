@@ -282,11 +282,12 @@ class JuggManager @TestOnly constructor(
         currentList: List<RunnerAndConfigurationSettings>,
         suggestions: List<SuggestRunConfiguration>,
     ): List<RunnerAndConfigurationSettings> {
+        val distinctSuggestions = suggestions.distinctBy { it.compileCommand }
         val existingCommands = currentList.mapNotNull {
             (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
         }.toSet()
         val usedNames = currentList.map { it.name }.toMutableList()
-        val settingsList = suggestions.distinctBy { it.compileCommand }
+        val settingsList = distinctSuggestions
             .filterNot { it.compileCommand in existingCommands }
             .map { suggest ->
                 val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]

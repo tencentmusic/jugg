@@ -163,4 +163,13 @@ data class IdeModuleInfo(
     val brokenFields: List<String>,
     val androidTestApplicationId: String? = null,
     val androidTestInstrumentationTargetPackage: String? = null,
+    val buildDir: File? = null,
 )
+
+fun Any?.readAndroidBuildFolderCompat(): File? {
+    val model = this ?: return null
+    return runCatching {
+        val androidProject = model.javaClass.getMethod("getAndroidProject").invoke(model) ?: return@runCatching null
+        androidProject.javaClass.getMethod("getBuildFolder").invoke(androidProject) as? File
+    }.getOrNull()
+}

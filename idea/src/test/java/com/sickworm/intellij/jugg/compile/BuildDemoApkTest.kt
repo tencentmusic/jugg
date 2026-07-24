@@ -89,7 +89,7 @@ class BuildDemoApkTest {
     @Test
     fun testParseMapping() {
         println("testParseMapping start")
-        val mappingFile = File(TestGlobal.projectInfo.projectRootDir, "app/build/outputs/mapping/release/mapping.txt")
+        val mappingFile = File(TestGlobal.projectInfo.projectRootDir, "build/app/outputs/mapping/release/mapping.txt")
         if (!mappingFile.exists()) {
             testBuildApkRelease()
         }

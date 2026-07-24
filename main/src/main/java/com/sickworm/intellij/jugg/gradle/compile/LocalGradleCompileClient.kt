@@ -336,7 +336,7 @@ class LocalGradleCompileClient(
     companion object {
         fun deriveAndroidTestApkPattern(appApkPath: String): String? {
             val normalized = appApkPath.replace('\\', '/')
-            val marker = "/build/outputs/apk/"
+            val marker = "/outputs/apk/"
             val markerIndex = normalized.indexOf(marker)
             if (markerIndex < 0 || normalized.contains("/androidTest/")) {
                 return null

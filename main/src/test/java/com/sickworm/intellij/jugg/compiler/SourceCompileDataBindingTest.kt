@@ -100,7 +100,7 @@ class SourceCompileDataBindingTest {
             moduleRootDir = moduleRoot,
             projectRootDir = TestGlobal.buildDir,
             sourceDirs = listOf(File(moduleRoot, "src/main/java")),
-            buildPathInfo = ModuleBuildPathInfo(TestGlobal.buildDir, moduleRoot, "debug"),
+            buildPathInfo = ModuleBuildPathInfo(TestGlobal.buildDir, moduleRoot, "debug", buildDirRelativePath = ""),
             isUseDataBinding = false,
         )
         val sourceFile = File(module.sourceDirs.first(), "CustomBindingAdapter.kt").apply {

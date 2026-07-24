@@ -12,7 +12,7 @@ import java.io.File
 class BuildPathInfoSerializer(private val dataFile: File, private val logger: Logger) {
 
     companion object {
-        private const val VERSION: Int = 1
+        private const val VERSION: Int = 2
     }
 
     @Synchronized
@@ -60,11 +60,13 @@ class BuildPathInfoSerializer(private val dataFile: File, private val logger: Lo
         val projectRootDir: String,
         val moduleRootDir: String,
         val buildVariant: String,
+        val buildDirRelativePath: String,
     ) {
         constructor(info: ModuleBuildPathInfo) : this(
             info.projectRootDir.absolutePath,
             info.moduleRootDir.absolutePath,
             info.buildVariant,
+            info.buildDirRelativePath,
         )
 
         companion object {
@@ -74,6 +76,7 @@ class BuildPathInfoSerializer(private val dataFile: File, private val logger: Lo
                     File(args.projectRootDir),
                     File(args.moduleRootDir),
                     args.buildVariant,
+                    buildDirRelativePath = args.buildDirRelativePath,
                 )
             }
         }

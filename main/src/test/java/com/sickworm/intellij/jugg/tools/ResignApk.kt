@@ -10,7 +10,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 private val apkFilePath = """
-../android_demo_project/app/build/outputs/apk/debug/app-debug.apk
+../android_demo_project/build/app/outputs/apk/debug/app-debug.apk
 """.split("\n").filter { it.isNotBlank() }.joinToString("")
 
 private val gradleProjectInfoPath = """

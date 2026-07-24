@@ -19,7 +19,7 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         applicationId = "com.example.app.test",
         instrumentationTargetPackage = "com.example.app",
         buildVariant = "debugAndroidTest",
-        buildPathInfo = ModuleBuildPathInfo(File("/project"), File("/project/app"), "debugAndroidTest"),
+        buildPathInfo = ModuleBuildPathInfo(File("/project"), File("/project/app"), "debugAndroidTest", buildDirRelativePath = ""),
     )
 
     @Test
@@ -50,7 +50,7 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 moduleType = ModuleInfo.Type.Application,
                 moduleRootDir = File("/project/app"),
                 projectRootDir = File("/project"),
-                buildPathInfo = ModuleBuildPathInfo(File("/project"), File("/project/app"), "debug"),
+                buildPathInfo = ModuleBuildPathInfo(File("/project"), File("/project/app"), "debug", buildDirRelativePath = ""),
             )
             val original = JuggProjectInfo(mapOf("app" to regular))
             serializer.save(original)

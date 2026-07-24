@@ -28,7 +28,7 @@ class JuggProjectInfoMergerAndroidTestTest {
         applicationId = "com.example.app.test",
         instrumentationTargetPackage = "com.example.app",
         buildVariant = "debugAndroidTest",
-        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debugAndroidTest"),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debugAndroidTest", buildDirRelativePath = ""),
     )
 
     private fun androidTestIdeModule() = ModuleInfo.virtualModule.copy(
@@ -37,7 +37,7 @@ class JuggProjectInfoMergerAndroidTestTest {
         moduleRootDir = appDir,
         projectRootDir = projectDir,
         buildVariant = "debugAndroidTest",
-        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debugAndroidTest"),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debugAndroidTest", buildDirRelativePath = ""),
         // IDE side does not know instrumentationTargetPackage
     )
 
@@ -107,7 +107,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             moduleRootDir = downloadDir,
             projectRootDir = projectDir,
             buildVariant = "debug",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debug"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debug", buildDirRelativePath = ""),
         )
         val androidTestGradle = ModuleInfo.virtualModule.copy(
             name = "common.download.androidTest",
@@ -115,7 +115,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             moduleRootDir = downloadDir,
             projectRootDir = projectDir,
             buildVariant = "debugAndroidTest",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debugAndroidTest"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debugAndroidTest", buildDirRelativePath = ""),
             instrumentationTargetPackage = "com.example.test",
         )
         val mainIde = mainGradle.copy(moduleType = ModuleInfo.Type.Unknown)
@@ -153,7 +153,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             moduleRootDir = downloadDir,
             projectRootDir = projectDir,
             buildVariant = "debug",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debug"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debug", buildDirRelativePath = ""),
         )
         val androidTestGradle = ModuleInfo.virtualModule.copy(
             name = "common.download.androidTest",
@@ -161,7 +161,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             moduleRootDir = downloadDir,
             projectRootDir = projectDir,
             buildVariant = "debugAndroidTest",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debugAndroidTest"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, downloadDir, "debugAndroidTest", buildDirRelativePath = ""),
             instrumentationTargetPackage = "com.example.test",
         )
         val mainIde = mainGradle.copy(moduleType = ModuleInfo.Type.Unknown)
@@ -200,7 +200,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             moduleRootDir = moduleDir("common/download"),
             projectRootDir = projectDir,
             buildVariant = "debug",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/download"), "debug"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/download"), "debug", buildDirRelativePath = ""),
         )
         val extraIdeAndroidTest = ModuleInfo.virtualModule.copy(
             name = "common.fake.androidTest",
@@ -210,7 +210,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             applicationId = "com.example.fake.test",
             instrumentationTargetPackage = "com.example.fake.test",
             buildVariant = "debugAndroidTest",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/fake"), "debugAndroidTest"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/fake"), "debugAndroidTest", buildDirRelativePath = ""),
         )
         val mainGradle = mainIde.copy(moduleType = ModuleInfo.Type.Library)
         val realGradleAndroidTest = ModuleInfo.virtualModule.copy(
@@ -221,7 +221,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             applicationId = "com.example.download.test",
             instrumentationTargetPackage = "com.example.download.test",
             buildVariant = "debugAndroidTest",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/download"), "debugAndroidTest"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir("common/download"), "debugAndroidTest", buildDirRelativePath = ""),
         )
 
         val ideFile = saveToTempFile(
@@ -335,7 +335,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             moduleRootDir = moduleDir,
             projectRootDir = projectDir,
             buildVariant = "debug",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
         )
     }
 

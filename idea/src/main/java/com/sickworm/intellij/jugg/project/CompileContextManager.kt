@@ -251,6 +251,7 @@ class CompileContextManager(
                 module.buildVariant,
                 customClasspath = module.buildPathInfo.customClasspath,
                 customSyncFilePath = module.buildPathInfo.customSyncFilePath,
+                buildDirRelativePath = module.buildPathInfo.buildDirRelativePath,
             )
             if (guessedBuildPathInfo.buildDir.exists()) {
                 logger.debug("guess build path success: ${guessedBuildPathInfo.buildDir}")
@@ -397,7 +398,17 @@ class CompileContextManager(
             ideModuleInfo.manifestRelativePath?.let {
                 manifestFile = File(normalizedBaseDir, it)
             }
-            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, normalizedBaseDir, moduleBuildVariant)
+            val buildDirRelativePath = ideModuleInfo.buildDir?.let { buildDir ->
+                val absoluteBuildDir = if (buildDir.isAbsolute) buildDir else File(pathManager.projectDir, buildDir.path)
+                runCatching { absoluteBuildDir.relativeTo(pathManager.projectDir).path }.getOrNull()
+            }
+            val moduleBuildPathInfo = ModuleBuildPathInfo(
+                pathManager.projectDir,
+                normalizedBaseDir,
+                moduleBuildVariant,
+                buildDirRelativePath = buildDirRelativePath
+                    ?: File(normalizedBaseDir, "build").relativeTo(pathManager.projectDir).path,
+            )
 
             // 3. find source roots
             val sourceDirs = mutableSetOf<File>()

@@ -35,7 +35,7 @@ class GradleProjectInfoReaderAndroidTestTest {
         projectRootDir = projectDir,
         applicationId = appId,
         buildVariant = buildVariant,
-        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, buildVariant),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, buildVariant, buildDirRelativePath = ""),
     )
 
     private fun libraryModule(namespace: String = "com.example.library1") = ModuleInfo.virtualModule.copy(
@@ -44,7 +44,7 @@ class GradleProjectInfoReaderAndroidTestTest {
         moduleRootDir = libraryDir,
         projectRootDir = projectDir,
         namespace = namespace,
-        buildPathInfo = ModuleBuildPathInfo(projectDir, libraryDir, "debug"),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, libraryDir, "debug", buildDirRelativePath = ""),
     )
 
     @Test
@@ -163,7 +163,7 @@ class GradleProjectInfoReaderAndroidTestTest {
             appModuleInfo = libraryModule("com.example.library1").copy(
                 moduleRootDir = File(e2eProjectDir, "library1"),
                 projectRootDir = e2eProjectDir,
-                buildPathInfo = ModuleBuildPathInfo(e2eProjectDir, File(e2eProjectDir, "library1"), "debug"),
+                buildPathInfo = ModuleBuildPathInfo(e2eProjectDir, File(e2eProjectDir, "library1"), "debug", buildDirRelativePath = ""),
             ),
             sourceDirs = listOf(sourceRoot),
             libraryDependencies = emptyList(),

@@ -29,6 +29,14 @@ class AndroidTestCommandDeriverTest {
     }
 
     @Test
+    fun `compile client derives androidTest apk pattern from custom build directory`() {
+        val result = LocalGradleCompileClient.deriveAndroidTestApkPattern(
+            "build/app/outputs/apk/testGoogle/debug/app-testGoogle-debug.apk"
+        )
+        assertEquals("build/app/outputs/apk/androidTest/testGoogle/debug/*.apk", result)
+    }
+
+    @Test
     fun `compile client ignores already androidTest apk path`() {
         val result = LocalGradleCompileClient.deriveAndroidTestApkPattern("app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
         assertEquals(null, result)

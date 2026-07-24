@@ -234,6 +234,7 @@ class JuggAptCompilerTest {
                 projectRootDir = testRoot,
                 moduleRootDir = moduleRoot,
                 buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
+                buildDirRelativePath = "",
             ),
             moduleDependencies = emptyList(),
             libraryDependencies = emptyList(),

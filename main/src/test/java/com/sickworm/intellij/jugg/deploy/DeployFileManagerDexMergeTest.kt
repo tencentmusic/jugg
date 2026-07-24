@@ -168,7 +168,7 @@ class DeployFileManagerDexMergeTest {
 
     private fun getValidDexBytes(): ByteArray {
         val dexFile = File(
-            "../android_demo_project/app/build/intermediates/project_dex_archive/debug/out/androidx/databinding/DataBindingComponent.dex"
+            "../android_demo_project/build/app/intermediates/project_dex_archive/debug/out/androidx/databinding/DataBindingComponent.dex"
         ).absoluteFile.normalize()
         return dexFile.readBytes()
     }

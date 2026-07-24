@@ -298,6 +298,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
             brokenFields = emptyList(),
             androidTestApplicationId = androidTestPackageInfo.applicationId,
             androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
+            buildDir = gradleAndroidModel.androidProject.buildFolder,
         )
         IdeAndroidTestPackageReader.traceReadResult(
             logger = logger,
@@ -331,8 +332,12 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
                 .takeIf { it.isNotEmpty() }
                 ?.let { "$it/" }
                 ?: ""
-            val moduleRelativePath = gradleAndroidModel.rootDirPath.relativeTo(File(projectPath)).path
-            val apkPath = moduleRelativePath.replace("\\", "/") + "/build/outputs/apk/$productFlavorPath$buildType/*.apk"
+            val apkPath = SuggestRunConfiguration.createOutputApkPath(
+                File(projectPath),
+                gradleAndroidModel.androidProject.buildFolder,
+                productFlavorPath,
+                buildType,
+            )
             SuggestRunConfiguration(
                 moduleName = moduleName,
                 compileCommand = compileCommand,

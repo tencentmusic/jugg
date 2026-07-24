@@ -66,7 +66,7 @@ class AndroidTestApkSelectorTest {
             buildVariant = "debugAndroidTest",
             applicationId = applicationId,
             instrumentationTargetPackage = targetPackage,
-            buildPathInfo = ModuleBuildPathInfo(projectDir, File(projectDir, "library1"), "debugAndroidTest"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, File(projectDir, "library1"), "debugAndroidTest", buildDirRelativePath = ""),
         )
     }
 

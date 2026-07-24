@@ -43,11 +43,22 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                 val json = jsonSlurper.parse(inputStream) as Map<String, List<Map<String, Any>>> // JuggProjectInfoSerialize
                 val modules: List<ModuleInfoSerialize> = json["modules"]!!.map {
                     val module = it["moduleInfoExceptLibraries"] as Map<String, Any>
+                    val projectRootDir = File(module["projectRootDir"] as String)
+                    val moduleRootDir = File(module["moduleRootDir"] as String)
+                    val buildVariant = module["buildVariant"] as String
+                    val buildPath = module["buildPathInfo"] as? Map<String, Any>
                     val moduleInfo = ModuleInfo.virtualModule.copy(
                         name = module["name"] as String,
-                        buildVariant = module["buildVariant"] as String,
-                        moduleRootDir = File(module["moduleRootDir"] as String),
-                        projectRootDir = File(module["projectRootDir"] as String),
+                        buildVariant = buildVariant,
+                        moduleRootDir = moduleRootDir,
+                        projectRootDir = projectRootDir,
+                        buildPathInfo = ModuleBuildPathInfo(
+                            projectRootDir,
+                            moduleRootDir,
+                            buildVariant,
+                            buildDirRelativePath = buildPath?.get("buildDirRelativePath") as? String
+                                ?: ""
+                        ),
                         moduleType = ModuleInfo.Type.valueOf(module["moduleType"] as String),
                         instrumentationTargetPackage = module["instrumentationTargetPackage"] as? String,
                     )
@@ -126,6 +137,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                     result["projectRootDir"] = moduleBuildPathInfo.projectRootDir
                     result["moduleRootDir"] = moduleBuildPathInfo.moduleRootDir
                     result["buildVariant"] = moduleBuildPathInfo.buildVariant
+                    result["buildDirRelativePath"] = moduleBuildPathInfo.buildDirRelativePath
                     return result
                 }
             }

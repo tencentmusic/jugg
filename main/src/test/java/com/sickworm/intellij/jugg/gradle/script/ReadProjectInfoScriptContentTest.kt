@@ -43,6 +43,13 @@ class ReadProjectInfoScriptContentTest {
             "Reflector companion must not construct Reflector(): causes getOuterExpression crash in Kotlin 1.5 (Gradle 7)"
         )
         assertFalse(scriptText.contains("project.buildDir"))
+        assertFalse(scriptText.contains("buildDirRelativePath: String = \"\""))
+        assertTrue(
+            scriptText.lineSequence().any {
+                it == "fun moduleBuildPathInfo(projectRootDir: File, moduleRootDir: File, buildVariant: String, buildDirRelativePath: String) = ModuleBuildPathInfo(projectRootDir, moduleRootDir, buildVariant, buildDirRelativePath = buildDirRelativePath)"
+            },
+            "moduleBuildPathInfo factory should stay on one line",
+        )
         assertFalse(scriptText.contains("gradle.buildFinished("))
         assertFalse(scriptText.contains("stackTraceToString("))
         assertFalse(scriptText.contains("firstChar.toInt()"))

@@ -44,9 +44,13 @@ internal fun calculateSyncToLocalPaths(modules: Collection<ModuleInfo>): List<Pa
             module.projectRootDir,
             module.moduleRootDir,
             module.buildVariant,
+            buildDirRelativePath = module.buildPathInfo.buildDirRelativePath,
         ).buildDir
         module.buildPathInfo.syncToLocalPathList.map { fileOrDirInClasspath ->
-            fileOrDirInClasspath to fileOrDirInClasspath.changeBaseDir(module.buildPathInfo.buildDir, localBuildDir)
+            val isBuildOutput = fileOrDirInClasspath.toPath().startsWith(module.buildPathInfo.buildDir.toPath())
+            val sourceBaseDir = if (isBuildOutput) module.buildPathInfo.buildDir else module.buildPathInfo.moduleRootDir
+            val targetBaseDir = if (isBuildOutput) localBuildDir else module.moduleRootDir
+            fileOrDirInClasspath to fileOrDirInClasspath.changeBaseDir(sourceBaseDir, targetBaseDir)
         }
     }
 }

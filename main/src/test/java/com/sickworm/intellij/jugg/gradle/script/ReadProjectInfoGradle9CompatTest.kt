@@ -55,6 +55,7 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
             File(projectDir, "build.gradle"),
             """
             allprojects {
+                layout.buildDirectory.set(rootProject.layout.projectDirectory.dir("build/${'$'}{project.name}"))
                 repositories {
                     mavenCentral()
                 }

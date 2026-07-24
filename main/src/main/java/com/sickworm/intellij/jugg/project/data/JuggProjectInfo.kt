@@ -101,7 +101,12 @@ data class ModuleInfo(
             kotlinJvmTarget = null,
             javaSourceCompatibility = null,
             javaTargetCompatibility = null,
-            buildPathInfo = ModuleBuildPathInfo(File(""), File(""), DEFAULT_BUILD_VARIANT),
+            buildPathInfo = ModuleBuildPathInfo(
+                File(""),
+                File(""),
+                DEFAULT_BUILD_VARIANT,
+                buildDirRelativePath = "",
+            ),
             moduleDependencies = emptyList(),
             libraryDependencies = emptyList(),
             kotlinFreeCompilerArgs = emptyList(),
@@ -126,10 +131,16 @@ data class ModuleBuildPathInfo(
     val customClasspath: List<String>? = null,
     /** custom sync file path specific by project config */
     val customSyncFilePath: List<String>? = null,
+    /** build directory path relative to project root; empty keeps the conventional module/build path */
+    val buildDirRelativePath: String,
 ) {
 
     /** build root dir */
-    val buildDir: File get() = File(moduleRootDir, "build")
+    val buildDir: File get() = if (buildDirRelativePath.isEmpty()) {
+        File(moduleRootDir, "build")
+    } else {
+        File(projectRootDir, buildDirRelativePath).normalize()
+    }
 
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/$buildVariant/classes")
@@ -212,13 +223,15 @@ data class ModuleBuildPathInfo(
     val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
 
     // use to fetch all class path after full build
-    val allBuildPathRelative get() = (listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
+    val allBuildPaths get() = listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingArtifactDir,
         applicationDataBindingIntoTypeDir, libraryDataBindingIntoTypeDir,
         mappingFile, usageFile, aabResGuardMappingFile
-    ) + customClasspathFiles + customSyncFiles).map { it.relativeTo(moduleRootDir) }
+    ) + customClasspathFiles + customSyncFiles
+
+    val allBuildPathRelative get() = allBuildPaths.map { it.relativeTo(projectRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
 

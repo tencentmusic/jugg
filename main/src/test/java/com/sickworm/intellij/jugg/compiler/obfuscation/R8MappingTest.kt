@@ -34,7 +34,7 @@ class R8MappingTest {
         fun setUpClass() {
             try {
                 // First check if mapping file already exists from a previous build
-                val mappingFile = File(TestGlobal.assetsAndroidDir, "app/build/outputs/mapping/release/mapping.txt")
+                val mappingFile = File(TestGlobal.assetsAndroidDir, "build/app/outputs/mapping/release/mapping.txt")
 
                 // Build release APK with minify enabled (only once for all tests)
                 GradleBuildHelper.appAssembleRelease()

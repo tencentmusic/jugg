@@ -256,7 +256,7 @@ class LibraryTestApkBackfillHelperTest {
             buildVariant = "debugAndroidTest",
             applicationId = "com.example.library1.test",
             instrumentationTargetPackage = "com.example.library1.test",
-            buildPathInfo = ModuleBuildPathInfo(projectDir, File(projectDir, "library1"), "debugAndroidTest"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, File(projectDir, "library1"), "debugAndroidTest", buildDirRelativePath = ""),
         )
     }
 

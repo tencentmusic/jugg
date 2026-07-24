@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 
 class ApkReaderTest {
 
-    private val apkFile = File(assetsAndroidDir, "app/build/outputs/apk/debug/app-debug.apk")
+    private val apkFile = File(assetsAndroidDir, "build/app/outputs/apk/debug/app-debug.apk")
 
     @Before
     fun init() {

@@ -79,7 +79,8 @@ object TestGlobal {
         buildPathInfo = ModuleBuildPathInfo(
             projectInfo.projectRoot,
             appModuleDir,
-            ModuleInfo.DEFAULT_BUILD_VARIANT
+            ModuleInfo.DEFAULT_BUILD_VARIANT,
+            buildDirRelativePath = "",
         ),
         kotlinJvmTarget = "1.8",
         kotlinFreeCompilerArgs = emptyList(),

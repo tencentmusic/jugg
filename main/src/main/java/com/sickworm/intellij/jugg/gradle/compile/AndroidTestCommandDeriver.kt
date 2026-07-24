@@ -9,8 +9,8 @@ import com.intellij.openapi.diagnostic.Logger
  *
  * Rules:
  *  - compileCommand: no longer modified here; readProjectInfo.gradle.kts injects androidTest tasks.
- *  - outputApkName: for each `<module>/build/outputs/apk/<variant>/&#42;.apk` segment appends
- *    `<module>/build/outputs/apk/androidTest/<variant>/&#42;.apk`. Idempotent. Segments are `;`-separated.
+ *  - outputApkName: for each `<build-dir>/outputs/apk/<variant>/&#42;.apk` segment appends
+ *    `<build-dir>/outputs/apk/androidTest/<variant>/&#42;.apk`. Idempotent. Segments are `;`-separated.
  */
 object AndroidTestCommandDeriver {
 
@@ -51,7 +51,7 @@ object AndroidTestCommandDeriver {
     }
 
     private fun deriveTestApkGlob(segment: String): String? {
-        val apkOutputMarker = "/build/outputs/apk/"
+        val apkOutputMarker = "/outputs/apk/"
         val markerIndex = segment.indexOf(apkOutputMarker)
         if (markerIndex < 0) {
             return null

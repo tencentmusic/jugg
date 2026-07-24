@@ -36,6 +36,23 @@ class LibraryTestApkBackfillPlannerTest {
         )
     }
 
+    @Test
+    fun `plan uses the module custom build directory`() {
+        val projectDir = File("/repo")
+        val module = androidTestModule(projectDir, "library1.androidTest", "debugAndroidTest").copy(
+            buildPathInfo = ModuleBuildPathInfo(
+                projectDir,
+                File(projectDir, "library1"),
+                "debugAndroidTest",
+                buildDirRelativePath = "build/library1",
+            ),
+        )
+
+        val plan = LibraryTestApkBackfillPlanner.plan(module)
+
+        assertEquals("build/library1/outputs/apk/androidTest/debug/*.apk", plan.outputApkPattern)
+    }
+
     private fun androidTestModule(projectDir: File, name: String, buildVariant: String): ModuleInfo {
         val modulePath = name.substringBefore(".androidTest").replace('.', File.separatorChar)
         val moduleRoot = File(projectDir, modulePath)
@@ -44,7 +61,7 @@ class LibraryTestApkBackfillPlannerTest {
             moduleRootDir = moduleRoot,
             projectRootDir = projectDir,
             buildVariant = buildVariant,
-            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleRoot, buildVariant),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleRoot, buildVariant, buildDirRelativePath = ""),
             applicationId = "com.example.$name",
             instrumentationTargetPackage = "com.example.$name",
         )

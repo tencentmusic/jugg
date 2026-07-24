@@ -1,9 +1,10 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import java.io.File
+
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import java.io.File
 
 data class SuggestRunConfiguration(
     val moduleName: String,
@@ -72,6 +73,16 @@ data class SuggestRunConfiguration(
 
         fun createCompileCommand(moduleName: String, taskName: String): String {
             return "./gradlew :${moduleName.replace('.', ':')}:$taskName"
+        }
+
+        fun createOutputApkPath(
+            projectDir: File,
+            buildDir: File,
+            productFlavorPath: String,
+            buildType: String,
+        ): String {
+            val relativeBuildDir = buildDir.relativeTo(projectDir).invariantSeparatorsPath.trimEnd('/')
+            return "$relativeBuildDir/outputs/apk/$productFlavorPath$buildType/*.apk"
         }
 
         private fun createRunConfigName(moduleName: String, variantName: String?): String {

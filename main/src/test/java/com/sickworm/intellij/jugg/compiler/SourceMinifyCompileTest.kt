@@ -47,7 +47,7 @@ class SourceMinifyCompileTest {
 
                 GradleBuildHelper.appAssembleRelease()
 
-                val mappingFile = File(TestGlobal.assetsAndroidDir, "app/build/outputs/mapping/release/mapping.txt")
+                val mappingFile = File(TestGlobal.assetsAndroidDir, "build/app/outputs/mapping/release/mapping.txt")
                 if (!mappingFile.exists()) {
                     throw IllegalStateException("Mapping file not found: ${mappingFile.absolutePath}")
                 }
@@ -61,7 +61,7 @@ class SourceMinifyCompileTest {
 
                 // Load APK for comparison.
                 // Re-assemble if APK was deleted by another test's clean() before we get here.
-                releaseApkFile = File(TestGlobal.assetsAndroidDir, "app/build/outputs/apk/release/app-release.apk")
+                releaseApkFile = File(TestGlobal.assetsAndroidDir, "build/app/outputs/apk/release/app-release.apk")
                 if (!releaseApkFile!!.exists()) {
                     GradleBuildHelper.appAssembleRelease(forceRebuild = true)
                 }

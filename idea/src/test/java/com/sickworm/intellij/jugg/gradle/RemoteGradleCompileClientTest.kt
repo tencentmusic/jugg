@@ -81,7 +81,7 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         if (!isNeedTest) return
 
         val modules = GradleSettingsDummyReader(projectInfo.projectRoot).readProjectDirs()
-            .map { ModuleBuildPathInfo(projectInfo.projectRoot, it, mockModule.buildVariant) }
+            .map { ModuleBuildPathInfo(projectInfo.projectRoot, it, mockModule.buildVariant, buildDirRelativePath = "") }
 
         val remoteClient = RemoteGradleCompileClient(project)
         remoteClient.login(juggGradleCompileOptions)

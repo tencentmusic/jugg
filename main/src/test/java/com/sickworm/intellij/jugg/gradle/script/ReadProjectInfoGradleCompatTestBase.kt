@@ -57,6 +57,11 @@ abstract class ReadProjectInfoGradleCompatTestBase {
             assertNotNull(projectInfo)
             assertTrue(projectInfo.modules.containsKey("app"), "module 'app' missing. output=\n${result.output}")
             assertTrue(projectInfo.modules.containsKey("lib"), "module 'lib' missing. output=\n${result.output}")
+            assertEquals(
+                File(fixtureDir, "build/app").canonicalFile,
+                projectInfo.modules.getValue("app").buildPathInfo.buildDir.canonicalFile,
+                "Gradle $gradleVersion should persist the configured app build directory. output=\n${result.output}",
+            )
         } finally {
             fixtureDir.deleteRecursively()
         }

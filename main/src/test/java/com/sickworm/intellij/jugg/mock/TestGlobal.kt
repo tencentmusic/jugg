@@ -48,7 +48,7 @@ object TestGlobal {
     val logger = StdLogger("JuggTest")
 
     val packageName = "com.example.myapplication"
-    val apkFile = File(projectRootDir, "app/build/outputs/apk/debug/app-debug.apk")
+    val apkFile = File(projectRootDir, "build/app/outputs/apk/debug/app-debug.apk")
     val context get() = SimpleCompileContext(
         logger = logger,
         tempCompileDir = tempCompileDir,
@@ -79,7 +79,8 @@ object TestGlobal {
         buildPathInfo = ModuleBuildPathInfo(
             projectRootDir,
             appModuleDir,
-            ModuleInfo.DEFAULT_BUILD_VARIANT
+            ModuleInfo.DEFAULT_BUILD_VARIANT,
+            buildDirRelativePath = "",
         ),
         kotlinJvmTarget = "1.8",
         kotlinFreeCompilerArgs = emptyList(),

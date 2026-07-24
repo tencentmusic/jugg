@@ -178,6 +178,54 @@ class JuggManagerRunConfigurationSyncTest {
     }
 
     @Test
+    fun sync_existingConfiguration_preservesGeneratedStyleOutputApkPath() {
+        val fixture = createFixture()
+        val debug = fixture.addConfiguration(
+            name = "jugg:app:debug",
+            compileCommand = "./gradlew :app:assembleDebug",
+            outputApkName = "app/build/outputs/apk/debug/*.apk",
+        )
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:assembleDebug",
+                    outputApkPath = "build/app/outputs/apk/debug/*.apk",
+                    variantName = "debug",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals("app/build/outputs/apk/debug/*.apk", debug.outputApkName())
+    }
+
+    @Test
+    fun sync_existingManualConfiguration_preservesOutputApkPath() {
+        val fixture = createFixture()
+        val debug = fixture.addConfiguration(
+            name = "jugg:app:debug",
+            compileCommand = "./gradlew :app:assembleDebug",
+            outputApkName = "artifacts/custom-debug.apk",
+        )
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:assembleDebug",
+                    outputApkPath = "build/app/outputs/apk/debug/*.apk",
+                    variantName = "debug",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals("artifacts/custom-debug.apk", debug.outputApkName())
+    }
+
+    @Test
     fun sync_activeBuildVariantChanged_selectsExistingVariantConfiguration() {
         val fixture = createFixture()
         val release = fixture.addConfiguration(

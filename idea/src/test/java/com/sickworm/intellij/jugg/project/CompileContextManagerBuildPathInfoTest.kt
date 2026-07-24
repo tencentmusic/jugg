@@ -48,6 +48,7 @@ class CompileContextManagerBuildPathInfoTest {
                         classpathProjectDir,
                         classpathAppDir,
                         ModuleInfo.DEFAULT_BUILD_VARIANT,
+                        buildDirRelativePath = "build/app",
                     )
                 ),
             )
@@ -67,6 +68,7 @@ class CompileContextManagerBuildPathInfoTest {
         val buildPathInfo = manager.compileContext.modules.getValue("app").buildPathInfo
         assertEquals(classpathProjectDir, buildPathInfo.projectRootDir)
         assertEquals(classpathAppDir, buildPathInfo.moduleRootDir)
+        assertEquals("build/app", buildPathInfo.buildDirRelativePath)
         assertEquals(listOf("build/generated/source"), buildPathInfo.customSyncFilePath)
     }
 
@@ -105,6 +107,7 @@ class CompileContextManagerBuildPathInfoTest {
                 projectDir,
                 appDir,
                 ModuleInfo.DEFAULT_BUILD_VARIANT,
+                buildDirRelativePath = "",
             ),
         )
     }

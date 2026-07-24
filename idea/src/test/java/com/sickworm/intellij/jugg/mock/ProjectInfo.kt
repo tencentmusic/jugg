@@ -26,7 +26,7 @@ class ProjectInfo(
     "packageName": "com.example.myapplication",
     "projectRootDir": "../android_demo_project",
     "modifiedSourceDir": "src/test/assets/android/modify_source",
-    "apkPath": "app/build/outputs/apk/debug/app-debug.apk",
+    "apkPath": "build/app/outputs/apk/debug/app-debug.apk",
     "apkEntryInfo": {
         "classCount": 2399,
         "fieldCount": 12300,

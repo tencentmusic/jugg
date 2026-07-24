@@ -68,6 +68,7 @@ open class OtterAsDeployerFeatureCompat: NarwhalAsDeployerFeatureCompat() {
             brokenFields = gradleVariableHelper.brokenFields,
             androidTestApplicationId = androidTestPackageInfo.applicationId,
             androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
+            buildDir = gradleAndroidModel.readAndroidBuildFolderCompat(),
         )
         IdeAndroidTestPackageReader.traceReadResult(
             logger = logger,

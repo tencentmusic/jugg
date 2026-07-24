@@ -23,7 +23,7 @@ class DeployDataGeneratorReleaseTest {
         clearBuild()
         GradleBuildHelper.appAssembleRelease()
 
-        releaseApkFile = File(TestGlobal.assetsAndroidDir, "app/build/outputs/apk/release/app-release.apk")
+        releaseApkFile = File(TestGlobal.assetsAndroidDir, "build/app/outputs/apk/release/app-release.apk")
         require(releaseApkFile.exists()) { "Release APK not found: ${releaseApkFile.absolutePath}" }
 
         releaseContext = TestGlobal.context.copy(
@@ -182,4 +182,3 @@ class DeployDataGeneratorReleaseTest {
         }
     }
 }
-

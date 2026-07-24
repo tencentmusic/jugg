@@ -202,7 +202,7 @@ class BaseCompilerTest {
             projectRootDir = testRoot,
             moduleRootDir = moduleRootDir,
             buildVariant = buildVariant,
-            buildPathInfo = ModuleBuildPathInfo(testRoot, moduleRootDir, buildVariant),
+            buildPathInfo = ModuleBuildPathInfo(testRoot, moduleRootDir, buildVariant, buildDirRelativePath = ""),
             moduleDependencies = moduleDependencies,
             instrumentationTargetPackage = instrumentationTargetPackage,
         )

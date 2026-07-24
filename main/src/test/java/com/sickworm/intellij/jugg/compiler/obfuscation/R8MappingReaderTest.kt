@@ -369,7 +369,7 @@ class R8MappingReaderTest {
     @Test
     fun testMinifyTestActivityInvocations() {
         // Use the mapping file from idea test assets
-        val mappingFile = File("../android_demo_project/app/build/outputs/mapping/release/mapping.txt").absoluteFile
+        val mappingFile = File("../android_demo_project/build/app/outputs/mapping/release/mapping.txt").absoluteFile
         if (!mappingFile.exists()) {
             GradleBuildHelper.appAssembleRelease()
             if (!mappingFile.exists()) {

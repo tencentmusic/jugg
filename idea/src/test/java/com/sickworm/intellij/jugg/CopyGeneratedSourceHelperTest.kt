@@ -27,6 +27,7 @@ class CopyGeneratedSourceHelperTest {
                 "debug",
                 customClasspath = listOf(customClasspath),
                 customSyncFilePath = listOf(customSyncPath),
+                buildDirRelativePath = "build/module_libs/common/protocol",
             ),
         )
 
@@ -41,6 +42,12 @@ class CopyGeneratedSourceHelperTest {
             syncPairs.any { (source, target) ->
                 source.path.endsWith(customClasspath) || target.path.endsWith(customClasspath)
             }
+        )
+        assertTrue(
+            syncPairs.contains(
+                File(classpathProjectDir, "build/module_libs/common/protocol/generated") to
+                    File(localProjectDir, "build/module_libs/common/protocol/generated")
+            )
         )
     }
 }

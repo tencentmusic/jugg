@@ -422,8 +422,12 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 }
                 productFlavorPath += "/"
             }
-            val moduleRelativePath = gradleAndroidModel.rootDirPath.relativeTo(File(projectPath)).path
-            val apkPath = moduleRelativePath.replace("\\", "/") + "/build/outputs/apk/$productFlavorPath$buildType/*.apk"
+            val apkPath = SuggestRunConfiguration.createOutputApkPath(
+                File(projectPath),
+                gradleAndroidModel.androidProject.buildFolder,
+                productFlavorPath,
+                buildType,
+            )
             logger.debug("getSuggestRunConfiguration use apk output path: $apkPath")
 
             return SuggestRunConfiguration(
@@ -553,6 +557,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             brokenFields = gradleVariableHelper.brokenFields,
             androidTestApplicationId = androidTestPackageInfo.applicationId,
             androidTestInstrumentationTargetPackage = androidTestPackageInfo.instrumentationTargetPackage,
+            buildDir = gradleAndroidModel?.androidProject?.buildFolder,
         )
         IdeAndroidTestPackageReader.traceReadResult(
             logger = logger,

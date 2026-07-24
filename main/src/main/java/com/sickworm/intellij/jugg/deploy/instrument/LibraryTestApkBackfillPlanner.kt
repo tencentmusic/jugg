@@ -11,11 +11,11 @@ object LibraryTestApkBackfillPlanner {
     fun plan(module: ModuleInfo): LibraryTestApkBackfillPlan {
         val ownerModule = module.name.substringBefore(".androidTest")
         val testVariant = module.buildVariant.removeSuffix("AndroidTest")
-        val modulePath = module.moduleRootDir.relativeTo(module.projectRootDir).path.replace('\\', '/')
+        val buildPath = module.buildPathInfo.buildDir.relativeTo(module.projectRootDir).path.replace('\\', '/')
         val variantPath = testVariant.camelToPath()
         return LibraryTestApkBackfillPlan(
             gradleTask = ":" + ownerModule.replace('.', ':') + ":assemble${testVariant.camelCompat}AndroidTest",
-            outputApkPattern = "$modulePath/build/outputs/apk/androidTest/$variantPath/*.apk",
+            outputApkPattern = "$buildPath/outputs/apk/androidTest/$variantPath/*.apk",
         )
     }
 

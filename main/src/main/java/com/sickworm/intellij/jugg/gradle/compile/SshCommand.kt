@@ -287,7 +287,7 @@ open class FetchClasspathCommand(
 
         fun getRsyncArguments(modules: List<ModuleBuildPathInfo>, isWindows: Boolean, additionalPath: List<String> = emptyList(), isNeedDeleteArg: Boolean = true): String {
             val includeClasspathFilter = modules
-                .flatMap { it.allBuildPathRelative }
+                .flatMap { it.getRsyncPaths() }
                 .toSet()
                 .map {
                     val platformSeparator = File.separatorChar
@@ -300,6 +300,26 @@ open class FetchClasspathCommand(
                 }
             val deleteParam = if (isNeedDeleteArg) "--delete --delete-excluded" else ""
             return "-av $deleteParam --prune-empty-dirs --include='*/' ${additionalPath.joinToString(" ")} $includeClasspathFilter --exclude='*'"
+        }
+
+        private fun ModuleBuildPathInfo.getRsyncPaths(): List<File> {
+            val projectRoot = projectRootDir.normalize()
+            val moduleRoot = moduleRootDir.normalize()
+            val buildRoot = buildDir.normalize()
+            val conventionalBuildRoot = File(moduleRoot, "build").normalize()
+            val customPaths = (customClasspath.orEmpty() + customSyncFilePath.orEmpty())
+                .map { File(moduleRoot, it).normalize() }
+                .toSet()
+            return allBuildPaths.map { path ->
+                val normalizedPath = path.normalize()
+                if (buildRoot == conventionalBuildRoot &&
+                    normalizedPath !in customPaths &&
+                    normalizedPath.toPath().startsWith(buildRoot.toPath())) {
+                    normalizedPath.relativeTo(moduleRoot)
+                } else {
+                    normalizedPath.relativeTo(projectRoot)
+                }
+            }
         }
     }
 }
@@ -322,17 +342,8 @@ class SyncLocalClasspathCommand(
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
             .flatMap { pathInfo ->
-                pathInfo.allBuildPathRelative.map {
-                    var path = it.path
-                    if (sourcePath.absolutePath != pathInfo.projectRootDir.absolutePath) {
-                        // multiple projects sync or modules outside project root
-                        val rootPath = pathInfo.moduleRootDir.relativeTo(sourcePath).parentFile?.path
-                            ?.substringBefore(File.separatorChar) ?: ""
-                        if (rootPath.isNotEmpty()) {
-                            path = "$rootPath/**/$path"
-                        }
-                    }
-
+                pathInfo.allBuildPaths.map {
+                    var path = it.relativeTo(sourcePath).path
                     val platformSeparator = File.separatorChar
                     val remoteSeparator = if (isWindows) '\\' else '/'
                     path = path.replace(platformSeparator, remoteSeparator)

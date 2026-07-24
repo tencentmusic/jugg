@@ -164,7 +164,7 @@ class AndroidTestTargetResolverTest {
             applicationId = applicationId,
             instrumentationTargetPackage = targetPackage,
             moduleDependencies = listOf(ModuleDependency(name.substringBefore(".androidTest"))),
-            buildPathInfo = ModuleBuildPathInfo(projectDir, File(projectDir, name.substringBefore(".androidTest")), "debugAndroidTest"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, File(projectDir, name.substringBefore(".androidTest")), "debugAndroidTest", buildDirRelativePath = ""),
         )
     }
 

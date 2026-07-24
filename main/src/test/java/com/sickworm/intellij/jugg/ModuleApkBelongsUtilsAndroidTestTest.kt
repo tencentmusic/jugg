@@ -20,7 +20,7 @@ class ModuleApkBelongsUtilsAndroidTestTest {
             moduleRootDir = appDir,
             projectRootDir = projectDir,
             applicationId = appId,
-            buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debug"),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debug", buildDirRelativePath = ""),
         )
 
     private fun androidTestModule(
@@ -35,7 +35,7 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         applicationId = testAppId,
         instrumentationTargetPackage = targetPkg,
         buildVariant = "debugAndroidTest",
-        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debugAndroidTest"),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, appDir, "debugAndroidTest", buildDirRelativePath = ""),
     )
 
     private fun libraryModule(
@@ -47,7 +47,7 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         moduleRootDir = File("/project/$name"),
         projectRootDir = projectDir,
         applicationId = appId,
-        buildPathInfo = ModuleBuildPathInfo(projectDir, File("/project/$name"), "debug"),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, File("/project/$name"), "debug", buildDirRelativePath = ""),
     )
 
     private fun apkFileUnit(id: String, file: String = "$id.apk") =

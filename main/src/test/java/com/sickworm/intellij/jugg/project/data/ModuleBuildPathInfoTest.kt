@@ -5,6 +5,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ModuleBuildPathInfoTest {
@@ -13,17 +14,50 @@ class ModuleBuildPathInfoTest {
     val tempFolder = TemporaryFolder()
 
     @Test
+    fun `build directory relative path should be required`() {
+        val parameter = ModuleBuildPathInfo::class.constructors.single().parameters.single {
+            it.name == "buildDirRelativePath"
+        }
+
+        assertFalse(parameter.isOptional)
+    }
+
+    @Test
+    fun `custom build directory should drive all derived paths`() {
+        val projectRootDir = File("/tmp/jugg-project")
+        val moduleRootDir = File(projectRootDir, "app")
+        val info = ModuleBuildPathInfo(
+            projectRootDir,
+            moduleRootDir,
+            "release",
+            buildDirRelativePath = "build/app",
+        )
+
+        assertEquals(File(projectRootDir, "build/app"), info.buildDir)
+        assertEquals(
+            File(projectRootDir, "build/app/outputs/mapping/release/usage.txt"),
+            info.usageFile,
+        )
+        assertTrue(
+            info.allBuildPathRelative.any {
+                it.path == File("build/app/intermediates/data_binding_artifact/release").path
+            },
+            "custom build output should be synced from the project root",
+        )
+    }
+
+    @Test
     fun `usageFile should resolve to mapping usage output and be synced`() {
         val projectRootDir = File("/tmp/jugg-project")
         val moduleRootDir = File(projectRootDir, "app")
-        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "release")
+        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "release", buildDirRelativePath = "")
 
         assertEquals(
             File(moduleRootDir, "build/outputs/mapping/release/usage.txt").path,
             info.usageFile.path
         )
         assertTrue(
-            info.allBuildPathRelative.any { it.path == File("build/outputs/mapping/release/usage.txt").path },
+            info.allBuildPathRelative.any { it.path == File("app/build/outputs/mapping/release/usage.txt").path },
             "usage.txt should be included in synced build outputs"
         )
     }
@@ -32,11 +66,11 @@ class ModuleBuildPathInfoTest {
     fun `allBuildPathRelative includes data binding artifact output`() {
         val projectRootDir = File("/tmp/jugg-project")
         val moduleRootDir = File(projectRootDir, "app")
-        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "release")
+        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "release", buildDirRelativePath = "")
 
         assertTrue(
             info.allBuildPathRelative.any {
-                it.path == File("build/intermediates/data_binding_artifact/release").path
+                it.path == File("app/build/intermediates/data_binding_artifact/release").path
             },
             "data_binding_artifact should be included in synced build outputs"
         )
@@ -49,7 +83,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `rFilePath resolves AGP 9 compile_and_runtime_r_class_jar path`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
 
         // AGP 9.0+: compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar
         val agp9RJar = File(
@@ -66,7 +100,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `rFilePath resolves AGP 8 compile_and_runtime_not_namespaced_r_class_jar path`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
 
         // AGP 8.x: compile_and_runtime_not_namespaced_r_class_jar/debug/processDebugResources/R.jar
         val agp8RJar = File(
@@ -83,7 +117,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `rFilePath resolves newest application R jar in AGP 8 directory`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val staleRootRJar = createRJar(
             moduleRootDir,
             "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
@@ -102,7 +136,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `rFilePath keeps root R jar when it is the newest application R jar`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val currentRootRJar = createRJar(
             moduleRootDir,
             "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
@@ -120,7 +154,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `rFilePath resolves newest application R jar across AGP 8 and AGP 9 directories`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val staleAgp9RJar = createRJar(
             moduleRootDir,
             "build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar",
@@ -139,7 +173,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `rFilePath keeps matched candidate order when R jars have same modified time`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val agp9RJar = createRJar(
             moduleRootDir,
             "build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar",
@@ -157,7 +191,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `rFilePathCandidates returns distinct matched R jars`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val rootRJar = createRJar(
             moduleRootDir,
             "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
@@ -170,7 +204,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `javaClassPath resolves newest javac output dir when AGP upgrade leaves both paths`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val staleClassesDir = createJavaOutputDir(
             moduleRootDir,
             "build/intermediates/javac/debug/classes",
@@ -189,7 +223,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `javaClassPath keeps classes dir when it is the newest javac output dir`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val currentClassesDir = createJavaOutputDir(
             moduleRootDir,
             "build/intermediates/javac/debug/classes",
@@ -207,7 +241,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `javaClassPath falls back to classes dir when compileDebugJavaWithJavac is absent`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val classesDir = createJavaOutputDir(
             moduleRootDir,
             "build/intermediates/javac/debug/classes",
@@ -220,7 +254,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `allClassPath includes only resolved javaClassPath when multiple javac output dirs exist`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         createJavaOutputDir(
             moduleRootDir,
             "build/intermediates/javac/debug/classes",
@@ -242,7 +276,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `javaClassPathCandidates returns distinct existing javac output dirs`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val classesDir = createJavaOutputDir(
             moduleRootDir,
             "build/intermediates/javac/debug/classes",
@@ -263,7 +297,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `mergedManifest resolves newest manifest when AGP upgrade leaves stale root manifest`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val staleRootManifest = createManifest(
             moduleRootDir,
             "build/intermediates/merged_manifests/debug/AndroidManifest.xml",
@@ -282,7 +316,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `mergedManifest keeps root manifest when it is newer than process manifest`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val currentRootManifest = createManifest(
             moduleRootDir,
             "build/intermediates/merged_manifests/debug/AndroidManifest.xml",
@@ -300,7 +334,7 @@ class ModuleBuildPathInfoTest {
     @Test
     fun `mergedManifest keeps configured directory priority when manifests have same modified time`() {
         val moduleRootDir = tempFolder.newFolder("app")
-        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
         val applicationManifest = createManifest(
             moduleRootDir,
             "build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml",

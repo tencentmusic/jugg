@@ -21,7 +21,7 @@ class CompileContextTargetApkPathsTest {
             name = "library1",
             projectRootDir = testRoot,
             moduleRootDir = File(testRoot, "library1"),
-            buildPathInfo = ModuleBuildPathInfo(testRoot, File(testRoot, "library1"), "debug"),
+            buildPathInfo = ModuleBuildPathInfo(testRoot, File(testRoot, "library1"), "debug", buildDirRelativePath = ""),
         )
         val baseUnit = ApkFileUnit("com.example.app", "", true, File("/base.apk"))
         val testUnit = ApkFileUnit("com.example.library1.test", "", true, File("/test.apk"))

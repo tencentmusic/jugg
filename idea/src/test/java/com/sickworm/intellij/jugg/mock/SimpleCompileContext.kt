@@ -36,7 +36,7 @@ data class SimpleCompileContext(
         name = "temp_module",
         projectRootDir = projectDir,
         moduleRootDir = tempModuleDir,
-        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT, buildDirRelativePath = ""),
     )
 
     override val applicationModule: ModuleInfo = modules.values.first()

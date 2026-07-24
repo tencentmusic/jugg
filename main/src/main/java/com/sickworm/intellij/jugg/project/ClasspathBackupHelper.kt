@@ -71,6 +71,7 @@ class ClasspathBackupHelper(
                         File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
                         it.buildVariant,
                         customSyncFilePath = it.buildPathInfo.customSyncFilePath,
+                        buildDirRelativePath = it.buildPathInfo.buildDirRelativePath,
                     )
                     )
                 }

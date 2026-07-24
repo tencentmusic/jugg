@@ -28,6 +28,9 @@ class TopLevelFlowTest {
         assertEquals(JuggDeployState.State.READY_DEPLOY, jugg.deployStateManager.deployState.state)
         assertEquals(1, jugg.deployTargetManager.getApks().size)
         assertEquals(1, jugg.compileContextManager.compileContext.apkInfos.size)
+        val appBuildDir = jugg.compileContextManager.compileContext.modules.getValue("app").buildPathInfo.buildDir
+        assertTrue(appBuildDir.invariantSeparatorsPath.endsWith("/build/app"))
+        assertTrue(appBuildDir.isDirectory)
     }
 
     @Test

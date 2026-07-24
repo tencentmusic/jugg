@@ -22,7 +22,7 @@ class ProjectInfo(
 {
     "packageName": "com.example.myapplication",
     "projectRootDir": "../android_demo_project",
-    "apkPath": "app/build/outputs/apk/debug/app-debug.apk"
+    "apkPath": "build/app/outputs/apk/debug/app-debug.apk"
 }
 """.trimIndent()
 

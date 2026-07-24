@@ -333,7 +333,7 @@ fun gradleProjectInfoReader(rootProject: Project, lastProjectInfo: JuggProjectIn
 fun gradleDependencyDiffer(rootProject: Project, projectInfo: JuggProjectInfo, ideProjectDir: File = rootProject.projectDir) = GradleDependencyDiffer(rootProject, projectInfo, ideProjectDir)
 fun projectInfoSerializerInGradle(dataFile: File) = ProjectInfoSerializerInGradle(dataFile)
 fun juggPathManager(projectDir: File) = JuggPathManager(projectDir)
-fun moduleBuildPathInfo(projectRootDir: File, moduleRootDir: File, buildVariant: String) = ModuleBuildPathInfo(projectRootDir, moduleRootDir, buildVariant)
+fun moduleBuildPathInfo(projectRootDir: File, moduleRootDir: File, buildVariant: String, buildDirRelativePath: String) = ModuleBuildPathInfo(projectRootDir, moduleRootDir, buildVariant, buildDirRelativePath = buildDirRelativePath)
 fun libraryDependency(name: String, file: File) = LibraryDependency(name, file)
 fun libraryDependency(name: String, file: File, lastModifiedTime: Long, crc32: Long) = LibraryDependency(name, file, lastModifiedTime, crc32)
 fun gradleApplicationInjector(rootProject: Project) = GradleApplicationInjector(rootProject)

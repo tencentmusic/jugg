@@ -39,6 +39,7 @@ class ClasspathBackupHelperTest {
                 projectDir,
                 moduleDir,
                 "debug",
+                buildDirRelativePath = "build/common.protocol",
                 customClasspath = listOf(customClasspath),
                 customSyncFilePath = listOf(customSyncPath),
             ),
@@ -57,6 +58,7 @@ class ClasspathBackupHelperTest {
         val backupModuleDir = File(classpathRootDir, "module_libs/common/protocol")
         assertEquals(classpathRootDir, buildPathInfo.projectRootDir)
         assertEquals(backupModuleDir, buildPathInfo.moduleRootDir)
+        assertEquals(File(classpathRootDir, "build/common.protocol"), buildPathInfo.buildDir)
         assertEquals(listOf(customSyncPath), buildPathInfo.customSyncFilePath)
         assertNull(buildPathInfo.customClasspath)
         assertTrue(

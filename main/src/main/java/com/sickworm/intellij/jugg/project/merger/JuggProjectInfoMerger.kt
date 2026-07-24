@@ -244,7 +244,10 @@ class JuggProjectInfoMerger(
                 kotlinFreeCompilerArgs = mergeWithBase(name, "kotlinFreeCompilerArgs", gradleModuleInfo.kotlinFreeCompilerArgs, moduleInfo.kotlinFreeCompilerArgs, mergeResult) { it },
                 javaSourceCompatibility = chooseValue(gradleModuleInfo.javaSourceCompatibility, moduleInfo.javaSourceCompatibility),
                 javaTargetCompatibility = chooseValue(gradleModuleInfo.javaTargetCompatibility, moduleInfo.javaTargetCompatibility),
-                buildPathInfo = moduleInfo.buildPathInfo.copy(buildVariant = buildVariant), // ide project info has real buildPathInfo in jugg/classpath
+                buildPathInfo = moduleInfo.buildPathInfo.copy(
+                    buildVariant = buildVariant,
+                    buildDirRelativePath = gradleModuleInfo.buildPathInfo.buildDirRelativePath,
+                ), // keep the local classpath root and use Gradle's authoritative build directory relation
                 moduleDependencies = setIfEmpty(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
                 libraryDependencies = libraryMerger.mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,

@@ -24,7 +24,7 @@ class ModulePathMergePolicyTest {
         moduleRootDir = moduleDir,
         projectRootDir = projectDir,
         buildVariant = buildVariant,
-        buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, buildVariant),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, buildVariant, buildDirRelativePath = ""),
         instrumentationTargetPackage = instrumentationTargetPackage,
     )
 
