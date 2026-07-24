@@ -45,6 +45,36 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
         }
     }
 
+    @Test
+    fun generatedScript_shouldKeepRootProjectInfoWhenIncludedBuildInfoIsMissing() {
+        val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_9_2_1_include_build").toFile()
+        try {
+            buildProjectFiles(fixtureDir)
+            File(fixtureDir, "settings.gradle").appendText("\nincludeBuild 'SMCommon'\n")
+            writeFile(File(fixtureDir, "SMCommon/settings.gradle"), "rootProject.name = 'SMCommon'")
+            writeFile(File(fixtureDir, "SMCommon/build.gradle"), "")
+            writeWrapper(fixtureDir, gradleVersion)
+            val initScript = copyGeneratedInitScript(fixtureDir)
+
+            val result = runGradle(
+                fixtureDir,
+                "help",
+                "-I", initScript.absolutePath,
+                "--console=plain",
+                "--no-daemon",
+            )
+
+            assertEquals(0, result.exitCode, "Gradle $gradleVersion included build check failed.\n${result.output}")
+            assertFalse(result.output.contains("Jugg: readProjectInfo.gradle execute failed"), result.output)
+            assertTrue(result.output.contains("Jugg: skip missing include build project info"), result.output)
+            val pathManager = JuggPathManager(fixtureDir)
+            assertTrue(pathManager.gradleProjectInfoFile.exists(), result.output)
+            assertFalse(pathManager.gradleIncludeBuildsFile.exists(), result.output)
+        } finally {
+            fixtureDir.deleteRecursively()
+        }
+    }
+
     override fun buildProjectFiles(projectDir: File) {
         writeFile(
             File(projectDir, "settings.gradle"),

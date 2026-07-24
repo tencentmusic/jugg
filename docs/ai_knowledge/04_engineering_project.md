@@ -85,6 +85,8 @@ IDE / Gradle compile 触发 project info 更新
 
 `readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
+Composite build 中，included build 可能没有参与当前 task graph，因此不会生成自己的 `gradle_project_infos.json`。汇总 included build 快照时必须跳过缺失文件并删除对应旧副本，不能中断根项目快照写入，否则 full build 后的 project info 与 compile command 基线都无法刷新。
+
 Application runtime 注入在 Android application plugin 加载后立即注册 `androidComponents.onVariants`。支持 `runtimeConfiguration` 的 AGP 会把 `jugg-runtime.jar` 直接加入具体 variant；旧版或反射失败时回退到通用 `runtimeOnly`，附加路径失败不会中断 Gradle 配置。
 
 ### 4.2 Sync 后合并为编译上下文

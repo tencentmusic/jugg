@@ -208,17 +208,23 @@ class GradleProjectInfoReaderManager(
 
     private fun writeIncludeProjectsFile() {
         val includeProjectsFile = juggPathManager.gradleIncludeBuildsFile
-        if (includeBuildProjects.isEmpty()) {
-            if (includeProjectsFile.exists()) includeProjectsFile.delete()
+        includeProjectsFile.parentFile.mkdirs()
+        val projectFiles = mutableListOf<File>()
+        includeBuildProjects.forEachIndexed { index, includedBuild ->
+            val originFile = JuggPathManager(includedBuild.projectDir).gradleProjectInfoFile
+            val targetFile = File(includeProjectsFile.parentFile, "include_build_${index + 1}_gradle_project_infos.json")
+            if (!originFile.exists()) {
+                targetFile.delete()
+                println("Jugg: skip missing include build project info: $originFile")
+                return@forEachIndexed
+            }
+            originFile.copyTo(targetFile, true)
+            projectFiles.add(targetFile)
+        }
+        if (projectFiles.isEmpty()) {
+            includeProjectsFile.delete()
         } else {
-            val projectFiles = includeBuildProjects.mapIndexed { index, it ->
-                val originFile = JuggPathManager(it.projectDir).gradleProjectInfoFile
-                val targetFile = File(includeProjectsFile.parentFile, "include_build_${index + 1}_gradle_project_infos.json")
-                originFile.copyTo(targetFile, true)
-                targetFile
-            }.joinToString("\n")
-            includeProjectsFile.parentFile.mkdirs()
-            includeProjectsFile.writeText(projectFiles)
+            includeProjectsFile.writeText(projectFiles.joinToString("\n"))
         }
     }
 
