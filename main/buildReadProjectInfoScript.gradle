@@ -245,8 +245,21 @@ gradle.allprojects {
     }
 }
 
+gradle.rootProject {
+    if (gradle.parent != null) {
+        tasks.maybeCreate(GradleProjectInfoReaderManager.READ_PROJECT_INFO_TASK_NAME).apply {
+            group = "jugg"
+            description = "Writes Jugg project info for this included build"
+        }
+    }
+}
+
 gradle.projectsEvaluated {
-    gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).injectAndroidTestTaskIfNeeded()
+    val projectInfoReaderManager = gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds)
+    projectInfoReaderManager.injectAndroidTestTaskIfNeeded()
+    if (gradle.includedBuilds.isNotEmpty()) {
+        projectInfoReaderManager.injectIncludedBuildProjectInfoTasks()
+    }
 }
 
 gradle.taskGraph.whenReady {

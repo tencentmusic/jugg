@@ -17,10 +17,12 @@ class GradleProjectInfoReaderManager(
 ) {
 
     // Prefer jugg.projectDir property to support projects where Gradle root != IDE project dir
-    // (e.g., kugou_like/ project with android/ as Gradle root)
-    private val juggPathManager = JuggPathManager(
+    // (e.g., kugou_like/ project with android/ as Gradle root).
+    private val ideProjectDir =
         rootProject.properties["jugg.projectDir"]?.toString()?.let { File(it) }
             ?: rootProject.rootDir
+    private val juggPathManager = JuggPathManager(
+        if (rootProject.gradle.parent == null) ideProjectDir else rootProject.rootDir
     )
 
     fun readAndSave() {
@@ -37,15 +39,15 @@ class GradleProjectInfoReaderManager(
             readEnvironment()
             val startTime = System.currentTimeMillis()
             val lastProjectInfo = readLastProjectInfo()
-            val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo, juggPathManager.projectDir)
+            val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo, ideProjectDir)
                 .getProjectInfo(includeAndroidTestSourceSet)
 
             if (isDiffMode) {
-                GradleDependencyDiffer(rootProject, projectInfo, juggPathManager.projectDir).outputDiffToDir()
+                GradleDependencyDiffer(rootProject, projectInfo, ideProjectDir).outputDiffToDir()
             } else {
                 writeProjectInfoFile(projectInfo)
                 writeIncludeProjectsFile()
-                GradleDependencyDiffer(rootProject, projectInfo, juggPathManager.projectDir).deleteTmpProjectInfos()
+                GradleDependencyDiffer(rootProject, projectInfo, ideProjectDir).deleteTmpProjectInfos()
             }
 
             val costTime = System.currentTimeMillis() - startTime
@@ -119,6 +121,30 @@ class GradleProjectInfoReaderManager(
                     task.dependsOn(libraryTestTask)
                     println("Jugg: inject ${libraryTestTask.path} before ${task.path}")
                 }
+            }
+        }
+    }
+
+    /**
+     * Adds lightweight reader tasks from configured included builds before the requested root-build tasks.
+     */
+    fun injectIncludedBuildProjectInfoTasks() {
+        if (includeBuildProjects.isEmpty()) {
+            return
+        }
+        val requestedTaskSet = rootProject.gradle.startParameter.taskRequests
+            .flatMap { it.args }
+            .toSet()
+        val targetTasks = findTasksByRequests(requestedTaskSet)
+        if (targetTasks.isEmpty()) {
+            println("Jugg: no requested task found for included build project info, requested: $requestedTaskSet")
+            return
+        }
+        includeBuildProjects.forEach { includedBuild ->
+            val projectInfoTask = includedBuild.task(READ_PROJECT_INFO_TASK_PATH)
+            targetTasks.forEach { targetTask ->
+                targetTask.dependsOn(projectInfoTask)
+                println("Jugg: inject $projectInfoTask before ${targetTask.path}")
             }
         }
     }
@@ -234,5 +260,7 @@ class GradleProjectInfoReaderManager(
         const val PARAM_BUILD_TARGET = "jugg.buildTarget"
         const val PARAM_LIBRARY_TEST_TASKS = "jugg.libraryTestTasks"
         const val BUILD_TARGET_ANDROID_TEST = "ANDROID_TEST"
+        const val READ_PROJECT_INFO_TASK_NAME = "juggReadProjectInfo"
+        const val READ_PROJECT_INFO_TASK_PATH = ":$READ_PROJECT_INFO_TASK_NAME"
     }
 }

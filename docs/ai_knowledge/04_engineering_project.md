@@ -85,7 +85,9 @@ IDE / Gradle compile 触发 project info 更新
 
 `readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
-Composite build 中，included build 可能没有参与当前 task graph，因此不会生成自己的 `gradle_project_infos.json`。汇总 included build 快照时必须跳过缺失文件并删除对应旧副本，不能中断根项目快照写入，否则 full build 后的 project info 与 compile command 基线都无法刷新。
+Composite build 使用条件分流：普通项目继续只通过现有 `taskGraph.whenReady` 回调读取；只有根构建发现 `gradle.includedBuilds` 非空时，才把各 included build 的轻量 `:juggReadProjectInfo` task 注入当前请求任务依赖。included build 因此会进入自己的 task graph，并把 `gradle_project_infos.json` 写入自身工程目录，随后由根构建复制到主工程数据库目录。`jugg.projectDir` 仍用于统一计算相对路径，不能用于覆盖 included build 的快照输出目录。
+
+如果 included build 的读取或文件生成仍然失败，汇总时必须跳过缺失文件并删除对应旧副本，不能中断根项目快照写入，否则 full build 后的 project info 与 compile command 基线都无法刷新。
 
 Application runtime 注入在 Android application plugin 加载后立即注册 `androidComponents.onVariants`。支持 `runtimeConfiguration` 的 AGP 会把 `jugg-runtime.jar` 直接加入具体 variant；旧版或反射失败时回退到通用 `runtimeOnly`，附加路径失败不会中断 Gradle 配置。
 
@@ -158,6 +160,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `ModuleBuildPathInfo.javaClassPath` 在 `intermediates/javac/<variant>/classes` 与 `compile<Variant>JavaWithJavac/classes` 并存时同样按 `lastModifiedTime` 选择最新目录；`allClassPath` 只挂载解析后的单一 Java 输出目录，避免 AGP 升级后旧目录 shadow 新 class。
 - `readProjectInfo.gradle.kts` 读取依赖时使用上次 project info 做 CRC 缓存，但不能只依赖缓存，因为 transitive dependency 信息可能不完整。
 - include build 会把各自的 `gradle_project_infos.json` 复制成 `include_build_N_gradle_project_infos.json`，主工程只通过列表文件引用。
+- include build project info task 仅在 composite build 根构建中注入；无 included build 的项目不注册额外 task，也不改变原有读取时机。
 - IDE 可能把不同 Gradle build 中的同名模块都简化为相同 simple name。若同名模块分别指向不同相对路径，只有 Gradle 侧模块明确为 `Application`、来自主 Gradle 快照且存在真实 R.jar 时，才完整保留该 Gradle Application；多个 R.jar 候选继续由 `ModuleBuildPathInfo.rFilePath` 按修改时间选择最新产物。条件不满足时仍走原有字段合并，普通 Library 不受影响。冲突日志会记录 IDE/Gradle 模块路径、是否属于主快照、候选 R.jar 和最终选择。
 - diff mode 只输出依赖差异并清理临时 project info；非 diff mode 才写正式 `gradle_project_infos.json`。
 - androidTest task 注入发生在 Gradle task graph finalization 之前；如果请求任务名和真实 task path 对不上，注入会静默打印 “no requested task found” 并跳过。
