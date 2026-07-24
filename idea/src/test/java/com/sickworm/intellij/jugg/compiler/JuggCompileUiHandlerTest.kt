@@ -15,6 +15,7 @@ class JuggCompileUiHandlerTest {
 
     private fun createHandler(
         isRpcMode: Boolean = false,
+        isGradleCacheRefreshRequested: Boolean = false,
         testEventSinkFactory: ((String, Boolean) -> ((InstrumentationEvent) -> Unit)?)? = null,
     ): JuggCompileUiHandler {
         val project = Mockito.mock(Project::class.java)
@@ -25,6 +26,7 @@ class JuggCompileUiHandlerTest {
             isRpcMode = isRpcMode,
             juggGradleCompileOptions = options,
             logger = Logger.getInstance("JuggCompileUiHandlerTest"),
+            isGradleCacheRefreshRequested = isGradleCacheRefreshRequested,
             testEventSinkFactory = testEventSinkFactory,
         )
     }
@@ -54,6 +56,11 @@ class JuggCompileUiHandlerTest {
     fun `jugg handler exposes rpc mode`() {
         Assert.assertTrue(createHandler(isRpcMode = true).isRpcMode)
         Assert.assertFalse(createHandler(isRpcMode = false).isRpcMode)
+    }
+
+    @Test
+    fun `force gradle handler keeps cache refresh request`() {
+        Assert.assertTrue(createHandler(isGradleCacheRefreshRequested = true).isGradleCacheRefreshRequested)
     }
 
     @Test

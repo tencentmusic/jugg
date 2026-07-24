@@ -34,6 +34,7 @@ class IdeaForceGradleCompileHelper(
         autoConfirm: Boolean,
         useCleanAndReinstall: Boolean,
     ) {
+        isGradleCacheRefreshNextTime = false
         val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
         val isJuggConfiguration = currentConfiguration?.configuration is JuggRunConfiguration
         logger.debug(
@@ -78,6 +79,7 @@ class IdeaForceGradleCompileHelper(
             }
             content = "<html>Jugg is going to compile the project using gradle. Continue? <br>(will run ${runConfiguration.name})</html>"
         }
+        var isGradleCacheRefreshRequested = false
         val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
             "Confirm fallback",
             content,
@@ -89,11 +91,14 @@ class IdeaForceGradleCompileHelper(
                     ExportIncrementalApkHelper(project, taskRunnerManager, deployFileManager, logger)
                         .exportIncrementalApk(it, compileContextManager.compileContext)
                 }
-            )
+            ),
+            checkBoxText = "clean gradle cache on fallback",
+            checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
         )
         when (confirmResult) {
             ConfirmResult.POSITIVE -> {
                 ForceGradleCompileHelper.isForceGradleCompileNextTime = true
+                ForceGradleCompileHelper.isGradleCacheRefreshNextTime = isGradleCacheRefreshRequested
                 if (isJuggConfiguration) {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration!!, DefaultRunExecutor.getRunExecutorInstance())
                 } else {
@@ -118,6 +123,7 @@ class IdeaForceGradleCompileHelper(
         autoConfirm: Boolean,
         useCleanAndReinstall: Boolean,
     ): GradleCompileExecutionResult {
+        ForceGradleCompileHelper.isGradleCacheRefreshNextTime = false
         if (!autoConfirm) {
             return GradleCompileExecutionResult(
                 status = "failed",

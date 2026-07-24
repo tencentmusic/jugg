@@ -240,7 +240,7 @@ tasks.register('buildReadProjectInfoScript') {
 
         finalContent.append("""
 gradle.allprojects {
-    project.afterEvaluate {
+    project.pluginManager.withPlugin("com.android.application") {
         gradleApplicationInjector(rootProject).injectApplication(project)
     }
 }

@@ -8,6 +8,7 @@ abstract class ForceGradleCompileHelper {
     companion object {
         var isForceGradleCompileNextTime = false
         var isCleanAndReinstallNextTime = false
+        var isGradleCacheRefreshNextTime = false
     }
 
     abstract fun executeGradleCompile(autoConfirm: Boolean = false, useCleanAndReinstall: Boolean = false)

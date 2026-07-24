@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.googlecode.d2j.node.DexFileNode
+import com.googlecode.d2j.reader.MultiDexFileReader
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
@@ -135,6 +137,78 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
         assertEquals(0, result.exitCode, "Gradle $gradleVersion manifest task failed.\n${result.output}")
     }
 
+    @Test
+    fun generatedScript_shouldAddRuntimeClassesAfterNormalBuild() {
+        val fixtureDir = Files.createTempDirectory("jugg_runtime_after_normal_build").toFile()
+        try {
+            File(System.getProperty("user.dir"), "src/test/assets/android-app-agp9")
+                .copyRecursively(fixtureDir, overwrite = true)
+            val buildFile = File(fixtureDir, "build.gradle")
+            buildFile.writeText(buildFile.readText().replace("8.7.2", "8.9.1"))
+            val appBuildFile = File(fixtureDir, "app/build.gradle")
+            // Simulate a plugin that isolates the variant runtime classpath after Jugg adds runtimeOnly.
+            appBuildFile.appendText(
+                """
+
+                gradle.projectsEvaluated {
+                    def runtimeClasspath = configurations.getByName('debugRuntimeClasspath')
+                    runtimeClasspath.setExtendsFrom(
+                        runtimeClasspath.extendsFrom.findAll { it.name != 'runtimeOnly' }
+                    )
+                }
+                """.trimIndent(),
+            )
+            writeSdkLocalProperties(fixtureDir)
+            writeWrapper(fixtureDir, "8.11.1")
+
+            val normalBuild = runGradle(
+                fixtureDir,
+                ":app:assembleDebug",
+                "--stacktrace",
+                "--console=plain",
+                "--build-cache",
+            )
+            assertEquals(0, normalBuild.exitCode, "Normal Gradle build failed.\n${normalBuild.output}")
+
+            val apkFile = File(fixtureDir, "app/build/outputs/apk/debug/app-debug.apk")
+            assertFalse(apkContainsClass(apkFile, BOOTSTRAP_APPLICATION))
+            assertFalse(apkContainsClass(apkFile, BOOTSTRAP_APP_COMPONENT_FACTORY))
+
+            val initScript = copyGeneratedInitScript(fixtureDir)
+            val runtimeJar = File(fixtureDir, ".gradle/jugg/jugg-runtime.jar")
+            runtimeJar.parentFile.mkdirs()
+            javaClass.getResourceAsStream("/deploy/jugg-runtime.jar")!!.use { input ->
+                runtimeJar.outputStream().use(input::copyTo)
+            }
+            File(fixtureDir, "app/build").deleteRecursively()
+            val juggBuild = runGradle(
+                fixtureDir,
+                ":app:assembleDebug",
+                "-I", initScript.absolutePath,
+                "-P${PARAM_INJECT_ENABLE}=true",
+                "-Pjugg.projectDir=${fixtureDir.absolutePath}",
+                "--stacktrace",
+                "--console=plain",
+                "--build-cache",
+            )
+            assertEquals(0, juggBuild.exitCode, "Jugg Gradle build failed.\n${juggBuild.output}")
+            assertFalse(
+                juggBuild.output.contains(":app:mergeExtDexDebug FROM-CACHE"),
+                "Jugg runtime must invalidate the normal-build external dex cache.\n${juggBuild.output}",
+            )
+            assertTrue(apkContainsClass(apkFile, BOOTSTRAP_APPLICATION))
+            assertTrue(apkContainsClass(apkFile, BOOTSTRAP_APP_COMPONENT_FACTORY))
+        } finally {
+            fixtureDir.deleteRecursively()
+        }
+    }
+
+    private fun apkContainsClass(apkFile: File, className: String): Boolean {
+        val dexFileNode = DexFileNode()
+        MultiDexFileReader.open(apkFile.readBytes()).accept(dexFileNode)
+        return dexFileNode.clzs.any { it.className == className }
+    }
+
     /**
      * Verifies that the configuration phase succeeds on AGP 9.0 (which removes applicationVariants)
      * with `-Pjugg.inject.application.enable=true`. The injector must use androidComponents API.
@@ -169,3 +243,5 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
 
 /** Mirrors GradleApplicationInjector.PARAM_ENABLE without pulling in the production class. */
 private const val PARAM_INJECT_ENABLE = "jugg.inject.application.enable"
+private const val BOOTSTRAP_APPLICATION = "Lcom/sickworm/intellij/jugg/hotfix/BootstrapApplication;"
+private const val BOOTSTRAP_APP_COMPONENT_FACTORY = "Lcom/sickworm/intellij/jugg/hotfix/BootstrapAppComponentFactory;"

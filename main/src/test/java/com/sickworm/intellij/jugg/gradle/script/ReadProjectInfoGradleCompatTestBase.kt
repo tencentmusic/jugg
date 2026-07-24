@@ -153,7 +153,7 @@ abstract class ReadProjectInfoGradleCompatTestBase {
         file.writeText(content)
     }
 
-    private fun writeSdkLocalProperties(projectDir: File) {
+    protected fun writeSdkLocalProperties(projectDir: File) {
         val sdkDir = System.getenv("ANDROID_SDK_ROOT")
             ?: System.getenv("ANDROID_HOME")
         File(projectDir, "local.properties").writeText("sdk.dir=$sdkDir\n")

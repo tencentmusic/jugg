@@ -32,6 +32,17 @@ fun JuggGradleCompileOptions.requestedGradleTasks(): Set<String> {
         .toSet()
 }
 
+/** Returns compile options that bypass Gradle task output reuse for a confirmed fallback build. */
+fun JuggGradleCompileOptions.withGradleCacheRefresh(): JuggGradleCompileOptions {
+    val arguments = listOf("--no-build-cache", "--rerun-tasks")
+    val existingArguments = compileCommand.split(Regex("\\s+"))
+    val missingArguments = arguments.filterNot(existingArguments::contains)
+    if (missingArguments.isEmpty()) {
+        return this
+    }
+    return copy(compileCommand = "${compileCommand.trimEnd()} ${missingArguments.joinToString(" ")}")
+}
+
 fun parseRemoteSyncExcludePatterns(rawPatterns: String): List<String> {
     return rawPatterns.split(Regex("[;,\\r\\n]+")).asSequence()
         .map { it.trim() }

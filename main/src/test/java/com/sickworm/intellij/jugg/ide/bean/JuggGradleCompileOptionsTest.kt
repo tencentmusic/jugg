@@ -109,6 +109,26 @@ class JuggGradleCompileOptionsTest {
     }
 
     @Test
+    fun withGradleCacheRefresh_shouldAppendCacheBypassArgumentsOnce() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_refresh").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                compileCommand = "./gradlew :app:assembleDebug",
+            )
+
+            val refreshed = options.withGradleCacheRefresh().withGradleCacheRefresh()
+
+            assertEquals(
+                "./gradlew :app:assembleDebug --no-build-cache --rerun-tasks",
+                refreshed.compileCommand,
+            )
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun parseRemoteSyncExcludePatterns_shouldIgnoreBlankLinesAndComments() {
         val patterns = parseRemoteSyncExcludePatterns(
             """

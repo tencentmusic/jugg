@@ -37,10 +37,13 @@ open class JuggCompileUiHandler(
     override val isSkipDeploy: Boolean = false,
     override val isAlwaysRestartApp: Boolean = false,
     override val isDebugRun: Boolean = false,
+    isGradleCacheRefreshRequested: Boolean = false,
     private val onEndListener: ((RunResult) -> Unit)? = null,
 ) : CompileUiHandler {
 
     private val logger = logger.getInstance("JuggCompileUiHandler")
+    final override var isGradleCacheRefreshRequested: Boolean = isGradleCacheRefreshRequested
+        private set
 
     override val isCanceled: Boolean get() = progressIndicator.isCanceled || processHandler.isCanceled
 
@@ -53,6 +56,7 @@ open class JuggCompileUiHandler(
     }
 
     override fun confirmFallbackWhenNoFileChanges(): ConfirmResult {
+        isGradleCacheRefreshRequested = false
         if (isRpcMode) {
             return ConfirmResult.NEGATIVE
         }
@@ -66,6 +70,8 @@ open class JuggCompileUiHandler(
             okButtonText = "Fallback to Gradle",
             negativeButtonText = "Don't fallback",
             leftButtonText = "Cancel",
+            checkBoxText = "clean gradle cache on fallback",
+            checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
         )
     }
 

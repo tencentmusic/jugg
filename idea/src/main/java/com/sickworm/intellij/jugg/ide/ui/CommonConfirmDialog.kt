@@ -22,11 +22,12 @@ class CommonConfirmDialog(
     private val isShowCancelButton: Boolean,
     private val leftButtonText: String?,
     isShowDoNotAsk: Boolean,
+    checkBoxText: String?,
     private val linkActions: List<CustomLinkAction> = emptyList(),
 ) : DialogWrapper(true) {
 
     private val mainPanel: JPanel = JPanel(GridBagLayout())
-    val checkBox: JBCheckBox = JBCheckBox("Don't ask me next time")
+    val checkBox: JBCheckBox = JBCheckBox(checkBoxText ?: "Don't ask me next time")
 
     var isClickLeftButton: Boolean = false
         private set
@@ -155,10 +156,12 @@ class CommonConfirmDialog(
                                leftButtonText: String? = null,
                                doNotAskAction: (() -> Unit)? = null,
                                linkActions: List<CustomLinkAction> = emptyList(),
+                               checkBoxText: String? = null,
+                               checkBoxSelectionAction: ((Boolean) -> Unit)? = null,
         ): ConfirmResult {
             var result: ConfirmResult = ConfirmResult.NEGATIVE
             ApplicationManager.getApplication().invokeAndWait {
-                val isShowDoNotAsk = doNotAskAction != null
+                val isShowDoNotAsk = doNotAskAction != null || checkBoxText != null
                 val dialog = CommonConfirmDialog(
                     title,
                     content,
@@ -167,6 +170,7 @@ class CommonConfirmDialog(
                     isShowCancelButton,
                     leftButtonText,
                     isShowDoNotAsk,
+                    checkBoxText,
                     linkActions
                 )
                 if (dialog.showAndGet()) {
@@ -182,6 +186,7 @@ class CommonConfirmDialog(
                 if (isShowDoNotAsk && dialog.checkBox.isSelected) {
                     doNotAskAction?.invoke()
                 }
+                checkBoxSelectionAction?.invoke(result == ConfirmResult.POSITIVE && dialog.checkBox.isSelected)
             }
             return result
         }

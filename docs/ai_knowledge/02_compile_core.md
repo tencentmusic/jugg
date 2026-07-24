@@ -135,6 +135,8 @@ JuggCompiler.doCompile(task)
 - 变更文件点数/模块数超过阈值。
 - 依赖变化、构建脚本变化或编译失败不可恢复。
 
+无文件变化的 fallback 确认框和手动 `Force Gradle Compile` 确认框均允许用户选择忽略 Gradle build cache。选中后，本轮 Gradle command 追加 `--no-build-cache --rerun-tasks`；该选项只影响本轮回退，不写回 Run Configuration，并在任务启动后清除。
+
 ### 7.2 增量内重试
 
 - 重试策略接口：`IIncrementalCompileRetryResolver`，由 `IncrementalCompileRetryResolverChain` 串联多个实现。

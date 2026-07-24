@@ -456,6 +456,7 @@ class JuggManager @TestOnly constructor(
             logger,
             isAlwaysRestartApp = isJuggDebugRun,
             isDebugRun = isJuggDebugRun,
+            isGradleCacheRefreshRequested = ForceGradleCompileHelper.isGradleCacheRefreshNextTime,
             onEndListener = { runResult ->
                 debugSessionManager?.attachAfterSuccessfulRun(runResult, compileUiHandler)
             },

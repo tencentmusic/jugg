@@ -90,6 +90,7 @@ class JuggConfigurationRunner(
         }
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = false
         ForceGradleCompileHelper.isForceGradleCompileNextTime = false
+        ForceGradleCompileHelper.isGradleCacheRefreshNextTime = false
         return DefaultExecutionResult(consoleView, processHandler)
     }
 
@@ -178,6 +179,7 @@ class JuggConfigurationRunner(
             project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = isRpcMode,
+            isGradleCacheRefreshRequested = ForceGradleCompileHelper.isGradleCacheRefreshNextTime,
             juggGradleCompileOptions = compileOptions,
             logger = logger,
             isSkipDeploy = isSkipDeploy,

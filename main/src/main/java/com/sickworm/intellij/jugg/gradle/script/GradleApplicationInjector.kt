@@ -30,17 +30,27 @@ class GradleApplicationInjector(
             return
         }
 
-        injectProguardKeepRulesForVariant(project)
-        addRuntimeDependency(project)
+        project.afterEvaluate {
+            injectProguardKeepRulesForVariant(project)
+        }
+        val runtimeJarFile = getRuntimeJarFile()
 
         // Pre-collect variant names via androidComponents.onVariants during configuration phase.
         // onVariants must be registered before projectsEvaluated fires (AGP 9.0+ requirement).
         val variantNamesFromComponents = mutableListOf<String>()
-        project.extensions.findByName("androidComponents")?.let { androidComponents ->
+        var hasRuntimeOnlyFallback = false
+        val isOnVariantsRegistered = project.extensions.findByName("androidComponents")?.let { androidComponents ->
             invokeOnVariants(androidComponents) { variant ->
                 val name = reflector(variant)["name"]?.valueString ?: return@invokeOnVariants
                 variantNamesFromComponents.add(name)
+                if (!tryAddRuntimeDependencyToVariant(project, variant, runtimeJarFile) && !hasRuntimeOnlyFallback) {
+                    addRuntimeDependency(project, runtimeJarFile)
+                    hasRuntimeOnlyFallback = true
+                }
             }
+        } ?: false
+        if (!isOnVariantsRegistered) {
+            addRuntimeDependency(project, runtimeJarFile)
         }
 
         rootProject.gradle.projectsEvaluated {
@@ -77,13 +87,13 @@ class GradleApplicationInjector(
      *   onVariants(VariantSelector, Action<VariantT>)
      * The single-parameter Kotlin overload is a Kotlin extension function and has no JVM method.
      */
-    private fun invokeOnVariants(androidComponents: Any, callback: (Any?) -> Unit) {
+    private fun invokeOnVariants(androidComponents: Any, callback: (Any?) -> Unit): Boolean {
         // Find onVariants(VariantSelector, Action) — the two-parameter JVM overload.
         // parameterTypes[1].isInterface skips the Groovy Closure overload injected at runtime.
         val method = androidComponents::class.java.methods
             .firstOrNull { m ->
                 m.name == "onVariants" && m.parameterCount == 2 && m.parameterTypes[1].isInterface
-            } ?: return
+            } ?: return false
         val actionInterface = method.parameterTypes[1]
         val proxy = java.lang.reflect.Proxy.newProxyInstance(
             actionInterface.classLoader,
@@ -95,6 +105,22 @@ class GradleApplicationInjector(
         // selector() returns an "all variants" selector
         val selector = androidComponents::class.java.getMethod("selector").invoke(androidComponents)
         method.invoke(androidComponents, selector, proxy)
+        return true
+    }
+
+    /** Adds the runtime directly to the concrete variant configuration when AGP exposes it. */
+    private fun tryAddRuntimeDependencyToVariant(project: Project, variant: Any?, runtimeJarFile: File): Boolean {
+        return runCatching {
+            val runtimeConfiguration = reflector(variant)["runtimeConfiguration"]?.value
+                as? org.gradle.api.artifacts.Configuration
+                ?: return false
+            project.dependencies.add(runtimeConfiguration.name, project.files(runtimeJarFile))
+            println("Jugg: inject runtime into variant configuration ${runtimeConfiguration.name}")
+            true
+        }.getOrElse {
+            println("Jugg: inject runtime into variant configuration failed, fallback to runtimeOnly: $it")
+            false
+        }
     }
 
     /** Registers a doLast hook on the manifest task identified by variant name. */
@@ -123,7 +149,7 @@ class GradleApplicationInjector(
         )
     }
 
-    private fun addRuntimeDependency(project: Project) {
+    private fun getRuntimeJarFile(): File {
         // Prefer jugg.projectDir to support projects where Gradle root != IDE project dir
         val projectDir = rootProject.properties["jugg.projectDir"]?.toString()?.let { File(it) }
             ?: rootProject.rootDir
@@ -131,8 +157,11 @@ class GradleApplicationInjector(
         if (!runtimeJarFile.exists()) {
             throw IllegalStateException("Jugg jarDir: $runtimeJarFile not exists or has no jar files")
         }
-        val runtimeConfiguration = project.files(runtimeJarFile)
-        project.dependencies.add("runtimeOnly", runtimeConfiguration)
+        return runtimeJarFile
+    }
+
+    private fun addRuntimeDependency(project: Project, runtimeJarFile: File) {
+        project.dependencies.add("runtimeOnly", project.files(runtimeJarFile))
     }
 
     private fun findMergedManifest(task: Task): List<File> {

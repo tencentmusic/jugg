@@ -18,6 +18,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.inferLibraryTestApkHistoryBuildVariant
 import com.sickworm.intellij.jugg.ide.bean.requestedGradleTasks
+import com.sickworm.intellij.jugg.ide.bean.withGradleCacheRefresh
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -199,7 +200,12 @@ class JuggCompilerHelper(
             JuggRunningTask.notifyFallback(project, incrementalResult?.failedReason ?: "See log for details.")
         }
 
-        val result = gradleCompile(options, uiHandler)
+        val gradleOptions = if (uiHandler.isGradleCacheRefreshRequested) {
+            options.withGradleCacheRefresh()
+        } else {
+            options
+        }
+        val result = gradleCompile(gradleOptions, uiHandler)
         if (result.isSuccess) {
             JuggSettings.defaultCompileSettings = options.toRunConfigurationTemplate()
         }
