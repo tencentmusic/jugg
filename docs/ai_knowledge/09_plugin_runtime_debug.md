@@ -365,6 +365,26 @@ main/.../compiler/source/kotlin/KotlinCompilerInvoker.kt   # -no-jdk 追加
 
 ---
 
+### 4.10 Windows 命令中文输出乱码
+
+**信号**：Android Studio Build 窗口中文正常，但 Jugg 输出出现 `璀﹀憡`、`娉�`、`鏌愪簺杈撳叆鏂囦欢` 等文本。
+
+**根因模式**：Windows 同一命令管道中的不同进程可能分别输出 UTF-8 或 GBK 字节。若 Jugg 在读取原始字节前固定使用其中一种编码，另一种输出就会乱码；出现 `�` 时部分原始字节已丢失，不能通过切换日志查看器编码恢复。
+
+**当前期望行为**：
+- `CmdExecutor` 的 stdout / stderr 都先按行保留原始字节。
+- Windows 下每行严格校验 UTF-8；校验成功按 UTF-8 解码，失败回退 GBK。
+- 非 Windows 继续固定使用 UTF-8。
+- 编码按行判断，不锁定整个进程，以兼容同一管道内的混合编码输出。
+
+**关键类**：
+```
+main/.../gradle/compile/CmdExecutor.kt
+main/.../gradle/compile/ProcessOutputReader.kt
+```
+
+---
+
 ## 5. 排查前：保存现场
 
 **在任何操作前先备份**，避免复现步骤覆盖原始日志：

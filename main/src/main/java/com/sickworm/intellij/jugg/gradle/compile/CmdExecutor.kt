@@ -6,7 +6,6 @@ import com.sickworm.intellij.jugg.project.JuggException
 import kotlinx.coroutines.*
 import java.io.IOException
 import java.io.PrintStream
-import java.nio.charset.Charset
 
 
 /**
@@ -65,15 +64,10 @@ class CmdExecutor(
         )
         currentRunningProcess = process
 
-        val charset = if (isWindows && Charset.isSupported("GBK")) {
-            Charset.forName("GBK")
-        } else {
-            Charsets.UTF_8
-        }
         val commander = PrintStream(process.outputStream, false)
         val errorPrintThread = object : Thread() {
             override fun run() {
-                val reader = process.errorStream.bufferedReader(charset)
+                val reader = ProcessOutputReader(process.errorStream, isWindows)
                 while (!isInterrupted) {
                     try {
                         val line = reader.readLine()
@@ -102,7 +96,7 @@ class CmdExecutor(
 
         var isShouldBreak = false
         var timeOutJob: Job? = null
-        val reader = process.inputStream.bufferedReader(charset)
+        val reader = ProcessOutputReader(process.inputStream, isWindows)
         var result: Int = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
         while (!isShouldBreak) {
             try {
