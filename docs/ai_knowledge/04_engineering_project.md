@@ -129,6 +129,10 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 `JuggCompilerHelper.gradleCompile()` 会在进入 Gradle 客户端前调用 `GradleWrapperRepairer`。该逻辑只处理 `compileCommand` 中使用 `gradlew` / `gradlew.bat` 的场景：若对应目录存在 `gradle/wrapper/gradle-wrapper.properties`，则从 Jugg 内置资源补齐缺失的 `gradlew`、`gradlew.bat`、`gradle/wrapper/gradle-wrapper.jar`，并为 `gradlew` 设置可执行权限；若 properties 不存在或命令不是 wrapper 入口，则不修改工程。补齐只创建缺失文件，不覆盖已有文件。
 
+本地 Gradle 命令的 `JAVA_HOME` 优先使用 IDE linked-project 中配置的 Gradle JVM，并通过 IDE JDK 解析器转换为实际路径；未配置或解析失败时，依次回退模块 Java SDK 和系统 `JAVA_HOME`。远程编译前的本地 project info dry-run 也使用同一套环境，避免 Android 模块 SDK 不是 Java SDK 时丢失 IDE Gradle JDK。
+
+本地 project info 读取属于后台维护任务，其 Gradle stdout/stderr 统一记录为 `debug`，不得打印用户可见的 `warn`；读取结果仍通过同步状态和返回值参与后续上下文更新。
+
 APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileClient` 会按本轮找到的 APK 文件清理 `build/jugg/classpath/apk/`，删除不属于本轮拉取结果的旧文件；查找或拉取失败时不清理旧缓存。
 
 ---
