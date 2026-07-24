@@ -120,7 +120,8 @@ public class BootstrapApplication extends Application {
                 throw new IllegalStateException("initRawApplicationAndAppComponentFactory: applicationInfo is null");
             }
             if (applicationInfo.metaData == null) {
-                throw new IllegalStateException("initRawApplicationAndAppComponentFactory: applicationInfo.metaData is null");
+                LogUtils.i(TAG, "initRawApplicationAndAppComponentFactory: no raw application or appComponentFactory");
+                return;
             }
             try {
                 generateRawAppComponentFactory(applicationInfo, base);
