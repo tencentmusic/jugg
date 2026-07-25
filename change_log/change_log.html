@@ -1,9 +1,14 @@
 <h1>Change Log</h1>
-<h2>3.1.0 (2026.07.24)</h2>
+<h2>3.1.1 (2026.07.26)</h2>
 <ol>
-    <li>[feature] Sync Jugg run configurations with the active Android Studio Build Variant</li>
     <li>[feature] Support custom Gradle build directories across compilation, deployment, and remote synchronization</li>
+    <li>[feature] Support Compose Multiplatform resource incremental compilation</li>
+    <li>[feature] Support KMP expect/actual incremental compilation</li>
+    <li>[feature] Support clean cache options on fallback to Gradle </li>
+    <li>[feature] Sync Jugg run configurations with the active Android Studio Build Variant</li>
+    <li>[feature] Guide CC Switch users through Claude hooks configuration</li>
     <li>[optimize] Keep background Gradle project information logs at debug level</li>
+    <li>[optimize] Support python fallback when python3 is unavailable during Jugg installation</li>
     <li>[bugfix] Use the Gradle JDK configured in Android Studio for local Gradle execution</li>
     <li>[bugfix] Avoid starting selected but stopped virtual devices during Run or device status checks</li>
     <li>[bugfix] Improve Gradle fallback when Jugg runtime injection is stale, including per-variant injection and a cache-refresh retry</li>

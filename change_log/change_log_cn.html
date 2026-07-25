@@ -1,11 +1,16 @@
 <h1>更新日志</h1>
-<h2>3.1.0 (2026.07.24)</h2>
+<h2>3.1.1 (2026.07.26)</h2>
 <ol>
-    <li>[feature] Jugg Run Configuration 支持跟随 Android Studio 当前 Build Variant 自动切换</li>
+    <li>[feature] 支持 Compose Multiplatform 资源增量编译</li>
+    <li>[feature] 支持 KMP expect/actual 编译</li>
     <li>[feature] 支持自定义 Gradle build 目录</li>
+    <li>[feature] 降级 gradle 支持 clean cache 选项</li>
+    <li>[feature] Jugg Run Configuration 支持跟随 Android Studio 当前 Build Variant 自动切换</li>
+    <li>[feature] 引导 CC Switch 用户配置 Claude hooks</li>
     <li>[optimize] 优化 Gradle JAVA_HOME 识别逻辑</li>
     <li>[optimize] 多设备场景，选中虚拟机设备，不再自动启动</li>
-    <li>[bugfix] 修复小概率 Jugg runtime 注入失败，增加刷新缓存重新构建入口</li>
+    <li>[optimize] Jugg 安装时 python3 不可用可自动回退到 python</li>
+    <li>[bugfix] 修复小概率 Jugg runtime 注入失败</li>
     <li>[bugfix] 修复远程编译命令变更后，项目配置未及时刷新的问题</li>
     <li>[bugfix] 修复 Windows 下 Gradle 命令输出编码兼容问题</li>
 </ol>

@@ -1,3 +1,11 @@
+- version: 3.1.1
+  date: 2026.07.26
+  updates:
+    - support Compose Multiplatform resource incremental compilation
+    - support KMP expect/actual incremental compilation
+    - guide CC Switch users through Claude hooks configuration
+    - support python fallback when python3 is unavailable during Jugg installation
+
 - version: 3.1.0
   date: 2026.07.24
   updates:

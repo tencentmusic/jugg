@@ -1,3 +1,11 @@
+- version: 3.1.1
+  date: 2026.07.26
+  updates:
+    - 支持 Compose Multiplatform 资源增量编译
+    - 支持 KMP expect/actual 编译
+    - 引导 CC Switch 用户配置 Claude hooks
+    - Jugg 安装时 python3 不可用可自动回退到 python
+
 - version: 3.1.0
   date: 2026.07.24
   updates:
