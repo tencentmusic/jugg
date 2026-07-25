@@ -54,6 +54,7 @@ class GradleProjectInfoLocalFetchManager(
 
     private var isUpdating: Boolean = false
     private var pendingUpdate: Pair<String?, BuildTarget>? = null
+    private var isNeedWaitAfterRemoteCompile = false
 
     @Volatile
     private var updateCompletion = CountDownLatch(0)
@@ -100,6 +101,7 @@ class GradleProjectInfoLocalFetchManager(
         isForce: Boolean = false,
         specificCompileCommand: String? = null,
         buildTarget: BuildTarget = deployHistoryManager.getFullBuildInfo()?.buildTarget ?: BuildTarget.APP,
+        shouldWaitForRemoteInit: Boolean = false,
     ) {
         // make sure we have checked the gradle project info data
         // gradleProjectInfoFile will be deleted if data is invalid
@@ -114,6 +116,9 @@ class GradleProjectInfoLocalFetchManager(
         if (isUpdating) {
             if (isForce) {
                 pendingUpdate = specificCompileCommand to buildTarget
+                if (shouldWaitForRemoteInit) {
+                    isNeedWaitAfterRemoteCompile = true
+                }
             }
             logger.debug("project info is updating, exit")
             return
@@ -121,6 +126,9 @@ class GradleProjectInfoLocalFetchManager(
 
         isUpdating = true
         pendingUpdate = specificCompileCommand to buildTarget
+        if (shouldWaitForRemoteInit) {
+            isNeedWaitAfterRemoteCompile = true
+        }
         val completion = CountDownLatch(1)
         updateCompletion = completion
         try {
@@ -133,18 +141,25 @@ class GradleProjectInfoLocalFetchManager(
         }
     }
 
-    /** Waits until the latest scheduled project info refresh finishes. */
-    fun waitForUpdate() {
+    /** Waits only for project info refreshes required by remote compile initialization. */
+    fun waitForRemoteInitUpdate() {
+        val shouldWait = synchronized(this) {
+            isNeedWaitAfterRemoteCompile.also { isNeedWaitAfterRemoteCompile = false }
+        }
+        if (!shouldWait) {
+            return
+        }
+
         while (true) {
             val completion = updateCompletion
             if (completion.count > 0) {
-                logger.debug("waiting for project info update")
+                logger.debug("waiting for remote compile project info update")
             }
             try {
                 completion.await()
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
-                logger.debug("wait for project info update interrupted", e)
+                logger.debug("wait for remote compile project info update interrupted", e)
                 return
             }
             if (completion === updateCompletion) {

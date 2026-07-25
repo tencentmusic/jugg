@@ -64,7 +64,7 @@ class GradleProjectInfoLocalFetchManagerTest {
     }
 
     @Test
-    fun `waitForUpdate waits for the latest forced refresh`() {
+    fun `waitForRemoteInitUpdate only waits for flagged refresh`() {
         val logger = mock<Logger>()
         val taskRunnerManager = mock<TaskRunnerManager>()
         var updateAction: Runnable? = null
@@ -82,14 +82,25 @@ class GradleProjectInfoLocalFetchManagerTest {
             logger,
         )
 
-        manager.runUpdateIfNeeded(isForce = true, specificCompileCommand = "first-invalid-command")
-        manager.runUpdateIfNeeded(isForce = true, specificCompileCommand = "latest-invalid-command")
+        manager.runUpdateIfNeeded(isForce = true, specificCompileCommand = "regular-invalid-command")
+        val regularWaitFinished = CountDownLatch(1)
+        thread(isDaemon = true) {
+            manager.waitForRemoteInitUpdate()
+            regularWaitFinished.countDown()
+        }
+        assertTrue(regularWaitFinished.await(1, TimeUnit.SECONDS))
+
+        manager.runUpdateIfNeeded(
+            isForce = true,
+            specificCompileCommand = "remote-invalid-command",
+            shouldWaitForRemoteInit = true,
+        )
 
         val waitStarted = CountDownLatch(1)
         val waitFinished = CountDownLatch(1)
         val waiter = thread(isDaemon = true) {
             waitStarted.countDown()
-            manager.waitForUpdate()
+            manager.waitForRemoteInitUpdate()
             waitFinished.countDown()
         }
         try {
@@ -97,11 +108,10 @@ class GradleProjectInfoLocalFetchManagerTest {
             assertFalse(waitFinished.await(100, TimeUnit.MILLISECONDS))
 
             updateAction!!.run()
-
             assertTrue(waitFinished.await(1, TimeUnit.SECONDS))
             verify(taskRunnerManager).runTaskSafe(any(), any(), any(), any())
-            verify(logger, never()).debug("finalCompileCommand: first-invalid-command is not normal gradle command, can not update")
-            verify(logger).debug("finalCompileCommand: latest-invalid-command is not normal gradle command, can not update")
+            verify(logger, never()).debug("finalCompileCommand: regular-invalid-command is not normal gradle command, can not update")
+            verify(logger).debug("finalCompileCommand: remote-invalid-command is not normal gradle command, can not update")
         } finally {
             if (waitFinished.count > 0) {
                 updateAction?.run()

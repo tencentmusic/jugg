@@ -279,6 +279,37 @@ class JuggCompileHelperTest {
             isForce = true,
             specificCompileCommand = compileCommand,
             buildTarget = BuildTarget.APP,
+            shouldWaitForRemoteInit = true,
+        )
+    }
+
+    @Test
+    fun prepareRemoteProjectInfo_buildFileChanged_marksRefreshForRemoteInitWait() {
+        val fixture = createFixture()
+        val compileCommand = "./gradlew :app:assembleDebug"
+        val buildFile = temporaryFolder.newFile("build.gradle")
+        val changedFile = ChangedFile(
+            CompileFile.Type.BuildFile,
+            buildFile,
+            buildFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+        whenever(fixture.options.compileCommand).thenReturn(compileCommand)
+        whenever(fixture.options.buildTarget).thenReturn(BuildTarget.APP)
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo(compileCommand, BuildTarget.APP, 1L),
+        )
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isProjectInfoAvailable).thenReturn(true)
+        whenever(fixture.deployFileManager.getUndeployedFiles()).thenReturn(listOf(changedFile))
+
+        invokePrepareRemoteProjectInfo(fixture.helper, fixture.options)
+
+        verify(fixture.gradleProjectInfoLocalFetchManager).markIsNeedUpdate(true, buildFile.lastModified())
+        verify(fixture.gradleProjectInfoLocalFetchManager).runUpdateIfNeeded(
+            isForce = false,
+            specificCompileCommand = compileCommand,
+            buildTarget = BuildTarget.APP,
+            shouldWaitForRemoteInit = true,
         )
     }
 

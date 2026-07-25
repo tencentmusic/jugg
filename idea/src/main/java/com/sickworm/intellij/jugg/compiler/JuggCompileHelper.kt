@@ -263,6 +263,7 @@ class JuggCompilerHelper(
                 isForce = true,
                 specificCompileCommand = options.compileCommand,
                 buildTarget = options.buildTarget,
+                shouldWaitForRemoteInit = true,
             )
             return
         }
@@ -280,6 +281,7 @@ class JuggCompilerHelper(
             isForce = false,
             specificCompileCommand = options.compileCommand,
             buildTarget = options.buildTarget,
+            shouldWaitForRemoteInit = true,
         )
     }
 

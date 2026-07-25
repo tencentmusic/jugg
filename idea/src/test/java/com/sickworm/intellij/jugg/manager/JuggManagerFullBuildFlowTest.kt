@@ -97,7 +97,7 @@ class JuggManagerFullBuildFlowTest {
         manager.initIncrementalCompileAfterFullBuild(1L, options)
 
         inOrder(gradleProjectInfoLocalFetchManager, compileContextManager, juggCompilerHelper) {
-            verify(gradleProjectInfoLocalFetchManager).waitForUpdate()
+            verify(gradleProjectInfoLocalFetchManager).waitForRemoteInitUpdate()
             verify(compileContextManager).getProjectInfo()
             verify(juggCompilerHelper).fetchClasspath(any(), any(), anyOrNull(), any())
         }
