@@ -109,6 +109,7 @@ class KotlinCompilerInvoker {
         val kotlinPlugins: List<File> = emptyList(),
         val kotlinExtensions: List<File> = emptyList(),
         val executionMode: ExecutionMode = ExecutionMode.IN_PROCESS,
+        val commonSourceFiles: List<File> = emptyList(),
     )
 
     fun compile(
@@ -322,9 +323,11 @@ class KotlinCompilerInvoker {
             compileArgs.add("-no-jdk")
         }
 
+        val commonSourceArgs = buildCommonSourceArgs(options.commonSourceFiles)
         val fileArgs = task.files.map { it.file.absolutePath }
 
-        val command = pluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs + fileArgs
+        val command = pluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs +
+                commonSourceArgs + fileArgs
         logCompileCommand(command, context.projectDir, logger)
 
         // resolve kotlin extension function unresolved reference
@@ -665,6 +668,12 @@ class KotlinCompilerInvoker {
     }
 
     companion object {
+
+        internal fun buildCommonSourceArgs(files: List<File>): List<String> {
+            if (files.isEmpty()) return emptyList()
+            val paths = files.distinctBy { it.absolutePath }.joinToString(",") { it.absolutePath }
+            return listOf("-Xmulti-platform", "-Xcommon-sources=$paths")
+        }
 
         private fun encodeList(options: Map<String, String>): String {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli

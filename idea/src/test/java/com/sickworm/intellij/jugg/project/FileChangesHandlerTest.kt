@@ -4,8 +4,12 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
+import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
+import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
+import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -43,6 +47,89 @@ class FileChangesHandlerTest {
             }
         }
 
+    }
+
+    @Test
+    fun testComposeResource() {
+        val app = context.applicationModule
+        val composeInfo = ComposeResourceInfo(
+            generatorClasspath = emptyList(),
+            packageName = "com.example.test.resources",
+            publicResClass = true,
+            resourceDirectories = listOf(
+                ComposeResourceDirectory("commonMain", File(app.moduleRootDir, "src/main/composeResources")),
+                ComposeResourceDirectory("androidMain", File(app.moduleRootDir, "src/main/customComposeResources")),
+            ),
+            assetRelativePath = "composeResources/com.example.test.resources",
+        )
+        val module = app.copy(composeResourceInfo = composeInfo)
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        assertChangedFile(
+            path = "app/src/main/composeResources/values/strings.xml",
+            expectedType = CompileFile.Type.ComposeResource,
+            expectedBaseDir = "app/src/main/composeResources",
+        )
+        assertChangedFile(
+            path = "app/src/main/customComposeResources/drawable/android_icon.png",
+            expectedType = CompileFile.Type.ComposeResource,
+            expectedBaseDir = "app/src/main/customComposeResources",
+        )
+    }
+
+    @Test
+    fun `detects first files created under configured missing Compose roots`() {
+        val app = context.applicationModule
+        val defaultRoot = File(app.moduleRootDir, "src/newCommonMain/composeResources")
+        val customRoot = File(app.moduleRootDir, "src/newAndroidMain/customComposeResources")
+        defaultRoot.deleteRecursively()
+        customRoot.deleteRecursively()
+        val module = app.copy(composeResourceInfo = ComposeResourceInfo(
+            generatorClasspath = emptyList(),
+            packageName = "com.example.test.resources",
+            publicResClass = true,
+            resourceDirectories = listOf(
+                ComposeResourceDirectory("commonMain", defaultRoot),
+                ComposeResourceDirectory("androidMain", customRoot),
+            ),
+            assetRelativePath = "composeResources/com.example.test.resources",
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        assertTrue(!defaultRoot.exists())
+        assertTrue(!customRoot.exists())
+        assertChangedFile(
+            path = "app/src/newCommonMain/composeResources/values/first.xml",
+            expectedType = CompileFile.Type.ComposeResource,
+            expectedBaseDir = "app/src/newCommonMain/composeResources",
+        )
+        assertChangedFile(
+            path = "app/src/newAndroidMain/customComposeResources/files/first.txt",
+            expectedType = CompileFile.Type.ComposeResource,
+            expectedBaseDir = "app/src/newAndroidMain/customComposeResources",
+        )
+    }
+
+    @Test
+    fun `keeps unsupported Compose changes in the incremental compile input`() {
+        val app = context.applicationModule
+        val root = File(app.moduleRootDir, "src/unsupportedMain/composeResources")
+        val module = app.copy(composeResourceInfo = ComposeResourceInfo(
+            generatorClasspath = emptyList(),
+            packageName = "",
+            publicResClass = false,
+            resourceDirectories = listOf(ComposeResourceDirectory("commonMain", root)),
+            assetRelativePath = "",
+            supportStatus = ComposeResourceSupportStatus.Unsupported,
+            unsupportedReason = "Unsupported Compose resource metadata",
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        assertChangedFile(
+            path = "app/src/unsupportedMain/composeResources/values/first.xml",
+            expectedType = CompileFile.Type.ComposeResource,
+            expectedBaseDir = "app/src/unsupportedMain/composeResources",
+        )
     }
 
     @Test
@@ -139,6 +226,17 @@ class FileChangesHandlerTest {
                 file.delete()
                 file.parentFile?.takeIf { it.listFiles().isNullOrEmpty() }?.delete()
             }
+        }
+    }
+
+    private fun assertChangedFile(path: String, expectedType: CompileFile.Type, expectedBaseDir: String) {
+        withTemporaryFile(path) {
+            val changed = handler.filter(listOf(pathManager.projectDir.resolve(path))).single()
+            assertEquals(expectedType, changed.type)
+            assertTrue(changed.type != CompileFile.Type.Resource)
+            assertTrue(changed.type != CompileFile.Type.Asset)
+            assertEquals(pathManager.projectDir.resolve(expectedBaseDir).canonicalFile, changed.baseDir.canonicalFile)
+            assertEquals(context.applicationModule.name, changed.module.name)
         }
     }
 

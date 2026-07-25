@@ -1,8 +1,18 @@
 package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.mock.GradleBuildHelper
 import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
+import com.sickworm.intellij.jugg.mock.projectInfo
+import com.sickworm.intellij.jugg.mock.logger
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import org.junit.AfterClass
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Test
 import java.io.File
@@ -96,6 +106,154 @@ class TopLevelFlowTest {
 
                 jugg.deploy()
             }
+        }
+    }
+}
+
+/** Exercises Compose resource compilation through real device deployment and runtime consumption. */
+class KmpComposeDeployFlowTest {
+
+    companion object {
+        private const val COMPILE_COMMAND = "./gradlew :app:assembleDebug"
+        private const val LOG_TAG = "KmpComposeFlow"
+        @ClassRule @JvmField val deviceRule = RequiresDeviceRule()
+        private val pathManager = JuggPathManager(projectInfo.projectRoot)
+        private val projectInfoFiles = listOf(pathManager.ideProjectInfoFile, pathManager.gradleProjectInfoFile)
+        private val projectInfoBackups = mutableMapOf<File, ByteArray?>()
+
+        @BeforeClass
+        @JvmStatic
+        fun prepareFixture() {
+            projectInfoFiles.forEach { projectInfoBackups[it] = it.takeIf(File::exists)?.readBytes() }
+            GradleBuildHelper.switchKotlinVersion("2.1")
+            assembleFixture()
+            writeCommonMainIdeProjectInfo()
+        }
+
+        @AfterClass
+        @JvmStatic
+        fun restoreFixture() {
+            try {
+                GradleBuildHelper.switchKotlinVersion("1.9")
+            } finally {
+                projectInfoBackups.forEach { (file, content) ->
+                    if (content == null) file.delete() else file.apply { parentFile.mkdirs(); writeBytes(content) }
+                }
+            }
+        }
+
+        private fun assembleFixture() {
+            val initScript = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts").absoluteFile
+            val process = ProcessBuilder(
+                "./gradlew", ":app:assembleDebug", "--no-daemon",
+                "-I", initScript.absolutePath,
+            ).directory(projectInfo.projectRoot).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().readText()
+            check(process.waitFor() == 0) { "KMP Compose fixture assemble failed:\n$output" }
+        }
+
+        private fun writeCommonMainIdeProjectInfo() {
+            val gradleInfo = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).load()
+                ?: error("KMP Compose Gradle project info was not generated")
+            val owner = gradleInfo.modules.getValue("kmpCompose")
+            val commonMain = ModuleInfo.virtualModule.copy(
+                name = "kmpCompose.commonMain",
+                moduleType = ModuleInfo.Type.Unknown,
+                moduleRootDir = owner.moduleRootDir,
+                projectRootDir = owner.projectRootDir,
+                sourceDirs = listOf(File(owner.moduleRootDir, "src/commonMain/kotlin")),
+                buildVariant = owner.buildVariant,
+                buildPathInfo = owner.buildPathInfo,
+            )
+            ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(JuggProjectInfo(mapOf(commonMain.name to commonMain)))
+        }
+    }
+
+    @Test
+    fun deployComposeResourcesAndConsumeAccessorsAtRuntime() {
+        val jugg = MockJugg(compileCommand = COMPILE_COMMAND, isIdeSynced = true)
+        jugg.resetAllState()
+        deployAllowingUnknownEmulatorArch(jugg)
+        val root = projectInfo.projectRoot
+        val commonValue = File(root, "kmpCompose/src/commonMain/composeResourcesExtended/values/strings.xml")
+        val activity = File(root, "app/src/main/java/com/example/myapplication/MainActivity.kt")
+        withPatchedFiles(
+            commonValue to commonValue.readText()
+                .replace("Baseline title", "Runtime common")
+                .replace("Android baseline title", "Runtime android"),
+            activity to runtimeProbeSource(activity.readText()),
+        ) {
+            jugg.notifyFileChanges(listOf(commonValue, activity))
+            jugg.compileChangedFiles()
+
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+            assertTargetApkOwnership(jugg)
+            assertNoIncrementalGradle(jugg.readLatestProjectLog())
+            val logStart = System.currentTimeMillis() / 1000
+            jugg.deployCompiledApp()
+            val logcat = readRuntimeLog(jugg, logStart)
+            assertTrue(
+                logcat.contains("[JUGG_KMP] Runtime common|Runtime android"),
+                "Updated Compose resources were not consumed at runtime:\n$logcat",
+            )
+        }
+    }
+
+    private fun readRuntimeLog(jugg: MockJugg, logStart: Long): String {
+        var logcat = ""
+        repeat(40) {
+            logcat = jugg.readLogcatSince(logStart, LOG_TAG)
+            if (logcat.contains("[JUGG_KMP]")) return logcat
+            Thread.sleep(250)
+        }
+        return logcat
+    }
+
+    private fun deployAllowingUnknownEmulatorArch(jugg: MockJugg) {
+        try {
+            jugg.deploy()
+        } catch (error: AssertionError) {
+            if (error.message?.contains("ARCH_UNKNOWN") != true) throw error
+            jugg.juggManager.updateDeployState()
+        }
+    }
+
+    private fun runtimeProbeSource(source: String): String = source.replace(
+        "Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)",
+        """Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)
+        kotlin.concurrent.thread {
+            val snapshot = kotlinx.coroutines.runBlocking {
+                com.sickworm.jugg.demo.kmp.KmpComposeAndroidResourceCase.runtimeSnapshot()
+            }
+            Log.i("$LOG_TAG", "[JUGG_KMP] ${'$'}snapshot")
+        }""",
+    )
+
+    private fun assertTargetApkOwnership(jugg: MockJugg) {
+        val outputs = jugg.deployFileManager.getStagingFiles().filter {
+            it.type == CompileOutput.Type.Asset ||
+                (it.type == CompileOutput.Type.Dex && it.relativeFile.path.contains("generated/resources"))
+        }
+        val apks = jugg.compileContextManager.compileContext.apkInfos
+            .flatMap { apk -> apk.files.map { it.apkFile.path } }
+            .toSet()
+        assertTrue(outputs.isNotEmpty())
+        assertTrue(outputs.all { output -> output.apkPath in apks || output.targetApkPaths.any(apks::contains) })
+    }
+
+    private fun assertNoIncrementalGradle(log: String) {
+        assertTrue(!log.contains("./gradlew"), log)
+        assertTrue(!log.contains("generateComposeResClass"), log)
+        assertTrue(!log.contains("generateResourceAccessors"), log)
+    }
+
+    private fun withPatchedFiles(vararg patches: Pair<File, String>, block: () -> Unit) {
+        val backups = patches.associate { it.first to it.first.readBytes() }
+        try {
+            patches.forEach { (file, content) -> file.writeText(content) }
+            block()
+        } finally {
+            backups.forEach { (file, content) -> file.writeBytes(content) }
         }
     }
 }

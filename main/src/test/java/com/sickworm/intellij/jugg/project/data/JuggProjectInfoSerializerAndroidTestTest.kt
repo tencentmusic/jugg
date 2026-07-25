@@ -8,6 +8,22 @@ import java.io.File
 
 class JuggProjectInfoSerializerAndroidTestTest {
 
+    private fun composeInfo() = ComposeResourceInfo(
+        generatorClasspath = listOf(File("/gradle/compose-gradle-plugin-1.7.3.jar"), File("/gradle/kotlin-stdlib-2.1.0.jar")),
+        packageName = "com.example.generated.resources",
+        publicResClass = true,
+        resourceDirectories = listOf(
+            ComposeResourceDirectory("commonMain", File("/project/shared/src/commonMain/composeResources")),
+            ComposeResourceDirectory("androidMain", File("/project/shared/src/androidMain/customComposeResources")),
+        ),
+        assetRelativePath = "composeResources/com.example.generated.resources",
+        resClassName = "AppRes",
+        generateResourceContentHash = true,
+        usesLegacyGenerator = true,
+        supportStatus = ComposeResourceSupportStatus.Unsupported,
+        unsupportedReason = "Unsupported Kotlin 2.0.21; Jugg Compose resources require Kotlin 2.1.x.",
+    )
+
     private fun androidTestModule(appPkg: String = "com.example.app") =
         ModuleInfo.virtualModule.copy(
             name = "app.androidTest",
@@ -60,5 +76,22 @@ class JuggProjectInfoSerializerAndroidTestTest {
         assertEquals("com.example.app", module.instrumentationTargetPackage)
         assertEquals("com.example.app.test", module.applicationId)
         assertNotEquals(module.instrumentationTargetPackage, module.applicationId)
+    }
+
+    @Test
+    fun `serialize and deserialize preserves Compose resource info`() {
+        val original = JuggProjectInfo(
+            modules = mapOf("shared" to ModuleInfo.virtualModule.copy(
+                name = "shared",
+                composeResourceInfo = composeInfo(),
+            ))
+        )
+
+        val restored = JuggProjectInfoSerialize.deserialize(
+            JuggProjectInfoSerialize.serialize(original),
+            isSkipVersionCheck = true,
+        )
+
+        assertEquals(composeInfo(), restored.modules["shared"]?.composeResourceInfo)
     }
 }

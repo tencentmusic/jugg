@@ -155,6 +155,14 @@ class CmdLineContextManager(
                 kotlinExtensions = baseModule.kotlinExtensions?.convertBuildBaseDir(),
                 coreLibraryDesugaring = baseModule.coreLibraryDesugaring?.convertBuildBaseDir(),
                 kspDependencies = baseModule.kspDependencies?.convertBuildBaseDir(),
+                composeResourceInfo = baseModule.composeResourceInfo?.let { composeInfo ->
+                    composeInfo.copy(
+                        generatorClasspath = composeInfo.generatorClasspath.convertBuildBaseDir(),
+                        resourceDirectories = composeInfo.resourceDirectories.map {
+                            it.copy(directory = it.directory.convertSourceBaseDir())
+                        },
+                    )
+                },
             )
         }
 

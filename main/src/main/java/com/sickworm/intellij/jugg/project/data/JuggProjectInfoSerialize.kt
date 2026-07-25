@@ -23,7 +23,7 @@ class JuggProjectInfoSerialize(
 
     companion object {
 
-        private const val VERSION = 7
+        private const val VERSION = 9
 
         fun serialize(juggProjectInfo: JuggProjectInfo): JuggProjectInfoSerialize {
             val dependencyList = mutableListOf<LibraryDependency>()

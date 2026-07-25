@@ -58,7 +58,7 @@ object GradleBuildHelper {
 
     /**
      * Switch Kotlin version using the switch-kotlin-version.sh script
-     * @param version "1.7" for KSP1, "2.1" for KSP2
+     * @param version "1.9" for KSP1, "2.1" or "2.3" for KSP2
      */
     fun switchKotlinVersion(version: String) {
         val scriptPath = "${assetsAndroidDir.absolutePath}/switch-kotlin-version.sh"

@@ -216,12 +216,12 @@ class KotlinCompileTest {
     @Test
     fun testKsp1Compile() {
         // Save current version (should be KSP2/Kotlin 2.1)
-        val originalVersion = "1.7"
+        val originalVersion = "1.9"
 
         try {
-            // Switch to KSP1 (Kotlin 1.7)
-            println("Switching to Kotlin 1.7 (KSP1)...")
-            GradleBuildHelper.switchKotlinVersion("1.7")
+            // Switch to KSP1 (Kotlin 1.9)
+            println("Switching to Kotlin 1.9 (KSP1)...")
+            GradleBuildHelper.switchKotlinVersion("1.9")
 
             // Force rebuild with KSP1
             println("Rebuilding project with KSP1...")

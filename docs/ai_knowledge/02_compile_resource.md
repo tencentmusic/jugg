@@ -1,13 +1,13 @@
-# 编译系统：资源编译链（res/assets/arsc）
+# 编译系统：资源编译链（res/assets/arsc/Compose resource）
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-25
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
 ## 1. 文档定位
 
-本页覆盖资源相关增量编译：`res/`、`assets/`、native lib 和 manifest 如何变成可部署 overlay。它重点说明 APK-scoped 编译、aapt2 `inclink` 状态、DataBinding/ViewBinding 产物交接和资源过滤边界。
+本页覆盖资源相关增量编译：`res/`、`assets/`、Compose Multiplatform resource、native lib 和 manifest 如何变成可部署 overlay。它重点说明 APK-scoped 编译、aapt2 `inclink` 状态、Compose accessor/asset 分流、DataBinding/ViewBinding 产物交接和资源过滤边界。
 
 Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfuscation.md`；DataBinding 详细策略见 `02_compile_databinding.md`；部署如何消费资源 overlay 见 `03_deploy_core.md`。
 
@@ -21,6 +21,9 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | `ResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceCompiler.kt` | 将资源文件或资源目录编译为 `.flat`；先处理 ViewBinding/DataBinding split XML 和生成源码 |
 | `ArscCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ArscCompiler.kt` | 使用 aapt2 `inclink` 载入当前 APK 资源表并 link 出 `resources.arsc`、compiled res、`R.java` |
 | `AssetOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/AssetOverlayCompiler.kt` | 处理 `assets/` 和 native lib 等非 res overlay |
+| `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 按 Gradle 元数据选择 legacy XML 或现代 CVR 资源模型，组织完整资源上下文，并编译 generated Kotlin |
+| `ComposeResourceGeneratorBridge` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceGeneratorBridge.kt` | 隔离加载项目的 Compose plugin JAR，按 generator API 形态调用 legacy 或现代官方 Kotlin generator |
+| `ComposeResourceScanner` / `ComposeValueResourceConverter` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/` | 扫描 legacy XML 或现代 drawable/font/value 描述；现代管线生成 CVR version 0，`files/` 不产生 accessor |
 | `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Manifest 增量合并，产物作为 `ArscCompiler` 输入 |
 | `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | layout 资源进入 aapt2 前生成 ViewBinding/DataBinding 基础类与 split XML |
 | `RJavaFixer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/RJavaFixer.kt` | 修正 aapt2 生成的 `R.java`，供后续源码编译消费 |
@@ -39,6 +42,10 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | latest res APK | `ArscCompiler.getResApk()` | aapt2 `inclink --load` | 若当前 APK 曾部署过 `resources.arsc`，会用已部署 arsc + manifest 组成临时 res APK，避免从原始 APK 旧资源表继续 link |
 | `resources.arsc` / compiled res / manifest | `ArscCompiler` | 部署数据转换 | `CompileOutput.apkPath` 绑定当前 APK；多 APK 归属不能丢 |
 | `targetApkPaths` | `CompileOutput` / 下游 deploy item | 部署分流 | class/dex 可归属多个 APK；资源/manifest 仍按 APK scoped 输出 |
+| `CompileFile.Type.ComposeResource` | `FileChangesHandler` | `ComposeResourceCompiler` | `baseDir` 是命中的默认或自定义 Compose resource 根目录，不能改成 module root |
+| Compose task metadata | `GradleProjectInfoReader` / project info | `ComposeResourceCompiler` | 包含 generator API 形态、classpath、package、Res 类名、public/content-hash flag、source-set 目录和 asset 相对路径；按任务属性校验，不按 Kotlin/Compose 版本号拦截 |
+| prepared CVR + generated Kotlin | `ComposeResourceCompiler` | generator bridge / Kotlin compiler | accessor 生成读取所有已知资源目录的完整 values/资源上下文，避免只看 changed file 丢失既有 key |
+| changed Compose asset | `ComposeResourceCompiler` | `AssetOverlayCompiler` | 只复制本轮新增/修改的 CVR、drawable、font、`files/`；永远不进入 AAPT2 |
 
 ---
 
@@ -57,6 +64,25 @@ JuggCompiler 资源阶段
 
 多 APK 场景下，资源链路不是“同一份输出复制到多个 APK”。`splitApkAndCompile()` 会为每个 `ApkFileUnit` 单独调用 `doApkCompile()`，因为每个 APK 的资源表、package id、manifest 和 dynamic feature 依赖关系都可能不同。
 
+### 4.1 Compose Multiplatform resource 链路
+
+```text
+FileChangesHandler
+  -> 命中 ComposeResourceInfo.resourceDirectories
+  -> ChangedFile(Type.ComposeResource, file, resourceDirectory, module)
+JuggCompiler（早于 asset/resource/source）
+  -> ComposeResourceCompiler
+     -> legacy 管线直接扫描 XML；现代管线把全部 values XML 转为 CVR
+     -> 扫描全部已知 source set 的 values/drawable/font；files 只作为 asset
+     -> ComposeResourceGeneratorBridge 按 API 形态调用项目 plugin JAR 的官方 generator
+     -> 一次 Kotlin invocation 编译 generated source；现代管线显式标注 expect/actual common sources
+  -> 仅将本轮 changed CVR/drawable/font/files 作为 Asset 输出
+  -> AssetOverlayCompiler 复制到 overlays/assets
+  -> generated class 继续进入 source/dex
+```
+
+这里“完整上下文”和“changed-only 输出”是两层语义：accessor 必须看见项目快照列出的全部资源目录，部署 overlay 只包含本轮新增/修改文件。配置时尚不存在的默认/自定义根也会持久化，扫描时按空目录处理，因此首次创建资源仍能被识别。Compose asset 不经过 `ResourceOverlayCompiler`、`ResourceCompiler`、`ArscCompiler` 或 AAPT2。
+
 ---
 
 ## 5. 隐形约束 / 设计思路 / 已知边界
@@ -68,6 +94,19 @@ JuggCompiler 资源阶段
 - aapt2 可能为一个资源生成多个配置目录产物；如果额外产物对应的 override XML 已存在，过滤逻辑会移除该额外产物，避免覆盖用户显式资源。
 - `ResourceCompiler` 对目录输入使用目录路径 MD5 建子输出目录，避免不同资源目录 flat 文件名冲突。
 - DataBinding mapper 生成不在资源阶段完成；资源阶段只处理 base class / split XML，mapper 交给 `SourceCompiler` 在源码编译前处理。
+- Compose preparation 由 Jugg 实现，不执行 Gradle Compose resource task；Kotlin 文件生成调用项目 Compose plugin JAR 的官方 generator API。当前兼容 legacy 单任务 API，以及带 converter/accessor/collector 的现代 API；API 缺失时按结构化原因回退 unsupported。
+- 现代管线支持 string、string-array、plurals、drawable、font，并透传 Res 类名与 content hash；legacy 管线按上游能力支持 string、drawable、font。`files/` 会复制到 asset，但不会生成 typed accessor。
+- 只支持新增和修改。删除文件无法由当前文件事件恢复资源类型和 `baseDir`，必须完整 Gradle build；当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图。
+
+### 5.1 测试落点
+
+- L1：`ComposeValueResourceConverterTest`、`ComposeResourceScannerTest`、`ComposeResourceGeneratorBridgeTest` 验证 CVR/扫描结果、缺失根、diagnostic 回映射、source-set 身份和官方 golden Kotlin 输出。
+- L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8 与 staging。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
+- L3：`KmpComposeDeployFlowTest` 通过真实 demo full install、增量 compile/deploy/run 和 logcat 覆盖 default/custom、value/non-value、accessor 实际消费、目标 APK 与无增量 Gradle Compose task。
+
+### 5.2 Android Studio E2E 验证口径
+
+Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化对应 `KmpComposeFlowReproTest`（L2）和 `KmpComposeDeployFlowTest`（L3）。
 
 ---
 

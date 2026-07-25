@@ -1,0 +1,50 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.multiplatform'
+    id 'org.jetbrains.compose'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+kotlin {
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation compose.runtime
+            implementation compose.components.resources
+        }
+    }
+}
+
+android {
+    namespace 'com.sickworm.jugg.demo.kmp'
+    compileSdkVersion 35
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        minSdkVersion 23
+    }
+}
+
+compose.resources {
+    publicResClass = true
+    packageOfResClass = 'com.sickworm.jugg.demo.kmp.generated.resources'
+    customDirectory(
+        'commonMain',
+        providers.provider { layout.projectDirectory.dir('src/commonMain/composeResourcesExtended') }
+    )
+    customDirectory(
+        'androidMain',
+        providers.provider { layout.projectDirectory.dir('src/androidMain/customComposeResources') }
+    )
+}

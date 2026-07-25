@@ -4,6 +4,7 @@ buildscript {
     ext.kotlin_version = project.findProperty('kotlinVersion') ?: '2.1.0'
     ext.agp_version = project.findProperty('agpVersion') ?: '8.0.2'
     ext.ksp_version = project.findProperty('kspVersion') ?: '2.1.0-1.0.29'
+    ext.compose_version = project.findProperty('composeVersion') ?: '1.7.3'
     ext.compose_compiler_version = project.findProperty('composeCompilerVersion') ?: '1.5.15'
 
     repositories {
@@ -23,10 +24,12 @@ buildscript {
 plugins {
     id 'com.google.devtools.ksp' version "$ksp_version" apply false
     id 'org.jetbrains.kotlin.plugin.compose' version "$kotlin_version" apply false
-    id 'org.jetbrains.compose' version '1.7.3' apply false
+    id 'org.jetbrains.compose' version "$compose_version" apply false
 }
 
 allprojects {
+    layout.buildDirectory.set(rootProject.layout.projectDirectory.dir("build/${project.name}"))
+
     repositories {
         google()
         mavenCentral()

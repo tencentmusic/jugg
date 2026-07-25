@@ -61,6 +61,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         ),
                         moduleType = ModuleInfo.Type.valueOf(module["moduleType"] as String),
                         instrumentationTargetPackage = module["instrumentationTargetPackage"] as? String,
+                        composeResourceInfo = parseComposeResourceInfo(module["composeResourceInfo"]),
                     )
                     ModuleInfoSerialize(
                         moduleInfo,
@@ -96,6 +97,32 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
             printException(e)
             return null
         }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseComposeResourceInfo(value: Any?): ComposeResourceInfo? {
+        val composeInfo = value as? Map<String, Any> ?: return null
+        val classpath = (composeInfo["generatorClasspath"] as? List<String>)?.map(::File) ?: return null
+        val resourceDirectories = (composeInfo["resourceDirectories"] as? List<Map<String, Any>>)?.map {
+            ComposeResourceDirectory(
+                sourceSetName = it["sourceSetName"] as? String ?: return null,
+                directory = File(it["directory"] as? String ?: return null),
+            )
+        } ?: return null
+        return ComposeResourceInfo(
+            generatorClasspath = classpath,
+            packageName = composeInfo["packageName"] as? String ?: return null,
+            publicResClass = composeInfo["publicResClass"] as? Boolean ?: return null,
+            resourceDirectories = resourceDirectories,
+            assetRelativePath = composeInfo["assetRelativePath"] as? String ?: return null,
+            resClassName = composeInfo["resClassName"] as? String ?: "Res",
+            generateResourceContentHash = composeInfo["generateResourceContentHash"] as? Boolean ?: false,
+            usesLegacyGenerator = composeInfo["usesLegacyGenerator"] as? Boolean ?: false,
+            supportStatus = (composeInfo["supportStatus"] as? String)
+                ?.let(ComposeResourceSupportStatus::valueOf)
+                ?: ComposeResourceSupportStatus.Supported,
+            unsupportedReason = composeInfo["unsupportedReason"] as? String
+        )
     }
 
     companion object {

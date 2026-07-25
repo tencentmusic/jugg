@@ -12,6 +12,36 @@ data class JuggProjectInfo(
 )
 
 /**
+ * Compose resource generator configuration captured from supported Gradle plugin tasks.
+ */
+data class ComposeResourceInfo(
+    val generatorClasspath: List<File>,
+    val packageName: String,
+    val publicResClass: Boolean,
+    val resourceDirectories: List<ComposeResourceDirectory>,
+    val assetRelativePath: String,
+    val resClassName: String = "Res",
+    val generateResourceContentHash: Boolean = false,
+    val usesLegacyGenerator: Boolean = false,
+    val supportStatus: ComposeResourceSupportStatus = ComposeResourceSupportStatus.Supported,
+    val unsupportedReason: String? = null
+)
+
+/** Records whether detected Compose resource configuration can use Jugg incremental compilation. */
+enum class ComposeResourceSupportStatus {
+    Supported,
+    Unsupported,
+}
+
+/**
+ * Associates a Compose resource directory with its Kotlin source set.
+ */
+data class ComposeResourceDirectory(
+    val sourceSetName: String,
+    val directory: File,
+)
+
+/**
  * Gradle module snapshot used to resolve sources, manifests, classpaths, and dependencies.
  */
 data class ModuleInfo(
@@ -53,6 +83,7 @@ data class ModuleInfo(
     val isUseDataBinding: Boolean? = null,
     val kspDependencies: List<LibraryDependency>? = null,
     val instrumentationTargetPackage: String? = null,
+    val composeResourceInfo: ComposeResourceInfo? = null,
 ) {
     // do not add unnecessary content before ") {", for kotlin 1.3 compat: buildReadProjectInfoScript.gradle
     // if adds new fields, also updates:

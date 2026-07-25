@@ -336,9 +336,10 @@ testcase 必须消费 generated accessor，不能只断言生成文件存在。
 | L1 | `ComposeResourceGeneratorBridgeTest.kt` | 使用真实 `1.7.3` 插件 JAR，与 Gradle golden Kotlin 一致 |
 | L1 | 现有 project info serializer 测试 | `ComposeResourceInfo` 序列化往返 |
 | L2 | `idea/src/test/.../project/FileChangesHandlerTest.kt` | 默认目录/customDirectory 分类，Compose resource 不进 AAPT2 |
-| L3 | `idea/src/test/.../manager/JuggCompilerTest.kt` 中 `KmpComposeFlowReproTest` | 真实 demo 全量基线后的资源生成、Kotlin、D8 和 asset staging |
+| L2 | `idea/src/test/.../manager/JuggCompilerTest.kt` 中 `KmpComposeFlowReproTest` | 真实 demo 全量基线后的资源生成、Kotlin、D8 和 asset staging |
+| L3 | `idea/src/test/.../manager/TopLevelFlowTest.kt` 中 `KmpComposeDeployFlowTest` | 真机 compile、deploy、run、APK ownership 与运行时 accessor 消费 |
 
-L3 场景至少覆盖：
+L2 + L3 场景合计至少覆盖：
 
 1. 新增 string key 并修改 testcase 引用，Jugg 编译成功。
 2. 修改 string value，生成并 staging 正确 `.cvr`。
@@ -376,7 +377,7 @@ L3 场景至少覆盖：
 2. 写 converter、scanner、generator bridge 的 L1 失败测试。
 3. 写 project info 序列化和读取失败测试。
 4. 写 FileChangesHandler 分类失败测试。
-5. 将现有 KMP Compose 复现测试改为预期成功的 L3 场景。
+5. 将现有 KMP Compose 复现测试改为预期成功的 L2 编译协作场景，并增加真机 L3 部署运行场景。
 6. 实现项目元数据读取与序列化。
 7. 实现 converter、scanner 和 generator bridge。
 8. 实现 `ComposeResourceCompiler` 与 generated Kotlin 编译。

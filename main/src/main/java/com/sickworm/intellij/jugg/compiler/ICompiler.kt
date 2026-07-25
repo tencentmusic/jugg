@@ -116,6 +116,7 @@ data class CompileFile(
         Asset,
         NativeLib,
         Resource,
+        ComposeResource,
         Flat,
         BuildFile,
         AndroidManifest,

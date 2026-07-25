@@ -203,6 +203,16 @@ class MockJugg(
         juggManager.updateDeployState()
     }
 
+    /** Deploy the currently compiled app artifacts without starting another compile round. */
+    fun deployCompiledApp() {
+        val devices = deployTargetManager.getSelectedDevices()
+        assertEquals(1, devices.size, "app deploy expects exactly one device")
+        val result = juggDeployerHelper.deploy(DeployOptions(device = devices.first(), isLastDevice = true))
+        assertTrue(result.isSuccess, result.failedReason ?: "app incremental deploy failed")
+        waitingLaunchAppAndCheck()
+        juggManager.updateDeployState()
+    }
+
     private fun deploy(androidTestRunSpec: AndroidTestRunSpec?, enableAndroidTest: Boolean) {
         // In this state, Jugg will wait app launched, so we need to update state asynchronously
         val shouldUpdateStateAsync = deployStateManager.deployState.state == JuggDeployState.State.READY_INCREMENTAL_COMPILE

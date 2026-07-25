@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-07-24
+> 最后核对：2026-07-25
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -28,6 +28,7 @@
 | `GradleProjectInfoLocalFetchManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/dependency/GradleProjectInfoLocalFetchManager.kt` | IDE 侧调度本地 project info 读取和依赖变化检测 |
 | `LocalGradleCompileClient` / `RemoteGradleCompileClient` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/` | 本地/远端 Gradle 构建、APK 查找、classpath 拉取与 diff 参数拼装 |
 | `GradleWrapperRepairer` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleWrapperRepairer.kt` | 在 `JuggCompilerHelper.gradleCompile()` 真正执行 Gradle 前，针对已有 `gradle-wrapper.properties` 的工程补齐缺失 wrapper 启动文件 |
+| `ComposeResourceInfo` / `ComposeResourceDirectory` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | 保存 Compose generator classpath/package/public flag、asset 相对路径，以及 source set 到默认/自定义资源目录的对应关系 |
 
 ---
 
@@ -57,6 +58,9 @@
 | `applicationId` / `namespace` | APK 归属、manifest、androidTest target 解析基础 |
 | `instrumentationTargetPackage` | 非空表示 synthetic androidTest module |
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
+| `composeResourceInfo` | 已检测的 Compose resource task metadata；同时保存 supported/unsupported 状态与原因，由增量链按 task 和 generator API 结构消费，不按 Kotlin/Compose 精确版本过滤 |
+
+`ComposeResourceInfo.resourceDirectories` 不是从固定 `src/<sourceSet>/composeResources` 路径猜测。`GradleProjectInfoReader` 读取 Compose 任务的 `fileSuffix` 与 `originalResourcesDir`，因此默认目录和 Gradle DSL 配置的自定义目录即使尚不存在也会进入 project info。它还保存 support status/reason、generator classpath、package name、accessor visibility 和 packaging/asset 相对路径，序列化后供文件变更识别与增量编译使用。
 
 `ModuleBuildPathInfo.buildDirRelativePath` 记录模块实际 Gradle build directory 相对 IDE 项目根的路径。Gradle init script 从 `project.layout.buildDirectory` 读取该值；IDE 侧从 Android model 的 build folder 读取，并在 Gradle/IDE project info merge 时以 Gradle 值为准。构造 `ModuleBuildPathInfo` 时必须显式提供该字段；明确传入空字符串表示兼容旧快照并继续使用 `${moduleRootDir}/build`。所有 classpath、manifest、mapping、APK/androidTest 回填与远端同步路径都从该 build directory 派生，不再假设输出位于模块目录下。
 
@@ -77,6 +81,7 @@ IDE / Gradle compile 触发 project info 更新
      读取环境、上次 project info、当前 Gradle project info
   -> GradleProjectInfoReader.getProjectInfo()
      遍历 subprojects，读取 Android / Java module、variant、source set、classpath、依赖
+     校验 Compose resource 任务并读取 generator/resource directory metadata
   -> 写入 gradle_project_infos.json
      include build 额外写入 gradle_include_builds.txt
 ```
@@ -90,6 +95,8 @@ Composite build 使用条件分流：普通项目继续只通过现有 `taskGrap
 如果 included build 的读取或文件生成仍然失败，汇总时不能中断根项目快照写入；对应旧副本存在时继续保留并写入列表，从未成功生成过副本时才跳过。下一次成功读取会覆盖旧副本。
 
 Application runtime 注入在 Android application plugin 加载后立即注册 `androidComponents.onVariants`。支持 `runtimeConfiguration` 的 AGP 会把 `jugg-runtime.jar` 直接加入具体 variant；旧版或反射失败时回退到通用 `runtimeOnly`，附加路径失败不会中断 Gradle 配置。
+
+Compose metadata 读取是严格结构门禁：未应用 `org.jetbrains.compose` 时 `composeResourceInfo=null`；legacy 管线要求单一 `GenerateResClassTask` 及其必要属性，现代管线要求 converter/accessor/collector task 集合及属性彼此一致。一旦检测到插件，即使 task metadata 或 generator API 结构不支持，也会保存 `Unsupported`、用户可见原因和能够读取的 configured roots，资源变更因此不会静默消失。读取只保存任务配置，不执行 Compose task，也不按 Kotlin/Compose 精确版本推断能力。
 
 ### 4.2 Sync 后合并为编译上下文
 
@@ -154,6 +161,8 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 ## 6. 隐形约束
 
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
+- `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。
+- Compose project info 只记录 Jugg 当前编译所需的 task metadata 和 source-set/目录对应关系，不构建完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
 - `ModuleBuildPathInfo` 是 AGP 路径兼容层；不要在编译器里散落硬编码 `build/intermediates/...` 路径。
 - `ModuleBuildPathInfo.buildDirRelativePath` 必须在 Gradle JSON、IDE project info、compile context merge、classpath backup 和 deploy history 序列化中完整保留；修改字段结构时同步提升序列化版本。
 - 远端 classpath 过滤规则不能随普通模块数量线性增长；普通 `${moduleRoot}/build` 输出按 variant 去重，自定义 build directory 与配置路径保持精确。
@@ -183,6 +192,8 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | 自定义 build directory 后找不到 APK 输出 | `ModuleBuildPathInfo.buildDirRelativePath`、`AsDeployerCompat.getSuggestRunConfigurations()`、`LocalGradleCompileClient`、`FindOutputCommand` |
 | 依赖变化未感知 | `GradleDependencyDiffer`、`DependencyChangeManagerByGradle` / `DependencyChangeManagerBySync` |
 | library androidTest target package 异常 | 实际 Test APK manifest、`buildAndroidTestModuleInfo()`、`LibraryTestApkBuildHistory` |
+| Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
+| Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |
 
 ---
 

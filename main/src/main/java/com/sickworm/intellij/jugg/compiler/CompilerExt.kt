@@ -161,6 +161,7 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.Class -> "class"
                     CompileFile.Type.Asset -> "asset"
                     CompileFile.Type.Resource -> "resource"
+                    CompileFile.Type.ComposeResource -> "compose-resource"
                     CompileFile.Type.Flat -> "flat"
                     CompileFile.Type.BuildFile -> "gradle"
                     CompileFile.Type.AndroidManifest -> "manifest"

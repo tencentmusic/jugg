@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.Disposable
+import com.sickworm.intellij.jugg.compiler.compose.ComposeResourceCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
@@ -27,11 +28,17 @@ class JuggCompiler(
         CompileFile.Type.Asset,
         CompileFile.Type.NativeLib,
         CompileFile.Type.Resource,
+        CompileFile.Type.ComposeResource,
         CompileFile.Type.Class,
         CompileFile.Type.AndroidManifest
     )
 
     private val assetOverlayCompiler = AssetOverlayCompiler(context, this)
+
+    private val composeResourceCompiler = ComposeResourceCompiler(
+        context.subContext("compose_resources"),
+        this,
+    )
 
     private val resourceOverlayCompiler = ResourceOverlayCompiler(
         context.subContext("overlays"),
@@ -63,7 +70,8 @@ class JuggCompiler(
         val classesOutputDir = File(task.outputDir, "classes")
 
         // custom compilers
-        val compileFiles = task.files
+        val composeFiles = task.files.filter { it.type == CompileFile.Type.ComposeResource }
+        val compileFiles = task.files.filter { it.type != CompileFile.Type.ComposeResource }
         val customCompilers = context.customCompilers
         logger.debug("custom compilers: ${customCompilers.joinToString { this::class.java.name }}")
 
@@ -77,9 +85,22 @@ class JuggCompiler(
             return null
         }
 
+        val composeResult = compileComposeResources(task, composeFiles)
+        if (!composeResult.isAllSuccess) {
+            return composeResult.quickFailedOthers(task)
+        }
+        checkQuickStop()?.let { return it }
+        val composeOutputs = composeResult.outputs
+        val composeAssets = composeOutputs.filter { it.type == CompileOutput.Type.Asset }.mapNotNull {
+            it.toCompileFile(it.relativeModule ?: context.tempModule)
+        }
+        val composeClasses = composeOutputs.filter { it.type == CompileOutput.Type.Class }.mapNotNull {
+            it.toCompileFile(it.relativeModule ?: context.tempModule)
+        }
+
         // compile asset
         val assetCompileTask = CompileTask(
-            files = compileFiles.filter {
+            files = composeAssets + compileFiles.filter {
                 it.type == CompileFile.Type.Asset || it.type == CompileFile.Type.NativeLib
             },
             outputDir = overlayOutputDir,
@@ -87,9 +108,13 @@ class JuggCompiler(
         )
         if (assetCompileTask.isNeedCompile) {
             // overlay assets
-            compileResult += assetOverlayCompiler.compile(assetCompileTask)
-            if (!compileResult.isAllSuccess) {
-                return compileResult.quickFailedOthers(task)
+            val assetResult = assetOverlayCompiler.compile(assetCompileTask)
+            compileResult += assetResult.copy(
+                task = task,
+                details = assetResult.details.filter { it.file !in composeAssets },
+            )
+            if (!assetResult.isAllSuccess) {
+                return compileResult.quickFailedOthers(task, otherFailedFiles = composeFiles)
             }
         }
         checkQuickStop()?.let { return it }
@@ -215,7 +240,7 @@ class JuggCompiler(
 
         // compile source
         val sourceCompileTask = CompileTask(
-            files = dataBindingResultOutputs + compileFiles.filter {
+            files = dataBindingResultOutputs + composeClasses + compileFiles.filter {
                 it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin || it.type == CompileFile.Type.Class
             },
             outputDir = classesOutputDir,
@@ -245,13 +270,13 @@ class JuggCompiler(
             }
             compileResult += sourceCompileResult.copy(
                 task = task,
-                details = sourceCompileResult.details.filter { it.file !in dataBindingResultOutputs },
+                details = sourceCompileResult.details.filter { it.file !in dataBindingResultOutputs && it.file !in composeClasses },
                 outputs = movedOutputs,
             )
             if (!sourceCompileResult.isAllSuccess) {
-                return if (dataBindingResultOutputs.isNotEmpty()) {
+                return if (dataBindingResultOutputs.isNotEmpty() || composeClasses.isNotEmpty()) {
                     // mark res files as failed too (since DataBinding depends on resources)
-                    compileResult.quickFailedOthers(task, otherFailedFiles = resourceCompileTask.files)
+                    compileResult.quickFailedOthers(task, otherFailedFiles = resourceCompileTask.files + composeFiles)
                 } else {
                     compileResult.quickFailedOthers(task)
                 }
@@ -259,12 +284,20 @@ class JuggCompiler(
         }
         checkQuickStop()?.let { return it }
 
+        compileResult += composeResult.copy(task = task, outputs = emptyList())
+
         if (!compileResult.isAllSuccess) {
             return compileResult.quickFailedOthers(task)
         }
 
         checkQuickStop()?.let { return it }
         return compileResult
+    }
+
+    private fun compileComposeResources(task: CompileTask, files: List<CompileFile>): CompileResult {
+        if (files.isEmpty()) return CompileResult.empty(task)
+        val outputDir = File(context.tempCompileDir, "compose_resources")
+        return composeResourceCompiler.compile(CompileTask(files, outputDir, task))
     }
 
     @Synchronized

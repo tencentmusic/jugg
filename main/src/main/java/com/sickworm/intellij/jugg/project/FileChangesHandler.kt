@@ -181,6 +181,9 @@ class FileChangesHandler(
         checkAndroidManifest(file)?.let {
             return it
         }
+        checkComposeResource(file)?.let {
+            return it
+        }
         checkSource(file)?.let {
             return it
         }
@@ -189,6 +192,23 @@ class FileChangesHandler(
             return it
         }
 
+        return null
+    }
+
+    private fun checkComposeResource(file: File): ChangedFile? {
+        if (file.name == ".DS_Store") {
+            return null
+        }
+        val normalizedFile = file.normalize()
+        getModules().forEach { module ->
+            val resourceDir = module.composeResourceInfo
+                ?.resourceDirectories
+                ?.firstOrNull {
+                    normalizedFile.path.startsWith(it.directory.normalize().path + File.separator)
+                }
+                ?: return@forEach
+            return ChangedFile(CompileFile.Type.ComposeResource, file, resourceDir.directory, module)
+        }
         return null
     }
 

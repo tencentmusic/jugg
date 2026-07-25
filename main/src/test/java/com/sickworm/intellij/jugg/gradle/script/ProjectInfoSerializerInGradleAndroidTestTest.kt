@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.gradle.script
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
+import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
+import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -10,6 +13,22 @@ import java.io.File
 import java.nio.file.Files
 
 class ProjectInfoSerializerInGradleAndroidTestTest {
+
+    private fun composeInfo() = ComposeResourceInfo(
+        generatorClasspath = listOf(File("/gradle/compose-gradle-plugin-1.7.3.jar"), File("/gradle/kotlin-stdlib-2.1.0.jar")),
+        packageName = "com.example.generated.resources",
+        publicResClass = true,
+        resourceDirectories = listOf(
+            ComposeResourceDirectory("commonMain", File("/project/shared/src/commonMain/composeResources")),
+            ComposeResourceDirectory("androidMain", File("/project/shared/src/androidMain/customComposeResources")),
+        ),
+        assetRelativePath = "composeResources/com.example.generated.resources",
+        resClassName = "AppRes",
+        generateResourceContentHash = true,
+        usesLegacyGenerator = true,
+        supportStatus = ComposeResourceSupportStatus.Unsupported,
+        unsupportedReason = "Unsupported Kotlin 2.0.21; Jugg Compose resources require Kotlin 2.1.x.",
+    )
 
     private fun androidTestModule() = ModuleInfo.virtualModule.copy(
         name = "app.androidTest",
@@ -58,6 +77,31 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
             assertNull(
                 loaded?.modules?.first { it.moduleInfoExceptLibraries.name == "app" }
                     ?.moduleInfoExceptLibraries?.instrumentationTargetPackage
+            )
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `save and load round-trip preserves Compose resource info`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        try {
+            val serializer = ProjectInfoSerializerInGradle(tmpFile)
+            val original = JuggProjectInfo(mapOf(
+                "shared" to ModuleInfo.virtualModule.copy(
+                    name = "shared",
+                    composeResourceInfo = composeInfo(),
+                )
+            ))
+
+            serializer.save(original)
+            val loaded = serializer.load()
+
+            assertEquals(
+                composeInfo(),
+                loaded?.modules?.first { it.moduleInfoExceptLibraries.name == "shared" }
+                    ?.moduleInfoExceptLibraries?.composeResourceInfo,
             )
         } finally {
             tmpFile.delete()

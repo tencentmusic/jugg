@@ -30,6 +30,9 @@ class LibrariesBackupHelper(
                 kotlinExtensions = moduleInfo.kotlinExtensions?.backupFile(),
                 coreLibraryDesugaring = moduleInfo.coreLibraryDesugaring?.backup(),
                 kspDependencies = moduleInfo.kspDependencies?.backup(),
+                composeResourceInfo = moduleInfo.composeResourceInfo?.let {
+                    it.copy(generatorClasspath = it.generatorClasspath.backupFile())
+                },
             )
         }
         return JuggProjectInfo(copiedModules)

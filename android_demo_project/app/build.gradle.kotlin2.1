@@ -127,7 +127,5 @@ dependencies {
     ksp 'com.squareup.moshi:moshi-kotlin-codegen:1.14.0'
 
     implementation project(':library1')
-    if (project.findProperty('enableKmpComposeFixture') == 'true') {
-        implementation project(':kmpCompose')
-    }
+    implementation project(':kmpCompose')
 }

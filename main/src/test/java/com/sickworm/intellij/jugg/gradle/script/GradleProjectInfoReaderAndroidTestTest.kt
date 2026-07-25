@@ -1,16 +1,36 @@
 package com.sickworm.intellij.jugg.gradle.script
 
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestTargetResolver
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
+import net.bytebuddy.ByteBuddy
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy
+import net.bytebuddy.implementation.StubMethod
+import net.bytebuddy.matcher.ElementMatchers
+import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.artifacts.ConfigurationContainer
+import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.file.Directory
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.invocation.Gradle
+import org.gradle.api.plugins.PluginContainer
+import org.gradle.api.tasks.TaskContainer
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import java.io.File
+import java.security.CodeSource
+import java.security.ProtectionDomain
 
 class GradleProjectInfoReaderAndroidTestTest {
 
@@ -46,6 +66,99 @@ class GradleProjectInfoReaderAndroidTestTest {
         namespace = namespace,
         buildPathInfo = ModuleBuildPathInfo(projectDir, libraryDir, "debug", buildDirRelativePath = ""),
     )
+
+    @Test
+    fun `Compose task source validation is not exposed as public API`() {
+        assertFalse(GradleProjectInfoReader.Companion::class.java.methods.any {
+            it.name == "areComposeTaskSourcesSupported"
+        })
+    }
+
+    @Test
+    fun `project info preserves unsupported Compose detection reason`() {
+        val missingSource = ProtectionDomain(null, null)
+        val inconsistentSource = javaClass.protectionDomain
+
+        val missingSourceInfo = readComposeResourceInfo(missingSource)
+        val inconsistentSourceInfo = readComposeResourceInfo(inconsistentSource)
+
+        assertEquals(ComposeResourceSupportStatus.Unsupported, missingSourceInfo?.supportStatus)
+        assertTrue(missingSourceInfo?.unsupportedReason?.contains("task code source") == true)
+        assertEquals(ComposeResourceSupportStatus.Unsupported, inconsistentSourceInfo?.supportStatus)
+        assertTrue(inconsistentSourceInfo?.unsupportedReason?.contains("generator metadata") == true)
+    }
+
+    @Test
+    fun `project info rejects incomplete Compose resource directory metadata`() {
+        val pluginJar = temp.newFile("compose-gradle-plugin-1.7.3.jar")
+        val codeSource = CodeSource(pluginJar.toURI().toURL(), null as Array<java.security.cert.Certificate>?)
+
+        val info = readComposeResourceInfo(ProtectionDomain(codeSource, null))
+
+        assertEquals(ComposeResourceSupportStatus.Unsupported, info?.supportStatus)
+        assertTrue(info?.unsupportedReason, info?.unsupportedReason?.contains("directory metadata") == true)
+    }
+
+    private fun readComposeResourceInfo(protectionDomain: ProtectionDomain) =
+        createReaderWithComposeTasks(protectionDomain).getProjectInfo(false)
+            .modules["compose"]?.composeResourceInfo
+
+    private fun createReaderWithComposeTasks(protectionDomain: ProtectionDomain): GradleProjectInfoReader {
+        val tasks = mock<TaskContainer>()
+        whenever(tasks.iterator()).thenReturn(createComposeTasks(protectionDomain).toMutableList().iterator())
+        val plugins = mock<PluginContainer>()
+        whenever(plugins.hasPlugin(any<String>())).thenAnswer {
+            it.getArgument<String>(0) == "org.jetbrains.compose"
+        }
+        val buildDirectory = mock<DirectoryProperty>()
+        val directory = mock<Directory>()
+        whenever(directory.asFile).thenReturn(File("/project/compose/build"))
+        whenever(buildDirectory.get()).thenReturn(directory)
+        val layout = mock<ProjectLayout>()
+        whenever(layout.buildDirectory).thenReturn(buildDirectory)
+        val configurations = mock<ConfigurationContainer>()
+        whenever(configurations.names).thenReturn(sortedSetOf())
+        val composeProject = mock<Project>()
+        whenever(composeProject.path).thenReturn(":compose")
+        whenever(composeProject.name).thenReturn("compose")
+        whenever(composeProject.projectDir).thenReturn(File("/project/compose"))
+        whenever(composeProject.plugins).thenReturn(plugins)
+        whenever(composeProject.tasks).thenReturn(tasks)
+        whenever(composeProject.layout).thenReturn(layout)
+        whenever(composeProject.configurations).thenReturn(configurations)
+
+        val taskGraph = mock<TaskExecutionGraph>()
+        whenever(taskGraph.allTasks).thenReturn(emptyList())
+        val gradle = mock<Gradle>()
+        whenever(gradle.taskGraph).thenReturn(taskGraph)
+        val rootProject = mock<Project>()
+        whenever(rootProject.gradle).thenReturn(gradle)
+        whenever(rootProject.projectDir).thenReturn(projectDir)
+        whenever(rootProject.subprojects).thenReturn(setOf(composeProject))
+        return GradleProjectInfoReader(rootProject, null, projectDir)
+    }
+
+    private fun createComposeTasks(protectionDomain: ProtectionDomain): List<Task> {
+        return listOf(
+            "XmlValuesConverterTask",
+            "GenerateResClassTask",
+            "GenerateResourceAccessorsTask",
+            "GenerateExpectResourceCollectorsTask",
+            "GenerateActualResourceCollectorsTask",
+        ).map { taskName ->
+            ByteBuddy()
+                .subclass(Any::class.java)
+                .implement(Task::class.java)
+                .name("com.example.$taskName")
+                .method(ElementMatchers.isAbstract())
+                .intercept(StubMethod.INSTANCE)
+                .make()
+                .load(javaClass.classLoader, ClassLoadingStrategy.Default.WRAPPER.with(protectionDomain))
+                .loaded
+                .getDeclaredConstructor()
+                .newInstance() as Task
+        }
+    }
 
     @Test
     fun `buildAndroidTestModuleInfo returns null when sourceDirs is empty`() {

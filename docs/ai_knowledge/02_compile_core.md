@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-05-23
+> 最后核对：2026-07-25
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -23,7 +23,8 @@
 |--------|------|------|
 | `JuggCompileHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | IDE compile 入口，等待初始化/文件处理，决定增量或 Gradle，处理 Git 补检和回退提示 |
 | `IncrementalCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/IncrementalCompilerHelper.kt` | 单轮增量循环，更新 undeployed/staging 状态，驱动影响传播重编译和一次性失败重试 |
-| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | 组合 asset/resource/R.dex/source/dex/minify 等子阶段，按阶段失败快速收口 |
+| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | 组合 Compose resource/asset/resource/R.dex/source/dex/minify 等子阶段，按阶段失败快速收口 |
+| `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 为受支持的 Compose Multiplatform 资源准备 CVR/asset、生成 accessor Kotlin 并编译 generated expect/actual |
 | `BaseCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/BaseCompiler.kt` | 所有编译器的模板方法：类型检查、模块/AndroidTest 分组、APK 分流、自定义编译器 hook |
 | `CompileOrder` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/CompileOrder.kt` | 自定义编译器插入点的顺序范围，不直接代表所有内置阶段的调度代码 |
 | `CompileTask` / `CompileResult` / `CompileOutput` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ICompiler.kt` | 编译输入、文件级结果、产物归属与 APK 分流模型 |
@@ -81,7 +82,10 @@ IncrementalCompilerHelper.compile(undeployedFiles)
 
 ```text
 JuggCompiler.doCompile(task)
-  -> AssetOverlayCompiler：asset/native lib 进入 overlays
+  -> ComposeResourceCompiler：先准备 Compose resource、生成并编译 accessor Kotlin
+     -> changed Compose asset 交给 AssetOverlayCompiler
+     -> generated class 交给后续 SourceCompiler/DexCompiler
+  -> AssetOverlayCompiler：asset/native lib（含 Compose asset）进入 overlays
   -> ResourceOverlayCompiler：resource/manifest 先编译到 tmp_resource
      -> overlay res 移到 overlays
      -> R.java 交给 SourceCompiler 编译
@@ -95,13 +99,14 @@ JuggCompiler.doCompile(task)
 
 ### 5.1 内置阶段
 
+- `compose resource`
 - `asset`
 - `res`
 - `source`
 - `minify`
 - `dex`
 
-`JuggCompiler.doCompile()` 显式编排 asset/resource/source；source 内部再处理 DataBinding mapper、JuggApt、Kotlin、Java、Dex、Minify。`CompileOrder` 主要服务自定义编译器插入点。
+`JuggCompiler.doCompile()` 显式编排 Compose resource/asset/resource/source；Compose 阶段必须先完成，生成的 asset 才能进入 `AssetOverlayCompiler`，生成的 class 才能并入 source/dex 链。source 内部再处理 DataBinding mapper、JuggApt、Kotlin、Java、Dex、Minify。`CompileOrder` 主要服务自定义编译器插入点。
 
 ### 5.2 自定义编译器插入点
 
@@ -121,6 +126,8 @@ JuggCompiler.doCompile(task)
 - `splitModuleAndCompile()` 会把 androidTest module 单独分批，且 androidTest 的 module 分组 key 包含 module root，避免同名测试模块被合并。
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
+- `ComposeResourceCompiler` 只接受 Compose `1.7.3` + Kotlin `2.1.x`。项目快照会保留“已检测但不支持”的状态、已配置资源根和用户可见原因；资源变化仍进入编译并失败，随后复用现有下一次运行 Gradle fallback 语义，不会因 `composeResourceInfo=null` 静默过滤。
+- Compose resource 当前只支持新增和修改。`FileChangesHandler` 会忽略已不存在的文件，因此删除资源必须执行完整 Gradle build；当前也没有 deletion 图、生成缓存或完整 source-set 依赖图。
 - 取消后如果递归影响传播过程中被打断，首轮会 rollback changed file 并清 staging，保证下一次还能重新编译。
 
 ---

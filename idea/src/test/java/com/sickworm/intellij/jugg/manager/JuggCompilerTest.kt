@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.mock.androidApkPackage
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
@@ -12,6 +13,7 @@ import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
 import org.junit.AfterClass
 import org.junit.Before
 import org.junit.BeforeClass
@@ -380,7 +382,7 @@ class KmpComposeFlowReproTest {
 
     companion object {
         private const val FIXTURE_COMPILE_COMMAND =
-            "./gradlew :app:assembleDebug -PenableKmpComposeFixture=true"
+            "./gradlew :app:assembleDebug"
         private val pathManager = JuggPathManager(projectInfo.projectRoot)
         private val projectInfoFiles = listOf(pathManager.ideProjectInfoFile, pathManager.gradleProjectInfoFile)
         private val projectInfoBackups = mutableMapOf<File, ByteArray?>()
@@ -396,7 +398,7 @@ class KmpComposeFlowReproTest {
             try {
                 GradleBuildHelper.switchKotlinVersion("2.1")
                 assembleFixture()
-                writeCommonMainIdeProjectInfo()
+                writeCommonMainIdeProjectInfo("2.1")
             } catch (throwable: Throwable) {
                 restoreFixture()
                 throw throwable
@@ -407,7 +409,8 @@ class KmpComposeFlowReproTest {
         @JvmStatic
         fun restoreFixture() {
             try {
-                GradleBuildHelper.switchKotlinVersion("1.7")
+                GradleBuildHelper.switchKotlinVersion("1.9")
+                AssembleAndroidProjectOnce.forceRecompile(isNeedClean = false)
             } finally {
                 projectInfoBackups.forEach { (file, content) ->
                     if (content == null) {
@@ -420,16 +423,15 @@ class KmpComposeFlowReproTest {
             }
         }
 
-        private fun assembleFixture() {
+        private fun assembleFixture(extraArgs: List<String> = emptyList()) {
             val initScript = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts").absoluteFile
             val command = listOf(
                 "./gradlew",
                 ":app:assembleDebug",
                 "--no-daemon",
-                "-PenableKmpComposeFixture=true",
                 "-I",
                 initScript.absolutePath,
-            )
+            ) + extraArgs
             val process = ProcessBuilder(command)
                 .directory(projectInfo.projectRoot)
                 .redirectErrorStream(true)
@@ -441,11 +443,32 @@ class KmpComposeFlowReproTest {
             }
         }
 
-        private fun writeCommonMainIdeProjectInfo() {
+        private fun writeCommonMainIdeProjectInfo(version: String) {
             val gradleProjectInfo = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).load()
                 ?: error("KMP Compose Gradle project info was not generated")
             val parentModule = gradleProjectInfo.modules["kmpCompose"]
                 ?: error("kmpCompose module was not found in Gradle project info")
+            val composeInfo = parentModule.composeResourceInfo ?: error("Compose resource info missing")
+            assertEquals(ComposeResourceSupportStatus.Supported, composeInfo.supportStatus)
+            assertEquals("com.sickworm.jugg.demo.kmp.generated.resources", composeInfo.packageName)
+            assertTrue(composeInfo.generatorClasspath.any { it.name.startsWith("compose-gradle-plugin-") })
+            if (version == "1.9") {
+                assertTrue(composeInfo.usesLegacyGenerator)
+                assertEquals(setOf("commonMain"), composeInfo.resourceDirectories.map { it.sourceSetName }.toSet())
+                assertEquals("", composeInfo.assetRelativePath)
+            } else {
+                assertTrue(composeInfo.publicResClass)
+                assertTrue(composeInfo.resourceDirectories.map { it.sourceSetName }.containsAll(setOf("commonMain", "androidMain")))
+                assertTrue(composeInfo.resourceDirectories.any { it.directory.path.endsWith("src/androidMain/customComposeResources") })
+                assertEquals(
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources",
+                    composeInfo.assetRelativePath.replace('\\', '/'),
+                )
+            }
+            writeIdeSourceSetProjectInfo(parentModule)
+        }
+
+        private fun writeIdeSourceSetProjectInfo(parentModule: ModuleInfo) {
             val commonMainModule = ModuleInfo.virtualModule.copy(
                 name = "kmpCompose.commonMain",
                 moduleType = ModuleInfo.Type.Unknown,
@@ -462,14 +485,61 @@ class KmpComposeFlowReproTest {
     }
 
     @Test
-    fun reproduceComposeResourceChangeIsFilteredAndAccessorStaysStale() {
+    fun compileComposeResourcesWithKotlin19() {
+        try {
+            GradleBuildHelper.switchKotlinVersion("1.9")
+            assembleFixture()
+            writeCommonMainIdeProjectInfo("1.9")
+            val resourceFile = File(projectInfo.projectRoot, "kmpCompose/src/commonMain/composeResources/values/strings.xml")
+            changeAndRevert(resourceFile, "Baseline title", "Legacy changed title") {
+                val jugg = newFixtureJugg()
+                jugg.dryFullCompile()
+                jugg.notifyFileChanges(listOf(resourceFile))
+                jugg.compileChangedFiles()
+
+                assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+                assertEquals(setOf("values/strings.xml"), stagingAssetPaths(jugg))
+                assertTrue(stagingDexPaths(jugg).any { it.endsWith("String0Kt.dex") })
+            }
+        } finally {
+            GradleBuildHelper.switchKotlinVersion("2.1")
+            assembleFixture()
+            writeCommonMainIdeProjectInfo("2.1")
+        }
+    }
+
+    @Test
+    fun compileComposeResourcesWithKotlin23() {
+        try {
+            GradleBuildHelper.switchKotlinVersion("2.3")
+            assembleFixture()
+            writeCommonMainIdeProjectInfo("2.3")
+            val resourceFile = File(projectInfo.projectRoot, "kmpCompose/src/commonMain/composeResourcesExtended/values/strings.xml")
+            changeAndRevert(resourceFile, "Baseline title", "Latest changed title") {
+                val jugg = newFixtureJugg()
+                jugg.dryFullCompile()
+                jugg.notifyFileChanges(listOf(resourceFile))
+                jugg.compileChangedFiles()
+
+                assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+                assertTrue(stagingDexPaths(jugg).any { it.contains("String0_commonMainKt") })
+            }
+        } finally {
+            GradleBuildHelper.switchKotlinVersion("2.1")
+            assembleFixture()
+            writeCommonMainIdeProjectInfo("2.1")
+        }
+    }
+
+    @Test
+    fun compileNewComposeStringKeyAndSourceReference() {
         val resourceFile = File(
             projectInfo.projectRoot,
-            "kmpCompose/src/commonMain/composeResources/values/strings.xml",
+            "kmpCompose/src/commonMain/composeResourcesExtended/values/strings.xml",
         )
         val sourceFile = File(
             projectInfo.projectRoot,
-            "kmpCompose/src/commonMain/kotlin/com/sickworm/jugg/demo/kmp/ComposeResourceConsumer.kt",
+            "kmpCompose/src/commonMain/kotlin/com/sickworm/jugg/demo/kmp/KmpComposeResourceCase.kt",
         )
 
         changeAndRevert(resourceFile, "</resources>", "    <string name=\"incremental_title\">Incremental title</string>\n</resources>") {
@@ -481,40 +551,152 @@ class KmpComposeFlowReproTest {
                 jugg.dryFullCompile()
                 jugg.notifyFileChanges(listOf(resourceFile, sourceFile))
 
-                val changedFiles = jugg.deployFileManager.getUncompiledFiles()
-                assertEquals(listOf(sourceFile.canonicalFile), changedFiles.map { it.file.canonicalFile })
-
                 jugg.compileChangedFiles()
 
-                val log = jugg.readLatestProjectLog()
-                assertTrue(log.contains("unresolved reference") && log.contains("incremental_title"), log)
+                assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+                assertTrue(stagingDexPaths(jugg).any { it.endsWith("KmpComposeResourceCase.dex") })
+                assertTrue(stagingDexPaths(jugg).any { it.contains("String0_commonMainKt") })
+                assertNoComposeGradle(jugg)
             }
         }
     }
 
     @Test
-    fun reproduceCommonMainCompileMissesMultiplatformArguments() {
-        val sourceFile = File(
+    fun compileChangedComposeStringValueToCvrAsset() {
+        val resourceFile = File(
             projectInfo.projectRoot,
-            "kmpCompose/src/commonMain/kotlin/com/sickworm/jugg/demo/kmp/PlatformLabel.kt",
+            "kmpCompose/src/commonMain/composeResourcesExtended/values/strings.xml",
         )
 
-        changeAndRevert(sourceFile, "platformMarker(): String = \"baseline\"", "platformMarker(): String = \"changed\"") {
-            val jugg = MockJugg(
-                compileCommand = FIXTURE_COMPILE_COMMAND,
-                isIdeSynced = true,
-            )
+        changeAndRevert(resourceFile, "Baseline title", "Changed title") {
+            val jugg = newFixtureJugg()
             jugg.dryFullCompile()
-            jugg.notifyFileChanges(listOf(sourceFile))
+            jugg.notifyFileChanges(listOf(resourceFile))
             jugg.compileChangedFiles()
 
-            val log = jugg.readLatestProjectLog()
-            assertTrue(
-                log.contains("expect") &&
-                    log.contains("actual") &&
-                    log.contains("only in multiplatform projects"),
-                log,
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+            assertEquals(
+                setOf("composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values/strings.commonMain.cvr"),
+                stagingAssetPaths(jugg),
             )
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileComposeArrayPluralDrawableFontAndFile() {
+        val root = File(projectInfo.projectRoot, "kmpCompose/src/commonMain/composeResourcesExtended")
+        val files = listOf(
+            File(root, "values/arrays.xml") to "Alpha" to "Changed Alpha",
+            File(root, "values/plurals.xml") to "%1\$d turn" to "%1\$d changed turn",
+            File(root, "drawable/baseline_icon.png") to null to null,
+            File(root, "font/baseline_font.ttf") to null to null,
+            File(root, "files/baseline_payload.txt") to null to null,
+        )
+        withPatchedComposeFiles(files) { changedFiles ->
+            val jugg = newFixtureJugg()
+            jugg.dryFullCompile()
+            jugg.notifyFileChanges(changedFiles)
+            jugg.compileChangedFiles()
+
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+            assertEquals(
+                setOf(
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values/arrays.commonMain.cvr",
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values/plurals.commonMain.cvr",
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources/drawable/baseline_icon.png",
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources/font/baseline_font.ttf",
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources/files/baseline_payload.txt",
+                ),
+                stagingAssetPaths(jugg),
+            )
+            assertTrue(stagingDexPaths(jugg).any { it.contains("Array0_commonMainKt") })
+            assertTrue(stagingDexPaths(jugg).any { it.contains("Plurals0_commonMainKt") })
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileComposeQualifiersAndCustomDirectory() {
+        val commonFile = File(projectInfo.projectRoot, "kmpCompose/src/commonMain/composeResourcesExtended/values-zh-rCN/strings.xml")
+        val customFile = File(projectInfo.projectRoot, "kmpCompose/src/androidMain/customComposeResources/values/android_strings.xml")
+        val androidResource = File(projectInfo.projectRoot, "app/src/main/res/values/strings.xml")
+        withPatchedComposeFiles(
+            listOf(
+                commonFile to "基线标题" to "变更标题",
+                customFile to "Android baseline title" to "Android changed title",
+                androidResource to "My Application" to "My Changed Application",
+            ),
+        ) { changedFiles ->
+            val jugg = newFixtureJugg()
+            jugg.dryFullCompile()
+            jugg.notifyFileChanges(changedFiles)
+            jugg.compileChangedFiles()
+
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+            assertTrue(stagingAssetPaths(jugg).containsAll(
+                setOf(
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values-zh-rCN/strings.commonMain.cvr",
+                    "composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values/android_strings.androidMain.cvr",
+                ),
+            ))
+            assertTrue(jugg.deployFileManager.getStagingFiles().any { it.type == CompileOutput.Type.Res })
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun rejectInvalidComposeValuesXmlWithoutRunningGradle() {
+        val resourceFile = File(projectInfo.projectRoot, "kmpCompose/src/commonMain/composeResourcesExtended/values/strings.xml")
+        changeAndRevert(resourceFile, "</resources>", "<string name=\"broken\"></resources>") {
+            val jugg = newFixtureJugg()
+            jugg.dryFullCompile()
+            jugg.notifyFileChanges(listOf(resourceFile))
+            jugg.compileChangedFiles()
+
+            assertEquals(listOf(resourceFile.canonicalFile), jugg.deployFileManager.getUncompiledFiles().map { it.file.canonicalFile })
+            assertTrue(jugg.readLatestProjectLog().contains(resourceFile.absolutePath))
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    private fun newFixtureJugg() = MockJugg(
+        compileCommand = FIXTURE_COMPILE_COMMAND,
+        isIdeSynced = true,
+    )
+
+    private fun stagingDexPaths(jugg: MockJugg): Set<String> = jugg.deployFileManager.getStagingFiles()
+        .filter { it.type == CompileOutput.Type.Dex }
+        .map { it.relativeFile.path.replace('\\', '/') }
+        .toSet()
+
+    private fun stagingAssetPaths(jugg: MockJugg): Set<String> = jugg.deployFileManager.getStagingFiles()
+        .filter { it.type == CompileOutput.Type.Asset }
+        .map { it.relativeFile.path.replace('\\', '/').substringAfter("assets/") }
+        .toSet()
+
+    private fun assertNoComposeGradle(jugg: MockJugg) {
+        val log = jugg.readLatestProjectLog()
+        assertFalse(log.contains("./gradlew"), log)
+        assertFalse(log.contains("generateComposeResClass"), log)
+        assertFalse(log.contains("generateResourceAccessors"), log)
+        assertFalse(log.contains("prepareComposeResources"), log)
+    }
+
+    private fun withPatchedComposeFiles(
+        patches: List<Pair<Pair<File, String?>, String?>>,
+        block: (List<File>) -> Unit,
+    ) {
+        val backups = patches.associate { (fileAndOld, _) -> fileAndOld.first to fileAndOld.first.readBytes() }
+        try {
+            patches.forEach { (fileAndOld, newContent) ->
+                val (file, oldContent) = fileAndOld
+                if (oldContent == null) file.appendBytes(byteArrayOf(0))
+                else file.writeText(file.readText().replace(oldContent, newContent!!))
+            }
+            block(patches.map { it.first.first })
+        } finally {
+            backups.forEach { (file, bytes) -> file.writeBytes(bytes) }
         }
     }
 }

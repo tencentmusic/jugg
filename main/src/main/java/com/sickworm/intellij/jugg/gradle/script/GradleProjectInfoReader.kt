@@ -318,8 +318,212 @@ class GradleProjectInfoReader(
         }
         TraceLogger.end("getDep")
 
+        moduleInfo = moduleInfo.copy(composeResourceInfo = getComposeResourceInfo(project, moduleInfo))
+
         TraceLogger.end("getModule:${project.standardModuleName}")
         return moduleInfo
+    }
+
+    /** Reads Compose resource task configuration without executing tasks. */
+    private fun getComposeResourceInfo(project: Project, moduleInfo: ModuleInfo): ComposeResourceInfo? {
+        if (!project.plugins.hasPlugin("org.jetbrains.compose")) return null
+
+        var resourceDirectories = emptyList<ComposeResourceDirectory>()
+        return try {
+            val tasks = findComposeResourceTasks(project)
+            resourceDirectories = readComposeResourceDirectories(tasks)
+            if (tasks.map { it.second }.toSet() == setOf("GenerateResClassTask")) {
+                return readLegacyComposeResourceInfo(tasks.single(), moduleInfo)
+            }
+            val requiredTaskNames = setOf(
+                "XmlValuesConverterTask",
+                "GenerateResClassTask",
+                "GenerateResourceAccessorsTask",
+                "GenerateExpectResourceCollectorsTask",
+                "GenerateActualResourceCollectorsTask"
+            )
+            if (tasks.map { it.second }.toSet() != requiredTaskNames) {
+                return unsupportedComposeResourceInfo(resourceDirectories, "Compose resource task metadata is incomplete.")
+            }
+            val taskSourceFiles = tasks.map { (_, _, taskClass) ->
+                taskClass.protectionDomain.codeSource?.location?.toURI()?.let(::File)
+            }
+            if (taskSourceFiles.any { it == null }) {
+                return unsupportedComposeResourceInfo(resourceDirectories, "Compose resource task code source is missing.")
+            }
+            val pluginJars = taskSourceFiles.filterNotNull().map(File::getCanonicalFile).distinct()
+            if (pluginJars.size != 1 || !pluginJars.single().name.startsWith("compose-gradle-plugin-")) {
+                return unsupportedComposeResourceInfo(resourceDirectories, "Compose resource generator metadata is inconsistent.")
+            }
+            val pluginJar = pluginJars.single()
+            if (resourceDirectories.size != tasks.count { it.second == "XmlValuesConverterTask" }) {
+                return unsupportedComposeResourceInfo(
+                    resourceDirectories,
+                    "Compose resource directory metadata is incomplete."
+                )
+            }
+
+            val resClassTask = tasks.single { it.second == "GenerateResClassTask" }.first
+            val packageName = composePropertyValue(resClassTask, "packageName") as? String
+                ?: return unsupportedComposeResourceInfo(resourceDirectories, "Compose resource package metadata is missing.")
+            val packagingDir = composeFileValue(resClassTask, "packagingDir")
+                ?: return unsupportedComposeResourceInfo(resourceDirectories, "Compose resource packaging metadata is missing.")
+            val publicResClass = composePropertyValue(resClassTask, "makeAccessorsPublic") as? Boolean
+                ?: return unsupportedComposeResourceInfo(resourceDirectories, "Compose resource visibility metadata is missing.")
+            val resClassName = composePropertyValue(resClassTask, "resClassName") as? String ?: "Res"
+            if (composeFileValue(resClassTask, "codeDir") == null) {
+                return unsupportedComposeResourceInfo(resourceDirectories, "Compose generated source metadata is missing.")
+            }
+            val contentHashOptions = tasks.filter { it.second == "GenerateResourceAccessorsTask" }
+                .mapNotNull { (task, _, _) -> composePropertyValue(task, "disableResourceContentHashGeneration") as? Boolean }
+                .distinct()
+            if (contentHashOptions.size > 1) {
+                return unsupportedComposeResourceInfo(resourceDirectories, "Compose content hash metadata is inconsistent.")
+            }
+            val generateResourceContentHash = contentHashOptions.singleOrNull()?.not() ?: false
+            val accessorSourceSets = validateComposeAccessorTasks(
+                tasks,
+                packageName,
+                packagingDir,
+                publicResClass,
+                resClassName,
+            )
+                ?: return unsupportedComposeResourceInfo(resourceDirectories, "Compose accessor task metadata is incomplete.")
+            if (resourceDirectories.any { it.sourceSetName !in accessorSourceSets } ||
+                !validateComposeCollectorTasks(tasks, packageName, publicResClass, resClassName)
+            ) return unsupportedComposeResourceInfo(resourceDirectories, "Compose collector task metadata is incomplete.")
+
+            val kotlinStdlib = (moduleInfo.libraryDependencies.map { it.file } + moduleInfo.kotlinPlugins.orEmpty())
+                .firstOrNull { it.name.matches(Regex("kotlin-stdlib-\\d.+\\.jar")) }
+                ?: return unsupportedComposeResourceInfo(
+                    resourceDirectories,
+                    "Kotlin standard library metadata is missing for Compose resources."
+                )
+            ComposeResourceInfo(
+                generatorClasspath = listOf(pluginJar, kotlinStdlib),
+                packageName = packageName,
+                publicResClass = publicResClass,
+                resourceDirectories = resourceDirectories,
+                assetRelativePath = packagingDir.path,
+                resClassName = resClassName,
+                generateResourceContentHash = generateResourceContentHash,
+            )
+        } catch (e: Throwable) {
+            println("Jugg: get Compose resource info for ${project.standardModuleName} failed: $e")
+            unsupportedComposeResourceInfo(resourceDirectories, "Compose resource metadata could not be read: ${e.message}")
+        }
+    }
+
+    private fun unsupportedComposeResourceInfo(
+        resourceDirectories: List<ComposeResourceDirectory>,
+        reason: String
+    ) = ComposeResourceInfo(
+        generatorClasspath = emptyList(),
+        packageName = "",
+        publicResClass = false,
+        resourceDirectories = resourceDirectories,
+        assetRelativePath = "",
+        supportStatus = ComposeResourceSupportStatus.Unsupported,
+        unsupportedReason = reason
+    )
+
+    private fun readLegacyComposeResourceInfo(
+        taskInfo: Triple<Task, String, Class<*>>,
+        moduleInfo: ModuleInfo,
+    ): ComposeResourceInfo {
+        val task = taskInfo.first
+        val resourceDirectory = composeFileValue(task, "resDir")
+            ?: return unsupportedComposeResourceInfo(emptyList(), "Legacy Compose resource directory metadata is missing.")
+        val directories = listOf(ComposeResourceDirectory("commonMain", resourceDirectory))
+        val packageName = composePropertyValue(task, "packageName") as? String
+            ?: return unsupportedComposeResourceInfo(directories, "Compose resource package metadata is missing.")
+        if (composePropertyValue(task, "shouldGenerateResClass") as? Boolean != true ||
+            composeFileValue(task, "codeDir") == null
+        ) return unsupportedComposeResourceInfo(directories, "Legacy Compose generator metadata is incomplete.")
+        val pluginJar = taskInfo.third.protectionDomain.codeSource?.location?.toURI()?.let(::File)
+            ?.takeIf { it.name.startsWith("compose-gradle-plugin-") }
+            ?: return unsupportedComposeResourceInfo(directories, "Compose resource task code source is missing.")
+        val kotlinStdlib = (moduleInfo.libraryDependencies.map { it.file } + moduleInfo.kotlinPlugins.orEmpty())
+            .firstOrNull { it.name.matches(Regex("kotlin-stdlib-\\d.+\\.jar")) }
+            ?: return unsupportedComposeResourceInfo(directories, "Kotlin standard library metadata is missing for Compose resources.")
+        return ComposeResourceInfo(
+            generatorClasspath = listOf(pluginJar, kotlinStdlib),
+            packageName = packageName,
+            publicResClass = false,
+            resourceDirectories = directories,
+            assetRelativePath = "",
+            usesLegacyGenerator = true,
+        )
+    }
+
+    private fun findComposeResourceTasks(project: Project): List<Triple<Task, String, Class<*>>> {
+        val taskNames = setOf(
+            "XmlValuesConverterTask",
+            "GenerateResClassTask",
+            "GenerateResourceAccessorsTask",
+            "GenerateExpectResourceCollectorsTask",
+            "GenerateActualResourceCollectorsTask",
+        )
+        val tasks = project.tasks.mapNotNull { task ->
+            var taskClass: Class<*>? = task.javaClass
+            while (taskClass != null && taskClass.simpleName !in taskNames) {
+                taskClass = taskClass.superclass
+            }
+            taskClass?.let { Triple(task, it.simpleName, it) }
+        }
+        return tasks
+    }
+
+    private fun readComposeResourceDirectories(
+        tasks: List<Triple<Task, String, Class<*>>>
+    ): List<ComposeResourceDirectory> {
+        return tasks.filter { it.second == "XmlValuesConverterTask" }.mapNotNull { (task, _, _) ->
+            ComposeResourceDirectory(
+                sourceSetName = composePropertyValue(task, "fileSuffix") as? String ?: return@mapNotNull null,
+                directory = composeFileValue(task, "originalResourcesDir") ?: return@mapNotNull null
+            )
+        }
+    }
+
+    private fun validateComposeAccessorTasks(
+        tasks: List<Triple<Task, String, Class<*>>>,
+        packageName: String,
+        packagingDir: File,
+        publicResClass: Boolean,
+        resClassName: String,
+    ): Set<String>? {
+        return tasks.filter { it.second == "GenerateResourceAccessorsTask" }.map { (task, _, _) ->
+            if (composePropertyValue(task, "packageName") as? String != packageName ||
+                composeFileValue(task, "packagingDir")?.path != packagingDir.path ||
+                composePropertyValue(task, "makeAccessorsPublic") as? Boolean != publicResClass ||
+                (composePropertyValue(task, "resClassName") as? String ?: "Res") != resClassName ||
+                composeFileValue(task, "codeDir") == null
+            ) return null
+            composePropertyValue(task, "sourceSetName") as? String ?: return null
+        }.toSet()
+    }
+
+    private fun validateComposeCollectorTasks(
+        tasks: List<Triple<Task, String, Class<*>>>,
+        packageName: String,
+        publicResClass: Boolean,
+        resClassName: String,
+    ): Boolean {
+        return tasks.filter { it.second.endsWith("ResourceCollectorsTask") }.all { (task, _, _) ->
+            composePropertyValue(task, "packageName") as? String == packageName &&
+                composePropertyValue(task, "makeAccessorsPublic") as? Boolean == publicResClass &&
+                (composePropertyValue(task, "resClassName") as? String ?: "Res") == resClassName &&
+                composeFileValue(task, "codeDir") != null
+        }
+    }
+
+    private fun composePropertyValue(task: Task, name: String): Any? {
+        return reflector(task)[name]?.invoke("getOrNull")?.value
+    }
+
+    private fun composeFileValue(task: Task, name: String): File? {
+        val value = composePropertyValue(task, name) ?: return null
+        return value as? File ?: reflector(value)["asFile"]?.value as? File
     }
 
     private fun updateVariantAndSignConfigs(moduleInfo: ModuleInfo, project: Project, androidExt: Reflector): ModuleInfo {
