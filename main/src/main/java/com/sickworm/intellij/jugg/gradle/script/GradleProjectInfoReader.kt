@@ -229,6 +229,9 @@ class GradleProjectInfoReader(
                     if (kotlinClasspath20 != null) {
                         kotlinPlugins = ((kotlinPlugins ?: emptyList()) + kotlinClasspath20).distinct()
                     }
+                    val kotlinCommonSourceDirs = readKotlinCommonSourceDirs(kotlinTask)
+                    sourceDirs.addAll(kotlinCommonSourceDirs)
+                    moduleInfo = moduleInfo.copy(kotlinCommonSourceDirs = kotlinCommonSourceDirs)
                 } else if (hasKotlinPlugin) {
                     println("Jugg: can not find kotlin compile task for ${moduleInfo.name} by $kotlinTaskName, skip it.")
                 }
@@ -645,6 +648,99 @@ class GradleProjectInfoReader(
         val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
         val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
         return findTaskByNameWithRetry(project, kotlinTaskName) ?: findTaskByNameWithRetry(project, kotlinTaskNameKmm)
+    }
+
+    /** Reads configured common roots without relying on source-set directory names. */
+    private fun readKotlinCommonSourceDirs(kotlinTask: Any): List<File> {
+        return try {
+            val commonSourceSet = readProperty(kotlinTask, "commonSourceSet\$kotlin_gradle_plugin_common")
+                ?: return emptyList()
+            val commonRoots = readConfiguredSourceRoots(commonSourceSet)
+            if (commonRoots.isNotEmpty()) return commonRoots
+
+            val commonFileCollection = commonSourceSet as? FileCollection
+            val visitedRoots = commonFileCollection?.let(::readFileTreeRoots).orEmpty()
+            if (visitedRoots.isNotEmpty()) return visitedRoots
+
+            val commonFiles = commonFileCollection?.files ?: emptySet()
+            val taskSources = readProperty(kotlinTask, "sources")
+            val taskRoots = readConfiguredSourceRoots(taskSources)
+            val roots = commonFiles.mapNotNull { file ->
+                taskRoots.filter { root ->
+                    file.toPath().normalize().startsWith(root.toPath().normalize())
+                }.maxByOrNullForKt14 { it.absolutePath.length }
+            }.distinct()
+            if (roots.isEmpty() && commonFiles.isNotEmpty()) {
+                println("Jugg: Kotlin common source directories are unavailable for $kotlinTask")
+            }
+            roots
+        } catch (e: Throwable) {
+            println("Jugg: read Kotlin common source directories failed: $e")
+            emptyList()
+        }
+    }
+
+    private fun readFileTreeRoots(files: FileCollection): List<File> {
+        val roots = linkedSetOf<File>()
+        files.asFileTree.visit(object : org.gradle.api.Action<org.gradle.api.file.FileVisitDetails> {
+            override fun execute(details: org.gradle.api.file.FileVisitDetails) {
+                var root = details.file
+                repeat(details.relativePath.segments.size) {
+                    root = root.parentFile ?: return
+                }
+                roots.add(root)
+            }
+        })
+        return roots.toList()
+    }
+
+    private fun readConfiguredSourceRoots(value: Any?, depth: Int = 0): List<File> {
+        if (value == null || depth >= 5) return emptyList()
+        if (value is File) return listOf(value).filter { !it.exists() || it.isDirectory }
+        if (value is org.gradle.api.file.Directory) return listOf(value.asFile)
+        if (value is org.gradle.api.file.SourceDirectorySet) return value.srcDirs.toList()
+        if (value is org.gradle.api.provider.Provider<*>) {
+            return readConfiguredSourceRoots(value.orNull, depth + 1)
+        }
+        if (value is Function0<*>) {
+            return readConfiguredSourceRoots(value.invoke(), depth + 1)
+        }
+        if (value is java.util.concurrent.Callable<*>) {
+            return readConfiguredSourceRoots(value.call(), depth + 1)
+        }
+        if (value is Collection<*>) {
+            return value.flatMap { readConfiguredSourceRoots(it, depth + 1) }.distinct()
+        }
+
+        val asFile = readProperty(value, "asFile") as? File
+        if (asFile != null) return listOf(asFile)
+        val srcDirs = readProperty(value, "srcDirs") as? Collection<*>
+        if (srcDirs != null) return readConfiguredSourceRoots(srcDirs, depth + 1)
+        val from = readProperty(value, "from") as? Collection<*>
+        if (from != null) return readConfiguredSourceRoots(from, depth + 1)
+
+        val resolved = invokeNoArg(value, "getOrNull")
+            ?: invokeNoArg(value, "invoke")
+            ?: invokeNoArg(value, "call")
+        return if (resolved === value) emptyList() else readConfiguredSourceRoots(resolved, depth + 1)
+    }
+
+    private fun readProperty(value: Any?, propertyName: String): Any? {
+        value ?: return null
+        val getterName = "get${propertyName.camelCompat}"
+        return invokeNoArg(value, getterName)
+    }
+
+    private fun invokeNoArg(value: Any, methodName: String): Any? {
+        val method = value::class.java.methods.firstOrNull {
+            it.name == methodName && it.parameterCount == 0
+        } ?: return null
+        return try {
+            method.isAccessible = true
+            method.invoke(value)
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     private fun findTaskByNameWithRetry(project: Project, taskName: String): Any? {

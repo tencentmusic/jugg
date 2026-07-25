@@ -469,17 +469,30 @@ class KmpComposeFlowReproTest {
         }
 
         private fun writeIdeSourceSetProjectInfo(parentModule: ModuleInfo) {
+            val ownerModule = parentModule.copy(
+                moduleType = ModuleInfo.Type.Unknown,
+                libraryDependencies = emptyList(),
+                runtimeLibraryDependencies = emptyList(),
+            )
             val commonMainModule = ModuleInfo.virtualModule.copy(
                 name = "kmpCompose.commonMain",
                 moduleType = ModuleInfo.Type.Unknown,
                 moduleRootDir = parentModule.moduleRootDir,
                 projectRootDir = parentModule.projectRootDir,
-                sourceDirs = listOf(File(parentModule.moduleRootDir, "src/commonMain/kotlin")),
+                sourceDirs = listOf(
+                    File(parentModule.moduleRootDir, "src/commonMain/kotlin"),
+                    File(parentModule.moduleRootDir, "src/sharedMain/kotlin"),
+                ),
                 buildVariant = parentModule.buildVariant,
                 buildPathInfo = parentModule.buildPathInfo,
             )
             ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(
-                JuggProjectInfo(mapOf(commonMainModule.name to commonMainModule))
+                JuggProjectInfo(
+                    mapOf(
+                        ownerModule.name to ownerModule,
+                        commonMainModule.name to commonMainModule,
+                    )
+                )
             )
         }
     }
@@ -660,10 +673,275 @@ class KmpComposeFlowReproTest {
         }
     }
 
+    @Test
+    fun compileChangedCommonExpectWithAndroidActual() {
+        val common = kmpSource("commonMain", "PlatformLabel.kt")
+        val actual = kmpSource("androidMain", "PlatformLabel.android.kt")
+
+        changeAndRevert(common, ":baseline", ":common changed") {
+            val jugg = compileKmpChanges(common)
+
+            assertKmpCompileSuccess(jugg, common, actual)
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/PlatformLabelKt.dex") })
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/PlatformLabel.dex") })
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileChangedAndroidActualWithCommonExpect() {
+        val common = kmpSource("commonMain", "PlatformLabel.kt")
+        val actual = kmpSource("androidMain", "PlatformLabel.android.kt")
+
+        changeAndRevert(actual, "\"Android\"", "\"Android changed\"") {
+            val jugg = compileKmpChanges(actual)
+
+            assertKmpCompileSuccess(jugg, common, actual)
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/PlatformLabel.dex") })
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileChangedExpectAndActualTogether() {
+        val common = kmpSource("commonMain", "PlatformLabel.kt")
+        val actual = kmpSource("androidMain", "PlatformLabel.android.kt")
+
+        withPatchedKotlinFiles(
+            common to common.readText().replace(":baseline", ":both changed"),
+            actual to actual.readText().replace("\"Android\"", "\"Android both changed\""),
+        ) {
+            val jugg = compileKmpChanges(common, actual)
+
+            assertKmpCompileSuccess(jugg, common, actual)
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileNewExpectActualApiCalledByApp() {
+        val common = kmpSource("commonMain", "IncrementalPlatformApi.kt")
+        val actual = kmpSource("androidMain", "DifferentAndroidIncrementalApi.kt")
+        val app = File(projectInfo.projectRoot, "app/src/main/java/com/example/myapplication/MainActivity.kt")
+        val commonSource = """
+            package com.sickworm.jugg.demo.kmp
+
+            expect fun incrementalPlatformValue(): String
+        """.trimIndent()
+        val actualSource = """
+            package com.sickworm.jugg.demo.kmp
+
+            actual fun incrementalPlatformValue(): String = "incremental"
+        """.trimIndent()
+        val appSource = app.readText().replace(
+            "Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)",
+            """Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)
+        Log.i("KmpBusiness", com.sickworm.jugg.demo.kmp.incrementalPlatformValue())""",
+        )
+
+        withPatchedKotlinFiles(common to commonSource, actual to actualSource, app to appSource) {
+            val jugg = compileKmpChanges(common, actual, app)
+
+            assertKmpCompileSuccess(jugg, common, actual)
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/DifferentAndroidIncrementalApiKt.dex") })
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/MainActivity.dex") })
+            assertNoComposeGradle(jugg)
+
+            changeAndRevert(common, "expect fun", "// cache expect edge\nexpect fun") {
+                assertKmpCompileSuccess(compileKmpChanges(common), common, actual)
+            }
+            changeAndRevert(actual, "\"incremental\"", "\"incremental cache edge\"") {
+                assertKmpCompileSuccess(compileKmpChanges(actual), common, actual)
+            }
+        }
+    }
+
+    @Test
+    fun compileCommonSourceUsingBaselineCommonHelper() {
+        val common = kmpSource("commonMain", "PlatformLabel.kt")
+        val actual = kmpSource("androidMain", "PlatformLabel.android.kt")
+        val helper = kmpSource("commonMain", "CommonPlatformHelper.kt")
+
+        changeAndRevert(common, ":baseline", ":classpath changed") {
+            val jugg = compileKmpChanges(common)
+
+            assertKmpCompileSuccess(jugg, common, actual)
+            assertFalse(jugg.readLatestProjectLog().contains(helper.absolutePath))
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileOrdinaryCommonSourceWithoutExpectActual() {
+        val helper = kmpSource("commonMain", "CommonPlatformHelper.kt")
+
+        changeAndRevert(helper, "\"common\"", "\"ordinary changed\"") {
+            val jugg = compileKmpChanges(helper)
+
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty(), jugg.readLatestProjectLog())
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/CommonPlatformHelperKt.dex") })
+            assertFalse(jugg.readLatestProjectLog().contains("-Xcommon-sources="))
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileIntermediateSharedMainActual() {
+        val common = kmpSource("commonMain", "SharedPlatformLabel.kt")
+        val sharedActual = kmpSource("sharedMain", "SharedPlatformLabel.shared.kt")
+
+        changeAndRevert(sharedActual, "\"Shared Android\"", "\"Shared changed\"") {
+            val jugg = compileKmpChanges(sharedActual)
+
+            assertKmpCompileSuccess(jugg, common, sharedActual)
+            val log = jugg.readLatestProjectLog()
+            val commonSourcesArg = log.lineSequence().firstOrNull { it.contains("-Xcommon-sources=") }.orEmpty()
+            assertTrue(commonSourcesArg.contains(common.absolutePath), commonSourcesArg)
+            assertTrue(commonSourcesArg.contains(sharedActual.absolutePath), commonSourcesArg)
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/SharedPlatformLabel.dex") })
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun keepKotlinCompilerFailureForNewExpectWithoutActual() {
+        val common = kmpSource("commonMain", "OneSidedIncrementalApi.kt")
+        val source = """
+            package com.sickworm.jugg.demo.kmp
+
+            expect fun oneSidedIncrementalValue(): String
+        """.trimIndent()
+
+        withPatchedKotlinFiles(common to source) {
+            val jugg = compileKmpChanges(common)
+            val log = jugg.readLatestProjectLog()
+
+            assertEquals(listOf(common.canonicalFile), jugg.deployFileManager.getUncompiledFiles().map { it.file.canonicalFile })
+            assertTrue(log.contains("oneSidedIncrementalValue") || log.contains("has no actual"), log)
+            assertFalse(stagingDexPaths(jugg).any { it.endsWith("/OneSidedIncrementalApiKt.dex") })
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun keepKotlinCompilerFailureWhenComplementaryCacheIsMissing() {
+        val actual = kmpSource("androidMain", "PlatformLabel.android.kt")
+        val cacheDir = File(
+            projectInfo.projectRoot,
+            "build/kmpCompose/kotlin/compileDebugKotlinAndroid/cacheable/caches-jvm/jvm/kotlin",
+        )
+        val backupDir = File(cacheDir.parentFile, "kotlin.jugg-test-backup")
+        check(cacheDir.exists()) { "Kotlin complementary cache is missing before the test: $cacheDir" }
+        check(!backupDir.exists()) { "Kotlin complementary cache backup already exists: $backupDir" }
+        check(cacheDir.renameTo(backupDir)) { "Failed to move Kotlin complementary cache for the test" }
+        try {
+            changeAndRevert(actual, "\"Android\"", "\"Android without cache\"") {
+                val jugg = compileKmpChanges(actual)
+                val log = jugg.readLatestProjectLog()
+
+                assertEquals(listOf(actual.canonicalFile), jugg.deployFileManager.getUncompiledFiles().map { it.file.canonicalFile })
+                assertTrue(log.contains("actual") || log.contains("multiplatform"), log)
+                assertFalse(stagingDexPaths(jugg).any { it.endsWith("/PlatformLabel.dex") })
+                assertNoComposeGradle(jugg)
+            }
+        } finally {
+            check(backupDir.renameTo(cacheDir)) { "Failed to restore Kotlin complementary cache after the test" }
+        }
+    }
+
+    @Test
+    fun keepComplementaryCacheAfterFailedCompilation() {
+        val common = kmpSource("commonMain", "PlatformLabel.kt")
+        val actual = kmpSource("androidMain", "PlatformLabel.android.kt")
+
+        changeAndRevert(common, "expect object PlatformLabel", "expect object PlatformLabel : MissingType") {
+            val failed = compileKmpChanges(common)
+            assertEquals(
+                listOf(common.canonicalFile),
+                failed.deployFileManager.getUncompiledFiles().map { it.file.canonicalFile },
+            )
+        }
+        changeAndRevert(actual, "\"Android\"", "\"Android after failed compile\"") {
+            assertKmpCompileSuccess(compileKmpChanges(actual), common, actual)
+        }
+    }
+
+    @Test
+    fun compileBusinessExpectActualWithKotlin19() {
+        compileBusinessExpectActualWithVersion("1.9")
+    }
+
+    @Test
+    fun compileBusinessExpectActualWithKotlin23() {
+        compileBusinessExpectActualWithVersion("2.3")
+    }
+
     private fun newFixtureJugg() = MockJugg(
         compileCommand = FIXTURE_COMPILE_COMMAND,
         isIdeSynced = true,
     )
+
+    private fun compileKmpChanges(vararg files: File): MockJugg {
+        val jugg = newFixtureJugg()
+        jugg.dryFullCompile()
+        jugg.notifyFileChanges(files.toList())
+        jugg.compileChangedFiles()
+        return jugg
+    }
+
+    private fun compileBusinessExpectActualWithVersion(version: String) {
+        try {
+            GradleBuildHelper.switchKotlinVersion(version)
+            assembleFixture()
+            writeCommonMainIdeProjectInfo(version)
+            val common = kmpSource("commonMain", "PlatformLabel.kt")
+            val actual = kmpSource("androidMain", "PlatformLabel.android.kt")
+
+            changeAndRevert(common, ":baseline", ":$version common") {
+                val jugg = compileKmpChanges(common)
+                assertKmpCompileSuccess(jugg, common, actual)
+                assertNoComposeGradle(jugg)
+            }
+            changeAndRevert(actual, "\"Android\"", "\"$version Android\"") {
+                val jugg = compileKmpChanges(actual)
+                assertKmpCompileSuccess(jugg, common, actual)
+                assertNoComposeGradle(jugg)
+            }
+        } finally {
+            GradleBuildHelper.switchKotlinVersion("2.1")
+            assembleFixture()
+            writeCommonMainIdeProjectInfo("2.1")
+        }
+    }
+
+    private fun kmpSource(sourceSet: String, fileName: String): File = File(
+        projectInfo.projectRoot,
+        "kmpCompose/src/$sourceSet/kotlin/com/sickworm/jugg/demo/kmp/$fileName",
+    )
+
+    private fun assertKmpCompileSuccess(jugg: MockJugg, vararg expectedSources: File) {
+        val log = jugg.readLatestProjectLog()
+        assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty(), log)
+        assertTrue(log.contains("-Xmulti-platform"), log)
+        assertTrue(log.contains("-Xcommon-sources="), log)
+        expectedSources.forEach { source ->
+            val relativePath = source.relativeTo(projectInfo.projectRoot).path.replace('\\', '/')
+            assertTrue(
+                log.contains(source.absolutePath) || log.contains(relativePath),
+                "Missing ${source.absolutePath}:\n$log",
+            )
+        }
+        val outputs = jugg.deployFileManager.getStagingFiles().filter {
+            it.type == CompileOutput.Type.Dex && it.relativeFile.path.contains("com/sickworm/jugg/demo/kmp")
+        }
+        val apkPaths = jugg.compileContextManager.compileContext.apkInfos
+            .flatMap { apk -> apk.files.map { it.apkFile.path } }
+            .toSet()
+        assertTrue(outputs.isNotEmpty(), log)
+        assertTrue(outputs.all { output ->
+            output.apkPath in apkPaths || output.targetApkPaths.any(apkPaths::contains)
+        })
+    }
 
     private fun stagingDexPaths(jugg: MockJugg): Set<String> = jugg.deployFileManager.getStagingFiles()
         .filter { it.type == CompileOutput.Type.Dex }
@@ -681,6 +959,21 @@ class KmpComposeFlowReproTest {
         assertFalse(log.contains("generateComposeResClass"), log)
         assertFalse(log.contains("generateResourceAccessors"), log)
         assertFalse(log.contains("prepareComposeResources"), log)
+    }
+
+    private fun withPatchedKotlinFiles(vararg patches: Pair<File, String>, block: () -> Unit) {
+        val backups = patches.associate { (file, _) -> file to file.takeIf(File::exists)?.readBytes() }
+        try {
+            patches.forEach { (file, content) ->
+                file.parentFile?.mkdirs()
+                file.writeText(content)
+            }
+            block()
+        } finally {
+            backups.forEach { (file, content) ->
+                if (content == null) file.delete() else file.writeBytes(content)
+            }
+        }
     }
 
     private fun withPatchedComposeFiles(

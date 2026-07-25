@@ -36,6 +36,7 @@ class KotlinCompilerInvoker {
     private val kotlinAndroidExtensionsPath: String? by lazy { getEmbeddedJarPath("kotlin-android-extensions") }
 
     private var kotlinCompile = K2JVMCompilerIsolate()
+    private val complementaryFilesCache get() = KotlinComplementaryFilesCache(kotlinCompile)
 
     private val projectKotlinCompilerClasspathMap: MutableMap<String, List<File>> = mutableMapOf()
     private lateinit var defaultProjectKotlinCompilerClasspath: List<File>
@@ -110,22 +111,30 @@ class KotlinCompilerInvoker {
         val kotlinExtensions: List<File> = emptyList(),
         val executionMode: ExecutionMode = ExecutionMode.IN_PROCESS,
         val commonSourceFiles: List<File> = emptyList(),
+        val isNeedComplementaryFiles: Boolean = false,
+        val expectActualSourceFiles: List<File> = emptyList(),
     )
 
-    fun compile(
+    fun readComplementaryFiles(
         context: ICompileContext,
         module: ModuleInfo,
-        task: CompileTask,
+        sourceFiles: List<File>,
         logger: Logger,
-        options: Options,
-    ): CompileResult {
-        logger.debug("compile options: $options")
+    ): List<File> {
+        initKotlinCompiler(context, module, logger)
+        return complementaryFilesCache.read(module.buildPathInfo, sourceFiles, logger)
+    }
 
+    private fun initKotlinCompiler(
+        context: ICompileContext,
+        module: ModuleInfo,
+        logger: Logger,
+        forceUseEmbeddedKotlinCompiler: Boolean = false,
+    ): List<File>? {
         if (!::defaultProjectKotlinCompilerClasspath.isInitialized) {
             initProjectKotlinCompilerClasspath(logger, context)
         }
-        // Jugg will check it again in [initIfNeeded] before use it
-        val classpath = if (options.forceUseEmbeddedKotlinCompiler) {
+        val classpath = if (forceUseEmbeddedKotlinCompiler) {
             logger.debug("forceUseEmbeddedKotlinCompiler enabled, bypass project compiler classpath")
             null
         } else {
@@ -138,6 +147,19 @@ class KotlinCompilerInvoker {
                 ?: defaultProjectKotlinCompilerClasspath
         }
         kotlinCompile.initIfNeeded(classpath, logger)
+        return classpath
+    }
+
+    fun compile(
+        context: ICompileContext,
+        module: ModuleInfo,
+        task: CompileTask,
+        logger: Logger,
+        options: Options,
+    ): CompileResult {
+        logger.debug("compile options: $options")
+
+        val classpath = initKotlinCompiler(context, module, logger, options.forceUseEmbeddedKotlinCompiler)
 
         val kotlinPlugins = options.kotlinPlugins
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
@@ -344,6 +366,12 @@ class KotlinCompilerInvoker {
             logger = logger,
             forceCompilerOutputDebug = options.isEnableKapt,
         )
+        val shouldTrackExpectActual = options.isNeedComplementaryFiles &&
+            options.executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler
+        if (options.isNeedComplementaryFiles && !shouldTrackExpectActual) {
+            logger.debug("Skip expect/actual tracking without in-process project Kotlin compiler")
+        }
+        var trackingResult: K2JVMCompilerIsolate.ExpectActualTrackingResult? = null
         val exitCode = try {
             if (options.executionMode == ExecutionMode.ISOLATED_PROCESS) {
                 check(!classpath.isNullOrEmpty()) { "Project Kotlin compiler classpath is required for isolated compilation" }
@@ -355,6 +383,10 @@ class KotlinCompilerInvoker {
                     compilerArgs = command,
                     outputStream = outputParser.printStream,
                 )
+            } else if (shouldTrackExpectActual) {
+                kotlinCompile.execWithExpectActualTracking(outputParser.printStream, command.toTypedArray())
+                    .also { trackingResult = it }
+                    .exitCode
             } else {
                 kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
             }
@@ -478,6 +510,15 @@ class KotlinCompilerInvoker {
             context.printClasspathCheck(module)
             hasRetryCompile = false
             return CompileResult(task, compileResults, emptyList())
+        }
+
+        trackingResult?.let {
+            complementaryFilesCache.update(
+                module.buildPathInfo,
+                options.expectActualSourceFiles,
+                it,
+                logger,
+            )
         }
 
         // copy outputs to task.outputDir

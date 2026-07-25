@@ -23,4 +23,18 @@ class KotlinCompilerInvokerArgsTest {
     fun `does not add multiplatform arguments without common sources`() {
         assertTrue(KotlinCompilerInvoker.buildCommonSourceArgs(emptyList()).isEmpty())
     }
+
+    @Test
+    fun `deduplicates common sources without changing their order`() {
+        val first = File("/tmp/Common.kt")
+        val second = File("/tmp/Shared.kt")
+
+        assertEquals(
+            listOf(
+                "-Xmulti-platform",
+                "-Xcommon-sources=${first.absolutePath},${second.absolutePath}",
+            ),
+            KotlinCompilerInvoker.buildCommonSourceArgs(listOf(first, second, first)),
+        )
+    }
 }

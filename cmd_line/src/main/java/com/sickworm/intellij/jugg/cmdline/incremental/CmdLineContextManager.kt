@@ -135,6 +135,7 @@ class CmdLineContextManager(
                 moduleRootDir = baseModule.moduleRootDir.convertSourceBaseDir(),
                 projectRootDir = baseModule.projectRootDir.convertSourceBaseDir(),
                 sourceDirs = baseModule.sourceDirs.convertSourceBaseDir(),
+                kotlinCommonSourceDirs = baseModule.kotlinCommonSourceDirs.convertSourceBaseDir(),
                 resourceDirs = baseModule.resourceDirs.convertSourceBaseDir(),
                 assetsDirs = baseModule.assetsDirs.convertSourceBaseDir(),
                 manifestFile = baseModule.manifestFile?.convertSourceBaseDir(),

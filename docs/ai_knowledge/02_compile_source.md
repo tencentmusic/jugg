@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-07-25
+> 最后核对：2026-07-26
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -24,8 +24,9 @@
 | `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | DataBinding mapper 生成实现 |
 | `KotlinCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinCompiler.kt` | Kotlin 源码编译入口 |
 | `KotlinCompilerInvoker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinCompilerInvoker.kt` | Kotlin CLI 参数、插件参数、错误解析与重试 |
+| `KotlinComplementaryFilesCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinComplementaryFilesCache.kt` | 按需定位并读取项目 Kotlin Gradle incremental cache 的 complementary files |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 在常规 source 阶段前，以一次 Kotlin invocation 编译 Compose generated expect/actual sources |
-| `K2JVMCompilerIsolate` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/K2JVMCompilerIsolate.kt` | Kotlin 编译器隔离加载与 classpath 检查 |
+| `K2JVMCompilerIsolate` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/K2JVMCompilerIsolate.kt` | Kotlin 编译器隔离加载、classpath 检查、项目版本 ExpectActualTracker 注入与 incremental cache API 适配 |
 | `JavaCompiler` / `JavaCompilerInvoker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/JavaCompiler.kt`, `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/JavaCompilerInvoker.kt` | Java 编译与 javac 参数组装 |
 | `DexCompiler` / `DexFileMaker` / `DexFileMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/` | class 到 dex、file-per-class 输出与 dex 合并 |
 | `DexMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompiler.kt` | minified 变体的 dex 重映射与 `_jugg_fix` 生成 |
@@ -44,6 +45,8 @@
 | Dex 输出 | `DexCompiler` | `DexMinifyCompiler` 或部署数据转换 | 非 minified 直接输出；minified 先输出到 `un_minify` 再重映射 |
 | `targetApkPaths` | `DexCompiler`, `JavaCompilerInvoker`, `DexFileMerger` | 部署分流 | dex merge 会合并输入 dex 的 targetApkPaths 并保留并集 |
 | Compose generated common/platform Kotlin | `ComposeResourceGeneratorBridge` | `KotlinCompilerInvoker` | 所有 generated 文件同批输入；common 文件通过 typed `Options.commonSourceFiles` 显式转为 `-Xmulti-platform -Xcommon-sources=...` |
+| `kotlinCommonSourceDirs` | `GradleProjectInfoReader` | 普通 KMP Kotlin 增量编译 | 从选中 Android Kotlin task 的 `commonSourceSet` 结构或 FileTree relative path 读取；同时加入 `sourceDirs` 参与统一源码识别，自身保留 common 身份，不展开为全量编译 |
+| 普通 KMP complementary closure | Kotlin Gradle incremental cache | `KotlinCompiler` | 仅源码出现 expect/actual token 时查询；requested 与 complementary files 按 canonical path 去重后在 Android owner invocation 中联合编译；成功后用 tracker 原地刷新双向 edge |
 
 ---
 
@@ -67,6 +70,10 @@ SourceCompiler.doModuleCompile()
 
 Compose resource generated source 是这条常规 source 链之前的独立前置步骤：`ComposeResourceCompiler` 将 Res、各 source set accessor、expect collector 和 Android actual collector 放进同一次 `KotlinCompilerInvoker` 调用，并显式传入 common source 文件列表。编译出的 class 随后才进入 `SourceCompiler` 的 class/dex 路径；不会分别编译 expect 与 actual。
 
+IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 Compose resource 编译都先解析带 Gradle 配置的 Android owner；classpath、output、Compose metadata 和 APK ownership 不取虚拟 module 的扁平快照。
+
+普通 KMP 业务源码走常规 Kotlin 阶段。`KotlinCompiler` 发现 expect/actual token 后切换到同根 Android owner，`KotlinCompilerInvoker` 用项目 Kotlin compiler 打开 Gradle cache，`getComplementaryFilesRecursive()` 返回本轮补充输入。in-process 项目 compiler invocation 会设置 `incrementalCompilation=true` 并注册项目版本 `ExpectActualTrackerImpl`；最终成功后用 requested+complementary closure 调用 `updateComplementaryFiles()`。cache 缺失、损坏、候选不唯一、无 edge 或写回失败时只记 debug；普通 Kotlin 文件不触发查询或 tracker。
+
 ---
 
 ## 5. 隐形约束 / 设计思路 / 已知边界
@@ -81,9 +88,12 @@ Compose resource generated source 是这条常规 source 链之前的独立前�
 - `DexCompiler` 输出仍保留旧 `apkPath` 锚点，同时写入 module 的所有 `targetApkPaths`；部署层用 target 集合做多 APK 分流。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。
 - `commonSourceFiles` 是 Kotlin invoker 的类型化参数，不靠调用方拼自由字符串；为空时不添加 multiplatform 参数，Compose generated expect/actual 场景则同时添加 `-Xmulti-platform` 和 `-Xcommon-sources`。
+- `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
+- 当前普通业务源码闭包已验证 Kotlin 2.1 commonMain/androidMain 和 Kotlin 2.3 expect-only/actual-only。中间 source set 仍缺少 authoritative fragment graph；Kotlin 1.9 仍需隔离 baseline 中 dirty closure 的旧 actual output，详见 `docs/task/2026-07-26-kmp-business-expect-actual-follow-up-todo.md`。
+- tracker 只在 in-process 项目 Kotlin compiler 中启用。失败 invocation、retry 的中间 attempt、KSP-only phase 和跨进程 invocation 不写 cache；cache 写回失败不改变已成功的 Kotlin 产物。
 - Compose common/platform 分类使用同 owner module root 下的 IDE source-set module 身份；`androidMain` 始终是 platform，其他 `Unknown` source-set module 可表示非 `commonMain` 的 common source set，不从 custom resource root 路径反推。
 - generated Kotlin 编译失败时，`KotlinCompilerInvoker` 的原始行号和 diagnostic 文本会聚合回原 Compose resource 输入，不能替换成通用失败文案。
-- Compose resource 编译只接受 Kotlin compiler `2.1.x`，与当前支持的 Compose `1.7.3` generator 配对；不声明兼容其他 Kotlin/Compose 版本。
+- Compose resource 编译按 generator task/API 结构识别能力，不使用 Kotlin/Compose 精确版本白名单；Kotlin 1.9、2.1、2.3 profile 均有定向回归。
 
 ---
 

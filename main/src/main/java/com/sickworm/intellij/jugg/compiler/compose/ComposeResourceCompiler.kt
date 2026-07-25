@@ -31,29 +31,41 @@ class ComposeResourceCompiler(
     private val kotlinCompiler = KotlinCompilerInvoker()
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        val info = module.composeResourceInfo
-            ?: return task.allFailed("Compose resource configuration is missing for ${module.name}")
+        val owner = resolveInvocationOwner(module)
+        val info = owner.composeResourceInfo
+            ?: return task.allFailed("Compose resource configuration is missing for ${owner.name}")
         if (info.supportStatus == ComposeResourceSupportStatus.Unsupported) {
             val reason = info.unsupportedReason ?: "Compose resource incremental compilation is unsupported."
             logger.warn(reason)
             return task.allFailed(reason)
         }
-        val workDir = File(context.tempCompileDir, moduleWorkDirName(module))
+        val workDir = File(context.tempCompileDir, moduleWorkDirName(owner))
         workDir.clearDir()
         return try {
             val prepared = prepareResources(info, workDir)
             if (task.isShouldCancel) return cancel(task, workDir)
-            val generated = generateSources(module, info, prepared, workDir)
+            val generated = generateSources(owner, info, prepared, workDir)
             if (task.isShouldCancel) return cancel(task, workDir)
-            val classResult = compileGenerated(task, module, generated, workDir)
+            val classResult = compileGenerated(task, owner, generated, workDir)
             if (task.isShouldCancel) return cancel(task, workDir)
             if (!classResult.isAllSuccess) return mapGeneratedCompileFailure(task, classResult)
-            successResult(task, module, prepared, classResult.outputs)
+            successResult(task, owner, prepared, classResult.outputs)
         } catch (exception: Exception) {
             logger.warn("Compose resource compilation failed: ${exception.message}")
             logger.debug("Compose resource compilation detail", exception)
             task.allFailed(exception.message ?: "Compose resource compilation failed")
         }
+    }
+
+    private fun resolveInvocationOwner(module: ModuleInfo): ModuleInfo {
+        if (module.composeResourceInfo != null) return module
+        val owner = context.modules.values.singleOrNull {
+            it.moduleRootDir == module.moduleRootDir &&
+                it.moduleType.isAndroidModule &&
+                it.composeResourceInfo != null
+        } ?: return module
+        logger.debug("Use Android owner ${owner.name} for Compose resource module ${module.name}")
+        return owner
     }
 
     private fun prepareResources(info: ComposeResourceInfo, workDir: File): PreparedResources {

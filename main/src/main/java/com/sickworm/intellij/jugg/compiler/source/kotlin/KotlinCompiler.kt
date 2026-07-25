@@ -27,17 +27,79 @@ class KotlinCompiler(
     private val invoker = KotlinCompilerInvoker()
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        val options = analyzeSource(task.files.map { it.file }, module)
+        val owner = resolveInvocationOwner(module)
+        val analyzedOptions = analyzeSource(task.files.map { it.file }, owner)
+        val (compileTask, options) = prepareKmpCompilation(task, owner, analyzedOptions)
         logger.debug("analyzeSource result: $options")
 
         // ksp compile
-        return if (options.isEnableKsp && !options.isKspWithCompilation) {
+        val result = if (options.isEnableKsp && !options.isKspWithCompilation) {
             // won't into here for now
-            kspAndCompile(task, module, options)
+            kspAndCompile(compileTask, owner, options)
         } else {
             // normal compile or compile with ksp in one step
-            compile(task, module, options)
+            compile(compileTask, owner, options)
         }
+        return if (compileTask === task) result else result.copy(task = task)
+    }
+
+    private fun resolveInvocationOwner(module: ModuleInfo): ModuleInfo {
+        if (module.moduleType.isAndroidModule) return module
+        val owners = context.modules.values.filter {
+            it.moduleRootDir == module.moduleRootDir &&
+                it.moduleType.isAndroidModule
+        }
+        val owner = owners.singleOrNull() ?: return module
+        logger.debug("Use Android owner ${owner.name} for Kotlin source module ${module.name}")
+        return owner
+    }
+
+    private fun prepareKmpCompilation(
+        task: CompileTask,
+        module: ModuleInfo,
+        options: KotlinCompilerInvoker.Options,
+    ): Pair<CompileTask, KotlinCompilerInvoker.Options> {
+        if (!options.isNeedComplementaryFiles) return task to options
+
+        val complementaryFiles = invoker.readComplementaryFiles(
+            context,
+            module,
+            task.files.map { it.file },
+            logger,
+        )
+        val filesByPath = linkedMapOf<String, CompileFile>()
+        task.files.forEach { filesByPath[it.file.canonicalPath] = it }
+        complementaryFiles.forEach { file ->
+            filesByPath.putIfAbsent(
+                file.canonicalPath,
+                CompileFile(CompileFile.Type.Kotlin, file, findSourceRoot(file, module), module),
+            )
+        }
+        val finalFiles = filesByPath.values.toList()
+        val commonFiles = finalFiles.map { it.file }.filter { file ->
+            module.kotlinCommonSourceDirs.any { root -> file.isUnder(root) }
+        }
+        if (module.kotlinCommonSourceDirs.isEmpty()) {
+            logger.debug("Kotlin common source directories are missing for ${module.name}")
+        }
+        finalFiles.filter { it.file !in commonFiles }.forEach {
+            logger.debug("KMP source is treated as platform source: ${it.file}")
+        }
+        return CompileTask(finalFiles, task.outputDir, task) to options.copy(
+            commonSourceFiles = commonFiles,
+            expectActualSourceFiles = finalFiles.map { it.file },
+        )
+    }
+
+    private fun findSourceRoot(file: File, module: ModuleInfo): File {
+        return (module.kotlinCommonSourceDirs + module.sourceDirs)
+            .filter { file.isUnder(it) }
+            .maxByOrNull { it.absolutePath.length }
+            ?: module.moduleRootDir
+    }
+
+    private fun File.isUnder(root: File): Boolean {
+        return absoluteFile.normalize().toPath().startsWith(root.absoluteFile.normalize().toPath())
     }
 
     private fun kspAndCompile(task: CompileTask, module: ModuleInfo, options: KotlinCompilerInvoker.Options): CompileResult {
@@ -139,10 +201,16 @@ class KotlinCompiler(
         var isNeedKotlinAndroidExtensions = false
         var isNeedCompileCompose = false
         var isInKspWhiteList = false
+        var isNeedComplementaryFiles = false
 
         // Check features by checking import. It's not 100% accurate, but whatever.
         files.forEach root@{ file ->
-            file.readLines().forEach {
+            val lines = file.readLines()
+            if (!isNeedComplementaryFiles && lines.any { expectActualToken.containsMatchIn(it) }) {
+                logger.debug("find expect/actual token in $file")
+                isNeedComplementaryFiles = true
+            }
+            lines.forEach {
                 val line = it.trim()
                 if (!line.startsWith("import")) {
                     return@forEach
@@ -214,7 +282,12 @@ class KotlinCompiler(
             kotlinPlugins = kotlinPlugins,
             kotlinExtensions = kotlinExtensions,
             kspDependencies = kspDependencies,
+            isNeedComplementaryFiles = isNeedComplementaryFiles,
         )
+    }
+
+    companion object {
+        private val expectActualToken = Regex("\\b(?:expect|actual)\\b")
     }
 
 }

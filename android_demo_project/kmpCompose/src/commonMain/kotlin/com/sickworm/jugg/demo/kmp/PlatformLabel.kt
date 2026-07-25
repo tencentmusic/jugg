@@ -6,4 +6,4 @@ expect object PlatformLabel {
 
 fun platformLabel(): String = PlatformLabel.value()
 
-fun platformMarker(): String = "baseline"
+fun platformMarker(): String = "${baselineCommonPrefix()}:baseline"

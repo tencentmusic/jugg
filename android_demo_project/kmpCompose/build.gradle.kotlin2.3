@@ -15,6 +15,10 @@ kotlin {
     }
 
     sourceSets {
+        def sharedMain = create('sharedMain')
+        sharedMain.dependsOn(commonMain)
+        androidMain.dependsOn(sharedMain)
+
         commonMain.dependencies {
             implementation compose.runtime
             implementation compose.components.resources

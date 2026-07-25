@@ -50,6 +50,8 @@ data class ModuleInfo(
     val moduleRootDir: File,
     val projectRootDir: File,
     val sourceDirs: List<File>,
+    /** Kotlin source roots treated as common sources by the selected Android compilation. */
+    val kotlinCommonSourceDirs: List<File> = emptyList(),
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,
     val manifestFile: File?,

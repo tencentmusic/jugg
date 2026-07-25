@@ -52,6 +52,8 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         buildVariant = buildVariant,
                         moduleRootDir = moduleRootDir,
                         projectRootDir = projectRootDir,
+                        kotlinCommonSourceDirs = (module["kotlinCommonSourceDirs"] as? List<String>)?.map(::File)
+                            ?: emptyList(),
                         buildPathInfo = ModuleBuildPathInfo(
                             projectRootDir,
                             moduleRootDir,

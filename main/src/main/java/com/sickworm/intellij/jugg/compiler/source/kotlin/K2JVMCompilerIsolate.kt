@@ -93,19 +93,154 @@ class K2JVMCompilerIsolate {
             throw e.cause ?: e
         }
 
-        val exitCodeClass = classLoader.loadClass("org.jetbrains.kotlin.cli.common.ExitCode")
-        val exitCodeMethod = exitCodeClass.getDeclaredMethod("getCode")
-        val exitCodeInt = exitCodeMethod.invoke(exitCodeIsolate)
+        return toExitCode(exitCodeIsolate)
+    }
 
-        val exitCode = when(exitCodeInt) {
+    /** Result of an in-process compile with the project compiler's expect/actual tracker. */
+    internal class ExpectActualTrackingResult(
+        val exitCode: ExitCode,
+        val expectToActual: Map<File, Set<File>>,
+        internal val tracker: Any,
+    )
+
+    /** Compiles with incremental expect/actual tracking enabled in the active project compiler. */
+    @Synchronized
+    internal fun execWithExpectActualTracking(printStream: PrintStream, args: Array<String>): ExpectActualTrackingResult {
+        val compilerClass = classLoader.loadClass("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
+        val compiler = compilerClass.declaredConstructors[0].newInstance()
+        val compilerArguments = compilerClass.getMethod("createArguments").invoke(compiler)
+        compilerClass.methods.first { it.name == "parseArguments" && it.parameterCount == 2 }
+            .invoke(compiler, args, compilerArguments)
+        compilerArguments.javaClass.methods.first {
+            it.name == "setIncrementalCompilation" && it.parameterCount == 1
+        }.invoke(compilerArguments, true)
+
+        val tracker = classLoader.loadClass("org.jetbrains.kotlin.incremental.ExpectActualTrackerImpl")
+            .getConstructor().newInstance()
+        val services = createServicesWithTracker(tracker)
+        val collector = createMessageCollector(printStream)
+        val exitCodeIsolate = try {
+            compilerClass.methods.first {
+                it.name == "exec" && it.parameterCount == 3 &&
+                    it.parameterTypes[0].name.endsWith("MessageCollector")
+            }.invoke(compiler, collector, services, compilerArguments)
+        } catch (e: java.lang.reflect.InvocationTargetException) {
+            throw e.cause ?: e
+        }
+        @Suppress("UNCHECKED_CAST")
+        val relations = tracker.javaClass.getMethod("getExpectToActualMap").invoke(tracker) as Map<File, Set<File>>
+        return ExpectActualTrackingResult(
+            toExitCode(exitCodeIsolate),
+            relations.mapKeys { it.key.canonicalFile }
+                .mapValues { (_, files) -> files.map(File::getCanonicalFile).toSet() },
+            tracker,
+        )
+    }
+
+    private fun createServicesWithTracker(tracker: Any): Any {
+        val builder = classLoader.loadClass("org.jetbrains.kotlin.config.Services\$Builder")
+            .getConstructor().newInstance()
+        val trackerInterface = classLoader.loadClass(
+            "org.jetbrains.kotlin.incremental.components.ExpectActualTracker"
+        )
+        builder.javaClass.getMethod("register", Class::class.java, Any::class.java)
+            .invoke(builder, trackerInterface, tracker)
+        return builder.javaClass.getMethod("build").invoke(builder)
+    }
+
+    private fun createMessageCollector(printStream: PrintStream): Any {
+        val rendererClass = classLoader.loadClass("org.jetbrains.kotlin.cli.common.messages.MessageRenderer")
+        val renderer = rendererClass.getField("PLAIN_FULL_PATHS").get(null)
+        val collectorClass = classLoader.loadClass(
+            "org.jetbrains.kotlin.cli.common.messages.PrintingMessageCollector"
+        )
+        return collectorClass.getConstructor(PrintStream::class.java, rendererClass, Boolean::class.javaPrimitiveType)
+            .newInstance(printStream, renderer, false)
+    }
+
+    private fun toExitCode(exitCodeIsolate: Any): ExitCode {
+        val exitCodeInt = exitCodeIsolate.javaClass.getDeclaredMethod("getCode").invoke(exitCodeIsolate)
+        return when(exitCodeInt) {
             0 -> ExitCode.OK
             1 -> ExitCode.COMPILATION_ERROR
             2 -> ExitCode.INTERNAL_ERROR
             3 -> ExitCode.SCRIPT_EXECUTION_ERROR
             else -> throw IllegalArgumentException("unexpected exit code $exitCodeInt")
         }
+    }
 
-        return exitCode
+    /** Reads Kotlin incremental cache relations using the active project compiler's internal API. */
+    @Synchronized
+    fun readComplementaryFiles(
+        cacheRoot: File,
+        projectRoot: File,
+        outputDir: File,
+        sourceFiles: List<File>,
+    ): List<File> {
+        val cache = openIncrementalCache(cacheRoot, projectRoot, outputDir)
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            cache.javaClass.getMethod("getComplementaryFilesRecursive", Collection::class.java)
+                .invoke(cache, sourceFiles) as Collection<File>
+        } finally {
+            cache.javaClass.getMethod("close").invoke(cache)
+        }.toList()
+    }
+
+    /** Updates complementary relations using a tracker produced by this isolated compiler. */
+    @Synchronized
+    internal fun updateComplementaryFiles(
+        cacheRoot: File,
+        projectRoot: File,
+        outputDir: File,
+        dirtyFiles: List<File>,
+        tracking: ExpectActualTrackingResult,
+    ) {
+        val cache = openIncrementalCache(cacheRoot, projectRoot, outputDir)
+        try {
+            cache.javaClass.methods.first {
+                it.name == "updateComplementaryFiles" && it.parameterCount == 2
+            }.invoke(cache, dirtyFiles, tracking.tracker)
+            cache.javaClass.methods.firstOrNull { it.name == "flush" && it.parameterCount == 0 }
+                ?.invoke(cache)
+        } finally {
+            cache.javaClass.getMethod("close").invoke(cache)
+        }
+    }
+
+    private fun openIncrementalCache(cacheRoot: File, projectRoot: File, outputDir: File): Any {
+        val converterClass = classLoader.loadClass(
+            "org.jetbrains.kotlin.incremental.storage.RelocatableFileToPathConverter"
+        )
+        val converter = converterClass.getConstructor(File::class.java).newInstance(projectRoot)
+        val transaction = classLoader.loadClass("org.jetbrains.kotlin.incremental.NonRecoverableCompilationTransaction")
+            .getConstructor().newInstance()
+        val reporter = classLoader.loadClass("org.jetbrains.kotlin.build.report.DoNothingICReporter")
+            .getField("INSTANCE").get(null)
+        val contextClass = classLoader.loadClass("org.jetbrains.kotlin.incremental.IncrementalCompilationContext")
+        val context = contextClass.constructors.single { it.parameterCount == 6 }.newInstance(
+            converter, false, transaction, reporter, false, false,
+        )
+        val cacheClass = classLoader.loadClass("org.jetbrains.kotlin.incremental.IncrementalJvmCache")
+        return createIncrementalCache(cacheClass, contextClass, context, cacheRoot, outputDir)
+    }
+
+    private fun createIncrementalCache(
+        cacheClass: Class<*>,
+        contextClass: Class<*>,
+        context: Any,
+        cacheRoot: File,
+        outputDir: File,
+    ): Any {
+        cacheClass.constructors.firstOrNull { it.parameterCount == 3 }?.let {
+            return it.newInstance(cacheRoot, context, outputDir)
+        }
+        val subtypeTrackerClass = classLoader.loadClass("org.jetbrains.kotlin.incremental.components.SubtypeTracker")
+        val subtypeTracker = classLoader.loadClass(
+            "org.jetbrains.kotlin.incremental.components.SubtypeTracker\$DoNothing"
+        ).getField("INSTANCE").get(null)
+        return cacheClass.getConstructor(File::class.java, contextClass, File::class.java, subtypeTrackerClass)
+            .newInstance(cacheRoot, context, outputDir, subtypeTracker)
     }
 
     companion object {

@@ -45,6 +45,30 @@ class ProjectInfoSerializerInGradleTest {
         assertTrue(mockJugg.pathManager.gradleProjectInfoFile.length() > 0)
     }
 
+    @Test
+    fun `collects Kotlin common source directories from Android compilation`() {
+        val projectInfo = ProjectInfoSerializer(gradleProjectInfo, logger).load()
+            ?: error("Gradle project info was not generated")
+        val module = projectInfo.modules["kmpCompose"]
+            ?: error("kmpCompose module was not found")
+        val getter = module.javaClass.methods.singleOrNull {
+            it.name == "getKotlinCommonSourceDirs"
+        } ?: error("ModuleInfo.kotlinCommonSourceDirs is missing")
+        @Suppress("UNCHECKED_CAST")
+        val commonSourceDirs = getter.invoke(module) as List<File>
+        val relativePaths = commonSourceDirs.map {
+            it.relativeTo(module.moduleRootDir).path.replace('\\', '/')
+        }.toSet()
+        val sourceRelativePaths = module.sourceDirs.map {
+            it.relativeTo(module.moduleRootDir).path.replace('\\', '/')
+        }.toSet()
+
+        assertTrue("src/commonMain/kotlin" in relativePaths, relativePaths.toString())
+        assertTrue("src/sharedMain/kotlin" in relativePaths, relativePaths.toString())
+        assertTrue("src/androidMain/kotlin" !in relativePaths, relativePaths.toString())
+        assertTrue(sourceRelativePaths.containsAll(relativePaths), sourceRelativePaths.toString())
+    }
+
     private fun assertJsonObjectEquals(keyName: String, except: JSONObject, actual: JSONObject) {
         if (except == actual) {
             return

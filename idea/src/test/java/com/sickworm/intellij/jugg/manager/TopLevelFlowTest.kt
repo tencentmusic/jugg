@@ -156,16 +156,31 @@ class KmpComposeDeployFlowTest {
             val gradleInfo = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).load()
                 ?: error("KMP Compose Gradle project info was not generated")
             val owner = gradleInfo.modules.getValue("kmpCompose")
+            val ideOwner = owner.copy(
+                moduleType = ModuleInfo.Type.Unknown,
+                libraryDependencies = emptyList(),
+                runtimeLibraryDependencies = emptyList(),
+            )
             val commonMain = ModuleInfo.virtualModule.copy(
                 name = "kmpCompose.commonMain",
                 moduleType = ModuleInfo.Type.Unknown,
                 moduleRootDir = owner.moduleRootDir,
                 projectRootDir = owner.projectRootDir,
-                sourceDirs = listOf(File(owner.moduleRootDir, "src/commonMain/kotlin")),
+                sourceDirs = listOf(
+                    File(owner.moduleRootDir, "src/commonMain/kotlin"),
+                    File(owner.moduleRootDir, "src/sharedMain/kotlin"),
+                ),
                 buildVariant = owner.buildVariant,
                 buildPathInfo = owner.buildPathInfo,
             )
-            ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(JuggProjectInfo(mapOf(commonMain.name to commonMain)))
+            ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(
+                JuggProjectInfo(
+                    mapOf(
+                        ideOwner.name to ideOwner,
+                        commonMain.name to commonMain,
+                    )
+                )
+            )
         }
     }
 
@@ -199,11 +214,57 @@ class KmpComposeDeployFlowTest {
         }
     }
 
-    private fun readRuntimeLog(jugg: MockJugg, logStart: Long): String {
+    @Test
+    fun deployBusinessExpectActualChangesAtRuntime() {
+        val jugg = MockJugg(compileCommand = COMPILE_COMMAND, isIdeSynced = true)
+        jugg.resetAllState()
+        deployAllowingUnknownEmulatorArch(jugg)
+        val root = projectInfo.projectRoot
+        val common = File(root, "kmpCompose/src/commonMain/kotlin/com/sickworm/jugg/demo/kmp/PlatformLabel.kt")
+        val actual = File(root, "kmpCompose/src/androidMain/kotlin/com/sickworm/jugg/demo/kmp/PlatformLabel.android.kt")
+        val activity = File(root, "app/src/main/java/com/example/myapplication/MainActivity.kt")
+        val originalActual = actual.readText()
+        withPatchedFiles(
+            common to common.readText().replace(":baseline", ":runtime common"),
+            actual to originalActual,
+            activity to businessRuntimeProbeSource(activity.readText()),
+        ) {
+            jugg.notifyFileChanges(listOf(common, activity))
+            jugg.compileChangedFiles()
+
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty(), jugg.readLatestProjectLog())
+            assertBusinessTargetApkOwnership(jugg)
+            assertNoIncrementalGradle(jugg.readLatestProjectLog())
+            var logStart = System.currentTimeMillis() / 1000
+            jugg.deployCompiledApp()
+            var logcat = readRuntimeLog(jugg, logStart, "[JUGG_KMP_BUSINESS]")
+            assertTrue(
+                logcat.contains("[JUGG_KMP_BUSINESS] common:runtime common|Android"),
+                "Changed common source was not consumed at runtime:\n$logcat",
+            )
+
+            actual.writeText(originalActual.replace("\"Android\"", "\"Runtime Android\""))
+            jugg.notifyFileChanges(listOf(actual))
+            jugg.compileChangedFiles()
+
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty(), jugg.readLatestProjectLog())
+            assertBusinessTargetApkOwnership(jugg)
+            assertNoIncrementalGradle(jugg.readLatestProjectLog())
+            logStart = System.currentTimeMillis() / 1000
+            jugg.deployCompiledApp()
+            logcat = readRuntimeLog(jugg, logStart, "[JUGG_KMP_BUSINESS]")
+            assertTrue(
+                logcat.contains("[JUGG_KMP_BUSINESS] common:runtime common|Runtime Android"),
+                "Changed actual source was not consumed at runtime:\n$logcat",
+            )
+        }
+    }
+
+    private fun readRuntimeLog(jugg: MockJugg, logStart: Long, marker: String = "[JUGG_KMP]"): String {
         var logcat = ""
         repeat(40) {
             logcat = jugg.readLogcatSince(logStart, LOG_TAG)
-            if (logcat.contains("[JUGG_KMP]")) return logcat
+            if (logcat.contains(marker)) return logcat
             Thread.sleep(250)
         }
         return logcat
@@ -229,10 +290,31 @@ class KmpComposeDeployFlowTest {
         }""",
     )
 
+    private fun businessRuntimeProbeSource(source: String): String = source.replace(
+        "Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)",
+        """Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)
+        Log.i(
+            "$LOG_TAG",
+            "[JUGG_KMP_BUSINESS] ${'$'}{com.sickworm.jugg.demo.kmp.platformMarker()}|" +
+                com.sickworm.jugg.demo.kmp.platformLabel(),
+        )""",
+    )
+
     private fun assertTargetApkOwnership(jugg: MockJugg) {
         val outputs = jugg.deployFileManager.getStagingFiles().filter {
             it.type == CompileOutput.Type.Asset ||
                 (it.type == CompileOutput.Type.Dex && it.relativeFile.path.contains("generated/resources"))
+        }
+        val apks = jugg.compileContextManager.compileContext.apkInfos
+            .flatMap { apk -> apk.files.map { it.apkFile.path } }
+            .toSet()
+        assertTrue(outputs.isNotEmpty())
+        assertTrue(outputs.all { output -> output.apkPath in apks || output.targetApkPaths.any(apks::contains) })
+    }
+
+    private fun assertBusinessTargetApkOwnership(jugg: MockJugg) {
+        val outputs = jugg.deployFileManager.getStagingFiles().filter {
+            it.type == CompileOutput.Type.Dex && it.relativeFile.path.contains("com/sickworm/jugg/demo/kmp")
         }
         val apks = jugg.compileContextManager.compileContext.apkInfos
             .flatMap { apk -> apk.files.map { it.apkFile.path } }

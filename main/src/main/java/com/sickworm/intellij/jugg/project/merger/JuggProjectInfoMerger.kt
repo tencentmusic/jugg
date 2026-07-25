@@ -227,12 +227,22 @@ class JuggProjectInfoMerger(
                             "use ${gradleModuleInfo.buildVariant}"
                 )
             }
+            val mergedSourceDirs = mergeWithBase(
+                name,
+                "sourceDirs",
+                moduleInfo.sourceDirs,
+                gradleModuleInfo.sourceDirs,
+                mergeResult,
+            ) { it.absolutePath }
+            val sourceDirs = (mergedSourceDirs + gradleModuleInfo.kotlinCommonSourceDirs)
+                .distinctBy { it.absoluteFile.normalize().path }
             val mergedModuleInfo = ModuleInfo(
                 name = moduleInfo.name,
                 moduleType = gradleModuleInfo.moduleType,
                 moduleRootDir = moduleInfo.moduleRootDir,
                 projectRootDir = moduleInfo.projectRootDir,
-                sourceDirs = mergeWithBase(name, "sourceDirs", moduleInfo.sourceDirs, gradleModuleInfo.sourceDirs, mergeResult) { it.absolutePath },
+                sourceDirs = sourceDirs,
+                kotlinCommonSourceDirs = gradleModuleInfo.kotlinCommonSourceDirs,
                 resourceDirs = mergeWithBase(name, "resourceDirs", moduleInfo.resourceDirs, gradleModuleInfo.resourceDirs, mergeResult) { it.absolutePath },
                 assetsDirs = mergeWithBase(name, "assetsDirs", moduleInfo.assetsDirs, gradleModuleInfo.assetsDirs, mergeResult) { it.absolutePath },
                 manifestFile = moduleInfo.manifestFile, // gradleModuleInfo.manifestFile may not exist, it will always return debug/AndroidManifestFest.xml

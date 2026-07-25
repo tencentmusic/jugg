@@ -93,6 +93,7 @@ class JuggProjectInfoSerialize(
             }
             val modules: Map<String, ModuleInfo> = projectInfoSerialize.modules.associate { serialize ->
                 val moduleInfo = serialize.moduleInfoExceptLibraries.copy(
+                    kotlinCommonSourceDirs = serialize.moduleInfoExceptLibraries.kotlinCommonSourceDirs ?: emptyList(),
                     libraryDependencies = serialize.libraryDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     runtimeLibraryDependencies = serialize.runtimeLibraryDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     annotationProcessorDependencies = serialize.annotationProcessorDependencies?.map { dependencyMap[it]!! } ?: emptyList(),

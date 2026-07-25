@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.project.data
 
+import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -93,5 +95,45 @@ class JuggProjectInfoSerializerAndroidTestTest {
         )
 
         assertEquals(composeInfo(), restored.modules["shared"]?.composeResourceInfo)
+    }
+
+    @Test
+    fun `serialize and deserialize preserves Kotlin common source directories`() {
+        val commonSourceDirs = listOf(
+            File("/project/shared/src/commonMain/kotlin"),
+            File("/project/shared/src/sharedMain/kotlin"),
+        )
+        val original = JuggProjectInfo(
+            modules = mapOf("shared" to ModuleInfo.virtualModule.copy(
+                name = "shared",
+                kotlinCommonSourceDirs = commonSourceDirs,
+            ))
+        )
+
+        val restored = JuggProjectInfoSerialize.deserialize(
+            JuggProjectInfoSerialize.serialize(original),
+            isSkipVersionCheck = true,
+        )
+
+        assertEquals(commonSourceDirs, restored.modules["shared"]?.kotlinCommonSourceDirs)
+    }
+
+    @Test
+    fun `deserialize old project info without Kotlin common source directories defaults to empty list`() {
+        val original = JuggProjectInfo(
+            modules = mapOf("shared" to ModuleInfo.virtualModule.copy(name = "shared"))
+        )
+        val json = JsonParser.parseString(
+            ProjectInfoSerializer.gson.toJson(JuggProjectInfoSerialize.serialize(original))
+        ).asJsonObject
+        json.getAsJsonArray("modules")[0]
+            .asJsonObject
+            .getAsJsonObject("moduleInfoExceptLibraries")
+            .remove("kotlinCommonSourceDirs")
+        val serialized = ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java)
+
+        val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
+
+        assertEquals(emptyList<File>(), restored.modules["shared"]?.kotlinCommonSourceDirs)
     }
 }

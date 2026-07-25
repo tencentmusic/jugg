@@ -324,6 +324,42 @@ class JuggProjectInfoMergerAndroidTestTest {
         }
     }
 
+    @Test
+    fun `doMerge preserves Gradle Kotlin common roots instead of IDE source directories`() {
+        val commonRoots = listOf(
+            File(appDir, "src/commonMain/kotlin"),
+            File(appDir, "src/sharedMain/kotlin"),
+        )
+        val ideModule = applicationModule(projectDir, appDir, ModuleInfo.Type.Unknown).copy(
+            sourceDirs = listOf(
+                File(appDir, "src/commonMain/kotlin"),
+                File(appDir, "src/androidMain/kotlin"),
+            ),
+        )
+        val gradleModule = applicationModule(projectDir, appDir, ModuleInfo.Type.Application).copy(
+            sourceDirs = listOf(File(appDir, "src/androidMain/kotlin")),
+            kotlinCommonSourceDirs = commonRoots,
+        )
+        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app" to ideModule)))
+        val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app" to gradleModule)))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+
+            val result = merger.afterLocalFetch(
+                listOf(ProjectInfoSerializer(gradleFile, logger)),
+                BuildTarget.APP,
+            )
+
+            val merged = result.mergedInfo?.modules?.get("app")
+            assertEquals(commonRoots, merged?.kotlinCommonSourceDirs)
+            assertEquals(true, merged?.sourceDirs?.containsAll(commonRoots))
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
     private fun applicationModule(
         projectDir: File,
         moduleDir: File,

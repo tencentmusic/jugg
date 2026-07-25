@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-07-25
+> 最后核对：2026-07-26
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -53,12 +53,16 @@
 |---|---|
 | `name` | 标准模块名，Gradle path 会转为点分格式 |
 | `moduleRootDir` / `projectRootDir` | 模块根与 IDE 项目根；相对路径用于跨机器/远端同步 |
+| `sourceDirs` | 模块全部有效源码根的扁平集合；KMP common roots 也必须包含在内 |
 | `buildVariant` / `buildPathInfo` | 当前变体及 AGP 输出路径推断 |
 | `moduleDependencies` / `libraryDependencies` / `runtimeLibraryDependencies` | 编译、运行和模块依赖 |
 | `applicationId` / `namespace` | APK 归属、manifest、androidTest target 解析基础 |
 | `instrumentationTargetPackage` | 非空表示 synthetic androidTest module |
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
+| `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
 | `composeResourceInfo` | 已检测的 Compose resource task metadata；同时保存 supported/unsupported 状态与原因，由增量链按 task 和 generator API 结构消费，不按 Kotlin/Compose 精确版本过滤 |
+
+`kotlinCommonSourceDirs` 从 `compile<Variant>Kotlin` / `compile<Variant>KotlinAndroid` task 的 `commonSourceSet` 结构读取，保留 direct common root、中间 `sharedMain` root 和 task 配置的 generated common roots。读取不依据 source-set 名称或 `src/<name>` 路径猜测。Gradle reader 会把这些 roots 同时加入 `sourceDirs`，merge 出口再次保证 `kotlinCommonSourceDirs` 是 `sourceDirs` 的子集并按规范化路径去重；独立字段继续保留 common/platform 身份，IDE 的扁平 `sourceDirs` 不覆盖该身份。
 
 `ComposeResourceInfo.resourceDirectories` 不是从固定 `src/<sourceSet>/composeResources` 路径猜测。`GradleProjectInfoReader` 读取 Compose 任务的 `fileSuffix` 与 `originalResourcesDir`，因此默认目录和 Gradle DSL 配置的自定义目录即使尚不存在也会进入 project info。它还保存 support status/reason、generator classpath、package name、accessor visibility 和 packaging/asset 相对路径，序列化后供文件变更识别与增量编译使用。
 
@@ -81,6 +85,7 @@ IDE / Gradle compile 触发 project info 更新
      读取环境、上次 project info、当前 Gradle project info
   -> GradleProjectInfoReader.getProjectInfo()
      遍历 subprojects，读取 Android / Java module、variant、source set、classpath、依赖
+     从选中 Android Kotlin task 的 commonSourceSet 读取 Kotlin common roots
      校验 Compose resource 任务并读取 generator/resource directory metadata
   -> 写入 gradle_project_infos.json
      include build 额外写入 gradle_include_builds.txt
