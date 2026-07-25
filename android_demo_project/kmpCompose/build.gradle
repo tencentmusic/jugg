@@ -39,4 +39,8 @@ android {
 compose.resources {
     publicResClass = true
     packageOfResClass = 'com.sickworm.jugg.demo.kmp.generated.resources'
+    customDirectory(
+        'androidMain',
+        providers.provider { layout.projectDirectory.dir('src/androidMain/customComposeResources') }
+    )
 }

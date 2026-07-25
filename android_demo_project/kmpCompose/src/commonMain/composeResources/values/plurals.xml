@@ -1,0 +1,6 @@
+<resources>
+    <plurals name="baseline_turns">
+        <item quantity="one">%1$d turn</item>
+        <item quantity="other">%1$d turns</item>
+    </plurals>
+</resources>

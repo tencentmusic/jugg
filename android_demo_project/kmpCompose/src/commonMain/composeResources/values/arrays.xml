@@ -1,0 +1,6 @@
+<resources>
+    <string-array name="baseline_engines">
+        <item>Alpha</item>
+        <item>Beta</item>
+    </string-array>
+</resources>
