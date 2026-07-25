@@ -12,6 +12,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.ui.Gray
 import com.sickworm.intellij.jugg.ai.skills.ClientSetupDocExporter
+import com.sickworm.intellij.jugg.ai.skills.CcSwitchCommonConfigGuideExporter
 import com.sickworm.intellij.jugg.ai.skills.InstallClient
 import com.sickworm.intellij.jugg.ai.skills.InstallOptions
 import com.sickworm.intellij.jugg.ai.skills.InstallSummary
@@ -254,42 +255,55 @@ class InstallJuggSkillsDialog(
                 return
             }
             taskRunnerManager.runTaskSafe("Install Jugg Skills", {
-                val shouldInstallCli = options.installCli || options.installHooks
-                val hookSummary = installRuntimeComponents(options, logger)
-                val skillSummary = if (options.clients.isNotEmpty()) {
-                    JuggSkillInstaller.install(projectDir, options.clients, logger)
+                val shouldInstallCli = options.requiresCli
+                val runtimeSummary = installRuntimeComponents(options, logger)
+                val skillClients = options.skillClients()
+                val skillSummary = if (skillClients.isNotEmpty()) {
+                    JuggSkillInstaller.install(projectDir, skillClients, logger)
                 } else {
                     InstallSummary(emptyList())
                 }
                 val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
-                    (hookSummary.results.isEmpty() || hookSummary.isAllSuccess)
+                    (runtimeSummary.results.isEmpty() || runtimeSummary.isAllSuccess)
                 ) {
                     "Install Completed"
                 } else {
                     "Install Completed with Issues"
                 }
                 ApplicationManager.getApplication().invokeLater {
-                    val displayText = buildInstallResultText(options, shouldInstallCli, skillSummary, hookSummary)
+                    val displayText = buildInstallResultText(
+                        options,
+                        shouldInstallCli,
+                        skillSummary,
+                        runtimeSummary,
+                    )
                     Messages.showInfoMessage(project, displayText, title)
+                    if (shouldPromptCcSwitchSetup(options, runtimeSummary)) {
+                        promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
+                    }
                 }
             }, isNeedShowIndicator = true, isBlockIncrementalCompile = false)
         }
 
         /** Installs CLI and hooks after one Python runtime preflight. */
         private fun installRuntimeComponents(options: InstallOptions, logger: Logger): HookInstallSummary {
-            if (!options.installCli && !options.installHooks) {
+            if (!options.requiresCli) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
                 return HookInstallSummary(emptyList())
             }
             val pythonCommand = PythonRuntimeResolver.requireCommand()
             JuggSkillInstaller.installCli(logger).getOrThrow()
-            if (!options.installHooks) {
+            if (!options.requiresHooks) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
                 return HookInstallSummary(emptyList())
             }
             JuggSkillInstaller.installHooks(logger).getOrThrow()
             JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger)
-            return JuggHookInstaller.installForClients(options.clients, logger = logger, pythonCommand = pythonCommand)
+            return JuggHookInstaller.installForClients(
+                options.hookClients(),
+                logger = logger,
+                pythonCommand = pythonCommand,
+            )
         }
 
         internal fun buildInstallResultText(
@@ -300,9 +314,8 @@ class InstallJuggSkillsDialog(
             userHome: File = File(System.getProperty("user.home")),
         ): String {
             val effectiveHookClients = when {
-                !options.installHooks -> emptyList()
-                options.clients.isEmpty() -> listOf(InstallClient.CLAUDE)
-                else -> options.clients.toList()
+                !options.requiresHooks -> emptyList()
+                else -> options.hookClients().toList()
             }
             val hookPathToAgent = effectiveHookClients
                 .flatMap { client ->
@@ -326,7 +339,7 @@ class InstallJuggSkillsDialog(
                 val hookStatus = hookStatusByAgent[agent]
                 val hookStatusText: String
                 val hookReason: String
-                if (options.installHooks) {
+                if (options.requiresHooks) {
                     if (hookStatus == null) {
                         hookStatusText = "SKIP"
                         hookReason = ""
@@ -350,7 +363,7 @@ class InstallJuggSkillsDialog(
                 } else {
                     " | reason: ${reasonParts.joinToString(" ; ")}"
                 }
-                val hookSegment = if (options.installHooks) " | hook: $hookStatusText" else ""
+                val hookSegment = if (options.requiresHooks) " | hook: $hookStatusText" else ""
                 "- $agent | skill: ${formatDisplayStatus(skillStatus)}$hookSegment$reasonText"
             }
 
@@ -372,6 +385,75 @@ class InstallJuggSkillsDialog(
                     resultLines.forEach { line -> appendLine(line) }
                 }
             }.trimEnd()
+        }
+
+        internal fun ccSwitchSetupPrompt(): String {
+            return "CC Switch or CC Switch CLI config was found.\n\n" +
+                "CC Switch overwrites Claude hooks when switching models, causing Jugg hooks to stop working.\n\n" +
+                "Add Jugg hooks to Common Config to keep them active. Open the Common Config JSON now?"
+        }
+
+        internal fun ccSwitchSetupTitle(): String = "[Optional] CC Switch Setup"
+
+        internal fun ccSwitchSetupCancelText(): String = "No, Thanks"
+
+        internal fun ccSwitchSetupConfirmText(): String = "Yes, Open JSON"
+
+        private fun shouldPromptCcSwitchSetup(options: InstallOptions, hookSummary: HookInstallSummary): Boolean {
+            return hookSummary.isAllSuccess && options.requiresHooks && InstallClient.CLAUDE in options.hookClients()
+        }
+
+        private fun promptCcSwitchSetup(project: Project, userHome: File, logger: Logger) {
+            ApplicationManager.getApplication().executeOnPooledThread {
+                if (!CcSwitchCommonConfigGuideExporter.isConfigDirectoryDetected(userHome)) {
+                    return@executeOnPooledThread
+                }
+                ApplicationManager.getApplication().invokeLater {
+                    if (project.isDisposed) {
+                        return@invokeLater
+                    }
+                    val result = Messages.showYesNoDialog(
+                        project,
+                        ccSwitchSetupPrompt(),
+                        ccSwitchSetupTitle(),
+                        ccSwitchSetupConfirmText(),
+                        ccSwitchSetupCancelText(),
+                        null,
+                    )
+                    if (result == Messages.YES) {
+                        exportAndOpenCcSwitchGuide(project, userHome, logger)
+                    }
+                }
+            }
+        }
+
+        private fun exportAndOpenCcSwitchGuide(project: Project, userHome: File, logger: Logger) {
+            ApplicationManager.getApplication().executeOnPooledThread {
+                runCatching { CcSwitchCommonConfigGuideExporter.exportClaudeHooks(userHome) }
+                    .onFailure { error ->
+                        logger.warn("[CC Switch Setup] failed to export Claude hooks", error)
+                    }
+                    .onSuccess { outputFile ->
+                        ApplicationManager.getApplication().invokeLater {
+                            if (project.isDisposed) {
+                                return@invokeLater
+                            }
+                            val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(outputFile)
+                            if (virtualFile == null) {
+                                Messages.showErrorDialog(project, "Failed to locate exported Common Config file.", "CC Switch Setup")
+                            } else {
+                                FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                            }
+                        }
+                    }
+                    .onFailure {
+                        ApplicationManager.getApplication().invokeLater {
+                            if (!project.isDisposed) {
+                                Messages.showErrorDialog(project, "Failed to export Common Config: ${it.message}", "CC Switch Setup")
+                            }
+                        }
+                    }
+            }
         }
 
         private fun formatDisplayStatus(raw: String): String {

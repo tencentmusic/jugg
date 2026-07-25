@@ -198,4 +198,17 @@ class InstallJuggSkillsDialogTest {
         assertTrue(display.contains("- codex | skill: OK | hook: OK"))
         assertFalse(display.contains("\nhook="))
     }
+
+    @Test
+    fun ccSwitchSetupPrompt_shouldExplainHowToUseExportedConfig() {
+        assertEquals("[Optional] CC Switch Setup", InstallJuggSkillsDialog.ccSwitchSetupTitle())
+        assertEquals("No, Thanks", InstallJuggSkillsDialog.ccSwitchSetupCancelText())
+        assertEquals("Yes, Open JSON", InstallJuggSkillsDialog.ccSwitchSetupConfirmText())
+        assertEquals(
+            "CC Switch or CC Switch CLI config was found.\n\n" +
+                "CC Switch overwrites Claude hooks when switching models, causing Jugg hooks to stop working.\n\n" +
+                "Add Jugg hooks to Common Config to keep them active. Open the Common Config JSON now?",
+            InstallJuggSkillsDialog.ccSwitchSetupPrompt(),
+        )
+    }
 }

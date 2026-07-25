@@ -350,6 +350,15 @@ data class InstallOptions(
     val installHooks: Boolean = false,
 ) {
     val isEmpty: Boolean get() = clients.isEmpty() && !installCli && !installHooks
+
+    fun hookClients(): Set<InstallClient> {
+        return clients.ifEmpty { setOf(InstallClient.CLAUDE) }
+    }
+
+    fun skillClients(): Set<InstallClient> = clients
+
+    val requiresHooks: Boolean get() = installHooks
+    val requiresCli: Boolean get() = installCli || requiresHooks
 }
 
 data class InstallAgentResult(

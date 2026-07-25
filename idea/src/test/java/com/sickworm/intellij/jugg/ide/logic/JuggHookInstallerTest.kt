@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.ai.skills.CcSwitchCommonConfigGuideExporter
 import com.sickworm.intellij.jugg.ai.skills.InstallClient
 import com.sickworm.intellij.jugg.ai.skills.InstallOptions
 import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
@@ -172,6 +173,25 @@ class JuggHookInstallerTest {
         )
 
         assertFalse(options.isEmpty)
+    }
+
+    @Test
+    fun exportClaudeHooks_shouldWriteOnlyHooksForCcSwitchCommonConfig() {
+        val userHome = Files.createTempDirectory("jugg-home-cc-switch-guide").toFile()
+        assertTrue(File(userHome, ".cc-switch").mkdirs())
+        val settingsFile = File(userHome, ".claude/settings.json").also { it.parentFile.mkdirs() }
+        settingsFile.writeText("{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Read\",\"hooks\":[{\"type\":\"command\",\"command\":\"echo pre\"}]}]}}")
+        JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
+
+        val guideFile = CcSwitchCommonConfigGuideExporter.exportClaudeHooks(userHome)
+
+        assertTrue(CcSwitchCommonConfigGuideExporter.isConfigDirectoryDetected(userHome))
+        assertEquals(File(userHome, ".jugg/cc-switch/claude-hooks-common-config.json"), guideFile)
+        val root = JsonParser.parseString(guideFile.readText()).asJsonObject
+        assertEquals(1, root.entrySet().size)
+        assertTrue(root.has("hooks"))
+        assertEquals(1, countCommandHooks(guideFile, "Stop", "*", "/hooks/stop.py", "claude"))
+        assertFalse(guideFile.readText().contains("echo pre"))
     }
 
     private fun assertStopCommandHookExists(file: File) {
