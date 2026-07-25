@@ -106,7 +106,7 @@ JuggCompiler（早于 asset/resource/source）
 
 ### 5.2 Android Studio E2E 验证口径
 
-Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化对应 `KmpComposeFlowReproTest`（L2）和 `KmpComposeDeployFlowTest`（L3）。
+Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。非空增量会走 Full Swap / Apply Changes and Restart Activity，因此放在 `MainActivity.onCreate()` 的运行时探针会自然再次执行，不需要打开 `Always restart app after deployment`。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化对应 `KmpComposeFlowReproTest`（L2）和 `KmpComposeDeployFlowTest`（L3）。
 
 ---
 

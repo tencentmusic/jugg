@@ -51,6 +51,8 @@
 
 `isNeedRestartApp` 由 hot-fix classes 或非空 `isPushOverlayOnly` 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
 
+当前实现对所有满足 `isNeedRestartActivity` 的非空增量部署使用 Android Studio 的 `APPLY_CHANGES_AND_RESTART_ACTIVITY`，即 Full Swap / Apply Changes and Restart Activity，并调用 `JuggDeployer.fullSwap()`。Activity 会重建，`onCreate()` 会再次执行；这与 `Always restart app after deployment` 不同，后者用于额外重启整个 App 进程。`JuggDeployData.deployType=HOT_RELOAD` 是 Jugg 的结果分类，不表示 transport 一定使用不重启 Activity 的 `APPLY_CHANGES`。
+
 ### 3.2 文件状态流转
 
 ```text

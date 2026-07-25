@@ -73,6 +73,8 @@ deployDevice()
 
 Gradle 编译对应 `isInstall=true`；增量编译对应 `isInstall=false`。这个分界决定后续进入 `deployInstall()` 还是 `deployIncrementalChanges()`。
 
+增量部署还有一层 Android Studio transport 类型：当前非 warm-up、非空且不需要重启 App 的 payload 会设置 `isNeedRestartActivity=true`，映射为 `APPLY_CHANGES_AND_RESTART_ACTIVITY` 并执行 Full Swap，所以 Activity 会重建并重新执行 `onCreate()`。只有 `isNeedRestartActivity=false` 时才使用不重建 Activity 的 `APPLY_CHANGES`。这里不要用最终上报的 `HOT_RELOAD` 名称推断 Activity 生命周期。
+
 ### 4.3 多设备汇总与 fallback
 
 ```text
