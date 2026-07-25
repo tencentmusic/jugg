@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ide.logic
 
 import com.sickworm.intellij.jugg.ai.skills.InstallClient
 import com.sickworm.intellij.jugg.ai.skills.JuggSkillInstaller
+import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import com.intellij.openapi.diagnostic.Logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,6 +16,19 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 
 class JuggSkillInstallerTest {
+
+    @Test
+    fun pythonRuntimeResolver_shouldAcceptPythonCommandWhenPython3IsUnavailable() {
+        val binDir = Files.createTempDirectory("jugg-python-runtime").toFile()
+        val python = File(binDir, "python")
+        python.writeText("#!/bin/sh\necho 'Python 3.11.0'\n")
+        assertTrue(python.setExecutable(true))
+
+        assertEquals(
+            python.absolutePath,
+            PythonRuntimeResolver.resolve(listOf("missing-python3-command", python.absolutePath)),
+        )
+    }
 
     @Test
     fun install_shouldSucceedForCodexWithoutScript() {
@@ -247,6 +261,7 @@ class JuggSkillInstallerTest {
         val binDir = File(userHome, ".jugg/bin")
         assertTrue("jugg.py should exist in bin", File(binDir, "jugg.py").exists())
         assertTrue("py/cmd dir should exist in bin", File(binDir, "py/cmd").isDirectory)
+        assertTrue(File(binDir, "jugg").readText().contains("command -v python"))
     }
 
     @Test

@@ -23,8 +23,8 @@ You can ask the AI agent to install it to your PATH — see `jugg-android-dev-lo
 
 Python requirements:
 
-- Jugg CLI requires Python 3.7+ as `python3`.
-- Agent hooks require Python 3.7+ as `python3`.
+- Jugg CLI and agent hooks require Python 3.7+ available as `python3` or `python`.
+- The in-app installer prefers `python3`, then falls back to `python`; it does not write CLI or hook config when neither command is usable.
 
 ---
 
@@ -40,6 +40,7 @@ If you do not use the in-app installer, you can configure hooks manually.
    - `~/.jugg/skills/hooks/hook_common.py`
 2. Edit your client hook config file(s) and add hook entries.
 3. Use absolute script paths in `command` (do not use relative paths).
+4. Replace `<python-command>` with the detected `python3` or `python` command.
 
 Event mapping by client:
 
@@ -82,7 +83,7 @@ Example (Claude Code):
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/start.py --client claude"
+            "command": "<python-command> /absolute/path/to/home/.jugg/skills/hooks/start.py --client claude"
           }
         ]
       }
@@ -92,7 +93,7 @@ Example (Claude Code):
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/stop.py --client claude"
+            "command": "<python-command> /absolute/path/to/home/.jugg/skills/hooks/stop.py --client claude"
           }
         ]
       }
@@ -103,7 +104,7 @@ Example (Claude Code):
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/edit.py --client claude"
+            "command": "<python-command> /absolute/path/to/home/.jugg/skills/hooks/edit.py --client claude"
           }
         ]
       }
@@ -114,7 +115,7 @@ Example (Claude Code):
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /absolute/path/to/home/.jugg/skills/hooks/command.py --client claude"
+            "command": "<python-command> /absolute/path/to/home/.jugg/skills/hooks/command.py --client claude"
           }
         ]
       }

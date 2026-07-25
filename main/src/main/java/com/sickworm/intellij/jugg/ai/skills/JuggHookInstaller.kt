@@ -22,7 +22,6 @@ import java.nio.file.StandardCopyOption
  */
 object JuggHookInstaller {
     private const val MATCHER_ALL = "*"
-    private const val PYTHON3_PREFIX = "python3 "
     private const val CLIENT_OPTION = "--client"
     private const val START_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/start.py"
     private const val STOP_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/stop.py"
@@ -30,14 +29,13 @@ object JuggHookInstaller {
     private const val COMMAND_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/command.py"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
 
-    /**
-     * Backward-compatible entry for Claude hook installation.
-     */
+    /** Installs hook configuration for Claude. */
     fun installForClaude(
         userHome: File = File(System.getProperty("user.home")),
         logger: Logger,
+        pythonCommand: String,
     ): HookInstallSummary {
-        return installForClients(setOf(InstallClient.CLAUDE), userHome, logger)
+        return installForClients(setOf(InstallClient.CLAUDE), userHome, logger, pythonCommand)
     }
 
     /**
@@ -48,12 +46,14 @@ object JuggHookInstaller {
         clients: Set<InstallClient>,
         userHome: File = File(System.getProperty("user.home")),
         logger: Logger,
+        pythonCommand: String,
     ): HookInstallSummary {
         val startScriptPath = File(userHome, START_HOOK_RELATIVE_PATH).absolutePath
         val stopScriptPath = File(userHome, STOP_HOOK_RELATIVE_PATH).absolutePath
         val editScriptPath = File(userHome, EDIT_HOOK_RELATIVE_PATH).absolutePath
         val commandScriptPath = File(userHome, COMMAND_HOOK_RELATIVE_PATH).absolutePath
-        val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath, editScriptPath, commandScriptPath)
+        val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath,
+            editScriptPath, commandScriptPath, pythonCommand)
         val results = targets.map { target ->
             runCatching { installTarget(target) }
                 .onFailure { error ->
@@ -77,6 +77,7 @@ object JuggHookInstaller {
         stopScriptPath: String,
         editScriptPath: String,
         commandScriptPath: String,
+        pythonCommand: String,
     ): List<HookInstallTarget> {
         if (clients.isEmpty()) {
             return emptyList()
@@ -91,19 +92,19 @@ object JuggHookInstaller {
                             file = target.settingsFile,
                             adapter = buildAdapter(
                                 target = target,
-                                startCommand = buildHookCommand(startScriptPath, target.clientArgument),
-                                stopCommand = buildHookCommand(stopScriptPath, target.clientArgument),
-                                editCommand = buildHookCommand(editScriptPath, target.clientArgument),
-                                commandCommand = buildHookCommand(commandScriptPath, target.clientArgument),
+                                startCommand = buildHookCommand(pythonCommand, startScriptPath, target.clientArgument),
+                                stopCommand = buildHookCommand(pythonCommand, stopScriptPath, target.clientArgument),
+                                editCommand = buildHookCommand(pythonCommand, editScriptPath, target.clientArgument),
+                                commandCommand = buildHookCommand(pythonCommand, commandScriptPath, target.clientArgument),
                             ),
                         )
                     }
             }
     }
 
-    private fun buildHookCommand(scriptPath: String, clientArgument: String): String {
+    private fun buildHookCommand(pythonCommand: String, scriptPath: String, clientArgument: String): String {
         val normalizedScriptPath = scriptPath.replace('\\', '/')
-        return "$PYTHON3_PREFIX\"$normalizedScriptPath\" $CLIENT_OPTION $clientArgument"
+        return "$pythonCommand \"$normalizedScriptPath\" $CLIENT_OPTION $clientArgument"
     }
 
     private fun buildAdapter(

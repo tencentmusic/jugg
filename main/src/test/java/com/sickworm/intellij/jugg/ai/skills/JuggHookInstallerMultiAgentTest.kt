@@ -15,6 +15,7 @@ import java.nio.file.Files
 class JuggHookInstallerMultiAgentTest {
 
     private val logger = mock(Logger::class.java)
+    private val pythonCommand = "python3"
 
     @Test
     fun installForClients_shouldInjectHooksForEachClientWithItsOwnConfigStyle() {
@@ -34,6 +35,7 @@ class JuggHookInstallerMultiAgentTest {
             ),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         assertEquals(9, summary.results.size)
@@ -231,6 +233,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = setOf(InstallClient.CLAUDE),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         // Only the primary .claude/settings.json should be written; .claude-internal must not be created
@@ -247,6 +250,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = setOf(InstallClient.GEMINI),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         // Only the primary .gemini/settings.json should be written; .gemini-internal must not be created
@@ -263,6 +267,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = setOf(InstallClient.CURSOR),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         assertEquals(1, summary.results.size)
@@ -282,6 +287,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = setOf(InstallClient.CURSOR),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         val root = JsonParser.parseString(hooksFile.readText()).asJsonObject
@@ -296,6 +302,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = setOf(InstallClient.CODEX),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         // Only the primary .codex/hooks.json should be written; .codex-internal must not be created
@@ -312,6 +319,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = emptySet(),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         assertTrue(summary.results.isEmpty())
@@ -357,6 +365,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = setOf(InstallClient.CODEX),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         assertTrue(summary.results.all { it.status == "ok" || it.status == "already_installed" })
@@ -417,6 +426,7 @@ class JuggHookInstallerMultiAgentTest {
             clients = setOf(InstallClient.CLAUDE),
             userHome = userHome,
             logger = logger,
+            pythonCommand = pythonCommand,
         )
 
         assertTrue(summary.results.all { it.status == "ok" || it.status == "already_installed" })

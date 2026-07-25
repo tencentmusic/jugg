@@ -29,7 +29,7 @@
 
 ### 3.0 Python 版本要求
 
-`jugg` CLI 使用 `python3` 启动，最低支持 Python 3.7。CLI 脚本统一启用 postponed annotations，避免 `list[str]`、`dict[str]`、`bool | None` 等注解在 Python 3.7 import 阶段求值失败。
+`jugg` CLI 最低支持 Python 3.7。安装流程会先检测 `python3`，未找到时回退到 `python`；两者均不可用或版本过低时，CLI / hooks 安装会在写入文件前失败。macOS/Linux 与 Windows wrapper 也按相同顺序运行时回退。CLI 脚本统一启用 postponed annotations，避免 `list[str]`、`dict[str]`、`bool | None` 等注解在 Python 3.7 import 阶段求值失败。
 
 兼容性事实来源是 `docs/skills/python_compat.json`；回归检查入口是 `tools/check_python_compat.py --target jugg_cli`。严格 runtime 校验需要 PATH 中存在 `python3.7`，并使用 `--strict-runtime`。
 

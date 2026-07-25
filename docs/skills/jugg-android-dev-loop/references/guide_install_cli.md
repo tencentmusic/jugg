@@ -7,7 +7,7 @@ Install the `jugg` CLI so it can be called directly from any terminal/cmd/PowerS
 where `{SKILL_DIR}` is the absolute path of this skill on disk
 (e.g. `.../docs/skills/jugg-android-dev-loop`).
 
-**Runtime requirement**: Python 3.7+ must be installed and available as `python3`.
+**Runtime requirement**: Python 3.7+ must be installed and available as `python3` or `python`. Jugg prefers `python3` and falls back to `python`.
 
 ---
 
@@ -124,7 +124,7 @@ jugg --help
 Expected: usage text listing all subcommands.
 
 > **Note**: On Windows `jugg.cmd` is the entry point.  
-> Python 3.7+ must be installed and available on PATH as `python3` (`python3 --version`).
+> Python 3.7+ must be available on PATH as `python3` or `python` (`python3 --version` or `python --version`).
 
 ---
 
@@ -134,9 +134,9 @@ Expected: usage text listing all subcommands.
 |---------|-------|-----|
 | `command not found: jugg` (macOS/Linux) | PATH not updated or symlink not created | Re-run Step 2; open a new terminal |
 | `jugg: Permission denied` | Shell wrapper not executable | `chmod +x <install-dir>/jugg <install-dir>/jugg.py` |
-| `python3: command not found` | Python 3 not installed | Install Python 3.7+ via `brew install python3` (macOS) or distro package manager |
+| `jugg: Python 3.7+ was not found` | Neither `python3` nor `python` is a supported Python 3 interpreter | Install Python 3.7+ via `brew install python3` (macOS) or your distro package manager |
 | `jugg` not recognized (Windows) | PATH change not applied | Open a **new** terminal window; confirm with `echo %PATH%` |
-| `python3: command not found` (Windows) | Python not on PATH | Install Python 3.7+ from python.org; check "Add to PATH" during install |
+| `jugg: Python 3.7+ was not found` (Windows) | Python is not on PATH | Install Python 3.7+ from python.org; check "Add to PATH" during install |
 
 ---
 

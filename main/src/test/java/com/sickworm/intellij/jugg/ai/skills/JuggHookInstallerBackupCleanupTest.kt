@@ -11,6 +11,7 @@ import java.nio.file.Files
 class JuggHookInstallerBackupCleanupTest {
 
     private val logger = mock(Logger::class.java)
+    private val pythonCommand = "python3"
 
     @Test
     fun installForClaude_shouldNotCreateBackupFileForSuccessfulReplace() {
@@ -18,7 +19,7 @@ class JuggHookInstallerBackupCleanupTest {
         val settingsFile = File(userHome, ".claude/settings.json").also { it.parentFile.mkdirs() }
         settingsFile.writeText("{\"hooks\":{}}")
 
-        val summary = JuggHookInstaller.installForClaude(userHome, logger)
+        val summary = JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         assertTrue(summary.results.all { it.status == "ok" })
         assertTrue(settingsFile.exists())
@@ -33,7 +34,7 @@ class JuggHookInstallerBackupCleanupTest {
         val backupFile = File(userHome, ".claude/settings.json.bak")
         backupFile.writeText("sentinel")
 
-        val summary = JuggHookInstaller.installForClaude(userHome, logger)
+        val summary = JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         assertTrue(summary.results.all { it.status == "ok" })
         assertTrue(backupFile.exists())

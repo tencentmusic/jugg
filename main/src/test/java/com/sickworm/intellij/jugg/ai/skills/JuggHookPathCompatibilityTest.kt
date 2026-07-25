@@ -10,12 +10,13 @@ import java.nio.file.Files
 class JuggHookPathCompatibilityTest {
 
     private val logger = mock(Logger::class.java)
+    private val pythonCommand = "python3"
 
     @Test
     fun installForClaude_shouldInjectJuggSkillsHooksPath() {
         val userHome = Files.createTempDirectory("jugg-home-hook-config-path").toFile()
 
-        JuggHookInstaller.installForClaude(userHome, logger)
+        JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         val content = File(userHome, ".claude/settings.json").readText()
         assertTrue(content.contains(".jugg/skills/hooks/start.py"))

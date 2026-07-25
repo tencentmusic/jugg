@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.ai.skills.InstallClient
 import com.sickworm.intellij.jugg.ai.skills.InstallOptions
 import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
 import com.intellij.openapi.diagnostic.Logger
@@ -15,6 +16,7 @@ import java.nio.file.Files
 class JuggHookInstallerTest {
 
     private val logger = mock(Logger::class.java)
+    private val pythonCommand = "python3"
     private val legacyStopPrompt = "If any Android code was modified in this session and this is not a subagent session, " +
         "you must enable the jugg-android-dev-loop skill and complete modification verification before stopping. " +
         "If this requirement is not satisfied, return block with a reason; otherwise return approve."
@@ -23,7 +25,7 @@ class JuggHookInstallerTest {
     fun installForClaude_shouldCreateSettingsFilesWhenMissing() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-create").toFile()
 
-        val summary = JuggHookInstaller.installForClaude(userHome, logger)
+        val summary = JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         assertTrue(summary.results.all { it.status == "ok" })
         assertEquals(1, summary.results.size)
@@ -31,6 +33,21 @@ class JuggHookInstallerTest {
         assertFalse(File(userHome, ".claude-internal/settings.json").exists())
         assertStartCommandHookExists(File(userHome, ".claude/settings.json"))
         assertStopCommandHookExists(File(userHome, ".claude/settings.json"))
+    }
+
+    @Test
+    fun installForClaude_shouldUseResolvedPythonCommand() {
+        val userHome = Files.createTempDirectory("jugg-home-hooks-python").toFile()
+
+        val summary = JuggHookInstaller.installForClients(
+            clients = setOf(InstallClient.CLAUDE),
+            userHome = userHome,
+            logger = logger,
+            pythonCommand = "python",
+        )
+
+        assertTrue(summary.isAllSuccess)
+        assertTrue(File(userHome, ".claude/settings.json").readText().contains("\"command\": \"python "))
     }
 
     @Test
@@ -61,8 +78,8 @@ class JuggHookInstallerTest {
             """.trimIndent()
         )
 
-        JuggHookInstaller.installForClaude(userHome, logger)
-        JuggHookInstaller.installForClaude(userHome, logger)
+        JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
+        JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         assertEquals(1, countStopCommandHooks(settingsFile))
         assertEquals(1, countStartCommandHooks(settingsFile))
@@ -85,7 +102,7 @@ class JuggHookInstallerTest {
             """.trimIndent()
         )
 
-        JuggHookInstaller.installForClaude(userHome, logger)
+        JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         assertEquals("dark", root.get("theme").asString)
@@ -115,7 +132,7 @@ class JuggHookInstallerTest {
             """.trimIndent()
         )
 
-        JuggHookInstaller.installForClaude(userHome, logger)
+        JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         assertEquals(1, countLegacyStopPromptHooks(settingsFile))
         assertEquals(1, countStopCommandHooks(settingsFile))
@@ -127,7 +144,7 @@ class JuggHookInstallerTest {
         val settingsFile = File(userHome, ".claude/settings.json").also { it.parentFile.mkdirs() }
         settingsFile.writeText("{\"hooks\":{}}")
 
-        JuggHookInstaller.installForClaude(userHome, logger)
+        JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         val backupFile = File(userHome, ".claude/settings.json.bak")
         assertFalse(backupFile.exists())
@@ -139,7 +156,7 @@ class JuggHookInstallerTest {
         val settingsFile = File(userHome, ".claude/settings.json").also { it.parentFile.mkdirs() }
         settingsFile.writeText("{invalid-json}")
 
-        val summary = JuggHookInstaller.installForClaude(userHome, logger)
+        val summary = JuggHookInstaller.installForClaude(userHome, logger, pythonCommand)
 
         assertTrue(summary.results.any { it.path.normalizeHookCommandText().endsWith(".claude/settings.json") && it.status == "fail" })
         assertEquals("{invalid-json}", settingsFile.readText())

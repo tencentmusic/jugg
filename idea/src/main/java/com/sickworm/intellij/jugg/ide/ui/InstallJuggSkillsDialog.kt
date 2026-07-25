@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.ai.skills.HookInstallSummary
 import com.sickworm.intellij.jugg.ai.skills.HookInstallResult
 import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
 import com.sickworm.intellij.jugg.ai.skills.JuggSkillInstaller
+import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import java.awt.FlowLayout
@@ -254,21 +255,11 @@ class InstallJuggSkillsDialog(
             }
             taskRunnerManager.runTaskSafe("Install Jugg Skills", {
                 val shouldInstallCli = options.installCli || options.installHooks
-                if (shouldInstallCli) {
-                    JuggSkillInstaller.installCli(logger).getOrThrow()
-                }
+                val hookSummary = installRuntimeComponents(options, logger)
                 val skillSummary = if (options.clients.isNotEmpty()) {
                     JuggSkillInstaller.install(projectDir, options.clients, logger)
                 } else {
                     InstallSummary(emptyList())
-                }
-                val hookSummary = if (options.installHooks) {
-                    JuggSkillInstaller.installHooks(logger)
-                    JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger)
-                    JuggHookInstaller.installForClients(options.clients, logger = logger)
-                } else {
-                    JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
-                    HookInstallSummary(emptyList())
                 }
                 val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
                     (hookSummary.results.isEmpty() || hookSummary.isAllSuccess)
@@ -282,6 +273,23 @@ class InstallJuggSkillsDialog(
                     Messages.showInfoMessage(project, displayText, title)
                 }
             }, isNeedShowIndicator = true, isBlockIncrementalCompile = false)
+        }
+
+        /** Installs CLI and hooks after one Python runtime preflight. */
+        private fun installRuntimeComponents(options: InstallOptions, logger: Logger): HookInstallSummary {
+            if (!options.installCli && !options.installHooks) {
+                JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
+                return HookInstallSummary(emptyList())
+            }
+            val pythonCommand = PythonRuntimeResolver.requireCommand()
+            JuggSkillInstaller.installCli(logger).getOrThrow()
+            if (!options.installHooks) {
+                JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
+                return HookInstallSummary(emptyList())
+            }
+            JuggSkillInstaller.installHooks(logger).getOrThrow()
+            JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger)
+            return JuggHookInstaller.installForClients(options.clients, logger = logger, pythonCommand = pythonCommand)
         }
 
         internal fun buildInstallResultText(
