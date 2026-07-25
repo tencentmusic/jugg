@@ -1,456 +1,404 @@
-# KMP + Compose Resources 脱离 Gradle 增量编译方案
+# Compose Multiplatform 1.7.3 资源增量编译方案
 
-> 背景：Jugg report `b5731090` 中，新增 Compose Resources 字符串后，生成的 `Res.string.menu_engines_duel` 未参与增量编译。目标是在已有全量构建基础上，让后续资源生成、Kotlin 编译和 asset 部署全部脱离 Gradle。
+> 背景：Jugg report `b5731090` 中，新增 Compose Resources 字符串后，资源文件未被识别，`Res.string.menu_engines_duel` accessor 也没有重新生成。本方案只解决 Compose Resources 增量编译，不扩展通用 KMP Kotlin 源码编译能力。
 
-## 0. 已确认事实与技术决策
+## 1. 目标与范围
 
-### 0.1 JOOX Kuikly 对照结论
+### 1.1 目标
 
-`JOOX_Android_2/module_features/joox_kuikly_source/kuikly-local-shell` 不是 Kotlin Multiplatform module，而是应用了 `com.android.library` 和 `org.jetbrains.kotlin.android` 的普通 Android Library。它把 `JXB` 和多个 feature 的 `src/commonMain/kotlin` 目录直接加入 Android `main.java.srcDirs`。
+在已有 Gradle 全量构建基础上，Compose Resources 发生变化时由 Jugg 完成以下流程，增量阶段不执行 Compose Gradle task：
 
-当前纳入编译的 Kotlin 源码中没有 `expect`、`actual` 或 `OptionalExpectation` 声明，因此 `commonMain` 只表示物理目录名，编译器会把文件当成普通 Kotlin/JVM 源码。
+1. 识别默认目录和 `customDirectory` 中的 Compose 资源变化。
+2. 将 values XML 转为 `.cvr version:0`，复制非 values 资源。
+3. 调用项目使用的 Compose 插件生成版本一致的 `Res.kt`、accessor 和 collector。
+4. 编译 generated Kotlin，并进入现有 class、D8、minify 和 deploy 链路。
+5. 将 prepared resources 作为 Android assets 交给现有 `AssetOverlayCompiler`。
 
-虽然 Gradle task 配置了：
+### 1.2 首版支持范围
+
+- Compose Multiplatform：仅 `1.7.3`。
+- Kotlin：`2.1.x`。
+- 资源目录：默认 `composeResources` 和 `compose.resources.customDirectory(...)`。
+- values：`string`、`string-array`、`plurals`。
+- 非 values：`drawable`、`font`、`files`。
+- qualifier：Compose `1.7.3` 支持的 language、region、theme、density。
+- 操作：新增和修改。
+- 配置：`packageOfResClass`、`publicResClass`。
+- 目标：只生成和部署 Android target 产物。
+
+### 1.3 明确不支持
+
+- 普通 `commonMain` / `androidMain` KMP 业务源码的通用 expect/actual 增量编译。
+- Compose Multiplatform `1.7.3` 之外的版本。
+- Compose 资源删除。删除后需要执行一次 Gradle 全量构建。
+- 在 Jugg 中解释或重建 KMP source-set `dependsOn` 图。
+- 执行 Compose Gradle generation task。
+- 将 `composeResources` 交给 AAPT2。
+- 复制 Compose Kotlin 生成模板到 Jugg。
+
+## 2. 已验证事实
+
+### 2.1 当前存在两个独立问题
+
+复现工程暴露了两个缺口：
+
+1. Compose Resources 文件没有进入增量编译，新增 key 后 accessor 保持旧状态。
+2. 普通 KMP common source 单独编译时缺少 expect/actual 输入闭包和参数。
+
+本方案只解决第一个问题。第二个问题不属于本次实现范围。
+
+### 2.2 Compose Resources 产物
+
+Compose `1.7.3` 生成两类独立产物：
+
+- Kotlin：`Res.kt`、source-set accessor、expect resource collector、Android actual resource collector。
+- Assets：`.cvr`、drawable、font、files 等 prepared resources。
+
+新增 key 会同时改变 asset 和 accessor。修改 value 一定改变 `.cvr`；内容长度变化还可能改变后续记录 offset，进而改变 accessor。
+
+### 2.3 官方代码生成函数可隔离调用
+
+`compose-gradle-plugin-1.7.3.jar` 中以下函数不依赖 Gradle API，可以在隔离 ClassLoader 中调用：
+
+```text
+GeneratedResClassSpecKt.getResFileSpec
+GeneratedResClassSpecKt.getAccessorsSpecs
+GeneratedResClassSpecKt.getExpectResourceCollectorsFileSpec
+GeneratedResClassSpecKt.getActualResourceCollectorsFileSpec
+```
+
+隔离环境只提供插件 JAR和兼容 Kotlin stdlib 时，生成的 `Res.kt`、accessor 和 collector 与 Gradle task 输出一致。
+
+### 2.4 资源准备逻辑不能直接隔离调用
+
+Compose `1.7.3` 中以下实现是 Gradle Task 的 private 方法：
+
+```text
+XmlValuesConverterTask.convert
+XmlValuesConverterTask.getItemRecord
+GenerateResourceAccessorsTask.fileToResourceItems
+GenerateResourceAccessorsTask.getValueResourceItems
+```
+
+相关 Task 继承 Gradle `IdeaImportTask`，实例化需要 Gradle services。因此首版由 Jugg 实现 XML 转换、prepared resource 扫描和文件复制，不实例化 Compose Gradle Task。
+
+### 2.5 generated collector 需要 KMP 参数
+
+Compose `1.7.3` 生成的 collector 包含 `expect val` 和 `actual val`。Kotlin `2.1.x` 下必须将 expect 与 actual 放入同一轮编译，并使用：
 
 ```text
 -Xmulti-platform
+-Xcommon-sources=<common generated Kotlin files>
 ```
 
-Jugg 读取到的 `kuikly-local-shell.kotlinFreeCompilerArgs` 实际为空。历史增量编译日志也证明，Jugg 直接调用 `kotlinc` 编译这些 `commonMain` 文件时没有携带 `-Xmulti-platform`，最终结果仍为 `OK`。
+所有 `-Xcommon-sources` 文件也必须同时出现在普通 source arguments 中。该要求只作用于 Compose generated Kotlin 编译，不扩展普通 KMP 源码增量能力。
 
-因此 JOOX 证明的是“Jugg 可以编译放在 commonMain 目录中的普通 JVM Kotlin”，不能证明 Jugg 已支持真正的 expect/actual linking。
+## 3. 总体架构
 
-### 0.2 KMP 编译器参数验证
-
-Kotlin 2.1 实测结果：
-
-| 输入和参数 | 结果 |
-|---|---|
-| common expect + Android actual，无 KMP 参数 | 失败：expect/actual 只能用于 multiplatform project |
-| common expect + Android actual，仅 `-Xmulti-platform` | 失败：actual 找不到对应 expect |
-| common expect + Android actual，增加 `-Xcommon-sources` | 成功 |
-| 只有 common expect，两个参数都有 | 失败：没有平台 actual |
-
-结论：
-
-- 缺失 `-Xmulti-platform` 在出现 expect/actual 时是编译错误，不是警告。
-- `-Xcommon-sources` 的文件必须同时出现在普通 source arguments 中。
-- expect 和对应 Android actual 必须进入同一轮编译，参数不能代替输入文件闭包。
-- Kotlin 1.7 暴露 `-Xexpect-actual-linker`，但 common/actual 同轮编译时不依赖它；Kotlin 2.1 已不再暴露该参数。
-- `-Xexpect-actual-classes` 只控制 Beta 警告，不参与链接。
-
-### 0.3 Compose Resources 已确认输出
-
-Compose Resources 每次生成两类独立产物：
-
-1. Kotlin：`Res.kt`、source-set accessor、expect/actual collectors。
-2. Assets：`.cvr`、drawable、font、files 等 prepared resources。
-
-新增 key 会同时改变 accessor 和 asset；仅修改字符串值通常只改变 `.cvr`，但值长度变化会改变后续记录 offset，对应 accessor 也可能变化。因此不能只解决 unresolved reference，也不能只 overlay asset。
-
-### 0.4 已确定不采用的方向
-
-- 不执行 Compose Gradle generation task。
-- 不把 KMP Kotlin 编译整体委托给 Gradle。
-- 不把 `composeResources` 交给 AAPT2。
-- 不在 Jugg 中复制多版本 Kotlin accessor 模板。
-- 不根据目录名看到 `commonMain` 就无条件启用 KMP。
-
-### 0.5 已确定采用的方向
-
-- 项目初始化阶段只读取一次 Gradle 已配置好的 Compose 元数据。
-- 增量阶段不启动 Gradle。
-- Jugg 实现稳定的 `.cvr version:0` 转换和 prepared resource 扫描。
-- 隔离调用项目自己的 Compose 插件 JAR 生成版本匹配的 Kotlin。
-- generated Kotlin 进入 Jugg Kotlin compiler，generated assets 进入现有 asset overlay。
-
-## 1. 结论
-
-方案可落地，首版不需要执行任何 Compose Gradle task，也不需要重新实现完整 Compose Resources 代码生成器。
-
-推荐实现：
-
-1. 全量构建或项目初始化阶段，通过现有 Gradle 项目信息读取记录 Compose Resources 配置和插件 JAR 路径。
-2. 增量编译阶段由 Jugg 自己完成 XML 到 `.cvr` 的转换和普通资源复制。
-3. 使用隔离 ClassLoader 加载项目实际使用的 `compose-gradle-plugin` JAR，反射调用其中不依赖 Gradle API 的纯代码生成函数。
-4. 生成的 Kotlin 继续交给 Jugg `KotlinCompilerInvoker`，增加 KMP common/actual 编译参数。
-5. 生成的 `.cvr`、图片、字体和文件继续交给现有 `AssetOverlayCompiler`。
-
-增量链路：
+新增独立 `ComposeResourceCompiler` 阶段，位于 asset、Android resource 和普通 source 编译之前：
 
 ```text
-composeResources 变更
-  -> Jugg ComposeResourceCompiler
-       -> XML -> CVR / 非 values 文件复制
-       -> 项目 Compose 插件 JAR 纯代码生成器 -> Res/accessor/collector Kotlin
-       -> KotlinCompilerInvoker -> class -> D8/minify/deploy
-       -> AssetOverlayCompiler -> composeResources/... assets
+changed ComposeResource files
+  -> ComposeResourceCompiler
+       -> values XML -> .cvr
+       -> drawable/font/files -> prepared assets
+       -> 扫描当前完整资源集合
+       -> Compose 1.7.3 官方生成函数 -> generated Kotlin
+       -> KotlinCompilerInvoker -> generated classes
+  -> AssetOverlayCompiler：prepared assets
+  -> ResourceOverlayCompiler：普通 Android res/manifest
+  -> SourceCompiler：用户源码 + generated classes
+  -> D8/minify/deploy
 ```
 
-Gradle 只负责初次项目建模和全量构建，不进入每次增量编译。
+不通过 Custom Compiler SPI 接入，也不把资源生成逻辑放入 `SourceCompiler`。
 
-## 2. 可行性验证
+## 4. 项目元数据
 
-### 2.1 官方 Task 只是薄封装
+### 4.1 数据模型
 
-Compose 1.7.3 和 1.9.3 的实现中：
+在 `ModuleInfo` 增加可空的 Compose Resources 配置：
 
-- `XmlValuesConverterTask` 负责 XML 到 `.cvr`。
-- `GenerateResClassTask` 调用 `getResFileSpec`。
-- `GenerateResourceAccessorsTask` 调用 `getAccessorsSpecs`。
-- collector Task 调用 `getExpectResourceCollectorsFileSpec` 和 `getActualResourceCollectorsFileSpec`。
+```kotlin
+data class ComposeResourceInfo(
+    val generatorClasspath: List<File>,
+    val packageName: String,
+    val publicResClass: Boolean,
+    val resourceDirectories: List<ComposeResourceDirectory>,
+    val assetRelativePath: String,
+)
 
-真正的 Kotlin 代码生成函数位于 `GeneratedResClassSpecKt`，不使用 `Project`、Task graph 或 Gradle Service。
-
-### 2.2 已验证隔离调用
-
-将 `compose-gradle-plugin-1.7.3.jar` 放入只包含该 JAR 和 Kotlin stdlib 的隔离 ClassLoader，并明确不提供 `org.gradle.api.Project`：
-
-- `GeneratedResClassSpecKt` 加载成功。
-- `getResFileSpec` 调用成功。
-- `getAccessorsSpecs` 调用成功。
-- 生成的 `Res.kt` 和 `String0.commonMain.kt` 与 Gradle Task 生成结果逐字一致。
-
-Compose 1.9.3 的相同调用也验证成功。
-
-### 2.3 已验证直接 Kotlin 编译
-
-将以下官方生成文件直接交给 Kotlin 2.1 compiler：
-
-- `Res.kt`
-- `String0.commonMain.kt`
-- `ExpectResourceCollectors.kt`
-- `ActualResourceCollectors.kt`
-
-使用：
-
-```text
--Xmulti-platform
--Xcommon-sources=<Res.kt,String0.commonMain.kt,ExpectResourceCollectors.kt>
+data class ComposeResourceDirectory(
+    val sourceSetName: String,
+    val directory: File,
+)
 ```
 
-编译成功并生成 `Res.class`、accessor class 和 `ActualResourceCollectorsKt.class`，过程中没有启动 Gradle。
+`sourceSetName` 只用于关联现有 source-set 所有权和调用 Compose 生成器，不表示 Jugg 新增 KMP source-set 图。Compose `1.7.3` 的资源类名固定为 `Res`，首版不增加 `resClassName` 字段。
 
-### 2.4 Asset 路径可以直接复用
+### 4.2 Gradle 读取方式
 
-fixture 中以下三个文件 SHA-256 完全相同：
+`GradleProjectInfoReader` 只适配 Compose `1.7.3` 已验证的明确 Task class 和属性：
 
-- prepared `.cvr`
-- Compose 插件复制到 generated assets 的 `.cvr`
-- AGP 合并后的 `.cvr`
+- `XmlValuesConverterTask`
+- `GenerateResClassTask`
+- `GenerateResourceAccessorsTask`
+- `GenerateExpectResourceCollectorsTask`
+- `GenerateActualResourceCollectorsTask`
+- Android resource packaging/copy task
 
-说明 Android 阶段不需要额外转换，只需要按 accessor 中记录的相对路径复制资源。现有 `AssetOverlayCompiler` 已具备该能力。
+- 从 Task class `CodeSource` 获取准确插件 JAR。
+- 从现有项目 Kotlin classpath 获取匹配的 Kotlin stdlib，与插件 JAR共同组成 `generatorClasspath`。
+- 读取 `packageOfResClass` 和 `publicResClass`。
+- 读取各 source set 默认目录或 `customDirectory` 解析后的真实目录。
+- 读取 Android packaging task 的最终相对 asset placement。
 
-### 2.5 性能可接受
+不按属性形状猜测其他版本，不提供跨版本 fallback。任何必要字段缺失时不生成不完整的 `ComposeResourceInfo`。
 
-隔离调用插件代码生成器时，内存中生成 1000 个字符串 accessor 的单次耗时约 12ms。实际主要耗时仍是 Kotlin 编译和 D8，不会引入 Gradle configuration 和 task graph 开销。
+### 4.3 序列化与合并
 
-## 3. Compose Resources 最小协议
+新增字段需要同步：
 
-### 3.1 `.cvr` 格式
+- `JuggProjectInfoSerialize`
+- `ProjectInfoSerializerInGradle`
+- `JuggProjectInfoMerger`
+- `CmdLineContextManager`
+- `LibrariesBackupHelper`
 
-Compose 1.6.10 至 1.9.3 的 value 转换算法保持稳定：
+IDE/Gradle 已有 KMP source-set 读取和 module 合并保持不变。
+
+## 5. 文件识别
+
+新增 `CompileFile.Type.ComposeResource`。
+
+`FileChangesHandler` 使用 `ComposeResourceInfo.resourceDirectories` 匹配变化文件，并将匹配到的资源根目录作为 `ChangedFile.baseDir`。匹配顺序必须早于 Android `Resource` 和 `Asset`，保证 Compose Resources 永远不进入 AAPT2。
+
+现有 `ChangedFile` / `CompileFile` 的 `file`、`baseDir`、`module` 已足够表达输入，不使用 `extraInfo` 增加非标准标记。
+
+首版沿用现有缺失文件处理，删除事件不进入 Compose 增量链路。
+
+## 6. `ComposeResourceCompiler`
+
+### 6.1 输入分组
+
+按现有 module 和 `CompileFile.baseDir` 分组。`baseDir` 对应 `ComposeResourceDirectory.directory`，无需新增 source-set 关系模型。
+
+### 6.2 changed-file 驱动
+
+传入的 changed `CompileFile` 决定本轮实际生成和部署的 asset：
+
+- values XML：转换该 XML 的完整内容，输出对应 `.cvr`。
+- drawable/font/files：复制变化文件并保持 Compose `1.7.3` Android asset 相对路径。
+
+为了调用 `getAccessorsSpecs`，编译器会读取所属资源目录的完整当前资源集合，构造完整 `ResourceItem` map。完整扫描只提供代码生成上下文，不会把未变化资源作为 asset 输入。
+
+首版不增加持久化 generated cache，也不做 generated Kotlin 或 prepared asset 内容 diff。
+
+### 6.3 XML 到 `.cvr`
+
+使用结构化 XML parser 实现 Compose `1.7.3` 的 `.cvr version:0`：
 
 ```text
 version:0
 <type>|<key>|<Base64 content>
 ```
 
-支持：
+必须覆盖：
 
 - `string`
 - `string-array`
 - `plurals`
+- XML escape 和 Compose 特殊字符处理
+- UTF-8 offset/size
+- 记录排序
+- duplicate key
+- 非法 XML和非法资源名
 
-记录按字符串排序。生成 accessor 时按 UTF-8 字节计算每条记录的 offset 和 size。
+输出必须与 Compose `1.7.3` Gradle task golden file 逐字节一致。
 
-### 3.2 非 value 资源
+### 6.4 prepared resource 扫描
 
-以下文件不进入 AAPT2，只复制到 prepared resources：
+Jugg 扫描当前资源目录并构造 Compose ClassLoader 内的 `ResourceType` 和 `ResourceItem`：
 
-- drawable
-- font
-- files
-- 其他 Compose Resources 支持的原始文件
+- `DRAWABLE`
+- `STRING`
+- `STRING_ARRAY`
+- `PLURAL_STRING`
+- `FONT`
 
-目录名中的 language、region、theme、density qualifier 由生成器写入 `ResourceItem`。
+`files` 只复制，不生成 accessor。qualifier、资源名、path、offset 和 size 必须与 Compose `1.7.3` Gradle task 一致。
 
-### 3.3 Android asset 路径
+### 6.5 官方生成器桥接
 
-多模块资源模式通常使用：
+`ComposeResourceGeneratorBridge`：
 
-```text
-composeResources/<resource package>/<resource relative path>
-```
+- 使用 `generatorClasspath` 创建隔离 `URLClassLoader`。
+- parent 只暴露 JDK/platform 类，不暴露 Jugg 或 Gradle API。
+- 只适配 Compose `1.7.3` 固定类名、构造函数和方法签名。
+- `ResourceType`、`ResourceItem`、KotlinPoet `FileSpec` 不跨 ClassLoader 强转。
+- 通过反射构造输入，并通过 `FileSpec.writeTo` 或 `toString` 输出 Kotlin。
+- ClassLoader 按 classpath 缓存，在 compile context 更新或 compiler dispose 时关闭。
 
-旧单模块模式可能直接使用 resource relative path。Jugg 不自行根据版本猜测，而是在项目初始化时读取 Compose Task 已配置的 `packagingDir` / `relativeResourcePlacement`。
+### 6.6 generated Kotlin 编译
 
-## 4. 版本兼容策略
+generated Kotlin 由 `ComposeResourceCompiler` 内部调用 `KotlinCompilerInvoker` 编译，不通过 `CompileFile.extraInfo` 让普通 `SourceCompiler` 猜测 common source。
 
-不要复制 Compose 生成模板到 Jugg。模板已经在不同版本发生变化：
-
-| Compose 版本 | 主要差异 |
-|---|---|
-| 1.6.x | 没有 expect/actual resource collectors |
-| 1.7.x | 增加 expect/actual collectors |
-| 1.8.x+ | 支持自定义 Res class name，生成函数签名增加 `resClassName` |
-| 1.9.x | accessor 结构和每文件资源数量继续调整 |
-
-Jugg 使用能力检测，不以版本字符串作为唯一依据：
-
-1. 检测 `GeneratedResClassSpecKt` 是否存在。
-2. 检测 `getAccessorsSpecs` 参数数量。
-3. 检测 expect/actual collector 生成函数是否存在。
-4. 检测 `ResourceItem` 构造函数和 `ResourceType` 枚举。
-5. 未识别签名时停止 Compose Resources 增量编译，提示当前插件版本暂不支持，不生成可能不兼容的代码。
-
-首版建议声明支持 Compose Multiplatform `1.6.10` 至 `1.9.3` 已验证接口范围。
-
-## 5. 项目模型
-
-在 `ModuleInfo` 增加可空的 `ComposeResourceInfo`：
+`KotlinCompilerInvoker.Options` 增加明确的：
 
 ```kotlin
-data class ComposeResourceInfo(
-    val pluginClasspath: List<File>,
-    val packageName: String,
-    val resClassName: String,
-    val publicResClass: Boolean,
-    val packagingDir: String?,
-    val sourceSets: List<ComposeResourceSourceSetInfo>,
-    val androidSourceSetName: String,
-    val hasExpectActualCollectors: Boolean,
-)
-
-data class ComposeResourceSourceSetInfo(
-    val name: String,
-    val resourceDir: File,
-    val isCommon: Boolean,
-)
+val commonSourceFiles: List<File> = emptyList()
 ```
 
-项目初始化阶段优先直接读取已经配置好的 Compose Task 属性：
+`ComposeResourceCompiler` 根据本轮官方生成函数的输出直接提供 common 文件列表：
 
-- Task class 的 CodeSource：获取准确插件 JAR。
-- `packageName`
-- `resClassName`，旧版本默认 `Res`
-- `makeAccessorsPublic`
-- `sourceSetName`
-- `originalResourcesDir` / `resDir`
-- `packagingDir`
-- actual collector 对应的 accessor source sets
-- Android copy task 的 `relativeResourcePlacement`
-
-这样可以覆盖 `customDirectory`、默认 package、单模块/多模块模式，不在 Jugg 中重复解释 Compose Gradle DSL。
-
-## 6. 编译器设计
-
-### 6.1 文件识别
-
-新增 `CompileFile.Type.ComposeResource`。
-
-`FileChangesHandler` 在 Android res/assets 判断前匹配 `ComposeResourceInfo.sourceSets.resourceDir`。Compose resource 不能进入 `ResourceOverlayCompiler` 或 AAPT2。
-
-### 6.2 `ComposeResourceCompiler`
-
-新增一个编译阶段，位于 asset 和 source 编译之前：
-
-1. 按 module 和 source set 分组变更文件。
-2. 重新生成受影响 source set 的 prepared resources。
-3. 扫描完整 prepared resource 目录，构造全部 `ResourceItem`。
-4. 调用项目 Compose 插件代码生成器。
-5. 与上次 Jugg 生成结果比较，只输出变化的 Kotlin 和 asset 文件。
-6. 将生成结果加入本轮普通 asset/source 输入。
-
-不能只处理变化的 XML 节点。`.cvr` 中一条记录长度变化会改变后续记录的 offset，必须重新扫描该 `.cvr` 并更新所有受影响 accessor。
-
-### 6.3 ClassLoader 隔离
-
-新增 `ComposeResourceGeneratorBridge`：
-
-- 每个 Compose 插件 JAR 建立可缓存的隔离 ClassLoader。
-- ClassLoader 包含 Compose 插件 JAR和项目兼容的 Kotlin stdlib。
-- 通过反射传递 Java `String`、`Map`、`List`、`Path` 等 bootstrap/JDK 类型。
-- `ResourceType`、`ResourceItem` 和 KotlinPoet `FileSpec` 不跨 ClassLoader 强转。
-- 对返回的 `FileSpec` 只反射调用 `writeTo` 或 `toString`。
-- 项目模型更新或插件 JAR变化时销毁缓存。
-
-不加载任何 Gradle API，也不实例化 Compose Gradle Task。
-
-### 6.4 Kotlin 编译
-
-Compose 1.7+ 生成 collector 时，本轮 Kotlin 输入至少包含：
-
-- 变化的 common accessor 文件
 - `Res.kt`
-- common expect collector
-- Android actual collector
+- common source-set accessors
+- `ExpectResourceCollectors.kt`
 
-参数：
+Android `ActualResourceCollectors.kt` 只进入普通 source arguments。当 `commonSourceFiles` 非空时，invoker 增加 `-Xmulti-platform` 和 `-Xcommon-sources`。
 
-```text
--Xmulti-platform
--Xcommon-sources=<本轮所有 common generated Kotlin files>
-```
+generated classes 写入现有 Kotlin class output，并作为 `Class` 输入继续进入 `SourceCompiler` 的 D8/minify/deploy 阶段。用户本轮变化的源码随后可以从该 class output 解析新增 accessor。
 
-所有 `-Xcommon-sources` 文件也必须同时出现在普通 source file arguments 中。
+## 7. Asset overlay
 
-Compose 1.6.x 没有 collector 时，根据生成文件实际内容决定是否需要 KMP 参数，不无条件添加。
-
-### 6.5 Asset overlay
-
-prepared resource 输出以最终 Android asset 根目录作为 `CompileFile.baseDir`，直接交给 `AssetOverlayCompiler`：
+prepared resource 使用 `ComposeResourceInfo.assetRelativePath` 形成最终 Android asset 路径，并以正确根目录作为 `CompileFile.baseDir` 交给 `AssetOverlayCompiler`：
 
 ```text
-prepared values/*.cvr
-  -> composeResources/<package>/values/*.cvr
+values/strings.commonMain.cvr
+  -> composeResources/<resource package>/values/strings.commonMain.cvr
   -> AssetOverlayCompiler
 ```
 
-不需要修改 AAPT2 编译器。
+drawable、font、files 使用相同 placement 规则。普通 Android assets 和 native libraries 继续沿用原链路。AAPT2 不需要修改。
 
-## 7. 删除场景
+## 8. 失败与回退
 
-删除资源不必立即删除基础 APK 中的旧 asset：
+### 8.1 用户资源错误
 
-- accessor 和 collector 更新后不会再引用旧资源。
-- 新 `.cvr` overlay 会覆盖同路径旧文件。
-- 整个资源文件被删除时，旧基础 asset 没有引用，不影响运行正确性。
+XML 格式错误、重复 key、非法资源名和非法 qualifier直接绑定原始 `ComposeResource CompileFile`，使用 `warn` 展示真实错误。不做内部重试，也不触发 Gradle fallback。
 
-必须正确处理生成 class：
+### 8.2 增量能力不可用
 
-- accessor 文件仍存在：用新 class 覆盖旧 class。
-- 某个 chunk 整体消失：actual collector 不再调用其 collector function，旧 class 可留在基础 APK中但不可达。
-- 删除后仍有源码引用：Kotlin 编译应正常报 unresolved reference。
+以下情况停止 Compose 增量编译并交给现有 Gradle fallback：
 
-因此删除场景不需要首版强制回退 Gradle。
+- Compose 版本不是 `1.7.3`。
+- 必需 Task 元数据缺失。
+- 插件 JAR或 Kotlin stdlib 不存在。
+- 官方类、构造函数或方法签名不匹配。
+- Android asset placement 缺失。
+- `customDirectory` 无法解析。
 
-## 8. 失败和回退边界
+不尝试按其他版本或目录规则猜测。
 
-以下情况停止增量并提示重新全量构建：
+### 8.3 内部失败
 
-- 项目刚新增或修改 Compose Gradle 插件配置。
-- 没有缓存到 Compose 插件 JAR或必要 Task 元数据。
-- 插件代码生成函数签名无法识别。
-- `.cvr` format version 不是 Jugg 支持的版本。
-- Android target/source-set 关系不完整。
-- 生成代码编译失败且属于 Jugg 参数或生成器兼容错误。
+反射异常、generated Kotlin 编译失败、asset 写入失败时记录详细 `debug` 日志，用户侧打印一条 `warn`，保留 Kotlin compiler 原始诊断，并允许现有 Gradle fallback。禁止使用 `JuggLogger.error`。
 
-用户资源 XML错误、重复 key、非法 qualifier 和源码 unresolved reference 应直接展示真实错误，不通过 Gradle重试。
+### 8.4 取消
 
-## 9. TDD 执行计划
+取消时立即停止后续阶段、清理本轮临时生成目录、返回 cancel result，不打印失败 `warn`，不触发 Gradle fallback。
 
-实现前先增加失败测试：
+## 9. Android demo testcase
+
+扩展 `android_demo_project/kmpCompose`，通过 `-PenableKmpComposeFixture=true` 条件启用，不影响普通 demo 构建。
+
+建议 fixture：
+
+```text
+kmpCompose/
+├── src/commonMain/composeResources/
+│   ├── values/
+│   ├── values-<language-region>/
+│   ├── drawable/
+│   ├── drawable-<density>/
+│   ├── font/
+│   └── files/
+├── src/androidMain/customComposeResources/
+├── src/commonMain/kotlin/.../KmpComposeResourceCase.kt
+└── src/androidMain/kotlin/.../KmpComposeAndroidResourceCase.kt
+```
+
+- `commonMain` 使用默认 `composeResources`。
+- `androidMain` 使用 `compose.resources.customDirectory(...)`。
+- `KmpComposeResourceCase.kt` 真实引用 string、array、plurals、drawable、font 和 files。
+- `KmpComposeAndroidResourceCase.kt` 真实引用 customDirectory 中的 Android resource。
+
+testcase 必须消费 generated accessor，不能只断言生成文件存在。
+
+## 10. TDD 执行清单
+
+生产代码修改前先增加失败测试：
 
 | 层级 | 测试文件 | 覆盖行为 |
 |---|---|---|
-| L1 | `ComposeValueResourceConverterTest.kt` | string、array、plural、escape、duplicate、offset、排序 |
-| L1 | `ComposeResourceGeneratorBridgeTest.kt` | 1.6/1.7/1.8+ 签名检测和生成结果 |
-| L1 | `ComposeResourceScannerTest.kt` | qualifier、资源类型、非法目录、资源名转换 |
-| L1 | `GradleProjectInfoReaderKmpComposeTest.kt` | 从 Task 属性读取插件 JAR、package、source set、packagingDir |
-| L2 | 扩展现有 compiler 协作测试 | ComposeResource 不进 AAPT2，生成 Kotlin 和 asset 分别进入正确阶段 |
-| L3 | `KmpComposeFlowReproTest` | 新增 key、修改 value、多语言、删除 key 后真实编译部署 |
+| L1 | `ComposeValueResourceConverterTest.kt` | string、array、plural、escape、排序、UTF-8 offset、duplicate、非法 XML |
+| L1 | `ComposeResourceScannerTest.kt` | drawable/font/files、qualifier、资源名、offset/size |
+| L1 | `ComposeResourceGeneratorBridgeTest.kt` | 使用真实 `1.7.3` 插件 JAR，与 Gradle golden Kotlin 一致 |
+| L1 | 现有 project info serializer 测试 | `ComposeResourceInfo` 序列化往返 |
+| L2 | `idea/src/test/.../project/FileChangesHandlerTest.kt` | 默认目录/customDirectory 分类，Compose resource 不进 AAPT2 |
+| L3 | `idea/src/test/.../manager/JuggCompilerTest.kt` 中 `KmpComposeFlowReproTest` | 真实 demo 全量基线后的资源生成、Kotlin、D8 和 asset staging |
 
-L3 至少验证：
+L3 场景至少覆盖：
 
-1. 新增 `menu_engines_duel` 并在源码引用，Jugg 编译成功。
-2. 只修改字符串值，不修改源码，运行时读取新值。
-3. 新增语言 qualifier 后切换语言读取正确值。
-4. 删除 key 后仍引用，显示 unresolved reference。
-5. 编译日志中没有 Gradle command 或 Gradle task execution。
+1. 新增 string key 并修改 testcase 引用，Jugg 编译成功。
+2. 修改 string value，生成并 staging 正确 `.cvr`。
+3. string-array 和 plurals accessor 编译成功。
+4. drawable、font、files 使用正确 asset 路径。
+5. language/region/theme/density qualifier生成正确 `ResourceItem`。
+6. `customDirectory` 资源能够被识别和编译。
+7. generated expect/actual collector 使用正确参数编译。
+8. 增量日志中没有 Gradle command 或 Compose Gradle task execution。
+9. 普通 Android resource 仍进入 AAPT2，Compose resource 永远不进入 AAPT2。
 
-## 10. 修改清单
+测试运行必须使用 `--tests` 过滤，禁止无过滤的全量 `:main:test` / `:idea:test`。完成后执行 `./gradlew :idea:compileKotlin`。
+
+## 11. 修改清单
 
 | 区域 | 修改内容 |
 |---|---|
-| `JuggProjectInfo.kt` | 增加 ComposeResourceInfo/source-set 元数据 |
-| `GradleProjectInfoReader.kt` | 读取 Compose Task 配置和插件 CodeSource |
-| `ProjectInfoSerializerInGradle.kt` | 新字段序列化 |
-| `readProjectInfo.gradle.kts` | 通过生成任务同步 |
-| `FileChangesHandler.kt` | 识别 Compose Resources |
-| `ICompiler.kt` / `CompilerExt.kt` | 新增 ComposeResource 类型分支 |
-| `JuggCompiler.kt` | 在 asset/source 前加入生成阶段并传递生成输入 |
-| `ComposeResourceCompiler.kt` | 新增；编排转换、生成、diff |
-| `ComposeValueResourceConverter.kt` | 新增；实现 format version 0 |
-| `ComposeResourceScanner.kt` | 新增；prepared resources 到 ResourceItem 描述 |
-| `ComposeResourceGeneratorBridge.kt` | 新增；隔离调用项目插件代码生成函数 |
-| `KotlinCompilerInvoker.kt` | 支持 common sources 和 expect/actual 同轮编译 |
-| `AssetOverlayCompiler.kt` | 原则上无需修改，仅验证 generated baseDir |
-| `android_demo_project/kmpCompose` | 完善多语言、图片和删除场景 fixture |
+| `JuggProjectInfo.kt` | 增加可空 `ComposeResourceInfo` 和目录配置 |
+| project info 序列化/合并链 | 保留 Compose 配置 |
+| `GradleProjectInfoReader.kt` | 读取 Compose `1.7.3` 明确 Task 属性和插件 CodeSource |
+| `FileChangesHandler.kt` | 识别 `ComposeResource`，保留资源根 `baseDir` |
+| `ICompiler.kt` / `CompilerExt.kt` | 只增加 `ComposeResource` 类型及标准类型映射，不使用 `extraInfo` 标记 |
+| `JuggCompiler.kt` | 增加独立 Compose 阶段并传递 generated class/asset |
+| `ComposeResourceCompiler.kt` | 编排转换、扫描、官方生成、generated Kotlin 编译 |
+| `ComposeValueResourceConverter.kt` | Compose `1.7.3` `.cvr version:0` |
+| `ComposeResourceScanner.kt` | 资源类型、qualifier、path、offset/size |
+| `ComposeResourceGeneratorBridge.kt` | 隔离调用官方生成函数 |
+| `KotlinCompilerInvoker.kt` | typed `commonSourceFiles` 参数 |
+| `AssetOverlayCompiler.kt` | 原则上不修改，只验证 generated asset baseDir 和 APK 分流 |
+| `android_demo_project/kmpCompose` | 完整资源 testcase、customDirectory 和 golden outputs |
 
-## 11. 风险评估
+## 12. 实施顺序
 
-| 风险 | 等级 | 控制方式 |
-|---|---|---|
-| 调用 Compose internal JVM API | 中 | 能力检测、隔离 ClassLoader、已验证版本白名单 |
-| `.cvr` 格式将来升级 | 中 | 检查 `version:`，未知版本拒绝增量 |
-| Kotlin/Compose 类加载冲突 | 低到中 | child ClassLoader + 项目 Kotlin stdlib，不跨 loader 强转 |
-| 生成模板版本差异 | 低 | 直接调用项目自己的插件 JAR，不在 Jugg 复制模板 |
-| 大型资源集性能 | 低 | 生成 1000 accessor 约 12ms，使用 hash diff 减少 Kotlin 输入 |
-| 多模块/动态特性 asset 归属 | 中 | 复用 moduleBelongsApkMap 和 AssetOverlayCompiler 多 APK 分发 |
+1. 完善 Android demo testcase 和 Compose `1.7.3` golden outputs。
+2. 写 converter、scanner、generator bridge 的 L1 失败测试。
+3. 写 project info 序列化和读取失败测试。
+4. 写 FileChangesHandler 分类失败测试。
+5. 将现有 KMP Compose 复现测试改为预期成功的 L3 场景。
+6. 实现项目元数据读取与序列化。
+7. 实现 converter、scanner 和 generator bridge。
+8. 实现 `ComposeResourceCompiler` 与 generated Kotlin 编译。
+9. 接入 `JuggCompiler` 和 asset overlay。
+10. 执行定向测试、L3 Flow 和编译验证。
+11. 同步 `02_compile_core.md`、`02_compile_source.md`、`02_compile_resource.md`、`04_engineering_project.md` 和 `98_code_map.md`。
 
-Compose Multiplatform 项目采用 Apache License 2.0。推荐动态调用项目已有插件 JAR，不将其源码复制进 Jugg；Jugg 自己实现 `.cvr` version 0 时仍需在实现评审中确认是否加入来源说明。
-
-## 12. 验收标准
+## 13. 验收标准
 
 - Compose Resources 增量编译期间不启动 Gradle。
-- 新增资源 key 后生成 accessor 并完成源码编译。
-- 修改 value 后仅生成和部署必要 class/asset。
-- generated Kotlin 与项目 Compose 插件版本一致。
-- `.cvr` 和非 value resources 使用正确 Android asset 路径。
-- ComposeResource 永远不进入 AAPT2。
-- Kotlin 1.7/2.x 以及 Compose 1.6.10、1.7.3、1.8.2、1.9.3 的已知生成器签名有明确适配。
-- 普通 Android Compose、Android resources 和 JOOX Kuikly 编译链路不回归。
+- 默认目录和 `customDirectory` 都能被识别。
+- 新增资源 key 后生成 accessor，用户源码可以同轮引用。
+- 修改 value 后部署正确 `.cvr`。
+- string、string-array、plurals、drawable、font、files 全部覆盖。
+- language、region、theme、density qualifier路径和生成代码正确。
+- generated Kotlin 与 Compose `1.7.3` Gradle task 输出一致。
+- generated expect/actual collector 编译成功。
+- Compose Resources 使用正确 Android asset 路径。
+- Compose Resources 永远不进入 AAPT2。
+- 普通 Android resource、asset、Kotlin、Compose 和既有 KMP 工程不回归。
+- 非 `1.7.3` Compose 版本明确拒绝增量，不生成猜测产物。
 
-## 13. 推荐实施顺序
+## 14. License
 
-1. 增加 fixture 和 L1/L3 失败测试。
-2. 项目模型读取 Compose Task 元数据和插件 JAR。
-3. 实现 `.cvr` converter、prepared resource scanner 和官方生成器 bridge。
-4. 接入 `JuggCompiler`，输出 generated Kotlin 和 assets。
-5. 实现 KMP generated source 编译参数。
-6. 完成 asset overlay 和真实运行验证。
-7. 更新 `02_compile_source.md`、`02_compile_resource.md`、`02_compile_core.md`、`04_engineering_project.md` 和 `98_code_map.md`。
-
-## 14. 下一会话交接入口
-
-### 14.1 无需重复调研的结论
-
-下一会话可以直接以以下结论作为前提：
-
-1. 脱离 Gradle 生成 Compose Resources 已完成技术验证。
-2. 项目 Compose 插件 JAR 中的纯生成函数可以在没有 Gradle API 的 ClassLoader 中调用。
-3. 生成结果可以用 Jugg 当前使用方式的 Kotlin compiler 直接编译。
-4. Android 资源产物只需要保持正确相对路径并进入 `AssetOverlayCompiler`。
-5. 首版版本适配采用能力检测，已调研接口范围为 Compose 1.6.10、1.7.3、1.8.2、1.9.3。
-
-### 14.2 实现前需要最终确定的细节
-
-这些是设计细节，不是可行性阻塞：
-
-- `ComposeResourceInfo` 的最小持久化字段和序列化版本。
-- Compose Task 属性读取使用明确 class name 还是结构化反射。
-- `ComposeResourceCompiler` 直接加入 `JuggCompiler`，还是扩展 compiler stage 的输入传递能力。
-- generated 文件缓存和 hash diff 的目录位置。
-- Kotlin 编译时 common generated sources 的最小闭包策略。
-- 插件 ClassLoader 缓存的生命周期和 Kotlin stdlib 选择。
-- 首版是否同时支持自定义 `nameOfResClass` 和 `customDirectory`；技术上均可支持。
-
-### 14.3 推荐从这里开始实施
-
-严格按 TDD 顺序：
-
-1. 先补 `ComposeValueResourceConverterTest`、`ComposeResourceScannerTest` 和 `ComposeResourceGeneratorBridgeTest`。
-2. 在 `android_demo_project/kmpCompose` 固化官方 1.7.3 golden outputs。
-3. 再讨论并确定 `ComposeResourceInfo` 数据结构。
-4. 完成项目模型测试后实现 Gradle reader。
-5. 最后接入 `JuggCompiler` 和 L3 Flow，避免项目模型、生成器和部署链路同时修改。
-
-实现前应重新读取：
-
-- `docs/ai_knowledge/06_testing.md`
-- `docs/ai_knowledge/02_compile_source.md`
-- `docs/ai_knowledge/02_compile_resource.md`
-- `docs/ai_knowledge/02_compile_core.md`
-- `docs/ai_knowledge/04_engineering_project.md`
-- `docs/ai_knowledge/98_code_map.md`
+Compose Multiplatform 使用 Apache License 2.0。本方案动态调用项目已有插件 JAR，不复制其 Kotlin 生成模板。Jugg 实现 `.cvr version:0` 转换和扫描逻辑时，需要在实现评审中确认是否增加来源说明。
