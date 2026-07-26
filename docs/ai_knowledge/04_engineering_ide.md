@@ -83,11 +83,11 @@ JuggGradleSyncListener
 
 Sync 成功会重置 hasRun，避免旧运行状态让“无文件变化”判断污染下一轮。
 
-Sync 完成或被 IDE 标记为 `SKIPPED` 后，`tryCreateRunConfigurations()` 会读取 Android Studio 当前 Active Build Variant 对应的 Gradle assemble command，并按需创建对应 Jugg Configuration。项目原来没有可用 Jugg Configuration 时，首次创建后自动选择；已有 Jugg Configuration 且当前 selected Configuration 不是 Jugg 时只创建、不改变选择；当前 selected Configuration 是 Jugg 且 command 与 Active Build Variant 不一致时，自动选择同模块的目标 Configuration。模块首个 Configuration 沿用 `jugg:<module>`，该名称已存在时使用 `jugg:<module>:<variant>`，目标 command 已存在时直接复用。`FullBuildInfo.compileCommand` 不参与 Configuration 选择，仅用于切换后首次 Run 的基线判断；command 不一致时，`JuggCompileHelper.preprocessIncrementalCompile()` 会强制走 Gradle full build，成功后刷新基线。
+Sync 完成或被 IDE 标记为 `SKIPPED` 后，`tryCreateRunConfigurations()` 会读取 Android Studio 当前 Active Build Variant 对应的 Gradle command，并按需创建对应 Jugg Configuration。项目原来没有可用 Jugg Configuration 时，首次创建后自动选择；已有 Jugg Configuration 且当前 selected Configuration 不是 Jugg 时只创建、不改变选择；当前 selected Configuration 是 Jugg 且不包含 suggestion 提供的唯一 Gradle task 时，自动选择同模块的目标 Configuration。模块首个 Configuration 沿用 `jugg:<module>`，该名称已存在时使用 `jugg:<module>:<variant>`，目标 Gradle task 已存在时直接复用。匹配以 suggestion 中的唯一 task 为基准，已有命令中的 `--offline`、`-Pxxx` 等附加参数不影响复用，因此用户为同一 variant 定制的 Gradle 参数会保留；切回该 variant 时也优先复用已有配置。suggestion 无法解析出唯一 task 时，创建去重退回完整 command 匹配，并禁止自动切换当前 Configuration。`FullBuildInfo.compileCommand` 不参与 Configuration 选择，仅用于切换后首次 Run 的基线判断；command 不一致时，`JuggCompileHelper.preprocessIncrementalCompile()` 会强制走 Gradle full build，成功后刷新基线。
 
 建议配置的 APK output pattern 从 Android Studio Android model 的实际 build folder 生成，支持 `${moduleDir}/build` 和项目根集中式 `build/${moduleName}`。该路径只用于创建新的 Jugg Configuration；Sync 不修改已有配置的 APK output pattern。
 
-Composite build 使用 IDE 完整模块名生成唯一身份：root build 会移除根项目名前缀，例如 `Root.app -> app -> :app:assembleDebug`；included build 保留 build 前缀，例如 `SMCommon.app -> SMCommon.app -> :SMCommon:app:assembleDebug`。创建 Configuration 时还会按 compile command 做批内去重，避免多个 Android Run Configuration 指向同一模块时生成 `(1)` 重复项。
+Composite build 使用 IDE 完整模块名生成唯一身份：root build 会移除根项目名前缀，例如 `Root.app -> app -> :app:assembleDebug`；included build 保留 build 前缀，例如 `SMCommon.app -> SMCommon.app -> :SMCommon:app:assembleDebug`。创建 Configuration 时还会按 suggestion 提供的唯一 Gradle task 做批内去重，避免附加参数差异或多个 Android Run Configuration 指向同一模块时生成 `(1)` 重复项。
 
 ### 4.3 Run 到编译部署
 

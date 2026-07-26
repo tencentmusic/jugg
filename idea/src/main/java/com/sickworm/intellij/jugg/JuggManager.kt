@@ -282,13 +282,15 @@ class JuggManager @TestOnly constructor(
         currentList: List<RunnerAndConfigurationSettings>,
         suggestions: List<SuggestRunConfiguration>,
     ): List<RunnerAndConfigurationSettings> {
-        val distinctSuggestions = suggestions.distinctBy { it.compileCommand }
+        val distinctSuggestions = suggestions.distinctBy { suggestionTargetIdentity(it.compileCommand) }
         val existingCommands = currentList.mapNotNull {
             (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
-        }.toSet()
+        }
         val usedNames = currentList.map { it.name }.toMutableList()
         val settingsList = distinctSuggestions
-            .filterNot { it.compileCommand in existingCommands }
+            .filterNot { suggestion ->
+                existingCommands.any { matchesCompileTarget(it, suggestion.compileCommand) }
+            }
             .map { suggest ->
                 val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
                 val preferredName = if (SuggestRunConfiguration.isDefaultRunConfigName(suggest.runConfigName) ||
@@ -322,14 +324,50 @@ class JuggManager @TestOnly constructor(
         val selectedSettings = runManager.selectedConfiguration ?: return
         val selectedState = (selectedSettings.configuration as? JuggRunConfiguration)?.state ?: return
         val selectedModuleName = SuggestRunConfiguration.getModuleNameByRunConfigName(selectedSettings.name)
+        val selectedCompileCommand = selectedState.compileCommand ?: return
         val activeVariant = suggestions.firstOrNull {
-            it.moduleName == selectedModuleName && it.compileCommand != selectedState.compileCommand
+            it.moduleName == selectedModuleName &&
+                suggestionGradleTask(it.compileCommand)?.let { task ->
+                    task !in gradleTaskTokens(selectedCompileCommand)
+                } == true
         } ?: return
         val activeSettings = availableSettings.firstOrNull {
-            (it.configuration as? JuggRunConfiguration)?.state?.compileCommand == activeVariant.compileCommand
+            val compileCommand = (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
+                ?: return@firstOrNull false
+            matchesCompileTarget(compileCommand, activeVariant.compileCommand)
         } ?: return
         logger.info("Active Build Variant changed, select ${activeSettings.name} configuration.")
         runManager.selectedConfiguration = activeSettings
+    }
+
+    private fun suggestionTargetIdentity(compileCommand: String): String {
+        return suggestionGradleTask(compileCommand)?.let { "task:$it" }
+            ?: "command:${compileCommand.trim()}"
+    }
+
+    private fun matchesCompileTarget(existingCommand: String, suggestionCommand: String): Boolean {
+        val suggestedTask = suggestionGradleTask(suggestionCommand)
+            ?: return existingCommand.trim() == suggestionCommand.trim()
+        return suggestedTask in gradleTaskTokens(existingCommand)
+    }
+
+    private fun suggestionGradleTask(compileCommand: String): String? {
+        return gradleTaskTokens(compileCommand).singleOrNull()
+    }
+
+    private fun gradleTaskTokens(compileCommand: String): Set<String> {
+        val executableNames = setOf("gradle", "gradlew", "gradle.bat", "gradlew.bat")
+        return compileCommand.split(Regex("\\s+"))
+            .asSequence()
+            .map { it.trim().trim('\'', '"') }
+            .filter {
+                it.isNotEmpty() &&
+                    it.substringAfterLast('/').substringAfterLast('\\') !in executableNames &&
+                    !it.startsWith("-") &&
+                    !it.contains("=")
+            }
+            .map { it.trimStart(':') }
+            .toSet()
     }
 
     @TestOnly

@@ -178,6 +178,60 @@ class JuggManagerRunConfigurationSyncTest {
     }
 
     @Test
+    fun sync_activeBuildVariantUnchanged_preservesCustomGradleArguments() {
+        val fixture = createFixture()
+        val debug = fixture.addConfiguration(
+            name = "jugg:app:debug",
+            compileCommand = "./gradlew :app:assembleDebug --offline -Pchannel=dev",
+            outputApkName = "app/build/outputs/apk/debug/*.apk",
+        )
+        fixture.selectedConfiguration = debug
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:assembleDebug",
+                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
+                    variantName = "debug",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals(1, fixture.settings.size)
+        assertSame(debug, fixture.selectedConfiguration)
+        assertEquals("./gradlew :app:assembleDebug --offline -Pchannel=dev", debug.compileCommand())
+    }
+
+    @Test
+    fun sync_customGradleTaskWithArguments_preservesConfiguration() {
+        val fixture = createFixture()
+        val debug = fixture.addConfiguration(
+            name = "jugg:app:debug",
+            compileCommand = "./gradlew :app:packageDebug --offline",
+            outputApkName = "app/build/outputs/apk/debug/*.apk",
+        )
+        fixture.selectedConfiguration = debug
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:packageDebug",
+                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
+                    variantName = "debug",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals(1, fixture.settings.size)
+        assertSame(debug, fixture.selectedConfiguration)
+        assertEquals("./gradlew :app:packageDebug --offline", debug.compileCommand())
+    }
+
+    @Test
     fun sync_existingConfiguration_preservesGeneratedStyleOutputApkPath() {
         val fixture = createFixture()
         val debug = fixture.addConfiguration(
@@ -260,6 +314,70 @@ class JuggManagerRunConfigurationSyncTest {
     }
 
     @Test
+    fun sync_activeBuildVariantChanged_reusesExistingConfigurationWithCustomGradleArguments() {
+        val fixture = createFixture()
+        val release = fixture.addConfiguration(
+            name = "jugg:app:release",
+            compileCommand = "./gradlew :app:assembleRelease",
+            outputApkName = "app/build/outputs/apk/release/*.apk",
+        )
+        val debug = fixture.addConfiguration(
+            name = "jugg:app:debug",
+            compileCommand = "./gradlew :app:assembleDebug --offline",
+            outputApkName = "app/build/outputs/apk/debug/*.apk",
+        )
+        fixture.selectedConfiguration = release
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:assembleDebug",
+                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
+                    variantName = "debug",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals(2, fixture.settings.size)
+        assertSame(debug, fixture.selectedConfiguration)
+        assertEquals("./gradlew :app:assembleDebug --offline", debug.compileCommand())
+    }
+
+    @Test
+    fun sync_variantSwitch_reusesExistingCustomGradleTaskConfiguration() {
+        val fixture = createFixture()
+        val debug = fixture.addConfiguration(
+            name = "jugg:app:debug",
+            compileCommand = "./gradlew :app:packageDebug",
+            outputApkName = "app/build/outputs/apk/debug/*.apk",
+        )
+        val release = fixture.addConfiguration(
+            name = "jugg:app:release",
+            compileCommand = "./gradlew :app:packageRelease --offline",
+            outputApkName = "app/build/outputs/apk/release/*.apk",
+        )
+        fixture.selectedConfiguration = debug
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:packageRelease",
+                    outputApkPath = "app/build/outputs/apk/release/*.apk",
+                    variantName = "release",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals(2, fixture.settings.size)
+        assertSame(release, fixture.selectedConfiguration)
+        assertEquals("./gradlew :app:packageRelease --offline", release.compileCommand())
+    }
+
+    @Test
     fun sync_switchingBackToPersistedVariant_selectsExistingConfiguration() {
         val fixture = createFixture()
         val prodDebug = fixture.addConfiguration(
@@ -330,6 +448,32 @@ class JuggManagerRunConfigurationSyncTest {
 
         assertEquals(2, fixture.settings.size)
         assertEquals("./gradlew :app:assembleRelease", fixture.selectedConfiguration?.compileCommand())
+    }
+
+    @Test
+    fun sync_multiTaskSuggestion_preservesSelectedConfiguration() {
+        val fixture = createFixture()
+        val debug = fixture.addConfiguration(
+            name = "jugg:app:debug",
+            compileCommand = "./gradlew :app:packageDebug --offline",
+            outputApkName = "app/build/outputs/apk/debug/*.apk",
+        )
+        fixture.selectedConfiguration = debug
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew clean :app:packageRelease",
+                    outputApkPath = "app/build/outputs/apk/release/*.apk",
+                    variantName = "release",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals(2, fixture.settings.size)
+        assertSame(debug, fixture.selectedConfiguration)
     }
 
     @Test
