@@ -84,6 +84,13 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
         val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_9_2_1_include_build").toFile()
         try {
             buildProjectFiles(fixtureDir)
+            val pathManager = JuggPathManager(fixtureDir)
+            val staleIncludedProjectInfo = File(
+                pathManager.gradleIncludeBuildsFile.parentFile,
+                "include_build_1_gradle_project_infos.json",
+            )
+            writeFile(staleIncludedProjectInfo, "stale included build project info")
+            writeFile(pathManager.gradleIncludeBuildsFile, staleIncludedProjectInfo.absolutePath)
             File(fixtureDir, "settings.gradle").appendText("\nincludeBuild 'SMCommon'\n")
             File(fixtureDir, "build.gradle").appendText(
                 """
@@ -111,9 +118,10 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
             assertEquals(0, result.exitCode, "Gradle $gradleVersion included build check failed.\n${result.output}")
             assertFalse(result.output.contains("Jugg: readProjectInfo.gradle execute failed"), result.output)
             assertTrue(result.output.contains("Jugg: skip missing include build project info"), result.output)
-            val pathManager = JuggPathManager(fixtureDir)
             assertTrue(pathManager.gradleProjectInfoFile.exists(), result.output)
-            assertFalse(pathManager.gradleIncludeBuildsFile.exists(), result.output)
+            val retainedProjectInfo = File(pathManager.gradleIncludeBuildsFile.readLines().single())
+            assertEquals(staleIncludedProjectInfo.canonicalFile, retainedProjectInfo.canonicalFile)
+            assertEquals("stale included build project info", staleIncludedProjectInfo.readText())
         } finally {
             fixtureDir.deleteRecursively()
         }

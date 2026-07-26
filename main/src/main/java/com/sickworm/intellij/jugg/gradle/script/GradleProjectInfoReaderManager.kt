@@ -240,8 +240,10 @@ class GradleProjectInfoReaderManager(
             val originFile = JuggPathManager(includedBuild.projectDir).gradleProjectInfoFile
             val targetFile = File(includeProjectsFile.parentFile, "include_build_${index + 1}_gradle_project_infos.json")
             if (!originFile.exists()) {
-                targetFile.delete()
                 println("Jugg: skip missing include build project info: $originFile")
+                if (targetFile.exists()) {
+                    projectFiles.add(targetFile)
+                }
                 return@forEachIndexed
             }
             originFile.copyTo(targetFile, true)
