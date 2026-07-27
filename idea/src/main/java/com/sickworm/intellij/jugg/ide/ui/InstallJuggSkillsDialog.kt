@@ -270,6 +270,7 @@ class InstallJuggSkillsDialog(
                 } else {
                     "Install Completed with Issues"
                 }
+                val hasIssues = title != "Install Completed"
                 ApplicationManager.getApplication().invokeLater {
                     val displayText = buildInstallResultText(
                         options,
@@ -277,7 +278,11 @@ class InstallJuggSkillsDialog(
                         skillSummary,
                         runtimeSummary,
                     )
-                    Messages.showInfoMessage(project, displayText, title)
+                    if (hasIssues) {
+                        Messages.showWarningDialog(project, displayText, title)
+                    } else {
+                        Messages.showInfoMessage(project, displayText, title)
+                    }
                     if (shouldPromptCcSwitchSetup(options, runtimeSummary)) {
                         promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
                     }
@@ -285,25 +290,36 @@ class InstallJuggSkillsDialog(
             }, isNeedShowIndicator = true, isBlockIncrementalCompile = false)
         }
 
-        /** Installs CLI and hooks after one Python runtime preflight. */
+        /** Installs CLI first (no Python needed), then hooks after Python runtime preflight. */
         private fun installRuntimeComponents(options: InstallOptions, logger: Logger): HookInstallSummary {
             if (!options.requiresCli) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
                 return HookInstallSummary(emptyList())
             }
-            val pythonCommand = PythonRuntimeResolver.requireCommand()
+            // CLI does not require Python — install it first so the user can fix
+            // Python later without re-running the full install flow.
             JuggSkillInstaller.installCli(logger).getOrThrow()
             if (!options.requiresHooks) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
                 return HookInstallSummary(emptyList())
             }
-            JuggSkillInstaller.installHooks(logger).getOrThrow()
-            JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger)
-            return JuggHookInstaller.installForClients(
-                options.hookClients(),
-                logger = logger,
-                pythonCommand = pythonCommand,
-            )
+            return runCatching {
+                val pythonCommand = PythonRuntimeResolver.requireCommand()
+                JuggSkillInstaller.installHooks(logger).getOrThrow()
+                JuggSkillInstaller.setHookBlockDisabled(disabled = false, logger)
+                JuggHookInstaller.installForClients(
+                    options.hookClients(),
+                    logger = logger,
+                    pythonCommand = pythonCommand,
+                )
+            }.getOrElse { error ->
+                logger.warn("[Install Hooks] python runtime not ready, hooks skipped", error)
+                HookInstallSummary(listOf(HookInstallResult(
+                    path = "runtime",
+                    status = "fail",
+                    reason = error.message ?: error.javaClass.simpleName,
+                )))
+            }
         }
 
         internal fun buildInstallResultText(
@@ -324,7 +340,11 @@ class InstallJuggSkillsDialog(
                         .map { target -> target.settingsFile.path to client.cliName }
                 }
                 .toMap()
-            val hookStatusByAgent = aggregateHookStatus(hookSummary.results, hookPathToAgent)
+            // Separate non-agent (runtime) errors from per-agent hook results
+            val (runtimeErrors, agentHookResults) = hookSummary.results.partition { result ->
+                !isAgentHookResult(result, hookPathToAgent)
+            }
+            val hookStatusByAgent = aggregateHookStatus(agentHookResults, hookPathToAgent)
             val skillResultByAgent = skillSummary.results.associateBy { it.agent }
 
             val agents = linkedSetOf<String>()
@@ -368,6 +388,14 @@ class InstallJuggSkillsDialog(
             }
 
             return buildString {
+                if (runtimeErrors.isNotEmpty()) {
+                    val errorMessages = runtimeErrors.mapNotNull { it.reason ?: it.status }
+                    appendLine("━━━━━━━━━━━━━━━━━━━━")
+                    appendLine("⚠ Runtime Error:")
+                    errorMessages.forEach { msg -> appendLine("  $msg") }
+                    appendLine("━━━━━━━━━━━━━━━━━━━━")
+                    appendLine()
+                }
                 if (shouldInstallCli) {
                     val reason = if (options.installHooks && !options.installCli) {
                         " (installed automatically for hooks)"
@@ -454,6 +482,11 @@ class InstallJuggSkillsDialog(
                         }
                     }
             }
+        }
+
+        private fun isAgentHookResult(result: HookInstallResult, pathToAgent: Map<String, String>): Boolean {
+            return pathToAgent.containsKey(result.path) ||
+                pathToAgent.entries.any { result.path.endsWith(it.key) }
         }
 
         private fun formatDisplayStatus(raw: String): String {
