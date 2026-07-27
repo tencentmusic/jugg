@@ -430,6 +430,8 @@ cp -r  {projectDir}/build/jugg/database/     $BACKUP/database/
 | APK 数据库 | `build/jugg/database/apk/*.db` | DB 状态相关问题 |
 | 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态相关 |
 
+可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存上述现场。脚本默认复制本地 APK、全部 `R.jar` 候选及其路径/hash，并在设备在线时拉取实际安装 APK、overlay DEX，以及 `code_cache/.overlay` 下的 `resource.ap_`、`resources.arsc`、兼容部署标记和 overlay id。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging、resource APK 与设备 overlay 被覆盖。
+
 ---
 
 ## 6. TDD 修复流程

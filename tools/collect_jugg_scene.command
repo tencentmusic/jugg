@@ -203,9 +203,11 @@ collect_jugg_state() {
 collect_classpath() {
   local classpath_dir="$JUGG_DIR/classpath"
   local inventory="$OUT_DIR/meta/classpath_inventory.txt"
+  local r_jar_inventory="$OUT_DIR/meta/r_jar_inventory.txt"
 
   if [[ ! -d "$classpath_dir" ]]; then
     echo "No classpath directory: $classpath_dir" > "$inventory"
+    echo "No classpath directory: $classpath_dir" > "$r_jar_inventory"
     return 0
   fi
 
@@ -230,6 +232,30 @@ collect_classpath() {
         local rel="${file#"$classpath_dir/"}"
         copy_file "$file" "classpath/$rel"
       done
+
+    : > "$r_jar_inventory"
+    find "$classpath_dir/root" -type f -name 'R.jar' -print0 |
+      while IFS= read -r -d '' file; do
+        local rel="${file#"$classpath_dir/"}"
+        local size
+        local modified_at
+        local sha256="unavailable"
+        size="$(wc -c < "$file" | tr -d '[:space:]')"
+        if modified_at="$(stat -f '%m' "$file" 2>/dev/null)"; then
+          :
+        elif modified_at="$(stat -c '%Y' "$file" 2>/dev/null)"; then
+          :
+        else
+          modified_at="unavailable"
+        fi
+        if command -v shasum >/dev/null 2>&1; then
+          sha256="$(shasum -a 256 "$file" | awk '{print $1}')"
+        fi
+        printf '%s\tsize=%s\tmtime=%s\tsha256=%s\n' "$rel" "$size" "$modified_at" "$sha256" >> "$r_jar_inventory"
+        copy_file "$file" "classpath/$rel"
+      done
+  else
+    echo "No classpath root directory: $classpath_dir/root" > "$r_jar_inventory"
   fi
 
   if [[ "$INCLUDE_APKS" == "yes" ]]; then
@@ -371,6 +397,53 @@ dump_device_overlay_dex() {
   [[ -s "$error_log" ]] || rm -f "$error_log"
 }
 
+dump_device_overlay_resources() {
+  local package_name="$1"
+  local package_dir="$OUT_DIR/$DEVICE_OUTPUT_DIR/packages/$package_name"
+  local overlay_dir="$package_dir/overlay_resources"
+  local listing_file="$package_dir/overlay_files_list.txt"
+  local hashes_file="$package_dir/overlay_resource_hashes.txt"
+  local error_log="$package_dir/overlay_resource_pull_errors.log"
+  local tmp_error="$package_dir/overlay_resource_pull.tmp"
+  mkdir -p "$overlay_dir"
+  rm -f "$hashes_file" "$error_log" "$tmp_error"
+
+  adb "${ADB_TARGET_ARGS[@]}" shell run-as "$package_name" find code_cache/.overlay -type f -print \
+    > "$listing_file" 2>&1 || true
+
+  while IFS= read -r remote_file; do
+    case "$remote_file" in
+      */resource.ap_|*/resources.arsc|*/.jugg_compat_deploy_enable|*/id)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    local rel="${remote_file#code_cache/.overlay/}"
+    local dest="$overlay_dir/$rel"
+    mkdir -p "$(dirname "$dest")"
+    if ! adb "${ADB_TARGET_ARGS[@]}" exec-out run-as "$package_name" cat "$remote_file" > "$dest" 2>"$tmp_error"; then
+      {
+        echo "Failed to pull $remote_file"
+        cat "$tmp_error"
+        echo
+      } >> "$error_log"
+      rm -f "$dest"
+      rm -f "$tmp_error"
+      continue
+    fi
+
+    if command -v shasum >/dev/null 2>&1; then
+      shasum -a 256 "$dest" | sed "s#  $dest#  $rel#" >> "$hashes_file"
+    fi
+    rm -f "$tmp_error"
+  done < "$listing_file"
+
+  [[ -s "$hashes_file" ]] || rm -f "$hashes_file"
+  [[ -s "$error_log" ]] || rm -f "$error_log"
+}
+
 write_apk_consistency_report() {
   local report="$OUT_DIR/$DEVICE_OUTPUT_DIR/apk_consistency.txt"
   local local_hashes="$OUT_DIR/meta/local_apk_hashes.txt"
@@ -461,6 +534,7 @@ collect_adb_for_device() {
     fi
     pull_device_apks "$package_name"
     dump_device_overlay_dex "$package_name"
+    dump_device_overlay_resources "$package_name"
   done < "$OUT_DIR/meta/package_candidates.txt"
 
   write_apk_consistency_report
