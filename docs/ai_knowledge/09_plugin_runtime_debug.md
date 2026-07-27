@@ -34,6 +34,8 @@ build/jugg/                            # juggRootDir
 │   │   ├── project_infos.json
 │   │   └── gradle_project_infos.json
 │   ├── compile_context.db/            # classpath、模块信息
+│   │   ├── complete_flag               # compile context 完整写入标记
+│   │   ├── module_builds.json          # module build path 快照
 │   │   ├── full_build_info.json        # Gradle full build 命令、BuildTarget、写入时间
 │   └── deploy_history.db/             # 部署历史（增量恢复）
 ├── classpath/
@@ -198,6 +200,23 @@ deploy_compat/v_quail/.../QuailAsDeployerCompat.kt
 3. 检查文件变化是否被正确送入 `DeployFileManager.addChangedFile()`
 
 **清理方案**：删除 `build/jugg/database/deploy_history.db/` 后重新全量编译。
+
+### 4.2.1 升级后提示 `not gradle compile yet`
+
+**信号**：过去存在成功全量构建，但升级后状态变成 `READY_FULL_COMPILE(not gradle compile yet)`；日志可能出现 `module build path info version not supported` 或 `No compile context db found`。
+
+**当前兼容行为**：
+- `module_builds.json` version 1 和 2 均可读取；version 1 缺失 `buildDirRelativePath` 时继续使用 `${moduleRootDir}/build`。
+- version 2 正常保存的默认或自定义 build directory 原样恢复。
+- version 2 损坏且缺失 `buildDirRelativePath` 时也回退到 `${moduleRootDir}/build`。
+- 仅在 `complete_flag` 仍存在时恢复；已经被旧版本删除的 flag 不自动重建，避免把不完整 compile context 与 deploy history 拼接。
+- `complete_flag` 缺失时需要完成一次成功的 Jugg 全量构建，Gradle project info dry-run 成功不能重建该标记。
+
+**排查步骤**：
+1. 检查 `compile_context.db/complete_flag` 是否存在。
+2. 检查 `module_builds.json` 的 `version`；version 1/2 应可恢复，其他版本会失败关闭。
+3. 对齐目录修改时间与日志中的版本提示，确认 flag 是升级恢复时删除还是用户清理。
+4. 若 flag 已缺失，不手工创建；运行一次完整 Jugg Gradle Compile。
 
 ### 4.3 APK 数据库初始化慢
 

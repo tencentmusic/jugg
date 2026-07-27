@@ -1,8 +1,10 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.google.gson.JsonParser
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.git.GitManager
+import com.sickworm.intellij.jugg.mock.ProjectInfo
 import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
@@ -140,6 +142,36 @@ class TopLevelFlowWithGitTest {
     }
 
     @Test
+    fun recoveryDeployFromVersion1CompileContextWithGit() {
+        val originalProjectInfo = projectInfo
+        projectInfo = ProjectInfo(
+            packageName = originalProjectInfo.packageName,
+            projectRootDir = originalProjectInfo.projectRootDir,
+            modifiedSourceDir = originalProjectInfo.modifiedSourceDir,
+            apkPath = "app/build/outputs/apk/debug/app-debug.apk",
+            apkEntryInfo = originalProjectInfo.apkEntryInfo,
+        )
+        try {
+            val jugg = MockJugg()
+            jugg.resetAllState()
+            initDeployWithGit(jugg)
+            jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+            jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+            jugg.deploy()
+            rewriteModuleBuildInfoAsVersion1(jugg)
+
+            val recoveredJugg = MockJugg()
+            recoveredJugg.loadFromHistory()
+            recoveredJugg.juggManager.updateDeployState()
+
+            assertEquals(JuggDeployState.State.READY_DEPLOY, recoveredJugg.deployStateManager.deployState.state)
+            assertTrue(recoveredJugg.deployHistoryManager.hasBeenFullCompiled)
+        } finally {
+            projectInfo = originalProjectInfo
+        }
+    }
+
+    @Test
     fun recoveryDeployOnIsReadyIncCompileState() {
         val jugg = MockJugg()
         initDeployWithGit(jugg)
@@ -192,5 +224,15 @@ class TopLevelFlowWithGitTest {
             assertEquals(1, failedFile.compiledTimes)
             assertTrue(jugg.deployFileManager.isNoFileChanges())
         }
+    }
+
+    private fun rewriteModuleBuildInfoAsVersion1(jugg: MockJugg) {
+        val moduleBuildInfoFile = File(jugg.pathManager.compileContextDbDir, "module_builds.json")
+        val root = JsonParser.parseString(moduleBuildInfoFile.readText()).asJsonObject
+        root.addProperty("version", 1)
+        root.getAsJsonObject("modulePathInfos").entrySet().forEach { (_, module) ->
+            module.asJsonObject.remove("buildDirRelativePath")
+        }
+        moduleBuildInfoFile.writeText(root.toString())
     }
 }
