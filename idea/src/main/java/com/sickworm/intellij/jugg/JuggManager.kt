@@ -82,6 +82,11 @@ class JuggManager @TestOnly constructor(
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
+    companion object {
+        private const val MAX_RUN_CONFIG_RETRIES = 7
+        private const val RUN_CONFIG_RETRY_BASE_DELAY_MS = 2000L
+    }
+
     private val juggConfigurationRunner: JuggConfigurationRunner = JuggConfigurationRunner(project, pathManager,
         deployHistoryManager, juggRunningTaskStatusManager,
         JuggRunningTaskCreator(), gitFileChangesDetector,
@@ -217,7 +222,7 @@ class JuggManager @TestOnly constructor(
     }
 
     @Synchronized
-    private fun tryCreateRunConfigurations(isSyncFinished: Boolean, maxRetryCount: Int = 5) {
+    private fun tryCreateRunConfigurations(isSyncFinished: Boolean, maxRetryCount: Int = MAX_RUN_CONFIG_RETRIES) {
         TimeLogger.start("tryCreateDefaultRunConfiguration")
         val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
         val currentListNames = currentList.map { it.name }
@@ -249,9 +254,11 @@ class JuggManager @TestOnly constructor(
         if (suggestRunConfiguration.isEmpty()) {
             logger.debug("No suggest run configuration")
             if (currentListNamesExceptDefault.isEmpty() && isSyncFinished && maxRetryCount > 0) {
-                logger.debug("No current run configuration, retry after 2s")
+                val attempt = MAX_RUN_CONFIG_RETRIES - maxRetryCount
+                val delayMs = RUN_CONFIG_RETRY_BASE_DELAY_MS * (1L shl attempt)
+                logger.debug("No current run configuration, retry #${attempt + 1} after ${delayMs}ms")
                 launch {
-                    delay(2000)
+                    delay(delayMs)
                     tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
                 }
             }
