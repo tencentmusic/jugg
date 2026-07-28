@@ -38,6 +38,25 @@ public class InstrumenterSourcePolicyTest {
         assertFalse(source.contains("webViewFactoryGetProviderEnter"));
     }
 
+    @Test
+    public void compatModeShouldNotBeCachedBeforeHotfixLoaderInitialization() throws Exception {
+        String source = read("src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java");
+
+        assertTrue(source.contains("if (HotfixLoader.overlayFilesDir == null)"));
+    }
+
+    @Test
+    public void newAssetManagerExitShouldSkipOverlayFixInCompatMode() throws Exception {
+        String source = read("src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java");
+        int methodStart = source.indexOf("public static AssetManager createAssetManagerNewExit");
+        String method = source.substring(
+                methodStart,
+                source.indexOf("private static boolean isNeedFixThisAssetManager", methodStart));
+
+        assertTrue(method.contains("if (isEnableHotfix())"));
+        assertTrue(method.contains("return assetManager;"));
+    }
+
     private static String read(String path) throws Exception {
         return new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
     }

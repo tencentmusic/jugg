@@ -122,6 +122,9 @@ public class InstrumentationHooks {
     }
 
     public static AssetManager createAssetManagerNewExit(AssetManager assetManager) {
+        if (isEnableHotfix()) {
+            return assetManager;
+        }
         if (!isNeedFixThisAssetManagerNew) {
             return assetManager;
         }
@@ -220,6 +223,9 @@ public class InstrumentationHooks {
     private static boolean isEnableHotfixCache = false;
 
     private synchronized static boolean isEnableHotfix() {
+        if (HotfixLoader.overlayFilesDir == null) {
+            return false;
+        }
         if (!isEnableHotfixCheckFlag) {
             try {
                 isEnableHotfixCache = HotfixLoader.isNeedEnableHotfix();
