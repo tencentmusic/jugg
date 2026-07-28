@@ -1,20 +1,54 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.execution.ExecutionResult
+import com.intellij.execution.RunManager
+import com.intellij.execution.RunnerAndConfigurationSettings
+import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.openapi.util.Key
 import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.ide.JuggConfigurationType
+import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import javax.swing.JPanel
 
 class JuggConfigurationRunnerTest {
+
+    @Test
+    fun `selected Jugg configuration is used`() {
+        val runConfiguration = mock<JuggRunConfiguration>()
+        val settings = mock<RunnerAndConfigurationSettings>()
+        val runManager = mock<RunManager>()
+        whenever(settings.configuration).thenReturn(runConfiguration)
+        whenever(runManager.selectedConfiguration).thenReturn(settings)
+
+        assertSame(runConfiguration, findSelectedOrFirstJuggRunConfiguration(runManager))
+    }
+
+    @Test
+    fun `first Jugg configuration is used when selection is not Jugg`() {
+        val selectedSettings = mock<RunnerAndConfigurationSettings>()
+        val fallbackConfiguration = mock<JuggRunConfiguration>()
+        val fallbackSettings = mock<RunnerAndConfigurationSettings>()
+        val runManager = mock<RunManager>()
+        whenever(selectedSettings.configuration).thenReturn(mock<RunConfiguration>())
+        whenever(fallbackSettings.configuration).thenReturn(fallbackConfiguration)
+        whenever(runManager.selectedConfiguration).thenReturn(selectedSettings)
+        whenever(runManager.getConfigurationSettingsList(JuggConfigurationType::class.java))
+            .thenReturn(listOf(fallbackSettings))
+
+        assertSame(fallbackConfiguration, findSelectedOrFirstJuggRunConfiguration(runManager))
+    }
 
     @Test
     fun `androidTest sink hides device suite`() {

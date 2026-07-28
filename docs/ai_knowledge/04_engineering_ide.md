@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-07-24
+> 最后核对：2026-07-28
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -118,7 +118,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
 - `Check Jugg Update` 独立 action 经 `JuggManager.checkUpdates()` 复用 `MoreOptionsManager.checkUpdates()`，行为与 More Options 中的更新检查一致。
 - `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；安装 CLI 或 hooks 前先检测 Python 3.7+（`python3` 优先，`python` 回退），未满足时不写入 CLI 或 hook 配置。成功安装 Claude hooks 且检测到 CC Switch 配置目录时，安装结果关闭后会提示用户导出 Common Config JSON，不提供单独的 CC Switch 安装选项，也不直接修改 CC Switch 配置。选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 Codex home（优先 `CODEX_HOME`，否则 `~/.codex`）下 `rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认，并在安装日志记录 rules file、prefix 与 installed/already_installed/fail 状态；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。
-- CLI/MCP/RPC 触发首个 run configuration 时会创建 Run content，但默认不激活 Run tool window；失败等需要用户注意的场景才显式 show。
+- CLI/MCP/RPC 优先使用 IDE 当前选中的 Jugg run configuration；当前选择项不是 Jugg configuration 时回退到列表中的首个 Jugg 配置。运行时会创建对应 Run content，但默认不激活 Run tool window；失败等需要用户注意的场景才显式 show。
 - `reportIssue()` 会 dump project info、logcat error，并通过 `JuggServer.reportAndUploadLogs()` 上传日志。
 
 ---

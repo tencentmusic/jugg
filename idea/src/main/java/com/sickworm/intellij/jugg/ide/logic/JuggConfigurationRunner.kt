@@ -4,7 +4,6 @@ import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
-import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.filters.TextConsoleBuilderFactory
@@ -28,7 +27,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationSmRunnerBridge
 import com.sickworm.intellij.jugg.ide.JuggAndroidTestConsoleProperties
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
-import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
@@ -154,14 +153,10 @@ class JuggConfigurationRunner(
         androidTestRunSpec: AndroidTestRunSpec?,
         buildTargetOverride: BuildTarget?,
     ): JuggRunInvocationResult {
-        val currentRunConfigurationList = RunManager.getInstance(project)
-            .getConfigurationSettingsList(JuggConfigurationType::class.java)
-        @Suppress("UNCHECKED_CAST")
-        val runConfiguration = (currentRunConfigurationList.firstOrNull()?.configuration
-                as? RunConfigurationBase<JuggRunConfigurationOptions>)
+        val runConfiguration = findSelectedOrFirstJuggRunConfiguration(RunManager.getInstance(project))
             ?: return JuggRunInvocationResult(
                 isSuccess = false,
-                errorMessage = "Run configuration not found.",
+                errorMessage = "Jugg run configuration not found.",
             )
 
         val state = runConfiguration.state
@@ -223,6 +218,12 @@ class JuggConfigurationRunner(
             } else null,
         )
     }
+}
+
+internal fun findSelectedOrFirstJuggRunConfiguration(runManager: RunManager): JuggRunConfiguration? {
+    return (runManager.selectedConfiguration?.configuration as? JuggRunConfiguration)
+        ?: (runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
+            .firstOrNull()?.configuration as? JuggRunConfiguration)
 }
 
 internal fun createRunContentDescriptor(
