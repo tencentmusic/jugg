@@ -19,39 +19,13 @@
 
 ## 测试要求
 
-> **权威细则**：[06_testing.md](docs/ai_knowledge/06_testing.md)（分层、选型、落点、TDD 清单）。本节为硬性原则；实操与示例以该文档为准。
+> [06_testing.md](docs/ai_knowledge/06_testing.md) 是测试价值判断、L0～L3 分层、落点、TDD 和存量治理的唯一权威细则。
 
-### 测试分层（原则，优先级高于任何其他测试相关描述）
-
-| 层级 | 形态 | 何时必须/允许 |
-|------|------|----------------|
-| **L3 端到端** | `idea/.../manager/*Flow*`，真实 demo 编译 + 部署/运行 | 用户可见主链路变更；**deploy / compile 编排 refactor 至少 1 条** |
-| **L2 协作集成** | 多生产类协作；Mockito mock **接口**；可 fake 设备/ADB | 恢复/重试/编排分支 |
-| **L1 域内测试** | 单模块 + 真实产物或纯函数；见 06_testing §2 | 复杂算法、解析器、影响分析、序列化等 |
-| **L0 禁止默认** | 数据类字段、路径常量、无行为的 getter | 不单独建 `*Test` |
-
-- **默认**：不为「单个编排类/Helper/策略类」新建仅 Mockito 的单文件测试。
-- **L1**：仅为复杂算法与确定性数据变换实现 L1 测试（如 `DeployDataGenerator`、`InstrumentationOutputParser`、`AndroidTestLogAttributor`）— 完整清单见 06_testing §2。
-- **L2**：大部分用例为 L2，L2 用于验证核心逻辑，流程编排，多版本兼容，异常分支覆盖；
-- **L3**：**对外承诺的行为** 由 L3（或 06_testing §7 列出的等价 Flow）证明，但不覆盖 L2 的多版本兼容，异常分支全覆盖。
-
-### 测试代码规范
-- 禁止为测试在生产代码新增仅服务于 mock 的 `provider` / `supplier` / `factory` / `override` lambda、函数类型参数、可变闭包或默认 lambda 参数。
-- 需替换外部依赖时：抽象为**有业务语义**的接口/类（如 `IJuggDeployHelperRunHost`），经正常依赖注入；禁止测试专用命名。
-- 测试侧优先 Mockito mock **接口/类**；禁止用 lambda 注入绕过真实协作对象。
-
-### feature / bugfix 变更 TDD 强制前置条件
-**禁止直接调用 Edit/Write 修改业务代码**，必须按顺序完成：
-1. 按 06_testing §2 选定层级，写好失败测试（描述预期行为）
-2. 在执行清单中列出**测试文件路径 + 层级（L1/L2/L3）**，确认覆盖本次改动
-3. 再实现业务代码使测试通过
-
-### optimize / refactor 变更 TDD 强制前置条件
-1. 在执行清单中列出测试路径与层级；未覆盖时按 06_testing §8 补充（**涉及 `JuggDeployerHelper` / deploy/run 时须含 L3 或已有 Flow 回归**）
-2. 变更完成后，定向测试全通过（`--tests` 过滤，禁止全量 `:main:test` / `:idea:test`）
-
-### 测试运行规范
-完成开发时保证用例全通过；禁止无 `--tests` 过滤的全量 `:main:test` / `:idea:test`（内存压力）。编译验证可用 `./gradlew :idea:compileKotlin`。
+- 新增或保留测试前，必须确认其保护独立、稳定且可能被真实破坏的行为。字段、getter、路径常量、简单透传、无可判定结果和纯实现细节默认不测试；层级、覆盖率、是否使用 Mockito 均不能单独证明测试有价值。
+- feature / bugfix 必须先定位已有主责用例（behavior owner），写好描述缺失行为的失败测试，在执行清单列出测试路径与层级，再修改业务代码。
+- optimize / refactor 必须先列出已有回归测试；仅在稳定行为缺少保护时补测试，不因内部结构变化新增实现细节测试。涉及 deploy / compile 编排时，必须包含 L3 或已有等价 Flow 回归。
+- 禁止为测试在生产代码新增仅服务于 mock 的 `provider` / `supplier` / `factory` / `override` lambda、函数类型参数、可变闭包或默认 lambda 参数。替换外部依赖应使用有业务语义的接口或类并正常依赖注入。
+- 完成开发后必须运行定向测试并保证通过；禁止无 `--tests` 过滤的全量 `:main:test` / `:idea:test`。编译验证可使用 `./gradlew :idea:compileKotlin`。
 
 ## commit 规范
 _根据以下规则编写提交信息：
