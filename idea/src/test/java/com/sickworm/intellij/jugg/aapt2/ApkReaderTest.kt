@@ -21,7 +21,7 @@ class ApkReaderTest {
     @Test
     fun testAaptDaemonInvoker() {
         val reader = Aapt2DaemonInvoker(logger)
-        val result = reader.invoke("dump resources ${apkFile.absolutePath}")
+        val result = reader.invoke(listOf("dump", "resources", apkFile.absolutePath))
         assertEquals("", result.errorOutput)
         assertTrue(result.output.isNotEmpty())
         assertTrue(result.isSuccess)
@@ -31,17 +31,32 @@ class ApkReaderTest {
     @Test
     fun testAaptDaemonInvokerMultiInvoke() {
         val reader = Aapt2DaemonInvoker(logger)
-        var result = reader.invoke("dump resources ${apkFile.absolutePath}")
+        var result = reader.invoke(listOf("dump", "resources", apkFile.absolutePath))
         assertEquals("", result.errorOutput)
         assertTrue(result.output.isNotEmpty())
         assertTrue(result.isSuccess)
 
-        result = reader.invoke("dump packagename ${apkFile.absolutePath}")
+        result = reader.invoke(listOf("dump", "packagename", apkFile.absolutePath))
         assertEquals("", result.errorOutput)
         assertTrue(result.output.isNotEmpty())
         assertTrue(result.isSuccess)
 
-        result = reader.invoke("dump resources ${apkFile.absolutePath}")
+        result = reader.invoke(listOf("dump", "resources", apkFile.absolutePath))
+        assertEquals("", result.errorOutput)
+        assertTrue(result.output.isNotEmpty())
+        assertTrue(result.isSuccess)
+        reader.release()
+    }
+
+    @Test
+    fun testAaptDaemonInvokerWithSpaceInPath() {
+        val apkWithSpace = File(buildDir, "apk with space/app debug.apk")
+        apkWithSpace.parentFile.mkdirs()
+        apkFile.copyTo(apkWithSpace, overwrite = true)
+
+        val reader = Aapt2DaemonInvoker(logger)
+        val result = reader.invoke(listOf("dump", "resources", apkWithSpace.absolutePath))
+
         assertEquals("", result.errorOutput)
         assertTrue(result.output.isNotEmpty())
         assertTrue(result.isSuccess)

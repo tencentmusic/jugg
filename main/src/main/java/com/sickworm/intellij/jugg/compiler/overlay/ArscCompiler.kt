@@ -69,22 +69,20 @@ class ArscCompiler(
         val resGuardMappingFile = ResGuardMappingFileGenerator(logger).generate(context, context.tempCompileDir)
 
         val aapt2Invoker = Aapt2DaemonInvoker(logger)
-        val command: String
-        if (context.isSingleApk || apkFileUnit.isBaseApk) {
-            command = """
-                |inclink
-                |--load
-                |--warn-manifest-validation
-                |--res-guard-mapping
-                |${resGuardMappingFile?.absolutePath ?: "no_res_guard_mapping_file"}
-                |--styleables
-                |${styleableFile?.absolutePath ?: "no_styleables_file"}
-                |-o no_need_output_path_on_load
-                |-I ${context.androidJar}
-                |--manifest no_need_manifest_on_load
-                |${resApkFile}
-            """.trimMargin().replace("\n", " ")
-        } else {
+        val command = mutableListOf(
+            "inclink",
+            "--load",
+            "--warn-manifest-validation",
+            "--res-guard-mapping",
+            resGuardMappingFile?.absolutePath ?: "no_res_guard_mapping_file",
+            "--styleables",
+            styleableFile?.absolutePath ?: "no_styleables_file",
+            "-o",
+            "no_need_output_path_on_load",
+            "-I",
+            context.androidJar.absolutePath,
+        )
+        if (!context.isSingleApk && !apkFileUnit.isBaseApk) {
             val baseApk = context.apkInfos
                 .find { it.applicationId == context.packageName }
                 ?.files?.find { it.isBaseApk }
@@ -92,25 +90,15 @@ class ArscCompiler(
                 throw JuggException.baseApkNotFound(context.packageName, context.apkInfos)
             }
             val baseResApk = getResApk(baseApk)
-            command = """
-                |inclink
-                |--load
-                |--warn-manifest-validation
-                |--res-guard-mapping
-                |${resGuardMappingFile?.absolutePath ?: "no_res_guard_mapping_file"}
-                |--styleables
-                |${styleableFile?.absolutePath ?: "no_styleables_file"}
-                |-o no_need_output_path_on_load
-                |-I ${context.androidJar}
-                |-I ${baseResApk.absolutePath}
-                |--manifest no_need_manifest_on_load
-                |${resApkFile}
-            """.trimMargin().replace("\n", " ")
+            command.addAll(listOf("-I", baseResApk.absolutePath))
         }
+        command.addAll(listOf("--manifest", "no_need_manifest_on_load", resApkFile.absolutePath))
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
-            logger.info("loadTable error msg (may not be fatal problem): ${result.errorOutput}")
+            logger.warn("loadTable failed: ${result.errorOutput}")
+            aapt2Invoker.release()
+            return false
         }
 
         val costTime = System.currentTimeMillis() - startTime
@@ -230,30 +218,25 @@ class ArscCompiler(
 
         val manifestName = androidManifest?.absolutePath ?: "no_need_compile_manifest"
 
-        val flatFilesArg = flatFiles.joinToString(separator = "\n") { it.absolutePath }
-        val command: String
-        if (context.isSingleApk || apkFileUnit.isBaseApk) {
-            val commandArg = """
-                |inclink
-                |-o $overlayDir
-                |--output-to-dir
-                |--java $rFileDir
-                |--manifest $manifestName
-            """.trimMargin().replace("\n", " ")
-            command = "$commandArg $flatFilesArg"
-        } else {
+        val command = mutableListOf(
+            "inclink",
+            "-o",
+            overlayDir.absolutePath,
+            "--output-to-dir",
+            "--java",
+            rFileDir.absolutePath,
+            "--manifest",
+            manifestName,
+        )
+        if (!context.isSingleApk && !apkFileUnit.isBaseApk) {
             // -R: Compilation unit to link, using `overlay` semantics. The last conflicting resource given takes precedence
-            val commandArg = """
-                |inclink
-                |-o $overlayDir
-                |--output-to-dir
-                |--java $rFileDir
-                |--manifest $manifestName
-                |--custom-package ${apkFileUnit.resourcePackage}
-                |--allow-reserved-package-id
-            """.trimMargin().replace("\n", " ")
-            command = "$commandArg $flatFilesArg"
+            command.addAll(listOf(
+                "--custom-package",
+                apkFileUnit.resourcePackage,
+                "--allow-reserved-package-id",
+            ))
         }
+        command.addAll(flatFiles.map { it.absolutePath })
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {

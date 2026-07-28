@@ -153,13 +153,11 @@ class ResourceCompiler(
 //            return originResCompileSet.originTask.allFailed("AabResGuard processing failed")
 //        }
 
-        val filesString = resCompileSet.compileFiles.joinToString(" ") {
-            it.absolutePath
-        }
         resCompileSet.outputDir.mkdirs()
 
         // --legacy is required for: multiple substitutions specified in non-positional format; did you mean to add the formatted="false" attribute?.
-        val command = "compile --legacy -o ${resCompileSet.outputDir} $filesString"
+        val command = mutableListOf("compile", "--legacy", "-o", resCompileSet.outputDir.absolutePath)
+        command.addAll(resCompileSet.compileFiles.map { it.absolutePath })
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
             return CompileResult(

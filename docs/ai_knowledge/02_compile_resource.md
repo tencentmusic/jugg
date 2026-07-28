@@ -1,6 +1,6 @@
 # 编译系统：资源编译链（res/assets/arsc/Compose resource）
 
-> 最后核对：2026-07-25
+> 最后核对：2026-07-28
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -90,6 +90,8 @@ JuggCompiler（早于 asset/resource/source）
 ## 5. 隐形约束 / 设计思路 / 已知边界
 
 - `ArscCompiler` 为每个 APK 缓存一个 `Aapt2DaemonInvoker`；invoker 死亡或 link 失败会 release，下一轮重新 `loadTable`。
+- `Aapt2DaemonInvoker` 使用结构化参数列表写入 daemon 协议，每个参数独占一行，APK、资源和输出路径允许包含空格。
+- `loadTable()` 失败时会立即 release invoker 并返回失败，禁止缓存未加载资源表的 daemon，避免后续 inclink 退化为 `no cache data found`。
 - dynamic feature 编译依赖 base APK：base arsc 更新后，`ArscCompiler` 会把 base 本轮 flat 文件加入 feature 的 link 输入，以同步资源 ID。
 - `getResApk()` 会优先使用已部署的 `resources.arsc` 和 manifest 组成临时资源 APK；只看原始 APK 会漏掉上轮 Jugg 资源增量。
 - `ResourceOverlayCompiler.filterResources()` 会删除根 `Manifest.java`，并在 manifest 无真实变更时删除根 `AndroidManifest.xml`，避免触发 APK repackage。
@@ -119,6 +121,8 @@ Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle b
 |---|---|
 | aapt2 compile 失败 | `ResourceCompiler.aapt2Compile()`：看 `compile --legacy` 命令与 flat 输出是否存在 |
 | aapt2 link / arsc 失败 | `ArscCompiler.doApkCompile()` 和 `incLinkCompile()`：看 `loadTable`、`inclink` errorOutput、invoker 是否重建 |
+| `multiply apk load not supported` | 检查是否仍有调用方把整条命令按空格拆参；所有路径参数必须作为 `Aapt2DaemonInvoker.invoke(List<String>)` 的独立元素传入 |
+| `no cache data found, run with --load first` | 先找同一 invoker 的 `loadTable failed`；失败实例不应进入 `aapt2InvokerMap` |
 | dynamic feature 资源 ID 异常 | `ArscCompiler.isBaseApkArscUpdate` / `baseApkUpdateFlatFiles`：确认 base 更新是否参与 feature link |
 | 资源 overlay 输出到错误 APK | `BaseCompiler.splitApkAndCompile()` 与 `CompileOutput.apkPath`：确认 module 到 APK 的归属和输出 apkPath |
 | manifest 无变更却触发重打包 | `ResourceOverlayCompiler.filterResources(...)`：确认 `isNeedOutputManifest=false` 时根 manifest 是否被过滤 |

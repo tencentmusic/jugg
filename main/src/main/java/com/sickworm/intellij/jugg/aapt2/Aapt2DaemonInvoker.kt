@@ -14,7 +14,7 @@ import java.util.*
 /**
  * Aapt2DaemonInvoker owns the embedded `aapt2 daemon` process lifecycle and command execution.
  * Collaboration: Initializes platform binary paths through [getEmbeddedAapt2], delegates stream parsing to [OutputReader], and returns [Aapt2Result] to APK/resource parsing callers.
- * Data Contract: [invoke] lazily initializes the daemon when needed; [init] requires the first daemon line to be `Ready` and throws [JuggInternalException.startAapt2DaemonFailed] otherwise.
+ * Data Contract: [invoke] writes each argument as one daemon protocol line and lazily initializes the process; [init] requires the first daemon line to be `Ready` and throws [JuggInternalException.startAapt2DaemonFailed] otherwise.
  */
 class Aapt2DaemonInvoker(
     parentLogger: Logger,
@@ -45,13 +45,13 @@ class Aapt2DaemonInvoker(
     }
 
     @Synchronized
-    fun invoke(params: String): Aapt2Result {
+    fun invoke(params: List<String>): Aapt2Result {
         if (process?.isAlive != true) {
             init()
         }
-        logger.debug("aapt2 daemon command: $params")
+        logger.debug("aapt2 daemon command: ${params.joinToString(" ")}")
         val process = process!!
-        process.outputStream.write("${params.replace(" ", "\n")}\n\n".toByteArray()) // double \n for commands end
+        process.outputStream.write("${params.joinToString("\n")}\n\n".toByteArray()) // double \n for commands end
         process.outputStream.flush()
 
         return outputReader?.read() ?: Aapt2Result("", "")

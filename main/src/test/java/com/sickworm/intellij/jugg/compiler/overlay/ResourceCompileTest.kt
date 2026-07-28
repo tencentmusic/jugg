@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.ARSC_FILE_NAME
 import com.sickworm.intellij.jugg.compiler.overlay.ArscCompiler
@@ -88,6 +89,25 @@ open class ResourceCompileTest {
         )
         val result = arscCompiler.compile(task)
         checkArscResult(task, result, 416, isRJavaChanged = false)
+    }
+
+    @Test
+    fun compileArscStopsWhenLoadTableFails() {
+        val invalidApk = File(buildDir, "invalid.apk").apply {
+            writeText("invalid apk")
+        }
+        val invalidContext = context.copy(
+            apkInfos = listOf(ApkInfo(invalidApk, androidApkPackage))
+        )
+        val compiler = ArscCompiler(invalidContext, mockParentDisposable)
+
+        try {
+            val result = compiler.compile(CompileTask(flatFiles, stagingDir))
+
+            assertEquals("loadTable failed", result.details.first().getFailure().errorMessages)
+        } finally {
+            Disposer.dispose(compiler)
+        }
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
