@@ -97,6 +97,8 @@ class JuggManager @TestOnly constructor(
     private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
         IdeaMcpRuntime(logger.getInstance("McpRuntime"), project, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector))
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
+    private val fileChangeLock = Any()
+    private val runConfigurationLock = Any()
 
     constructor(
         project2: Project,
@@ -221,8 +223,10 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    @Synchronized
-    private fun tryCreateRunConfigurations(isSyncFinished: Boolean, maxRetryCount: Int = MAX_RUN_CONFIG_RETRIES) {
+    private fun tryCreateRunConfigurations(
+        isSyncFinished: Boolean,
+        maxRetryCount: Int = MAX_RUN_CONFIG_RETRIES,
+    ): Unit = synchronized(runConfigurationLock) {
         TimeLogger.start("tryCreateDefaultRunConfiguration")
         val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
         val currentListNames = currentList.map { it.name }
@@ -233,7 +237,7 @@ class JuggManager @TestOnly constructor(
         }
         if (currentListNamesExceptDefault.isNotEmpty() && !isSyncFinished) {
             logger.debug("Not sync finished and exits non-default configs is not empty, skip create default run configuration")
-            return
+            return@synchronized
         }
 
         val suggestRunConfiguration =
@@ -262,7 +266,7 @@ class JuggManager @TestOnly constructor(
                     tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
                 }
             }
-            return
+            return@synchronized
         }
 
         val runManager = RunManager.getInstance(project)
@@ -414,12 +418,11 @@ class JuggManager @TestOnly constructor(
         return deployState
     }
 
-    @Synchronized
     private fun processFileChanged(
         changedFiles: List<File>,
         deletedFiles: List<File>,
         from: String, // recover / ide / git
-    ) {
+    ) = synchronized(fileChangeLock) {
         logger.trace("[PERF] JuggManager.processFileChanged from=$from, changedSize=${changedFiles.size}, deletedSize=${deletedFiles.size}")
         // prints file changed info
         if (deletedFiles.isNotEmpty()) {

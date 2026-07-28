@@ -27,6 +27,7 @@ import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.IFileChangesDetector
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
@@ -48,8 +49,13 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class JuggManagerRunConfigurationSyncTest {
 
@@ -69,6 +75,91 @@ class JuggManagerRunConfigurationSyncTest {
     @After
     fun tearDown() {
         originalPriorityImpl?.let { priorityImplField.set(null, it) }
+    }
+
+    @Test
+    fun `file change processing should not block run configuration sync`() {
+        val filterStarted = CountDownLatch(1)
+        val releaseFilter = CountDownLatch(1)
+        val fileChangesHandler = mock<IFileChangesHandler>()
+        whenever(fileChangesHandler.filter(any())).thenAnswer {
+            filterStarted.countDown()
+            releaseFilter.await(5, TimeUnit.SECONDS)
+            emptyList<ChangedFile>()
+        }
+        val fixture = createFixture(fileChangesHandler)
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any()))
+            .thenReturn(emptyList())
+        val fileChangeError = AtomicReference<Throwable?>()
+        val fileChangeThread = Thread {
+            try {
+                fixture.invokeProcessFileChanged()
+            } catch (error: Throwable) {
+                fileChangeError.set(error)
+            }
+        }
+        fileChangeThread.start()
+        assertTrue(filterStarted.await(1, TimeUnit.SECONDS))
+
+        val syncFinished = CountDownLatch(1)
+        val syncError = AtomicReference<Throwable?>()
+        val syncThread = Thread {
+            try {
+                fixture.invokeSync()
+            } catch (error: Throwable) {
+                syncError.set(error)
+            } finally {
+                syncFinished.countDown()
+            }
+        }
+        syncThread.start()
+
+        try {
+            assertTrue(syncFinished.await(500, TimeUnit.MILLISECONDS))
+        } finally {
+            releaseFilter.countDown()
+            fileChangeThread.join(1_000L)
+            syncThread.join(1_000L)
+        }
+        fileChangeError.get()?.let { throw AssertionError("File change processing failed", it) }
+        syncError.get()?.let { throw AssertionError("Run configuration sync failed", it) }
+    }
+
+    @Test
+    fun `concurrent run configuration syncs should not create duplicates`() {
+        val firstSyncStarted = CountDownLatch(1)
+        val releaseFirstSync = CountDownLatch(1)
+        val invocationCount = AtomicInteger()
+        val fixture = createFixture()
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenAnswer {
+            if (invocationCount.incrementAndGet() == 1) {
+                firstSyncStarted.countDown()
+                releaseFirstSync.await(5, TimeUnit.SECONDS)
+            }
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:assembleDebug",
+                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
+                    variantName = "debug",
+                ),
+            )
+        }
+        val errors = listOf(AtomicReference<Throwable?>(), AtomicReference<Throwable?>())
+        val firstThread = Thread { invokeSync(fixture, errors[0]) }
+        val secondThread = Thread { invokeSync(fixture, errors[1]) }
+
+        firstThread.start()
+        assertTrue(firstSyncStarted.await(1, TimeUnit.SECONDS))
+        secondThread.start()
+        releaseFirstSync.countDown()
+        firstThread.join(1_000L)
+        secondThread.join(1_000L)
+
+        errors.forEach { error ->
+            error.get()?.let { throw AssertionError("Run configuration sync failed", it) }
+        }
+        assertEquals(1, fixture.settings.size)
     }
 
     @Test
@@ -650,7 +741,9 @@ class JuggManagerRunConfigurationSyncTest {
         assertEquals("jugg:app:devDebug", fixture.selectedConfiguration?.name)
     }
 
-    private fun createFixture(): Fixture {
+    private fun createFixture(
+        fileChangesHandler: IFileChangesHandler = mock(),
+    ): Fixture {
         val runManager = mock<RunManager>()
         val project = object : MockProject(null, {}) {
             @Suppress("UNCHECKED_CAST")
@@ -696,7 +789,7 @@ class JuggManagerRunConfigurationSyncTest {
             logger = mock<Logger>(),
             juggServer = mock<JuggServer>(),
             juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
-            fileChangesHandler = mock<IFileChangesHandler>(),
+            fileChangesHandler = fileChangesHandler,
             fileChangesDetector = mock<IFileChangesDetector>(),
             deployHistoryManager = deployHistoryManager,
             deployTargetManager = mock<IDeployTargetManager>(),
@@ -770,6 +863,17 @@ class JuggManagerRunConfigurationSyncTest {
             method.isAccessible = true
             method.invoke(manager, true, 0)
         }
+
+        fun invokeProcessFileChanged() {
+            val method = JuggManager::class.java.getDeclaredMethod(
+                "processFileChanged",
+                List::class.java,
+                List::class.java,
+                String::class.java,
+            )
+            method.isAccessible = true
+            method.invoke(manager, listOf(File(project.basePath, "changed.kt")), emptyList<File>(), "ide")
+        }
     }
 
     private fun replaceAsDeployerCompat(asDeployerCompat: IAsDeployerCompat) {
@@ -779,6 +883,14 @@ class JuggManagerRunConfigurationSyncTest {
             .apply { isAccessible = true }
             .newInstance(AsDeployerCompat.ideVersion, lazyOf(asDeployerCompat))
         priorityImplField.set(null, compatImpl)
+    }
+
+    private fun invokeSync(fixture: Fixture, error: AtomicReference<Throwable?>) {
+        try {
+            fixture.invokeSync()
+        } catch (throwable: Throwable) {
+            error.set(throwable)
+        }
     }
 
     private fun RunnerAndConfigurationSettings.compileCommand(): String? {

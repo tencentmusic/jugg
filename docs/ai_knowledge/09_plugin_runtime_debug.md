@@ -115,6 +115,8 @@ ${projectRoot}/.gradle/jugg/
 **已知根因**（已修复，供参考）：
 - `FileChangesDetector.afterVfsChange()` 在 EDT 调用 `DeployFileManager.addChangedFile()`，与编译线程持有的 `@Synchronized` 锁竞争，导致 EDT 阻塞 ~150ms
 - 修复：EDT 调用时通过 `IBackgroundTaskRunner.runBackgroundSafe()` 异步派发
+- `processFileChanged()` 与 `tryCreateRunConfigurations()` 曾共同使用 `JuggManager` 实例锁；后台目录扫描长时间持锁时，Gradle Sync 的 EDT 回调会阻塞在 Run Configuration 创建入口
+- 修复：文件变化处理与 Run Configuration 创建使用两个独立锁，只保留各自业务域内的串行语义
 
 **关键类**：
 ```
