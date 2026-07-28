@@ -160,6 +160,7 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.Kotlin -> "source"
                     CompileFile.Type.Class -> "class"
                     CompileFile.Type.Asset -> "asset"
+                    CompileFile.Type.ClasspathResource -> "classpath-resource"
                     CompileFile.Type.Resource -> "resource"
                     CompileFile.Type.ComposeResource -> "compose-resource"
                     CompileFile.Type.Flat -> "flat"
@@ -247,6 +248,7 @@ fun CompileFile.Type.toCompileOutputType(): CompileOutput.Type? {
         CompileFile.Type.Dex -> CompileOutput.Type.Dex
         CompileFile.Type.Resource -> CompileOutput.Type.Res
         CompileFile.Type.Asset -> CompileOutput.Type.Asset
+        CompileFile.Type.ClasspathResource -> CompileOutput.Type.Asset
         CompileFile.Type.NativeLib -> CompileOutput.Type.NativeLib
         CompileFile.Type.Java -> CompileOutput.Type.Java
         CompileFile.Type.Kotlin -> CompileOutput.Type.Kotlin

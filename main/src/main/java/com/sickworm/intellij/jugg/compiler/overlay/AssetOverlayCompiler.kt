@@ -17,7 +17,11 @@ class AssetOverlayCompiler(
     parent: Disposable,
 ): BaseCompiler(context, parent) {
 
-    override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.NativeLib)
+    override val supportedTypes = listOf(
+        CompileFile.Type.Asset,
+        CompileFile.Type.ClasspathResource,
+        CompileFile.Type.NativeLib,
+    )
 
     override fun doCompile(task: CompileTask): CompileResult {
         return splitApkAndCompile(task)
@@ -39,28 +43,31 @@ class AssetOverlayCompiler(
                 return@forEach
             }
 
+            val outputAtApkRoot = it.type == CompileFile.Type.ClasspathResource
             val outputSubDir = when (it.type) {
                 CompileFile.Type.Asset -> "assets"
+                CompileFile.Type.ClasspathResource -> ""
                 CompileFile.Type.NativeLib -> "lib"
                 else -> throw JuggInternalException.unrecognizedType(it.type.toString())
             }
             val outputType = when (it.type) {
-                CompileFile.Type.Asset -> CompileOutput.Type.Asset
+                CompileFile.Type.Asset, CompileFile.Type.ClasspathResource -> CompileOutput.Type.Asset
                 CompileFile.Type.NativeLib -> CompileOutput.Type.NativeLib
                 else -> throw JuggInternalException.unrecognizedType(it.type.toString())
             }
 
             val outputDir = File(task.outputDir, apkFileUnit.getUniquePath(outputSubDir))
+            val outputBaseDir = if (outputAtApkRoot) outputDir else task.outputDir
             try {
                 if (it.file.isDirectory) {
                     val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(listOf(it), logger)
                     dirToFilesMap.values.firstOrNull()?.forEach { subFile ->
                         val outputFile = subFile.copyToBaseDir(it.baseDir, outputDir)
-                        outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFileUnit.apkFile.path))
+                        outputs.add(CompileOutput(outputType, outputFile, outputBaseDir, apkFileUnit.apkFile.path))
                     }
                 } else {
                     val outputFile = it.file.copyToBaseDir(it.baseDir, outputDir)
-                    outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFileUnit.apkFile.path))
+                    outputs.add(CompileOutput(outputType, outputFile, outputBaseDir, apkFileUnit.apkFile.path))
                 }
                 details.add(Result.success(it))
             } catch (e: Exception) {

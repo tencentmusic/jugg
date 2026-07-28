@@ -46,6 +46,29 @@ class AssetCompileTest {
         assertCompileResultAssets(task, result)
     }
 
+    @Test
+    fun classpathResourceCompile() {
+        val baseDir = File(assetsAndroidDir, "kmpCompose/src/commonMain/composeResources")
+        val task = CompileTask(
+            listOf(
+                CompileFile(
+                    CompileFile.Type.ClasspathResource,
+                    File(baseDir, "values/strings.xml"),
+                    baseDir,
+                    mockModule,
+                ),
+            ),
+            stagingDir,
+        )
+
+        val result = assetCompiler.compile(task)
+
+        result.printCompileErrors()
+        assertTrue(result.isAllSuccess)
+        assertEquals(setOf("values/strings.xml"), result.outputs.map { it.relativeFile.path.replace('\\', '/') }.toSet())
+        assertTrue(result.outputs.all { it.type == CompileOutput.Type.Asset })
+    }
+
     private fun assertCompileResultAssets(task: CompileTask, result: CompileResult) {
         result.printCompileErrors()
         assertEquals(task, result.task)

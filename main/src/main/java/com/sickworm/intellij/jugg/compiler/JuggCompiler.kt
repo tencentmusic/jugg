@@ -26,6 +26,7 @@ class JuggCompiler(
         CompileFile.Type.Java,
         CompileFile.Type.Kotlin,
         CompileFile.Type.Asset,
+        CompileFile.Type.ClasspathResource,
         CompileFile.Type.NativeLib,
         CompileFile.Type.Resource,
         CompileFile.Type.ComposeResource,
@@ -92,7 +93,14 @@ class JuggCompiler(
         checkQuickStop()?.let { return it }
         val composeOutputs = composeResult.outputs
         val composeAssets = composeOutputs.filter { it.type == CompileOutput.Type.Asset }.mapNotNull {
-            it.toCompileFile(it.relativeModule ?: context.tempModule)
+            val module = it.relativeModule ?: context.tempModule
+            it.toCompileFile(module)?.let { file ->
+                if (module.composeResourceInfo?.usesLegacyGenerator == true) {
+                    file.copy(type = CompileFile.Type.ClasspathResource)
+                } else {
+                    file
+                }
+            }
         }
         val composeClasses = composeOutputs.filter { it.type == CompileOutput.Type.Class }.mapNotNull {
             it.toCompileFile(it.relativeModule ?: context.tempModule)
@@ -101,7 +109,9 @@ class JuggCompiler(
         // compile asset
         val assetCompileTask = CompileTask(
             files = composeAssets + compileFiles.filter {
-                it.type == CompileFile.Type.Asset || it.type == CompileFile.Type.NativeLib
+                it.type == CompileFile.Type.Asset ||
+                    it.type == CompileFile.Type.ClasspathResource ||
+                    it.type == CompileFile.Type.NativeLib
             },
             outputDir = overlayOutputDir,
             parentTask = task,

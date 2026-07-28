@@ -511,8 +511,9 @@ class KmpComposeFlowReproTest {
                 jugg.compileChangedFiles()
 
                 assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
-                assertEquals(setOf("values/strings.xml"), stagingAssetPaths(jugg))
+                assertEquals(setOf("values/strings.xml"), stagingRawAssetPaths(jugg))
                 assertTrue(stagingDexPaths(jugg).any { it.endsWith("String0Kt.dex") })
+                assertTrue(jugg.deployFileManager.getDeployData().overlays.any { it.name == "values/strings.xml" })
             }
         } finally {
             GradleBuildHelper.switchKotlinVersion("2.1")
@@ -591,6 +592,10 @@ class KmpComposeFlowReproTest {
             assertEquals(
                 setOf("composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values/strings.commonMain.cvr"),
                 stagingAssetPaths(jugg),
+            )
+            assertEquals(
+                setOf("assets/composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values/strings.commonMain.cvr"),
+                stagingRawAssetPaths(jugg),
             )
             assertNoComposeGradle(jugg)
         }
@@ -951,6 +956,11 @@ class KmpComposeFlowReproTest {
     private fun stagingAssetPaths(jugg: MockJugg): Set<String> = jugg.deployFileManager.getStagingFiles()
         .filter { it.type == CompileOutput.Type.Asset }
         .map { it.relativeFile.path.replace('\\', '/').substringAfter("assets/") }
+        .toSet()
+
+    private fun stagingRawAssetPaths(jugg: MockJugg): Set<String> = jugg.deployFileManager.getStagingFiles()
+        .filter { it.type == CompileOutput.Type.Asset }
+        .map { it.relativeFile.path.replace('\\', '/') }
         .toSet()
 
     private fun assertNoComposeGradle(jugg: MockJugg) {

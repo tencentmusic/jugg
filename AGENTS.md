@@ -26,13 +26,14 @@
 | 层级 | 形态 | 何时必须/允许 |
 |------|------|----------------|
 | **L3 端到端** | `idea/.../manager/*Flow*`，真实 demo 编译 + 部署/运行 | 用户可见主链路变更；**deploy / compile 编排 refactor 至少 1 条** |
-| **L2 协作集成** | 多生产类协作；Mockito mock **接口**；可 fake 设备/ADB | 恢复/重试/编排分支；**不能代替 L3** |
+| **L2 协作集成** | 多生产类协作；Mockito mock **接口**；可 fake 设备/ADB | 恢复/重试/编排分支 |
 | **L1 域内测试** | 单模块 + 真实产物或纯函数；见 06_testing §2 | 复杂算法、解析器、影响分析、序列化等 |
 | **L0 禁止默认** | 数据类字段、路径常量、无行为的 getter | 不单独建 `*Test` |
 
 - **默认**：不为「单个编排类/Helper/策略类」新建仅 Mockito 的单文件测试。
-- **允许 L1 单文件**：复杂算法与确定性数据变换（如 `DeployDataGenerator`、`InstrumentationOutputParser`、`AndroidTestLogAttributor`）— 完整清单见 06_testing §2。
-- **L2 与 L3 关系**：L2 用于分支与回归速度；**对外承诺的行为**必须由 L3（或 06_testing §7 列出的等价 Flow）证明。
+- **L1**：仅为复杂算法与确定性数据变换实现 L1 测试（如 `DeployDataGenerator`、`InstrumentationOutputParser`、`AndroidTestLogAttributor`）— 完整清单见 06_testing §2。
+- **L2**：大部分用例为 L2，L2 用于验证核心逻辑，流程编排，多版本兼容，异常分支覆盖；
+- **L3**：**对外承诺的行为** 由 L3（或 06_testing §7 列出的等价 Flow）证明，但不覆盖 L2 的多版本兼容，异常分支全覆盖。
 
 ### 测试代码规范
 - 禁止为测试在生产代码新增仅服务于 mock 的 `provider` / `supplier` / `factory` / `override` lambda、函数类型参数、可变闭包或默认 lambda 参数。

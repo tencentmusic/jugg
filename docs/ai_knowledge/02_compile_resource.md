@@ -20,7 +20,7 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | `ResourceOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceOverlayCompiler.kt` | 资源主协调器；按 APK scoped 任务串联 manifest、flat compile、arsc link，并过滤最终 overlay |
 | `ResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceCompiler.kt` | 将资源文件或资源目录编译为 `.flat`；先处理 ViewBinding/DataBinding split XML 和生成源码 |
 | `ArscCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ArscCompiler.kt` | 使用 aapt2 `inclink` 载入当前 APK 资源表并 link 出 `resources.arsc`、compiled res、`R.java` |
-| `AssetOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/AssetOverlayCompiler.kt` | 处理 `assets/` 和 native lib 等非 res overlay |
+| `AssetOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/AssetOverlayCompiler.kt` | 处理普通 `Asset`、APK 根目录 `ClasspathResource` 和 native lib 等非 res overlay |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 按 Gradle 元数据选择 legacy XML 或现代 CVR 资源模型，组织完整资源上下文，并编译 generated Kotlin |
 | `ComposeResourceGeneratorBridge` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceGeneratorBridge.kt` | 隔离加载项目的 Compose plugin JAR，按 generator API 形态调用 legacy 或现代官方 Kotlin generator |
 | `ComposeResourceScanner` / `ComposeValueResourceConverter` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/` | 扫描 legacy XML 或现代 drawable/font/value 描述；现代管线生成 CVR version 0，`files/` 不产生 accessor |
@@ -43,9 +43,10 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | `resources.arsc` / compiled res / manifest | `ArscCompiler` | 部署数据转换 | `CompileOutput.apkPath` 绑定当前 APK；多 APK 归属不能丢 |
 | `targetApkPaths` | `CompileOutput` / 下游 deploy item | 部署分流 | class/dex 可归属多个 APK；资源/manifest 仍按 APK scoped 输出 |
 | `CompileFile.Type.ComposeResource` | `FileChangesHandler` | `ComposeResourceCompiler` | `baseDir` 是命中的默认或自定义 Compose resource 根目录，不能改成 module root |
+| `CompileFile.Type.ClasspathResource` | `JuggCompiler` | `AssetOverlayCompiler` | 表示必须保持 classpath 相对路径并写入 APK 根目录的 classpath resource；当前用于 legacy Compose resource |
 | Compose task metadata | `GradleProjectInfoReader` / project info | `ComposeResourceCompiler` | 包含 generator API 形态、classpath、package、Res 类名、public/content-hash flag、source-set 目录和 asset 相对路径；按任务属性校验，不按 Kotlin/Compose 版本号拦截 |
 | prepared CVR + generated Kotlin | `ComposeResourceCompiler` | generator bridge / Kotlin compiler | accessor 生成读取所有已知资源目录的完整 values/资源上下文，避免只看 changed file 丢失既有 key |
-| changed Compose asset | `ComposeResourceCompiler` | `AssetOverlayCompiler` | 只复制本轮新增/修改的 CVR、drawable、font、`files/`；永远不进入 AAPT2 |
+| changed Compose resource file | `ComposeResourceCompiler` | `AssetOverlayCompiler` | 现代管线以 `Asset` 复制本轮新增/修改的 CVR、drawable、font、`files/` 到 `assets/`；legacy 管线转为 `ClasspathResource` 并保持 APK 根目录 classpath resource 路径；两者都不进入 AAPT2 |
 
 ---
 
@@ -76,8 +77,9 @@ JuggCompiler（早于 asset/resource/source）
      -> 扫描全部已知 source set 的 values/drawable/font；files 只作为 asset
      -> ComposeResourceGeneratorBridge 按 API 形态调用项目 plugin JAR 的官方 generator
      -> 一次 Kotlin invocation 编译 generated source；现代管线显式标注 expect/actual common sources
-  -> 仅将本轮 changed CVR/drawable/font/files 作为 Asset 输出
-  -> AssetOverlayCompiler 复制到 overlays/assets
+  -> 仅将本轮 changed CVR/drawable/font/files 作为资源输出
+  -> JuggCompiler：legacy 输出转为 ClasspathResource，现代输出保持 Asset
+  -> AssetOverlayCompiler：现代资源复制到 overlays/assets；legacy 资源保持 values/drawable/font 等 APK 根路径
   -> generated class 继续进入 source/dex
 ```
 
@@ -95,6 +97,7 @@ JuggCompiler（早于 asset/resource/source）
 - `ResourceCompiler` 对目录输入使用目录路径 MD5 建子输出目录，避免不同资源目录 flat 文件名冲突。
 - DataBinding mapper 生成不在资源阶段完成；资源阶段只处理 base class / split XML，mapper 交给 `SourceCompiler` 在源码编译前处理。
 - Compose preparation 由 Jugg 实现，不执行 Gradle Compose resource task；Kotlin 文件生成调用项目 Compose plugin JAR 的官方 generator API。当前兼容 legacy 单任务 API，以及带 converter/accessor/collector 的现代 API；API 缺失时按结构化原因回退 unsupported。
+- legacy Android runtime 通过 classloader 读取 `values/...`、`drawable/...` 等 APK 根目录资源，增量 overlay 必须使用显式的 `CompileFile.Type.ClasspathResource` 保持同名根路径；不能套用普通 Android asset 的 `assets/` 前缀。现代 Compose resource 继续使用 `CompileFile.Type.Asset` 和 Gradle metadata 提供的 asset relative path。
 - 现代管线支持 string、string-array、plurals、drawable、font，并透传 Res 类名与 content hash；legacy 管线按上游能力支持 string、drawable、font。`files/` 会复制到 asset，但不会生成 typed accessor。
 - 只支持新增和修改。删除文件无法由当前文件事件恢复资源类型和 `baseDir`，必须完整 Gradle build；当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图。
 
@@ -102,11 +105,11 @@ JuggCompiler（早于 asset/resource/source）
 
 - L1：`ComposeValueResourceConverterTest`、`ComposeResourceScannerTest`、`ComposeResourceGeneratorBridgeTest` 验证 CVR/扫描结果、缺失根、diagnostic 回映射、source-set 身份和官方 golden Kotlin 输出。
 - L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8 与 staging。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
-- L3：`KmpComposeDeployFlowTest` 通过真实 demo full install、增量 compile/deploy/run 和 logcat 覆盖 default/custom、value/non-value、accessor 实际消费、目标 APK 与无增量 Gradle Compose task。
+- L3：`KmpComposeDeployFlowTest` 通过代表性 Compose profile 的真实 demo full install、增量 compile/deploy/run 和 logcat 覆盖 accessor 实际消费、目标 APK 与无增量 Gradle Compose task；多版本产物路径矩阵由 L2 覆盖，不在 L3 重复展开。
 
 ### 5.2 Android Studio E2E 验证口径
 
-Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。非空增量会走 Full Swap / Apply Changes and Restart Activity，因此放在 `MainActivity.onCreate()` 的运行时探针会自然再次执行，不需要打开 `Always restart app after deployment`。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化对应 `KmpComposeFlowReproTest`（L2）和 `KmpComposeDeployFlowTest`（L3）。
+Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。非空增量会走 Full Swap / Apply Changes and Restart Activity，因此放在 `MainActivity.onCreate()` 的运行时探针会自然再次执行，不需要打开 `Always restart app after deployment`。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化中 `KmpComposeFlowReproTest`（L2）负责 1.9/2.1/2.3 编译与产物路径矩阵，`KmpComposeDeployFlowTest`（L3）只验证代表性 profile 的真实运行链路。
 
 ---
 

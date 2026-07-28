@@ -114,6 +114,7 @@ data class CompileFile(
         Kotlin,
         Class,
         Asset,
+        ClasspathResource,
         NativeLib,
         Resource,
         ComposeResource,
