@@ -25,6 +25,7 @@ class VirtualDeployDevice(
     var directOverlayWriteResult: DirectOverlayWriteResult = DirectOverlayWriteResult.OK
     var asStartupAgentPushCount: Int = 0
         private set
+    var harmonyOsVersion: String? = null
 
     private val remotePushFiles = mutableMapOf<String, File>()
 
@@ -323,6 +324,7 @@ class VirtualDeployDevice(
 
         override fun getProperty(name: String): String? = when (name) {
             "ro.product.cpu.abi" -> "arm64-v8a"
+            "hw_sc.build.platform.version" -> device.harmonyOsVersion
             else -> null
         }
     }

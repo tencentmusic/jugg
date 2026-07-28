@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowCaseId
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowFixture
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowOverlaySeed
+import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowTestSupport
 import com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.logger
@@ -171,6 +172,40 @@ class JuggDeployerHelperDeployFlowTest {
         assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
         assertEquals(1, fixture.compatBoundary.optimisticSwapInvokeCount)
         assertEquals(0, fixture.compatBoundary.makeDebuggerRedefinersInvokeCount)
+    }
+
+    @Test
+    fun `HarmonyOS 4_2 and above automatically uses compat deploy`() {
+        val oldRecordJson = JuggSettings.deviceCompatRecordJson
+        JuggSettings.deviceCompatRecordJson = ""
+        try {
+            mapOf(
+                "4.1.0" to JuggDeployData.DeployType.HOT_RELOAD,
+                "4.2.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
+                "4.3.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
+                "5.0.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
+            ).forEach { (version, expectedDeployType) ->
+                val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+                fixture.virtualDevice.harmonyOsVersion = version
+                val normalData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
+                Mockito.`when`(
+                    fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+                ).thenAnswer { invocation ->
+                    if (invocation.getArgument<Boolean>(1)) {
+                        normalData.copy(isCompatDeploy = true, isPushOverlayOnly = true)
+                    } else {
+                        normalData
+                    }
+                }
+
+                val result = fixture.helper.deploy(fixture.deployOptions)
+
+                assertTrue("deploy failed for HarmonyOS $version: ${result.failedReason}", result.isSuccess)
+                assertEquals("unexpected deploy type for HarmonyOS $version", expectedDeployType, result.deployType)
+            }
+        } finally {
+            JuggSettings.deviceCompatRecordJson = oldRecordJson
+        }
     }
 
     @Test

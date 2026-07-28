@@ -57,6 +57,14 @@ public class InstrumenterSourcePolicyTest {
         assertTrue(method.contains("return assetManager;"));
     }
 
+    @Test
+    public void setupScriptShouldNotCreateLegacyDexPathFixFlag() throws Exception {
+        String source = read("src/main/script/jugg_agent_setup.sh");
+
+        assertFalse(source.contains(".need_fix_dex_path_list"));
+        assertFalse(source.contains("compareVersion"));
+    }
+
     private static String read(String path) throws Exception {
         return new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
     }

@@ -56,10 +56,10 @@ object JuggSettings {
 
     /**
      * compat deploy strategy for:
-     * Huawei HarmonyOS 4.2
+     * Huawei HarmonyOS 4.2 and above
      * Xiaomi HyperOS
      * Device API lower than 30
-     * For Huawei HarmonyOS 4.2, Jugg will fix the problem that incremental dex not inject correctly.
+     * For Huawei HarmonyOS 4.2 and above, Jugg will automatically use compat deploy.
      * For Xiaomi HyperOS, some apps may get "MISSING_AGENT_RESPONSES", Jugg will use hot fix deployment solution to compat with it.
      * For Device API lower than 30, Jugg will use hot fix deployment solution to compat with it.
      */
