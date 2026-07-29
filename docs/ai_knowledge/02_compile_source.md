@@ -68,7 +68,7 @@ SourceCompiler.doModuleCompile()
 
 这条链路的核心顺序不能随意调整：JuggApt/DataBinding 必须在语言编译前完成，Kotlin 必须早于 Java，minify 必须在 dex 之后执行。
 
-Compose resource generated source 是这条常规 source 链之前的独立前置步骤：`ComposeResourceCompiler` 将 Res、各 source set accessor、expect collector 和 Android actual collector 放进同一次 `KotlinCompilerInvoker` 调用，并显式传入 common source 文件列表。编译出的 class 随后才进入 `SourceCompiler` 的 class/dex 路径；不会分别编译 expect 与 actual。
+Compose resource generated source 是这条常规 source 链之前的独立前置步骤：`ComposeResourceCompiler` 将 Res、各 source set accessor、expect collector 和 Android actual collector 放进同一次 `KotlinCompilerInvoker` 调用，并显式传入 common source 文件列表。编译出的 class 随后才进入 `SourceCompiler` 的 class/dex 路径；不会分别编译 expect 与 actual。Gradle project info 仍可把 build directory 下的 generated source 保留在 `sourceDirs` 中，供 Kotlin compilation metadata 使用；`FileChangesHandler` 会在文件变更边界统一排除这些路径，避免它们再作为用户源码进入常规 Kotlin 阶段。JuggApt 等本轮由编译器直接登记的 generated source 不经过该文件事件过滤。
 
 IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 Compose resource 编译都先解析带 Gradle 配置的 Android owner；classpath、output、Compose metadata 和 APK ownership 不取虚拟 module 的扁平快照。
 

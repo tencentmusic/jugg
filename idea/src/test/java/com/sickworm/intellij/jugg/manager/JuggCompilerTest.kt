@@ -507,7 +507,7 @@ class KmpComposeFlowReproTest {
             changeAndRevert(resourceFile, "Baseline title", "Legacy changed title") {
                 val jugg = newFixtureJugg()
                 jugg.dryFullCompile()
-                jugg.notifyFileChanges(listOf(resourceFile))
+                jugg.notifyFileChanges(listOf(resourceFile) + gradleComposeGeneratedSources())
                 jugg.compileChangedFiles()
 
                 assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
@@ -597,6 +597,29 @@ class KmpComposeFlowReproTest {
                 setOf("assets/composeResources/com.sickworm.jugg.demo.kmp.generated.resources/values/strings.commonMain.cvr"),
                 stagingRawAssetPaths(jugg),
             )
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileComposeResourceWhenGradleGeneratedAccessorsAreAlsoReported() {
+        val resourceFile = File(
+            projectInfo.projectRoot,
+            "kmpCompose/src/commonMain/composeResourcesExtended/values/strings.xml",
+        )
+        val generatedSources = gradleComposeGeneratedSources()
+        assertTrue(generatedSources.isNotEmpty())
+
+        changeAndRevert(resourceFile, "Baseline title", "Changed with generated accessors") {
+            val jugg = newFixtureJugg()
+            jugg.dryFullCompile()
+            jugg.notifyFileChanges(listOf(resourceFile) + generatedSources)
+            jugg.compileChangedFiles()
+
+            val log = jugg.readLatestProjectLog()
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty(), log)
+            assertFalse(log.contains("defined multiple times"), log)
+            assertTrue(stagingDexPaths(jugg).any { it.contains("String0") }, log)
             assertNoComposeGradle(jugg)
         }
     }
@@ -923,6 +946,19 @@ class KmpComposeFlowReproTest {
         projectInfo.projectRoot,
         "kmpCompose/src/$sourceSet/kotlin/com/sickworm/jugg/demo/kmp/$fileName",
     )
+
+    private fun gradleComposeGeneratedSources(): List<File> {
+        val gradleProjectInfo = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).load()
+            ?: error("KMP Compose Gradle project info was not generated")
+        val module = gradleProjectInfo.modules["kmpCompose"]
+            ?: error("kmpCompose module was not found in Gradle project info")
+        val buildDirPath = module.buildPathInfo.buildDir.toPath().toAbsolutePath().normalize()
+        return module.sourceDirs.asSequence()
+            .filter { it.toPath().toAbsolutePath().normalize().startsWith(buildDirPath) }
+            .flatMap { it.walkTopDown() }
+            .filter { it.isFile && it.extension == "kt" }
+            .toList()
+    }
 
     private fun assertKmpCompileSuccess(jugg: MockJugg, vararg expectedSources: File) {
         val log = jugg.readLatestProjectLog()

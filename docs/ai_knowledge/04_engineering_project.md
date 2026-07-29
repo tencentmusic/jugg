@@ -68,6 +68,8 @@
 
 `ModuleBuildPathInfo.buildDirRelativePath` 记录模块实际 Gradle build directory 相对 IDE 项目根的路径。Gradle init script 从 `project.layout.buildDirectory` 读取该值；IDE 侧从 Android model 的 build folder 读取，并在 Gradle/IDE project info merge 时以 Gradle 值为准。构造 `ModuleBuildPathInfo` 时必须显式提供该字段；明确传入空字符串表示兼容旧快照并继续使用 `${moduleRootDir}/build`。所有 classpath、manifest、mapping、APK/androidTest 回填与远端同步路径都从该 build directory 派生，不再假设输出位于模块目录下。
 
+project info 的 `sourceDirs` 可以保留 build directory 下的 generated source，因为 Kotlin/KMP 编译上下文可能需要这些 root；不要在 project info merge 阶段删除。文件变更入口由 `FileChangesHandler` 同时登记每个模块的实际 `buildPathInfo.buildDir` 和传统 `${moduleRootDir}/build`，对 changed file 与目录递归统一剪枝，因此集中式 build directory 不要求位于 module root 内。
+
 `compile_context.db/module_builds.json` writer 保持 version 2，reader 接受 version 1 和 2。version 1 缺失 `buildDirRelativePath` 时按空字符串恢复，因此仍保留 `complete_flag` 的旧用户无需重新全量构建；正常 version 2 的默认或自定义路径原样保留，损坏 version 2 缺失该字段时也按传统目录恢复。`complete_flag` 已缺失时不自动修复，仍需一次成功的 Jugg 全量构建重建上下文。
 
 androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVariant` 固定为 `debugAndroidTest`，并通过 `instrumentationTargetPackage` 标记为测试模块。IDE project info 创建时会使用 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型 test package / target package 信息；Chipmunk / Narwhal feature / Otter / Panda 继承链在 library self-targeting 场景下会 fallback 到 `selectedBasicVariant.testApplicationId`、`androidProject.testNamespace` 或 `${androidProject.namespace}.test`。只有 test package 与 target package 都有效时才把 IDE `.androidTest` module 标记为 androidTest module；`uninitialized.application.id` 会视为无效。若已有 Gradle project info，IDE 侧 `.androidTest` synthetic module 还必须出现在 Gradle androidTest module 集合中；若没有 Gradle 快照，则退化为要求 source root 下存在 Java/Kotlin 源码。Gradle merge 时这些 test 字段仍以 Gradle 非空值优先，并会丢弃 IDE-only androidTest module。

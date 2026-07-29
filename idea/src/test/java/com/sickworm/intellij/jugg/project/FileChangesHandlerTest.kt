@@ -61,6 +61,43 @@ class FileChangesHandlerTest {
     }
 
     @Test
+    fun `does not expand module build directories`() {
+        val app = context.applicationModule
+        val centralizedBuildDir = File(app.projectRootDir, "build/file-change-directory-test")
+        val module = app.copy(
+            buildPathInfo = app.buildPathInfo.copy(
+                buildDirRelativePath = centralizedBuildDir.relativeTo(app.projectRootDir).path,
+            ),
+        )
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        assertTrue(handler.filter(listOf(UnexpectedTraversalDirectory(centralizedBuildDir.path))).isEmpty())
+        assertTrue(handler.filter(listOf(UnexpectedTraversalDirectory(File(app.moduleRootDir, "build").path))).isEmpty())
+    }
+
+    @Test
+    fun `ignores source changes in conventional and centralized build directories`() {
+        val app = context.applicationModule
+        val centralizedBuildDir = File(app.projectRootDir, "build/file-change-source-test")
+        val conventionalSourceDir = File(app.moduleRootDir, "build/generated/source")
+        val centralizedSourceDir = File(centralizedBuildDir, "generated/source")
+        val module = app.copy(
+            sourceDirs = app.sourceDirs + conventionalSourceDir + centralizedSourceDir,
+            buildPathInfo = app.buildPathInfo.copy(
+                buildDirRelativePath = centralizedBuildDir.relativeTo(app.projectRootDir).path,
+            ),
+        )
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        withTemporaryFile(File(conventionalSourceDir, "ConventionalGenerated.kt")) {
+            withTemporaryFile(File(centralizedSourceDir, "CentralizedGenerated.kt")) {
+                assertTrue(handler.filter(listOf(File(conventionalSourceDir, "ConventionalGenerated.kt"))).isEmpty())
+                assertTrue(handler.filter(listOf(File(centralizedSourceDir, "CentralizedGenerated.kt"))).isEmpty())
+            }
+        }
+    }
+
+    @Test
     fun `expands directories of modules outside the project directory`() {
         val externalModuleDir = Files.createTempDirectory("jugg-external-module").toFile()
         try {
@@ -260,8 +297,14 @@ class FileChangesHandlerTest {
     }
 
     private fun withTemporaryFile(path: String, block: () -> Unit) {
-        val file = pathManager.projectDir.resolve(path)
+        withTemporaryFile(pathManager.projectDir.resolve(path), block)
+    }
+
+    private fun withTemporaryFile(file: File, block: () -> Unit) {
         val existed = file.exists()
+        val missingParents = generateSequence(file.parentFile) { it.parentFile }
+            .takeWhile { !it.exists() }
+            .toList()
         if (!existed) {
             file.parentFile.mkdirs()
             file.createNewFile()
@@ -271,7 +314,7 @@ class FileChangesHandlerTest {
         } finally {
             if (!existed) {
                 file.delete()
-                file.parentFile?.takeIf { it.listFiles().isNullOrEmpty() }?.delete()
+                missingParents.forEach(File::delete)
             }
         }
     }

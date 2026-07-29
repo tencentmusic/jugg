@@ -73,6 +73,7 @@ IncrementalCompilerHelper.compile(undeployedFiles)
   -> 所有输出写入 staging
   -> 成功后 getRecompileFiles()
      -> effectedSourceFiles 经 IFileChangesHandler 还原为 ChangedFile
+        -> 各模块实际 build directory 与传统 `${moduleRootDir}/build` 下的路径被统一过滤
      -> redexClasses 转为 tempModule 下的 class 输入
      -> 若存在下一批文件，递归进入下一轮
   -> 失败且未重试过：交给 retryResolver chain 尝试修复后重试一次
@@ -126,6 +127,7 @@ JuggCompiler.doCompile(task)
 - `splitModuleAndCompile()` 会把 androidTest module 单独分批，且 androidTest 的 module 分组 key 包含 module root，避免同名测试模块被合并。
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
+- `FileChangesHandler` 统一排除所有模块的实际 Gradle build directory 与传统 `${moduleRootDir}/build`。文件监听、Git 补检、恢复事件和源码影响传播经过该入口时，Gradle generated source、resource、asset、manifest、native lib 或 build file 都不会进入变更列表；目录事件会在递归前剪枝。删除事件只按路径移除此前已过滤并登记的待编译项，不需要重复执行 build directory 过滤。该规则不清理当前内存中已存在的待编译项，也不影响编译器在本轮内直接登记和交接的 JuggApt/Resource/Compose generated source。
 - `ComposeResourceCompiler` 只接受 Compose `1.7.3` + Kotlin `2.1.x`。项目快照会保留“已检测但不支持”的状态、已配置资源根和用户可见原因；资源变化仍进入编译并失败，随后复用现有下一次运行 Gradle fallback 语义，不会因 `composeResourceInfo=null` 静默过滤。
 - Compose resource 当前只支持新增和修改。`FileChangesHandler` 会忽略已不存在的文件，因此删除资源必须执行完整 Gradle build；当前也没有 deletion 图、生成缓存或完整 source-set 依赖图。
 - 取消后如果递归影响传播过程中被打断，首轮会 rollback changed file 并清 staging，保证下一次还能重新编译。

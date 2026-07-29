@@ -85,6 +85,8 @@ JuggCompiler（早于 asset/resource/source）
 
 这里“完整上下文”和“changed-only 输出”是两层语义：accessor 必须看见项目快照列出的全部资源目录，部署 overlay 只包含本轮新增/修改文件。配置时尚不存在的默认/自定义根也会持久化，扫描时按空目录处理，因此首次创建资源仍能被识别。Compose asset 不经过 `ResourceOverlayCompiler`、`ResourceCompiler`、`ArscCompiler` 或 AAPT2。
 
+Gradle 生成的 Compose accessor 目录可以继续存在于 project info 的 `sourceDirs` 中，但只作为编译上下文元数据使用。文件监听或影响传播上报这些 build directory 路径时，`FileChangesHandler` 会在类型识别前统一过滤，因此同轮 Compose resource 编译只使用 `ComposeResourceCompiler` 自己生成的 accessor class，不会再从 Gradle build 输出重复编译同名 Kotlin source。
+
 ---
 
 ## 5. 隐形约束 / 设计思路 / 已知边界
@@ -106,7 +108,7 @@ JuggCompiler（早于 asset/resource/source）
 ### 5.1 测试落点
 
 - L1：`ComposeValueResourceConverterTest`、`ComposeResourceScannerTest`、`ComposeResourceGeneratorBridgeTest` 验证 CVR/扫描结果、缺失根、diagnostic 回映射、source-set 身份和官方 golden Kotlin 输出。
-- L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8 与 staging。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
+- L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`，并覆盖传统/集中式 build directory 的文件与目录事件过滤；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8 与 staging，并覆盖资源与 Gradle generated accessor 同轮上报时不产生重复 class。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
 - L3：`KmpComposeDeployFlowTest` 通过代表性 Compose profile 的真实 demo full install、增量 compile/deploy/run 和 logcat 覆盖 accessor 实际消费、目标 APK 与无增量 Gradle Compose task；多版本产物路径矩阵由 L2 覆盖，不在 L3 重复展开。
 
 ### 5.2 Android Studio E2E 验证口径

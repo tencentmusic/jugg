@@ -67,7 +67,7 @@ IDE project opened
 
 `DeployFileManager` 可在构造期直接创建 `ConstRefEngine` 对象，但 `ConstRefEngine` 构造期不能初始化 SQLite database、repo fingerprint store 或 impact resolver，避免全局 SQLite 缓存损坏阻断 manager 创建。这些 ConstRef runtime 资源由 `ConstRefEngine` 在 `updateModuleInfos()`、源码变更事件、编译前 readiness、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化；失败后降级为 no-op，主初始化、编译和部署继续。
 
-`FileChangesHandler` 在 `CompileContext` 初始化后，以 IDE 工程目录和所有参与编译模块的根目录作为目录扫描范围。目录事件在调用 `listFiles()` 前先判断是否与该范围存在祖先或子孙关系；无关的全局目录不会递归展开，工程目录外的编译模块仍可沿其父目录分支被发现。普通文件继续由 `toChangeFile()` 判断具体变更类型。
+`FileChangesHandler` 在 `CompileContext` 初始化后，以 IDE 工程目录和所有参与编译模块的根目录作为目录扫描范围。目录事件在调用 `listFiles()` 前先判断是否与该范围存在祖先或子孙关系；无关的全局目录不会递归展开，工程目录外的编译模块仍可沿其父目录分支被发现。每个模块的实际 `buildPathInfo.buildDir` 和传统 `${moduleRootDir}/build` 都是统一排除边界：目录事件在递归前剪枝，普通 changed file 在类型识别前过滤。删除事件只负责移除此前已登记的路径，不重复执行该过滤。该边界不依赖 build directory 是否位于 module root 内，也不会回溯清理当前内存中已有的变化。
 
 ### 4.2 Gradle Sync 到上下文重建
 
