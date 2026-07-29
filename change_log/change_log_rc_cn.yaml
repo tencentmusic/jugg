@@ -1,3 +1,10 @@
+- version: 3.1.4
+  date: 2026.07.30
+  updates:
+    - 支持 Android Studio Quail 4
+    - 支持 AGP 9 内置 Kotlin
+    - 远程编译后忽略本地 build 输出变更
+
 - version: 3.1.3
   date: 2026.07.29
   updates:
