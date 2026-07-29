@@ -117,6 +117,8 @@ ${projectRoot}/.gradle/jugg/
 - 修复：EDT 调用时通过 `IBackgroundTaskRunner.runBackgroundSafe()` 异步派发
 - `processFileChanged()` 与 `tryCreateRunConfigurations()` 曾共同使用 `JuggManager` 实例锁；后台目录扫描长时间持锁时，Gradle Sync 的 EDT 回调会阻塞在 Run Configuration 创建入口
 - 修复：文件变化处理与 Run Configuration 创建使用两个独立锁，只保留各自业务域内的串行语义
+- VFS 目录事件可能包含工程无关的全局目录，旧实现会先递归 `listFiles()`，再逐文件判断是否属于 Jugg 变更范围；多工程并行时会重复扫描并长时间占用文件变化处理锁
+- 修复：`FileChangesHandler` 在展开目录前按 IDE 工程目录与编译模块根目录剪枝，工程外模块仍纳入范围
 
 **关键类**：
 ```

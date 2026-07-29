@@ -7,9 +7,11 @@ import com.sickworm.intellij.jugg.mock.projectInfo
 import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
 import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
 import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
+import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -47,6 +49,51 @@ class FileChangesHandlerTest {
             }
         }
 
+    }
+
+    @Test
+    fun `does not expand directories outside file change scope`() {
+        val outsideDirectory = UnexpectedTraversalDirectory(
+            pathManager.projectDir.parentFile.resolve("outside-file-change-scope").path
+        )
+
+        assertTrue(handler.filter(listOf(outsideDirectory)).isEmpty())
+    }
+
+    @Test
+    fun `expands directories of modules outside the project directory`() {
+        val externalModuleDir = Files.createTempDirectory("jugg-external-module").toFile()
+        try {
+            val sourceDir = externalModuleDir.resolve("src/main/java")
+            val sourceFile = sourceDir.resolve("ExternalSource.kt")
+            sourceDir.mkdirs()
+            sourceFile.createNewFile()
+
+            val compileContext = context
+            val externalModule = compileContext.applicationModule.copy(
+                name = "external",
+                moduleRootDir = externalModuleDir,
+                projectRootDir = externalModuleDir.parentFile,
+                sourceDirs = listOf(sourceDir),
+                resourceDirs = emptyList(),
+                assetsDirs = emptyList(),
+                manifestFile = null,
+                buildPathInfo = ModuleBuildPathInfo(
+                    projectRootDir = externalModuleDir.parentFile,
+                    moduleRootDir = externalModuleDir,
+                    buildVariant = compileContext.applicationModule.buildVariant,
+                    buildDirRelativePath = "",
+                ),
+            )
+            handler.init(compileContext.copy(modules = mapOf(externalModule.name to externalModule)))
+
+            val changedFile = handler.filter(listOf(externalModuleDir)).single()
+
+            assertEquals(sourceFile, changedFile.file)
+            assertEquals(externalModule.name, changedFile.module.name)
+        } finally {
+            externalModuleDir.deleteRecursively()
+        }
     }
 
     @Test
@@ -237,6 +284,14 @@ class FileChangesHandlerTest {
             assertTrue(changed.type != CompileFile.Type.Asset)
             assertEquals(pathManager.projectDir.resolve(expectedBaseDir).canonicalFile, changed.baseDir.canonicalFile)
             assertEquals(context.applicationModule.name, changed.module.name)
+        }
+    }
+
+    private class UnexpectedTraversalDirectory(path: String) : File(path) {
+        override fun isDirectory() = true
+
+        override fun listFiles(): Array<File> {
+            error("Directory outside file change scope should not be expanded")
         }
     }
 

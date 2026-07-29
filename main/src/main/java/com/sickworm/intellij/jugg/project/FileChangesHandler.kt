@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import java.io.File
+import java.nio.file.Path
 
 /**
  * Filter file changes that is related to source file of this [projectDir]
@@ -44,6 +45,7 @@ class FileChangesHandler(
 
     private var allModules = emptyList<ModuleInfo>()
     private var compiledModules = emptyList<ModuleInfo>()
+    private var scanRoots = listOf(projectDir.normalizedPath)
 
     @Suppress("ConvertArgumentToSet")
     override fun init(compileContext: ICompileContext) {
@@ -65,6 +67,7 @@ class FileChangesHandler(
         }
 
         compiledModules = allModules - ignoreModules
+        updateScanRoots()
         val sourceDirs = compiledModules.flatMap { it.sourceDirs }
         val resourceDirs = compiledModules.flatMap { it.resourceDirs }
         val assetDirs = compiledModules.flatMap { it.assetsDirs }
@@ -118,6 +121,9 @@ class FileChangesHandler(
         val result = mutableListOf<ChangedFile>()
         file.forEach {
             if (it.isDirectory) {
+                if (!shouldExpandDirectory(it)) {
+                    return@forEach
+                }
                 it.listFiles()?.toList()?.let { subFiles ->
                     val subResult = filter(subFiles)
                     result.addAll(subResult)
@@ -162,6 +168,20 @@ class FileChangesHandler(
                             "assetDirs: ${relativeModule.assetsDirs}")
                 }
             }
+        }
+        updateScanRoots()
+    }
+
+    private fun updateScanRoots() {
+        scanRoots = (listOf(projectDir) + compiledModules.map { it.moduleRootDir })
+            .map { it.normalizedPath }
+            .distinct()
+    }
+
+    private fun shouldExpandDirectory(directory: File): Boolean {
+        val directoryPath = directory.normalizedPath
+        return scanRoots.any { scanRoot ->
+            directoryPath.startsWith(scanRoot) || scanRoot.startsWith(directoryPath)
         }
     }
 
@@ -387,4 +407,7 @@ class FileChangesHandler(
 
         return compiledModules
     }
+
+    private val File.normalizedPath: Path
+        get() = toPath().toAbsolutePath().normalize()
 }
