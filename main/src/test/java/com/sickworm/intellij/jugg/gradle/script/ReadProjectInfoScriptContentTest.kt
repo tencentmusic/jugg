@@ -53,7 +53,7 @@ class ReadProjectInfoScriptContentTest {
         assertFalse(scriptText.contains("gradle.buildFinished("))
         assertFalse(scriptText.contains("stackTraceToString("))
         assertFalse(scriptText.contains("firstChar.toInt()"))
-        assertFalse(scriptText.contains(".code"), "Char.code is Kotlin 1.5+ API, not supported in Gradle 7")
+        assertFalse(Regex("""\.code\b""").containsMatchIn(scriptText), "Char.code is Kotlin 1.5+ API, not supported in Gradle 7")
         assertFalse(scriptText.lineSequence().any { it.startsWith("const val ") || it.startsWith("private const val ") })
         // private top-level functions are not allowed in Kotlin 1.5 (Gradle 7)
         assertFalse(

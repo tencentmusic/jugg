@@ -1,12 +1,12 @@
 package com.sickworm.intellij.jugg.compile
 
 import com.jetbrains.rd.util.first
+import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerOutputParser
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -170,19 +170,28 @@ class KotlinCompileTest {
     }
 
     @Test
-    fun kotlin23Agp9BuiltInComposeCompile() {
+    fun kotlin23Agp9BuiltInFullDemoCompile() {
         try {
             GradleBuildHelper.switchKotlinVersion("2.3-agp9")
             AssembleAndroidProjectOnce.forceRecompile(true)
             val freshContext = context
             val libraryModule = freshContext.modules.getValue("library1")
-            val appModule = freshContext.modules.getValue("app").copy(
-                moduleDependencies = listOf(ModuleDependency(libraryModule.name)),
+            val appModule = freshContext.modules.getValue("app")
+            assertEquals("debug", appModule.buildVariant)
+            assertEquals("debug", libraryModule.buildVariant)
+            assertTrue(appModule.moduleDependencies.any { it.moduleName == libraryModule.name })
+            assertTrue(appModule.sourceDirs.any { it.canonicalFile == File(assetsAndroidDir, "app/src/main/java").canonicalFile })
+            assertTrue(libraryModule.sourceDirs.any {
+                it.canonicalFile == File(assetsAndroidDir, "library1/src/main/java").canonicalFile
+            })
+            assertEquals(
+                "com.example.myapplication.MainActivity",
+                ApkReader(freshContext.apkFile, logger).getDefaultActivity(),
             )
-            val agp9Context = freshContext.copy(
-                modules = freshContext.modules + (appModule.name to appModule),
-            )
-            val libraryClass = "com/sickworm/jugg/demo/testcase/agp9/Agp9ComposeLibraryKt.class"
+            assertEquals("build/app", appModule.buildPathInfo.buildDirRelativePath.replace('\\', '/'))
+            assertEquals("build/library1", libraryModule.buildPathInfo.buildDirRelativePath.replace('\\', '/'))
+            val libraryClass =
+                "com/sickworm/jugg/demo/testcase/databinding/library1/DataBindingKotlinDemoActivityLibrary1.class"
             val builtInKotlinClassPath = File(
                 libraryModule.buildPathInfo.buildDir,
                 "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
@@ -198,20 +207,17 @@ class KotlinCompileTest {
                 builtInKotlinClassPath.canonicalPath,
                 libraryModule.buildPathInfo.kotlinClassPath.canonicalPath,
             )
-            val sourceRoot = File(assetsAndroidDir, "app/src/agp9/java")
-            val source = File(
-                sourceRoot,
-                "com/sickworm/jugg/demo/testcase/agp9/Agp9ComposeApp.kt",
-            )
+            val sourceRoot = File(assetsAndroidDir, "app/src/main/java")
+            val source = File(sourceRoot, "com/example/myapplication/MainActivity.kt")
             val task = CompileTask(
                 listOf(CompileFile(CompileFile.Type.Kotlin, source, sourceRoot, appModule)),
                 stagingDir,
             )
 
-            val result = KotlinCompiler(agp9Context, mockParentDisposable).compile(task)
+            val result = KotlinCompiler(freshContext, mockParentDisposable).compile(task)
 
             assertTrue(result.isAllSuccess, result.toString())
-            assertTrue(result.outputs.any { it.file.name == "Agp9ComposeAppKt.class" })
+            assertTrue(result.outputs.any { it.file.name == "MainActivity.class" })
         } finally {
             GradleBuildHelper.switchKotlinVersion("1.9")
             AssembleAndroidProjectOnce.forceRecompile(false)

@@ -200,6 +200,9 @@ class GradleProjectInfoReaderManager(
             val variant = reflector(obj)
             variants.add(Variant(variant["name"]?.valueString ?: return@forEach, null))
         }
+        if (variants.isEmpty()) {
+            variants.addAll(getCollectedAndroidVariants(rootProject, project))
+        }
         return variants
     }
 

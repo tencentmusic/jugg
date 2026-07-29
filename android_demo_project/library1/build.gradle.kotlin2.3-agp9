@@ -1,22 +1,35 @@
 plugins {
     id 'com.android.library'
+    id 'org.jetbrains.kotlin.plugin.parcelize'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 android {
     namespace 'com.example.library1'
     compileSdkVersion 35
-
     defaultConfig {
         minSdkVersion 23
+        targetSdkVersion 33
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = [AROUTER_MODULE_NAME: project.getName()]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
     }
 
     sourceSets {
         main {
-            manifest.srcFile 'src/agp9/AndroidManifest.xml'
-            java.srcDirs = ['src/agp9/java']
-            kotlin.srcDirs = ['src/agp9/java']
-            res.srcDirs = []
+            assets.srcDirs = ['src/main/assets', 'src/main/assets2']
+            res.srcDirs = ['src/main/res', 'src/main/res2']
         }
     }
 
@@ -27,6 +40,8 @@ android {
 
     buildFeatures {
         compose true
+        viewBinding true
+        dataBinding true
     }
 }
 
@@ -37,5 +52,28 @@ kotlin {
 }
 
 dependencies {
-    implementation 'androidx.compose.runtime:runtime:1.10.3'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test:runner:1.1.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.1'
+
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.alibaba:fastjson:2.0.2.android'
+
+    implementation 'com.alibaba:arouter-api:1.5.2'
+    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
+
+    implementation platform('androidx.compose:compose-bom:2025.03.01')
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material:material'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    implementation 'androidx.activity:activity-compose:1.10.1'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.compose.runtime:runtime-livedata'
 }

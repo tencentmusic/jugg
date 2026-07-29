@@ -54,11 +54,11 @@ KOTLIN_2_3_excludeKmpCompose="false"
 
 KOTLIN_2_3_AGP9_kotlinVersion="2.3.0"
 KOTLIN_2_3_AGP9_kspVersion="2.3.4"
-KOTLIN_2_3_AGP9_composeVersion=""
+KOTLIN_2_3_AGP9_composeVersion="1.10.3"
 KOTLIN_2_3_AGP9_composeCompilerVersion="2.3.0"
 KOTLIN_2_3_AGP9_agpVersion="9.0.0"
 KOTLIN_2_3_AGP9_gradleVersion="9.4.0"
-KOTLIN_2_3_AGP9_excludeKmpCompose="true"
+KOTLIN_2_3_AGP9_excludeKmpCompose="false"
 
 show_current_version() {
     echo -e "${GREEN}Current version configuration:${NC}"
@@ -139,7 +139,7 @@ update_gradle_wrapper() {
 switch_build_gradle_files() {
     local suffix=$1
     local files=("build.gradle" "app/build.gradle" "library1/build.gradle")
-    if [ "$suffix" != "kotlin1.7" ] && [ "$suffix" != "kotlin2.3-agp9" ]; then
+    if [ "$suffix" != "kotlin1.7" ]; then
         files+=("kmpCompose/build.gradle")
     fi
     for file in "${files[@]}"; do

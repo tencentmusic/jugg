@@ -1,0 +1,17 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    compileSdk 35
+    namespace 'com.jugg.fixture.agp90.library1'
+    defaultConfig {
+        minSdk 21
+    }
+    buildTypes {
+        debug {}
+        release {
+            minifyEnabled false
+        }
+    }
+}

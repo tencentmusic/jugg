@@ -34,7 +34,7 @@ assert_contains() {
     fi
 }
 
-assert_fixture_enabled() {
+assert_kmp_enabled() {
     assert_contains settings.gradle "include ':kmpCompose'"
     assert_contains gradle.properties "excludeKmpCompose=false"
     if grep -Rq "enableKmpComposeFixture" settings.gradle app/build.gradle kmpCompose/build.gradle; then
@@ -85,7 +85,7 @@ verify_profile() {
         echo "ERROR: Kotlin $kotlin_version must use the legacy Compose compiler integration"
         exit 1
     fi
-    assert_fixture_enabled
+    assert_kmp_enabled
 }
 
 verify_kotlin_2_3_agp9_profile() {
@@ -93,21 +93,32 @@ verify_kotlin_2_3_agp9_profile() {
 
     assert_contains gradle.properties "kotlinVersion=2.3.0"
     assert_contains gradle.properties "kspVersion=2.3.4"
+    assert_contains gradle.properties "composeVersion=1.10.3"
     assert_contains gradle.properties "agpVersion=9.0.0"
-    assert_contains gradle.properties "excludeKmpCompose=true"
+    assert_contains gradle.properties "excludeKmpCompose=false"
     assert_contains gradle/wrapper/gradle-wrapper.properties "gradle-9.4.0-all.zip"
     assert_contains app/build.gradle "id 'org.jetbrains.kotlin.plugin.compose'"
-    assert_contains app/build.gradle "kotlin.srcDirs = ['src/agp9/java']"
+    assert_contains app/build.gradle "id 'org.jetbrains.kotlin.plugin.parcelize'"
+    assert_contains app/build.gradle "id 'com.google.devtools.ksp'"
+    assert_contains app/build.gradle "annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'"
+    assert_contains app/build.gradle "implementation project(':kmpCompose')"
     assert_contains library1/build.gradle "id 'org.jetbrains.kotlin.plugin.compose'"
-    assert_contains library1/build.gradle "kotlin.srcDirs = ['src/agp9/java']"
-    if grep -Fq "kotlin-android" app/build.gradle library1/build.gradle; then
+    assert_contains library1/build.gradle "annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'"
+    assert_contains kmpCompose/build.gradle "id 'com.android.kotlin.multiplatform.library'"
+    if grep -Fq "src/agp9" app/build.gradle library1/build.gradle; then
+        echo "ERROR: Kotlin 2.3 AGP 9 profile must use the main demo sources"
+        exit 1
+    fi
+    if grep -Eq "kotlin-android|kotlin-kapt|org.jetbrains.kotlin.android|org.jetbrains.kotlin.kapt" \
+        app/build.gradle library1/build.gradle; then
         echo "ERROR: Kotlin 2.3 AGP 9 profile must use built-in Kotlin"
         exit 1
     fi
-    if grep -Fq "project(':kmpCompose')" app/build.gradle; then
-        echo "ERROR: Kotlin 2.3 AGP 9 profile must isolate the Android built-in Kotlin fixture"
+    if grep -Fq "com.android.legacy-kapt" app/build.gradle library1/build.gradle; then
+        echo "ERROR: AGP 9 profile must not enable legacy KAPT"
         exit 1
     fi
+    assert_kmp_enabled
 }
 
 verify_kotlin_1_7_profile

@@ -587,6 +587,10 @@ class GradleProjectInfoReader(
             }
         }
 
+        if (variants.isEmpty()) {
+            variants.addAll(getCollectedAndroidVariants(rootProject, project))
+        }
+
         val buildVariant = guessBuildVariant(project, variants) ?: "debug"
 
         return moduleInfo.copy(

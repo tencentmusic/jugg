@@ -304,6 +304,39 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
         assertEquals(0, result.exitCode, "Gradle $gradleVersion AGP 9.0 config phase failed.\n${result.output}")
     }
 
+    @Test
+    fun generatedScript_shouldCollectApplicationAndLibraryVariantsOnAgp90() {
+        val result = assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp90",
+            task = ":app:assembleRelease",
+        ) { fixtureDir, gradleResult ->
+            assertEquals(0, gradleResult.exitCode, gradleResult.output)
+            val outputFile = JuggPathManager(fixtureDir).gradleProjectInfoFile
+            val projectInfo = ProjectInfoSerializer(outputFile, mock(Logger::class.java))
+                .load(isSkipVersionCheck = true)
+            assertNotNull(projectInfo)
+            val app = projectInfo.modules.getValue("app")
+            val library = projectInfo.modules.getValue("library1")
+            assertEquals(listOf("debug", "release"), app.variants.map { it.name }.sorted())
+            assertEquals(listOf("debug", "release"), library.variants.map { it.name }.sorted())
+            assertEquals("release", app.buildVariant)
+            assertEquals("release", library.buildVariant)
+            assertTrue(app.moduleDependencies.any { it.moduleName == library.name })
+        }
+        assertEquals(0, result.exitCode, result.output)
+    }
+
+    @Test
+    fun generatedScript_shouldInjectReleaseAndroidTestTaskOnAgp90() {
+        val result = assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp90",
+            task = ":app:assembleRelease",
+            extraArgs = listOf("-Pjugg.buildTarget=ANDROID_TEST"),
+        )
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains(":app:assembleReleaseAndroidTest"), result.output)
+    }
+
     /**
      * Verifies that processDebugManifest actually transforms the manifest on AGP 9.0,
      * replacing the application class via the androidComponents artifact transform path.

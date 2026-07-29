@@ -18,4 +18,9 @@ android {
             minifyEnabled false
         }
     }
+    testBuildType 'release'
+}
+
+dependencies {
+    implementation project(':library1')
 }

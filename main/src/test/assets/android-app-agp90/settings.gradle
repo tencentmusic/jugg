@@ -7,4 +7,4 @@ pluginManagement {
 }
 
 rootProject.name = 'android-app-agp90-fixture'
-include ':app'
+include ':app', ':library1'

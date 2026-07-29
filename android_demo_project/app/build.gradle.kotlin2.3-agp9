@@ -1,36 +1,78 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath fileTree(dir: '../buildSrc/libs', include: ['*.jar'])
+    }
+}
+
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.plugin.parcelize'
+    id 'com.google.devtools.ksp'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
+
+apply from: './aabResGuard.gradle'
 
 android {
     namespace 'com.example.myapplication'
     compileSdkVersion 35
-
     defaultConfig {
-        applicationId 'com.example.myapplication'
+        applicationId "com.example.myapplication"
         minSdkVersion 23
-        targetSdkVersion 35
+        targetSdkVersion 33
         versionCode 1
-        versionName '1.0'
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = [AROUTER_MODULE_NAME: project.getName()]
+            }
+        }
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("${System.properties['user.home']}/.android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
     }
 
     sourceSets {
         main {
-            manifest.srcFile 'src/agp9/AndroidManifest.xml'
-            java.srcDirs = ['src/agp9/java']
-            kotlin.srcDirs = ['src/agp9/java']
-            res.srcDirs = []
+            assets.srcDirs = ['src/main/assets', 'src/main/assets2']
+            res.srcDirs = ['src/main/res', 'src/main/res2']
         }
     }
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
     buildFeatures {
         compose true
+        viewBinding true
+        dataBinding true
+    }
+
+    lint {
+        checkReleaseBuilds false
     }
 }
 
@@ -41,6 +83,37 @@ kotlin {
 }
 
 dependencies {
-    implementation 'androidx.compose.runtime:runtime:1.10.3'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test:runner:1.1.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.1'
+
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.alibaba:fastjson:2.0.2.android'
+    implementation 'io.reactivex.rxjava3:rxjava:3.1.8'
+
+    implementation 'com.alibaba:arouter-api:1.5.2'
+    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
+
+    implementation platform('androidx.compose:compose-bom:2025.03.01')
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material:material'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    implementation 'androidx.activity:activity-compose:1.10.1'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.compose.runtime:runtime-livedata'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.1.5'
+
+    implementation 'com.squareup.moshi:moshi:1.14.0'
+    implementation 'com.squareup.moshi:moshi-kotlin:1.14.0'
+    ksp 'com.squareup.moshi:moshi-kotlin-codegen:1.14.0'
+
     implementation project(':library1')
+    implementation project(':kmpCompose')
 }

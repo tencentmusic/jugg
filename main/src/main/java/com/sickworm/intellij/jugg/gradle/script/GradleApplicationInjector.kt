@@ -40,8 +40,8 @@ class GradleApplicationInjector(
         val variantNamesFromComponents = mutableListOf<String>()
         var hasRuntimeOnlyFallback = false
         val isOnVariantsRegistered = project.extensions.findByName("androidComponents")?.let { androidComponents ->
-            invokeOnVariants(androidComponents) { variant ->
-                val name = reflector(variant)["name"]?.valueString ?: return@invokeOnVariants
+            invokeOnVariantsCompat(androidComponents) { variant ->
+                val name = reflector(variant)["name"]?.valueString ?: return@invokeOnVariantsCompat
                 variantNamesFromComponents.add(name)
                 if (!tryAddRuntimeDependencyToVariant(project, variant, runtimeJarFile) && !hasRuntimeOnlyFallback) {
                     addRuntimeDependency(project, runtimeJarFile)
@@ -77,35 +77,6 @@ class GradleApplicationInjector(
         }
         println("Jugg: project ${project.name} applicationVariants: ${variants.size}")
         return variants.mapNotNull { variant -> reflector(variant)["name"]?.valueString }
-    }
-
-    /**
-     * Calls androidComponents.onVariants(selector, Action) via reflection and a dynamic proxy,
-     * keeping zero compile-time AGP dependency in the init script.
-     *
-     * The JVM-level signature is always the two-parameter form:
-     *   onVariants(VariantSelector, Action<VariantT>)
-     * The single-parameter Kotlin overload is a Kotlin extension function and has no JVM method.
-     */
-    private fun invokeOnVariants(androidComponents: Any, callback: (Any?) -> Unit): Boolean {
-        // Find onVariants(VariantSelector, Action) — the two-parameter JVM overload.
-        // parameterTypes[1].isInterface skips the Groovy Closure overload injected at runtime.
-        val method = androidComponents::class.java.methods
-            .firstOrNull { m ->
-                m.name == "onVariants" && m.parameterCount == 2 && m.parameterTypes[1].isInterface
-            } ?: return false
-        val actionInterface = method.parameterTypes[1]
-        val proxy = java.lang.reflect.Proxy.newProxyInstance(
-            actionInterface.classLoader,
-            arrayOf(actionInterface),
-        ) { _, _, args ->
-            callback(args?.firstOrNull())
-            null
-        }
-        // selector() returns an "all variants" selector
-        val selector = androidComponents::class.java.getMethod("selector").invoke(androidComponents)
-        method.invoke(androidComponents, selector, proxy)
-        return true
     }
 
     /** Adds the runtime directly to the concrete variant configuration when AGP exposes it. */

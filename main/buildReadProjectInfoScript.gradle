@@ -241,7 +241,14 @@ tasks.register('buildReadProjectInfoScript') {
         finalContent.append("""
 gradle.allprojects {
     project.pluginManager.withPlugin("com.android.application") {
+        registerAndroidComponentsVariants(rootProject, project)
         gradleApplicationInjector(rootProject).injectApplication(project)
+    }
+    project.pluginManager.withPlugin("com.android.library") {
+        registerAndroidComponentsVariants(rootProject, project)
+    }
+    project.pluginManager.withPlugin("com.android.dynamic-feature") {
+        registerAndroidComponentsVariants(rootProject, project)
     }
 }
 

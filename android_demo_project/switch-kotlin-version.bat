@@ -37,10 +37,11 @@ set KOTLIN_2_3_excludeKmpCompose=false
 
 set KOTLIN_2_3_AGP9_kotlinVersion=2.3.0
 set KOTLIN_2_3_AGP9_kspVersion=2.3.4
+set KOTLIN_2_3_AGP9_composeVersion=1.10.3
 set KOTLIN_2_3_AGP9_composeCompilerVersion=2.3.0
 set KOTLIN_2_3_AGP9_agpVersion=9.0.0
 set KOTLIN_2_3_AGP9_gradleVersion=9.4.0
-set KOTLIN_2_3_AGP9_excludeKmpCompose=true
+set KOTLIN_2_3_AGP9_excludeKmpCompose=false
 
 if "%1"=="" goto show_version
 if "%1"=="show" goto show_version
@@ -81,7 +82,7 @@ call :update_profile KOTLIN_2_3 kotlin2.3 true
 goto end
 
 :update_2_3_agp9
-call :update_profile KOTLIN_2_3_AGP9 kotlin2.3-agp9 false
+call :update_profile KOTLIN_2_3_AGP9 kotlin2.3-agp9 true
 goto end
 
 :update_profile
