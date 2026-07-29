@@ -438,13 +438,13 @@ cp -r  {projectDir}/build/jugg/database/     $BACKUP/database/
 
 ---
 
-## 6. TDD 修复流程
+## 6. 运行时修复验证流程
 
 **原则：先复现，再修改代码。**
 
-### Step 1：稳定复现（写测试，确认 FAIL）
+### Step 1：取得稳定失败证据
 
-根据日志定位问题后，先写测试使其 FAIL，再动手改代码：
+根据日志定位问题后，先保存能够描述缺失行为的失败证据。若该行为通过 `06_testing.md` 的测试价值门禁，先写测试并确认 FAIL，再动手改代码：
 
 ```kotlin
 // 示例：验证 EDT 调用 addChangedFile 不阻塞
@@ -462,6 +462,8 @@ fun `addChangedFile on EDT should dispatch async and return immediately`() {
 
 运行：`./gradlew :main:test --tests "*YourTest*"`，确认 **FAIL**。
 
+若问题只能在特定 Android Studio runtime、真机或外部进程中稳定复现，而自动化只能绑定私有实现或引入测试专用 seam，则不新增测试。必须保留异常日志、复现环境和操作步骤，并在 Step 3 使用对应的替代验证。
+
 ### Step 2：实现修复
 
 - 最小化改动
@@ -471,13 +473,13 @@ fun `addChangedFile on EDT should dispatch async and return immediately`() {
 ### Step 3：验证
 
 ```bash
-# 定向测试验证；按 06_testing.md 选择 L1/L2/L3，不跑无过滤的全量 :main:test / :idea:test
+# 有价值自动化测试：按 06_testing.md 选择 L1/L2/L3，不跑无过滤的全量 :main:test / :idea:test
 ./gradlew :main:test --tests "*YourTest*"
 ./gradlew :idea:test --tests "*YourFlowTest*"
 
 # 打包
 ./gradlew :idea:buildPlugin
 
-# 线上验证：复现步骤后搜索修复标志
-grep "dispatching to background" build/jugg/log/compile_latest.log
+# 替代验证：回到原复现环境后搜索修复标志
+rg "dispatching to background" build/jugg/log/compile_latest.log
 ```
