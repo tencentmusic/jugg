@@ -54,7 +54,12 @@ class FileChangesHandler(
         logger.debug("init FileChangesHandler")
         allModules = compileContext.modules.values.toList()
         buildDirs = allModules.flatMap { module ->
-            listOf(module.buildPathInfo.buildDir, File(module.moduleRootDir, "build"))
+            // buildPathInfo roots may point to fetched classpath storage after a remote build.
+            val localBuildDir = module.buildPathInfo.copy(
+                projectRootDir = module.projectRootDir,
+                moduleRootDir = module.moduleRootDir,
+            ).buildDir
+            listOf(localBuildDir, File(module.moduleRootDir, "build"))
         }.map {
             it.absoluteFile.normalize()
         }.distinctBy {

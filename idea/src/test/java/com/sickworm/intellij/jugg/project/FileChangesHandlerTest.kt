@@ -64,8 +64,11 @@ class FileChangesHandlerTest {
     fun `does not expand module build directories`() {
         val app = context.applicationModule
         val centralizedBuildDir = File(app.projectRootDir, "build/file-change-directory-test")
+        val classpathRoot = File(pathManager.juggRootDir, "classpath/root/android_demo_project")
         val module = app.copy(
             buildPathInfo = app.buildPathInfo.copy(
+                projectRootDir = classpathRoot,
+                moduleRootDir = File(classpathRoot, app.moduleStdPath),
                 buildDirRelativePath = centralizedBuildDir.relativeTo(app.projectRootDir).path,
             ),
         )
@@ -81,9 +84,12 @@ class FileChangesHandlerTest {
         val centralizedBuildDir = File(app.projectRootDir, "build/file-change-source-test")
         val conventionalSourceDir = File(app.moduleRootDir, "build/generated/source")
         val centralizedSourceDir = File(centralizedBuildDir, "generated/source")
+        val classpathRoot = File(pathManager.juggRootDir, "classpath/root/android_demo_project")
         val module = app.copy(
             sourceDirs = app.sourceDirs + conventionalSourceDir + centralizedSourceDir,
             buildPathInfo = app.buildPathInfo.copy(
+                projectRootDir = classpathRoot,
+                moduleRootDir = File(classpathRoot, app.moduleStdPath),
                 buildDirRelativePath = centralizedBuildDir.relativeTo(app.projectRootDir).path,
             ),
         )
