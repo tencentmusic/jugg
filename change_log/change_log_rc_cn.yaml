@@ -1,3 +1,13 @@
+- version: 3.1.3
+  date: 2026.07.29
+  updates:
+    - CLI 和 MCP 运行时使用选中的 Jugg 配置
+    - HarmonyOS 4.2 及以上版本自动使用兼容部署
+    - 优化 Jugg Run Configuration 生成逻辑
+    - 修复旧版 Compose 资源变更不生效的问题
+    - 修复 aapt2 资源路径包含空格时编译失败的问题
+    - 修复文件扫描导致 Android Studio 卡死的问题
+
 - version: 3.1.1
   date: 2026.07.26
   updates:

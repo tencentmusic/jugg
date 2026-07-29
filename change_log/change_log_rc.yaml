@@ -1,3 +1,14 @@
+- version: 3.1.3
+  date: 2026.07.29
+  updates:
+    - honor the selected Jugg configuration for CLI and MCP runs
+    - automatically use compat deploy on HarmonyOS 4.2 and above
+    - optimize Jugg Run configuration generation
+    - avoid scanning files outside Jugg module scope
+    - make legacy Compose resource changes take effect
+    - support spaces in aapt2 resource paths
+    - ignore build outputs in file changes
+
 - version: 3.1.1
   date: 2026.07.26
   updates:

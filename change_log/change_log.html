@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.1.1 (2026.07.26)</h2>
+<h2>3.1.3 (2026.07.29)</h2>
 <ol>
     <li>[feature] Support custom Gradle build directories across compilation, deployment, and remote synchronization</li>
     <li>[feature] Support Compose Multiplatform resource incremental compilation</li>
@@ -7,13 +7,20 @@
     <li>[feature] Support clean cache options on fallback to Gradle </li>
     <li>[feature] Sync Jugg run configurations with the active Android Studio Build Variant</li>
     <li>[feature] Guide CC Switch users through Claude hooks configuration</li>
+    <li>[feature] Honor the selected Jugg configuration for CLI and MCP runs</li>
+    <li>[feature] Automatically use compat deploy on HarmonyOS 4.2 and above</li>
     <li>[optimize] Keep background Gradle project information logs at debug level</li>
     <li>[optimize] Support python fallback when python3 is unavailable during Jugg installation</li>
+    <li>[optimize] Optimize Jugg Run configuration generation</li>
+    <li>[optimize] Collect complete resource mismatch diagnostics</li>
+    <li>[optimize] Avoid scanning files outside Jugg module scope</li>
     <li>[bugfix] Use the Gradle JDK configured in Android Studio for local Gradle execution</li>
     <li>[bugfix] Avoid starting selected but stopped virtual devices during Run or device status checks</li>
     <li>[bugfix] Improve Gradle fallback when Jugg runtime injection is stale, including per-variant injection and a cache-refresh retry</li>
     <li>[bugfix] Refresh remote Gradle project information before remote compilation when the compile command changes</li>
     <li>[bugfix] Decode Windows Gradle command output as UTF-8 with GBK fallback</li>
+    <li>[bugfix] Support spaces in aapt2 resource paths</li>
+    <li>[bugfix] Prevent file scanning from freezing Android Studio</li>
 </ol>
 <h2>3.0.35 (2026.07.23)</h2>
 <ol>
