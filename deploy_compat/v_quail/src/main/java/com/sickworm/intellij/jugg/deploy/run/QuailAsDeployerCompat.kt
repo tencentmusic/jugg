@@ -26,6 +26,7 @@ import com.android.tools.deployer.model.App
 import com.android.tools.deployer.model.AppState
 import com.android.tools.deployer.model.DeploymentPlan
 import com.android.tools.idea.adb.AdbService
+import com.android.tools.idea.adblib.AdbLibApplicationService
 import com.android.tools.idea.execution.common.DeployableToDevice
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
@@ -371,7 +372,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
     }
 
     private fun createAdbClient(device: IDevice, logger: ILogger): AdbClient {
-        return AdbClient(device, logger)
+        return AdbClient(device, logger, AdbLibApplicationService.instance.session)
     }
 
     private fun JuggInstallSession.toQuailUiService(): UIService {
