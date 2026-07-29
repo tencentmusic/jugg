@@ -52,6 +52,14 @@ KOTLIN_2_3_agpVersion="8.13.2"
 KOTLIN_2_3_gradleVersion="8.13"
 KOTLIN_2_3_excludeKmpCompose="false"
 
+KOTLIN_2_3_AGP9_kotlinVersion="2.3.0"
+KOTLIN_2_3_AGP9_kspVersion="2.3.4"
+KOTLIN_2_3_AGP9_composeVersion=""
+KOTLIN_2_3_AGP9_composeCompilerVersion="2.3.0"
+KOTLIN_2_3_AGP9_agpVersion="9.0.0"
+KOTLIN_2_3_AGP9_gradleVersion="9.4.0"
+KOTLIN_2_3_AGP9_excludeKmpCompose="true"
+
 show_current_version() {
     echo -e "${GREEN}Current version configuration:${NC}"
     grep -E "^(kotlinVersion|kspVersion|composeVersion|composeCompilerVersion|agpVersion|excludeKmpCompose)=" "$GRADLE_PROPERTIES" || true
@@ -62,6 +70,7 @@ normalize_version() {
         1.7|kotlin1.7|legacy|1.7.*) echo "1.7" ;;
         1.9|kotlin1.9|1.9.*) echo "1.9" ;;
         2.1|kotlin2.1|2.1.*) echo "2.1" ;;
+        2.3-agp9|kotlin2.3-agp9) echo "2.3-agp9" ;;
         2.3|kotlin2.3|latest|2.3.*) echo "2.3" ;;
         *) echo "$1" ;;
     esac
@@ -130,7 +139,7 @@ update_gradle_wrapper() {
 switch_build_gradle_files() {
     local suffix=$1
     local files=("build.gradle" "app/build.gradle" "library1/build.gradle")
-    if [ "$suffix" != "kotlin1.7" ]; then
+    if [ "$suffix" != "kotlin1.7" ] && [ "$suffix" != "kotlin2.3-agp9" ]; then
         files+=("kmpCompose/build.gradle")
     fi
     for file in "${files[@]}"; do
@@ -177,9 +186,10 @@ case "${1:-}" in
     1.9|kotlin1.9) update_version KOTLIN_1_9 1.9 ;;
     2.1|kotlin2.1) update_version KOTLIN_2_1 2.1 ;;
     2.3|kotlin2.3|latest) update_version KOTLIN_2_3 2.3 ;;
+    2.3-agp9|kotlin2.3-agp9) update_version KOTLIN_2_3_AGP9 2.3-agp9 ;;
     show|current|"") show_current_version ;;
     help|-h|--help)
-        echo "Usage: $0 [1.7|1.9|2.1|2.3|show]"
+        echo "Usage: $0 [1.7|1.9|2.1|2.3|2.3-agp9|show]"
         ;;
     *)
         echo -e "${RED}Error: unknown option '$1'${NC}" >&2

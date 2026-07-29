@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+android {
+    namespace 'com.example.library1'
+    compileSdkVersion 35
+
+    defaultConfig {
+        minSdkVersion 23
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/agp9/AndroidManifest.xml'
+            java.srcDirs = ['src/agp9/java']
+            kotlin.srcDirs = ['src/agp9/java']
+            res.srcDirs = []
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildFeatures {
+        compose true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.compose.runtime:runtime:1.10.3'
+}

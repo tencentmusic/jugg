@@ -1,0 +1,35 @@
+// Top-level build file for the AGP 9 Built-in Kotlin compatibility fixture.
+
+buildscript {
+    ext.kotlin_version = project.findProperty('kotlinVersion') ?: '2.3.0'
+    ext.agp_version = project.findProperty('agpVersion') ?: '9.0.0'
+    ext.ksp_version = project.findProperty('kspVersion') ?: '2.3.4'
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version"
+    }
+}
+
+plugins {
+    id 'com.google.devtools.ksp' version "$ksp_version" apply false
+    id 'org.jetbrains.kotlin.plugin.compose' version "$kotlin_version" apply false
+}
+
+allprojects {
+    layout.buildDirectory.set(rootProject.layout.projectDirectory.dir("build/${project.name}"))
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

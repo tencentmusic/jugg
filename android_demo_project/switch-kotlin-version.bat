@@ -35,6 +35,13 @@ set KOTLIN_2_3_agpVersion=8.13.2
 set KOTLIN_2_3_gradleVersion=8.13
 set KOTLIN_2_3_excludeKmpCompose=false
 
+set KOTLIN_2_3_AGP9_kotlinVersion=2.3.0
+set KOTLIN_2_3_AGP9_kspVersion=2.3.4
+set KOTLIN_2_3_AGP9_composeCompilerVersion=2.3.0
+set KOTLIN_2_3_AGP9_agpVersion=9.0.0
+set KOTLIN_2_3_AGP9_gradleVersion=9.4.0
+set KOTLIN_2_3_AGP9_excludeKmpCompose=true
+
 if "%1"=="" goto show_version
 if "%1"=="show" goto show_version
 if "%1"=="current" goto show_version
@@ -48,6 +55,8 @@ if "%1"=="kotlin2.1" goto update_2_1
 if "%1"=="2.3" goto update_2_3
 if "%1"=="kotlin2.3" goto update_2_3
 if "%1"=="latest" goto update_2_3
+if "%1"=="2.3-agp9" goto update_2_3_agp9
+if "%1"=="kotlin2.3-agp9" goto update_2_3_agp9
 if "%1"=="help" goto show_help
 if "%1"=="-h" goto show_help
 if "%1"=="--help" goto show_help
@@ -69,6 +78,10 @@ goto end
 
 :update_2_3
 call :update_profile KOTLIN_2_3 kotlin2.3 true
+goto end
+
+:update_2_3_agp9
+call :update_profile KOTLIN_2_3_AGP9 kotlin2.3-agp9 false
 goto end
 
 :update_profile
@@ -155,7 +168,7 @@ findstr /R "^kotlinVersion= ^kspVersion= ^composeVersion= ^composeCompilerVersio
 goto :eof
 
 :show_help
-echo Usage: %~nx0 [1.7^|1.9^|2.1^|2.3^|show]
+echo Usage: %~nx0 [1.7^|1.9^|2.1^|2.3^|2.3-agp9^|show]
 goto end
 
 :end

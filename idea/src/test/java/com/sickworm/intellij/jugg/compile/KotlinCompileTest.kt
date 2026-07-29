@@ -6,11 +6,13 @@ import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerOutputParser
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -165,6 +167,47 @@ class KotlinCompileTest {
     fun kotCompilerWithCompose() {
         test1()
         test1()
+    }
+
+    @Test
+    fun kotlin23Agp9BuiltInComposeCompile() {
+        try {
+            GradleBuildHelper.switchKotlinVersion("2.3-agp9")
+            AssembleAndroidProjectOnce.forceRecompile(true)
+            val freshContext = context
+            val libraryModule = freshContext.modules.getValue("library1")
+            val appModule = freshContext.modules.getValue("app").copy(
+                moduleDependencies = listOf(ModuleDependency(libraryModule.name)),
+            )
+            val agp9Context = freshContext.copy(
+                modules = freshContext.modules + (appModule.name to appModule),
+            )
+            val libraryClass = "com/sickworm/jugg/demo/testcase/agp9/Agp9ComposeLibraryKt.class"
+            val builtInKotlinClass = File(
+                libraryModule.buildPathInfo.buildDir,
+                "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/$libraryClass",
+            )
+            val legacyKotlinClass = File(libraryModule.buildPathInfo.kotlinClassPath, libraryClass)
+            assertTrue(builtInKotlinClass.exists(), "missing AGP 9 Kotlin output: $builtInKotlinClass")
+            assertFalse(legacyKotlinClass.exists(), "unexpected legacy Kotlin output: $legacyKotlinClass")
+            val sourceRoot = File(assetsAndroidDir, "app/src/agp9/java")
+            val source = File(
+                sourceRoot,
+                "com/sickworm/jugg/demo/testcase/agp9/Agp9ComposeApp.kt",
+            )
+            val task = CompileTask(
+                listOf(CompileFile(CompileFile.Type.Kotlin, source, sourceRoot, appModule)),
+                stagingDir,
+            )
+
+            val result = KotlinCompiler(agp9Context, mockParentDisposable).compile(task)
+
+            assertTrue(result.isAllSuccess, result.toString())
+            assertTrue(result.outputs.any { it.file.name == "Agp9ComposeAppKt.class" })
+        } finally {
+            GradleBuildHelper.switchKotlinVersion("1.9")
+            AssembleAndroidProjectOnce.forceRecompile(false)
+        }
     }
 
     private fun test1() {

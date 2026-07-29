@@ -39,6 +39,7 @@ object AssembleAndroidProjectOnce {
     fun forceRecompile(isNeedClean: Boolean) {
         hasAssemble = false
         ensure(isNeedClean)
+        serializer.clearMemoryCache()
     }
 
     fun getProjectInfo(): JuggProjectInfo {
