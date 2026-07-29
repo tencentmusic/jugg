@@ -183,13 +183,21 @@ class KotlinCompileTest {
                 modules = freshContext.modules + (appModule.name to appModule),
             )
             val libraryClass = "com/sickworm/jugg/demo/testcase/agp9/Agp9ComposeLibraryKt.class"
-            val builtInKotlinClass = File(
+            val builtInKotlinClassPath = File(
                 libraryModule.buildPathInfo.buildDir,
-                "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/$libraryClass",
+                "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
             )
-            val legacyKotlinClass = File(libraryModule.buildPathInfo.kotlinClassPath, libraryClass)
+            val builtInKotlinClass = File(builtInKotlinClassPath, libraryClass)
+            val legacyKotlinClass = File(
+                libraryModule.buildPathInfo.buildDir,
+                "tmp/kotlin-classes/debug/$libraryClass",
+            )
             assertTrue(builtInKotlinClass.exists(), "missing AGP 9 Kotlin output: $builtInKotlinClass")
             assertFalse(legacyKotlinClass.exists(), "unexpected legacy Kotlin output: $legacyKotlinClass")
+            assertEquals(
+                builtInKotlinClassPath.canonicalPath,
+                libraryModule.buildPathInfo.kotlinClassPath.canonicalPath,
+            )
             val sourceRoot = File(assetsAndroidDir, "app/src/agp9/java")
             val source = File(
                 sourceRoot,

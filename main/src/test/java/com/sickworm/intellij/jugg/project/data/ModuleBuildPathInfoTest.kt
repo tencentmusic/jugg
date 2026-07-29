@@ -115,6 +115,117 @@ class ModuleBuildPathInfoTest {
     }
 
     @Test
+    fun `kotlinClassPath resolves AGP 9 built-in Kotlin output`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val builtInKotlinDir = File(
+            moduleRootDir,
+            "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
+        ).apply { mkdirs() }
+
+        assertEquals(builtInKotlinDir.canonicalPath, info.kotlinClassPath.canonicalPath)
+    }
+
+    @Test
+    fun `kotlinClassPath resolves legacy Kotlin output`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val legacyKotlinDir = File(moduleRootDir, "build/tmp/kotlin-classes/debug").apply { mkdirs() }
+
+        assertEquals(legacyKotlinDir.canonicalPath, info.kotlinClassPath.canonicalPath)
+    }
+
+    @Test
+    fun `kotlinClassPath selects built-in output when it is newer`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val legacyKotlinDir = File(moduleRootDir, "build/tmp/kotlin-classes/debug").apply {
+            mkdirs()
+            setLastModified(1_000L)
+        }
+        val builtInKotlinDir = File(
+            moduleRootDir,
+            "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
+        ).apply {
+            mkdirs()
+            setLastModified(2_000L)
+        }
+
+        assertTrue(legacyKotlinDir.exists())
+        assertEquals(builtInKotlinDir.canonicalPath, info.kotlinClassPath.canonicalPath)
+        assertEquals(
+            listOf(builtInKotlinDir.canonicalPath),
+            info.allClassPath.filter {
+                it.path.contains("built_in_kotlinc") || it.path.contains("tmp/kotlin-classes")
+            }.map { it.canonicalPath },
+        )
+    }
+
+    @Test
+    fun `kotlinClassPath selects legacy output when it is newer`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val legacyKotlinDir = File(moduleRootDir, "build/tmp/kotlin-classes/debug").apply {
+            mkdirs()
+            setLastModified(2_000L)
+        }
+        File(
+            moduleRootDir,
+            "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
+        ).apply {
+            mkdirs()
+            setLastModified(1_000L)
+        }
+
+        assertEquals(legacyKotlinDir.canonicalPath, info.kotlinClassPath.canonicalPath)
+    }
+
+    @Test
+    fun `kotlinClassPath selects built-in output when timestamps are equal`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        File(moduleRootDir, "build/tmp/kotlin-classes/debug").apply {
+            mkdirs()
+            setLastModified(1_000L)
+        }
+        val builtInKotlinDir = File(
+            moduleRootDir,
+            "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
+        ).apply {
+            mkdirs()
+            setLastModified(1_000L)
+        }
+
+        assertEquals(builtInKotlinDir.canonicalPath, info.kotlinClassPath.canonicalPath)
+    }
+
+    @Test
+    fun `kotlinClassPath falls back to legacy output`() {
+        val moduleRootDir = tempFolder.newFolder("app")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+
+        assertEquals(
+            File(moduleRootDir, "build/tmp/kotlin-classes/debug").canonicalPath,
+            info.kotlinClassPath.canonicalPath,
+        )
+    }
+
+    @Test
+    fun `allBuildPathRelative includes AGP 9 built-in Kotlin output`() {
+        val projectRootDir = File("/tmp/jugg-project")
+        val moduleRootDir = File(projectRootDir, "app")
+        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "release", buildDirRelativePath = "")
+
+        assertTrue(
+            info.allBuildPathRelative.any {
+                it.path == File(
+                    "app/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes",
+                ).path
+            },
+        )
+    }
+
+    @Test
     fun `rFilePath resolves newest application R jar in AGP 8 directory`() {
         val moduleRootDir = tempFolder.newFolder("app")
         val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")

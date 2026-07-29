@@ -213,8 +213,23 @@ data class ModuleBuildPathInfo(
     val libraryRFilePathInLowAgp get() = File(libraryRFileDirInLowAgp, "generate${buildVariant.camelCompat}RFile/R.jar").takeIf(File::exists) // AGP 3.4.3
         ?: File(libraryRFileDirInLowAgp, "R.jar") // AGP 3.5.4
 
-    /** kotlin class path */
-    val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
+    private val legacyKotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
+
+    /** AGP 9 Built-in Kotlin compiler output. */
+    private val builtInKotlinClassPath
+        get() = File(
+            buildDir,
+            "intermediates/built_in_kotlinc/$buildVariant/compile${buildVariant.camelCompat}Kotlin/classes",
+        )
+
+    /** Existing Kotlin class path candidates across Built-in and legacy layouts. */
+    private val kotlinClassPathCandidates get() = listOfNotNull(
+        builtInKotlinClassPath.takeIf(File::exists),
+        legacyKotlinClassPath.takeIf(File::exists),
+    ).distinctByAbsolutePath()
+
+    /** Kotlin class path selected from the active AGP output layout. */
+    val kotlinClassPath get() = kotlinClassPathCandidates.newestFile() ?: legacyKotlinClassPath
 
     /** generated source path, used in java-source-roots in KotlinCompiler */
     val generatedSourcePath get() = File(buildDir, "generated")
@@ -256,7 +271,7 @@ data class ModuleBuildPathInfo(
     val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
 
     // use to fetch all class path after full build
-    val allBuildPaths get() = listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
+    val allBuildPaths get() = listOf(legacyKotlinClassPath, builtInKotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingArtifactDir,
