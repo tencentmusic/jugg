@@ -8,6 +8,8 @@ import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -139,6 +141,32 @@ class JuggDeployDataTest {
         assertEquals(3, slices.size)
         assertEquals(listOf(true, true, true), slices.map { it.isFullRes })
         assertEquals(listOf(true, true, false), slices.map { it.isPushOverlayOnly })
+    }
+
+    @Test
+    fun `apk root overlay requires app restart`() {
+        val data = deployData(
+            overlays = listOf(
+                deployItem("values/strings.xml", CompileOutput.Type.Res, basePath, listOf(basePath)),
+            ),
+        )
+
+        assertTrue(data.isNeedRestartApp)
+    }
+
+    @Test
+    fun `android resource overlays do not require app restart`() {
+        listOf(
+            "res/layout/main.xml",
+            "assets/config.json",
+            "resources.arsc",
+        ).forEach { name ->
+            val data = deployData(
+                overlays = listOf(deployItem(name, CompileOutput.Type.Res, basePath, listOf(basePath))),
+            )
+
+            assertFalse(name, data.isNeedRestartApp)
+        }
     }
 
     private fun apkInfo(applicationId: String, apkPath: String): ApkInfo {

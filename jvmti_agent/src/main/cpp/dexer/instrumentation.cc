@@ -72,6 +72,67 @@ bool EntryHook::Apply(lir::CodeIr* code_ir) {
   return true;
 }
 
+bool EntryHookWithEarlyReturn::Apply(lir::CodeIr* code_ir) {
+  ir::Builder builder(code_ir->dex_ir);
+  const auto ir_method = code_ir->ir_method;
+  const auto return_type = ir_method->decl->prototype->return_type;
+  SLICER_CHECK(return_type->GetCategory() == ir::Type::Category::Reference);
+
+  std::vector<ir::Type*> param_types;
+  if ((ir_method->access_flags & dex::kAccStatic) == 0) {
+    param_types.push_back(ir_method->decl->parent);
+  }
+  if (ir_method->decl->prototype->param_types != nullptr) {
+    const auto& original_types = ir_method->decl->prototype->param_types->types;
+    param_types.insert(param_types.end(), original_types.begin(), original_types.end());
+  }
+
+  auto hook_proto = builder.GetProto(return_type, builder.GetTypeList(param_types));
+  auto hook_decl = builder.GetMethodDecl(
+      builder.GetAsciiString(hook_method_id_.method_name), hook_proto,
+      builder.GetType(hook_method_id_.class_descriptor));
+  auto hook_method = code_ir->Alloc<lir::Method>(hook_decl, hook_decl->orig_index);
+
+  const auto registers = ir_method->code->registers;
+  const auto arguments = ir_method->code->ins_count;
+  const auto result_reg = *scratch_regs_->ScratchRegs().begin();
+  auto continue_label = code_ir->Alloc<lir::Label>(lir::kInvalidOffset);
+  ++continue_label->refCount;
+
+  auto hook_invoke = code_ir->Alloc<lir::Bytecode>();
+  hook_invoke->opcode = dex::OP_INVOKE_STATIC_RANGE;
+  hook_invoke->operands.push_back(
+      code_ir->Alloc<lir::VRegRange>(registers - arguments, arguments));
+  hook_invoke->operands.push_back(hook_method);
+
+  auto move_result = code_ir->Alloc<lir::Bytecode>();
+  move_result->opcode = dex::OP_MOVE_RESULT_OBJECT;
+  move_result->operands.push_back(code_ir->Alloc<lir::VReg>(result_reg));
+
+  auto continue_if_null = code_ir->Alloc<lir::Bytecode>();
+  continue_if_null->opcode = dex::OP_IF_EQZ;
+  continue_if_null->operands.push_back(code_ir->Alloc<lir::VReg>(result_reg));
+  continue_if_null->operands.push_back(code_ir->Alloc<lir::CodeLocation>(continue_label));
+
+  auto return_result = code_ir->Alloc<lir::Bytecode>();
+  return_result->opcode = dex::OP_RETURN_OBJECT;
+  return_result->operands.push_back(code_ir->Alloc<lir::VReg>(result_reg));
+
+  for (auto instruction : code_ir->instructions) {
+    auto first_bytecode = dynamic_cast<lir::Bytecode*>(instruction);
+    if (first_bytecode == nullptr) {
+      continue;
+    }
+    code_ir->instructions.InsertBefore(first_bytecode, hook_invoke);
+    code_ir->instructions.InsertBefore(first_bytecode, move_result);
+    code_ir->instructions.InsertBefore(first_bytecode, continue_if_null);
+    code_ir->instructions.InsertBefore(first_bytecode, return_result);
+    code_ir->instructions.InsertBefore(first_bytecode, continue_label);
+    break;
+  }
+  return true;
+}
+
 bool ExitHook::Apply(lir::CodeIr* code_ir) {
   ir::Builder builder(code_ir->dex_ir);
   const auto ir_method = code_ir->ir_method;

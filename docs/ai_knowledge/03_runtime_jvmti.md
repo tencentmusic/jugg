@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-07-28
+> 最后核对：2026-07-30
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -24,7 +24,7 @@
 | `AsStartupAgentPusher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/AsStartupAgentPusher.kt` | Direct Overlay 路径推 Android Studio Apply Changes startup agent，不依赖 app 进程在线 |
 | `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，写 `.jugg_jvmti_available` / `.jugg_jvmti_not_available` flag，并启动 instrumentation |
 | `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | 加载 `jugg-instruments.jar`，设置 class file load hook 并 retransform 目标类 |
-| `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
+| `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
 | `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，并安装 dex/resource patch |
 | `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | 在 app `code_cache/startup_agents` 中放置版本化 agent so |
 | `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 打包 `jugg-instruments.jar`、64/32 位 so 和 setup script，生成 plugin resource |
@@ -92,6 +92,22 @@ DeployRetryHandler.tryRetry()
 
 `options[0] == '/'` 才按 startup agent 处理；shell attach 场景不会进入完整 instrumentation。
 
+### 4.4 ClassLoader resource overlay
+
+legacy Compose resource 会通过 `ClassLoader#getResource()` 读取 APK 根目录文件，而不是通过 `AssetManager` 读取 `assets/`。Jugg 对 `java/lang/ClassLoader#getResource(String)` 做 retransformation，在原方法入口执行 overlay-first 查找：
+
+```text
+InstrumentationHooks.classLoaderGetResource(classLoader, name)
+  -> 仅接受宿主 Application ClassLoader 或以它为 parent 的子 ClassLoader
+  -> code_cache/.overlay/base.apk/<name> 是文件：返回 file URL
+  -> resource.ap_ 存在且 ZIP entry <name> 存在：返回 jar:file URL
+  -> 未命中或异常：返回 null，继续原始 ClassLoader#getResource
+```
+
+hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，但 `resource.ap_` 分支必须先确认 ZIP entry，不能只因 ZIP 文件存在就截断原始 fallback。
+
+首次进入 hook 只打印一次 `Classpath resource hook in`；每次命中打印 `Classpath resource overlay hit` 并区分 `file` / `resource_ap_`。`resource.ap_` 读取可能受 `JarURLConnection` 缓存影响，部署 APK 根目录 overlay 成功后必须重启 App 进程。
+
 ---
 
 ## 5. 构建与版本约束
@@ -106,6 +122,8 @@ DeployRetryHandler.tryRetry()
 - `BootstrapApplication.attachBaseContext()` 会创建并 attach 原始 Application；启动 `ContentProvider` 随后执行，早于 `BootstrapApplication.onCreate()` 中的 Application 引用替换。该窗口内 `BootstrapApplication.getApplicationContext()` 在原始 Application 已创建后直接返回原始实例，使 Provider 通过 `context.getApplicationContext()` 获得正常 Application；`ContentProvider.getContext()` 仍是 Framework 在 `attachInfo()` 时保存的 Bootstrap Context，不属于此兼容范围。
 - `InstrumentationHooks.isEnableHotfix()` 可能在 `HotfixLoader.init()` 之前被 ResourcesManager hook 调用。此时 `overlayFilesDir` 尚未初始化，只能临时返回 false，不能缓存判断结果；初始化完成后必须重新读取 compat flag。
 - ResourcesManager 两个 `createAssetManager` 签名的 exit hook 都必须在 compat deploy 启用时直接返回。否则普通模式的 `tryFixOutSideApk()` 会把路径位于 `code_cache/.overlay` 的 `resource.ap_` 当成 Apply Changes overlay 删除，导致新 Activity 的 AssetManager 丢失应用包 ID `0x7f`。
+- `ClassLoader#getResource` hook 必须保持 early-return + fail-open：只有 overlay URL 非空时提前返回，未命中和异常继续原方法。不要改回 exit hook，否则原始 resource lookup 会先执行，失去真正的 overlay-first 语义。
+- ClassLoader resource 的可靠刷新边界是进程重启，不是 Activity 重建。Compose resource 与 `JarURLConnection` 都可能缓存旧结果。
 
 ---
 
@@ -134,6 +152,7 @@ DeployRetryHandler.tryRetry()
 | Direct Overlay 缺 AS startup agent | `AsStartupAgentPusher.hasApplyChangesStartupAgent()` 与 `pushApplyChangesStartupAgent()` |
 | HarmonyOS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `hw_sc.build.platform.version` 与 `JuggSettings.finalIsEnableCompatibleDeploymentMode` |
 | compat deploy 中 Application 资源正常、Activity 报 `Resources$NotFoundException` | 检查 `isEnableHotfix()` 是否过早缓存 false，以及 `createAssetManagerNewExit()` 是否删除了 `resource.ap_` |
+| legacy Compose resource 仍是旧值 | 检查 `java/lang/ClassLoader` retransformation、`Classpath resource hook in`、overlay hit 来源，以及部署后是否重启进程 |
 
 ---
 

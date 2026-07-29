@@ -10,16 +10,24 @@ import android.content.res.ResourcesKey;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
 import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
 
+import java.io.File;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.ZipFile;
 
 /** @noinspection unused*/
 public class InstrumentationHooks {
 
     public static final String TAG = "jugg-jvmti";
     private static final HashSet<String> loggedAssetManagerDecisions = new HashSet<>();
+    private static final AtomicBoolean classpathResourceHookEntered = new AtomicBoolean();
+    private static volatile ClassLoader classpathResourceHostClassLoader;
+    private static volatile File classpathResourceOverlayRoot;
 
     public static void handleAttachBaseContextEntry(ContextWrapper contextWrapper, Context base)
         throws Exception {
@@ -47,6 +55,7 @@ public class InstrumentationHooks {
 
     public static void handleNewApplicationEntry(Instrumentation instrumentation, ClassLoader classLoader, String className, Context base) {
         try {
+            recordClasspathResourceHost(classLoader, base);
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
@@ -64,6 +73,7 @@ public class InstrumentationHooks {
 
     public static void handleNewApplicationEntry2(Instrumentation instrumentation, Class<?> clazz, Context base) {
         try {
+            recordClasspathResourceHost(base.getClassLoader(), base);
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
@@ -87,6 +97,53 @@ public class InstrumentationHooks {
             return application;
         }
         return (Application) base.getClassLoader().loadClass(application.getClass().getName()).newInstance();
+    }
+
+    public static URL classLoaderGetResource(ClassLoader classLoader, String name) {
+        if (classpathResourceHookEntered.compareAndSet(false, true)) {
+            LogUtils.i(TAG, "Classpath resource hook in");
+        }
+        File overlayRoot = classpathResourceOverlayRoot;
+        if (name == null || overlayRoot == null || !isHostClassLoader(classLoader)) {
+            return null;
+        }
+        try {
+            File overlayFile = new File(overlayRoot, name);
+            if (overlayFile.isFile()) {
+                LogUtils.i(TAG, "Classpath resource overlay hit: file:" + name);
+                return overlayFile.toURI().toURL();
+            }
+
+            File resourceApk = new File(overlayRoot, BuildConfig.RESOURCE_APK_NAME);
+            if (!resourceApk.isFile() || !hasZipEntry(resourceApk, name)) {
+                return null;
+            }
+            LogUtils.i(TAG, "Classpath resource overlay hit: resource_ap_:" + name);
+            return new URL("jar:" + resourceApk.toURI().toURL() + "!/" + name);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static void recordClasspathResourceHost(ClassLoader classLoader, Context base) {
+        classpathResourceHostClassLoader = classLoader;
+        classpathResourceOverlayRoot = new File(base.getCodeCacheDir(), ".overlay/base.apk");
+    }
+
+    private static boolean isHostClassLoader(ClassLoader classLoader) {
+        ClassLoader host = classpathResourceHostClassLoader;
+        for (ClassLoader current = classLoader; host != null && current != null; current = current.getParent()) {
+            if (current == host) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasZipEntry(File zipFile, String name) throws Exception {
+        try (ZipFile zip = new ZipFile(zipFile)) {
+            return zip.getEntry(name) != null;
+        }
     }
 
     private static boolean isNeedFixThisAssetManager = false;

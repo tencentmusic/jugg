@@ -28,6 +28,8 @@
 
 namespace slicer {
 
+class AllocateScratchRegs;
+
 // Interface for a single transformation operation
 class Transformation {
  public:
@@ -57,6 +59,25 @@ class EntryHook : public Transformation {
   // For example "this" argument of OkHttpClient type is forwared as Object and
   // is used to get OkHttp class loader.
   bool use_object_type_for_this_argument_;
+};
+
+// Insert an entry hook that returns the original method's object return type.
+// A non-null hook result returns immediately; null continues the original method.
+class EntryHookWithEarlyReturn : public Transformation {
+ public:
+  EntryHookWithEarlyReturn(
+      const ir::MethodId& hook_method_id,
+      AllocateScratchRegs* scratch_regs)
+      : hook_method_id_(hook_method_id), scratch_regs_(scratch_regs) {
+    SLICER_CHECK(hook_method_id_.signature == nullptr);
+    SLICER_CHECK(scratch_regs_ != nullptr);
+  }
+
+  virtual bool Apply(lir::CodeIr* code_ir) override;
+
+ private:
+  ir::MethodId hook_method_id_;
+  AllocateScratchRegs* scratch_regs_;
 };
 
 // Insert a call to the "exit hook" method before every return

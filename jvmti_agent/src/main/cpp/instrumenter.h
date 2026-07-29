@@ -150,6 +150,44 @@ class HookTransform : public Transform {
   std::vector<MethodHooks> hooks_;
 };
 
+// Applies an entry hook whose non-null object result bypasses the target method.
+class EarlyReturnHookTransform : public Transform {
+ public:
+  EarlyReturnHookTransform(
+      const std::string& class_name,
+      const std::string& method_name,
+      const std::string& method_signature,
+      const std::string& hook_name)
+      : Transform(class_name),
+        method_name_(method_name),
+        method_signature_(method_signature),
+        hook_name_(hook_name) {}
+
+  void Apply(std::shared_ptr<ir::DexFile> dex_ir) const override {
+    slicer::MethodInstrumenter instrumenter(dex_ir);
+    auto scratch_regs =
+        instrumenter.AddTransformation<slicer::AllocateScratchRegs>(1);
+    const ir::MethodId hook_method(kHookClassName, hook_name_.c_str());
+    instrumenter.AddTransformation<slicer::EntryHookWithEarlyReturn>(
+        hook_method, scratch_regs);
+    const std::string jni_name = ToJniFormat(GetClassName());
+    const ir::MethodId target_method(
+        jni_name.c_str(), method_name_.c_str(), method_signature_.c_str());
+    if (!instrumenter.InstrumentMethod(target_method)) {
+      ALOGW("Optional hook method not found: class=%s method=%s signature=%s",
+            GetClassName().c_str(), method_name_.c_str(),
+            method_signature_.c_str());
+    }
+  }
+
+ private:
+  const char* kHookClassName =
+      "Lcom/sickworm/intellij/jugg/instrument/InstrumentationHooks;";
+  const std::string method_name_;
+  const std::string method_signature_;
+  const std::string hook_name_;
+};
+
 }  // namespace deploy
 
 #endif

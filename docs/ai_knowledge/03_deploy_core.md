@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-06-11
+> 最后核对：2026-07-30
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -49,7 +49,9 @@
 | `isNeedRestartApp` | `HOT_FIX` | 需要重启 App 生效。 |
 | 其他 | `HOT_RELOAD` | 在线 Apply Changes，尽量不重启 App。 |
 
-`isNeedRestartApp` 由 hot-fix classes 或非空 `isPushOverlayOnly` 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`，或 APK 根目录 overlay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+
+APK 根目录 overlay 使用最终部署路径判断：`res/**`、`assets/**`、`resources.arsc` 之外的 overlay 都要求重启进程，例如 legacy Compose resource 的 `values/strings.xml` 和 Java SPI 的 `META-INF/services/**`。这个规则不依赖编译阶段类型，因此历史恢复后的部署数据也能得到相同行为。它允许少量无害 false positive；如果 Classpath resource 刻意使用 Android 专属路径名，则存在 false negative。
 
 当前实现对所有满足 `isNeedRestartActivity` 的非空增量部署使用 Android Studio 的 `APPLY_CHANGES_AND_RESTART_ACTIVITY`，即 Full Swap / Apply Changes and Restart Activity，并调用 `JuggDeployer.fullSwap()`。Activity 会重建，`onCreate()` 会再次执行；这与 `Always restart app after deployment` 不同，后者用于额外重启整个 App 进程。`JuggDeployData.deployType=HOT_RELOAD` 是 Jugg 的结果分类，不表示 transport 一定使用不重启 Activity 的 `APPLY_CHANGES`。
 
@@ -244,6 +246,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 - `DeployItem.targetApkPaths` 表示真实部署目标；`apkPath` 仍保留旧单 APK 锚点。判断资源/overlay 归属时优先看 `targetApkPaths`。
 - self-targeting library Test APK backfill 成功安装后，必须立即把新 overlay ids merge 到 `deployHistoryManager.lastDeployOverlayIds`，否则第一轮 replay 会误判状态不匹配并重装。
 - compat deploy 会去掉原 res/asset overlays，追加 enable flag，并按资源 overlay 生成 resource APK deploy item。
+- APK 根目录 overlay 必须重启进程；Activity restart 无法可靠清除 ClassLoader、legacy Compose resource 或 `JarURLConnection` 缓存。
 - `CompatDeployHelper` 对 API < 30、设备兼容记录以及 HarmonyOS 4.2 及以上返回 true；HarmonyOS 判断按 `hw_sc.build.platform.version` 的 major/minor 数值比较，不持久化为手动 Force 记录。
 - dex merge 阈值是 `DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT = 1000`；超过阈值时把 staging dex + 未 staging 的历史 dex merge，失败则保留原数据继续部署。
 - transient offline 的设计目标是在失败点附近恢复：shell/deployer 层原地等待并重试一次，编排层只处理已经冒泡的 offline 失败。

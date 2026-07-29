@@ -27,7 +27,7 @@ data class JuggDeployData(
     val hotReloadModifiedClasses: List<ClassDeployItem>,
     /** effected class nodes that need to be recompiled. */
     val effectedClassNodes: List<EffectedClassNode>,
-    /** modified files that will place into /assets or /res. */
+    /** modified files that will be placed into the APK overlay. */
     val overlays: List<DeployItem>,
     /** parsed class nodes and method & field references. */
     val parsedDex: ParsedDex,
@@ -58,12 +58,19 @@ data class JuggDeployData(
 
     private val isNeedRestartActivityInner get() = !isWarmUp && !isEmpty
 
+    private val hasApkRootOverlay get() = overlays.any {
+        !it.name.startsWith("res/") &&
+                !it.name.startsWith("assets/") &&
+                it.name != "resources.arsc"
+    }
+
     // for now, we always restart activity excepts warm up and restart app
     val isNeedRestartActivity get() = isNeedRestartActivityInner && !isNeedRestartApp
 
     /** is restart app after deployment */
     val isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty()
             || (isPushOverlayOnly && !isEmpty)
+            || hasApkRootOverlay
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()

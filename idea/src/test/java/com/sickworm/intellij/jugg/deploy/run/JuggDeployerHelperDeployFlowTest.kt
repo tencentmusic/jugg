@@ -2,8 +2,10 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
-import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowCaseId
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowFixture
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
@@ -216,6 +218,33 @@ class JuggDeployerHelperDeployFlowTest {
         }
 
         val result = fixture.helper.deploy(fixture.deployOptions.copy(compileUiHandler = compileUiHandler))
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `apk root overlay restarts app after deploy`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
+        val deployData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
+        val apkPath = deployData.apks.first().files.first().apkFile.path
+        Mockito.`when`(
+            fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+        ).thenReturn(
+            deployData.copy(
+                overlays = listOf(
+                    DeployItem(
+                        name = "values/strings.xml",
+                        type = CompileOutput.Type.Res,
+                        checksum = 1L,
+                        content = byteArrayOf(1, 2, 3),
+                        apkPath = apkPath,
+                    ),
+                ),
+            ),
+        )
+
+        val result = fixture.helper.deploy(fixture.deployOptions)
 
         assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
         Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)

@@ -230,6 +230,12 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         { sendMessage, handleApplicationInfoChanged }
     );
 
+    const EarlyReturnHookTransform classLoader(
+        "java/lang/ClassLoader",
+        "getResource",
+        "(Ljava/lang/String;)Ljava/net/URL;",
+        "classLoaderGetResource");
+
     bool success = true;
   success &=
       CheckJvmti(jvmti->SetEventNotificationMode(
@@ -243,7 +249,8 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         jvmti,
         jni,
         kNoCache,
-        { &application, &appComponentFactory, &resManager, &activityThread });
+        { &application, &appComponentFactory, &resManager, &activityThread,
+          &classLoader });
     ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew });
   }
 
