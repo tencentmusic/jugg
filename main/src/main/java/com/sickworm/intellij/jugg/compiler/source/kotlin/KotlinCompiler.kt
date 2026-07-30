@@ -202,11 +202,14 @@ class KotlinCompiler(
         var isNeedCompileCompose = false
         var isInKspWhiteList = false
         var isNeedComplementaryFiles = false
+        val shouldResolveComplementaryFiles = module.kotlinCommonSourceDirs.isNotEmpty()
 
         // Check features by checking import. It's not 100% accurate, but whatever.
         files.forEach root@{ file ->
             val lines = file.readLines()
-            if (!isNeedComplementaryFiles && lines.any { expectActualToken.containsMatchIn(it) }) {
+            if (shouldResolveComplementaryFiles &&
+                !isNeedComplementaryFiles &&
+                lines.any { expectActualToken.containsMatchIn(it) }) {
                 logger.debug("find expect/actual token in $file")
                 isNeedComplementaryFiles = true
             }
