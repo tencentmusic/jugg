@@ -15,8 +15,6 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
-apply from: './aabResGuard.gradle'
-
 android {
     namespace 'com.example.myapplication'
     compileSdkVersion 35

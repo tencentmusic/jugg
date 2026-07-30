@@ -174,6 +174,7 @@ class KotlinCompileTest {
         try {
             GradleBuildHelper.switchKotlinVersion("2.3-agp9")
             AssembleAndroidProjectOnce.forceRecompile(true)
+            GradleBuildHelper.appAssembleRelease()
             val freshContext = context
             val libraryModule = freshContext.modules.getValue("library1")
             val appModule = freshContext.modules.getValue("app")

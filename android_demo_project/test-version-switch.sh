@@ -118,6 +118,10 @@ verify_kotlin_2_3_agp9_profile() {
         echo "ERROR: AGP 9 profile must not enable legacy KAPT"
         exit 1
     fi
+    if grep -Fq "aabResGuard.gradle" app/build.gradle; then
+        echo "ERROR: AGP 9 profile must not enable the incompatible AABResGuard plugin"
+        exit 1
+    fi
     assert_kmp_enabled
 }
 
