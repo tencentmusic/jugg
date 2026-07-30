@@ -4,6 +4,7 @@ import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
+import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.filters.TextConsoleBuilderFactory
@@ -20,6 +21,7 @@ import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
@@ -35,6 +37,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.util.concurrent.FutureTask
 import javax.swing.SwingUtilities
 
 /**
@@ -153,20 +156,49 @@ class JuggConfigurationRunner(
         androidTestRunSpec: AndroidTestRunSpec?,
         buildTargetOverride: BuildTarget?,
     ): JuggRunInvocationResult {
-        val runConfiguration = findSelectedOrFirstJuggRunConfiguration(RunManager.getInstance(project))
-            ?: return JuggRunInvocationResult(
+        val fullBuildInfo = deployHistoryManager.getFullBuildInfo()
+        val resolved = try {
+            // RunManager selection and configuration options are mutable IDE state.
+            callOnEdt {
+                val runManager = RunManager.getInstance(project)
+                val selected = runManager.selectedConfiguration
+                val candidates = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
+                val result = findJuggRunConfiguration(
+                    selected,
+                    candidates,
+                    fullBuildInfo,
+                    buildTargetOverride,
+                )
+                logger.debug(
+                    "Resolve Jugg config: selected=${selected?.name}/${selected?.configuration?.javaClass?.name}, " +
+                            "fullBuild=${fullBuildInfo?.compileCommand}/${fullBuildInfo?.buildTarget}, " +
+                            "source=${result?.second}, chosen=${result?.first?.name}",
+                )
+                val (settings, source) = result ?: return@callOnEdt null
+                if (source == "first") {
+                    logger.warn(
+                        "Cannot resolve selected or last full build Jugg configuration, fallback to first: " +
+                                "chosen=${settings.name}, candidates=${candidates.map { it.name }}",
+                    )
+                }
+                val state = (settings.configuration as JuggRunConfiguration).state ?: return@callOnEdt null
+                val options = state.toCompileOptions(pathManager).let {
+                    if (buildTargetOverride == null) it else it.copy(buildTarget = buildTargetOverride)
+                }
+                options to settings.name
+            }
+        } catch (e: Exception) {
+            logger.warn("Resolve Jugg run configuration on EDT failed.", e)
+            return JuggRunInvocationResult(
                 isSuccess = false,
-                errorMessage = "Jugg run configuration not found.",
+                errorMessage = "Resolve Jugg run configuration failed.",
             )
-
-        val state = runConfiguration.state
-            ?: return JuggRunInvocationResult(
-                isSuccess = false,
-                errorMessage = "Run configuration state is null.",
-            )
-        val compileOptions = state.toCompileOptions(pathManager).let { options ->
-            if (buildTargetOverride == null) options else options.copy(buildTarget = buildTargetOverride)
         }
+        val (compileOptions, runConfigurationName) = resolved
+            ?: return JuggRunInvocationResult(
+                isSuccess = false,
+                errorMessage = "Valid Jugg run configuration not found.",
+            )
 
         var runResultFinal: RunResult? = null
         val waitLock = Object()
@@ -197,7 +229,7 @@ class JuggConfigurationRunner(
         SwingUtilities.invokeLater {
             val executor = DefaultRunExecutor.getRunExecutorInstance()
             val executionResult = runTask(compileOptions, compileUiHandler, null, null, androidTestRunSpec)
-            val descriptor = createRunContentDescriptor(executionResult, runConfiguration.name)
+            val descriptor = createRunContentDescriptor(executionResult, runConfigurationName)
             RunContentManager.getInstance(project).showRunContent(executor, descriptor)
         }
 
@@ -220,10 +252,47 @@ class JuggConfigurationRunner(
     }
 }
 
-internal fun findSelectedOrFirstJuggRunConfiguration(runManager: RunManager): JuggRunConfiguration? {
-    return (runManager.selectedConfiguration?.configuration as? JuggRunConfiguration)
-        ?: (runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
-            .firstOrNull()?.configuration as? JuggRunConfiguration)
+/** Chooses the selected Jugg configuration, then the last full-build match, then the first candidate. */
+internal fun findJuggRunConfiguration(
+    selectedSettings: RunnerAndConfigurationSettings?,
+    candidateSettings: List<RunnerAndConfigurationSettings>,
+    fullBuildInfo: FullBuildInfo?,
+    buildTargetOverride: BuildTarget?,
+): Pair<RunnerAndConfigurationSettings, String>? {
+    if (selectedSettings?.configuration is JuggRunConfiguration) {
+        return selectedSettings to "selected"
+    }
+
+    val candidates = candidateSettings.filter { it.configuration is JuggRunConfiguration }
+    val fullBuildCommand = fullBuildInfo?.compileCommand?.takeIf { it.isNotBlank() }
+    if (fullBuildCommand != null) {
+        // BuildTarget disambiguates configurations that share the same Gradle command.
+        candidates.firstOrNull { settings ->
+            val options = (settings.configuration as JuggRunConfiguration).state ?: return@firstOrNull false
+            val buildTarget = buildTargetOverride
+                ?: if (options.enableAndroidTest) BuildTarget.ANDROID_TEST else BuildTarget.APP
+            options.compileCommand == fullBuildCommand && buildTarget == fullBuildInfo.buildTarget
+        }?.let {
+            return it to "full_build_command_and_target"
+        }
+        // Keep using the previous command when its BuildTarget is no longer available.
+        candidates.firstOrNull {
+            (it.configuration as JuggRunConfiguration).state?.compileCommand == fullBuildCommand
+        }?.let {
+            return it to "full_build_command"
+        }
+    }
+
+    return candidates.firstOrNull()?.let { it to "first" }
+}
+
+private fun <T> callOnEdt(action: () -> T): T {
+    if (SwingUtilities.isEventDispatchThread()) {
+        return action()
+    }
+    val task = FutureTask<T> { action() }
+    SwingUtilities.invokeAndWait(task)
+    return task.get()
 }
 
 internal fun createRunContentDescriptor(

@@ -1,16 +1,17 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.execution.ExecutionResult
-import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.openapi.util.Key
 import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
+import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
-import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
+import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import org.junit.Assert.assertFalse
@@ -26,28 +27,86 @@ class JuggConfigurationRunnerTest {
 
     @Test
     fun `selected Jugg configuration is used`() {
-        val runConfiguration = mock<JuggRunConfiguration>()
-        val settings = mock<RunnerAndConfigurationSettings>()
-        val runManager = mock<RunManager>()
-        whenever(settings.configuration).thenReturn(runConfiguration)
-        whenever(runManager.selectedConfiguration).thenReturn(settings)
+        val settings = createJuggSettings("jugg:app:qaDebug", "./gradlew :app:assembleQaDebug")
+        val historySettings = createJuggSettings("jugg:app:prodDebug", "./gradlew :app:assembleProdDebug")
 
-        assertSame(runConfiguration, findSelectedOrFirstJuggRunConfiguration(runManager))
+        val result = findJuggRunConfiguration(
+            settings,
+            listOf(historySettings, settings),
+            FullBuildInfo("./gradlew :app:assembleProdDebug", BuildTarget.APP, 1L),
+            buildTargetOverride = null,
+        )
+
+        assertSame(settings, result?.first)
     }
 
     @Test
-    fun `first Jugg configuration is used when selection is not Jugg`() {
-        val selectedSettings = mock<RunnerAndConfigurationSettings>()
-        val fallbackConfiguration = mock<JuggRunConfiguration>()
-        val fallbackSettings = mock<RunnerAndConfigurationSettings>()
-        val runManager = mock<RunManager>()
-        whenever(selectedSettings.configuration).thenReturn(mock<RunConfiguration>())
-        whenever(fallbackSettings.configuration).thenReturn(fallbackConfiguration)
-        whenever(runManager.selectedConfiguration).thenReturn(selectedSettings)
-        whenever(runManager.getConfigurationSettingsList(JuggConfigurationType::class.java))
-            .thenReturn(listOf(fallbackSettings))
+    fun `last full build command and target match is preferred`() {
+        val appSettings = createJuggSettings("jugg:app", "./gradlew :app:assembleDebug")
+        val androidTestSettings = createJuggSettings(
+            "jugg:app:androidTest",
+            "./gradlew :app:assembleDebug",
+            BuildTarget.ANDROID_TEST,
+        )
 
-        assertSame(fallbackConfiguration, findSelectedOrFirstJuggRunConfiguration(runManager))
+        val result = findJuggRunConfiguration(
+            selectedSettings = null,
+            candidateSettings = listOf(appSettings, androidTestSettings),
+            fullBuildInfo = FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.ANDROID_TEST, 1L),
+            buildTargetOverride = null,
+        )
+
+        assertSame(androidTestSettings, result?.first)
+    }
+
+    @Test
+    fun `last full build command match is used when target does not match`() {
+        val firstSettings = createJuggSettings("jugg:first", "./gradlew :first:assembleDebug")
+        val commandSettings = createJuggSettings("jugg:app", "./gradlew :app:assembleDebug")
+
+        val result = findJuggRunConfiguration(
+            selectedSettings = null,
+            candidateSettings = listOf(firstSettings, commandSettings),
+            fullBuildInfo = FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.ANDROID_TEST, 1L),
+            buildTargetOverride = null,
+        )
+
+        assertSame(commandSettings, result?.first)
+    }
+
+    @Test
+    fun `first Jugg configuration is used when selection and history do not match`() {
+        val selectedSettings = mock<RunnerAndConfigurationSettings>()
+        val firstSettings = createJuggSettings("jugg:first", "./gradlew :first:assembleDebug")
+        val secondSettings = createJuggSettings("jugg:second", "./gradlew :second:assembleDebug")
+        whenever(selectedSettings.configuration).thenReturn(mock<RunConfiguration>())
+
+        val result = findJuggRunConfiguration(
+            selectedSettings,
+            listOf(firstSettings, secondSettings),
+            FullBuildInfo("./gradlew :missing:assembleDebug", BuildTarget.APP, 1L),
+            buildTargetOverride = null,
+        )
+
+        assertSame(firstSettings, result?.first)
+    }
+
+    private fun createJuggSettings(
+        name: String,
+        compileCommand: String,
+        buildTarget: BuildTarget = BuildTarget.APP,
+    ): RunnerAndConfigurationSettings {
+        val runConfiguration = mock<JuggRunConfiguration>()
+        val settings = mock<RunnerAndConfigurationSettings>()
+        val options = JuggRunConfigurationOptions().apply {
+            this.compileCommand = compileCommand
+            enableAndroidTest = buildTarget == BuildTarget.ANDROID_TEST
+        }
+        whenever(settings.name).thenReturn(name)
+        whenever(settings.configuration).thenReturn(runConfiguration)
+        whenever(runConfiguration.state).thenReturn(options)
+
+        return settings
     }
 
     @Test
