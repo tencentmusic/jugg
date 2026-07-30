@@ -218,7 +218,7 @@ class GradleProjectInfoReader(
                 var kotlinPlugins: List<File>? = null
                 val buildVariantCapital = moduleInfo.buildVariant.camelCompat
                 val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
-                val kotlinTask = if (hasKotlinPlugin) findKotlinTask(project, buildVariantCapital) else null
+                val kotlinTask = findKotlinTask(project, buildVariantCapital)
                 if (kotlinTask != null) {
                     // before 2.0, kotlin classpath is in pluginClasspath
                     kotlinPlugins = (reflector(kotlinTask)["pluginClasspath"]?.value as? FileCollection)?.toList()
@@ -275,6 +275,16 @@ class GradleProjectInfoReader(
             } catch (e: Throwable) {
                 println("Jugg: get other info for ${project.standardModuleName} failed: $e")
                 printException(e)
+            }
+        }
+        if (!moduleType.isAndroidModule && project.plugins.hasPlugin("com.android.kotlin.multiplatform.library")) {
+            val kotlinTask = findTaskByNameWithRetry(project, "compileAndroidMain")
+            if (kotlinTask != null) {
+                val kotlinJvmOptions = reflector(kotlinTask)["kotlinOptions"]
+                moduleInfo = moduleInfo.copy(
+                    kotlinJvmTarget = readKotlinJvmTarget(kotlinTask, kotlinJvmOptions),
+                    kotlinFreeCompilerArgs = readKotlinFreeCompilerArgs(kotlinTask, kotlinJvmOptions),
+                )
             }
         }
         TraceLogger.end("getVar")
@@ -655,7 +665,8 @@ class GradleProjectInfoReader(
     private fun findKotlinTask(project: Project, buildVariantCapital: String): Any? {
         val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
         val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
-        return findTaskByNameWithRetry(project, kotlinTaskName) ?: findTaskByNameWithRetry(project, kotlinTaskNameKmm)
+        return findTaskByNameWithRetry(project, kotlinTaskName)
+            ?: findTaskByNameWithRetry(project, kotlinTaskNameKmm)
     }
 
     /** Reads configured common roots without relying on source-set directory names. */

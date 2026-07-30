@@ -145,7 +145,7 @@ class ReadProjectInfoScriptContentTest {
     }
 
     @Test
-    fun gradleProjectInfoReader_shouldOnlyProbeKotlinDetailsForKotlinModules() {
+    fun gradleProjectInfoReader_shouldDiscoverKotlinTasksWithoutLegacyPluginGate() {
         val readerText = readSource("src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt")
         val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
         assertNotNull(scriptText)
@@ -153,8 +153,11 @@ class ReadProjectInfoScriptContentTest {
         listOf(readerText, scriptText).forEach { text ->
             assertTrue(text.contains("val hasKotlinPlugin = project.hasKotlinPlugin()"))
             assertFalse(text.contains("extensions?.invoke(\"getByName\", \"kotlinOptions\")"))
-            assertTrue(text.contains("if (hasKotlinPlugin) findKotlinTask(project, buildVariantCapital) else null"))
+            assertTrue(text.contains("val kotlinTask = findKotlinTask(project, buildVariantCapital)"))
+            assertFalse(text.contains("if (hasKotlinPlugin) findKotlinTask(project, buildVariantCapital) else null"))
             assertTrue(text.contains("} else if (hasKotlinPlugin) {"))
+            assertTrue(text.contains("project.plugins.hasPlugin(\"com.android.kotlin.multiplatform.library\")"))
+            assertTrue(text.contains("findTaskByNameWithRetry(project, \"compileAndroidMain\")"))
             assertTrue(text.contains("private fun findKotlinTask(project: Project, buildVariantCapital: String): Any?"))
             assertTrue(text.contains("private fun Project.hasKotlinPlugin(): Boolean"))
         }

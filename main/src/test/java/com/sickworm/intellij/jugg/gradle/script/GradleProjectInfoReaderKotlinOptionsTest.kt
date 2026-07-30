@@ -25,7 +25,7 @@ import java.io.File
 class GradleProjectInfoReaderKotlinOptionsTest {
 
     @Test
-    fun `Kotlin 2 compiler options populate project info`() {
+    fun `built-in Kotlin compiler options populate project info without legacy plugin`() {
         val jvmTarget = mock<Provider<JvmTargetValue>>()
         whenever(jvmTarget.orNull).thenReturn(JvmTargetValue("11"))
         val freeCompilerArgs = mock<Provider<List<String>>>()
@@ -33,24 +33,72 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         val compilerOptions = CompilerOptions(jvmTarget, freeCompilerArgs)
         val kotlinTask = kotlinTask(compilerOptions)
 
-        val module = createReader(kotlinTask).getProjectInfo(false).modules.getValue("app")
+        val module = createReader(
+            kotlinTask = kotlinTask,
+            kotlinTaskName = "compileDebugKotlin",
+            hasLegacyKotlinPlugin = false,
+        )
+            .getProjectInfo(false).modules.getValue("app")
 
         assertEquals("11", module.kotlinJvmTarget)
         assertEquals(listOf("-Xexpect-actual-classes"), module.kotlinFreeCompilerArgs)
     }
 
-    private fun createReader(kotlinTask: Task): GradleProjectInfoReader {
+    @Test
+    fun `AGP 9 KMP Android compiler options populate project info`() {
+        val jvmTarget = mock<Provider<JvmTargetValue>>()
+        whenever(jvmTarget.orNull).thenReturn(JvmTargetValue("17"))
+        val freeCompilerArgs = mock<Provider<List<String>>>()
+        whenever(freeCompilerArgs.orNull).thenReturn(emptyList())
+
+        val module = createReader(
+            kotlinTask = kotlinTask(CompilerOptions(jvmTarget, freeCompilerArgs)),
+            kotlinTaskName = "compileAndroidMain",
+            hasLegacyKotlinPlugin = true,
+            isAndroidApplication = false,
+            isAndroidKmp = true,
+        ).getProjectInfo(false).modules.getValue("app")
+
+        assertEquals("17", module.kotlinJvmTarget)
+    }
+
+    @Test
+    fun `legacy Kotlin options remain supported`() {
+        val kotlinTask = kotlinTask(legacyOptions = LegacyKotlinOptions("1.8", listOf("-Xlegacy")))
+
+        val module = createReader(
+            kotlinTask = kotlinTask,
+            kotlinTaskName = "compileDebugKotlinAndroid",
+            hasLegacyKotlinPlugin = true,
+        )
+            .getProjectInfo(false).modules.getValue("app")
+
+        assertEquals("1.8", module.kotlinJvmTarget)
+        assertEquals(listOf("-Xlegacy"), module.kotlinFreeCompilerArgs)
+    }
+
+    private fun createReader(
+        kotlinTask: Task,
+        kotlinTaskName: String,
+        hasLegacyKotlinPlugin: Boolean,
+        isAndroidApplication: Boolean = true,
+        isAndroidKmp: Boolean = false,
+    ): GradleProjectInfoReader {
         val projectDir = File("/project")
         val appDir = File(projectDir, "app")
         val gradle = gradle()
         val appProject = mock<Project>()
         val plugins = mock<PluginContainer>()
         whenever(plugins.hasPlugin(any<String>())).thenAnswer {
-            it.getArgument<String>(0) in setOf("com.android.application", "org.jetbrains.kotlin.multiplatform")
+            when (it.getArgument<String>(0)) {
+                "com.android.application" -> isAndroidApplication
+                "com.android.kotlin.multiplatform.library" -> isAndroidKmp
+                "org.jetbrains.kotlin.multiplatform" -> hasLegacyKotlinPlugin
+                else -> false
+            }
         }
         val tasks = mock<TaskContainer>()
-        whenever(tasks.findByName("compileDebugKotlin")).thenReturn(null)
-        whenever(tasks.findByName("compileDebugKotlinAndroid")).thenReturn(kotlinTask)
+        whenever(tasks.findByName(kotlinTaskName)).thenReturn(kotlinTask)
         whenever(tasks.iterator()).thenReturn(mutableListOf<Task>().iterator())
         val configurations = mock<ConfigurationContainer>()
         whenever(configurations.names).thenReturn(sortedSetOf())
@@ -97,17 +145,23 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         return layout
     }
 
-    private fun kotlinTask(compilerOptions: CompilerOptions): Task {
+    private fun kotlinTask(
+        compilerOptions: CompilerOptions? = null,
+        legacyOptions: LegacyKotlinOptions? = null,
+    ): Task {
         val task = Mockito.mock(
             Task::class.java,
             Mockito.withSettings().extraInterfaces(KotlinTaskModel::class.java),
         )
-        whenever((task as KotlinTaskModel).compilerOptions).thenReturn(compilerOptions)
+        val model = task as KotlinTaskModel
+        whenever(model.compilerOptions).thenReturn(compilerOptions)
+        whenever(model.kotlinOptions).thenReturn(legacyOptions)
         return task
     }
 
     interface KotlinTaskModel {
-        val compilerOptions: CompilerOptions
+        val compilerOptions: CompilerOptions?
+        val kotlinOptions: LegacyKotlinOptions?
     }
 
     class CompilerOptions(
@@ -121,6 +175,15 @@ class GradleProjectInfoReaderKotlinOptionsTest {
 
     class JvmTargetValue(private val target: String) {
         fun getTarget(): String = target
+    }
+
+    class LegacyKotlinOptions(
+        private val jvmTarget: String,
+        private val freeCompilerArgs: List<String>,
+    ) {
+        fun getJvmTarget(): String = jvmTarget
+
+        fun getFreeCompilerArgs(): List<String> = freeCompilerArgs
     }
 
     private class AndroidExtension {
