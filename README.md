@@ -42,3 +42,9 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
 # Commit Rules
 
 Use [feature] [optimize] [bugfix] [test] [docs] [other] for commit message head.
+
+# License
+
+Jugg is released under the [MIT License](LICENSE).
+
+Jugg 使用 [MIT License](LICENSE) 开源。
