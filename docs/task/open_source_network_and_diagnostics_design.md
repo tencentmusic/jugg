@@ -16,6 +16,8 @@
 
 本文不实现后台服务，不选择第三方上传服务商，不调整编译、部署、CLI、MCP 的本地行为，也不在本轮修改生产代码。
 
+开源发布的完整 P0/P1/P2 跟踪清单见：[open_source_readiness_checklist.md](open_source_readiness_checklist.md)。
+
 ## 2. 已确认决策
 
 | 决策 | 结论 |
