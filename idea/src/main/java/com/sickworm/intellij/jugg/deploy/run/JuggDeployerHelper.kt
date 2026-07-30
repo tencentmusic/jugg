@@ -657,7 +657,10 @@ class JuggDeployerHelper(
 
         // get deploy data again after resigning apk (trigger full res deploy)
         if (isRecoverWithReinstall) {
-            deployData = deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, deployData))
+            deployData = deployFileManager.getDeployData(
+                deployOptions.isWarmUp,
+                isNeedPushResourceApk(device, deployData),
+            ).copy(isRecoverReplayAfterReinstall = true)
             publishDeployState(deployData)
         }
 

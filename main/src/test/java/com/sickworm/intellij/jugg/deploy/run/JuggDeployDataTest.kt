@@ -169,6 +169,34 @@ class JuggDeployDataTest {
         }
     }
 
+    @Test
+    fun `compose resource compile requires app restart`() {
+        val data = deployData(
+            overlays = listOf(
+                deployItem("assets/composeResources/example/file.txt", CompileOutput.Type.Asset, basePath, listOf(basePath)),
+            ),
+            isComposeResourceCompiled = true,
+        )
+
+        assertTrue(data.isNeedRestartApp)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, data.deployType)
+    }
+
+    @Test
+    fun `empty compose resource deploy does not require app restart`() {
+        val data = deployData(isComposeResourceCompiled = true)
+
+        assertFalse(data.isNeedRestartApp)
+    }
+
+    @Test
+    fun `empty replay after reinstall requires app restart`() {
+        val data = deployData(isRecoverReplayAfterReinstall = true)
+
+        assertTrue(data.isNeedRestartApp)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, data.deployType)
+    }
+
     private fun apkInfo(applicationId: String, apkPath: String): ApkInfo {
         return ApkInfo(
             files = listOf(ApkFileUnit(applicationId, "", true, File(apkPath))),
@@ -185,6 +213,8 @@ class JuggDeployDataTest {
         parsedDex: ParsedDex = ParsedDex.EMPTY,
         constRefEffectedSourcePaths: List<String> = emptyList(),
         isFullRes: Boolean = false,
+        isComposeResourceCompiled: Boolean = false,
+        isRecoverReplayAfterReinstall: Boolean = false,
     ): JuggDeployData {
         return JuggDeployData(
             apks = listOf(baseApk, testApk),
@@ -198,6 +228,8 @@ class JuggDeployDataTest {
             isWarmUp = false,
             updateApkFiles = updateApkFiles,
             constRefEffectedSourcePaths = constRefEffectedSourcePaths,
+            isComposeResourceCompiled = isComposeResourceCompiled,
+            isRecoverReplayAfterReinstall = isRecoverReplayAfterReinstall,
         )
     }
 

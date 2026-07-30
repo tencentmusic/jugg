@@ -251,6 +251,39 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
+    fun `compose resource compile restarts app after deploy`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
+        val deployData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
+            .copy(isComposeResourceCompiled = true)
+        Mockito.`when`(
+            fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+        ).thenReturn(deployData)
+
+        val result = fixture.helper.deploy(fixture.deployOptions)
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `recover reinstall restarts app after replay without other restart conditions`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_002)
+        val deployData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
+        Mockito.`when`(
+            fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+        ).thenReturn(
+            deployData,
+            deployData,
+        )
+
+        val result = fixture.helper.deploy(fixture.deployOptions)
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertTrue(result.hasDeployChanges)
+        Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+    }
+
+    @Test
     fun `always restart flag does not restart app after empty deploy when app is foreground`() {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
         val compileUiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {

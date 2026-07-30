@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
@@ -44,7 +45,11 @@ class DeployDataPlanner(
         val deployItems = stagingOutputs.map { it.toDeployItem() }
         logger.trace("[PERF] DeployDataPlanner.deployDataGenerator.buildDeployData start, thread=${Thread.currentThread().name}, deployItemsSize=${deployItems.size}")
         val buildDataStart = System.currentTimeMillis()
-        var deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
+        var deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false).copy(
+            isComposeResourceCompiled = !isWarmUp && stateTracker.getCompiledFiles().any {
+                it.type == CompileFile.Type.ComposeResource
+            },
+        )
         logger.trace("[PERF] DeployDataPlanner.deployDataGenerator.buildDeployData end, cost=${System.currentTimeMillis() - buildDataStart}ms, thread=${Thread.currentThread().name}")
 
         val allDex = (stagingOutputs + notStagingDeployedFiles)

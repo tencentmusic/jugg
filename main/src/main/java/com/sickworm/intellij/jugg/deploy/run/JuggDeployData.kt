@@ -45,6 +45,10 @@ data class JuggDeployData(
     val isCompatDeploy: Boolean = false,
     /** source file paths effected by const reference change */
     val constRefEffectedSourcePaths: List<String> = emptyList(),
+    /** current compile contains Compose resources */
+    val isComposeResourceCompiled: Boolean = false,
+    /** current replay follows a recover reinstall */
+    val isRecoverReplayAfterReinstall: Boolean = false,
 ) {
 
     val isEmpty get() = newClasses.isEmpty() &&
@@ -71,6 +75,8 @@ data class JuggDeployData(
     val isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty()
             || (isPushOverlayOnly && !isEmpty)
             || hasApkRootOverlay
+            || (isComposeResourceCompiled && !isEmpty)
+            || isRecoverReplayAfterReinstall
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
@@ -127,7 +133,7 @@ data class JuggDeployData(
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")
         if (isFull) {
-            builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy, isNeedRestartActivity:$isNeedRestartActivity\n")
+            builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isComposeResourceCompiled: $isComposeResourceCompiled, isRecoverReplayAfterReinstall: $isRecoverReplayAfterReinstall, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy, isNeedRestartActivity:$isNeedRestartActivity\n")
             if (updateApkFiles.isNotEmpty()) {
                 builder.append("update apks: ${updateApkFiles.map { it.name }}")
             }

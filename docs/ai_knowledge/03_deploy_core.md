@@ -49,7 +49,9 @@
 | `isNeedRestartApp` | `HOT_FIX` | 需要重启 App 生效。 |
 | 其他 | `HOT_RELOAD` | 在线 Apply Changes，尽量不重启 App。 |
 
-`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`，或 APK 根目录 overlay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空的本轮 Compose resource compile，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+
+正常部署由 `DeployDataPlanner` 从 `DeployFileStateTracker.getCompiledFiles()` 识别 `CompileFile.Type.ComposeResource`，写入瞬态 `isComposeResourceCompiled`。该状态在 commit 前保留，能覆盖正常部署与 retry；不需要从已经丢失来源信息的 `CompileOutput.Type.Asset` 或历史 staging 路径恢复 Compose 身份。Compose 标记只对非空 payload 生效，避免编译成功但最终无产物时空重启。
 
 APK 根目录 overlay 使用最终部署路径判断：`res/**`、`assets/**`、`resources.arsc` 之外的 overlay 都要求重启进程，例如 legacy Compose resource 的 `values/strings.xml` 和 Java SPI 的 `META-INF/services/**`。这个规则不依赖编译阶段类型，因此历史恢复后的部署数据也能得到相同行为。它允许少量无害 false positive；如果 Classpath resource 刻意使用 Android 专属路径名，则存在 false negative。
 
@@ -163,9 +165,12 @@ recoverDeployState()
   -> redeploy / retry 时 `isSkipExceptOverlayCheck=true`，recover 的 `checkRecover` 与 deploy 的 `optimisticSwap` 同样跳过 history 与 cache 对账；reinstall 后 dry check 依赖 skip 与 cache+设备一致
   -> 否则: INSTALL 后 restart + waitingForDeployable(5s)
   -> DeployFileManager.resetAfterReinstall()
+  -> follow-up replay 标记 isRecoverReplayAfterReinstall=true，replay 完成后统一 restartApp
 ```
 
 Direct Overlay recover 只在 `allowDirectOverlayRecover=true` 且 `JuggSettings.isEnableDirectOverlayDeploy` 开启时参与 `tryDirectDryDeploy` / defer launch。`DeployRetryHandler` 在 **direct deploy failed** retry 时传 `allowDirectOverlayRecover=false`：recover 走 legacy（启动 App + Apply Changes dry deploy；reinstall 后 wait online），与 redeploy 的 `isAllowDirectOverlayDeploy=false` 一致。
+
+reinstall recover 不恢复历史资源类型：重装已经停止或替换了旧进程，follow-up replay 只需携带瞬态 `isRecoverReplayAfterReinstall`。Direct Overlay recover 中 `restartApp` 等价于首次启动；普通 recover 中它负责清理重放历史资源后可能残留的运行时缓存。
 
 其它 recover 场景（overlay mismatch、主链路 not ready）保持 `allowDirectOverlayRecover=true`（或来自 `DeployOptions.isAllowDirectOverlayDeploy`）。
 
@@ -247,6 +252,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 - self-targeting library Test APK backfill 成功安装后，必须立即把新 overlay ids merge 到 `deployHistoryManager.lastDeployOverlayIds`，否则第一轮 replay 会误判状态不匹配并重装。
 - compat deploy 会去掉原 res/asset overlays，追加 enable flag，并按资源 overlay 生成 resource APK deploy item。
 - APK 根目录 overlay 必须重启进程；Activity restart 无法可靠清除 ClassLoader、legacy Compose resource 或 `JarURLConnection` 缓存。
+- 现代 Compose resource 即使最终路径位于 `assets/**` 也必须重启进程；`AssetManager` / Compose runtime 缓存不能依赖 Activity restart 清理。
 - `CompatDeployHelper` 对 API < 30、设备兼容记录以及 HarmonyOS 4.2 及以上返回 true；HarmonyOS 判断按 `hw_sc.build.platform.version` 的 major/minor 数值比较，不持久化为手动 Force 记录。
 - dex merge 阈值是 `DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT = 1000`；超过阈值时把 staging dex + 未 staging 的历史 dex merge，失败则保留原数据继续部署。
 - transient offline 的设计目标是在失败点附近恢复：shell/deployer 层原地等待并重试一次，编排层只处理已经冒泡的 offline 失败。

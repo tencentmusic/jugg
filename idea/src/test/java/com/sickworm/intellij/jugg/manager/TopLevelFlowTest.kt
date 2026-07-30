@@ -186,31 +186,42 @@ class KmpComposeDeployFlowTest {
 
     @Test
     fun deployComposeResourcesAndConsumeAccessorsAtRuntime() {
-        val jugg = MockJugg(compileCommand = COMPILE_COMMAND, isIdeSynced = true)
-        jugg.resetAllState()
-        deployAllowingUnknownEmulatorArch(jugg)
         val root = projectInfo.projectRoot
         val commonValue = File(root, "kmpCompose/src/commonMain/composeResourcesExtended/values/strings.xml")
         val activity = File(root, "app/src/main/java/com/example/myapplication/MainActivity.kt")
         withPatchedFiles(
-            commonValue to commonValue.readText()
-                .replace("Baseline title", "Runtime common")
-                .replace("Android baseline title", "Runtime android"),
             activity to runtimeProbeSource(activity.readText()),
         ) {
-            jugg.notifyFileChanges(listOf(commonValue, activity))
-            jugg.compileChangedFiles()
-
-            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
-            assertTargetApkOwnership(jugg)
-            assertNoIncrementalGradle(jugg.readLatestProjectLog())
-            val logStart = System.currentTimeMillis() / 1000
-            jugg.deployCompiledApp()
-            val logcat = readRuntimeLog(jugg, logStart)
+            assembleFixture()
+            val jugg = MockJugg(compileCommand = COMPILE_COMMAND, isIdeSynced = true)
+            jugg.resetAllState()
+            val baselineLogStart = System.currentTimeMillis() / 1000
+            deployAllowingUnknownEmulatorArch(jugg)
+            val baselineLogcat = readRuntimeLog(jugg, baselineLogStart, "|Android baseline title")
             assertTrue(
-                logcat.contains("[JUGG_KMP] Runtime common|Runtime android"),
-                "Updated Compose resources were not consumed at runtime:\n$logcat",
+                baselineLogcat.contains("[JUGG_KMP]") && baselineLogcat.contains("|Android baseline title"),
+                "Baseline Compose resources were not consumed before incremental deploy:\n$baselineLogcat",
             )
+
+            withPatchedFiles(
+                commonValue to commonValue.readText()
+                    .replace("Baseline title", "Runtime common")
+                    .replace("Android baseline title", "Runtime android"),
+            ) {
+                jugg.notifyFileChanges(listOf(commonValue))
+                jugg.compileChangedFiles()
+
+                assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+                assertTargetApkOwnership(jugg)
+                assertNoIncrementalGradle(jugg.readLatestProjectLog())
+                val logStart = System.currentTimeMillis() / 1000
+                jugg.deployCompiledApp()
+                val logcat = readRuntimeLog(jugg, logStart, "|Runtime android")
+                assertTrue(
+                    logcat.contains("[JUGG_KMP]") && logcat.contains("|Runtime android"),
+                    "Updated Compose resources were not consumed after cached baseline:\n$logcat",
+                )
+            }
         }
     }
 

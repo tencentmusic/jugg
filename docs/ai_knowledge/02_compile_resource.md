@@ -81,9 +81,14 @@ JuggCompiler（早于 asset/resource/source）
   -> JuggCompiler：legacy 输出转为 ClasspathResource，现代输出保持 Asset
   -> AssetOverlayCompiler：现代资源复制到 overlays/assets；legacy 资源保持 values/drawable/font 等 APK 根路径
   -> generated class 继续进入 source/dex
+DeployDataPlanner
+  -> 从 DeployFileStateTracker.compiledFiles 识别本轮 ComposeResource compile
+  -> 写入 JuggDeployData.isComposeResourceCompiled，部署完成后重启 App 进程
 ```
 
 这里“完整上下文”和“changed-only 输出”是两层语义：accessor 必须看见项目快照列出的全部资源目录，部署 overlay 只包含本轮新增/修改文件。配置时尚不存在的默认/自定义根也会持久化，扫描时按空目录处理，因此首次创建资源仍能被识别。Compose asset 不经过 `ResourceOverlayCompiler`、`ResourceCompiler`、`ArscCompiler` 或 AAPT2。
+
+Compose resource 的重启判断使用本轮编译输入，不从最终 `CompileOutput.Type.Asset` 反推来源。`compiledFiles` 在最后一个设备成功 commit 前保留，因此正常部署和 retry 重建 `JuggDeployData` 时都能恢复该标记；warm-up 不设置标记。现代资源虽然位于 `assets/**`，`AssetManager` / Compose runtime 仍可能缓存已读取内容，Activity restart 不足以保证刷新，所以与 legacy APK 根目录资源一样需要进程重启。
 
 Gradle 生成的 Compose accessor 目录可以继续存在于 project info 的 `sourceDirs` 中，但只作为编译上下文元数据使用。文件监听或影响传播上报这些 build directory 路径时，`FileChangesHandler` 会在类型识别前统一过滤，因此同轮 Compose resource 编译只使用 `ComposeResourceCompiler` 自己生成的 accessor class，不会再从 Gradle build 输出重复编译同名 Kotlin source。
 
@@ -102,6 +107,7 @@ Gradle 生成的 Compose accessor 目录可以继续存在于 project info 的 `
 - DataBinding mapper 生成不在资源阶段完成；资源阶段只处理 base class / split XML，mapper 交给 `SourceCompiler` 在源码编译前处理。
 - Compose preparation 由 Jugg 实现，不执行 Gradle Compose resource task；Kotlin 文件生成调用项目 Compose plugin JAR 的官方 generator API。当前兼容 legacy 单任务 API，以及带 converter/accessor/collector 的现代 API；API 缺失时按结构化原因回退 unsupported。
 - legacy Android runtime 通过 classloader 读取 `values/...`、`drawable/...` 等 APK 根目录资源，增量 overlay 必须使用显式的 `CompileFile.Type.ClasspathResource` 保持同名根路径；不能套用普通 Android asset 的 `assets/` 前缀。现代 Compose resource 继续使用 `CompileFile.Type.Asset` 和 Gradle metadata 提供的 asset relative path。
+- Compose resource compile 只在本轮实际存在非空部署数据时触发进程重启；普通 Android asset 不因位于 `assets/**` 自动升级为 App restart。
 - 现代管线支持 string、string-array、plurals、drawable、font，并透传 Res 类名与 content hash；legacy 管线按上游能力支持 string、drawable、font。`files/` 会复制到 asset，但不会生成 typed accessor。
 - 只支持新增和修改。删除文件无法由当前文件事件恢复资源类型和 `baseDir`，必须完整 Gradle build；当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图。
 
@@ -109,11 +115,11 @@ Gradle 生成的 Compose accessor 目录可以继续存在于 project info 的 `
 
 - L1：`ComposeValueResourceConverterTest`、`ComposeResourceScannerTest`、`ComposeResourceGeneratorBridgeTest` 验证 CVR/扫描结果、缺失根、diagnostic 回映射、source-set 身份和官方 golden Kotlin 输出。
 - L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`，并覆盖传统/集中式 build directory 的文件与目录事件过滤；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8 与 staging，并覆盖资源与 Gradle generated accessor 同轮上报时不产生重复 class。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
-- L3：`KmpComposeDeployFlowTest` 通过代表性 Compose profile 的真实 demo full install、增量 compile/deploy/run 和 logcat 覆盖 accessor 实际消费、目标 APK 与无增量 Gradle Compose task；多版本产物路径矩阵由 L2 覆盖，不在 L3 重复展开。
+- L3：`KmpComposeDeployFlowTest` 通过代表性 Compose profile 的真实 demo full install、基线资源缓存预热、仅资源增量 compile/deploy/run 和 logcat 覆盖进程重启后的 accessor 实际消费、目标 APK 与无增量 Gradle Compose task；多版本产物路径矩阵由 L2 覆盖，不在 L3 重复展开。
 
 ### 5.2 Android Studio E2E 验证口径
 
-Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。非空增量会走 Full Swap / Apply Changes and Restart Activity，因此放在 `MainActivity.onCreate()` 的运行时探针会自然再次执行，不需要打开 `Always restart app after deployment`。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化中 `KmpComposeFlowReproTest`（L2）负责 1.9/2.1/2.3 编译与产物路径矩阵，`KmpComposeDeployFlowTest`（L3）只验证代表性 profile 的真实运行链路。
+Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。验证 value 更新前应先在基线进程读取同一资源形成缓存；Compose resource 非空增量会在 overlay 完成后重启 App 进程，不需要打开 `Always restart app after deployment`。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化中 `KmpComposeFlowReproTest`（L2）负责 1.9/2.1/2.3 编译与产物路径矩阵，`KmpComposeDeployFlowTest`（L3）只验证代表性 profile 的真实运行链路。
 
 ---
 
