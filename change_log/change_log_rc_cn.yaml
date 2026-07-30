@@ -1,3 +1,11 @@
+- version: 3.1.5
+  date: 2026.07.31
+  updates:
+    - 增量 D8 编译支持使用项目 AGP R8 classpath
+    - KMP 资源编译或重装恢复后自动重启 App
+    - 修复 CLI 运行时错误回退到其他 Jugg 配置的问题
+    - 修复 AGP 9 下部分文件 D8 编译失败的问题
+
 - version: 3.1.4
   date: 2026.07.30
   updates:

@@ -1,3 +1,11 @@
+- version: 3.1.5
+  date: 2026.07.31
+  updates:
+    - support the project AGP R8 classpath for incremental D8 compilation
+    - restart the app after KMP resource compilation or recover reinstall replay
+    - avoid incorrect Jugg configuration fallback for CLI runs
+    - fix AGP 9 D8 failures on some files
+
 - version: 3.1.4
   date: 2026.07.30
   updates:
