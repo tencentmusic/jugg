@@ -149,8 +149,6 @@ class GradleProjectInfoReader(
                 val defaultConfig = androidExt["defaultConfig"]
                 val extensions = androidExt["extensions"]
                 val hasKotlinPlugin = project.hasKotlinPlugin()
-                // org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
-                val kotlinJvmOptions = if (hasKotlinPlugin) extensions?.invoke("getByName", "kotlinOptions") else null
                 // org.jetbrains.kotlin.gradle.plugin.KaptExtension
                 val kapt = reflector(project.extensions.findByName("kapt"))
 
@@ -236,6 +234,12 @@ class GradleProjectInfoReader(
                     println("Jugg: can not find kotlin compile task for ${moduleInfo.name} by $kotlinTaskName, skip it.")
                 }
 
+                // org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
+                val kotlinJvmOptions = kotlinTask?.let { reflector(it)["kotlinOptions"] }
+                    ?: if (hasKotlinPlugin) extensions?.invoke("findByName", "kotlinOptions") else null
+                val kotlinJvmTarget = readKotlinJvmTarget(kotlinTask, kotlinJvmOptions)
+                val kotlinFreeCompilerArgs = readKotlinFreeCompilerArgs(kotlinTask, kotlinJvmOptions)
+
 
                 val kotlinExtensions: List<File>? = project.configurations.findByName("kotlin-extension")?.files?.toList()
 
@@ -244,8 +248,8 @@ class GradleProjectInfoReader(
                     compileVersion = compileSdkVersion?.substringAfter("android-"),
                     buildToolsVersion = buildToolsVersion,
                     minSdkVersion = defaultConfig["minSdkVersion"]["apiLevel"]?.valueString,
-                    kotlinJvmTarget = kotlinJvmOptions["jvmTarget"]?.valueString,
-                    kotlinFreeCompilerArgs = (kotlinJvmOptions["freeCompilerArgs"]?.value as? List<String>) ?: emptyList(),
+                    kotlinJvmTarget = kotlinJvmTarget,
+                    kotlinFreeCompilerArgs = kotlinFreeCompilerArgs,
                     javaSourceCompatibility = compileOptions["sourceCompatibility"]?.valueString,
                     javaTargetCompatibility = compileOptions["targetCompatibility"]?.valueString,
                     manifestPlaceHolders = manifestPlaceholders,
@@ -745,6 +749,29 @@ class GradleProjectInfoReader(
         } catch (_: Throwable) {
             null
         }
+    }
+
+    /** Reads the effective JVM target from Kotlin 2 compiler options with a legacy fallback. */
+    private fun readKotlinJvmTarget(kotlinTask: Any?, legacyOptions: Reflector?): String? {
+        val compilerOptions = readProperty(kotlinTask, "compilerOptions")
+        val targetValue = readKotlinOptionValue(compilerOptions, "jvmTarget")
+        val target = readProperty(targetValue, "target")?.toString() ?: targetValue?.toString()
+        return target?.removePrefix("JVM_")?.replace('_', '.')
+            ?: legacyOptions["jvmTarget"]?.valueString
+    }
+
+    /** Reads free compiler arguments from Kotlin 2 compiler options with a legacy fallback. */
+    private fun readKotlinFreeCompilerArgs(kotlinTask: Any?, legacyOptions: Reflector?): List<String> {
+        val compilerOptions = readProperty(kotlinTask, "compilerOptions")
+        val args = readKotlinOptionValue(compilerOptions, "freeCompilerArgs") as? Collection<*>
+        return args?.map { it.toString() }
+            ?: (legacyOptions["freeCompilerArgs"]?.value as? Collection<*>)?.map { it.toString() }
+            ?: emptyList()
+    }
+
+    private fun readKotlinOptionValue(compilerOptions: Any?, name: String): Any? {
+        val value = readProperty(compilerOptions, name) ?: return null
+        return if (value is org.gradle.api.provider.Provider<*>) value.orNull else invokeNoArg(value, "getOrNull") ?: value
     }
 
     private fun findTaskByNameWithRetry(project: Project, taskName: String): Any? {

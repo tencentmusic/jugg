@@ -152,7 +152,7 @@ class ReadProjectInfoScriptContentTest {
 
         listOf(readerText, scriptText).forEach { text ->
             assertTrue(text.contains("val hasKotlinPlugin = project.hasKotlinPlugin()"))
-            assertTrue(text.contains("if (hasKotlinPlugin) extensions?.invoke(\"getByName\", \"kotlinOptions\") else null"))
+            assertFalse(text.contains("extensions?.invoke(\"getByName\", \"kotlinOptions\")"))
             assertTrue(text.contains("if (hasKotlinPlugin) findKotlinTask(project, buildVariantCapital) else null"))
             assertTrue(text.contains("} else if (hasKotlinPlugin) {"))
             assertTrue(text.contains("private fun findKotlinTask(project: Project, buildVariantCapital: String): Any?"))
