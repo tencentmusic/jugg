@@ -9,6 +9,8 @@ import java.util.zip.CRC32
  */
 data class JuggProjectInfo(
     val modules: Map<String, ModuleInfo>,
+    /** Classpath entry containing the R8 distribution loaded by the selected Android Gradle Plugin. */
+    val agpR8Classpath: File?,
 )
 
 /**

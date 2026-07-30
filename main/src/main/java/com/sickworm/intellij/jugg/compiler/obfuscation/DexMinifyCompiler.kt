@@ -307,7 +307,8 @@ class DexMinifyCompiler(
                 androidJar = context.androidJar,
                 minApi = minApi,
                 isFilePerClass = true,
-                desugaredLibraryConfiguration = null
+                desugaredLibraryConfiguration = null,
+                agpR8Classpath = context.agpR8Classpath,
             )
 
             // D8 with --file-per-class puts DEX files in subdirectories, need recursive search

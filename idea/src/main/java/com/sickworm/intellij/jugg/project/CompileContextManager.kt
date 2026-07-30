@@ -58,8 +58,13 @@ class CompileContextManager(
         logger.debug("setCompileContext")
         ensureInitProjectInfo()
         this.compileContextInfo = compileContextInfo
-        val copyModules = buildEffectiveModules(getProjectInfo().modules, compileContextInfo)
-        compileContextInside.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
+        val projectInfo = getProjectInfo()
+        val copyModules = buildEffectiveModules(projectInfo.modules, compileContextInfo)
+        compileContextInside.update(
+            apkInfos = compileContextInfo.apkInfos,
+            modules = copyModules,
+            agpR8Classpath = projectInfo.agpR8Classpath,
+        )
     }
 
     /**
@@ -78,9 +83,11 @@ class CompileContextManager(
         if (isNeedReloadProjectInfo) {
             updateProjectInfoFromIde(isNeedReloadProjectInfo = true)
             juggProjectInfoMerger.afterSync(projectInfoSerializer, currentBuildTarget())
+            val projectInfo = getProjectInfo()
             compileContextInside.update(
                 apkInfos = compileContextInfo?.apkInfos,
-                modules = buildEffectiveModules(getProjectInfo().modules),
+                modules = buildEffectiveModules(projectInfo.modules),
+                agpR8Classpath = projectInfo.agpR8Classpath,
             )
         }
 
@@ -136,9 +143,11 @@ class CompileContextManager(
 
         allGradleProjectInfoSerializerList = getAllGradleProjectInfo()
         juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList, buildTarget)
+        val projectInfo = getProjectInfo()
         compileContextInside.update(
             apkInfos = compileContextInfo?.apkInfos,
-            modules = buildEffectiveModules(getProjectInfo().modules),
+            modules = buildEffectiveModules(projectInfo.modules),
+            agpR8Classpath = projectInfo.agpR8Classpath,
         )
     }
 
@@ -182,7 +191,11 @@ class CompileContextManager(
         logger.debug("updateCustomClasspath: $moduleCustomConfigs")
         this.moduleCustomConfigs = moduleCustomConfigs
 
-        compileContextInside.update(modules = buildEffectiveModules(getProjectInfo().modules))
+        val projectInfo = getProjectInfo()
+        compileContextInside.update(
+            modules = buildEffectiveModules(projectInfo.modules),
+            agpR8Classpath = projectInfo.agpR8Classpath,
+        )
     }
 
     fun ensureInitProjectInfo() {
@@ -273,13 +286,15 @@ class CompileContextManager(
             throw JuggException.androidHomeNotFound()
         }
 
+        val projectInfo = getProjectInfo()
         val context = BaseCompileContext(
             logger = JuggLogger.getInstance(project, "BaseCompileContext"),
             androidHome = androidHome,
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
             tempModuleDir = File(pathManager.compileRootDir, "temp_module"),
-            modules = buildEffectiveModules(getProjectInfo().modules),
+            modules = buildEffectiveModules(projectInfo.modules),
             projectDir = pathManager.projectDir,
+            agpR8Classpath = projectInfo.agpR8Classpath,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHisManager,
             customCompilerManager = customCompilerManager,
@@ -622,7 +637,10 @@ class CompileContextManager(
         logger.debug("getLibraryDependencies total $totalCount, hitCacheCount $hitCacheCount, unHitCacheCount ${totalCount - hitCacheCount}")
         logger.debug("total ${modules.size} modules loaded")
         TimeLogger.end("initModuleRoots", logger)
-        return JuggProjectInfo(modules)
+        return JuggProjectInfo(
+            modules = modules,
+            agpR8Classpath = null,
+        )
     }
 
     private fun File.guessIsResDir(): Boolean {

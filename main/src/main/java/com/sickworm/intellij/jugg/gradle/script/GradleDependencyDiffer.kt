@@ -55,8 +55,8 @@ class GradleDependencyDiffer(
 
         // diff with last project info to show difference
         val diffResult = DependencyDiffResult.create(projectInfo, lastProjectInfo, ignoreModulesPath).copy(
-            currentBuildDependencies = JuggProjectInfo(emptyMap()), // set to empty to reduce size
-            lastBuildDependencies = JuggProjectInfo(emptyMap()), // set to empty to reduce size
+            currentBuildDependencies = JuggProjectInfo(emptyMap(), agpR8Classpath = null), // set to empty to reduce size
+            lastBuildDependencies = JuggProjectInfo(emptyMap(), agpR8Classpath = null), // set to empty to reduce size
         )
         val copiedDiffResult = copyAllChangedFilesToDir(diffResult, diffLibraryDir)
         val generator = ProjectInfoSerializerInGradle.getJsonGenerator()
@@ -94,8 +94,8 @@ class GradleDependencyDiffer(
         outputDir: File,
     ): DependencyDiffResult {
         return DependencyDiffResult(
-            JuggProjectInfo(emptyMap()), // set to empty to reduce size
-            JuggProjectInfo(emptyMap()), // set to empty to reduce size
+            JuggProjectInfo(emptyMap(), agpR8Classpath = null), // set to empty to reduce size
+            JuggProjectInfo(emptyMap(), agpR8Classpath = null), // set to empty to reduce size
             fullDiffResult.addedLibraries
                 .map {
                     copyAllChangedFilesToDir(it, outputDir)

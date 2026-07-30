@@ -314,6 +314,8 @@ interface ICompileContext {
     val apkInfos: List<ApkInfo>
     /** project root directory, for log print */
     val projectDir: File
+    /** Classpath entry containing the R8 distribution loaded by the selected Android Gradle Plugin. */
+    val agpR8Classpath: File? get() = null
     /** all deployed files */
     val deployedFiles: List<CompileOutput>
     /** APK singing config */

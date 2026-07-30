@@ -36,11 +36,12 @@ class GradleProjectInfoReaderManager(
             println("Jugg: readProjectInfo.gradle execute start, diffMode: $isDiffMode, " +
                     "includeAndroidTestSourceSet: $includeAndroidTestSourceSet, " +
                     "includeBuildProjects: ${includeBuildProjects.map { it.projectDir }}")
-            readEnvironment()
+            val agpR8Classpath = readEnvironment()
             val startTime = System.currentTimeMillis()
             val lastProjectInfo = readLastProjectInfo()
             val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo, ideProjectDir)
                 .getProjectInfo(includeAndroidTestSourceSet)
+                .copy(agpR8Classpath = agpR8Classpath)
 
             if (isDiffMode) {
                 GradleDependencyDiffer(rootProject, projectInfo, ideProjectDir).outputDiffToDir()
@@ -58,15 +59,37 @@ class GradleProjectInfoReaderManager(
         }
     }
 
-    private fun readEnvironment() {
+    private fun readEnvironment(): File? {
         try {
             val gradleVersion = GradleVersion.current()
             val agpVersion = checkAgpVersion(rootProject)
-            println("Jugg: readEnvironment gradleVersion: $gradleVersion, agpVersion: $agpVersion")
+            val agpR8Classpath = findAgpR8Classpath(rootProject)
+            println("Jugg: readEnvironment gradleVersion: $gradleVersion, agpVersion: $agpVersion, " +
+                    "agpR8Classpath: $agpR8Classpath")
+            return agpR8Classpath
         } catch (e: Throwable) {
             println("Jugg: readProjectInfo.gradle readEnvironment failed: $e")
             printException(e)
+            return null
         }
+    }
+
+    private fun findAgpR8Classpath(rootProject: Project): File? {
+        val androidPluginIds = listOf(
+            "com.android.application",
+            "com.android.library",
+            "com.android.dynamic-feature",
+            "com.android.kotlin.multiplatform.library",
+        )
+        val project = rootProject.allprojects.find {
+            androidPluginIds.any { pluginId -> it.plugins.hasPlugin(pluginId) }
+        } ?: return null
+        val plugin = project.plugins.findPlugin("com.android.base")
+            ?: androidPluginIds.mapNotNull { project.plugins.findPlugin(it) }.firstOrNull()
+            ?: return null
+        val d8Class = plugin::class.java.classLoader.loadClass("com.android.tools.r8.D8")
+        val location = d8Class.protectionDomain.codeSource?.location ?: return null
+        return File(location.toURI()).canonicalFile.takeIf { it.exists() }
     }
 
     private fun checkAgpVersion(rootProject: Project): String {

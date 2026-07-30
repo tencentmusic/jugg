@@ -10,6 +10,11 @@
 - 接口命名统一以 `I` 开头；默认实现使用去掉 `I` 前缀后的名称，例如 `IDeployHistoryManager` 的默认实现为 `DeployHistoryManager`
 - 当提及落地为方案时，统一保存到 `docs/task`
 - Kotlin 编码准则：优先使用非空类型；优先提供可选参数而非新重载函数；如果所有调用处都提供了参数，不优先声明可选参数
+- 日志调用过长时，只在消息字符串的 `+` 处换行，续行相对调用缩进 8 个空格，异常参数与最后一段消息放在同一行；禁止把简单日志调用按左括号、消息、异常、右括号拆成多行。
+  ```kotlin
+  logger.warn("message bla bla bla" +
+          "details", exception)
+  ```
 - 日志打印规范：统一使用 `JuggLogger`，日志等级定义：
     - `error`：永远不使用
     - `warn`：用户可见，发生非预期错误时打印

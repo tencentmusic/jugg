@@ -35,7 +35,7 @@ class LibrariesBackupHelper(
                 },
             )
         }
-        return JuggProjectInfo(copiedModules)
+        return projectInfo.copy(modules = copiedModules)
     }
 
     private fun List<LibraryDependency>.backup(): List<LibraryDependency> {

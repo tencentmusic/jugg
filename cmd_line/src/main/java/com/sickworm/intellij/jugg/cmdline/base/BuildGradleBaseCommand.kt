@@ -233,12 +233,12 @@ class BuildGradleBaseCommand(private val params: Params) {
             if (!isBackupSuccess) {
                 throw BaseBuildException("Backup classpath and libraries failed.")
             }
-            val finalProjectInfo = JuggProjectInfo(
-                libraryProjectInfo!!.modules.mapValues {
+            val finalProjectInfo = gradleProjectInfo.copy(
+                modules = libraryProjectInfo!!.modules.mapValues {
                     it.value.copy(
                         buildPathInfo = classpathProjectInfo!!.modules[it.key]!!.buildPathInfo
                     )
-                }
+                },
             )
             ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).save(finalProjectInfo)
         }

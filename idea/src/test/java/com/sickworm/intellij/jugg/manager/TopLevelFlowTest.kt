@@ -175,10 +175,11 @@ class KmpComposeDeployFlowTest {
             )
             ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(
                 JuggProjectInfo(
-                    mapOf(
+                    modules = mapOf(
                         ideOwner.name to ideOwner,
                         commonMain.name to commonMain,
-                    )
+                    ),
+                    agpR8Classpath = null,
                 )
             )
         }

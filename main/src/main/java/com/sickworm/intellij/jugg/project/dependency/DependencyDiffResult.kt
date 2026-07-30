@@ -90,7 +90,10 @@ data class DependencyDiffResult(
     companion object {
 
         fun createEmpty(): DependencyDiffResult {
-            return create(JuggProjectInfo(emptyMap()), JuggProjectInfo(emptyMap()))
+            return create(
+                JuggProjectInfo(emptyMap(), agpR8Classpath = null),
+                JuggProjectInfo(emptyMap(), agpR8Classpath = null),
+            )
         }
 
         fun create(
@@ -271,4 +274,3 @@ data class LibraryDependencySet(
         return true
     }
 }
-

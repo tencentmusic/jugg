@@ -58,7 +58,9 @@ class JuggManagerFullBuildFlowTest {
         val compileContext = mock<ICompileContext>()
         whenever(compileContext.tempCompileDir).thenReturn(temporaryFolder.newFolder("temp-compile"))
         whenever(compileContextManager.compileContext).thenReturn(compileContext)
-        whenever(compileContextManager.getProjectInfo()).thenReturn(JuggProjectInfo(emptyMap()))
+        whenever(compileContextManager.getProjectInfo()).thenReturn(
+            JuggProjectInfo(emptyMap(), agpR8Classpath = null)
+        )
         val deployHistoryManager = mock<IDeployHistoryManager>()
         val juggCompilerHelper = mock<JuggCompilerHelper>()
         whenever(juggCompilerHelper.fetchClasspath(any(), any(), anyOrNull(), any())).thenReturn(null)

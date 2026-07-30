@@ -488,10 +488,11 @@ class KmpComposeFlowReproTest {
             )
             ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(
                 JuggProjectInfo(
-                    mapOf(
+                    modules = mapOf(
                         ownerModule.name to ownerModule,
                         commonMainModule.name to commonMainModule,
-                    )
+                    ),
+                    agpR8Classpath = null,
                 )
             )
         }

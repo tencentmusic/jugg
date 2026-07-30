@@ -1,14 +1,19 @@
 package com.sickworm.intellij.jugg.project.data
 
 import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class JuggProjectInfoSerializerAndroidTestTest {
+
+    private fun projectInfoWithoutAgpR8(modules: Map<String, ModuleInfo>) =
+        JuggProjectInfo(modules, agpR8Classpath = null)
 
     private fun composeInfo() = ComposeResourceInfo(
         generatorClasspath = listOf(File("/gradle/compose-gradle-plugin-1.7.3.jar"), File("/gradle/kotlin-stdlib-2.1.0.jar")),
@@ -39,7 +44,7 @@ class JuggProjectInfoSerializerAndroidTestTest {
 
     @Test
     fun `serialize and deserialize androidTest module preserves instrumentationTargetPackage`() {
-        val original = JuggProjectInfo(
+        val original = projectInfoWithoutAgpR8(
             modules = mapOf("app.androidTest" to androidTestModule())
         )
         val serialized = JuggProjectInfoSerialize.serialize(original)
@@ -56,7 +61,7 @@ class JuggProjectInfoSerializerAndroidTestTest {
         // Verifies that a module without instrumentationTargetPackage (null) is preserved
         // through the serialize() -> deserialize() in-memory round-trip.
         // Guards against accidentally overwriting null during the copy() chains in serialize/deserialize.
-        val original = JuggProjectInfo(
+        val original = projectInfoWithoutAgpR8(
             modules = mapOf("app" to ModuleInfo.virtualModule.copy(name = "app"))
         )
         val serialized = JuggProjectInfoSerialize.serialize(original)
@@ -67,7 +72,7 @@ class JuggProjectInfoSerializerAndroidTestTest {
 
     @Test
     fun `serialize preserves instrumentationTargetPackage distinct from applicationId`() {
-        val original = JuggProjectInfo(
+        val original = projectInfoWithoutAgpR8(
             modules = mapOf("app.androidTest" to androidTestModule())
         )
         val serialized = JuggProjectInfoSerialize.serialize(original)
@@ -82,7 +87,7 @@ class JuggProjectInfoSerializerAndroidTestTest {
 
     @Test
     fun `serialize and deserialize preserves Compose resource info`() {
-        val original = JuggProjectInfo(
+        val original = projectInfoWithoutAgpR8(
             modules = mapOf("shared" to ModuleInfo.virtualModule.copy(
                 name = "shared",
                 composeResourceInfo = composeInfo(),
@@ -103,7 +108,7 @@ class JuggProjectInfoSerializerAndroidTestTest {
             File("/project/shared/src/commonMain/kotlin"),
             File("/project/shared/src/sharedMain/kotlin"),
         )
-        val original = JuggProjectInfo(
+        val original = projectInfoWithoutAgpR8(
             modules = mapOf("shared" to ModuleInfo.virtualModule.copy(
                 name = "shared",
                 kotlinCommonSourceDirs = commonSourceDirs,
@@ -119,8 +124,59 @@ class JuggProjectInfoSerializerAndroidTestTest {
     }
 
     @Test
-    fun `deserialize old project info without Kotlin common source directories defaults to empty list`() {
+    fun `serialize and deserialize preserves AGP R8 classpath`() {
+        val r8Classpath = File("/gradle/caches/builder-9.2.0.jar")
         val original = JuggProjectInfo(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(name = "app")),
+            agpR8Classpath = r8Classpath,
+        )
+
+        val restored = JuggProjectInfoSerialize.deserialize(
+            JuggProjectInfoSerialize.serialize(original),
+            isSkipVersionCheck = true,
+        )
+
+        assertEquals(r8Classpath, restored.agpR8Classpath)
+    }
+
+    @Test
+    fun `project info file round-trip preserves AGP R8 classpath`() {
+        val dataFile = Files.createTempFile("jugg_project_info_", ".json").toFile()
+        val logger = StdLogger("JuggProjectInfoSerializerAndroidTestTest")
+        val r8Classpath = File("/gradle/caches/builder-9.2.0.jar")
+        try {
+            ProjectInfoSerializer(dataFile, logger).save(JuggProjectInfo(
+                modules = mapOf("app" to ModuleInfo.virtualModule.copy(name = "app")),
+                agpR8Classpath = r8Classpath,
+            ))
+
+            val restored = ProjectInfoSerializer(dataFile, logger).load(isSkipVersionCheck = true)
+
+            assertEquals(r8Classpath, restored?.agpR8Classpath)
+        } finally {
+            dataFile.delete()
+        }
+    }
+
+    @Test
+    fun `deserialize old project info without AGP R8 classpath yields null`() {
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(name = "app"))
+        )
+        val json = JsonParser.parseString(
+            ProjectInfoSerializer.gson.toJson(JuggProjectInfoSerialize.serialize(original))
+        ).asJsonObject
+        json.getAsJsonObject("juggProjectInfoExceptModules").remove("agpR8Classpath")
+        val serialized = ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java)
+
+        val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
+
+        assertNull(restored.agpR8Classpath)
+    }
+
+    @Test
+    fun `deserialize old project info without Kotlin common source directories defaults to empty list`() {
+        val original = projectInfoWithoutAgpR8(
             modules = mapOf("shared" to ModuleInfo.virtualModule.copy(name = "shared"))
         )
         val json = JsonParser.parseString(

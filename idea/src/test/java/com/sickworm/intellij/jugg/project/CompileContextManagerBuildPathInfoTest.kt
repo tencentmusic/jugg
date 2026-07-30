@@ -35,7 +35,7 @@ class CompileContextManagerBuildPathInfoTest {
         val pathManager = JuggPathManager(projectDir)
         val ideModule = createModule(projectDir, appDir)
         ProjectInfoSerializer(pathManager.ideProjectInfoFile, TestGlobal.logger)
-            .save(JuggProjectInfo(mapOf(ideModule.name to ideModule)))
+            .save(JuggProjectInfo(mapOf(ideModule.name to ideModule), agpR8Classpath = null))
         val manager = createManager(projectDir, pathManager)
 
         val classpathProjectDir = projectDir.resolve("build/jugg/classpath/root/project")

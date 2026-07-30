@@ -106,7 +106,10 @@ class GradleProjectInfoReader(
         println("totalReadArtifacts $totalReadArtifacts, resolveArtifacts: $resolveArtifacts")
         TraceLogger.printAllCost()
 
-        return JuggProjectInfo(modules)
+        return JuggProjectInfo(
+            modules = modules,
+            agpR8Classpath = null,
+        )
     }
 
     private fun getModuleInfo(project: Project): ModuleInfo {

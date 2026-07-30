@@ -80,7 +80,7 @@ class ClasspathBackupHelper(
                 "${it.key}: ${it.value.buildPathInfo.buildDir}: exists: ${it.value.moduleRootDir.exists()}"
             }
             logger.debug("Fetch classpath success, dir info: $logInfo")
-            return JuggProjectInfo(allModules)
+            return projectInfo.copy(modules = allModules)
         } else {
             logger.warn("Fetch classpath failed, please check log for details.")
             return null

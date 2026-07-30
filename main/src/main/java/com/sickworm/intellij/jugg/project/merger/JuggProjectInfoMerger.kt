@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -94,6 +95,7 @@ class JuggProjectInfoMerger(
                 "ideUpdateTime ${ideUpdateTime.timeStampToTime()}")
 
         val gradleProjectInfoModules = mutableMapOf<String, ModuleInfo>()
+        val gradleProjectInfos = mutableListOf<JuggProjectInfo>()
         var primaryGradleModulePaths = emptySet<String>()
         localFetch.forEachIndexed { index, projectInfoSerializer ->
             val gradleProjectInfo = projectInfoSerializer.load()
@@ -104,13 +106,19 @@ class JuggProjectInfoMerger(
                     ?.mapTo(mutableSetOf()) { it.moduleStdPath }
                     ?: emptySet()
             }
+            if (gradleProjectInfo != null) {
+                gradleProjectInfos.add(gradleProjectInfo)
+            }
             gradleProjectInfo?.modules?.forEach { moduleInfo ->
                 if (!gradleProjectInfoModules.containsKey(moduleInfo.key)) {
                     gradleProjectInfoModules[moduleInfo.key] = moduleInfo.value
                 }
             }
         }
-        val gradleProjectInfo = JuggProjectInfo(gradleProjectInfoModules)
+        val gradleProjectInfo = JuggProjectInfo(
+            modules = gradleProjectInfoModules,
+            agpR8Classpath = null,
+        )
 
         if (gradleProjectInfo.modules.isEmpty()) {
             logger.debug("gradleProjectInfo is null, exit merge and use ideProjectInfo directly")
@@ -128,10 +136,40 @@ class JuggProjectInfoMerger(
 
         val result = doMerge(ideProjectInfo, gradleProjectInfo, primaryGradleModulePaths,
             isNeedUpdateLibraryDependency, buildTarget)
-        logger.debug("merge result: $result")
+        val mergedInfo = result.mergedInfo
+        val finalResult = if (mergedInfo == null) {
+            result
+        } else {
+            result.copy(mergedInfo = mergedInfo.copy(
+                agpR8Classpath = selectAgpR8Classpath(mergedInfo, gradleProjectInfos)
+            ))
+        }
+        logger.debug("merge result: $finalResult")
 
         TimeLogger.end("merge", logger)
-        return result
+        return finalResult
+    }
+
+    private fun selectAgpR8Classpath(
+        mergedInfo: JuggProjectInfo,
+        gradleProjectInfos: List<JuggProjectInfo>,
+    ): File? {
+        val applicationModule = mergedInfo.modules.values.firstOrNull {
+            it.moduleType == ModuleInfo.Type.Application
+        }
+        if (applicationModule != null) {
+            val owner = gradleProjectInfos.firstOrNull { projectInfo ->
+                projectInfo.modules.values.any { module ->
+                    module.moduleType == ModuleInfo.Type.Application &&
+                            module.moduleRootDir.absoluteFile.normalize() ==
+                            applicationModule.moduleRootDir.absoluteFile.normalize()
+                }
+            }
+            if (owner != null) {
+                return owner.agpR8Classpath
+            }
+        }
+        return gradleProjectInfos.mapNotNull { it.agpR8Classpath }.firstOrNull()
     }
 
     private fun doMerge(
@@ -170,7 +208,10 @@ class JuggProjectInfoMerger(
                 ModuleDependency(nameUpdateMap[it.moduleName] ?: it.moduleName)
             })
         }
-        val finalGradleProjectInfo = JuggProjectInfo(finalUpdateModules)
+        val finalGradleProjectInfo = JuggProjectInfo(
+            modules = finalUpdateModules,
+            agpR8Classpath = null,
+        )
 
         val libraryMerger = JuggProjectInfoLibraryMerger(logger)
         val noMergeModules = mutableListOf<String>()
@@ -300,7 +341,10 @@ class JuggProjectInfoMerger(
 
         logger.debug("modules not found in gradleModuleInfo, won't merge: $noMergeModules")
 
-        return mergeResult.copy(mergedInfo = JuggProjectInfo(mergedModules))
+        return mergeResult.copy(mergedInfo = JuggProjectInfo(
+            modules = mergedModules,
+            agpR8Classpath = null,
+        ))
     }
 
     /**

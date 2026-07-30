@@ -208,7 +208,9 @@ class LibraryTestApkBackfillHelperTest {
             val history = mock(IDeployHistoryManager::class.java)
             whenever(history.getFullBuildInfo()).thenReturn(FullBuildInfo("./gradlew :app:assembleDebug", com.sickworm.intellij.jugg.compiler.BuildTarget.APP, 0L))
             manager = mock(CompileContextManager::class.java)
-            whenever(manager.getProjectInfo()).thenReturn(JuggProjectInfo(mapOf(module.name to module)))
+            whenever(manager.getProjectInfo()).thenReturn(
+                JuggProjectInfo(mapOf(module.name to module), agpR8Classpath = null)
+            )
             return LibraryTestApkBackfillHelper(
                 project = project,
                 pathManager = JuggPathManager(projectDir),

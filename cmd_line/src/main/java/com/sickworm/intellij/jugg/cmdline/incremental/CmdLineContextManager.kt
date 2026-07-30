@@ -130,7 +130,8 @@ class CmdLineContextManager(
             }
         }
 
-        val modules = getProjectInfo().modules.mapValues { (_, baseModule) ->
+        val projectInfo = getProjectInfo()
+        val modules = projectInfo.modules.mapValues { (_, baseModule) ->
             baseModule.copy(
                 moduleRootDir = baseModule.moduleRootDir.convertSourceBaseDir(),
                 projectRootDir = baseModule.projectRootDir.convertSourceBaseDir(),
@@ -174,6 +175,7 @@ class CmdLineContextManager(
             tempModuleDir = File(pathManager.compileRootDir, "temp_module"),
             modules = modules,
             projectDir = pathManager.projectDir,
+            agpR8Classpath = projectInfo.agpR8Classpath,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
             incrementalDataDir = File(pathManager.compileRootDir, "incremental"),

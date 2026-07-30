@@ -125,7 +125,10 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
         this.tempModule = compileContext.tempModule
 
         cacheDirectory.mkdirs()
-        currentBuildDependencies = JuggProjectInfo(compileContext.modules)
+        currentBuildDependencies = JuggProjectInfo(
+            modules = compileContext.modules,
+            agpR8Classpath = null,
+        )
         lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.json"), logger)
         fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.json"), logger)
 
@@ -284,7 +287,10 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
         }
         nextStartSyncingTime = 0L
 
-        currentBuildDependencies = JuggProjectInfo(newContext.modules)
+        currentBuildDependencies = JuggProjectInfo(
+            modules = newContext.modules,
+            agpR8Classpath = null,
+        )
         updateDiffDependency(isEndSyncing = true)
 
         logger.debug("on sync finished, changeStatus: $changeStatus, diffResult: $diffResult")

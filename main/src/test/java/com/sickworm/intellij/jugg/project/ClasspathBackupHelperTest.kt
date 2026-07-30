@@ -25,7 +25,7 @@ class ClasspathBackupHelperTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun fetch_preservesCustomSyncFilePathOnlyWhenWrappingClasspathRoot() {
+    fun fetch_preservesProjectMetadataWhenWrappingClasspathRoot() {
         val projectDir = temporaryFolder.newFolder("JOOX_Android")
         val moduleDir = File(projectDir, "module_libs/common/protocol").also { it.mkdirs() }
         val classpathRootDir = temporaryFolder.newFolder("classpathRoot")
@@ -45,6 +45,7 @@ class ClasspathBackupHelperTest {
             ),
         )
         val compileClient = FakeGradleCompileClient(classpathRootDir)
+        val agpR8Classpath = temporaryFolder.newFile("builder.jar")
         val helper = ClasspathBackupHelper(
             compileClient = compileClient,
             progressIndicator = null,
@@ -52,9 +53,13 @@ class ClasspathBackupHelperTest {
             logger = mock(),
         )
 
-        val result = helper.fetch(JuggProjectInfo(mapOf(module.name to module)))!!
+        val result = helper.fetch(JuggProjectInfo(
+            modules = mapOf(module.name to module),
+            agpR8Classpath = agpR8Classpath,
+        ))!!
 
         val buildPathInfo = result.modules.getValue(module.name).buildPathInfo
+        assertEquals(agpR8Classpath, result.agpR8Classpath)
         val backupModuleDir = File(classpathRootDir, "module_libs/common/protocol")
         assertEquals(classpathRootDir, buildPathInfo.projectRootDir)
         assertEquals(backupModuleDir, buildPathInfo.moduleRootDir)

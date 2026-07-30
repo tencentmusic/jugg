@@ -20,6 +20,9 @@ class JuggProjectInfoMergerAndroidTestTest {
     private val appDir = File("/project/app")
     private val logger: Logger = StdLogger("MergerAndroidTestTest")
 
+    private fun projectInfoWithoutAgpR8(modules: Map<String, ModuleInfo>) =
+        JuggProjectInfo(modules, agpR8Classpath = null)
+
     private fun androidTestGradleModule() = ModuleInfo.virtualModule.copy(
         name = "app.androidTest",
         moduleType = ModuleInfo.Type.Library,
@@ -73,9 +76,17 @@ class JuggProjectInfoMergerAndroidTestTest {
         val ideApp = applicationModule(mainProjectDir, includedAppDir, ModuleInfo.Type.Unknown)
         val primaryGradleApp = applicationModule(mainProjectDir, rootAppDir, ModuleInfo.Type.Application)
         val includedGradleApp = applicationModule(mainProjectDir, includedAppDir, ModuleInfo.Type.Application)
-        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app" to ideApp)))
-        val primaryGradleFile = saveToTempFile(JuggProjectInfo(mapOf("app" to primaryGradleApp)))
-        val includedGradleFile = saveToTempFile(JuggProjectInfo(mapOf("app" to includedGradleApp)))
+        val primaryR8 = File(tempRoot, "primary/builder.jar").apply { parentFile.mkdirs(); createNewFile() }
+        val includedR8 = File(tempRoot, "included/builder.jar").apply { parentFile.mkdirs(); createNewFile() }
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app" to ideApp)))
+        val primaryGradleFile = saveToTempFile(JuggProjectInfo(
+            mapOf("app" to primaryGradleApp),
+            agpR8Classpath = primaryR8,
+        ))
+        val includedGradleFile = saveToTempFile(JuggProjectInfo(
+            mapOf("app" to includedGradleApp),
+            agpR8Classpath = includedR8,
+        ))
         try {
             val merger = JuggProjectInfoMerger(logger)
             merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
@@ -90,6 +101,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             val mergedApp = result.mergedInfo!!.modules.getValue("app")
             assertEquals(rootAppDir, mergedApp.moduleRootDir)
             assertEquals(latestRootRJar, mergedApp.buildPathInfo.rFilePath)
+            assertEquals(primaryR8, result.mergedInfo?.agpR8Classpath)
         } finally {
             ideFile.delete()
             primaryGradleFile.delete()
@@ -120,9 +132,9 @@ class JuggProjectInfoMergerAndroidTestTest {
         )
         val mainIde = mainGradle.copy(moduleType = ModuleInfo.Type.Unknown)
 
-        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("common.download" to mainIde)))
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("common.download" to mainIde)))
         val gradleFile = saveToTempFile(
-            JuggProjectInfo(
+            projectInfoWithoutAgpR8(
                 mapOf(
                     "common.download" to mainGradle,
                     "common.download.androidTest" to androidTestGradle,
@@ -166,9 +178,9 @@ class JuggProjectInfoMergerAndroidTestTest {
         )
         val mainIde = mainGradle.copy(moduleType = ModuleInfo.Type.Unknown)
 
-        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("common.download" to mainIde)))
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("common.download" to mainIde)))
         val gradleFile = saveToTempFile(
-            JuggProjectInfo(
+            projectInfoWithoutAgpR8(
                 mapOf(
                     "common.download" to mainGradle,
                     "common.download.androidTest" to androidTestGradle,
@@ -225,7 +237,7 @@ class JuggProjectInfoMergerAndroidTestTest {
         )
 
         val ideFile = saveToTempFile(
-            JuggProjectInfo(
+            projectInfoWithoutAgpR8(
                 mapOf(
                     "common.download" to mainIde,
                     "common.fake.androidTest" to extraIdeAndroidTest,
@@ -233,7 +245,7 @@ class JuggProjectInfoMergerAndroidTestTest {
             )
         )
         val gradleFile = saveToTempFile(
-            JuggProjectInfo(
+            projectInfoWithoutAgpR8(
                 mapOf(
                     "common.download" to mainGradle,
                     "common.download.androidTest" to realGradleAndroidTest,
@@ -255,8 +267,8 @@ class JuggProjectInfoMergerAndroidTestTest {
 
     @Test
     fun `doMerge preserves instrumentationTargetPackage from gradle module`() {
-        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to androidTestIdeModule())))
-        val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to androidTestGradleModule())))
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app.androidTest" to androidTestIdeModule())))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app.androidTest" to androidTestGradleModule())))
         try {
             val merger = JuggProjectInfoMerger(logger)
             merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
@@ -282,8 +294,8 @@ class JuggProjectInfoMergerAndroidTestTest {
             applicationId = null,
             instrumentationTargetPackage = null,
         )
-        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to ideModule)))
-        val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to gradleModule)))
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app.androidTest" to ideModule)))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app.androidTest" to gradleModule)))
         try {
             val merger = JuggProjectInfoMerger(logger)
             merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
@@ -308,8 +320,8 @@ class JuggProjectInfoMergerAndroidTestTest {
             applicationId = "com.example.gradle.test",
             instrumentationTargetPackage = "com.example.gradle",
         )
-        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to ideModule)))
-        val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app.androidTest" to gradleModule)))
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app.androidTest" to ideModule)))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app.androidTest" to gradleModule)))
         try {
             val merger = JuggProjectInfoMerger(logger)
             merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.ANDROID_TEST)
@@ -340,8 +352,8 @@ class JuggProjectInfoMergerAndroidTestTest {
             sourceDirs = listOf(File(appDir, "src/androidMain/kotlin")),
             kotlinCommonSourceDirs = commonRoots,
         )
-        val ideFile = saveToTempFile(JuggProjectInfo(mapOf("app" to ideModule)))
-        val gradleFile = saveToTempFile(JuggProjectInfo(mapOf("app" to gradleModule)))
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app" to ideModule)))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app" to gradleModule)))
         try {
             val merger = JuggProjectInfoMerger(logger)
             merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)

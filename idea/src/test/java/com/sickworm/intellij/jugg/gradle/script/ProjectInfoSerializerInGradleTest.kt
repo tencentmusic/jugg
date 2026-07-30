@@ -10,6 +10,8 @@ import org.json.JSONObject
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
+import java.net.URLClassLoader
+import java.util.jar.JarFile
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -67,6 +69,26 @@ class ProjectInfoSerializerInGradleTest {
         assertTrue("src/sharedMain/kotlin" in relativePaths, relativePaths.toString())
         assertTrue("src/androidMain/kotlin" !in relativePaths, relativePaths.toString())
         assertTrue(sourceRelativePaths.containsAll(relativePaths), sourceRelativePaths.toString())
+    }
+
+    @Test
+    fun `collects AGP R8 classpath from Android plugin`() {
+        val projectInfo = ProjectInfoSerializer(gradleProjectInfo, logger).load()
+            ?: error("Gradle project info was not generated")
+        val r8Classpath = projectInfo.agpR8Classpath
+            ?: error("AGP R8 classpath was not collected")
+
+        assertTrue(r8Classpath.exists(), r8Classpath.absolutePath)
+        if (r8Classpath.isFile) {
+            JarFile(r8Classpath).use {
+                assertTrue(it.getJarEntry("com/android/tools/r8/D8.class") != null)
+            }
+        } else {
+            assertTrue(File(r8Classpath, "com/android/tools/r8/D8.class").exists())
+        }
+        URLClassLoader(arrayOf(r8Classpath.toURI().toURL()), ClassLoader.getPlatformClassLoader()).use {
+            assertEquals("com.android.tools.r8.D8", it.loadClass("com.android.tools.r8.D8").name)
+        }
     }
 
     private fun assertJsonObjectEquals(keyName: String, except: JSONObject, actual: JSONObject) {

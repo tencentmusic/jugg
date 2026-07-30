@@ -40,8 +40,8 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
             dataFile.inputStream().use { inputStream ->
                 // we can not invoke gson in init.gradle.kts, so...
                 // JsonSlurper is not a ORM tool, so we just read what we need: build variant, library dependency
-                val json = jsonSlurper.parse(inputStream) as Map<String, List<Map<String, Any>>> // JuggProjectInfoSerialize
-                val modules: List<ModuleInfoSerialize> = json["modules"]!!.map {
+                val json = jsonSlurper.parse(inputStream) as Map<String, Any> // JuggProjectInfoSerialize
+                val modules: List<ModuleInfoSerialize> = (json["modules"] as List<Map<String, Any>>).map {
                     val module = it["moduleInfoExceptLibraries"] as Map<String, Any>
                     val projectRootDir = File(module["projectRootDir"] as String)
                     val moduleRootDir = File(module["moduleRootDir"] as String)
@@ -76,7 +76,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         it["kspDependencies"] as? List<Int>,
                     )
                 }
-                val dependencyList = json["dependencyList"]!!.map {
+                val dependencyList = (json["dependencyList"] as List<Map<String, Any>>).map {
                     LibraryDependency(
                         name = it["name"] as String,
                         file = File(it["file"] as String),
@@ -84,10 +84,14 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         crc32 = (it["crc32"] as Number).toLong(), // you will get Int and Long, so convert to Number
                     )
                 }
+                val rootInfo = json["juggProjectInfoExceptModules"] as? Map<String, Any>
                 juggProjectInfoSerialize = JuggProjectInfoSerialize(
-                    juggProjectInfoExceptModules = JuggProjectInfo(modules.associate {
-                        it.moduleInfoExceptLibraries.name to it.moduleInfoExceptLibraries
-                    }),
+                    juggProjectInfoExceptModules = JuggProjectInfo(
+                        modules = modules.associate {
+                            it.moduleInfoExceptLibraries.name to it.moduleInfoExceptLibraries
+                        },
+                        agpR8Classpath = (rootInfo?.get("agpR8Classpath") as? String)?.let(::File),
+                    ),
                     modules = modules,
                     dependencyList = dependencyList)
             }

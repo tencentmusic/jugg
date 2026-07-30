@@ -13,7 +13,8 @@ import kotlin.test.assertEquals
 class DependencyDiffResultTest {
 
     private val fullBuildDependencies = JuggProjectInfo(
-        mapOf(context.modules.first().key to context.modules.first().value)
+        modules = mapOf(context.modules.first().key to context.modules.first().value),
+        agpR8Classpath = null,
     )
     private val libraryDependencies = context.modules.first().value.libraryDependencies
 
@@ -224,6 +225,9 @@ class DependencyDiffResultTest {
         newLibraryDependencies.addAll(updateLibraries)
 
         val newModules = listOf(context.modules.first().value.copy(libraryDependencies = newLibraryDependencies))
-        return JuggProjectInfo(newModules.associateBy { it.name })
+        return JuggProjectInfo(
+            modules = newModules.associateBy { it.name },
+            agpR8Classpath = null,
+        )
     }
 }

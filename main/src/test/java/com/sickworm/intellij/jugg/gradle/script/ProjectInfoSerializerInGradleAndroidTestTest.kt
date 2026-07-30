@@ -14,6 +14,9 @@ import java.nio.file.Files
 
 class ProjectInfoSerializerInGradleAndroidTestTest {
 
+    private fun projectInfoWithoutAgpR8(modules: Map<String, ModuleInfo>) =
+        JuggProjectInfo(modules, agpR8Classpath = null)
+
     private fun composeInfo() = ComposeResourceInfo(
         generatorClasspath = listOf(File("/gradle/compose-gradle-plugin-1.7.3.jar"), File("/gradle/kotlin-stdlib-2.1.0.jar")),
         packageName = "com.example.generated.resources",
@@ -46,7 +49,7 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
         try {
             val serializer = ProjectInfoSerializerInGradle(tmpFile)
-            val original = JuggProjectInfo(mapOf("app.androidTest" to androidTestModule()))
+            val original = projectInfoWithoutAgpR8(mapOf("app.androidTest" to androidTestModule()))
             serializer.save(original)
             val loaded = serializer.load()
             assertEquals(
@@ -71,7 +74,7 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 projectRootDir = File("/project"),
                 buildPathInfo = ModuleBuildPathInfo(File("/project"), File("/project/app"), "debug", buildDirRelativePath = ""),
             )
-            val original = JuggProjectInfo(mapOf("app" to regular))
+            val original = projectInfoWithoutAgpR8(mapOf("app" to regular))
             serializer.save(original)
             val loaded = serializer.load()
             assertNull(
@@ -88,7 +91,7 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
         try {
             val serializer = ProjectInfoSerializerInGradle(tmpFile)
-            val original = JuggProjectInfo(mapOf(
+            val original = projectInfoWithoutAgpR8(mapOf(
                 "shared" to ModuleInfo.virtualModule.copy(
                     name = "shared",
                     composeResourceInfo = composeInfo(),
@@ -103,6 +106,22 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 loaded?.modules?.first { it.moduleInfoExceptLibraries.name == "shared" }
                     ?.moduleInfoExceptLibraries?.composeResourceInfo,
             )
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `save and load round-trip preserves AGP R8 classpath`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        try {
+            val serializer = ProjectInfoSerializerInGradle(tmpFile)
+            val r8Classpath = File("/gradle/caches/builder-9.2.0.jar")
+            serializer.save(JuggProjectInfo(emptyMap(), agpR8Classpath = r8Classpath))
+
+            val loaded = serializer.load()
+
+            assertEquals(r8Classpath, loaded?.juggProjectInfoExceptModules?.agpR8Classpath)
         } finally {
             tmpFile.delete()
         }

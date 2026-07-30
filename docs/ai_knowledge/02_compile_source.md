@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-07-26
+> 最后核对：2026-07-30
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -46,6 +46,7 @@
 | `targetApkPaths` | `DexCompiler`, `JavaCompilerInvoker`, `DexFileMerger` | 部署分流 | dex merge 会合并输入 dex 的 targetApkPaths 并保留并集 |
 | Compose generated common/platform Kotlin | `ComposeResourceGeneratorBridge` | `KotlinCompilerInvoker` | 所有 generated 文件同批输入；common 文件通过 typed `Options.commonSourceFiles` 显式转为 `-Xmulti-platform -Xcommon-sources=...` |
 | `kotlinCommonSourceDirs` | `GradleProjectInfoReader` | 普通 KMP Kotlin 增量编译 | 从选中 Android Kotlin task 的 `commonSourceSet` 结构或 FileTree relative path 读取；同时加入 `sourceDirs` 参与统一源码识别，自身保留 common 身份，不展开为全量编译 |
+| `agpR8Classpath` | `GradleProjectInfoReaderManager` | `DexCompiler` / `DexMinifyCompiler` | 直接引用项目 AGP 实际加载的 R8 code source；不复制 jar，不进入 `FullBuildInfo` 或 compile context 磁盘格式 |
 | 普通 KMP complementary closure | Kotlin Gradle incremental cache | `KotlinCompiler` | 仅 Android owner 存在 Gradle authoritative `kotlinCommonSourceDirs` 且源码出现 expect/actual token 时查询；requested 与 complementary files 按 canonical path 去重后在 Android owner invocation 中联合编译；成功后用 tracker 原地刷新双向 edge |
 
 ---
@@ -74,6 +75,8 @@ IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 C
 
 普通 KMP 业务源码走常规 Kotlin 阶段。`KotlinCompiler` 发现 expect/actual token 后切换到同根 Android owner，`KotlinCompilerInvoker` 用项目 Kotlin compiler 打开 Gradle cache，`getComplementaryFilesRecursive()` 返回本轮补充输入。in-process 项目 compiler invocation 会设置 `incrementalCompilation=true` 并注册项目版本 `ExpectActualTrackerImpl`；最终成功后用 requested+complementary closure 调用 `updateComplementaryFiles()`。cache 缺失、损坏、候选不唯一、无 edge 或写回失败时只记 debug；普通 Kotlin 文件不触发查询或 tracker。
 
+`DexFileMaker` 优先用独立 `URLClassLoader` 加载 `agpR8Classpath` 中的 D8，避免项目 AGP R8 与插件内置 R8 在同一 classloader 中发生类冲突；runtime 按 canonical path 缓存。路径缺失、类/方法加载失败、当前 desugared-library API 不受支持，或外部 D8 执行失败时都会回退到内置 R8。外部 D8 执行失败会打印用户可见的 `warn`，包含版本、路径和原始异常；若内置 R8 也失败，则由内置执行继续抛出最终异常。
+
 ---
 
 ## 5. 隐形约束 / 设计思路 / 已知边界
@@ -87,6 +90,7 @@ IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 C
 - `compileDexOutputs()` 会把语言阶段非 class 输出保留下来；这些通常是 generated source 或其他不直接进入 dex 的附属产物。
 - minified 场景下 dex 先写到 `context.tempCompileDir/un_minify`，再由 `DexMinifyCompiler` 输出到最终 task outputDir；排查路径时不要只看最终目录。
 - `DexCompiler` 输出仍保留旧 `apkPath` 锚点，同时写入 module 的所有 `targetApkPaths`；部署层用 target 集合做多 APK 分流。
+- D8 版本选择以项目 AGP 实际加载的 R8 为准；project info 无路径、隔离 runtime 无法建立或外部 D8 执行失败时使用 Jugg 内置 R8。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。
 - `commonSourceFiles` 是 Kotlin invoker 的类型化参数，不靠调用方拼自由字符串；为空时不添加 multiplatform 参数，Compose generated expect/actual 场景则同时添加 `-Xmulti-platform` 和 `-Xcommon-sources`。
 - `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
@@ -109,6 +113,7 @@ IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 C
 | classpath 缺失 / Kotlin metadata 异常 | `K2JVMCompilerIsolate.checkClasspath`、`KotlinCompilerOutputParser`、`KmModuleMergerForCompilation` |
 | DataBinding mapper 未生成 | `SourceDataBindingProcessor.processDataBindingMapper()` 与 `DataBindingGenMapperCompiler` |
 | dex 合并失败 | `DexCompiler`、`DexFileMerger`、`IncrementalCompilerHelper.mergeDex` |
+| AGP/Kotlin 升级后 D8 assertion 或字节码不兼容 | `JuggProjectInfo.agpR8Classpath`、`DexFileMaker` 的隔离加载与版本日志 |
 | release dex 路径或类名不对 | `DexMinifyCompiler.preObfuscateForMinifyInfo()`、`obfuscateDexFile()` |
 | 多 APK 下 class/dex 部署归属丢失 | `DexCompiler` 输出的 `targetApkPaths` 与 `IncrementalCompilerHelper.mergeDex()` |
 

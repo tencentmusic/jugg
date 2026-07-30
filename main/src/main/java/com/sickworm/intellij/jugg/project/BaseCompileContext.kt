@@ -33,6 +33,7 @@ class BaseCompileContext(
     override var modules: Map<String, ModuleInfo> = emptyMap(),
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val projectDir: File,
+    override var agpR8Classpath: File? = null,
     override val incrementalDataDir: File,
     override val cmdCompileEnv: List<String>,
     override val scene: ICompileContext.Scene,
@@ -587,9 +588,11 @@ class BaseCompileContext(
     fun update(
         apkInfos: List<ApkInfo>? = null,
         modules: Map<String, ModuleInfo>? = null,
+        agpR8Classpath: File? = this.agpR8Classpath,
         addedTempLibraries: List<LibraryDependency>? = null,
         removedTempLibraries: List<LibraryDependency>? = null,
     ) {
+        this.agpR8Classpath = agpR8Classpath
         apkInfos?.let {
             this.apkInfos = it
             moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)

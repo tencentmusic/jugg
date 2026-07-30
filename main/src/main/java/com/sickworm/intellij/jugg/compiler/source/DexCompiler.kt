@@ -150,7 +150,8 @@ class DexCompiler(
         logger.debug("desugarInfo = $desugarInfo")
 
         dexFileMaker.dex(tempOutput, files.map { it.file }, listOf(classpathDir.absolutePath),
-            context.androidJar, minApi, isFilePerClass, desugarInfo.desugaredLibraryConfiguration)
+            context.androidJar, minApi, isFilePerClass, desugarInfo.desugaredLibraryConfiguration,
+            context.agpR8Classpath)
         val dexFiles: List<File>
         if (isFilePerClass) {
             dexFiles = tempOutput.listFilesRecursively()
