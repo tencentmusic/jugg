@@ -14,15 +14,16 @@ def build_params(args: list[str]) -> dict:
     i = 0
     while i < len(args):
         arg = args[i]
-        if arg == "--refreshChanges":
+        if arg in ("--refreshChanges", "--fullInfo"):
+            param_name = arg[2:]
             if i + 1 >= len(args):
-                print("--refreshChanges requires a value (true|false)", file=sys.stderr)
+                print(f"{arg} requires a value (true|false)", file=sys.stderr)
                 sys.exit(1)
             val = args[i + 1].lower()
             if val not in ("true", "false"):
-                print("--refreshChanges value must be true or false", file=sys.stderr)
+                print(f"{arg} value must be true or false", file=sys.stderr)
                 sys.exit(1)
-            params["refreshChanges"] = val == "true"
+            params[param_name] = val == "true"
             i += 2
         else:
             print(f"Unknown option: {arg}", file=sys.stderr)

@@ -19,11 +19,12 @@ import java.time.format.DateTimeFormatter
 
 private const val MAX_FILE_PATHS = 20
 private const val REFRESH_CHANGES_PARAM = "refreshChanges"
+private const val FULL_INFO_PARAM = "fullInfo"
 private val READABLE_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
 /**
  * GetStatusMcpToolAction implements MCP tool `status` and returns current deploy state,
- * uncompiled file counts by type, and up to 20 absolute file paths.
+ * uncompiled file counts by type, and absolute file paths in summary or full mode.
  */
 class GetStatusMcpToolAction(
     private val lastCompileTimestampRegistry: LastCompileTimestampRegistry = LastCompileTimestampRegistry.INSTANCE,
@@ -33,13 +34,18 @@ class GetStatusMcpToolAction(
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
         description = "Return current Jugg deploy state, uncompiled file counts by type, " +
-            "and absolute paths of modified files (at most $MAX_FILE_PATHS entries).",
+            "and absolute paths of modified files.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 REFRESH_CHANGES_PARAM to McpJsonSchemaProperty(
                     type = "boolean",
                     description = "When true, refresh git-tracked changed files before reading status. Default is true.",
+                ),
+                FULL_INFO_PARAM to McpJsonSchemaProperty(
+                    type = "boolean",
+                    description = "When true, return full status information. Currently this removes the " +
+                        "$MAX_FILE_PATHS-path limit from data.files. Default is false.",
                 ),
             ),
             required = listOf("projectDir"),
@@ -74,13 +80,14 @@ class GetStatusMcpToolAction(
                         ),
                         "files" to McpJsonSchemaProperty(
                             type = "array",
-                            description = "Absolute paths of uncompiled files (at most $MAX_FILE_PATHS).",
+                            description = "Absolute paths of uncompiled files. Returns at most $MAX_FILE_PATHS " +
+                                "unless fullInfo=true.",
                             items = McpJsonSchemaProperty(type = "string"),
                         ),
                         "detail" to McpJsonSchemaProperty(
                             type = "string",
                             description = "Empty when all files are listed. Natural-language note when the list is truncated, " +
-                                "e.g. \"Showing 20 of 25 files. 5 more files are not listed.\"",
+                                "including guidance to request fullInfo=true.",
                         ),
                         "lastFileModifiedTime" to McpJsonSchemaProperty(
                             type = "string",
@@ -124,6 +131,7 @@ class GetStatusMcpToolAction(
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
+        val fullInfo = arguments[FULL_INFO_PARAM] as? Boolean ?: false
         if (shouldRefreshChanges(arguments)) {
             runtime.refreshChangedFilesForStatus()
         }
@@ -147,11 +155,11 @@ class GetStatusMcpToolAction(
             .also { it.putAll(countsByType) }
 
         val total = uncompiledFiles.size
-        val files: List<String> = uncompiledFiles
-            .take(MAX_FILE_PATHS)
+        val files: List<String> = (if (fullInfo) uncompiledFiles else uncompiledFiles.take(MAX_FILE_PATHS))
             .map { it.file.absolutePath }
-        val truncationNote: String = if (total > MAX_FILE_PATHS) {
-            "Showing $MAX_FILE_PATHS of $total files. ${total - MAX_FILE_PATHS} more files are not listed."
+        val truncationNote: String = if (!fullInfo && total > MAX_FILE_PATHS) {
+            "Showing $MAX_FILE_PATHS of $total files. Set fullInfo=true to return full status information, " +
+                "including all $total file paths."
         } else {
             ""
         }

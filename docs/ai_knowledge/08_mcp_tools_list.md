@@ -296,7 +296,8 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
-| `refreshChanges` | boolean | 否 | 是否先刷新 git-tracked changed files；默认 `false`，只有传 `true` 时才刷新 |
+| `refreshChanges` | boolean | 否 | 是否先刷新 git-tracked changed files；默认 `true`，传 `false` 时跳过刷新 |
+| `fullInfo` | boolean | 否 | 是否返回完整状态信息；默认 `false`，传 `true` 时 `files` 返回全部未编译文件路径 |
 
 **返回 data**：
 - `hasDevice`：boolean，设备已连接时为 `true`
@@ -304,8 +305,8 @@
 - `executionType`：`local` / `remote`，当前 Jugg run configuration 的 Gradle fallback 执行环境；AI command hook 在 `remote` 时会对 raw Gradle 命令强制先 block 一次
 - `stateMessage`：当前状态的可读原因
 - `pendingModifiedFiles`：`{ total: number, <Type>: number, ... }`，按 `CompileFile.Type` 分类统计未编译文件数量
-- `files`：未编译文件绝对路径列表，**最多 20 个**
-- `detail`：未截断时为空字符串；截断时为自然语言描述，如 `"Showing 20 of 25 files. 5 more files are not listed."`
+- `files`：未编译文件绝对路径列表；默认最多 20 个，`fullInfo=true` 时返回全部路径
+- `detail`：未截断时为空字符串；截断时为自然语言描述并提示使用 `fullInfo=true`，如 `"Showing 20 of 25 files. Set fullInfo=true to return full status information, including all 25 file paths."`
 - `lastFileModifiedTime`：最近未编译文件的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无文件时为空字符串）
 - `lastCompileTime`：最近一次调用 `compile` / `deploy` / `gradle-build` 的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无记录时为空字符串）；AI hooks 用它判断当前 Agent 会话写入是否已被 Jugg 验证覆盖
 - `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线；AI hooks 仅在该字段为 `true` 时启用 raw Gradle guard 与 stop guard。command hook 对 `executionType=remote` 会跳过会话写入与 pending file 覆盖判断，仍按“一次 block、重复放行”处理

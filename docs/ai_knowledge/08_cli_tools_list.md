@@ -232,12 +232,13 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 ### `status`
 
 ```text
-jugg status [--refresh-changes <true|false>]
+jugg status [--refresh-changes <true|false>] [--full-info <true|false>]
 ```
 
 | CLI flag | MCP 参数 | 说明 |
 |----------|----------|------|
-| `--refresh-changes` / `--refreshChanges` | `refreshChanges` | 是否读取状态前刷新 git-tracked changed files；默认不刷新 |
+| `--refresh-changes` / `--refreshChanges` | `refreshChanges` | 是否读取状态前刷新 git-tracked changed files；默认刷新，传 `false` 时跳过 |
+| `--full-info` / `--fullInfo` | `fullInfo` | 是否返回完整状态信息；默认只返回前 20 个文件路径，传 `true` 时返回全部路径 |
 
 关键字段：
 

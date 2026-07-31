@@ -122,13 +122,19 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     "status": CommandHelp(
         "status",
         "Show current deploy state and uncompiled file summary.",
-        "jugg status [--refresh-changes <true|false>]",
+        "jugg status [--refresh-changes <true|false>] [--full-info <true|false>]",
         (
             OptionHelp(
                 ("--refresh-changes", "--refreshChanges"),
-                "Refresh git-tracked changed files before reading status. Default is false.",
+                "Refresh git-tracked changed files before reading status. Default is true.",
                 "<true|false>",
                 "refreshChanges",
+            ),
+            OptionHelp(
+                ("--full-info", "--fullInfo"),
+                "Return full status information, including all pending file paths. Default is false.",
+                "<true|false>",
+                "fullInfo",
             ),
         ),
     ),

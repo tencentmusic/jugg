@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import os
+import sys
 import unittest
 from unittest.mock import patch
 
-import sys
-sys.path.insert(0, "/Users/wormchen/IdeaProjects/jugg/jugg_f1/docs/skills/jugg-android-dev-loop/scripts/py")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmd import cmd_status
 
 
 class TestStatusCommandParams(unittest.TestCase):
-    """cmd_status should forward refreshChanges only when explicitly enabled."""
+    """cmd_status should forward optional status arguments."""
 
     def _run_status(self, args: list[str]) -> dict:
         structured = {"status": "OK", "data": {"pendingModifiedFiles": {"total": 0}}}
@@ -33,6 +34,11 @@ class TestStatusCommandParams(unittest.TestCase):
         params = self._run_status(["--refresh-changes", "true"])
 
         self.assertEqual({"projectDir": "/proj", "refreshChanges": True}, params)
+
+    def test_status_sends_full_info_when_true(self):
+        params = self._run_status(["--full-info", "true"])
+
+        self.assertEqual({"projectDir": "/proj", "fullInfo": True}, params)
 
 
 if __name__ == "__main__":

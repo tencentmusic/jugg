@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.21
-date: 2026-07-01
+version: 1.0.22
+date: 2026-07-31
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -114,8 +114,9 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
-python3 {SKILL_DIR}/scripts/jugg.py status               # show status without refreshing changed files
-python3 {SKILL_DIR}/scripts/jugg.py status --refresh-changes true  # refresh changed files before status
+python3 {SKILL_DIR}/scripts/jugg.py status               # refresh changed files and show status summary
+python3 {SKILL_DIR}/scripts/jugg.py status --refresh-changes false  # skip changed-file refresh
+python3 {SKILL_DIR}/scripts/jugg.py status --full-info true  # return full status information and all file paths
 python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
 python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
 python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # --marker: Java Pattern regex matched against log message; block until marker/crash/timeout

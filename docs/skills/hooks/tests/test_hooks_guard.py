@@ -21,6 +21,7 @@ def _write_fake_jugg_cli(
     last_compile_time: str = "",
     enabled_android_test: bool = False,
     expected_cwd: str | None = None,
+    expected_args: list[str] | None = None,
 ) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
     jugg_bin.mkdir(parents=True, exist_ok=True)
@@ -35,10 +36,19 @@ def _write_fake_jugg_cli(
             "    print('wrong cwd: ' + os.getcwd(), file=sys.stderr)\n"
             "    sys.exit(7)\n"
         )
+    args_assertion = ""
+    if expected_args is not None:
+        args_assertion = (
+            "import sys\n"
+            f"if sys.argv[1:] != {expected_args!r}:\n"
+            "    print('wrong args: ' + repr(sys.argv[1:]), file=sys.stderr)\n"
+            "    sys.exit(8)\n"
+        )
     jugg_cli.write_text(
         "#!/usr/bin/env python3\n"
         "import json\n"
         f"{cwd_assertion}"
+        f"{args_assertion}"
         "payload = {\n"
         "    'status': 'OK',\n"
         "    'data': {\n"
@@ -68,6 +78,41 @@ def _hook_env(home: str) -> dict[str, str]:
 
 
 class StopHookGuardTest(unittest.TestCase):
+    def test_stop_hook_requests_full_status_info(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        session_id = "session-stop-full-info"
+        payload = {"session": {"id": session_id}}
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as cwd:
+            state_file = _state_file(home, cwd, session_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({"sessionWriteSeen": True}), encoding="utf-8")
+            _write_fake_jugg_cli(
+                home,
+                total=1,
+                files=["/repo/app/src/main/java/com/example/HookStop.kt"],
+                expected_args=[
+                    "--console=json",
+                    "status",
+                    "--refresh-changes",
+                    "true",
+                    "--full-info",
+                    "true",
+                ],
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env=_hook_env(home),
+                check=False,
+            )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("STOP GATE", result.stderr)
+
     def test_stop_hook_skips_block_and_retry_when_disable_flag_present(self):
         script = Path(__file__).resolve().parent.parent / "stop.py"
         session_id = "session-stop-disable-block"

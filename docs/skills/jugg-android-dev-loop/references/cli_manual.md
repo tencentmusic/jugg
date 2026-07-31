@@ -223,10 +223,12 @@ Output: HTML file with full UI hierarchy.
 ### `status`
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py status [--refresh-changes <true|false>]
+python3 {SKILL_DIR}/scripts/jugg.py status [--refresh-changes <true|false>] [--full-info <true|false>]
 ```
 
-`status` does not refresh changed files by default. Pass `--refresh-changes true` to refresh git-tracked changed files before reading status.
+`status` refreshes git-tracked changed files by default. Pass `--refresh-changes false` to skip the refresh.
+
+By default, `status` returns at most 20 pending file paths. Pass `--full-info true` to return full status information, including all pending file paths.
 
 `status` returns `data.executionType` and `data.enabledAndroidTest`. `executionType=remote` means the current Jugg run configuration uses remote Gradle fallback; command hooks block the first raw Gradle attempt in that mode even when the current agent session has no recorded source write. Reuse an existing hook block's `Jugg status` output when it is already in context; otherwise run `--console=json status` before choosing the androidTest / `instrument` route. `enabledAndroidTest=true` means the latest persisted full-build baseline used AndroidTest target.
 

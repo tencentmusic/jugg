@@ -372,7 +372,36 @@ class GetStatusMcpToolActionTest {
         val files = data["files"] as List<*>
         Assert.assertEquals(20, files.size)
         val detail = data["detail"] as String
-        Assert.assertTrue("detail should mention 20 and 25", detail.contains("20") && detail.contains("25"))
+        Assert.assertEquals(
+            "Showing 20 of 25 files. Set fullInfo=true to return full status information, " +
+                "including all 25 file paths.",
+            detail,
+        )
+    }
+
+    @Test
+    fun testStatusReturnsAllFilesWhenFullInfoIsTrue() {
+        val projectDir = tempFolder.newFolder("project-full-info")
+        val module = ModuleInfo.virtualModule
+        val uncompiledFiles = (1..25).map { i ->
+            val file = File(projectDir, "File$i.java")
+            ChangedFile(CompileFile.Type.Java, file, projectDir, module)
+        }
+        val runtime = runtimeWith(
+            deployState = JuggDeployState.READY,
+            hasDevice = true,
+            uncompiledFiles = uncompiledFiles,
+        )
+
+        val result = GetStatusMcpToolAction().execute(mapOf("fullInfo" to true), runtime)
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val files = data["files"] as List<*>
+        Assert.assertEquals(25, files.size)
+        Assert.assertEquals("", data["detail"])
     }
 
     @Test

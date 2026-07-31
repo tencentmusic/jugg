@@ -617,7 +617,15 @@ def read_status_snapshot(
 
     try:
         result = subprocess.run(
-            [*jugg_cli_command(home), "--console=json", "status"],
+            [
+                *jugg_cli_command(home),
+                "--console=json",
+                "status",
+                "--refresh-changes",
+                "true",
+                "--full-info",
+                "true",
+            ],
             capture_output=True,
             text=True,
             cwd=cwd,
