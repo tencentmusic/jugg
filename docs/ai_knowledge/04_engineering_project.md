@@ -193,6 +193,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - include build project info task 仅在 composite build 根构建中注入；无 included build 的项目不注册额外 task，也不改变原有读取时机。
 - include build 本轮快照缺失时保留同索引的上一次有效副本；只有旧副本也不存在时才从列表跳过，避免一次读取失败清空可用元数据。
 - IDE 可能把不同 Gradle build 中的同名模块都简化为相同 simple name。若同名模块分别指向不同相对路径，只有 Gradle 侧模块明确为 `Application`、来自主 Gradle 快照且存在真实 R.jar 时，才完整保留该 Gradle Application；多个 R.jar 候选继续由 `ModuleBuildPathInfo.rFilePath` 按修改时间选择最新产物。条件不满足时仍走原有字段合并，普通 Library 不受影响。冲突日志会记录 IDE/Gradle 模块路径、是否属于主快照、候选 R.jar 和最终选择。
+- IDE project info 完全缺失某个 Gradle module 时，merge 会在该 Gradle-only module 已进入最终模块集合后补回指向它的 Gradle 依赖。补入前从目标模块检查是否能够沿当前依赖图到达 owner；若会形成环则打印 warning 并放弃该依赖。IDE 已识别模块之间的依赖仍保持原有选择策略，不执行无条件并集。
 - diff mode 只输出依赖差异并清理临时 project info；非 diff mode 才写正式 `gradle_project_infos.json`。
 - androidTest task 注入发生在 Gradle task graph finalization 之前；如果请求任务名和真实 task path 对不上，注入会静默打印 “no requested task found” 并跳过。
 

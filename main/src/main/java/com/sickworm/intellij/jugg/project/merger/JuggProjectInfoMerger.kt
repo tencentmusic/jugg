@@ -340,11 +340,65 @@ class JuggProjectInfoMerger(
         }
 
         logger.debug("modules not found in gradleModuleInfo, won't merge: $noMergeModules")
+        mergeGradleOnlyModuleDependencies(
+            mergedModules,
+            finalGradleProjectInfo.modules,
+            ideProjectInfo.modules.keys,
+            mergeResult,
+        )
 
         return mergeResult.copy(mergedInfo = JuggProjectInfo(
             modules = mergedModules,
             agpR8Classpath = null,
         ))
+    }
+
+    /** Adds missing dependencies to Gradle-only modules without introducing a new dependency cycle. */
+    private fun mergeGradleOnlyModuleDependencies(
+        mergedModules: MutableMap<String, ModuleInfo>,
+        gradleModules: Map<String, ModuleInfo>,
+        ideModuleNames: Set<String>,
+        mergeResult: JuggProjectInfoMergeResult,
+    ) {
+        val gradleOnlyModuleNames = gradleModules.keys - ideModuleNames
+        gradleModules.toSortedMap().forEach { (ownerName, gradleModule) ->
+            val ownerModule = mergedModules[ownerName] ?: return@forEach
+            val dependencies = ownerModule.moduleDependencies.mapTo(mutableSetOf()) { it.moduleName }
+            gradleModule.moduleDependencies.forEach dependencyLoop@{ dependency ->
+                val dependencyName = dependency.moduleName
+                if (dependencyName !in gradleOnlyModuleNames || dependencyName !in mergedModules ||
+                    dependencyName == ownerName || !dependencies.add(dependencyName)
+                ) {
+                    return@dependencyLoop
+                }
+                if (canReach(mergedModules, dependencyName, ownerName)) {
+                    dependencies.remove(dependencyName)
+                    logger.warn("Skip Gradle-only module dependency $ownerName -> $dependencyName " +
+                            "because it forms a cycle")
+                    return@dependencyLoop
+                }
+                val currentModule = mergedModules.getValue(ownerName)
+                mergedModules[ownerName] = currentModule.copy(
+                    moduleDependencies = currentModule.moduleDependencies + ModuleDependency(dependencyName)
+                )
+                mergeResult.addMergedItem(ownerName, "moduleDependencies", "+$dependencyName")
+            }
+        }
+    }
+
+    private fun canReach(modules: Map<String, ModuleInfo>, start: String, target: String): Boolean {
+        val pending = ArrayDeque<String>()
+        val visited = mutableSetOf<String>()
+        pending.add(start)
+        while (pending.isNotEmpty()) {
+            val current = pending.removeFirst()
+            if (!visited.add(current)) continue
+            if (current == target) return true
+            modules[current]?.moduleDependencies?.forEach { dependency ->
+                if (dependency.moduleName in modules) pending.add(dependency.moduleName)
+            }
+        }
+        return false
     }
 
     /**

@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -372,6 +373,132 @@ class JuggProjectInfoMergerAndroidTestTest {
         }
     }
 
+    @Test
+    fun `doMerge adds dependency whose target module only exists in Gradle project info`() {
+        val ideFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module("app", ModuleInfo.Type.Unknown, listOf("library1")),
+                    "library1" to module("library1", ModuleInfo.Type.Unknown),
+                )
+            )
+        )
+        val gradleFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module(
+                        "app",
+                        ModuleInfo.Type.Application,
+                        listOf("library1", "kmpCompose"),
+                    ),
+                    "library1" to module("library1", ModuleInfo.Type.Library),
+                    "kmpCompose" to module("kmpCompose", ModuleInfo.Type.Library),
+                )
+            )
+        )
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+
+            val result = merger.afterLocalFetch(
+                listOf(ProjectInfoSerializer(gradleFile, logger)),
+                BuildTarget.APP,
+            )
+
+            assertEquals(
+                listOf("library1", "kmpCompose"),
+                result.mergedInfo?.modules?.get("app")?.moduleDependencies?.map { it.moduleName },
+            )
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
+    fun `doMerge skips Gradle-only dependency when adding it creates a cycle`() {
+        val ideFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module("app", ModuleInfo.Type.Unknown, listOf("library1")),
+                    "library1" to module("library1", ModuleInfo.Type.Unknown),
+                    "bridge" to module("bridge", ModuleInfo.Type.Unknown, listOf("app")),
+                )
+            )
+        )
+        val gradleFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module(
+                        "app",
+                        ModuleInfo.Type.Application,
+                        listOf("library1", "cycleTarget", "safeTarget"),
+                    ),
+                    "library1" to module("library1", ModuleInfo.Type.Library),
+                    "bridge" to module("bridge", ModuleInfo.Type.Library),
+                    "cycleTarget" to module("cycleTarget", ModuleInfo.Type.Library, listOf("bridge")),
+                    "safeTarget" to module("safeTarget", ModuleInfo.Type.Library),
+                )
+            )
+        )
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+
+            val result = merger.afterLocalFetch(
+                listOf(ProjectInfoSerializer(gradleFile, logger)),
+                BuildTarget.APP,
+            )
+
+            assertEquals(
+                listOf("library1", "safeTarget"),
+                result.mergedInfo?.modules?.get("app")?.moduleDependencies?.map { it.moduleName },
+            )
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
+    fun `doMerge does not add missing Gradle dependency when target module exists in IDE project info`() {
+        val ideFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module("app", ModuleInfo.Type.Unknown, listOf("library1")),
+                    "library1" to module("library1", ModuleInfo.Type.Unknown),
+                    "shared" to module("shared", ModuleInfo.Type.Unknown),
+                )
+            )
+        )
+        val gradleFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module("app", ModuleInfo.Type.Application, listOf("library1", "shared")),
+                    "library1" to module("library1", ModuleInfo.Type.Library),
+                    "shared" to module("shared", ModuleInfo.Type.Library),
+                )
+            )
+        )
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+
+            val result = merger.afterLocalFetch(
+                listOf(ProjectInfoSerializer(gradleFile, logger)),
+                BuildTarget.APP,
+            )
+
+            assertEquals(
+                listOf("library1"),
+                result.mergedInfo?.modules?.get("app")?.moduleDependencies?.map { it.moduleName },
+            )
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
     private fun applicationModule(
         projectDir: File,
         moduleDir: File,
@@ -384,6 +511,23 @@ class JuggProjectInfoMergerAndroidTestTest {
             projectRootDir = projectDir,
             buildVariant = "debug",
             buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
+        )
+    }
+
+    private fun module(
+        name: String,
+        type: ModuleInfo.Type,
+        dependencies: List<String> = emptyList(),
+    ): ModuleInfo {
+        val moduleDir = File(projectDir, name)
+        return ModuleInfo.virtualModule.copy(
+            name = name,
+            moduleType = type,
+            moduleRootDir = moduleDir,
+            projectRootDir = projectDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
+            moduleDependencies = dependencies.map(::ModuleDependency),
         )
     }
 
