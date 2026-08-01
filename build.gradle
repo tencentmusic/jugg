@@ -1,4 +1,5 @@
 import org.gradle.internal.jvm.Jvm
+import java.util.Properties
 
 plugins {
     id 'org.jetbrains.intellij' version '1.10.1' apply false
@@ -31,6 +32,23 @@ ext {
         def commitHash = command.execute().text.trim()
         println "$path commit hash is: ${commitHash}"
         return commitHash
+    }
+
+    getCompatApiFiles = { compatProject ->
+        def configFile = new File(rootDir, 'deploy_compat/local.properties')
+        def config = new Properties()
+        if (configFile.isFile()) {
+            configFile.withInputStream { config.load(it) }
+        }
+        if (config.getProperty('mode') == 'real') {
+            def jarDir = config.getProperty('jarDir')
+            if (!jarDir || !new File(jarDir).isDirectory()) {
+                throw new GradleException('deploy_compat/local.properties must contain an existing jarDir')
+            }
+            return compatProject.fileTree(dir: jarDir, include: ['*.jar'])
+        }
+        return compatProject.files(new File(rootDir,
+                "deploy_compat/stub_api/${compatProject.name}/stubapi.jar"))
     }
 }
 

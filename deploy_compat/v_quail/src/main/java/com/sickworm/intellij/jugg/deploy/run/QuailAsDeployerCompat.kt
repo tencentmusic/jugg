@@ -36,7 +36,6 @@ import com.android.tools.idea.run.AndroidRunConfigurationType
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.DeploymentService
 import com.android.tools.idea.run.editor.DeployTargetContext
-import com.android.tools.idea.run.util.DebuggerRedefiner
 import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
 import com.intellij.execution.RunManager

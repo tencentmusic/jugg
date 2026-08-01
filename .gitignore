@@ -15,6 +15,7 @@ IgnoreLexer.java~
 .gradle
 .DS_Store
 local.properties
+deploy_compat/v_*/libs/*.jar
 *.pyc
 
 /verification

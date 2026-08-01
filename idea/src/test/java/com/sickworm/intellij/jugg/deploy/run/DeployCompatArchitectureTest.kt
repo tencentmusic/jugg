@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -8,6 +9,29 @@ import java.io.File
  * Guards deploy compatibility boundaries that Gradle module dependencies cannot fully express.
  */
 class DeployCompatArchitectureTest {
+
+    @Test
+    fun `compat modules only use versioned stub api jars`() {
+        val deployCompatDir = findRepoFile("deploy_compat")
+        val platformJars = deployCompatDir.walkTopDown()
+            .filter {
+                val path = it.relativeTo(deployCompatDir).invariantSeparatorsPath
+                it.isFile && it.extension == "jar" && !path.startsWith("stub_api/") && "/build/" !in "/$path"
+            }
+            .toList()
+        assertTrue("deploy_compat should not contain Android Studio JARs: $platformJars", platformJars.isEmpty())
+
+        deployCompatDir.listFiles()
+            .orEmpty()
+            .filter { it.isDirectory && it.name.startsWith("v_") }
+            .forEach { moduleDir ->
+                val buildFile = File(moduleDir, "build.gradle")
+                assertFalse(
+                    "${moduleDir.name} should resolve APIs through getCompatApiFiles",
+                    buildFile.readText().contains("fileTree(dir: 'libs'"),
+                )
+            }
+    }
 
     @Test
     fun `deploy main path does not expose legacy deployer runtime types`() {

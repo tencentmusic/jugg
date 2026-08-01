@@ -29,11 +29,11 @@
           "details", exception)
   ```
 - 日志打印规范：统一使用 `JuggLogger`，日志等级定义：
-  - `error`：永远不使用
-  - `warn`：用户可见，发生非预期错误时打印
-  - `info`：用户可见，关键流程，且需要展示到输出
-  - `debug`：用户不可见，开发者排查使用，打印到 log 文件
-  - `trace`：受开关控制，默认关闭，用于高频日志
+    - `error`：永远不使用
+    - `warn`：用户可见，发生非预期错误时打印
+    - `info`：用户可见，关键流程，且需要展示到输出
+    - `debug`：用户不可见，开发者排查使用，打印到 log 文件
+    - `trace`：受开关控制，默认关闭，用于高频日志
 
 ## 测试与验证要求
 
@@ -51,9 +51,19 @@ _根据以下规则编写提交信息：
 1. 必须用英文
 2. 根据修改内容使用前缀[feature]/[optimize]/[bugfix]/[refactor]/[docs]/[other]。[optimize] 不适用于工程构建优化，仅适用代码性能优化和交互体验优化；如果仅修改单元测试，一律用 [test]
 3. 不包含任何代码块
-4. 前缀之后开头小写，结尾不用句号
+4. 提交标题在前缀之后以小写字母开头，结尾不用句号
 5. 每次完成任务后，将改动直接 git commit，但不要 commit 非本次改动的文件
-6. 内容优先描述解决了什么用户问题，而不是做了什么逻辑变更
+6. 提交标题必须优先描述解决的用户可观察问题或行为结果，不得只描述内部实现动作；没有直接终端用户时，从调用方、维护者、Agent 或运维人员可观察的影响描述
+7. 标题无法充分说明修改原因和方式时必须添加正文；标题与正文之间空一行，正文说明问题原因和解决方式，必要时补充关键实现约束
+8. 正文默认使用自然语言，不添加 `Solution:` 等标签；仅当正文较长且分段能显著提升可读性时，才使用 `Problem:`、`Cause:`、`Solution:` 等小标题
+9. 示例：
+   ```text
+   [bugfix] prevent agents from missing changes in large file sets
+
+   Jugg status returned only the first 20 modified file paths, so agents
+   could miss the remaining changes. Request refreshed full status in hooks
+   to expose every modified file.
+   ```
 
 ## 问题排查流程
 

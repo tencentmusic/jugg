@@ -30,7 +30,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+    compileOnly getCompatApiFiles(project)
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
 

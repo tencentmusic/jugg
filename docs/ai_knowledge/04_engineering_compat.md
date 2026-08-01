@@ -23,6 +23,7 @@
 | `JuggDeployCompatTypes` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployCompatTypes.kt` | 运行时中立 wrapper，承接 `JuggInstallSession`、`JuggOverlayId`、deployment cache entry、deployer exception 等 AS deployer 类型 |
 | `JuggDeploymentCacheStore` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentCacheStore.kt` | Jugg 本地源码版 deployment cache；持久化 APK path 与 overlay snapshot，不依赖 AS deployer runtime 类型 |
 | `*AsDeployerCompat` | `deploy_compat/v_*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | 各 Android Studio 版本的具体 API 适配实现 |
+| `StubApiGenerator` | `tools/stub_api_generator/` | 从 compat 编译产物引用闭包和显式 Android Studio JAR 目录生成版本化编译 Stub API |
 | `IdeVersion` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | 用 `ApplicationInfo` 的 product code / API version 选择兼容实现 |
 | `PlatformApi` | `main/src/main/java/com/sickworm/intellij/jugg/platform/PlatformApi.kt` | main 层访问平台能力的全局抽象 |
 | `IdeaPlatformApi` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/IdeaPlatformApi.kt` | IDE 运行时的 `PlatformApi` 实现 |
@@ -51,6 +52,12 @@
 | `deploy_compat/v_chipmunk` | Android Studio Chipmunk |
 
 `AsDeployerCompat.compatImplList` 必须按版本从高到低排列。当前 IDE 版本完全匹配时用对应实现；当前 IDE 高于已知最高版本时用最高版本实现并 warn；低于已知最低版本时退到 Chipmunk。
+
+各版本 compat 默认通过 `compileOnly` 使用 `deploy_compat/stub_api/v_*/stubapi.jar`，仓库不再保存真实 Android Studio JAR。新增版本时依次使用 `create_compat_module.sh` 创建模块、`switch_api.sh real <jar-dir>` 显式切换本地真实 JAR、完成适配和真实 IDE 验证、用 `generate_stub_api.sh` 生成 Stub，最后切回 `switch_api.sh stub`。脚本不自动检测 Android Studio 安装目录，本地选择写入被忽略的 `deploy_compat/local.properties`。
+
+Stub helper 保留类、继承、成员 descriptor、泛型、Kotlin metadata、内层类、方法声明及注解和会被内联的常量，只移除普通方法实现。方法注解中的 nullability、`@JvmStatic` 等信息会影响 Kotlin 编译结果，不能在生成 Stub 时丢弃。纯源码信息（例如完全未使用的 import）不会进入编译产物，因此生成后必须切回 Stub clean compile；若失败，优先删除无效 import 或完成最小源码适配，不能无边界扩大 Stub。
+
+Stub 生成后的最终验收必须从 Stub checkout 执行 `./deploy_compat/verify_stub_api.sh <real-api-jugg-repo>`。参数必须是本地指向真实 Android Studio JAR、具有对应 compat 模块的另一份 Jugg checkout；脚本不自动检测该目录。脚本先报告每个 `v_*` 模块的源码差异供人工确认，但生成文件和无效 import 差异不直接决定结果；随后 clean 构建两边全部 compat JAR，最后比较 class entry 和 `com.android.*`、`com.intellij.*`、`org.jetbrains.android.*` 的规范化字节码引用（包含调用 opcode、owner、成员名和 descriptor）。全部模块必须显示 `MATCH`；任一产物差异均验收失败，详细 manifest 和 diff 保存在 `build/stub-api-verify/`。不得用未 clean 的历史 JAR、仅“编译成功”或忽略 opcode 的目标名比较替代该验收。
 
 Android Studio Quail（`AI-261.x`）已不再携带旧 `com.android.tools.deployer.*` runtime（例如 `AdbClient`）。`AsDeployerCompat` 因此不能使用 `Proxy.newProxyInstance(IAsDeployerCompat::class.java)` 这类会在启动期反射解析接口全部方法签名的机制，否则项目打开阶段就会因缺失 deployer 类型触发 `NoClassDefFoundError`。门面方法必须用显式 dispatcher，在实际调用某个兼容能力时再捕获 `NoSuchMethodError` / `NoSuchFieldError` / `NoClassDefFoundError` / `IncompatibleClassChangeError` 并尝试其他版本实现。
 
@@ -117,6 +124,7 @@ main(args)
 - `IAsDeployerCompat.updateMinApi()` 会根据兼容部署开关在 Android 11 与 Android 8 之间切换最小设备 API；排查“旧设备能否部署”时不要只看当前 AS 版本。
 - `setAllowSelectDevice()` 是早期特殊 API，`AsDeployerCompat` 会遍历所有实现尝试调用；不要把它改成只走 priorityImpl。
 - 新增 Android Studio 版本时，至少要新增 `deploy_compat/v_*` 实现，并同步 `AsDeployerCompat.compatImplList` 的顺序和本文档版本表。
+- 真实 Android Studio JAR 只能通过本地 `deploy_compat/local.properties` 临时接入，不得重新放回 `deploy_compat/v_*/libs`。
 - 不要在 `AsDeployerCompat` 启动初始化阶段反射 `IAsDeployerCompat` 全量方法；高版本 AS 可能已经删除旧 deployer 类型，反射解析会早于业务 fallback 直接终止插件初始化。
 - 不要在 `JuggDeployTask` / `JuggDeployer` 等主路径直接访问 `StudioFlags` 字段；新增 flag 读取必须经兼容接口或安全反射封装。
 - `platform_compat/base_api` 只解决编译期 API 缺口，不表示运行时一定有对应 IDE 行为；运行时能力仍以当前 AS API 和 compat 实现为准。

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feature Development"
+  short_description: "Explore and plan features before implementation"
+  default_prompt: "Use $feature-development to explore and plan this feature before writing code."

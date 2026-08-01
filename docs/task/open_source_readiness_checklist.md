@@ -5,6 +5,8 @@
 > 目标：在公开源码和发布外网插件包前，按 P0/P1/P2 管理开源风险、完成标准和验证证据。  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
+> 范围说明：本清单是“开源发布就绪”治理清单，范围显著大于《附件1.开源软件信息表》，不得把这里的 P0 等同于附件填表 P0。附件填表只核对软件名称、版本、协议、Copyright、协议链接、下载链接、是否修改和备注，见 [jugg_open_source_software_inventory.md](jugg_open_source_software_inventory.md) §5。
+
 ## 1. 优先级定义
 
 | 优先级 | 定义 | 发布门禁 |
@@ -25,12 +27,12 @@
 
 | ID | 优先级 | 主题 | 当前状态 | 主要 owner/入口 |
 |---|---|---|---|---|
-| P0-01 | P0 | 第三方二进制与知识产权归属 | 需外部确认 | `deploy_compat/*/libs`、`main/libs`、预编译工具 |
+| P0-01 | P0 | 第三方二进制与知识产权归属 | 方案已确认 | `open_source_stub_api_and_clean_public_repo_plan.md`、`main/libs`、预编译工具 |
 | P0-02 | P0 | 外网/内网发行包与后台网络隔离 | 方案已确认 | `open_source_network_and_diagnostics_design.md` |
 | P0-03 | P0 | 诊断包白名单、脱敏和明确上传目标 | 方案已确认 | `JuggServer.reportAndUploadLogs` |
 | P0-04 | P0 | MCP 本地服务监听、鉴权与敏感日志 | 未开始 | `McpLocalServer`、`JuggInitializer` |
 | P0-05 | P0 | SSH 密码存储与传播 | 未开始 | `JuggRunConfigurationOptions`、MCP SSH 信息 |
-| P0-06 | P0 | Git 历史、秘密和内部信息审计 | 未开始 | 完整 Git 历史、文档、测试 fixture |
+| P0-06 | P0 | Git 历史、秘密和内部信息审计 | 方案已确认 | `open_source_stub_api_and_clean_public_repo_plan.md`、公开仓库导出与全对象扫描 |
 | P0-07 | P0 | 远程代码下发与公开发布供应链 | 未开始 | 热更新、自定义编译器、插件发布 |
 | P0-08 | P0 | 外网产物发布门禁 | 未开始 | `:idea:buildPlugin` 产物验证 |
 | P1-01 | P1 | 仓库体积与大二进制治理 | 未开始 | Git 历史、JAR、native executable |
@@ -49,9 +51,17 @@
 | P2-05 | P2 | 文档国际化与示例去内部化 | 未开始 | Wiki、README、测试/脚本示例 |
 | P2-06 | P2 | 长期模块边界与可扩展性治理 | 未开始 | backend、MCP、compat、CLI 架构 |
 
-## 3. P0：公开发布阻断项
+## 3. P0：公开发布阻断项（非附件 1 填表优先级）
 
 ### P0-01 第三方二进制与知识产权归属
+
+**已确认方向**
+
+- `deploy_compat/*/libs` 中的 Android Studio / Android Plugin 完整 JAR 改为按版本隔离的源码 Stub API。
+- Stub API 只参与编译，通过真实目标 IDE 做 ABI 校验，且不得进入插件发布包。
+- 其他修改版 JAR、native executable 和内嵌第三方组件继续逐项治理。
+
+详细方案见：[open_source_stub_api_and_clean_public_repo_plan.md](open_source_stub_api_and_clean_public_repo_plan.md)。
 
 **当前事实**
 
@@ -185,6 +195,14 @@
 - 删除配置或项目后能够清理对应 PasswordSafe 条目。
 
 ### P0-06 Git 历史、秘密和内部信息审计
+
+**已确认方向**
+
+- 内部仓库保留完整历史，不执行破坏性的全仓历史改写。
+- 公开仓库从审核后的干净源码快照新建，以新的 root commit 开始，不继承内部 commit、tag、branch 或 Git object。
+- 公开前后都对完整 Git object、凭据、内网信息和二进制执行扫描。
+
+详细方案见：[open_source_stub_api_and_clean_public_repo_plan.md](open_source_stub_api_and_clean_public_repo_plan.md)。
 
 **当前事实**
 
@@ -405,17 +423,16 @@ README 只提供基础 Gradle 命令，没有完整描述 JDK、Android Studio�
 ## 6. 推荐执行顺序
 
 ```text
-P0-01 第三方版权与公司授权
+P0-01 Stub API 与其他第三方二进制治理 + P0-06 干净公开仓库
   -> P0-04 MCP 安全 + P0-05 SSH 凭据
-  -> P0-06 Git 历史和内部信息清理
-  -> P0-02/P0-03 public/internal 与诊断上传实现
-  -> P0-07 远程代码供应链
+  -> P0-02 public/internal 发行模式 + P0-07 远程代码供应链
+  -> P0-03 诊断包白名单、脱敏和唯一上传目标
   -> P0-08 public 产物发布门禁
   -> P1 可复现构建、CI、NOTICE、公开文档和社区治理
   -> P2 长期生态和架构治理
 ```
 
-P0-01 建议最先推进，因为第三方文件或公司权属不允许公开时，会直接改变公开仓库的代码和二进制范围。技术实现可以并行准备，但不得在权属结论前发布。
+P0-01 与 P0-06 先确定公开文件和历史边界；P0-04/P0-05 优先收口当前高权限本地服务与明文凭据风险；P0-02 为 P0-07 的 public 能力禁用提供构建期基础；P0-08 作为所有 P0 的统一发布门禁。
 
 ## 7. 当前验证证据
 

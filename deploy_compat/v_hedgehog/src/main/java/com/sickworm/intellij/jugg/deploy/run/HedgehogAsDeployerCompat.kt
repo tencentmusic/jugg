@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.idea.execution.common.DeployableToDevice
 import com.android.tools.idea.run.DeploymentService
-import com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.project.Project
 
