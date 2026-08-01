@@ -1,3 +1,12 @@
+- version: 3.2.0
+  date: 2026.08.01
+  isNeedReinstall: true
+  updates:
+    - 新增原生 Jugg 运行面板，展示实时编译进度、近期结果、日志和设置
+    - 问题上报前可检查脱敏诊断包，也可仅保存到本地
+    - 支持 compose layout dump，使用 Dragonfly SDK 抓取
+    - 增强优化工程识别能力
+
 - version: 3.1.5
   date: 2026.07.31
   updates:

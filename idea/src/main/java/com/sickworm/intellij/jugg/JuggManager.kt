@@ -761,17 +761,19 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun uploadIssueReport(bundle: IssueReportBundle) {
-        val progressDialog = ReportIssueProgressDialog("Uploading logs...")
-        taskRunnerManager.runBackgroundSafe("Upload issue report") {
-            val uploadResult = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL)
-            SwingUtilities.invokeLater {
-                progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                ReportIssueResultDialog(uploadResult) {
-                    uploadIssueReport(bundle)
-                }.show()
+        SwingUtilities.invokeLater {
+            val progressDialog = ReportIssueProgressDialog("Uploading logs...")
+            taskRunnerManager.runBackgroundSafe("Upload issue report") {
+                val uploadResult = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL)
+                SwingUtilities.invokeLater {
+                    progressDialog.close(DialogWrapper.OK_EXIT_CODE)
+                    ReportIssueResultDialog(uploadResult) {
+                        uploadIssueReport(bundle)
+                    }.show()
+                }
             }
+            progressDialog.show()
         }
-        progressDialog.show()
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {

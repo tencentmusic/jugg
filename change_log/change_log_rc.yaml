@@ -1,3 +1,13 @@
+- version: 3.2.0
+  date: 2026.08.01
+  isNeedReinstall: true
+  updates:
+    - support a native project-level Jugg control panel with a live compile dashboard, recent outcomes, logs, and settings
+    - let users review redacted diagnostic bundles before upload or save them locally
+    - supports compose layout dump, use Dragonfly as the layout hierarchy source for layout dump and interaction
+    - expose complete Jugg status to agent hooks
+    - optimize recognization of project info reading
+
 - version: 3.1.5
   date: 2026.07.31
   updates:
