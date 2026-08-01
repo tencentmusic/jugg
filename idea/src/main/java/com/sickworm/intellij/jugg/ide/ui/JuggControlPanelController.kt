@@ -1,9 +1,11 @@
 package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.execution.RunManager
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
@@ -47,12 +49,32 @@ open class JuggControlPanelController(
             ?.map(String::trim)
             ?.filter(String::isNotEmpty)
             .orEmpty()
+        val changedFiles = deployFileManager.getUndeployedFiles().map { changedFile ->
+            val projectDir = project.basePath?.let { java.io.File(it) } ?: changedFile.baseDir
+            val relativePath = runCatching { changedFile.file.relativeTo(projectDir).path }
+                .getOrElse { changedFile.file.path }
+            JuggEvent.ChangedFileSnapshot(
+                category = when (changedFile.type) {
+                    CompileFile.Type.BuildFile -> JuggEvent.ChangedFileCategory.BUILD
+                    CompileFile.Type.Kotlin -> JuggEvent.ChangedFileCategory.KOTLIN
+                    CompileFile.Type.Java -> JuggEvent.ChangedFileCategory.JAVA
+                    CompileFile.Type.AndroidManifest -> JuggEvent.ChangedFileCategory.MANIFEST
+                    CompileFile.Type.NativeLib -> JuggEvent.ChangedFileCategory.SO
+                    CompileFile.Type.Resource -> JuggEvent.ChangedFileCategory.XML
+                    else -> JuggEvent.ChangedFileCategory.OTHER
+                },
+                path = relativePath,
+                absolutePath = changedFile.file.absolutePath,
+                moduleName = changedFile.module.name,
+            )
+        }.sortedWith(compareBy({ it.category.ordinal }, { it.moduleName }, { it.path }))
         val context = JuggControlPanelModel.Context(
             configuration = configuration,
             buildTarget = deployHistoryManager.getFullBuildInfo()?.buildTarget?.name.orEmpty(),
             packageName = deployTargetManager.getPackageNameOrNull().orEmpty(),
             devices = devices,
-            changedFileCount = deployFileManager.getUndeployedFiles().size,
+            changedFileCount = changedFiles.size,
+            changedFiles = changedFiles,
             hasBaseline = deployHistoryManager.hasBeenFullCompiled,
             isHistoryAvailable = deployHistoryManager.isRecoverFeatureAvailable,
         )
@@ -97,6 +119,14 @@ open class JuggControlPanelController(
     open fun installSkills() = manager.installSkills()
 
     open fun checkUpdates() = manager.checkUpdates()
+
+    open fun getVisibleRows(key: String): String {
+        return PropertiesComponent.getInstance(project).getValue("jugg.control.panel.$key.rows", "5")
+    }
+
+    open fun setVisibleRows(key: String, value: String) {
+        PropertiesComponent.getInstance(project).setValue("jugg.control.panel.$key.rows", value, "5")
+    }
 
     fun recordSyncEvent(syncEvent: SyncEvent) {
         val taskId = when (syncEvent) {

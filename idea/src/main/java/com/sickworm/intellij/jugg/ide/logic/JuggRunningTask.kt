@@ -29,6 +29,7 @@ import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
+import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.LastCompileProjectRegistry
@@ -66,6 +67,7 @@ class JuggRunningTask(
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
+    private val controlPanelController: JuggControlPanelController? = null,
 ) : Task.Backgroundable(project, "Running Jugg..."), IJuggRunningTask {
 
     private val processHandler: IProcessHandler get() = compileUiHandler.processHandler
@@ -73,6 +75,10 @@ class JuggRunningTask(
     private val eventTaskId = UUID.randomUUID().toString()
     private val eventStartedAt = System.currentTimeMillis()
     private var hasTerminalEvent = false
+    private val inputChangedFiles = eventModel.snapshot().context.changedFiles
+    private var compileMode: JuggEvent.CompileMode? = null
+    private var finalDeployType: JuggDeployData.DeployType? = null
+    private var fallbackPath: String? = null
 
     private val indicatorListener = object : ProgressIndicatorListener {
         override fun cancelled() {
@@ -99,7 +105,9 @@ class JuggRunningTask(
                 phase = JuggEventPhase.PREPARING,
                 status = JuggEventStatus.STARTED,
                 title = "Jugg task started",
+                changedFiles = inputChangedFiles,
             )
+            controlPanelController?.refresh()
 
             statusManager.isProjectSwitchedThisRun =
                 lastCompileProjectRegistry.detectSwitch(options.projectRootPath)
@@ -152,6 +160,7 @@ class JuggRunningTask(
             }
             JuggLogger.stopListenProjectLog(project, loggerListener)
             stop(indicator)
+            controlPanelController?.refresh()
         }
     }
 
@@ -190,6 +199,7 @@ class JuggRunningTask(
             compileUiHandler,
             isAndroidTestRun = androidTestRunSpec != null,
         )
+        compileMode = if (compileTaskResult.isGradleCompile) JuggEvent.CompileMode.GRADLE else JuggEvent.CompileMode.INCREMENTAL
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
         detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"
@@ -291,6 +301,7 @@ class JuggRunningTask(
                 JuggDeployData.DeployType.HOT_RELOAD
             }
         }
+        finalDeployType = deployType
 
         val isAllSuccess = deployTaskResultList.all { it.isSuccess }
         if (!isAllSuccess) {
@@ -326,7 +337,9 @@ class JuggRunningTask(
                     status = JuggEventStatus.WARNING,
                     title = "Deploy fallback requested",
                     detail = failedReason,
+                    fallback = "Incremental failed → Gradle",
                 )
+                fallbackPath = "Incremental failed → Gradle"
                 notifyFallback(project, failedReason)
                 compileUiHandler.isForceGradleCompile = true
                 return doRun(options)
@@ -461,6 +474,8 @@ class JuggRunningTask(
         detail: String? = null,
         durationMillis: Long? = null,
         isTerminal: Boolean = false,
+        changedFiles: List<JuggEvent.ChangedFileSnapshot> = emptyList(),
+        fallback: String? = null,
     ) {
         eventModel.record(JuggEvent(
             taskId = eventTaskId,
@@ -472,6 +487,10 @@ class JuggRunningTask(
             title = title,
             detail = detail,
             durationMillis = durationMillis,
+            compileMode = compileMode,
+            deployType = finalDeployType,
+            fallback = fallback ?: fallbackPath,
+            changedFiles = changedFiles,
             isTaskTerminal = isTerminal,
         ))
     }

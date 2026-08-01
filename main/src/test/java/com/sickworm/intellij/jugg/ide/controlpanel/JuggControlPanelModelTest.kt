@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 
 class JuggControlPanelModelTest {
 
@@ -200,6 +201,53 @@ class JuggControlPanelModelTest {
         assertEquals(context, snapshot.context)
         assertEquals(settings, snapshot.settings)
         assertTrue(snapshot.recentEvents.isEmpty())
+    }
+
+    @Test
+    fun `terminal task creates one run summary and preserves raw deploy type`() {
+        val model = JuggControlPanelModel()
+        val files = listOf(JuggEvent.ChangedFileSnapshot(
+            JuggEvent.ChangedFileCategory.KOTLIN, "idea/Test.kt", "/project/idea/Test.kt", "idea"))
+        model.record(event(taskId = "run", status = JuggEvent.Status.STARTED).copy(
+            compileMode = JuggEvent.CompileMode.INCREMENTAL, changedFiles = files))
+        model.record(event(taskId = "run", status = JuggEvent.Status.SUCCEEDED).copy(durationMillis = 1200))
+        model.record(event(taskId = "run", category = JuggEvent.Category.DEPLOY,
+            status = JuggEvent.Status.SUCCEEDED, isTaskTerminal = true).copy(
+            deployType = JuggDeployData.DeployType.COMPAT_HOT_FIX, durationMillis = 3000))
+
+        val snapshot = model.snapshot()
+        assertNull(snapshot.currentTask)
+        assertEquals(1, snapshot.recentRuns.size)
+        assertEquals(JuggDeployData.DeployType.COMPAT_HOT_FIX, snapshot.recentRuns.single().deployType)
+        assertEquals(files, snapshot.recentRuns.single().changedFiles)
+        assertEquals(1, snapshot.sessionStats.compiles)
+        assertEquals(1, snapshot.sessionStats.hotFixes)
+    }
+
+    @Test
+    fun `failed and canceled runs do not increase successful session counters`() {
+        val model = JuggControlPanelModel()
+        model.record(event(taskId = "failed", status = JuggEvent.Status.STARTED))
+        model.record(event(taskId = "failed", status = JuggEvent.Status.FAILED,
+            isTaskTerminal = true).copy(deployType = JuggDeployData.DeployType.INSTALL))
+        model.record(event(taskId = "canceled", status = JuggEvent.Status.STARTED))
+        model.record(event(taskId = "canceled", status = JuggEvent.Status.CANCELED,
+            isTaskTerminal = true).copy(deployType = JuggDeployData.DeployType.HOT_RELOAD))
+
+        assertEquals(JuggControlPanelModel.SessionStats(), model.snapshot().sessionStats)
+        assertEquals(2, model.snapshot().recentRuns.size)
+    }
+
+    @Test
+    fun `recent runs keep their own bounded window`() {
+        val model = JuggControlPanelModel(maxRecentRuns = 2)
+        repeat(3) { index ->
+            model.record(event(taskId = "run-$index", status = JuggEvent.Status.STARTED))
+            model.record(event(taskId = "run-$index", status = JuggEvent.Status.SUCCEEDED,
+                isTaskTerminal = true))
+        }
+
+        assertEquals(listOf("run-2", "run-1"), model.snapshot().recentRuns.map { it.taskId })
     }
 
     private fun event(

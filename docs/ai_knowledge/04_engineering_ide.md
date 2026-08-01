@@ -46,7 +46,7 @@
 | hasRun / selected devices | `JuggRunningTaskStatusManager` | 决定“首次运行”、stop/cancel 后是否重置，以及 hook/status 语义 |
 | run UI process handler | `CompileUiHandler` / `JuggRunningTask` | 承载日志、进度、取消状态；androidTest 时接入 Test Results console |
 | file change / Run Configuration locks | `JuggManager` | 文件变化处理与 Run Configuration 创建分别串行，禁止通过 `JuggManager` 实例锁跨业务域互相阻塞 |
-| control panel snapshot | `JuggControlPanelModel` | `JuggControlPanelController` 项目级持有；保存 Context、Settings、当前 compile/deploy task、last deploy、health 与最近 200 条核心事件；MCP、Sync、App 事件只进入历史，不覆盖运行任务 |
+| control panel snapshot | `JuggControlPanelModel` | `JuggControlPanelController` 项目级持有；保存待处理文件、当前阶段、原始 compile/deploy 事实、会话成功统计、有界 Recent Runs 与最近 200 条核心事件；MCP、Sync、App 事件只进入事件历史，不覆盖运行任务 |
 
 ---
 
@@ -127,7 +127,8 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
 - `Jugg Running Pannel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
 - `OpenJuggControlPanelAction` 位于 `ide_entry`，只调用 Host；`JuggInitializer` 不引用 Host。Manager dispose 委托 Controller clear Host，JuggManager 自身不保存 Panel、事件枚举或 Sync taskId。
-- Overview、Timeline、Last Deploy、Recent Activity 和 Logs 统一消费 `JuggControlPanelModel` snapshot。Logs 只展示 sync、compile、deploy、app、CLI/MCP 等结构化核心事件，支持来源、级别、当前任务和搜索过滤，不读取或轮询 `compile_latest.log`。
+- Overview 作为编译驾驶舱，固定展示实时状态、Changed Files、Quick Actions、This Session 和 Recent Runs。Run 开始时捕获 undeployed 输入快照，terminal 后才进入 Recent Runs；原始 compile mode、deploy type、fallback 与各阶段耗时由结构化事件传递，Panel 只负责展示映射。Changed Files 与 Recent Runs 的可见行数使用项目级 IDE preference 独立保存，运行耗时由 Swing Timer 每秒刷新且不写回 Model。
+- Logs 只展示 sync、compile、deploy、app、CLI/MCP 等结构化核心事件，支持来源、级别、当前任务和搜索过滤，不读取或轮询 `compile_latest.log`。
 - MCP lifecycle 固定记录 `MCP request` / `MCP response`，tool 与结果摘要进入 detail。
 - Context/Health 读取 Run Configuration、selected devices、package、changed files、baseline 与 deploy history；Settings 的七个开关直接读写 `JuggSettings`。无真实后端的预览设置和动作不显示。
 - `MockJuggControlPanelModel` 只通过真实 Model API 构造测试场景；Panel 在 real/mock model 之间切换时复用同一个订阅和 render 路径，不保留 UI 内置 `MockData`。

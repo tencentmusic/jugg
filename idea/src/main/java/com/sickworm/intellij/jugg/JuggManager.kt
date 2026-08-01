@@ -469,6 +469,7 @@ class JuggManager @TestOnly constructor(
 
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
         if (realChangedFiles.isEmpty()) {
+            controlPanelController.refresh()
             return
         }
         logger.debug("Detect file changed (size=${realChangedFiles.size}): ${realChangedFiles.map { it.file.name }}")
@@ -490,6 +491,7 @@ class JuggManager @TestOnly constructor(
         if (JuggSettings.compileOnSave) {
             runTaskSafe("Compile Changes", ::compileChanges)
         }
+        controlPanelController.refresh()
     }
 
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
@@ -791,6 +793,7 @@ class JuggManager @TestOnly constructor(
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
                 compileUiHandler, controlPanelController.model, androidTestRunSpec,
+                controlPanelController = controlPanelController,
             )
 
             // try reload custom config if changed

@@ -2,7 +2,9 @@ package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.JBColor
@@ -44,6 +46,7 @@ import javax.swing.ScrollPaneConstants
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
@@ -74,6 +77,14 @@ class JuggControlPanel(
     private val timelinePanel = contentPanel(0)
     private val healthPanel = contentPanel(8)
     private val activityPanel = contentPanel(0)
+    private val changedFilesPanel = contentPanel(0)
+    private val recentRunsPanel = contentPanel(0)
+    private val sessionLabels = List(4) { monoLabel("0") }
+    private var changedFilesScroll: JBScrollPane? = null
+    private var recentRunsScroll: JBScrollPane? = null
+    private var expandedRunId: String? = null
+    private val quickActionButtons = mutableListOf<JButton>()
+    private val elapsedTimer = Timer(1_000) { renderCurrentTask(latestSnapshot) }
     private val logContent = ViewportWidthPanel(VerticalLayout(0)).apply {
         name = "logs.events"
         border = JBUI.Borders.empty(9, 10, 20, 10)
@@ -105,12 +116,11 @@ class JuggControlPanel(
     }
 
     private fun createOverview(): JComponent = scrollPanel("overview.scroll") {
-        add(contextSection())
         add(currentTaskSection())
+        add(changedFilesSection())
         add(overviewSection("Quick actions", "quickActions") { add(createQuickActions()) })
-        add(lastDeploySection())
-        add(projectHealthSection())
-        add(recentActivitySection())
+        add(sessionSection())
+        add(recentRunsSection())
     }
 
     private fun contextSection(): JComponent = overviewSection(null, "context") {
@@ -129,8 +139,9 @@ class JuggControlPanel(
         add(availabilityLabel)
     }
 
-    private fun currentTaskSection(): JComponent = overviewSection("Current task", "currentTask") {
+    private fun currentTaskSection(): JComponent = overviewSection(null, "currentTask") {
         add(JPanel(BorderLayout(JBUI.scale(10), 0)).transparent().apply {
+            preferredSize = Dimension(0, JBUI.scale(58))
             add(contentPanel(0).apply {
                 add(currentTaskLabel)
                 add(currentTaskDetailLabel)
@@ -139,12 +150,66 @@ class JuggControlPanel(
         })
     }
 
-    private fun createQuickActions(): JComponent = JPanel(GridLayout(2, 2, JBUI.scale(8), JBUI.scale(8))).transparent().apply {
+    private fun changedFilesSection(): JComponent = overviewSection(null, "changedFiles") {
+        add(sectionHeader("Changed files", "changedFiles"))
+        add(verticalGap(8))
+        add(JBScrollPane(changedFilesPanel).apply {
+            changedFilesScroll = this
+            border = JBUI.Borders.empty()
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+        })
+    }
+
+    private fun sessionSection(): JComponent = overviewSection("This session", "session") {
+        add(JPanel(GridLayout(1, 4, JBUI.scale(4), 0)).transparent().apply {
+            listOf("Compiles", "Hot reload", "Hot fix", "Install").forEachIndexed { index, title ->
+                add(contentPanel(3).apply {
+                    border = BorderFactory.createLineBorder(JBColor.border())
+                    add(eyebrow(title).apply { horizontalAlignment = SwingConstants.CENTER })
+                    add(sessionLabels[index].apply { horizontalAlignment = SwingConstants.CENTER })
+                })
+            }
+        })
+    }
+
+    private fun recentRunsSection(): JComponent = overviewSection(null, "recentRuns") {
+        add(sectionHeader("Recent runs", "recentRuns"))
+        add(verticalGap(8))
+        add(JBScrollPane(recentRunsPanel).apply {
+            recentRunsScroll = this
+            border = JBUI.Borders.empty()
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+        })
+    }
+
+    private fun sectionHeader(title: String, preferenceKey: String): JComponent {
+        return JPanel(BorderLayout()).transparent().apply {
+            add(eyebrow(title), BorderLayout.WEST)
+            val link = ActionLink("${controller.getVisibleRows(preferenceKey)} rows ▾")
+            link.addActionListener {
+                JPopupMenu().apply {
+                    listOf("3", "5", "8", "10", "Auto").forEach { value ->
+                        add(menuItem(value) {
+                            controller.setVisibleRows(preferenceKey, value)
+                            link.text = "$value rows ▾"
+                            updateListHeights()
+                        })
+                    }
+                    show(link, 0, link.height)
+                }
+            }
+            add(link, BorderLayout.EAST)
+        }
+    }
+
+    private fun createQuickActions(): JComponent = JPanel(GridLayout(0, 3, JBUI.scale(8), JBUI.scale(8))).transparent().apply {
         name = "quickActions"
-        add(actionButton("Full Gradle Build", "Build, install and launch", true) { controller.fullGradleBuild() })
-        add(actionButton("Restart App", "Current selected devices") { controller.restartApp() })
-        add(actionButton("Clean & Reinstall", "Clears app data") { controller.cleanAndReinstall() })
-        add(actionButton("More…", "Maintenance tools") { showMoreMenu(it) })
+        add(actionButton("Full Gradle Build", primary = true) { controller.fullGradleBuild() })
+        add(actionButton("Restart App") { controller.restartApp() })
+        add(actionButton("Clean & Reinstall") { controller.cleanAndReinstall() })
+        add(actionButton("Install Skills") { controller.installSkills() })
+        add(actionButton("Check Updates") { controller.checkUpdates() })
+        add(actionButton("More…") { showMoreMenu(it) })
     }
 
     private fun lastDeploySection(): JComponent = overviewSection("Last deploy", "lastDeploy") {
@@ -457,18 +522,14 @@ class JuggControlPanel(
 
     private fun actionButton(
         text: String,
-        help: String,
         primary: Boolean = false,
         action: (JButton) -> Unit = {},
     ): JButton {
-        return JButton("<html><b>$text</b><br><small>$help</small></html>").apply {
-            horizontalAlignment = JButton.LEFT
-            margin = JBUI.insets(7, 9)
-            val size = preferredSize
-            preferredSize = Dimension(size.width, maxOf(size.height, JBUI.scale(48)))
+        return JButton(text).apply {
+            margin = JBUI.insets(5, 7)
             if (primary) putClientProperty("JButton.buttonType", "default")
             addActionListener { action(this) }
-        }
+        }.also(quickActionButtons::add)
     }
 
     private fun showMoreMenu(button: JButton) {
@@ -518,6 +579,7 @@ class JuggControlPanel(
     }
 
     override fun dispose() {
+        elapsedTimer.stop()
         modelSubscription?.close()
         modelSubscription = null
     }
@@ -532,11 +594,11 @@ class JuggControlPanel(
     }
 
     private fun render(snapshot: JuggControlPanelSnapshot) {
-        renderContext(snapshot)
         renderCurrentTask(snapshot)
-        renderTimeline(snapshot)
-        renderHealth(snapshot)
-        renderActivity(snapshot)
+        renderChangedFiles(snapshot)
+        renderSession(snapshot)
+        renderRecentRuns(snapshot)
+        quickActionButtons.forEach { it.isEnabled = snapshot.currentTask == null }
         renderSettings(snapshot.settings)
         refreshLogs()
     }
@@ -559,14 +621,125 @@ class JuggControlPanel(
     private fun renderCurrentTask(snapshot: JuggControlPanelSnapshot) {
         val task = snapshot.currentTask
         if (task == null) {
-            currentTaskLabel.text = "Idle"
-            currentTaskDetailLabel.text = snapshot.recentEvents.lastOrNull()?.title ?: "No Jugg activity yet"
+            elapsedTimer.stop()
+            val lastRun = snapshot.recentRuns.firstOrNull()
+            currentTaskLabel.text = when {
+                lastRun?.status == JuggEventStatus.FAILED -> "Last run failed"
+                !snapshot.context.hasBaseline -> "Full Gradle build required"
+                snapshot.context.changedFileCount == 0 -> "Up to date"
+                else -> "Ready for incremental compile"
+            }
+            currentTaskDetailLabel.text = when {
+                lastRun?.status == JuggEventStatus.FAILED -> lastRun.failureReason ?: "Open Logs for details"
+                snapshot.context.changedFileCount == 0 -> "No pending changes"
+                else -> changedFileSummary(snapshot.context.changedFiles)
+            }
             currentTaskDurationLabel.text = ""
             return
         }
-        currentTaskLabel.text = task.title
-        currentTaskDetailLabel.text = task.phase?.displayName ?: task.source.name
-        currentTaskDurationLabel.text = formatDuration(System.currentTimeMillis() - task.startedAt)
+        if (!elapsedTimer.isRunning) elapsedTimer.start()
+        currentTaskLabel.text = task.phase?.displayName ?: task.title
+        currentTaskDetailLabel.text = "Detect ${phaseMark(task.phase, JuggEvent.Phase.DETECTING_CHANGES)}  ·  " +
+                "Compile ${phaseMark(task.phase, JuggEvent.Phase.COMPILING)}  ·  " +
+                "Deploy ${phaseMark(task.phase, JuggEvent.Phase.DEPLOYING)}  ·  " +
+                "Launch ${phaseMark(task.phase, JuggEvent.Phase.LAUNCHING)}"
+        currentTaskDurationLabel.text = formatElapsed(System.currentTimeMillis() - task.updatedAt)
+    }
+
+    private fun renderChangedFiles(snapshot: JuggControlPanelSnapshot) {
+        changedFilesPanel.removeAll()
+        if (snapshot.context.changedFiles.isEmpty()) changedFilesPanel.add(secondaryLabel("No pending changes"))
+        else snapshot.context.changedFiles.forEach { changedFilesPanel.add(changedFileRow(it)) }
+        updateListHeights()
+        refreshPanel(changedFilesPanel)
+    }
+
+    private fun renderSession(snapshot: JuggControlPanelSnapshot) {
+        val stats = snapshot.sessionStats
+        listOf(stats.compiles, stats.hotReloads, stats.hotFixes, stats.installs).forEachIndexed { index, value ->
+            sessionLabels[index].text = value.toString()
+        }
+    }
+
+    private fun renderRecentRuns(snapshot: JuggControlPanelSnapshot) {
+        recentRunsPanel.removeAll()
+        if (snapshot.recentRuns.isEmpty()) recentRunsPanel.add(secondaryLabel("No completed runs yet"))
+        else snapshot.recentRuns.forEach { recentRunsPanel.add(runRow(it)) }
+        updateListHeights()
+        refreshPanel(recentRunsPanel)
+    }
+
+    private fun changedFileRow(file: JuggEvent.ChangedFileSnapshot): JComponent {
+        val exists = java.io.File(file.absolutePath).exists()
+        return JButton("${file.category.displayName}   ${file.path}").apply {
+            horizontalAlignment = SwingConstants.LEFT
+            isContentAreaFilled = false
+            isBorderPainted = false
+            toolTipText = if (exists) file.absolutePath else "File no longer exists"
+            isEnabled = exists
+            addActionListener {
+                LocalFileSystem.getInstance().findFileByPath(file.absolutePath)?.let {
+                    OpenFileDescriptor(project, it).navigate(true)
+                }
+            }
+        }
+    }
+
+    private fun runRow(run: JuggControlPanelModel.RunSummary): JComponent {
+        val expanded = expandedRunId == run.taskId
+        return contentPanel(4).apply {
+            add(JButton("${if (expanded) "▾" else "▸"} ${formatTime(run.completedAt)}  ${run.compileMode.displayName}" +
+                    "${run.deployType?.let { " → ${it.displayName}" }.orEmpty()}    " +
+                    "${run.compileDurationMillis?.let(::formatDuration).orEmpty()}  ${run.status.symbol}").apply {
+                horizontalAlignment = SwingConstants.LEFT
+                isContentAreaFilled = false
+                isBorderPainted = false
+                addActionListener {
+                    expandedRunId = if (expanded) null else run.taskId
+                    renderRecentRuns(latestSnapshot)
+                }
+            })
+            if (expanded) {
+                add(secondaryLabel("Compile ${run.compileDurationMillis?.let(::formatDuration) ?: "—"} · " +
+                        "Deploy ${run.deployDurationMillis?.let(::formatDuration) ?: "—"} · Total ${formatDuration(run.totalDurationMillis)}"))
+                run.fallback?.let { add(secondaryLabel(it)) }
+                run.failureReason?.let { add(ActionLink("$it  View logs →") { select(Page.LOGS) }) }
+                if (run.changedFiles.isNotEmpty()) {
+                    add(eyebrow("Changed files"))
+                    run.changedFiles.forEach { add(changedFileRow(it)) }
+                }
+            }
+        }
+    }
+
+    private fun updateListHeights() {
+        changedFilesScroll?.preferredSize = Dimension(0, visibleRows("changedFiles") * JBUI.scale(29))
+        recentRunsScroll?.preferredSize = Dimension(0, visibleRows("recentRuns") * JBUI.scale(34))
+    }
+
+    private fun visibleRows(key: String): Int {
+        return controller.getVisibleRows(key).toIntOrNull() ?: (height / JBUI.scale(150)).coerceIn(3, 10)
+    }
+
+    private fun changedFileSummary(files: List<JuggEvent.ChangedFileSnapshot>): String {
+        val sources = files.count { it.category in setOf(JuggEvent.ChangedFileCategory.KOTLIN, JuggEvent.ChangedFileCategory.JAVA) }
+        val resources = files.count { it.category in setOf(JuggEvent.ChangedFileCategory.XML, JuggEvent.ChangedFileCategory.MANIFEST) }
+        return "${files.size} pending files · $sources source · $resources resources"
+    }
+
+    private fun phaseMark(current: JuggEvent.Phase?, phase: JuggEvent.Phase): String = when {
+        current == null || current.ordinal < phase.ordinal -> "○"
+        current == phase -> "●"
+        else -> "✓"
+    }
+
+    private fun formatElapsed(durationMillis: Long): String {
+        val seconds = durationMillis.coerceAtLeast(0) / 1_000
+        val hours = seconds / 3_600
+        val minutes = seconds % 3_600 / 60
+        val remainingSeconds = seconds % 60
+        return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, remainingSeconds)
+        else "%02d:%02d".format(minutes, remainingSeconds)
     }
 
     private fun renderTimeline(snapshot: JuggControlPanelSnapshot) {
@@ -743,3 +916,27 @@ private val JuggEventStatus.displayName: String
 
 private val JuggEvent.Phase.displayName: String
     get() = name.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)
+
+private val JuggEvent.ChangedFileCategory.displayName: String
+    get() = name.lowercase().replaceFirstChar(Char::uppercase)
+
+private val JuggEvent.CompileMode?.displayName: String
+    get() = this?.name?.lowercase()?.replaceFirstChar(Char::uppercase) ?: "Unknown"
+
+private val com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.displayName: String
+    get() = when (this) {
+        com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.HOT_RELOAD -> "Hot reload"
+        com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.HOT_FIX,
+        com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.COMPAT_HOT_FIX -> "Hot fix"
+        com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.INSTALL,
+        com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.EMBEDDED -> "Install"
+        else -> name.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)
+    }
+
+private val JuggEvent.Status.symbol: String
+    get() = when (this) {
+        JuggEvent.Status.SUCCEEDED -> "✓"
+        JuggEvent.Status.FAILED -> "!"
+        JuggEvent.Status.CANCELED -> "×"
+        else -> "·"
+    }

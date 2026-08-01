@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.ide.controlpanel
 
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+
 /**
  * JuggEvent is a structured, user-readable execution fact shared by IDE and CLI consumers.
  */
@@ -15,8 +17,36 @@ data class JuggEvent(
     val detail: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val durationMillis: Long? = null,
+    val compileMode: CompileMode? = null,
+    val deployType: JuggDeployData.DeployType? = null,
+    val fallback: String? = null,
+    val changedFiles: List<ChangedFileSnapshot> = emptyList(),
     val isTaskTerminal: Boolean = false,
 ) {
+    /** Preserves the compiler path selected for a run. */
+    enum class CompileMode {
+        INCREMENTAL,
+        GRADLE,
+    }
+
+    /** Preserves a changed-file input without retaining project runtime objects. */
+    data class ChangedFileSnapshot(
+        val category: ChangedFileCategory,
+        val path: String,
+        val absolutePath: String,
+        val moduleName: String,
+    )
+
+    /** Defines the stable display order for changed files. */
+    enum class ChangedFileCategory {
+        BUILD,
+        KOTLIN,
+        JAVA,
+        XML,
+        MANIFEST,
+        SO,
+        OTHER,
+    }
     /** Identifies where a user-visible Jugg event originated. */
     enum class Source {
         IDE,

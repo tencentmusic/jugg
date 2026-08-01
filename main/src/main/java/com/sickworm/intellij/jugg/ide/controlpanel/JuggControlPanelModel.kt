@@ -8,6 +8,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  */
 class JuggControlPanelModel(
     private val maxRecentEvents: Int = DEFAULT_MAX_RECENT_EVENTS,
+    private val maxRecentRuns: Int = DEFAULT_MAX_RECENT_RUNS,
 ) {
 
     private val listeners = CopyOnWriteArrayList<(Snapshot) -> Unit>()
@@ -17,6 +18,7 @@ class JuggControlPanelModel(
 
     init {
         require(maxRecentEvents > 0) { "maxRecentEvents must be positive" }
+        require(maxRecentRuns > 0) { "maxRecentRuns must be positive" }
     }
 
     @Synchronized
@@ -55,6 +57,7 @@ class JuggControlPanelModel(
             }
 
             var recentEvents = state.recentEvents
+            var recentRuns = state.recentRuns
             var currentTask = state.currentTask
             val taskId = event.taskId
             if (ownsCurrentTask && taskId != null && event.status == JuggEvent.Status.STARTED &&
@@ -73,6 +76,7 @@ class JuggControlPanelModel(
                         isTaskTerminal = true,
                     ))
                     recentEvents = appendBounded(recentEvents, canceled)
+                    recentRuns = appendRun(recentRuns, active.toRunSummary(canceled))
                     rememberTerminalTask(active.taskId)
                 }
             }
@@ -81,6 +85,12 @@ class JuggControlPanelModel(
             recentEvents = appendBounded(recentEvents, normalizedEvent)
             if (ownsCurrentTask) {
                 currentTask = reduceCurrentTask(currentTask, normalizedEvent)
+            }
+            val completedTask = if (ownsCurrentTask && normalizedEvent.isTaskTerminal &&
+                currentTask == null && state.currentTask?.taskId == normalizedEvent.taskId
+            ) state.currentTask else null
+            if (completedTask != null) {
+                recentRuns = appendRun(recentRuns, completedTask.toRunSummary(normalizedEvent))
             }
             if (ownsCurrentTask && normalizedEvent.isTaskTerminal) {
                 normalizedEvent.taskId?.let(::rememberTerminalTask)
@@ -103,6 +113,8 @@ class JuggControlPanelModel(
                 currentTask = currentTask,
                 lastDeploy = lastDeploy,
                 recentEvents = recentEvents,
+                recentRuns = recentRuns,
+                sessionStats = reduceSessionStats(state.sessionStats, normalizedEvent),
                 version = state.version + 1,
             ).also { state = it }
         }
@@ -123,6 +135,16 @@ class JuggControlPanelModel(
                 phase = event.phase ?: current.phase,
                 title = event.title,
                 updatedAt = event.timestamp,
+                compileMode = event.compileMode ?: current.compileMode,
+                deployType = event.deployType ?: current.deployType,
+                compileDurationMillis = if (event.category == JuggEvent.Category.COMPILE &&
+                    event.status == JuggEvent.Status.SUCCEEDED
+                ) event.durationMillis ?: current.compileDurationMillis else current.compileDurationMillis,
+                deployDurationMillis = if (event.category == JuggEvent.Category.DEPLOY &&
+                    event.status == JuggEvent.Status.SUCCEEDED
+                ) (current.deployDurationMillis ?: 0) + (event.durationMillis ?: 0) else current.deployDurationMillis,
+                fallback = event.fallback ?: current.fallback,
+                changedFiles = if (event.changedFiles.isNotEmpty()) event.changedFiles else current.changedFiles,
             )
         }
         return TaskSnapshot(
@@ -132,7 +154,49 @@ class JuggControlPanelModel(
             title = event.title,
             startedAt = event.timestamp,
             updatedAt = event.timestamp,
+            compileMode = event.compileMode,
+            deployType = event.deployType,
+            fallback = event.fallback,
+            changedFiles = event.changedFiles,
         )
+    }
+
+    private fun TaskSnapshot.toRunSummary(terminalEvent: JuggEvent): RunSummary {
+        return RunSummary(
+            taskId = taskId,
+            startedAt = startedAt,
+            completedAt = terminalEvent.timestamp,
+            compileMode = terminalEvent.compileMode ?: compileMode,
+            deployType = terminalEvent.deployType ?: deployType,
+            status = terminalEvent.status,
+            compileDurationMillis = compileDurationMillis,
+            deployDurationMillis = deployDurationMillis,
+            totalDurationMillis = terminalEvent.durationMillis ?: (terminalEvent.timestamp - startedAt),
+            fallback = terminalEvent.fallback ?: fallback,
+            failureReason = terminalEvent.detail,
+            changedFiles = if (terminalEvent.changedFiles.isNotEmpty()) terminalEvent.changedFiles else changedFiles,
+        )
+    }
+
+    private fun appendRun(runs: List<RunSummary>, run: RunSummary): List<RunSummary> {
+        val result = listOf(run) + runs.filterNot { it.taskId == run.taskId }
+        return result.take(maxRecentRuns)
+    }
+
+    private fun reduceSessionStats(stats: SessionStats, event: JuggEvent): SessionStats {
+        if (event.status != JuggEvent.Status.SUCCEEDED) return stats
+        if (event.category == JuggEvent.Category.COMPILE && !event.isTaskTerminal) {
+            return stats.copy(compiles = stats.compiles + 1)
+        }
+        if (!event.isTaskTerminal) return stats
+        return when (event.deployType) {
+            com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.HOT_RELOAD -> stats.copy(hotReloads = stats.hotReloads + 1)
+            com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.HOT_FIX,
+            com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.COMPAT_HOT_FIX -> stats.copy(hotFixes = stats.hotFixes + 1)
+            com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.INSTALL,
+            com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.EMBEDDED -> stats.copy(installs = stats.installs + 1)
+            else -> stats
+        }
     }
 
     private fun normalizeEvent(event: JuggEvent): JuggEvent {
@@ -172,6 +236,7 @@ class JuggControlPanelModel(
 
     companion object {
         private const val DEFAULT_MAX_RECENT_EVENTS = 200
+        private const val DEFAULT_MAX_RECENT_RUNS = 20
     }
 
     /** Provides the current project facts rendered by Jugg status consumers. */
@@ -181,6 +246,7 @@ class JuggControlPanelModel(
         val packageName: String = "",
         val devices: List<String> = emptyList(),
         val changedFileCount: Int = 0,
+        val changedFiles: List<JuggEvent.ChangedFileSnapshot> = emptyList(),
         val hasBaseline: Boolean = false,
         val isHistoryAvailable: Boolean = false,
     )
@@ -204,6 +270,36 @@ class JuggControlPanelModel(
         val title: String,
         val startedAt: Long,
         val updatedAt: Long,
+        val compileMode: JuggEvent.CompileMode? = null,
+        val deployType: com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType? = null,
+        val compileDurationMillis: Long? = null,
+        val deployDurationMillis: Long? = null,
+        val fallback: String? = null,
+        val changedFiles: List<JuggEvent.ChangedFileSnapshot> = emptyList(),
+    )
+
+    /** Summarizes one completed user run for the current manager session. */
+    data class RunSummary(
+        val taskId: String,
+        val startedAt: Long,
+        val completedAt: Long,
+        val compileMode: JuggEvent.CompileMode?,
+        val deployType: com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType?,
+        val status: JuggEvent.Status,
+        val compileDurationMillis: Long?,
+        val deployDurationMillis: Long?,
+        val totalDurationMillis: Long,
+        val fallback: String?,
+        val failureReason: String?,
+        val changedFiles: List<JuggEvent.ChangedFileSnapshot>,
+    )
+
+    /** Counts successful outcomes in the current manager session. */
+    data class SessionStats(
+        val compiles: Int = 0,
+        val hotReloads: Int = 0,
+        val hotFixes: Int = 0,
+        val installs: Int = 0,
     )
 
     /** Summarizes the latest deploy result without retaining device runtime objects. */
@@ -230,6 +326,8 @@ class JuggControlPanelModel(
         val lastDeploy: DeploySummary? = null,
         val healthItems: List<HealthItem> = emptyList(),
         val recentEvents: List<JuggEvent> = emptyList(),
+        val recentRuns: List<RunSummary> = emptyList(),
+        val sessionStats: SessionStats = SessionStats(),
         val settings: Settings = Settings(),
         val version: Long = 0,
     )
