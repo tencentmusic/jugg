@@ -15,6 +15,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
@@ -317,6 +318,15 @@ class JuggManager @TestOnly constructor(
                 currentList + settingsList,
                 suggestRunConfiguration,
             )
+        }
+        if (currentListNamesExceptDefault.isNotEmpty() || settingsListExceptDefault.isNotEmpty()) {
+            SwingUtilities.invokeLater {
+                if (!project.isDisposed) {
+                    ToolWindowManager.getInstance(project)
+                        .getToolWindow(JuggControlPanelHost.TOOL_WINDOW_ID)
+                        ?.setAvailable(true)
+                }
+            }
         }
         TimeLogger.end("tryCreateDefaultRunConfiguration", logger)
     }

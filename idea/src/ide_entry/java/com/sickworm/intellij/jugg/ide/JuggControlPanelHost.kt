@@ -41,6 +41,7 @@ class JuggControlPanelHost : JPanel(BorderLayout()) {
 
         fun open(project: Project, page: String = "overview") {
             val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID) ?: return
+            toolWindow.setAvailable(true)
             refresh(project, page)
             toolWindow.activate(Runnable { refresh(project, page) })
         }

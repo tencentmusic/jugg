@@ -24,7 +24,7 @@ public class DragonflyHierarchySourceTest {
             new DragonflyHierarchySource().capture(true);
             Assert.fail("Expected unsupported layout error");
         } catch (IllegalStateException exception) {
-            Assert.assertEquals("本工程没有 kotlin 依赖，不支持此功能", exception.getMessage());
+            Assert.assertEquals("Kotlin runtime is unavailable; this feature is not supported", exception.getMessage());
         }
     }
 
