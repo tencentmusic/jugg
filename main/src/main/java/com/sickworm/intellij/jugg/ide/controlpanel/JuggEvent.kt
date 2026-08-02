@@ -19,6 +19,7 @@ data class JuggEvent(
     val durationMillis: Long? = null,
     val compileMode: CompileMode? = null,
     val deployType: JuggDeployData.DeployType? = null,
+    val didInstall: Boolean = false,
     val fallback: String? = null,
     val changedFiles: List<ChangedFileSnapshot> = emptyList(),
     val isTaskTerminal: Boolean = false,

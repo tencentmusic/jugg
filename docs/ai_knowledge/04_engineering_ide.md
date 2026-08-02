@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-07-28
+> 最后核对：2026-08-02
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -31,7 +31,7 @@
 | `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | 热更新层项目级持有 Model/Panel，刷新 IDE facts、编排 Sync/App events 与 Panel 动作，并在 Manager dispose 时 clear 稳定 Host |
 | `CompileContextManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt` | 项目信息、编译上下文、部署上下文的 IDE 侧同步 |
 | `MoreOptionsManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More Options 菜单，挂载 Gradle compile、restart、skills、report 等操作 |
-| `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
+| `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 仅在存在有效 Jugg Run Configuration 时创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
 
 ---
 
@@ -127,10 +127,10 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
 - `Jugg Running Pannel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
 - `OpenJuggControlPanelAction` 位于 `ide_entry`，只调用 Host；`JuggInitializer` 不引用 Host。Manager dispose 委托 Controller clear Host，JuggManager 自身不保存 Panel、事件枚举或 Sync taskId。
-- Overview 作为编译驾驶舱，固定展示实时状态、Changed Files、Quick Actions、This Session 和 Recent Runs。Run 开始时捕获 undeployed 输入快照，terminal 后才进入 Recent Runs；原始 compile mode、deploy type、fallback 与各阶段耗时由结构化事件传递，Panel 只负责展示映射。Changed Files 与 Recent Runs 的可见行数使用项目级 IDE preference 独立保存，运行耗时由 Swing Timer 每秒刷新且不写回 Model。
-- Logs 只展示 sync、compile、deploy、app、CLI/MCP 等结构化核心事件，支持来源、级别、当前任务和搜索过滤，不读取或轮询 `compile_latest.log`。
+- Overview 作为编译驾驶舱，固定展示 Run Status、Changed Files、按 Build / Device / Jugg Plugin 分组的 Quick Actions、This Session 和 Recent Runs。Run 开始时捕获 undeployed 输入快照，terminal 后才进入 Recent Runs；原始 compile mode、deploy type、fallback 与各阶段耗时由结构化事件传递，Panel 只负责展示映射。Changed Files 与 Recent Runs 使用 IDE 原生可选列表，Changed Files 双击打开文件，Recent Runs 选中后展示详情；运行耗时由 Swing Timer 每秒刷新且不写回 Model。
+- Logs 只展示 sync、compile、deploy、app、CLI/MCP 等结构化核心事件，使用来源和级别下拉框、当前任务与 Follow 复选框及搜索框过滤，不读取或轮询 `compile_latest.log`；日志列表支持多选和平台复制快捷键。
 - MCP lifecycle 固定记录 `MCP request` / `MCP response`，tool 与结果摘要进入 detail。
-- Context/Health 读取 Run Configuration、selected devices、package、changed files、baseline 与 deploy history；Settings 的七个开关直接读写 `JuggSettings`。无真实后端的预览设置和动作不显示。
+- Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action，七个开关直接读写 `JuggSettings`。无真实后端的预览设置和动作不显示。
 - `MockJuggControlPanelModel` 只通过真实 Model API 构造测试场景；Panel 在 real/mock model 之间切换时复用同一个订阅和 render 路径，不保留 UI 内置 `MockData`。
 - `JuggToolWindowFactory` 与 `OpenJuggControlPanelAction` 均实现 `DumbAware`；Panel 不依赖索引，IDE 处于 indexing / dumb mode 时仍可创建和打开。
 - Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Pannel` 并选中 Settings；Tools 菜单的独立 action 仍从 Overview 打开。

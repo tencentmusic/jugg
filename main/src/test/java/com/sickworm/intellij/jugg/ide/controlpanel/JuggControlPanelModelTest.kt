@@ -225,11 +225,24 @@ class JuggControlPanelModelTest {
     }
 
     @Test
+    fun `successful install is counted once even when deploy type is hot fix`() {
+        val model = JuggControlPanelModel()
+        model.record(event(taskId = "install", status = JuggEvent.Status.STARTED))
+        model.record(event(taskId = "install", category = JuggEvent.Category.DEPLOY,
+            status = JuggEvent.Status.SUCCEEDED, isTaskTerminal = true).copy(
+            deployType = JuggDeployData.DeployType.HOT_FIX, didInstall = true))
+
+        val stats = model.snapshot().sessionStats
+        assertEquals(1, stats.installs)
+        assertEquals(0, stats.hotFixes)
+    }
+
+    @Test
     fun `failed and canceled runs do not increase successful session counters`() {
         val model = JuggControlPanelModel()
         model.record(event(taskId = "failed", status = JuggEvent.Status.STARTED))
         model.record(event(taskId = "failed", status = JuggEvent.Status.FAILED,
-            isTaskTerminal = true).copy(deployType = JuggDeployData.DeployType.INSTALL))
+            isTaskTerminal = true).copy(deployType = JuggDeployData.DeployType.INSTALL, didInstall = true))
         model.record(event(taskId = "canceled", status = JuggEvent.Status.STARTED))
         model.record(event(taskId = "canceled", status = JuggEvent.Status.CANCELED,
             isTaskTerminal = true).copy(deployType = JuggDeployData.DeployType.HOT_RELOAD))

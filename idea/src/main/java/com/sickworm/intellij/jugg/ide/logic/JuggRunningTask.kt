@@ -78,6 +78,7 @@ class JuggRunningTask(
     private val inputChangedFiles = eventModel.snapshot().context.changedFiles
     private var compileMode: JuggEvent.CompileMode? = null
     private var finalDeployType: JuggDeployData.DeployType? = null
+    private var didInstall = false
     private var fallbackPath: String? = null
 
     private val indicatorListener = object : ProgressIndicatorListener {
@@ -403,6 +404,8 @@ class JuggRunningTask(
         }
 
         if (deployTaskResult.isSuccess) {
+            didInstall = didInstall || compileTaskResult.isGradleCompile ||
+                    deployTaskResult.deployType in setOf(JuggDeployData.DeployType.INSTALL, JuggDeployData.DeployType.EMBEDDED)
             notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType, suffix, deployTaskResult.hasDeployChanges)
         }
         recordEvent(
@@ -489,6 +492,7 @@ class JuggRunningTask(
             durationMillis = durationMillis,
             compileMode = compileMode,
             deployType = finalDeployType,
+            didInstall = didInstall,
             fallback = fallback ?: fallbackPath,
             changedFiles = changedFiles,
             isTaskTerminal = isTerminal,

@@ -3,17 +3,23 @@ package com.sickworm.intellij.jugg.ide.ui
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.JBColor
+import com.intellij.ui.ColoredListCellRenderer
+import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextField
-import com.intellij.ui.components.OnOffButton
 import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
@@ -25,23 +31,23 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Font
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
 import java.awt.GridLayout
 import java.awt.Rectangle
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.swing.BorderFactory
 import javax.swing.Box
-import javax.swing.ButtonGroup
-import javax.swing.JButton
+import javax.swing.AbstractAction
+import javax.swing.DefaultListModel
 import javax.swing.JComponent
 import javax.swing.JLabel
-import javax.swing.JMenuItem
+import javax.swing.JList
 import javax.swing.JPanel
-import javax.swing.JPopupMenu
-import javax.swing.JToggleButton
+import javax.swing.KeyStroke
+import javax.swing.ListSelectionModel
 import javax.swing.ScrollPaneConstants
 import javax.swing.Scrollable
 import javax.swing.SwingConstants
@@ -77,26 +83,24 @@ class JuggControlPanel(
     private val timelinePanel = contentPanel(0)
     private val healthPanel = contentPanel(8)
     private val activityPanel = contentPanel(0)
-    private val changedFilesPanel = contentPanel(0)
-    private val recentRunsPanel = contentPanel(0)
+    private val changedFilesList = JBList<JuggEvent.ChangedFileSnapshot>(DefaultListModel())
+    private val recentRunsList = JBList<JuggControlPanelModel.RunSummary>(DefaultListModel())
+    private val recentRunDetails = contentPanel(4)
     private val sessionLabels = List(4) { monoLabel("0") }
     private var changedFilesScroll: JBScrollPane? = null
     private var recentRunsScroll: JBScrollPane? = null
-    private var expandedRunId: String? = null
-    private val quickActionButtons = mutableListOf<JButton>()
+    private val quickActions = mutableListOf<JComponent>()
     private val elapsedTimer = Timer(1_000) { renderCurrentTask(latestSnapshot) }
-    private val logContent = ViewportWidthPanel(VerticalLayout(0)).apply {
+    private val logList = JBList<JuggEvent>(DefaultListModel()).apply {
         name = "logs.events"
-        border = JBUI.Borders.empty(9, 10, 20, 10)
     }
-    private val settingToggles = mutableMapOf<JuggControlPanelController.Setting, OnOffButton>()
+    private val settingToggles = mutableMapOf<JuggControlPanelController.Setting, JBCheckBox>()
     private var latestSnapshot = JuggControlPanelSnapshot()
     private var modelSubscription: AutoCloseable? = null
     private var selectedLogSource = "deploy"
     private var selectedLogLevel: JuggEventLevel? = null
     private var currentTaskOnly = false
     private var followLogs = true
-    private var logScrollPane: JBScrollPane? = null
     private var logSearch: JBTextField? = null
     private var isRenderingSettings = false
 
@@ -139,7 +143,7 @@ class JuggControlPanel(
         add(availabilityLabel)
     }
 
-    private fun currentTaskSection(): JComponent = overviewSection(null, "currentTask") {
+    private fun currentTaskSection(): JComponent = overviewSection("Run status", "currentTask") {
         add(JPanel(BorderLayout(JBUI.scale(10), 0)).transparent().apply {
             preferredSize = Dimension(0, JBUI.scale(58))
             add(contentPanel(0).apply {
@@ -151,9 +155,27 @@ class JuggControlPanel(
     }
 
     private fun changedFilesSection(): JComponent = overviewSection(null, "changedFiles") {
-        add(sectionHeader("Changed files", "changedFiles"))
+        add(eyebrow("Changed files"))
         add(verticalGap(8))
-        add(JBScrollPane(changedFilesPanel).apply {
+        changedFilesList.apply {
+            name = "overview.changedFilesList"
+            selectionMode = ListSelectionModel.SINGLE_SELECTION
+            cellRenderer = object : ColoredListCellRenderer<JuggEvent.ChangedFileSnapshot>() {
+                override fun customizeCellRenderer(list: JList<out JuggEvent.ChangedFileSnapshot>, value: JuggEvent.ChangedFileSnapshot,
+                                                   index: Int, selected: Boolean, hasFocus: Boolean) {
+                    val virtualFile = LocalFileSystem.getInstance().findFileByPath(value.absolutePath)
+                    icon = virtualFile?.fileType?.icon ?: FileTypeManager.getInstance().getFileTypeByFileName(value.path).icon
+                    append("${value.moduleName} / ${value.path}")
+                    toolTipText = value.absolutePath
+                }
+            }
+            addMouseListener(object : java.awt.event.MouseAdapter() {
+                override fun mouseClicked(event: java.awt.event.MouseEvent) {
+                    if (event.clickCount == 2) openChangedFile(selectedValue)
+                }
+            })
+        }
+        add(JBScrollPane(changedFilesList).apply {
             changedFilesScroll = this
             border = JBUI.Borders.empty()
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
@@ -161,55 +183,52 @@ class JuggControlPanel(
     }
 
     private fun sessionSection(): JComponent = overviewSection("This session", "session") {
-        add(JPanel(GridLayout(1, 4, JBUI.scale(4), 0)).transparent().apply {
+        add(JPanel(GridLayout(1, 4, JBUI.scale(12), 0)).transparent().apply {
             listOf("Compiles", "Hot reload", "Hot fix", "Install").forEachIndexed { index, title ->
-                add(contentPanel(3).apply {
-                    border = BorderFactory.createLineBorder(JBColor.border())
-                    add(eyebrow(title).apply { horizontalAlignment = SwingConstants.CENTER })
-                    add(sessionLabels[index].apply { horizontalAlignment = SwingConstants.CENTER })
+                add(JPanel(HorizontalLayout(5)).transparent().apply {
+                    add(secondaryLabel(title))
+                    add(sessionLabels[index].apply { border = JBUI.Borders.emptyTop(3) })
                 })
             }
         })
     }
 
     private fun recentRunsSection(): JComponent = overviewSection(null, "recentRuns") {
-        add(sectionHeader("Recent runs", "recentRuns"))
+        add(eyebrow("Recent runs"))
         add(verticalGap(8))
-        add(JBScrollPane(recentRunsPanel).apply {
+        recentRunsList.apply {
+            name = "overview.recentRunsList"
+            selectionMode = ListSelectionModel.SINGLE_SELECTION
+            cellRenderer = object : ColoredListCellRenderer<JuggControlPanelModel.RunSummary>() {
+                override fun customizeCellRenderer(list: JList<out JuggControlPanelModel.RunSummary>, value: JuggControlPanelModel.RunSummary,
+                                                   index: Int, selected: Boolean, hasFocus: Boolean) {
+                    append(formatTime(value.completedAt), SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                    append("  ${value.compileMode.displayName}")
+                    value.deployType?.let { append(" → ${it.displayName}") }
+                    append("    ${value.compileDurationMillis?.let(::formatDuration).orEmpty()}  ${value.status.symbol}")
+                }
+            }
+            addListSelectionListener { if (!it.valueIsAdjusting) renderRecentRunDetails(selectedValue) }
+        }
+        add(JBScrollPane(recentRunsList).apply {
             recentRunsScroll = this
             border = JBUI.Borders.empty()
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         })
+        add(recentRunDetails)
     }
 
-    private fun sectionHeader(title: String, preferenceKey: String): JComponent {
-        return JPanel(BorderLayout()).transparent().apply {
-            add(eyebrow(title), BorderLayout.WEST)
-            val link = ActionLink("${controller.getVisibleRows(preferenceKey)} rows ▾")
-            link.addActionListener {
-                JPopupMenu().apply {
-                    listOf("3", "5", "8", "10", "Auto").forEach { value ->
-                        add(menuItem(value) {
-                            controller.setVisibleRows(preferenceKey, value)
-                            link.text = "$value rows ▾"
-                            updateListHeights()
-                        })
-                    }
-                    show(link, 0, link.height)
-                }
-            }
-            add(link, BorderLayout.EAST)
-        }
-    }
-
-    private fun createQuickActions(): JComponent = JPanel(GridLayout(0, 3, JBUI.scale(8), JBUI.scale(8))).transparent().apply {
+    private fun createQuickActions(): JComponent = JPanel(GridLayout(1, 3, JBUI.scale(16), 0)).transparent().apply {
         name = "quickActions"
-        add(actionButton("Full Gradle Build", primary = true) { controller.fullGradleBuild() })
-        add(actionButton("Restart App") { controller.restartApp() })
-        add(actionButton("Clean & Reinstall") { controller.cleanAndReinstall() })
-        add(actionButton("Install Skills") { controller.installSkills() })
-        add(actionButton("Check Updates") { controller.checkUpdates() })
-        add(actionButton("More…") { showMoreMenu(it) })
+        add(actionGroup("Build",
+            actionLink("Full Gradle Build", controller::fullGradleBuild),
+            actionLink("Clean & Reinstall", controller::cleanAndReinstall)))
+        add(actionGroup("Device", actionLink("Restart App", controller::restartApp)))
+        add(actionGroup("Jugg Plugin",
+            actionLink("Install Skills", controller::installSkills),
+            actionLink("Check Updates", controller::checkUpdates),
+            actionLink("Report Issue", controller::reportIssue),
+            actionLink("Reset Jugg Cache", controller::resetJuggCache)))
     }
 
     private fun lastDeploySection(): JComponent = overviewSection("Last deploy", "lastDeploy") {
@@ -259,95 +278,68 @@ class JuggControlPanel(
             emptyText.text = "Search events"
         }
         logSearch = search
-        val sources = JPanel(GridLayout(1, 3)).transparent().apply {
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor.border()),
-                JBUI.Borders.empty(2),
-            )
+        val sourceFilter = ComboBox(arrayOf("Deploy", "Runtime", "CLI / MCP")).apply {
+            name = "logs.source"
+            addActionListener {
+                selectedLogSource = listOf("deploy", "runtime", "mcp")[selectedIndex]
+                refreshLogs()
+            }
         }
-        val sourceGroup = ButtonGroup()
-        listOf("deploy" to "Deploy", "runtime" to "Runtime", "mcp" to "CLI / MCP").forEachIndexed { index, (id, text) ->
-            sources.add(JToggleButton(text).apply {
-                name = "logs.source.${if (id == "mcp") "cliMcp" else id}"
-                isSelected = index == 0
-                sourceGroup.add(this)
-                addActionListener { selectedLogSource = id; refreshLogs() }
-            })
+        val levelFilter = ComboBox(arrayOf("All levels", "Info", "Warn", "Error")).apply {
+            name = "logs.level"
+            addActionListener {
+                selectedLogLevel = JuggEventLevel.entries.getOrNull(selectedIndex - 1)
+                refreshLogs()
+            }
+        }
+        val currentTask = JBCheckBox("Current task").apply {
+            name = "logs.currentTask"
+            addActionListener { currentTaskOnly = isSelected; refreshLogs() }
+        }
+        val follow = JBCheckBox("Follow", true).apply {
+            name = "logs.follow"
+            addActionListener { followLogs = isSelected; refreshLogs() }
         }
         search.document.addDocumentListener(documentListener(::refreshLogs))
+        logList.apply {
+            selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+            cellRenderer = object : ColoredListCellRenderer<JuggEvent>() {
+                override fun customizeCellRenderer(list: JList<out JuggEvent>, value: JuggEvent, index: Int,
+                                                   selected: Boolean, hasFocus: Boolean) {
+                    val metrics = list.getFontMetrics(list.font)
+                    val timeEnd = metrics.stringWidth("00:00:00.000") + JBUI.scale(12)
+                    val levelEnd = timeEnd + JuggEventLevel.entries.maxOf { metrics.stringWidth(it.name) } + JBUI.scale(16)
+                    val categoryEnd = levelEnd + JuggEventCategory.entries.maxOf { metrics.stringWidth(it.name) } + JBUI.scale(16)
+                    append(formatTimeWithSeconds(value.timestamp), SimpleTextAttributes.GRAYED_ATTRIBUTES, timeEnd, SwingConstants.LEFT)
+                    append(value.level.name, SimpleTextAttributes.REGULAR_ATTRIBUTES, levelEnd, SwingConstants.LEFT)
+                    append(value.category.name, SimpleTextAttributes.GRAYED_ATTRIBUTES, categoryEnd, SwingConstants.LEFT)
+                    append(value.detail?.let { "${value.title} · $it" } ?: value.title)
+                }
+            }
+            registerKeyboardAction(object : AbstractAction() {
+                override fun actionPerformed(event: java.awt.event.ActionEvent?) = copySelectedLogs()
+            }, KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C,
+                Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx), JComponent.WHEN_FOCUSED)
+        }
         return JPanel(BorderLayout()).apply {
-            add(contentPanel(7).apply {
+            add(contentPanel(8).apply {
                 border = BorderFactory.createCompoundBorder(
                     BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border()),
-                    JBUI.Borders.empty(7, 9),
+                    JBUI.Borders.empty(8, 10),
                 )
-                add(sources)
-                add(logControlRow(search))
+                add(JPanel(HorizontalLayout(8)).transparent().apply {
+                    add(sourceFilter)
+                    add(levelFilter)
+                    add(currentTask)
+                    add(follow)
+                })
+                add(search)
             }, BorderLayout.NORTH)
-            add(JBScrollPane(logContent).apply {
-                logScrollPane = this
+            add(JBScrollPane(logList).apply {
                 border = JBUI.Borders.empty()
                 horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
             }, BorderLayout.CENTER)
         }
-    }
-
-    private fun logControlRow(search: JBTextField): JComponent = JPanel(BorderLayout(JBUI.scale(7), 0)).transparent().apply {
-        add(search, BorderLayout.CENTER)
-        add(JPanel(HorizontalLayout(7)).transparent().apply {
-            add(logControlButton("All levels ⌄", 83) { button -> cycleLogLevel(button) })
-            add(logControlButton("Current task ⌄", 104) { button ->
-                currentTaskOnly = !currentTaskOnly
-                button.text = if (currentTaskOnly) "Current task ✓" else "Current task ⌄"
-                refreshLogs()
-            })
-            add(logControlButton("Follow", 64) { button ->
-                followLogs = !followLogs
-                button.text = if (followLogs) "Follow" else "Paused"
-                refreshLogs()
-            })
-        }, BorderLayout.EAST)
-    }
-
-    private fun logControlButton(text: String, width: Int, action: (JButton) -> Unit): JButton = JButton(text).apply {
-        margin = JBUI.insets(0, 4)
-        preferredSize = Dimension(JBUI.scale(width), maxOf(preferredSize.height, JBUI.scale(27)))
-        addActionListener { action(this) }
-    }
-
-    private fun cycleLogLevel(button: JButton) {
-        selectedLogLevel = when (selectedLogLevel) {
-            null -> JuggEventLevel.INFO
-            JuggEventLevel.INFO -> JuggEventLevel.WARN
-            JuggEventLevel.WARN -> JuggEventLevel.ERROR
-            JuggEventLevel.ERROR -> null
-        }
-        button.text = selectedLogLevel?.let { "${it.name.lowercase().replaceFirstChar(Char::uppercase)} ⌄" } ?: "All levels ⌄"
-        refreshLogs()
-    }
-
-    private fun logRow(event: JuggEvent): JComponent {
-        return JPanel(GridBagLayout()).transparent().apply {
-            add(fixedWidth(logLabel(formatTimeWithSeconds(event.timestamp)), 76), gridBag(0))
-            add(fixedWidth(logLabel(event.level.name), 62), gridBag(1))
-            add(fixedWidth(logLabel(event.category.name), 118), gridBag(2))
-            add(logLabel(event.detail?.let { "${event.title} · $it" } ?: event.title),
-                gridBag(3, weight = 1.0, fill = GridBagConstraints.HORIZONTAL))
-        }
-    }
-
-    private fun gridBag(index: Int, weight: Double = 0.0, fill: Int = GridBagConstraints.NONE): GridBagConstraints {
-        return GridBagConstraints().apply {
-            gridx = index
-            weightx = weight
-            this.fill = fill
-            anchor = GridBagConstraints.WEST
-            if (index > 0) insets = JBUI.insetsLeft(8)
-        }
-    }
-
-    private fun logLabel(text: String): JBLabel = JBLabel(text).apply {
-        font = Font(Font.MONOSPACED, Font.PLAIN, font.size)
     }
 
     private fun createSettings(): JComponent {
@@ -381,22 +373,11 @@ class JuggControlPanel(
     }
 
     private fun settingGroup(title: String, id: String, vararg rows: JComponent): JPanel {
-        return JPanel(BorderLayout()).apply {
+        return contentPanel(4).apply {
             name = "settings.group.$id"
-            border = BorderFactory.createLineBorder(JBColor.border())
             putClientProperty(SETTING_SEARCH_TEXT, (listOf(title) + rows.map { it.name.orEmpty() }).joinToString(" ").lowercase())
-            add(JBLabel(title).apply {
-                font = font.deriveFont(Font.BOLD)
-                border = JBUI.Borders.empty(8, 10)
-                isOpaque = true
-                background = JBColor.namedColor("EditorTabs.inactive.background", UIUtil.getPanelBackground())
-            }, BorderLayout.NORTH)
-            add(contentPanel(0).apply {
-                rows.forEachIndexed { index, row ->
-                    if (index > 0) add(separator())
-                    add(row)
-                }
-            }, BorderLayout.CENTER)
+            add(TitledSeparator(title))
+            rows.forEach(::add)
         }
     }
 
@@ -405,23 +386,22 @@ class JuggControlPanel(
         help: String,
         setting: JuggControlPanelController.Setting,
     ): JComponent {
-        val toggle = OnOffButton().apply {
-            onText = ""
-            offText = ""
+        val toggle = JBCheckBox(label).apply {
             addActionListener {
                 if (!isRenderingSettings) controller.updateSetting(setting, isSelected)
             }
         }
         settingToggles[setting] = toggle
-        return settingRow(label, help, toggle)
+        return contentPanel(2).apply {
+            name = "$label $help"
+            border = JBUI.Borders.emptyLeft(4)
+            add(toggle)
+            add(secondaryLabel(help).apply { border = JBUI.Borders.emptyLeft(24) })
+        }
     }
 
     private fun settingAction(label: String, help: String, text: String, action: () -> Unit): JComponent {
-        return settingRow(label, help, JButton(text).apply {
-            val size = preferredSize
-            preferredSize = Dimension(maxOf(size.width, JBUI.scale(92)), size.height)
-            addActionListener { action() }
-        })
+        return settingRow(label, help, ActionLink(text) { action() })
     }
 
     private fun settingRow(label: String, help: String, control: JComponent): JComponent {
@@ -431,7 +411,7 @@ class JuggControlPanel(
         }
         return JPanel(BorderLayout(JBUI.scale(12), 0)).transparent().apply {
             name = "$label $help"
-            border = JBUI.Borders.empty(9, 10)
+            border = JBUI.Borders.empty(6, 4)
             add(text, BorderLayout.CENTER)
             add(control, BorderLayout.EAST)
         }
@@ -470,13 +450,6 @@ class JuggControlPanel(
         }
     }
 
-    private fun fixedWidth(component: JComponent, width: Int): JComponent {
-        return JPanel(BorderLayout()).transparent().apply {
-            preferredSize = Dimension(JBUI.scale(width), component.preferredSize.height)
-            add(component, BorderLayout.CENTER)
-        }
-    }
-
     private fun threeColumnRow(
         left: JComponent,
         center: JComponent,
@@ -509,9 +482,9 @@ class JuggControlPanel(
         foreground = UIUtil.getContextHelpForeground()
     }
 
-    private fun eyebrow(text: String): JLabel = JBLabel(text.uppercase()).apply {
+    private fun eyebrow(text: String): JLabel = JBLabel(text).apply {
         foreground = UIUtil.getContextHelpForeground()
-        font = font.deriveFont(Font.BOLD, font.size2D - 1f)
+        font = font.deriveFont(Font.BOLD)
     }
 
     private fun statusLabel(text: String, icon: javax.swing.Icon): JComponent {
@@ -520,38 +493,13 @@ class JuggControlPanel(
         }
     }
 
-    private fun actionButton(
-        text: String,
-        primary: Boolean = false,
-        action: (JButton) -> Unit = {},
-    ): JButton {
-        return JButton(text).apply {
-            margin = JBUI.insets(5, 7)
-            if (primary) putClientProperty("JButton.buttonType", "default")
-            addActionListener { action(this) }
-        }.also(quickActionButtons::add)
+    private fun actionGroup(title: String, vararg actions: ActionLink): JComponent = contentPanel(5).apply {
+        add(eyebrow(title))
+        actions.forEach(::add)
     }
 
-    private fun showMoreMenu(button: JButton) {
-        JPopupMenu().apply {
-            add(menuItem("Install Jugg Skills", controller::installSkills))
-            add(menuItem("Check for Updates", controller::checkUpdates))
-            add(menuItem("Report Issue", controller::reportIssue))
-            addSeparator()
-            add(menuItem("Reset Jugg Cache…", controller::resetJuggCache))
-            show(button, 0, button.height)
-        }
-    }
-
-    private fun menuItem(text: String, action: () -> Unit): JMenuItem = JMenuItem(text).apply {
-        addActionListener { action() }
-    }
-
-    private fun separator(): JComponent = JPanel().apply {
-        background = JBColor.border()
-        preferredSize = Dimension(0, JBUI.scale(1))
-        maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(1))
-    }
+    private fun actionLink(text: String, action: () -> Unit): ActionLink = ActionLink(text) { action() }
+        .also(quickActions::add)
 
     private fun verticalGap(size: Int): Component = Box.createVerticalStrut(JBUI.scale(size))
 
@@ -594,11 +542,12 @@ class JuggControlPanel(
     }
 
     private fun render(snapshot: JuggControlPanelSnapshot) {
+        renderContext(snapshot)
         renderCurrentTask(snapshot)
         renderChangedFiles(snapshot)
         renderSession(snapshot)
         renderRecentRuns(snapshot)
-        quickActionButtons.forEach { it.isEnabled = snapshot.currentTask == null }
+        quickActions.forEach { it.isEnabled = snapshot.currentTask == null }
         renderSettings(snapshot.settings)
         refreshLogs()
     }
@@ -647,11 +596,9 @@ class JuggControlPanel(
     }
 
     private fun renderChangedFiles(snapshot: JuggControlPanelSnapshot) {
-        changedFilesPanel.removeAll()
-        if (snapshot.context.changedFiles.isEmpty()) changedFilesPanel.add(secondaryLabel("No pending changes"))
-        else snapshot.context.changedFiles.forEach { changedFilesPanel.add(changedFileRow(it)) }
+        replaceListModel(changedFilesList, snapshot.context.changedFiles)
+        changedFilesList.emptyText.text = "No pending changes"
         updateListHeights()
-        refreshPanel(changedFilesPanel)
     }
 
     private fun renderSession(snapshot: JuggControlPanelSnapshot) {
@@ -662,63 +609,38 @@ class JuggControlPanel(
     }
 
     private fun renderRecentRuns(snapshot: JuggControlPanelSnapshot) {
-        recentRunsPanel.removeAll()
-        if (snapshot.recentRuns.isEmpty()) recentRunsPanel.add(secondaryLabel("No completed runs yet"))
-        else snapshot.recentRuns.forEach { recentRunsPanel.add(runRow(it)) }
+        val selectedTaskId = recentRunsList.selectedValue?.taskId
+        replaceListModel(recentRunsList, snapshot.recentRuns)
+        recentRunsList.emptyText.text = "No completed runs yet"
+        recentRunsList.selectedIndex = snapshot.recentRuns.indexOfFirst { it.taskId == selectedTaskId }
+        renderRecentRunDetails(recentRunsList.selectedValue)
         updateListHeights()
-        refreshPanel(recentRunsPanel)
     }
 
-    private fun changedFileRow(file: JuggEvent.ChangedFileSnapshot): JComponent {
-        val exists = java.io.File(file.absolutePath).exists()
-        return JButton("${file.category.displayName}   ${file.path}").apply {
-            horizontalAlignment = SwingConstants.LEFT
-            isContentAreaFilled = false
-            isBorderPainted = false
-            toolTipText = if (exists) file.absolutePath else "File no longer exists"
-            isEnabled = exists
-            addActionListener {
-                LocalFileSystem.getInstance().findFileByPath(file.absolutePath)?.let {
-                    OpenFileDescriptor(project, it).navigate(true)
-                }
-            }
+    private fun openChangedFile(file: JuggEvent.ChangedFileSnapshot?) {
+        file ?: return
+        LocalFileSystem.getInstance().findFileByPath(file.absolutePath)?.let {
+            OpenFileDescriptor(project, it).navigate(true)
         }
     }
 
-    private fun runRow(run: JuggControlPanelModel.RunSummary): JComponent {
-        val expanded = expandedRunId == run.taskId
-        return contentPanel(4).apply {
-            add(JButton("${if (expanded) "▾" else "▸"} ${formatTime(run.completedAt)}  ${run.compileMode.displayName}" +
-                    "${run.deployType?.let { " → ${it.displayName}" }.orEmpty()}    " +
-                    "${run.compileDurationMillis?.let(::formatDuration).orEmpty()}  ${run.status.symbol}").apply {
-                horizontalAlignment = SwingConstants.LEFT
-                isContentAreaFilled = false
-                isBorderPainted = false
-                addActionListener {
-                    expandedRunId = if (expanded) null else run.taskId
-                    renderRecentRuns(latestSnapshot)
-                }
-            })
-            if (expanded) {
-                add(secondaryLabel("Compile ${run.compileDurationMillis?.let(::formatDuration) ?: "—"} · " +
-                        "Deploy ${run.deployDurationMillis?.let(::formatDuration) ?: "—"} · Total ${formatDuration(run.totalDurationMillis)}"))
-                run.fallback?.let { add(secondaryLabel(it)) }
-                run.failureReason?.let { add(ActionLink("$it  View logs →") { select(Page.LOGS) }) }
-                if (run.changedFiles.isNotEmpty()) {
-                    add(eyebrow("Changed files"))
-                    run.changedFiles.forEach { add(changedFileRow(it)) }
-                }
+    private fun renderRecentRunDetails(run: JuggControlPanelModel.RunSummary?) {
+        recentRunDetails.removeAll()
+        if (run != null) {
+            recentRunDetails.add(secondaryLabel("Compile ${run.compileDurationMillis?.let(::formatDuration) ?: "—"} · " +
+                    "Deploy ${run.deployDurationMillis?.let(::formatDuration) ?: "—"} · Total ${formatDuration(run.totalDurationMillis)}"))
+            run.fallback?.let { recentRunDetails.add(secondaryLabel(it)) }
+            run.failureReason?.let { recentRunDetails.add(ActionLink("$it  View logs →") { select(Page.LOGS) }) }
+            if (run.changedFiles.isNotEmpty()) {
+                recentRunDetails.add(secondaryLabel(run.changedFiles.joinToString { "${it.moduleName} / ${it.path}" }))
             }
         }
+        refreshPanel(recentRunDetails)
     }
 
     private fun updateListHeights() {
-        changedFilesScroll?.preferredSize = Dimension(0, visibleRows("changedFiles") * JBUI.scale(29))
-        recentRunsScroll?.preferredSize = Dimension(0, visibleRows("recentRuns") * JBUI.scale(34))
-    }
-
-    private fun visibleRows(key: String): Int {
-        return controller.getVisibleRows(key).toIntOrNull() ?: (height / JBUI.scale(150)).coerceIn(3, 10)
+        changedFilesScroll?.preferredSize = Dimension(0, CHANGED_FILES_VISIBLE_ROWS * JBUI.scale(29))
+        recentRunsScroll?.preferredSize = Dimension(0, RECENT_RUNS_VISIBLE_ROWS * JBUI.scale(34))
     }
 
     private fun changedFileSummary(files: List<JuggEvent.ChangedFileSnapshot>): String {
@@ -802,18 +724,27 @@ class JuggControlPanel(
                 .filterNotNull()
                 .any { it.lowercase().contains(query) })
         }
-        logContent.removeAll()
-        if (events.isEmpty()) {
-            logContent.add(secondaryLabel("No matching events").apply { name = "logs.empty" })
-        } else {
-            events.forEach { logContent.add(logRow(it)) }
-        }
-        refreshPanel(logContent)
+        replaceListModel(logList, events)
+        logList.emptyText.text = "No matching events"
         if (followLogs) {
             SwingUtilities.invokeLater {
-                logScrollPane?.verticalScrollBar?.let { it.value = it.maximum }
+                if (logList.model.size > 0) logList.ensureIndexIsVisible(logList.model.size - 1)
             }
         }
+    }
+
+    private fun copySelectedLogs() {
+        val text = logList.selectedValuesList.joinToString("\n") { event ->
+            "${formatTimeWithSeconds(event.timestamp)} ${event.level.name} ${event.category.name} " +
+                    (event.detail?.let { "${event.title} · $it" } ?: event.title)
+        }
+        if (text.isNotEmpty()) Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+    }
+
+    private fun <T> replaceListModel(list: JBList<T>, values: List<T>) {
+        val model = DefaultListModel<T>()
+        values.forEach(model::addElement)
+        list.model = model
     }
 
     private fun matchesSelectedLogSource(event: JuggEvent): Boolean {
@@ -876,6 +807,8 @@ class JuggControlPanel(
 
     companion object {
         const val TOOL_WINDOW_ID = "Jugg Running Pannel"
+        private const val CHANGED_FILES_VISIBLE_ROWS = 5
+        private const val RECENT_RUNS_VISIBLE_ROWS = 5
         private const val SETTING_SEARCH_TEXT = "JuggControlPanel.settingSearchText"
         private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.US)
         private val TIME_WITH_SECONDS_FORMAT = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
@@ -916,9 +849,6 @@ private val JuggEventStatus.displayName: String
 
 private val JuggEvent.Phase.displayName: String
     get() = name.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)
-
-private val JuggEvent.ChangedFileCategory.displayName: String
-    get() = name.lowercase().replaceFirstChar(Char::uppercase)
 
 private val JuggEvent.CompileMode?.displayName: String
     get() = this?.name?.lowercase()?.replaceFirstChar(Char::uppercase) ?: "Unknown"

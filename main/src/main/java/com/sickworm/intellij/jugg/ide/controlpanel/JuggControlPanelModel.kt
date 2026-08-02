@@ -189,6 +189,7 @@ class JuggControlPanelModel(
             return stats.copy(compiles = stats.compiles + 1)
         }
         if (!event.isTaskTerminal) return stats
+        if (event.didInstall) return stats.copy(installs = stats.installs + 1)
         return when (event.deployType) {
             com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.HOT_RELOAD -> stats.copy(hotReloads = stats.hotReloads + 1)
             com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.HOT_FIX,

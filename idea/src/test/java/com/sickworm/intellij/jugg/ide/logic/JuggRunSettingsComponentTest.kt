@@ -5,12 +5,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextField
-import com.intellij.ui.components.OnOffButton
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
-import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
@@ -31,14 +31,13 @@ import java.awt.Component
 import java.awt.Container
 import java.awt.GridLayout
 import javax.swing.BoxLayout
-import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JCheckBox
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JRootPane
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
-import javax.swing.JToggleButton
 
 private typealias JuggPanelContext = JuggControlPanelModel.Context
 private typealias JuggEventCategory = JuggEvent.Category
@@ -65,32 +64,24 @@ class JuggRunSettingsComponentTest {
             .mapNotNull { it.name }
             .filter { it.startsWith("settings.group.") }
             .toList()
-        val logSources = descendants(panel)
-            .filterIsInstance<JToggleButton>()
-            .mapNotNull { it.name }
-            .filter { it.startsWith("logs.source.") }
-            .toList()
-        val buttonTexts = descendants(panel)
-            .filterIsInstance<JButton>()
+        val actionTexts = descendants(panel)
+            .filterIsInstance<ActionLink>()
             .mapNotNull { it.text }
             .toSet()
 
         assertNotNull(tabs)
         assertEquals(listOf("Overview", "Logs", "Settings"), (0 until tabs!!.tabCount).map(tabs::getTitleAt))
         assertEquals(listOf(
-            "section.context",
             "section.currentTask",
+            "section.changedFiles",
             "section.quickActions",
-            "section.lastDeploy",
-            "section.projectHealth",
-            "section.recentActivity",
+            "section.session",
+            "section.recentRuns",
         ), sectionNames)
         assertTrue(quickActions!!.layout is GridLayout)
         val quickActionsLayout = quickActions.layout as GridLayout
-        assertEquals(2, quickActionsLayout.columns)
-        assertEquals(JBUI.scale(8), quickActionsLayout.hgap)
-        assertEquals(JBUI.scale(8), quickActionsLayout.vgap)
-        assertEquals(4, quickActions.componentCount)
+        assertEquals(3, quickActionsLayout.columns)
+        assertEquals(3, quickActions.componentCount)
         assertEquals(listOf(
             "settings.group.runBehavior",
             "settings.group.deployment",
@@ -98,10 +89,20 @@ class JuggRunSettingsComponentTest {
             "settings.group.integrations",
             "settings.group.advanced",
         ), settingGroupNames)
-        assertEquals(7, descendants(panel).filterIsInstance<OnOffButton>().count())
-        assertEquals(listOf("logs.source.deploy", "logs.source.runtime", "logs.source.cliMcp"), logSources)
-        assertTrue(buttonTexts.containsAll(listOf("All levels ⌄", "Current task ⌄", "Follow")))
-        assertTrue("⋮" !in buttonTexts)
+        val settingCheckboxes = settingGroupNames.sumOf { groupName ->
+            descendants(findNamedComponent<JPanel>(panel, groupName)!!).filterIsInstance<JBCheckBox>().count()
+        }
+        assertEquals(7, settingCheckboxes)
+        assertNotNull(findNamedComponent<JComponent>(panel, "logs.source"))
+        assertNotNull(findNamedComponent<JComponent>(panel, "logs.level"))
+        assertNotNull(findNamedComponent<JBList<*>>(panel, "logs.events"))
+        assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.changedFilesList"))
+        assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.recentRunsList"))
+        assertTrue(actionTexts.containsAll(listOf(
+            "Full Gradle Build", "Restart App", "Clean & Reinstall", "Install Skills",
+            "Check Updates", "Report Issue", "Reset Jugg Cache",
+        )))
+        assertTrue("More…" !in actionTexts)
     }
 
     @Test
@@ -176,10 +177,10 @@ class JuggRunSettingsComponentTest {
         ))
         javax.swing.SwingUtilities.invokeAndWait {}
 
-        assertEquals("run demo", findNamedComponent<JLabel>(panel, "overview.configuration")?.text)
-        assertEquals("3 changed files", findNamedComponent<JLabel>(panel, "overview.changedFiles")?.text)
-        assertEquals("Pixel 8 API 35", findNamedComponent<JLabel>(panel, "overview.devices")?.text)
-        assertEquals("Compiling 3 changed files", findNamedComponent<JLabel>(panel, "overview.currentTask")?.text)
+        assertEquals(null, findNamedComponent<JLabel>(panel, "overview.configuration"))
+        assertEquals(null, findNamedComponent<JLabel>(panel, "overview.package"))
+        assertEquals(null, findNamedComponent<JLabel>(panel, "overview.devices"))
+        assertEquals("Compiling", findNamedComponent<JLabel>(panel, "overview.currentTask")?.text)
     }
 
     @Test
@@ -195,11 +196,11 @@ class JuggRunSettingsComponentTest {
 
         panel.bindModel(mockModel.model)
         javax.swing.SwingUtilities.invokeAndWait {}
-        assertEquals("Mock Jugg Run", findNamedComponent<JLabel>(panel, "overview.configuration")?.text)
+        assertEquals("Compiling", findNamedComponent<JLabel>(panel, "overview.currentTask")?.text)
 
         panel.bindModel(realModel)
         javax.swing.SwingUtilities.invokeAndWait {}
-        assertEquals("real configuration", findNamedComponent<JLabel>(panel, "overview.configuration")?.text)
+        assertEquals("Full Gradle build required", findNamedComponent<JLabel>(panel, "overview.currentTask")?.text)
     }
 
     @Test
