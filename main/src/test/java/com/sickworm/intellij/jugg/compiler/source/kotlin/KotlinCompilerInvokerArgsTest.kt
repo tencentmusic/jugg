@@ -37,4 +37,29 @@ class KotlinCompilerInvokerArgsTest {
             KotlinCompilerInvoker.buildCommonSourceArgs(listOf(first, second, first)),
         )
     }
+
+    @Test
+    fun `does not duplicate compose options provided by project`() {
+        val projectArgs = listOf(
+            "-P",
+            "plugin:androidx.compose.plugins.idea:enabled=true",
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true",
+        )
+
+        assertTrue(KotlinCompilerInvoker.buildMissingComposeOptions(projectArgs).isEmpty())
+    }
+
+    @Test
+    fun `adds default compose options when project does not provide them`() {
+        assertEquals(
+            listOf(
+                "-P",
+                "plugin:androidx.compose.plugins.idea:enabled=true",
+                "-P",
+                "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true",
+            ),
+            KotlinCompilerInvoker.buildMissingComposeOptions(emptyList()),
+        )
+    }
 }

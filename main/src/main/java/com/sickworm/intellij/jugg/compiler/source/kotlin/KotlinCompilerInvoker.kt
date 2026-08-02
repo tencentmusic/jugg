@@ -274,7 +274,13 @@ class KotlinCompilerInvoker {
 
         val kspArgsManager = KspArgsManager(module, context, options)
         val kspArgs = kspArgsManager.handleKspArgs()
-        val composeArgs = handleComposeArgs(options, kotlinExtensions, kotlinPlugins, logger)
+        val composeArgs = handleComposeArgs(
+            options,
+            kotlinExtensions,
+            kotlinPlugins,
+            module.kotlinFreeCompilerArgs,
+            logger,
+        )
 
         var javaSourceRoots = if (options.javaSourceDirs != null) {
             // Explicit javaSourceDirs means caller wants a constrained source-root set.
@@ -572,6 +578,7 @@ class KotlinCompilerInvoker {
         options: Options,
         kotlinExtensions: List<File>,
         kotlinPlugins: List<File>,
+        kotlinFreeCompilerArgs: List<String>,
         logger: Logger,
     ): List<String> {
         if (!options.isNeedCompileCompose) {
@@ -612,9 +619,7 @@ class KotlinCompilerInvoker {
 
         if (composeExtension != null) {
             composeArgs.add("-Xplugin=${composeExtension.path}")
-            // no idea whether it's working
-            composeArgs.addAll(listOf("-P", "plugin:androidx.compose.plugins.idea:enabled=true"))
-            composeArgs.addAll(listOf("-P", "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true"))
+            composeArgs.addAll(buildMissingComposeOptions(kotlinFreeCompilerArgs))
             return composeArgs
         }
 
@@ -714,6 +719,18 @@ class KotlinCompilerInvoker {
             if (files.isEmpty()) return emptyList()
             val paths = files.distinctBy { it.absolutePath }.joinToString(",") { it.absolutePath }
             return listOf("-Xmulti-platform", "-Xcommon-sources=$paths")
+        }
+
+        internal fun buildMissingComposeOptions(existingArgs: List<String>): List<String> {
+            val existingOptionNames = existingArgs.asSequence()
+                .filter { it.startsWith("plugin:") }
+                .map { it.substringBefore('=') }
+                .toSet()
+            return listOf(
+                "plugin:androidx.compose.plugins.idea:enabled=true",
+                "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true",
+            ).filterNot { it.substringBefore('=') in existingOptionNames }
+                .flatMap { listOf("-P", it) }
         }
 
         private fun encodeList(options: Map<String, String>): String {
