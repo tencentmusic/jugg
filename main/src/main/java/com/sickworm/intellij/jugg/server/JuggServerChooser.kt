@@ -18,6 +18,13 @@ class JuggServerChooser(logger: Logger) {
     private val logger: Logger = logger.getInstance("JuggServerChooser")
     private var serverRules: List<ServerRule>? = null
 
+    fun hasAvailableServer(): Boolean {
+        if (isSetCustomServer && !JuggSettings.serverUrl.isNullOrBlank()) {
+            return true
+        }
+        return !(serverRules ?: getEmbeddedServers()).isNullOrEmpty()
+    }
+
     private val forbidUrls = mutableSetOf<String>()
 
     private var isSetCustomServer
@@ -214,8 +221,12 @@ class JuggServerChooser(logger: Logger) {
 
         private fun getEmbeddedServers(): List<ServerRule> {
             val serversJson = JuggServerChooser::class.java.classLoader
-                .getResourceAsStream("config/servers.json")!!.readAllBytes()
-            return Gson().fromJson(String(serversJson), object : TypeToken<List<ServerRule>>() {}.type)
+                .getResourceAsStream("config/servers.json")?.readAllBytes() ?: return emptyList()
+            return try {
+                Gson().fromJson(String(serversJson), object : TypeToken<List<ServerRule>>() {}.type) ?: emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
         }
     }
 }

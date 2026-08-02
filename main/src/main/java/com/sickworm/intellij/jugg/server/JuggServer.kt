@@ -44,6 +44,10 @@ class JuggServer(
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope,
     loggerArg: Logger,
+    private val eventLocalStore: JuggEventLocalStore = JuggEventLocalStore(
+        JuggGlobalPathManager.actionDbFile,
+        loggerArg.getInstance("JuggEventLocalStore"),
+    ),
 ): CoroutineScope by coroutineScope {
 
     constructor(project: Project, pathManager: JuggPathManager, coroutineScope: CoroutineScope)
@@ -69,8 +73,10 @@ class JuggServer(
 
     init {
         logger.debug("init finished, version: $version, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
-        launch {
-            juggServerChooser.updateServerIfExpired(isForce = true)
+        if (juggServerChooser.hasAvailableServer()) {
+            launch {
+                juggServerChooser.updateServerIfExpired(isForce = true)
+            }
         }
     }
 
@@ -85,6 +91,9 @@ class JuggServer(
     private var reportLock = Mutex() // report only one event in the same time
 
     fun checkUpdate(onComplete: (VersionData) -> Unit): Job = launch {
+        if (!juggServerChooser.hasAvailableServer()) {
+            return@launch
+        }
         val serverUrl = serverUrl?.takeIf { it.isNotBlank() }
         if (serverUrl == null) {
             logger.debug("checkUpdate skip: serverUrl is null or blank")
@@ -314,6 +323,14 @@ class JuggServer(
 
     private fun doReport(data: ReportEventData) {
         try {
+            eventLocalStore.append(data)
+        } catch (e: Exception) {
+            logger.debug("Persist report ${data.action} locally failed, continue remote report.", e)
+        }
+        if (!juggServerChooser.hasAvailableServer()) {
+            return
+        }
+        try {
             juggServerChooser.updateServerIfExpired()
 
             val serverUrl = serverUrl?.takeIf { it.isNotBlank() }
@@ -360,6 +377,9 @@ class JuggServer(
     }
 
     fun checkHotUpdate(isPositiveCheckout: Boolean): HotUpdateData? {
+        if (!juggServerChooser.hasAvailableServer()) {
+            return null
+        }
         try {
             val serverUrl = serverUrl?.takeIf { it.isNotBlank() }
             if (serverUrl == null) {

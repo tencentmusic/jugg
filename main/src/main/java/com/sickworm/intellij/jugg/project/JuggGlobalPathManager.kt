@@ -15,6 +15,9 @@ object JuggGlobalPathManager {
     val deployCacheDbFile: File
         get() = deployCacheDbFile(rootDir)
 
+    val actionDbFile: File
+        get() = File(rootDir, "action.db")
+
     fun resourceFile(resourcePath: String, rootDir: File = this.rootDir): File {
         val relativePath = resourcePath.trimStart('/', File.separatorChar)
         return File(File(rootDir, "resources"), relativePath)
