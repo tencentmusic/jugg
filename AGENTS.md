@@ -28,6 +28,7 @@
   logger.warn("message bla bla bla" +
           "details", exception)
   ```
+- 新增或修改日志后，提交前必须对照上述示例检查本次 diff 中的日志格式，不得以通用 Kotlin 格式化结果为准。
 - 日志打印规范：统一使用 `JuggLogger`，日志等级定义：
     - `error`：永远不使用
     - `warn`：用户可见，发生非预期错误时打印

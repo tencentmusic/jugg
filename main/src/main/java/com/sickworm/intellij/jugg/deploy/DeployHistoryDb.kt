@@ -28,6 +28,10 @@ class DeployHistoryDb(
     private val logger: Logger,
 ) {
 
+    companion object {
+        private const val CRC_DIAGNOSTIC_SAMPLE_LIMIT = 8
+    }
+
     /** File to store deploy history */
     private val deployHistoryFile = File(dbDir, "deploy_history.json")
 
@@ -114,8 +118,30 @@ class DeployHistoryDb(
             }
             isCrcChanged(deployHistoryData, it)
         }
+        logCrcDiagnostic(deployHistoryData, changedFiles, undeployFiles)
         logger.debug("getChangedFilesSinceLastFullCompiled, final files: ${undeployFiles.map { it.name }}")
         return undeployFiles
+    }
+
+    private fun logCrcDiagnostic(
+        deployHistoryData: DeployHistoryData,
+        candidates: Collection<File>,
+        selectedFiles: List<File>,
+    ) {
+        val missingCount = candidates.count { !it.exists() }
+        val unrecordedCount = selectedFiles.count {
+            deployHistoryData.changedFiles?.get(it.relativeTo(projectDir).path) == null
+        }
+        val crcChangedCount = selectedFiles.size - unrecordedCount
+        val crcMatchedCount = candidates.size - missingCount - selectedFiles.size
+        val selectedSamples = selectedFiles.take(CRC_DIAGNOSTIC_SAMPLE_LIMIT).map { file ->
+            val path = file.relativeTo(projectDir).path
+            val storedCrc = deployHistoryData.changedFiles?.get(path)
+            if (storedCrc == null) "$path(no-record)" else "$path($storedCrc->${file.crc32})"
+        }
+        logger.debug("Git recovery CRC summary: candidates=${candidates.size}, selected=${selectedFiles.size}, " +
+                    "missing=$missingCount, unrecorded=$unrecordedCount, crcChanged=$crcChangedCount, " +
+                    "crcMatched=$crcMatchedCount, selectedSamples=$selectedSamples")
     }
 
     private fun getGitChangedFiles(rootDir: File, lastDeployCommitHash: String?): List<File>? {
