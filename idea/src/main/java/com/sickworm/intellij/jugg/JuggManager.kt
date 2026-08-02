@@ -570,20 +570,22 @@ class JuggManager @TestOnly constructor(
 
         var projectInfo = compileContextManager.getProjectInfo()
 
-        logger.info("Fetching classpath...")
-        val backupProjectInfo = juggCompilerHelper.fetchClasspath(
-            isRemoteCompile, projectInfo, taskRunnerManager.currentIndicator, coroutineScope)
-        if (backupProjectInfo == null) {
-            if (isRemoteCompile) {
-                logger.warn("Fetch classpath failed, unable to init incremental compile. Please check log for details.")
-                // unable to continue
-                return
+        if (isRemoteCompile || JuggSettings.isEnableBackupClasspath) {
+            logger.info("Fetching classpath...")
+            val backupProjectInfo = juggCompilerHelper.fetchClasspath(
+                isRemoteCompile, projectInfo, taskRunnerManager.currentIndicator, coroutineScope)
+            if (backupProjectInfo == null) {
+                if (isRemoteCompile) {
+                    logger.warn("Fetch classpath failed, unable to init incremental compile. Please check log for details.")
+                    // unable to continue
+                    return
+                }
+                logger.warn("Fetch backup classpath failed, use local classpath instead.")
             } else {
-                logger.debug("Fetch classpath failed, use local classpath instead.")
-                // just continue use local build classpath
+                projectInfo = backupProjectInfo
             }
         } else {
-            projectInfo = backupProjectInfo
+            logger.debug("Backup classpath is disabled, use local classpath instead.")
         }
 
         TimeLogger.start("reInitAfterFullCompiled")
