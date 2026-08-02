@@ -245,7 +245,7 @@ class JuggManager @TestOnly constructor(
                 AsDeployerCompat.getSuggestRunConfigurations(
                     currentListNames, project,
                     logger.getInstance("GetSuggestRunConfigurations"),
-                    isNeedDefaultRunConfig = maxRetryCount <= 0,
+                    isNeedDefaultRunConfig = false,
                 )
             } catch (e: Throwable) {
                 logger.warn("Get suggest run configuration failed ", e)
@@ -257,6 +257,9 @@ class JuggManager @TestOnly constructor(
         logger.debug("Suggest run configurations: $suggestRunConfiguration")
         if (suggestRunConfiguration.isEmpty()) {
             logger.debug("No suggest run configuration")
+            if (isSyncFinished && maxRetryCount <= 0) {
+                logger.debug("Could not create a run configuration after retries")
+            }
             if (currentListNamesExceptDefault.isEmpty() && isSyncFinished && maxRetryCount > 0) {
                 val attempt = MAX_RUN_CONFIG_RETRIES - maxRetryCount
                 val delayMs = RUN_CONFIG_RETRY_BASE_DELAY_MS * (1L shl attempt)
