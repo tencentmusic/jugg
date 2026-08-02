@@ -148,7 +148,7 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 
 **口径校验**：
 - 以当前代码 + 当前运行日志为准；
-- `docs/task` 历史方案用于解释背景，不代表全部已落地；
+- `docs/task/YYYY-MM/` 历史方案用于解释背景，不代表全部已落地；
 - 若源码默认值与运行日志不一致，优先怀疑 IDE 中加载的插件产物未更新，或系统属性覆盖。
 
 ### 4.1.2 ConstRef SQLite 缓存损坏
@@ -312,7 +312,7 @@ main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 
 **关键类**：`DexObfuscator.kt`（`widenAccessFlags()` + `visitMethodStmt()`）
 
-**关联文档**：`docs/task/release_incremental_access_flag_mismatch.md`
+**关联文档**：`docs/task/2026-03/release_incremental_access_flag_mismatch.md`
 
 ### 4.7 release 增量编译后 AbstractMethodError（类不在 mapping 中，方法名未映射）
 
@@ -329,7 +329,7 @@ main/.../compiler/obfuscation/DexMinifyCompiler.kt  # 混淆调度
 
 **关键类**：`DexObfuscator.kt`（`mapMethodForCurrentClass()` / `mapMethodNameFromHierarchy()`）
 
-**关联文档**：`docs/task/release_incremental_access_flag_mismatch.md` §12
+**关联文档**：`docs/task/2026-03/release_incremental_access_flag_mismatch.md` §12
 
 ---
 

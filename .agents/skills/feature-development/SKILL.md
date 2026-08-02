@@ -1,11 +1,11 @@
 ---
 name: feature-development
-description: Explore and plan new project features before implementation. Use when a request contains the keywords "新增", "功能", "需求", or "诉求", or otherwise asks for new user-visible behavior. Inspect the repository, design a solution that follows existing project standards, present a module and file change list for review, and write code only after explicit approval.
+description: Explore and plan a new user-visible product feature before implementation. Use only when the user explicitly asks to add new product behavior or capability. Do not use for documentation maintenance, repository organization, bug fixes, refactoring, optimization, dependency or build maintenance, or changes to existing engineering workflows.
 ---
 
 # Feature Development
 
-Apply a mandatory review gate before implementing a new feature.
+Apply a mandatory review gate before implementing a new user-visible product feature.
 
 ## Workflow
 
@@ -39,6 +39,6 @@ Use exact repository paths whenever they are known. End by requesting explicit a
 
 - Treat only an explicit approval of the proposed change list as review approval. Silence, partial feedback, or the original implementation request is not approval.
 - If feedback changes the scope, revise the design and change list, then request approval again.
-- Before editing any implementation file, save the approved design and change list as a plan document under `docs/task`. Treat it as the implementation record and keep it aligned with later approved scope changes.
+- Before editing any implementation file, save the approved design and change list under `docs/task/YYYY-MM/`, using the plan's creation month. Treat it as the implementation record and keep it aligned with later approved scope changes.
 - After approval, modify only the approved scope, follow the project's required development workflow, run risk-appropriate verification, and report the results.
 - If implementation reveals a material unreviewed change, stop and return that change for review before continuing.

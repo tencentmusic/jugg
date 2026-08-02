@@ -145,4 +145,4 @@ Generic signature 传播只能覆盖两类确定场景：子类声明链，以�
 - 完整部署流程：`03_deploy_complete.md`
 - 常量引用影响分析：`03_deploy_const_ref.md`
 - 编译主流程：`02_compile_core.md`
-- 级联重编译案例：`docs/task/recompile_cascade_bug_analysis.md`
+- 级联重编译案例：`docs/task/2026-03/recompile_cascade_bug_analysis.md`

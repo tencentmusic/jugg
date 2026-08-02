@@ -1,0 +1,411 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "source": {
+    "file": "docs/task/2026-07/jugg_control_panel_layout_review.html",
+    "url": "http://localhost:63342/jugg/docs/task/2026-07/jugg_control_panel_layout_review.html",
+    "measuredAt": "2026-07-20T11:42:39.060Z",
+    "method": "chrome-devtools computed layout"
+  },
+  "environment": {
+    "viewportWidth": 1835,
+    "viewportHeight": 873,
+    "devicePixelRatio": 2,
+    "colorScheme": "dark",
+    "panelWidth": 420,
+    "panelHeight": 711
+  },
+  "coordinateSystem": {
+    "origin": "jugg-panel top-left",
+    "unit": "logical CSS px",
+    "included": [
+      "panel-tabs",
+      "overview-page",
+      "logs-page",
+      "settings-page"
+    ],
+    "excluded": [
+      "jugg-titlebar",
+      "ide-toolbar",
+      "project-pane",
+      "editor",
+      "ide-status"
+    ]
+  },
+  "classification": {
+    "hard": "Order, containment, padding, gap, alignment, equal sizing, wrapping and scrolling behavior.",
+    "soft": "Text-driven height, text baseline and optical alignment affected by IntelliJ native font metrics.",
+    "excluded": "Browser control skin, fixed colors, border radius, shadow and font anti-aliasing."
+  },
+  "global": {
+    "panel": {
+      "observed": {
+        "width": 420,
+        "height": 711,
+        "gridRows": [36, 35, 640]
+      },
+      "hard": {
+        "targetWidth": 420,
+        "toolWindowTitlebarOwnedByIde": true
+      }
+    },
+    "tabs": {
+      "observed": {
+        "x": 1,
+        "y": 36,
+        "width": 419,
+        "height": 35,
+        "horizontalPadding": 8,
+        "gap": 2,
+        "itemHeight": 34,
+        "itemHorizontalPadding": 12,
+        "activeIndicatorHeight": 2,
+        "bottomDividerHeight": 1,
+        "itemWidths": {
+          "overview": 80.41,
+          "logs": 53.17,
+          "settings": 74.07
+        }
+      },
+      "hard": {
+        "order": ["overview", "logs", "settings"],
+        "leftAligned": true,
+        "singleRow": true
+      },
+      "soft": [
+        "tab item width",
+        "tab item height",
+        "active indicator rendering"
+      ]
+    },
+    "page": {
+      "observed": {
+        "x": 1,
+        "y": 71,
+        "width": 419,
+        "height": 640
+      },
+      "hard": {
+        "fillsRemainingPanelArea": true,
+        "horizontalScrollForbidden": true
+      }
+    }
+  },
+  "overview": {
+    "scroll": {
+      "observed": {
+        "clientWidth": 404,
+        "clientHeight": 640,
+        "scrollWidth": 404,
+        "scrollHeight": 772
+      },
+      "hard": {
+        "contentWidthEqualsViewportWidth": true,
+        "verticalScrollAllowed": true,
+        "horizontalScrollAllowed": false
+      },
+      "note": "The observed 404px width includes the browser scrollbar deduction. Swing must preserve the relation, not the literal width."
+    },
+    "section": {
+      "hard": {
+        "widthEqualsScrollViewport": true,
+        "padding": 12,
+        "bottomDividerHeight": 1,
+        "contentWidthRelation": "section width - 24"
+      },
+      "soft": ["section height"]
+    },
+    "order": [
+      "context",
+      "current_task",
+      "quick_actions",
+      "last_deploy",
+      "project_health",
+      "recent_activity"
+    ],
+    "sectionsObserved": [
+      {"id": "context", "y": 71, "width": 404, "height": 111.68},
+      {"id": "current_task", "y": 182.68, "width": 404, "height": 83.74},
+      {"id": "quick_actions", "y": 266.42, "width": 404, "height": 158.19},
+      {"id": "last_deploy", "y": 424.61, "width": 404, "height": 190.34},
+      {"id": "project_health", "y": 614.95, "width": 404, "height": 94.19},
+      {"id": "recent_activity", "y": 709.14, "width": 404, "height": 134.34}
+    ],
+    "eyebrow": {
+      "observed": {
+        "height": 14.5,
+        "bottomGap": 8
+      },
+      "hard": {"bottomGap": 8},
+      "soft": ["height", "font metrics"]
+    },
+    "context": {
+      "hard": {
+        "headLayout": "title + flexible space + action",
+        "metaLayout": "wrapping row",
+        "metaRowGap": 5,
+        "metaColumnGap": 12,
+        "metaTopGap": 7,
+        "strategyTopGap": 8
+      },
+      "observed": {
+        "contentWidth": 380,
+        "headHeight": 18.84,
+        "metaHeight": 36.89,
+        "metaWrap": [3, 1],
+        "strategyHeight": 15.95
+      }
+    },
+    "currentTask": {
+      "hard": {
+        "layout": "content + flexible space + duration",
+        "durationAlignment": "right",
+        "durationVerticalAlignment": "center"
+      },
+      "observed": {
+        "contentWidth": 380,
+        "rowHeight": 36.24,
+        "stateHeight": 20.3,
+        "summaryHeight": 15.95,
+        "durationWidth": 26.49,
+        "durationHeight": 12.5
+      }
+    },
+    "quickActions": {
+      "hard": {
+        "columns": 2,
+        "rows": 2,
+        "columnGap": 8,
+        "rowGap": 8,
+        "equalWidth": true,
+        "equalHeight": true,
+        "order": [
+          "full_gradle_build",
+          "restart_app",
+          "clean_and_reinstall",
+          "more"
+        ]
+      },
+      "observed": {
+        "gridWidth": 380,
+        "gridHeight": 110.69,
+        "cellWidth": 186,
+        "cellHeight": 51.34
+      },
+      "review": "The HTML computed cell height is 51.34px; the current implementation plan proposes 48px."
+    },
+    "timeline": {
+      "hard": {
+        "leftInsetFromContent": 7,
+        "columns": [18, "1fr", "auto"],
+        "columnGap": 6,
+        "rowHeight": 31,
+        "rowCount": 4,
+        "durationAlignment": "right",
+        "linkAlignment": "left"
+      },
+      "observed": {
+        "width": 373,
+        "height": 124,
+        "statusDot": 11,
+        "contentColumn": 312.89,
+        "durationColumn": 30.11
+      }
+    },
+    "projectHealth": {
+      "hard": {
+        "columns": [16, "1fr", "auto"],
+        "columnGap": 7,
+        "rowGap": 9,
+        "actionAlignment": "right",
+        "rowCount": 2
+      },
+      "observed": {
+        "rowHeight": 18.84,
+        "contentWidth": 380
+      }
+    },
+    "recentActivity": {
+      "hard": {
+        "columns": [48, "1fr", "auto"],
+        "columnGap": 8,
+        "verticalPadding": 6,
+        "rowDividerHeight": 1,
+        "rowCount": 3,
+        "resultAlignment": "right"
+      },
+      "observed": {
+        "contentWidth": 380,
+        "rowHeight": 28.95
+      }
+    }
+  },
+  "logs": {
+    "scroll": {
+      "observed": {
+        "clientWidth": 404,
+        "clientHeight": 640,
+        "scrollWidth": 404,
+        "scrollHeight": 644
+      },
+      "review": "The page overflows vertically by 4px because the toolbar is 80px while log-layout subtracts 76px."
+    },
+    "toolbar": {
+      "hard": {
+        "layout": "two rows",
+        "horizontalPadding": 9,
+        "verticalPadding": 7,
+        "gap": 7,
+        "bottomDividerHeight": 1,
+        "sourceRowFullWidth": true,
+        "controlRowNoWrapAt420": true
+      },
+      "observed": {
+        "width": 404,
+        "height": 80,
+        "sourceWidth": 386,
+        "sourceHeight": 31,
+        "controlHeight": 27
+      }
+    },
+    "sourceSelector": {
+      "hard": {
+        "columns": 3,
+        "equalWidth": true,
+        "innerPadding": 2,
+        "borderWidth": 1,
+        "itemHeight": 25,
+        "order": ["deploy", "runtime", "cli_mcp"]
+      },
+      "observed": {
+        "itemWidth": 126.66
+      }
+    },
+    "controlRow": {
+      "hard": {
+        "order": ["search", "level", "task", "follow", "overflow"],
+        "gap": 7,
+        "searchConsumesRemainingWidth": true
+      },
+      "observed": {
+        "searchWidth": 91.01,
+        "levelWidth": 82.54,
+        "taskWidth": 104.38,
+        "followWidth": 56.73,
+        "overflowWidth": 23.34
+      },
+      "soft": ["native control preferred widths"]
+    },
+    "console": {
+      "hard": {
+        "fillsRemainingHeight": true,
+        "padding": {"top": 9, "right": 10, "bottom": 20, "left": 10},
+        "columns": [76, 62, 118, "1fr"],
+        "columnGap": 8,
+        "horizontalScrollAllowed": true
+      },
+      "observed": {
+        "width": 404,
+        "height": 564,
+        "rowContentWidth": 384,
+        "rowHeight": 17.32,
+        "messageColumnWidth": 104
+      },
+      "soft": ["font size", "line height", "column text baseline"]
+    }
+  },
+  "settings": {
+    "scroll": {
+      "observed": {
+        "clientWidth": 404,
+        "clientHeight": 640,
+        "scrollWidth": 404,
+        "scrollHeight": 1033
+      },
+      "hard": {
+        "verticalScrollAllowed": true,
+        "horizontalScrollAllowed": false
+      }
+    },
+    "page": {
+      "hard": {
+        "padding": 10,
+        "searchBottomGap": 10,
+        "contentWidthRelation": "viewport width - 20"
+      },
+      "observed": {
+        "contentWidth": 384,
+        "searchWidth": 384,
+        "searchHeight": 27
+      }
+    },
+    "group": {
+      "hard": {
+        "widthEqualsPageContent": true,
+        "bottomGap": 10,
+        "borderWidth": 1,
+        "titlePadding": {"vertical": 8, "horizontal": 10},
+        "titleBottomDividerHeight": 1
+      },
+      "soft": ["border radius", "title height", "group height"]
+    },
+    "row": {
+      "hard": {
+        "layout": "text + flexible space + control",
+        "horizontalPadding": 10,
+        "verticalPadding": 9,
+        "textControlGap": 12,
+        "rowDividerHeight": 1,
+        "controlAlignment": "right-center",
+        "labelHelpGap": 2
+      },
+      "observed": {
+        "width": 382,
+        "commonHeight": 54.34,
+        "textHeight": 35.34,
+        "toggleSize": {"width": 30, "height": 16},
+        "actionSize": {"width": 92, "height": 27}
+      },
+      "soft": ["row height", "toggle size", "action height"],
+      "hardSize": {"actionMinimumWidth": 92}
+    },
+    "order": [
+      "run_behavior",
+      "deployment",
+      "compiler",
+      "device_compatibility",
+      "integrations",
+      "advanced"
+    ],
+    "groupsObserved": [
+      {"id": "run_behavior", "rowCount": 2, "height": 143.63},
+      {"id": "deployment", "rowCount": 3, "height": 197.98},
+      {"id": "compiler", "rowCount": 2, "height": 143.63},
+      {"id": "device_compatibility", "rowCount": 1, "height": 89.29},
+      {"id": "integrations", "rowCount": 3, "height": 197.98},
+      {"id": "advanced", "rowCount": 2, "height": 143.63}
+    ]
+  },
+  "reviewDecisions": [
+    {
+      "id": "quick_action_height",
+      "question": "Should Swing use a fixed 52px normalized height or equal native preferred heights with a 48px minimum?",
+      "decision": "Use equal native preferred heights with a 48px minimum; do not encode the browser-specific 51.34px value."
+    },
+    {
+      "id": "logs_vertical_overflow",
+      "question": "Should the 4px HTML overflow be reproduced?",
+      "decision": "No. Swing should use BorderLayout so the console fills the exact remaining height."
+    },
+    {
+      "id": "scrollbar_width",
+      "question": "Should the 404px content width be fixed?",
+      "decision": "No. Assert that content width equals the native scroll viewport width."
+    },
+    {
+      "id": "native_control_metrics",
+      "question": "Should HTML toggle and button heights be hard constraints?",
+      "decision": "No. Keep alignment and minimum width hard; leave native height and skin soft."
+    }
+  ]
+}

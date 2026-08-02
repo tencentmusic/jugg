@@ -36,7 +36,7 @@
 | 常量变化重编译异常（const ref） | `98_code_map.md`, `03_deploy_const_ref.md`, `02_compile_core.md` | `main/.../compiler/constref/*`, `deploy/DeployFileManager.kt`, `deploy/data/DeployDataGenerator.kt` |
 | 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
 | **EffectedType 类型/merge 优先级/minify 移除检测** | `03_deploy_data_generator.md` §5.4-§5.7 | `EffectedClassNode.kt`, `DeployDataGenerator.kt`, `DeployDataDatabaseSqLiteHelper.kt`, `CompileEffectAnalyzer.kt` |
-| **修改基类触发子类级联重编译**（static 方法误传播 Bug） | `03_deploy_data_generator.md` 第5节, `docs/task/recompile_cascade_bug_analysis.md` | `DeployDataDatabaseSqLiteHelper.kt` step 2（~826行）, `DeployDataDatabase.kt`（~454行） |
+| **修改基类触发子类级联重编译**（static 方法误传播 Bug） | `03_deploy_data_generator.md` 第5节, `docs/task/2026-03/recompile_cascade_bug_analysis.md` | `DeployDataDatabaseSqLiteHelper.kt` step 2（~826行）, `DeployDataDatabase.kt`（~454行） |
 | JVMTI/运行时 agent 协同 | `98_code_map.md`, `03_runtime_jvmti.md` | `runtime/jvmti/*` |
 | IDE 生命周期/运行配置 | `98_code_map.md`, `04_engineering_ide.md` | `idea/.../JuggManager.kt`, `JuggRunConfiguration.kt` |
 | Jugg Debug attach / 断点不可用 | `98_code_map.md`, `04_engineering_debug_attach.md`, `04_engineering_compat.md` | `JuggDebugProgramRunner.kt`, `JuggDebugSessionManager.kt`, `AndroidStudioDebuggerAttachStarter.kt`, `*AsDeployerCompat.kt` |
@@ -108,6 +108,7 @@
 
 - 发生类名/路径变更：至少同步 `98_code_map.md`（路径同步规则详见 `98_code_map.md §6`）。
 - 维护或重整专题文档时，先按 `97_maintenance_manual.md` 的质量标准与自审清单执行。
+- 新建任务方案时，按创建月份直接保存到 `docs/task/YYYY-MM/`，月份目录内不再建立专题子目录。
 - **新增专题文档**：必须同时在第3节添加任务类型行、在第4节添加文档描述行。
 - 更新已有专题时，直接描述当前最新实现；不要用“某日期起”这类时间分界来表达当前行为。
 - 若暂未同步文档：在结论中标注"以代码为准"。

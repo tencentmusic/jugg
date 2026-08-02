@@ -8,7 +8,7 @@
 
 **Tech Stack:** Kotlin, Gradle init script (Kotlin DSL compiled via `buildReadProjectInfoScript.gradle`), IntelliJ Platform SDK, existing `ModuleInfo`/`ApkInfo` model.
 
-**Spec:** `docs/task/androidtest_phase2_design.md`
+**Spec:** `docs/task/2026-04/androidtest_phase2_design.md`
 
 ---
 

@@ -24,7 +24,7 @@ import org.mockito.Mockito
 
 /**
  * L2 deploy-flow via [com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice].
- * Spec: docs/task/jugg_deploy_flow_virtual_device.md, jugg_deployer_helper_deploy_flow_test_plan.md §5.1
+ * Spec: docs/task/2026-05/jugg_deploy_flow_virtual_device.md, jugg_deployer_helper_deploy_flow_test_plan.md §5.1
  */
 class JuggDeployerHelperDeployFlowTest {
 

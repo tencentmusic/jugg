@@ -95,7 +95,7 @@ IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 C
 - `commonSourceFiles` 是 Kotlin invoker 的类型化参数，不靠调用方拼自由字符串；为空时不添加 multiplatform 参数，Compose generated expect/actual 场景则同时添加 `-Xmulti-platform` 和 `-Xcommon-sources`。
 - `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
 - complementary 查询以非空 `kotlinCommonSourceDirs` 作为 KMP module/source-set 门禁。仅把普通 Android 模块的源码目录配置为 `commonMain`（例如 local-shell 聚合源码）不会启用 KMP complementary 逻辑，即使源码文本出现 expect/actual token。
-- 当前普通业务源码闭包已验证 Kotlin 2.1 commonMain/androidMain 和 Kotlin 2.3 expect-only/actual-only。中间 source set 仍缺少 authoritative fragment graph；Kotlin 1.9 仍需隔离 baseline 中 dirty closure 的旧 actual output，详见 `docs/task/2026-07-26-kmp-business-expect-actual-follow-up-todo.md`。
+- 当前普通业务源码闭包已验证 Kotlin 2.1 commonMain/androidMain 和 Kotlin 2.3 expect-only/actual-only。中间 source set 仍缺少 authoritative fragment graph；Kotlin 1.9 仍需隔离 baseline 中 dirty closure 的旧 actual output，详见 `docs/task/2026-07/2026-07-26-kmp-business-expect-actual-follow-up-todo.md`。
 - tracker 只在 in-process 项目 Kotlin compiler 中启用。失败 invocation、retry 的中间 attempt、KSP-only phase 和跨进程 invocation 不写 cache；cache 写回失败不改变已成功的 Kotlin 产物。
 - Compose common/platform 分类使用同 owner module root 下的 IDE source-set module 身份；`androidMain` 始终是 platform，其他 `Unknown` source-set module 可表示非 `commonMain` 的 common source set，不从 custom resource root 路径反推。
 - generated Kotlin 编译失败时，`KotlinCompilerInvoker` 的原始行号和 diagnostic 文本会聚合回原 Compose resource 输入，不能替换成通用失败文案。

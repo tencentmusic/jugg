@@ -2,7 +2,7 @@
 
 > 最后核对：2026-07-29
 > 一致性规则：文档与代码冲突时，以代码为准。
-> **与 AGENTS.md / CLAUDE.md 关系**：顶层规则只保留不可绕过的约束；**本页是验证证据、测试价值、分层、TDD、落点和存量治理的唯一权威细则**。其他 `docs/task/*` 若与本页冲突，以本页为准。
+> **与 AGENTS.md / CLAUDE.md 关系**：顶层规则只保留不可绕过的约束；**本页是验证证据、测试价值、分层、TDD、落点和存量治理的唯一权威细则**。其他 `docs/task/YYYY-MM/*` 若与本页冲突，以本页为准。
 
 ---
 
@@ -269,7 +269,7 @@ L3 Flow 依赖 `AssembleAndroidProjectOnce`；L1 `DeployDataGeneratorTest` 依�
 
 ### 7.2 AndroidTest
 
-`docs/task/androidtest_support_design.md` 的场景表可用于背景，但测试价值、验证策略和分层以本页为准。能力细节见 `06_android_test.md`。
+`docs/task/2026-04/androidtest_support_design.md` 的场景表可用于背景，但测试价值、验证策略和分层以本页为准。能力细节见 `06_android_test.md`。
 
 ### 7.3 现有 L2 owner
 
@@ -403,4 +403,4 @@ touch ~/.jugg/test_flag/skip_assemble
 
 ## 14. 历史文档
 
-`docs/task/TDD_UNIT_TEST_COVERAGE_GAP_REPORT_*.md`、`androidtest_support_design.md` 等历史方案只提供场景背景。若其内容暗示“所有 bugfix 必须新增单测”“单元测试数量越多越好”或“单测优先于用户主链路”，均以本页的验证证据、价值门禁和 owner 规则为准。
+`docs/task/2026-03/TDD_UNIT_TEST_COVERAGE_GAP_REPORT_*.md`、`docs/task/2026-04/androidtest_support_design.md` 等历史方案只提供场景背景。若其内容暗示“所有 bugfix 必须新增单测”“单元测试数量越多越好”或“单测优先于用户主链路”，均以本页的验证证据、价值门禁和 owner 规则为准。

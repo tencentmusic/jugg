@@ -9,7 +9,7 @@
 - Skill 入口：`docs/skills/jugg-android-dev-loop/SKILL.md`
 - CLI 参数清单：`docs/ai_knowledge/08_cli_tools_list.md`
 - Android 测试工程：`android_demo_project`
-- 历史草稿：`docs/task/jugg_cli_agent_skill_cli_test_guide.md` 只可参考思路，不作为本 benchmark 的权威来源
+- 历史方案只可参考思路，不作为本 benchmark 的权威来源
 
 ## 执行前提
 
