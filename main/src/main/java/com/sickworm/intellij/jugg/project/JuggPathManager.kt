@@ -23,6 +23,7 @@ class JuggPathManager(
     val mcpFetchDir = File(juggRootDir, "mcp_fetch")
 
     val tmpDir = File(juggRootDir, "tmp")
+    val diagnosticsDir = File(tmpDir, "diagnostics")
     val remoteDiffDir = File(tmpDir, "diff")
     val remoteDiffLibraryDir = File(remoteDiffDir, "libraries")
     /** result file to show, because it's diff with last build */

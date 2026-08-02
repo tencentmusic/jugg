@@ -30,11 +30,13 @@ The plugin posts event JSON to `/report_event`.
 
 The backend can return an event ID or a simple success response.
 
+Every report event is also appended to the local `~/.jugg/action.db` `jugg_event` table, regardless of backend availability or request outcome. This database is local history, not an automatic retry queue.
+
 ## Issue Log Upload
 
-When a user submits an issue, the plugin uploads a zip file to `/report_issue` by multipart form. The package contains Jugg logs and related context that can help identify compile, deploy, remote build, or device-side failures.
+When a user submits an issue, the plugin uploads a whitelist-generated and redacted zip by multipart form to `https://jugg.sickworm.com/report_issue`. The destination is fixed and hidden from the dialog, and the plugin does not try fallback servers. All candidates are selected by default; Jugg log files are listed first and cannot be deselected.
 
-Store the original zip and return 200 when the upload succeeds. Keep retention and privacy requirements in mind because logs may include local paths and build context.
+Store the zip and return a 2xx response. The response may contain a JSON `reportId`; otherwise the plugin uses its locally generated report ID. The manifest lists the actual archive entries and their sensitivity.
 
 ## Related Pages
 

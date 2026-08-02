@@ -1,16 +1,13 @@
-package com.sickworm.intellij.jugg.ai.mcp.actions
+package com.sickworm.intellij.jugg.project
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * McpFetchCleaner cleans expired artifacts under JuggPathManager.mcpFetchDir on startup.
- * Data Contract: any file older than [retentionDays] (based on lastModified) is removed.
+ * Removes expired project-local artifacts and prunes directories left empty by cleanup.
  */
-object McpFetchCleaner {
-    private const val DEFAULT_RETENTION_DAYS = 30L
+object ExpiredArtifactCleaner {
 
     data class CleanupResult(
         val scannedFiles: Int,
@@ -21,22 +18,19 @@ object McpFetchCleaner {
         val rootDirExists: Boolean,
     )
 
-    /**
-     * Remove expired files and then prune empty folders.
-     */
     fun cleanupExpiredFiles(
         rootDir: File,
         logger: Logger,
-        retentionDays: Long = DEFAULT_RETENTION_DAYS,
+        retentionDays: Long,
         nowMs: Long = System.currentTimeMillis(),
     ): CleanupResult {
         if (retentionDays <= 0) {
-            logger.warn("skip mcp_fetch cleanup because retentionDays=$retentionDays is invalid")
+            logger.warn("skip ${rootDir.name} cleanup because retentionDays=$retentionDays is invalid")
             return CleanupResult(0, 0, 0, 0, 0, rootDirExists = false)
         }
 
         if (!rootDir.exists()) {
-            logger.debug("skip mcp_fetch cleanup because ${rootDir.absolutePath} does not exist")
+            logger.debug("skip ${rootDir.name} cleanup because ${rootDir.absolutePath} does not exist")
             return CleanupResult(0, 0, 0, 0, 0, rootDirExists = false)
         }
 
@@ -55,7 +49,7 @@ object McpFetchCleaner {
                 deletedFiles++
             } else {
                 failedFiles++
-                logger.warn("delete expired mcp_fetch file failed: ${file.absolutePath}")
+                logger.warn("delete expired ${rootDir.name} file failed: ${file.absolutePath}")
             }
         }
 
@@ -68,10 +62,9 @@ object McpFetchCleaner {
             deletedEmptyDirs = deletedEmptyDirs,
             rootDirExists = true,
         )
-        logger.debug(
-            "mcp_fetch cleanup done, scanned=${result.scannedFiles}, expired=${result.expiredFiles}, " +
-                "deleted=${result.deletedFiles}, failed=${result.failedFiles}, deletedEmptyDirs=${result.deletedEmptyDirs}"
-        )
+        logger.debug("${rootDir.name} cleanup done, scanned=${result.scannedFiles}, " +
+                "expired=${result.expiredFiles}, deleted=${result.deletedFiles}, " +
+                "failed=${result.failedFiles}, deletedEmptyDirs=${result.deletedEmptyDirs}")
         return result
     }
 
@@ -80,14 +73,13 @@ object McpFetchCleaner {
         rootDir.walkBottomUp()
             .filter { it.isDirectory && it != rootDir }
             .forEach { dir ->
-                val isEmpty = dir.list()?.isEmpty() == true
-                if (!isEmpty) {
+                if (dir.list()?.isEmpty() != true) {
                     return@forEach
                 }
                 if (dir.delete()) {
                     deletedDirCount++
                 } else {
-                    logger.warn("delete empty mcp_fetch dir failed: ${dir.absolutePath}")
+                    logger.warn("delete empty ${rootDir.name} dir failed: ${dir.absolutePath}")
                 }
             }
         return deletedDirCount

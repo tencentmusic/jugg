@@ -132,7 +132,7 @@ compile/deploy/gradle-build/instrument
 ## 8. 产物与日志
 
 - MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。
-- `McpFetchCleaner` 负责清理过期产物。
+- 项目级 `ExpiredArtifactCleaner` 负责清理超过 30 天的 MCP 拉取产物。
 - compile/deploy 类日志优先看 `build/jugg/log/compile_latest.log`。
 - `wait-logs` 读取 App 日志时会复用 deploy/restart 时间戳作为起点，相关状态由 `LastDeployTimestampRegistry` 记录。
 

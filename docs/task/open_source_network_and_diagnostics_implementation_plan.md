@@ -1,6 +1,6 @@
 # Jugg 开源发行网络隔离与诊断上传实施方案
 
-> 状态：待范围评审与实现授权
+> 状态：已实现并验证
 > 依据：`open_source_network_and_diagnostics_design.md`
 
 ## 1. 精简后的目标
@@ -174,4 +174,4 @@ detail TEXT NULL
 6. 构建 public/internal 两个插件产物，执行内容扫描和网络观察。
 7. 同步知识库、Wiki 和 README。
 
-收到明确批准后按以上范围实施；若实现中需要扩大范围，先重新评审。
+已按以上范围完成实现。Swing 确认窗口保持直接状态，不为普通控件增加实现细节测试；通过 `:idea:compileKotlin` 和真实插件产物验证覆盖接线与构建边界。

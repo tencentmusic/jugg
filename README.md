@@ -1,5 +1,9 @@
 # Jugg
 
+## Network and diagnostics privacy
+
+The standard `buildPlugin` artifact contains no predefined Jugg backend configuration and keeps local compile, deploy, CLI, and MCP workflows offline by default. A user-configured Custom Server remains supported. Issue reports are created from a redacted whitelist, show the exact destination and file list before upload, and can be saved locally without sending a request.
+
 Life is short, Jugg it! 
 
 人生苦短，Jugg 一下。

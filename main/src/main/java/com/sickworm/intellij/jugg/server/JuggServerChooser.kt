@@ -126,27 +126,6 @@ class JuggServerChooser(logger: Logger) {
         return true
     }
 
-    /**
-     * Return upload candidates without filtering forbid urls.
-     */
-    fun getUploadServerUrls(): List<String> {
-        val rules = serverRules ?: getEmbeddedServers()
-        return (listOfNotNull(JuggSettings.serverUrl) + rules.map { it.url })
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
-    }
-
-    fun updateServerAfterUploadSuccess(serverUrl: String) {
-        if (serverUrl.isBlank()) {
-            return
-        }
-        if (JuggSettings.serverUrl != serverUrl) {
-            logger.debug("Update server from ${JuggSettings.serverUrl} to $serverUrl after upload success")
-            JuggSettings.serverUrl = serverUrl
-        }
-    }
-
     private fun selectServer(serverRules: List<ServerRule>?, forbiddenUrls: Set<String> = forbidUrls): ServerRule? {
         logger.debug("Update server rules: $serverRules")
         if (serverRules.isNullOrEmpty()) {

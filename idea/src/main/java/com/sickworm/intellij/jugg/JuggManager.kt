@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.intellij.ide.actions.RevealFileAction
 import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.configurations.RunProfile
@@ -12,6 +13,7 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
@@ -26,13 +28,18 @@ import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.InstallJuggSkillsDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
-import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
-import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
+import com.sickworm.intellij.jugg.ide.ui.ReportIssueDialog
+import com.sickworm.intellij.jugg.ide.ui.ReportIssueProgressDialog
+import com.sickworm.intellij.jugg.ide.ui.ReportIssueResultDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.ai.mcp.*
-import com.sickworm.intellij.jugg.ai.mcp.actions.McpFetchCleaner
+import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
+import com.sickworm.intellij.jugg.diagnostics.IssueReportBundle
+import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
+import com.sickworm.intellij.jugg.git.GitManager
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -44,6 +51,7 @@ import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.lang.Runnable
 import javax.swing.JComponent
+import javax.swing.SwingUtilities
 import kotlin.system.measureTimeMillis
 
 
@@ -149,7 +157,18 @@ class JuggManager @TestOnly constructor(
                 JuggCliAutoUpdater.checkAndUpdate(logger.getInstance("JuggCliAutoUpdater"))
             }
             taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
-                McpFetchCleaner.cleanupExpiredFiles(pathManager.mcpFetchDir, logger.getInstance("McpFetchCleaner"))
+                ExpiredArtifactCleaner.cleanupExpiredFiles(
+                    pathManager.mcpFetchDir,
+                    logger.getInstance("McpArtifactCleaner"),
+                    retentionDays = 30,
+                )
+            }
+            taskRunnerManager.runBackgroundSafe("Cleanup diagnostics cache", delayMs = 120_000) {
+                ExpiredArtifactCleaner.cleanupExpiredFiles(
+                    pathManager.diagnosticsDir,
+                    logger.getInstance("DiagnosticsCleaner"),
+                    retentionDays = 7,
+                )
             }
         })
     }
@@ -655,26 +674,92 @@ class JuggManager @TestOnly constructor(
         return controlPanelController.getPanel(page)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     override fun reportIssue() {
-        val isConfirmed = ReportConfirmDialog().showAndGet()
-        if (!isConfirmed) {
-            return
-        }
-
-        val dialog = ReportProgressDialog()
-        taskRunnerManager.runBackgroundSafe("Report issue") {
-            dialog.setProgress("Dumping logcat...")
-            ProjectInfoReader(project, JuggLogger.getInstance(project, "ProjectInfoReader")).printInfo()
-            val logcatErrorLog = deployTargetManager.dumpErrorLogs()
-            dialog.setProgress("Uploading logs...")
-            val deferred = juggServer.reportAndUploadLogs(logcatErrorLog)
-            deferred.invokeOnCompletion {
-                val uploadResult = deferred.getCompleted()
-                dialog.setResult(uploadResult)
+        val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
+        taskRunnerManager.runBackgroundSafe("Prepare issue report") {
+            try {
+                val logcatErrorLog = deployTargetManager.dumpErrorLogs()
+                val compileSettings = JuggSettings.defaultCompileSettings
+                val gitUserName = GitManager.createGitManagerAndTrySearchParent(pathManager.projectDir).userName
+                val knownSecrets = setOfNotNull(
+                    compileSettings.remoteSshPassword,
+                    compileSettings.remoteSshUser,
+                    compileSettings.remoteSshIp,
+                    gitUserName,
+                    System.getProperty("user.name"),
+                )
+                val builder = IssueReportBundleBuilder(
+                    pathManager.diagnosticsDir,
+                    pathManager.projectDir,
+                    File(System.getProperty("user.home")),
+                    logger.getInstance("IssueReportBundleBuilder"),
+                )
+                val logFiles = pathManager.logDir.listFiles().orEmpty()
+                    .filter { it.isFile && !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck") }
+                    .sortedByDescending { it.lastModified() }
+                    .take(3)
+                val candidates = builder.prepare(
+                    environment = mapOf(
+                        "pluginVersion" to juggServer.version,
+                        "ideVersion" to PlatformApi.getIdeVersion(),
+                        "os" to System.getProperty("os.name"),
+                        "jvm" to System.getProperty("java.version"),
+                    ),
+                    projectSummary = mapOf(
+                        "moduleCount" to compileContextManager.compileContext.modules.size,
+                    ),
+                    logFiles = logFiles,
+                    logcat = logcatErrorLog,
+                    hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
+                    knownSecrets = knownSecrets,
+                )
+                SwingUtilities.invokeLater {
+                    progressDialog.close(DialogWrapper.OK_EXIT_CODE)
+                    showReportIssueDialog(builder, candidates)
+                }
+            } catch (e: Throwable) {
+                SwingUtilities.invokeLater {
+                    progressDialog.close(DialogWrapper.CANCEL_EXIT_CODE)
+                }
+                throw e
             }
         }
-        dialog.show()
+        progressDialog.show()
+    }
+
+    private fun showReportIssueDialog(
+        builder: IssueReportBundleBuilder,
+        candidates: List<com.sickworm.intellij.jugg.diagnostics.IssueReportCandidate>,
+    ) {
+        val dialog = ReportIssueDialog(candidates)
+        if (!dialog.showAndGet()) {
+            return
+        }
+        taskRunnerManager.runBackgroundSafe("Create issue report") {
+            val bundle = builder.build(dialog.selectedPaths)
+            if (dialog.isSaveLocally) {
+                SwingUtilities.invokeLater {
+                    RevealFileAction.openFile(bundle.file)
+                    ReportIssueResultDialog(null).show()
+                }
+            } else {
+                uploadIssueReport(bundle)
+            }
+        }
+    }
+
+    private fun uploadIssueReport(bundle: IssueReportBundle) {
+        val progressDialog = ReportIssueProgressDialog("Uploading logs...")
+        taskRunnerManager.runBackgroundSafe("Upload issue report") {
+            val uploadResult = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL)
+            SwingUtilities.invokeLater {
+                progressDialog.close(DialogWrapper.OK_EXIT_CODE)
+                ReportIssueResultDialog(uploadResult) {
+                    uploadIssueReport(bundle)
+                }.show()
+            }
+        }
+        progressDialog.show()
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {

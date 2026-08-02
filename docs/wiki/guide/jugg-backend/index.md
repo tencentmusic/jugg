@@ -11,6 +11,8 @@ tags:
 
 Jugg can connect to an HTTP backend for plugin updates, hot updates, project defaults, diagnostics, and optional remote server provisioning. The backend is not required for local compile, deploy, CLI, or MCP usage.
 
+Public builds do not include a predefined `servers.json` and therefore do not connect to a Jugg backend automatically. Teams can use `buildPluginInternal` to package a local configuration. An explicitly configured Custom Server still works without embedded configuration.
+
 These pages are for teams that want to self-host the backend surface. They describe the user-visible capabilities and integration boundaries, not server internals.
 
 ## Capabilities

@@ -19,25 +19,26 @@ tags:
 1. 打开 `Edit Configurations...`。
 2. 选择当前 Jugg 配置。
 3. 点击 `Report Issues`。
-4. 确认后等待上传完成。
-5. 上传完成后，在弹窗里点击 `Copy Issue ID and Close`。
-6. 把复制的 Issue ID 粘贴给 Jugg 插件维护人员，并附上本轮操作步骤。
+4. 核对并选择诊断文件。
+5. 选择 `Update logs` 上传，或勾选 `Save locally without uploading` 后创建本地诊断包。
+6. 上传完成后复制 Issue ID；失败时把保留的 zip 交给维护人员。
 
-触发后会弹出确认框，随后在后台收集工程信息、dump 目标设备的错误 logcat，并上传日志包。
+插件会先生成脱敏候选文件，再展示文件路径和大小。上传固定请求 Jugg 问题报告服务，失败后不会切换服务器。选择本地保存后，系统文件管理器会选中新生成的 zip。
 
 ## 会上传什么
 
 上传内容主要用于定位本轮 Jugg 行为：
 
 - Jugg 编译和部署日志。
-- 工程与插件相关上下文。
-- 目标设备上的错误 logcat。
-- 这次上传对应的 Issue ID。
+- 结构化的环境和工程摘要，不包含原始工程模型。
+- 可取消的目标设备错误 logcat。
+- 可选的 hook 调试日志。
+- 描述实际 zip entry 的 `manifest.json`。
 
-日志包由插件打包后提交到后台 `/report_issue` 接口。后台保存原始 zip，并用 Issue ID 帮维护者找到这次上传。
+原始 `project_infos`、签名密码、Manifest placeholders、APT/KAPT 参数、源码和二进制依赖不会进入诊断包。hook 调试日志在诊断包中保存为 `diagnostics/cli/hook-debug.log`。
 
 > [!NOTE]
-> 上传失败不会改变本地编译部署结果。失败时可以重新提交，或直接把本地日志路径发给维护者。
+> 上传失败不会改变本地编译部署结果。临时 zip 保留在 `build/jugg/tmp/diagnostics`，可以重试上传；达到 7 天后会在项目启动后的清理任务中删除。
 
 ## 本地日志位置
 

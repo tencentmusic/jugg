@@ -4,7 +4,6 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -23,15 +22,10 @@ import okhttp3.Request
 
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
-import java.io.IOException
-import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 
 /**
@@ -142,175 +136,6 @@ class JuggServer(
             }
         }
     }
-
-    fun reportAndUploadLogs(logcatErrorLog: String): Deferred<UploadResult> {
-        return async {
-            logger.debug("reportAndUploadLogs start")
-            // zip log directory
-            val fileName = "${requestToken}_${System.currentTimeMillis()}".md5.substring(0, 8)
-            pathManager.tmpDir.mkdirs()
-            val destFile = File(pathManager.tmpDir, "$fileName.zip")
-            try {
-                logger.debug("reportAndUploadLogs destFile: $destFile")
-                val logDir = pathManager.logDir
-                if (!logDir.exists()) {
-                    val errorMessage = "log dir not exists: ${logDir.absolutePath}"
-                    logger.warn(errorMessage)
-                    return@async UploadResult.fail(errorMessage)
-                }
-                val logFiles = logDir.listFiles()?.filter {
-                    !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck")
-                } ?: emptyList()
-
-                logger.debug("start dump logcatErrorLogs")
-                val logcatFile = File(pathManager.tmpDir, "logcat.log")
-                if (logcatFile.exists()) {
-                    logcatFile.delete()
-                }
-                logcatFile.writeText(logcatErrorLog)
-                logger.debug("dump logcatErrorLogs finished")
-
-                val files = mutableListOf<File>()
-                files.addAll(logFiles)
-                files.add(logcatFile)
-
-                if (pathManager.projectInfosDir.exists()) {
-                    files.add(pathManager.projectInfosDir)
-                }
-                if (pathManager.remoteDiffDir.exists()) {
-                    files.add(pathManager.remoteDiffDir)
-                }
-                if (pathManager.tmpGradleProjectInfo.exists()) {
-                    files.add(pathManager.tmpGradleProjectInfo)
-                }
-                val hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log")
-                if (hookDebugLog.exists()) {
-                    files.add(hookDebugLog)
-                }
-
-                zipTo(destFile, files)
-                val uploadResult = uploadFileWithFallback(destFile)
-
-                if (!uploadResult.isSuccess) {
-                    logger.warn("reportAndUploadLogs failed: ${uploadResult.errorMessage}")
-                } else {
-                    logger.debug("reportAndUploadLogs success")
-                }
-
-                logcatFile.delete()
-                return@async uploadResult.copy(reportId = fileName)
-            } catch (e: Exception) {
-                logger.warn("reportAndUploadLogs error", e)
-                return@async UploadResult.fail(e.message ?: "Unknown exception")
-            } finally {
-                if (destFile.exists()) {
-                    destFile.delete()
-                }
-            }
-        }
-    }
-
-    private suspend fun uploadFileWithFallback(file: File): UploadResult {
-        val serverUrls = juggServerChooser.getUploadServerUrls()
-        if (serverUrls.isEmpty()) {
-            logger.warn("upload file skip: no server url")
-            return UploadResult.fail("serverUrl is null or blank")
-        }
-
-        var lastUploadResult = UploadResult.fail("Unknown exception")
-        serverUrls.forEach { uploadServerUrl ->
-            val uploadResult = try {
-                logger.debug("try upload file to $uploadServerUrl")
-                uploadFile(file, uploadServerUrl)
-            } catch (e: Exception) {
-                logger.warn("upload file to $uploadServerUrl error", e)
-                UploadResult.fail(e.message ?: "Unknown exception")
-            }
-            if (uploadResult.isSuccess) {
-                juggServerChooser.updateServerAfterUploadSuccess(uploadServerUrl)
-                return uploadResult
-            }
-            logger.warn("upload file to $uploadServerUrl failed: ${uploadResult.errorMessage}")
-            lastUploadResult = uploadResult
-        }
-        return lastUploadResult
-    }
-
-    private fun zipTo(destFile: File, sourceFiles: List<File>) {
-        if (destFile.exists()) {
-            destFile.delete()
-        }
-        destFile.createNewFile()
-
-        destFile.outputStream().use { output ->
-            ZipOutputStream(output).use { zip ->
-                sourceFiles.forEach { sourceFile ->
-
-                    fun writeZip(it: File, path: String) {
-                        try {
-                            zip.putNextEntry(ZipEntry(path))
-                            it.inputStream().use { input ->
-                                input.copyTo(zip)
-                            }
-                        } catch (e: Exception) {
-                            // exception when zip .lck on windows, just ignore
-                            logger.warn("add zip entry $it failed", e)
-                        }
-                    }
-
-                    if (sourceFile.isDirectory) {
-                        sourceFile.listFilesRecursively().forEach {
-                            val path = it.relativeTo(sourceFile.parentFile).path
-                            writeZip(it, path)
-                        }
-                    } else if (sourceFile.isFile) {
-                        val path = sourceFile.name
-                        writeZip(sourceFile, path)
-                    }
-                }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun uploadFile(file: File, uploadServerUrl: String) = suspendCancellableCoroutine { continuation ->
-        if (uploadServerUrl.isBlank()) {
-            logger.debug("upload file skip: serverUrl is null or blank")
-            continuation.resume(UploadResult.fail("serverUrl is null or blank"), null)
-            return@suspendCancellableCoroutine
-        }
-
-        val builder = MultipartBody.Builder()
-        builder.setType(MultipartBody.FORM)
-        builder.addFormDataPart("file" , file.name, file.asRequestBody("application/zip".toMediaTypeOrNull()))
-        val requestBody = builder.build()
-        val request = Request.Builder()
-            .url("${uploadServerUrl.trim()}/report_issue")
-            .post(requestBody)
-            .build()
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                val errorMessage = "upload file failed: ${e.message}"
-                logger.warn(errorMessage)
-                if (continuation.isActive) {
-                    continuation.resume(UploadResult.fail(errorMessage), null)
-                }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                val message = "[${response.code}] ${response.body?.string()}"
-                logger.debug("upload file response: $message")
-                if (continuation.isActive) {
-                    if (response.code != 200) {
-                        continuation.resume(UploadResult.fail("Upload file failed: $message"), null)
-                    } else {
-                        continuation.resume(UploadResult.success("null"), null)
-                    }
-                }
-            }
-        })
-    }
-
 
     private fun ReportEventData.fillCommonData(): ReportEventData {
         version = this@JuggServer.version
@@ -473,19 +298,4 @@ data class ReportEventData(
     var detail: String?
 ) {
     constructor() : this("", "", "", "", "", "", true, 0, null)
-}
-
-/**
- * UploadResult carries isSuccess, errorMessage, and reportId.
- */
-data class UploadResult(
-    val isSuccess: Boolean,
-    val errorMessage: String?,
-    val reportId: String?,
-) {
-    companion object {
-        fun success(reportId: String) = UploadResult(true, null, reportId)
-
-        fun fail(errorMessage: String) = UploadResult(false, errorMessage, null)
-    }
 }
