@@ -221,14 +221,15 @@ class JuggControlPanel(
     private fun createQuickActions(): JComponent = JPanel(GridLayout(1, 3, JBUI.scale(16), 0)).transparent().apply {
         name = "quickActions"
         add(actionGroup("Build",
-            actionLink("Full Gradle Build", controller::fullGradleBuild),
-            actionLink("Clean & Reinstall", controller::cleanAndReinstall)))
-        add(actionGroup("Device", actionLink("Restart App", controller::restartApp)))
+            actionLink("Fallback to Gradle", controller::fullGradleBuild),
+            actionLink("Clear Jugg Build", controller::resetJuggCache)))
+        add(actionGroup("Device",
+            actionLink("Restart App", controller::restartApp),
+            actionLink("Clear app data", controller::cleanAndReinstall)))
         add(actionGroup("Jugg Plugin",
-            actionLink("Install Skills", controller::installSkills),
-            actionLink("Check Updates", controller::checkUpdates),
             actionLink("Report Issue", controller::reportIssue),
-            actionLink("Reset Jugg Cache", controller::resetJuggCache)))
+            actionLink("Check updates", controller::checkUpdates),
+            actionLink("Install CLI & Skill", controller::installSkills)))
     }
 
     private fun lastDeploySection(): JComponent = overviewSection("Last deploy", "lastDeploy") {
@@ -355,10 +356,10 @@ class JuggControlPanel(
                 settingToggle("Use project Kotlin compiler", "Matches the compiler configured by the project.", JuggControlPanelController.Setting.PROJECT_KOTLIN),
                 settingToggle("Backup classpath", "May improve recovery at the cost of extra storage.", JuggControlPanelController.Setting.BACKUP_CLASSPATH)),
             settingGroup("Integrations", "integrations",
-                settingAction("Jugg CLI and skills", "Manage the installed Jugg development tools.", "Manage…", controller::installSkills),
-                settingAction("Update channel", "Check whether a newer Jugg plugin is available.", "Check now", controller::checkUpdates)),
+                settingAction("Install CLI and agent skills", "Install the Jugg CLI, agent skills, hooks, and required permissions.", "Install…", controller::installSkills),
+                settingAction("Check Jugg updates", "Check whether a newer Jugg plugin is available.", "Check now", controller::checkUpdates)),
             settingGroup("Advanced", "advanced",
-                settingAction("Reset Jugg cache", "Delete Jugg project caches and reinitialize the project.", "Reset…", controller::resetJuggCache)),
+                settingAction("Clear Jugg Build", "Delete Jugg project build data and reinitialize the project.", "Clear…", controller::resetJuggCache)),
         )
         val search = JBTextField().apply {
             name = "settings.search"

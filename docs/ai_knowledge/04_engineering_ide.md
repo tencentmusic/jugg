@@ -131,6 +131,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - Logs 只展示 sync、compile、deploy、app、CLI/MCP 等结构化核心事件，使用来源和级别下拉框、当前任务与 Follow 复选框及搜索框过滤，不读取或轮询 `compile_latest.log`；日志列表支持多选和平台复制快捷键。
 - MCP lifecycle 固定记录 `MCP request` / `MCP response`，tool 与结果摘要进入 detail。
 - Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action，七个开关直接读写 `JuggSettings`。无真实后端的预览设置和动作不显示。
+- Overview Quick Actions 按 Build、Device、Jugg Plugin 分组；`Clear app data` 复用通用确认弹窗，确认后才执行清除 App 数据、完整 Gradle 构建和重装。`Clear Jugg Build` 保留既有清理 Jugg 项目构建数据并重新初始化项目的行为。
 - `MockJuggControlPanelModel` 只通过真实 Model API 构造测试场景；Panel 在 real/mock model 之间切换时复用同一个订阅和 render 路径，不保留 UI 内置 `MockData`。
 - `JuggToolWindowFactory` 与 `OpenJuggControlPanelAction` 均实现 `DumbAware`；Panel 不依赖索引，IDE 处于 indexing / dumb mode 时仍可创建和打开。
 - Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Pannel` 并选中 Settings；Tools 菜单的独立 action 仍从 Overview 打开。

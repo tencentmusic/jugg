@@ -64,10 +64,11 @@ class JuggRunSettingsComponentTest {
             .mapNotNull { it.name }
             .filter { it.startsWith("settings.group.") }
             .toList()
-        val actionTexts = descendants(panel)
-            .filterIsInstance<ActionLink>()
-            .mapNotNull { it.text }
-            .toSet()
+        val quickActionGroups = quickActions!!.components.map { group ->
+            descendants(group).filterIsInstance<JLabel>().first().text to
+                    descendants(group).filterIsInstance<ActionLink>().mapNotNull { it.text }.toList()
+        }
+        val actionTexts = descendants(panel).filterIsInstance<ActionLink>().mapNotNull { it.text }.toSet()
 
         assertNotNull(tabs)
         assertEquals(listOf("Overview", "Logs", "Settings"), (0 until tabs!!.tabCount).map(tabs::getTitleAt))
@@ -78,10 +79,15 @@ class JuggRunSettingsComponentTest {
             "section.session",
             "section.recentRuns",
         ), sectionNames)
-        assertTrue(quickActions!!.layout is GridLayout)
+        assertTrue(quickActions.layout is GridLayout)
         val quickActionsLayout = quickActions.layout as GridLayout
         assertEquals(3, quickActionsLayout.columns)
         assertEquals(3, quickActions.componentCount)
+        assertEquals(listOf(
+            "Build" to listOf("Fallback to Gradle", "Clear Jugg Build"),
+            "Device" to listOf("Restart App", "Clear app data"),
+            "Jugg Plugin" to listOf("Report Issue", "Check updates", "Install CLI & Skill"),
+        ), quickActionGroups)
         assertEquals(listOf(
             "settings.group.runBehavior",
             "settings.group.deployment",
@@ -92,15 +98,23 @@ class JuggRunSettingsComponentTest {
         val settingCheckboxes = settingGroupNames.sumOf { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).filterIsInstance<JBCheckBox>().count()
         }
+        val settingRows = settingGroupNames.flatMap { groupName ->
+            descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
+        }
         assertEquals(7, settingCheckboxes)
+        assertTrue(settingRows.containsAll(listOf(
+            "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
+            "Check Jugg updates Check whether a newer Jugg plugin is available.",
+            "Clear Jugg Build Delete Jugg project build data and reinitialize the project.",
+        )))
         assertNotNull(findNamedComponent<JComponent>(panel, "logs.source"))
         assertNotNull(findNamedComponent<JComponent>(panel, "logs.level"))
         assertNotNull(findNamedComponent<JBList<*>>(panel, "logs.events"))
         assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.changedFilesList"))
         assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.recentRunsList"))
         assertTrue(actionTexts.containsAll(listOf(
-            "Full Gradle Build", "Restart App", "Clean & Reinstall", "Install Skills",
-            "Check Updates", "Report Issue", "Reset Jugg Cache",
+            "Fallback to Gradle", "Clear Jugg Build", "Restart App", "Clear app data",
+            "Report Issue", "Check updates", "Install CLI & Skill", "Install…", "Check now", "Clear…",
         )))
         assertTrue("More…" !in actionTexts)
     }

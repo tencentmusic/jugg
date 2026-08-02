@@ -106,7 +106,14 @@ open class JuggControlPanelController(
         }
     }
 
-    open fun cleanAndReinstall() = manager.cleanAndReinstall()
+    open fun cleanAndReinstall() {
+        val confirmed = CommonConfirmDialog.showAndGetResult(
+            title = "Clear App Data",
+            content = "<html>This will clear app data, run a full Gradle build, and reinstall the app.<br>Are you sure you want to continue?</html>",
+            okButtonText = "Clear App Data",
+        )
+        if (confirmed) manager.cleanAndReinstall()
+    }
 
     open fun resetJuggCache() = manager.resetJuggCache()
 
