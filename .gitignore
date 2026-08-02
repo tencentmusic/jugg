@@ -23,6 +23,7 @@ deploy_compat/v_*/libs/*.jar
 **/build/
 /android_demo_project/.idea/
 /main/src/main/resources/gradle/
+/main/src/main/resources/config/servers.json
 /main/src/test/java/local
 /idea/src/test/java/local
 /cmd_line/src/test/java/local

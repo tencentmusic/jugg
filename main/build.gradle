@@ -1,5 +1,7 @@
 //file:noinspection ConfigurationAvoidance
 
+import groovy.json.JsonSlurper
+
 plugins {
     id 'java'
     id 'org.jetbrains.kotlin.jvm'
@@ -23,7 +25,38 @@ sourceSets {
         }
         resources {
             srcDirs += agentBundleDir
+            exclude 'config/servers.json'
         }
+    }
+}
+
+tasks.register('validateInternalServers') {
+    doLast {
+        def serversFile = file('src/main/resources/config/servers.json')
+        if (!serversFile.isFile()) {
+            throw new GradleException("Internal plugin build requires ${serversFile}")
+        }
+        def servers = new JsonSlurper().parse(serversFile)
+        if (!(servers instanceof List) || servers.isEmpty()) {
+            throw new GradleException("Internal plugin build requires a non-empty servers.json")
+        }
+    }
+}
+
+tasks.register('prepareInternalServers') {
+    dependsOn 'processResources', 'validateInternalServers'
+    outputs.file "$buildDir/resources/main/config/servers.json"
+    doLast {
+        copy {
+            from file('src/main/resources/config/servers.json')
+            into file("$buildDir/resources/main/config")
+        }
+    }
+}
+
+tasks.named('processResources').configure {
+    doFirst {
+        file("$buildDir/resources/main/config/servers.json").delete()
     }
 }
 

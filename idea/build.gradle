@@ -34,6 +34,16 @@ tasks.findByName("buildPlugin").doFirst {
     new File("$rootDir/idea/build/distributions").mkdirs()
 }
 
+tasks.register('buildPluginInternal') {
+    group = 'intellij'
+    description = 'Builds the plugin with the local internal servers.json resource.'
+    dependsOn 'buildPlugin', ':main:prepareInternalServers'
+}
+
+tasks.named('buildPlugin').configure {
+    mustRunAfter ':main:prepareInternalServers'
+}
+
 sourceCompatibility = 11
 targetCompatibility = 11
 
