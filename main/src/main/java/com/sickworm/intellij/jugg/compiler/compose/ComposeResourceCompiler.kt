@@ -113,12 +113,30 @@ class ComposeResourceCompiler(
         info: ComposeResourceInfo,
         prepared: PreparedResources,
         workDir: File,
-    ) = generator.generate(
-        info,
-        prepared.resources,
-        resolveCommonSourceSetNames(module, info, context.modules.values),
-        File(workDir, "generated"),
-    )
+    ): ComposeGeneratedSources {
+        val generatedRoot = File(workDir, "generated")
+        val generated = generator.generate(
+            info,
+            prepared.resources,
+            resolveCommonSourceSetNames(module, info, context.modules.values),
+            generatedRoot,
+        )
+        syncGeneratedSources(module, generatedRoot)
+        return generated
+    }
+
+    private fun syncGeneratedSources(module: ModuleInfo, generatedRoot: File) {
+        val targetDir = module.buildPathInfo.composeResourceGeneratedSourcePath
+        runCatching {
+            targetDir.clearDir()
+            check(generatedRoot.copyRecursively(targetDir, overwrite = true)) {
+                "Failed to copy Compose generated sources to ${targetDir.path}"
+            }
+        }.onFailure { exception ->
+            logger.warn("Failed to update Compose generated sources for IDE: ${targetDir.path}")
+            logger.debug("Compose generated source sync detail", exception)
+        }
+    }
 
     private fun compileGenerated(
         parentTask: CompileTask,

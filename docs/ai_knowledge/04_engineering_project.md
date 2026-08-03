@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-07-30
+> 最后核对：2026-08-03
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -71,6 +71,8 @@
 `kotlinCommonSourceDirs` 从 `compile<Variant>Kotlin` / `compile<Variant>KotlinAndroid` task 的 `commonSourceSet` 结构读取，保留 direct common root、中间 `sharedMain` root 和 task 配置的 generated common roots。读取不依据 source-set 名称或 `src/<name>` 路径猜测。Gradle reader 会把这些 roots 同时加入 `sourceDirs`，merge 出口再次保证 `kotlinCommonSourceDirs` 是 `sourceDirs` 的子集并按规范化路径去重；独立字段继续保留 common/platform 身份，IDE 的扁平 `sourceDirs` 不覆盖该身份。
 
 `ComposeResourceInfo.resourceDirectories` 不是从固定 `src/<sourceSet>/composeResources` 路径猜测。`GradleProjectInfoReader` 读取 Compose 任务的 `fileSuffix` 与 `originalResourcesDir`，因此默认目录和 Gradle DSL 配置的自定义目录即使尚不存在也会进入 project info。它还保存 support status/reason、generator classpath、package name、accessor visibility 和 packaging/asset 相对路径，序列化后供文件变更识别与增量编译使用。
+
+Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGeneratedSourcePath` 从 `generatedSourcePath` 派生，不读取或持久化 Gradle task 的 `codeDir`。增量生成完成后，`ComposeResourceCompiler` 直接将 accessor 写回该目录，供 Android Studio 索引新增资源引用。`allBuildPaths` 已包含父目录 `generatedSourcePath`，无需重复加入这个子目录。
 
 `ModuleBuildPathInfo.buildDirRelativePath` 记录模块实际 Gradle build directory 相对 IDE 项目根的路径。Gradle init script 从 `project.layout.buildDirectory` 读取该值；IDE 侧从 Android model 的 build folder 读取，并在 Gradle/IDE project info merge 时以 Gradle 值为准。构造 `ModuleBuildPathInfo` 时必须显式提供该字段；明确传入空字符串表示兼容旧快照并继续使用 `${moduleRootDir}/build`。所有 classpath、manifest、mapping、APK/androidTest 回填与远端同步路径都从该 build directory 派生，不再假设输出位于模块目录下。
 

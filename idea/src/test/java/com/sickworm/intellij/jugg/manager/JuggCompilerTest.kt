@@ -571,6 +571,7 @@ class KmpComposeFlowReproTest {
                 assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
                 assertTrue(stagingDexPaths(jugg).any { it.endsWith("KmpComposeResourceCase.dex") })
                 assertTrue(stagingDexPaths(jugg).any { it.contains("String0_commonMainKt") })
+                assertTrue(gradleComposeGeneratedSources().any { it.readText().contains("incremental_title") })
                 assertNoComposeGradle(jugg)
             }
         }
@@ -953,10 +954,7 @@ class KmpComposeFlowReproTest {
             ?: error("KMP Compose Gradle project info was not generated")
         val module = gradleProjectInfo.modules["kmpCompose"]
             ?: error("kmpCompose module was not found in Gradle project info")
-        val buildDirPath = module.buildPathInfo.buildDir.toPath().toAbsolutePath().normalize()
-        return module.sourceDirs.asSequence()
-            .filter { it.toPath().toAbsolutePath().normalize().startsWith(buildDirPath) }
-            .flatMap { it.walkTopDown() }
+        return module.buildPathInfo.composeResourceGeneratedSourcePath.walkTopDown().asSequence()
             .filter { it.isFile && it.extension == "kt" }
             .toList()
     }

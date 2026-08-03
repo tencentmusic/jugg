@@ -76,6 +76,7 @@ JuggCompiler（早于 asset/resource/source）
      -> legacy 管线直接扫描 XML；现代管线把全部 values XML 转为 CVR
      -> 扫描全部已知 source set 的 values/drawable/font；files 只作为 asset
      -> ComposeResourceGeneratorBridge 按 API 形态调用项目 plugin JAR 的官方 generator
+     -> 将 generated Kotlin 同步到模块 Compose generated source 路径，供 IDE 索引、高亮和自动 import
      -> 一次 Kotlin invocation 编译 generated source；现代管线显式标注 expect/actual common sources
   -> 仅将本轮 changed CVR/drawable/font/files 作为资源输出
   -> JuggCompiler：legacy 输出转为 ClasspathResource，现代输出保持 Asset
@@ -90,7 +91,7 @@ DeployDataPlanner
 
 Compose resource 的重启判断使用本轮编译输入，不从最终 `CompileOutput.Type.Asset` 反推来源。`compiledFiles` 在最后一个设备成功 commit 前保留，因此正常部署和 retry 重建 `JuggDeployData` 时都能恢复该标记；warm-up 不设置标记。现代资源虽然位于 `assets/**`，`AssetManager` / Compose runtime 仍可能缓存已读取内容，Activity restart 不足以保证刷新，所以与 legacy APK 根目录资源一样需要进程重启。
 
-Gradle 生成的 Compose accessor 目录可以继续存在于 project info 的 `sourceDirs` 中，但只作为编译上下文元数据使用。文件监听或影响传播上报这些 build directory 路径时，`FileChangesHandler` 会在类型识别前统一过滤，因此同轮 Compose resource 编译只使用 `ComposeResourceCompiler` 自己生成的 accessor class，不会再从 Gradle build 输出重复编译同名 Kotlin source。
+Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGeneratedSourcePath` 从模块 build directory 直接派生，不进入 Gradle project info。Jugg 生成 accessor 后直接覆盖该目录，使 Android Studio 能索引新增资源并提供高亮和自动 import；同步失败只舍弃 IDE 辅助能力，不影响已经生成的增量编译产物。文件监听或影响传播上报这些 build directory 路径时，`FileChangesHandler` 会在类型识别前统一过滤，因此同轮 Compose resource 编译只使用 `ComposeResourceCompiler` 自己生成的 accessor class，不会再从 Gradle build 输出重复编译同名 Kotlin source。
 
 ---
 
@@ -114,7 +115,7 @@ Gradle 生成的 Compose accessor 目录可以继续存在于 project info 的 `
 ### 5.1 测试落点
 
 - L1：`ComposeValueResourceConverterTest`、`ComposeResourceScannerTest`、`ComposeResourceGeneratorBridgeTest` 验证 CVR/扫描结果、缺失根、diagnostic 回映射、source-set 身份和官方 golden Kotlin 输出。
-- L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`，并覆盖传统/集中式 build directory 的文件与目录事件过滤；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8 与 staging，并覆盖资源与 Gradle generated accessor 同轮上报时不产生重复 class。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
+- L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`，并覆盖传统/集中式 build directory 的文件与目录事件过滤；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8、staging 与 generated accessor 回写，并覆盖资源与 Gradle generated accessor 同轮上报时不产生重复 class。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
 - L3：`KmpComposeDeployFlowTest` 通过代表性 Compose profile 的真实 demo full install、基线资源缓存预热、仅资源增量 compile/deploy/run 和 logcat 覆盖进程重启后的 accessor 实际消费、目标 APK 与无增量 Gradle Compose task；多版本产物路径矩阵由 L2 覆盖，不在 L3 重复展开。
 
 ### 5.2 Android Studio E2E 验证口径

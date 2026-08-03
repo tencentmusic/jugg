@@ -236,6 +236,7 @@ data class ModuleBuildPathInfo(
     /** generated source path, used in java-source-roots in KotlinCompiler */
     val generatedSourcePath get() = File(buildDir, "generated")
     val generatedKspSourcePath get() = File(generatedSourcePath, "ksp/$buildVariant/kotlin")
+    val composeResourceGeneratedSourcePath get() = File(generatedSourcePath, "compose/resourceGenerator/kotlin")
 
     /** java classpath for java library */
     private val javaClassPathForJavaLibrary get() = File(buildDir, "classes/java/main")
