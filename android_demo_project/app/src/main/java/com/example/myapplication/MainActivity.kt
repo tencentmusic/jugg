@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.View
 import com.sickworm.jugg.demo.testcase.databinding.DataBindingJavaDemoActivity
 import com.sickworm.jugg.demo.testcase.databinding.DataBindingKotlinDemoActivity
+import com.sickworm.jugg.demo.testcase.kmp.KmpComposeResourceDemoActivity
 import com.sickworm.jugg.demo.testcase.ksp.MoshiDemoActivity
 import com.sickworm.jugg.demo.testcase.mcp.McpTestActivity
 
@@ -39,6 +40,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.btn_mcp_test_page).setOnClickListener {
             startActivity(Intent(this, McpTestActivity::class.java))
+        }
+
+        findViewById<View>(R.id.btn_kmp_compose_resource_demo).setOnClickListener {
+            startActivity(Intent(this, KmpComposeResourceDemoActivity::class.java))
         }
     }
 }

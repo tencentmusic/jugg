@@ -15,9 +15,11 @@ kotlin {
         def sharedMain = create('sharedMain')
         sharedMain.dependsOn(commonMain)
         androidMain.dependsOn(sharedMain)
+        androidMain.kotlin.srcDir('src/legacyAndroidMain/kotlin')
 
         commonMain.dependencies {
             implementation compose.runtime
+            implementation compose.foundation
             implementation compose.components.resources
         }
     }

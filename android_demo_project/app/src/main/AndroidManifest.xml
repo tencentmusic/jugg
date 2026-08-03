@@ -57,6 +57,10 @@
             android:exported="true"
         />
         <activity
+            android:name="com.sickworm.jugg.demo.testcase.kmp.KmpComposeResourceDemoActivity"
+            android:exported="false"
+        />
+        <activity
             android:name="com.sickworm.jugg.demo.testcase.minify.MinifyTestActivity"
             android:exported="true"
         />

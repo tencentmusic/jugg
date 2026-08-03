@@ -56,4 +56,12 @@
             android:text="MCP Test Page"
             android:layout_marginTop="16dp"
     />
+
+    <Button
+            android:id="@+id/btn_kmp_compose_resource_demo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="KMP Compose Resource Demo"
+            android:layout_marginTop="16dp"
+    />
 </LinearLayout>
