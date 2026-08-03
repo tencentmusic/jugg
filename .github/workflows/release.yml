@@ -1,0 +1,67 @@
+name: Build tagged release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag version
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          project_version="$(sed -n "s/^def versionName = '\([^']*\)'$/\1/p" build.gradle)"
+          if [[ -z "$project_version" || "$tag_version" != "$project_version" ]]; then
+            echo "Tag version '$tag_version' does not match build.gradle version '$project_version'." >&2
+            exit 1
+          fi
+
+      - name: Prepare release version
+        run: git checkout -B main "$GITHUB_SHA"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android build tools
+        run: sdkmanager "platforms;android-33" "ndk;27.0.12077973" "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build plugin
+        run: ./gradlew :idea:buildPlugin --no-daemon
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: jugg-${{ github.ref_name }}
+          path: idea/build/distributions/*.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" idea/build/distributions/*.zip --clobber
