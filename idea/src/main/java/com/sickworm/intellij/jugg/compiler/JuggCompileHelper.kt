@@ -158,18 +158,15 @@ class JuggCompilerHelper(
 
             incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
 
-            // Strategy 2: Step2 Wait for async git check and force recompile if new files found
-            logger.trace("[PERF] gitChangeChecker.getAsyncResultWithTimeout start, thread=${Thread.currentThread().name}")
-            val gitCheckStart = System.currentTimeMillis()
-            val foundResult = gitChangeChecker.getAsyncResultWithTimeout()
-            logger.trace("[PERF] gitChangeChecker.getAsyncResultWithTimeout end, cost=${System.currentTimeMillis() - gitCheckStart}ms, thread=${Thread.currentThread().name}")
-            if (foundResult == null) {
-                logger.warn("Git check after compile timeout, the repository is tooooo big?? File changes may not reliable.")
-            } else if (foundResult.isFoundNewChangedFiles) {
+            // Consume the async Git check only when it finished during compilation.
+            val foundResult = gitChangeChecker.getAsyncResultIfCompleted()
+            if (foundResult?.isFoundNewChangedFiles == true) {
                 logger.info("Git check after compile, found ${foundResult.foundFilesSize} new file(s) after compile success, compile again.")
                 incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
-            } else {
+            } else if (foundResult != null) {
                 logger.debug("Git check after compile found no new changed files.")
+            } else {
+                logger.debug("Git check after compile but timeout.")
             }
 
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - startTime)

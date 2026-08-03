@@ -79,6 +79,7 @@ ${projectRoot}/.gradle/jugg/
 | 增量/全量判断 | `preprocessIncrementalCompile` |
 | 无文件变化弹框 | `confirmFallbackWhenNoFileChanges` |
 | EDT 异步派发（文件变化） | `dispatching to background` |
+| 编译后 Git 补检未完成 | `Git check after compile is still running` |
 | 锁等待耗时 | `waiting for TaskRunnerManager lock` / `waitCost=` |
 | APK DB 初始化 | `initAfterInstall parsed apk start` / `database all init finish` |
 | SQLite 查询 | `getClassNodes` |
@@ -221,6 +222,21 @@ deploy_compat/v_quail/.../QuailAsDeployerCompat.kt
 2. 检查 `module_builds.json` 的 `version`；version 1/2 应可恢复，其他版本会失败关闭。
 3. 对齐目录修改时间与日志中的版本提示，确认 flag 是升级恢复时删除还是用户清理。
 4. 若 flag 已缺失，不手工创建；运行一次完整 Jugg Gradle Compile。
+
+### 4.2.2 编译后 Git 补检仍在运行
+
+**信号**：日志出现 `Git check after compile is still running, continue without waiting.`。
+
+**当前期望行为**：
+- Git 补检在增量编译前异步启动，用于发现 IDE 文件事件遗漏的磁盘修改。
+- 编译结束后只消费已经完成的补检结果，不等待仍在运行的查询。
+- 查询未完成时仅记录 debug，当前编译和部署继续；迟到结果不触发本轮二次编译，也不会被后续 Run 误读。
+- 后台查询可以自然完成，其文件刷新结果可进入后续 Run 的待编译状态。
+
+**排查步骤**：
+1. 搜 `gitManager.getChangedFiles` 与 `gitManager.getUncommittedFiles`，区分 commit diff 和工作区扫描耗时。
+2. 搜 `Git recovery CRC summary`，确认候选文件和历史 CRC 规模。
+3. 该日志本身不表示本次 Run 失败；只有持续高频出现时才继续检查仓库规模、未跟踪文件和部署历史。
 
 ### 4.3 APK 数据库初始化慢
 

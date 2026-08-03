@@ -6,8 +6,11 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import kotlinx.coroutines.CompletableJob
+import kotlinx.coroutines.Job
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -65,7 +68,7 @@ class GitChangesCompileCheckerTest {
     }
 
     @Test
-    fun getAsyncResultWithTimeout_skipsRecompileWhenAsyncCheckRacedWithCompile() {
+    fun getAsyncResultIfCompleted_skipsRecompileWhenAsyncCheckRacedWithCompile() {
         val deployFileManager = mock<DeployFileManager>()
         val gitDetector = mock<GitFileChangesDetector>()
         val dressFile = createSourceFile("DressCenterPage.kt")
@@ -80,17 +83,17 @@ class GitChangesCompileCheckerTest {
             .thenReturn(listOf(dressUncompiled, entryUncompiled))
             .thenReturn(listOf(dressCompiled, entryCompiled))
 
-        val checker = createChecker(gitDetector, deployFileManager)
-        checker.checkUndetectedFiles(listOf(dressUncompiled))
+        val checker = createChecker(gitDetector, deployFileManager, ImmediateBackgroundTaskRunner())
+        checker.checkUndetectedFilesAsync(listOf(dressUncompiled))
 
-        val result = checker.getAsyncResultWithTimeout()
+        val result = checker.getAsyncResultIfCompleted()
 
         assertFalse(result!!.isFoundNewChangedFiles)
         assertTrue(result.files.isEmpty())
     }
 
     @Test
-    fun getAsyncResultWithTimeout_stillRecompilesWhenFileRemainsUncompiled() {
+    fun getAsyncResultIfCompleted_stillRecompilesWhenFileRemainsUncompiled() {
         val deployFileManager = mock<DeployFileManager>()
         val gitDetector = mock<GitFileChangesDetector>()
         val entryFile = createSourceFile("KuiklyCoreEntry.kt")
@@ -101,10 +104,10 @@ class GitChangesCompileCheckerTest {
             .thenReturn(listOf(entryUncompiled))
             .thenReturn(listOf(entryUncompiled))
 
-        val checker = createChecker(gitDetector, deployFileManager)
-        checker.checkUndetectedFiles(emptyList())
+        val checker = createChecker(gitDetector, deployFileManager, ImmediateBackgroundTaskRunner())
+        checker.checkUndetectedFilesAsync(emptyList())
 
-        val result = checker.getAsyncResultWithTimeout()
+        val result = checker.getAsyncResultIfCompleted()
 
         assertTrue(result!!.isFoundNewChangedFiles)
         assertEquals(listOf(entryUncompiled), result.files)
@@ -129,15 +132,104 @@ class GitChangesCompileCheckerTest {
         assertEquals(listOf(reopened), result.files)
     }
 
+    @Test
+    fun getAsyncResultIfCompleted_ignoresAsyncCheckStillRunning() {
+        val checker = createChecker(
+            gitDetector = mock(),
+            deployFileManager = mock(),
+            backgroundTaskRunner = PendingBackgroundTaskRunner(),
+        )
+        checker.checkUndetectedFilesAsync(emptyList())
+
+        assertNull(checker.getAsyncResultIfCompleted())
+    }
+
+    @Test
+    fun getAsyncResultIfCompleted_doesNotReuseLateResult() {
+        val deployFileManager = mock<DeployFileManager>()
+        val gitDetector = mock<GitFileChangesDetector>()
+        val lateFile = changedFile(createSourceFile("Late.kt"))
+        whenever(deployFileManager.getUndeployedFiles())
+            .thenReturn(emptyList())
+            .thenReturn(listOf(lateFile))
+            .thenReturn(emptyList())
+            .thenReturn(emptyList())
+        val backgroundTaskRunner = ManualBackgroundTaskRunner()
+        val checker = createChecker(gitDetector, deployFileManager, backgroundTaskRunner)
+
+        checker.checkUndetectedFilesAsync(emptyList())
+        assertNull(checker.getAsyncResultIfCompleted())
+
+        checker.checkUndetectedFilesAsync(emptyList())
+        backgroundTaskRunner.complete(0)
+        backgroundTaskRunner.complete(1)
+
+        val result = checker.getAsyncResultIfCompleted()
+        assertFalse(result!!.isFoundNewChangedFiles)
+    }
+
     private fun createChecker(
         gitDetector: GitFileChangesDetector,
         deployFileManager: DeployFileManager,
+        backgroundTaskRunner: IBackgroundTaskRunner = mock(),
     ): GitChangesCompileChecker {
         return GitChangesCompileChecker(
             gitFileChangesDetector = gitDetector,
             deployFileManager = deployFileManager,
-            backgroundTaskRunner = mock(),
+            backgroundTaskRunner = backgroundTaskRunner,
             logger = mock(),
+        )
+    }
+
+    private class PendingBackgroundTaskRunner : IBackgroundTaskRunner {
+        private val job = Job()
+
+        override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job = job
+
+        override fun runBackgroundSafe(
+            jobName: String,
+            delayMs: Long,
+            isNeedLog: Boolean,
+            action: Runnable,
+        ): Job = job
+    }
+
+    private class ImmediateBackgroundTaskRunner : IBackgroundTaskRunner {
+        override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job {
+            action.run()
+            return Job().apply { complete() }
+        }
+
+        override fun runBackgroundSafe(
+            jobName: String,
+            delayMs: Long,
+            isNeedLog: Boolean,
+            action: Runnable,
+        ): Job = runBackgroundSafe(jobName, isNeedLog, action)
+    }
+
+    private class ManualBackgroundTaskRunner : IBackgroundTaskRunner {
+        private val tasks = mutableListOf<PendingTask>()
+
+        override fun runBackgroundSafe(jobName: String, isNeedLog: Boolean, action: Runnable): Job {
+            return PendingTask(action, Job()).also(tasks::add).job
+        }
+
+        override fun runBackgroundSafe(
+            jobName: String,
+            delayMs: Long,
+            isNeedLog: Boolean,
+            action: Runnable,
+        ): Job = runBackgroundSafe(jobName, isNeedLog, action)
+
+        fun complete(index: Int) {
+            tasks[index].action.run()
+            tasks[index].job.complete()
+        }
+
+        private data class PendingTask(
+            val action: Runnable,
+            val job: CompletableJob,
         )
     }
 

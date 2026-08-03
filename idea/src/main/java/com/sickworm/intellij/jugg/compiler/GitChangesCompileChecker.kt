@@ -6,8 +6,6 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 
 /**
  * Check if there are any new changed files by Git.
@@ -27,7 +25,6 @@ class GitChangesCompileChecker(
         val result = FoundResult(findNewlyUncompiledFiles(filesBefore, filesAfter))
 
         logger.debug("GitChangesRetryResolver: checkUndetectedFiles: $result")
-        this.lastFoundResult = result
         return result
     }
 
@@ -48,24 +45,29 @@ class GitChangesCompileChecker(
         }
     }
 
-    private var lastFoundResult: FoundResult? = null
-    private var checkJob: Job? = null
+    private var asyncCheck: AsyncCheck? = null
 
     fun checkUndetectedFilesAsync(compilingFiles: List<ChangedFile>) {
-        checkJob = backgroundTaskRunner.runBackgroundSafe("Check Undetected Files") {
-            lastFoundResult = checkUndetectedFiles(compilingFiles)
+        val check = AsyncCheck()
+        check.job = backgroundTaskRunner.runBackgroundSafe("Check Undetected Files") {
+            check.result = checkUndetectedFiles(compilingFiles)
         }
+        asyncCheck = check
     }
 
-    fun getAsyncResultWithTimeout(timeout: Long = 10_000): FoundResult? {
-        runBlocking {
-            withTimeout(timeout) {
-                checkJob?.join()
-            }
+    fun getAsyncResultIfCompleted(): FoundResult? {
+        val check = asyncCheck ?: return null
+        asyncCheck = null
+        if (!check.job.isCompleted) {
+            logger.debug("Git check after compile is still running, continue without waiting.")
+            return null
         }
-        val result = lastFoundResult
-        lastFoundResult = null
-        return result?.let { reconcileWithCurrentState(it) }
+        return check.result?.let { reconcileWithCurrentState(it) }
+    }
+
+    private class AsyncCheck {
+        lateinit var job: Job
+        @Volatile var result: FoundResult? = null
     }
 
     /**

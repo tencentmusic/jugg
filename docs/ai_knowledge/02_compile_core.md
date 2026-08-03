@@ -153,7 +153,7 @@ JuggCompiler.doCompile(task)
   1. `GitChangesRetryResolver`（`idea` 层）：检测 `unresolved reference / cannot find symbol` 类错误 → 触发 `GitFileChangesDetector.updateChangedFiles()` → 若发现新文件则重试一次。
   2. `IncrementalCompileRetryResolver`：检测依赖缺失关键词 → 更新 compile context → 有变化则重试一次。
 - 影响传播重编译：基于 `DeployFileManager.getRecompileFiles(...)`；`IncrementalCompilerHelper` continue compile 过滤两层：（1）排除**上一轮**已编译源文件（`lastRoundCompiledPaths`），但 `RecompileFiles.topLevelFacadeEffectedSourcePaths` 标记的 Kotlin top-level file facade 调用方可突破该过滤；（2）排除本 session 内已按相同影响触发键跟编过的源文件（`ContinueCompileEffectFilter.resolveUncompiledEffectedFiles`：派发跟编前 `schedulePendingEffectTriggers` 写入 `pendingEffectTriggerKeys`，子帧在过滤前先消费 pending 写入 `satisfiedEffectTriggers`；键为 `effectedPath + effectedByClasses` 或首轮 const-ref 批次）。更早轮次若出现**新的**触发方（如定义方 B 结构变化后首次要求重编调用方 A）仍会进入下一轮；同一 `CrashDataSource -> SafeMode` 键不会乒乓重复跟编。递归跟编轮次只做 class/dex 结构影响传播，不再把这些跟编源码作为 `ConstRefEngine` 的新 changed source 输入。
-- 编译成功后的 Git 补检（`GitChangesCompileChecker`）：仅当 Git 刷新后出现**新的待编译**文件（`!hasCompiledOnce`）才触发二次增量编译；已在当轮编译完成、仅因 undeployed 集合成员变化的文件（如 Kuikly 改写 `KuiklyCoreEntry.kt` 且快照未变）不触发。异步 Git 任务可能在 Kotlin 编译结束前完成，`getAsyncResultWithTimeout` 会按路径用当前 `DeployFileManager` 状态再校验一次，避免缓存的 `ChangedFile` 仍显示 `compiledTimes=0` 而误触发 `compile again`。
+- 编译成功后的 Git 补检（`GitChangesCompileChecker`）：仅当 Git 刷新后出现**新的待编译**文件（`!hasCompiledOnce`）才触发二次增量编译；已在当轮编译完成、仅因 undeployed 集合成员变化的文件（如 Kuikly 改写 `KuiklyCoreEntry.kt` 且快照未变）不触发。编译结束后 `getAsyncResultIfCompleted()` 只消费已经完成的异步任务，不等待仍在运行的 Git 查询；未完成时记录 debug 并继续当前流程，迟到结果不会被后续 Run 误读。已完成结果仍会按路径用当前 `DeployFileManager` 状态再校验一次，避免缓存的 `ChangedFile` 仍显示 `compiledTimes=0` 而误触发 `compile again`。
 
 ---
 
@@ -163,7 +163,7 @@ JuggCompiler.doCompile(task)
 |------|----------|
 | 用户说“这次没走增量 / 直接 Gradle” | `JuggCompileHelper.preprocessIncrementalCompile()`、`checkFallback()` |
 | 编译成功后日志出现 `found effected source files, continue compile` | `IncrementalCompilerHelper.compile()` 中 `getRecompileFiles()` 后的 `unCompiledEffectedFiles` |
-| 编译成功后又因 Git 补检 `compile again` | `GitChangesCompileChecker.getAsyncResultWithTimeout()` |
+| 编译成功后又因 Git 补检 `compile again` | `GitChangesCompileChecker.getAsyncResultIfCompleted()` |
 | 资源/manifest/asset 产物影响错 APK | `BaseCompiler.splitApkAndCompile()` 与子类 `doApkCompile()` 输出的 `targetApkPaths` |
 | R 相关运行时缺类或 `R.styleable` 异常 | `JuggCompiler` 中 `R.java` -> `SourceCompiler` -> `RDexForSubmoduleCompiler` 链路 |
 | 取消后下次没有重新编译 | `IncrementalCompilerHelper` 取消分支的 `rollbackChangedFile()` / `clearStagingFiles()` |
