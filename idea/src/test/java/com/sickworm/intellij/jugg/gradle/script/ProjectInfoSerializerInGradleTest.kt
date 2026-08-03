@@ -87,7 +87,13 @@ class ProjectInfoSerializerInGradleTest {
             assertTrue(File(r8Classpath, "com/android/tools/r8/D8.class").exists())
         }
         URLClassLoader(arrayOf(r8Classpath.toURI().toURL()), ClassLoader.getPlatformClassLoader()).use {
-            assertEquals("com.android.tools.r8.D8", it.loadClass("com.android.tools.r8.D8").name)
+            val originClass = it.loadClass("com.android.tools.r8.origin.Origin")
+            val commandClass = it.loadClass("com.android.tools.r8.D8Command")
+            val origin = originClass.getMethod("root").invoke(null)
+            val builder = commandClass.getMethod("parse", Array<String>::class.java, originClass)
+                .invoke(null, emptyArray<String>(), origin)
+
+            assertEquals("com.android.tools.r8.D8Command\$Builder", builder.javaClass.name)
         }
     }
 

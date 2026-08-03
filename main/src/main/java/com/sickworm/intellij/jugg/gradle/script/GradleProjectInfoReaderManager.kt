@@ -89,7 +89,55 @@ class GradleProjectInfoReaderManager(
             ?: return null
         val d8Class = plugin::class.java.classLoader.loadClass("com.android.tools.r8.D8")
         val location = d8Class.protectionDomain.codeSource?.location ?: return null
-        return File(location.toURI()).canonicalFile.takeIf { it.exists() }
+        val runtimeClasspath = File(location.toURI()).canonicalFile.takeIf { it.exists() }
+            ?: return null
+        if (!isGradleInstrumentedClasspath(runtimeClasspath, rootProject.gradle.gradleUserHomeDir)) {
+            return runtimeClasspath
+        }
+        return findOriginalAgpR8Classpath(project, rootProject, runtimeClasspath).also {
+            if (it == null) {
+                println("Jugg: original AGP R8 artifact not found for instrumented classpath: " +
+                        runtimeClasspath)
+            }
+        }
+    }
+
+    private fun findOriginalAgpR8Classpath(
+        androidProject: Project,
+        rootProject: Project,
+        runtimeClasspath: File,
+    ): File? {
+        val projects = if (androidProject == rootProject) {
+            listOf(rootProject)
+        } else {
+            listOf(androidProject, rootProject)
+        }
+        projects.forEach { project ->
+            val classpath = project.buildscript.configurations.findByName("classpath")
+                ?: return@forEach
+            try {
+                classpath.files.firstOrNull { it.isFile && it.name == runtimeClasspath.name }
+                    ?.canonicalFile
+                    ?.takeIf { it != runtimeClasspath }
+                    ?.let { return it }
+            } catch (e: Throwable) {
+                println("Jugg: resolve original AGP R8 artifact from ${project.path} failed: $e")
+            }
+        }
+        return null
+    }
+
+    private fun isGradleInstrumentedClasspath(classpath: File, gradleUserHomeDir: File): Boolean {
+        val cachesDir = File(gradleUserHomeDir, "caches").canonicalFile
+        var parent = classpath.parentFile
+        while (parent != null && parent != cachesDir) {
+            if (parent.parentFile == cachesDir &&
+                (parent.name.startsWith("jars-") || parent.name.startsWith("transforms-"))) {
+                return true
+            }
+            parent = parent.parentFile
+        }
+        return false
     }
 
     private fun checkAgpVersion(rootProject: Project): String {
