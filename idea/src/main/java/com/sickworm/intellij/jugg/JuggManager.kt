@@ -709,7 +709,7 @@ class JuggManager @TestOnly constructor(
                 val logFiles = pathManager.logDir.listFiles().orEmpty()
                     .filter { it.isFile && !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck") }
                     .sortedByDescending { it.lastModified() }
-                    .take(3)
+                    .take(10)
                 val candidates = builder.prepare(
                     environment = mapOf(
                         "pluginVersion" to juggServer.version,
