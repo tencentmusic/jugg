@@ -40,5 +40,12 @@ Use exact repository paths whenever they are known. End by requesting explicit a
 - Treat only an explicit approval of the proposed change list as review approval. Silence, partial feedback, or the original implementation request is not approval.
 - If feedback changes the scope, revise the design and change list, then request approval again.
 - Before editing any implementation file, save the approved design and change list under `docs/task/YYYY-MM/`, using the plan's creation month. Treat it as the implementation record and keep it aligned with later approved scope changes.
-- After approval, modify only the approved scope, follow the project's required development workflow, run risk-appropriate verification, and report the results.
+- After approval, modify only the approved scope, follow the project's required development workflow, and run risk-appropriate verification.
 - If implementation reveals a material unreviewed change, stop and return that change for review before continuing.
+
+### 5. Delegate the Implementation Review
+
+- After implementation and verification are complete, always delegate a read-only implementation review to a subagent before reporting completion.
+- Instruct the subagent to read every applicable `AGENTS.md` file and review the implementation diff against its coding standards. More specific `AGENTS.md` rules take precedence.
+- Limit the review to the approved implementation scope. Require findings to identify the affected file, location, violated rule, and concrete impact. The subagent must not edit files.
+- Evaluate every finding, fix valid issues, and rerun affected verification. If the fixes materially change the implementation, delegate a follow-up review before reporting completion.
