@@ -1,3 +1,9 @@
+- version: 3.2.2
+  date: 2026.08.04
+  updates:
+    - 修复 Gradle 插桩 JAR 导致增量 D8 错误回退到内置版本的问题
+    - 修复增量编译新增 Compose 资源后 IDE 无法高亮和自动导入的问题
+
 - version: 3.2.1
   date: 2026.08.03
   updates:
