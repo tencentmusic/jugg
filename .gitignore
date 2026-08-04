@@ -17,6 +17,7 @@ IgnoreLexer.java~
 local.properties
 deploy_compat/v_*/libs/*.jar
 *.pyc
+.claude
 
 /verification
 
