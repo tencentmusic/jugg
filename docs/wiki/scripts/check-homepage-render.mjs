@@ -4,6 +4,7 @@ import { join } from 'node:path'
 const assetsDir = new URL('../.vitepress/dist/assets/', import.meta.url)
 const chineseHomepage = new URL('../.vitepress/dist/zh/index.html', import.meta.url)
 const homepagePaths = ['index.md', 'zh/index.md']
+const wikiBase = process.env.JUGG_WIKI_BASE || '/'
 const assetNames = await readdir(assetsDir)
 const pageAssets = await Promise.all(
   assetNames
@@ -14,7 +15,10 @@ const pageAssets = await Promise.all(
     }))
 )
 const homepageHtml = await readFile(chineseHomepage, 'utf8')
-const homepageStyleName = homepageHtml.match(/href="\/assets\/(style\.[^"]+\.css)"/)?.[1]
+const homepageStyleName = homepageHtml
+  .split(`href="${wikiBase}assets/`)
+  .at(1)
+  ?.match(/^(style\.[^"]+\.css)"/)?.[1]
 
 if (!homepageStyleName) {
   throw new Error('Missing built homepage styles')

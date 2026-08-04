@@ -18,7 +18,8 @@
 | 文件 | 作用 |
 |---|---|
 | `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
-| `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 nav/sidebar/search/dev-only 页面排除。 |
+| `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search/dev-only 页面排除。 |
+| `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布。 |
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release，发布永久保留的稳定版插件包。 |
 | `.github/workflows/nightly.yml` | 每日或手工构建 `main`，更新固定 `nightly` prerelease、插件包和 SHA-256。 |
 | `~/Documents/shell/publish_jugg_wiki.sh` | Wiki 后台发布脚本：打包 production 产物并同步到 `ali` / `yun` 后台 Wiki 根目录。 |
@@ -164,7 +165,34 @@ npm run preview -- --host 127.0.0.1 --port 4173
 
 ---
 
-## 8. 后台发布约定
+## 8. GitHub Pages 发布
+
+GitHub Pages 使用项目站点路径：
+
+```text
+https://sickworm.github.io/jugg/
+```
+
+`.github/workflows/wiki-pages.yml` 在 `main` 分支的 `docs/wiki/**` 或 workflow 自身发生变化时执行，也支持手工触发。构建步骤在 `docs/wiki` 下运行 `npm ci` 和 `npm run check:homepage`，完成 production build 与首页渲染检查后，再将 `.vitepress/dist` 作为 Pages artifact 发布。
+
+VitePress 的公开路径由 `JUGG_WIKI_BASE` 控制：
+
+```text
+GitHub Pages build -> JUGG_WIKI_BASE=/jugg/
+默认本地或后台 build -> /
+```
+
+不要将 `base` 直接写死为 `/jugg/`，否则同步到后台根目录的产物会错误引用 `/jugg/assets/**`。首次发布前需要在 GitHub 仓库 `Settings -> Pages` 中将 Source 设为 `GitHub Actions`。
+
+GitHub Pages 发布验证：
+
+1. Actions 中 `Deploy wiki to GitHub Pages` 的 build 和 deploy job 均成功。
+2. 打开 `/jugg/`、`/jugg/zh/` 和至少一个中英文正文页面。
+3. 检查 CSS、JavaScript、字体和图片请求均位于 `/jugg/assets/**` 或对应 `/jugg/` 子路径。
+
+---
+
+## 9. 后台发布约定
 
 后台项目 `jugg_backend` 约定以运行目录下的相对目录 `./wiki` 作为 Wiki 静态根目录。后台启动后不会缓存静态文件列表，发布脚本用 `rsync --delete` 更新该目录后，请求会读取最新文件。
 
@@ -208,7 +236,7 @@ yun:~/jugg_backend/wiki
 
 ---
 
-## 9. 公开插件下载
+## 10. 公开插件下载
 
 正式版和 Nightly 使用不同发布语义：
 
@@ -220,7 +248,7 @@ yun:~/jugg_backend/wiki
 
 Nightly 来自最新成功的 `main` 构建，可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
 
-## 10. 关联文档
+## 11. 关联文档
 
 - `10_wiki_authoring.md`：普通 Wiki 文章写作规则。
 - `docs/wiki/.vitepress/config.mts`：站点配置、路由、导航和 production 排除规则。
