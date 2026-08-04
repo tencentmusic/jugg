@@ -1,0 +1,116 @@
+---
+name: jugg-update-version-changelog
+description: Update the Jugg plugin version and changelog files, including finalizing an existing version commit. Use only inside a Jugg project when the user asks in Chinese or English to "更新版本", "更新 change log", "更新 changelog", "版本提交收尾", "把版本提交移到最后", "把版本提交置为 HEAD", update version, update change log, release a new version, prepare Jugg release notes, or rebase an update-version commit to the last commit. Do not use outside Jugg repositories.
+---
+
+# Jugg Update Version Changelog
+
+## Overview
+
+Use this skill to update Jugg release metadata consistently: Gradle version, RC changelog YAML, HTML changelog pages, verification, and commit staging. Keep the workflow scoped to Jugg repositories only.
+
+## Scope Guard
+
+Before editing anything, confirm the current working tree is a Jugg repository. Prefer the user's current directory, then search upward for these project markers:
+
+- `build.gradle`
+- `change_log/change_log_rc.yaml`
+- `change_log/change_log_rc_cn.yaml`
+- `docs/ai_knowledge/00_overview.md`
+
+If those markers are missing, stop and tell the user this skill is only for Jugg projects.
+
+Inside a Jugg project, follow the repository's `AGENTS.md` instructions first. In particular, read the required knowledge-base files before code or documentation changes when the project instructions require it.
+
+## Workflow
+
+1. Inspect the current state:
+   - Run `git status --short`.
+   - Read the root `build.gradle` version.
+   - Check tracked changelog files with `git ls-files change_log idea/src/main/resources/change_log`.
+
+2. Decide the target version:
+   - Use the exact version when the user provides one.
+   - Otherwise increment the patch version from the existing Jugg plugin version.
+   - Use the local date in `YYYY.MM.DD` format for changelog entries.
+
+3. Update version metadata:
+   - Update the root `build.gradle` `versionName` value.
+   - Keep formatting consistent with the existing file.
+
+4. Update RC changelog YAML:
+   - Update `change_log/change_log_rc.yaml`.
+   - Update `change_log/change_log_rc_cn.yaml`.
+   - Keep exactly one top-level `- version: X.Y.Z` declaration per patch version.
+   - If the target version does not exist, prepend a new top-level entry.
+   - If the target version already exists, amend that entry's `date`, `isNeedReinstall`, and `updates` as needed. Never create a second entry for the same patch version.
+   - Include `date: YYYY.MM.DD`.
+   - Keep English and Chinese content aligned by meaning, not by literal wording.
+   - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too. Do not create or stage untracked resource copies unless the repository already tracks them.
+
+5. Update HTML changelog pages:
+   - Update `change_log/change_log.html`.
+   - Update `change_log/change_log_cn.html`.
+   - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too.
+   - Compare the target version with the latest HTML section using semantic-version components.
+   - For a major or minor version change, prepend a new `<h2>X.Y.Z (YYYY.MM.DD)</h2>` and a new `<ol>` containing only entries for the new version series. Never merge these entries into the previous major/minor list.
+   - For a patch-only change within the same `X.Y` series, reuse the existing `<ol>` and update its `<h2>` version and date, for example `3.0.21` to `3.0.22 (2026.06.27)`.
+   - If the exact target version section already exists, amend that section instead of creating a duplicate.
+   - Keep one aggregated HTML section per minor series.
+   - Before adding an entry, compare its user-facing behavior with the existing entries in the active minor-series section. If the commit only fixes, optimizes, or refines a feature point already described there, do not add another HTML entry. Apply this rule equally to the English and Chinese HTML pages.
+   - HTML aggregation and deduplication do not apply to RC YAML. RC uses one top-level declaration per patch version and amends the matching declaration when the target version already exists.
+   - Sort entries by category within the section: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
+   - If an entry has another recognized prefix from the repository's commit convention, place it after the three main product categories unless the user says otherwise.
+
+6. Verify:
+   - Run `git diff --check`.
+   - Run a targeted version check, usually `./gradlew :idea:properties --no-daemon | rg "Plugin Version|^version:"`.
+   - For changelog-only/version metadata changes, do not add JOOX Android unit tests.
+   - Inspect `git diff --stat` and `git diff -- <files>` before committing.
+
+7. Commit:
+   - Use the exact commit message when the user provides one.
+   - Otherwise use `[other] update version to X.Y.Z`.
+   - Stage only files changed for this version/changelog task.
+   - Never stage unrelated user changes or untracked generated files.
+
+## Finalize an Existing Version Commit
+
+Use this workflow when the user says `版本提交收尾` or asks to summarize changes since an existing version commit, amend the summary into that commit, and move the version commit to `HEAD` or the last commit.
+
+1. Resolve the version commit and original `HEAD`, then verify the version commit is an ancestor of `HEAD` and the working tree is clean.
+2. Summarize the user-visible changes in `<version-commit>..HEAD`. Update the RC and aggregated HTML changelogs with that summary. Amend the matching RC version entry and follow the HTML deduplication rules.
+3. Keep one RC declaration per patch: amend it when the version exists, or prepend it when the version does not exist.
+4. Commit only the changelog summary as a temporary standalone commit.
+5. Rewrite the commit order so every commit after the version commit remains a separate commit in its original order, followed by the version commit at the tip.
+6. Amend only the temporary changelog-summary commit into the relocated version commit. Preserve the version commit's original subject, author, and author date unless the user explicitly requests changes.
+7. Never squash the commits in `<version-commit>..HEAD` into the version commit. In this workflow, "summarize changes" means update the release notes, not combine the implementation commits.
+8. Verify the final tree matches the tree produced by the original `HEAD` plus the changelog update. Confirm the version commit is `HEAD`, the intermediate commit count is preserved, and the working tree is clean.
+
+Git amend changes the commit hash. Report the new hash as the amended successor of the original version commit rather than claiming the original hash still exists at `HEAD`.
+
+## File Checklist
+
+Usually inspect or edit these files:
+
+- `build.gradle`
+- `change_log/change_log_rc.yaml`
+- `change_log/change_log_rc_cn.yaml`
+- `change_log/change_log.html`
+- `change_log/change_log_cn.html`
+
+Only if tracked:
+
+- `idea/src/main/resources/change_log/change_log_rc.yaml`
+- `idea/src/main/resources/change_log/change_log_rc_cn.yaml`
+- `idea/src/main/resources/change_log/change_log.html`
+- `idea/src/main/resources/change_log/change_log_cn.html`
+
+## Response Checklist
+
+When the Jugg repository requires a final execution checklist, include the repository-mandated section and report:
+
+- The files or docs used for locating the change.
+- Whether project docs needed updates.
+- The exact commit message or `N/A` if no repository commit was made.
+- The exact verification commands run.

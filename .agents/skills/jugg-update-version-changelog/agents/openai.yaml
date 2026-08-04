@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jugg Version Changelog"
+  short_description: "Update and finalize Jugg release changelogs"
+  default_prompt: "Use $jugg-update-version-changelog to finalize a Jugg release changelog and version commit."
