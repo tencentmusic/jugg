@@ -21,6 +21,11 @@ Jugg 不需要侵入你的工程代码，配置完成后只需要点击 run 即�
 
 Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会有健全的降级 gradle 编译的流程。你可以随时使用和停用 Jugg 的增量部署功能。
 
+## Download / 下载
+
+- [Latest stable release / 最新稳定版](https://github.com/sickworm/jugg/releases/latest)
+- [Latest nightly build / 最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly/jugg-nightly.zip)（自动从 `main` 构建，可能不稳定）
+
 # Project Structure
 ## Modules
 * **idea**: Plugin layer

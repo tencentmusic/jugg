@@ -13,7 +13,12 @@ Jugg 以 Android Studio 插件形式安装。安装后不用修改工程代码�
 
 ## 下载插件
 
-从团队内的 Jugg 下载页获取插件包。当前网络访问不了内网下载页时，使用维护者提供的备用地址。
+公开构建可以从 GitHub 下载：
+
+- [最新稳定版](https://github.com/sickworm/jugg/releases/latest)
+- [最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly/jugg-nightly.zip)：由 `main` 分支自动构建，可能包含未经完整验证的改动
+
+团队有内部下载页时，优先遵循团队的版本发布与灰度安排。
 
 下载后确认文件是 Android Studio 可安装的插件包，通常是 `.zip`。
 

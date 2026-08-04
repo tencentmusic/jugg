@@ -1,6 +1,6 @@
 # Wiki 架构与运行
 
-> 最后核对：2026-06-18
+> 最后核对：2026-08-04
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -19,6 +19,8 @@
 |---|---|
 | `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
 | `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 nav/sidebar/search/dev-only 页面排除。 |
+| `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release，发布永久保留的稳定版插件包。 |
+| `.github/workflows/nightly.yml` | 每日或手工构建 `main`，更新固定 `nightly` prerelease、插件包和 SHA-256。 |
 | `~/Documents/shell/publish_jugg_wiki.sh` | Wiki 后台发布脚本：打包 production 产物并同步到 `ali` / `yun` 后台 Wiki 根目录。 |
 | `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/zh/dev/elements-demo.md` | 中文 dev-only 元素样板页，只用于开发环境视觉验收。 |
@@ -206,7 +208,19 @@ yun:~/jugg_backend/wiki
 
 ---
 
-## 9. 关联文档
+## 9. 公开插件下载
+
+正式版和 Nightly 使用不同发布语义：
+
+- 正式版由版本 tag 触发 `release.yml`，每个版本创建独立 GitHub Release。
+- Nightly 由 `nightly.yml` 更新可移动的 `nightly` tag，并覆盖固定 `Jugg Nightly` prerelease 中的 `jugg-nightly.zip` 与 `jugg-nightly.zip.sha256`。
+- Nightly 的 Actions artifact 只保留 14 天，用于构建排查；公开下载入口必须指向 GitHub Release asset，不能依赖 workflow run 页面。
+- README 和 Wiki 使用固定 Nightly 地址 `https://github.com/sickworm/jugg/releases/download/nightly/jugg-nightly.zip`，因此每次构建不需要更新页面链接。
+- `release.yml` 必须排除 `nightly` tag，避免滚动 tag 被正式发布流程校验为版本号。
+
+Nightly 来自最新成功的 `main` 构建，可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
+
+## 10. 关联文档
 
 - `10_wiki_authoring.md`：普通 Wiki 文章写作规则。
 - `docs/wiki/.vitepress/config.mts`：站点配置、路由、导航和 production 排除规则。

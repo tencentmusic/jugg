@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "*"
+      - "!nightly"
 
 permissions:
   contents: write

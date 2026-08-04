@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: nightly-build
@@ -56,10 +56,64 @@ jobs:
             -PpluginVersion="${{ steps.version.outputs.value }}" \
             --no-daemon
 
+      - name: Prepare nightly assets
+        shell: bash
+        run: |
+          shopt -s nullglob
+          plugin_zips=(idea/build/distributions/*.zip)
+          if [[ ${#plugin_zips[@]} -ne 1 ]]; then
+            echo "Expected one plugin zip, found ${#plugin_zips[@]}." >&2
+            exit 1
+          fi
+          cp "${plugin_zips[0]}" jugg-nightly.zip
+          sha256sum jugg-nightly.zip > jugg-nightly.zip.sha256
+
       - name: Upload nightly artifact
         uses: actions/upload-artifact@v7
         with:
           name: jugg-${{ steps.version.outputs.value }}
-          path: idea/build/distributions/*.zip
+          path: |
+            jugg-nightly.zip
+            jugg-nightly.zip.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish rolling nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          commit_sha="$(git rev-parse HEAD)"
+          short_sha="${commit_sha:0:7}"
+          release_notes="$(printf 'Automatically published from the latest successful main branch build. Nightly builds may be unstable.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+            '${{ steps.version.outputs.value }}' \
+            "$short_sha" \
+            "$GITHUB_SERVER_URL" \
+            "$GITHUB_REPOSITORY" \
+            "$commit_sha" \
+            "$GITHUB_RUN_NUMBER" \
+            "$GITHUB_SERVER_URL" \
+            "$GITHUB_REPOSITORY" \
+            "$GITHUB_RUN_ID")"
+
+          # GITHUB_TOKEN tag updates do not trigger the tagged release workflow.
+          git tag --force nightly "$commit_sha"
+          git push --force origin refs/tags/nightly
+
+          if gh release view nightly >/dev/null 2>&1; then
+            gh release edit nightly \
+              --title "Jugg Nightly" \
+              --notes "$release_notes" \
+              --prerelease
+          else
+            gh release create nightly \
+              --verify-tag \
+              --title "Jugg Nightly" \
+              --notes "$release_notes" \
+              --prerelease
+          fi
+
+          gh release upload nightly \
+            jugg-nightly.zip \
+            jugg-nightly.zip.sha256 \
+            --clobber
