@@ -20,7 +20,10 @@
 | `AsDeployerCompat` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | IDE 侧统一门面；按当前 AS 版本选择优先实现，并在兼容错误时尝试其他版本实现 |
 | `AsDeployerCompatDispatcher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | 兼容层方法分发器；显式捕获 AS API 兼容错误后 fallback，避免 JDK Proxy 在启动期反射解析缺失方法签名 |
 | `IAsDeployerCompat` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt` | deploy 兼容层接口，封装 APK provider、install session、swap、IDE deploy state、module info、Java debugger attach 等 AS 版本差异 API |
+| `IApplyChangesExecutor` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IApplyChangesExecutor.kt` | Host-neutral Apply Changes 执行面；Step 9 先由 standalone Quail 实现，IDE 编排迁移留到 Step 10 |
 | `JuggDeployCompatTypes` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployCompatTypes.kt` | 运行时中立 wrapper，承接 `JuggInstallSession`、`JuggOverlayId`、deployment cache entry、deployer exception 等 AS deployer 类型 |
+| `StandaloneApplyChangesExecutor` / `StandaloneDeployerResources` | `deploy_compat/standalone_deployer/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | Java 11 standalone install/session/cache/optimistic swap 实现，以及固定 Quail installer/protocol 资源预检 |
+| `JuggResourceManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggResourceManager.kt` | 在全局写锁内按 metadata 原子释放资源，校验 SHA-256 并修复损坏文件 |
 | `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 项目级 deployment 磁盘 checkpoint；在项目锁内持久化 APK path 与 overlay snapshot，使用临时文件原子替换，不依赖 AS deployer runtime 类型；IDEA Service 另保留 Runtime 本地 memoryCache |
 | `*AsDeployerCompat` | `deploy_compat/v_*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | 各 Android Studio 版本的具体 API 适配实现 |
 | `StubApiGenerator` | `tools/stub_api_generator/` | 从 compat 编译产物引用闭包和显式 Android Studio JAR 目录生成版本化编译 Stub API |
@@ -76,7 +79,15 @@ Quail 新版 `AdbClient` 的标准/full install 路径强制要求 `AdbSession`�
 
 Meerkat～Panda 与 Quail 的设备选择通过 `DeployTargetContext` 获取当前 deploy target，再调用无启动副作用的 `getAndroidDevices(project)` 读取 IDE 选中顺序。只有全部选中设备都已运行并可解析为 `IDevice` 时才返回完整列表；任一选中 AVD 未运行时返回空，不启动 AVD，也不静默执行部分设备。不能用 ADB 已连接设备列表代替选中列表，否则单选设备时会错误部署到所有在线设备。
 
-### 3.2 平台抽象
+### 3.2 Standalone Quail deployer
+
+`deploy_compat/standalone_deployer` 固定 Android Studio Quail 1 build `AI-261.23567.138.2611.15503007`，只保留 install、APK model/cache、diff、D8 split 和 `OptimisticApkSwapper` 的实际传递闭包，并以 Java 11 重新编译。运行时禁止依赖完整 `sdk-tools.jar` 或任何 class major version 65 的 Quail class；协议仅由仓库内 Java 8 `deploy_java_proto.jar`、`studio-proto.jar` 与四 ABI installer binary 组成。
+
+资源 metadata 的 protocol version 必须与 `Version.hash()` 一致。`JuggResourceManager` 将 installer、Apache 2.0 license、NOTICE 和 `SOURCE_CLASSES.sha256` 释放到 `~/.jugg/runtime/<runtimeVersion>/deployer/quail`，已存在文件必须先通过 SHA-256 校验，否则在全局写锁内原子修复；Java/installer 协议不一致时 daemon 启动立即失败。
+
+Standalone 使用真实 ddmlib `AdbClient`，不依赖 Quail IDE runtime 的 adblib application session。类 Apply Changes 调用 `OptimisticApkSwapper(restartActivity=false)`；资源 full swap 与现有 IDEA `JuggDeployer.fullSwap` 一致，使用 `restartActivity=true` 刷新 `AssetManager/Resources`，进程保持不变且 Activity 只发生一次预期重启。Step 9 只落地 executor 和资源，不迁移 IDEA deploy lifecycle，也不注册 standalone MCP deploy 能力。
+
+### 3.3 平台抽象
 
 | 运行环境 | `PlatformApi.impl` 设置点 | 语义 |
 |---|---|---|

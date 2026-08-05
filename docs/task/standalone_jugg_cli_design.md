@@ -63,12 +63,12 @@ CI 命令继续保持一次性进程、显式参数和现有产物语义。Stand
 新增模块：
 
 ```text
-:standalone_deployer
+:deploy_compat:standalone_deployer
 ```
 
-该模块只由 standalone runtime 依赖，不进入 IDEA 插件 classloader。模块固定使用 Android Studio Quail 版本的 deployer 实现和二进制协议，不承担 Android Studio 多版本兼容。
+该模块放在 `deploy_compat/standalone_deployer/`，只由 standalone runtime 依赖，不进入 IDEA 插件 classloader。模块固定使用 Android Studio Quail 版本的 deployer 实现和二进制协议，不承担 Android Studio 多版本兼容。
 
-Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 直接加载。`:standalone_deployer` 与 `:cmd_line` 均固定以 Java 11 编译和运行：standalone 通过受控反编译回迁实现实际所需 deployer 闭包，而不是加载 Quail 的现成 class。
+Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 直接加载。`:deploy_compat:standalone_deployer` 与 `:cmd_line` 均固定以 Java 11 编译和运行：standalone 通过受控反编译回迁实现实际所需 deployer 闭包，而不是加载 Quail 的现成 class。
 
 ## 3. Runtime 能力现状与领域划分
 
@@ -459,7 +459,7 @@ Installer resources size: about 23 MB
 
 1. 梳理当前 `JuggDeployer` 实际调用的 deployer 类型和方法。
 2. 从 Quail 对应 class 直接反编译所需实现和传递依赖闭包，并以 Java 11 源码重编译。
-3. 迁入 `:standalone_deployer`，只允许进入 `IApplyChangesExecutor` 实际调用链上的 class 和显式第三方依赖；禁止按 package 或整 jar 无边界迁入。
+3. 迁入 `:deploy_compat:standalone_deployer`，只允许进入 `IApplyChangesExecutor` 实际调用链上的 class 和显式第三方依赖；禁止按 package 或整 jar 无边界迁入。
 4. 保留原始 `com.android.tools.deployer` 包名，避免 package-private、反射和协议代码因 relocation 失效。
 5. 只引入实际需要的第三方基础依赖，不携带完整 IDEA/Android Studio jar。
 6. installer、agent、app-server 直接复用 Quail 二进制产物。
@@ -473,7 +473,7 @@ Standalone deployer 必须在 Java 11 JVM 中完成 install、class HOT RELOAD �
 资源按版本存放：
 
 ```text
-standalone_deployer/src/main/resources/deployer/quail/
+deploy_compat/standalone_deployer/src/main/resources/deployer/quail/
 ├── metadata.json
 └── installer/
     ├── armeabi-v7a/installer
@@ -524,7 +524,7 @@ IdeaApplyChangesExecutor
   → 委托现有 AsDeployerCompat
 
 StandaloneApplyChangesExecutor
-  → 使用 :standalone_deployer 固定 Quail 实现
+  → 使用 :deploy_compat:standalone_deployer 固定 Quail 实现
 ```
 
 IDEA 专属能力继续保留在 `IAsDeployerCompat` 或拆出的 `IIdeaDeployEnvironment`：
@@ -754,7 +754,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 6 | 已完成 | Server RuntimeInfo 与共享 JuggHotUpdateManager 已落地；诊断、运维门面和资源版本策略延后到真实 standalone 调用出现时 |
 | Step 7 | 已完成 | 共享 CLI Run Configuration schema、确定性默认推断、配置集合/指针、IDEA 导入/选择监听和 Gradle 成功回写已落地 |
 | Step 8 | 已完成 | Java 11 daemon/registry/MCP/status 骨架、last owner、idle 生命周期、Python 双 Runtime 发现与 hook 门禁已落地；编译部署仍待 Step 10～11 |
-| Step 9–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 9 | 已完成 | 固定 Quail 1 的 Java 11 standalone deployer、版本资源、完整性校验与真机 install/class/resource PoC 已落地 |
+| Step 10–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -1102,11 +1103,13 @@ daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job�
 
 ### Step 9：反编译 Quail Standalone Deployer
 
+实现状态：已完成。新增 `:deploy_compat:standalone_deployer`，以 Java 11 重编译固定 Quail 1 的最小 deployer 闭包，打包四 ABI installer 与 Java 8 protocol JAR；daemon 启动前通过 `JuggResourceManager` 校验 metadata/protocol/SHA-256。Pixel 7 API 36 真机已验证 base install、class HOT RELOAD 和 asset resource full swap：类更新不重启 Activity，资源更新只发生一次协议要求的预期 Activity 重启，App 进程全程不重启。Step 10 再迁移共享部署编排。
+
 目标：一次完成最小、可发行的 standalone deployer 实现，不依赖完整 Android Studio jar。
 
 任务：
 
-- 新增 `:standalone_deployer`。
+- 在 `deploy_compat/standalone_deployer/` 新增 `:deploy_compat:standalone_deployer`。
 - 从 Android Studio Quail 1 梳理并反编译 deployer 调用闭包，以 Java 11 源码重新编译。
 - 引入最小 protobuf、ddmlib、utility 依赖。
 - 打包 installer/agent/app-server 二进制。
@@ -1212,6 +1215,8 @@ jugg init
 - standalone deploy 后切 IDEA deploy。
 - overlay mismatch → recover → redeploy。
 - Windows 独立完整 Flow。
+
+其中“资源更新时 Activity 不重启”仍是 Step 10～12 完整 standalone Flow 的最终验收目标。Step 9 只验证固定 Quail `OptimisticApkSwapper` 闭包，其 resource full swap 与现有 IDEA 路径一致，会执行一次预期 Activity restart，不代表最终无重启目标已完成。
 
 涉及 IDEA deploy 编排下沉时，必须定向回归已有 `TopLevelFlowTest` 或等价 L3 Flow，不能只依赖 standalone 测试。
 

@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+sourceCompatibility = 11
+targetCompatibility = 11
+version getDirCommitId(rootDir.relativePath(projectDir))
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':main')
+    implementation project(':deploy_compat:interface')
+    implementation files('libs/deploy_java_proto.jar', 'libs/studio-proto.jar')
+    implementation files('../../main/libs/r8-8.4.21.jar')
+    implementation 'com.android.tools.ddms:ddmlib:32.0.1'
+    implementation 'com.android.tools:common:32.0.1'
+    implementation 'com.android.tools:sdklib:32.0.1'
+    implementation 'com.google.guava:guava:33.4.8-jre'
+
+    testImplementation 'junit:junit:4.12'
+    testImplementation 'org.mockito:mockito-core:5.4.0'
+    testImplementation 'org.mockito.kotlin:mockito-kotlin:5.0.0'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test:1.9.23'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 11
+}
+
+tasks.withType(Test).configureEach {
+    def juggTestRootDir = file("$buildDir/test-jugg-home")
+    systemProperty "jugg.root.dir", juggTestRootDir.absolutePath
+    doFirst { juggTestRootDir.deleteDir() }
+    [
+            'standalone.deployer.device.serial',
+            'standalone.deployer.baseline.apk',
+            'standalone.deployer.class.apk',
+            'standalone.deployer.resource.apk',
+    ].each { key ->
+        def value = System.getProperty(key)
+        if (value) systemProperty key, value
+    }
+}
