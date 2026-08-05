@@ -17,10 +17,13 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
+import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -343,19 +346,28 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals("2000-01-01 00:00:00", registry.getTimestamp(projectDir))
     }
 
-    private fun runtimeWithResult(result: JuggRunInvocationResult): IMcpRuntime {
-        return runtimeWithRunner(runFirstConfiguration = { result })
+    private fun runtimeWithResult(
+        result: JuggRunInvocationResult,
+        projectDir: String = "/fake/project",
+    ): IMcpRuntime {
+        return runtimeWithRunner(
+            runFirstConfiguration = { result },
+            projectDir = projectDir,
+        )
     }
 
     private fun runtimeWithRunner(
         runFirstConfiguration: () -> JuggRunInvocationResult,
         isAppReadyProvider: () -> Boolean = { true },
+        projectDir: String = "/fake/project",
     ): IMcpRuntime {
+        val project = mock<Project>()
+        whenever(project.basePath).thenReturn(projectDir)
         return object : IMcpRuntime {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
             override val project: Project
-                get() = throw UnsupportedOperationException("not used in this test")
+                get() = project
 
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")
@@ -506,6 +518,74 @@ class CompileAndDeployMcpToolActionTest {
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         Assert.assertEquals("compile executed successfully.  Compiled files (total: 0)", result.message)
+    }
+
+    @Test
+    fun testNoPendingDeployShowsLastSuccessfulChangedDeployment() {
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            ),
+            projectDir = "/fake/project/last-changed-deploy",
+        )
+
+        LastChangedDeployRegistry.INSTANCE.record(
+            projectDir = "/fake/project/last-changed-deploy",
+            files = listOf(
+                "module_features/feature-bubble/BubbleMsgAudio.kt",
+                "module_features/feature-bubble/BubbleMsgCell.kt",
+            ),
+        )
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.DEPLOY,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(result.message.contains("All changes currently detected by Jugg are already deployed."))
+        Assert.assertTrue(result.message.contains("Last successful deployment with file changes:"))
+        Assert.assertTrue(result.message.contains("deployedAt:"))
+        Assert.assertTrue(result.message.contains("ago)"))
+        Assert.assertTrue(result.message.contains("files (2):"))
+        Assert.assertTrue(result.message.contains("module_features/feature-bubble/BubbleMsgAudio.kt"))
+        Assert.assertTrue(result.message.contains("module_features/feature-bubble/BubbleMsgCell.kt"))
+    }
+
+    @Test
+    fun testNoPendingDeployLimitsLastDeploymentFilePreview() {
+        val projectDir = "/fake/project/last-changed-deploy-preview"
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            ),
+            projectDir = projectDir,
+        )
+        LastChangedDeployRegistry.INSTANCE.record(
+            projectDir = projectDir,
+            files = (1..22).map { "module/File$it.kt" },
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.DEPLOY,
+        )
+
+        Assert.assertTrue(result.message.contains("files (22):"))
+        Assert.assertTrue(result.message.contains("module/File20.kt"))
+        Assert.assertFalse(result.message.contains("module/File21.kt"))
+        Assert.assertTrue(result.message.contains("... and 2 more"))
     }
 
     @Test

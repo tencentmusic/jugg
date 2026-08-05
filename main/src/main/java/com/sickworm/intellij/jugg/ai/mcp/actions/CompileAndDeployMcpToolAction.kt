@@ -13,8 +13,14 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
+import com.sickworm.intellij.jugg.deploy.LastChangedDeploySnapshot
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import java.nio.file.Files
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * CompileAndDeployMcpToolAction implements MCP tool `deploy` and converts request arguments into tool execution and MCP result payloads.
@@ -58,6 +64,8 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         private const val DETAIL_PREVIEW_HEAD_CHARS = 4 * 1024
         private const val DETAIL_PREVIEW_TAIL_CHARS = 4 * 1024
         private const val DETAIL_PREVIEW_MAX_CHARS = DETAIL_PREVIEW_HEAD_CHARS + DETAIL_PREVIEW_TAIL_CHARS
+        private const val LAST_DEPLOY_FILE_LIMIT = 20
+        private val ABSOLUTE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss XXX")
 
         fun deployAction(
             runtime: IMcpRuntime,
@@ -105,7 +113,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                     extraData = jobMetaData,
                 )
             }
-            val result = buildRunToolResult(
+            var result = buildRunToolResult(
                 toolName = toolName,
                 successMessage = if (trigger.status == "success") {
                     "$toolName executed successfully."
@@ -121,8 +129,63 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             val projectDir = runCatching { runtime.project.basePath }.getOrNull()
             if (result.status == McpToolStatus.OK && projectDir != null) {
                 LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir)
+                if (toolName == McpToolActionRegistry.ToolNames.DEPLOY && compiledFiles.isEmpty()) {
+                    result = result.copy(message = buildNoPendingDeployMessage(projectDir))
+                }
             }
             return result
+        }
+
+        private fun buildNoPendingDeployMessage(projectDir: String): String {
+            val snapshot = LastChangedDeployRegistry.INSTANCE.get(projectDir)
+                ?: return "deploy executed successfully. No pending file changes. " +
+                    "All changes currently detected by Jugg are already deployed. " +
+                    "Last deployment details are unavailable in this IDE session."
+            return buildString {
+                appendLine("deploy executed successfully. No pending file changes. " +
+                        "All changes currently detected by Jugg are already deployed.")
+                appendLine()
+                appendLine("Last successful deployment with file changes:")
+                append("  deployedAt: ")
+                append(formatAbsoluteTime(snapshot.deployedAtMillis))
+                append(" (")
+                append(formatRelativeTime(snapshot.deployedAtMillis))
+                appendLine(")")
+                appendLine("  files (${snapshot.files.size}):")
+                appendFilePreview(snapshot)
+            }.trimEnd()
+        }
+
+        private fun StringBuilder.appendFilePreview(snapshot: LastChangedDeploySnapshot) {
+            snapshot.files.take(LAST_DEPLOY_FILE_LIMIT).forEach { file ->
+                append("    ")
+                appendLine(file)
+            }
+            val remainingCount = snapshot.files.size - LAST_DEPLOY_FILE_LIMIT
+            if (remainingCount > 0) {
+                append("    ... and ")
+                append(remainingCount)
+                appendLine(" more")
+            }
+        }
+
+        private fun formatAbsoluteTime(timestampMillis: Long): String {
+            return Instant.ofEpochMilli(timestampMillis)
+                .atZone(ZoneId.systemDefault())
+                .format(ABSOLUTE_TIME_FORMATTER)
+        }
+
+        private fun formatRelativeTime(timestampMillis: Long): String {
+            val elapsedSeconds = Duration.between(
+                Instant.ofEpochMilli(timestampMillis),
+                Instant.now(),
+            ).seconds.coerceAtLeast(0)
+            return when {
+                elapsedSeconds < 60 -> "${elapsedSeconds}s ago"
+                elapsedSeconds < 60 * 60 -> "${elapsedSeconds / 60}m ago"
+                elapsedSeconds < 24 * 60 * 60 -> "${elapsedSeconds / (60 * 60)}h ago"
+                else -> "${elapsedSeconds / (24 * 60 * 60)}d ago"
+            }
         }
 
         private fun buildJobMetaData(trigger: CompileJobTriggerResult): Map<String, Any> {

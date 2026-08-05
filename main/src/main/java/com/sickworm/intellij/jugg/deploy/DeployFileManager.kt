@@ -247,6 +247,7 @@ class DeployFileManager(
         logger.trace("[PERF] DeployFileManager.commit entered, thread=${Thread.currentThread().name}")
         logger.debug("commit juggDeployData, staging file size: ${stateTracker.getStagingFiles().size}, " +
                 "deployed file size: ${stateTracker.getDeployedFiles()}")
+        val deployedChangedFiles = stateTracker.getUndeployedFiles().map { it.file.path }
         deployDataGenerator.commitDeployedData(juggDeployData)
         if (isConstRefTasksEnabled) {
             constRefEngine.acknowledgeEffectedFilesAfterDeployCommit()
@@ -254,6 +255,7 @@ class DeployFileManager(
         stateTracker.commitAndClear { path ->
             logger.debug("remove gradle file: $path")
         }
+        LastChangedDeployRegistry.INSTANCE.record(pathManager.projectDir.path, deployedChangedFiles)
     }
 
     @TestOnly

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.mock.GradleBuildHelper
 import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
@@ -51,6 +52,18 @@ class TopLevelFlowTest {
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
 
         jugg.deploy()
+    }
+
+    @Test
+    fun testLastChangedDeploymentSnapshot() {
+        testInstallAndLaunch()
+
+        jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+        jugg.deployCompiledApp()
+
+        val snapshot = requireNotNull(LastChangedDeployRegistry.INSTANCE.get(jugg.projectDir.path))
+        assertTrue(snapshot.files.contains("app/src/main/java/com/example/myapplication/MainActivity2.java"))
     }
 
     @Test
