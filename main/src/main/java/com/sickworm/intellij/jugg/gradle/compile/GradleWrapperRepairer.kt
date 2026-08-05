@@ -10,28 +10,39 @@ class GradleWrapperRepairer(
     private val logger: Logger,
 ) {
 
-    fun repairIfNeeded(projectDir: File, compileCommand: String): GradleWrapperRepairResult {
-        val wrapperDir = resolveWrapperProjectDir(projectDir, compileCommand) ?: return GradleWrapperRepairResult.Skipped
+    fun repairIfNeeded(
+        projectDir: File,
+        compileCommand: String,
+        normalizeGradlewLineEndings: Boolean,
+    ): GradleWrapperRepairResult {
+        val wrapperExecutable = resolveWrapperExecutable(projectDir, compileCommand)
+            ?: return GradleWrapperRepairResult.Skipped
+        val wrapperDir = wrapperExecutable.parentFile ?: projectDir
         val wrapperProperties = File(wrapperDir, WRAPPER_PROPERTIES_PATH)
         if (!wrapperProperties.exists()) {
             return GradleWrapperRepairResult.Skipped
         }
 
+        var repaired = false
         val missingFiles = missingWrapperFiles(wrapperDir)
-        if (missingFiles.isEmpty()) {
-            return GradleWrapperRepairResult.Skipped
+        if (missingFiles.isNotEmpty()) {
+            logger.info("[Jugg] Gradle wrapper files are incomplete, missing: ${missingFiles.joinToString()}")
+            copyMissingResource(wrapperDir, "gradlew", RESOURCE_GRADLEW)
+            copyMissingResource(wrapperDir, "gradlew.bat", RESOURCE_GRADLEW_BAT)
+            copyMissingResource(wrapperDir, "gradle/wrapper/gradle-wrapper.jar", RESOURCE_GRADLE_WRAPPER_JAR)
+            File(wrapperDir, "gradlew").setExecutable(true)
+            logger.info("[Jugg] Filled missing Gradle wrapper files successfully.")
+            repaired = true
         }
 
-        logger.info("[Jugg] Gradle wrapper files are incomplete, missing: ${missingFiles.joinToString()}")
-        copyMissingResource(wrapperDir, "gradlew", RESOURCE_GRADLEW)
-        copyMissingResource(wrapperDir, "gradlew.bat", RESOURCE_GRADLEW_BAT)
-        copyMissingResource(wrapperDir, "gradle/wrapper/gradle-wrapper.jar", RESOURCE_GRADLE_WRAPPER_JAR)
-        File(wrapperDir, "gradlew").setExecutable(true)
-        logger.info("[Jugg] Filled missing Gradle wrapper files successfully.")
-        return GradleWrapperRepairResult.Repaired
+        if (normalizeGradlewLineEndings && wrapperExecutable.name == "gradlew") {
+            repaired = normalizeCrlfLineEndings(File(wrapperDir, "gradlew")) || repaired
+        }
+
+        return if (repaired) GradleWrapperRepairResult.Repaired else GradleWrapperRepairResult.Skipped
     }
 
-    private fun resolveWrapperProjectDir(projectDir: File, compileCommand: String): File? {
+    private fun resolveWrapperExecutable(projectDir: File, compileCommand: String): File? {
         val executableToken = compileCommand.split(Regex("\\s+"))
             .map { it.trim().trim('"', '\'') }
             .firstOrNull { it.isGradlewExecutableToken() }
@@ -42,7 +53,7 @@ class GradleWrapperRepairer(
             return null
         }
         val executableFile = File(projectDir, normalizedToken).normalize()
-        return executableFile.parentFile ?: projectDir
+        return executableFile.takeIf { it.isChild(projectDir) }
     }
 
     private fun String.isGradlewExecutableToken(): Boolean {
@@ -56,6 +67,31 @@ class GradleWrapperRepairer(
     private fun missingWrapperFiles(wrapperDir: File): List<String> {
         return listOf("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar")
             .filter { !File(wrapperDir, it).exists() }
+    }
+
+    private fun normalizeCrlfLineEndings(gradlew: File): Boolean {
+        val original = gradlew.readBytes()
+        val normalized = ByteArray(original.size)
+        var sourceIndex = 0
+        var targetIndex = 0
+        while (sourceIndex < original.size) {
+            if (sourceIndex + 1 < original.size &&
+                original[sourceIndex] == '\r'.code.toByte() &&
+                original[sourceIndex + 1] == '\n'.code.toByte()
+            ) {
+                normalized[targetIndex++] = '\n'.code.toByte()
+                sourceIndex += 2
+            } else {
+                normalized[targetIndex++] = original[sourceIndex++]
+            }
+        }
+        if (targetIndex == original.size) {
+            return false
+        }
+        gradlew.writeBytes(normalized.copyOf(targetIndex))
+        logger.info("[Jugg] Converted gradlew line endings from CRLF to LF for remote compilation: " +
+                gradlew.absolutePath)
+        return true
     }
 
     private fun copyMissingResource(wrapperDir: File, targetRelativePath: String, resourcePath: String) {

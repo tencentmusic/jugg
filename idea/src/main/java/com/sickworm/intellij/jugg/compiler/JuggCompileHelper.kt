@@ -224,7 +224,11 @@ class JuggCompilerHelper(
     ): GradleCompileResult {
         compileContextManager.ensureInitProjectInfo()
         val effectiveOptions = withLibraryTestApkHistory(options)
-        GradleWrapperRepairer(logger).repairIfNeeded(pathManager.projectDir, effectiveOptions.compileCommand)
+        GradleWrapperRepairer(logger).repairIfNeeded(
+            pathManager.projectDir,
+            effectiveOptions.compileCommand,
+            normalizeGradlewLineEndings = isWindows && effectiveOptions.isRemoteCompile && !isOnlyFetchResult,
+        )
         val isLocalBuildTargetChanged = !effectiveOptions.isRemoteCompile &&
                 deployHistoryManager.isBuildTargetChanged(effectiveOptions)
         deployHistoryManager.beforeFullCompiled(deployFileManager.getUndeployedFiles())
