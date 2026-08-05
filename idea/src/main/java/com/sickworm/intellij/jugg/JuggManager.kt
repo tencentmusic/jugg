@@ -70,7 +70,6 @@ import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.runtime.migrateLegacyJuggSettings
-import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
@@ -88,7 +87,7 @@ class JuggManager @TestOnly constructor(
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
-    private val runtimeInfo: RuntimeInfo = RuntimeInfo("idea", PluginInfoReader.getPluginVersion(), PlatformApi.getIdeVersion(), PluginInfoReader.getPluginCompileTimestamp()),
+    private val runtimeInfo: RuntimeInfo = PlatformApi.getRuntimeInfo(),
     private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, runtimeInfo, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
     private val fileChangesDetector: IFileChangeMonitor = IdeaFileChangeMonitor(project, pathManager.projectDir),
@@ -148,7 +147,7 @@ class JuggManager @TestOnly constructor(
         deployFileManager = deployFileManager,
     )
     private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
-        IdeaMcpRuntime(logger.getInstance("McpRuntime"), project, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector),
+        IdeaMcpRuntime(logger.getInstance("McpRuntime"), pathManager.projectDir.absolutePath, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector),
         eventModel = controlPanelController.model,
     )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)

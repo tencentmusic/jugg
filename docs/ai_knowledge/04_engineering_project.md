@@ -22,6 +22,8 @@
 | `JuggPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt` | 项目级 Jugg 文件布局：project info、compile context、deploy history、classpath、日志、MCP fetch cache |
 | `CliRunConfiguration` / `CliRunConfigurationStore` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/CliRunConfiguration.kt` | IDEA/standalone 共享 build profile、Gradle project info 默认推断、独立配置 JSON 与当前指针原子持久化 |
 | `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggGlobalPathManager.kt` | 用户级 `~/.jugg` 文件布局：hot update、history、resource 等 |
+| `RuntimeOwnerStore` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/RuntimeOwnerStore.kt` | 独立于瞬时 lock metadata 持久化上次 IDEA/standalone Runtime owner，并在 Runtime 切换时生成 owner-change event |
+| `JuggDaemon` / `StandaloneProjectRegistry` / `StandaloneJuggRuntimeAssembler` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/standalone/` | Java 11 standalone 进程骨架、项目 Runtime 注册/MCP 路由、项目锁 owner 接管与 idle 生命周期；当前不包含编译部署串联 |
 | `GradleProjectInfoReaderManager` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt` | Gradle init script 入口，读取/保存 project info、include build、dependency diff、androidTest task 注入 |
 | `GradleScriptWriter` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleScriptWriter.kt` | 把插件内置 `readProjectInfo.gradle.kts` 与 runtime jar 写到稳定目录，供本地、远端和 CLI 通过 `-I` 注入 |
 | `GradleProjectInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt` | 通过 Gradle 反射读取 module、variant、source set、classpath、依赖、androidTest synthetic module |
@@ -55,6 +57,9 @@
 | `~/.jugg/library_test_build_records` | androidTest history | 记录 self-targeting library Test APK 构建历史 |
 | `build/jugg/config/run_configurations/<id>.json` | IDEA / standalone | 独立 CLI build profile；id 为稳定 UUID，重命名不改变 id |
 | `build/jugg/config/current_run_configuration.json` | IDEA / standalone | 当前配置指针，只保存 schemaVersion 与 configId |
+| `build/jugg/runtime.lock.owner.json` | 当前持锁 Runtime | 项目写锁期间的瞬时 owner metadata；释放锁后删除 |
+| `build/jugg/runtime.owner.json` | `TaskRunnerManager` | 上次取得项目写所有权的 IDEA/standalone Runtime；CI 不写入；使用临时文件与原子替换；内容损坏时按无历史 owner 处理并由当前 Runtime 覆盖 |
+| `build/jugg/runtime.launch.lock` | Python CLI | 同项目 standalone 自动拉起的跨进程互斥锁；锁内二次发现 Runtime，避免并发 CLI 重复创建 daemon |
 
 `GradleProjectInfoReaderManager` 优先读取 Gradle property `jugg.projectDir` 作为 IDE project dir；当 Gradle root 与 IDE project root 不一致时，不能直接用 `rootProject.rootDir` 推断 Jugg 文件位置。
 
@@ -162,7 +167,27 @@ JuggManager.onSyncEvent()
 
 全量构建完成后，如果 IDE 没有可靠返回 Sync Success，Jugg 会补偿读取一次 IDE project info。该分支仅使用 IDE 数据补充 module/source 结构，library dependency 始终以同一次全量构建生成的 Gradle project info 为准，不受 IDE JSON mtime 更新影响；正常 IDE Sync 仍沿用现有的 mtime 新旧判断。
 
-### 4.3 androidTest 相关读取
+### 4.3 Standalone daemon 项目注册
+
+```text
+jugg CLI 发现目标项目没有 Runtime
+  -> 启动 jugg-standalone --project-dir <projectDir>
+  -> JuggDaemon
+     创建 StandaloneProjectRegistry
+     为项目调用 StandaloneJuggRuntimeAssembler
+  -> StandaloneProjectRuntime
+     在项目锁内记录 runtime.owner.json / owner-change event
+     创建项目级 McpToolInvoker
+  -> McpLocalServer
+     version / list-projects 走全局 Runtime 元数据
+     status 按 projectDir 路由到项目 Runtime
+```
+
+Step 8 只建立 daemon、registry、MCP/status 和生命周期骨架。`compile` / `deploy` / Gradle build 的完整共享编排仍由后续 Step 10～11 接入；当前 standalone 的进程级 `McpToolRegistry` 只注册 `version`、`list-projects`、`status` capability，并据此限制工具发现和调用，不能据此推断 HOT RELOAD 已可用。
+
+daemon 的 idle deadline 只由外部 MCP 请求刷新；WatchService、后台轮询和 update check 不刷新。达到 4 小时时，若存在 compile/deploy/Gradle job、项目写事务或更新下载，则每 1 分钟复查，条件解除后停止 MCP Server 并 dispose 全部项目 Runtime。
+
+### 4.4 androidTest 相关读取
 
 ```text
 GradleProjectInfoReader.getProjectInfo(includeAndroidTestSourceSet)

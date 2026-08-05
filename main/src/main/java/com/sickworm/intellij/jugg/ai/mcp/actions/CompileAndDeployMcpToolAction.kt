@@ -77,7 +77,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             waitAppReadyAfterSuccess: Boolean = false,
             compiledFiles: List<String> = emptyList(),
         ): McpToolResult {
-            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
+            val projectDir = runtime.projectDir.takeIf { it.isNotBlank() }
             val successMessage = buildSuccessMessage(toolName, projectDir, compiledFiles)
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,

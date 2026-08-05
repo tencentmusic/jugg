@@ -1,4 +1,4 @@
-"""cmd_version — show CLI version and plugin version from all initialized projects."""
+"""cmd_version — show CLI and selected Jugg Runtime version information."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import jugglib
 
-CLI_VERSION = "1.0.10"
+CLI_VERSION = "1.0.11"
 
 
 def cmd_version(args: list[str]) -> None:
@@ -31,6 +31,10 @@ def cmd_version(args: list[str]) -> None:
     data = structured.get("data", {})
     plugin_version = data.get("pluginVersion", "unknown")
     print(f"plugin version: {plugin_version}")
+    print(f"runtime type: {data.get('runtimeType', 'unknown')}")
+    print(f"runtime version: {data.get('runtimeVersion', 'unknown')}")
+    capabilities = data.get("capabilities", [])
+    print(f"capabilities: {', '.join(capabilities) if capabilities else '(none)'}")
 
     projects: dict | None = data.get("projects")
     if projects:

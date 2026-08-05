@@ -15,13 +15,12 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.change.FileChangesHandler
 import com.sickworm.intellij.jugg.project.runtime.IHostTaskExecutor
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
-import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.runtime.PluginInfoReader
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
@@ -57,7 +56,7 @@ class CmdLineContextManager(
         }
     }
 
-    val runtimeInfo = RuntimeInfo("ci", PluginInfoReader.getPluginVersion(), "java-${Runtime.version().feature()}", PluginInfoReader.getPluginCompileTimestamp())
+    val runtimeInfo = PlatformApi.getRuntimeInfo()
     val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, runtimeInfo, logger)
 
     val taskRunnerManager = TaskRunnerManager(

@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -15,7 +14,7 @@ import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 
 class IdeaMcpRuntime(
     override val logger: Logger,
-    override val project: Project,
+    override val projectDir: String,
     override val deployTargetManager: IDeployTargetManager,
     override val deployStateManager: IDeployStateManager,
     override val forceGradleCompileHelper: ForceGradleCompileHelper,
@@ -27,6 +26,10 @@ class IdeaMcpRuntime(
 
     override fun refreshChangedFilesForStatus() {
         gitFileChangesDetector.updateChangedFiles()
+    }
+
+    override fun isAppReadyDeploy(): Boolean {
+        return deployStateManager.updateDeployState().isReadyDeploy
     }
 
     companion object {

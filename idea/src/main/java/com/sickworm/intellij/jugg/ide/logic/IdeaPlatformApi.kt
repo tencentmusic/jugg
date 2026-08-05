@@ -20,10 +20,20 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.ai.mcp.IdeaMcpRuntime
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import org.jetbrains.plugins.gradle.settings.GradleSettings
 import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {
+    private val runtimeInfoValue: RuntimeInfo by lazy {
+        RuntimeInfo(
+            runtimeType = "idea",
+            runtimeVersion = PluginInfoReader.getPluginVersion(),
+            hostVersion = getIdeVersion(),
+            buildTime = PluginInfoReader.getPluginCompileTimestamp(),
+        )
+    }
 
     override fun showDialog(
         title: String,
@@ -129,6 +139,10 @@ class IdeaPlatformApi : IPlatformApi {
 
     override fun getIdeVersion(): String {
         return AsDeployerCompat.ideVersion.toString()
+    }
+
+    override fun getRuntimeInfo(): RuntimeInfo {
+        return runtimeInfoValue
     }
 
     override fun toDeviceAdb(device: IDevice): IDeviceAdb? {

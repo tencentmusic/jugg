@@ -136,16 +136,16 @@ class GetStatusMcpToolAction(
             runtime.refreshChangedFilesForStatus()
         }
 
-        val deployState = runtime.deployStateManager?.updateDeployState()
-            ?: return McpToolResult.internalErrorResult(toolName, "deploy state manager is unavailable")
-
-        val deployFileManager = runtime.deployFileManager
-            ?: return McpToolResult.internalErrorResult(toolName, "deploy file manager is unavailable")
+        val deployState = runtime.deployStateManager?.updateDeployState() ?: JuggDeployState(
+            state = JuggDeployState.State.READY_FULL_COMPILE,
+            msg = "standalone runtime is ready for Gradle baseline",
+            ideDeployState = com.sickworm.intellij.jugg.deploy.run.IdeDeployState.ok,
+        )
 
         val fallbackReason: String? = runtime.incrementalCompileFallbackChecker?.checkFallback()
         val needFallback = fallbackReason != null || deployState.state == JuggDeployState.State.READY_FULL_COMPILE
 
-        val uncompiledFiles: List<ChangedFile> = deployFileManager.getUncompiledFiles()
+        val uncompiledFiles: List<ChangedFile> = runtime.deployFileManager?.getUncompiledFiles().orEmpty()
 
         val countsByType = uncompiledFiles
             .groupingBy { it.type.name }
@@ -180,8 +180,7 @@ class GetStatusMcpToolAction(
         } else {
             ""
         }
-        val projectDir = (arguments["projectDir"] as? String)
-            ?: runCatching { runtime.project.basePath }.getOrNull()
+        val projectDir = (arguments["projectDir"] as? String) ?: runtime.projectDir.takeIf { it.isNotBlank() }
         val lastCompileTime = projectDir?.let { lastCompileTimestampRegistry.getTimestamp(it) } ?: ""
         val enabledAndroidTest = projectDir?.let { isAndroidTestEnabledAtLastFullBuild(it) } ?: false
         val hasBeenFullCompiled = projectDir?.let { hasBeenFullCompiled(File(it)) } ?: false

@@ -45,12 +45,10 @@ class RuntimeObserveMcpToolActionTest {
     }
 
     private fun runtime(projectDir: File, deployTargetManager: IDeployTargetManager): IMcpRuntime {
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project: Project = project
+            override val projectDir: String = projectDir.absolutePath
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
@@ -137,6 +135,7 @@ class RuntimeObserveMcpToolActionTest {
         override fun getAndroidHomePath(logger: Logger): String? = null
 
         override fun getIdeVersion(): String = "test"
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
 
         override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
 

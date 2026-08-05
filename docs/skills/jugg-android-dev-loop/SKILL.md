@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.22
-date: 2026-07-31
+version: 1.0.24
+date: 2026-08-05
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -33,6 +33,8 @@ Collect mandatory variables before any action. For install-only requests, skip J
 | `projectDir` | CLI auto-resolved from `$PWD`, or explicit `--project-dir <path>` when provided | Ask user only if neither current directory nor provided path identifies the target project |
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 | `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
+
+The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns the project, it may start an installed standalone daemon; concurrent launch attempts are serialized per project. Current standalone capability is limited to `version`, `list-projects`, and `status`; compile/deploy commands still require an IDEA Runtime until the standalone compile/deploy pipeline is available.
 
 ---
 
@@ -77,7 +79,7 @@ Supplementary references load on-demand at the step that needs them.
 ### Entry
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] <subcommand> [options]
+python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] [--runtime idea|standalone] <subcommand> [options]
 python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 ```
 

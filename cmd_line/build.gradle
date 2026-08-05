@@ -1,6 +1,8 @@
 //file:noinspection ConfigurationAvoidance
 //file:noinspection GroovyAssignabilityCheck
 
+import java.text.SimpleDateFormat
+
 plugins {
     id 'java'
     id 'org.jetbrains.kotlin.jvm'
@@ -35,12 +37,31 @@ repositories {
     }
 }
 
+def generatedRuntimeInfoDir = layout.buildDirectory.dir('generated/runtime-info')
+def generateRuntimeInfo = tasks.register('generateRuntimeInfo') {
+    def outputFile = generatedRuntimeInfoDir.map { it.file('META-INF/JUGG_PLUGIN_INFO.MF') }
+    inputs.property('runtimeVersion', rootProject.pluginVersion)
+    outputs.file(outputFile)
+    doLast {
+        def target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        target.text = """Version: ${rootProject.pluginVersion}
+Compile-Date: ${new SimpleDateFormat('yyyy-MM-dd HH:mm:ss').format(new Date())}
+Compile-Timestamp: ${System.currentTimeMillis()}
+"""
+    }
+}
+
+sourceSets.main.resources.srcDir(generatedRuntimeInfoDir)
+tasks.named('processResources').configure { dependsOn(generateRuntimeInfo) }
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation(project(':main')) {
         exclude group: 'androidx.databinding'
     }
+    implementation project(':deploy_compat:interface')
     implementation project(':platform_compat:base_api')
 
     testImplementation "junit:junit:4.12"

@@ -68,8 +68,7 @@ class RestartAppMcpToolAction : McpToolAction {
             errorCode = null,
         ).also {
             // Record restart completion as deploy timestamp baseline for wait-logs.
-            runCatching { runtime.project.basePath }
-                .getOrNull()
+            runtime.projectDir.takeIf { it.isNotBlank() }
                 ?.let { dir -> LastDeployTimestampRegistry.INSTANCE.recordNow(dir) }
         }
     }

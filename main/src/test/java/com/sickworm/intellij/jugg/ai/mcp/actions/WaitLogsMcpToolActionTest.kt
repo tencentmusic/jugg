@@ -518,6 +518,7 @@ class WaitLogsMcpToolActionTest {
             override fun getGradleJdkPath(project: Project, logger: com.intellij.openapi.diagnostic.Logger) = null
             override fun getAndroidHomePath(logger: com.intellij.openapi.diagnostic.Logger) = null
             override fun getIdeVersion() = "test"
+            override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
             override fun toDeviceAdb(device: IDevice): IDeviceAdb = fakeAdb
             override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: com.intellij.openapi.diagnostic.Logger) = false
             override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest) =
@@ -534,12 +535,9 @@ class WaitLogsMcpToolActionTest {
         Mockito.`when`(deployTargetManager.getPackageName()).thenAnswer { resolvePackageName(fakeAdb) }
         Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenAnswer { resolvePackageName(fakeAdb) }
 
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn(dir.absolutePath)
-
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger = com.intellij.openapi.diagnostic.Logger.getInstance("WaitLogsTest")
-            override val project: Project = project
+            override val projectDir: String = dir.absolutePath
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = FakeForceGradleCompileHelper()
             override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()

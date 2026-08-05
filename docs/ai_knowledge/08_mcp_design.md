@@ -1,6 +1,6 @@
 # MCP 设计说明
 
-> 最后核对：2026-05-23
+> 最后核对：2026-08-05
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -23,7 +23,7 @@
 | `McpRequestValidator` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/McpRequestValidator.kt` | schema 校验、默认值填充、unknown argument 拦截、projectDir 校验 |
 | `McpToolActionRegistry` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | 注册公开 MCP tool；`noProjectDirTools` 是全局工具白名单 |
 | `McpToolSchemas` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolSchemas.kt` | 复用 schema 片段 |
-| `IMcpRuntime` / `IdeaMcpRuntime` | `main/.../ai/mcp/IMcpRuntime.kt`, `idea/.../ai/mcp/IdeaMcpRuntime.kt` | 将 action 连接到 IDE 项目、设备、编译和部署能力 |
+| `IMcpRuntime` / `IdeaMcpRuntime` / `StandaloneProjectRuntime` | `main/.../ai/mcp/IMcpRuntime.kt`, `idea/.../ai/mcp/IdeaMcpRuntime.kt`, `cmd_line/.../standalone/StandaloneProjectRuntime.kt` | 以非空 host-neutral `projectDir` 将 action 连接到 IDEA 或 standalone 项目能力；接口不提供默认实现，Host 必须明确声明可用与缺失能力；action 不再读取 `Project.basePath` |
 | `ViewHierarchyClient` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt` | App 内 ViewHierarchy LocalSocket 客户端 |
 | `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | `layout-dump`、`view-locate` 和内部布局验证复用的 dump 能力 |
 | `McpAppReadyGuard` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpAppReadyGuard.kt` | runtime observe / mutate 类工具的 App ready 前后置检查 |
@@ -80,6 +80,10 @@ McpToolAction
 - `projectDir` 在 schema 校验前经 `ProjectDirNormalizer.normalizeProjectDir` 统一规范化（`/` 分隔、Windows 盘符路径、MSYS `/d/...`、Cygwin `/cygdrive/d/...`、WSL `/mnt/d/...`）；`list-projects` 输出与 `JuggInitializer.getManager` 查找均使用同一 canonical 形式。
 
 Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/baseline 校验、runtime observe 工具的 App ready 校验。未注册 action（如 `layout-verify`）即使保留内部校验，也不能视为公开 MCP 能力。
+
+IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 8 的 capability 仅包含 `version`、`list-projects`、`status`，编译部署能力需等待后续 Runtime 串联。
+
+`McpLocalServer` 会在任意 HTTP 请求到达时触发外部活动回调；IDEA 使用默认空回调，standalone 用它刷新 4 小时 idle deadline。请求解析失败不影响该活动语义。
 
 ---
 

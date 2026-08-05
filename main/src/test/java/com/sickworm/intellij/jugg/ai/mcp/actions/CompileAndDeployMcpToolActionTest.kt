@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.ai.mcp.actions
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunProfile
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
@@ -22,8 +21,6 @@ import org.junit.After
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -362,13 +359,10 @@ class CompileAndDeployMcpToolActionTest {
         isAppReadyProvider: () -> Boolean = { true },
         projectDir: String = "/fake/project",
     ): IMcpRuntime {
-        val project = mock<Project>()
-        whenever(project.basePath).thenReturn(projectDir)
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project: Project
-                get() = project
+            override val projectDir: String = projectDir
 
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")
@@ -420,11 +414,9 @@ class CompileAndDeployMcpToolActionTest {
         runFirstConfiguration: (isAlwaysRestartApp: Boolean) -> JuggRunInvocationResult,
         isAppReadyProvider: () -> Boolean = { true },
     ): IMcpRuntime {
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project: Project
-                get() = throw UnsupportedOperationException("not used in this test")
 
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")

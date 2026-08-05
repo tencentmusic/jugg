@@ -6,10 +6,12 @@ Provides: port detection, projectDir resolution, record session management,
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -72,6 +74,21 @@ class PortProbeResult:
     retryable: bool
 
 
+@dataclass
+class RuntimeEndpoint:
+    """One discovered IDEA or standalone MCP runtime."""
+    port: int
+    runtime_type: str
+    projects: list[str]
+    projects_known: bool = True
+
+
+_selected_runtime_port: Optional[int] = None
+_selected_project_dir: str = ""
+runtime_type_override: str = ""
+_STANDALONE_LAUNCH_LOCK_TIMEOUT_SECONDS = 15
+
+
 def _is_connection_refused(reason: Any) -> bool:
     if isinstance(reason, ConnectionRefusedError):
         return True
@@ -128,8 +145,7 @@ def _scan_ports(ports: Iterable[int]) -> dict[int, PortProbeResult]:
 
 
 def _print_port_probe_failure(results: dict[int, PortProbeResult]) -> None:
-    print("ERROR: Jugg IDE plugin not found on ports 12320-12329. "
-          "Is Android Studio running?", file=sys.stderr)
+    print("ERROR: No Jugg IDEA or standalone runtime found on ports 12320-12329.", file=sys.stderr)
     print("Port probe summary:", file=sys.stderr)
     for port in range(12320, 12330):
         result = results.get(port)
@@ -137,35 +153,292 @@ def _print_port_probe_failure(results: dict[int, PortProbeResult]) -> None:
         print(f"  {port}: {summary}", file=sys.stderr)
 
 
-def resolve_port() -> int:
-    """Resolve the active Jugg port: check cache first, then scan 12320..12329."""
+def _discovery_call(port: int, tool: str) -> dict:
+    body = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": tool, "arguments": {}},
+    }).encode()
+    request = urllib.request.Request(
+        f"http://localhost:{port}/jugg-mcp",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:
+        return json.loads(response.read().decode())
+
+
+def _read_runtime_endpoint(port: int) -> RuntimeEndpoint:
+    runtime_type = "unknown"
+    projects: list[str] = []
+    projects_known = False
+    try:
+        version = extract_structured(_discovery_call(port, "version"))
+        if version.get("status") == "OK":
+            runtime_type = version.get("data", {}).get("runtimeType", "unknown")
+    except Exception:
+        pass
+    try:
+        project_result = extract_structured(_discovery_call(port, "list-projects"))
+        project_items = project_result.get("data", {}).get("projects")
+        if project_result.get("status") == "OK" and isinstance(project_items, list):
+            projects = [
+                item.get("projectDir", "")
+                for item in project_items
+                if isinstance(item, dict) and item.get("projectDir")
+            ]
+            projects_known = True
+    except Exception:
+        pass
+    return RuntimeEndpoint(port, runtime_type, projects, projects_known)
+
+
+def discover_runtime_endpoints() -> list[RuntimeEndpoint]:
+    """Probe all MCP ports and return their runtime/project ownership."""
     results: dict[int, PortProbeResult] = {}
     cached = read_port_cache()
-    if cached:
-        port = int(cached)
-        result = _probe_port(port)
-        results[port] = result
-        if result.ok:
-            return port
-
     scan_results = _scan_ports(range(12320, 12330))
     results.update(scan_results)
-    for port, result in scan_results.items():
-        if result.ok:
-            write_port_cache(port)
-            return port
-
     if any(result.retryable for result in results.values()):
         time.sleep(0.2)
         for port in range(12320, 12330):
+            if results.get(port, PortProbeResult(False, "", False)).ok:
+                continue
             result = _probe_port(port)
             results[port] = result
-            if result.ok:
-                write_port_cache(port)
-                return port
+    ports = [port for port, result in results.items() if result.ok]
+    if cached and cached.isdigit() and int(cached) in ports:
+        ports.remove(int(cached))
+        ports.insert(0, int(cached))
+    return [_read_runtime_endpoint(port) for port in ports]
 
-    _print_port_probe_failure(results)
-    sys.exit(1)
+
+def reset_runtime_selection() -> None:
+    """Forget the in-process runtime selection."""
+    global _selected_runtime_port, _selected_project_dir
+    _selected_runtime_port = None
+    _selected_project_dir = ""
+
+
+def candidate_project_dir() -> str:
+    """Resolve the project a standalone daemon should initialize."""
+    if project_dir_override:
+        return normalize_project_dir(project_dir_override)
+    current = Path.cwd().resolve()
+    for directory in (current, *current.parents):
+        if (directory / "settings.gradle").is_file() or (directory / "settings.gradle.kts").is_file():
+            return normalize_project_dir(str(directory))
+    return normalize_project_dir(str(current))
+
+
+def _is_project_lock_held(project_dir: str) -> bool:
+    lock_file = Path(project_dir) / "build" / "jugg" / "runtime.lock"
+    if not lock_file.is_file():
+        return False
+    try:
+        with lock_file.open("a+b") as handle:
+            if sys.platform == "win32":
+                import msvcrt
+                handle.seek(0)
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                except OSError:
+                    return True
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                return False
+            import fcntl
+            try:
+                fcntl.lockf(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB, 1)
+            except OSError:
+                return True
+            fcntl.lockf(handle.fileno(), fcntl.LOCK_UN, 1)
+            return False
+    except (ImportError, OSError):
+        return False
+
+
+def _read_runtime_owner_type(owner_file: Path) -> str:
+    try:
+        if owner_file.is_file():
+            return json.loads(owner_file.read_text()).get("runtimeType", "")
+    except (OSError, ValueError, TypeError):
+        pass
+    return ""
+
+
+def _preferred_runtime_type(project_dir: str) -> str:
+    jugg_dir = Path(project_dir) / "build" / "jugg"
+    current_owner = _read_runtime_owner_type(jugg_dir / "runtime.lock.owner.json")
+    if current_owner and _is_project_lock_held(project_dir):
+        return current_owner
+    return _read_runtime_owner_type(jugg_dir / "runtime.owner.json")
+
+
+def set_runtime_type_override(runtime_type: str) -> None:
+    """Set an explicit IDEA or standalone Runtime selection."""
+    global runtime_type_override
+    runtime_type_override = runtime_type
+
+
+def _matches_runtime_override(endpoint: RuntimeEndpoint) -> bool:
+    if not runtime_type_override:
+        return True
+    if endpoint.runtime_type == runtime_type_override:
+        return True
+    return runtime_type_override == "idea" and endpoint.runtime_type == "unknown"
+
+
+def _select_runtime(endpoints: list[RuntimeEndpoint], project_dir: str) -> Optional[RuntimeEndpoint]:
+    matching = [
+        endpoint for endpoint in endpoints
+        if match_project_dir(project_dir, endpoint.projects) and _matches_runtime_override(endpoint)
+    ]
+    if matching:
+        if runtime_type_override:
+            return matching[0]
+        preferred_type = _preferred_runtime_type(project_dir)
+        if preferred_type:
+            preferred = next((endpoint for endpoint in matching if endpoint.runtime_type == preferred_type), None)
+            if preferred:
+                return preferred
+        return matching[0]
+    return next(
+        (
+            endpoint for endpoint in endpoints
+            if endpoint.runtime_type == "unknown" and not endpoint.projects_known and _matches_runtime_override(endpoint)
+        ),
+        None,
+    )
+
+
+def _standalone_launcher_path() -> Path:
+    configured = os.environ.get("JUGG_STANDALONE_LAUNCHER")
+    if configured:
+        return Path(configured)
+    executable = "jugg-standalone.bat" if sys.platform == "win32" else "jugg-standalone"
+    return Path.home() / ".jugg" / "standalone" / "bin" / executable
+
+
+def launch_standalone(project_dir: str) -> None:
+    """Start the installed standalone daemon for one project."""
+    launcher = _standalone_launcher_path()
+    if not launcher.is_file():
+        print(f"ERROR: Jugg standalone launcher not found: {launcher}", file=sys.stderr)
+        print("       Install the standalone runtime or set JUGG_STANDALONE_LAUNCHER.", file=sys.stderr)
+        sys.exit(1)
+    command = [str(launcher), "--project-dir", project_dir]
+    if sys.platform == "win32" and launcher.suffix.lower() in (".bat", ".cmd"):
+        command = ["cmd", "/c", *command]
+    popen_args = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    if sys.platform == "win32":
+        popen_args["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+    else:
+        popen_args["start_new_session"] = True
+    subprocess.Popen(command, **popen_args)
+
+
+@contextlib.contextmanager
+def _standalone_launch_lock(project_dir: str):
+    lock_file = Path(project_dir) / "build" / "jugg" / "runtime.launch.lock"
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with lock_file.open("a+b") as handle:
+        if lock_file.stat().st_size == 0:
+            handle.write(b"\0")
+            handle.flush()
+        deadline = time.monotonic() + _STANDALONE_LAUNCH_LOCK_TIMEOUT_SECONDS
+        while not _try_lock_file(handle):
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Timed out waiting for standalone launch lock: {lock_file}")
+            time.sleep(0.1)
+        try:
+            yield
+        finally:
+            _unlock_file(handle)
+
+
+def _try_lock_file(handle) -> bool:
+    handle.seek(0)
+    if sys.platform == "win32":
+        import msvcrt
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
+    import fcntl
+    try:
+        fcntl.lockf(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
+def _unlock_file(handle) -> None:
+    handle.seek(0)
+    if sys.platform == "win32":
+        import msvcrt
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        return
+    import fcntl
+    fcntl.lockf(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _hook_can_launch(project_dir: str) -> bool:
+    if os.environ.get("JUGG_CALLER") != "hook":
+        return True
+    complete_flag = Path(project_dir) / "build" / "jugg" / "database" / "compile_context.db" / "complete_flag"
+    return complete_flag.is_file()
+
+
+def resolve_port() -> int:
+    """Resolve the runtime owning the target project, starting standalone when needed."""
+    global _selected_runtime_port, _selected_project_dir
+    if _selected_runtime_port is not None and ping_port(_selected_runtime_port):
+        return _selected_runtime_port
+
+    project_dir = candidate_project_dir()
+    endpoints = discover_runtime_endpoints()
+    selected = _select_runtime(endpoints, project_dir)
+    if selected is None:
+        if runtime_type_override == "idea":
+            print(f"ERROR: No IDEA Runtime owns project '{project_dir}'.", file=sys.stderr)
+            sys.exit(1)
+        if not _hook_can_launch(project_dir):
+            sys.exit(0)
+        try:
+            with _standalone_launch_lock(project_dir):
+                endpoints = discover_runtime_endpoints()
+                selected = _select_runtime(endpoints, project_dir)
+                if selected is None:
+                    launch_standalone(project_dir)
+                for _ in range(50):
+                    if selected is not None:
+                        break
+                    endpoints = discover_runtime_endpoints()
+                    selected = _select_runtime(endpoints, project_dir)
+                    if selected is not None:
+                        break
+                    time.sleep(0.2)
+        except OSError as error:
+            print(f"ERROR: Failed to coordinate standalone launch: {error}", file=sys.stderr)
+            sys.exit(1)
+
+    if selected is None:
+        results = _scan_ports(range(12320, 12330))
+        _print_port_probe_failure(results)
+        sys.exit(1)
+
+    _selected_runtime_port = selected.port
+    _selected_project_dir = project_dir
+    write_port_cache(selected.port)
+    return selected.port
 
 
 # ─── HTTP dispatch ───────────────────────────────────────────────────────────
@@ -324,25 +597,28 @@ def set_project_dir_override(project_dir: str) -> None:
 
 
 def resolve_project_dir() -> str:
-    """Call list_projects and resolve projectDir from the override or $PWD."""
+    """Call list_projects and resolve projectDir from $PWD."""
+    if project_dir_override:
+        return normalize_project_dir(project_dir_override)
+
     port = resolve_port()
     response = raw_call(port, "list-projects", {})
     structured = extract_structured(response)
     projects_list = structured.get("data", {}).get("projects", [])
     project_dirs = [p.get("projectDir", "") for p in projects_list]
 
-    work_dir = project_dir_override or os.getcwd()
-    matched = match_project_dir(work_dir, project_dirs)
-    if matched:
-        return matched
-    if project_dir_override:
-        return project_dir_override
+    cwd = os.getcwd()
+    matched = match_project_dir(cwd, project_dirs)
+    if not matched and _selected_project_dir:
+        matched = match_project_dir(_selected_project_dir, project_dirs)
+    if not matched:
+        print(f"ERROR: Current directory '{cwd}' is not under any Jugg project.",
+              file=sys.stderr)
+        print("       Run this command from within a project directory.",
+              file=sys.stderr)
+        sys.exit(1)
+    return matched
 
-    print(f"ERROR: Current directory '{work_dir}' is not under any Jugg project.",
-          file=sys.stderr)
-    print("       Run this command from within a project directory.",
-          file=sys.stderr)
-    sys.exit(1)
 
 
 # ─── record session cache ────────────────────────────────────────────────────

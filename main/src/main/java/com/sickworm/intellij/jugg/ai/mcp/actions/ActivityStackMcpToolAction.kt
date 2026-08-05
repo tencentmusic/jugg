@@ -185,7 +185,7 @@ class ActivityStackMcpToolAction : McpToolAction {
     }
 
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
-        val projectDir = runtime.project.basePath ?: return null
+        val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, toolName)
         if (!dir.exists()) {
             dir.mkdirs()

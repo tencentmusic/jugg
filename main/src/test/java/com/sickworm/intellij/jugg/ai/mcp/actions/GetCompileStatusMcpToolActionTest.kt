@@ -137,11 +137,9 @@ class GetCompileStatusMcpToolActionTest {
         detail: String = "",
         indicatorText: String = "",
     ): IMcpRuntime {
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("GetCompileStatusTestRuntime")
-            override val project: Project
-                get() = throw UnsupportedOperationException("not used in this test")
 
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")

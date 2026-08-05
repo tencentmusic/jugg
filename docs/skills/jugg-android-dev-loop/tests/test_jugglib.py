@@ -4,11 +4,14 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
+import time
 import types
 import urllib.error
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 # Ensure jugglib is importable
@@ -16,6 +19,32 @@ SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sc
 sys.path.insert(0, SCRIPTS_DIR)
 sys.path.insert(0, os.path.join(SCRIPTS_DIR, "py"))
 import jugglib
+
+
+_HOLD_LAUNCH_LOCK_SCRIPT = """
+import sys
+import time
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import jugglib
+with jugglib._standalone_launch_lock(sys.argv[2]):
+    Path(sys.argv[3]).touch()
+    while not Path(sys.argv[4]).exists():
+        time.sleep(0.05)
+"""
+
+_ACQUIRE_LAUNCH_LOCK_SCRIPT = """
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import jugglib
+with jugglib._standalone_launch_lock(sys.argv[2]):
+    Path(sys.argv[3]).touch()
+"""
+
+
+def _start_lock_process(script, *args):
+    return subprocess.Popen([sys.executable, "-c", script, os.path.join(SCRIPTS_DIR, "py"), *args])
 
 
 class PortCacheTest(unittest.TestCase):
@@ -53,23 +82,25 @@ class ResolvePortTest(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+        jugglib.reset_runtime_selection()
+        jugglib.set_runtime_type_override("")
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_resolve_port_prints_each_port_error_without_retry_for_closed_ports(self):
+    def test_hook_does_not_retry_or_launch_for_closed_ports_without_baseline(self):
         refused = urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
-        stderr = io.StringIO()
 
-        with patch.object(jugglib.urllib.request, "urlopen", side_effect=refused) as mock_urlopen, \
+        with patch.dict(os.environ, {"JUGG_CALLER": "hook"}), \
+             patch.object(jugglib.urllib.request, "urlopen", side_effect=refused) as mock_urlopen, \
+             patch.object(jugglib, "candidate_project_dir", return_value=self.tmp), \
              patch.object(jugglib.time, "sleep") as mock_sleep, \
-             contextlib.redirect_stderr(stderr), \
-             self.assertRaises(SystemExit):
+             patch.object(jugglib, "launch_standalone") as mock_launch, \
+             self.assertRaises(SystemExit) as cm:
             jugglib.resolve_port()
 
+        self.assertEqual(0, cm.exception.code)
         self.assertEqual(mock_urlopen.call_count, 10)
         mock_sleep.assert_not_called()
-        output = stderr.getvalue()
-        self.assertIn("12320: connection refused", output)
-        self.assertIn("12329: connection refused", output)
+        mock_launch.assert_not_called()
 
     def test_resolve_port_retries_after_timeout_and_uses_recovered_port(self):
         class FakeResponse:
@@ -86,12 +117,225 @@ class ResolvePortTest(unittest.TestCase):
         side_effects = [timeout] * 10 + [FakeResponse()]
 
         with patch.object(jugglib.urllib.request, "urlopen", side_effect=side_effects) as mock_urlopen, \
+             patch.object(jugglib, "_read_runtime_endpoint", return_value=jugglib.RuntimeEndpoint(12320, "unknown", [], projects_known=False)), \
              patch.object(jugglib.time, "sleep") as mock_sleep:
             port = jugglib.resolve_port()
 
         self.assertEqual(port, 12320)
-        self.assertEqual(mock_urlopen.call_count, 11)
+        self.assertGreaterEqual(mock_urlopen.call_count, 11)
         mock_sleep.assert_called_once()
+
+    def test_resolve_port_launches_standalone_for_unowned_project(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+        endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [project_dir])
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", side_effect=[[], [], [endpoint]]), \
+             patch.object(jugglib, "launch_standalone") as mock_launch:
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12324, port)
+        mock_launch.assert_called_once_with(project_dir)
+
+    def test_resolve_port_rechecks_under_launch_lock_before_starting_daemon(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+        endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [project_dir])
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", side_effect=[[], [endpoint]]), \
+             patch.object(jugglib, "launch_standalone") as mock_launch:
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12324, port)
+        mock_launch.assert_not_called()
+
+    def test_standalone_launch_lock_serializes_processes(self):
+        project_dir = os.path.join(self.tmp, "project")
+        ready_file = os.path.join(self.tmp, "ready")
+        release_file = os.path.join(self.tmp, "release")
+        acquired_file = os.path.join(self.tmp, "acquired")
+        os.makedirs(project_dir)
+        first = _start_lock_process(_HOLD_LAUNCH_LOCK_SCRIPT, project_dir, ready_file, release_file)
+        second = None
+        try:
+            for _ in range(50):
+                if os.path.exists(ready_file):
+                    break
+                time.sleep(0.05)
+            self.assertTrue(os.path.exists(ready_file))
+
+            second = _start_lock_process(_ACQUIRE_LAUNCH_LOCK_SCRIPT, project_dir, acquired_file)
+            time.sleep(0.2)
+            self.assertFalse(os.path.exists(acquired_file))
+
+            Path(release_file).touch()
+            first.wait(timeout=5)
+            second.wait(timeout=5)
+            self.assertEqual(0, first.returncode)
+            self.assertEqual(0, second.returncode)
+            self.assertTrue(os.path.exists(acquired_file))
+        finally:
+            Path(release_file).touch()
+            for process in (first, second):
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=5)
+
+    def test_hook_without_complete_flag_skips_daemon_start(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+
+        with patch.dict(os.environ, {"JUGG_CALLER": "hook"}), \
+             patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", return_value=[]), \
+             patch.object(jugglib, "launch_standalone") as mock_launch, \
+             self.assertRaises(SystemExit) as cm:
+            jugglib.resolve_port()
+
+        self.assertEqual(0, cm.exception.code)
+        mock_launch.assert_not_called()
+
+    def test_hook_with_complete_flag_can_launch_daemon(self):
+        project_dir = os.path.join(self.tmp, "project")
+        complete_flag = os.path.join(
+            project_dir, "build", "jugg", "database", "compile_context.db", "complete_flag"
+        )
+        os.makedirs(os.path.dirname(complete_flag))
+        open(complete_flag, "w").close()
+        endpoint = jugglib.RuntimeEndpoint(12325, "standalone", [project_dir])
+
+        with patch.dict(os.environ, {"JUGG_CALLER": "hook"}), \
+             patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", side_effect=[[], [], [endpoint]]), \
+             patch.object(jugglib, "launch_standalone") as mock_launch:
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12325, port)
+        mock_launch.assert_called_once_with(project_dir)
+
+    def test_runtime_selection_matches_project_when_idea_and_standalone_coexist(self):
+        project_a = os.path.join(self.tmp, "project-a")
+        project_b = os.path.join(self.tmp, "project-b")
+        endpoints = [
+            jugglib.RuntimeEndpoint(12320, "idea", [project_a]),
+            jugglib.RuntimeEndpoint(12321, "standalone", [project_b]),
+        ]
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_b), \
+             patch.object(jugglib, "discover_runtime_endpoints", return_value=endpoints):
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12321, port)
+
+    def test_same_project_selection_uses_last_runtime_owner(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(os.path.join(project_dir, "build", "jugg"))
+        owner_file = os.path.join(project_dir, "build", "jugg", "runtime.owner.json")
+        with open(owner_file, "w") as output:
+            json.dump({"runtimeType": "standalone"}, output)
+        endpoints = [
+            jugglib.RuntimeEndpoint(12320, "idea", [project_dir]),
+            jugglib.RuntimeEndpoint(12321, "standalone", [project_dir]),
+        ]
+
+        selected = jugglib._select_runtime(endpoints, project_dir)
+
+        self.assertEqual(12321, selected.port)
+
+    def test_same_project_selection_uses_verified_current_lock_owner(self):
+        project_dir = os.path.join(self.tmp, "project")
+        jugg_dir = os.path.join(project_dir, "build", "jugg")
+        os.makedirs(jugg_dir)
+        with open(os.path.join(jugg_dir, "runtime.owner.json"), "w") as output:
+            json.dump({"runtimeType": "standalone"}, output)
+        with open(os.path.join(jugg_dir, "runtime.lock.owner.json"), "w") as output:
+            json.dump({"runtimeType": "idea"}, output)
+        endpoints = [
+            jugglib.RuntimeEndpoint(12320, "idea", [project_dir]),
+            jugglib.RuntimeEndpoint(12321, "standalone", [project_dir]),
+        ]
+
+        with patch.object(jugglib, "_is_project_lock_held", return_value=True):
+            selected = jugglib._select_runtime(endpoints, project_dir)
+
+        self.assertEqual(12320, selected.port)
+
+    def test_same_project_selection_ignores_stale_current_owner_file(self):
+        project_dir = os.path.join(self.tmp, "project")
+        jugg_dir = os.path.join(project_dir, "build", "jugg")
+        os.makedirs(jugg_dir)
+        with open(os.path.join(jugg_dir, "runtime.owner.json"), "w") as output:
+            json.dump({"runtimeType": "standalone"}, output)
+        with open(os.path.join(jugg_dir, "runtime.lock.owner.json"), "w") as output:
+            json.dump({"runtimeType": "idea"}, output)
+        endpoints = [
+            jugglib.RuntimeEndpoint(12320, "idea", [project_dir]),
+            jugglib.RuntimeEndpoint(12321, "standalone", [project_dir]),
+        ]
+
+        with patch.object(jugglib, "_is_project_lock_held", return_value=False):
+            selected = jugglib._select_runtime(endpoints, project_dir)
+
+        self.assertEqual(12321, selected.port)
+
+    def test_explicit_runtime_selection_overrides_owner(self):
+        project_dir = os.path.join(self.tmp, "project")
+        endpoints = [
+            jugglib.RuntimeEndpoint(12320, "idea", [project_dir]),
+            jugglib.RuntimeEndpoint(12321, "standalone", [project_dir]),
+        ]
+        jugglib.set_runtime_type_override("idea")
+
+        selected = jugglib._select_runtime(endpoints, project_dir)
+
+        self.assertEqual(12320, selected.port)
+
+    def test_explicit_idea_runtime_does_not_launch_standalone_when_missing(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+        jugglib.set_runtime_type_override("idea")
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", return_value=[]), \
+             patch.object(jugglib, "launch_standalone") as mock_launch, \
+             contextlib.redirect_stderr(io.StringIO()), \
+             self.assertRaises(SystemExit) as cm:
+            jugglib.resolve_port()
+
+        self.assertEqual(1, cm.exception.code)
+        mock_launch.assert_not_called()
+
+    def test_known_legacy_runtime_for_other_project_does_not_block_standalone(self):
+        project_dir = os.path.join(self.tmp, "project")
+        other_project = os.path.join(self.tmp, "other")
+        endpoint = jugglib.RuntimeEndpoint(12320, "unknown", [other_project])
+
+        selected = jugglib._select_runtime([endpoint], project_dir)
+
+        self.assertIsNone(selected)
+
+    def test_legacy_runtime_with_unknown_projects_remains_backward_compatible(self):
+        project_dir = os.path.join(self.tmp, "project")
+        endpoint = jugglib.RuntimeEndpoint(12320, "unknown", [], projects_known=False)
+
+        selected = jugglib._select_runtime([endpoint], project_dir)
+
+        self.assertEqual(12320, selected.port)
+
+    def test_list_projects_error_keeps_legacy_projects_unknown(self):
+        version_response = {
+            "result": {"structuredContent": {"status": "OK", "data": {"runtimeType": "unknown"}}}
+        }
+        projects_response = {
+            "result": {"structuredContent": {"status": "ERROR", "data": {}}}
+        }
+
+        with patch.object(jugglib, "_discovery_call", side_effect=[version_response, projects_response]):
+            endpoint = jugglib._read_runtime_endpoint(12320)
+
+        self.assertFalse(endpoint.projects_known)
 
 
 class ProjectDirMatchTest(unittest.TestCase):
@@ -161,6 +405,7 @@ class JuggGlobalProjectDirTest(unittest.TestCase):
 
     def tearDown(self):
         jugglib.set_project_dir_override("")
+        jugglib.set_runtime_type_override("")
 
     def test_project_dir_global_flag_sets_override_and_does_not_reach_subcommand(self):
         import jugg
@@ -187,6 +432,27 @@ class JuggGlobalProjectDirTest(unittest.TestCase):
             jugg.main()
 
         self.assertEqual(jugglib.project_dir_override, "/manual/project")
+
+    def test_runtime_global_flag_sets_explicit_runtime(self):
+        import jugg
+
+        fake_module = types.SimpleNamespace(cmd_status=lambda args: None)
+
+        with patch.object(sys, "argv", ["jugg.py", "--runtime=standalone", "status"]), \
+             patch("importlib.import_module", return_value=fake_module):
+            jugg.main()
+
+        self.assertEqual(jugglib.runtime_type_override, "standalone")
+
+    def test_runtime_global_flag_rejects_unknown_value(self):
+        import jugg
+
+        with patch.object(sys, "argv", ["jugg.py", "--runtime=ci", "status"]), \
+             contextlib.redirect_stderr(io.StringIO()), \
+             self.assertRaises(SystemExit) as cm:
+            jugg.main()
+
+        self.assertEqual(1, cm.exception.code)
 
 
 class JuggHelpTest(unittest.TestCase):

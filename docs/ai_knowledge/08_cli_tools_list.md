@@ -49,8 +49,13 @@ jugg.py
 
 ### 3.2 端口与缓存
 
-CLI 先读端口缓存，不命中再扫描 `12320..12329`。
-当扫描失败时，CLI 会输出每个端口的探测摘要，便于区分“IDE 插件未监听/项目未打开”和 timeout、HTTP 5xx 等异常态。只有出现 timeout、HTTP 5xx 或其它非预期异常时才会短重试；所有端口都是 connection refused 时不重试。
+CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目标 `projectDir` 选择 IDEA 或 standalone Runtime；端口缓存只用于优先探测，不覆盖项目归属判断。同一项目同时出现在两个 Runtime 时，仅在确认 `runtime.lock` 正被持有后采用 `runtime.lock.owner.json`，否则读取 `runtime.owner.json` 选择最近 owner。全局参数 `--runtime idea|standalone` 可覆盖自动选择；已知项目列表不匹配的 legacy Runtime 不阻止 standalone 拉起，只有无法读取项目列表时才使用兼容 fallback。
+
+目标项目未被任何 Runtime 持有时，普通 CLI 取得项目级 `build/jugg/runtime.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免并发 CLI 重复创建 daemon。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。Hook 调用必须设置 `JUGG_CALLER=hook`；只有 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动 standalone，否则直接以成功状态跳过，避免编辑/停止 hook 意外创建 daemon。
+
+standalone Step 8 仅支持 `version`、内部 `list-projects` 与 `status`；其他命令虽然仍在共享 `tools/list` 中，但在 Step 10～11 接入编译部署前不会形成成功的 standalone 执行结果。
+
+当启动失败或等待超时时，CLI 输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
 
 | 文件 | 默认路径 | 环境变量 |
 |------|----------|----------|

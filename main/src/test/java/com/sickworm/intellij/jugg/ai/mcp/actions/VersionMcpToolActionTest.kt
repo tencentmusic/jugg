@@ -1,16 +1,21 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpc
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.ai.mcp.McpToolCallResult
+import com.sickworm.intellij.jugg.ai.mcp.McpToolInvoker
+import com.sickworm.intellij.jugg.ai.mcp.McpToolRegistry
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -43,7 +48,7 @@ class VersionMcpToolActionTest {
         PlatformApi.impl = FakePlatformApi(listOf(projectA, projectB))
 
         val action = VersionMcpToolAction()
-        val result = action.execute(emptyMap(), fakeRuntime())
+        val result = action.executeGlobal(McpToolRegistry())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
@@ -73,7 +78,7 @@ class VersionMcpToolActionTest {
         PlatformApi.impl = FakePlatformApi(listOf(projectA, projectB))
 
         val action = VersionMcpToolAction()
-        val result = action.execute(emptyMap(), fakeRuntime())
+        val result = action.executeGlobal(McpToolRegistry())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
@@ -87,7 +92,7 @@ class VersionMcpToolActionTest {
         PlatformApi.impl = FakePlatformApi(emptyList())
 
         val action = VersionMcpToolAction()
-        val result = action.execute(emptyMap(), fakeRuntime())
+        val result = action.executeGlobal(McpToolRegistry())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
@@ -96,17 +101,30 @@ class VersionMcpToolActionTest {
         Assert.assertNull(data["projects"])
     }
 
+    @Test
+    fun testProjectInvokerUsesCurrentRegistryCapabilitiesForGlobalTool() {
+        PlatformApi.impl = FakePlatformApi(emptyList())
+        val registry = McpToolRegistry(capabilities = listOf(McpToolActionRegistry.ToolNames.VERSION))
+        val response = McpToolInvoker("/tmp/projectA", fakeRuntime(), registry).invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 1,
+                params = mapOf("name" to McpToolActionRegistry.ToolNames.VERSION, "arguments" to emptyMap<String, Any>()),
+            )
+        )
+
+        val data = (response.result as McpToolCallResult).structuredContent["data"] as Map<*, *>
+        Assert.assertEquals(listOf(McpToolActionRegistry.ToolNames.VERSION), data["capabilities"])
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     private fun fakeRuntime(): IMcpRuntime {
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn("/tmp/projectA")
-
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
 
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: Logger = Logger.getInstance("VersionMcpToolActionTest")
-            override val project: Project = project
+            override val projectDir: String = "/tmp/projectA"
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) =
@@ -127,5 +145,6 @@ class VersionMcpToolActionTest {
         private val projectDirs: List<File>,
     ) : IPlatformApi by Mockito.mock(IPlatformApi::class.java) {
         override fun getInitializedProjectDirs(): List<File> = projectDirs
+        override fun getRuntimeInfo(): RuntimeInfo = RuntimeInfo("unknown", "unknown", "unknown", "")
     }
 }

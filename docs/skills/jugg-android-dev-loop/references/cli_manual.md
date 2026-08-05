@@ -2,6 +2,8 @@
 
 CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py [global options] <subcommand> [options]`.
 
+The CLI scans IDEA and standalone MCP runtimes and selects the one that owns the target project. Use `--runtime idea|standalone` to force a Runtime when both own the project. If no Runtime owns it, the CLI serializes launch attempts per project before starting `~/.jugg/standalone/bin/jugg-standalone` or `JUGG_STANDALONE_LAUNCHER`. Hook subprocesses set `JUGG_CALLER=hook` and only start standalone when `build/jugg/database/compile_context.db/complete_flag` exists. The current standalone skeleton supports `version`, `list-projects`, and `status`; build/deploy commands still require an IDEA Runtime.
+
 ### CLI Output Format
 
 Controlled by the global `--console` flag (must appear before the subcommand):
@@ -23,6 +25,7 @@ Use `--project-dir <path>` when the command must target a project different from
 ```
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project status
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir=/path/to/project --console=json deploy
+python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project --runtime idea status
 ```
 
 When the path is a subdirectory of a project already initialized by the connected Runtime, the CLI sends that parent project directory as `projectDir`.
@@ -44,12 +47,15 @@ python3 {SKILL_DIR}/scripts/jugg.py deploy --help
 python3 {SKILL_DIR}/scripts/jugg.py version
 ```
 
-Show CLI version and Jugg plugin version from all initialized IDE projects.
+Show CLI version plus the selected Runtime's plugin/runtime version, Runtime type, and capabilities.
 
 Output when all projects share the same version:
 ```
 cli version: 1.0.1
 plugin version: 1.2.3
+runtime type: idea
+runtime version: 1.2.3
+capabilities: [...]
 ```
 
 Output when projects have differing versions (highest version shown first):

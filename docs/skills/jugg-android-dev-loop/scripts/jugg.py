@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 from help_registry import COMMAND_HELP, format_command_help
 
 USAGE_HEAD = """\
-Usage: jugg [--console=plain|rich|json] [--project-dir <path>] [--if-compiling wait|interrupt] <subcommand> [options]
+Usage: jugg [--console=plain|rich|json] [--project-dir <path>] [--runtime idea|standalone] [--if-compiling wait|interrupt] <subcommand> [options]
        jugg help <subcommand>
 
 Global options:
@@ -42,6 +42,7 @@ Global options:
   --console=plain     No spinner; plain text output (default for direct python3 calls)
   --console=json      Structured JSON output; implies no spinner
   --project-dir PATH   Use this projectDir instead of resolving it from the current directory
+  --runtime TYPE       Explicitly use the IDEA or standalone Runtime
   --if-compiling MODE  For compile/deploy/gradle-build/instrument: wait (default) until the
                        current compile finishes, or interrupt it and start immediately.
 """
@@ -49,6 +50,8 @@ Global options:
 _IF_COMPILING_VALUES = ("wait", "interrupt")
 
 _CONSOLE_VALUES = ("plain", "rich", "json")
+
+_RUNTIME_VALUES = ("idea", "standalone")
 
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
@@ -90,6 +93,7 @@ def main() -> None:
     # Extract global flags before subcommand dispatch.
     console = "plain"
     project_dir = ""
+    runtime_type = ""
     if_compiling = "wait"
     remaining = []
     i = 0
@@ -118,6 +122,17 @@ def main() -> None:
             if not project_dir:
                 print("jugg: --project-dir requires a path", file=sys.stderr)
                 sys.exit(1)
+        elif a == "--runtime":
+            if i + 1 >= len(args):
+                print("jugg: --runtime requires idea or standalone", file=sys.stderr)
+                sys.exit(1)
+            runtime_type = args[i + 1]
+            i += 1
+        elif a.startswith("--runtime="):
+            runtime_type = a[len("--runtime="):]
+            if not runtime_type:
+                print("jugg: --runtime requires idea or standalone", file=sys.stderr)
+                sys.exit(1)
         elif a == "--if-compiling":
             if i + 1 >= len(args):
                 print("jugg: --if-compiling requires wait or interrupt", file=sys.stderr)
@@ -140,10 +155,17 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+    if runtime_type and runtime_type not in _RUNTIME_VALUES:
+        print(
+            f"jugg: invalid --runtime value '{runtime_type}' (choose: idea, standalone)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     jugglib.spinner_enabled = (console == "rich")
     jugglib.json_mode = (console == "json")
     jugglib.set_project_dir_override(project_dir)
+    jugglib.set_runtime_type_override(runtime_type)
     jugglib.if_compiling = if_compiling
 
     if not args or args[0] in ("--help", "-h"):
