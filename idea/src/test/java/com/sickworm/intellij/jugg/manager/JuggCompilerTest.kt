@@ -1026,6 +1026,14 @@ class KmpComposeFlowReproTest {
             backups.forEach { (file, content) ->
                 if (content == null) file.delete() else file.writeBytes(content)
             }
+            val addedFiles = backups.filterValues { it == null }.keys
+            if (addedFiles.isNotEmpty()) {
+                val relativePaths = addedFiles.map { it.relativeTo(projectInfo.projectRoot).path }
+                val process = ProcessBuilder(
+                    listOf("git", "update-index", "--force-remove", "--") + relativePaths,
+                ).directory(projectInfo.projectRoot).start()
+                check(process.waitFor() == 0) { process.errorStream.bufferedReader().readText() }
+            }
         }
     }
 
