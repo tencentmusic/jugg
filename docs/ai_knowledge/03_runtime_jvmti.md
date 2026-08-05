@@ -65,6 +65,8 @@ JuggDeployerHelper.runTask()
 
 push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首次部署清理 startup agents 后把 Jugg agent 删掉。JVMTI 检测必须等 restart 后进行，因为 startup agent 只有 app 进程启动时才会被系统加载。
 
+setup script 复制命令只把 `cp` 放进 `run-as <package>`，成功/失败 marker 由普通 adb shell 在 `run-as` 结束后输出。不能把 `cp && echo` 整段作为单次 `run-as` 命令传入；部分设备会让后续 shell 操作继续处于 app 身份或错误解析引号，导致脚本已经复制却无法稳定返回 setup 状态。
+
 ### 4.2 失败重试中的兼容检测
 
 ```text

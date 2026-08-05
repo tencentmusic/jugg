@@ -68,8 +68,8 @@ class JuggJvmtiAgentManagerHelperFilterTest {
     @Test
     fun `isNeedPushAgentAfterDeploy skips other-targeting test apk when base has agent`() {
         val adb = RecordingAdb(mapOf(
-            appApk.applicationId to "1.0.27-jugg_jvmti_agent.so\napplychanges_jvmti_agent.so",
-            libTestApk.applicationId to "1.0.27-jugg_jvmti_agent.so\napplychanges_jvmti_agent.so",
+            appApk.applicationId to "${JuggJvmtiAgentManager.AGENT_SO_NAME_PREFIX}.so\napplychanges_jvmti_agent.so",
+            libTestApk.applicationId to "${JuggJvmtiAgentManager.AGENT_SO_NAME_PREFIX}.so\napplychanges_jvmti_agent.so",
             // appTestApk not in the map - would throw if queried
         ))
         val data = JuggDeployData.forDryDeploy(listOf(appApk, appTestApk, libTestApk))
@@ -87,7 +87,7 @@ class JuggJvmtiAgentManagerHelperFilterTest {
     fun `isNeedPushAgentAfterDeploy still detects need when base apk lacks agent`() {
         val adb = RecordingAdb(mapOf(
             appApk.applicationId to "",  // no agents
-            libTestApk.applicationId to "1.0.27-jugg_jvmti_agent.so\napplychanges_jvmti_agent.so",
+            libTestApk.applicationId to "${JuggJvmtiAgentManager.AGENT_SO_NAME_PREFIX}.so\napplychanges_jvmti_agent.so",
         ))
         val data = JuggDeployData.forDryDeploy(listOf(appApk, appTestApk, libTestApk))
         val helper = JuggJvmtiAgentManagerHelper(logger)

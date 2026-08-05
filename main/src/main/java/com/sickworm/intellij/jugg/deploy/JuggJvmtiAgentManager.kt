@@ -120,10 +120,10 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         val scriptPath = "code_cache/jugg_agent_setup.sh"
         // caution: run-as will back to normal user after execute first cmd, so don't execute multiple commands
         // that needs package permission
-        val pushScriptCmd = "cp $agentDirPathOnDevice/jugg_agent_setup.sh $scriptPath"
+        val pushScriptCmd = "run-as $packageName cp $agentDirPathOnDevice/jugg_agent_setup.sh $scriptPath"
             .and("echo success")
             .or("echo failed")
-        val isPushScriptSuccess = execAdbShellCmd("run-as $packageName \"$pushScriptCmd\"")
+        val isPushScriptSuccess = execAdbShellCmd(pushScriptCmd)
         if (!isPushScriptSuccess) {
             return false
         }
