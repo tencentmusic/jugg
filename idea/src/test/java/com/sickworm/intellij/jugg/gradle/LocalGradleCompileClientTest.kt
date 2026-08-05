@@ -111,11 +111,15 @@ open class LocalGradleCompileClientTest {
 
         var incDeployTimes = 0
         val buildFile = projectInfo.projectRoot.resolve("app/build.gradle")
+        val libraryBuildFile = projectInfo.projectRoot.resolve("library1/build.gradle")
+        fun changeGsonAndRevert(version: String, block: () -> Unit) {
+            val dependency = "com.google.code.gson:gson"
+            changeAndRevert(buildFile, "$dependency:2.10.1", "$dependency:$version") {
+                changeAndRevert(libraryBuildFile, "$dependency:2.10.1", "$dependency:$version", block)
+            }
+        }
         // update to 2.8.9
-        changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.10.1",
-            "com.google.code.gson:gson:2.8.9",
-        ) {
+        changeGsonAndRevert("2.8.9") {
             client.fetchLibraryChanges(incDeployTimes).checkChanges(
                 hasChanges = true,
                 updateLibraries = listOf(
@@ -130,10 +134,7 @@ open class LocalGradleCompileClientTest {
         incDeployTimes++
 
         // update to 2.8.5
-        changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.10.1",
-            "com.google.code.gson:gson:2.8.5",
-        ) {
+        changeGsonAndRevert("2.8.5") {
             // compare with last incremental build
             client.fetchLibraryChanges(incDeployTimes).checkChanges(
                 hasChanges = true,
@@ -149,10 +150,7 @@ open class LocalGradleCompileClientTest {
         incDeployTimes++
 
         // stay to 2.8.5
-        changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.10.1",
-            "com.google.code.gson:gson:2.8.5",
-        ) {
+        changeGsonAndRevert("2.8.5") {
             // compare with last incremental build
             client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = false)
         }
@@ -162,10 +160,7 @@ open class LocalGradleCompileClientTest {
 
         // start update second library fastjson
         // keep version unchanged
-        changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.10.1",
-            "com.google.code.gson:gson:2.8.5",
-        ) {
+        changeGsonAndRevert("2.8.5") {
             changeAndRevert(buildFile,
                 "com.alibaba:fastjson:2.0.2.android",
                 "com.alibaba:fastjson:2.0.3.android",
@@ -189,10 +184,7 @@ open class LocalGradleCompileClientTest {
         incDeployTimes++
 
         // update together
-        changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.10.1",
-            "com.google.code.gson:gson:2.9.1",
-        ) {
+        changeGsonAndRevert("2.9.1") {
             changeAndRevert(buildFile,
                 "com.alibaba:fastjson:2.0.2.android",
                 "com.alibaba:fastjson:2.0.4.android",
@@ -218,10 +210,7 @@ open class LocalGradleCompileClientTest {
         incDeployTimes++
 
         // keep version unchanged
-        changeAndRevert(buildFile,
-            "com.google.code.gson:gson:2.10.1",
-            "com.google.code.gson:gson:2.9.1",
-        ) {
+        changeGsonAndRevert("2.9.1") {
             changeAndRevert(buildFile,
                 "com.alibaba:fastjson:2.0.2.android",
                 "com.alibaba:fastjson:2.0.4.android",
@@ -236,17 +225,19 @@ open class LocalGradleCompileClientTest {
         // rollback
         // compare with last incremental build
         client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
+            updateLibraries = listOf(
+                "com.google.code.gson:gson:2.9.1" to "com.google.code.gson:gson:2.10.1",
+            ),
             removedLibraries = listOf(
                 "com.alibaba:fastjson:2.0.4.android",
                 "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
                 "com.alibaba.fastjson2:fastjson2:2.0.4.android",
-                "com.google.code.gson:gson:2.9.1",
             ),
             removedLibraryFiles = listOf(
                 "com.alibaba:fastjson:2.0.4.android",
                 "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
                 "com.alibaba.fastjson2:fastjson2:2.0.4.android",
-                "com.google.code.gson:gson:2.9.1",
+                "com.google.code.gson:gson:2.10.1",
             )
         )
         // mark as incremental compile
