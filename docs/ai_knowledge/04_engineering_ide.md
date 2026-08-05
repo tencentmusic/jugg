@@ -117,7 +117,7 @@ Sync 完成或被 IDE 标记为 `SKIPPED` 后，先更新 effective `JuggProject
 
 Composite build 的自动生成身份沿用 project info 中的 `moduleStdPath + buildVariant`，Gradle task 和稳定 UUID 均由该身份生成；已有配置优先按解析后的 module/variant 复用，无法解析时按 `moduleName + variant` best-effort 匹配。
 
-IDEA VFS 事件由 `IdeaFileChangeMonitor` 转成 changed/delete 批次后交给 `FileChangeManager`。共享 manager 在项目写锁内更新 deploy file 和 dependency 状态，并用 `DeployStateManager.beginFileProcessing/endFileProcessing` 保证编译不会抢在事件落库前开始；Git checkout/pull 的补偿检测也位于 `main`。compile-on-save 的设置读取与最终编译调用暂留 `JuggManager`，共享 manager 只返回本批次是否存在有效变化。
+IDEA VFS 事件由 `IdeaFileChangeMonitor` 转成 changed/delete 批次后交给 `FileChangeManager`。共享 manager 使用 Runtime 实例内锁串行更新 deploy file 和 dependency 状态，不占用 project write lock；`DeployStateManager.beginFileProcessing/endFileProcessing` 保证编译不会抢在事件落库前开始。Git checkout/pull 的补偿检测也位于 `main`。compile-on-save 的设置读取与最终编译调用暂留 `JuggManager`，共享 manager 只返回本批次是否存在有效变化。
 
 ### 4.3 Run 到编译部署
 
