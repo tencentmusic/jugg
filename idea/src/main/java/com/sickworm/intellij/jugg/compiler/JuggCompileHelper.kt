@@ -611,8 +611,6 @@ class JuggCompilerHelper(
                     CompileResult.empty(uiHandler.createCompileStatusHolder()),
                 ).copy(hasFileChanges = false)
             } else {
-                logger.info("No file changes. will fallback to gradle compile.")
-
                 val confirmResult =
                     if (!JuggSettings.isConfirmFallbackWhenNoFileChanges) {
                         ConfirmResult.POSITIVE
@@ -624,12 +622,16 @@ class JuggCompilerHelper(
                 when (confirmResult) {
                     ConfirmResult.POSITIVE -> {
                         // fallback to gradle compile
+                        logger.info("No file changes. will fallback to gradle compile.")
                         return CompileTaskResult.incrementalFailed(true, "No file changes", hasFileChanges = false)
                     }
                     ConfirmResult.CANCEL, ConfirmResult.LEFT -> {
                         // just stop compile
                         uiHandler.cancel()
                         return CompileTaskResult.incrementalFailed(false, "No file changes", hasFileChanges = false)
+                    }
+                    ConfirmResult.NEGATIVE -> {
+                        logger.info("No file changes, dry deploy once.")
                     }
                     else -> {
                         // continue

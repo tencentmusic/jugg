@@ -57,6 +57,8 @@ class JuggCompileHelperTest {
 
     companion object {
         private const val DIRECT_RUN_FALLBACK_HINT = "Run again directly will fall back to gradle compile."
+        private const val NO_FILE_CHANGES_FALLBACK = "No file changes. will fallback to gradle compile."
+        private const val NO_FILE_CHANGES_DRY_DEPLOY = "No file changes, dry deploy once."
 
         @BeforeClass
         @JvmStatic
@@ -96,7 +98,8 @@ class JuggCompileHelperTest {
 
     @Test
     fun incrementalCompile_noFileChanges_pendingCompiledFilesForApp_fallbackToGradle() {
-        val fixture = createFixture()
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
         val pendingFile = ChangedFile(
             CompileFile.Type.Kotlin,
             File("/tmp/jugg-test/src/androidTest/PendingTest.kt"),
@@ -120,8 +123,43 @@ class JuggCompileHelperTest {
         assertFalse(result.isGradleCompile)
         assertTrue(result.isCanFallback)
         assertFalse(result.hasFileChanges)
+        assertTrue(logger.messages.contains(NO_FILE_CHANGES_FALLBACK))
+        assertFalse(logger.messages.contains(NO_FILE_CHANGES_DRY_DEPLOY))
         verify(fixture.uiHandler).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
+    }
+
+    @Test
+    fun incrementalCompile_noFileChanges_negativeConfirmation_reportsDryDeploy() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.dependencyChangeManager.changeStatus)
+            .thenReturn(IDependencyChangeManager.ChangeStatus.NO_CHANGE)
+        whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
+        whenever(fixture.uiHandler.confirmFallbackWhenNoFileChanges()).thenReturn(ConfirmResult.NEGATIVE)
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        whenever(fixture.pathManager.stagingDir).thenReturn(temporaryFolder.newFolder("staging"))
+        whenever(fixture.fileChangesHandler.filter(emptyList())).thenReturn(emptyList())
+        doReturn(RecompileFiles(emptyList(), emptyList(), JuggDeployData.forDryDeploy(emptyList())))
+            .whenever(fixture.deployFileManager)
+            .getRecompileFiles(any(), any(), anyOrNull())
+        fixture.juggRunningTaskStatusManager.setHasRun("device-1")
+
+        val juggCompiler = mock<JuggCompiler>()
+        whenever(juggCompiler.context).thenReturn(mock())
+        whenever(juggCompiler.compile(any())).thenAnswer { invocation ->
+            CompileResult.empty(invocation.getArgument<CompileTask>(0))
+        }
+        fixture.helper.juggCompiler = juggCompiler
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler)
+
+        assertTrue(result.isSuccess)
+        assertFalse(result.isCanFallback)
+        assertTrue(logger.messages.contains(NO_FILE_CHANGES_DRY_DEPLOY))
+        assertFalse(logger.messages.contains(NO_FILE_CHANGES_FALLBACK))
     }
 
     @Test
@@ -532,6 +570,7 @@ class JuggCompileHelperTest {
             dependencyChangeManager = dependencyChangeManager,
             gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
             gitChangeChecker = gitChangeChecker,
+            fileChangesHandler = fileChangesHandler,
             uiHandler = uiHandler,
             options = options,
             deployTargetManager = deployTargetManager,
@@ -597,6 +636,7 @@ class JuggCompileHelperTest {
         val dependencyChangeManager: IDependencyChangeManager,
         val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
         val gitChangeChecker: GitChangesCompileChecker,
+        val fileChangesHandler: IFileChangesHandler,
         val uiHandler: CompileUiHandler,
         val options: JuggGradleCompileOptions,
         val juggRunningTaskStatusManager: JuggRunningTaskStatusManager,
