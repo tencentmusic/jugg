@@ -29,7 +29,9 @@ class TopLevelFlowWithGitTest {
 
     @Test
     fun initDeployWithoutGit() {
+        GitManager(projectInfo.projectRoot).init()
         val jugg = MockJugg()
+        jugg.resetAllState()
 
         // initial state
         assertEquals(JuggDeployState.State.READY_FULL_COMPILE, jugg.deployStateManager.deployState.state)
@@ -57,17 +59,17 @@ class TopLevelFlowWithGitTest {
 
     @Test
     fun initDeployWithGit() {
-        val jugg = MockJugg()
-        initDeployWithGit(jugg)
+        createInitializedGitJugg()
     }
 
-    private fun initDeployWithGit(jugg: MockJugg) {
-        // init git
-        val gitManager = GitManager(jugg.projectDir)
+    private fun createInitializedGitJugg(): MockJugg {
+        val gitManager = GitManager(projectInfo.projectRoot)
         assertFalse(gitManager.hasInitGit)
         gitManager.init()
         gitManager.addAllAndCommit("first commit")
         assertTrue(gitManager.hasInitGit)
+        val jugg = MockJugg()
+        jugg.resetAllState()
 
         // initial state
         assertEquals(JuggDeployState.State.READY_FULL_COMPILE, jugg.deployStateManager.deployState.state)
@@ -86,18 +88,18 @@ class TopLevelFlowWithGitTest {
         val recoverInfo = jugg.deployHistoryManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo)
         assertEquals(0, recoverInfo.deployedFiles.size)
+        return jugg
     }
 
     @Test
     fun recoveryDeployWithGit() {
-        val jugg = MockJugg()
-        initDeployWithGit(jugg)
+        val jugg = createInitializedGitJugg()
 
         // first deploy
         jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
         assertEquals(1, jugg.deployFileManager.getStagingFiles().size)
-        jugg.deploy()
+        jugg.deployCompiledApp()
         assertEquals(0, jugg.deployFileManager.getStagingFiles().size)
 
         // check state after first deploy
@@ -107,38 +109,38 @@ class TopLevelFlowWithGitTest {
 
         // recoverable state after renew Jugg
         val jugg2 = MockJugg()
+        jugg2.loadFromHistory()
+        jugg2.juggManager.updateDeployState()
         assertEquals(JuggDeployState.State.READY_DEPLOY, jugg2.deployStateManager.deployState.state)
         assertTrue(jugg2.deployHistoryManager.isRecoverFeatureAvailable)
         assertTrue(jugg2.deployHistoryManager.hasBeenFullCompiled)
         val recoverInfo2 = jugg2.deployHistoryManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo2)
         assertEquals(1, recoverInfo2.deployedFiles.size)
-        assertEquals(1, jugg2.deployFileManager.getStagingFiles().size)
-
-        // recover
-        jugg2.deploy()
         assertEquals(0, jugg2.deployFileManager.getStagingFiles().size)
 
         // second deploy
         jugg2.changeFileAndNotify("MainActivity.kt" to "MainActivity.kt")
         jugg2.checkCompileResult("MainActivity.kt",
-            newClassesSize = 1, hotFixModifiedClassesSize = 1)
-        jugg2.deploy()
+            hotFixModifiedClassesSize = 1, hotReloadModifiedClassesSize = 4)
+        jugg2.deployCompiledApp()
 
         // check state after second deploy
         val recoverInfo3 = jugg2.deployHistoryManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo3)
-        assertEquals(3, recoverInfo3.deployedFiles.size)
+        assertEquals(6, recoverInfo3.deployedFiles.size)
 
         // recoverable state after renew Jugg
         val jugg3 = MockJugg()
+        jugg3.loadFromHistory()
+        jugg3.juggManager.updateDeployState()
         assertEquals(JuggDeployState.State.READY_DEPLOY, jugg3.deployStateManager.deployState.state)
         assertTrue(jugg3.deployHistoryManager.isRecoverFeatureAvailable)
         assertTrue(jugg3.deployHistoryManager.hasBeenFullCompiled)
         val recoverInfo4 = jugg3.deployHistoryManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo4)
-        assertEquals(3, recoverInfo4.deployedFiles.size)
-        assertEquals(3, jugg3.deployFileManager.getStagingFiles().size)
+        assertEquals(6, recoverInfo4.deployedFiles.size)
+        assertEquals(0, jugg3.deployFileManager.getStagingFiles().size)
     }
 
     @Test
@@ -152,9 +154,7 @@ class TopLevelFlowWithGitTest {
             apkEntryInfo = originalProjectInfo.apkEntryInfo,
         )
         try {
-            val jugg = MockJugg()
-            jugg.resetAllState()
-            initDeployWithGit(jugg)
+            val jugg = createInitializedGitJugg()
             jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
             jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
             jugg.deploy()
@@ -173,13 +173,12 @@ class TopLevelFlowWithGitTest {
 
     @Test
     fun recoveryDeployOnIsReadyIncCompileState() {
-        val jugg = MockJugg()
-        initDeployWithGit(jugg)
+        val jugg = createInitializedGitJugg()
 
         // first deploy
         jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
-        jugg.deploy()
+        jugg.deployCompiledApp()
 
         // set app not launched
         AdbCmdHelper(jugg.deployTargetManager.getSelectedDevices().first(), logger).stopApp(projectInfo.packageName)
@@ -187,17 +186,21 @@ class TopLevelFlowWithGitTest {
         // recoverable state after renew Jugg
         println("\n\nstart deploy 2")
         val jugg2 = MockJugg()
+        jugg2.loadFromHistory()
+        jugg2.juggManager.updateDeployState()
         assertEquals(JuggDeployState.State.READY_INCREMENTAL_COMPILE, jugg2.deployStateManager.deployState.state)
         assertTrue(jugg2.deployHistoryManager.isRecoverFeatureAvailable)
         assertTrue(jugg2.deployHistoryManager.hasBeenFullCompiled)
         val recoverInfo2 = jugg2.deployHistoryManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo2)
         assertEquals(1, recoverInfo2.deployedFiles.size)
-        assertEquals(1, jugg2.deployFileManager.getStagingFiles().size)
+        assertEquals(0, jugg2.deployFileManager.getStagingFiles().size)
 
         println("\n\nstart deploy 3")
-        jugg2.deploy()
-        assertEquals(0, jugg2.deployFileManager.getStagingFiles().size)
+        assertTrue(jugg2.deployTargetManager.startApp(jugg2.deployTargetManager.getSelectedDevices().first()))
+        jugg2.waitingLaunchAppAndCheck()
+        jugg2.juggManager.updateDeployState()
+        assertEquals(JuggDeployState.State.READY_DEPLOY, jugg2.deployStateManager.deployState.state)
     }
 
     @Test

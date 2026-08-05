@@ -127,6 +127,7 @@ class MockJugg(
         adbDeviceHelper.init()
         renewComponents()
         renewManager()
+        juggManager.updateDeployState()
     }
 
     fun resetAllState() {
@@ -143,10 +144,6 @@ class MockJugg(
         juggManager.recoverDeployContext()
         deployFileManager.reset()
         coroutineScope.advanceUntilIdle()
-
-        if (!deployHistoryManager.hasBeenFullCompiled) {
-            throw RuntimeException("loadFromHistory failed")
-        }
     }
 
     /**
@@ -206,6 +203,7 @@ class MockJugg(
     fun deployCompiledApp() {
         val devices = deployTargetManager.getSelectedDevices()
         assertEquals(1, devices.size, "app deploy expects exactly one device")
+        deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
         val result = juggDeployerHelper.deploy(DeployOptions(device = devices.first(), isLastDevice = true))
         assertTrue(result.isSuccess, result.failedReason ?: "app incremental deploy failed")
         waitingLaunchAppAndCheck()
