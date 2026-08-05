@@ -74,9 +74,11 @@ fun assertCompileResult(task: CompileTask,
         assertTrue(detail.file.file.exists() && detail.file.file.length() > 0)
         val expectOutput = outputFileMapper(detail.file)
         expectOutput.forEach { relativeOutput ->
-            val output = result.outputs.find { it.file.absolutePath == relativeOutput.file.absolutePath }
-            assertEquals(relativeOutput, output)
-            assertTrue(output!!.file.exists())
+            val output = result.outputs.find { it.file.absolutePath == relativeOutput.file.absolutePath }!!
+            assertEquals(relativeOutput.type, output.type)
+            assertEquals(relativeOutput.baseDir.absolutePath, output.baseDir.absolutePath)
+            relativeOutput.apkPath?.let { assertEquals(it, output.apkPath) }
+            assertTrue(output.file.exists())
             assertTrue(output.file.length() > 0)
         }
         exceptsOutput.addAll(expectOutput)

@@ -62,9 +62,11 @@ fun changeAndRevert(file: File, oldContent: String, newContent: String, block: (
     val newText = text.replace(oldContent, newContent)
     try {
         file.writeText(newText)
+        file.setLastModified(maxOf(System.currentTimeMillis(), file.lastModified() + 1_000))
         block()
     } finally {
         file.writeText(text)
+        file.setLastModified(maxOf(System.currentTimeMillis(), file.lastModified() + 1_000))
     }
 }
 

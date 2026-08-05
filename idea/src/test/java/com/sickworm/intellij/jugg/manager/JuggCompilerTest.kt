@@ -193,7 +193,7 @@ class JuggCompilerTest {
             CompileFile.Type.Resource,
             File(assetsAndroidDir, "app/src/main/res"),
             File(assetsAndroidDir, "app/src/main/res"),
-            jugg.compileContextManager.compileContext.tempModule,
+            jugg.compileContextManager.compileContext.applicationModule!!,
         )
         jugg.deployFileManager.addChangedFile(listOf(file))
         jugg.juggManager.compileChanges()
@@ -203,6 +203,7 @@ class JuggCompilerTest {
         assertTrue(deployData.isFullRes)
         jugg.dryDeploy()
 
+        file.file.setLastModified(file.file.lastModified() + 1_000)
         jugg.deployFileManager.addChangedFile(listOf(file))
         jugg.juggManager.compileChanges()
         assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
@@ -218,7 +219,7 @@ class JuggCompilerTest {
             CompileFile.Type.Asset,
             File(assetsAndroidDir, "app/src/main/assets"),
             File(assetsAndroidDir, "app/src/main/assets"),
-            jugg.compileContextManager.compileContext.tempModule,
+            jugg.compileContextManager.compileContext.applicationModule!!,
         )
         jugg.deployFileManager.addChangedFile(listOf(file))
         jugg.juggManager.compileChanges()
@@ -228,6 +229,7 @@ class JuggCompilerTest {
         assertTrue(deployData.isFullRes)
         jugg.dryDeploy()
 
+        file.file.setLastModified(file.file.lastModified() + 1_000)
         jugg.deployFileManager.addChangedFile(listOf(file))
         jugg.juggManager.compileChanges()
         assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
@@ -241,7 +243,10 @@ class JuggCompilerTest {
     fun testKotlinPageShouldRewriteKuiklyGeneratedEntry() {
         val route = "jugg_integration_page"
         val pageSourceFile = File(assetsAndroidDir, "app/src/main/java/com/example/myapplication/JuggAptPage.kt")
-        val generatedEntryFile = File(assetsAndroidDir, "app/build/generated/ksp/debug/kotlin/KuiklyCoreEntry.kt")
+        val generatedEntryFile = File(
+            jugg.compileContextManager.compileContext.applicationModule!!.buildPathInfo.generatedKspSourcePath,
+            "KuiklyCoreEntry.kt",
+        )
 
         val pageSource = """
             package com.example.myapplication
@@ -290,7 +295,10 @@ class JuggCompilerTest {
         val sourceDir = File(assetsAndroidDir, "app/src/main/java/com/example/myapplication")
         val pageSourceFile = File(sourceDir, "JuggAptRetryPage.kt")
         val unrelatedSourceFile = File(sourceDir, "JuggAptUnrelated.kt")
-        val generatedEntryFile = File(assetsAndroidDir, "app/build/generated/ksp/debug/kotlin/KuiklyCoreEntry.kt")
+        val generatedEntryFile = File(
+            jugg.compileContextManager.compileContext.applicationModule!!.buildPathInfo.generatedKspSourcePath,
+            "KuiklyCoreEntry.kt",
+        )
         val pageSource = """
             package com.example.myapplication
 
