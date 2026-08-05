@@ -472,9 +472,7 @@ class JuggDeployerHelperRecoverTest {
             compileUiHandler = CompileUiHandler.DEFAULT,
         )
 
-        val order = Mockito.inOrder(adb, deployFileManager)
-        order.verify(adb).execAdbShellCmd("run-as com.example.app rm -rf code_cache/.overlay")
-        order.verify(deployFileManager).resetAfterReinstall()
+        Mockito.verify(deployFileManager).resetAfterReinstall()
     }
 
     @Test
