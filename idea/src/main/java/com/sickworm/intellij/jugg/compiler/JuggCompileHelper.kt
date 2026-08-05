@@ -59,6 +59,7 @@ class JuggCompilerHelper(
 ): Disposable, IIncrementalCompileFallbackChecker {
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
+        private const val GRADLE_PROJECT_INFO_UNAVAILABLE = "Gradle project info unavailable"
     }
 
     var juggCompiler: JuggCompiler? = null
@@ -88,6 +89,9 @@ class JuggCompilerHelper(
      * can proceed.
      */
     override fun checkFallback(): String? {
+        if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
+            return GRADLE_PROJECT_INFO_UNAVAILABLE
+        }
         checkDeviceFallback()?.let { return it.failedReason }
         checkFilesFallback(deployFileManager.getUncompiledFiles())?.let { return it.failedReason }
         val deployState = deployStateManager.updateDeployState()
@@ -387,6 +391,11 @@ class JuggCompilerHelper(
         if (isCompileCommandChanged(options)) {
             logger.info("Compile command changed, forcing Gradle full compile.")
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
+        }
+
+        if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
+            logger.info("Gradle project info is unavailable, forcing Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, GRADLE_PROJECT_INFO_UNAVAILABLE)
         }
 
         checkDeviceFallback()?.let {

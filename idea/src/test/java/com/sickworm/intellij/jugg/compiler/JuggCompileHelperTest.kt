@@ -263,6 +263,17 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun preprocessIncrementalCompile_gradleProjectInfoUnavailable_forcesGradleFallback() {
+        val fixture = createFixture()
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("Gradle project info unavailable", result.failedReason)
+    }
+
+    @Test
     fun prepareRemoteProjectInfo_compileCommandChanged_startsCurrentCommandRefresh() {
         val fixture = createFixture()
         val compileCommand = "./gradlew :app:assembleDevDebug"
@@ -453,6 +464,7 @@ class JuggCompileHelperTest {
         whenever(deployFileManager.getUndeployedFiles()).thenReturn(emptyList())
         whenever(deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
         whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        whenever(gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(true)
 
         val helper = JuggCompilerHelper(
             project = project,

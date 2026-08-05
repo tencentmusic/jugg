@@ -52,7 +52,12 @@ class GradleProjectInfoLocalFetchManager(
     val isProjectInfoAvailable: Boolean get() = pathManager.gradleProjectInfoFile.exists()
             && deployHistoryManager.getFullBuildInfo()?.compileCommand != null
 
+    val isIncrementalCompileAvailable: Boolean
+        get() = isProjectInfoAvailable && !isRebuildingMissingProjectInfo
+
     private var isUpdating: Boolean = false
+    @Volatile
+    private var isRebuildingMissingProjectInfo: Boolean = false
     private var pendingUpdate: Pair<String?, BuildTarget>? = null
     private var isNeedWaitAfterRemoteCompile = false
 
@@ -125,6 +130,7 @@ class GradleProjectInfoLocalFetchManager(
         }
 
         isUpdating = true
+        isRebuildingMissingProjectInfo = !isProjectInfoAvailable
         pendingUpdate = specificCompileCommand to buildTarget
         if (shouldWaitForRemoteInit) {
             isNeedWaitAfterRemoteCompile = true
@@ -177,6 +183,7 @@ class GradleProjectInfoLocalFetchManager(
                         pendingUpdate = null
                         if (it == null) {
                             isUpdating = false
+                            isRebuildingMissingProjectInfo = false
                             completion.countDown()
                         }
                     }
@@ -193,6 +200,7 @@ class GradleProjectInfoLocalFetchManager(
     @Synchronized
     private fun finishUpdates(completion: CountDownLatch) {
         isUpdating = false
+        isRebuildingMissingProjectInfo = false
         pendingUpdate = null
         completion.countDown()
     }
