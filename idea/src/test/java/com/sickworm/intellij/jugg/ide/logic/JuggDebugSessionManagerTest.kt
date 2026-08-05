@@ -81,8 +81,9 @@ class JuggDebugSessionManagerTest {
         manager.attachAfterSuccessfulRun(successRunResult, uiHandler)
 
         val inOrder = Mockito.inOrder(logger)
-        inOrder.verify(logger).info("Jugg Debug attach: waiting for com.example.app to enter debugger WAITING state.")
-        inOrder.verify(logger).info("Jugg Debug attach: requested Android Studio debug attach flow for com.example.app.")
+        inOrder.verify(logger).info("\nStart Debugger attaching.")
+        inOrder.verify(logger).info("Waiting for com.example.app to enter debugger WAITING state.")
+        inOrder.verify(logger).info("\nDebugger attached.")
     }
 
     @Test
