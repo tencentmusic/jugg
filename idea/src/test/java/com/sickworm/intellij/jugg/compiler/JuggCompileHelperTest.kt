@@ -44,6 +44,10 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 
 class JuggCompileHelperTest {
 
@@ -271,6 +275,41 @@ class JuggCompileHelperTest {
 
         assertTrue(result!!.isCanFallback)
         assertEquals("Gradle project info unavailable", result.failedReason)
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_missingProjectInfoRebuilding_waitsBeforeIncrementalDecision() {
+        val fixture = createFixture()
+        val isRebuilding = AtomicBoolean(true)
+        val rebuildCheckStarted = CountDownLatch(1)
+        val preprocessFinished = CountDownLatch(1)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo).thenAnswer {
+            rebuildCheckStarted.countDown()
+            isRebuilding.get()
+        }
+
+        thread(isDaemon = true) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+            preprocessFinished.countDown()
+        }
+
+        assertTrue(rebuildCheckStarted.await(1, TimeUnit.SECONDS))
+        assertFalse(preprocessFinished.await(100, TimeUnit.MILLISECONDS))
+
+        isRebuilding.set(false)
+
+        assertTrue(preprocessFinished.await(1, TimeUnit.SECONDS))
+    }
+
+    @Test(timeout = 1_000)
+    fun preprocessIncrementalCompile_forceGradle_doesNotWaitForProjectInfoRebuild() {
+        val fixture = createFixture()
+        whenever(fixture.uiHandler.isForceGradleCompile).thenReturn(true)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo).thenReturn(true)
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertEquals("Force fallback", result!!.failedReason)
     }
 
     @Test

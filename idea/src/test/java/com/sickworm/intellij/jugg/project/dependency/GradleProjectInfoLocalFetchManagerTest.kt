@@ -160,6 +160,7 @@ class GradleProjectInfoLocalFetchManagerTest {
             pathManager.gradleProjectInfoFile.writeText("{}")
 
             assertTrue(manager.isProjectInfoAvailable)
+            assertTrue(manager.isRebuildingMissingProjectInfo)
             assertFalse(manager.isIncrementalCompileAvailable)
             verify(taskRunnerManager).runTaskSafe(
                 eq("Update project info from gradle"),
@@ -170,6 +171,7 @@ class GradleProjectInfoLocalFetchManagerTest {
 
             updateAction!!.run()
 
+            assertFalse(manager.isRebuildingMissingProjectInfo)
             assertTrue(manager.isIncrementalCompileAvailable)
         } finally {
             manager.dispose()

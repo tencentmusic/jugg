@@ -57,7 +57,8 @@ class GradleProjectInfoLocalFetchManager(
 
     private var isUpdating: Boolean = false
     @Volatile
-    private var isRebuildingMissingProjectInfo: Boolean = false
+    var isRebuildingMissingProjectInfo: Boolean = false
+        private set
     private var pendingUpdate: Pair<String?, BuildTarget>? = null
     private var isNeedWaitAfterRemoteCompile = false
 
