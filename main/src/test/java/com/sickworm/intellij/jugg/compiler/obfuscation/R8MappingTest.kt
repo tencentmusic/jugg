@@ -7,6 +7,7 @@ import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
@@ -257,9 +258,11 @@ class R8MappingTest {
     fun testEnumClass_enumValuesAccessible() {
         val originalClassName = "$MINIFY_PACKAGE.MinifyTestEnum"
 
-        val mapping = mappingReader!!.getClassMappingByOriginalName(originalClassName)
-        // Enum should be kept
-        assertNull(mapping, "MinifyTestEnum should be kept and not in mapping")
+        val mapping = assertNotNull(mappingReader!!.getClassMappingByOriginalName(originalClassName))
+        assertNotEquals(originalClassName, mapping.obfuscatedName, "enum class name may be obfuscated")
+        mapping.methods.filter { it.originalName == "values" || it.originalName == "valueOf" }.forEach {
+            assertEquals(it.originalName, it.obfuscatedName, "enum access method should preserve its name")
+        }
     }
 
     // ========================================================================

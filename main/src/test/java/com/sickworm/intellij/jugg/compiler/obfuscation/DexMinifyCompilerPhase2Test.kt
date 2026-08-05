@@ -56,8 +56,8 @@ class DexMinifyCompilerPhase2Test {
     fun testJuggFixClassGeneration() {
         val testClassName = "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestEnum;"
         val testClassFile = File(
-            TestGlobal.assetsAndroidDir,
-            "app/build/tmp/kotlin-classes/release/com/sickworm/jugg/demo/testcase/minify/MinifyTestEnum.class"
+            releaseContext.applicationModule.buildPathInfo.kotlinClassPath,
+            "com/sickworm/jugg/demo/testcase/minify/MinifyTestEnum.class",
         )
 
         if (!testClassFile.exists()) {
@@ -105,8 +105,8 @@ class DexMinifyCompilerPhase2Test {
         val originalClassName = "com.sickworm.jugg.demo.testcase.minify.KeepClassMembers"
         val classSigName = "Lcom/sickworm/jugg/demo/testcase/minify/KeepClassMembers;"
         val testClassFile = File(
-            TestGlobal.assetsAndroidDir,
-            "app/build/tmp/kotlin-classes/release/com/sickworm/jugg/demo/testcase/minify/KeepClassMembers.class"
+            releaseContext.applicationModule.buildPathInfo.kotlinClassPath,
+            "com/sickworm/jugg/demo/testcase/minify/KeepClassMembers.class",
         )
         assertTrue(testClassFile.exists(), "Class file should exist for KeepClassMembers")
 

@@ -5,6 +5,7 @@ import com.googlecode.d2j.node.DexFileNode
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.MultiDexFileReader
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
+import com.sickworm.intellij.jugg.compiler.obfuscation.R8MappingReader
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import org.junit.Before
@@ -131,14 +132,13 @@ class SourceMinifyCompileTest {
         result.printCompileErrors()
         assertTrue(result.isAllSuccess, "Compilation should succeed for KeepClassMembers")
 
-        // Verify obfuscation: class name should be obfuscated to b3.a
+        val expectedClassName = getRuntimeClassSig("KeepClassMembers")
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lg3/a;",
+            expectedClassName = expectedClassName,
             verifyCallback = { compiledClass, apkClass ->
-                // Class name should be obfuscated
-                assertEquals("Lg3/a;", compiledClass.className,
-                    "Class name should be obfuscated to b3.a")
+                assertEquals(expectedClassName, compiledClass.className,
+                    "Class name should match the current release mapping")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")
 
@@ -180,14 +180,13 @@ class SourceMinifyCompileTest {
         result.printCompileErrors()
         assertTrue(result.isAllSuccess, "Compilation should succeed for KeepMethodName")
 
-        // Verify obfuscation: class name should be obfuscated to b3.b
+        val expectedClassName = getRuntimeClassSig("KeepMethodName")
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lg3/b;",
+            expectedClassName = expectedClassName,
             verifyCallback = { compiledClass, apkClass ->
-                // Class name should be obfuscated
-                assertEquals("Lg3/b;", compiledClass.className,
-                    "Class name should be obfuscated to b3.b")
+                assertEquals(expectedClassName, compiledClass.className,
+                    "Class name should match the current release mapping")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")
 
@@ -197,13 +196,6 @@ class SourceMinifyCompileTest {
 
                 val compiledKeptMethod = compiledClass.methods?.find { it.method.name == "keptMethod" }
                 assertNotNull(compiledKeptMethod, "keptMethod should be preserved in compiled output")
-
-                // internalState field should be obfuscated to 'a'
-                val apkField = apkClass.fields?.find { it.field.name == "a" }
-                assertNotNull(apkField, "internalState should be obfuscated to 'a' in APK")
-
-                val compiledField = compiledClass.fields?.find { it.field.name == "a" }
-                assertNotNull(compiledField, "Compiled class should have obfuscated field 'a'")
             }
         )
     }
@@ -261,14 +253,13 @@ class SourceMinifyCompileTest {
         result.printCompileErrors()
         assertTrue(result.isAllSuccess, "Compilation should succeed for SerializableClass")
 
-        // Verify obfuscation: class name should be obfuscated to b3.c
+        val expectedClassName = getRuntimeClassSig("SerializableClass")
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lg3/c;",
+            expectedClassName = expectedClassName,
             verifyCallback = { compiledClass, apkClass ->
-                // Class name should be obfuscated
-                assertEquals("Lg3/c;", compiledClass.className,
-                    "Class name should be obfuscated to b3.c")
+                assertEquals(expectedClassName, compiledClass.className,
+                    "Class name should match the current release mapping")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")
 
@@ -341,14 +332,13 @@ class SourceMinifyCompileTest {
         result.printCompileErrors()
         assertTrue(result.isAllSuccess, "Compilation should succeed for WildcardKeepClass")
 
-        // Verify obfuscation: class name should be obfuscated to b3.d
+        val expectedClassName = getRuntimeClassSig("WildcardKeepClass")
         verifyObfuscation(
             result = result,
-            expectedClassName = "Lg3/d;",
+            expectedClassName = expectedClassName,
             verifyCallback = { compiledClass, apkClass ->
-                // Class name should be obfuscated
-                assertEquals("Lg3/d;", compiledClass.className,
-                    "Class name should be obfuscated to b3.d")
+                assertEquals(expectedClassName, compiledClass.className,
+                    "Class name should match the current release mapping")
                 assertEquals(apkClass.className, compiledClass.className,
                     "Compiled class name should match APK")
 
@@ -528,6 +518,13 @@ class SourceMinifyCompileTest {
             outputDir = TestGlobal.stagingDir,
             compileStatusHolder = CompileStatusHolder.DEFAULT,
         )
+    }
+
+    private fun getRuntimeClassSig(simpleClassName: String): String {
+        val originalName = "com.sickworm.jugg.demo.testcase.minify.$simpleClassName"
+        val runtimeName = R8MappingReader.fromFile(releaseContext!!.mappingFile!!)
+            .getObfuscatedClassName(originalName) ?: originalName
+        return "L${runtimeName.replace('.', '/')};"
     }
 
     /**

@@ -56,6 +56,7 @@ SourceCompiler.compileDexOutputs()
 
 - release 缺 mapping 不会硬失败：`ClassMinifyCompiler` / `DexMinifyCompiler` 只 warn 并 wrap 原任务结果。排查 release 异常时要先确认日志是否出现 mapping 缺失告警。
 - `usage.txt` 只参与 `_jugg_fix` 输入 class 的方法体兼容改写：已删除方法保留签名但改为空实现/默认返回；字段删除目前由 reader 记录，当前链路主要消费 removed methods。
+- 部分 R8 版本会在 `usage.txt` 中擦除 Kotlin property accessor 的参数信息。精确签名未命中时，只有 usage 与 class bytecode 中该方法名都唯一才按名称回退；任一侧存在 overload 就保持原方法，避免误裁剪同名成员。
 - `preObfuscateForMinifyInfo()` 是为了让 DB 查询使用 APK 里的混淆类名；若跳过这一步，容易误判“类在 DB 中缺失”。
 
 ---

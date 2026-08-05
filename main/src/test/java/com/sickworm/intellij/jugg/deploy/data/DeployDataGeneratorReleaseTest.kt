@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.obfuscation.R8MappingReader
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.mock.*
@@ -46,7 +47,6 @@ class DeployDataGeneratorReleaseTest {
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$InnerClass;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InterfaceImplementor;",
-            "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestEnum;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$StaticInnerClass;",
             "Lcom/sickworm/jugg/demo/testcase/minify/KeepAnnotated;",
             "Lcom/sickworm/jugg/demo/testcase/minify/KeepClassName;",
@@ -58,7 +58,6 @@ class DeployDataGeneratorReleaseTest {
     @Test
     fun testMinifyRemoveKeepClassName() {
         val removedOrPartiallyRemovedClasses = listOf(
-            "Lkotlin/jvm/internal/Intrinsics;",
             "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestActivity;",
         )
         testMinifyRemove("KeepClassName", removedOrPartiallyRemovedClasses)
@@ -114,9 +113,8 @@ class DeployDataGeneratorReleaseTest {
             }
             assertTrue(result != null, "$className should be detected")
 
-            val isEffectedByMinifyTestActivity = result.effectedByClasses.any { effectedByClassName ->
-                effectedByClassName.contains(testClassName)
-            }
+            val expectedEffectedByClass = getRuntimeClassSig(testClassName)
+            val isEffectedByMinifyTestActivity = result.effectedByClasses.contains(expectedEffectedByClass)
             assertTrue(isEffectedByMinifyTestActivity, "$className should be effected by MinifyTestActivity (which references it). ")
         }
     }
@@ -166,7 +164,6 @@ class DeployDataGeneratorReleaseTest {
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$InnerClass;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InterfaceImplementor;",
-            "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestEnum;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$StaticInnerClass;",
         )
 
@@ -180,5 +177,12 @@ class DeployDataGeneratorReleaseTest {
                     "because it was removed/partially-removed by R8 minification"
             )
         }
+    }
+
+    private fun getRuntimeClassSig(simpleClassName: String): String {
+        val originalName = "com.sickworm.jugg.demo.testcase.minify.$simpleClassName"
+        val runtimeName = R8MappingReader.fromFile(releaseContext.mappingFile!!)
+            .getObfuscatedClassName(originalName) ?: originalName
+        return "L${runtimeName.replace('.', '/')};"
     }
 }

@@ -448,6 +448,21 @@ class DexMinifyCompiler(
 
         var hasStubbedMethod = false
         val classReader = ClassReader(classBytes)
+        val methodNameCounts = mutableMapOf<String, Int>()
+        classReader.accept(object : ClassVisitor(Opcodes.ASM9) {
+            override fun visitMethod(
+                access: Int,
+                name: String,
+                descriptor: String,
+                signature: String?,
+                exceptions: Array<out String>?,
+            ): MethodVisitor? {
+                if (name != "<init>" && name != "<clinit>") {
+                    methodNameCounts[name] = methodNameCounts.getOrDefault(name, 0) + 1
+                }
+                return null
+            }
+        }, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
         val classWriter = ClassWriter(classReader, 0)
         val classVisitor = object : ClassVisitor(Opcodes.ASM9, classWriter) {
             override fun visitMethod(
@@ -458,8 +473,12 @@ class DexMinifyCompiler(
                 exceptions: Array<out String>?
             ): MethodVisitor? {
                 val parameterTypes = Type.getArgumentTypes(descriptor).map { it.toSourceTypeName() }
+                val removedMethodsWithSameName = removedMethods.filter { it.name == name }
+                val isExactRemovedMethod = usageReader.isMethodRemoved(className, name, parameterTypes)
+                // Some R8 versions erase Kotlin accessor parameters in usage.txt; only fall back when no overload is ambiguous.
+                val isUniqueNameFallback = removedMethodsWithSameName.size == 1 && methodNameCounts[name] == 1
                 val shouldStub = name != "<init>" && name != "<clinit>" &&
-                    usageReader.isMethodRemoved(className, name, parameterTypes)
+                    (isExactRemovedMethod || isUniqueNameFallback)
                 if (!shouldStub) {
                     return super.visitMethod(access, name, descriptor, signature, exceptions)
                 }
