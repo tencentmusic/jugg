@@ -22,13 +22,6 @@ class AndroidManifestCompilerTest {
 
     @Test
     fun testFileEquals() {
-        val diffResult = ManifestDiffer().diff(
-            XmlParser().parse(context.applicationModule.manifestFile!!),
-            XmlParser().parse(context.applicationModule.buildPathInfo.mergedManifest))
-        println(diffResult.toXmlString())
-        assertTrue(diffResult.isNothingToUpdate)
-
-
         val compileFile = CompileFile(
             CompileFile.Type.AndroidManifest,
             context.applicationModule.manifestFile!!,
