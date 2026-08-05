@@ -231,8 +231,15 @@ class GradleProjectInfoReader(
                         kotlinPlugins = ((kotlinPlugins ?: emptyList()) + kotlinClasspath20).distinct()
                     }
                     val kotlinCommonSourceDirs = readKotlinCommonSourceDirs(kotlinTask)
+                    val kotlinFragments = readKotlinFragments(kotlinTask)
                     sourceDirs.addAll(kotlinCommonSourceDirs)
-                    moduleInfo = moduleInfo.copy(kotlinCommonSourceDirs = kotlinCommonSourceDirs)
+                    sourceDirs.addAll(kotlinFragments.first.values.flatten())
+                    moduleInfo = moduleInfo.copy(
+                        kotlinCommonSourceDirs = kotlinCommonSourceDirs,
+                        kotlinFragmentSourceDirs = kotlinFragments.first,
+                        kotlinFragmentRefines = kotlinFragments.second,
+                        kotlinDefaultFragmentName = kotlinFragments.third,
+                    )
                 } else if (hasKotlinPlugin) {
                     println("Jugg: can not find kotlin compile task for ${moduleInfo.name} by $kotlinTaskName, skip it.")
                 }
@@ -699,6 +706,42 @@ class GradleProjectInfoReader(
         } catch (e: Throwable) {
             println("Jugg: read Kotlin common source directories failed: $e")
             emptyList()
+        }
+    }
+
+    /** Reads the authoritative Kotlin fragment graph exposed by K2 Gradle tasks. */
+    private fun readKotlinFragments(kotlinTask: Any): Triple<Map<String, List<File>>, Map<String, List<String>>, String?> {
+        return try {
+            val structure = readProperty(kotlinTask, "multiplatformStructure")
+                ?: return Triple(emptyMap(), emptyMap(), null)
+            val fragmentProperty = readProperty(structure, "fragments")
+                ?: return Triple(emptyMap(), emptyMap(), null)
+            val fragments = ((invokeNoArg(fragmentProperty, "getOrNull") ?: invokeNoArg(fragmentProperty, "get"))
+                as? Collection<*>).orEmpty()
+            val sourceDirs = fragments.mapNotNull { fragment ->
+                fragment ?: return@mapNotNull null
+                val name = readProperty(fragment, "fragmentName")?.toString() ?: return@mapNotNull null
+                val sources = readProperty(fragment, "sources") as? FileCollection
+                name to sources?.let(::readFileTreeRoots).orEmpty()
+            }.toMap()
+            val edgeProperty = readProperty(structure, "refinesEdges")
+                ?: return Triple(sourceDirs, emptyMap(), null)
+            val edges = ((invokeNoArg(edgeProperty, "getOrNull") ?: invokeNoArg(edgeProperty, "get"))
+                as? Collection<*>).orEmpty()
+            val refines = edges.mapNotNull { edge ->
+                edge ?: return@mapNotNull null
+                val from = readProperty(edge, "fromFragmentName")?.toString() ?: return@mapNotNull null
+                val to = readProperty(edge, "toFragmentName")?.toString() ?: return@mapNotNull null
+                from to to
+            }.groupBy({ it.first }, { it.second })
+            val defaultProperty = readProperty(structure, "defaultFragmentName")
+                ?: return Triple(sourceDirs, refines, null)
+            val defaultName = (invokeNoArg(defaultProperty, "getOrNull")
+                ?: invokeNoArg(defaultProperty, "get"))?.toString()
+            Triple(sourceDirs, refines, defaultName)
+        } catch (e: Throwable) {
+            println("Jugg: read Kotlin fragments failed: $e")
+            Triple(emptyMap(), emptyMap(), null)
         }
     }
 

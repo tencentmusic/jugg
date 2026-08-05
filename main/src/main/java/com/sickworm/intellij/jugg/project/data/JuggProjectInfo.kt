@@ -54,6 +54,11 @@ data class ModuleInfo(
     val sourceDirs: List<File>,
     /** Kotlin source roots treated as common sources by the selected Android compilation. */
     val kotlinCommonSourceDirs: List<File> = emptyList(),
+    /** Authoritative Kotlin multiplatform fragment source roots keyed by fragment name. */
+    val kotlinFragmentSourceDirs: Map<String, List<File>> = emptyMap(),
+    /** Kotlin fragment refinement edges keyed by the refining fragment. */
+    val kotlinFragmentRefines: Map<String, List<String>> = emptyMap(),
+    val kotlinDefaultFragmentName: String? = null,
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,
     val manifestFile: File?,

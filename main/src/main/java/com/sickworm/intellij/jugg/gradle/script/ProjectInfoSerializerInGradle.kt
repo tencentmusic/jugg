@@ -54,6 +54,12 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         projectRootDir = projectRootDir,
                         kotlinCommonSourceDirs = (module["kotlinCommonSourceDirs"] as? List<String>)?.map(::File)
                             ?: emptyList(),
+                        kotlinFragmentSourceDirs = (module["kotlinFragmentSourceDirs"] as? Map<String, List<String>>)
+                            ?.mapValues { (_, paths) -> paths.map(::File) }
+                            ?: emptyMap(),
+                        kotlinFragmentRefines = module["kotlinFragmentRefines"] as? Map<String, List<String>>
+                            ?: emptyMap(),
+                        kotlinDefaultFragmentName = module["kotlinDefaultFragmentName"] as? String,
                         buildPathInfo = ModuleBuildPathInfo(
                             projectRootDir,
                             moduleRootDir,

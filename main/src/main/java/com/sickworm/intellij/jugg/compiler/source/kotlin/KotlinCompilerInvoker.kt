@@ -352,10 +352,11 @@ class KotlinCompilerInvoker {
         }
 
         val commonSourceArgs = buildCommonSourceArgs(options.commonSourceFiles)
+        val fragmentArgs = buildFragmentArgs(module, task.files.map { it.file }, options)
         val fileArgs = task.files.map { it.file.absolutePath }
 
         val command = pluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs +
-                commonSourceArgs + fileArgs
+                commonSourceArgs + fragmentArgs + fileArgs
         logCompileCommand(command, context.projectDir, logger)
 
         // resolve kotlin extension function unresolved reference
@@ -572,6 +573,22 @@ class KotlinCompilerInvoker {
             task.files.map { Result.success(it) },
             outputs = compileOutputs + kaptOutputs + kspArgsManager.getOutput(task),
         )
+    }
+
+    private fun buildFragmentArgs(module: ModuleInfo, sourceFiles: List<File>, options: Options): List<String> {
+        if (!options.isNeedComplementaryFiles || module.kotlinFragmentSourceDirs.isEmpty()) return emptyList()
+        val fragmentSources = sourceFiles.mapNotNull { source ->
+            val fragment = module.kotlinFragmentSourceDirs.entries
+                .filter { (_, roots) -> roots.any { source.absoluteFile.normalize().toPath().startsWith(it.absoluteFile.normalize().toPath()) } }
+                .maxByOrNull { (_, roots) -> roots.maxOf { it.absolutePath.length } }
+                ?.key ?: module.kotlinDefaultFragmentName
+            fragment?.let { "$it:${source.absolutePath}" }
+        }
+        return module.kotlinFragmentSourceDirs.keys.map { "-Xfragments=$it" } +
+            fragmentSources.map { "-Xfragment-sources=$it" } +
+            module.kotlinFragmentRefines.flatMap { (from, targets) ->
+                targets.map { to -> "-Xfragment-refines=$from:$to" }
+            }
     }
 
     private fun handleComposeArgs(

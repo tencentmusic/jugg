@@ -22,7 +22,7 @@
 - `KotlinComplementaryFilesCache.kt`：项目 Kotlin incremental cache capability adapter。
 - `GradleProjectInfoReader.kt`：Android Kotlin task、common roots；TODO 1 的 fragment graph 应从同一 authoritative task/compilation 继续读取。
 
-## TODO 1：中间 source set fragment graph
+## TODO 1：中间 source set fragment graph（已完成）
 
 ### 现象
 
@@ -36,12 +36,12 @@ Gradle `compileDebugKotlinAndroid` 的真实参数除 `-Xmulti-platform` 外还�
 
 其中 `sharedMain:commonMain` 表达中间 source set 的 refinement 关系。现有 `ModuleInfo.kotlinCommonSourceDirs` 只能判断 common 输入，无法表达 fragment 身份和 refinement graph。
 
-### 待办
+### 实现结果
 
-1. 从选中的 Android Kotlin compilation/task 读取 authoritative fragment graph，不根据 source-set 目录名猜测。
-2. 设计兼容旧 project-info 的非空数据结构，并同步序列化、复制和合并链。
-3. capability-based 构造 fragment 参数，不增加 Kotlin 版本白名单。
-4. 恢复 `KmpComposeFlowReproTest#compileIntermediateSharedMainActual` 验收。
+1. `GradleProjectInfoReader` 从选中 K2 task 的 `multiplatformStructure` 读取 fragment sources、refines edge 与 default fragment，不根据目录名猜测。
+2. `ModuleInfo` 新增带空默认值的 fragment 字段，并同步 Gradle/主进程序列化与 merge 链，旧 project info 保持兼容。
+3. `KotlinCompilerInvoker` 仅在普通 KMP complementary invocation 中构造 `-Xfragments`、`-Xfragment-sources`、`-Xfragment-refines`；Compose resource generated source 不受影响。
+4. `KmpComposeFlowReproTest#compileIntermediateSharedMainActual` 已通过真实 Kotlin 2.1 profile 验收。
 
 ### 当前红灯与验收
 

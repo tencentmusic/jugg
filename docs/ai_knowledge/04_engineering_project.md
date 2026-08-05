@@ -62,13 +62,16 @@
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
 | `kotlinJvmTarget` / `kotlinFreeCompilerArgs` | Kotlin 编译任务的有效 JVM target 与附加编译参数 |
 | `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
+| `kotlinFragmentSourceDirs` | 选中 Android Kotlin task 暴露的 fragment 到 source roots 映射；旧快照或不支持时为空 map |
+| `kotlinFragmentRefines` | fragment refinement edge，key 为 refining fragment，value 为其直接 refined fragments |
+| `kotlinDefaultFragmentName` | 无 source root 精确命中时使用的 task default fragment；旧快照或不支持时为 `null` |
 | `composeResourceInfo` | 已检测的 Compose resource task metadata；同时保存 supported/unsupported 状态与原因，由增量链按 task 和 generator API 结构消费，不按 Kotlin/Compose 精确版本过滤 |
 
 `JuggProjectInfo.agpR8Classpath` 是根项目级字段。Gradle init script 从实际 Android plugin classloader 加载 `com.android.tools.r8.D8` 并读取 code source；若该路径属于 Gradle `jars-*` / `transforms-*` instrumentation cache，则从 Android module 或 root project 的 buildscript classpath 恢复同名原始 artifact。原始 artifact 不可用时字段保持 `null`，由 dex 阶段使用 Jugg 内置 R8，避免把依赖 Gradle 私有类的 instrumentation 产物带出 Gradle classloader。Jugg 不复制 R8 分发包；IDE/CLI 只把路径注入内存中的 compile context，不写入 `FullBuildInfo` 或 `compile_context.db`。合并 composite build 快照时优先选择最终 Application module 所属 Gradle 快照的路径，避免 included build 的 AGP R8 覆盖主应用。
 
 `kotlinJvmTarget` 与 `kotlinFreeCompilerArgs` 优先从当前变体 Kotlin 编译任务的 `compilerOptions` 读取，以兼容 Kotlin 2.x typed compiler options；旧版 Kotlin Gradle Plugin 才回退到 task 或 Android extension 的 `kotlinOptions`。Kotlin task 发现不依赖旧 Kotlin Android plugin ID，兼容 AGP 9 Built-in Kotlin，并在传统 variant task 之后尝试 KMP Android task `compileAndroidMain`。不得直接对 Android extension 调用 `getByName("kotlinOptions")`，否则属性不存在时会产生反射异常，并让增量编译错误回退到默认 JVM target 1.8。
 
-`kotlinCommonSourceDirs` 从 `compile<Variant>Kotlin` / `compile<Variant>KotlinAndroid` task 的 `commonSourceSet` 结构读取，保留 direct common root、中间 `sharedMain` root 和 task 配置的 generated common roots。读取不依据 source-set 名称或 `src/<name>` 路径猜测。Gradle reader 会把这些 roots 同时加入 `sourceDirs`，merge 出口再次保证 `kotlinCommonSourceDirs` 是 `sourceDirs` 的子集并按规范化路径去重；独立字段继续保留 common/platform 身份，IDE 的扁平 `sourceDirs` 不覆盖该身份。
+`kotlinCommonSourceDirs` 从 `compile<Variant>Kotlin` / `compile<Variant>KotlinAndroid` task 的 `commonSourceSet` 结构读取，保留 direct common root、中间 `sharedMain` root 和 task 配置的 generated common roots。K2 task 另从 `multiplatformStructure` 读取 fragment sources、refines edge 和 default fragment。两者都不依据 source-set 名称或 `src/<name>` 路径猜测。Gradle reader 会把这些 roots 同时加入 `sourceDirs`；merge 出口保证 common roots 是 `sourceDirs` 子集，并完整保留 Gradle authoritative fragment graph，IDE 的扁平 `sourceDirs` 不覆盖这些身份。
 
 `ComposeResourceInfo.resourceDirectories` 不是从固定 `src/<sourceSet>/composeResources` 路径猜测。`GradleProjectInfoReader` 读取 Compose 任务的 `fileSuffix` 与 `originalResourcesDir`，因此默认目录和 Gradle DSL 配置的自定义目录即使尚不存在也会进入 project info。它还保存 support status/reason、generator classpath、package name、accessor visibility 和 packaging/asset 相对路径，序列化后供文件变更识别与增量编译使用。
 
@@ -98,6 +101,7 @@ IDE / Gradle compile 触发 project info 更新
   -> GradleProjectInfoReader.getProjectInfo()
      遍历 subprojects，读取 Android / Java module、variant、source set、classpath、依赖
      从选中 Android Kotlin task 的 commonSourceSet 读取 Kotlin common roots
+     从 K2 multiplatformStructure 读取 fragment roots、refines edge 和 default fragment
      校验 Compose resource 任务并读取 generator/resource directory metadata
   -> 写入 gradle_project_infos.json
      include build 额外写入 gradle_include_builds.txt
@@ -183,7 +187,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。
-- Compose project info 只记录 Jugg 当前编译所需的 task metadata 和 source-set/目录对应关系，不构建完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
+- Project info 只记录选中 Android Kotlin task 为本轮增量编译暴露的 fragment graph，不构建项目全部 target 的完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
 - `ModuleBuildPathInfo` 是 AGP 路径兼容层；不要在编译器里散落硬编码 `build/intermediates/...` 路径。
 - `ModuleBuildPathInfo.buildDirRelativePath` 必须在 Gradle JSON、IDE project info、compile context merge、classpath backup 和 deploy history 序列化中完整保留；修改字段结构时先判断旧值能否确定性迁移，不能仅通过提升 compile context 版本迫使用户重新全量构建。
 - 远端 classpath 过滤规则不能随普通模块数量线性增长；普通 `${moduleRoot}/build` 输出按 variant 去重，自定义 build directory 与配置路径保持精确。

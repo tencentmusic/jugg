@@ -284,6 +284,9 @@ class JuggProjectInfoMerger(
                 projectRootDir = moduleInfo.projectRootDir,
                 sourceDirs = sourceDirs,
                 kotlinCommonSourceDirs = gradleModuleInfo.kotlinCommonSourceDirs,
+                kotlinFragmentSourceDirs = gradleModuleInfo.kotlinFragmentSourceDirs,
+                kotlinFragmentRefines = gradleModuleInfo.kotlinFragmentRefines,
+                kotlinDefaultFragmentName = gradleModuleInfo.kotlinDefaultFragmentName,
                 resourceDirs = mergeWithBase(name, "resourceDirs", moduleInfo.resourceDirs, gradleModuleInfo.resourceDirs, mergeResult) { it.absolutePath },
                 assetsDirs = mergeWithBase(name, "assetsDirs", moduleInfo.assetsDirs, gradleModuleInfo.assetsDirs, mergeResult) { it.absolutePath },
                 manifestFile = moduleInfo.manifestFile, // gradleModuleInfo.manifestFile may not exist, it will always return debug/AndroidManifestFest.xml
