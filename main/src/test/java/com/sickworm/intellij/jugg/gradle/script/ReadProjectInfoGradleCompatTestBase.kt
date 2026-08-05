@@ -173,7 +173,9 @@ abstract class ReadProjectInfoGradleCompatTestBase {
             .redirectErrorStream(true)
             .apply {
                 environment()["JAVA_HOME"] = javaHomeForChildProcess
-                environment()["GRADLE_USER_HOME"] = File(projectDir, ".gradle-user-home").absolutePath
+                environment()["GRADLE_USER_HOME"] = System.getenv("GRADLE_USER_HOME")
+                    ?: System.getProperty("gradle.user.home")
+                    ?: File(System.getProperty("user.home"), ".gradle").absolutePath
             }
             .start()
         process.inputStream.copyTo(output)
