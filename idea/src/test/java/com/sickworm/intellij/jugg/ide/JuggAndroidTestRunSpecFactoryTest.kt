@@ -29,9 +29,9 @@ class JuggAndroidTestRunSpecFactoryTest {
     }
 
     @Test
-    fun `build spec normalizes blank option fields to null and ignores malformed args`() {
+    fun `build spec normalizes blank optional fields to null and ignores malformed args`() {
         val options = JuggAndroidTestRunConfigurationOptions().apply {
-            testClass = ""
+            testClass = "com.example.FooTest"
             testMethod = " "
             instrumentationRunner = ""
             extraArgs = "valid=yes,broken,noValue="
@@ -39,7 +39,7 @@ class JuggAndroidTestRunSpecFactoryTest {
 
         val spec = JuggAndroidTestRunSpecFactory.fromOptions(options)
 
-        assertNull(spec.testClass)
+        assertEquals("com.example.FooTest", spec.testClass)
         assertNull(spec.testMethod)
         assertNull(spec.runnerOverride)
         assertEquals(listOf("valid" to "yes"), spec.extraArgs)
