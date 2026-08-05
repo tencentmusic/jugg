@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
-import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
@@ -233,12 +232,7 @@ class MockJugg(
     /** Cached device-to-host clock offset in seconds (deviceTime - hostTime). */
     private val deviceTimeOffset: Long by lazy {
         try {
-            val cmd = if (isWindows) {
-                arrayOf("cmd", "/C", "adb", "shell", "date", "+%s")
-            } else {
-                arrayOf("adb", "shell", "date", "+%s")
-            }
-            val process = Runtime.getRuntime().exec(cmd)
+            val process = ProcessBuilder(adbCommand("shell", "date", "+%s")).start()
             val deviceTime = String(process.inputStream.readBytes()).trim().toLong()
             process.waitFor()
             deviceTime - System.currentTimeMillis() / 1000
@@ -250,16 +244,25 @@ class MockJugg(
     fun readLogcatSince(timestamp: Long, vararg filters: String): String {
         val correctedTimestamp = timestamp + deviceTimeOffset
         val filterArgs = filters.flatMap { listOf("-s", it) }.toTypedArray()
-        val command = if (isWindows) {
-            arrayOf("cmd", "/C", "adb", "logcat", "-d", "-v", "epoch", "-T", correctedTimestamp.toString(), *filterArgs)
-        } else {
-            arrayOf("adb", "logcat", "-d", "-v", "epoch", "-T", correctedTimestamp.toString(), *filterArgs)
-        }
-        val process = Runtime.getRuntime().exec(command)
+        val process = ProcessBuilder(adbCommand(
+            "logcat", "-d", "-v", "epoch", "-T", correctedTimestamp.toString(), *filterArgs,
+        )).start()
         val output = String(process.inputStream.readBytes())
         val error = String(process.errorStream.readBytes())
         process.waitFor()
         return output + error
+    }
+
+    private fun adbCommand(vararg arguments: String): List<String> {
+        val serial = adbDeviceHelper.getSelectedDeviceList().singleOrNull()?.serialNumber
+        return buildList {
+            add("adb")
+            if (serial != null) {
+                add("-s")
+                add(serial)
+            }
+            addAll(arguments)
+        }
     }
 
     fun readLatestProjectLog(): String {
@@ -341,7 +344,7 @@ class MockJugg(
             }
 
             override fun getSelectedDevices(): List<IDevice> {
-                return adbDeviceHelper.getDeviceList()
+                return adbDeviceHelper.getSelectedDeviceList()
             }
 
             override fun getConnectedDevices(): List<IDevice> {

@@ -4,9 +4,7 @@ import com.android.ddmlib.AndroidDebugBridge
 import com.android.ddmlib.ClientData
 import com.android.ddmlib.IDevice
 import com.android.ddmlib.Log
-import com.sickworm.intellij.jugg.compiler.isWindows
 import java.util.concurrent.TimeUnit
-import java.util.regex.Pattern
 
 /**
  * Init adb, find online device and debuggable app.
@@ -35,6 +33,13 @@ class AdbDeviceHelper {
 
     fun getDeviceList(): List<IDevice> {
         return androidDebugBridge.devices.toList()
+    }
+
+    fun getSelectedDeviceList(): List<IDevice> {
+        val onlineDevices = getDeviceList().filter { it.isOnline }
+        val serial = System.getenv("JUGG_TEST_DEVICE_SERIAL") ?: System.getenv("ANDROID_SERIAL")
+        return listOfNotNull(serial?.let { target -> onlineDevices.find { it.serialNumber == target } }
+            ?: onlineDevices.firstOrNull())
     }
 
     private fun waitForInitialDeviceList(maxWaitingMills: Int = 10_000) {
@@ -80,68 +85,29 @@ class AdbDeviceHelper {
     }
 
     private fun getLaunchedApp(exceptPackageName: String): IDevice? {
-        val devices = androidDebugBridge.devices
+        val devices = getSelectedDeviceList()
+        val pid = getPidByPackageName(exceptPackageName)
+        if (pid <= 0) return null
+
         val targetDevice = devices.find { device ->
-            device.clients.any { client ->
-                client.clientData.packageName == exceptPackageName
-            }
+            val client = device.clients.find { it.clientData.pid == pid } ?: return@find false
+            client.clientData.abi = "64-bit"
+            client.clientData.setNames(ClientData.Names(exceptPackageName, 0, exceptPackageName))
+            true
         }
         if (targetDevice != null) {
             return targetDevice
         }
 
-        // work around
-        // AndroidDebugBridge autofill ClientData is not reliable,
-        // (mSelector.select() got 0 in MonitorThread)
-        // we use am to fill it manually
-        val pid = getPidByPackageName(exceptPackageName)
-        if (pid > 0) {
-            println("read $exceptPackageName pid from am: $pid")
-            val onlineDevices = devices.filter { it.isOnline }
-            if (onlineDevices.size == 1) {
-                return onlineDevices.single()
-            }
-
-            devices.forEach { device ->
-                device.clients.forEach { client ->
-                    if (client.clientData.pid == pid) {
-                        // found matched pid, set it and return
-                        // can't get it directly
-                        // "am dump" can get mRequiredAbi=arm64-v8a
-                        // tired of workaround :(
-                        client.clientData.abi = "64-bit"
-                        client.clientData.setNames(ClientData.Names(
-                            exceptPackageName,
-                            0, // don't care
-                            exceptPackageName))
-                        return device
-                    }
-                }
-            }
-        }
-
-        return null
+        println("read $exceptPackageName pid from selected device: $pid")
+        return devices.singleOrNull()
     }
 
-    private var pattern = Pattern.compile(" *pid=(\\d+)(\r?\n.*)*")
     private fun getPidByPackageName(packageName: String): Int {
-        val cmd = if (isWindows) "cmd /C adb shell am dump p $packageName | findstr pid"
-            else "adb shell am dump p $packageName | grep pid"
-        val process = Runtime.getRuntime()
-            .exec(cmd)
-        val result = String(process.inputStream.readBytes())
-        if (result.isNotEmpty()) {
-            // e.g. "     pid=24114"
-            val matcher = pattern.matcher(result)
-            if (matcher.matches()) {
-                val pid = matcher.group(1)
-                if (pid != null) {
-                    return pid.toInt()
-                }
-            }
-        }
+        val device = getSelectedDeviceList().singleOrNull() ?: return -1
+        val process = ProcessBuilder("adb", "-s", device.serialNumber, "shell", "pidof", packageName).start()
+        val result = String(process.inputStream.readBytes()).trim()
         process.waitFor()
-
-        return -1
+        return result.substringBefore(' ').toIntOrNull() ?: -1
     }
 }

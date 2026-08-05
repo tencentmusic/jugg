@@ -5,7 +5,10 @@ import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.logger.getInstance
 import java.io.File
 
-class CmdAdb(loggerArg: Logger): IDeviceAdb {
+class CmdAdb(
+    loggerArg: Logger,
+    override val serial: String = resolveDeviceSerial(),
+): IDeviceAdb {
 
     private val logger = loggerArg.getInstance("CmdAdb")
 
@@ -13,42 +16,30 @@ class CmdAdb(loggerArg: Logger): IDeviceAdb {
 
     override val api: Int = 30
 
-    override val serial: String = "mock_serial"
-
     override val isOnline: Boolean = true
 
     override fun execAdbShellCmd(cmd: String): String {
-        logger.debug("adb in:  adb shell $cmd") // two spaces to align adb out
-        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", "adb shell \"$cmd\""))
-        val normalOutput = String(process.inputStream.readAllBytes())
-        val errorOutput = String(process.errorStream.readAllBytes())
+        logger.debug("adb in:  adb -s $serial shell $cmd") // two spaces to align adb out
+        val process = ProcessBuilder("adb", "-s", serial, "shell", cmd)
+            .redirectErrorStream(true)
+            .start()
+        val result = String(process.inputStream.readAllBytes())
         process.waitFor()
-        var result = normalOutput
-        if (errorOutput.isNotEmpty()) {
-            if (normalOutput.trim().isNotEmpty()) {
-                result += "\n"
-            }
-            result += errorOutput
-        }
         logger.debug("adb out: $result")
         return result
     }
 
     override fun push(from: File, to: String): Boolean {
-        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", "adb push $from $to"))
-        process.waitFor()
-        return true
+        return ProcessBuilder("adb", "-s", serial, "push", from.path, to).start().waitFor() == 0
     }
 
     override fun pull(from: String, to: File): Boolean {
         to.parentFile?.mkdirs()
-        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", "adb pull $from ${to.path}"))
-        process.waitFor()
-        return true
+        return ProcessBuilder("adb", "-s", serial, "pull", from, to.path).start().waitFor() == 0
     }
 
     fun install(apkFile: File) {
-        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", "adb install ${apkFile.path}"))
+        val process = ProcessBuilder("adb", "-s", serial, "install", apkFile.path).start()
         process.waitFor()
     }
 
@@ -62,5 +53,20 @@ class CmdAdb(loggerArg: Logger): IDeviceAdb {
 
     override fun getProperty(name: String): String? {
         return null
+    }
+
+    companion object {
+        private fun resolveDeviceSerial(): String {
+            System.getenv("JUGG_TEST_DEVICE_SERIAL")?.let { return it }
+            System.getenv("ANDROID_SERIAL")?.let { return it }
+            val process = ProcessBuilder("adb", "devices").redirectErrorStream(true).start()
+            val output = String(process.inputStream.readAllBytes())
+            process.waitFor()
+            return output.lineSequence()
+                .map { it.trim() }
+                .firstOrNull { it.endsWith("\tdevice") }
+                ?.substringBefore('\t')
+                ?: throw IllegalStateException("No online Android device found")
+        }
     }
 }
