@@ -62,6 +62,7 @@ dependencies {
         exclude group: 'androidx.databinding'
     }
     implementation project(':deploy_compat:interface')
+    implementation project(':deploy_compat:standalone_deployer')
     implementation project(':platform_compat:base_api')
 
     testImplementation "junit:junit:4.12"

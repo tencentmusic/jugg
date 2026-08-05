@@ -40,6 +40,11 @@ data class JuggOverlayFile(
     val checksum: Long,
 )
 
+/** Wraps one runtime-specific class redefiner without exposing its implementation type. */
+data class JuggClassRedefiner(
+    val raw: Any,
+)
+
 class JuggDeployerException(
     val errorOrdinal: Int,
     override val message: String?,

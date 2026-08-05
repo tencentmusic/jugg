@@ -1,0 +1,16 @@
+Standalone Jugg deployer is derived from Android Studio Quail 1.
+
+Source installation:
+/Applications/Android Studio Quail 1.app
+
+Android Studio build:
+AI-261.23567.138.2611.15503007
+
+Deployer source classes were reconstructed from sdk-tools.jar and reduced to the
+install and Apply Changes closure used by StandaloneApplyChangesExecutor. The
+standalone version replaces Android Studio adblib installation with the equivalent
+ddmlib path and disables optional Perfetto tracing.
+
+Android tools source is licensed under the Apache License 2.0. This distribution
+retains the original package names required by package-private and protocol behavior.
+The complete license text is included in LICENSE-APACHE-2.0.txt.

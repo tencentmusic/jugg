@@ -9,6 +9,7 @@ include ':custom_compilers'
 include ':tools:stub_api_generator'
 
 include ':deploy_compat:interface'
+include ':deploy_compat:standalone_deployer'
 include ':deploy_compat:v_chipmunk'
 include ':deploy_compat:v_giraffe'
 include ':deploy_compat:v_hedgehog'

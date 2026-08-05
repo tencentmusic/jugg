@@ -13,24 +13,26 @@ class DeployCompatArchitectureTest {
     @Test
     fun `compat modules only use versioned stub api jars`() {
         val deployCompatDir = findRepoFile("deploy_compat")
-        val platformJars = deployCompatDir.walkTopDown()
-            .filter {
-                val path = it.relativeTo(deployCompatDir).invariantSeparatorsPath
-                it.isFile && it.extension == "jar" && !path.startsWith("stub_api/") && "/build/" !in "/$path"
-            }
-            .toList()
-        assertTrue("deploy_compat should not contain Android Studio JARs: $platformJars", platformJars.isEmpty())
-
-        deployCompatDir.listFiles()
+        val compatModuleDirs = deployCompatDir.listFiles()
             .orEmpty()
             .filter { it.isDirectory && it.name.startsWith("v_") }
-            .forEach { moduleDir ->
-                val buildFile = File(moduleDir, "build.gradle")
-                assertFalse(
-                    "${moduleDir.name} should resolve APIs through getCompatApiFiles",
-                    buildFile.readText().contains("fileTree(dir: 'libs'"),
-                )
-            }
+        val platformJars = compatModuleDirs.flatMap { moduleDir ->
+            moduleDir.walkTopDown()
+                .filter {
+                    val path = it.relativeTo(moduleDir).invariantSeparatorsPath
+                    it.isFile && it.extension == "jar" && "/build/" !in "/$path"
+                }
+                .toList()
+        }
+        assertTrue("deploy_compat should not contain Android Studio JARs: $platformJars", platformJars.isEmpty())
+
+        compatModuleDirs.forEach { moduleDir ->
+            val buildFile = File(moduleDir, "build.gradle")
+            assertFalse(
+                "${moduleDir.name} should resolve APIs through getCompatApiFiles",
+                buildFile.readText().contains("fileTree(dir: 'libs'"),
+            )
+        }
     }
 
     @Test

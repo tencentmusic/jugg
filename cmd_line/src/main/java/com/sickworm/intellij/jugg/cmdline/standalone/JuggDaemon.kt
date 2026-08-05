@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
 import com.sickworm.intellij.jugg.ai.mcp.McpLocalServer
+import com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerResources
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import java.io.File
@@ -24,6 +25,7 @@ class JuggDaemon(
 
     fun start(projectDirs: List<File>): Int {
         require(projectDirs.isNotEmpty()) { "At least one project directory is required" }
+        StandaloneDeployerResources.prepare(runtimeInfo.runtimeVersion)
         projectDirs.forEach(registry::initialize)
         McpLocalServer.start(idleTimer::recordExternalActivity)
         check(McpLocalServer.isRunning()) { "Failed to start standalone MCP server" }
