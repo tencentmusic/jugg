@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolAction
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
+import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
 import org.junit.Assert
 import org.junit.Before
 
@@ -64,7 +65,7 @@ abstract class McpInvokerTestBase {
             },
             fakeAction("restart", def("restart")) { arguments ->
                 val projectDir = arguments["projectDir"] as? String
-                if (projectDir == "/tmp/projectNoDevice") {
+                if (projectDir == ProjectDirNormalizer.normalizeProjectDir("/tmp/projectNoDevice")) {
                     McpToolResult(
                         status = McpToolStatus.ERROR,
                         message = "restart failed. Reason: No connected device is available.",
