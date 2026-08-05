@@ -291,10 +291,9 @@ class KmpComposeDeployFlowTest {
         }
     }
 
-    private fun runtimeProbeSource(source: String): String = source.replace(
-        "Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)",
-        """Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)
-        kotlin.concurrent.thread {
+    private fun runtimeProbeSource(source: String): String = injectRuntimeProbe(
+        source,
+        """kotlin.concurrent.thread {
             val snapshot = kotlinx.coroutines.runBlocking {
                 com.sickworm.jugg.demo.kmp.KmpComposeAndroidResourceCase.runtimeSnapshot()
             }
@@ -302,15 +301,29 @@ class KmpComposeDeployFlowTest {
         }""",
     )
 
-    private fun businessRuntimeProbeSource(source: String): String = source.replace(
-        "Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)",
-        """Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)
-        Log.i(
+    private fun businessRuntimeProbeSource(source: String): String = injectRuntimeProbe(
+        source,
+        """Log.i(
             "$LOG_TAG",
             "[JUGG_KMP_BUSINESS] ${'$'}{com.sickworm.jugg.demo.kmp.platformMarker()}|" +
                 com.sickworm.jugg.demo.kmp.platformLabel(),
         )""",
     )
+
+    private fun injectRuntimeProbe(source: String, probe: String): String {
+        val sourceWithLogImport = if (source.contains("import android.util.Log")) source else source.replace(
+            "import android.os.Bundle",
+            "import android.os.Bundle\nimport android.util.Log",
+        )
+        val benchmark = "Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)"
+        if (sourceWithLogImport.contains(benchmark)) {
+            return sourceWithLogImport.replace(benchmark, "$benchmark\n        $probe")
+        }
+        return sourceWithLogImport.replace(
+            "setContentView(R.layout.activity_main)",
+            "setContentView(R.layout.activity_main)\n        $probe",
+        )
+    }
 
     private fun assertTargetApkOwnership(jugg: MockJugg) {
         val outputs = jugg.deployFileManager.getStagingFiles().filter {
