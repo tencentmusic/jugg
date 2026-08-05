@@ -2498,12 +2498,10 @@ class LayoutVerifyMcpToolActionTest {
         projectDir: File,
         deployTargetManager: IDeployTargetManager,
     ): com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime {
-        val project = Mockito.mock(com.intellij.openapi.project.Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
-        return object : com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project = project
+            override val projectDir: String = projectDir.absolutePath
             override val deployTargetManager = deployTargetManager
             override val forceGradleCompileHelper get() = throw UnsupportedOperationException()
             override val juggConfigurationRunner get() = throw UnsupportedOperationException()
@@ -2535,6 +2533,7 @@ class LayoutVerifyMcpToolActionTest {
         override fun getGradleJdkPath(project: com.intellij.openapi.project.Project, logger: com.intellij.openapi.diagnostic.Logger): String? = null
         override fun getAndroidHomePath(logger: com.intellij.openapi.diagnostic.Logger): String? = null
         override fun getIdeVersion(): String = "test"
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
         override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: com.intellij.openapi.diagnostic.Logger): Boolean = false
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest): com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse = throw UnsupportedOperationException()

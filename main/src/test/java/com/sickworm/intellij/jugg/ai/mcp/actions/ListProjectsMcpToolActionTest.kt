@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.ai.mcp.McpToolRegistry
 import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -45,7 +46,7 @@ class ListProjectsMcpToolActionTest {
             initializedProjectDirs = listOf(compiledProject, neverCompiledProject),
         )
 
-        val result = ListProjectsMcpToolAction().executeGlobal()
+        val result = ListProjectsMcpToolAction().executeGlobal(McpToolRegistry())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
@@ -79,7 +80,7 @@ class ListProjectsMcpToolActionTest {
             initializedProjectDirs = listOf(partialProject),
         )
 
-        val result = ListProjectsMcpToolAction().executeGlobal()
+        val result = ListProjectsMcpToolAction().executeGlobal(McpToolRegistry())
 
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>

@@ -101,13 +101,10 @@ class RestartAppMcpToolActionTest {
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
         Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(true)
 
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn("/tmp/test")
-
-        val runtime = object : IMcpRuntime {
+        val runtime = object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("RestartAppMcpToolActionTest")
-            override val project: Project = project
+            override val projectDir: String = "/tmp/test"
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
@@ -185,6 +182,7 @@ class RestartAppMcpToolActionTest {
         override fun getAndroidHomePath(logger: Logger): String? = null
 
         override fun getIdeVersion(): String = "test"
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
 
         override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
 

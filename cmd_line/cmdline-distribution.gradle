@@ -9,6 +9,13 @@ application {
     mainClass = 'com.sickworm.intellij.jugg.cmdline.CmdLineKt'
 }
 
+def standaloneStartScripts = tasks.register('standaloneStartScripts', CreateStartScripts) {
+    applicationName = 'jugg-standalone'
+    mainClass.set('com.sickworm.intellij.jugg.cmdline.standalone.JuggDaemonKt')
+    outputDir = layout.buildDirectory.dir('standalone-scripts').get().asFile
+    classpath = tasks.named('startScripts').get().classpath
+}
+
 // Ensure the plain jar includes Main-Class for `java -jar` usage
 tasks.withType(Jar).configureEach {
     manifest {
@@ -32,23 +39,23 @@ def demoProjectZipTask = tasks.register('demoProjectZip', Zip) {
 // - Include debug demo assets under demo/
 // - Include release demo assets under demo_release/
 // - Add demo_project.zip for both demos so the unpacked distribution can run standalone
-distributions {
-    main {
-        contents {
-            from("${projectDir}/src/demo") {
-                into('demo')
-            }
-            from(demoProjectZipTask.flatMap { it.archiveFile }) {
-                into('demo')
-            }
+extensions.getByName('distributions').getByName('main').contents {
+    from(standaloneStartScripts) {
+        into('bin')
+        fileMode = 0755
+    }
+    from("${projectDir}/src/demo") {
+        into('demo')
+    }
+    from(demoProjectZipTask.flatMap { it.archiveFile }) {
+        into('demo')
+    }
 
-            from("${projectDir}/src/demo_release") {
-                into('demo_release')
-            }
-            from(demoProjectZipTask.flatMap { it.archiveFile }) {
-                into('demo_release')
-            }
-        }
+    from("${projectDir}/src/demo_release") {
+        into('demo_release')
+    }
+    from(demoProjectZipTask.flatMap { it.archiveFile }) {
+        into('demo_release')
     }
 }
 

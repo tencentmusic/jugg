@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.ai.mcp.McpToolRegistry
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 
@@ -44,8 +45,14 @@ class VersionMcpToolAction : McpToolAction, GlobalMcpToolAction {
                                 "Only present when projects have differing versions.",
                             additionalProperties = true,
                         ),
+                        "runtimeType" to McpJsonSchemaProperty(type = "string"),
+                        "runtimeVersion" to McpJsonSchemaProperty(type = "string"),
+                        "capabilities" to McpJsonSchemaProperty(
+                            type = "array",
+                            items = McpJsonSchemaProperty(type = "string"),
+                        ),
                     ),
-                    required = listOf("pluginVersion"),
+                    required = listOf("pluginVersion", "runtimeType", "runtimeVersion", "capabilities"),
                     additionalProperties = false,
                 )
             )
@@ -53,19 +60,26 @@ class VersionMcpToolAction : McpToolAction, GlobalMcpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return versionAction()
+        throw UnsupportedOperationException("Global MCP tool requires a process tool registry")
     }
 
-    override fun executeGlobal(): McpToolResult = versionAction()
+    override fun executeGlobal(toolRegistry: McpToolRegistry): McpToolResult {
+        return versionAction(toolRegistry.listCapabilities())
+    }
 
-    fun versionAction(): McpToolResult {
+    fun versionAction(capabilities: List<String>): McpToolResult {
         val projectDirs = PlatformApi.getInitializedProjectDirs()
 
         val versionByProject: Map<String, String> = projectDirs.associate { dir ->
             dir.path to PluginInfoReader.getPluginVersion()
         }
 
-        val data: Map<String, Any> = buildResultData(versionByProject)
+        val runtimeInfo = PlatformApi.getRuntimeInfo()
+        val data: Map<String, Any> = buildResultData(versionByProject) + mapOf(
+            "runtimeType" to runtimeInfo.runtimeType,
+            "runtimeVersion" to runtimeInfo.runtimeVersion,
+            "capabilities" to capabilities,
+        )
 
         return McpToolResult(
             status = McpToolStatus.OK,

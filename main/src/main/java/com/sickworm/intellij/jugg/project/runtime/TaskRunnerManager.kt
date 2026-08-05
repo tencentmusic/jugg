@@ -38,6 +38,8 @@ class TaskRunnerManager internal constructor(
     private val hostTaskExecutor: IHostTaskExecutor,
     private val executionLockManager: IExecutionLockManager,
     private val coroutineScope: CoroutineScope,
+    private val runtimeIdentity: RuntimeIdentity? = null,
+    private val runtimeOwnerStore: RuntimeOwnerStore? = null,
 ) {
 
     constructor(
@@ -56,11 +58,14 @@ class TaskRunnerManager internal constructor(
         hostTaskExecutor,
         FileExecutionLockManager(pathManager, RuntimeIdentity(runtimeType, runtimeVersion)),
         coroutineScope,
+        RuntimeIdentity(runtimeType, runtimeVersion).takeIf { runtimeType in runtimeOwnerTypes },
+        RuntimeOwnerStore(pathManager.runtimeOwnerFile).takeIf { runtimeType in runtimeOwnerTypes },
     )
 
     private val disposed = AtomicBoolean()
     private val backgroundJobs = Collections.synchronizedSet(mutableSetOf<Job>())
     private var retryInitDelayMillis = 3_000L
+    private var runtimeOwnerChange: RuntimeOwnerChangeEvent? = null
 
     val dispatcher: CoroutineDispatcher
         get() = coroutineScope.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default
@@ -131,7 +136,14 @@ class TaskRunnerManager internal constructor(
     }
 
     fun <T> runProjectWriteLocked(jobName: String, action: () -> T): T {
-        return executionLockManager.withProjectLock(jobName, action)
+        return runProjectWriteTransaction(jobName, action)
+    }
+
+    @Synchronized
+    fun consumeRuntimeOwnerChange(): RuntimeOwnerChangeEvent? {
+        val change = runtimeOwnerChange
+        runtimeOwnerChange = null
+        return change
     }
 
     fun <T> runGlobalWriteLocked(jobName: String, action: () -> T): T {
@@ -230,9 +242,28 @@ class TaskRunnerManager internal constructor(
         action: () -> T,
     ): T {
         return when {
-            isProjectWrite -> runProjectWriteLocked(jobName, action)
+            isProjectWrite -> runProjectWriteTransaction(jobName, action)
             isGlobalWrite -> runGlobalWriteLocked(jobName, action)
             else -> action()
+        }
+    }
+
+    private fun <T> runProjectWriteTransaction(jobName: String, action: () -> T): T {
+        return executionLockManager.withProjectLock(jobName) {
+            val identity = runtimeIdentity
+            val ownerStore = runtimeOwnerStore
+            if (identity != null && ownerStore != null) {
+                try {
+                    ownerStore.claim(identity, logger)?.let { change ->
+                        synchronized(this) {
+                            runtimeOwnerChange = change
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.warn("persist runtime owner failed", e)
+                }
+            }
+            action()
         }
     }
 
@@ -243,6 +274,8 @@ class TaskRunnerManager internal constructor(
     }
 
     companion object {
+        private val runtimeOwnerTypes = setOf("idea", "standalone")
+
         /** Runs global infrastructure writes that must happen before a TaskRunner instance exists. */
         fun <T> runGlobalWriteLocked(
             jobName: String,

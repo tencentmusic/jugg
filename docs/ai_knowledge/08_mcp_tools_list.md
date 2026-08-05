@@ -36,7 +36,7 @@
 
 ### `version`
 
-返回所有已初始化项目的 Jugg 插件版本。
+返回当前 Jugg Runtime 的版本、类型和 capability，并保留插件版本兼容字段。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -45,12 +45,15 @@
 **返回 data**：
 - `pluginVersion`：所有项目中最高的插件版本（或统一版本）
 - `projects`（可选）：当各项目版本不一致时，返回 `projectDir -> version` 的 map
+- `runtimeType`：`idea` / `standalone` / `ci` / `unknown`
+- `runtimeVersion`：当前进程实际 Runtime 版本
+- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 8 仅包含 `version`、`list-projects`、`status`
 
 ---
 
 ### `list-projects`
 
-列出当前 IDE 已初始化项目。
+列出当前 IDEA 或 standalone Runtime 进程已初始化的项目。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|

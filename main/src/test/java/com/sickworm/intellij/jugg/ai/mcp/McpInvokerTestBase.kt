@@ -1,13 +1,12 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolAction
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
-import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
+import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 import org.junit.Assert
 import org.junit.Before
 
@@ -15,11 +14,9 @@ abstract class McpInvokerTestBase {
 
     @Before
     fun setUpRuntime() {
-        McpRuntimeHolder.runtime = object : IMcpRuntime {
+        McpRuntimeHolder.runtime = object : TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project: Project
-                get() = TODO("Not yet implemented")
             override val deployTargetManager: IDeployTargetManager
                 get() = TODO("Not yet implemented")
             override val forceGradleCompileHelper: ForceGradleCompileHelper

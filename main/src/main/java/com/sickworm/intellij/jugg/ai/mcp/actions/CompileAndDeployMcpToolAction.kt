@@ -126,7 +126,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 compiledFiles = compiledFiles,
             )
             // Record deploy completion timestamp so wait-logs can use it as the log start point.
-            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
+            val projectDir = runtime.projectDir.takeIf { it.isNotBlank() }
             if (result.status == McpToolStatus.OK && projectDir != null) {
                 LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir)
                 if (toolName == McpToolActionRegistry.ToolNames.DEPLOY && compiledFiles.isEmpty()) {

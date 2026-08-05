@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpProjectInfo
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
+import com.sickworm.intellij.jugg.ai.mcp.McpToolRegistry
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -21,7 +22,7 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "List projects initialized in current IDE process.",
+        description = "List projects initialized in the current Jugg runtime process.",
         inputSchema = McpJsonSchemaObject(
             description = "No arguments required.",
             properties = emptyMap(),
@@ -60,7 +61,7 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
         return listProjectsAction()
     }
 
-    override fun executeGlobal(): McpToolResult = listProjectsAction()
+    override fun executeGlobal(toolRegistry: McpToolRegistry): McpToolResult = listProjectsAction()
 
     fun listProjectsAction(): McpToolResult {
         return McpToolResult(

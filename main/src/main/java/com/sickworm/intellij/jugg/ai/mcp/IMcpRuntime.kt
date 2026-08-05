@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -14,36 +13,29 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
  */
 interface IMcpRuntime {
     val logger: Logger
-    val project: Project
+    val projectDir: String
     val deployTargetManager: IDeployTargetManager
     val deployStateManager: IDeployStateManager?
-        get() = null
     val deployFileManager: DeployFileManager?
-        get() = null
     val forceGradleCompileHelper: ForceGradleCompileHelper
     val juggConfigurationRunner: IJuggConfigurationRunner
 
     /**
      * Checks at status-query time whether incremental compile would fall back to Gradle.
      * Returns the fallback reason when fallback is required, or null when incremental compile
-     * can proceed.  Defaults to null for runtimes that do not provide this check.
+     * can proceed.
      */
     val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker?
-        get() = null
 
     /**
      * Refreshes file-change state before status snapshots are read.
-     * Default no-op keeps non-IDE runtimes and tests backward-compatible.
      */
-    fun refreshChangedFilesForStatus() = Unit
+    fun refreshChangedFilesForStatus()
 
     /**
      * Returns whether app process/deploy state is currently ready for runtime tools.
-     * Default keeps backward compatibility for tests that do not provide deploy state.
      */
-    fun isAppReadyDeploy(): Boolean {
-        return deployStateManager?.updateDeployState()?.isReadyDeploy ?: true
-    }
+    fun isAppReadyDeploy(): Boolean
 }
 
 /**

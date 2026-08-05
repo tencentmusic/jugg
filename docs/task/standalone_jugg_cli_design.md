@@ -753,7 +753,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 5 | 已完成 | 共享 Runtime Settings、IDEA 旧设置迁移、统一 custom config 生命周期与 custom compiler reload/dispose 已落地 |
 | Step 6 | 已完成 | Server RuntimeInfo 与共享 JuggHotUpdateManager 已落地；诊断、运维门面和资源版本策略延后到真实 standalone 调用出现时 |
 | Step 7 | 已完成 | 共享 CLI Run Configuration schema、确定性默认推断、配置集合/指针、IDEA 导入/选择监听和 Gradle 成功回写已落地 |
-| Step 8–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 8 | 已完成 | Java 11 daemon/registry/MCP/status 骨架、last owner、idle 生命周期、Python 双 Runtime 发现与 hook 门禁已落地；编译部署仍待 Step 10～11 |
+| Step 9–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -981,7 +982,7 @@ DeployFileManager
 
 ### Step 6：Server 和 Hot Update 下沉
 
-实现状态：已完成。新增 `RuntimeInfo`，由 IDEA、CI 和后续 standalone 显式提供 `runtimeType/runtimeVersion/hostVersion/buildTime`；`JuggServer` 不再读取 `Project`、`PluginInfoReader` 或 `PlatformApi`，事件上报继续保留后端兼容的 `version/ide_version` 字段，`runtimeType` 仅用于 Runtime 锁 owner identity。custom server 输入已从 `JuggServerChooser` 的 Host dialog 中移除，IDEA 获取输入后通过后台全局写任务调用共享 `JuggServer` 写入 settings。
+实现状态：已完成。新增 `RuntimeInfo`，仅包含 `runtimeType/runtimeVersion/hostVersion/buildTime`，由 IDEA、CI、standalone 各自的 Host 边界单点构造并通过 `IPlatformApi.getRuntimeInfo()` 复用；`JuggServer` 不再读取 `Project`、`PluginInfoReader` 或 `PlatformApi`，事件上报继续保留后端兼容的 `version/ide_version` 字段，`runtimeType` 仅用于 Runtime 锁 owner identity。custom server 输入已从 `JuggServerChooser` 的 Host dialog 中移除，IDEA 获取输入后通过后台全局写任务调用共享 `JuggServer` 写入 settings。
 
 hot update 的下载、MD5 校验、原子 jar/metadata/load manifest 发布、embedded jar 同步和过期清理统一下沉到 `JuggHotUpdateManager`。IDEA `IdeaHotUpdateCoordinator` 保留定时检查、频控、通知、插件安装/重启和 reopen project；standalone 后续通过 `JuggServer` 检查更新后复用同一 manager，并在下一次 daemon 启动读取共享 manifest。`isNeedReinstall=true` 只记录已校验 jar 和 update metadata，不替换 active load manifest。
 
@@ -1056,6 +1057,29 @@ Gradle build 成功且 APK 已确认后，当前配置会回写本轮实际 `com
 
 ### Step 8：Standalone 模块和进程骨架
 
+实现状态：已完成。`:cmd_line` 保持现有 CI 入口、包名、一次性命令与 `Main-Class` 不变，在 `cmdline.standalone` 下新增 `JuggDaemon`、`StandaloneProjectRegistry`、`StandaloneProjectRuntime`、`StandaloneJuggRuntimeAssembler`、`StandalonePlatformApi`、idle timer 与 activity state；distribution 额外生成 Java 11 `jugg-standalone` / `.bat` launcher。standalone 按 `--project-dir` 初始化项目，并通过共享 `McpLocalServer`、`McpBaseInvoker`、`McpToolInvoker` 提供 `version`、`list-projects`、`status` 骨架。
+
+`IMcpRuntime` 使用非空 host-neutral `projectDir`，移除 `Project`，且所有成员均无默认实现；IDEA 与 standalone Runtime 必须明确提供或声明缺失的能力，MCP action 不再读取 `Project.basePath`。`RuntimeInfo` 只描述 Host 身份，不携带 MCP capability；`version` 从进程级 `McpToolRegistry` 返回 `runtimeType/runtimeVersion/capabilities`。Step 8 的 standalone registry 只启用 `version/list-projects/status`，并以同一实例限制 `tools/list` 和 action 分发，不广告未串联的 compile/deploy 能力。
+
+standalone registry 使用规范化路径作为查找 key，同时保留 canonical `File` 供项目文件读取，避免大小写归一化影响 complete flag 等真实文件访问。
+
+项目锁的瞬时 owner metadata 继续写入 `runtime.lock.owner.json` 并在释放时删除；新增 `runtime.owner.json` 原子保存上次 IDEA/standalone owner，`TaskRunnerManager` 在取得项目写锁时生成 owner-change event，CI Runtime 不参与该归属。损坏的 last owner 按无历史 owner 处理，记录原因后由当前 Runtime 原子覆盖。Python CLI 扫描全部 MCP 端口并读取 Runtime/project 信息，同项目双 Runtime 时仅在验证项目锁确实被持有后优先 current owner，否则选择 last owner；`--runtime idea|standalone` 可显式覆盖。已知项目列表不匹配的 legacy Runtime 不阻止 standalone 拉起，仅在项目列表不可读取时保留兼容 fallback。无 owner 时通过项目级 `runtime.launch.lock` 串行化自动拉起，并在锁内二次发现 Runtime；仍未发现时才通过 `JUGG_STANDALONE_LAUNCHER` 或默认安装路径启动 daemon。Hook 调用由 `hook_common.py` 显式传递 `JUGG_CALLER=hook`，无 complete flag 时以成功状态直接跳过。
+
+daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job、项目写事务和 update download 使用独立 activity counter 延期退出，并按 1 分钟周期复查。WatchService 和后台轮询尚未接入 daemon，且不会被误计为外部活动。
+
+已完成验证：
+
+- `RuntimeOwnerSwitchTest`（L2，last owner 持久化、损坏 metadata 自愈与 IDEA → standalone change event）
+- `StandaloneRuntimeTest`（L2，无 IDEA 的 version/list-projects/status 与 canonical project registry）
+- `DaemonIdleTimerTest`（L2，外部活动刷新和 job/project-write/update-download 延期）
+- Python `test_jugglib.py`（L2，同项目双 Runtime current/last/显式选择、legacy fallback、并发自动拉起去重、hook complete flag 门禁）
+- Python `test_cmd_version.py`（L2，Runtime 类型、版本和 capability 输出）
+- hooks `test_hooks_guard.py`（L2，hook 子进程传递 `JUGG_CALLER=hook`）
+- `VersionMcpToolActionTest`、`GetStatusMcpToolActionTest`、`McpInvokerValidationTest`、`McpInvokerToolSuccessTest`
+- `TaskRunnerManagerTest`、`ProjectExecutionLockTest`、`McpLocalServerTest`
+- `CmdLineTest`、`TopLevelFlowTest#testInstallAndLaunch`、`:idea:compileKotlin`
+- `:cmd_line:installDist`，并使用 Java 11 实际启动 `jugg-standalone` 与 IDEA Runtime 共存，验证 CLI 选择 standalone 端口及 `version/status/list-projects`
+
 目标：建立 standalone daemon，但暂不完成部署。
 
 任务：
@@ -1064,7 +1088,7 @@ Gradle build 成功且 APK 已确认后，当前配置会回写本轮实际 `com
 - 新增 daemon、project registry 和 `StandaloneJuggRuntimeAssembler`。
 - 建立持久化 Runtime owner identity 与 owner change 事件，区分当前持锁 metadata 和上次 Runtime owner。
 - 实现 standalone MCP runtime。
-- `IMcpRuntime` 增加 `projectDir`，MCP action 不再读取 `Project.basePath`。
+- `IMcpRuntime` 使用非空 `projectDir` 且不提供默认实现，MCP action 不再读取 `Project.basePath`。
 - Python 内部发现策略支持普通 CLI 自动拉起 standalone；hook 仅在 complete flag 存在时拉起。
 - 实现 4 小时外部有效活动 idle timer，以及 job/项目锁/更新下载期间按 1 分钟延期复查的退出语义。
 - 保持 CI 命令和分发兼容。

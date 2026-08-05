@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ai.mcp.actions.GlobalMcpToolAction
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import java.util.UUID
@@ -51,7 +52,11 @@ class McpToolInvoker(
         val startTime = System.currentTimeMillis()
         recordStarted(taskId, request, startTime)
         val toolResult = try {
-            action.execute(request.arguments, runtime)
+            if (action is GlobalMcpToolAction) {
+                action.executeGlobal(toolRegistry)
+            } else {
+                action.execute(request.arguments, runtime)
+            }
         } catch (e: Throwable) {
             recordCompleted(taskId, request.toolName, startTime, succeeded = false, e.message)
             throw e

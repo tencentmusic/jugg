@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import java.io.File
 
 /**
@@ -41,6 +42,8 @@ interface IPlatformApi {
     fun getAndroidHomePath(logger: Logger): String?
 
     fun getIdeVersion(): String
+
+    fun getRuntimeInfo(): RuntimeInfo
 
     fun toDeviceAdb(device: IDevice): IDeviceAdb?
 

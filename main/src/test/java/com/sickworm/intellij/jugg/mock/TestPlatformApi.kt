@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import java.io.File
 
 class TestPlatformApi : IPlatformApi {
@@ -47,6 +48,10 @@ class TestPlatformApi : IPlatformApi {
 
     override fun getIdeVersion(): String {
         TODO("Not yet implemented")
+    }
+
+    override fun getRuntimeInfo(): RuntimeInfo {
+        return RuntimeInfo("test", "test", "test", "")
     }
 
     override fun toDeviceAdb(device: IDevice): IDeviceAdb? {

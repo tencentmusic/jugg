@@ -8,14 +8,16 @@ import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
  */
 class McpToolRegistry(
     private val actionRegistry: McpToolActionRegistry = McpToolActionRegistry(),
+    capabilities: List<String> = actionRegistry.listActions().map { it.toolName },
 ) {
+    private val capabilities = capabilities.distinct().filter(actionRegistry::hasAction)
 
     fun listTools(): List<McpToolDefinition> {
-        return actionRegistry.listActions().map { it.definition }
+        return capabilities.mapNotNull(actionRegistry::getAction).map { it.definition }
     }
 
     fun hasTool(toolName: String): Boolean {
-        return actionRegistry.hasAction(toolName)
+        return toolName in capabilities
     }
 
     fun getToolDefinition(toolName: String): McpToolDefinition? {
@@ -23,7 +25,10 @@ class McpToolRegistry(
     }
 
     fun getAction(toolName: String): McpToolAction? {
-        return actionRegistry.getAction(toolName)
+        return if (hasTool(toolName)) actionRegistry.getAction(toolName) else null
+    }
+
+    fun listCapabilities(): List<String> {
+        return capabilities
     }
 }
-

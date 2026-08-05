@@ -256,12 +256,10 @@ class ForceGradleCompileMcpToolActionTest {
         isAppReady: Boolean = true,
         delayMs: Long = 0L,
     ): IMcpRuntime {
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestForceGradleRuntime")
 
-            override val project: Project
-                get() = throw UnsupportedOperationException("not used in this test")
 
             override val deployTargetManager: IDeployTargetManager = object : IDeployTargetManager {
                 override val hasDevice: Boolean = hasDevice

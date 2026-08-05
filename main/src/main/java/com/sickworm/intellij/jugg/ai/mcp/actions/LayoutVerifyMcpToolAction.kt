@@ -1093,7 +1093,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     }
 
     private fun saveAutoDumpFile(runtime: IMcpRuntime, adb: IDeviceAdb, dumpResult: LayoutDumpResult): File? {
-        val projectDir = runtime.project.basePath ?: return null
+        val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, "layout_verify")
         if (!dir.exists()) {
             dir.mkdirs()

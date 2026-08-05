@@ -629,6 +629,7 @@ def read_status_snapshot(
             capture_output=True,
             text=True,
             cwd=cwd,
+            env={**os.environ, "JUGG_CALLER": "hook"},
             check=False,
             timeout=timeout_seconds,
         )

@@ -189,12 +189,9 @@ class ViewLocateMcpToolActionTest {
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
 
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
-
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: Logger = Logger.getInstance("ViewLocateTest")
-            override val project: Project = project
+            override val projectDir: String = projectDir.absolutePath
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper = FakeForceGradleCompileHelper()
             override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
@@ -239,6 +236,7 @@ class ViewLocateMcpToolActionTest {
         override fun getGradleJdkPath(project: Project, logger: Logger): String? = null
         override fun getAndroidHomePath(logger: Logger): String? = null
         override fun getIdeVersion(): String = "test"
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
         override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest) =

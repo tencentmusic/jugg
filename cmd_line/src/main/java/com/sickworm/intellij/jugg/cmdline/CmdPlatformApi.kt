@@ -9,9 +9,19 @@ import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import java.io.File
 
 class CmdPlatformApi : IPlatformApi {
+    private val runtimeInfoValue: RuntimeInfo by lazy {
+        RuntimeInfo(
+            runtimeType = "ci",
+            runtimeVersion = PluginInfoReader.getPluginVersion(),
+            hostVersion = "java-${Runtime.version().feature()}",
+            buildTime = PluginInfoReader.getPluginCompileTimestamp(),
+        )
+    }
 
     override fun showDialog(
         title: String,
@@ -56,6 +66,10 @@ class CmdPlatformApi : IPlatformApi {
 
     override fun getIdeVersion(): String {
         TODO("Cmd line not support")
+    }
+
+    override fun getRuntimeInfo(): RuntimeInfo {
+        return runtimeInfoValue
     }
 
     override fun toDeviceAdb(device: IDevice): IDeviceAdb? {

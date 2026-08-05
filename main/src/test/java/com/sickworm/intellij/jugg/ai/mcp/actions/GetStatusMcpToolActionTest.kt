@@ -514,11 +514,9 @@ class GetStatusMcpToolActionTest {
         val mockDeployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(mockDeployTargetManager.hasDevice).thenReturn(hasDevice)
 
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: Logger
                 get() = Logger.getInstance("TestMcpRuntime")
-            override val project: Project
-                get() = throw UnsupportedOperationException("not used in this test")
             override val deployTargetManager: IDeployTargetManager = mockDeployTargetManager
             override val deployStateManager: IDeployStateManager = deployStateManager
             override val deployFileManager: DeployFileManager = mockDeployFileManager
