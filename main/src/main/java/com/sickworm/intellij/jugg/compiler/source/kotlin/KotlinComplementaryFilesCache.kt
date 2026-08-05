@@ -34,6 +34,22 @@ class KotlinComplementaryFilesCache(
         }
     }
 
+    fun readOutputs(buildPathInfo: ModuleBuildPathInfo, sourceFiles: List<File>, logger: Logger): List<File> {
+        if (sourceFiles.isEmpty()) return emptyList()
+        val cacheRoot = findCacheRoot(buildPathInfo) ?: return emptyList()
+        return try {
+            compiler.readSourceOutputs(
+                cacheRoot,
+                buildPathInfo.projectRootDir,
+                buildPathInfo.kotlinClassPath,
+                sourceFiles,
+            )
+        } catch (e: Throwable) {
+            logger.debug("Read Kotlin source outputs failed for $sourceFiles", e)
+            emptyList()
+        }
+    }
+
     internal fun update(
         buildPathInfo: ModuleBuildPathInfo,
         dirtyFiles: List<File>,

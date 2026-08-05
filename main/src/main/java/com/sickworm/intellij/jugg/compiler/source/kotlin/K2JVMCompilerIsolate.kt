@@ -187,6 +187,30 @@ class K2JVMCompilerIsolate {
         }.toList()
     }
 
+    /** Resolves baseline class outputs owned by the given Kotlin sources. */
+    @Synchronized
+    fun readSourceOutputs(
+        cacheRoot: File,
+        projectRoot: File,
+        outputDir: File,
+        sourceFiles: List<File>,
+    ): List<File> {
+        val cache = openIncrementalCache(cacheRoot, projectRoot, outputDir)
+        return try {
+            val classes = cache.javaClass.getMethod("classesBySources", Iterable::class.java)
+                .invoke(cache, sourceFiles) as Iterable<*>
+            classes.mapNotNull { className ->
+                val internalName = className?.javaClass?.getMethod("getInternalName")?.invoke(className) as? String
+                    ?: return@mapNotNull null
+                val path = cache.javaClass.getMethod("getClassFilePath", String::class.java)
+                    .invoke(cache, internalName) as? String
+                path?.let(::File)?.takeIf { it.extension == "class" && it.exists() }
+            }
+        } finally {
+            cache.javaClass.getMethod("close").invoke(cache)
+        }.distinctBy { it.canonicalPath }
+    }
+
     /** Updates complementary relations using a tracker produced by this isolated compiler. */
     @Synchronized
     internal fun updateComplementaryFiles(

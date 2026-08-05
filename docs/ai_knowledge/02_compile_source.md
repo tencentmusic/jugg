@@ -75,6 +75,10 @@ IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 C
 
 普通 KMP 业务源码走常规 Kotlin 阶段。`KotlinCompiler` 发现 expect/actual token 后切换到同根 Android owner，`KotlinCompilerInvoker` 用项目 Kotlin compiler 打开 Gradle cache，`getComplementaryFilesRecursive()` 返回本轮补充输入。in-process 项目 compiler invocation 会设置 `incrementalCompilation=true` 并注册项目版本 `ExpectActualTrackerImpl`；最终成功后用 requested+complementary closure 调用 `updateComplementaryFiles()`。cache 缺失、损坏、候选不唯一、无 edge 或写回失败时只记 debug；普通 Kotlin 文件不触发查询或 tracker。
 
+K2 Gradle task 暴露 `multiplatformStructure` 时，project info 会保存 fragment 到 source roots、refines edge 和 default fragment。只有普通 KMP complementary invocation 才根据最终源码闭包附加 `-Xfragments`、`-Xfragment-sources`、`-Xfragment-refines`；Compose resource generated source 继续使用独立的 typed common-source 参数，不复用业务源码 fragment graph。旧 project info 或不支持该结构的 Kotlin task 保持空图并沿原路径编译。
+
+Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual closure 的旧 JVM class。invoker 通过项目 incremental cache 的 source-to-output 关系定位这些 class，复制其余 baseline 到临时只读视图，并同时替换 classpath 与 friend path；正式 baseline 不被移动或删除。编译成功或失败都会删除临时视图，cache 读取失败则保持原路径交由 Kotlin compiler 判定。
+
 `GradleProjectInfoReaderManager` 先读取 Android plugin 实际加载的 R8 code source；若路径位于 Gradle `jars-*` / `transforms-*` instrumentation cache，则从 Android module 或 root project 的 buildscript classpath 选择同名原始 artifact，找不到时不暴露该外部 runtime。`DexFileMaker` 再用独立 `URLClassLoader` 加载 `agpR8Classpath` 中的 D8，避免项目 AGP R8 与插件内置 R8 在同一 classloader 中发生类冲突；runtime 按 canonical path 缓存。路径缺失、类/方法加载失败、当前 desugared-library API 不受支持，或外部 D8 执行失败时都会回退到内置 R8。外部 D8 执行失败会打印用户可见的 `warn`，包含版本、路径和原始异常；若内置 R8 也失败，则由内置执行继续抛出最终异常。
 
 ---
@@ -93,9 +97,10 @@ IDE 将 common source set 暴露为同根虚拟 module 时，普通 Kotlin 与 C
 - D8 版本选择以项目 AGP 实际加载的 R8 为准；Gradle instrumentation cache 必须先恢复为原始 buildscript artifact。project info 无安全路径、隔离 runtime 无法建立或外部 D8 执行失败时使用 Jugg 内置 R8。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。
 - `commonSourceFiles` 是 Kotlin invoker 的类型化参数，不靠调用方拼自由字符串；为空时不添加 multiplatform 参数，Compose generated expect/actual 场景则同时添加 `-Xmulti-platform` 和 `-Xcommon-sources`。
-- `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
+- `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 和 fragment roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
 - complementary 查询以非空 `kotlinCommonSourceDirs` 作为 KMP module/source-set 门禁。仅把普通 Android 模块的源码目录配置为 `commonMain`（例如 local-shell 聚合源码）不会启用 KMP complementary 逻辑，即使源码文本出现 expect/actual token。
-- 当前普通业务源码闭包已验证 Kotlin 2.1 commonMain/androidMain 和 Kotlin 2.3 expect-only/actual-only。中间 source set 仍缺少 authoritative fragment graph；Kotlin 1.9 仍需隔离 baseline 中 dirty closure 的旧 actual output，详见 `docs/task/2026-07/2026-07-26-kmp-business-expect-actual-follow-up-todo.md`。
+- 普通业务源码闭包已验证 Kotlin 1.9 expect-only/actual-only、Kotlin 2.1 commonMain/androidMain 与中间 sharedMain refinement、Kotlin 2.3 expect-only/actual-only。fragment graph 只覆盖选中 Android Kotlin task 暴露的结构，不等同于项目全部 target 的全局 source-set 图。
+- Kotlin baseline 隔离对象必须来自 incremental cache 的 source-to-output 关系并限定为本轮 dirty expect/actual closure；不得按文件名、声明名猜测，也不得移动整个正式 output directory。
 - tracker 只在 in-process 项目 Kotlin compiler 中启用。失败 invocation、retry 的中间 attempt、KSP-only phase 和跨进程 invocation 不写 cache；cache 写回失败不改变已成功的 Kotlin 产物。
 - Compose common/platform 分类使用同 owner module root 下的 IDE source-set module 身份；`androidMain` 始终是 platform，其他 `Unknown` source-set module 可表示非 `commonMain` 的 common source set，不从 custom resource root 路径反推。
 - generated Kotlin 编译失败时，`KotlinCompilerInvoker` 的原始行号和 diagnostic 文本会聚合回原 Compose resource 输入，不能替换成通用失败文案。

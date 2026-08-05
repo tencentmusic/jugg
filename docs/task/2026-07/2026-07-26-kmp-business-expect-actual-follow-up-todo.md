@@ -1,8 +1,10 @@
 # KMP 业务 expect/actual 增量编译后续 TODO
 
+> 状态：已完成（2026-08-05）。两个真实失败均已修复并通过定向回归，本文件保留为问题与实现记录。
+
 ## 背景
 
-在执行 `2026-07-26-kmp-business-expect-actual-incremental-compile-plan.md` 时，真实 Kotlin 1.9/2.1 profile 暴露出两个不属于 complementary-files 读取本身的问题。主方案当前边界已完成，本 TODO 是后续会话的独立实施入口。
+在执行 `2026-07-26-kmp-business-expect-actual-incremental-compile-plan.md` 时，真实 Kotlin 1.9/2.1 profile 暴露出两个不属于 complementary-files 读取本身的问题。主方案完成后，本任务补齐了 baseline dirty output 隔离和中间 source set fragment graph。
 
 ## 新会话交接基线
 
@@ -50,7 +52,7 @@ Gradle `compileDebugKotlinAndroid` 的真实参数除 `-Xmulti-platform` 外还�
 - 先补 fragment project-info 序列化、旧数据默认值、merge authoritative 规则的 L1 红灯，再修改生产代码。
 - L2 通过后还需回归 common-only、actual-only、both-changed、普通 common helper 和 Compose resource；不得只用 compiler toy test 代替真实 fixture。
 
-## TODO 2：Kotlin 1.9 baseline 旧 actual 隔离
+## TODO 2：Kotlin 1.9 baseline 旧 actual 隔离（已完成）
 
 ### 现象
 
@@ -58,12 +60,12 @@ Kotlin 1.9 联合编译 changed expect 与 complementary actual 时，baseline K
 
 Kotlin 2.3 未复现该诊断，但不能通过版本白名单分支规避。
 
-### 待办
+### 实现结果
 
-1. 基于项目 Kotlin incremental cache 的 source-to-output 信息定位 dirty closure 的旧 JVM outputs，不按文件名或声明名推断。
-2. 在不破坏 baseline、失败可恢复的前提下隔离旧 outputs；不得先删除正式产物后依赖 compiler 成功。
-3. 保留未变化普通 common helper、metadata、friend path 的解析能力。
-4. 恢复 `KmpComposeFlowReproTest#compileBusinessExpectActualWithKotlin19` 的 expect-only 与 actual-only 验收。
+1. `K2JVMCompilerIsolate` 通过项目 incremental cache 的 `classesBySources` 与 class-file path API 读取 source-to-output 关系，不按文件名或声明名推断。
+2. `KotlinCompilerInvoker` 将排除 dirty outputs 后的 baseline 复制到临时视图，并同时替换 classpath 与 friend path；正式产物不移动、不删除，失败时也会清理临时视图。
+3. 未变化的 common helper、metadata 和其他 baseline class 保持可解析；cache 能力不可用时按 Best-effort 保持原编译路径。
+4. `KmpComposeFlowReproTest#compileBusinessExpectActualWithKotlin19` 的 expect-only 与 actual-only 已通过真实 Kotlin 1.9 profile 验收。
 
 ### 当前红灯与验收
 
@@ -84,4 +86,4 @@ Kotlin 2.3 未复现该诊断，但不能通过版本白名单分支规避。
 
 profile 测试会修改 `android_demo_project` 的 Gradle 文件。测试或人工切换结束后执行 `bash android_demo_project/switch-kotlin-version.sh 1.9` 恢复仓库基线，并检查 `git status --short`。部分新增 pair 测试会留下已暂存后又删除的临时 Kotlin 文件或 `.kotlin/sessions/*.salive`；这些是测试产物，不得夹带提交。
 
-完成任一 TODO 后更新本文件、主方案状态、`docs/ai_knowledge/02_compile_source.md`、`04_engineering_project.md` 和 `98_code_map.md`，并按仓库规则单独提交。两个 TODO 完成前，不宣称支持中间 source set fragment graph 或 Kotlin 1.9 baseline expect/actual 联合编译。
+两个 TODO 已完成；支持范围限定为选中 Android Kotlin task 暴露的 fragment graph，以及 incremental cache 能定位 source-to-output 的 Kotlin 1.9 dirty closure。删除场景与项目全部 target 的全局 source-set 图仍不在本任务范围。

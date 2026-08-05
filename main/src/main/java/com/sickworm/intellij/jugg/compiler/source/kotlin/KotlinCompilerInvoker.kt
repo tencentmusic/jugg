@@ -303,6 +303,8 @@ class KotlinCompilerInvoker {
         }
 
         val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
+        val isolatedBaseline = createIsolatedKmpBaseline(context, module, options, kotlinClassPath, logger)
+        val baselineClasspath = isolatedBaseline ?: kotlinClassPath
         val outputDir = if (options.isEnableKapt) {
             kaptOutputDir
         } else {
@@ -318,7 +320,7 @@ class KotlinCompilerInvoker {
             "-no-stdlib",
             "-no-reflect",
             "-module-name", moduleName,
-            "-Xfriend-paths=${kotlinClassPath.absolutePath}",
+            "-Xfriend-paths=${baselineClasspath.absolutePath}",
             "-Xskip-prerelease-check", // class 'xxx' is compiled by a pre-release version of Kotlin and cannot be loaded by this version of the compiler
             "-Xskip-metadata-version-check", // let skip-prerelease-check works for Kotlin 1.3
             "-Xallow-no-source-files",
@@ -337,7 +339,13 @@ class KotlinCompilerInvoker {
         }
 
         var classPathArgs = listOf<String>()
-        val dependencies = context.getModuleDependencies(module, task)
+        val dependencies = context.getModuleDependencies(module, task).map {
+            if (isolatedBaseline != null && File(it).absoluteFile.normalize() == kotlinClassPath.absoluteFile.normalize()) {
+                isolatedBaseline.path
+            } else {
+                it
+            }
+        }
         if (dependencies.isNotEmpty()) {
             classPathArgs = listOf(
                 "-cp", dependencies.joinToString(File.pathSeparator)
@@ -400,6 +408,8 @@ class KotlinCompilerInvoker {
         } catch (e: Exception) {
             logger.error("invoke kotlin compile failed", e)
             ExitCode.INTERNAL_ERROR
+        } finally {
+            isolatedBaseline?.deleteRecursively()
         }
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
@@ -573,6 +583,33 @@ class KotlinCompilerInvoker {
             task.files.map { Result.success(it) },
             outputs = compileOutputs + kaptOutputs + kspArgsManager.getOutput(task),
         )
+    }
+
+    private fun createIsolatedKmpBaseline(
+        context: ICompileContext,
+        module: ModuleInfo,
+        options: Options,
+        kotlinClassPath: File,
+        logger: Logger,
+    ): File? {
+        if (!options.isNeedComplementaryFiles || options.expectActualSourceFiles.isEmpty()) return null
+        val dirtyOutputs = complementaryFilesCache.readOutputs(
+            module.buildPathInfo,
+            options.expectActualSourceFiles,
+            logger,
+        ).map { it.absoluteFile.normalize() }.toSet()
+        if (dirtyOutputs.isEmpty()) return null
+
+        val isolatedDir = File(context.tempCompileDir, "kotlin_baseline/${module.name}_${module.buildVariant}")
+        isolatedDir.deleteRecursively()
+        kotlinClassPath.walkTopDown().filter(File::isFile).forEach { source ->
+            if (source.absoluteFile.normalize() in dirtyOutputs) return@forEach
+            val target = File(isolatedDir, source.relativeTo(kotlinClassPath).path)
+            target.parentFile?.mkdirs()
+            source.copyTo(target, overwrite = true)
+        }
+        logger.debug("Isolate ${dirtyOutputs.size} dirty Kotlin baseline outputs for expect/actual compilation")
+        return isolatedDir
     }
 
     private fun buildFragmentArgs(module: ModuleInfo, sourceFiles: List<File>, options: Options): List<String> {
