@@ -1,14 +1,15 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.Client
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.Deploy
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.model.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
 import com.android.tools.idea.adb.AdbService
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.ByteString
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
@@ -17,13 +18,12 @@ import com.android.tools.idea.gradle.model.IdeAndroidProject
 import com.android.tools.idea.gradle.model.IdeSigningConfig
 import com.android.tools.idea.gradle.model.IdeVariant
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
-import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.ui.BaseAction
 import com.android.tools.idea.run.util.DebuggerRedefiner
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.google.common.collect.ImmutableMap
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
@@ -43,6 +43,8 @@ import java.util.*
  * Android Studio Chipmunk
  */
 open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
+
+    private val deployApiConverter = LegacyDeployApiConverter()
 
     private val optimisticInstallSupportFull: Map<StudioFlags.OptimisticInstallSupportLevel, EnumSet<ChangeType>>
             = ImmutableMap.of(
@@ -80,10 +82,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     // Collection that will accumulate metrics for the deployment.
     val metrics = MetricsRecorder()
 
-    override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
-        return project.getProjectSystem().getApkProvider(config)!!
-    }
-
     /**
      * @see com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxTarget.getDevices (will boot avd)
      */
@@ -98,7 +96,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
             val devices = deviceFutures.ifReady
             if (!devices.isNullOrEmpty()) {
-                return devices
+                return devices.map(::toJuggDevice)
             }
         }
 
@@ -111,7 +109,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     override fun getConnectedDevices(project: Project): List<IDevice>? {
         val adb = AndroidSdkUtils.getAdb(project)?.toPath() ?: return null
         val debugBridge = AdbService.getInstance().getDebugBridge(adb.toFile())
-        return debugBridge.get().devices?.toList()
+        return debugBridge.get().devices?.map(::toJuggDevice)
     }
 
     override fun createInstallSession(
@@ -125,14 +123,16 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         if (!StudioFlags.APPLY_CHANGES_KEEP_CONNECTION_ALIVE.get()) {
             adbInstallerMode = AdbInstaller.Mode.ONE_SHOT
         }
-        val adb = createLegacyAdbClient(device, logger)
-        val installer = AdbInstaller(installersFolder, adb, metrics.deployMetrics, logger, adbInstallerMode)
+        val studioLogger = toStudioLogger(logger)
+        val adb = createLegacyAdbClient(toStudioDevice(device), studioLogger)
+        val installer = AdbInstaller(installersFolder, adb, metrics.deployMetrics, studioLogger, adbInstallerMode)
         return JuggInstallSession(installer, installer.version, onPrompt, onMessage)
     }
 
     protected fun createInstallOptions(device: IDevice, applicationId: String): InstallOptions {
+        val studioDevice = toStudioDevice(device)
         val options = InstallOptions.builder().setAllowDebuggable()
-        if (device.supportsFeature(IDevice.HardwareFeature.EMBEDDED)) {
+        if (studioDevice.supportsFeature(com.android.ddmlib.IDevice.HardwareFeature.EMBEDDED)) {
             options.setGrantAllPermissions()
         }
         if (device.version.isGreaterOrEqualThan(28)) {
@@ -141,7 +141,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         if (device.version.isGreaterOrEqualThan(com.android.sdklib.AndroidVersion.VersionCodes.N)) {
             options.setDontKill()
         }
-        options.setSkipVerification(device, applicationId)
+        options.setSkipVerification(studioDevice, applicationId)
         return options.build()
     }
 
@@ -153,8 +153,9 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         apks: List<String>,
         installMode: JuggInstallSession.Mode,
     ): Boolean {
-        val adb = createLegacyAdbClient(device, logger)
-        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, logger)
+        val studioLogger = toStudioLogger(logger)
+        val adb = createLegacyAdbClient(toStudioDevice(device), studioLogger)
+        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, studioLogger)
         return apkInstaller.install(
             packageName,
             apks,
@@ -180,26 +181,26 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         project: Project,
         device: IDevice,
         fallback: Boolean
-    ): ImmutableMap<Int, ClassRedefiner> {
+    ): Map<Int, JuggClassRedefiner> {
         if (!DebuggerRedefiner.hasDebuggersAttached(project)) {
-            return ImmutableMap.of()
+            return emptyMap()
         }
-        val debugRedefiners = ImmutableMap.builder<Int, ClassRedefiner>()
-        for (client in device.clients) {
+        val debugRedefiners = mutableMapOf<Int, JuggClassRedefiner>()
+        for (client in toStudioDevice(device).clients) {
             if (client.isDebuggerAttached) {
                 val port = client.debuggerListenPort
                 if (DebuggerRedefiner.getDebuggerSession(project, port) != null) {
                     val debugRedefiner: ClassRedefiner = DebuggerRedefiner(project, port, fallback)
-                    debugRedefiners.put(client.clientData.pid, debugRedefiner)
+                    debugRedefiners[client.clientData.pid] = JuggClassRedefiner(debugRedefiner)
                 }
             }
         }
-        return debugRedefiners.build()
+        return debugRedefiners
     }
 
     override fun optimisticSwap(
         session: JuggInstallSession,
-        redefiners: Map<Int, ClassRedefiner>,
+        redefiners: Map<Int, JuggClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
@@ -210,20 +211,29 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         isPushOverlayOnly: Boolean,
     ): JuggOverlayId {
         val rawInstaller = session.rawInstaller as Installer
+        val rawRedefiners = redefiners.mapValues { it.value.raw as ClassRedefiner }
         if (isPushOverlayOnly) {
-            val updater = OptimisticApkUpdater(rawInstaller, redefiners)
-            val swapResult = updater.pushOverlays(packageName, pids, arch, overlayUpdate)
+            val updater = OptimisticApkUpdater(rawInstaller, rawRedefiners)
+            val swapResult = updater.pushOverlays(
+                packageName,
+                pids,
+                toStudioArch(arch),
+                overlayUpdate.cachedDump,
+                toStudioChangedClasses(overlayUpdate.dexOverlays),
+                overlayUpdate.fileOverlays.mapKeys { toStudioApkEntry(it.key) }
+                    .mapValues { toStudioByteString(it.value) },
+            )
             return swapResult.overlayId.toJuggOverlayId()
         }
 
         val swapper = OptimisticApkSwapper(
             rawInstaller,
-            redefiners,
+            rawRedefiners,
             argRestart,
             options,
             metrics
         )
-        val swapResult = swapper.optimisticSwap(packageName, pids, arch, overlayUpdate.raw as OptimisticApkSwapper.OverlayUpdate)
+        val swapResult = swapper.optimisticSwap(packageName, pids, toStudioArch(arch), overlayUpdate.raw as OptimisticApkSwapper.OverlayUpdate)
 
         //  java.lang.IllegalAccessError: class com.sickworm.intellij.jugg.deploy.run.JuggDeployer tried to access method
         //  'void com.android.tools.deployer.MetricsRecorder.add(com.android.tools.deployer.DeployMetric)'
@@ -242,25 +252,26 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         if (packageName == null) {
             return IdeDeployState.canNotDetectApplicationId
         }
-        return if (device.state == IDevice.DeviceState.UNAUTHORIZED) {
+        val studioDevice = toStudioDevice(device)
+        return if (studioDevice.state == com.android.ddmlib.IDevice.DeviceState.UNAUTHORIZED) {
             IdeDeployState.deviceNotAuthorized
         } else if (!device.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
             IdeDeployState.incompatibleDeviceApiLevel
-        } else if (findClientCompat(device, packageName).isEmpty()) {
+        } else if (findClientCompat(studioDevice, packageName).isEmpty()) {
             IdeDeployState.appNotRunningOrNotDebuggable
         } else {
             IdeDeployState.ok
         }
     }
 
-    protected fun findClientCompat(device: IDevice, packageName: String): List<Client> {
+    protected fun findClientCompat(device: com.android.ddmlib.IDevice, packageName: String): List<Client> {
         return try {
             DeploymentApplicationService.getInstance().findClient(device, packageName)
         } catch (e: IncompatibleClassChangeError) {
             val clazz = Class.forName("com.android.tools.idea.run.DeploymentApplicationService")
             val method = clazz.getDeclaredMethod("getInstance")
             val instance = method.invoke(null)
-            val findClientMethod = clazz.getDeclaredMethod("findClient", IDevice::class.java, String::class.java)
+            val findClientMethod = clazz.getDeclaredMethod("findClient", com.android.ddmlib.IDevice::class.java, String::class.java)
             @Suppress("UNCHECKED_CAST")
             findClientMethod.invoke(instance, device, packageName) as List<Client>
         }
@@ -276,20 +287,16 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return false
     }
 
-    override fun getDeploymentService(project: Project): DeploymentService {
-        return DeploymentService.getInstance(project)
-    }
-
     override fun parseApks(paths: List<String>): List<Apk> {
-        return ApkParser().parsePaths(paths)
+        return ApkParser().parsePaths(paths).map(::toJuggApk)
     }
 
     override fun getPackageName(apks: List<Apk>): String {
-        return ApplicationDumper.getPackageName(apks)
+        return ApplicationDumper.getPackageName(apks.map(::toStudioApk))
     }
 
     override fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId {
-        return OverlayId(apks).toJuggOverlayId()
+        return OverlayId(apks.map(::toStudioApk)).toJuggOverlayId()
     }
 
     override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId {
@@ -305,14 +312,15 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     ): JuggOverlayUpdate {
         val raw = OptimisticApkSwapper.OverlayUpdate(
             cachedDump.raw as DeploymentCacheDatabase.Entry,
-            dexOverlays,
-            fileOverlays,
+            toStudioChangedClasses(dexOverlays),
+            fileOverlays.mapKeys { toStudioApkEntry(it.key) }.mapValues { toStudioByteString(it.value) },
         )
         return JuggOverlayUpdate(cachedDump, dexOverlays, fileOverlays, raw)
     }
 
     override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> {
-        return ApplicationDumper(session.rawInstaller as Installer).dump(apks).apks
+        return ApplicationDumper(session.rawInstaller as Installer).dump(apks.map(::toStudioApk)).apks
+            .map(::toJuggApk)
     }
 
     override fun remoteApkNotFound(): JuggDeployerException {
@@ -333,7 +341,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry {
         val database = DeploymentCacheDatabase(1)
-        database.store(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME, apks, overlayId.raw as OverlayId)
+        database.store(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME, apks.map(::toStudioApk), overlayId.raw as OverlayId)
         val entry = database.get(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME)
         return JuggDeploymentCacheEntry(entry, apks, overlayId)
     }
@@ -344,6 +352,30 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
         throw UnsupportedOperationException("Jugg Debug is not supported in this Android Studio version.")
+    }
+
+    protected fun toJuggDevice(device: com.android.ddmlib.IDevice): IDevice = deployApiConverter.toJuggDevice(device)
+
+    protected fun toStudioDevice(device: IDevice): com.android.ddmlib.IDevice = deployApiConverter.toStudioDevice(device)
+
+    protected fun toStudioLogger(logger: ILogger): com.android.utils.ILogger = deployApiConverter.toStudioLogger(logger)
+
+    protected fun toJuggApk(apk: com.android.tools.deployer.model.Apk): Apk = deployApiConverter.toJuggApk(apk)
+
+    protected fun toStudioApk(apk: Apk): com.android.tools.deployer.model.Apk = deployApiConverter.toStudioApk(apk)
+
+    protected fun toStudioApkEntry(entry: ApkEntry): com.android.tools.deployer.model.ApkEntry = deployApiConverter.toStudioApkEntry(entry)
+
+    protected fun toStudioByteString(content: ByteString): com.android.tools.idea.protobuf.ByteString {
+        return deployApiConverter.toStudioByteString(content)
+    }
+
+    protected fun toStudioChangedClasses(changes: DexComparator.ChangedClasses): com.android.tools.deployer.DexComparator.ChangedClasses {
+        return deployApiConverter.toStudioChangedClasses(changes)
+    }
+
+    protected fun toStudioArch(arch: Deploy.Arch): com.android.tools.deploy.proto.Deploy.Arch {
+        return deployApiConverter.toStudioArch(arch)
     }
 
     override fun getSuggestRunConfigurations(
@@ -591,7 +623,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return VfsUtil.virtualToIoFile(virtualFile)
     }
 
-    protected fun createLegacyAdbClient(device: IDevice, logger: ILogger): AdbClient {
+    protected fun createLegacyAdbClient(device: com.android.ddmlib.IDevice, logger: com.android.utils.ILogger): AdbClient {
         return AdbClient(device, logger)
     }
 

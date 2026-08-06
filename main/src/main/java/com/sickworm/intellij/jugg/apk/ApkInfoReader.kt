@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.apk
 
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 

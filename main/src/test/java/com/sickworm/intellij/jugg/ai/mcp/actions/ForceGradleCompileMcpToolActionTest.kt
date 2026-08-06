@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunProfile
@@ -271,7 +271,7 @@ class ForceGradleCompileMcpToolActionTest {
                 override fun getApks(): List<com.sickworm.intellij.jugg.apk.ApkInfo> =
                     throw UnsupportedOperationException("not used in this test")
 
-                override fun getSelectedDevices(): List<com.android.ddmlib.IDevice> = emptyList()
+                override fun getSelectedDevices(): List<IDevice> = emptyList()
 
                 override fun getConnectedDevices(): List<IDevice> =
                     throw UnsupportedOperationException("not used in this test")

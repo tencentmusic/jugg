@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunProfile

@@ -1,13 +1,12 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.AdbCommandRejectedException
-import com.android.ddmlib.IDevice
 import com.android.ddmlib.IShellOutputReceiver
 import com.android.ddmlib.ShellCommandUnresponsiveException
 import com.android.ddmlib.SyncException
 import com.android.ddmlib.TimeoutException
-import com.android.tools.deploy.proto.Deploy
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.Deploy
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -17,9 +16,10 @@ import java.util.concurrent.TimeUnit
  * IDevice-backed ADB operations used by Jugg runtime code outside Android Studio deployer compat.
  */
 internal class IdeaDeviceAdbClient(
-    private val device: IDevice,
-    private val logger: ILogger,
+    deviceArg: IDevice,
+    private val logger: com.android.utils.ILogger,
 ) {
+    private val device = deviceArg.toStudioDevice()
     fun shell(
         args: Array<String>,
         input: InputStream? = null,
@@ -62,7 +62,7 @@ internal class IdeaDeviceAdbClient(
     }
 
     fun getPids(packageName: String): List<Int> {
-        if (!device.supportsFeature(IDevice.Feature.REAL_PKG_NAME)) {
+        if (!device.supportsFeature(com.android.ddmlib.IDevice.Feature.REAL_PKG_NAME)) {
             throw IllegalStateException("Device ${device.serialNumber}, do not support REAL_PKG_NAME")
         }
         return device.clients

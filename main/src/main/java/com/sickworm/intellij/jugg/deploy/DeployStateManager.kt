@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import java.util.concurrent.TimeUnit

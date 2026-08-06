@@ -19,6 +19,8 @@
 
 ## 2. 核心源码索引
 
+共享部署编排使用 `deploy_compat/interface` 中 `com.sickworm.intellij.jugg.deploy.api` 的 `IDevice`、`Apk`、`ApkEntry`、`DexClass`、`ByteString`、`Deploy.Arch` 与 `ILogger`。这些类型保留原调用面以降低迁移 diff，但不链接 ddmlib、Android Studio deployer model 或 shaded protobuf；真实类型仅由 legacy/Quail 版本 compat 实例和 standalone executor 各自转换，interface JAR 不保存 raw converter 或全局 adapter 状态。
+
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
 | `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 部署总协调器。决定 install / embedded / incremental，串联 recover、retry、runTask、agent、androidTest、历史提交。 |

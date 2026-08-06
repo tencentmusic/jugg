@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
-import com.android.tools.deployer.DexComparator
-import com.android.tools.deployer.model.DexClass
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.DexClass
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile

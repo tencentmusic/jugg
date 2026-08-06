@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.platform
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo

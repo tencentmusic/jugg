@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.android.tools.deployer.Installer
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable

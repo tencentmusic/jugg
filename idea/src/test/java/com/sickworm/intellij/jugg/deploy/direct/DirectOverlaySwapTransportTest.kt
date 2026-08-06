@@ -1,13 +1,13 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
-import com.android.tools.deploy.proto.Deploy
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.android.tools.deployer.DeploymentCacheDatabase
-import com.android.tools.deployer.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
 import com.android.tools.deployer.Installer
 import com.android.tools.deployer.OverlayId
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.apk.ApkInfo
@@ -250,7 +250,7 @@ class DirectOverlaySwapTransportTest {
         writeAgentInstaller(installersRoot)
         return DirectOverlaySwapTransport(
             launchContext = LaunchContext(
-                device = Mockito.mock(com.android.ddmlib.IDevice::class.java),
+                device = Mockito.mock(com.sickworm.intellij.jugg.deploy.api.IDevice::class.java),
                 deviceAdb = adb,
                 installersRoot = installersRoot.absolutePath,
                 installSession = JuggInstallSession(Mockito.mock(Installer::class.java), "dced2491", { true }, {}),
@@ -312,20 +312,16 @@ class DirectOverlaySwapTransportTest {
 
     private fun cacheEntry(isBaseInstall: Boolean = false): JuggDeploymentCacheEntry {
         val apk = apk("base.apk", "/base.apk", "com.example.app")
-        val baseOverlayId = OverlayId(listOf(apk))
+        val baseOverlayId = JuggOverlayId(Any(), "base", true)
         val overlayId = if (isBaseInstall) {
             baseOverlayId
         } else {
-            OverlayId.builder(baseOverlayId).addOverlayFile("base.apk/res/layout/old.xml", 1L).build()
+            JuggOverlayId(Any(), "overlay", false, listOf(JuggOverlayFile("base.apk/res/layout/old.xml", 1L)))
         }
-        val constructor = DeploymentCacheDatabase.Entry::class.java
-            .getDeclaredConstructor(java.util.List::class.java, OverlayId::class.java)
-        constructor.isAccessible = true
-        val rawEntry = constructor.newInstance(listOf(apk), overlayId)
         return JuggDeploymentCacheEntry(
-            raw = rawEntry,
+            raw = Any(),
             apks = listOf(apk),
-            overlayId = overlayId.toJuggOverlayId(),
+            overlayId = overlayId,
         )
     }
 
@@ -339,9 +335,7 @@ class DirectOverlaySwapTransportTest {
         }
 
         override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId {
-            val builder = OverlayId.builder(base.raw as OverlayId)
-            addedFiles.forEach { builder.addOverlayFile(it.path, it.checksum) }
-            return builder.build().toJuggOverlayId()
+            return JuggOverlayId(Any(), "updated", false, base.overlayFiles + addedFiles)
         }
     }
 
@@ -350,22 +344,7 @@ class DirectOverlaySwapTransportTest {
     }
 
     private fun apk(name: String, path: String, packageName: String): Apk {
-        val constructor = Apk::class.java.declaredConstructors.firstOrNull { it.parameterCount == 10 }
-            ?: error(Apk::class.java.declaredConstructors.joinToString("\n") { it.toGenericString() })
-        constructor.isAccessible = true
-        val args = constructor.parameterTypes.map { type ->
-            when {
-                type == String::class.java -> null
-                java.util.List::class.java.isAssignableFrom(type) -> emptyList<String>()
-                java.util.Map::class.java.isAssignableFrom(type) -> emptyMap<String, ApkEntry>()
-                else -> null
-            }
-        }.toMutableList()
-        args[0] = name
-        args[1] = "checksum"
-        args[2] = path
-        args[3] = packageName
-        return constructor.newInstance(*args.toTypedArray()) as Apk
+        return Apk(name, "checksum", path, packageName, emptyList(), emptyList(), emptyList(), emptyMap())
     }
 
     private class RecordingAdb : IDeviceAdb {

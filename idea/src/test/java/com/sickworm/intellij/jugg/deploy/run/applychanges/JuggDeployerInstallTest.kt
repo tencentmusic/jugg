@@ -1,17 +1,13 @@
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.Deploy
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
 import com.android.tools.deployer.Installer
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
-import com.android.tools.idea.run.AndroidRunConfiguration
-import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.DeploymentService
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
@@ -27,6 +23,7 @@ import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
@@ -402,21 +399,7 @@ class JuggDeployerInstallTest {
     }
 
     private fun testApk(): Apk {
-        val constructor = Apk::class.java.declaredConstructors.first { it.parameterCount == 10 }
-        constructor.isAccessible = true
-        val args = constructor.parameterTypes.map { type ->
-            when {
-                type == String::class.java -> ""
-                java.util.List::class.java.isAssignableFrom(type) -> emptyList<String>()
-                java.util.Map::class.java.isAssignableFrom(type) -> emptyMap<String, com.android.tools.deployer.model.ApkEntry>()
-                else -> null
-            }
-        }.toMutableList()
-        args[0] = "demo.apk"
-        args[1] = "checksum"
-        args[2] = "/tmp/demo.apk"
-        args[3] = PACKAGE_NAME
-        return constructor.newInstance(*args.toTypedArray()) as Apk
+        return Apk("demo.apk", "checksum", "/tmp/demo.apk", PACKAGE_NAME, emptyList(), emptyList(), emptyList(), emptyMap())
     }
 
     private class RecordingInstallCompat(
@@ -472,9 +455,6 @@ class JuggDeployerInstallTest {
         override fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry =
             unsupported()
 
-        override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider =
-            unsupported()
-
         override fun getSelectedDevices(project: Project): List<IDevice>? = unsupported()
 
         override fun getConnectedDevices(project: Project): List<IDevice>? = unsupported()
@@ -492,11 +472,11 @@ class JuggDeployerInstallTest {
             project: Project,
             device: IDevice,
             fallback: Boolean,
-        ): Map<Int, ClassRedefiner> = unsupported()
+        ): Map<Int, JuggClassRedefiner> = unsupported()
 
         override fun optimisticSwap(
             session: JuggInstallSession,
-            redefiners: Map<Int, ClassRedefiner>,
+            redefiners: Map<Int, JuggClassRedefiner>,
             packageName: String,
             argRestart: Boolean,
             pids: List<Int>,
@@ -509,8 +489,6 @@ class JuggDeployerInstallTest {
 
         override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState =
             unsupported()
-
-        override fun getDeploymentService(project: Project): DeploymentService = unsupported()
 
         override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) = unsupported()
 

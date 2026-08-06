@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.google.gson.Gson
 import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.diagnostic.Logger
@@ -608,5 +608,5 @@ private val IDevice.desc: String get() {
             "model: ${model}, " +
             "version: ${version}, " +
             "isOnline: ${isOnline}, " +
-            "clients: ${clients.size}"
+            "clients: $clientCount"
 }

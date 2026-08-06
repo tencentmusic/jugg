@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 
 /**
  * IDeployStateManager computes and updates current deploy mode/state from runtime conditions.

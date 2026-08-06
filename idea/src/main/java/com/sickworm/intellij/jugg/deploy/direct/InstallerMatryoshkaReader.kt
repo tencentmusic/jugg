@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
-import com.android.tools.deploy.proto.Deploy
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import java.io.RandomAccessFile

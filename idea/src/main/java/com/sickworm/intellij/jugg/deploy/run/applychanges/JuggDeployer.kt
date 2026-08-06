@@ -1,10 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
-import com.android.ddmlib.IDevice
-import com.android.sdklib.AndroidVersion
-import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.AndroidVersion
+import com.sickworm.intellij.jugg.deploy.api.Deploy
+import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
@@ -20,6 +19,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
@@ -126,7 +126,7 @@ class JuggDeployer(
     }
 
     @Throws(JuggDeployerException::class)
-    fun codeSwap(classFiles: List<String>, redefiners: Map<Int, ClassRedefiner>, data: JuggDeployData): Result {
+    fun codeSwap(classFiles: List<String>, redefiners: Map<Int, JuggClassRedefiner>, data: JuggDeployData): Result {
         return optimisticSwap(classFiles, false, redefiners, data)
     }
 
@@ -137,7 +137,7 @@ class JuggDeployer(
 
     @Throws(JuggDeployerException::class)
     private fun optimisticSwap(
-        argPaths: List<String>, argRestart: Boolean, redefiners: Map<Int, ClassRedefiner>, data: JuggDeployData
+        argPaths: List<String>, argRestart: Boolean, redefiners: Map<Int, JuggClassRedefiner>, data: JuggDeployData
     ): Result {
         if (!device.version.isGreaterOrEqualThan(AndroidVersion.VersionCodes.O)) {
             throw asDeployerCompat.apiNotSupported()

@@ -11,6 +11,33 @@ import kotlin.test.assertTrue
 class StandaloneDeployerArchitectureTest {
 
     @Test
+    fun `standalone executor does not expose converter forwarding methods`() {
+        val forbiddenMethods = setOf(
+            "toJuggDevice",
+            "toJuggLogger",
+            "toStudioApk",
+            "toJuggApkEntry",
+            "toJuggByteString",
+            "toJuggChangedClasses",
+            "toStudioChangedClasses",
+        )
+
+        assertTrue(StandaloneApplyChangesExecutor::class.java.declaredMethods.none { it.name in forbiddenMethods })
+    }
+
+    @Test
+    fun `base api does not provide Android runtime classes`() {
+        val androidSources = findRepoFile("platform_compat/base_api/src/main/java").resolve("com/android")
+        assertFalse(androidSources.exists())
+
+        val baseApiLibDir = findRepoFile("platform_compat/base_api/build/libs")
+        val baseApiJar = baseApiLibDir.listFiles().orEmpty().single { it.extension == "jar" }
+        JarFile(baseApiJar).use { jar ->
+            assertFalse(jar.entries().asSequence().any { it.name.startsWith("com/android/") })
+        }
+    }
+
+    @Test
     fun `standalone deployer runtime contains only Java 11 compatible classes`() {
         val moduleDir = findRepoFile("deploy_compat/standalone_deployer")
         val classFiles = moduleDir.resolve("build/classes").walkTopDown()

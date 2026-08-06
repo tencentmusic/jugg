@@ -13,11 +13,7 @@ def standaloneStartScripts = tasks.register('standaloneStartScripts', CreateStar
     applicationName = 'jugg-standalone'
     mainClass.set('com.sickworm.intellij.jugg.cmdline.standalone.JuggDaemonKt')
     outputDir = layout.buildDirectory.dir('standalone-scripts').get().asFile
-    def runtimeClasspath = tasks.named('startScripts').get().classpath
-    classpath = files(
-            runtimeClasspath.filter { it.name != 'base_api.jar' },
-            runtimeClasspath.filter { it.name == 'base_api.jar' },
-    )
+    classpath = tasks.named('startScripts').get().classpath
 }
 
 // Ensure the plain jar includes Main-Class for `java -jar` usage
