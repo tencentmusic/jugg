@@ -736,3 +736,91 @@ JschShellTerminalHelperTest.kt: Unresolved reference: JuggException
 - step3～step7 均执行对应模块测试源码编译，确认 API 接线随所属领域提交同步完成。
 - 最终提交执行定向 L1/L2 测试、IDEA 编译和最终树差异检查。
 - `FileChangeManager` 文档已改为 Runtime 实例内锁，与当前代码一致。
+
+## 15. 2026-08-06 再次 rebase
+
+### 15.1 基本信息
+
+- 执行日期：2026-08-06（Asia/Shanghai）。
+- 工作分支：`feature/standlone_cli`。
+- rebase 前 HEAD：`afe89f805fc4d2768c48cf0d3b6b10fcafe79f7f`。
+- rebase 前共同祖先：`881eee542e8017e80aa053ea97c8ee50f0ebb1f0`。
+- rebase 前 feature 提交数：14。
+- 备份分支：`feature/standlone_cli_rebase_20260806_old`。
+- 备份分支指向：`afe89f805fc4d2768c48cf0d3b6b10fcafe79f7f`。
+- 第一次固定 main 基线：`52db22a70b11e53241b65ea097c6df37908dff67`。
+- 执行期间 main 新增提交：`775bc23a7 [feature] enable compat deploy on all HarmonyOS devices`。
+- 最终 main 基线：`775bc23a7266b3a65fc5cee45be23c5342077a71`。
+- rebase 后 14 个重放提交 HEAD：`226fceaac9a39286cc9c209a6740c825b63d0a3f`。
+- rebase 后测试兼容修正：`fa0651e2a [test] keep MCP tests compiling after project runtime rebase`。
+
+开始前确认工作区干净，并创建不可覆盖的新备份分支。第一次按旧记录中的 `bd59bdeb` 作为起点尝试时，Git 计划重放 53 个提交；检查当前提交图后确认该边界只适用于历史整理前的分支，因此立即中止。最终使用当前共同祖先 `881eee542` 作为旧基线，只重放 `main..feature` 的 14 个提交。
+
+第一次完成 rebase 后，本地 main 从 `52db22a70` 前进到 `775bc23a7`。按 runbook 再次执行增量 rebase，14 个提交全部自动重放，最终共同祖先与最新 main 一致。
+
+### 15.2 提交映射
+
+| 序号 | rebase 前提交 | rebase 后提交 | 结果 |
+|---|---|---|---|
+| 1 | `d67f32a82` | `943a72b97` | patch 等价 |
+| 2 | `bcb0b7c91` | `f58ec3d8e` | patch 等价 |
+| 3 | `b5f1a68d3` | `95d233ed9` | patch 等价 |
+| 4 | `04fc7357d` | `01ddf1d81` | 冲突整合 |
+| 5 | `165916e56` | `f2171fce9` | 冲突整合 |
+| 6 | `59ee44212` | `b91c3b9f7` | 冲突整合 |
+| 7 | `47da76ca8` | `9ff8c39ee` | 冲突整合 |
+| 8 | `184067c6c` | `28db30eb3` | 冲突整合 |
+| 9 | `98f97be8b` | `cf10db0f7` | patch 含 main 文档演进 |
+| 10 | `65b66ee94` | `c93cd5c7f` | patch 等价 |
+| 11 | `c73e2323f` | `8b36315ce` | patch 含 main 文档演进 |
+| 12 | `a28be584a` | `901cf29c4` | patch 等价 |
+| 13 | `0d186e839` | `fb6c457be` | 冲突整合 |
+| 14 | `afe89f805` | `226fceaac` | patch 含 main 文档演进 |
+
+### 15.3 冲突与处理
+
+1. step1、step2、包重组和 step4 的文本冲突集中在 `docs/ai_knowledge/98_code_map.md`。
+   - 保留 main 新增的 Kotlin common roots/fragment graph、Windows Gradle wrapper CRLF、Compose 和 Gradle 信息。
+   - 同时保留 feature 的共享部署状态、任务锁、部署缓存、`project.info` / `project.runtime` / `project.change` 新边界。
+2. step3 的 `GradleProjectInfoLocalFetchManagerTest` 同时发生构造边界和 main 新行为变化。
+   - 测试改用共享 `JuggPathManager`、`CompileContextManager`、`ICompileEnvironmentSource` 和六参数 `runTaskSafe` 契约。
+   - 保留 main 的“缺失 project info 重建完成前禁止增量编译”断言，以及 remote init 等待行为。
+3. step8 的 `CompileAndDeployMcpToolActionTest` 同时发生 `IMcpRuntime` host-neutral 化和 main 新增 projectDir 相关行为。
+   - 改用 `TestMcpRuntime`，显式覆盖传入的 `projectDir`，保留 last-deploy timestamp 和 no-pending-deploy 断言。
+   - `98_code_map.md` 保留 main 最新 Gradle/KMP 信息，并补入 `McpToolRegistry`、`IMcpRuntime` 与 standalone idle callback 边界。
+4. 其他生产代码、测试和最终 HarmonyOS main 提交均自动应用；没有整文件选择 ours/theirs。
+
+### 15.4 rebase 后语义修正
+
+第一次执行定向 `:main:test` 时，`compileTestKotlin` 失败：
+
+```text
+McpInvokerTestBase.kt: Unresolved reference: ProjectDirNormalizer
+```
+
+生产类已迁移到 `com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer`，测试仍引用旧包。修正只更新测试 import，以独立 `[test]` commit `fa0651e2a` 保存，没有修改生产行为。
+
+### 15.5 验证结果
+
+以下验证通过：
+
+- `./gradlew :idea:compileKotlin`
+- `./gradlew :main:test --tests com.sickworm.intellij.jugg.project.info.ProjectModelSourceTest --tests com.sickworm.intellij.jugg.project.runtime.TaskRunnerManagerTest --tests com.sickworm.intellij.jugg.project.change.FileChangeManagerTest --tests com.sickworm.intellij.jugg.ai.mcp.actions.CompileAndDeployMcpToolActionTest --tests com.sickworm.intellij.jugg.project.runtime.JuggResourceManagerTest`
+- `./gradlew :idea:test --tests com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManagerTest --tests com.sickworm.intellij.jugg.project.runtime.IdeaCliRunConfigurationFlowTest --tests com.sickworm.intellij.jugg.manager.JuggManagerFullBuildFlowTest`
+- `./gradlew :cmd_line:test --tests com.sickworm.intellij.jugg.cmdline.standalone.DaemonIdleTimerTest --tests com.sickworm.intellij.jugg.cmdline.standalone.StandaloneRuntimeTest`
+- `./gradlew :standalone_deployer:test --tests com.sickworm.intellij.jugg.deploy.run.StandaloneApplyChangesExecutorTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerArchitectureTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerDeviceFlowTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerResourceTest`
+- `python3 docs/skills/jugg-android-dev-loop/tests/test_jugglib.py`
+- `python3 docs/skills/jugg-android-dev-loop/tests/test_cmd_version.py`
+- `python3 docs/skills/hooks/tests/test_hooks_guard.py`
+- `git diff --check`
+- `git range-diff 881eee542..feature/standlone_cli_rebase_20260806_old 775bc23a7..226fceaac`
+
+`unittest discover` 因 tests 目录与 `scripts/py` 中同名 `test_cmd_status` 模块发生导入冲突，改为直接运行本次变更相关的三个 Python 测试文件后全部通过。构建仍输出既有 NDK `riscv64` metadata、IntelliJ `sourceCompatibility`、Kotlin stdlib 和少量 Kotlin 编译 warning，不影响本轮结果。
+
+### 15.6 最终结果
+
+- 当前分支基于 main `775bc23a7266b3a65fc5cee45be23c5342077a71`。
+- rebase 前状态保存在 `feature/standlone_cli_rebase_20260806_old`。
+- 原 14 个 standalone CLI 提交全部完成映射，顺序保持不变。
+- rebase 后测试包迁移修正保持为独立 commit `fa0651e2a`。
+- 未执行 push。
