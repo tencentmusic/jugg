@@ -17,13 +17,14 @@ class IdeSyncProblemResolver(project: Project) {
     private val logger = JuggLogger.getInstance(project, "IdeSyncProblemResolver")
 
     private val propertiesComponent = PropertiesComponent.getInstance(project)
+    private val lastSyncSuccessTimeKey = "lastSyncSuccessTime_${AsDeployerCompat.ideVersion}"
 
     private var lastSyncSuccessTime: Long
         get() {
-            return propertiesComponent.getLong("lastSyncSuccessTime_${AsDeployerCompat.ideVersion}", 0L)
+            return propertiesComponent.getLong(lastSyncSuccessTimeKey, 0L)
         }
         set(value) {
-            propertiesComponent.setValue("lastSyncSuccessTime", value.toString())
+            propertiesComponent.setValue(lastSyncSuccessTimeKey, value.toString())
         }
 
     fun isNeedSyncAfterBuild(): Boolean {
