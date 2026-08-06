@@ -253,7 +253,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 - compat deploy 会去掉原 res/asset overlays，追加 enable flag，并按资源 overlay 生成 resource APK deploy item。
 - APK 根目录 overlay 必须重启进程；Activity restart 无法可靠清除 ClassLoader、legacy Compose resource 或 `JarURLConnection` 缓存。
 - 现代 Compose resource 即使最终路径位于 `assets/**` 也必须重启进程；`AssetManager` / Compose runtime 缓存不能依赖 Activity restart 清理。
-- `CompatDeployHelper` 对 API < 30、设备兼容记录以及 HarmonyOS 4.2 及以上返回 true；HarmonyOS 判断按 `hw_sc.build.platform.version` 的 major/minor 数值比较，不持久化为手动 Force 记录。
+- `CompatDeployHelper` 对 API < 30、设备兼容记录以及所有 HarmonyOS 设备返回 true；HarmonyOS 通过非空的 `hw_sc.build.platform.version` 属性识别，不持久化为手动 Force 记录。
 - dex merge 阈值是 `DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT = 1000`；超过阈值时把 staging dex + 未 staging 的历史 dex merge，失败则保留原数据继续部署。
 - transient offline 的设计目标是在失败点附近恢复：shell/deployer 层原地等待并重试一次，编排层只处理已经冒泡的 offline 失败。
 - install 路径遇到 transient failure 可能从 DELTA 升级为 FULL install；不是所有 install 失败都应该进入 incremental fallback。

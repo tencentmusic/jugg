@@ -21,8 +21,6 @@ class CompatDeployHelper(
 
     companion object {
         private const val HARMONY_OS_VERSION_PROPERTY = "hw_sc.build.platform.version"
-        private const val MIN_HARMONY_OS_MAJOR = 4
-        private const val MIN_HARMONY_OS_MINOR = 2
 
         var type: Type = object : TypeToken<List<CompatDeployRecord>?>() {}.type
     }
@@ -58,7 +56,7 @@ class CompatDeployHelper(
             // device not supports overlay swap, use compat deploy
             return true
         }
-        if (isHarmonyOsCompatDevice(device)) {
+        if (isHarmonyOsDevice(device)) {
             return true
         }
         val record = records.find { it.displayName == device.displayName }
@@ -78,19 +76,13 @@ class CompatDeployHelper(
         return true
     }
 
-    private fun isHarmonyOsCompatDevice(device: IDeviceAdb): Boolean {
-        val versionParts = device.getProperty(HARMONY_OS_VERSION_PROPERTY)
-            ?.trim()
-            ?.split('.')
-            ?: return false
-        val major = versionParts.getOrNull(0)?.toIntOrNull() ?: return false
-        val minor = versionParts.getOrNull(1)?.toIntOrNull() ?: return false
-        val isCompat = major > MIN_HARMONY_OS_MAJOR ||
-            major == MIN_HARMONY_OS_MAJOR && minor >= MIN_HARMONY_OS_MINOR
-        if (isCompat) {
-            logger.debug("Enable compat deploy automatically for HarmonyOS ${versionParts.joinToString(".")}")
+    private fun isHarmonyOsDevice(device: IDeviceAdb): Boolean {
+        val version = device.getProperty(HARMONY_OS_VERSION_PROPERTY)?.trim().orEmpty()
+        if (version.isEmpty()) {
+            return false
         }
-        return isCompat
+        logger.debug("Enable compat deploy automatically for HarmonyOS $version")
+        return true
     }
 
     fun recordCompatDeviceRecord(device: IDeviceAdb, applications: List<String>? = null) {

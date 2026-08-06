@@ -137,7 +137,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - `isHasJvmtiCompatIssue()` 最多等待 3 秒，每 100ms 轮询一次；返回 `null` 的 app 会继续等，全部 app 都非 null 才收口。
 - not-available flag 优先级高于 available flag；排查时如果两个都存在，应先按不可用处理并清理 app `code_cache` 后复测。
 - `AsStartupAgentPusher` 推 AS agent 的路径不要求 app 进程在线；它用 host matryoshka 解析出的 agent so，经 `run-as cp` 放进 app sandbox。
-- `CompatDeployHelper` 读取 `hw_sc.build.platform.version`；major/minor 大于等于 4.2 时直接启用 compat deploy。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
+- `CompatDeployHelper` 读取 `hw_sc.build.platform.version`；属性非空时即识别为 HarmonyOS 并直接启用 compat deploy，不限制系统版本。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
 - `jugg_agent_setup.sh` 不再按 HarmonyOS 版本创建 `.need_fix_dex_path_list`。升级前已经存在的旧 flag 不在本轮主动清理，避免误删 `DexPathListFixer` 自检测产生的状态。
 
 ---

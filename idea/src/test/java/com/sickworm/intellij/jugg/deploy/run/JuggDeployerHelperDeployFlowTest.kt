@@ -177,14 +177,16 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
-    fun `HarmonyOS 4_2 and above automatically uses compat deploy`() {
+    fun `all HarmonyOS versions automatically use compat deploy`() {
         val oldRecordJson = JuggSettings.deviceCompatRecordJson
         JuggSettings.deviceCompatRecordJson = ""
         try {
-            mapOf(
-                "4.1.0" to JuggDeployData.DeployType.HOT_RELOAD,
+            mapOf<String?, JuggDeployData.DeployType>(
+                null to JuggDeployData.DeployType.HOT_RELOAD,
+                "2.0.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
+                "3.0.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
+                "4.1.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
                 "4.2.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
-                "4.3.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
                 "5.0.0" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
             ).forEach { (version, expectedDeployType) ->
                 val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
