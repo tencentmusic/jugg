@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run.flow
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
+import com.sickworm.intellij.jugg.deploy.run.IDeployHost
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
 
 /**
@@ -13,13 +13,14 @@ interface IAdbTransportRecovery {
 }
 
 class AdbTransportRecovery(
+    private val environment: IDeployHost,
     private val logger: Logger,
 ) : IAdbTransportRecovery {
 
     override fun waitUntilRecovered(device: IDevice, phase: String, logWait: (String) -> Unit): Boolean {
         return AdbTransientOffline.waitForAdbTransport(
             phase = phase,
-            adb = IdeaDeviceAdb(device, logger),
+            adb = environment.createDeviceAdb(device, logger),
             logWait = logWait,
         )
     }

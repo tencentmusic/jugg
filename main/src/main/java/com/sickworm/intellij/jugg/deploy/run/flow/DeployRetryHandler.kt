@@ -5,7 +5,7 @@ import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.SliceDeployHelper
-import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
+import com.sickworm.intellij.jugg.deploy.run.IDeployHost
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
@@ -23,8 +23,9 @@ class DeployRetryHandler(
     private val deployStateRecover: DeployStateRecover,
     private val juggServer: JuggServer,
     private val deployRunHost: IJuggDeployHelperRunHost,
+    private val environment: IDeployHost,
     private val logger: Logger,
-    private val adbTransportRecovery: IAdbTransportRecovery = AdbTransportRecovery(logger),
+    private val adbTransportRecovery: IAdbTransportRecovery = AdbTransportRecovery(environment, logger),
 ) {
 
     fun tryRetry(
@@ -117,7 +118,7 @@ class DeployRetryHandler(
                     val isNeedReduce = deployData.overlays.size >= JuggSettings.overlayDeploySplitSizeFirstSlice
                     if (isNeedReduce) {
                         logger.warn("Got deploy timeout exception, reduce overlay and retry")
-                        SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(deployOptions.device, logger))
+                        environment.onDeployTimeout(deployOptions.device, logger)
                     } else {
                         if (reinstallWhenTimeout) {
                             logger.warn("Got deploy timeout exception, retry the last time with reinstalling APK.")
@@ -147,7 +148,7 @@ class DeployRetryHandler(
                 val allowDirectOverlayRecover = !isDirectDeployFailed && deployOptions.isAllowDirectOverlayDeploy
                 val (isSuccess, _) = deployStateRecover.recoverDeployState(
                     deployOptions.device,
-                    deployOptions.indicator,
+                    deployOptions.progress,
                     isNeedDryDeployFirst = isNeedDryDeployFirst,
                     deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,

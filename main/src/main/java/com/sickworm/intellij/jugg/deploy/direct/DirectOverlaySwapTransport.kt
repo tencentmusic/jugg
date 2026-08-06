@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.deploy.direct
 import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IApplyChangesExecutor
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
@@ -22,11 +22,11 @@ class DirectOverlaySwapTransport(
         packageName: String,
         data: JuggDeployData,
         overlayUpdate: JuggOverlayUpdate,
-        asDeployerCompat: IAsDeployerCompat,
+        applyChangesExecutor: IApplyChangesExecutor,
         appArch: Deploy.Arch = Deploy.Arch.ARCH_64_BIT,
     ): JuggOverlayId? {
         return try {
-            trySwapInternal(packageName, data, overlayUpdate, asDeployerCompat, appArch)
+            trySwapInternal(packageName, data, overlayUpdate, applyChangesExecutor, appArch)
         } catch (e: Exception) {
             if (e is DirectOverlayDirtyException) throw e
             if (e is DirectOverlayDeployFailedException) throw e
@@ -52,7 +52,7 @@ class DirectOverlaySwapTransport(
         packageName: String,
         data: JuggDeployData,
         overlayUpdate: JuggOverlayUpdate,
-        asDeployerCompat: IAsDeployerCompat,
+        applyChangesExecutor: IApplyChangesExecutor,
         appArch: Deploy.Arch,
     ): JuggOverlayId? {
         if (!canTry(data)) {
@@ -75,7 +75,7 @@ class DirectOverlaySwapTransport(
         val preparedRequest = DirectOverlayWriteRequestBuilder(logger).build(
             packageName,
             overlayUpdate,
-            asDeployerCompat,
+            applyChangesExecutor,
             data.isFullRes,
         )
         when (DirectOverlayWriter(adb, logger).write(preparedRequest.request)) {

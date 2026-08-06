@@ -4,17 +4,17 @@ import com.sickworm.intellij.jugg.deploy.api.ApkEntry
 import com.sickworm.intellij.jugg.deploy.api.ByteString
 import com.sickworm.intellij.jugg.deploy.api.DexComparator.ChangedClasses
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
-import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IApplyChangesExecutor
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 
-class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
+class OverlayUpdateBuilder(private val applyChangesExecutor: IApplyChangesExecutor) {
 
     fun build(cacheEntry: JuggDeploymentCacheEntry?, data: JuggDeployData): JuggOverlayUpdate {
 
         if (cacheEntry == null) {
-            throw asDeployerCompat.remoteApkNotFound()
+            throw applyChangesExecutor.remoteApkNotFound()
         }
 
         val newClasses = (data.newClasses + data.hotFixModifiedClasses).map {
@@ -41,6 +41,6 @@ class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
             }
         }
 
-        return asDeployerCompat.createOverlayUpdate(cacheEntry, dexOverlays, overlayFiles.values.associate { it })
+        return applyChangesExecutor.createOverlayUpdate(cacheEntry, dexOverlays, overlayFiles.values.associate { it })
     }
 }

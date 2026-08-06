@@ -19,9 +19,9 @@
 |---|---|---|
 | `JuggJvmtiAgentManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManager.kt` | 管理 Jugg agent bundle 的 push、app sandbox setup、attach 与清理 |
 | `JuggJvmtiAgentManagerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManagerHelper.kt` | 决定部署后是否需要补 push agent，读取 flag 文件判断 JVMTI 可用性 |
-| `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 在 deploy 前后串联 async agent 检查、push、restart、JVMTI compat 检测和 retry |
-| `DeployRetryHandler` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | deploy 失败后通过 run host 触发 JVMTI 检测，必要时切换 compat deploy |
-| `AsStartupAgentPusher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/AsStartupAgentPusher.kt` | Direct Overlay 路径推 Android Studio Apply Changes startup agent，不依赖 app 进程在线 |
+| `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | 在 deploy 前后串联 async agent 检查、push、restart 和 JVMTI compat 检测 |
+| `DeployRetryHandler` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | deploy 失败后通过 run host 触发 JVMTI 检测，必要时切换 compat deploy |
+| `AsStartupAgentPusher` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/AsStartupAgentPusher.kt` | Direct Overlay 路径推 Apply Changes startup agent，不依赖 app 进程在线 |
 | `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，写 `.jugg_jvmti_available` / `.jugg_jvmti_not_available` flag，并启动 instrumentation |
 | `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | 加载 `jugg-instruments.jar`，设置 class file load hook 并 retransform 目标类 |
 | `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
@@ -58,7 +58,7 @@ Jugg startup agent 负责检测进程是否能取得 JVMTI/JNI，并对 framewor
 ### 4.1 常规部署后的 Jugg agent 协同
 
 ```text
-JuggDeployerHelper.runTask()
+JuggDeployOrchestrator.execute()
   -> 异步调用 JuggJvmtiAgentManagerHelper.isNeedPushAgentAfterDeploy()
      install 直接跳过；增量部署检查 app sandbox 中 Jugg agent 和 AS apply changes agent 是否齐备
   -> JuggDeployTask.run()

@@ -6,6 +6,8 @@ import com.sickworm.intellij.jugg.deploy.api.Apk
  * Runtime-neutral wrappers for Android Studio deployer objects whose packages move between releases.
  */
 data class JuggInstallSession(
+    /** Executor selected when this stateful deployer runtime was created. */
+    val applyChangesExecutor: IApplyChangesExecutor,
     val rawInstaller: Any,
     val installerVersion: String?,
     private val onPrompt: (String) -> Boolean,

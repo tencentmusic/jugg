@@ -80,7 +80,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         val mode = AdbInstaller.Mode.DAEMON
         val studioLogger = toStudioLogger(logger)
         val installer = AdbInstaller(installersFolder, createAdbClient(toStudioDevice(device), studioLogger), metrics.deployMetrics, studioLogger, mode)
-        return JuggInstallSession(installer, installer.version, onPrompt, onMessage)
+        return JuggInstallSession(this, installer, installer.version, onPrompt, onMessage)
     }
 
     private fun createInstallOptions(device: IDevice, applicationId: String): InstallOptions {

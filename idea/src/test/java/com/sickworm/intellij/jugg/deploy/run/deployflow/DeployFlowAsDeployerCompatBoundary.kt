@@ -48,7 +48,7 @@ class DeployFlowAsDeployerCompatBoundary(
         if (installerVersion != null) {
             Mockito.`when`(installer.version).thenReturn(installerVersion)
         }
-        return JuggInstallSession(installer, installerVersion, onPrompt, onMessage)
+        return JuggInstallSession(this, installer, installerVersion, onPrompt, onMessage)
     }
 
     override fun install(

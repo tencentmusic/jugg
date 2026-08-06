@@ -757,7 +757,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 7 | 已完成 | 共享 CLI Run Configuration schema、确定性默认推断、配置集合/指针、IDEA 导入/选择监听和 Gradle 成功回写已落地 |
 | Step 8 | 已完成 | Java 11 daemon/registry/MCP/status 骨架、last owner、idle 生命周期、Python 双 Runtime 发现与 hook 门禁已落地；编译部署仍待 Step 10～11 |
 | Step 9 | 已完成 | 在 `deploy_compat/standalone_deployer/` 落地固定 Quail 1 的 Java 11 standalone deployer、版本资源、完整性校验与真机 install/class/resource PoC |
-| Step 10–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 10 | 已完成 | 共享 deploy lifecycle、IDEA 接线、standalone Host 边界和跨 Runtime cache 恢复已落地；standalone 编排组装与用户命令留待 Step 11 |
+| Step 11–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
 
@@ -1132,6 +1133,24 @@ daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job�
 
 目标：IDEA 与 standalone 复用同一 deploy lifecycle。
 
+实现状态：已完成。`JuggDeployOrchestrator`、deploy task/deployer、LaunchContext、recover/retry、Direct Overlay transport 与 deployment service 已下沉 `main`，IDEA 已改由共享 orchestrator 执行；`IDeployHost` 隔离 Host 操作，`IdeaDeployEnvironment` 与 `StandaloneDeployEnvironment` 分别提供实现。standalone Runtime 已缓存固定 Quail executor 和共享引用计数的真实 ddmlib bridge，但因 Compile Context、deploy target 和用户命令属于 Step 11，本 Step 不在 standalone 内组装或调用 orchestrator。deployment memory cache 的 owner 与磁盘 snapshot generation 失效策略由 `JuggDeploymentService` 内部完成。
+
+批准实施范围（2026-08-06）：
+
+- 统一 `IApplyChangesExecutor` 与 `IAsDeployerCompat` 的 Apply Changes transport 契约，IDEA compat 直接实现共享接口。
+- 将 deploy task、deployer、launch context、recover、retry、Direct Overlay lifecycle 和 deployment cache service 下沉 `main`。
+- 建立共享 `JuggDeployOrchestrator`；IDEA 与 standalone 仅保留各自真实设备、ADB、prompt、debugger 和 UI 环境差异。
+- standalone 使用固定 Quail executor 与真实 ddmlib 设备边界，但本 Step 不开放 Step 11 的 compile/deploy MCP 用户命令。
+- Runtime owner、runtime version 或 deployment cache generation 变化时失效 Runtime 本地 deployment memory cache，并从项目级磁盘 snapshot 恢复。
+- 复用现有 deploy Flow、recover、retry、install 和顶层 Flow owner，补充 standalone Host 边界与 Runtime 切换 cache 恢复验证。
+- 不包含 standalone Debug attach、AndroidTest UI 迁移、完整编译部署串联、三平台发行或多版本 standalone deployer。
+
+实施前基线：
+
+- `TopLevelFlowTest#testInstallAndLaunch` 通过。
+- `StandaloneApplyChangesExecutorTest` 与 `StandaloneDeployerArchitectureTest` 通过。
+- `JuggDeployerHelperDeployFlowTest` 20 个场景均因 `Device does not originate from an Android Studio compatibility boundary` 失败，作为本 Step 的失败证据。
+
 任务：
 
 - 对齐 `IApplyChangesExecutor` 与现有 IDEA deploy transport 的共享方法签名。
@@ -1146,8 +1165,17 @@ daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job�
 验证性任务：
 
 - IDEA 现有 deploy Flow 全部保持通过。
-- Standalone install、HOT RELOAD、HOT FIX、recover、retry 通过。
+- 共享 orchestrator 的 install、HOT RELOAD、HOT FIX、recover、retry 通过；standalone executor 与真实设备边界保持可用。
 - 同一项目在 IDEA/standalone 间切换后可恢复。
+
+实施验证：
+
+- `JuggDeployerHelperDeployFlowTest` 20 个 install/HOT RELOAD/HOT FIX/recover/retry 场景通过，共享 orchestrator 不再触发 IDEA device boundary 错误。
+- `TopLevelFlowTest#testInstallAndLaunch` 真实设备 install/launch 通过。
+- `StandaloneApplyChangesExecutorTest`、`StandaloneDeployerArchitectureTest` 通过；固定 Quail executor 保持 Java 11 与发行边界约束。
+- `JuggDeploymentServiceTest` 验证另一 Runtime 写入项目 snapshot 后，现有 Runtime 会失效 memory cache 并恢复新 overlay。
+- `CmdLineTest` 5 个现有 CI 场景通过，Step 10 未改变 CI 参数和产物语义。
+- standalone 完整 lifecycle 调用需要 Step 11 提供 Compile Context、deploy target 与命令入口，本 Step 不宣称已完成该端到端链路。
 
 ### Step 11：编译与部署完整串联
 

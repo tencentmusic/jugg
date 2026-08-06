@@ -1,11 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.run.utils
 
-import com.sickworm.intellij.jugg.deploy.AdbCliShellExecutor
-import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import java.io.IOException
 
-internal object AdbTransientOffline {
+object AdbTransientOffline {
 
     /** Max wait for ADB transport to recover after transient offline (shell, swap, install, deploy retry). */
     const val DEFAULT_WAIT_MILLIS = 3_000L
@@ -70,37 +68,12 @@ internal object AdbTransientOffline {
         }
     }
 
-    /**
-     * True when adb CLI reports device + shell true, or ddmlib transport is ready.
-     * CLI is checked first because [com.android.ddmlib.IDevice.isOnline] can lag after recovery.
-     */
-    internal fun isTransportRecovered(
-        serial: String,
-        isDeviceOnline: () -> Boolean,
-        isDdmlibShellReady: () -> Boolean,
-        isCliTransportReady: () -> Boolean = { isAdbCliTransportReady(serial) },
-    ): Boolean {
-        return isCliTransportReady() || (isDeviceOnline() && isDdmlibShellReady())
-    }
-
-    fun isAdbCliTransportReady(serial: String, adbBin: String = AdbCmdHelper.findAdbExecutablePath()): Boolean {
-        return try {
-            if (AdbCliShellExecutor.getState(adbBin, serial) != "device") {
-                return false
-            }
-            AdbCliShellExecutor.exec(adbBin, serial, "true", timeoutMillis = 5_000L)
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     private fun isOfflineClass(throwable: Throwable): Boolean {
         return throwable::class.java.simpleName == "AdbCommandRejectedException"
     }
 }
 
-internal class AdbTransientOfflineException(
+class AdbTransientOfflineException(
     message: String,
     cause: Throwable? = null,
 ) : IOException(message, cause)

@@ -1,18 +1,21 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
-import com.intellij.openapi.progress.ProgressIndicator
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+
+class DeployProgress(private val updateAction: (String) -> Unit) {
+    fun update(text: String) = updateAction(text)
+}
 
 data class DeployOptions(
     val device: IDevice,
     val isLastDevice: Boolean,
     val isMultipleDevices: Boolean = false,
     val processHandler: IProcessHandler? = null,
-    val indicator: ProgressIndicator? = null,
+    val progress: DeployProgress? = null,
     val isInstall: Boolean = false,
     val isWarmUp: Boolean = false,
     val compileUiHandler: CompileUiHandler = CompileUiHandler.DEFAULT,
@@ -33,7 +36,6 @@ data class DeployOptions(
         return System.currentTimeMillis() - startTime
     }
 }
-
 data class DeployTaskResult(
     val isSuccess: Boolean,
     val costTime: Long,

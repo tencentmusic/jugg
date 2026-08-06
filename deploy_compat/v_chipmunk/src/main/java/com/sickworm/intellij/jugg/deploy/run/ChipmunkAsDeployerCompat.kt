@@ -126,7 +126,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         val studioLogger = toStudioLogger(logger)
         val adb = createLegacyAdbClient(toStudioDevice(device), studioLogger)
         val installer = AdbInstaller(installersFolder, adb, metrics.deployMetrics, studioLogger, adbInstallerMode)
-        return JuggInstallSession(installer, installer.version, onPrompt, onMessage)
+        return JuggInstallSession(this, installer, installer.version, onPrompt, onMessage)
     }
 
     protected fun createInstallOptions(device: IDevice, applicationId: String): InstallOptions {

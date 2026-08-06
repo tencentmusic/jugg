@@ -6,7 +6,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 /**
  * Decides how app-style androidTest APK packages participate in a deploy package loop.
  */
-internal object AndroidTestPackageDeployPolicy {
+object AndroidTestPackageDeployPolicy {
 
     fun decide(
         apkInfos: List<ApkInfo>,

@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
+import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
@@ -30,6 +31,7 @@ import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.LegacyDeviceAdapter
+import com.sickworm.intellij.jugg.deploy.run.TestDeployEnvironment
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -409,6 +411,7 @@ class MockJugg(
         val deploymentService = JuggDeploymentService(
             pathManager,
             JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager),
+            AsDeployerCompat,
         )
 
         if (isMockCompileContextManager) {
@@ -435,6 +438,13 @@ class MockJugg(
             )
         }
 
+        val installersRoot = run {
+            val downloader = MockAndroidProfilerDownloader()
+            val (costTime, isInPlace) = measureTimeMillisWithResult { downloader.makeSureComponentIsInPlace() }
+            println("makeSureComponentIsInPlace cost ${costTime}ms")
+            assertTrue(isInPlace)
+            downloader.installerFilePath.absolutePath
+        }
         juggDeployerHelper = JuggDeployerHelper(
             project = project,
             deployTargetManager = deployTargetManager,
@@ -448,16 +458,10 @@ class MockJugg(
             taskRunnerManager = taskRunnerManager,
             logger = logger,
             deploymentService = deploymentService,
-            installPathProvider = {
-            val downloader = MockAndroidProfilerDownloader()
-            val (costTime, isInPlace) = measureTimeMillisWithResult {
-                downloader.makeSureComponentIsInPlace()
-            }
-            println("makeSureComponentIsInPlace cost ${costTime}ms")
-            assertTrue(isInPlace)
-
-            downloader.installerFilePath.absolutePath
-            },
+            environment = TestDeployEnvironment(
+                AsDeployerCompat, installersRoot = installersRoot,
+                adbFactory = { device, deployLogger -> IdeaDeviceAdb(device, deployLogger) },
+            ),
         )
 
         gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, CompileEnvironmentSource(context.androidHome, emptyList()), logger)

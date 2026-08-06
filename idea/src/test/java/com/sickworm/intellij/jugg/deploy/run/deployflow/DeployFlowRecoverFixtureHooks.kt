@@ -2,8 +2,6 @@ package com.sickworm.intellij.jugg.deploy.run.deployflow
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
@@ -11,6 +9,8 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.DeployProgress
+import com.sickworm.intellij.jugg.deploy.run.TestDeployEnvironment
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
 
@@ -19,7 +19,6 @@ import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
  * Does not alter dry-deploy or reinstall branching (delegates to production [DeployStateRecover]).
  */
 class DeployFlowRecoverFixtureHooks(
-    project: Project,
     deployTargetManager: IDeployTargetManager,
     deployFileManager: DeployFileManager,
     deployHistoryManager: IDeployHistoryManager,
@@ -27,24 +26,24 @@ class DeployFlowRecoverFixtureHooks(
     deployRunHost: IJuggDeployHelperRunHost,
     deploymentService: IJuggDeploymentService,
     deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb,
+    isDirectOverlayEnabled: Boolean,
     logger: Logger,
     private val ideDeployStateHelper: DeployFlowIdeDeployStateHelper,
     private val afterRecoverSuccess: Runnable? = null,
 ) : DeployStateRecover(
-    project = project,
     deployTargetManager = deployTargetManager,
     deployFileManager = deployFileManager,
     deployHistoryManager = deployHistoryManager,
     deployStateManager = deployStateManager,
     deployRunHost = deployRunHost,
     deploymentService = deploymentService,
-    deviceAdbFactory = deviceAdbFactory,
+    environment = TestDeployEnvironment(isDirectOverlayEnabled = isDirectOverlayEnabled, adbFactory = deviceAdbFactory),
     logger = logger,
 ) {
 
     override fun recoverDeployState(
         device: IDevice,
-        indicator: ProgressIndicator?,
+        progress: DeployProgress?,
         isNeedDryDeployFirst: Boolean,
         isSkipExceptOverlayCheck: Boolean,
         isInstallUpdateApk: Boolean,
@@ -53,7 +52,7 @@ class DeployFlowRecoverFixtureHooks(
     ): Pair<Boolean, Boolean> {
         val result = super.recoverDeployState(
             device = device,
-            indicator = indicator,
+            progress = progress,
             isNeedDryDeployFirst = isNeedDryDeployFirst,
             isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
             isInstallUpdateApk = isInstallUpdateApk,

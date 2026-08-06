@@ -67,7 +67,18 @@ class IdeaDeviceAdb(
     }
 
     override fun isAdbTransportReady(): Boolean {
-        return AdbTransientOffline.isAdbCliTransportReady(serial) || (device.isOnline && isRawShellReady())
+        return isAdbCliTransportReady() || (device.isOnline && isRawShellReady())
+    }
+
+    private fun isAdbCliTransportReady(): Boolean {
+        return try {
+            val adbBin = AdbCmdHelper.findAdbExecutablePath()
+            if (AdbCliShellExecutor.getState(adbBin, serial) != "device") return false
+            AdbCliShellExecutor.exec(adbBin, serial, "true", timeoutMillis = 5_000L)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**

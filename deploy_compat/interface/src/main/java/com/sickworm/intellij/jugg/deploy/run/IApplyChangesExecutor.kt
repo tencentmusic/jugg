@@ -47,13 +47,9 @@ interface IApplyChangesExecutor {
     ): JuggOverlayUpdate
 
     fun optimisticSwap(
-        session: JuggInstallSession,
-        redefiners: Map<Int, JuggClassRedefiner>,
-        packageName: String,
-        restartActivity: Boolean,
-        pids: List<Int>,
-        arch: Deploy.Arch,
-        overlayUpdate: JuggOverlayUpdate,
+        session: JuggInstallSession, redefiners: Map<Int, JuggClassRedefiner>,
+        packageName: String, restartActivity: Boolean, pids: List<Int>, arch: Deploy.Arch,
+        overlayUpdate: JuggOverlayUpdate, device: IDevice, logger: ILogger, isPushOverlayOnly: Boolean,
     ): JuggOverlayId
 
     fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry

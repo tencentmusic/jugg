@@ -106,12 +106,13 @@ class DeployCompatArchitectureTest {
         val paths = listOf(
             "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt",
             "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggOverlayUpdate.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/IJuggDeployerDeploymentService.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/IJuggDeployerDeploymentService.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
             "idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt",
             "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt",
         )
         val legacyTypes = listOf(
             "AdbClient",
@@ -146,7 +147,7 @@ class DeployCompatArchitectureTest {
         assertFalse(
             "JuggDeployTask should route StudioFlags access through deploy_compat",
             findRepoFile(
-                "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
+                "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
             ).readText().contains("StudioFlags"),
         )
     }
@@ -208,6 +209,40 @@ class DeployCompatArchitectureTest {
                 storeText.contains(forbiddenReference),
             )
         }
+    }
+
+    @Test
+    fun `shared deploy lifecycle keeps host dependencies behind environments`() {
+        val sharedFiles = listOf(
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/LaunchContextFactory.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployStateRecover.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt",
+        )
+        val forbiddenReferences = listOf(
+            "import com.intellij.openapi.project.Project",
+            "import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb",
+            "import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat",
+            "import com.android.tools.idea.run.IdeService",
+            "import com.intellij.openapi.progress.ProgressIndicator",
+        )
+        sharedFiles.forEach { path ->
+            val source = findRepoFile(path).readText()
+            forbiddenReferences.forEach { forbidden ->
+                assertFalse("$path should keep $forbidden behind IDeployHost", source.contains(forbidden))
+            }
+        }
+
+        val compatInterface = findRepoFile(
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt",
+        ).readText()
+        assertTrue(compatInterface.contains("interface IAsDeployerCompat : IApplyChangesExecutor"))
+
+        val standaloneEnvironment = findRepoFile(
+            "cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/standalone/StandaloneDeployEnvironment.kt",
+        ).readText()
+        assertTrue(standaloneEnvironment.contains("StandaloneApplyChangesExecutor"))
+        assertTrue(standaloneEnvironment.contains("StandaloneDeviceManager"))
     }
 
     private fun findRepoFile(path: String): File {

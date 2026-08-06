@@ -1,6 +1,6 @@
 # 部署系统：端到端流程（Run 到设备）
 
-> 最后核对：2026-07-23
+> 最后核对：2026-08-06
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -19,10 +19,10 @@
 |---|---|---|
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 总编排。准备 UI/日志，调用编译，按设备调用部署，汇总结果并决定是否 Gradle fallback。 |
 | `JuggCompileHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | 产出 `CompileTaskResult`，决定本轮是增量编译还是 Gradle 编译。 |
-| `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 单设备部署入口。根据 `isInstall` 进入 install、embedded 或 incremental deploy。 |
-| `DeployOptions` / `DeployTaskResult` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Run 编排与 deploy helper 之间的请求/结果契约。 |
+| `JuggDeployerHelper` / `JuggDeployOrchestrator` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | Helper 选择 install / embedded / incremental；orchestrator 执行共享单设备 lifecycle。 |
+| `DeployOptions` / `DeployTaskResult` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Run 编排与 deploy helper 之间的请求/结果契约。 |
 | `JuggDeployData` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 部署 payload 与最终 deploy type 来源。 |
-| `DeployStateManager` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 单设备当前是否可增量部署、是否需要 recover 的状态来源。 |
+| `DeployStateManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 单设备当前是否可增量部署、是否需要 recover 的状态来源。 |
 | `DeployHistoryManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt` | 记录上次部署 checkpoint，install / incremental 成功后推进。 |
 | `JuggServer` | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt` | 上报 compile/deploy 埋点，不参与部署决策。 |
 

@@ -19,6 +19,8 @@ import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
+import com.sickworm.intellij.jugg.deploy.run.IDeployHost
+import com.sickworm.intellij.jugg.deploy.run.StandaloneDeviceManager
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
@@ -37,7 +39,7 @@ import java.io.File
 /** Owns the standalone MCP and project-lock lifecycle for one project. */
 class StandaloneProjectRuntime internal constructor(
     projectDirectory: File,
-    runtimeInfo: RuntimeInfo,
+    private val runtimeInfo: RuntimeInfo,
     private val activity: StandaloneDaemonActivity,
     toolRegistry: McpToolRegistry,
 ) : IMcpRuntime, AutoCloseable {
@@ -45,6 +47,8 @@ class StandaloneProjectRuntime internal constructor(
     private val pathManager = JuggPathManager(projectFile)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val standaloneDeployStateManager = StandaloneDeployStateManager()
+    private var standaloneDeviceManager: StandaloneDeviceManager? = null
+    private var standaloneDeployEnvironment: IDeployHost? = null
 
     override val projectDir: String = projectFile.path
     override val logger: Logger = Logger.getInstance("StandaloneProjectRuntime")
@@ -84,6 +88,16 @@ class StandaloneProjectRuntime internal constructor(
         return invoker.invokeMcp(request)
     }
 
+    internal fun deployEnvironment(): IDeployHost {
+        standaloneDeployEnvironment?.let { return it }
+        val deviceManager = standaloneDeviceManager ?: StandaloneDeviceManager(resolveAdb()).also {
+            standaloneDeviceManager = it
+        }
+        return StandaloneDeployEnvironment(deviceManager, runtimeInfo.runtimeVersion, logger).also {
+            standaloneDeployEnvironment = it
+        }
+    }
+
     override fun refreshChangedFilesForStatus() = Unit
 
     override fun isAppReadyDeploy(): Boolean {
@@ -91,8 +105,18 @@ class StandaloneProjectRuntime internal constructor(
     }
 
     override fun close() {
+        standaloneDeviceManager?.close()
         taskRunnerManager.dispose()
         scope.cancel()
+    }
+
+    private fun resolveAdb(): File {
+        val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+        if (!androidHome.isNullOrBlank()) {
+            val platformTools = File(androidHome, "platform-tools")
+            listOf(File(platformTools, "adb"), File(platformTools, "adb.exe")).firstOrNull(File::isFile)?.let { return it }
+        }
+        return File("adb")
     }
 }
 

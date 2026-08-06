@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IApplyChangesExecutor
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
@@ -18,7 +18,7 @@ class DirectOverlayWriteRequestBuilder(
     fun build(
         packageName: String,
         overlayUpdate: JuggOverlayUpdate,
-        asDeployerCompat: IAsDeployerCompat,
+        applyChangesExecutor: IApplyChangesExecutor,
         isFullResourcePush: Boolean,
     ): DirectOverlayPreparedRequest {
         val overlayFiles = linkedMapOf<String, JuggOverlayFile>()
@@ -54,7 +54,7 @@ class DirectOverlayWriteRequestBuilder(
             )
         }
 
-        val overlayId = asDeployerCompat.buildOverlayId(overlayUpdate.cachedDump.overlayId, overlayFiles.values.toList())
+        val overlayId = applyChangesExecutor.buildOverlayId(overlayUpdate.cachedDump.overlayId, overlayFiles.values.toList())
         val expectedOverlayId = overlayUpdate.cachedDump.overlayId.let {
             if (it.isBaseInstall) "" else it.sha
         }

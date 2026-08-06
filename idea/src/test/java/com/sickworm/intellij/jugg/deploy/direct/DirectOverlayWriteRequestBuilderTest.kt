@@ -33,7 +33,7 @@ class DirectOverlayWriteRequestBuilderTest {
         val prepared = DirectOverlayWriteRequestBuilder().build(
             packageName = "com.example",
             overlayUpdate = overlayUpdate,
-            asDeployerCompat = compat,
+            applyChangesExecutor = compat,
             isFullResourcePush = false,
         )
 

@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
+import com.sickworm.intellij.jugg.deploy.run.DeployProgress
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
@@ -391,7 +392,7 @@ class JuggRunningTask(
                 isLastDevice = isLastDevice,
                 isMultipleDevices = isMultipleDevices,
                 processHandler = processHandler,
-                indicator = indicator,
+                progress = DeployProgress { text -> indicator.text = text },
                 isInstall = compileTaskResult.isGradleCompile,
                 compileUiHandler = compileUiHandler,
                 androidTestRunSpec = androidTestRunSpec,

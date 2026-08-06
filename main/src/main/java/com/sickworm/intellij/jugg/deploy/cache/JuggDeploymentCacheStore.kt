@@ -12,6 +12,7 @@ import java.io.Serializable
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 import java.util.LinkedHashMap
 
 /**
@@ -54,6 +55,31 @@ class JuggDeploymentCacheStore(
             loadFromFile()
             entries[key(deviceSerial, packageName)]
         }
+    }
+
+    internal fun currentState(): CacheState {
+        return taskRunnerManager.runProjectWriteLocked("Read deployment cache state") {
+            CacheState(readGeneration(), taskRunnerManager.consumeRuntimeOwnerChange() != null)
+        }
+    }
+
+    private fun readGeneration(): String {
+        if (!cacheDbFile.isFile) return ""
+        val fileState = "${cacheDbFile.lastModified()}:${cacheDbFile.length()}"
+        return runCatching { "$fileState:${cacheDbFile.sha256()}" }.getOrDefault(fileState)
+    }
+
+    private fun File.sha256(): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun writeToFile() {
@@ -106,6 +132,11 @@ class JuggDeploymentCacheStore(
         val apkPaths: List<String>,
         val overlayId: OverlayId,
     ) : Serializable
+
+    internal data class CacheState(
+        val generation: String,
+        val runtimeOwnerChanged: Boolean,
+    )
 
     data class OverlayId(
         val sha: String,
