@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -496,6 +497,60 @@ class JuggProjectInfoMergerAndroidTestTest {
         } finally {
             ideFile.delete()
             gradleFile.delete()
+        }
+    }
+
+    @Test
+    fun `afterSync prefers Gradle libraries for full build fallback when IDE snapshot is newer`() {
+        val tempRoot = Files.createTempDirectory("jugg_full_build_fallback_test_").toFile()
+        val moduleDir = File(tempRoot, "app").apply { mkdirs() }
+        val oldLibraryFile = File(tempRoot, "libs/library-1.0.jar").apply {
+            parentFile.mkdirs()
+            writeText("old")
+        }
+        val newLibraryFile = File(tempRoot, "libs/library-2.0.jar").apply {
+            writeText("new")
+        }
+        val ideModule = applicationModule(tempRoot, moduleDir, ModuleInfo.Type.Unknown).copy(
+            libraryDependencies = listOf(LibraryDependency("com.example:library:1.0", oldLibraryFile)),
+        )
+        val gradleModule = applicationModule(tempRoot, moduleDir, ModuleInfo.Type.Application).copy(
+            libraryDependencies = listOf(LibraryDependency("com.example:library:2.0", newLibraryFile)),
+        )
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app" to ideModule)))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app" to gradleModule)))
+        val now = System.currentTimeMillis()
+        check(ideFile.setLastModified(now - 20_000))
+        check(gradleFile.setLastModified(now - 10_000))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.APP)
+
+            check(ideFile.setLastModified(now))
+            val normalResult = merger.afterSync(
+                ProjectInfoSerializer(ideFile, logger),
+                BuildTarget.APP,
+            )
+            assertEquals(
+                "com.example:library:1.0",
+                normalResult.mergedInfo?.modules?.get("app")?.libraryDependencies?.single()?.name,
+            )
+
+            val result = merger.afterSync(
+                ProjectInfoSerializer(ideFile, logger),
+                BuildTarget.APP,
+                preferGradleLibraryDependencies = true,
+            )
+
+            assertEquals(
+                "com.example:library:2.0",
+                result.mergedInfo?.modules?.get("app")?.libraryDependencies?.single()?.name,
+            )
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+            tempRoot.deleteRecursively()
         }
     }
 

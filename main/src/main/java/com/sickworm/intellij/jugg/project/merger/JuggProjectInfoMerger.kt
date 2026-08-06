@@ -31,7 +31,11 @@ interface IJuggProjectInfoMerger {
     val juggProjectInfo: JuggProjectInfo?
 
     /** read from project info */
-    fun afterSync(projectInfoSerialize: ProjectInfoSerializer, buildTarget: BuildTarget): JuggProjectInfoMergeResult
+    fun afterSync(
+        projectInfoSerialize: ProjectInfoSerializer,
+        buildTarget: BuildTarget,
+        preferGradleLibraryDependencies: Boolean = false,
+    ): JuggProjectInfoMergeResult
 
     /**
      * e.g. ./gradlew --dry-run -I readProjectInfo.gradle.kts
@@ -57,9 +61,10 @@ class JuggProjectInfoMerger(
     override fun afterSync(
         projectInfoSerialize: ProjectInfoSerializer,
         buildTarget: BuildTarget,
+        preferGradleLibraryDependencies: Boolean,
     ): JuggProjectInfoMergeResult {
         ide = projectInfoSerialize
-        val result = merge(buildTarget)
+        val result = merge(buildTarget, preferGradleLibraryDependencies)
         juggProjectInfo = result.mergedInfo
         return result
     }
@@ -74,7 +79,10 @@ class JuggProjectInfoMerger(
         return result
     }
 
-    private fun merge(buildTarget: BuildTarget): JuggProjectInfoMergeResult {
+    private fun merge(
+        buildTarget: BuildTarget,
+        preferGradleLibraryDependencies: Boolean = false,
+    ): JuggProjectInfoMergeResult {
         TimeLogger.start("merge")
 
         // use ideProjectInfo as base project info
@@ -125,11 +133,12 @@ class JuggProjectInfoMerger(
             return JuggProjectInfoMergeResult.createSingle(ideProjectInfo)
         }
 
-        var isNeedUpdateLibraryDependency = true
         val gradleUpdateTime = localFetch.firstOrNull()?.dataFile?.lastModified() ?: 0L
-        if (ideUpdateTime > gradleUpdateTime) {
+        val isNeedUpdateLibraryDependency = preferGradleLibraryDependencies || ideUpdateTime <= gradleUpdateTime
+        if (preferGradleLibraryDependencies) {
+            logger.debug("prefer Gradle library dependencies for this merge")
+        } else if (ideUpdateTime > gradleUpdateTime) {
             logger.debug("ide project info is newer than gradle project info, isNeedUpdateLibraryDependency=false")
-            isNeedUpdateLibraryDependency = false
         } else {
             logger.debug("ide project info is older than gradle project info, isNeedUpdateLibraryDependency=true")
         }

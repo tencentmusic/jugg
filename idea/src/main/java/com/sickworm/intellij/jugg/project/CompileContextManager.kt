@@ -70,8 +70,13 @@ class CompileContextManager(
     /**
      * Invoke after IDE sync and IDE project info is updated.
      */
-    fun updateCompileContext(isAfterSync: Boolean, updateGradleAsync: () -> Unit): Boolean {
-        logger.debug("updateCompileContext isAfterSync: $isAfterSync")
+    fun updateCompileContext(
+        isAfterSync: Boolean,
+        preferGradleLibraryDependencies: Boolean = false,
+        updateGradleAsync: () -> Unit,
+    ): Boolean {
+        logger.debug("updateCompileContext isAfterSync: $isAfterSync, " +
+                "preferGradleLibraryDependencies: $preferGradleLibraryDependencies")
 
         ensureInitProjectInfo()
 
@@ -82,7 +87,11 @@ class CompileContextManager(
         }
         if (isNeedReloadProjectInfo) {
             updateProjectInfoFromIde(isNeedReloadProjectInfo = true)
-            juggProjectInfoMerger.afterSync(projectInfoSerializer, currentBuildTarget())
+            juggProjectInfoMerger.afterSync(
+                projectInfoSerializer,
+                currentBuildTarget(),
+                preferGradleLibraryDependencies,
+            )
             val projectInfo = getProjectInfo()
             compileContextInside.update(
                 apkInfos = compileContextInfo?.apkInfos,

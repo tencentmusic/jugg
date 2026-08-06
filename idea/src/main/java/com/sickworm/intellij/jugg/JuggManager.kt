@@ -192,8 +192,12 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private fun updateProjectInfo(isAfterSync: Boolean) {
-        logger.debug("updateProjectInfo isAfterSync: $isAfterSync")
+    private fun updateProjectInfo(
+        isAfterSync: Boolean,
+        preferGradleLibraryDependencies: Boolean = false,
+    ) {
+        logger.debug("updateProjectInfo isAfterSync: $isAfterSync, " +
+                "preferGradleLibraryDependencies: $preferGradleLibraryDependencies")
 
         if (isAfterSync) {
             // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
@@ -202,7 +206,10 @@ class JuggManager @TestOnly constructor(
 
         // update project info if needed
         var isForceUpdateGradle = false
-        val isUpdated = compileContextManager.updateCompileContext(isAfterSync) {
+        val isUpdated = compileContextManager.updateCompileContext(
+            isAfterSync,
+            preferGradleLibraryDependencies,
+        ) {
             isForceUpdateGradle = true
         }
         logger.debug("updateProjectInfo isUpdated: $isUpdated, isForceUpdateGradle: $isForceUpdateGradle")
@@ -622,7 +629,8 @@ class JuggManager @TestOnly constructor(
 
         // checks whether project info is missing(cleaned by gradle)
         if (ideSyncProblemResolver.isNeedSyncAfterBuild()) {
-            updateProjectInfo(true) // the IDE may not return Sync Success, so we read info here
+            // The APK and Gradle project info come from the same full build. IDE data is supplemental here.
+            updateProjectInfo(true, preferGradleLibraryDependencies = true)
         } else {
             updateProjectInfo(false)
         }
