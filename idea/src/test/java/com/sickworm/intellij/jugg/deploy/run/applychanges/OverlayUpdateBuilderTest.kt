@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.OverlayId
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -70,15 +70,10 @@ class OverlayUpdateBuilderTest {
 
     private fun cacheEntry(): JuggDeploymentCacheEntry {
         val apk = apk("base.apk", "/base.apk", "com.example.app")
-        val overlayId = OverlayId(listOf(apk))
-        val constructor = DeploymentCacheDatabase.Entry::class.java
-            .getDeclaredConstructor(java.util.List::class.java, OverlayId::class.java)
-        constructor.isAccessible = true
-        val rawEntry = constructor.newInstance(listOf(apk), overlayId)
         return JuggDeploymentCacheEntry(
-            raw = rawEntry,
+            raw = Any(),
             apks = listOf(apk),
-            overlayId = overlayId.toJuggOverlayId(),
+            overlayId = com.sickworm.intellij.jugg.deploy.run.JuggOverlayId(Any(), "base", true),
         )
     }
 
@@ -86,21 +81,6 @@ class OverlayUpdateBuilderTest {
         com.sickworm.intellij.jugg.deploy.run.JuggOverlayId(raw = this, sha = sha, isBaseInstall = isBaseInstall)
 
     private fun apk(name: String, path: String, packageName: String): Apk {
-        val constructor = Apk::class.java.declaredConstructors.firstOrNull { it.parameterCount == 10 }
-            ?: error(Apk::class.java.declaredConstructors.joinToString("\n") { it.toGenericString() })
-        constructor.isAccessible = true
-        val args = constructor.parameterTypes.map { type ->
-            when {
-                type == String::class.java -> null
-                java.util.List::class.java.isAssignableFrom(type) -> emptyList<String>()
-                java.util.Map::class.java.isAssignableFrom(type) -> emptyMap<String, ApkEntry>()
-                else -> null
-            }
-        }.toMutableList()
-        args[0] = name
-        args[1] = "checksum"
-        args[2] = path
-        args[3] = packageName
-        return constructor.newInstance(*args.toTypedArray()) as Apk
+        return Apk(name, "checksum", path, packageName, emptyList(), emptyList(), emptyList(), emptyMap())
     }
 }

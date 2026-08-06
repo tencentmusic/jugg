@@ -17,10 +17,12 @@
 
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
-| `AsDeployerCompat` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | IDE 侧统一门面；按当前 AS 版本选择优先实现，并在兼容错误时尝试其他版本实现 |
-| `AsDeployerCompatDispatcher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | 兼容层方法分发器；显式捕获 AS API 兼容错误后 fallback，避免 JDK Proxy 在启动期反射解析缺失方法签名 |
-| `IAsDeployerCompat` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt` | deploy 兼容层接口，封装 APK provider、install session、swap、IDE deploy state、module info、Java debugger attach 等 AS 版本差异 API |
-| `IApplyChangesExecutor` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IApplyChangesExecutor.kt` | Host-neutral Apply Changes 执行面；Step 9 先由 standalone Quail 实现，IDE 编排迁移留到 Step 10 |
+| `AsDeployerCompat` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | IDE 侧统一门面；按当前 AS 版本选择优先实现，owner-bound deploy 调用固定使用该实现，只有纯查询允许兼容 fallback |
+| `AsDeployerCompatDispatcher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | 兼容层方法分发器；分别提供 priority-only 与兼容错误 fallback 调用，避免跨版本传递 runtime-owned wrapper |
+| `IAsDeployerCompat` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt` | deploy 兼容层接口，封装 install session、swap、IDE deploy state、module info、Java debugger attach 等 AS 版本差异 API |
+| `IApplyChangesExecutor` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IApplyChangesExecutor.kt` | Host-neutral Apply Changes 执行面；仅使用 `deploy.api` 自有设备、APK、overlay、arch 与 logger 类型 |
+| `DeployApiTypes` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/api/DeployApiTypes.kt` | 保持 `IDevice`、`Apk`、`ApkEntry`、`DexClass`、`ByteString` 等既有调用面的 Jugg 自有部署契约；`DexClass` 保留 D8 swap 已使用的字段重初始化状态 |
+| deploy API converters | `deploy_compat/v_chipmunk/.../LegacyDeployApiConverter.kt`、`deploy_compat/v_quail/.../QuailDeployApiConverter.kt`、`standalone_deployer/.../StandaloneDeployApiConverter.java` | 分别在版本 compat 实例和 standalone executor 内转换自有类型与真实 ddmlib/deployer/protobuf 类型；interface JAR 不承载 raw Android converter |
 | `JuggDeployCompatTypes` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployCompatTypes.kt` | 运行时中立 wrapper，承接 `JuggInstallSession`、`JuggOverlayId`、deployment cache entry、deployer exception 等 AS deployer 类型 |
 | `StandaloneApplyChangesExecutor` / `StandaloneDeployerResources` | `deploy_compat/standalone_deployer/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | Java 11 standalone install/session/cache/optimistic swap 实现，以及固定 Quail installer/protocol 资源预检 |
 | `JuggResourceManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggResourceManager.kt` | 在全局写锁内按 metadata 原子释放资源，校验 SHA-256 并修复损坏文件 |
@@ -67,6 +69,8 @@ Android Studio Quail（`AI-261.x`）已不再携带旧 `com.android.tools.deploy
 
 IDE 部署主路径（例如 `JuggDeployerHelper` / `JuggDeployTask` / `JuggDeployer` / `JuggDeploymentService` / `IdeaDeviceAdb`）不应直接 import、构造或持有旧 deployer runtime 类型，包括 `AdbClient`、`Installer`、`InstallOptions`、`UIService`、`OverlayId`、`DeploymentCacheDatabase.Entry`、`DeployerException`。这些类型只允许在 `deploy_compat` 的版本实现中局部创建，并通过 `JuggInstallSession`、`JuggOverlayId`、`JuggDeploymentCacheEntry`、`JuggDeployerException` 等 wrapper 返回主路径；`JuggDeploymentCacheStore` 只持久化 Jugg 自有 snapshot（APK path、overlay sha/base 标记与 overlay file checksum），加载后由 `JuggDeploymentService` 经 `AsDeployerCompat` 重新 parse APK、重建 OverlayId，并在进入 AS deployer swap 前按版本创建 `DeploymentCacheDatabase.Entry`。ADB transport 的 `shell` / `push` / `uninstall` / pid / arch 查询由 `IdeaDeviceAdbClient` 基于 `IDevice` 封装，不属于 AS deployer 版本兼容接口。ADB transport 恢复检查通过 `IDeviceAdb.isAdbTransportReady()` 暴露业务语义，调用方不注入 shell-ready 探针。
 
+共享调用中的 `IDevice`、`Apk`、`ApkEntry`、`DexClass`、`ByteString`、`DexComparator.ChangedClasses`、`Deploy.Arch` 与 `ILogger` 均来自 `com.sickworm.intellij.jugg.deploy.api`。类名和已依赖成员保持不变，使业务迁移主要表现为 import 变化；legacy compat 继承链复用 Chipmunk 边界 converter，Quail compat 与 standalone executor 各自持有独立 converter。设备 adapter identity 和 APK origin 映射由对应 compat/executor 实例持有弱引用缓存，不使用 interface 全局状态。共享 API 禁止重新暴露 ddmlib、deployer model、deploy proto、shaded protobuf 或 Android logger 类型。
+
 Run Configuration 的 Gradle module identity 通过反射调用 `GradleProjectPathKt.getGradleProjectPath(Module)` 获取 project path 与 build root，并结合 external project id 区分 composite build。该调用是可选增强，必须整体捕获 `Throwable`；类、方法或返回数据不符合预期时回退到原有 `module.name` 解析，禁止让 module identity 增强影响旧版 Android Studio 的 Configuration 创建流程。
 
 部署主路径也不应直接 import 或字段访问 `StudioFlags`。例如 install mode 通过 `IAsDeployerCompat.getInstallMode()` 获取；legacy compat 可读取旧 `StudioFlags.DELTA_INSTALL`，Quail compat 则提供不依赖该已移除 flag 的实现，避免新版 Android Studio 在 `JuggDeployTask` 触发 `NoSuchFieldError`。
@@ -85,7 +89,7 @@ Meerkat～Panda 与 Quail 的设备选择通过 `DeployTargetContext` 获取当�
 
 资源 metadata 的 protocol version 必须与 `Version.hash()` 一致。`JuggResourceManager` 将 installer、Apache 2.0 license、NOTICE 和 `SOURCE_CLASSES.sha256` 释放到 `~/.jugg/runtime/<runtimeVersion>/deployer/quail`，已存在文件必须先通过 SHA-256 校验，否则在全局写锁内原子修复；Java/installer 协议不一致时 daemon 启动立即失败。
 
-Standalone 使用真实 ddmlib `AdbClient`，不依赖 Quail IDE runtime 的 adblib application session。类 Apply Changes 调用 `OptimisticApkSwapper(restartActivity=false)`；资源 full swap 与现有 IDEA `JuggDeployer.fullSwap` 一致，使用 `restartActivity=true` 刷新 `AssetManager/Resources`，进程保持不变且 Activity 只发生一次预期重启。Step 9 只落地 executor 和资源，不迁移 IDEA deploy lifecycle，也不注册 standalone MCP deploy 能力。
+Standalone 使用真实 ddmlib `AdbClient`，不依赖 Quail IDE runtime 的 adblib application session。D8 split 生成的字段重初始化状态会经自有 `DexClass` 往返并交给 `OptimisticApkSwapper`，禁止在边界转换中丢弃。类 Apply Changes 调用 `OptimisticApkSwapper(restartActivity=false)`；资源 full swap 与现有 IDEA `JuggDeployer.fullSwap` 一致，使用 `restartActivity=true` 刷新 `AssetManager/Resources`，进程保持不变且 Activity 只发生一次预期重启。Step 9 只落地 executor 和资源，不迁移 IDEA deploy lifecycle，也不注册 standalone MCP deploy 能力。
 
 ### 3.3 平台抽象
 
@@ -93,7 +97,7 @@ Standalone 使用真实 ddmlib `AdbClient`，不依赖 Quail IDE runtime 的 adb
 |---|---|---|
 | IDE 插件 | `JuggManagerCreator.create()` | 设置为 `IdeaPlatformApi`，main 层可访问 IDE 侧服务 |
 | 命令行 | `CmdLine` companion init | 设置为 `CmdPlatformApi`，避免 main 层直接依赖 IDE runtime |
-| main / test 编译 | `platform_compat/base_api` | 提供 IntelliJ / Android API mock 或 stub，保证 main 模块可独立编译 |
+| main / test 编译与 CLI runtime | `platform_compat/base_api` | 提供 IntelliJ / log4j 最小实现；不再包含 `com.android.*`，CLI 可安全打包且不产生 Android class owner 冲突 |
 
 ---
 
@@ -106,10 +110,11 @@ JuggManager.init()
   -> AsDeployerCompat.init(logger)
      读取 ApplicationInfo，选择 priorityImpl
   -> 业务层调用 AsDeployerCompat.*
-     例如 selected devices、APK provider、installer、optimisticSwap、IDE deploy state
-  -> AsDeployerCompatDispatcher 先调用 priorityImpl
-     若抛出 NoSuchMethodError / NoSuchFieldError / NoClassDefFoundError / IncompatibleClassChangeError
-  -> 逐个尝试其他版本实现
+     设备、APK、installer、overlay、cache、redefiner 等 owner-bound 调用
+       -> 只调用 priorityImpl；错误原样上抛
+     install mode、运行配置建议、module info 等纯查询
+       -> 先调用 priorityImpl
+       -> 兼容错误时逐个尝试其他版本实现
      成功即返回；全部失败才 warn 并抛出原兼容异常
 ```
 
@@ -142,11 +147,12 @@ CI 命令行把构建拆成两个可审计阶段：
 
 - `IAsDeployerCompat.updateMinApi()` 会根据兼容部署开关在 Android 11 与 Android 8 之间切换最小设备 API；排查“旧设备能否部署”时不要只看当前 AS 版本。
 - `setAllowSelectDevice()` 是早期特殊 API，`AsDeployerCompat` 会遍历所有实现尝试调用；不要把它改成只走 priorityImpl。
+- runtime owner 对象只能回到创建它的 priority compat；不要给设备、APK、install session、overlay、cache 或 redefiner 调用增加跨版本 fallback。
 - 新增 Android Studio 版本时，至少要新增 `deploy_compat/v_*` 实现，并同步 `AsDeployerCompat.compatImplList` 的顺序和本文档版本表。
 - 真实 Android Studio JAR 只能通过本地 `deploy_compat/local.properties` 临时接入，不得重新放回 `deploy_compat/v_*/libs`。
 - 不要在 `AsDeployerCompat` 启动初始化阶段反射 `IAsDeployerCompat` 全量方法；高版本 AS 可能已经删除旧 deployer 类型，反射解析会早于业务 fallback 直接终止插件初始化。
 - 不要在 `JuggDeployTask` / `JuggDeployer` 等主路径直接访问 `StudioFlags` 字段；新增 flag 读取必须经兼容接口或安全反射封装。
-- `platform_compat/base_api` 只解决编译期 API 缺口，不表示运行时一定有对应 IDE 行为；运行时能力仍以当前 AS API 和 compat 实现为准。
+- `platform_compat/base_api` 不得包含 `com/android/**`；Android runtime class 必须由 ddmlib、standalone deployer 或 protocol JAR 唯一提供。
 - 自定义编译器示例在 `custom_compilers`，生产装载由 `CustomCompilerManager` 读取 `build/jugg/config/custom_compilers`；示例代码不是默认编译阶段。
 - `buildIncrementalApk` 的 `changedFiles` 是外部契约，不是提示信息。过滤后数量与输入不一致、路径越界或含 build file 都必须明确失败，不能静默跳过后继续产出 APK。
 
@@ -158,7 +164,7 @@ CI 命令行把构建拆成两个可审计阶段：
 |---|---|
 | 某 AS 版本部署 API 崩溃 | `AsDeployerCompat` 的 priorityImpl 选择和 proxy fallback 日志 |
 | 新版 AS 上 `NoSuchMethodError` / `NoClassDefFoundError` | 对应 `deploy_compat/v_*/*AsDeployerCompat.kt`，确认是否需要新增更高版本实现 |
-| 设备选择 / APK provider 与 IDE 行为不一致 | `IAsDeployerCompat.getSelectedDevices()` / `getApkProvider()` 的版本实现 |
+| 设备选择与 IDE 行为不一致 | `IAsDeployerCompat.getSelectedDevices()` 的版本实现 |
 | main 模块编译缺 IDE API | `platform_compat/base_api` 是否缺 stub |
 | CLI 行为与 IDE 不一致 | `CmdLine`、`CmdPlatformApi`、`IdeaPlatformApi` |
 | CI 增量基线提示 `.dirty` | 当前基线已被一次增量构建消费；重新复制未修改的 `buildGradleBase` 产物后再执行 |

@@ -1,16 +1,12 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.DexComparator
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.run.AndroidRunConfiguration
-import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.DeploymentService
-import com.android.tools.idea.protobuf.ByteString
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.Deploy
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.Logger
@@ -98,10 +94,6 @@ object AsDeployerCompat : IAsDeployerCompat {
         this.priorityImpl = impl
     }
 
-    override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
-        return invokeCompat { it.getApkProvider(project, config) }
-    }
-
     override fun getSelectedDevices(project: Project): List<IDevice>? {
         return invokeCompat { it.getSelectedDevices(project) }
     }
@@ -139,13 +131,13 @@ object AsDeployerCompat : IAsDeployerCompat {
         project: Project,
         device: IDevice,
         fallback: Boolean
-    ): Map<Int, ClassRedefiner> {
+    ): Map<Int, JuggClassRedefiner> {
         return invokeCompat { it.makeDebuggerRedefiners(project, device, fallback) }
     }
 
     override fun optimisticSwap(
         session: JuggInstallSession,
-        redefiners: Map<Int, ClassRedefiner>,
+        redefiners: Map<Int, JuggClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
@@ -173,10 +165,6 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {
         return invokeCompat { it.getIdeDeployStateResult(project, device, packageName) }
-    }
-
-    override fun getDeploymentService(project: Project): DeploymentService {
-        return invokeCompat { it.getDeploymentService(project) }
     }
 
     override fun parseApks(paths: List<String>): List<Apk> {
@@ -261,6 +249,7 @@ object AsDeployerCompat : IAsDeployerCompat {
             logWarn = { logger.get()?.warn(it) },
         ).invoke { call(it.impl.value) }
     }
+
 }
 
 /**

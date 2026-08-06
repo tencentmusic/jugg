@@ -25,8 +25,8 @@
 | 项目变化域 | `main/.../project/change` + `idea/.../project/change` | 文件变化检测契约、过滤和 IDE VFS/Git detector |
 | 任务与锁域 | `main/.../project/runtime/TaskRunnerManager.kt`, `ExecutionLockManager.kt` | 统一任务串行、项目/全局跨进程锁、后台 Job 跟踪、完成事件上报和 dispose 取消；IDEA 仅提供任务展示 adapter，完成事件直接交给共享 `JuggServer` |
 | 编译上下文域 | `main/.../compiler/context` | 共享 Compile Context 生命周期、full-build path 覆盖和 Gradle-only context；不依赖 IDEA model API |
-| 兼容层 | `deploy_compat/*` | Android Studio 版本 API 适配 |
-| 平台桩层 | `platform_compat/base_api` | API mock，支撑非 IDE 场景编译/测试 |
+| 兼容层 | `deploy_compat/*` | Android Studio 版本 API 适配；共享部署调用使用 `deploy.api` 自有类型，外部类型只在边界转换 |
+| 平台桩层 | `platform_compat/base_api` | IntelliJ/log4j 最小实现，支撑非 IDE 编译并作为 CLI runtime stub；不提供 Android runtime class |
 | 运行时层 | `jvmti_agent/src/main/cpp` | JVMTI agent 与兼容部署支撑 |
 
 ---
@@ -66,6 +66,7 @@
 - **Runtime 聚合后置**：项目模型、文件变化、配置和编译/部署编排形成可复用的具体领域实现后，再建立共享 Runtime 聚合；当前不为单一 IDEA 实现预建生命周期、binder 或 controller 接口。
 - **设备状态隔离**：共享 `DeployStateManager` 依赖 `IHostDeployStateResolver`，IDEA 设备状态读取由 `IdeaHostDeployStateResolver` 提供。
 - **兼容层隔离**：AS 版本差异集中在 `deploy_compat`，减少业务污染。
+- **部署类型隔离**：共享层保留 `IDevice`、`Apk`、`ApkEntry` 等既有调用面，但类型归属 `com.sickworm.intellij.jugg.deploy.api`；IDEA compat 与 standalone executor 转换真实 Android 类型。
 - **协议内聚**：MCP 在 `main/.../ai/mcp` 独立分层，不与 IDE UI 逻辑强耦合。
 - **稳定 UI 桥接**：`ide_entry` 只通过 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载热更新 Panel，不暴露 Model、Event 或 UI DTO。
 - **统一事件模型**：`main/.../event` 保存无 Project/Swing 依赖的 snapshot 与核心事件；leaf compiler/deployer 继续使用日志，上层编排边界记录用户可读事件。

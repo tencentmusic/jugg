@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.ddmlib.IDevice
 import com.android.tools.idea.log.LogWrapper
 import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
@@ -11,15 +10,18 @@ import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOfflineException
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import java.io.File
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
 
 class IdeaDeviceAdb(
-    private val device: IDevice,
+    private val juggDevice: IDevice,
     ideaLoggerArg: Logger,
 ) : IDeviceAdb {
+
+    private val device = juggDevice.toStudioDevice()
 
     private val logger = ideaLoggerArg.getInstance("IdeaDeviceAdb")
 
@@ -39,7 +41,7 @@ class IdeaDeviceAdb(
         it.alwaysLogAsDebug(true)
         it.allowVerbose(true)
     }
-    private val adbClient = IdeaDeviceAdbClient(device, loggerWrapper)
+    private val adbClient = IdeaDeviceAdbClient(juggDevice, loggerWrapper)
 
     override fun execAdbShellCmd(cmd: String): String {
         synchronized(IdeaDeviceAdb::class.java) {

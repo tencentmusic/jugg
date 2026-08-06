@@ -1,14 +1,12 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.DexComparator
-import com.android.tools.idea.run.*
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
+import com.sickworm.intellij.jugg.deploy.api.Deploy
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
@@ -20,8 +18,6 @@ import java.io.File
  * Compat for Android Studio Deployer API
  */
 interface IAsDeployerCompat {
-
-    fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider
 
     /**
      * Returns devices selected in the IDE that are already running.
@@ -50,11 +46,11 @@ interface IAsDeployerCompat {
 
     fun getInstallMode(): JuggInstallSession.Mode
 
-    fun makeDebuggerRedefiners(project: Project, device: IDevice, fallback: Boolean): Map<Int, ClassRedefiner>
+    fun makeDebuggerRedefiners(project: Project, device: IDevice, fallback: Boolean): Map<Int, JuggClassRedefiner>
 
     fun optimisticSwap(
         session: JuggInstallSession,
-        redefiners: Map<Int, ClassRedefiner>,
+        redefiners: Map<Int, JuggClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
@@ -66,8 +62,6 @@ interface IAsDeployerCompat {
     ): JuggOverlayId
 
     fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState
-
-    fun getDeploymentService(project: Project): DeploymentService
 
     fun parseApks(paths: List<String>): List<Apk>
 

@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import java.util.concurrent.atomic.AtomicBoolean

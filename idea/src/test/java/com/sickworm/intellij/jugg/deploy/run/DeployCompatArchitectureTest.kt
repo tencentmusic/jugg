@@ -4,11 +4,77 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.jar.JarFile
 
 /**
  * Guards deploy compatibility boundaries that Gradle module dependencies cannot fully express.
  */
 class DeployCompatArchitectureTest {
+
+    @Test
+    fun `shared apply changes api does not expose Android runtime types`() {
+        val paths = listOf(
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/api/DeployApiTypes.kt",
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IApplyChangesExecutor.kt",
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployCompatTypes.kt",
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggOverlayUpdate.kt",
+        )
+        val forbiddenPackages = listOf(
+            "com.android.ddmlib",
+            "com.android.tools.deploy.proto",
+            "com.android.tools.deployer",
+            "com.android.tools.idea.protobuf",
+            "com.android.utils",
+        )
+
+        paths.forEach { path ->
+            val text = findRepoFile(path).readText()
+            forbiddenPackages.forEach { forbiddenPackage ->
+                assertFalse("$path should not expose $forbiddenPackage", text.contains(forbiddenPackage))
+            }
+        }
+
+        assertFalse(
+            "deploy interface should not contain shared Android runtime converters",
+            findRepoFile("deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run")
+                .resolve("StudioDeployApiConverters.kt").exists(),
+        )
+
+        val interfaceJar = findRepoFile("deploy_compat/interface/build/libs").listFiles()
+            .orEmpty().filter { it.extension == "jar" }.maxByOrNull(File::lastModified)
+            ?: error("deploy interface jar was not built")
+        JarFile(interfaceJar).use { jar ->
+            val entries = jar.entries().asSequence().filter { entry ->
+                !entry.isDirectory && entry.name.endsWith(".class")
+            }
+            entries.forEach { entry ->
+                val bytecode = jar.getInputStream(entry).readBytes().toString(Charsets.ISO_8859_1)
+                if (!isIdeOnlyAndroidRuntimeEntry(entry.name)) {
+                    assertFalse("${entry.name} should not link Android runtime classes", bytecode.contains("com/android/"))
+                }
+            }
+        }
+
+        val ideaBoundary = findRepoFile(
+            "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt",
+        ).readText()
+        listOf(
+            "com.android.ddmlib",
+            "com.android.tools.deploy.proto",
+            "com.android.tools.deployer.model",
+            "com.android.tools.idea.protobuf",
+            "com.android.utils",
+        ).forEach { forbiddenPackage ->
+            assertFalse("IAsDeployerCompat should not expose $forbiddenPackage", ideaBoundary.contains(forbiddenPackage))
+        }
+    }
+
+    @Test
+    fun `IDE only Android runtime allowlist rejects same prefix classes`() {
+        assertTrue(isIdeOnlyAndroidRuntimeEntry("${IDE_ONLY_ANDROID_RUNTIME_CLASSES.first()}.class"))
+        assertTrue(isIdeOnlyAndroidRuntimeEntry("${IDE_ONLY_ANDROID_RUNTIME_CLASSES.first()}\$Companion.class"))
+        assertFalse(isIdeOnlyAndroidRuntimeEntry("${IDE_ONLY_ANDROID_RUNTIME_CLASSES.first()}Converter.class"))
+    }
 
     @Test
     fun `compat modules only use versioned stub api jars`() {
@@ -109,6 +175,15 @@ class DeployCompatArchitectureTest {
     }
 
     @Test
+    fun `IDE compat facade keeps best effort fallback for every API`() {
+        val facade = findRepoFile(
+            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt",
+        ).readText()
+
+        assertFalse("AsDeployerCompat should not bypass compatibility fallback", facade.contains("invokePriority"))
+    }
+
+    @Test
     fun `deployment cache store stays independent from studio deployer runtime`() {
         assertFalse(
             "Deployment cache store should use local source implementation instead of reflection",
@@ -149,5 +224,20 @@ class DeployCompatArchitectureTest {
             current = current.parentFile ?: break
         }
         return null
+    }
+
+    private fun isIdeOnlyAndroidRuntimeEntry(entryName: String): Boolean {
+        return IDE_ONLY_ANDROID_RUNTIME_CLASSES.any { className ->
+            entryName == "$className.class" ||
+                entryName.startsWith("$className\$") && entryName.endsWith(".class")
+        }
+    }
+
+    private companion object {
+        val IDE_ONLY_ANDROID_RUNTIME_CLASSES = listOf(
+            "com/sickworm/intellij/jugg/deploy/run/AndroidDebugClientReadyWaiter",
+            "com/sickworm/intellij/jugg/deploy/run/AndroidStudioDebuggerAttachStarter",
+            "com/sickworm/intellij/jugg/deploy/run/JavaDebuggerSessionStarter",
+        )
     }
 }

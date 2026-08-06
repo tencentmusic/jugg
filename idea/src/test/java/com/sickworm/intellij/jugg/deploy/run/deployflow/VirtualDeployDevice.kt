@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.ddmlib.IDevice
-import com.android.sdklib.AndroidVersion
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.AndroidVersion
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import org.mockito.Mockito
 import java.io.File
@@ -50,7 +50,7 @@ class VirtualDeployDevice(
         Mockito.`when`(device.name).thenReturn("virtual-$serial")
         Mockito.`when`(device.isOnline).thenReturn(true)
         Mockito.`when`(device.version).thenReturn(AndroidVersion(30, null))
-        Mockito.`when`(device.clients).thenReturn(emptyArray())
+        Mockito.`when`(device.clientCount).thenReturn(0)
         device
     }
 

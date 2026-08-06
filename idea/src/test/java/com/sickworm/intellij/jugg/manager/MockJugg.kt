@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.log.LogWrapper
 import com.intellij.ide.util.PropertiesComponent
@@ -29,6 +29,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.LegacyDeviceAdapter
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -171,7 +172,7 @@ class MockJugg(
         assertEquals(1, pids.size)
 
         val arch = adb.getArch(pids)
-        assertEquals(Deploy.Arch.ARCH_64_BIT, arch)
+        assertEquals(com.android.tools.deploy.proto.Deploy.Arch.ARCH_64_BIT, arch)
     }
 
     /**
@@ -349,11 +350,11 @@ class MockJugg(
             }
 
             override fun getSelectedDevices(): List<IDevice> {
-                return adbDeviceHelper.getSelectedDeviceList()
+                return adbDeviceHelper.getSelectedDeviceList().map(::LegacyDeviceAdapter)
             }
 
             override fun getConnectedDevices(): List<IDevice> {
-                return adbDeviceHelper.getDeviceList()
+                return adbDeviceHelper.getDeviceList().map(::LegacyDeviceAdapter)
             }
 
             override fun startApp(device: IDevice): Boolean {

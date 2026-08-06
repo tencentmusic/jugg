@@ -2,11 +2,12 @@ package com.sickworm.intellij.jugg.deploy.run.utils
 
 import com.android.tools.idea.log.LogWrapper
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 
 /**
  * only print warning and error
  */
-class AdbLogWrapper(val logger: Logger) : LogWrapper(logger) {
+class AdbLogWrapper(val logger: Logger) : LogWrapper(logger), ILogger {
 
     var realErrorMessage: String? = null
         private set

@@ -1,12 +1,12 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.Client
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.android.sdklib.AndroidVersion
-import com.android.tools.deploy.proto.Deploy
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.android.tools.deployer.AdbInstaller
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
 import com.android.tools.deployer.MetricsRecorder
 import com.android.tools.deployer.OptimisticApkSwapper
 import com.android.tools.deployer.common.AdbClient
@@ -19,9 +19,8 @@ import com.android.tools.deployer.common.OverlayId
 import com.android.tools.deployer.common.UIService
 import com.android.tools.deployer.install.ApkInstaller
 import com.android.tools.deployer.install.InstallMode
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.deployer.model.ApkParser
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
 import com.android.tools.deployer.model.App
 import com.android.tools.deployer.model.AppState
 import com.android.tools.deployer.model.DeploymentPlan
@@ -29,15 +28,11 @@ import com.android.tools.idea.adb.AdbService
 import com.android.tools.idea.adblib.AdbLibApplicationService
 import com.android.tools.idea.execution.common.DeployableToDevice
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
-import com.android.tools.idea.projectsystem.getProjectSystem
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.ByteString
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.AndroidRunConfigurationType
-import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.DeploymentService
 import com.android.tools.idea.run.editor.DeployTargetContext
-import com.android.utils.ILogger
-import com.google.common.collect.ImmutableMap
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.RunConfigurationBase
@@ -54,18 +49,16 @@ import java.nio.file.Path
  */
 open class QuailAsDeployerCompat : IAsDeployerCompat {
 
+    private val deployApiConverter = QuailDeployApiConverter()
+
     private val deployOptions = DeployerOption.Builder().build()
 
     private val metrics = MetricsRecorder()
 
-    override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
-        return project.getProjectSystem().getApkProvider(config)!!
-    }
-
     override fun getSelectedDevices(project: Project): List<IDevice>? {
         val deployTarget = DeployTargetContext().currentDeployTargetProvider.getDeployTarget(project)
         val selectedDevices = deployTarget.getAndroidDevices(project)
-        val readyDevices = selectedDevices.mapNotNull { it.ddmlibDevice }
+        val readyDevices = selectedDevices.mapNotNull { it.ddmlibDevice }.map(::toJuggDevice)
         return readyDevices.takeIf {
             it.isNotEmpty() && it.size == selectedDevices.size
         }
@@ -74,7 +67,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
     override fun getConnectedDevices(project: Project): List<IDevice>? {
         val adb = AndroidSdkUtils.getAdb(project)?.toPath() ?: return null
         val debugBridge = AdbService.getInstance().getDebugBridge(adb.toFile())
-        return debugBridge.get().devices?.toList()
+        return debugBridge.get().devices?.map(::toJuggDevice)
     }
 
     override fun createInstallSession(
@@ -85,13 +78,15 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         onMessage: (String) -> Unit,
     ): JuggInstallSession {
         val mode = AdbInstaller.Mode.DAEMON
-        val installer = AdbInstaller(installersFolder, createAdbClient(device, logger), metrics.deployMetrics, logger, mode)
+        val studioLogger = toStudioLogger(logger)
+        val installer = AdbInstaller(installersFolder, createAdbClient(toStudioDevice(device), studioLogger), metrics.deployMetrics, studioLogger, mode)
         return JuggInstallSession(installer, installer.version, onPrompt, onMessage)
     }
 
     private fun createInstallOptions(device: IDevice, applicationId: String): InstallOptions {
+        val studioDevice = toStudioDevice(device)
         val options = InstallOptions.builder().setAllowDebuggable()
-        if (device.supportsFeature(IDevice.HardwareFeature.EMBEDDED)) {
+        if (studioDevice.supportsFeature(com.android.ddmlib.IDevice.HardwareFeature.EMBEDDED)) {
             options.setGrantAllPermissions()
         }
         if (device.version.isGreaterOrEqualThan(28)) {
@@ -100,7 +95,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         if (device.version.isGreaterOrEqualThan(AndroidVersion.VersionCodes.N)) {
             options.setDontKill()
         }
-        options.setSkipVerification(device, applicationId)
+        options.setSkipVerification(studioDevice, applicationId)
         return options.build()
     }
 
@@ -112,11 +107,12 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         apks: List<String>,
         installMode: JuggInstallSession.Mode,
     ): Boolean {
+        val studioLogger = toStudioLogger(logger)
         val apkInstaller = ApkInstaller(
-            createAdbClient(device, logger),
+            createAdbClient(toStudioDevice(device), studioLogger),
             session.toQuailUiService(),
             session.rawInstaller as Installer,
-            logger,
+            studioLogger,
         )
         val app = App.fromPaths(packageName, apks.map { Path.of(it) })
         val deploymentPlan = DeploymentPlan(app, AppState(""))
@@ -138,13 +134,13 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         project: Project,
         device: IDevice,
         fallback: Boolean,
-    ): Map<Int, ClassRedefiner> {
-        return ImmutableMap.of()
+    ): Map<Int, JuggClassRedefiner> {
+        return emptyMap()
     }
 
     override fun optimisticSwap(
         session: JuggInstallSession,
-        redefiners: Map<Int, ClassRedefiner>,
+        redefiners: Map<Int, JuggClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
@@ -156,12 +152,12 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
     ): JuggOverlayId {
         val swapper = OptimisticApkSwapper(
             session.rawInstaller as Installer,
-            redefiners,
+            redefiners.mapValues { it.value.raw as ClassRedefiner },
             argRestart,
             deployOptions,
             metrics,
         )
-        val swapResult = swapper.optimisticSwap(packageName, pids, arch, overlayUpdate.raw as OptimisticApkSwapper.OverlayUpdate)
+        val swapResult = swapper.optimisticSwap(packageName, pids, toStudioArch(arch), overlayUpdate.raw as OptimisticApkSwapper.OverlayUpdate)
         return swapResult.overlayId.toJuggOverlayId()
     }
 
@@ -172,31 +168,28 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         if (packageName == null) {
             return IdeDeployState.canNotDetectApplicationId
         }
-        return if (device.state == IDevice.DeviceState.UNAUTHORIZED) {
+        val studioDevice = toStudioDevice(device)
+        return if (studioDevice.state == com.android.ddmlib.IDevice.DeviceState.UNAUTHORIZED) {
             IdeDeployState.deviceNotAuthorized
         } else if (!device.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
             IdeDeployState.incompatibleDeviceApiLevel
-        } else if (findClient(device, packageName).isEmpty()) {
+        } else if (findClient(studioDevice, packageName).isEmpty()) {
             IdeDeployState.appNotRunningOrNotDebuggable
         } else {
             IdeDeployState.ok
         }
     }
 
-    override fun getDeploymentService(project: Project): DeploymentService {
-        return DeploymentService.getInstance()
-    }
-
     override fun parseApks(paths: List<String>): List<Apk> {
-        return ApkParser.parsePaths(paths)
+        return com.android.tools.deployer.model.ApkParser.parsePaths(paths).map(::toJuggApk)
     }
 
     override fun getPackageName(apks: List<Apk>): String {
-        return ApplicationDumper.getPackageName(apks)
+        return ApplicationDumper.getPackageName(apks.map(::toStudioApk))
     }
 
     override fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId {
-        return OverlayId(apks).toJuggOverlayId()
+        return OverlayId(apks.map(::toStudioApk)).toJuggOverlayId()
     }
 
     override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId {
@@ -212,14 +205,15 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
     ): JuggOverlayUpdate {
         val raw = OptimisticApkSwapper.OverlayUpdate(
             cachedDump.raw as com.android.tools.deployer.common.DeploymentCacheDatabase.Entry,
-            dexOverlays,
-            fileOverlays,
+            toStudioChangedClasses(dexOverlays),
+            fileOverlays.mapKeys { toStudioApkEntry(it.key) }.mapValues { toStudioByteString(it.value) },
         )
         return JuggOverlayUpdate(cachedDump, dexOverlays, fileOverlays, raw)
     }
 
     override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> {
-        return ApplicationDumper(session.rawInstaller as Installer).dump(apks).apks
+        return ApplicationDumper(session.rawInstaller as Installer).dump(apks.map(::toStudioApk)).apks
+            .map(::toJuggApk)
     }
 
     override fun remoteApkNotFound(): JuggDeployerException {
@@ -240,7 +234,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
 
     override fun createDeploymentCacheEntry(apks: List<Apk>, overlayId: JuggOverlayId): JuggDeploymentCacheEntry {
         val database = com.android.tools.deployer.common.DeploymentCacheDatabase(1)
-        database.store(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME, apks, overlayId.raw as OverlayId)
+        database.store(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME, apks.map(::toStudioApk), overlayId.raw as OverlayId)
         val entry = database.get(MEMORY_DEVICE_SERIAL, MEMORY_PACKAGE_NAME)
         return JuggDeploymentCacheEntry(entry, apks, overlayId)
     }
@@ -250,8 +244,32 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
     }
 
     override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
-        val client = AndroidDebugClientReadyWaiter().waitForWaitingDebuggerClient(device, packageName)
+        val client = AndroidDebugClientReadyWaiter().waitForWaitingDebuggerClient(toStudioDevice(device), packageName)
         AndroidStudioDebuggerAttachStarter().attachExistingProcess(project, client)
+    }
+
+    protected fun toJuggDevice(device: com.android.ddmlib.IDevice): IDevice = deployApiConverter.toJuggDevice(device)
+
+    protected fun toStudioDevice(device: IDevice): com.android.ddmlib.IDevice = deployApiConverter.toStudioDevice(device)
+
+    protected fun toStudioLogger(logger: ILogger): com.android.utils.ILogger = deployApiConverter.toStudioLogger(logger)
+
+    protected fun toJuggApk(apk: com.android.tools.deployer.model.Apk): Apk = deployApiConverter.toJuggApk(apk)
+
+    protected fun toStudioApk(apk: Apk): com.android.tools.deployer.model.Apk = deployApiConverter.toStudioApk(apk)
+
+    protected fun toStudioApkEntry(entry: ApkEntry): com.android.tools.deployer.model.ApkEntry = deployApiConverter.toStudioApkEntry(entry)
+
+    protected fun toStudioByteString(content: ByteString): com.android.tools.idea.protobuf.ByteString {
+        return deployApiConverter.toStudioByteString(content)
+    }
+
+    protected fun toStudioChangedClasses(changes: DexComparator.ChangedClasses): com.android.tools.deployer.DexComparator.ChangedClasses {
+        return deployApiConverter.toStudioChangedClasses(changes)
+    }
+
+    protected fun toStudioArch(arch: Deploy.Arch): com.android.tools.deploy.proto.Deploy.Arch {
+        return deployApiConverter.toStudioArch(arch)
     }
 
     override fun getSuggestRunConfigurations(
@@ -354,10 +372,10 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         return IdeAndroidTestPackageReader.read(gradleAndroidModel)
     }
 
-    private fun findClient(device: IDevice, packageName: String): List<Client> {
+    private fun findClient(device: com.android.ddmlib.IDevice, packageName: String): List<Client> {
         val clazz = Class.forName("com.android.tools.idea.run.DeploymentApplicationService")
         val instance = clazz.getMethod("getInstance").invoke(null)
-        val method = clazz.getMethod("findClient", IDevice::class.java, String::class.java)
+        val method = clazz.getMethod("findClient", com.android.ddmlib.IDevice::class.java, String::class.java)
         @Suppress("UNCHECKED_CAST")
         return method.invoke(instance, device, packageName) as List<Client>
     }
@@ -370,7 +388,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         }.getOrNull()
     }
 
-    private fun createAdbClient(device: IDevice, logger: ILogger): AdbClient {
+    private fun createAdbClient(device: com.android.ddmlib.IDevice, logger: com.android.utils.ILogger): AdbClient {
         return AdbClient(device, logger, AdbLibApplicationService.instance.session)
     }
 

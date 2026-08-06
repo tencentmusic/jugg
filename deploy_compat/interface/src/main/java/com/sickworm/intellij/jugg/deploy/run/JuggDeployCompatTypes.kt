@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.Apk
 
 /**
  * Runtime-neutral wrappers for Android Studio deployer objects whose packages move between releases.

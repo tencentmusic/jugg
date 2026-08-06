@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.tools.deployer.model.Apk
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
 
 /**

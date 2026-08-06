@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.android.tools.deployer.*
 import com.android.tools.deployer.model.App
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import java.nio.file.Path
 
 open class NarwhalAsDeployerCompat: MeerkatAsDeployerCompat() {
@@ -16,8 +16,9 @@ open class NarwhalAsDeployerCompat: MeerkatAsDeployerCompat() {
         apks: List<String>,
         installMode: JuggInstallSession.Mode,
     ): Boolean {
-        val adb = createLegacyAdbClient(device, logger)
-        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, logger)
+        val studioLogger = toStudioLogger(logger)
+        val adb = createLegacyAdbClient(toStudioDevice(device), studioLogger)
+        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, studioLogger)
 
         // only deployerOption.maxDeltaInstallPatchSize is read. if maxDeltaInstallPatchSize reach limits
         // then "Falling back to standard full install"

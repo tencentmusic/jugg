@@ -80,3 +80,7 @@ dependencies {
 
 // Apply external distribution and packaging configuration
 apply from: 'cmdline-distribution.gradle'
+
+tasks.named('test').configure {
+    dependsOn(tasks.named('installDist'))
+}

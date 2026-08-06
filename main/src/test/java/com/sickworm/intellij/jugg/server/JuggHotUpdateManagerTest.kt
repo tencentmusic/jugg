@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.server
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.FileProcessingWaitResult
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager

@@ -2,14 +2,16 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.AndroidDebugBridge
 import com.android.ddmlib.CollectingOutputReceiver
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
+import com.android.ddmlib.IDevice as RawDevice
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.android.tools.deployer.ApkEntryExtractor
 import com.android.tools.deployer.D8DexSplitter
 import com.android.tools.deployer.DexComparator
+import com.android.tools.deployer.OptimisticApkSwapper
 import com.android.tools.deployer.common.AdbClient
 import com.android.tools.deployer.common.ApkDiffer
 import com.android.tools.deployer.common.DeploymentCacheDatabase
+import com.android.tools.deployer.model.ApkParser
 import com.android.tools.deployer.model.FileDiff
 import com.android.utils.StdLogger
 import org.junit.After
@@ -40,15 +42,18 @@ class StandaloneDeployerDeviceFlowTest {
 
         val device = connectDevice(serial!!)
         val executor = StandaloneApplyChangesExecutor()
+        val converter = StandaloneDeployApiConverter()
+        val juggDevice = converter.toJuggDevice(device)
         val prepared = StandaloneDeployerResources.prepare("device-flow")
         val logger = StdLogger(StdLogger.Level.VERBOSE)
         val baseline = executor.parseApks(listOf(baselineApk!!.path))
         val packageName = executor.getPackageName(baseline)
-        val session = executor.createInstallSession(prepared.directory.resolve("installer").path, device, logger, { true }, {})
+        val juggLogger = converter.toJuggLogger(logger)
+        val session = executor.createInstallSession(prepared.directory.resolve("installer").path, juggDevice, juggLogger, { true }, {})
 
         shell(device, "am force-stop $packageName")
         device.uninstallPackage(packageName)
-        executor.install(device, session, logger, packageName, listOf(baselineApk.path), JuggInstallSession.Mode.FULL)
+        executor.install(juggDevice, session, juggLogger, packageName, listOf(baselineApk.path), JuggInstallSession.Mode.FULL)
         shell(device, "logcat -c")
         shell(device, "am start -W -n $packageName/.MainActivity")
         val initialPid = waitForPid(device, packageName)
@@ -56,14 +61,14 @@ class StandaloneDeployerDeviceFlowTest {
         waitForLog(device, "[JUGG_BENCH] VALUE=resource-v1")
 
         var cache = executor.createDeploymentCacheEntry(baseline, executor.createBaseOverlayId(baseline))
-        cache = deploy(executor, session, device, packageName, cache, classApk!!.path,
+        cache = deploy(executor, converter, session, device, packageName, cache, classApk!!.path,
             "com.example.myapplication.MainActivity")
         assertEquals(initialPid, waitForPid(device, packageName))
         triggerRender(device, packageName)
         waitForLog(device, "[JUGG_BENCH] VALUE=RESOURCE-V1")
         assertEquals(1, activityStartCount(device))
 
-        cache = deploy(executor, session, device, packageName, cache, resourceApk!!.path, restartActivity = true)
+        cache = deploy(executor, converter, session, device, packageName, cache, resourceApk!!.path, restartActivity = true)
         assertTrue(cache.overlayId.sha.isNotBlank())
         assertEquals(initialPid, waitForPid(device, packageName))
         triggerRender(device, packageName)
@@ -74,8 +79,9 @@ class StandaloneDeployerDeviceFlowTest {
 
     private fun deploy(
         executor: StandaloneApplyChangesExecutor,
+        converter: StandaloneDeployApiConverter,
         session: JuggInstallSession,
-        device: IDevice,
+        device: RawDevice,
         packageName: String,
         cache: JuggDeploymentCacheEntry,
         apkPath: String,
@@ -83,25 +89,36 @@ class StandaloneDeployerDeviceFlowTest {
         restartActivity: Boolean = false,
     ): JuggDeploymentCacheEntry {
         val apks = executor.parseApks(listOf(apkPath))
-        val diffs = ApkDiffer().specDiff(cache.raw as DeploymentCacheDatabase.Entry, apks)
+        val rawApks = ApkParser.parsePaths(listOf(apkPath))
+        val diffs = ApkDiffer().specDiff(cache.raw as DeploymentCacheDatabase.Entry, rawApks)
         val dexDiffs = diffs.filter { it.newFile?.name?.endsWith(".dex") == true }
         val changedClasses = DexComparator().compare(dexDiffs, D8DexSplitter())
         val files = ApkEntryExtractor { path ->
             path == "resources.arsc" || path.startsWith("res/") || path.startsWith("assets/")
-        }.extractFromDiffs(diffs.filter { it.status != FileDiff.Status.DELETED }, cache.apks.first())
+        }.extractFromDiffs(
+            diffs.filter { it.status != FileDiff.Status.DELETED },
+            ApkParser.parsePaths(listOf(cache.apks.first().path)).first(),
+        )
         val changedClassNames = (changedClasses.newClasses + changedClasses.modifiedClasses).map { it.name }
         if (expectedClass != null) assertTrue(expectedClass in changedClassNames,
             "Expected $expectedClass in changed classes: $changedClassNames")
         assertTrue(changedClasses.newClasses.isNotEmpty() || changedClasses.modifiedClasses.isNotEmpty() || files.isNotEmpty(),
             "APK diff did not produce deployable changes")
-        val update = executor.createOverlayUpdate(cache, changedClasses, files)
+        val update = JuggOverlayUpdate(
+            cache,
+            converter.toJuggChangedClasses(changedClasses),
+            files.mapKeys { converter.toJuggApkEntry(it.key) }.mapValues { converter.toJuggByteString(it.value) },
+            OptimisticApkSwapper.OverlayUpdate(cache.raw as DeploymentCacheDatabase.Entry, changedClasses, files),
+        )
         val pid = waitForPid(device, packageName).toInt()
-        val arch = AdbClient.getArchForAbi(device.abis.first()) ?: Deploy.Arch.ARCH_64_BIT
+        val arch = AdbClient.getArchForAbi(device.abis.first())
+            ?.let { Deploy.Arch.valueOf(it.name) }
+            ?: Deploy.Arch.ARCH_64_BIT
         val overlayId = executor.optimisticSwap(session, emptyMap(), packageName, restartActivity, listOf(pid), arch, update)
         return executor.createDeploymentCacheEntry(apks, overlayId)
     }
 
-    private fun connectDevice(serial: String): IDevice {
+    private fun connectDevice(serial: String): RawDevice {
         AndroidDebugBridge.initIfNeeded(false)
         bridge = AndroidDebugBridge.createBridge(resolveAdb().path, false)
         repeat(100) {
@@ -117,7 +134,7 @@ class StandaloneDeployerDeviceFlowTest {
         return File(androidHome, "platform-tools/adb")
     }
 
-    private fun waitForPid(device: IDevice, packageName: String): String {
+    private fun waitForPid(device: RawDevice, packageName: String): String {
         repeat(100) {
             shell(device, "pidof $packageName").trim().takeIf(String::isNotEmpty)?.let { return it.substringBefore(' ') }
             Thread.sleep(100)
@@ -125,17 +142,17 @@ class StandaloneDeployerDeviceFlowTest {
         error("Process did not start: $packageName")
     }
 
-    private fun triggerRender(device: IDevice, packageName: String) {
+    private fun triggerRender(device: RawDevice, packageName: String) {
         shell(device, "am start -f 0x00020000 -n $packageName/.MainActivity >/dev/null; " +
             "am start -f 0x20000000 -n $packageName/.MainActivity --es jugg.action render >/dev/null")
     }
 
-    private fun activityStartCount(device: IDevice): Int {
+    private fun activityStartCount(device: RawDevice): Int {
         return shell(device, "logcat -d -s jugg:I '*:S'")
             .lineSequence().count { it.contains("[JUGG_BENCH] MAIN_ACTIVITY_READY") }
     }
 
-    private fun waitForLog(device: IDevice, marker: String) {
+    private fun waitForLog(device: RawDevice, marker: String) {
         repeat(50) {
             if (shell(device, "logcat -d -s jugg:I '*:S'").contains(marker)) return
             Thread.sleep(100)
@@ -143,7 +160,7 @@ class StandaloneDeployerDeviceFlowTest {
         error("Log marker did not appear: $marker")
     }
 
-    private fun shell(device: IDevice, command: String): String {
+    private fun shell(device: RawDevice, command: String): String {
         val receiver = CollectingOutputReceiver()
         device.executeShellCommand(command, receiver, 30, TimeUnit.SECONDS)
         return receiver.output

@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.platform.PlatformApi
 

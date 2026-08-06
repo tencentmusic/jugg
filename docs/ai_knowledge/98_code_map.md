@@ -68,9 +68,9 @@
 
 | 模块 | 目录 | 关键点 |
 |------|------|--------|
-| deploy_compat | `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | `IAsDeployerCompat` + 多版本实现（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal/narwhal_feature/otter/panda/quail）；接口层通过 `JuggInstallSession` / overlay / cache entry wrapper 隔离 Android Studio deployer runtime 类型包迁移，并通过 `attachJavaDebugger()` 隔离 Java debugger API 迁移；持久化 cache 使用 Jugg 自有 snapshot，ADB transport 能力由 `IdeaDeviceAdbClient` 基于 `IDevice` 封装 |
+| deploy_compat | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/api/`, `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | `deploy.api` 仅保存同名自有设备/APK/protobuf/logger 契约并保留 D8 字段重初始化状态；legacy 继承链与 Quail 分别在版本模块内转换真实 Android 类型并持有实例级弱缓存，interface JAR 不提供 raw converter；owner-bound deploy 调用固定使用 priority compat，wrapper 隔离 deployer runtime 类型包迁移，`attachJavaDebugger()` 隔离 Java debugger API 迁移 |
 | standalone_deployer | `deploy_compat/standalone_deployer/src/main/java/`, `deploy_compat/standalone_deployer/src/main/resources/deployer/quail/` | 固定 Quail 1 的 Java 11 deployer 最小闭包、`StandaloneApplyChangesExecutor`、installer/protocol 资源与 SHA-256 metadata；不打包或加载完整 `sdk-tools.jar`，原始 class hash 清单保存在 `SOURCE_CLASSES.sha256` |
-| platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
+| platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/log4j 最小实现，供 `main` 编译并作为 CLI runtime stub；禁止包含 `com.android.*` |
 | Stub API 工具 | `tools/stub_api_generator/`, `deploy_compat/*.sh`, `deploy_compat/stub_api/` | 从已编译 compat JAR 的字节码引用闭包生成版本化 compile-only Stub；脚本负责创建模块、显式切换真实 JAR/Stub、生成 Stub，并通过 `verify_stub_api.sh` clean 构建两边产物后验证 AS API 调用一致性 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | 现有 `CmdLine`/CI 命令保持不变；`standalone/` 提供 `JuggDaemon`、`StandaloneProjectRegistry`、`StandaloneJuggRuntimeAssembler`、MCP runtime 与 idle lifecycle，daemon 启动前先校验并释放固定 Quail deployer 资源；同一 distribution 额外生成 `jugg-standalone` launcher，均使用 Java 11；Python CLI 通过项目级 launch lock 去重并发自动拉起 |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |

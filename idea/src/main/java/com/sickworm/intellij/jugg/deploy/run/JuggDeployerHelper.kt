@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.android.tools.idea.log.LogWrapper
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger

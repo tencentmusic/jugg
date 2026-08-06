@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
-import com.android.tools.deployer.DexComparator.ChangedClasses
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
+import com.sickworm.intellij.jugg.deploy.api.DexComparator.ChangedClasses
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry

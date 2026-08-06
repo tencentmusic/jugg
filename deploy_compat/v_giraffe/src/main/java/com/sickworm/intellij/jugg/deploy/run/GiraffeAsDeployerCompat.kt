@@ -1,10 +1,10 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.android.tools.deployer.*
 import com.android.tools.idea.execution.common.applychanges.BaseAction
 import com.android.tools.idea.run.editor.DeployTargetContext
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.project.Project
@@ -22,7 +22,7 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
         val deviceFutures = deployTarget.getDevices(project)
         val devices = deviceFutures.ifReady
         if (!devices.isNullOrEmpty()) {
-            return devices
+            return devices.map(::toJuggDevice)
         }
 
         return null
@@ -36,13 +36,14 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
         apks: List<String>,
         installMode: JuggInstallSession.Mode,
     ): Boolean {
-        val adb = createLegacyAdbClient(device, logger)
-        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, logger)
+        val studioLogger = toStudioLogger(logger)
+        val adb = createLegacyAdbClient(toStudioDevice(device), studioLogger)
+        val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, studioLogger)
         return apkInstaller.install(packageName, apks, createInstallOptions(device, packageName), installMode.toLegacyInstallMode(), metrics.deployMetrics)
     }
 
     override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {
-        val client = AndroidDebugClientReadyWaiter().waitForWaitingDebuggerClient(device, packageName)
+        val client = AndroidDebugClientReadyWaiter().waitForWaitingDebuggerClient(toStudioDevice(device), packageName)
         AndroidStudioDebuggerAttachStarter().attachExistingProcess(project, client)
     }
 

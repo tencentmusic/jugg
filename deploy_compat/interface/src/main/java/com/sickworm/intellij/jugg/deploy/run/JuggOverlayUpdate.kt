@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.tools.deployer.DexComparator
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
 
 /**
  * Version-neutral holder for an OptimisticApkSwapper overlay update.

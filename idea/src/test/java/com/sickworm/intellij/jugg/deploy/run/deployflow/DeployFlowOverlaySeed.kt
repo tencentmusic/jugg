@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService

@@ -15,8 +15,7 @@
  */
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deployer.ClassRedefiner
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.google.common.base.Stopwatch
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -27,6 +26,7 @@ import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
@@ -143,7 +143,7 @@ class JuggDeployTask(
                 logger.debug("Applying changes to application $applicationId...")
                 val fastRerunOnSwapFailure = false
 
-                var debuggerRedefiners = emptyMap<Int, ClassRedefiner>()
+                var debuggerRedefiners = emptyMap<Int, JuggClassRedefiner>()
                 if (!scopedData.isNeedRestartApp && scopedData.hasClassChanges) {
                     // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
                     // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
