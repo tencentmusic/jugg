@@ -240,7 +240,7 @@ JuggManager
     ├── JuggSettings（启动时迁移 IDEA legacy fields）
     ├── JuggCompileUiHandler
     ├── HostTaskExecutor
-    └── IdeaApplyChangesExecutor
+    └── AsDeployerCompat（通过 IApplyChangesExecutor 接入共享部署编排）
 ```
 
 Standalone 对应：
@@ -501,7 +501,7 @@ Standalone runtime 首次启动时将资源释放到：
 
 ### 5.3 接口拆分
 
-现有 `IAsDeployerCompat` 同时承载 IDEA 集成和 deployer transport。新增部署领域接口：
+现有 `IAsDeployerCompat` 同时承载 IDEA 集成和 deployer transport。Step 9 先为 standalone executor 引入部署领域接口：
 
 ```text
 IApplyChangesExecutor
@@ -517,17 +517,19 @@ IApplyChangesExecutor
 └── exception mapping
 ```
 
-实现：
+Step 10 对齐 `optimisticSwap` 等共享方法签名后，让 `IAsDeployerCompat` 直接继承 `IApplyChangesExecutor`：
 
 ```text
-IdeaApplyChangesExecutor
-  → 委托现有 AsDeployerCompat
-
-StandaloneApplyChangesExecutor
-  → 使用 :deploy_compat:standalone_deployer 固定 Quail 实现
+IApplyChangesExecutor
+├── IAsDeployerCompat
+│   └── AsDeployerCompat / v_* compat
+└── StandaloneApplyChangesExecutor
+    └── 使用 :deploy_compat:standalone_deployer 固定 Quail 实现
 ```
 
-IDEA 专属能力继续保留在 `IAsDeployerCompat` 或拆出的 `IIdeaDeployEnvironment`：
+不新增只负责转发的 `IdeaApplyChangesExecutor`。共享部署编排依赖 `IApplyChangesExecutor`，IDEA 专属调用继续依赖 `IAsDeployerCompat`。
+
+IDEA 专属能力继续保留在 `IAsDeployerCompat`：
 
 - IDE 设备选择。
 - IDE module info。
@@ -754,7 +756,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 6 | 已完成 | Server RuntimeInfo 与共享 JuggHotUpdateManager 已落地；诊断、运维门面和资源版本策略延后到真实 standalone 调用出现时 |
 | Step 7 | 已完成 | 共享 CLI Run Configuration schema、确定性默认推断、配置集合/指针、IDEA 导入/选择监听和 Gradle 成功回写已落地 |
 | Step 8 | 已完成 | Java 11 daemon/registry/MCP/status 骨架、last owner、idle 生命周期、Python 双 Runtime 发现与 hook 门禁已落地；编译部署仍待 Step 10～11 |
-| Step 9 | 已完成 | 固定 Quail 1 的 Java 11 standalone deployer、版本资源、完整性校验与真机 install/class/resource PoC 已落地 |
+| Step 9 | 已完成 | 在 `deploy_compat/standalone_deployer/` 落地固定 Quail 1 的 Java 11 standalone deployer、版本资源、完整性校验与真机 install/class/resource PoC |
 | Step 10–12 | 待实施 | 按本文顺序在独立会话中推进 |
 
 ### 9.2 Commit 规范
@@ -1132,7 +1134,8 @@ daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job�
 
 任务：
 
-- 引入 `IApplyChangesExecutor`。
+- 对齐 `IApplyChangesExecutor` 与现有 IDEA deploy transport 的共享方法签名。
+- 让 `IAsDeployerCompat` 直接继承 `IApplyChangesExecutor`，删除重复方法声明，不新增 `IdeaApplyChangesExecutor` 转发类。
 - 下沉 `JuggDeployTask`、`JuggDeployer`、LaunchContext 核心。
 - 下沉 recover、retry、Direct Overlay lifecycle。
 - 建立 `JuggDeployOrchestrator` 和两个部署运行环境。

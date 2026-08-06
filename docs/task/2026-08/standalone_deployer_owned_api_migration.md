@@ -2,7 +2,7 @@
 
 ## 1. 背景
 
-`standalone_deployer` 为 Java 11 standalone runtime 提供固定 Quail deployer、真实 ddmlib 和 shaded protobuf 实现。`platform_compat/base_api` 同时保存了一组用于脱离 Android Studio 编译的 `com.android.*` Stub，并被 `cmd_line` 打入生产发行物。
+`deploy_compat/standalone_deployer` 为 Java 11 standalone runtime 提供固定 Quail deployer、真实 ddmlib 和 shaded protobuf 实现。`platform_compat/base_api` 同时保存了一组用于脱离 Android Studio 编译的 `com.android.*` Stub，并被 `cmd_line` 打入生产发行物。
 
 当前发行物因此存在同名 class 的多个 owner：
 
@@ -79,6 +79,7 @@ com.sickworm.intellij.jugg.deploy.api
 ### 6.1 IDEA / Android Studio
 
 - `deploy_compat/v_*` 和 IDEA adapter 可以继续依赖当前 Android Studio/ddmlib 类型。
+- Step 10 对齐共享方法签名后，`IAsDeployerCompat` 直接继承 `IApplyChangesExecutor`；不新增只负责转发的 `IdeaApplyChangesExecutor`。
 - 进入共享接口前把 raw device、APK model、protobuf content 和 arch 转成自有类型。
 - 调用 Android Studio deployer 前再转回对应版本的 raw 类型。
 - IDE-only API 继续保留在 `IAsDeployerCompat`，只替换其中 Apply Changes 共享调用面的数据类型。
@@ -88,7 +89,8 @@ com.sickworm.intellij.jugg.deploy.api
 
 ### 6.2 Standalone
 
-- `StandaloneApplyChangesExecutor` 实现自有 `IApplyChangesExecutor`。
+- `deploy_compat/standalone_deployer` 作为 `:deploy_compat:standalone_deployer` 模块，只进入 standalone runtime classpath，不进入 IDEA 插件 classloader。
+- `StandaloneApplyChangesExecutor` 实现自有 `IApplyChangesExecutor`，不实现包含 IDE 专属能力的 `IAsDeployerCompat`。
 - ddmlib `IDevice`、Quail `Apk` / `ApkEntry` / `DexClass`、protobuf `ByteString` 和 `Deploy.Arch` 只出现在 standalone boundary converter 与搬运实现内部。
 - 转换逻辑保持局部私有；不新增通用 converter interface。
 - `StandaloneApplyChangesExecutor` 只公开 `IApplyChangesExecutor` 生产入口，不增加转发内部 converter 的 package-private 方法。
@@ -180,9 +182,9 @@ com.sickworm.intellij.jugg.deploy.api
 ./gradlew :idea:test --tests com.sickworm.intellij.jugg.deploy.run.DeployCompatArchitectureTest
 ./gradlew :idea:test --tests com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployerInstallTest
 ./gradlew :idea:test --tests com.sickworm.intellij.jugg.manager.TopLevelFlowTest.testInstallAndLaunch --tests com.sickworm.intellij.jugg.manager.TopLevelFlowTest.testDeploy
-./gradlew :standalone_deployer:test --tests com.sickworm.intellij.jugg.deploy.run.StandaloneApplyChangesExecutorTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerArchitectureTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerResourceTest
+./gradlew :deploy_compat:standalone_deployer:test --tests com.sickworm.intellij.jugg.deploy.run.StandaloneApplyChangesExecutorTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerArchitectureTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerResourceTest
 ./gradlew :cmd_line:test --tests com.sickworm.intellij.jugg.cmdline.CmdLineTest
-./gradlew :idea:compileKotlin :cmd_line:compileKotlin :standalone_deployer:compileJava :cmd_line:installDist
+./gradlew :idea:compileKotlin :cmd_line:compileKotlin :deploy_compat:standalone_deployer:compileJava :cmd_line:installDist
 ```
 
 额外检查：

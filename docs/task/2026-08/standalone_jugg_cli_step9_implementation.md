@@ -19,7 +19,7 @@
 - 只迁入 install、APK model/cache、overlay diff、`OptimisticApkSwapper` 实际调用的传递闭包，保留 `com.android.tools.deployer` 原包名。
 - 禁止提交或运行时加载完整 Quail `sdk-tools.jar` 和 Java 21 class。
 - 仅引入实际需要的 ddmlib、protobuf 和 utility 依赖；只有 Maven 依赖无法提供相同 shaded protocol API 时，才纳入最小 Quail Java 8 protocol JAR。
-- 新增 `IApplyChangesExecutor` 和 `StandaloneApplyChangesExecutor`；Step 10 再迁移 IDEA 部署编排使用该接口。
+- 新增 `IApplyChangesExecutor` 和 `StandaloneApplyChangesExecutor`；Step 10 对齐共享方法签名，让 `IAsDeployerCompat` 直接继承该接口，再迁移 IDEA 部署编排。
 - 新增 `JuggResourceManager`，通过统一全局写锁释放并校验版本化 deployer 资源。
 - standalone daemon 启动时执行 deployer resource preflight，但不注册 Step 10/11 的部署编排或 MCP deploy 能力。
 - metadata 记录 Quail build、来源、installer hash、协议版本、迁入 class 清单及 hash、license/source notice。
