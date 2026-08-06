@@ -97,7 +97,8 @@ class JuggManager @TestOnly constructor(
     private val hostTaskExecutor: HostTaskExecutor = HostTaskExecutor(project),
     private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(logger, deployStateManager, juggServer, hostTaskExecutor, pathManager, runtimeInfo.runtimeType, runtimeInfo.runtimeVersion, coroutineScope),
     private val ideaHotUpdateCoordinator: IdeaHotUpdateCoordinator = IdeaHotUpdateCoordinator(juggServer, taskRunnerManager, logger),
-    private val deploymentService: JuggDeploymentService = JuggDeploymentService(pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager)),
+    private val deploymentService: JuggDeploymentService = JuggDeploymentService(
+        pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager), AsDeployerCompat),
     private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
     private val deployFileManager: DeployFileManager = DeployFileManager(pathManager, taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),
     private val compileEnvironmentSource: IdeaCompileEnvironmentSource = IdeaCompileEnvironmentSource(project),
@@ -120,6 +121,7 @@ class JuggManager @TestOnly constructor(
         juggServer,
         taskRunnerManager,
         deploymentService = deploymentService,
+        environment = IdeaDeployEnvironment(project, AsDeployerCompat, compileContextManager),
     ),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, gitFileChangesDetector, taskRunnerManager),
     private val projectCustomConfigManager: ProjectCustomConfigManager = ProjectCustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "ProjectCustomConfigManager"), juggServer, fileChangesHandler, deployHistoryManager, compileContextManager, customCompilerManager),

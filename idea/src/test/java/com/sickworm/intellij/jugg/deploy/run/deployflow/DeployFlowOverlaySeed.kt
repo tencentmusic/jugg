@@ -31,6 +31,7 @@ object DeployFlowOverlaySeed {
             packageName = packageName,
             newFiles = parsedApks,
             overlayId = overlay,
+            applyChangesExecutor = AsDeployerCompat,
             logger = AdbLogWrapper(logger),
         )
         deployHistoryManager.lastDeployOverlayIds = mapOf(packageName to overlay.sha)
@@ -51,6 +52,7 @@ object DeployFlowOverlaySeed {
             packageName = packageName,
             newFiles = parsedApks,
             overlayId = overlay,
+            applyChangesExecutor = AsDeployerCompat,
             logger = AdbLogWrapper(logger),
         )
         deployHistoryManager.lastDeployOverlayIds = mapOf(packageName to overlay.sha)
@@ -92,6 +94,7 @@ object DeployFlowOverlaySeed {
             packageName = packageName,
             newFiles = parsedApks,
             overlayId = overlay,
+            applyChangesExecutor = AsDeployerCompat,
             logger = AdbLogWrapper(logger),
         )
         deployHistoryManager.lastDeployOverlayIds = mapOf(packageName to overlay.sha)

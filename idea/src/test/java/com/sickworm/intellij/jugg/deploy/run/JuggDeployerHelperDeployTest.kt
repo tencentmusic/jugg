@@ -155,19 +155,18 @@ class JuggDeployerHelperDeployTest {
         }
         val recoverInvokeCount = intArrayOf(0)
         val deployStateRecover = object : DeployStateRecover(
-            project = Mockito.mock(Project::class.java),
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
             deployStateManager = deployStateManager,
             deployRunHost = Mockito.mock(com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost::class.java),
             deploymentService = Mockito.mock(com.sickworm.intellij.jugg.deploy.IJuggDeploymentService::class.java),
-            deviceAdbFactory = { _, _ -> Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeviceAdb::class.java) },
+            environment = TestDeployEnvironment(),
             logger = TestGlobal.getLogger(),
         ) {
             override fun recoverDeployState(
                 device: IDevice,
-                indicator: com.intellij.openapi.progress.ProgressIndicator?,
+                progress: DeployProgress?,
                 isNeedDryDeployFirst: Boolean,
                 isSkipExceptOverlayCheck: Boolean,
                 isInstallUpdateApk: Boolean,
@@ -480,6 +479,7 @@ class JuggDeployerHelperDeployTest {
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
             deploymentService = Mockito.mock(IJuggDeployerDeploymentService::class.java),
+            environment = TestDeployEnvironment(),
             logger = TestGlobal.getLogger(),
             stateRecover = deployStateRecover,
             retryHandler = deployRetryHandler,

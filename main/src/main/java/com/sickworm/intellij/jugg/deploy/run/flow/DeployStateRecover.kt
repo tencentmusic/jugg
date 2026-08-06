@@ -2,29 +2,26 @@ package com.sickworm.intellij.jugg.deploy.run.flow
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
+import com.sickworm.intellij.jugg.deploy.run.DeployProgress
+import com.sickworm.intellij.jugg.deploy.run.IDeployHost
 import kotlin.system.measureTimeMillis
 
 /**
  * Recovers device deploy state via dry deploy or full reinstall when history and device diverge.
  */
 open class DeployStateRecover(
-    private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployStateManager: IDeployStateManager,
     private val deployRunHost: IJuggDeployHelperRunHost,
     private val deploymentService: IJuggDeploymentService,
-    private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb,
+    private val environment: IDeployHost,
     private val logger: Logger,
 ) {
 
@@ -35,7 +32,7 @@ open class DeployStateRecover(
      */
     open fun recoverDeployState(
         device: IDevice,
-        indicator: ProgressIndicator?,
+        progress: DeployProgress?,
         isNeedDryDeployFirst: Boolean, // which means device state is unknown and needs to detect first
         isSkipExceptOverlayCheck: Boolean,
         isInstallUpdateApk: Boolean = false,
@@ -50,9 +47,9 @@ open class DeployStateRecover(
         }
 
         if (isCleanAndReinstall) {
-            indicator?.text = "Cleaning app..."
+            progress?.update("Cleaning app...")
             val packageName = deployTargetManager.getPackageName()
-            IdeaDeviceAdb(device, logger).execAdbShellCmd("pm clear $packageName")
+            environment.clearAppData(device, packageName, logger)
         }
 
         // dry deploy first, if success, no need to reinstall and recover
@@ -73,24 +70,24 @@ open class DeployStateRecover(
                     DryDeployResult.FAILED -> reinstallTips
                 }
                 logger.warn(tips)
-                indicator?.text = "Reinstalling app..."
-                JuggRunningTask.notifyByBalloon(project, tips)
+                progress?.update("Reinstalling app...")
+                environment.notify(tips)
             }
         } else if (isInstallUpdateApk) {
             logger.info("App updated, start reinstalling app...")
-            indicator?.text = "Installing app..."
-            JuggRunningTask.notifyByBalloon(project, "App updated, start reinstalling app...")
+            progress?.update("Installing app...")
+            environment.notify("App updated, start reinstalling app...")
         } else {
             logger.warn(reinstallTips)
-            indicator?.text = "Reinstalling app..."
-            JuggRunningTask.notifyByBalloon(project, reinstallTips)
+            progress?.update("Reinstalling app...")
+            environment.notify(reinstallTips)
         }
 
         // recover deploy state for device
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
         logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
 
-        val deferPostDeployLaunch = allowDirectOverlayRecover && JuggSettings.isEnableDirectOverlayDeploy
+        val deferPostDeployLaunch = allowDirectOverlayRecover && environment.isDirectOverlayEnabled
         val costTime = measureTimeMillis {
             deployRunHost.runRecoverDeployTask(
                 device,
@@ -173,7 +170,7 @@ open class DeployStateRecover(
         allowDirectOverlayRecover: Boolean,
         isSkipExceptOverlayCheck: Boolean,
     ): DryDeployResult? {
-        if (!allowDirectOverlayRecover || !JuggSettings.isEnableDirectOverlayDeploy) {
+        if (!allowDirectOverlayRecover || !environment.isDirectOverlayEnabled) {
             logger.debug("Direct overlay state check skipped because direct overlay recover is disabled.")
             return null
         }
@@ -183,7 +180,7 @@ open class DeployStateRecover(
             return null
         }
         val result = DirectOverlayStateChecker(
-            adb = deviceAdbFactory(device, logger),
+            adb = environment.createDeviceAdb(device, logger),
             logger = logger,
             deployHistoryManager = deployHistoryManager,
             deploymentService = deploymentService,

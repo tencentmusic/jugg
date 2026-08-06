@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import java.io.File
 
 /**
@@ -71,6 +72,18 @@ interface IDeviceAdb {
      * @see [com.android.tools.deploy.proto.Deploy.Arch]
      */
     fun getArch(packageName: String): String
+
+    fun getPids(packageName: String): List<Int> {
+        return execAdbShellCmd("pidof $packageName")
+            .trim()
+            .split(Regex("\\s+"))
+            .mapNotNull(String::toIntOrNull)
+    }
+
+    fun getDeployArch(packageName: String): Deploy.Arch {
+        return runCatching { Deploy.Arch.valueOf(getArch(packageName)) }
+            .getOrDefault(Deploy.Arch.ARCH_UNKNOWN)
+    }
 
     /**
      * equals: adb shell "getprop | grep $name"

@@ -51,7 +51,7 @@ public final class StandaloneApplyChangesExecutor implements IApplyChangesExecut
       com.android.utils.ILogger rawLogger = this.deployApiConverter.toStudioLogger(logger);
       AdbInstaller installer = new AdbInstaller(installersFolder, new AdbClient(rawDevice, rawLogger),
             this.metrics.getDeployMetrics(), rawLogger, AdbInstaller.Mode.DAEMON);
-      return new JuggInstallSession(installer, installer.getVersion(), onPrompt, onMessage);
+      return new JuggInstallSession(this, installer, installer.getVersion(), onPrompt, onMessage);
    }
 
    @Override
@@ -124,7 +124,8 @@ public final class StandaloneApplyChangesExecutor implements IApplyChangesExecut
    @Override
    public JuggOverlayId optimisticSwap(JuggInstallSession session, Map<Integer, JuggClassRedefiner> redefiners,
                                        String packageName, boolean restartActivity, List<Integer> pids,
-                                       Deploy.Arch arch, JuggOverlayUpdate overlayUpdate) throws DeployerException {
+                                       Deploy.Arch arch, JuggOverlayUpdate overlayUpdate, IDevice device,
+                                       ILogger logger, boolean isPushOverlayOnly) throws DeployerException {
       Map<Integer, ClassRedefiner> rawRedefiners = new HashMap<>();
       redefiners.forEach((pid, redefiner) -> rawRedefiners.put(pid, (ClassRedefiner)redefiner.getRaw()));
       OptimisticApkSwapper swapper = new OptimisticApkSwapper((Installer)session.getRawInstaller(), rawRedefiners,

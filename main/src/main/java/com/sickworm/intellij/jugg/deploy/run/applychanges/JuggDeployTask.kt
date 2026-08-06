@@ -16,25 +16,18 @@
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
-import com.google.common.base.Stopwatch
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.text.StringUtil
-import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.deploy.run.IApplyChangesExecutor
+import com.sickworm.intellij.jugg.deploy.run.IDeployDebugger
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
-import java.util.concurrent.TimeUnit
-import java.util.stream.Collectors
 
 /**
  *
@@ -46,25 +39,25 @@ import java.util.stream.Collectors
  * @see com.android.tools.idea.run.tasks.ApplyCodeChangesTask
  */
 class JuggDeployTask(
-    private val project: Project,
     private val type: AndroidDeployType,
     private val data: JuggDeployData,
     private val deploymentService: IJuggDeployerDeploymentService,
-    private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask"),
+    private val logger: Logger = Logger.getInstance(JuggDeployTask::class.java),
 ) {
 
     fun run(launchContext: LaunchContext): LaunchResult {
-        val stopwatch = Stopwatch.createStarted()
+        val startTime = System.currentTimeMillis()
         val device = launchContext.device
         val logger = AdbLogWrapper(logger)
+        val applyChangesExecutor = launchContext.applyChangesExecutor
+        val deployDebugger = launchContext.deployDebugger
 
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
             launchContext = launchContext,
             deploymentService = deploymentService,
             logger = logger,
-            asDeployerCompat = asDeployerCompat,
+            applyChangesExecutor = applyChangesExecutor,
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
@@ -85,7 +78,10 @@ class JuggDeployTask(
                 }
                 val effectiveType = decision.effectiveType
                 logPackageScope(applicationId, apkInfos, scopedData, effectiveType, logger)
-                val result = perform(device, deployer, applicationId, apkFiles, scopedData, effectiveType)
+                val result = perform(
+                    device, deployer, applicationId, apkFiles, scopedData,
+                    applyChangesExecutor, deployDebugger, effectiveType,
+                )
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId)
                 }
@@ -99,15 +95,12 @@ class JuggDeployTask(
                 return LaunchResult(false, e.errorOrdinal, e.message + " " + e.details, emptyMap())
             }
         }
-        stopwatch.stop()
-        val duration = stopwatch.elapsed(TimeUnit.MILLISECONDS)
+        val duration = System.currentTimeMillis() - startTime
         if (idsSkippedInstall.isEmpty()) {
-            val content =
-                String.format("%s successfully finished in %s.", deployType, StringUtil.formatDuration(duration))
+            val content = "$deployType successfully finished in ${duration}ms."
             logger.info("%s", content)
         } else {
-            val title =
-                String.format("%s successfully finished in %s.", deployType, StringUtil.formatDuration(duration))
+            val title = "$deployType successfully finished in ${duration}ms."
             val content = type.createSkippedApkInstallMessage(
                 idsSkippedInstall,
                     idsSkippedInstall.size == packages.size
@@ -126,13 +119,13 @@ class JuggDeployTask(
     @Throws(JuggDeployerException::class)
     private fun perform(
         device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>,
-        scopedData: JuggDeployData,
-        effectiveType: AndroidDeployType = type,
+        scopedData: JuggDeployData, applyChangesExecutor: IApplyChangesExecutor,
+        deployDebugger: IDeployDebugger, effectiveType: AndroidDeployType = type,
     ): JuggDeployer.Result {
         when (effectiveType) {
             AndroidDeployType.INSTALL -> {
                 logger.debug("Installing application $applicationId...")
-                val installMode = asDeployerCompat.getInstallMode()
+                val installMode = applyChangesExecutor.getInstallMode()
                 return deployer.install(applicationId, getPathsToInstall(files), installMode)
             }
             AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
@@ -148,9 +141,8 @@ class JuggDeployTask(
                     // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
                     // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
                     // because we don't need debuggerRedefiners on restart case
-                    debuggerRedefiners = asDeployerCompat.makeDebuggerRedefiners(
-                        project, device, fastRerunOnSwapFailure && deployer.supportsNewPipeline()
-                    )
+                    debuggerRedefiners = deployDebugger.makeDebuggerRedefiners(
+                        device, fastRerunOnSwapFailure && deployer.supportsNewPipeline())
                 }
                 return deployer.codeSwap(getPathsToInstall(files), debuggerRedefiners, scopedData)
             }
@@ -191,7 +183,7 @@ class JuggDeployTask(
     companion object {
 
         private fun getPathsToInstall(apkFiles: List<File>): List<String> {
-            return ContainerUtil.map(apkFiles) { obj: File -> obj.path }
+            return apkFiles.map(File::getPath)
         }
     }
 
@@ -215,7 +207,7 @@ enum class AndroidDeployType {
                     "App restart successful without requiring a re-install."
                 } else {
                     "App restart successful without re-installing the following APK(s): " +
-                            skippedApkList.stream().collect(Collectors.joining(", "))
+                            skippedApkList.joinToString(", ")
                 }
             }
             APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
@@ -223,7 +215,7 @@ enum class AndroidDeployType {
                     "Activity restarted. No code or resource changes detected."
                 } else {
                     "Activity restarted without re-installing the following APK(s): " +
-                            skippedApkList.stream().collect(Collectors.joining(", "))
+                            skippedApkList.joinToString(", ")
                 }
             }
             APPLY_CHANGES -> {
@@ -231,7 +223,7 @@ enum class AndroidDeployType {
                     "No code changes detected."
                 } else {
                     "No code changes detected. The ollowing APK(s) are not installed: " +
-                            skippedApkList.stream().collect(Collectors.joining(", "))
+                            skippedApkList.joinToString(", ")
                 }
             }
         }

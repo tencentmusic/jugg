@@ -18,10 +18,12 @@ import kotlin.system.measureTimeMillis
 class JuggDeploymentService(
     pathManager: JuggPathManager,
     private val deploymentCacheStore: JuggDeploymentCacheStore,
+    private val defaultApplyChangesExecutor: IApplyChangesExecutor,
 ) : IJuggDeploymentService, IJuggDeployerDeploymentService {
 
     val deploymentCacheDbFile = pathManager.deploymentCacheDbFile
-    private val memoryCache = ConcurrentHashMap<String, JuggDeploymentCacheEntry>()
+    private val memoryCache = ConcurrentHashMap<String, RuntimeCacheEntry>()
+    private var memoryCacheGeneration = deploymentCacheStore.currentState().generation
 
     fun preInit(logger: Logger) {
         val costTime = measureTimeMillis {
@@ -30,31 +32,49 @@ class JuggDeploymentService(
         logger.debug("JuggDeploymentService.preInit, cost ${costTime}ms")
     }
 
-    override fun storeEntry(deviceSerial: String, packageName: String, newFiles: List<Apk>, overlayId: JuggOverlayId, logger: ILogger) {
+    override fun storeEntry(
+        deviceSerial: String, packageName: String, newFiles: List<Apk>, overlayId: JuggOverlayId,
+        applyChangesExecutor: IApplyChangesExecutor, logger: ILogger,
+    ) {
         val storeStartTime = System.currentTimeMillis()
         val key = "$deviceSerial:$packageName"
 
-        memoryCache[key] = AsDeployerCompat.createDeploymentCacheEntry(newFiles, overlayId)
+        val cacheEntry = applyChangesExecutor.createDeploymentCacheEntry(newFiles, overlayId)
         logger.info("JuggDeploymentService.storeEntry, start")
         deploymentCacheStore.store(deviceSerial, packageName, newFiles.toCacheEntry(overlayId))
+        refreshMemoryCacheState()
+        memoryCache[key] = RuntimeCacheEntry(applyChangesExecutor, cacheEntry)
         logger.info("JuggDeploymentService.storeEntry, end, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
     }
 
     override fun loadCachedOverlayId(deviceSerial: String, packageName: String, logger: Logger): CachedOverlayId? {
-        return loadEntry(deviceSerial, packageName, AdbLogWrapper(logger))
+        return loadEntry(deviceSerial, packageName, defaultApplyChangesExecutor, AdbLogWrapper(logger))
             ?.overlayId
             ?.let { CachedOverlayId(sha = it.sha, isBaseInstall = it.isBaseInstall) }
     }
 
-    override fun loadEntry(deviceSerial: String, packageName: String, logger: ILogger): JuggDeploymentCacheEntry? {
-        memoryCache["$deviceSerial:$packageName"]?.let {
+    override fun loadEntry(
+        deviceSerial: String, packageName: String,
+        applyChangesExecutor: IApplyChangesExecutor, logger: ILogger,
+    ): JuggDeploymentCacheEntry? {
+        refreshMemoryCacheState()
+        val key = "$deviceSerial:$packageName"
+        memoryCache[key]?.takeIf { it.applyChangesExecutor === applyChangesExecutor }?.let {
             logger.info("JuggDeploymentService.loadEntry, load from memory cache")
-            return it
+            return it.entry
         }
         val dbResult = deploymentCacheStore.load(deviceSerial, packageName)
-            ?.toDeploymentCacheEntry()
+            ?.toDeploymentCacheEntry(applyChangesExecutor)
+        if (dbResult != null) memoryCache[key] = RuntimeCacheEntry(applyChangesExecutor, dbResult)
         logger.info("JuggDeploymentService.loadEntry, load from db, result: $dbResult")
         return dbResult
+    }
+
+    private fun refreshMemoryCacheState() {
+        val state = deploymentCacheStore.currentState()
+        if (!state.runtimeOwnerChanged && state.generation == memoryCacheGeneration) return
+        memoryCache.clear()
+        memoryCacheGeneration = state.generation
     }
 
     private fun List<Apk>.toCacheEntry(overlayId: JuggOverlayId): JuggDeploymentCacheStore.CacheEntry {
@@ -70,17 +90,22 @@ class JuggDeploymentService(
         )
     }
 
-    private fun JuggDeploymentCacheStore.CacheEntry.toDeploymentCacheEntry(): JuggDeploymentCacheEntry {
-        val parsedApks = AsDeployerCompat.parseApks(apkPaths)
-        val baseOverlayId = AsDeployerCompat.createBaseOverlayId(parsedApks)
+    private fun JuggDeploymentCacheStore.CacheEntry.toDeploymentCacheEntry(
+        applyChangesExecutor: IApplyChangesExecutor,
+    ): JuggDeploymentCacheEntry {
+        val parsedApks = applyChangesExecutor.parseApks(apkPaths)
+        val baseOverlayId = applyChangesExecutor.createBaseOverlayId(parsedApks)
         val restoredOverlayId = if (overlayId.isBaseInstall) {
             baseOverlayId
         } else {
-            AsDeployerCompat.buildOverlayId(
-                baseOverlayId,
-                overlayId.overlayFiles.map { JuggOverlayFile(it.path, it.checksum) },
-            )
+            applyChangesExecutor.buildOverlayId(baseOverlayId,
+                overlayId.overlayFiles.map { JuggOverlayFile(it.path, it.checksum) })
         }
-        return AsDeployerCompat.createDeploymentCacheEntry(parsedApks, restoredOverlayId)
+        return applyChangesExecutor.createDeploymentCacheEntry(parsedApks, restoredOverlayId)
     }
+
+    private data class RuntimeCacheEntry(
+        val applyChangesExecutor: IApplyChangesExecutor,
+        val entry: JuggDeploymentCacheEntry,
+    )
 }

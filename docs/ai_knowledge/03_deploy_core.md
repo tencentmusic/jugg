@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-07-30
+> 最后核对：2026-08-06
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -23,18 +23,19 @@
 
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
-| `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 部署总协调器。决定 install / embedded / incremental，串联 recover、retry、runTask、agent、androidTest、历史提交。 |
-| `DeployStateRecover` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployStateRecover.kt` | 设备状态未知或不匹配时恢复基线：direct check、dry deploy、reinstall。 |
-| `DeployRetryHandler` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | 根据失败原因选择 retry、fallback HOT_FIX、compat deploy、recover 后 redeploy 或停止。 |
-| `JuggDeployTask` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt` | 单设备单轮 deploy task。按 `applicationId` 分组，把全量 `JuggDeployData` 裁成 APK-scoped data 后调用 `JuggDeployer`。 |
-| `JuggDeployer` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 封装 Android Studio deployer：install、code swap、full swap、deployment cache、overlay id、Direct Overlay transport。 |
+| `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | IDEA 入口。决定 install / embedded / incremental，并把单轮设备 lifecycle 委托给共享 orchestrator。 |
+| `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | 共享设备部署 lifecycle：分片、Apply Changes、agent、restart/start、JVMTI 检查；Host 差异由 `IDeployHost` 注入。 |
+| `DeployStateRecover` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployStateRecover.kt` | 设备状态未知或不匹配时恢复基线：direct check、dry deploy、reinstall。 |
+| `DeployRetryHandler` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | 根据失败原因选择 retry、fallback HOT_FIX、compat deploy、recover 后 redeploy 或停止。 |
+| `JuggDeployTask` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt` | 单设备单轮 deploy task。按 `applicationId` 分组，把全量 `JuggDeployData` 裁成 APK-scoped data 后调用 `JuggDeployer`。 |
+| `JuggDeployer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 通过 `IApplyChangesExecutor` 封装 install、code swap、full swap、deployment cache、overlay id 和 Direct Overlay transport。 |
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |
 | `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter。 |
-| `DirectOverlaySwapTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
+| `DirectOverlaySwapTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
 | `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 `run-as` 原子写入设备 `code_cache/.overlay`，新 overlay id 最后提交。 |
 | `DirectOverlayStateChecker` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayStateChecker.kt` | recover 校验 history/cache/device 三路一致；swap 前只校验 device overlay。 |
-| `DeployHistoryManager` / `JuggDeploymentService` / `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与项目级 deployment cache。Service 保留 Runtime 本地内存命中，磁盘 checkpoint 在项目锁内刷新并原子替换，Direct Overlay recover 同时依赖二者。 |
+| `DeployHistoryManager` / `JuggDeploymentService` / `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与项目级 deployment cache。Service 根据 runtime owner、磁盘 generation 或 bound executor 变化失效 Runtime 内存对象，并用当前 Apply Changes executor 从 snapshot 恢复。 |
 
 ---
 
@@ -92,7 +93,7 @@ multi APK 场景下，staging/deployed 的同名资源必须按“目标 APK + r
 JuggDeployerHelper.deploy(isInstall=true)
   -> deployInstall()
   -> JuggDeployData.forInstall(apks)
-  -> runTask()
+  -> JuggDeployOrchestrator.execute()
   -> JuggDeployTask.run()
   -> groupByApplicationId()
   -> JuggDeployer.install()
@@ -141,7 +142,7 @@ runTask()
   -> 必要时检查 JVMTI compat issue
 ```
 
-`LaunchContextFactory` 统一创建 deviceAdb、install session、installer metadata、Direct Overlay lifecycle facts，以及 deploy prompt/message 回调。Direct Overlay 的可尝试判断在切片前完成，判断条件与 transport `canTry()` 保持一致：开关开启、调用方允许、设备当前不是 ready deploy、非 install、deploy data 非空。命中后本轮不再进入 `SliceDeployHelper`；`JuggDeployTask` 只消费完整 `LaunchContext`，不再二次拼装 Direct Overlay 参数。
+`LaunchContextFactory` 统一创建 deviceAdb、install session、installer metadata、Direct Overlay lifecycle facts，以及 deploy prompt/message 回调。IDE compat 门面的所有能力都保留已知 API 链接错误 fallback；session 记录实际成功的 executor，`LaunchContext` 后续直接使用同一 executor 和由它创建的 debugger，不再通过门面分发有状态调用，避免 installer、overlay、cache 与 redefiner 跨 deployer ABI。Direct Overlay 的可尝试判断在切片前完成，判断条件与 transport `canTry()` 保持一致：开关开启、调用方允许、设备当前不是 ready deploy、非 install、deploy data 非空。命中后本轮不再进入 `SliceDeployHelper`；`JuggDeployTask` 只消费完整 `LaunchContext`，不再二次拼装 Direct Overlay 参数。
 
 切片后只有第一个 slice 保留 except overlay check；后续 slice 会跳过，否则同一轮部署中 overlay id 已变化会导致自我冲突。
 

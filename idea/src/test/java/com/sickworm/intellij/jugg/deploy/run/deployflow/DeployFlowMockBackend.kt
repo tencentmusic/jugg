@@ -5,6 +5,7 @@ import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.createTestTaskRunnerManager
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.direct.MatryoshkaFixtureWriter
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -25,10 +26,13 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
     private val servicePathManager = JuggPathManager(
         File(System.getProperty("java.io.tmpdir"), "jugg-deploy-flow-project"),
     )
-    val deploymentService = JuggDeploymentService(
-        servicePathManager,
-        JuggDeploymentCacheStore(servicePathManager.deploymentCacheDbFile, createTestTaskRunnerManager(servicePathManager)),
-    )
+    val deploymentService by lazy {
+        JuggDeploymentService(
+            servicePathManager,
+            JuggDeploymentCacheStore(servicePathManager.deploymentCacheDbFile, createTestTaskRunnerManager(servicePathManager)),
+            AsDeployerCompat,
+        )
+    }
 
     override fun buildFixture(caseId: DeployFlowCaseId): DeployFlowFixture {
         return when (caseId) {

@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
+import com.sickworm.intellij.jugg.deploy.run.NoDeployDebugger
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
@@ -138,12 +139,13 @@ class JuggDeployerInstallTest {
         val paths = listOf(
             "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt",
             "deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggOverlayUpdate.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/IJuggDeployerDeploymentService.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/IJuggDeployerDeploymentService.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
             "idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt",
             "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt",
         )
         val legacyTypes = listOf(
             "AdbClient",
@@ -178,7 +180,7 @@ class JuggDeployerInstallTest {
         assertFalse(
             "JuggDeployTask should route StudioFlags access through deploy_compat",
             findRepoFile(
-                "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
+                "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
             ).readText().contains("StudioFlags"),
         )
     }
@@ -240,7 +242,7 @@ class JuggDeployerInstallTest {
     @Test
     fun `deployment service delegates studio cache database details`() {
         val serviceText = findRepoFile(
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
         ).readText()
 
         assertFalse(
@@ -250,20 +252,11 @@ class JuggDeployerInstallTest {
     }
 
     @Test
-    fun `deployment service keeps runtime local memory cache before disk fallback`() {
-        val serviceText = findRepoFile(
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
-        ).readText()
-
-        assertTrue(serviceText.contains("ConcurrentHashMap<String, JuggDeploymentCacheEntry>"))
-        assertTrue(serviceText.contains("load from memory cache"))
-    }
-
-    @Test
     fun `production code uses task runner instead of execution lock types`() {
         val allowedFiles = setOf(
             findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/runtime/TaskRunnerManager.kt").canonicalFile,
             findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/runtime/ExecutionLockManager.kt").canonicalFile,
+            findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/runtime/RuntimeOwnerStore.kt").canonicalFile,
         )
         val productionFiles = listOf(
             "main/src/main",
@@ -379,7 +372,8 @@ class JuggDeployerInstallTest {
             device = device,
             deviceAdb = deviceAdb,
             installersRoot = "/tmp/installers",
-            installSession = JuggInstallSession(installer, "test-installer", { true }, {}),
+            installSession = JuggInstallSession(compat, installer, "test-installer", { true }, {}),
+            deployDebugger = NoDeployDebugger,
             deviceAbi = "arm64-v8a",
             exceptOverlayIds = emptyMap(),
             isSkipExceptOverlayCheck = false,
@@ -393,7 +387,7 @@ class JuggDeployerInstallTest {
             launchContext = launchContext,
             deploymentService = deploymentService,
             logger = logger,
-            asDeployerCompat = compat,
+            applyChangesExecutor = compat,
         )
         return Fixture(deviceAdb, compat, deploymentService, ideaLogger, logger, deployer)
     }

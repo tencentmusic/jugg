@@ -4,8 +4,6 @@ import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.android.tools.deployer.Installer
 import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -22,7 +20,6 @@ import org.mockito.Mockito
 class LaunchContextFactoryTest {
 
     private val oldDirectOverlayDeploy = JuggSettings.isEnableDirectOverlayDeploy
-    private val project = Mockito.mock(Project::class.java)
     private val device = Mockito.mock(IDevice::class.java)
     private val adb = Mockito.mock(IDeviceAdb::class.java)
     private val asDeployerCompat = FakeAsDeployerCompat()
@@ -56,6 +53,7 @@ class LaunchContextFactoryTest {
         assertSame(adb, context.deviceAdb)
         assertEquals("/tmp/installers", context.installersRoot)
         assertEquals("test-installer", context.installSession.installerVersion)
+        assertSame(asDeployerCompat.boundExecutor, context.applyChangesExecutor)
         assertEquals("x86_64", context.deviceAbi)
         assertEquals(mapOf("com.example.app" to "overlay-id"), context.exceptOverlayIds)
         assertTrue(context.isSkipExceptOverlayCheck)
@@ -114,15 +112,13 @@ class LaunchContextFactoryTest {
 
     private fun newFactory(): LaunchContextFactory {
         return LaunchContextFactory(
-            project = project,
-            installPathProvider = Computable { "/tmp/installers" },
-            asDeployerCompat = asDeployerCompat,
-            deviceAdbFactory = { _: IDevice, _: Logger -> adb },
+            environment = TestDeployEnvironment(asDeployerCompat, adb, isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy),
             logger = logger,
         )
     }
 
     private class FakeAsDeployerCompat : IAsDeployerCompat by Mockito.mock(IAsDeployerCompat::class.java) {
+        val boundExecutor: IApplyChangesExecutor = Mockito.mock(IApplyChangesExecutor::class.java)
         var createInstallSessionCount: Int = 0
             private set
 
@@ -135,7 +131,7 @@ class LaunchContextFactoryTest {
         ): JuggInstallSession {
             createInstallSessionCount++
             assertEquals("/tmp/installers", installersFolder)
-            return JuggInstallSession(Mockito.mock(Installer::class.java), "test-installer", onPrompt, onMessage)
+            return JuggInstallSession(boundExecutor, Mockito.mock(Installer::class.java), "test-installer", onPrompt, onMessage)
         }
     }
 }

@@ -20,6 +20,8 @@ import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.TestDeployEnvironment
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -131,7 +133,6 @@ internal object DeployFlowTestSupport {
         val ideaLogger = TestGlobal.getLogger()
         val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { _, _ -> virtualDevice.asIDeviceAdb() }
         val deployStateRecover = DeployFlowRecoverFixtureHooks(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
@@ -139,6 +140,7 @@ internal object DeployFlowTestSupport {
             deployRunHost = recoverRunHost,
             deploymentService = DeployFlowMockBackend.deploymentService,
             deviceAdbFactory = deviceAdbFactory,
+            isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy,
             logger = ideaLogger,
             ideDeployStateHelper = ideDeployStateHelper,
             afterRecoverSuccess = afterRecoverSuccess,
@@ -156,9 +158,8 @@ internal object DeployFlowTestSupport {
             taskRunnerManager = taskRunnerManager,
             logger = ideaLogger,
             deploymentService = DeployFlowMockBackend.deploymentService,
-            deviceAdbFactory = deviceAdbFactory,
-            installPathProvider = installPathProvider,
-            asDeployerCompat = asDeployerCompat,
+            environment = TestDeployEnvironment(asDeployerCompat, installersRoot = installPathProvider.compute(),
+                isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy, adbFactory = deviceAdbFactory),
             stateRecover = deployStateRecover,
         )
         recoverRunHost.bind(helper)

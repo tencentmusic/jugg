@@ -13,6 +13,7 @@ class LaunchContext(
     val deviceAdb: IDeviceAdb,
     val installersRoot: String,
     val installSession: JuggInstallSession,
+    val deployDebugger: IDeployDebugger,
     val deviceAbi: String,
     val exceptOverlayIds: Map<String, String>,
     val isSkipExceptOverlayCheck: Boolean,
@@ -22,6 +23,9 @@ class LaunchContext(
     val isAllowDirectOverlayDeploy: Boolean,
     val forceDirectOverlayDeploy: Boolean = false,
 ) {
+    val applyChangesExecutor: IApplyChangesExecutor
+        get() = installSession.applyChangesExecutor
+
     val isDirectOverlayEnabled: Boolean
         get() = isDirectOverlaySettingsEnabled &&
             (forceDirectOverlayDeploy || !isDeviceReadyDeploy) &&
@@ -46,6 +50,7 @@ class LaunchContext(
             deviceAdb = deviceAdb,
             installersRoot = installersRoot,
             installSession = installSession,
+            deployDebugger = deployDebugger,
             deviceAbi = deviceAbi,
             exceptOverlayIds = exceptOverlayIds,
             isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,

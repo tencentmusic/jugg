@@ -114,7 +114,10 @@ class StandaloneDeployerDeviceFlowTest {
         val arch = AdbClient.getArchForAbi(device.abis.first())
             ?.let { Deploy.Arch.valueOf(it.name) }
             ?: Deploy.Arch.ARCH_64_BIT
-        val overlayId = executor.optimisticSwap(session, emptyMap(), packageName, restartActivity, listOf(pid), arch, update)
+        val overlayId = executor.optimisticSwap(
+            session, emptyMap(), packageName, restartActivity, listOf(pid), arch, update,
+            converter.toJuggDevice(device), converter.toJuggLogger(StdLogger(StdLogger.Level.VERBOSE)), false,
+        )
         return executor.createDeploymentCacheEntry(apks, overlayId)
     }
 
