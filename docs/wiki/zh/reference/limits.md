@@ -27,7 +27,7 @@ Jugg 追求的是在常见开发循环中减少完整 Gradle 构建次数，而�
 
 ## 编译限制
 
-以下变化更容易触发 Gradle 回退，或者建议主动执行 Gradle 构建。更深的原因说明见[重试、重装与 Gradle 构建](../concepts/retry-reinstall-gradle-build.md)。
+以下变化更容易触发 Gradle 回退，或者建议主动执行 Gradle 构建。更深的原因说明见[什么时候需要完整 Gradle 构建](../concepts/full-gradle-build.md)。
 
 - 修改 Gradle 脚本、插件配置、版本目录或依赖声明。
 - 切换 build variant、build target、运行配置或 androidTest 目标。

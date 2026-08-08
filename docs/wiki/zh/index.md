@@ -56,7 +56,7 @@ layout: page
       </ol>
       <div class="jugg-run-foot">
         <span>不确定时不会冒险继续增量</span>
-        <a href="/zh/concepts/retry-reinstall-gradle-build">查看恢复与重建 →</a>
+        <a href="/zh/concepts/full-gradle-build">查看完整构建条件 →</a>
       </div>
     </div>
   </section>

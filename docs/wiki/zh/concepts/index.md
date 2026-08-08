@@ -22,9 +22,9 @@ Jugg 将最近一次完整 Gradle 构建作为可信起点。后续点击 Run �
 
 | 你想了解什么 | 建议阅读 |
 |---|---|
-| 一次 Run 如何完成决策、编译、部署和状态提交 | [Jugg 工作原理](./how-jugg-works.md)、[编译流水线](./compile-pipeline.md)、[重试、重装与 Gradle 构建](./retry-reinstall-gradle-build.md) |
+| 一次 Run 如何完成决策、编译、部署和状态提交 | [Jugg 工作原理](./how-jugg-works.md)、[编译流水线](./compile-pipeline.md)、[什么时候需要完整 Gradle 构建](./full-gradle-build.md) |
 | 为什么只改一个文件仍可能编译其他文件 | [增量编译](./incremental-compile/)、[工程模型同步](./project-model.md)、[部署数据与影响分析](./deploy-data-and-impact.md) |
-| 为什么有时直接生效，有时重启、更新 APK 或重新安装 | [部署策略](./deploy-strategy.md)、[增量部署状态恢复](./deploy-state-recover.md)、[兼容性部署](./compat-deploy.md) |
+| 为什么有时直接生效，有时重启、更新 APK 或重新安装 | [部署策略](./deploy-strategy.md)、[部署失败如何恢复](./deploy-failure-recovery.md)、[增量部署状态恢复](./deploy-state-recover.md)、[兼容性部署](./compat-deploy.md) |
 | 代码如何在应用进程中被替换并继续运行 | [Jugg Runtime](./jugg-runtime.md)、[JVMTI Agent](./jvmti-agent.md) |
 | 测试、界面取证和版本兼容如何接入主流程 | [Android Test 流程](./android-test-flow.md)、[布局导出与界面证据](./layout-dump-and-ui-evidence.md)、[兼容层](./compatibility-layer.md) |
 
@@ -35,6 +35,7 @@ Jugg 将最近一次完整 Gradle 构建作为可信起点。后续点击 Run �
 1. [Jugg 工作原理](./how-jugg-works.md)：先建立一次 Run 的完整模型。
 2. [增量编译](./incremental-compile/)：理解不同输入如何生成局部产物。
 3. [部署策略](./deploy-strategy.md)：理解产物如何在设备上生效。
-4. [重试、重装与 Gradle 构建](./retry-reinstall-gradle-build.md)：理解一次 Run 怎样从局部恢复走到完整构建。
+4. [部署失败如何恢复](./deploy-failure-recovery.md)：理解已有增量产物怎样通过重试、切换策略和重装继续生效。
+5. [什么时候需要完整 Gradle 构建](./full-gradle-build.md)：理解当前构建基线何时必须刷新。
 
 需要查找配置、命令和状态含义时，请使用[参考手册](../reference/)。
