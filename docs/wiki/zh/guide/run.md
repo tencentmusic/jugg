@@ -106,5 +106,5 @@ build/jugg/log/compile_latest.log
 - [Debug](./debug.md)
 - [Android Test](./android-test.md)
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
-- [部署失败如何恢复](../concepts/deploy-failure-recovery.md)
-- [什么时候需要完整 Gradle 构建](../concepts/full-gradle-build.md)
+- [部署自愈机制](../concepts/deploy-self-healing.md)
+- [Gradle 回退与基线重建](../concepts/gradle-fallback-baseline.md)

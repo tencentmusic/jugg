@@ -88,4 +88,4 @@ IDE 侧也会根据 Android 模型生成 androidTest 模块。两边合并时有
 - [编译调度流程](./compile-pipeline.md)
 - [增量编译](./incremental-compile/)
 - [Android Test 流程](./android-test-flow.md)
-- [什么时候需要完整 Gradle 构建](./full-gradle-build.md)
+- [Gradle 回退与基线重建](./gradle-fallback-baseline.md)

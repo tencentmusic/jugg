@@ -1,5 +1,5 @@
 ---
-title: 什么时候需要完整 Gradle 构建
+title: Gradle 回退与基线重建
 description: 解释 Jugg 为什么会在构建基线失效、增量范围过大或失败无法恢复时执行 Gradle，以及完整构建如何成为下一轮增量起点。
 status: active
 tags:
@@ -8,7 +8,7 @@ tags:
   - fallback
 ---
 
-# 什么时候需要完整 Gradle 构建
+# Gradle 回退与基线重建
 
 Jugg 的增量编译复用最近一次 Gradle 构建生成的 APK、classpath、资源表和生成代码。当前工程无法继续沿用这些结果时，完整 Gradle 构建负责重新计算工程模型并生成下一轮增量所需的可信起点。
 
@@ -65,7 +65,7 @@ Jugg 的增量编译复用最近一次 Gradle 构建生成的 APK、classpath、
 
 这次 Gradle 构建属于整轮 Run 的路径切换，不是某个部署重试步骤。多设备场景也会统一决定是否切换，不会只为一台设备生成不同的完整构建结果。
 
-部署侧恢复过程见[部署失败如何恢复](./deploy-failure-recovery.md)。
+部署侧恢复过程见[部署自愈机制](./deploy-self-healing.md)。
 
 ## Gradle 成功：刷新下一轮增量起点
 
@@ -96,4 +96,4 @@ Jugg 的增量路径用于日常开发验证，以下工作继续使用完整 Gr
 - [Gradle 回退能力](../capabilities/compile/gradle-fallback.md)
 - [增量编译](./incremental-compile/)
 - [编译流水线](./compile-pipeline.md)
-- [部署失败如何恢复](./deploy-failure-recovery.md)
+- [部署自愈机制](./deploy-self-healing.md)

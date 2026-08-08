@@ -50,4 +50,4 @@ Jugg 会优先尝试增量编译，但在本轮修改不适合旁路处理时，
 - [依赖库增量编译](./dependency-incremental.md)
 - [降级 Gradle 编译](../../guide/downgrade-gradle.md)
 - [编译阶段说明](../../guide/compile.md)
-- [什么时候需要完整 Gradle 构建](../../concepts/full-gradle-build.md)
+- [Gradle 回退与基线重建](../../concepts/gradle-fallback-baseline.md)

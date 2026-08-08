@@ -1,5 +1,5 @@
 ---
-title: 部署失败如何恢复
+title: 部署自愈机制
 description: 解释增量编译成功后，Jugg 如何通过有限重试、切换生效方式、Recover 和重新安装当前 APK 恢复部署。
 status: active
 tags:
@@ -8,7 +8,7 @@ tags:
   - recover
 ---
 
-# 部署失败如何恢复
+# 部署自愈机制
 
 增量编译成功后，Jugg 已经得到本轮 class、DEX、资源或 assets 等局部产物。部署失败时，这些产物通常仍然有效，恢复流程会先修复传输条件、运行时生效方式或设备状态，再决定是否放弃本轮增量结果。
 
@@ -72,7 +72,7 @@ Retry、Hot Fix、兼容部署和 Recover 都无法完成部署时，本轮会�
 
 自动回退开启且结果允许时，Run 层可以从编译阶段重新开始。多设备运行会汇总全部设备结果，只有整组结果都允许回退时才会统一切换；用户取消、设备丢失或无法安全恢复的安装错误会直接结束当前 Run。
 
-完整构建的触发条件和结果见[什么时候需要完整 Gradle 构建](./full-gradle-build.md)。
+完整构建的触发条件和结果见[Gradle 回退与基线重建](./gradle-fallback-baseline.md)。
 
 ## 相关页面
 
@@ -82,4 +82,4 @@ Retry、Hot Fix、兼容部署和 Recover 都无法完成部署时，本轮会�
 - [兼容部署](./compat-deploy.md)
 - [Recover 与 Retry](../capabilities/deploy/recover-and-retry.md)
 - [Clean Reinstall](../capabilities/deploy/clean-reinstall.md)
-- [什么时候需要完整 Gradle 构建](./full-gradle-build.md)
+- [Gradle 回退与基线重建](./gradle-fallback-baseline.md)

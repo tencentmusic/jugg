@@ -79,7 +79,7 @@ APK 处理完成后，Jugg 根据 class 结构、overlay 内容、设备兼容�
 
 失败处理会优先改变导致失败的最小条件：ADB 短暂离线时等待恢复，在线类替换失败时转 Hot Fix，JVMTI 或 agent 不兼容时转兼容部署，checkpoint 不匹配时先 Recover。只有这些路径无法形成可信结果，并且失败允许自动回退时，整轮 Run 才会改走 Gradle。
 
-各级恢复行为见[部署失败如何恢复](./deploy-failure-recovery.md)。
+各级恢复行为见[部署自愈机制](./deploy-self-healing.md)。
 
 ## 相关页面
 
@@ -92,5 +92,5 @@ APK 处理完成后，Jugg 根据 class 结构、overlay 内容、设备兼容�
 - [Recover 与 Retry](../capabilities/deploy/recover-and-retry.md)
 - [Full Swap](../capabilities/deploy/full-swap.md)
 - [Direct Overlay](../capabilities/deploy/direct-overlay.md)
-- [部署失败如何恢复](./deploy-failure-recovery.md)
-- [什么时候需要完整 Gradle 构建](./full-gradle-build.md)
+- [部署自愈机制](./deploy-self-healing.md)
+- [Gradle 回退与基线重建](./gradle-fallback-baseline.md)

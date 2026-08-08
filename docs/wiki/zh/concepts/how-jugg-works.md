@@ -85,13 +85,13 @@ Jugg 根据本轮产物、设备能力和已有部署状态选择生效方式。
 
 设备重启、应用数据清理或部署缓存丢失后的处理方式，见[增量部署状态恢复](./deploy-state-recover.md)。
 
-部署已经失败时，Retry、兼容部署、Recover 和重新安装的选择过程见[部署失败如何恢复](./deploy-failure-recovery.md)。
+部署已经失败时，Retry、兼容部署、Recover 和重新安装的选择过程见[部署自愈机制](./deploy-self-healing.md)。
 
 ## 回到 Gradle 会开始新的增量周期
 
 Gradle 回退用于重新建立可信起点。完整构建会刷新工程快照、APK、编译产物和生成文件；安装成功后，设备也重新与这份构建结果对齐。下一次 Run 可以基于新的状态继续判断是否进入增量路径。
 
-常见触发条件包括构建目标变化、工程配置超出当前增量能力、关键基线缺失，以及增量编译或部署无法可靠恢复。具体条件和用户可见结果见[什么时候需要完整 Gradle 构建](./full-gradle-build.md)。
+常见触发条件包括构建目标变化、工程配置超出当前增量能力、关键基线缺失，以及增量编译或部署无法可靠恢复。具体条件和用户可见结果见[Gradle 回退与基线重建](./gradle-fallback-baseline.md)。
 
 ## 继续阅读
 
@@ -100,6 +100,6 @@ Gradle 回退用于重新建立可信起点。完整构建会刷新工程快照�
 - [编译流水线](./compile-pipeline.md)：一次 Run 的阶段、重试和结果提交。
 - [增量编译](./incremental-compile/)：不同文件类型的编译与产物生成。
 - [部署策略](./deploy-strategy.md)：部署等级、设备能力和生效方式。
-- [部署失败如何恢复](./deploy-failure-recovery.md)：部署产物怎样通过重试、切换策略和重装继续生效。
+- [部署自愈机制](./deploy-self-healing.md)：部署产物怎样通过重试、切换策略和重装继续生效。
 - [Jugg Runtime](./jugg-runtime.md)：局部代码和资源如何在应用进程中加载。
-- [什么时候需要完整 Gradle 构建](./full-gradle-build.md)：何时刷新完整构建基线。
+- [Gradle 回退与基线重建](./gradle-fallback-baseline.md)：何时刷新完整构建基线。
