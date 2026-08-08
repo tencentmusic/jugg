@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.ai.mcp.McpResultMapper
 import com.sickworm.intellij.jugg.ai.mcp.McpToolRegistry
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
+import com.sickworm.intellij.jugg.ai.mcp.actions.InitProjectMcpToolAction
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
@@ -19,7 +20,8 @@ class StandaloneProjectRegistry(
     private val activity: StandaloneDaemonActivity = StandaloneDaemonActivity(),
 ) : AutoCloseable {
     private val runtimes = linkedMapOf<String, StandaloneProjectRuntime>()
-    private val toolRegistry = McpToolRegistry(capabilities = standaloneCapabilities)
+    private val actionRegistry = McpToolActionRegistry(McpToolActionRegistry.defaultActions() + InitProjectMcpToolAction())
+    private val toolRegistry = McpToolRegistry(actionRegistry, standaloneCapabilities)
     private val assembler = StandaloneJuggRuntimeAssembler(runtimeInfo, activity, toolRegistry)
     private val baseInvoker = McpBaseInvoker(toolRegistry)
 
@@ -94,6 +96,11 @@ class StandaloneProjectRegistry(
         val standaloneCapabilities = listOf(
             McpToolActionRegistry.ToolNames.VERSION,
             McpToolActionRegistry.ToolNames.LIST_PROJECTS,
+            McpToolActionRegistry.ToolNames.INIT,
+            McpToolActionRegistry.ToolNames.COMPILE,
+            McpToolActionRegistry.ToolNames.DEPLOY,
+            McpToolActionRegistry.ToolNames.GRADLE_BUILD,
+            McpToolActionRegistry.ToolNames.GET_COMPILE_STATUS,
             McpToolActionRegistry.ToolNames.GET_STATUS,
         )
     }

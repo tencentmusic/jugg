@@ -42,6 +42,6 @@ class StandalonePlatformApi(
     override fun getInitializedProjectDirs(): List<File> = registry.getInitializedProjectDirs()
 
     override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
-        throw UnsupportedOperationException("Standalone Gradle build is not available before step 11")
+        throw UnsupportedOperationException("Standalone Gradle build is available only through the MCP runtime")
     }
 }

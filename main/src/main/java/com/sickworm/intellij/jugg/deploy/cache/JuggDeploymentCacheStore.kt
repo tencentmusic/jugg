@@ -59,7 +59,7 @@ class JuggDeploymentCacheStore(
 
     internal fun currentState(): CacheState {
         return taskRunnerManager.runProjectWriteLocked("Read deployment cache state") {
-            CacheState(readGeneration(), taskRunnerManager.consumeRuntimeOwnerChange() != null)
+            CacheState(readGeneration())
         }
     }
 
@@ -135,7 +135,6 @@ class JuggDeploymentCacheStore(
 
     internal data class CacheState(
         val generation: String,
-        val runtimeOwnerChanged: Boolean,
     )
 
     data class OverlayId(

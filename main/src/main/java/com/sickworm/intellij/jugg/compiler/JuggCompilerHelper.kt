@@ -1,15 +1,14 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.google.gson.Gson
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -20,9 +19,6 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.inferLibraryTestApkHistoryBuildVariant
 import com.sickworm.intellij.jugg.ide.bean.requestedGradleTasks
 import com.sickworm.intellij.jugg.ide.bean.withGradleCacheRefresh
-import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
-import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
@@ -41,7 +37,6 @@ import org.jetbrains.annotations.TestOnly
 import java.io.File
 
 class JuggCompilerHelper(
-    private val project: Project,
     private val pathManager: JuggPathManager,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
@@ -53,16 +48,17 @@ class JuggCompilerHelper(
     private val fileChangesHandler: IFileChangesHandler,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
+    private val compileEnvironmentSource: ICompileEnvironmentSource,
     gitFileChangesDetector: GitFileChangesDetector,
     taskRunnerManager: TaskRunnerManager,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
+    private val logger: Logger,
     private val gitChangeChecker: GitChangesCompileChecker = GitChangesCompileChecker(
         gitFileChangesDetector,
         deployFileManager,
         taskRunnerManager,
         logger,
     ),
-): Disposable, IIncrementalCompileFallbackChecker {
+): AutoCloseable, IIncrementalCompileFallbackChecker {
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
         private const val GRADLE_PROJECT_INFO_UNAVAILABLE = "Gradle project info unavailable"
@@ -70,15 +66,13 @@ class JuggCompilerHelper(
 
     var juggCompiler: JuggCompiler? = null
         set(value) {
-            field?.let {
-                Disposer.dispose(it)
-            }
+            field?.let(Disposer::dispose)
             field = value
         }
 
-    private val gradleCompileClientManager = GradleCompileClientManager(project).also {
-        Disposer.register(this, it)
-    }
+    private val gradleCompileClientManager = GradleCompileClientManager(
+        pathManager.projectDir, compileEnvironmentSource, logger,
+    )
 
     private val dependencyMissingResolver = IncrementalCompileRetryResolverChain(
         listOf(
@@ -101,6 +95,18 @@ class JuggCompilerHelper(
         checkDeviceFallback()?.let { return it.failedReason }
         checkFilesFallback(deployFileManager.getUncompiledFiles())?.let { return it.failedReason }
         val deployState = deployStateManager.updateDeployState()
+        if (!deployState.isReadyIncCompile) {
+            return deployState.msg
+        }
+        return null
+    }
+
+    override fun checkFallback(deployState: JuggDeployState): String? {
+        if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
+            return GRADLE_PROJECT_INFO_UNAVAILABLE
+        }
+        checkDeviceFallback(deployState)?.let { return it.failedReason }
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), deployState)?.let { return it.failedReason }
         if (!deployState.isReadyIncCompile) {
             return deployState.msg
         }
@@ -204,7 +210,7 @@ class JuggCompilerHelper(
 
         logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
         if (!uiHandler.isForceGradleCompile) {
-            JuggRunningTask.notifyFallback(project, incrementalResult?.failedReason ?: "See log for details.")
+            uiHandler.notifyFallbackByBalloon(incrementalResult?.failedReason ?: "See log for details.")
         }
 
         val gradleOptions = if (uiHandler.isGradleCacheRefreshRequested) {
@@ -252,7 +258,7 @@ class JuggCompilerHelper(
             effectiveOptions.isRemoteCompile,
             pathManager.localClasspathStoragePathManager.classpathDir,
         )
-        val task = JuggGradleCompileTask(project, client, effectiveOptions, uiHandler, isOnlyFetchResult)
+        val task = JuggGradleCompileTask(client, effectiveOptions, uiHandler, isOnlyFetchResult, logger)
         val result = task.run()
         if (result.isSuccess) {
             val apkInfos = ApkInfoReader(logger).createApkInfo(result.compileOutputFile)
@@ -450,8 +456,10 @@ class JuggCompilerHelper(
      * @return need fallback when result is not null
      */
     private fun checkDeviceFallback(): CompileTaskResult? {
-        // deploy state fallback
-        val deployState = deployStateManager.updateDeployState()
+        return checkDeviceFallback(deployStateManager.updateDeployState())
+    }
+
+    private fun checkDeviceFallback(deployState: JuggDeployState): CompileTaskResult? {
         if (!deployState.isReadyDeploy) {
             if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
                 logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
@@ -466,6 +474,10 @@ class JuggCompilerHelper(
      * @return need fallback when result is not null
      */
     private fun checkFilesFallback(undeployedFiles: List<ChangedFile>): CompileTaskResult? {
+        return checkFilesFallback(undeployedFiles, deployStateManager.updateDeployState())
+    }
+
+    private fun checkFilesFallback(undeployedFiles: List<ChangedFile>, deployState: JuggDeployState): CompileTaskResult? {
         // too many changes fallback
         val undeployedSourceFiles = undeployedFiles.filter {
             it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
@@ -490,8 +502,6 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Too many changes")
         }
 
-        // deploy state fallback
-        val deployState = deployStateManager.updateDeployState()
         if (!deployState.isReadyDeploy) {
             if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
                 logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
@@ -511,12 +521,12 @@ class JuggCompilerHelper(
         logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $isIncrementalCompileLibrary")
         if (!isIncrementalCompileLibrary && !isFallback && JuggSettings.isEnableInjectGradleCompile && changedBuildFiles.isNotEmpty()) {
             val lastBuildFilesMap = deployHistoryManager.getLastBuildFiles(changedBuildFiles)
-            val step1Result = uiHandler.confirmBuildChanges(project, lastBuildFilesMap.map { it.first.file to it.second })
+            val step1Result = uiHandler.confirmBuildChanges(lastBuildFilesMap.map { it.first.file to it.second })
             var step2Result = ConfirmResult.INVALID
             logger.debug("isConfirmIncrementalCompile: result $step1Result")
             if (step1Result == BuildChangesConfirmResult.FIND_CHANGE) {
                 logger.info("Jugg: Start reading dependencies from Gradle...\n")
-                JuggRunningTask.notifyByBalloon(project, "Start reading dependencies from Gradle...")
+                uiHandler.notifyByBalloon("Start reading dependencies from Gradle...")
                 val startTime = System.currentTimeMillis()
                 val runResult = runGradleLibraryDiff(options, uiHandler.createOutputParser())
                 val costTime = (System.currentTimeMillis() - startTime) / 1000
@@ -700,15 +710,17 @@ class JuggCompilerHelper(
         return classpathBackupHelper.fetch(projectInfo)
     }
 
-    override fun dispose() {
-        juggCompiler?.dispose()
+    override fun close() {
         juggCompiler = null
+        gradleCompileClientManager.close()
     }
 }
 
-private class GradleCompileClientManager(private val project: Project): Disposable {
-
-    private val logger = JuggLogger.getInstance(project, "GradleCompileClientManager")
+private class GradleCompileClientManager(
+    private val projectDir: File,
+    private val compileEnvironmentSource: ICompileEnvironmentSource,
+    private val logger: Logger,
+) : AutoCloseable {
 
     private var isCacheRemoteClient: Boolean? = null
     private var cacheClient: IGradleCompileClient? = null
@@ -720,7 +732,7 @@ private class GradleCompileClientManager(private val project: Project): Disposab
         val currentLocalEnv = if (isRemote) {
             null
         } else {
-            LocalGradleCompileClient.buildCompileEnv(project, logger)
+            compileEnvironmentSource.buildCompileEnv(logger)
         }
         val currentLocalEnvSignature = currentLocalEnv?.joinToString(separator = "\n")
         val isNeedRecreateLocalClient =
@@ -735,15 +747,14 @@ private class GradleCompileClientManager(private val project: Project): Disposab
             }
             cacheClient?.dispose()
             val newClient = if (isRemote)
-                RemoteGradleCompileClient(project)
+                RemoteGradleCompileClient(projectDir, logger = logger)
             else
                 LocalGradleCompileClient(
-                    File(project.basePath!!),
+                    projectDir,
                     localClasspathStorageDir,
                     currentLocalEnv,
                     logger,
                 )
-            Disposer.register(this, newClient)
             this.cacheClient = newClient
             this.isCacheRemoteClient = isRemote
             this.localClientEnvSignature = currentLocalEnvSignature
@@ -751,6 +762,8 @@ private class GradleCompileClientManager(private val project: Project): Disposab
         }
     }
 
-    override fun dispose() {
+    override fun close() {
+        cacheClient?.dispose()
+        cacheClient = null
     }
 }

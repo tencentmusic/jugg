@@ -84,8 +84,8 @@
 
 ## 6. 常见排查入口
 
-- “为什么回退 Gradle”：`idea/.../JuggCompileHelper.kt` 中的 `JuggCompilerHelper`。
-- “为什么部署失败”：`idea/.../JuggDeployerHelper.kt`。
+- “为什么回退 Gradle”：`main/.../JuggCompilerHelper.kt`。
+- “为什么部署失败”：`main/.../JuggDeployerHelper.kt`。
 - “为什么类热更失败”：`idea/.../deploy/run/applychanges/JuggDeployer.kt` + `main/.../runtime/jvmti/*`。
 - “为什么 MCP 参数错误”：`main/.../ai/mcp/McpRequestValidator.kt`。
 

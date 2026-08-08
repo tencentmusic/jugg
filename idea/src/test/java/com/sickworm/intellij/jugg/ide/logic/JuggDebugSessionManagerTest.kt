@@ -168,7 +168,7 @@ class JuggDebugSessionManagerTest {
         override fun createOutputParser(): IGradleCompileClient.TerminalOutputListener =
             IGradleCompileClient.TerminalOutputListener.DEFAULT
         override fun confirmFallbackWhenNoFileChanges(): ConfirmResult = ConfirmResult.NEGATIVE
-        override fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult =
+        override fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult =
             BuildChangesConfirmResult.FALLBACK
         override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult = ConfirmResult.POSITIVE
         override fun confirmEmbeddedToApk(): ConfirmResult = ConfirmResult.POSITIVE

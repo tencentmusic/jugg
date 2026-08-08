@@ -22,7 +22,7 @@
 | `JuggManager.runTask` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | Debug executor 下创建 `JuggDebugSessionManager`，并把 `isAlwaysRestartApp` / `isDebugRun` 写入 `JuggCompileUiHandler` |
 | `JuggCompileUiHandler` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileUiHandler.kt` | 承载 Debug run 标记；部署完成后触发 onEnd attach 回调 |
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | 复用普通编译/部署主链路；任务收口时 detach Jugg Run content，由 Java debugger session 承载后续调试 |
-| `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | Debug run 部署成功后调用 `deployTargetManager.restartAppForDebug(device)` |
+| `JuggDeployerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | Debug run 部署成功后调用 `deployTargetManager.restartAppForDebug(device)` |
 | `AdbCmdHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AdbCmdHelper.kt` | 构造 `am start -D -S -n <package>/<activity>`，让 App 在启动阶段等待 debugger |
 | `JuggDebugSessionManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggDebugSessionManager.kt` | 校验单设备、解析 package、调用兼容层 attach；失败时回 Run 输出和通知 |
 | `IAsDeployerCompat.attachJavaDebugger` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/IAsDeployerCompat.kt` | Android Studio debugger API 的版本兼容边界；旧版本默认声明不支持 |

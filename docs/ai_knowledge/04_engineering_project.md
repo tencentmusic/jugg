@@ -23,7 +23,7 @@
 | `CliRunConfiguration` / `CliRunConfigurationStore` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/CliRunConfiguration.kt` | IDEA/standalone 共享 build profile、Gradle project info 默认推断、独立配置 JSON 与当前指针原子持久化 |
 | `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggGlobalPathManager.kt` | 用户级 `~/.jugg` 文件布局：hot update、history、resource 等 |
 | `RuntimeOwnerStore` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/RuntimeOwnerStore.kt` | 独立于瞬时 lock metadata 持久化上次 IDEA/standalone Runtime owner，并在 Runtime 切换时生成 owner-change event |
-| `JuggDaemon` / `StandaloneProjectRegistry` / `StandaloneJuggRuntimeAssembler` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/standalone/` | Java 11 standalone 进程骨架、项目 Runtime 注册/MCP 路由、项目锁 owner 接管与 idle 生命周期；当前不包含编译部署串联 |
+| `JuggDaemon` / `StandaloneProjectRegistry` / `StandaloneProjectServices` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/standalone/` | Java 11 standalone 进程、项目 Runtime 注册/MCP 路由、项目锁 owner 接管、历史恢复、Gradle/增量编译、共享部署与 idle 生命周期 |
 | `GradleProjectInfoReaderManager` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt` | Gradle init script 入口，读取/保存 project info、include build、dependency diff、androidTest task 注入 |
 | `GradleScriptWriter` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleScriptWriter.kt` | 把插件内置 `readProjectInfo.gradle.kts` 与 runtime jar 写到稳定目录，供本地、远端和 CLI 通过 `-I` 注入 |
 | `GradleProjectInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt` | 通过 Gradle 反射读取 module、variant、source set、classpath、依赖、androidTest synthetic module |
@@ -180,10 +180,12 @@ jugg CLI 发现目标项目没有 Runtime
      创建项目级 McpToolInvoker
   -> McpLocalServer
      version / list-projects 走全局 Runtime 元数据
-     status 按 projectDir 路由到项目 Runtime
+     init / compile / deploy / gradle-build / status 按 projectDir 路由到项目 Runtime
 ```
 
-Step 8 只建立 daemon、registry、MCP/status 和生命周期骨架。`compile` / `deploy` / Gradle build 的完整共享编排仍由后续 Step 10～11 接入；当前 standalone 的进程级 `McpToolRegistry` 只注册 `version`、`list-projects`、`status` capability，并据此限制工具发现和调用，不能据此推断 HOT RELOAD 已可用。
+Step 11 已由 `StandaloneProjectServices` 组装 Gradle-only model、Compile Context、历史恢复、WatchService/Git reconcile、共享 `JuggCompilerHelper` 与 `JuggDeployerHelper`。进程级 capability 为 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`；`gradle-build` 建立 baseline，`deploy` 负责安装或增量部署。Runtime 构造期的 config/history/context 恢复、显式 `init` 和每次完整 compile/deploy 链都持有同一项目写锁；standalone 项目写事务同时计入 daemon activity。空闲 `status` 仅在非阻塞取得项目锁后执行 owner 恢复、Git refresh 和一致性快照；同 Runtime 正在编译或项目锁正由其他写事务持有时，立即返回当前真实只读快照，不刷新或写入文件状态。运行期间检测到 IDEA/standalone owner 变化后，当前 Runtime 会在下一次成功取得项目写锁的业务链或 status snapshot 开始前重新加载 Compile Context、history、APK 与 Git 文件状态，并使 deployment memory cache 失效。
+
+`IExecutionLockManager` 与 `IMcpRuntime` 均不提供默认方法实现。锁等待/非阻塞取得、项目状态快照和 unsupported 能力必须由具体 Runtime 或测试实现显式声明，避免新增 Host 静默继承错误的并发或能力语义。
 
 daemon 的 idle deadline 只由外部 MCP 请求刷新；WatchService、后台轮询和 update check 不刷新。达到 4 小时时，若存在 compile/deploy/Gradle job、项目写事务或更新下载，则每 1 分钟复查，条件解除后停止 MCP Server 并 dispose 全部项目 Runtime。
 
@@ -225,7 +227,7 @@ APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生�
 
 `JuggCompilerHelper.gradleCompile()` 会在进入 Gradle 客户端前调用 `GradleWrapperRepairer`。该逻辑只处理 `compileCommand` 中使用 `gradlew` / `gradlew.bat` 的场景：若对应目录存在 `gradle/wrapper/gradle-wrapper.properties`，则从 Jugg 内置资源补齐缺失的 `gradlew`、`gradlew.bat`、`gradle/wrapper/gradle-wrapper.jar`，并为 `gradlew` 设置可执行权限；若 properties 不存在或命令不是 wrapper 入口，则不修改工程。补齐只创建缺失文件，不覆盖已有文件。Windows 本机执行远程编译时，还会在同步前将实际使用的 Unix `gradlew` 中 CRLF 转换为 LF；转换只在内容变化时写回，不处理 `gradlew.bat`、其他脚本或 Gradle 配置文件，纯本地编译与仅拉取远端结果均保持原文件不变。
 
-本地 Gradle 命令的 `JAVA_HOME` 优先使用 IDE linked-project 中配置的 Gradle JVM，并通过 IDE JDK 解析器转换为实际路径；未配置或解析失败时，依次回退模块 Java SDK 和系统 `JAVA_HOME`。远程编译前的本地 project info dry-run 也使用同一套环境，避免 Android 模块 SDK 不是 Java SDK 时丢失 IDE Gradle JDK。
+本地 Gradle 命令的 `JAVA_HOME` 在 IDEA 中优先使用 linked-project 配置的 Gradle JVM，并通过 IDE JDK 解析器转换为实际路径；未配置或解析失败时，依次回退模块 Java SDK 和系统 `JAVA_HOME`。standalone 优先保留 launcher/shell 显式传入的 `JAVA_HOME`，仅缺失时回退 daemon 的 `java.home`，因此 daemon 自身使用 Java 11 不会强制项目 Gradle 也使用 Java 11。远程编译前的本地 project info dry-run 也使用同一套环境，避免 Android 模块 SDK 不是 Java SDK 时丢失 IDE Gradle JDK。
 
 本地 project info 读取属于后台维护任务，其 Gradle stdout/stderr 统一记录为 `debug`，不得打印用户可见的 `warn`；读取结果仍通过同步状态和返回值参与后续上下文更新。
 

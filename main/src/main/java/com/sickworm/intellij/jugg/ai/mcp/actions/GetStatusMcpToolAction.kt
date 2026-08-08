@@ -131,18 +131,34 @@ class GetStatusMcpToolAction(
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
+        if (runtime.juggConfigurationRunner.isCompiling) {
+            return executeSnapshot(arguments, runtime, refreshChanges = false, updateDeployState = false)
+        }
+        return runtime.tryWithProjectStateLocked {
+            executeSnapshot(arguments, runtime, refreshChanges = true, updateDeployState = true)
+        } ?: executeSnapshot(arguments, runtime, refreshChanges = false, updateDeployState = false)
+    }
+
+    private fun executeSnapshot(
+        arguments: Map<String, Any?>,
+        runtime: IMcpRuntime,
+        refreshChanges: Boolean,
+        updateDeployState: Boolean,
+    ): McpToolResult {
         val fullInfo = arguments[FULL_INFO_PARAM] as? Boolean ?: false
-        if (shouldRefreshChanges(arguments)) {
+        if (refreshChanges && shouldRefreshChanges(arguments)) {
             runtime.refreshChangedFilesForStatus()
         }
 
-        val deployState = runtime.deployStateManager?.updateDeployState() ?: JuggDeployState(
-            state = JuggDeployState.State.READY_FULL_COMPILE,
-            msg = "standalone runtime is ready for Gradle baseline",
-            ideDeployState = com.sickworm.intellij.jugg.deploy.run.IdeDeployState.ok,
-        )
+        val deployStateManager = runtime.deployStateManager
+        val deployState = (if (updateDeployState) deployStateManager?.updateDeployState() else deployStateManager?.deployState)
+            ?: JuggDeployState(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "standalone runtime is ready for Gradle baseline",
+                ideDeployState = com.sickworm.intellij.jugg.deploy.run.IdeDeployState.ok,
+            )
 
-        val fallbackReason: String? = runtime.incrementalCompileFallbackChecker?.checkFallback()
+        val fallbackReason: String? = runtime.incrementalCompileFallbackChecker?.checkFallback(deployState)
         val needFallback = fallbackReason != null || deployState.state == JuggDeployState.State.READY_FULL_COMPILE
 
         val uncompiledFiles: List<ChangedFile> = runtime.deployFileManager?.getUncompiledFiles().orEmpty()

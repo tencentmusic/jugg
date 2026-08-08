@@ -18,6 +18,7 @@ class DeployStateManager(
     private val logger: Logger,
 ) : IDeployStateManager {
 
+    @Volatile
     override var deployState = JuggDeployState(
         JuggDeployState.State.NOTHING_CAN_DO,
         "jugg not initialized",

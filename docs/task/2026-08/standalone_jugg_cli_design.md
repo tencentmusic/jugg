@@ -319,6 +319,8 @@ TaskRunnerManager
 
 锁实现使用 JVM 进程内可重入锁 + NIO `FileChannel.tryLock/lock`。外层第一次进入时获取文件锁，嵌套调用只增加当前进程持有计数，避免相同任务链重复获取同一个文件锁。不同 Runtime/classloader 可能各自持有一份 JVM 锁表；遇到同进程 `OverlappingFileLockException` 时按短间隔等待重试，仍以文件锁作为最终串行依据。
 
+`IExecutionLockManager` 不提供默认方法实现。阻塞项目锁、非阻塞项目锁、全局锁与 owner 读取语义均由具体实现显式声明，测试 fake 也不得通过默认体退化锁行为。
+
 ### 4.2 项目运行锁
 
 项目锁路径：
@@ -758,7 +760,8 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 8 | 已完成 | Java 11 daemon/registry/MCP/status 骨架、last owner、idle 生命周期、Python 双 Runtime 发现与 hook 门禁已落地；编译部署仍待 Step 10～11 |
 | Step 9 | 已完成 | 在 `deploy_compat/standalone_deployer/` 落地固定 Quail 1 的 Java 11 standalone deployer、版本资源、完整性校验与真机 install/class/resource PoC |
 | Step 10 | 已完成 | 共享 deploy lifecycle、IDEA 接线、standalone Host 边界和跨 Runtime cache 恢复已落地；standalone 编排组装与用户命令留待 Step 11 |
-| Step 11–12 | 待实施 | 按本文顺序在独立会话中推进 |
+| Step 11 | 已完成 | standalone 已串联 init、Gradle baseline、Git/WatchService、增量编译、共享 deploy、异步 job/取消/轮询与 Runtime owner/cache generation 恢复 |
+| Step 12 | 待实施 | 三平台 runtime image、发行校验与完整跨平台验收留待后续会话 |
 
 ### 9.2 Commit 规范
 
@@ -1069,7 +1072,7 @@ standalone registry 使用规范化路径作为查找 key，同时保留 canonic
 
 项目锁的瞬时 owner metadata 继续写入 `runtime.lock.owner.json` 并在释放时删除；新增 `runtime.owner.json` 原子保存上次 IDEA/standalone owner，`TaskRunnerManager` 在取得项目写锁时生成 owner-change event，CI Runtime 不参与该归属。损坏的 last owner 按无历史 owner 处理，记录原因后由当前 Runtime 原子覆盖。Python CLI 扫描全部 MCP 端口并读取 Runtime/project 信息，同项目双 Runtime 时仅在验证项目锁确实被持有后优先 current owner，否则选择 last owner；`--runtime idea|standalone` 可显式覆盖。已知项目列表不匹配的 legacy Runtime 不阻止 standalone 拉起，仅在项目列表不可读取时保留兼容 fallback。无 owner 时通过项目级 `runtime.launch.lock` 串行化自动拉起，并在锁内二次发现 Runtime；仍未发现时才通过 `JUGG_STANDALONE_LAUNCHER` 或默认安装路径启动 daemon。Hook 调用由 `hook_common.py` 显式传递 `JUGG_CALLER=hook`，无 complete flag 时以成功状态直接跳过。
 
-daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job、项目写事务和 update download 使用独立 activity counter 延期退出，并按 1 分钟周期复查。WatchService 和后台轮询尚未接入 daemon，且不会被误计为外部活动。
+daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job、项目写事务和 update download 使用独立 activity counter 延期退出，并按 1 分钟周期复查。Step 8 阶段未接入 WatchService 和后台轮询；Step 11 接入后仍不把这些内部活动计为外部请求。
 
 已完成验证：
 
@@ -1181,6 +1184,10 @@ daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job�
 
 目标：实现完整 CLI 用户链路。
 
+实现状态：已完成。`StandaloneProjectServices` 组装 Gradle-only project model、Compile Context、历史恢复、Git/WatchService、共享 compiler/deployer 与项目锁；Runtime 构造期恢复、显式 `init` 以及 refresh → compile/Gradle → context/config → deploy 全链均持有跨进程项目写锁，standalone 项目写事务同时计入 daemon activity。空闲 status 仅在非阻塞取得项目锁后执行 owner 恢复、Git refresh 和一致性快照；同 Runtime 正在编译或项目锁由其他写事务持有时，不等待锁、不刷新文件状态，立即返回部署状态、fallback、待编译文件、baseline 和时间戳等真实只读快照，保留 CLI wait/heartbeat。IDEA 与 standalone 每次接管 owner 后都在下一次成功取得项目锁的业务链或 status snapshot 开始前从磁盘恢复 Compile Context、history、APK 与 Git 状态，并失效 deployment memory cache；cache generation 检查不再提前消费 owner-change event。共享 `JuggCompilerHelper` 在 Compile Context rebind 和关闭时通过 IntelliJ `Disposer` 递归释放 compiler 子树；standalone `platform_compat` 实现保持 identity-based 注册、主动释放解绑、兄弟节点逆注册顺序和异常后的完整清理语义。`StandaloneConfigurationRunner` 复用现有 MCP `CompileJobManager` 提供新任务取消旧任务、轮询、indicator 和 `compile_latest.log`，同时对齐 IDEA 的 dependency build lifecycle 与 full-build failure 状态。standalone capability 现为 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`。`jugg init` 在无当前配置时优先复用 Gradle project info，缺失时执行一次 `assembleDebug --dry-run` 生成快照；`gradle-build` 只建立/刷新 baseline，安装或增量部署由后续 `deploy` 完成。standalone 保留调用环境显式 `JAVA_HOME`；设备选择优先 `ANDROID_SERIAL`，无 serial 时仅允许恰好一台在线设备。
+
+实施边界：本 Step 不开放 standalone remote SSH、Debug attach、AndroidTest UI、`clean-reinstall` 及 Step 12 三平台 runtime image 发行。当前 profile 启用 remote compile 时，`init` 与运行命令均在执行前结构化失败，不静默切到本地，也不读取或使用远程凭据。
+
 ```text
 jugg init
 → jugg gradle-build
@@ -1197,6 +1204,14 @@ jugg init
 - 增量编译、Gradle fallback、deploy 串联。
 - compile job、取消、轮询和日志。
 - Runtime 切换 generation 检查。
+
+已完成验证：
+
+- `StandaloneRuntimeTest`（L2，capability、status 与基于 Gradle project info 的 `init`）。
+- `CmdLineTest`（L2，standalone launcher/distribution 入口回归）。
+- `JuggCompileHelperTest`、`JuggDeployerHelperDeployTest`、`JuggDeployerHelperDeployFlowTest`（L2，共享编译与部署 owner 回归）。
+- `TopLevelFlowTest#testInstallAndLaunch`（L3，IDEA 既有安装启动链路回归）。
+- `android_demo_project` 真机手工链路（L3，standalone `init → gradle-build → compile → deploy → status`）。
 
 ### Step 12：三平台发行和验收
 

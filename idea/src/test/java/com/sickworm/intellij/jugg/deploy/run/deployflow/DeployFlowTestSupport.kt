@@ -146,7 +146,6 @@ internal object DeployFlowTestSupport {
             afterRecoverSuccess = afterRecoverSuccess,
         )
         val helper = JuggDeployerHelper(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,

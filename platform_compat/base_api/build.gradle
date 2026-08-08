@@ -20,4 +20,6 @@ dependencies {
     // for using org.apache.tools.zip.ZipEntry
     // java.util.zip.ZipEntry throws exceptions in some situation
     api "org.apache.ant:ant:1.10.11"
+
+    testImplementation "junit:junit:4.12"
 }

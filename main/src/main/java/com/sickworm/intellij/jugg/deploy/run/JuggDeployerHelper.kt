@@ -2,29 +2,22 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.deploy.run.utils.CopyEmbeddedDistributionPaths
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployRunTaskExecutor
 import com.sickworm.intellij.jugg.deploy.run.flow.JuggDeployHelperRunHostBridge
-import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
-import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
-import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.JuggServer
-import java.io.File
 
 /**
  * Create a deploy task.
@@ -34,7 +27,6 @@ import java.io.File
  * @see [com.android.tools.idea.run.LaunchTaskRunner.run]
  */
 class JuggDeployerHelper(
-    private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
@@ -44,27 +36,8 @@ class JuggDeployerHelper(
     private val compileContextManager: CompileContextManager,
     private val juggServer: JuggServer,
     private val taskRunnerManager: TaskRunnerManager,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
-    private val pathManager: JuggPathManager = JuggPathManager(File(project.basePath ?: ".")),
-    private val libraryTestApkBackfillHelper: LibraryTestApkBackfillHelper = LibraryTestApkBackfillHelper(
-        project = project,
-        pathManager = pathManager,
-        deployHistoryManager = deployHistoryManager,
-        compileContextManager = compileContextManager,
-        compileClientFactory = {
-            LocalGradleCompileClient(
-                pathManager.projectDir,
-                pathManager.localClasspathStoragePathManager.classpathDir,
-                LocalGradleCompileClient.buildCompileEnv(project, logger),
-                logger,
-            )
-        },
-        logger = logger,
-        onApksBackfilled = { apks ->
-            deployTargetManager.setApks(apks)
-            deployFileManager.updateApks(apks)
-        },
-    ),
+    private val logger: Logger,
+    private val libraryTestApkBackfillHelper: ILibraryTestApkBackfillHelper = ILibraryTestApkBackfillHelper.NONE,
     private val deploymentService: IJuggDeployerDeploymentService,
     private val environment: IDeployHost,
     stateRecover: DeployStateRecover? = null,

@@ -34,6 +34,7 @@ internal data class ExecutionLockOwner(
 /** Serializes project and global write transactions across threads and runtime processes. */
 internal interface IExecutionLockManager {
     fun <T> withProjectLock(command: String, action: () -> T): T
+    fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T?
     fun <T> withGlobalLock(command: String, action: () -> T): T
     fun readProjectLockOwner(): ExecutionLockOwner?
 }
@@ -72,6 +73,16 @@ internal class FileExecutionLockManager(
 
     override fun <T> withProjectLock(command: String, action: () -> T): T {
         return fileLock.withLock(
+            lockFile = pathManager.runtimeLockFile,
+            ownerFile = pathManager.runtimeLockOwnerFile,
+            command = command,
+            scopeDir = pathManager.projectDir,
+            action = action,
+        )
+    }
+
+    override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? {
+        return fileLock.tryWithLock(
             lockFile = pathManager.runtimeLockFile,
             ownerFile = pathManager.runtimeLockOwnerFile,
             command = command,
@@ -126,6 +137,35 @@ private class ExecutionFileLock(
         }
     }
 
+    fun <T : Any> tryWithLock(
+        lockFile: File,
+        ownerFile: File,
+        command: String,
+        scopeDir: File,
+        action: () -> T,
+    ): T? {
+        val canonicalLockFile = lockFile.canonicalFile
+        val jvmLock = jvmLocks.computeIfAbsent(canonicalLockFile.path) { ReentrantLock(true) }
+        if (!jvmLock.tryLock()) return null
+        try {
+            if (jvmLock.holdCount > 1) return action()
+            canonicalLockFile.parentFile?.mkdirs()
+            RandomAccessFile(canonicalLockFile, "rw").channel.use { channel ->
+                val fileLock = tryAcquireFileLock(channel) ?: return null
+                fileLock.use {
+                    writeOwner(ownerFile, command, scopeDir)
+                    try {
+                        return action()
+                    } finally {
+                        ownerFile.delete()
+                    }
+                }
+            }
+        } finally {
+            jvmLock.unlock()
+        }
+    }
+
     private fun acquireFileLock(channel: FileChannel): FileLock {
         while (true) {
             try {
@@ -134,6 +174,14 @@ private class ExecutionFileLock(
                 // Hot-updated and embedded classes can have isolated JVM lock maps in different classloaders.
                 Thread.sleep(FILE_LOCK_RETRY_MILLIS)
             }
+        }
+    }
+
+    private fun tryAcquireFileLock(channel: FileChannel): FileLock? {
+        return try {
+            channel.tryLock()
+        } catch (_: OverlappingFileLockException) {
+            null
         }
     }
 

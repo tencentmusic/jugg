@@ -67,6 +67,7 @@ class JuggRunningTask(
     private val compileUiHandler: CompileUiHandler,
     private val eventModel: JuggControlPanelModel,
     private val taskRunnerManager: TaskRunnerManager,
+    private val recoverAfterRuntimeOwnerChange: () -> Boolean,
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
@@ -96,11 +97,11 @@ class JuggRunningTask(
 
     override fun run(indicator: ProgressIndicator) {
         taskRunnerManager.runProjectWriteLocked("Run Jugg") {
-            runLocked(indicator)
+            runLocked(indicator, recoverAfterRuntimeOwnerChange())
         }
     }
 
-    private fun runLocked(indicator: ProgressIndicator) {
+    private fun runLocked(indicator: ProgressIndicator, runtimeOwnerChanged: Boolean) {
         val loggerListener = createRunProjectLogListener(processHandler)
         var isNeedResetHasRun = false
         try {
@@ -118,7 +119,7 @@ class JuggRunningTask(
                 changedFiles = eventModel.snapshot().context.changedFiles,
             )
 
-            statusManager.isProjectSwitchedThisRun =
+            statusManager.isProjectSwitchedThisRun = statusManager.isProjectSwitchedThisRun || runtimeOwnerChanged ||
                 lastCompileProjectRegistry.detectSwitch(options.projectRootPath)
 
             dependencyChangeManager.onStartBuilding()
@@ -164,6 +165,7 @@ class JuggRunningTask(
             } else {
                 statusManager.setHasRun(deployTargetManager.getDeviceNameList())
             }
+            statusManager.isProjectSwitchedThisRun = false
             if (!hasTerminalEvent && isCanceled) {
                 finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.CANCELED, "Jugg task canceled")
             }

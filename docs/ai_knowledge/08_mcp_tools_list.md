@@ -47,7 +47,7 @@
 - `projects`（可选）：当各项目版本不一致时，返回 `projectDir -> version` 的 map
 - `runtimeType`：`idea` / `standalone` / `ci` / `unknown`
 - `runtimeVersion`：当前进程实际 Runtime 版本
-- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 8 仅包含 `version`、`list-projects`、`status`
+- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`
 
 ---
 
@@ -64,6 +64,18 @@
   - `projectDir`：项目绝对路径
   - `initialized`：是否已完成 Jugg 初始化（当前列表内项目固定为 `true`）
   - `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线（对齐 `DeployHistoryManager.hasBeenFullCompiled` 语义）
+
+---
+
+### `init`
+
+仅 standalone Runtime 注册。根据 Gradle project info 创建并选择当前 CLI Run Configuration；project info 缺失时先执行一次 `assembleDebug --dry-run --no-daemon` 生成快照。已存在当前配置时幂等返回该配置。初始化在项目写锁内执行；若当前配置启用 remote compile，则返回结构化错误，standalone 不发起 SSH。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `projectDir` | string | **是** | 项目绝对路径 |
+
+**返回 data**：`configurationId`、`configurationName`、`compileCommand`。
 
 ---
 
@@ -128,7 +140,7 @@
 
 **异步返回**：同 `deploy`。
 
-**行为补充**：`gradle-build` 会走 Gradle 构建后的安装/启动链路；整体 `status` 与 `deploy` 保持一致，只有 `isCompileSuccess=true` 且 `isDeploySuccess=true` 时终态才为 success。
+**行为补充**：IDEA 保持现有 Gradle 构建后的安装/启动链路；standalone `gradle-build` 只建立或刷新 baseline，并将成功结果映射为 `isCompileSuccess=true`、`isDeploySuccess=true` 以保持共享 job 成功契约，实际安装/增量更新由后续 `deploy` 完成。
 
 **失败详情**：失败终态会在 data 中附带 `detail` / `detailLength` / `detailTruncated`（如有），内容来自本次 Gradle build + 安装/启动日志摘要；异步场景通过 `get-compile-status` 获取同一份详情。长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾，避免只保留 stack/footer 而丢失根因。
 
@@ -321,6 +333,8 @@
 - `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线；AI hooks 仅在该字段为 `true` 时启用 raw Gradle guard 与 stop guard。command hook 对 `executionType=remote` 会跳过会话写入与 pending file 覆盖判断，仍按“一次 block、重复放行”处理
 - `enabledAndroidTest`：最近一次 full build 基线是否以 AndroidTest target 初始化（`true` 表示当时开启了 `enableAndroidTest`）
 - `isCompiling`：boolean，当前是否有 Jugg compile/deploy 运行任务在执行（对齐 `JuggConfigurationRunner.isCompiling`）
+
+项目空闲且可立即取得项目锁时，`status` 会在锁内完成 Runtime owner 恢复和可选 Git refresh。若同 Runtime 正在编译，或项目锁正由 IDEA/standalone 的其他写事务持有，调用会立即返回当前真实只读快照；此时跳过 refresh 和状态写入，但仍保留实际的部署状态、fallback 原因、待编译文件、baseline、时间戳与 `isCompiling`，不会等待长任务或返回伪造空值。
 
 ---
 

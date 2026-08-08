@@ -77,6 +77,53 @@ class ProjectExecutionLockTest {
     }
 
     @Test
+    fun `try project lock returns immediately when another thread owns the lock`() {
+        val projectDir = Files.createTempDirectory("jugg-project-try-lock").toFile()
+        val first = FileExecutionLockManager(JuggPathManager(projectDir), RuntimeIdentity("idea", "test"))
+        val second = FileExecutionLockManager(JuggPathManager(projectDir), RuntimeIdentity("standalone", "test"))
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val tryFinished = CountDownLatch(1)
+        var result: String? = "not-run"
+
+        val ownerThread = Thread {
+            first.withProjectLock("owner") {
+                entered.countDown()
+                release.await(5, TimeUnit.SECONDS)
+            }
+        }
+        val tryThread = Thread {
+            result = second.tryWithProjectLock("status") { "acquired" }
+            tryFinished.countDown()
+        }
+        ownerThread.start()
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        tryThread.start()
+        try {
+            assertTrue(tryFinished.await(500, TimeUnit.MILLISECONDS))
+            assertNull(result)
+        } finally {
+            release.countDown()
+            ownerThread.join(5_000)
+            tryThread.join(5_000)
+        }
+    }
+
+    @Test
+    fun `try project lock remains reentrant for the owner thread`() {
+        val projectDir = Files.createTempDirectory("jugg-project-try-reentrant").toFile()
+        val lockManager = FileExecutionLockManager(
+            JuggPathManager(projectDir),
+            RuntimeIdentity("idea", "test"),
+        )
+
+        lockManager.withProjectLock("outer") {
+            assertEquals("acquired", lockManager.tryWithProjectLock("inner") { "acquired" })
+            assertEquals("outer", lockManager.readProjectLockOwner()?.command)
+        }
+    }
+
+    @Test
     fun `global lock serializes different projects and write types`() {
         val globalRoot = Files.createTempDirectory("jugg-global-lock").toFile()
         val first = FileExecutionLockManager(

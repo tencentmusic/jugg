@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 
 class IdeaMcpRuntime(
     override val logger: Logger,
@@ -22,14 +23,34 @@ class IdeaMcpRuntime(
     override val deployFileManager: DeployFileManager,
     override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker,
     private val gitFileChangesDetector: GitFileChangesDetector,
+    private val taskRunnerManager: TaskRunnerManager,
+    private val recoverAfterRuntimeOwnerChange: () -> Boolean,
 ) : IMcpRuntime {
 
     override fun refreshChangedFilesForStatus() {
         gitFileChangesDetector.updateChangedFiles()
     }
 
+    override fun <T> withProjectStateLocked(action: () -> T): T {
+        return taskRunnerManager.runProjectWriteLocked("Read Jugg status") {
+            recoverAfterRuntimeOwnerChange()
+            action()
+        }
+    }
+
+    override fun <T : Any> tryWithProjectStateLocked(action: () -> T): T? {
+        return taskRunnerManager.tryRunProjectWriteLocked("Read Jugg status") {
+            recoverAfterRuntimeOwnerChange()
+            action()
+        }
+    }
+
     override fun isAppReadyDeploy(): Boolean {
         return deployStateManager.updateDeployState().isReadyDeploy
+    }
+
+    override fun initializeProject(): ProjectInitializationResult {
+        return ProjectInitializationResult(false, "Project initialization is not supported by IDEA runtime")
     }
 
     companion object {

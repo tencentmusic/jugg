@@ -23,7 +23,7 @@
 
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
-| `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | IDEA 入口。决定 install / embedded / incremental，并把单轮设备 lifecycle 委托给共享 orchestrator。 |
+| `JuggDeployerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | IDEA 与 standalone 共享入口。决定 install / embedded / incremental，并把单轮设备 lifecycle 委托给共享 orchestrator。 |
 | `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | 共享设备部署 lifecycle：分片、Apply Changes、agent、restart/start、JVMTI 检查；Host 差异由 `IDeployHost` 注入。 |
 | `DeployStateRecover` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployStateRecover.kt` | 设备状态未知或不匹配时恢复基线：direct check、dry deploy、reinstall。 |
 | `DeployRetryHandler` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | 根据失败原因选择 retry、fallback HOT_FIX、compat deploy、recover 后 redeploy 或停止。 |

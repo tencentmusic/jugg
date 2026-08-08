@@ -34,7 +34,7 @@ Collect mandatory variables before any action. For install-only requests, skip J
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 | `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
 
-The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns the project, it may start an installed standalone daemon; concurrent launch attempts are serialized per project. Current standalone capability is limited to `version`, `list-projects`, and `status`; compile/deploy commands still require an IDEA Runtime until the standalone compile/deploy pipeline is available.
+The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns the project, it may start an installed standalone daemon; concurrent launch attempts are serialized per project. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, compile status polling, and `status`; device inspection, UI, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
 
 ---
 
@@ -92,6 +92,7 @@ Completion means the compile/deploy job reached a terminal state; CLI does not a
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
+| `init` | Initialize standalone build profile | First standalone run or when no current CLI run configuration exists |
 | `compile` | Compile modified sources, skip deploy | Default after ordinary source edits, including generic "verify/check modification" |
 | `deploy` | Compile + deploy to device | Need to launch/run app to inspect runtime/UI state, or perform device-side verification |
 | `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
@@ -100,6 +101,7 @@ Completion means the compile/deploy job reached a terminal state; CLI does not a
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py compile
+python3 {SKILL_DIR}/scripts/jugg.py init
 python3 {SKILL_DIR}/scripts/jugg.py deploy
 python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall

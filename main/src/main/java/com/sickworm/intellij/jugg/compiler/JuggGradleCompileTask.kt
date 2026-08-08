@@ -1,12 +1,10 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.logger.JuggLogger
- import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.JuggException
 import kotlinx.coroutines.*
 import java.io.PrintWriter
@@ -14,12 +12,11 @@ import java.io.StringWriter
 
 
 class JuggGradleCompileTask(
-    private val project: Project,
     private val compileClient: IGradleCompileClient,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val uiHandler: CompileUiHandler,
     private val isOnlyFetchResult: Boolean,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileTask"),
+    private val logger: Logger,
 ): CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
     fun run(): GradleCompileResult {

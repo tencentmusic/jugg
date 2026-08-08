@@ -28,6 +28,8 @@ internal fun createTestTaskRunnerManager(coroutineScope: CoroutineScope): TaskRu
         executionLockManager = object : IExecutionLockManager {
             override fun <T> withProjectLock(command: String, action: () -> T): T = action()
 
+            override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? = action()
+
             override fun <T> withGlobalLock(command: String, action: () -> T): T = action()
 
             override fun readProjectLockOwner(): ExecutionLockOwner? = null

@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
@@ -34,13 +33,16 @@ interface CompileUiHandler {
     fun createOutputParser(): IGradleCompileClient.TerminalOutputListener
 
     fun confirmFallbackWhenNoFileChanges(): ConfirmResult
-    fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult
+    fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult
     fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult
     fun confirmEmbeddedToApk(): ConfirmResult
 
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
     fun notifyByBalloon(text: String)
+    fun notifyFallbackByBalloon(reason: String) {
+        notifyByBalloon("Fallback to gradle compile. Reason: $reason")
+    }
     /** Ensures the Run tool window infrastructure exists without requesting focus. */
     fun ensureRunWindowCreated()
     fun showRunWindow()
@@ -66,7 +68,7 @@ interface CompileUiHandler {
             override fun createOutputParser(): IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
             override fun confirmFallbackWhenNoFileChanges() = ConfirmResult.NEGATIVE
-            override fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>) = BuildChangesConfirmResult.FALLBACK
+            override fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>) = BuildChangesConfirmResult.FALLBACK
             override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?) = ConfirmResult.POSITIVE
             override fun confirmEmbeddedToApk(): ConfirmResult = ConfirmResult.POSITIVE
 

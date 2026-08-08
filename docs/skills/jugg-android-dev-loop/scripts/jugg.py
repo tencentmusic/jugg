@@ -56,6 +56,7 @@ _RUNTIME_VALUES = ("idea", "standalone")
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
     "version":        ("cmd_version",        "cmd_version"),
+    "init":           ("cmd_init",           "cmd_init"),
     "compile":        ("cmd_compile",        "cmd_compile"),
     "deploy":         ("cmd_deploy",         "cmd_deploy"),
     "gradle-build":   ("cmd_gradle_build",   "cmd_gradle_build"),

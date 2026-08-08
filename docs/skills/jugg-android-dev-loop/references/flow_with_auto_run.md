@@ -2,6 +2,8 @@
 
 Use when `hasAutoRunEntry=true`. Full loop: modify → write auto-run code → deploy → auto-execute → verify.
 
+This flow currently requires an IDEA Runtime because standalone Step11 exposes build/deploy/status capabilities but not the auto-run observation commands used by Step 4.
+
 > 📎 Supplementary reference: all auto-run entry code authoring rules (markers, wait logic, logging, navigation helpers) live in `guide_write_auto_run_entry_code.md`. Load on-demand at Step 2 or whenever auto-run code is edited.
 
 ---

@@ -5,9 +5,17 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpProjectInfo
 import com.sickworm.intellij.jugg.ai.mcp.McpToolCallResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolsListResult
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.runtime.CliRunConfigurationStore
+import com.sickworm.intellij.jugg.project.runtime.CliRunConfigurationGenerator
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
+import com.intellij.openapi.diagnostic.Logger
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -48,11 +56,14 @@ class StandaloneRuntimeTest {
         val version = call("version")
         assertEquals("standalone", version.data()["runtimeType"])
         assertEquals("4.0", version.data()["runtimeVersion"])
-        assertEquals(listOf("version", "list-projects", "status"), version.data()["capabilities"])
+        val expectedCapabilities = listOf(
+            "version", "list-projects", "init", "compile", "deploy", "gradle-build", "get-compile-status", "status",
+        )
+        assertEquals(expectedCapabilities, version.data()["capabilities"])
 
         val toolsResponse = registry!!.invokeMcp(McpJsonRpcRequest(method = McpJsonRpc.Method.ToolsList, id = 2))
         val tools = (toolsResponse.result as McpToolsListResult).tools.map { it.name }
-        assertEquals(listOf("version", "list-projects", "status"), tools)
+        assertEquals(expectedCapabilities, tools)
 
         @Suppress("UNCHECKED_CAST")
         val projects = call("list-projects").data()["projects"] as List<McpProjectInfo>
@@ -61,8 +72,66 @@ class StandaloneRuntimeTest {
         assertEquals(projectDir.canonicalPath, registry!!.getInitializedProjectDirs().single().path)
 
         val status = call("status", mapOf("projectDir" to projectDir.absolutePath)).data()
-        assertEquals(false, status["hasDevice"])
+        assertTrue(status["hasDevice"] is Boolean)
         assertEquals(false, status["isCompiling"])
+    }
+
+    @Test
+    fun `init creates the current standalone run configuration from Gradle project info`() {
+        val projectDir = temporaryFolder.newFolder("project")
+        val pathManager = JuggPathManager(projectDir)
+        val moduleDir = projectDir.resolve("app")
+        val app = ModuleInfo.virtualModule.copy(
+            name = "app",
+            moduleType = ModuleInfo.Type.Application,
+            projectRootDir = projectDir,
+            moduleRootDir = moduleDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
+        )
+        ProjectInfoSerializer(pathManager.gradleProjectInfoFile, Logger.getInstance("StandaloneRuntimeTest"))
+            .save(JuggProjectInfo(linkedMapOf("app" to app), agpR8Classpath = null))
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectDir)
+        }
+
+        val result = call("init", mapOf("projectDir" to projectDir.absolutePath))
+
+        assertEquals("OK", result.structuredContent["status"])
+        val configuration = CliRunConfigurationStore(pathManager).loadCurrent()
+        assertEquals("app", configuration?.moduleName)
+        assertEquals("./gradlew :app:assembleDebug", configuration?.compileCommand)
+    }
+
+    @Test
+    fun `standalone rejects remote compile profiles before execution`() {
+        val projectDir = temporaryFolder.newFolder("project")
+        val pathManager = JuggPathManager(projectDir)
+        val moduleDir = projectDir.resolve("app")
+        val app = ModuleInfo.virtualModule.copy(
+            name = "app",
+            moduleType = ModuleInfo.Type.Application,
+            projectRootDir = projectDir,
+            moduleRootDir = moduleDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
+        )
+        val configuration = CliRunConfigurationGenerator.generateForModule(app).copy(isRemoteCompile = true)
+        CliRunConfigurationStore(pathManager).apply {
+            save(configuration)
+            select(configuration.id)
+        }
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectDir)
+        }
+
+        val initResult = call("init", mapOf("projectDir" to projectDir.absolutePath))
+        val compileResult = call("compile", mapOf("projectDir" to projectDir.absolutePath))
+
+        assertEquals("ERROR", initResult.structuredContent["status"])
+        assertEquals("ERROR", compileResult.structuredContent["status"])
+        assertTrue(initResult.structuredContent["message"].toString().contains("does not support remote compile profiles"))
+        assertTrue(compileResult.structuredContent["message"].toString().contains("does not support remote compile profiles"))
     }
 
     @Test
