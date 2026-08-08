@@ -93,7 +93,7 @@ Gradle 回退成功后，Jugg 会重新收集构建产物，刷新项目快照�
 - [编译能力](../../capabilities/compile/)
 - [编译调度流程](../compile-pipeline.md)
 - [部署数据与影响分析](../deploy-data-and-impact.md)
-- [重试、重装与 Gradle 构建](../fallback-and-limits.md)
+- [重试、重装与 Gradle 构建](../retry-reinstall-gradle-build.md)
 - [源码编译能力](../../capabilities/compile/source-compile.md)
 - [资源编译能力](../../capabilities/compile/resource-compile.md)
 - [DataBinding / ViewBinding 能力](../../capabilities/compile/databinding-viewbinding.md)

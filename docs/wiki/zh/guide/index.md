@@ -69,7 +69,7 @@ tags:
 - [设备兼容部署](./compat-device.md)
 - [实现原理](../concepts/)
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
-- [重试、重装与 Gradle 构建](../concepts/fallback-and-limits.md)
+- [重试、重装与 Gradle 构建](../concepts/retry-reinstall-gradle-build.md)
 - [Jugg 能力概览](../capabilities/)
 - [高级选项](./advanced-options.md)
 - [报告问题](./report-issue.md)
