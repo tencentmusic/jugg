@@ -1,5 +1,8 @@
 //file:noinspection GroovyAssignabilityCheck
 
+import groovy.json.JsonOutput
+import java.security.MessageDigest
+
 // Apply Application plugin to enable runnable distribution
 apply plugin: 'application'
 
@@ -14,6 +17,94 @@ def standaloneStartScripts = tasks.register('standaloneStartScripts', CreateStar
     mainClass.set('com.sickworm.intellij.jugg.cmdline.standalone.JuggDaemonKt')
     outputDir = layout.buildDirectory.dir('standalone-scripts').get().asFile
     classpath = tasks.named('startScripts').get().classpath
+}
+
+def standaloneBundleStageDir = layout.buildDirectory.dir('standalone-bundle')
+def bootstrapProject = project(':standalone_bootstrap')
+def sha256 = { File file ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    file.withInputStream { input ->
+        byte[] buffer = new byte[8192]
+        for (int read = input.read(buffer); read >= 0; read = input.read(buffer)) {
+            if (read > 0) digest.update(buffer, 0, read)
+        }
+    }
+    digest.digest().collect { String.format('%02x', it) }.join()
+}
+
+def prepareStandaloneBundle = tasks.register('prepareStandaloneBundle') {
+    group = 'distribution'
+    description = 'Stages the cross-platform standalone runtime bundle.'
+    dependsOn(tasks.named('installDist'), bootstrapProject.tasks.named('jar'))
+    inputs.files(configurations.runtimeClasspath)
+    inputs.files(bootstrapProject.configurations.runtimeClasspath)
+    inputs.dir(new File(rootProject.projectDir, 'docs/skills/jugg-android-dev-loop/scripts'))
+    inputs.property('releaseBuildId', rootProject.releaseBuildId)
+    inputs.property('runtimeVersion', rootProject.pluginVersion)
+    outputs.dir(standaloneBundleStageDir)
+    doLast {
+        def stageDir = standaloneBundleStageDir.get().asFile
+        project.delete(stageDir)
+        def jarsDir = new File(stageDir, 'jars')
+        jarsDir.mkdirs()
+        def bootstrapDir = new File(stageDir, 'bootstrap')
+        bootstrapDir.mkdirs()
+        def bootstrapFiles = [bootstrapProject.tasks.named('jar').get().archiveFile.get().asFile] +
+                bootstrapProject.configurations.runtimeClasspath.files.findAll { it.name.startsWith('gson-') }
+        def bootstrapHashes = [:]
+        def bootstrapFileNames = bootstrapFiles.collect { source ->
+            def targetName = source == bootstrapFiles.first() ? 'standalone-bootstrap.jar' : source.name
+            project.copy { from source; into bootstrapDir; rename { targetName } }
+            bootstrapHashes[targetName] = sha256(source)
+            targetName
+        }
+        project.copy {
+            from new File(rootProject.projectDir, 'docs/skills/jugg-android-dev-loop/scripts')
+            into new File(stageDir, 'cli')
+        }
+        def sourceJars = (new File(installDist.destinationDir, 'lib').listFiles() ?: [])
+                .findAll { it.isFile() && it.name.endsWith('.jar') }.sort { it.name }
+        def jarHashes = [:]
+        def jarFileNames = sourceJars.collect { source ->
+            def hash = sha256(source)
+            def baseName = source.name.substring(0, source.name.length() - 4)
+            def targetName = "${baseName}-${hash}.jar"
+            project.copy { from source; into jarsDir; rename { targetName } }
+            jarHashes[targetName] = hash
+            targetName
+        }
+        def manifest = [
+                schemaVersion      : 1,
+                runtimeApiVersion  : 1,
+                bootstrapApiVersion: 1,
+                targetVersion      : rootProject.pluginVersion,
+                releaseBuildId     : rootProject.releaseBuildId,
+                releaseChannel     : rootProject.pluginVersion.contains('SNAPSHOT') ? 'snapshot' : 'stable',
+                toolingReleaseBuildId: rootProject.releaseBuildId,
+                managedBy          : 'external',
+                jarFileNames       : jarFileNames,
+                jarSha256          : jarHashes,
+                bootstrapFileNames : bootstrapFileNames,
+                bootstrapSha256    : bootstrapHashes,
+        ]
+        new File(stageDir, 'standalone_bundle_manifest.json').text = JsonOutput.prettyPrint(JsonOutput.toJson(manifest))
+        new File(stageDir, 'install.sh').text = '#!/bin/sh\nset -eu\nDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec java -cp "$DIR/jars/*" com.sickworm.intellij.jugg.cmdline.standalone.StandaloneBundleInstallerMain "$DIR" "$@"\n'
+        new File(stageDir, 'install.command').text = '#!/bin/sh\nset -eu\nexec "$(dirname "$0")/install.sh" "$@"\n'
+        new File(stageDir, 'install.cmd').text = '@echo off\r\njava -cp "%~dp0jars\\*" com.sickworm.intellij.jugg.cmdline.standalone.StandaloneBundleInstallerMain "%~dp0" %*\r\n'
+    }
+}
+
+def standaloneBundle = tasks.register('standaloneBundle', Zip) {
+    group = 'distribution'
+    description = 'Builds the single cross-platform standalone Jugg bundle.'
+    dependsOn(prepareStandaloneBundle)
+    archiveFileName.set("jugg-standalone-${rootProject.pluginVersion}.zip")
+    destinationDirectory.set(layout.buildDirectory.dir('distributions'))
+    from(standaloneBundleStageDir)
+    filesMatching(['install.sh', 'install.command']) { mode = 0755 }
+    doFirst {
+        project.delete(fileTree(destinationDirectory.get().asFile) { include 'jugg-standalone-*.zip', 'jugg-standalone.zip' })
+    }
 }
 
 // Ensure the plain jar includes Main-Class for `java -jar` usage
@@ -112,4 +203,5 @@ def openDistRootTask = tasks.register('openDistRootDir') {
 }
 
 tasks.named('distZip').configure { finalizedBy(unzipDistTask, openDistRootTask) }
+tasks.named('test').configure { dependsOn(standaloneBundle) }
 // Java compatibility is inherited from the module (11)

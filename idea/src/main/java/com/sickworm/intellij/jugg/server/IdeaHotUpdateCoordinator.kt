@@ -7,7 +7,6 @@ import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.gradle.compile.zipFiles
 import com.sickworm.intellij.jugg.ide.logic.PluginVersionComparator
 import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateBootstrap
@@ -15,11 +14,13 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.io.File
 import java.nio.file.Path
-import javax.swing.SwingUtilities
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /** Coordinates IDEA update checks, notifications, plugin installation, restart, and project reopening. */
 class IdeaHotUpdateCoordinator(
@@ -99,7 +100,7 @@ class IdeaHotUpdateCoordinator(
         if (!isHotUpdate) {
             return
         }
-        if (installPluginForLowerVersion(project)) {
+        if (installPluginForLowerVersion()) {
             return
         }
 
@@ -138,6 +139,7 @@ class IdeaHotUpdateCoordinator(
                 return
             }
             installUpdateFlag.delete()
+            juggHotUpdateManager.activateReinstallCandidate(PluginInfoReader.getPluginCompileTimestamp())
             val notificationData = currentHotUpdateData.updateInfo
             logger.debug("show notifyInstallUpdateIfNeeded ${currentHotUpdateData.updateInfo}")
             if (notificationData != null) {
@@ -180,7 +182,7 @@ class IdeaHotUpdateCoordinator(
 
         // Install remains IDEA-only; standalone loads the prepared manifest on its next daemon start.
         logEvent("downloadHotUpdate install plugin")
-        val isInstallSuccess = installPlugin(updateResult.jarFiles)
+        val isInstallSuccess = installPlugin(updateResult, hotUpdateData.targetVersion)
         if (!isInstallSuccess && hotUpdateData.isNeedReinstall) {
             logEvent("downloadHotUpdate install failed")
             return
@@ -207,10 +209,22 @@ class IdeaHotUpdateCoordinator(
     }
 
     @Synchronized
-    private fun installPlugin(expectJarFiles: List<File>): Boolean {
+    private fun installPlugin(updateResult: JuggHotUpdateResult, targetVersion: String): Boolean {
         logEvent("downloadHotUpdate install")
         val zipFile = File(juggHotUpdateManager.hotUpdateDir, "jugg_plugin_${System.currentTimeMillis()}.zip")
-        zipFile.zipFiles(expectJarFiles, "jugg/lib/")
+        zipFile.parentFile?.mkdirs()
+        ZipOutputStream(zipFile.outputStream()).use { zip ->
+            updateResult.jarFiles.forEach { file ->
+                zip.putNextEntry(ZipEntry("jugg/lib/${file.name}"))
+                file.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+            updateResult.standaloneBundleCandidate?.let { bundle ->
+                zip.putNextEntry(ZipEntry("jugg/standalone/jugg-standalone-$targetVersion.zip"))
+                bundle.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+        }
         if (!zipFile.exists() || zipFile.length() <= 0) {
             logEvent("downloadHotUpdate zip file is invalid, skip install")
             return false
@@ -242,7 +256,7 @@ class IdeaHotUpdateCoordinator(
         }
     }
 
-    private fun installPluginForLowerVersion(project: Project): Boolean {
+    private fun installPluginForLowerVersion(): Boolean {
         if (isUpdatedThisRuntime) {
             return false
         }
@@ -252,31 +266,7 @@ class IdeaHotUpdateCoordinator(
         if (!isNeedInstallOneTime) {
             return false
         }
-        val loadManifest = JuggHotUpdateBootstrap.activeLoadManifest ?: return false
-        val jarFiles = loadManifest.jarFileNames.map { jarFileName ->
-            val jarFile = JuggHotUpdateBootstrap.storageDir.resolve(jarFileName)
-            if (!jarFile.exists()) {
-                logEvent("installPluginForLowerVersion hot update jar file not found: $jarFile, exit")
-                return false
-            }
-            return@map jarFile
-        }
-
-        juggServer.launchSafe {
-            val isSuccess = taskRunnerManager.runGlobalWriteLocked("Install hot update for legacy plugin") {
-                installPlugin(jarFiles).also { success ->
-                    if (success) {
-                        isUpdatedThisRuntime = true
-                    }
-                }
-            }
-            logEvent("installPluginForLowerVersion isSuccess $isSuccess")
-            if (isSuccess) {
-                SwingUtilities.invokeLater {
-                    processHotUpdateNotification(project)
-                }
-            }
-        }
+        logEvent("installPluginForLowerVersion requires a complete Marketplace or official plugin ZIP")
         return true
     }
 

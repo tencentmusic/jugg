@@ -8,8 +8,10 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.project.runtime.IHostTaskExecutor
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.StandaloneHotUpdateManifest
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import com.sickworm.intellij.jugg.server.protocols.JarFileInfo
+import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,6 +28,77 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JuggHotUpdateManagerTest {
+
+    @Test
+    fun `legacy hot update JSON keeps standalone fields absent`() {
+        val data = Gson().fromJson(
+            """{"isNeedUpdate":true,"targetVersion":"4.0","updateInfo":null,"jarFileInfos":[],"isNeedReinstall":false}""",
+            HotUpdateData::class.java,
+        )
+
+        assertTrue(data.standaloneJarFileInfos.orEmpty().isEmpty())
+        assertEquals(null, data.standaloneBundleFileInfo)
+    }
+
+    @Test
+    fun `compatible update publishes independent idea and standalone manifests`() {
+        val rootDir = Files.createTempDirectory("jugg-dual-runtime-update").toFile()
+        val idea = "idea".toByteArray()
+        val standalone = "standalone".toByteArray()
+        val server = downloadServer(mapOf("https://server/idea.jar" to idea, "https://server/standalone.jar" to standalone))
+        val manager = newManager(rootDir, server)
+        val data = updateData(false, "idea.jar", idea).copy(
+            releaseBuildId = "release-2",
+            releaseChannel = "stable",
+            standaloneJarFileInfos = listOf(JarFileInfo("standalone.jar", "https://server/standalone.jar", standalone.md5())),
+        )
+
+        manager.prepareUpdate(data)
+
+        assertEquals(listOf("idea.jar"), manager.resolveLoadManifest("standalone-build-1")?.jarFileNames)
+        assertEquals(listOf("standalone.jar"), manager.resolveStandaloneLoadManifest()?.jarFileNames)
+        assertEquals("release-2", manager.resolveStandaloneLoadManifest()?.releaseBuildId)
+    }
+
+    @Test
+    fun `server file names reject traversal and platform separators`() {
+        val rootDir = Files.createTempDirectory("jugg-invalid-update-name").toFile()
+        val content = "jar".toByteArray()
+        val manager = newManager(rootDir, downloadServer(emptyMap()))
+
+        listOf("../runtime.jar", "/runtime.jar", "dir/runtime.jar", "dir\\runtime.jar", "bad\u0000.jar").forEach { name ->
+            assertFailsWith<IllegalArgumentException>(name) {
+                manager.prepareUpdate(updateData(false, name, content))
+            }
+        }
+    }
+
+    @Test
+    fun `reinstall candidate activates only for the exact plugin build`() {
+        val rootDir = Files.createTempDirectory("jugg-reinstall-identity").toFile()
+        val standalone = "standalone".toByteArray()
+        val bundle = "bundle".toByteArray()
+        val server = downloadServer(mapOf(
+            "https://server/standalone.jar" to standalone,
+            "https://server/standalone.zip" to bundle,
+        ))
+        val manager = newManager(rootDir, server)
+        val data = updateData(true, "idea.jar", "idea".toByteArray()).copy(
+            jarFileInfos = emptyList(),
+            releaseBuildId = "release-2",
+            releaseChannel = "stable",
+            standaloneJarFileInfos = listOf(JarFileInfo("standalone.jar", "https://server/standalone.jar", standalone.md5())),
+            standaloneBundleFileInfo = JarFileInfo("standalone.zip", "https://server/standalone.zip", bundle.md5()),
+        )
+
+        manager.prepareUpdate(data)
+
+        assertFalse(manager.activateReinstallCandidate("other-build"))
+        assertEquals(null, manager.resolveStandaloneLoadManifest())
+        assertTrue(manager.activateReinstallCandidate("release-2"))
+        assertEquals("release-2", manager.resolveStandaloneLoadManifest()?.releaseBuildId)
+        assertFalse(manager.candidatesDir.resolve("release-2").exists())
+    }
 
     @Test
     fun `compatible update downloads validates and publishes runtime manifest`() {
@@ -141,7 +214,9 @@ class JuggHotUpdateManagerTest {
         val secondManager = newManager(rootDir, server, "embedded-2")
 
         assertTrue(secondManager.publishEmbeddedIfNeeded(embeddedLibDir))
-        assertEquals("new", secondManager.storageDir.resolve("main.jar").readText())
+        val activeJarName = secondManager.resolveLoadManifest("embedded-2")?.jarFileNames?.single()
+        assertEquals("new", secondManager.storageDir.resolve(requireNotNull(activeJarName)).readText())
+        assertEquals(2, secondManager.storageDir.listFiles().orEmpty().count { it.extension == "jar" })
         assertEquals("embedded-2", secondManager.resolveLoadManifest("embedded-2")?.baseEmbeddedBuildTime)
     }
 
@@ -166,12 +241,21 @@ class JuggHotUpdateManagerTest {
             writeText("recent")
             setLastModified(recentMillis)
         }
+        val standaloneJar = manager.storageDir.resolve("standalone.jar").apply {
+            writeText("standalone")
+            setLastModified(expiredMillis)
+        }
+        manager.standaloneLoadManifestFile.writeText(Gson().toJson(StandaloneHotUpdateManifest(
+            1, 1, 1, "4.0", "build", "stable", "build", "external",
+            listOf(standaloneJar.name), mapOf(standaloneJar.name to "sha"),
+        )))
 
         manager.cleanupExpiredJars(setOf(activeJar.name), nowMillis)
 
         assertTrue(activeJar.exists())
         assertFalse(expiredJar.exists())
         assertTrue(recentJar.exists())
+        assertTrue(standaloneJar.exists())
     }
 
     private fun updateData(isNeedReinstall: Boolean, name: String, content: ByteArray): HotUpdateData {

@@ -16,6 +16,7 @@
 - Python `jugg` CLI 继续作为 MCP 客户端。
 - IDEA 插件继续使用 IDEA 内运行时，首期不改造成 standalone daemon 的薄客户端。
 - IDEA Runtime 与 Standalone Runtime 复用同一套核心编译、部署编排和持久化协议。
+- 正式发行使用单一跨平台 Bundle，不携带 jlink runtime image；依赖用户提供完整 JDK，最低 Java 11，并验收 Java 11、17、21。
 
 ## 2. 核心决策
 
@@ -69,6 +70,25 @@ CI 命令继续保持一次性进程、显式参数和现有产物语义。Stand
 该模块放在 `deploy_compat/standalone_deployer/`，只由 standalone runtime 依赖，不进入 IDEA 插件 classloader。模块固定使用 Android Studio Quail 版本的 deployer 实现和二进制协议，不承担 Android Studio 多版本兼容。
 
 Quail 的现成 deployer class 为 Java 21 字节码，不能被 Java 11 daemon 直接加载。`:deploy_compat:standalone_deployer` 与 `:cmd_line` 均固定以 Java 11 编译和运行：standalone 通过受控反编译回迁实现实际所需 deployer 闭包，而不是加载 Quail 的现成 class。
+
+### 2.4 共享 JAR 内容池，Runtime manifest 独立
+
+IDEA 与 standalone 共享 `~/.jugg/hot_update/jars/` 内容存储，但不共享 classpath manifest：
+
+```text
+~/.jugg/hot_update/
+├── jars/
+├── load_manifest.json
+└── standalone_load_manifest.json
+```
+
+`load_manifest.json` 只描述 IDEA Runtime 当前可加载的完整 JAR 快照；`standalone_load_manifest.json` 只描述 standalone Runtime 当前可加载的完整 JAR 快照。公共 JAR 可同时被两份 manifest 引用，IDEA 专属 compat JAR 只进入 IDEA manifest，`cmd_line`、`base_api`、真实 ddmlib 和 `standalone_deployer` 等 standalone 专属 JAR 只进入 standalone manifest。共享物理目录不表示共享 classpath，禁止把两个 manifest 的并集放入 IDEA 插件 `jugg/lib/`。
+
+根构建一次生成全局唯一、可排序的 `releaseBuildId`，同一构建中的插件 metadata、Bundle manifest、两份 Runtime manifest、服务端 update metadata 和 reinstall candidate 必须使用同一个值。`targetVersion` 只用于展示和产品版本判断，不作为同版本不同构建的激活身份。standalone manifest 还记录 `releaseChannel`、`schemaVersion`、`runtimeApiVersion`、`bootstrapApiVersion`、`toolingReleaseBuildId`、`managedBy=idea|external` 和有序 `jarFileNames`。完整 Bundle 安装时 `toolingReleaseBuildId=releaseBuildId`；普通兼容热更新只切换 runtime `releaseBuildId`，继续引用当前版本化 bootstrap/CLI，不得提高 tooling API。
+
+所有进入共享池的来源统一使用内容寻址或等价的不可变 unique name，包括 IDEA embedded lib、standalone Bundle 和服务端两组文件。更新只新增或复用摘要一致的已校验文件，不覆盖运行中版本；同一 unique name 对应不同摘要时按协议错误失败。manifest 使用临时文件和原子替换发布，Loader 只读取自己所属的 manifest。未引用 JAR 清理使用两份 active manifest、standalone previous last-known-good manifest、待安装更新文件和既有保留策略的引用并集。
+
+全局 standalone 采用确定的接管规则。自动同步只在同一 `releaseChannel` 内先比较规范化产品版本，再在相同产品版本内比较 `releaseBuildId`；不同 channel、无法可靠比较的 snapshot 或更旧产品版本都不得自动接管。外部 Bundle 安装可显式选择升级或降级；插件内“Install CLI”默认只安装/修复不低于当前 active 的版本，若 bundled 版本更旧必须明确确认降级。`isNeedReinstall=true` 仅可激活与新插件 `releaseBuildId` 完全一致的候选。插件自身回退不自动回退 standalone，若需要配套降级，由用户显式确认安装回退插件携带的 Bundle。这样旧分支晚构建、多 Android Studio 安装和外部安装共用 `~/.jugg` 时都不会因普通启动反复切换版本。
 
 ## 3. Runtime 能力现状与领域划分
 
@@ -286,7 +306,21 @@ IDEA 使用 VFS monitor，standalone 使用 WatchService monitor；两者都必�
 - server update/custom config 检查。
 - standalone runtime/deployer resource 校验。
 
-双 Runtime 下，CLI/skills 更新、全局 runtime resource 解压、settings 写入、library Test APK build history 和 hot update 写入统一使用 `~/.jugg/locks/global.lock`。IDEA 与 standalone 共享 `jars/` 和新的 `load_manifest.json` 完整快照，不兼容旧 `load_list.txt`。启动 Loader 不进入任务域或全局锁，只校验 manifest 的 embedded build time、读取 jar 列表并刷新所用 jar 的修改时间，不删除任何文件。IDEA hot update 初始化仅在 `hot_update` 目录已经存在时，于全局锁内将当前 packaged jars 发布到同一 manifest；目录不存在时不得主动创建。服务器更新继续原子替换该 manifest。未引用且超过 90 天的 jar 由下载端在写锁内清理。IDEA 保留插件安装/重启；standalone 在下一次 daemon 启动时加载同一快照，不在当前进程热更新。若更新标记 `isNeedReinstall=true`，只下载和记录，不更新 load manifest。
+双 Runtime 下，CLI/skills 更新、standalone Bundle 安装、全局 runtime resource 解压、settings 写入、library Test APK build history 和 hot update 写入统一使用 `~/.jugg/locks/global.lock`。IDEA 与 standalone 共享 `hot_update/jars/` 内容池，但分别使用 `load_manifest.json` 与 `standalone_load_manifest.json`，不兼容旧 `load_list.txt`。两份 manifest 均描述所属 Runtime 的完整、有序 JAR 快照，不通过共享目录扫描或 JAR 前缀推导 active classpath。
+
+启动 Loader 不进入任务域或全局锁，只读取所属 manifest、校验版本边界、确认全部 JAR 存在并刷新所用 JAR 的修改时间，不删除任何文件。IDEA manifest 继续校验 embedded build identity，避免旧插件加载不匹配的 hot update；standalone manifest 使用 `releaseBuildId`、`schemaVersion`、`runtimeApiVersion`、`bootstrapApiVersion` 和 `jarFileNames` 校验独立 Runtime。standalone 当前进程不热替换 classpath，只在下一次 daemon 启动时读取新 manifest。
+
+服务器热更新协议保留现有 `jarFileInfos` 的 IDEA 语义，新增 nullable `standaloneJarFileInfos` 和 reinstall 时使用的 nullable `standaloneBundleFileInfo`。Gson 边界必须对缺字段按 `null` 读取并统一 `orEmpty()`，不能依赖 Kotlin 默认参数；旧插件忽略新增字段且不得收到 IDEA/standalone 并集。Bundle 和服务端文件共用同一文件名安全契约：只允许单个 basename，禁止绝对路径、`..`、任意平台路径分隔符、控制字符和 symlink target，normalize 后的目标必须仍位于该类型声明的 `hot_update/jars/` 或 `hot_update/candidates/<releaseBuildId>/` 根目录。
+
+下载端根据服务端明确给出的文件集合分别生成本地 manifest，不根据文件名前缀分类。普通更新在全部 JAR 校验通过后分别原子发布两份 manifest；两份文件不追求跨文件原子切换，因此 `isNeedReinstall=false` 必须表示新旧 IDEA/standalone Runtime 可长期并存，并与当前及上一代持久化 schema、锁和 owner 恢复协议双向兼容，不满足时服务端必须下发 reinstall。运行中的旧 IDEA classloader 与下一次启动加载新版 manifest 的 standalone 共同访问项目时，也必须满足这一兼容契约。
+
+`isNeedReinstall=true` 时只下载和记录两组候选文件、Bundle artifact 及其 `releaseBuildId`，不发布任何 active manifest。Bundle 固定保存到 `hot_update/candidates/<releaseBuildId>/standalone.zip`，candidate metadata 与已调度的插件安装标记是该目录的唯一 owner；新候选替代旧候选、安装成功或确认失败后，在不再被安装任务引用时删除整个 candidate 目录，下载失败的临时文件立即删除。共享池中的候选 JAR 继续按两份 manifest、candidate metadata 和既有 90 天策略联合清理。
+
+新插件真正安装并重启后，只有插件 metadata 与 candidate 的 `releaseBuildId` 完全一致才激活配套 standalone manifest；仅 `targetVersion` 相等、安装被其他来源覆盖或同版本不同构建均不得激活候选。当前 Step 11 updater 不认识 Bundle artifact，也只能生成 `jugg/lib/`，因此“当前版本 → 首个 Step 12 版本”禁止使用 legacy hot-update reinstall，必须通过 Marketplace 或官方完整插件 ZIP 安装；首个 Step 12 插件生效后才启用新协议。服务端需对旧 runtime 返回完整插件升级提示而不是下发无法正确安装的 reinstall candidate。
+
+插件发行包中的 Bundle 固定放在 `jugg/standalone/jugg-standalone-<releaseBuildId>.zip`，不作为 IDEA classpath element。hot-update 重装 ZIP 必须同时包含 IDEA manifest 引用的 `jugg/lib/*.jar` 和已校验的 Bundle artifact；Bundle 内部 JAR 不得直接展开到 `jugg/lib/`。普通无需重装的更新不改写已安装插件资源，只在 standalone 已安装时更新其 active manifest。
+
+IDEA packaged runtime 初始化仍只在 `hot_update` 目录已经存在时发布 IDEA embedded JAR。若 `standalone_load_manifest.json` 已存在，表示 standalone 已安装，插件自动更新按 `releaseBuildId` 接管规则同步配套 standalone 闭包；未安装 standalone 时不主动展开大体积 runtime Bundle。未引用且超过 90 天的 JAR 由下载端在写锁内清理，引用集合包含两份 active manifest、standalone previous last-known-good manifest，以及已下载但因 reinstall 尚未激活的候选文件。
 
 锁能力统一从 `TaskRunnerManager` 暴露：常规任务使用实例 API；runtime resource 首次解压、history 持久化和手册导出等尚未进入 TaskRunner 生命周期、但确实需要写全局文件的基础设施入口使用 `TaskRunnerManager.runGlobalWriteLocked()` 静态入口。hot update Loader 是无锁只读 bootstrap，不依赖 TaskRunner。`ExecutionLockManager.kt` 中的 Runtime identity、owner、锁接口和文件锁实现全部为 `internal` / `private`，调用方不再感知任何锁实现类型。
 
@@ -699,7 +733,45 @@ Standalone daemon 负责：
 - runtime resource 解压和版本校验。
 - 4 小时无外部有效活动后的自动退出。
 
-Standalone daemon 使用 Java 11。正式发行提供独立 distribution，例如 `jugg-standalone-<version>-<os>-<arch>.zip`，包含 daemon launcher、应用及依赖 jar、Java 11 runtime image（含编译所需模块）、Java 11 standalone deployer、installer 资源和 metadata；避免依赖用户机器预装正确 JDK。macOS、Linux、Windows 分别构建对应 distribution。
+Standalone daemon 代码以 Java 11 编译。正式发行提供单一平台无关 Bundle，例如 `jugg-standalone-<version>.zip`，不携带 jlink runtime image，包含完整 standalone runtimeClasspath、Java 11 standalone deployer、Python CLI、稳定 daemon launcher、三平台安装入口和完整性 metadata：
+
+```text
+jugg-standalone-<version>/
+├── install.command
+├── install.sh
+├── install.cmd
+├── installer/
+│   └── jugg-standalone-installer.jar
+├── payload/
+│   ├── standalone_bundle_manifest.json
+│   ├── jugg-standalone-selector.jar
+│   ├── jugg-standalone-bootstrap.jar
+│   ├── jars/
+│   └── cli/
+```
+
+`standalone_bundle_manifest.json` 是离线 Bundle 的权威闭包，至少记录 `releaseBuildId`、`schemaVersion`、`runtimeVersion`、`runtimeApiVersion`、`bootstrapApiVersion`、有序 unique JAR 名称和 SHA-256。它由根构建根据实际 standalone runtimeClasspath 生成，安装器不得扫描共享 `~/.jugg/hot_update/jars/` 或根据 JAR 前缀猜测闭包。服务器普通热更新已有明确文件列表，不要求额外传输 Bundle manifest，由 updater 根据已校验列表生成本地 `standalone_load_manifest.json`；reinstall 更新必须额外携带完整 Bundle，保证新插件 ZIP 仍具备插件内安装能力。
+
+安装脚本只负责定位 Java 并启动无第三方依赖、Java 11 编译的 installer。安装结果保留一个冻结启动 ABI 的 Java 11 selector，selector 只解析 standalone manifest 的稳定头部并按其中的版本化 bootstrap 路径加载 bootstrap；bootstrap 再以受控 `URLClassLoader` 在当前 JVM 加载有序 runtime JAR，不拼接 `java -cp <全部绝对路径>`，避免 Windows 命令行长度限制。普通热更新不得提高 `schemaVersion` 或 `bootstrapApiVersion`；需要升级 bootstrap、launcher 或 Python CLI 时必须走完整 Bundle 安装事务。
+
+完整安装先在 `~/.jugg/standalone/releases/<releaseBuildId>/` stage 并校验版本化 bootstrap、CLI 和其他 launcher 资源，再复制不可变 runtime JAR，保留上一个已成功启动的 `standalone_load_manifest.previous.json`，最后以 `standalone_load_manifest.json` 的原子替换作为提交点。selector 和稳定 CLI wrapper 根据 manifest 的 `toolingReleaseBuildId` 选择同一版本化 release；manifest 切换前发生失败时仍选择旧 bootstrap、CLI 和 runtime，安装器清理 candidate 而不留下半激活组合。普通热更新保持 `toolingReleaseBuildId` 不变。
+
+bootstrap 负责新 `releaseBuildId` 的首次启动 ready 握手：daemon 必须在限定时间内完成核心 class 加载并进入 MCP ready，成功后在独立 `standalone_activation_state.json` 中记录 last-known-good build。若文件校验已通过但首次启动抛出链接/类加载异常或 ready 超时，bootstrap 只对该失败 `releaseBuildId` 自动回退一次到 previous manifest 并重启；同一状态文件记录失败 build，防止循环回退。selector 另提供不依赖 active runtime 的 `--rollback` 修复入口。selector ABI 在 Step 12 固定，未来若必须改变 selector 本身，作为新的安装迁移处理，不属于普通 hot update。
+
+安装器统一承担三平台 JDK/Python 校验、全局文件锁、路径安全、SHA-256 和原子发布。Java 优先使用 `JAVA_HOME`，再使用 `PATH`，要求完整 JDK 而非仅 JRE；Python 复用现有 CLI 的 `python3` → `python` 发现顺序并要求 3.7+，缺失或版本过低时在提交安装前明确失败。Jugg daemon 目标支持 Java 11、17、21，目标 Android 工程自身的 AGP/Gradle JDK 下限仍由工程决定。当前 `cmd_line` distribution 中 `repository-32.0.1.jar` 已存在 major version 61 class，因此 Java 11 仍是 Step 12 必须消除的真实发行阻塞，不能只凭项目 `jvmTarget=11` 或 daemon 能启动判定兼容。安装结果固定为：
+
+```text
+~/.jugg/bin/                         # 稳定 Python CLI wrapper
+~/.jugg/standalone/bin/              # 稳定 jugg-standalone / .bat 入口
+~/.jugg/standalone/selector/         # 冻结 ABI 的 Java 11 selector
+~/.jugg/standalone/releases/<id>/    # 版本化 bootstrap、CLI 和 launcher 资源
+~/.jugg/hot_update/jars/             # 共享不可变 JAR 内容池
+~/.jugg/hot_update/standalone_load_manifest.json
+~/.jugg/hot_update/standalone_load_manifest.previous.json
+~/.jugg/hot_update/standalone_activation_state.json
+```
+
+外部 Bundle 安装只初始化 standalone manifest，不创建空的 IDEA `load_manifest.json`。IDEA 插件在 `jugg/standalone/` 携带同一个 Bundle 作为非 classpath artifact；插件端“Install CLI”复用同一安装逻辑，而不是分别维护另一套解压规则。若插件当前由普通 hot update 加载了比磁盘 Bundle 更新的 Runtime，“Install CLI”先安装 bundled tooling/base runtime，再立即执行一次正向 standalone update check 并在校验成功后激活最新兼容 runtime；离线时保留可工作的 bundled 版本。已有 standalone 比 bundled 版本更新时默认不降级，只有用户明确确认才安装旧 bundled 版本。重复安装同一 Bundle 必须幂等，任一校验或复制失败时不得替换 active standalone manifest。macOS ZIP 必须保留 `install.command` 可执行位，同时保留 `sh install.sh` 命令行入口作为系统阻止双击脚本时的明确降级路径。
 
 Python CLI 的命令与 MCP 参数保持不变，但内部端口发现改为识别 IDEA MCP runtime 和 standalone runtime。目标项目未被任何 runtime 持有时，普通用户 CLI 拉起 standalone daemon，再走 MCP 初始化和调用。hook 子进程必须传递 `JUGG_CALLER=hook`：仅当 `<projectDir>/build/jugg/database/compile_context.db/complete_flag` 存在时才允许拉起 daemon；标记不存在时直接跳过，禁止因 hook 产生意外 daemon。
 
@@ -731,7 +803,7 @@ Standalone 使用真实 ddmlib 初始化 `AndroidDebugBridge`，实现：
 
 设计阶段同时覆盖：
 
-- `adb.exe`、Java 11 runtime、`gradlew.bat` 发现。
+- `adb.exe`、完整 JDK 11/17/21、`gradlew.bat` 发现。
 - Windows 路径、MSYS/Cygwin/WSL 归一化。
 - NIO 文件锁。
 - daemon launcher/pid 管理。
@@ -761,7 +833,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 | Step 9 | 已完成 | 在 `deploy_compat/standalone_deployer/` 落地固定 Quail 1 的 Java 11 standalone deployer、版本资源、完整性校验与真机 install/class/resource PoC |
 | Step 10 | 已完成 | 共享 deploy lifecycle、IDEA 接线、standalone Host 边界和跨 Runtime cache 恢复已落地；standalone 编排组装与用户命令留待 Step 11 |
 | Step 11 | 已完成 | standalone 已串联 init、Gradle baseline、Git/WatchService、增量编译、共享 deploy、异步 job/取消/轮询与 Runtime owner/cache generation 恢复 |
-| Step 12 | 待实施 | 三平台 runtime image、发行校验与完整跨平台验收留待后续会话 |
+| Step 12 | 已完成 | 单一跨平台 Bundle、统一 `releaseBuildId`、Java 11 bootstrap、版本化安装事务、双 Runtime manifest、hot update candidate/精确激活、插件安装接线和发行门禁已落地；macOS 已完成 JDK 11/17/21 安装与链接验收，Linux/Windows/真机矩阵需在对应环境执行 |
 
 ### 9.2 Commit 规范
 
@@ -828,7 +900,7 @@ Windows 独立验收，不以 macOS/Linux 通过代替。
 
 ### Step 2：任务域、项目锁和后台任务
 
-实现状态：已完成。`TaskRunnerManager` 已下沉 `main`，通过 `IHostTaskExecutor` 隔离 IDEA `Task.Backgroundable` 执行 / `ProgressIndicator` 与 CLI 无 UI 执行；`FileExecutionLockManager` 使用进程内可重入锁和 NIO 文件锁串行项目写事务，并写入 owner metadata，诊断读取会清理异常退出遗留的 stale metadata。完整 `JuggRunningTask`、项目初始化/更新、文件变化处理和 deployment cache 读写已进入项目锁。后台与 Host task 通过互斥的 `isProjectWrite` / `isGlobalWrite` 直接选择项目锁或固定全局写锁；CLI 自动更新、skills 安装、hot update 下载写入、runtime resource 解压与 library Test APK build history 已补齐全局写协调。hot update Loader 保持无 TaskRunner 的只读 bootstrap，IDEA 与 standalone 共享新的 load manifest；embedded packaged jars 的同步内聚在 hot update 初始化并受全局锁保护。下载端原子发布快照并按 90 天保留期清理未引用 jar。TaskRunner 统一跟踪 Job，并在 `JuggManager.dispose()` 时取消尚未执行的任务。已进入写事务的任务允许完成，避免强制中断造成半提交状态。
+实现状态：已完成。`TaskRunnerManager` 已下沉 `main`，通过 `IHostTaskExecutor` 隔离 IDEA `Task.Backgroundable` 执行 / `ProgressIndicator` 与 CLI 无 UI 执行；`FileExecutionLockManager` 使用进程内可重入锁和 NIO 文件锁串行项目写事务，并写入 owner metadata，诊断读取会清理异常退出遗留的 stale metadata。完整 `JuggRunningTask`、项目初始化/更新、文件变化处理和 deployment cache 读写已进入项目锁。后台与 Host task 通过互斥的 `isProjectWrite` / `isGlobalWrite` 直接选择项目锁或固定全局写锁；CLI 自动更新、skills 安装、hot update 下载写入、runtime resource 解压与 library Test APK build history 已补齐全局写协调。hot update Loader 保持无 TaskRunner 的只读 bootstrap；现有代码已实现 IDEA `load_manifest.json`、embedded packaged JAR 同步、原子快照发布和 90 天未引用 JAR 清理，Step 12 在同一内容池上新增独立 standalone manifest 与联合引用清理。TaskRunner 统一跟踪 Job，并在 `JuggManager.dispose()` 时取消尚未执行的任务。已进入写事务的任务允许完成，避免强制中断造成半提交状态。
 
 原用于隔离 IDEA 模块的 `IBackgroundTaskRunner` / `CoroutineBackgroundTaskRunner` 已删除。`TaskRunnerManager` 下沉后成为唯一任务编排入口，IDEA 与现有 CLI 都直接持有完整实例；Host task 的实际提交由 `IHostTaskExecutor` 完成，IDEA 使用 `HostTaskExecutor`，CLI 使用无 UI executor，并通过 `runtimeType=standalone`、`runtimeVersion` 参与同一套项目/全局锁。命令结束时先 dispose TaskRunner、再取消 CoroutineScope。`TaskRunnerManager.dispatcher` 固定返回其实际 CoroutineScope dispatcher，供 ConstRef 等共享组件调度子任务。`ITaskEventReporter` 与 IDEA 的单行转发实现已删除，TaskRunner 直接通过注入的 `JuggServer` 上报完成事件。
 
@@ -991,7 +1063,7 @@ DeployFileManager
 
 实现状态：已完成。新增 `RuntimeInfo`，仅包含 `runtimeType/runtimeVersion/hostVersion/buildTime`，由 IDEA、CI、standalone 各自的 Host 边界单点构造并通过 `IPlatformApi.getRuntimeInfo()` 复用；`JuggServer` 不再读取 `Project`、`PluginInfoReader` 或 `PlatformApi`，事件上报继续保留后端兼容的 `version/ide_version` 字段，`runtimeType` 仅用于 Runtime 锁 owner identity。custom server 输入已从 `JuggServerChooser` 的 Host dialog 中移除，IDEA 获取输入后通过后台全局写任务调用共享 `JuggServer` 写入 settings。
 
-hot update 的下载、MD5 校验、原子 jar/metadata/load manifest 发布、embedded jar 同步和过期清理统一下沉到 `JuggHotUpdateManager`。IDEA `IdeaHotUpdateCoordinator` 保留定时检查、频控、通知、插件安装/重启和 reopen project；standalone 后续通过 `JuggServer` 检查更新后复用同一 manager，并在下一次 daemon 启动读取共享 manifest。`isNeedReinstall=true` 只记录已校验 jar 和 update metadata，不替换 active load manifest。
+hot update 的下载、MD5 校验、原子 jar/metadata/load manifest 发布、embedded jar 同步和过期清理统一下沉到 `JuggHotUpdateManager`。IDEA `IdeaHotUpdateCoordinator` 保留定时检查、频控、通知、插件安装/重启和 reopen project；现有实现只发布 IDEA `load_manifest.json`，Step 12 让 standalone 通过 `JuggServer` 检查更新后复用同一 manager，并在下一次 daemon 启动读取独立 `standalone_load_manifest.json`。`isNeedReinstall=true` 对两侧都只记录已校验 JAR 和 update metadata，不替换任一 active manifest。
 
 Loader 创建 hot-update classloader 前只通过 `JuggHotUpdateBootstrap` 读取 manifest、embedded build time 和 jar 路径。该 bootstrap 无锁、只读、不依赖 `TaskRunnerManager`，避免把 hot-update runtime 类型穿过 parent/child classloader 边界。
 
@@ -1012,7 +1084,7 @@ Loader 创建 hot-update classloader 前只通过 `JuggHotUpdateBootstrap` 读�
 
 - `JuggServer` 使用 Host 注入的 `RuntimeInfo`，不依赖 plugin metadata。
 - 下沉可共享的 update check、下载、校验逻辑；IDEA plugin install/restart 保留在 IDEA。
-- standalone 复用 `~/.jugg/hot_update` 下载与 metadata，更新只在下一次 daemon 启动加载；`isNeedReinstall=true` 不写入 standalone load list。
+- standalone 复用 `~/.jugg/hot_update` 下载与 metadata，更新只在下一次 daemon 启动加载；`isNeedReinstall=true` 不替换 standalone active manifest。
 - Loader bootstrap 保持无锁只读，不依赖 runtime 任务域。
 - 保持 IDEA report、TaskRunner job 状态和现有运维行为不变。
 - runtime/deployer resource 版本策略推迟到 Step 9。
@@ -1186,7 +1258,7 @@ daemon idle deadline 为 4 小时，任意 MCP HTTP 请求到达时刷新；job�
 
 实现状态：已完成。`StandaloneProjectServices` 组装 Gradle-only project model、Compile Context、历史恢复、Git/WatchService、共享 compiler/deployer 与项目锁；Runtime 构造期恢复、显式 `init` 以及 refresh → compile/Gradle → context/config → deploy 全链均持有跨进程项目写锁，standalone 项目写事务同时计入 daemon activity。空闲 status 仅在非阻塞取得项目锁后执行 owner 恢复、Git refresh 和一致性快照；同 Runtime 正在编译或项目锁由其他写事务持有时，不等待锁、不刷新文件状态，立即返回部署状态、fallback、待编译文件、baseline 和时间戳等真实只读快照，保留 CLI wait/heartbeat。IDEA 与 standalone 每次接管 owner 后都在下一次成功取得项目锁的业务链或 status snapshot 开始前从磁盘恢复 Compile Context、history、APK 与 Git 状态，并失效 deployment memory cache；cache generation 检查不再提前消费 owner-change event。共享 `JuggCompilerHelper` 在 Compile Context rebind 和关闭时通过 IntelliJ `Disposer` 递归释放 compiler 子树；standalone `platform_compat` 实现保持 identity-based 注册、主动释放解绑、兄弟节点逆注册顺序和异常后的完整清理语义。`StandaloneConfigurationRunner` 复用现有 MCP `CompileJobManager` 提供新任务取消旧任务、轮询、indicator 和 `compile_latest.log`，同时对齐 IDEA 的 dependency build lifecycle 与 full-build failure 状态。standalone capability 现为 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`。`jugg init` 在无当前配置时优先复用 Gradle project info，缺失时执行一次 `assembleDebug --dry-run` 生成快照；`gradle-build` 只建立/刷新 baseline，安装或增量部署由后续 `deploy` 完成。standalone 保留调用环境显式 `JAVA_HOME`；设备选择优先 `ANDROID_SERIAL`，无 serial 时仅允许恰好一台在线设备。
 
-实施边界：本 Step 不开放 standalone remote SSH、Debug attach、AndroidTest UI、`clean-reinstall` 及 Step 12 三平台 runtime image 发行。当前 profile 启用 remote compile 时，`init` 与运行命令均在执行前结构化失败，不静默切到本地，也不读取或使用远程凭据。
+实施边界：本 Step 不开放 standalone remote SSH、Debug attach、AndroidTest UI、`clean-reinstall` 及 Step 12 跨平台 Bundle 发行。当前 profile 启用 remote compile 时，`init` 与运行命令均在执行前结构化失败，不静默切到本地，也不读取或使用远程凭据。
 
 ```text
 jugg init
@@ -1215,15 +1287,42 @@ jugg init
 
 ### Step 12：三平台发行和验收
 
+实现状态：已完成。根构建生成全局唯一、可排序的 `releaseBuildId`，由 IDEA metadata、standalone metadata 和 Bundle manifest 复用；`:cmd_line:standaloneBundle` 从实际 runtimeClasspath 生成带版本的单一跨平台 ZIP，Runtime JAR 使用 SHA-256 内容寻址名称，并携带版本化 Python CLI、三平台安装入口和固定 Java 11 bootstrap。安装器验证完整 JDK 11+、Python 3.7+、路径/symlink/SHA-256，在统一全局锁内先发布 immutable JAR、tooling 和 CLI，保存 previous 后最后提交 standalone active manifest；同 channel 按产品版本/build identity 接管，不同 channel 或降级需显式授权。bootstrap 不扫描共享池，按 manifest 顺序使用进程内 classloader，MCP ready 后记录 last-known-good，ready 前失败自动回退一次并支持独立 `--rollback`。
+
+IDEA 与 standalone 使用独立 active manifest；兼容 hot update 同时准备两组文件，reinstall 只保存 candidate，插件 `releaseBuildId` 精确匹配后才激活。插件完整发行与 hot-update 重建 ZIP 均把 Bundle 放入 `jugg/standalone/`，standalone JAR 不进入 `jugg/lib/`；Step 11 legacy updater 不再生成缺 Bundle 的重装 ZIP。发行门禁覆盖 Bundle/manifest 一致性、Android class owner、普通 class major `<=55`、旧 Gson JSON、服务端路径、安装失败不切 active、接管矩阵和 candidate identity。macOS 已使用 JDK 11.0.26、17.0.17、21.0.6 完成真实 Bundle 安装及 ordered-classloader `--verify`；Linux、Windows、真实设备 HOT RELOAD 和 Step 11 实包升级仍需在对应发行环境执行验收矩阵。
+
 任务：
 
-- macOS distribution。
-- Linux distribution。
-- Windows distribution。
-- 三个平台分别携带 Java 11 runtime image。
-- Python CLI auto-start/stop daemon。
-- runtime update 和版本兼容。
-- installer 资源完整性校验。
+- 构建单一 `jugg-standalone-<version>.zip`，包含 macOS `install.command`、POSIX `install.sh`、Windows `install.cmd`，不构建 jlink runtime image。
+- 根构建一次生成全局唯一、可排序的 `releaseBuildId`，IDEA metadata、Bundle、服务端 metadata、candidate 与两份 Runtime manifest 全链复用，禁止 IDEA/cmdline 各自产生 compile timestamp。
+- Bundle 携带完整 standalone runtimeClasspath、版本化 Python CLI/bootstrap、冻结 ABI 的 selector、`standalone_bundle_manifest.json` 和 SHA-256；IDEA 插件固定在 `jugg/standalone/` 携带同一个 Bundle，但不将其中 JAR 放入 `jugg/lib/`。
+- 安装器验证完整 JDK 11+ 和 Python 3.7+；发行阶段扫描全部普通 class entry 的 major version 必须 `<=55`，multi-release JAR 只允许 `META-INF/versions/<n>` 中符合其声明版本的高版本 class。当前 `repository-32.0.1.jar` 的 major 61 阻塞必须通过裁剪、替换或降级依赖解决，再使用 Java 11、17、21 分别完成完整 standalone Flow。
+- 外部安装与插件“Install CLI”复用同一安装逻辑，stage 版本化 release，初始化 `~/.jugg/hot_update/jars/` 与 `standalone_load_manifest.json`；保留 previous manifest、manifest 最后提交、MCP ready 后记录 last-known-good，首次启动失败自动回退一次并支持独立 `--rollback`。
+- 保留 IDEA `load_manifest.json`，新增 standalone active/previous manifest；两个 Runtime 使用同一 JAR 内容池但只加载各自 active manifest，清理保留两份 active、standalone previous last-known-good 和待激活更新引用的并集。
+- 扩展 hot update 协议，在不改变现有 `jarFileInfos` IDEA 语义的前提下新增 nullable standalone 文件集合和 reinstall Bundle artifact；真实 Gson 缺字段统一 `orEmpty()`，普通更新发布配套 standalone manifest，`isNeedReinstall=true` 仅在新插件 `releaseBuildId` 精确匹配后激活。首个 Step 12 版本必须通过 Marketplace/官方完整插件 ZIP 从 Step 11 迁移，禁止 legacy updater 重装。
+- 修正插件安装 ZIP 生成路径：IDEA manifest 引用 JAR 只进入 `jugg/lib/`，完整 Bundle 进入 `jugg/standalone/`；禁止 standalone ddmlib、deployer、`base_api` 或 `cmd_line` 直接进入 IDEA classpath。
+- 所有 shared-pool 来源统一不可变 unique name 和文件名安全校验；IDEA embedded 同名不同内容、服务端 traversal、绝对路径、symlink 和 Windows 占用旧 JAR 均不得覆盖 active 文件。
+- 明确 standalone 接管策略：同 channel 先比较产品版本、同版本再比较 build，不同 channel 不自动接管；外部安装可显式降级，插件“Install CLI”默认不降级且对旧 bundled 版本要求确认；插件回退本身不静默回退 standalone。
+- 普通 hot update 后点击“Install CLI”先安装 bundled tooling，再正向检查并激活最新已校验 standalone runtime；管理 `hot_update/candidates/<releaseBuildId>/` 的 Bundle owner 和替换/成功/失败清理。
+- 普通兼容更新必须允许旧 IDEA 进程和新 standalone 长期并存并双向兼容共享持久化状态；不满足该契约时强制 `isNeedReinstall=true`。
+- Python CLI auto-start/stop daemon，launcher 每次启动读取 standalone manifest；运行中 daemon 不热换 classpath，新版本在下一次启动生效。
+- 验证 standalone 独立安装、Step 11 → 首个 Step 12 完整插件升级、先安装 standalone 后安装 IDEA、先安装 IDEA 后安装 standalone、普通 hot update 后首次 Install CLI、IDEA 更新同步 standalone、Stable/Beta 交替启动、旧版本晚构建、external → plugin、插件回退、同版本不同 build、manifest 提交后启动失败、损坏 Bundle、下载中断、Windows 长路径和文件占用场景。
+
+实现顺序：
+
+1. 在根构建生成统一 `releaseBuildId`，从 `:cmd_line` 实际 runtimeClasspath 生成 Bundle、内容寻址 JAR 名称和 Bundle manifest，增加 class major、路径和 class owner 架构守卫。
+2. 实现 Java 11 selector/bootstrap、三平台薄安装脚本、版本化 release 和以 standalone manifest 为最终提交点的幂等安装事务。
+3. 新增 standalone manifest Loader，接入现有 daemon launcher；保留 IDEA Loader 现有 manifest 语义。
+4. 扩展 `JuggHotUpdateManager` 与服务端协议数据模型，分别准备和发布 IDEA/standalone manifest，统一 embedded/Bundle/server 不可变命名和路径校验，修正 reinstall identity 与兼容更新边界。
+5. 扩展插件“Install CLI”和后续插件更新同步，复用 Bundle 安装服务。
+6. 完成 Java 11/17/21、macOS/Linux/Windows 发行验证和真实 demo Flow。
+
+明确非目标：
+
+- 不携带或生成 jlink/JRE runtime image。
+- 不根据共享目录中的 JAR 前缀推导 active classpath。
+- 不在运行中的 standalone daemon 内热替换 classloader。
+- 不为消除双 manifest 而 relocate/shade 全部 Android Studio 或第三方依赖。
 
 ## 10. 测试策略
 
@@ -1250,6 +1349,16 @@ jugg init
 - hook complete flag 自动拉起策略与 daemon idle 退出/延期复查。
 - IDEA/standalone Apply Changes executor 契约一致性。
 - 不增加设备/package 锁时的并发部署收敛验证。
+- Bundle manifest 与实际 standalone runtimeClasspath 一致，关键 Android runtime class 保持唯一 owner；普通 class major 全部 `<=55`，multi-release entry 按版本目录单独校验。
+- standalone 安装幂等；缺失/过低版本 JDK、缺失/低于 3.7 的 Python、SHA-256、损坏 ZIP/JAR、非法路径、symlink、stage 失败和原子发布失败均不替换 active manifest；新 bootstrap/CLI 已 stage 但 manifest 未切换时旧 release 仍可启动。
+- IDEA/standalone manifest 从同一 JAR 池加载各自闭包；IDEA embedded、Bundle 和 server 同名不同摘要均失败且不覆盖。插件首次发行及 hot-update 重建 ZIP 都包含 `jugg/standalone/<Bundle>`，其内部 JAR 不直接出现在 `jugg/lib/`。
+- 兼容 hot update 同时准备两组文件；普通更新、`isNeedReinstall=true`、同版本不同 `releaseBuildId`、安装被覆盖分别保持正确激活语义；Step 11 legacy updater 收到首个 Step 12 版本时只提示完整插件升级，不生成残缺 ZIP。
+- 旧协议测试使用真实 Gson JSON 缺失 nullable standalone 字段反序列化，验证边界 `orEmpty()`；服务端 `uniqueName` 覆盖 `../`、绝对路径、Windows/POSIX 分隔符、控制字符和 normalize 越界。
+- 自动接管覆盖同 channel 新产品版本、同版本新 build、旧版本晚构建、不同 channel、external 安装、显式 Install CLI 和插件回退矩阵；普通启动和旧 embedded Bundle 均不得静默降级 standalone。
+- 未安装 standalone 时经历普通 hot update 再点击“Install CLI”，以及新版 standalone 点击旧 embedded Bundle 安装入口时，分别得到最新兼容 runtime 和明确的非降级行为。
+- candidate Bundle 的下载、替换、插件重启前持有、成功激活、确认失败和 orphan 清理均有唯一 owner，不在 `hot_update/jars/` 中长期残留 ZIP。
+- selector/bootstrap 以进程内 classloader 启动全部 runtime JAR，不生成超长 `-cp`；Windows 长用户目录下仍可启动。
+- manifest 已提交但 daemon 在 class load、link 或 MCP ready 前失败时，只自动回退一次到 previous last-known-good；失败标记防止循环，`--rollback` 在 active runtime 损坏时仍可执行。
 
 ### L3
 
@@ -1261,6 +1370,10 @@ jugg init
 - standalone deploy 后切 IDEA deploy。
 - overlay mismatch → recover → redeploy。
 - Windows 独立完整 Flow。
+- Java 11、17、21 分别启动 daemon 并完成 `init → gradle-build → compile → deploy → status`；若目标工程 AGP 要求更高 JDK，测试使用匹配工程并单独验证 daemon JVM 兼容边界。
+- 外部 Bundle 安装、插件内安装、IDEA 更新同步 standalone、Stable/Beta 交替启动和插件回退后，下一次 daemon 启动选择符合接管规则的 manifest 且旧运行进程不受影响。
+- 旧 IDEA classloader 保持运行时启动新版 standalone，切换同一项目 owner 并完成状态读取、编译与部署恢复，验证兼容更新的双向持久化契约。
+- 从真实 Step 11 插件升级到首个 Step 12 完整插件 ZIP，确认新插件包含 Bundle、standalone 可安装，legacy updater 不参与重装。
 
 其中“资源更新时 Activity 不重启”仍是 Step 10～12 完整 standalone Flow 的最终验收目标。Step 9 只验证固定 Quail `OptimisticApkSwapper` 闭包，其 resource full swap 与现有 IDEA 路径一致，会执行一次预期 Activity restart，不代表最终无重启目标已完成。
 
@@ -1276,6 +1389,7 @@ CI 与 standalone 同模块改造必须定向回归现有 `CmdLineTest`，证明
 - 支持多版本 standalone deployer 实现。
 - 用 Direct Overlay 替代完整 HOT RELOAD。
 - 自动展示和选择多个 Run Configuration 候选。
+- 携带宿主平台 runtime image 或 jlink 产物。
 
 ## 12. 完成标准
 
@@ -1291,6 +1405,17 @@ CI 与 standalone 同模块改造必须定向回归现有 `CmdLineTest`，证明
 - CI `cmd_line` 行为兼容。
 - macOS、Linux、Windows 均通过独立验收。
 - standalone 发行物不依赖完整 Android Studio runtime jar。
-- standalone daemon 与 standalone deployer 均运行在 Java 11。
+- standalone daemon、standalone deployer 及全部普通依赖 class 均满足 Java 11 字节码边界，可使用完整 JDK 11、17、21 完成真实 Flow；目标工程构建仍遵循自身 AGP/Gradle JDK 要求。
+- 单一 Bundle 可在 macOS、Linux、Windows 安装，外部安装和插件安装得到一致的目录、launcher 和 standalone manifest。
+- IDEA 与 standalone 共享不可变 JAR 内容池但使用独立 manifest，任一 Runtime 不会加载另一侧专属 JAR。
+- 同一 release 的插件、Bundle、candidate 和 Runtime manifest 使用完全一致的 `releaseBuildId`；同版本不同构建不会互相误激活。
+- 插件普通更新可按接管规则同步发布配套 standalone 快照；`isNeedReinstall=true` 在新插件 `releaseBuildId` 精确生效前不激活 standalone 候选版本。
+- 首次发行和 hot-update 重建的插件 ZIP 均携带完整 Bundle artifact，standalone 专属 JAR 不直接进入 `jugg/lib/`。
+- 多 Android Studio 安装、外部安装和插件回退不会因普通启动静默降级或反复切换 standalone。
+- 需要 bootstrap/CLI 升级时通过完整 Bundle 事务完成，普通 hot update 不突破既有 schema/bootstrap API。
+- Step 11 到首个 Step 12 版本通过完整插件包迁移，不会由 legacy updater 生成缺少 Bundle 的插件。
+- Bundle 安装和插件内安装在提交前验证 Python 3.7+；普通 hot update 后首次安装 CLI 会收敛到最新兼容 standalone runtime，旧 embedded Bundle 不会默认降级现有 runtime。
+- Bundle 或更新文件校验失败、复制中断和重复安装不会破坏现有 active manifest；提交后首次启动失败可一次性回退 previous last-known-good，并可通过独立入口手工恢复。
+- reinstall Bundle candidate 有固定目录和 owner，替换、成功、失败后不会形成无引用的大体积 ZIP 堆积。
 - hook 在没有 complete flag 时不会拉起 daemon；daemon 连续 4 小时无外部有效活动后可安全退出。
 - deployer Java 实现和 installer/agent/app-server 二进制有明确版本和完整性校验。

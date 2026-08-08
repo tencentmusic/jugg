@@ -31,6 +31,7 @@
 | Android Studio 兼容层 | `deploy_compat/*` | 多版本 deploy API 适配（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal 等） |
 | 平台兼容桩 | `platform_compat/base_api` | IntelliJ/Android API mock，支撑 `main` 脱离 IDE 编译 |
 | 命令行入口 | `cmd_line/src/main/java` | 无 IDE 场景的基础构建/增量构建命令 |
+| Standalone Bootstrap | `standalone_bootstrap/src/main/java` | Java 11 固定启动边界；读取 standalone manifest、按序加载 Runtime、ready 前失败回退与手工 rollback |
 | 自定义编译器示例 | `custom_compilers/src/main/java` | `ICompilerCreator` SPI 扩展示例 |
 | JVMTI Agent | `jvmti_agent/src/main/cpp` | 兼容部署场景下的 agent 能力 |
 | AAPT2 增量链接二进制 | `aapt2-inclink/src/main/resources/tools` | 三平台（darwin/linux/windows）工具资源 |

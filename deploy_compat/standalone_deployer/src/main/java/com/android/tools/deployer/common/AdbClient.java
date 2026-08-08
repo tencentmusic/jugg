@@ -159,7 +159,7 @@ public class AdbClient {
       List<File> files = (List)paths.stream().map(Path::toFile).collect(Collectors.toList());
 
       try {
-         if (this.device.getVersion().isAtLeast(21)) {
+         if (this.device.getVersion().getApiLevel() >= 21) {
             this.device.installPackages(files, reinstall, options, 5L, TimeUnit.MINUTES);
             return new InstallResult(InstallStatus.OK, (String)null, this.device.getLastInstallMetrics());
          } else if (files.size() != 1) {
@@ -296,7 +296,7 @@ public class AdbClient {
    }
 
    public String abortSession(String sessionId) {
-      String prefix = this.device.getVersion().isAtLeast(24) ? "cmd package" : "pm";
+      String prefix = this.device.getVersion().getApiLevel() >= 24 ? "cmd package" : "pm";
       String[] command = new String[]{prefix, "install-abandon", sessionId};
 
       String response;

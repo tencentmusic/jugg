@@ -1,8 +1,6 @@
 //file:noinspection ConfigurationAvoidance
 //file:noinspection GroovyAssignabilityCheck
 
-import java.text.SimpleDateFormat
-
 plugins {
     id 'java'
     id 'org.jetbrains.kotlin.jvm'
@@ -41,13 +39,15 @@ def generatedRuntimeInfoDir = layout.buildDirectory.dir('generated/runtime-info'
 def generateRuntimeInfo = tasks.register('generateRuntimeInfo') {
     def outputFile = generatedRuntimeInfoDir.map { it.file('META-INF/JUGG_PLUGIN_INFO.MF') }
     inputs.property('runtimeVersion', rootProject.pluginVersion)
+    inputs.property('releaseBuildId', rootProject.releaseBuildId)
     outputs.file(outputFile)
     doLast {
         def target = outputFile.get().asFile
         target.parentFile.mkdirs()
         target.text = """Version: ${rootProject.pluginVersion}
-Compile-Date: ${new SimpleDateFormat('yyyy-MM-dd HH:mm:ss').format(new Date())}
-Compile-Timestamp: ${System.currentTimeMillis()}
+Compile-Date: ${new java.text.SimpleDateFormat('yyyy-MM-dd HH:mm:ss').format(rootProject.releaseBuildDateValue)}
+Compile-Timestamp: ${rootProject.releaseBuildId}
+Release-Build-Id: ${rootProject.releaseBuildId}
 """
     }
 }
@@ -64,9 +64,11 @@ dependencies {
     implementation project(':deploy_compat:interface')
     implementation project(':deploy_compat:standalone_deployer')
     implementation project(':platform_compat:base_api')
+    implementation "com.google.code.gson:gson:2.10.1"
 
     testImplementation "junit:junit:4.12"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
+    testImplementation "com.google.code.gson:gson:2.10.1"
 
     // override databinding library to Java 11 class, or will get:
     // android/databinding/parser/XMLParser$ElementContext has been compiled by a more recent version
@@ -76,6 +78,13 @@ dependencies {
     implementation 'androidx.databinding:databinding-compiler-common:7.4.2'// https://mvnrepository.com/artifact/org.slf4j/slf4j-nop
     // avoid warning: "SLF4J: Failed to load class org.slf4j.impl.StaticLoggerBinder."
     implementation 'org.slf4j:slf4j-nop:1.7.36'
+}
+
+configurations.runtimeClasspath {
+    exclude group: 'com.android.tools', module: 'repository'
+    resolutionStrategy.force 'androidx.databinding:databinding-compiler:7.4.2',
+            'androidx.databinding:databinding-compiler-common:7.4.2',
+            'androidx.databinding:databinding-common:7.4.2'
 }
 
 // Apply external distribution and packaging configuration

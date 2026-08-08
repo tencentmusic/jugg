@@ -79,10 +79,11 @@ Runtime info
 
 ```text
 Hot update
-  -> JuggHotUpdateManager 在固定全局锁内下载、MD5 校验并原子发布 jar 与 hot_update_data.json
-  -> compatible update 发布完整 load_manifest.json；isNeedReinstall=true 不替换 manifest
-  -> IDEA adapter 保留 plugin install/restart；standalone 后续在下次 daemon 启动加载同一 manifest
-  -> JuggHotUpdateBootstrap 在 Loader 创建 runtime classloader 前无锁只读 manifest
+  -> JuggHotUpdateManager 在固定全局锁内下载、MD5 校验并原子发布 immutable jar 与 hot_update_data.json
+  -> compatible update 分别发布 IDEA load_manifest.json 与 standalone_load_manifest.json
+  -> isNeedReinstall=true 只保存 JAR、candidate Bundle 和 metadata，不替换 active manifest
+  -> 新插件启动后仅在 releaseBuildId 精确一致时激活 candidate standalone snapshot
+  -> IDEA JuggHotUpdateBootstrap 与 standalone StandaloneBootstrap 分别只读取自己的 manifest
 ```
 
 ---
@@ -102,7 +103,7 @@ Hot update
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - `JuggServer` 的 runtime identity 必须由 Host 注入 `RuntimeInfo`；IDEA、CI、standalone 不得在共享 Server 内推断 plugin/IDE metadata。事件保留后端兼容的 `version/ide_version` 字段，实际值分别来自 `runtimeVersion/hostVersion`；`runtimeType` 仅用于 Runtime 锁 owner identity，不进入事件上报。
-- hot update jar 和 metadata 写入必须经过 `JuggHotUpdateManager` 的全局锁与原子替换；`isNeedReinstall=true` 不得更新 active load manifest。loader bootstrap 只读 manifest、校验 embedded build time 并刷新使用中 jar 的 mtime。
+- hot update jar 和 metadata 写入必须经过 `JuggHotUpdateManager` 的全局锁与原子替换；IDEA 与 standalone 共享 immutable JAR 内容池但使用独立 manifest。`isNeedReinstall=true` 不得更新任一 active manifest，只有新插件 `releaseBuildId` 与 candidate 精确一致才能激活 standalone snapshot；旧 Gson JSON 的 nullable standalone 字段统一以 `orEmpty()` 消费。
 - 未引用 hot update jar 保留 90 天；MCP fetch artifact 独立按 30 天清理。runtime/deployer 内容版本资源策略推迟到 standalone deployer 落地时确定。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
 - 远端编译的 Exclude patterns 控制 local-to-remote 源文件同步中的可配置排除规则。`.gradle` 和 `build` 保持原有固定 include/exclude 顺序：默认排除目录，同时放行 `.gradle/jugg/**`、`build/jugg/config/**` 等 Jugg 必需文件，用户不能通过该字段移除这两项。未自定义时使用并展示 `local.properties`、`.idea/`、`*.iml`、`.git/objects/`、`.git/modules/`、`.cxx/`；用户修改后只使用保存的可配置列表，明确清空表示不应用这些可配置默认排除。旧版本 Additional exclude patterns 没有自定义标记，升级后按未设置处理。配置用分号或换行分隔 rsync glob（逗号仅用于输入兼容），所有同步模式都将 pattern 按用户输入原样交给 rsync，作用域以本次实际传输根为准；`.git/` 可匹配任意层级的同名目录，`/.git/` 仅匹配传输根目录。它不是 gitignore 语义，`..`、引号和 Windows 绝对路径始终不支持。

@@ -1,13 +1,50 @@
 package com.sickworm.intellij.jugg.cmdline
 
 import org.junit.Test
+import com.google.gson.JsonParser
 import java.io.File
+import java.io.InputStream
 import java.util.jar.JarFile
+import java.util.zip.ZipFile
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class CmdLineDistributionArchitectureTest {
+
+    @Test
+    fun `standalone bundle contains the complete content addressed Java 11 runtime`() {
+        val distributionDir = findRepoFile("cmd_line/build/distributions")
+        val bundle = distributionDir.listFiles().orEmpty().single {
+            it.name.startsWith("jugg-standalone-") && it.extension == "zip"
+        }
+        ZipFile(bundle).use { zip ->
+            listOf("install.command", "install.sh", "install.cmd", "standalone_bundle_manifest.json").forEach {
+                assertNotNull(zip.getEntry(it), "Missing bundle entry: $it")
+            }
+            val manifest = zip.getInputStream(zip.getEntry("standalone_bundle_manifest.json")).reader().use {
+                JsonParser.parseReader(it).asJsonObject
+            }
+            assertTrue(manifest.get("releaseBuildId").asString.isNotBlank())
+            val declaredJars = manifest.getAsJsonArray("jarFileNames").map { it.asString }
+            val actualJars = zip.entries().asSequence().map { it.name }
+                .filter { it.startsWith("jars/") && it.endsWith(".jar") }.map { it.removePrefix("jars/") }.toList()
+            assertEquals(declaredJars.sorted(), actualJars.sorted())
+            assertTrue(declaredJars.isNotEmpty())
+            assertTrue(declaredJars.all(CONTENT_ADDRESSED_JAR::matches))
+            actualJars.forEach { jarName ->
+                zip.getInputStream(zip.getEntry("jars/$jarName")).use { verifyJava11Classes(it, jarName) }
+            }
+            val bootstrapFiles = manifest.getAsJsonArray("bootstrapFileNames").map { it.asString }
+            assertTrue(bootstrapFiles.contains("standalone-bootstrap.jar"))
+            bootstrapFiles.forEach { fileName ->
+                val entry = assertNotNull(zip.getEntry("bootstrap/$fileName"), "Missing bootstrap file: $fileName")
+                zip.getInputStream(entry).use { verifyJava11Classes(it, fileName) }
+            }
+            assertNotNull(zip.getEntry("cli/jugg.py"))
+        }
+    }
 
     @Test
     fun `distribution has one owner for each Android runtime class`() {
@@ -41,5 +78,28 @@ class CmdLineDistributionArchitectureTest {
             if (candidate.exists()) return candidate
             current = current.parentFile ?: error("Cannot find $path")
         }
+    }
+
+    private fun verifyJava11Classes(input: InputStream, jarName: String) {
+        java.util.jar.JarInputStream(input).use { jar ->
+            while (true) {
+                val entry = jar.nextJarEntry ?: break
+                if (!entry.name.endsWith(".class") || entry.name.startsWith("META-INF/versions/")) continue
+                val header = ByteArray(8)
+                var offset = 0
+                while (offset < header.size) {
+                    val read = jar.read(header, offset, header.size - offset)
+                    if (read < 0) break
+                    offset += read
+                }
+                assertEquals(8, offset, "Invalid class header: $jarName!/${entry.name}")
+                val major = (header[6].toInt() and 0xff shl 8) or (header[7].toInt() and 0xff)
+                assertTrue(major <= 55, "Java $major class is not Java 11 compatible: $jarName!/${entry.name}")
+            }
+        }
+    }
+
+    private companion object {
+        val CONTENT_ADDRESSED_JAR = Regex(".+-[0-9a-f]{64}\\.jar")
     }
 }

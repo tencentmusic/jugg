@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.ai.skills.JuggSkillInstaller
 import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.ide.logic.StandaloneBundleInstallService
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -290,14 +291,13 @@ class InstallJuggSkillsDialog(
             }, isGlobalWrite = true, isBlockIncrementalCompile = false)
         }
 
-        /** Installs CLI first (no Python needed), then hooks after Python runtime preflight. */
+        /** Installs the standalone runtime and CLI before configuring optional hooks. */
         private fun installRuntimeComponents(options: InstallOptions, logger: Logger): HookInstallSummary {
             if (!options.requiresCli) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
                 return HookInstallSummary(emptyList())
             }
-            // CLI does not require Python — install it first so the user can fix
-            // Python later without re-running the full install flow.
+            StandaloneBundleInstallService.install()
             JuggSkillInstaller.installCli(logger).getOrThrow()
             if (!options.requiresHooks) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)

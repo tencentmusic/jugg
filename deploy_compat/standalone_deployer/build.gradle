@@ -25,9 +25,9 @@ dependencies {
     implementation project(':deploy_compat:interface')
     implementation files('libs/deploy_java_proto.jar', 'libs/studio-proto.jar')
     implementation files('../../main/libs/r8-8.4.21.jar')
-    implementation 'com.android.tools.ddms:ddmlib:32.0.1'
-    implementation 'com.android.tools:common:32.0.1'
-    implementation 'com.android.tools:sdklib:32.0.1'
+    implementation 'com.android.tools.ddms:ddmlib:31.3.2'
+    implementation 'com.android.tools:common:31.3.2'
+    implementation 'com.android.tools:sdklib:31.0.2'
     implementation 'com.google.guava:guava:33.4.8-jre'
 
     testImplementation 'junit:junit:4.12'

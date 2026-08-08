@@ -91,6 +91,10 @@ data class HotUpdateData(
     val updateInfo: NotificationData?,
     val jarFileInfos: List<JarFileInfo>,
     val isNeedReinstall: Boolean,
+    val standaloneJarFileInfos: List<JarFileInfo>? = null,
+    val standaloneBundleFileInfo: JarFileInfo? = null,
+    val releaseBuildId: String? = null,
+    val releaseChannel: String? = null,
 )
 
 /**
