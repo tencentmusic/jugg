@@ -296,7 +296,7 @@ const chineseSidebar = {
           ]
         },
         { text: '部署策略', link: '/zh/concepts/deploy-strategy' },
-        { text: '回退与限制', link: '/zh/concepts/fallback-and-limits' },
+        { text: '重试、重装与 Gradle 构建', link: '/zh/concepts/retry-reinstall-gradle-build' },
         { text: '工程上下文获取', link: '/zh/concepts/project-model' },
         { text: '工程信息刷新与恢复', link: '/zh/concepts/project-info-refresh' },
         { text: '编译调度流程', link: '/zh/concepts/compile-pipeline' },
