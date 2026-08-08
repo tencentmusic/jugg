@@ -32,6 +32,8 @@ const englishSidebar = {
       items: [
         { text: 'Overview', link: '/guide/' },
         { text: 'Run App', link: '/guide/run' },
+        { text: 'Jugg Control Panel', link: '/guide/control-panel' },
+        { text: 'Run Configuration and Variants', link: '/guide/run-configuration' },
         { text: 'Debug', link: '/guide/debug' },
         { text: 'Android Test', link: '/guide/android-test' },
         { text: 'CLI', link: '/guide/cli' },
@@ -65,6 +67,7 @@ const englishSidebar = {
         { text: 'Deploy Strategy', link: '/concepts/deploy-strategy' },
         { text: 'Fallback and Limits', link: '/concepts/fallback-and-limits' },
         { text: 'Project Model', link: '/concepts/project-model' },
+        { text: 'Project Information Refresh', link: '/concepts/project-info-refresh' },
         { text: 'Compile Pipeline', link: '/concepts/compile-pipeline' },
         { text: 'Deploy Data and Impact', link: '/concepts/deploy-data-and-impact' },
         { text: 'JVMTI Agent', link: '/concepts/jvmti-agent' },
@@ -85,6 +88,7 @@ const englishSidebar = {
           items: [
             { text: 'Overview', link: '/capabilities/compile/' },
             { text: 'Incremental Compile', link: '/capabilities/compile/incremental-compile' },
+            { text: 'KMP and Compose Multiplatform', link: '/capabilities/compile/kmp-compose-multiplatform' },
             { text: 'Dependency Incremental Compile', link: '/capabilities/compile/dependency-incremental' },
             { text: 'Resource Compile', link: '/capabilities/compile/resource-compile' },
             { text: 'DataBinding and ViewBinding', link: '/capabilities/compile/databinding-viewbinding' },
@@ -112,6 +116,7 @@ const englishSidebar = {
             { text: 'Multi APK', link: '/capabilities/deploy/multi-apk' },
             { text: 'Multi Device', link: '/capabilities/deploy/multi-device' },
             { text: 'Deploy History and Cache', link: '/capabilities/deploy/deploy-history-cache' },
+            { text: 'HarmonyOS Compatible Deploy', link: '/capabilities/deploy/harmonyos-compat' },
             { text: 'JVMTI Runtime', link: '/capabilities/deploy/jvmti-runtime' }
           ]
         },
@@ -138,6 +143,7 @@ const englishSidebar = {
               items: [
                 { text: 'Overview', link: '/capabilities/tools/cli' },
                 { text: 'Build and Deploy', link: '/capabilities/tools/cli-build-deploy' },
+                { text: 'Run Context and No-change Results', link: '/capabilities/tools/run-context-and-no-change' },
                 { text: 'Android Test', link: '/capabilities/tools/cli-android-test' },
                 { text: 'Runtime and Device', link: '/capabilities/tools/cli-runtime-device' },
                 { text: 'UI Automation', link: '/capabilities/tools/ui-automation' },
@@ -163,6 +169,7 @@ const englishSidebar = {
         { text: 'Android Test', link: '/troubleshooting/android-test' },
         { text: 'Debug', link: '/troubleshooting/debug' },
         { text: 'MCP and CLI', link: '/troubleshooting/mcp-cli' },
+        { text: 'Remote Gradle', link: '/troubleshooting/remote-gradle' },
         { text: 'UI Tools', link: '/troubleshooting/ui-tools' },
         { text: 'Performance', link: '/troubleshooting/performance' }
       ]
@@ -224,6 +231,8 @@ const chineseSidebar = {
       items: [
         { text: '概览', link: '/zh/guide/' },
         { text: '运行 App', link: '/zh/guide/run' },
+        { text: 'Jugg 运行面板', link: '/zh/guide/control-panel' },
+        { text: '运行配置与构建变体', link: '/zh/guide/run-configuration' },
         { text: '降级 Gradle 编译', link: '/zh/guide/downgrade-gradle' },
         { text: '导出增量 APK', link: '/zh/guide/export-incremental-apk' },
         { text: '重启 App', link: '/zh/guide/restart-app' },
@@ -280,6 +289,7 @@ const chineseSidebar = {
         { text: '部署策略', link: '/zh/concepts/deploy-strategy' },
         { text: '回退与限制', link: '/zh/concepts/fallback-and-limits' },
         { text: '工程上下文获取', link: '/zh/concepts/project-model' },
+        { text: '工程信息刷新与恢复', link: '/zh/concepts/project-info-refresh' },
         { text: '编译调度流程', link: '/zh/concepts/compile-pipeline' },
         { text: '部署数据与影响分析', link: '/zh/concepts/deploy-data-and-impact' },
         { text: '部署状态与恢复', link: '/zh/concepts/deploy-state-recover' },
@@ -303,6 +313,7 @@ const chineseSidebar = {
           items: [
             { text: '概览', link: '/zh/capabilities/compile/' },
             { text: '源码编译', link: '/zh/capabilities/compile/source-compile' },
+            { text: 'KMP 与 Compose Multiplatform', link: '/zh/capabilities/compile/kmp-compose-multiplatform' },
             { text: '重编译/扩散编译', link: '/zh/capabilities/compile/recompile-propagation' },
             { text: '资源编译', link: '/zh/capabilities/compile/resource-compile' },
             { text: 'AndroidManifest 编译', link: '/zh/capabilities/compile/manifest' },
@@ -333,6 +344,7 @@ const chineseSidebar = {
             { text: '多 APK', link: '/zh/capabilities/deploy/multi-apk' },
             { text: '多设备', link: '/zh/capabilities/deploy/multi-device' },
             { text: '部署历史与缓存', link: '/zh/capabilities/deploy/deploy-history-cache' },
+            { text: 'HarmonyOS 兼容部署', link: '/zh/capabilities/deploy/harmonyos-compat' },
             { text: 'JVMTI Runtime', link: '/zh/capabilities/deploy/jvmti-runtime' }
           ]
         },
@@ -359,6 +371,7 @@ const chineseSidebar = {
               items: [
                 { text: '概览', link: '/zh/capabilities/tools/cli' },
                 { text: '构建与部署', link: '/zh/capabilities/tools/cli-build-deploy' },
+                { text: '运行上下文与无变化结果', link: '/zh/capabilities/tools/run-context-and-no-change' },
                 { text: 'Android Test', link: '/zh/capabilities/tools/cli-android-test' },
                 { text: '运行时与设备', link: '/zh/capabilities/tools/cli-runtime-device' },
                 { text: 'UI 自动化', link: '/zh/capabilities/tools/ui-automation' },
@@ -384,6 +397,7 @@ const chineseSidebar = {
         { text: 'Android Test', link: '/zh/troubleshooting/android-test' },
         { text: 'Debug', link: '/zh/troubleshooting/debug' },
         { text: 'MCP 与 CLI', link: '/zh/troubleshooting/mcp-cli' },
+        { text: '远端 Gradle', link: '/zh/troubleshooting/remote-gradle' },
         { text: 'UI 工具', link: '/zh/troubleshooting/ui-tools' },
         { text: '性能', link: '/zh/troubleshooting/performance' }
       ]
