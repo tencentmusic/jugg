@@ -1,0 +1,66 @@
+name: Documentation Issue
+description: Report missing, incorrect, or unclear Jugg documentation
+title: "[Docs]: "
+body:
+  - type: input
+    id: location
+    attributes:
+      label: 文档位置
+      description: 请提供文档 URL 或仓库路径。
+      placeholder: https://... 或 docs/wiki/...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: problem_type
+    attributes:
+      label: 问题类型
+      options:
+        - 内容错误
+        - 内容缺失
+        - 步骤失效
+        - 表述不清
+        - 翻译问题
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 当前问题
+      description: 请指出具体段落、错误内容或缺失信息，以及它造成的影响。
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 建议内容
+      description: 如果已有修改建议，可以在这里提供。
+    validations:
+      required: false
+
+  - type: input
+    id: applicable_version
+    attributes:
+      label: 适用版本
+      description: 当文档问题与 Jugg 或 Android Studio 版本有关时填写。
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 补充信息
+      description: 可以提供截图或相关链接。
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已确认文档链接或路径，并搜索了现有 Issue。
+          required: true

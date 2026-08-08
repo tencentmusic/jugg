@@ -14,14 +14,22 @@ tags:
 
 ## 从哪里打开
 
-常用入口在 Jugg Run Configuration 里：
+推荐使用以下任一入口：
+
+- 在 Android Studio 中双击 `Shift`，搜索并选择 `Report Jugg Issue`。
+- 打开 `Jugg Running Panel`，点击 `Report Issue`。
+
+也可以从 Jugg Run Configuration 打开：
 
 1. 打开 `Edit Configurations...`。
 2. 选择当前 Jugg 配置。
-3. 点击 `Report Issues`。
-4. 核对并选择诊断文件。
-5. 选择 `Update logs` 上传，或勾选 `Save locally without uploading` 后创建本地诊断包。
-6. 上传完成后复制 Issue ID；失败时把保留的 zip 交给维护人员。
+3. 点击 `Report issues`。
+
+打开报告窗口后：
+
+1. 核对并选择诊断文件。
+2. 选择 `Upload logs` 上传，或勾选 `Save locally without uploading` 后创建本地诊断包。
+3. 上传完成后复制 Report ID；失败时把保留的 zip 交给维护人员。
 
 插件会先生成脱敏候选文件，再展示文件路径和大小。上传固定请求 Jugg 问题报告服务，失败后不会切换服务器。选择本地保存后，系统文件管理器会选中新生成的 zip。
 
