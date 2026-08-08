@@ -160,7 +160,7 @@ public class ApkInstaller {
          return new DeltaInstallResult(ApkInstaller.DeltaInstallStatus.DISABLED);
       } else if (!plan.getApp().getBaselineProfile(this.adb.getDevice().getVersion().getApiLevel()).isEmpty()) {
          return new DeltaInstallResult(ApkInstaller.DeltaInstallStatus.BASELINE_PROFILE_NOT_SUPPORTED);
-      } else if (!this.adb.getVersion().isAtLeast(24)) {
+      } else if (this.adb.getVersion().getApiLevel() < 24) {
          return new DeltaInstallResult(ApkInstaller.DeltaInstallStatus.API_NOT_SUPPORTED);
       } else {
          List<Apk> localApks = plan.getApksForPackageManager();

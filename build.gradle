@@ -1,5 +1,7 @@
 import org.gradle.internal.jvm.Jvm
+import java.text.SimpleDateFormat
 import java.util.Properties
+import java.util.TimeZone
 
 plugins {
     id 'org.jetbrains.intellij' version '1.10.1' apply false
@@ -11,7 +13,12 @@ def versionName = '3.2.3'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 def pluginVersionArg = "${versionName}-${gitBranchPrefix}"
+def releaseBuildDate = new Date()
+def releaseBuildFormat = new SimpleDateFormat('yyyyMMddHHmmssSSS')
+releaseBuildFormat.timeZone = TimeZone.getTimeZone('UTC')
+def releaseBuildIdArg = System.getenv('JUGG_RELEASE_BUILD_ID') ?: "${releaseBuildFormat.format(releaseBuildDate)}-${'git rev-parse --short=12 HEAD'.execute().text.trim()}"
 println("Plugin Version: $pluginVersionArg")
+println("Release Build ID: $releaseBuildIdArg")
 
 ext {
     // see: https://plugins.jetbrains.com/docs/intellij/android-studio.html#android-studio-releases-listing
@@ -26,6 +33,8 @@ ext {
     agentGeneratedSourceDir = new File(project.projectDir, "jvmti_agent/build/generated/source/buildConfig/release")
 
     pluginVersion = pluginVersionArg
+    releaseBuildId = releaseBuildIdArg
+    releaseBuildDateValue = releaseBuildDate
 
     getDirCommitId = { path ->
         def command = "git -C $rootDir log -n 1 --format=%h -- $path"

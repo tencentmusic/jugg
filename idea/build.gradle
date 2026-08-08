@@ -25,13 +25,14 @@ group 'com.sickworm.intellij'
 version pluginVersion
 
 // record compile time
-def compileTime = System.currentTimeMillis()
-def compileDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())
+def compileTime = rootProject.releaseBuildId
+def compileDate = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(rootProject.releaseBuildDateValue)
 new File("$rootDir/idea/src/main/resources/META-INF").mkdirs()
 new File("$rootDir/idea/src/main/resources/META-INF/JUGG_PLUGIN_INFO.MF")
         .write("""Version: $version
 Compile-Date: $compileDate
 Compile-Timestamp: $compileTime
+Release-Build-Id: ${rootProject.releaseBuildId}
 """)
 
 tasks.findByName("buildPlugin").doFirst {
@@ -47,10 +48,15 @@ tasks.register('buildPluginInternal') {
 }
 
 tasks.named('buildPlugin').configure {
+    dependsOn ':cmd_line:standaloneBundle'
     mustRunAfter ':main:prepareInternalServers'
 }
 
 tasks.named('prepareSandbox').configure {
+    dependsOn ':cmd_line:standaloneBundle'
+    from(project(':cmd_line').tasks.named('standaloneBundle').flatMap { it.archiveFile }) {
+        into 'jugg/standalone'
+    }
     from(rootProject.file('third_party')) {
         into('jugg/third_party')
     }
