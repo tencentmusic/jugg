@@ -39,5 +39,6 @@ tags:
 - [部署状态与恢复](../../concepts/deploy-state-recover.md)
 - [Hot Reload](./hot-reload.md)
 - [Direct Overlay](./direct-overlay.md)
+- [Direct Overlay 部署机制](../../concepts/direct-overlay.md)
 - [Recover 与 Retry](./recover-and-retry.md)
 - [多 APK](./multi-apk.md)

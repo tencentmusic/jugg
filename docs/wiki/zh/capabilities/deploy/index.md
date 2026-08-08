@@ -18,7 +18,7 @@ Jugg 部署能力承接编译产物，把 APK、dex、资源 overlay、Manifest�
 | 能力 | 当前支持情况 | 典型结果 |
 |---|---|---|
 | [Clean Reinstall](./clean-reinstall.md) | 支持重新安装，可按需清理 app 数据 | 重新建立 APK、部署历史和 overlay 基线 |
-| [Code Swap](./code-swap.md) | 支持可在线替换的方法体级 class 更新 | 尽量不重启 App，直接更新运行中代码 |
+| [Code Swap](./code-swap.md) | 支持可在线替换的方法体级 class 更新 | 不重启 App 进程；普通非空部署通常重建 Activity |
 | [Full Swap](./full-swap.md) | 支持需要重启 Activity 的 Apply Changes | 更新代码或 overlay 后重启当前 Activity |
 | [Hot Reload](./hot-reload.md) | 支持在线增量 overlay 和 class 更新 | App 保持运行，必要时只重启 Activity |
 | [Restart](./restart.md) | 支持按部署结果或用户选择重启 App | 让 hot fix、agent 或调试场景生效 |
@@ -41,9 +41,9 @@ Jugg 部署能力承接编译产物，把 APK、dex、资源 overlay、Manifest�
 
 ```text
 Run 触发
-  -> 编译产物进入 staging
-  -> 生成 JuggDeployData
-  -> 判断 install / hot reload / hot fix / full swap
+  -> 汇总本轮待部署产物
+  -> 生成本轮部署数据
+  -> 判断 install / Hot Reload / Hot Fix / Full Swap
   -> 按设备和 APK 归属分流
   -> 执行 install、Apply Changes 或 Direct Overlay
   -> 成功后提交部署历史与 overlay checkpoint
@@ -56,5 +56,8 @@ Run 触发
 - [部署结果说明](../../guide/deploy.md)
 - [部署策略概念](../../concepts/deploy-strategy.md)
 - [部署数据与影响分析](../../concepts/deploy-data-and-impact.md)
+- [Apply Changes 中的 class 与 overlay](../../concepts/apply-changes.md)
+- [APK 更新与安装](../../concepts/apk-update-and-install.md)
+- [Direct Overlay 部署机制](../../concepts/direct-overlay.md)
 - [部署问题排查](../../troubleshooting/deploy.md)
 - [限制](../../reference/limits.md)

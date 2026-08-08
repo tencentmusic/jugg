@@ -16,7 +16,7 @@ Direct Overlay 是 Jugg 在设备尚未进入在线 Apply Changes ready 状态�
 
 | 操作场景 | 当前支持情况 | 部署策略 |
 |---|---|---|
-| 设备未 ready，但历史和 cache 匹配 | 支持 | 直接写入 `code_cache/.overlay` |
+| 设备未 ready，但历史和 cache 匹配 | 支持 | 直接写入 App sandbox 中的 overlay |
 | Android O 及以上设备 | 支持 | 使用 run-as 写入 App sandbox |
 | 需要提前准备 Apply Changes startup agent | 支持 | 由 Direct Overlay 路径推送 AS startup agent |
 | overlay id 与预期不匹配 | 不强行写入 | 转 recover 或 reinstall |
@@ -32,13 +32,13 @@ Direct Overlay 是 Jugg 在设备尚未进入在线 Apply Changes ready 状态�
   -> 读取 deployment cache 和预期 overlay id
   -> 检查设备端 overlay id
   -> 构造 overlay zip payload
-  -> push 到 /data/local/tmp/jugg/
-  -> run-as 目标 package 原子写入 code_cache/.overlay
+  -> 通过 ADB 传输到设备
+  -> 以目标 App 身份原子更新 sandbox 中的 overlay
   -> 最后写入新 overlay id
   -> 更新 deployment cache
 ```
 
-Direct Overlay 会先检查 history、cache 和设备端 overlay 状态，确认当前基线可信后才写入。写入过程中，新 overlay id 最后提交；如果在修改 overlay 目录后失败，会把状态视为 dirty，不再尝试旧 Apply Changes 伪回退。
+Recover 阶段会检查 history、cache 和设备端 overlay 状态；真正写入前至少会使用 cache 校验设备端 overlay ID。写入过程中，新 overlay ID 最后提交；如果在修改 overlay 目录后失败，会把状态视为 dirty，不再尝试旧 Apply Changes 伪回退。
 
 ## 使用边界
 
@@ -57,3 +57,4 @@ Direct Overlay 需要同时满足这些条件：
 - [Recover 与 Retry](./recover-and-retry.md)
 - [部署历史与缓存](./deploy-history-cache.md)
 - [JVMTI Runtime](./jvmti-runtime.md)
+- [Direct Overlay 部署机制](../../concepts/direct-overlay.md)

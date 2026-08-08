@@ -10,7 +10,7 @@ tags:
 
 # 兼容部署
 
-日常 Run 会优先走增量编译和在线热重载。方法体改动可以通过 Apply Changes / JVMTI 在线替换，资源和 assets 也会尽量通过 overlay 生效。这条路径快，但它要求设备运行时、ClassLoader 初始化时机、Apply Changes 通信和资源加载路径都正常。某台设备不满足这些条件时，Jugg 会把本轮增量产物改走兼容部署：重启 App，让产物在下一次启动时生效。
+日常 Run 会优先走增量编译和 Apply Changes。方法体改动可以通过 JVMTI 在线替换，资源和 assets 通过 overlay 生效。这条路径要求设备运行时、ClassLoader 初始化时机、Apply Changes 通信和资源加载路径都正常。某台设备不满足这些条件时，Jugg 会把本轮增量产物改走兼容部署：重启 App，让产物在下一次启动时生效。
 
 ## 在线热重载为什么会失效
 
@@ -123,6 +123,8 @@ agent push 放在部署之后，是因为 Android Studio Apply Changes 首次准
 
 - [设备兼容部署](../guide/compat-device.md)
 - [部署策略](./deploy-strategy.md)
+- [Apply Changes 中的 class 与 overlay](./apply-changes.md)
+- [Direct Overlay 部署机制](./direct-overlay.md)
 - [Jugg Runtime](./jugg-runtime.md)
 - [JVMTI Agent](./jvmti-agent.md)
 - [部署状态与恢复](./deploy-state-recover.md)

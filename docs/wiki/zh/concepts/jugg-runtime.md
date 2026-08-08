@@ -128,6 +128,8 @@ Jugg Runtime 解决的是运行中怎么生效、怎么检测、怎么观测。�
 ## 相关页面
 
 - [部署策略](./deploy-strategy.md)
+- [Apply Changes 中的 class 与 overlay](./apply-changes.md)
+- [Direct Overlay 部署机制](./direct-overlay.md)
 - [兼容部署](./compat-deploy.md)
 - [JVMTI Agent](./jvmti-agent.md)
 - [布局 dump 与 UI 证据](./layout-dump-and-ui-evidence.md)

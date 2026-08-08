@@ -80,5 +80,7 @@ tags:
 - [部署历史与缓存](../capabilities/deploy/deploy-history-cache.md)
 - [部署策略](./deploy-strategy.md)
 - [部署数据与影响分析](./deploy-data-and-impact.md)
+- [Apply Changes 中的 class 与 overlay](./apply-changes.md)
+- [Direct Overlay 部署机制](./direct-overlay.md)
 - [Direct Overlay 能力](../capabilities/deploy/direct-overlay.md)
 - [Recover 与 Retry 能力](../capabilities/deploy/recover-and-retry.md)

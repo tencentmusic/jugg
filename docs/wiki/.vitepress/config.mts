@@ -295,15 +295,24 @@ const chineseSidebar = {
             { text: '自定义编译器', link: '/zh/concepts/incremental-compile/custom-compiler' }
           ]
         },
-        { text: '部署策略', link: '/zh/concepts/deploy-strategy' },
-        { text: '部署自愈机制', link: '/zh/concepts/deploy-self-healing' },
+        {
+          text: '增量部署',
+          collapsed: false,
+          items: [
+            { text: '总览', link: '/zh/concepts/deploy-strategy' },
+            { text: '部署数据与影响分析', link: '/zh/concepts/deploy-data-and-impact' },
+            { text: 'Apply Changes', link: '/zh/concepts/apply-changes' },
+            { text: 'APK 更新与安装', link: '/zh/concepts/apk-update-and-install' },
+            { text: 'Direct Overlay', link: '/zh/concepts/direct-overlay' },
+            { text: '兼容部署', link: '/zh/concepts/compat-deploy' },
+            { text: '部署状态与恢复', link: '/zh/concepts/deploy-state-recover' },
+            { text: '部署自愈机制', link: '/zh/concepts/deploy-self-healing' }
+          ]
+        },
         { text: 'Gradle 回退与基线重建', link: '/zh/concepts/gradle-fallback-baseline' },
         { text: '工程上下文获取', link: '/zh/concepts/project-model' },
         { text: '工程信息刷新与恢复', link: '/zh/concepts/project-info-refresh' },
         { text: '编译调度流程', link: '/zh/concepts/compile-pipeline' },
-        { text: '部署数据与影响分析', link: '/zh/concepts/deploy-data-and-impact' },
-        { text: '部署状态与恢复', link: '/zh/concepts/deploy-state-recover' },
-        { text: '兼容部署', link: '/zh/concepts/compat-deploy' },
         { text: 'Jugg Runtime', link: '/zh/concepts/jugg-runtime' },
         { text: 'JVMTI Agent', link: '/zh/concepts/jvmti-agent' },
         { text: 'Android Test 流程', link: '/zh/concepts/android-test-flow' },

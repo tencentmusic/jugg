@@ -107,6 +107,8 @@ Jugg 会先自动重试；第三次会尝试通过重装 APK 恢复。如果最�
 ## 相关页面
 
 - [部署策略](../concepts/deploy-strategy.md)
+- [部署状态与恢复](../concepts/deploy-state-recover.md)
+- [部署自愈机制](../concepts/deploy-self-healing.md)
 - [Clean Reinstall](../capabilities/deploy/clean-reinstall.md)
 - [Recover 与 Retry](../capabilities/deploy/recover-and-retry.md)
 - [JVMTI Runtime](../capabilities/deploy/jvmti-runtime.md)

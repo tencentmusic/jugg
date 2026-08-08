@@ -22,9 +22,10 @@ Jugg 将最近一次完整 Gradle 构建作为可信起点。后续点击 Run �
 
 | 你想了解什么 | 建议阅读 |
 |---|---|
-| 一次 Run 如何完成决策、编译、部署和状态提交 | [Jugg 工作原理](./how-jugg-works.md)、[编译流水线](./compile-pipeline.md)、[Gradle 回退与基线重建](./gradle-fallback-baseline.md) |
+| 一次 Run 如何完成决策、编译、部署和状态提交 | [Jugg 工作原理](./how-jugg-works.md)、[编译流水线](./compile-pipeline.md)、[增量部署](./deploy-strategy.md)、[Gradle 回退与基线重建](./gradle-fallback-baseline.md) |
 | 为什么只改一个文件仍可能编译其他文件 | [增量编译](./incremental-compile/)、[工程模型同步](./project-model.md)、[部署数据与影响分析](./deploy-data-and-impact.md) |
-| 为什么有时直接生效，有时重启、更新 APK 或重新安装 | [部署策略](./deploy-strategy.md)、[部署自愈机制](./deploy-self-healing.md)、[增量部署状态恢复](./deploy-state-recover.md)、[兼容性部署](./compat-deploy.md) |
+| class 和资源怎样进入设备，为什么有时重启或更新 APK | [增量部署](./deploy-strategy.md)、[Apply Changes 中的 class 与 overlay](./apply-changes.md)、[APK 更新与安装](./apk-update-and-install.md) |
+| 为什么设备未 ready 仍能部署，状态不一致时怎样恢复 | [Direct Overlay 部署机制](./direct-overlay.md)、[部署状态与恢复](./deploy-state-recover.md)、[部署自愈机制](./deploy-self-healing.md)、[兼容部署](./compat-deploy.md) |
 | 代码如何在应用进程中被替换并继续运行 | [Jugg Runtime](./jugg-runtime.md)、[JVMTI Agent](./jvmti-agent.md) |
 | 测试、界面取证和版本兼容如何接入主流程 | [Android Test 流程](./android-test-flow.md)、[布局导出与界面证据](./layout-dump-and-ui-evidence.md)、[兼容层](./compatibility-layer.md) |
 
@@ -34,7 +35,7 @@ Jugg 将最近一次完整 Gradle 构建作为可信起点。后续点击 Run �
 
 1. [Jugg 工作原理](./how-jugg-works.md)：先建立一次 Run 的完整模型。
 2. [增量编译](./incremental-compile/)：理解不同输入如何生成局部产物。
-3. [部署策略](./deploy-strategy.md)：理解产物如何在设备上生效。
+3. [增量部署](./deploy-strategy.md)：理解产物如何通过 Apply Changes、APK 更新或兼容部署在设备上生效。
 4. [部署自愈机制](./deploy-self-healing.md)：理解已有增量产物怎样通过重试、切换策略和重装继续生效。
 5. [Gradle 回退与基线重建](./gradle-fallback-baseline.md)：理解当前构建基线何时必须刷新。
 

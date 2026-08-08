@@ -60,5 +60,6 @@ Run 层拿到的是每台设备的 `DeployTaskResult`。如果失败允许 fallb
 - [部署状态与恢复](../../concepts/deploy-state-recover.md)
 - [Clean Reinstall](./clean-reinstall.md)
 - [Direct Overlay](./direct-overlay.md)
+- [部署自愈机制](../../concepts/deploy-self-healing.md)
 - [部署历史与缓存](./deploy-history-cache.md)
 - [JVMTI Runtime](./jvmti-runtime.md)

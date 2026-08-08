@@ -25,7 +25,7 @@ Jugg 部署发生在 Run 的编译阶段成功之后。日常使用先看 [运�
 | 部署结果 | 用户感知 | 常见触发场景 |
 |---|---|---|
 | Install | 安装 APK 并启动 App | 首次运行、Gradle 构建后、部署状态需要重建 |
-| Hot Reload | 不重启 App 或只重建 Activity | 方法体等小范围代码变化、资源/asset 变化 |
+| Hot Reload | 不重启 App 进程，当前实现通常重建 Activity | 方法体等小范围代码变化、资源/asset 变化 |
 | Hot Fix | 重启 App 后生效 | 类结构变化、静态初始化相关变化、兼容部署 |
 | Compat Hot Fix | 使用经典热修复路径并重启 | 用户开启兼容部署，或 Jugg 检测到当前设备需要兼容路径 |
 | Clean Reinstall | 清数据并重装 APK | 你明确需要清理 App 数据、测试安装或恢复基线 |
@@ -94,6 +94,9 @@ build/jugg/log/compile_latest.log
 
 - [运行 App](./run.md)
 - [部署策略](../concepts/deploy-strategy.md)
+- [Apply Changes 中的 class 与 overlay](../concepts/apply-changes.md)
+- [APK 更新与安装](../concepts/apk-update-and-install.md)
+- [Direct Overlay 部署机制](../concepts/direct-overlay.md)
 - [部署能力](../capabilities/deploy/)
 - [部署历史与缓存](../capabilities/deploy/deploy-history-cache.md)
 - [Hot Reload](../capabilities/deploy/hot-reload.md)

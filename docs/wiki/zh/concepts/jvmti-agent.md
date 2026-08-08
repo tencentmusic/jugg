@@ -58,5 +58,6 @@ Jugg 的取舍很直接：能热重载时优先热重载，把改动即时应用
 ## 相关页面
 
 - [部署策略](./deploy-strategy.md)
+- [Apply Changes 中的 class 与 overlay](./apply-changes.md)
 - [兼容部署](./compat-deploy.md)
 - [Jugg Runtime](./jugg-runtime.md)

@@ -26,20 +26,21 @@ Full Swap 用于那些不能只靠在线 Code Swap 收口、但仍不需要完�
 
 ```text
 增量编译成功
-  -> 生成非空 JuggDeployData
+  -> 生成非空部署数据
   -> 判断不需要重启 App，但需要重启 Activity
-  -> runTask 选择 APPLY_CHANGES_AND_RESTART_ACTIVITY
-  -> JuggDeployer.fullSwap()
+  -> 执行 Apply Changes and Restart Activity
   -> 成功后提交部署历史
 ```
 
 Full Swap 仍然属于增量部署。它的重点不是重新安装 APK，而是在 Apply Changes 成功后刷新 Activity 生命周期，让资源、布局或部分运行态变化在当前界面重新加载。
 
+当前实现对普通、非空且不要求重启 App 的增量数据使用 Full Swap。因此方法体修改虽然可以在线替换 class，Activity 通常仍会重建；App 进程和进程内状态继续保留。
+
 ## 与 Code Swap 的区别
 
 | 策略 | 用户感知 | 适合场景 |
 |---|---|---|
-| Code Swap | App 和 Activity 尽量保持运行 | 方法体等可在线替换代码 |
+| Code Swap | class 可以在线替换；是否重建 Activity 由外层动作决定 | 方法体等结构保持兼容的代码 |
 | Full Swap | 当前 Activity 会重启 | overlay 或代码变化需要界面重新加载 |
 | Restart | App 进程会重启 | hot fix、agent、调试或用户显式重启 |
 
@@ -49,3 +50,4 @@ Full Swap 仍然属于增量部署。它的重点不是重新安装 APK，而是
 - [Hot Reload](./hot-reload.md)
 - [Restart](./restart.md)
 - [资源编译](../compile/resource-compile.md)
+- [Apply Changes 中的 class 与 overlay](../../concepts/apply-changes.md)
