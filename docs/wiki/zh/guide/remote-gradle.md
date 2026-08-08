@@ -34,6 +34,23 @@ tags:
 
 参考使用手册中的描述，远端编译可以在几分钟内完成基础配置，并且配置可在多个工程间复用。
 
+## 控制同步排除内容
+
+Remote Compile Options 中的 `Exclude patterns` 会显示当前可配置排除列表。未修改时使用以下默认值：
+
+```text
+local.properties; .idea/; *.iml; .git/objects/; .git/modules/; .cxx/
+```
+
+该字段使用 rsync pattern，并相对于实际传输根目录解释。用分号分隔多条规则；换行和旧的逗号分隔输入也能读取。修改后，界面中的列表会替换上述默认列表：删除某项会同步对应路径，清空字段表示不应用这些可配置排除规则。
+
+`.gradle` 和 `build` 始终由 Jugg 固定排除，不能通过该字段移除；其中 `.gradle/jugg` 和 `build/jugg` 的必要配置文件仍会同步。
+
+> [!WARNING]
+> 删除 `.git/objects/` 或 `.git/modules/` 会放开整个目录，不是只同步其中某个文件。大目录会显著增加上传时间和远端磁盘占用。
+
+旧版本的 `Additional exclude patterns` 是附加规则，升级后不会转换为新的完整列表。升级后如果仍需要这些规则，请在 `Exclude patterns` 中重新填写。
+
 ## 运行时发生什么
 
 ```text

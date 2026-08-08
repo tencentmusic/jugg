@@ -65,7 +65,7 @@ JuggManager 初始化
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、DB、日志优先 project-local；跨项目复用资源、deploy cache、hook / resource 文件优先 `JuggGlobalPathManager`。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
-- 远端编译的 Additional exclude patterns 只作用于 local-to-remote 源文件同步，配置用分号或换行分隔 rsync glob（逗号仅用于兼容旧配置）。所有同步模式都将 pattern 按用户输入原样交给 rsync，作用域以本次实际传输根为准；`.git/` 可匹配任意层级的同名目录，`/.git/` 仅匹配传输根目录。它不是 gitignore 语义，例如 `*.class` 不代表递归匹配。`..`、引号和 Windows 绝对路径始终不支持。`.gradle/jugg/**`、`build/jugg/config/**` 等 Jugg 必需目录的 include 规则位于用户 exclude 之前，避免被误排除。
+- 远端编译的 Exclude patterns 控制 local-to-remote 源文件同步中的可配置排除规则。`.gradle` 和 `build` 保持原有固定 include/exclude 顺序：默认排除目录，同时放行 `.gradle/jugg/**`、`build/jugg/config/**` 等 Jugg 必需文件，用户不能通过该字段移除这两项。未自定义时使用并展示 `local.properties`、`.idea/`、`*.iml`、`.git/objects/`、`.git/modules/`、`.cxx/`；用户修改后只使用保存的可配置列表，明确清空表示不应用这些可配置默认排除。旧版本 Additional exclude patterns 没有自定义标记，升级后按未设置处理。配置用分号或换行分隔 rsync glob（逗号仅用于输入兼容），所有同步模式都将 pattern 按用户输入原样交给 rsync，作用域以本次实际传输根为准；`.git/` 可匹配任意层级的同名目录，`/.git/` 仅匹配传输根目录。它不是 gitignore 语义，`..`、引号和 Windows 绝对路径始终不支持。
 
 ---
 

@@ -23,6 +23,7 @@ data class RunConfigurationTemplate(
     val syncMode: String?,
     val environmentVariables: String?,
     val remoteSyncExcludePatterns: String? = null,
+    val isRemoteSyncExcludePatternsCustomized: Boolean = false,
 ) {
     companion object {
 

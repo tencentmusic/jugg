@@ -37,6 +37,9 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     /** Rsync glob patterns excluded from remote source sync. */
     var remoteSyncExcludePatterns by string()
 
+    /** Whether remoteSyncExcludePatterns replaces Jugg defaults. */
+    var isRemoteSyncExcludePatternsCustomized by property(false)
+
     // new options must add to the end because property persist is in order
 
 }

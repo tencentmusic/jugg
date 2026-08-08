@@ -51,6 +51,16 @@ fun parseRemoteSyncExcludePatterns(rawPatterns: String): List<String> {
         .toList()
 }
 
+/** Returns user-configurable default rsync exclude patterns. */
+fun getDefaultRemoteSyncExcludePatterns(): List<String> = listOf(
+    "local.properties",
+    ".idea/",
+    "*.iml",
+    ".git/objects/",
+    ".git/modules/",
+    ".cxx/",
+)
+
 private fun normalizeRemoteSyncExcludePattern(pattern: String): String {
     val normalized = pattern.replace('\\', '/')
     val isWindowsAbsolute = normalized.length >= 2 && normalized[1] == ':'
@@ -251,8 +261,17 @@ data class JuggGradleCompileOptions(
      * Rsync glob patterns skipped during local-to-remote source sync.
      */
     val remoteSyncExcludePatterns: List<String> = emptyList(),
+    /** Whether [remoteSyncExcludePatterns] replaces the default exclude patterns. */
+    val isRemoteSyncExcludePatternsCustomized: Boolean = false,
 ) {
 
+    /** Rsync exclude patterns after applying the default or customized state. */
+    val effectiveRemoteSyncExcludePatterns: List<String> get() =
+        if (isRemoteSyncExcludePatternsCustomized) {
+            remoteSyncExcludePatterns
+        } else {
+            getDefaultRemoteSyncExcludePatterns()
+        }
 
     private val projectSyncRelativePath get() = if (syncMode.isRsyncSimple) {
         File(projectRootPath).name

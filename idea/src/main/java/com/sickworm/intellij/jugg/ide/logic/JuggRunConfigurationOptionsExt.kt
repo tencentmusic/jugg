@@ -34,7 +34,12 @@ fun JuggRunConfigurationOptions.toCompileOptions(
         SyncMode.values().find { it.modeName == options.syncMode } ?: SyncMode.IFT,
         options.environmentVariables ?: "",
         buildTarget = if (options.enableAndroidTest) BuildTarget.ANDROID_TEST else BuildTarget.APP,
-        remoteSyncExcludePatterns = parseRemoteSyncExcludePatterns(options.remoteSyncExcludePatterns ?: ""),
+        remoteSyncExcludePatterns = if (options.isRemoteSyncExcludePatternsCustomized) {
+            parseRemoteSyncExcludePatterns(options.remoteSyncExcludePatterns ?: "")
+        } else {
+            emptyList()
+        },
+        isRemoteSyncExcludePatternsCustomized = options.isRemoteSyncExcludePatternsCustomized,
     )
 }
 
@@ -59,7 +64,9 @@ fun JuggRunConfigurationOptions.toRunConfigurationTemplate(): RunConfigurationTe
         httpProxyPort = options.httpProxyPort,
         syncMode = options.syncMode,
         environmentVariables = options.environmentVariables,
-        remoteSyncExcludePatterns = options.remoteSyncExcludePatterns,
+        remoteSyncExcludePatterns = options.remoteSyncExcludePatterns
+            .takeIf { options.isRemoteSyncExcludePatternsCustomized },
+        isRemoteSyncExcludePatternsCustomized = options.isRemoteSyncExcludePatternsCustomized,
     )
 }
 
@@ -81,4 +88,5 @@ fun JuggRunConfigurationOptions.setDefaultRemoteOption(template: RunConfiguratio
     syncMode = template.syncMode
     environmentVariables = template.environmentVariables
     remoteSyncExcludePatterns = template.remoteSyncExcludePatterns
+    isRemoteSyncExcludePatternsCustomized = template.isRemoteSyncExcludePatternsCustomized
 }

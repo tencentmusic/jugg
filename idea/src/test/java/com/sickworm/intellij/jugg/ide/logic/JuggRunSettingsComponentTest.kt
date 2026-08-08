@@ -23,7 +23,9 @@ import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,6 +36,7 @@ import java.awt.GridLayout
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JCheckBox
+import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JRootPane
@@ -315,13 +318,58 @@ class JuggRunSettingsComponentTest {
         }, "jugg:test")
 
         val textField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
-        assertEquals("app/src/debug/mock/**; **/*.keystore", textField.text)
+        assertEquals(
+            "local.properties; .idea/; *.iml; .git/objects/; .git/modules/; .cxx/",
+            textField.text,
+        )
 
         textField.text = "local-temp/; **/*.dat"
         val options = JuggRunConfigurationOptions()
         component.updateJuggRunConfigurationOptions(options)
 
         assertEquals("local-temp/; **/*.dat", options.remoteSyncExcludePatterns)
+        assertTrue(options.isRemoteSyncExcludePatternsCustomized)
+    }
+
+    @Test
+    fun `customized remote exclude patterns should display configured list and allow clearing`() {
+        val component = JuggRunSettingsComponent()
+        component.updateUi(JuggRunConfigurationOptions().apply {
+            isRemoteCompile = true
+            syncMode = SyncMode.RSYNC_SIMPLE.modeName
+            remoteSyncExcludePatterns = "local-temp/**"
+            isRemoteSyncExcludePatternsCustomized = true
+        }, "jugg:test")
+
+        val textField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
+        assertEquals("local-temp/**", textField.text)
+
+        textField.text = ""
+        val options = JuggRunConfigurationOptions()
+        component.updateJuggRunConfigurationOptions(options)
+
+        assertNull(options.remoteSyncExcludePatterns)
+        assertTrue(options.isRemoteSyncExcludePatternsCustomized)
+    }
+
+    @Test
+    fun `default remote exclude patterns should save as not customized`() {
+        val component = JuggRunSettingsComponent()
+        component.updateUi(JuggRunConfigurationOptions().apply {
+            isRemoteCompile = true
+            syncMode = SyncMode.RSYNC_SIMPLE.modeName
+            remoteSyncExcludePatterns = "local-temp/**"
+            isRemoteSyncExcludePatternsCustomized = true
+        }, "jugg:test")
+
+        val textField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
+        textField.text =
+            "local.properties; .idea/; *.iml; .git/objects/; .git/modules/; .cxx/"
+        val options = JuggRunConfigurationOptions()
+        component.updateJuggRunConfigurationOptions(options)
+
+        assertNull(options.remoteSyncExcludePatterns)
+        assertFalse(options.isRemoteSyncExcludePatternsCustomized)
     }
 
     @Test
@@ -340,11 +388,13 @@ class JuggRunSettingsComponentTest {
         val label = readPrivateField<JLabel>(component, "remoteSyncExcludePatternsLabel")
         val textField = readPrivateField<JBTextField>(component, "remoteSyncExcludePatternsTextField")
 
-        assertEquals("Additional exclude patterns:", label.text)
+        assertEquals("Exclude patterns:", label.text)
         assertTrue(textField.toolTipText.contains("not gitignore"))
-        assertTrue(textField.toolTipText.contains("*.class"))
+        assertTrue(textField.toolTipText.contains("Default patterns"))
+        assertTrue(textField.toolTipText.contains("clear"))
         assertTrue(textField.toolTipText.contains("applied as entered"))
         assertTrue(textField.toolTipText.contains("Leading /"))
+        assertTrue(textField.toolTipText.contains(".gradle and build are always excluded"))
     }
 
     @Test

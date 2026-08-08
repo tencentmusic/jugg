@@ -176,6 +176,63 @@ class JuggGradleCompileOptionsTest {
     }
 
     @Test
+    fun effectiveRemoteSyncExcludePatterns_shouldUseDefaultsWhenNotCustomized() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_default_excludes").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                remoteSyncExcludePatterns = listOf("legacy/**"),
+            )
+
+            assertEquals(
+                listOf("local.properties", ".idea/", "*.iml", ".git/objects/", ".git/modules/", ".cxx/"),
+                options.effectiveRemoteSyncExcludePatterns,
+            )
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun effectiveRemoteSyncExcludePatterns_shouldNotDependOnTransferRoot() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_shared_root").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                syncMode = SyncMode.RSYNC,
+                isSyncAllProjects = true,
+            )
+
+            assertEquals(
+                makeOptions(projectDir, parentDir).effectiveRemoteSyncExcludePatterns,
+                options.effectiveRemoteSyncExcludePatterns,
+            )
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun effectiveRemoteSyncExcludePatterns_shouldUseCustomizedListIncludingEmpty() {
+        val parentDir = Files.createTempDirectory("jugg_compile_options_custom_excludes").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                remoteSyncExcludePatterns = listOf("local-temp/**"),
+                isRemoteSyncExcludePatternsCustomized = true,
+            )
+
+            assertEquals(listOf("local-temp/**"), options.effectiveRemoteSyncExcludePatterns)
+            assertEquals(
+                emptyList(),
+                options.copy(remoteSyncExcludePatterns = emptyList()).effectiveRemoteSyncExcludePatterns,
+            )
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun inferLibraryTestApkHistoryBuildVariant_usesRequestedAppTask() {
         val parentDir = Files.createTempDirectory("jugg_compile_options_infer").toFile()
         val projectDir = File(parentDir, "demo").apply { mkdirs() }

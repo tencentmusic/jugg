@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.IJuggRunSettingsComponent
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.bean.getDefaultRemoteSyncExcludePatterns
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
 import com.sickworm.intellij.jugg.ide.ui.RemoteCompileApplierDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
@@ -33,6 +34,7 @@ import kotlin.math.max
 class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
 
     override val component: JComponent = this
+    private val defaultRemoteSyncExcludePatterns = getDefaultRemoteSyncExcludePatterns().joinToString("; ")
 
     private val topButtonsContainer: JPanel = JPanel().also {
         it.alignmentX = LEFT_ALIGNMENT
@@ -92,14 +94,17 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val environmentVariablesTextField = JBTextField().also {
         it.emptyText.text = "e.g. JAVA_HOME=/root/openjdk17; VAR=value"
     }
-    private val remoteSyncExcludePatternsLabel = JLabel("Additional exclude patterns:")
+    private val remoteSyncExcludePatternsLabel = JLabel("Exclude patterns:")
     private val remoteSyncExcludePatternsTextField = JBTextField().also {
-        it.emptyText.text = "e.g. .git; /.git/; local-temp/; **/*.dat (rsync patterns)"
-        it.toolTipText = "<html>Additional rsync exclude patterns separated by semicolon.<br/>" +
+        it.emptyText.text = "e.g. .git/objects/; local-temp/** (rsync patterns)"
+        it.toolTipText = "<html>Configurable rsync exclude patterns separated by semicolon.<br/>" +
+                "Default patterns are shown until this list is changed.<br/>" +
+                "Remove a pattern to sync that path, or clear all configurable excludes.<br/>" +
+                ".gradle and build are always excluded except for Jugg-required files.<br/>" +
                 "Patterns are applied as entered relative to the actual transfer root.<br/>" +
                 "Leading / anchors a pattern to the transfer root.<br/>" +
-                "This is not gitignore, and no need *.class because it already added in defaults.<br/>" +
-                "Examples: .git; /.git/; local-temp/**; **/*.dat<br/>" +
+                "This is not gitignore.<br/>" +
+                "Examples: .git/objects/; local-temp/**<br/>" +
                 "Parent paths are not supported.</html>"
     }
 
@@ -208,7 +213,12 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
         environmentVariablesTextField.text = settings.environmentVariables ?: ""
-        remoteSyncExcludePatternsTextField.text = formatRemoteSyncExcludePatternsForField(settings.remoteSyncExcludePatterns)
+        val excludePatterns = if (settings.isRemoteSyncExcludePatternsCustomized) {
+            settings.remoteSyncExcludePatterns
+        } else {
+            defaultRemoteSyncExcludePatterns
+        }
+        remoteSyncExcludePatternsTextField.text = formatRemoteSyncExcludePatternsForField(excludePatterns)
 
         tipsContainer.removeAll()
         if (configName == SuggestRunConfiguration.DEFAULT.runConfigName) {
@@ -296,7 +306,11 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             it.httpProxyIp = component.httpProxyIpTextField.text
             it.httpProxyPort = component.httpProxyPortTextField.text.toIntOrNull() ?: 0
             it.environmentVariables = component.environmentVariablesTextField.text
-            it.remoteSyncExcludePatterns = component.remoteSyncExcludePatternsTextField.text
+            val excludePatternsText = component.remoteSyncExcludePatternsTextField.text
+            val isCustomized = formatRemoteSyncExcludePatternsForField(excludePatternsText) !=
+                    defaultRemoteSyncExcludePatterns
+            it.remoteSyncExcludePatterns = excludePatternsText.takeIf { isCustomized }
+            it.isRemoteSyncExcludePatternsCustomized = isCustomized
         }
     }
 

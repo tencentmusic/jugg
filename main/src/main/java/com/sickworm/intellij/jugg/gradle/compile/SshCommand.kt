@@ -113,7 +113,7 @@ class SyncFileCommand(
                 .replace("--include='/build", "--include='$buildDirPath")
                 .replace("--exclude='/build", "--exclude='$buildDirPath")
             val userExcludeArguments = buildExcludeArguments(excludePatterns)
-            return "-av --delete $configDirArguments $userExcludeArguments --exclude='build/' --exclude='local.properties' --exclude='.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
+            return "-av --delete $configDirArguments --exclude='build/' $userExcludeArguments"
         }
 
         private fun buildExcludeArguments(excludePatterns: List<String>): String {
