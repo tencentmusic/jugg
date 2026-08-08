@@ -1,0 +1,4 @@
+interface:
+  display_name: "Issue Handler"
+  short_description: "Analyze Jugg issues and draft triage decisions"
+  default_prompt: "Use $issue-handler to analyze the supplied Jugg issue data and return a structured triage decision."
