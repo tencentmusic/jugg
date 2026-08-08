@@ -1,7 +1,7 @@
 # Jugg 开源就绪清单
 
 > 状态：持续维护  
-> 最后核对：2026-07-30  
+> 最后核对：2026-08-08
 > 目标：在公开源码和发布外网插件包前，按 P0/P1/P2 管理开源风险、完成标准和验证证据。  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -27,19 +27,19 @@
 
 | ID | 优先级 | 主题 | 当前状态 | 主要 owner/入口 |
 |---|---|---|---|---|
-| P0-01 | P0 | 第三方二进制与知识产权归属 | 方案已确认 | `open_source_stub_api_and_clean_public_repo_plan.md`、`main/libs`、预编译工具 |
+| P0-01 | P0 | 第三方二进制与知识产权归属 | 需外部确认 | `third_party`、`THIRD_PARTY_NOTICES.md`、公司/法务审批 |
 | P0-02 | P0 | 外网/内网发行包与后台网络隔离 | 方案已确认 | `open_source_network_and_diagnostics_design.md` |
 | P0-03 | P0 | 诊断包白名单、脱敏和明确上传目标 | 方案已确认 | `JuggServer.reportAndUploadLogs` |
 | P0-04 | P0 | MCP 本地服务监听、鉴权与敏感日志 | 未开始 | `McpLocalServer`、`JuggInitializer` |
 | P0-05 | P0 | SSH 密码存储与传播 | 未开始 | `JuggRunConfigurationOptions`、MCP SSH 信息 |
 | P0-06 | P0 | Git 历史、秘密和内部信息审计 | 方案已确认 | `open_source_stub_api_and_clean_public_repo_plan.md`、公开仓库导出与全对象扫描 |
 | P0-07 | P0 | 远程代码下发与公开发布供应链 | 未开始 | 热更新、自定义编译器、插件发布 |
-| P0-08 | P0 | 外网产物发布门禁 | 未开始 | `:idea:buildPlugin` 产物验证 |
+| P0-08 | P0 | 外网产物发布门禁 | 进行中 | `:idea:buildPlugin` 产物验证 |
 | P1-01 | P1 | 仓库体积与大二进制治理 | 未开始 | Git 历史、JAR、native executable |
 | P1-02 | P1 | 干净环境可复现构建 | 未开始 | Gradle、Android Studio/JDK/toolchain |
 | P1-03 | P1 | 公共 CI 与自动审计 | 未开始 | CI workflow、定向测试、扫描任务 |
 | P1-04 | P1 | 依赖仓库与公共网络可用性 | 未开始 | Gradle repositories、Wiki lockfile |
-| P1-05 | P1 | 第三方 NOTICE、SBOM 与依赖清单 | 未开始 | 发布产物、依赖报告 |
+| P1-05 | P1 | 第三方 NOTICE、SBOM 与依赖清单 | 进行中 | `third_party`、`:idea:verifyThirdPartyCompliance` |
 | P1-06 | P1 | 公开文档与内网文档分离 | 未开始 | README、Wiki、`docs/task`、skills |
 | P1-07 | P1 | 社区治理与安全报告入口 | 未开始 | `SECURITY.md`、`CONTRIBUTING.md` 等 |
 | P1-08 | P1 | 兼容矩阵、安装和支持边界 | 未开始 | README、Wiki、Marketplace 页面 |
@@ -69,12 +69,14 @@
 - `deploy_compat/README.md` 指向 Android Studio 安装目录作为这些依赖的来源。
 - `main/libs` 包含 R8、修改版 Kotlin Android Extensions、SQLite、ASM 等预编译 JAR。
 - 插件资源包含 AAPT2 inclink、rsync、sshpass 等平台二进制。
-- 当前仓库只有项目级 MIT License，没有覆盖所有预编译文件的统一第三方归属清单。
+- 仓库已提供 `THIRD_PARTY_NOTICES.md`、104 行 `third_party/components.csv`、许可证文本、对应源码、修改声明和 SPDX 2.3 SBOM，并随插件发行包分发。
+- `rsync 3.4.1`、`sshpass 1.10`、Trove4J、juniversalchardet 和 JavaBeans Activation Framework 的对应源码已随包提供；修改版 OpenJDK `jvmti.h` 同时提供上游基线、Jugg 文件和 patch。
+- 技术侧再分发材料已经补齐，但 Jugg 自有代码、职务成果和第三方资产的公司/法务批准仍需外部书面确认。
 
 **风险**
 
 - 项目 MIT License 不能自动授予第三方文件的再分发权。
-- 修改版第三方 JAR 可能需要公开修改源码、补丁、许可证或 NOTICE。
+- 修改版第三方 JAR、源码和 Stub 仍需确保现有修改说明与实际发布产物持续一致。
 - 公司职务成果、内部测试资产和历史贡献可能需要额外开源授权。
 
 **完成标准**
@@ -90,6 +92,14 @@
 - 第三方组件清单。
 - 法务或公司开源审批记录。
 - 发布包内容与许可证清单逐项对应。
+
+**已完成的技术证据**
+
+- `:idea:buildPlugin` 会把 `third_party` 目录和根目录 `THIRD_PARTY_NOTICES.md` 复制到插件根目录。
+- `:idea:verifyThirdPartyCompliance` 校验 NOTICE、104 行组件清单、许可证、对应源码、OpenJDK 修改 patch、源码 SHA-256 和 104 个 package 的 SPDX 2.3 SBOM；缺失或不匹配时构建失败。
+- `tools/generate_third_party_compliance.rb` 从 `components.csv` 重新生成 NOTICE、修改声明、SBOM 和无表头附件 CSV，固定 JavaParser/JNA/Fast Infoset 使用 Apache-2.0、juniversalchardet 使用 MPL-1.1、JavaBeans Activation Framework 使用 CDDL-1.1。
+
+P0-01 当前只剩公司/法务审批、版权方授权等仓库外证据，不能由代码或构建门禁替代。
 
 ### P0-02 外网/内网发行包与后台网络隔离
 
@@ -263,6 +273,11 @@
 - 插件安装 smoke test。
 - 许可证和第三方组件对照报告。
 
+**当前进度**
+
+- 已完成第三方合规子门禁：`buildPlugin` 产物缺少 NOTICE、许可证、对应源码、修改声明、组件清单或 SBOM 时自动失败。
+- 内网域名/凭据扫描、远程代码禁用、安装 smoke test 和签名来源证明仍未完成，因此 P0-08 保持“进行中”。
+
 ## 4. P1：首个稳定公开版本前完成
 
 ### P1-01 仓库体积与大二进制治理
@@ -327,6 +342,12 @@ README 只提供基础 Gradle 命令，没有完整描述 JDK、Android Studio�
 - 对下载依赖启用 checksum/dependency verification。
 
 ### P1-05 第三方 NOTICE、SBOM 与依赖清单
+
+**当前进度**
+
+- 根目录已有 `THIRD_PARTY_NOTICES.md`，发行包内包含等价 NOTICE、104 行机器清单、许可证、对应源码、修改声明和 SPDX 2.3 SBOM。
+- `:idea:verifyThirdPartyCompliance` 已对文件完整性、源码 SHA-256、固定许可证选择和 SBOM package 数量设置构建门禁。
+- 尚未接入自动依赖/license 扫描，依赖升级仍需人工更新 `components.csv` 后重新生成并复核，因此本项保持“进行中”。
 
 **完成标准**
 

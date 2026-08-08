@@ -1,6 +1,9 @@
 import org.apache.commons.io.FileUtils
+import groovy.json.JsonSlurper
 
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
+import java.util.zip.ZipFile
 
 plugins {
     id 'java'
@@ -42,6 +45,123 @@ tasks.register('buildPluginInternal') {
 
 tasks.named('buildPlugin').configure {
     mustRunAfter ':main:prepareInternalServers'
+}
+
+tasks.named('prepareSandbox').configure {
+    from(rootProject.file('third_party')) {
+        into('jugg/third_party')
+    }
+    from(rootProject.file('THIRD_PARTY_NOTICES.md')) {
+        into('jugg/third_party')
+    }
+}
+
+def thirdPartySourceChecksums = [
+        'jugg/third_party/sources/javax.activation-1.2.0-sources.jar': '7e5aed0cc354684f1c96a1d24513c95f0971541b9ed03bf90a782ba189571022',
+        'jugg/third_party/sources/juniversalchardet-1.0.3-sources.jar': '3d1cb067f5cfe3cc19b77c837156f22368462af9acac5dd878e785966758fc27',
+        'jugg/third_party/sources/rsync-3.4.1.tar.gz': '2924bcb3a1ed8b551fc101f740b9f0fe0a202b115027647cf69850d65fd88c52',
+        'jugg/third_party/sources/sshpass-1.10.tar.gz': 'ad1106c203cbb56185ca3bad8c6ccafca3b4064696194da879f81c8d7bdfeeda',
+        'jugg/third_party/sources/trove4j-1.0.20200330-sources.jar': '2e0174e80b989eb5deafcfb77407c908a0abe1f67a80306f98aeca63246e5481',
+        'jugg/third_party/sources/openjdk-jvmti-header/UPSTREAM_jvmti.h': '205725ea21b4606039de36fc85b2781621bf3aa5b3487e35ba67cc4e432d37b4',
+        'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h': '229d8607d191a3d7815a887ca32d79da11ffa85b4cb16a43b6a01dbb0929d08d',
+        'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h.patch': '5bde14952e873f5c40b68782ba52f16e2506f88fb513c405ef8a459dd85e63b7',
+]
+
+def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
+    group = 'verification'
+    description = 'Verifies third-party notices, licenses, sources, and SBOM in the plugin distribution.'
+    doLast {
+        def distributions = fileTree("$buildDir/distributions").matching { include '*.zip' }.files
+        if (distributions.size() != 1) {
+            throw new GradleException("Expected one plugin distribution, found ${distributions.size()}")
+        }
+
+        def requiredEntries = [
+                'jugg/third_party/README.md',
+                'jugg/third_party/THIRD_PARTY_NOTICES.md',
+                'jugg/third_party/MODIFICATIONS.md',
+                'jugg/third_party/components.csv',
+                'jugg/third_party/licenses/Apache-2.0.txt',
+                'jugg/third_party/licenses/GPL-2.0-only.txt',
+                'jugg/third_party/licenses/GPL-2.0-or-later.txt',
+                'jugg/third_party/licenses/GPL-3.0-or-later.txt',
+                'jugg/third_party/licenses/LGPL-2.1-or-later.txt',
+                'jugg/third_party/licenses/MPL-1.1.txt',
+                'jugg/third_party/licenses/CDDL-1.1.txt',
+                'jugg/third_party/licenses/GPL-2.0-with-Classpath-exception.html',
+                'jugg/third_party/licenses/BSD-2-Clause.txt',
+                'jugg/third_party/licenses/BSD-3-Clause.txt',
+                'jugg/third_party/licenses/EDL-1.0.html',
+                'jugg/third_party/licenses/ISC.txt',
+                'jugg/third_party/licenses/JDOM.txt',
+                'jugg/third_party/licenses/LLVM-LICENSE.txt',
+                'jugg/third_party/licenses/Libpng-2.0.txt',
+                'jugg/third_party/licenses/MIT.txt',
+                'jugg/third_party/licenses/R8-8.4.21-LICENSE.txt',
+                'jugg/third_party/licenses/SAX-PD.txt',
+                'jugg/third_party/licenses/SOURCES.md',
+                'jugg/third_party/licenses/W3C-19980720.txt',
+                'jugg/third_party/licenses/Zlib.txt',
+                'jugg/third_party/licenses/kXML2.txt',
+                'jugg/third_party/sources/README.md',
+                'jugg/third_party/sources/SHA256SUMS',
+                'jugg/third_party/sources/openjdk-jvmti-header/UPSTREAM_jvmti.h',
+                'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h',
+                'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h.patch',
+                "jugg/third_party/sbom/jugg-${project.version}.spdx.json",
+        ]
+
+        def zip = new ZipFile(distributions.first())
+        try {
+            (requiredEntries + thirdPartySourceChecksums.keySet()).each { path ->
+                def entry = zip.getEntry(path)
+                if (entry == null || entry.size <= 0) {
+                    throw new GradleException("Missing third-party compliance file: $path")
+                }
+            }
+
+            thirdPartySourceChecksums.each { path, expectedHash ->
+                def digest = MessageDigest.getInstance('SHA-256')
+                zip.getInputStream(zip.getEntry(path)).withCloseable { input ->
+                    byte[] buffer = new byte[8192]
+                    int read
+                    while ((read = input.read(buffer)) != -1) {
+                        digest.update(buffer, 0, read)
+                    }
+                }
+                def actualHash = digest.digest().encodeHex().toString()
+                if (actualHash != expectedHash) {
+                    throw new GradleException("Invalid SHA-256 for $path: $actualHash")
+                }
+            }
+
+            def components = zip.getInputStream(zip.getEntry('jugg/third_party/components.csv'))
+                    .getText('UTF-8')
+            if (components.readLines().size() != 105) {
+                throw new GradleException('Third-party component inventory must contain one header and 104 entries')
+            }
+            ['JavaParser Core,3.17.0,Apache-2.0',
+             'juniversalchardet,1.0.3,MPL-1.1',
+             'JavaBeans Activation Framework,1.2.0,CDDL-1.1'].each { selectedLicense ->
+                if (!components.contains(selectedLicense)) {
+                    throw new GradleException("Missing selected license declaration: $selectedLicense")
+                }
+            }
+
+            def sbom = new JsonSlurper().parseText(zip.getInputStream(
+                    zip.getEntry("jugg/third_party/sbom/jugg-${project.version}.spdx.json"))
+                    .getText('UTF-8'))
+            if (sbom.spdxVersion != 'SPDX-2.3' || sbom.packages?.size() != 104) {
+                throw new GradleException('Invalid SPDX SBOM')
+            }
+        } finally {
+            zip.close()
+        }
+    }
+}
+
+tasks.named('buildPlugin').configure {
+    finalizedBy verifyThirdPartyCompliance
 }
 
 sourceCompatibility = 11

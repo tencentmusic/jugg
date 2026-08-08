@@ -1,0 +1,11 @@
+--- upstream/jvmti.h
++++ jugg/jvmti.h
+@@ -74,7 +74,7 @@
+ typedef jlong jlocation;
+ struct _jrawMonitorID;
+ typedef struct _jrawMonitorID *jrawMonitorID;
+-typedef struct JNINativeInterface_ jniNativeInterface;
++typedef struct JNINativeInterface jniNativeInterface;
+ 
+     /* Constants */
+ 

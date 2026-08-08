@@ -1,9 +1,9 @@
-# Jugg 开源软件清单初稿
+# Jugg 开源软件清单基线
 
-> 状态：初稿，尚未经过法务或公司开源流程确认  
-> 基线：Jugg `3.1.5-release` 插件包与 2026-07-31 当前工作树  
-> 目标：先沉淀事实、候选填表值和待确认项，后续再填写《附件1.开源软件信息表》  
-> 重要：本文件不是法律结论，也不是完整 SBOM。文档与代码或产物冲突时，以实际发布产物和上游许可证文件为准。
+> 状态：附件字段与发行合规资产已完成，尚未经过法务或公司开源流程确认
+> 基线：Jugg `3.2.2-release` 插件包与 2026-08-08 当前工作树
+> 目标：维护《附件1.开源软件信息表》的事实基线，并与插件发行包中的第三方合规资产保持一致
+> 重要：本文件不是法律结论。机器清单见 `third_party/components.csv`，SPDX 2.3 SBOM 见 `third_party/sbom/jugg-3.2.2-release.spdx.json`；文档与代码或产物冲突时，以实际发布产物和上游许可证文件为准。
 
 《附件1.开源软件信息表》实际只有 8 个字段：开源软件名称、版本号、开源协议、Copyright、协议链接、下载链接、是否修改、备注。本文件的 P0 仅表示“缺少这些字段会阻塞附件填写”，不代表完整的开源发布门禁。
 
@@ -11,17 +11,19 @@
 
 本轮先覆盖两类最直接影响公开发布的组件：
 
-1. `idea/build/distributions/jugg-3.1.5-release.zip` 实际携带的第三方 JAR、native executable 和静态链接组件。
+1. `idea/build/distributions/jugg-3.2.2-release.zip` 实际携带的第三方 JAR、native executable 和静态链接组件。
 2. 当前仓库直接提交、修改或再分发的第三方源码、JAR 和平台二进制。
 
 本次附件明确不纳入以下仅用于开发、验证、文档或基础设施的组件：
 
 - 测试依赖，如 JUnit、Mockito、kotlin-test、JSON-java。
 - `android_demo_project`、测试 fixture 和 benchmark 使用的依赖。
-- Gradle、Android Gradle Plugin、Kotlin Gradle Plugin、IntelliJ Gradle Plugin 等纯构建工具。
+- 仅用于开发或构建，且不随 Jugg 分发、不嵌入、不复制、也不由 Jugg 提供下载的 Gradle Distribution、Android Gradle Plugin、Kotlin Gradle Plugin、IntelliJ Gradle Plugin 等纯构建工具。
 - Wiki/npm 依赖、CI action、脚本运行时工具和服务端/云服务。
 
 这是本次附件的范围决策，不表示上述组件不是开源软件，也不作为以后其他审批或清单的自动排除依据。若它们进入 Jugg 对外发行物、随产品交付或成为产品运行时能力，应重新纳入附件判断。
+
+Jugg 插件实际携带 `gradlew`、`gradlew.bat` 和 `gradle-wrapper.jar`，并会在用户项目已有 `gradle-wrapper.properties` 但启动文件缺失时复制这些文件。因此 Gradle Wrapper 属于再分发组件，不能按纯构建工具排除；Jugg 未携带 `gradle-wrapper.properties` 或完整 Gradle Distribution。
 
 已完成当前基线的可见依赖核对：
 
@@ -30,7 +32,9 @@
 - AAPT2 的 `Android.bp` 与三平台二进制已交叉核对，补列了静态链接的 AOSP platform libraries、Expat、LLVM libc++、libpng、zlib 和 Protocol Buffers。
 - JVMTI agent bundle 的嵌套 JAR、SO 动态依赖与源码构建配置已核对；自有 JAR 未发现新增第三方包，显式使用的 Android `liblog` 和 `libz` 已分别归入对应候选行。
 
-本清单的附件字段和内部口径均已确认，可作为 Excel 回填基线；它仍不代表公司或法务已经批准开源。
+本清单的附件字段和内部口径均已确认，可作为 Excel 回填基线；它仍不代表公司或法务已经批准开源。机器清单按协议义务组、修改状态、组件名称和版本排序；备注统一采用法务送审口径，仅说明使用关系、分发方式、实际修改内容，以及适用时的源码或许可证履行方式，不再重复“未修改”状态或记录开发核对过程。
+
+发行合规资产已落地到 `third_party`：包含 104 行机器清单、许可证文本、GPL/LGPL/MPL/CDDL 对应源码、修改声明和 SPDX 2.3 SBOM。`:idea:buildPlugin` 会将这些文件复制到插件根目录，`:idea:verifyThirdPartyCompliance` 在缺失文件、源码 SHA-256 不匹配、许可证选择回退或 SBOM package 数量不为 104 时使构建失败。
 
 附件说明中的“使用”范围比“进入插件发布包”更广，还包括动态或静态链接、随附文件、通过插件或服务器下载、网络或云服务，以及开源软件的 API、代码和文件。因此 Stub API 替换只改变仓库中的文件形态，不会自动免除对应上游 API 的填报判断。
 
@@ -38,7 +42,7 @@
 
 | 证据 | 用途 |
 |---|---|
-| `idea/build/distributions/jugg-3.1.5-release.zip` | 确认实际插件包内的 62 个 JAR，其中 14 个为 Jugg 自有/定制模块 JAR、48 个为第三方 JAR |
+| `idea/build/distributions/jugg-3.2.2-release.zip` | 确认实际插件包内的 62 个 JAR，其中 14 个为 Jugg 自有/定制模块 JAR、48 个为第三方 JAR；`main` JAR 还携带 Gradle Wrapper、rsync 和 sshpass |
 | `main/build.gradle`、`idea/build.gradle` | 确认直接依赖、版本、排除项和编译期依赖 |
 | `main/libs` | 确认 R8、SQLite JDBC lite、dex2jar、修改版 Kotlin Android Extensions、重打包 ASM 等预编译 JAR |
 | `main/src/main/resources/tools/darwin` | 确认随包携带的 `rsync 3.4.1` 和 `sshpass 1.10` |
@@ -48,6 +52,8 @@
 | `jvmti_agent/framework_class_stub` | 确认由挑选、简化的 Android framework 源码生成的编译桩 |
 | 第三方 JAR 内 `LICENSE`、`NOTICE`、`pom.properties` | 核对许可证、Copyright 和 Maven 坐标 |
 | `docs/task/2026-07/open_source_readiness_checklist.md` §3 P0-01 | 确认第三方二进制与知识产权归属是公开发布阻断项 |
+| `third_party`、`THIRD_PARTY_NOTICES.md` | 发行包实际分发的机器清单、许可证、对应源码、修改声明、NOTICE 和 SPDX SBOM |
+| `idea/build.gradle` 的 `verifyThirdPartyCompliance` | 校验发行包合规资产完整性、对应源码 SHA-256、固定许可证选择和 SBOM package 数量 |
 
 ## 3. 插件发布包中的 JVM 组件
 
@@ -72,7 +78,7 @@
 | JSch，mwiede fork | 0.2.16 | BSD-3-Clause | Copyright © 2002-2015 Atsuhiko Yamanaka, JCraft, Inc. | [LICENSE](https://github.com/mwiede/jsch/blob/jsch-0.2.16/LICENSE.txt) | [Maven JAR](https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar) | 否 | JAR 还内嵌 JZlib 和 jBCrypt 代码，已拆为下两行 |
 | JZlib，JSch 内嵌代码 | 无 | BSD-3-Clause | Copyright © 2000-2011 ymnk, JCraft, Inc. | [LICENSE](https://github.com/mwiede/jsch/blob/jsch-0.2.16/LICENSE.JZlib.txt) | [JSch JAR](https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar) | 否 | JSch JAR 未声明内嵌 JZlib 的独立版本，按附件规则版本填“无” |
 | jBCrypt，JSch 内嵌代码 | 无 | ISC | Copyright © 2006 Damien Miller | [LICENSE](https://github.com/mwiede/jsch/blob/jsch-0.2.16/LICENSE.jBCrypt.txt) | [JSch JAR](https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar) | 否 | JSch JAR 未声明内嵌 jBCrypt 的独立版本，按附件规则版本填“无” |
-| JavaParser Core | 3.17.0 | Apache-2.0 OR LGPL-3.0-or-later | Copyright © 2007-2010 Júlio Vilmar Gesser; 2011-2020 The JavaParser Team | [LICENSE](https://github.com/javaparser/javaparser/blob/javaparser-parent-3.17.0/LICENSE) | [Maven JAR](https://repo1.maven.org/maven2/com/github/javaparser/javaparser-core/3.17.0/javaparser-core-3.17.0.jar) | 否 | 上游允许用户在 Apache-2.0 与 LGPL-3.0-or-later 中选择；建议表中保留双许可证表达 |
+| JavaParser Core | 3.17.0 | Apache-2.0 | Copyright © 2007-2010 Júlio Vilmar Gesser; 2011-2020 The JavaParser Team | [LICENSE](https://github.com/javaparser/javaparser/blob/javaparser-parent-3.17.0/LICENSE) | [Maven JAR](https://repo1.maven.org/maven2/com/github/javaparser/javaparser-core/3.17.0/javaparser-core-3.17.0.jar) | 否 | 本发行选择 Apache-2.0；上游允许用户在 Apache-2.0 与 LGPL-3.0-or-later 中选择 |
 | ClassGraph | 4.8.110 | MIT | Copyright © 2019 Luke Hutchison | [LICENSE](https://github.com/classgraph/classgraph/blob/classgraph-4.8.110/LICENSE-ClassGraph.txt) | [Maven JAR](https://repo1.maven.org/maven2/io/github/classgraph/classgraph/4.8.110/classgraph-4.8.110.jar) | 否 | JAR 内 LICENSE 已核对 |
 | Android Data Binding compiler suite | 8.7.3 | Apache-2.0 | Copyright © 2005-2017 The Android Open Source Project | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [compiler JAR](https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/8.7.3/databinding-compiler-8.7.3.jar) | 否 | 合并记录 compiler、compiler-common、common、baseLibrary；JAR NOTICE 已核对；内嵌 ANTLR 另列 |
 | Android Data Binding compiler suite | 7.4.2 | Apache-2.0 | Copyright © 2005-2017 The Android Open Source Project | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [compiler JAR](https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/7.4.2/databinding-compiler-7.4.2.jar) | 否 | `cmd_line` 独立发行物使用的版本；合并记录 compiler、compiler-common、common、baseLibrary；与 8.7.3 是不同版本 |
@@ -86,10 +92,10 @@
 | ASM | 9.8 | BSD-3-Clause | Copyright © 2000-2011 INRIA, France Telecom | [LICENSE](https://gitlab.ow2.org/asm/asm/-/blob/ASM_9_8/LICENSE.txt) | [Maven JAR](https://repo1.maven.org/maven2/org/ow2/asm/asm/9.8/asm-9.8.jar) | 是 | 三个 JAR 将 `org.objectweb.asm` 重定位到 Jugg 包名；class 数量基本一致，`asm-commons` 还移除了 `module-info.class` |
 | Apache Commons IO | 2.13.0 | Apache-2.0 | Copyright © 2002-2023 The Apache Software Foundation | [LICENSE](https://github.com/apache/commons-io/blob/rel/commons-io-2.13.0/LICENSE.txt) | [Maven JAR](https://repo1.maven.org/maven2/commons-io/commons-io/2.13.0/commons-io-2.13.0.jar) | 否 | JAR NOTICE 已核对 |
 | Apache Commons Codec | 1.16.0 | Apache-2.0 | Copyright © 2002-2023 The Apache Software Foundation | [LICENSE](https://github.com/apache/commons-codec/blob/rel/commons-codec-1.16.0/LICENSE.txt) | [Maven JAR](https://repo1.maven.org/maven2/commons-codec/commons-codec/1.16.0/commons-codec-1.16.0.jar) | 否 | JGit 传递依赖；JAR NOTICE 已核对 |
-| juniversalchardet | 1.0.3 | MPL-1.1 OR GPL-2.0-or-later OR LGPL-2.1-or-later | Copyright © 1998 Netscape Communications Corporation; Kohei TAKETA and Java port contributors | [MPL-1.1](https://www.mozilla.org/MPL/1.1/) | [Maven JAR](https://repo1.maven.org/maven2/com/googlecode/juniversalchardet/juniversalchardet/1.0.3/juniversalchardet-1.0.3.jar) | 否 | POM 选择 MPL-1.1，源码允许三选一；建议表中保留三许可证表达 |
+| juniversalchardet | 1.0.3 | MPL-1.1 | Copyright © 1998 Netscape Communications Corporation; Kohei TAKETA and Java port contributors | [MPL-1.1](https://www.mozilla.org/MPL/1.1/) | [Maven JAR](https://repo1.maven.org/maven2/com/googlecode/juniversalchardet/juniversalchardet/1.0.3/juniversalchardet-1.0.3.jar) | 否 | 本发行按上游 POM 选择 MPL-1.1；源码允许 MPL/GPL/LGPL 三选一 |
 | Jakarta XML Binding API | 2.3.2 | EDL-1.0（BSD-3-Clause） | Copyright © 2017-2018 Oracle and/or its affiliates | [EDL-1.0](https://www.eclipse.org/org/documents/edl-v10.php) | [Maven JAR](https://repo1.maven.org/maven2/jakarta/xml/bind/jakarta.xml.bind-api/2.3.2/jakarta.xml.bind-api-2.3.2.jar) | 否 | JAR LICENSE/NOTICE 已核对 |
 | JAXB Runtime、TXW2 | 2.3.2 | EDL-1.0（BSD-3-Clause） | Copyright © 2018 Oracle and/or its affiliates | [EDL-1.0](https://www.eclipse.org/org/documents/edl-v10.php) | [runtime JAR](https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-runtime/2.3.2/jaxb-runtime-2.3.2.jar) | 否 | 两个 artifact 的 JAR LICENSE/NOTICE 已核对；可按审批口径拆行 |
-| Fast Infoset | 1.2.16 | Apache-2.0 OR EDL-1.0 | Copyright © 2012-2018 Oracle and/or its affiliates | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) / [EDL-1.0](https://www.eclipse.org/org/documents/edl-v10.php) | [Maven JAR](https://repo1.maven.org/maven2/com/sun/xml/fastinfoset/FastInfoset/1.2.16/FastInfoset-1.2.16.jar) | 否 | Manifest 同时声明 Apache-2.0 和 EDL-1.0；原仅填 Apache-2.0 不完整 |
+| Fast Infoset | 1.2.16 | Apache-2.0 | Copyright © 2012-2018 Oracle and/or its affiliates | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [Maven JAR](https://repo1.maven.org/maven2/com/sun/xml/fastinfoset/FastInfoset/1.2.16/FastInfoset-1.2.16.jar) | 否 | 本发行选择 Apache-2.0；上游同时提供 Apache-2.0 和 EDL-1.0 |
 | StAX-Ex | 1.8.1 | EDL-1.0（BSD-3-Clause） | Copyright © 2017 Oracle and/or its affiliates | [EDL-1.0](https://www.eclipse.org/org/documents/edl-v10.php) | [Maven JAR](https://repo1.maven.org/maven2/org/jvnet/staxex/stax-ex/1.8.1/stax-ex-1.8.1.jar) | 否 | JAR LICENSE/NOTICE 已核对 |
 | istack-commons-runtime | 3.0.8 | EDL-1.0（BSD-3-Clause） | Copyright © 2017 Oracle and/or its affiliates | [EDL-1.0](https://www.eclipse.org/org/documents/edl-v10.php) | [Maven JAR](https://repo1.maven.org/maven2/com/sun/istack/istack-commons-runtime/3.0.8/istack-commons-runtime-3.0.8.jar) | 否 | JAR LICENSE/NOTICE 已核对 |
 | Jakarta Activation API | 1.2.1 | EDL-1.0（BSD-3-Clause） | Copyright © 2018 Oracle and/or its affiliates | [EDL-1.0](https://www.eclipse.org/org/documents/edl-v10.php) | [Maven JAR](https://repo1.maven.org/maven2/jakarta/activation/jakarta.activation-api/1.2.1/jakarta.activation-api-1.2.1.jar) | 否 | JAR LICENSE/NOTICE 已核对 |
@@ -114,10 +120,10 @@
 | AAPT2 Proto | 8.2.0-rc01-10154469 | Apache-2.0 | Copyright © 2005-2008 The Android Open Source Project | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [Google Maven JAR](https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2-proto/8.2.0-rc01-10154469/aapt2-proto-8.2.0-rc01-10154469.jar) | 否 | R8 源码直接声明 alpha10，完整依赖解析选中 rc01；JAR NOTICE 已核对 |
 | Protocol Buffers Java | 3.19.3 | BSD-3-Clause | Copyright © 2008 Google Inc. and protobuf contributors | [LICENSE](https://github.com/protocolbuffers/protobuf/blob/v3.19.3/LICENSE) | [Maven JAR](https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.19.3/protobuf-java-3.19.3.jar) | 否 | R8 Resource Shrinker 内嵌；不同于 AAPT2 inclink 中版本尚不明确的 protobuf |
 | Android Tools libraries | 31.2.0-rc01 | Apache-2.0 | Copyright © 2005-2013 The Android Open Source Project | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [sdk-common JAR](https://dl.google.com/dl/android/maven2/com/android/tools/sdk-common/31.2.0-rc01/sdk-common-31.2.0-rc01.jar) | 否 | 合并记录 annotations、common、sdk-common、layoutlib-api、analytics shared/protos、ddmlib、sdklib、repository、dvlib；版本一致且均为 AOSP Apache-2.0 |
-| Java Native Access / JNA Platform | 5.6.0 | LGPL-2.1-or-later OR Apache-2.0 | Copyright © 2007-2020 Timothy Wall, Olivier Chafik and contributors | [LICENSE](https://github.com/java-native-access/jna/blob/5.6.0/LICENSE) | [Maven JAR](https://repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.6.0/jna-platform-5.6.0.jar) | 否 | Android Tools Common 传递依赖；R8 内嵌 |
+| Java Native Access / JNA Platform | 5.6.0 | Apache-2.0 | Copyright © 2007-2020 Timothy Wall, Olivier Chafik and contributors | [LICENSE](https://github.com/java-native-access/jna/blob/5.6.0/LICENSE) | [Maven JAR](https://repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.6.0/jna-platform-5.6.0.jar) | 否 | 本发行选择 Apache-2.0；Android Tools Common 传递依赖，R8 内嵌 |
 | kXML2 | 2.3.0 | BSD-style AND Public Domain | Copyright © 2002-2004 Stefan Haustein | [版本 POM](https://repo1.maven.org/maven2/net/sf/kxml/kxml2/2.3.0/kxml2-2.3.0.pom) | [Maven JAR](https://repo1.maven.org/maven2/net/sf/kxml/kxml2/2.3.0/kxml2-2.3.0.jar) | 否 | Android Tools 传递依赖；版本 POM 同时声明 BSD-style 和 Public Domain |
 | Jimfs | 1.1 | Apache-2.0 | Copyright © 2013-2016 Google Inc. | [LICENSE](https://github.com/google/jimfs/blob/v1.1/LICENSE) | [Maven JAR](https://repo1.maven.org/maven2/com/google/jimfs/jimfs/1.1/jimfs-1.1.jar) | 否 | Android Tools Repository 传递依赖；source JAR 文件头已核对 |
-| JavaBeans Activation Framework | 1.2.0 | CDDL-1.1 OR GPL-2.0-only WITH Classpath-exception-2.0 | Copyright © 1997-2017 Oracle and/or its affiliates | [LICENSE](https://github.com/javaee/activation/blob/JAF-1_2_0/LICENSE.txt) | [Maven JAR](https://repo1.maven.org/maven2/com/sun/activation/javax.activation/1.2.0/javax.activation-1.2.0.jar) | 否 | Android Tools Repository 传递依赖；与 Jakarta Activation API 1.2.1 是不同 artifact |
+| JavaBeans Activation Framework | 1.2.0 | CDDL-1.1 | Copyright © 1997-2017 Oracle and/or its affiliates | [LICENSE](https://github.com/javaee/activation/blob/JAF-1_2_0/LICENSE.txt) | [Maven JAR](https://repo1.maven.org/maven2/com/sun/activation/javax.activation/1.2.0/javax.activation-1.2.0.jar) | 否 | 本发行选择 CDDL-1.1；Android Tools Repository 传递依赖，与 Jakarta Activation API 1.2.1 是不同 artifact |
 | Apache Commons Compress | 1.21 | Apache-2.0；部分 sevenz 代码来自 Public Domain LZMA SDK | Copyright © 2002-2021 The Apache Software Foundation | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [Maven JAR](https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar) | 否 | JAR NOTICE 已核对；R8 内嵌 |
 | Apache HttpCore | 4.4.16 | Apache-2.0 | Copyright © 2005-2022 The Apache Software Foundation | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [Maven JAR](https://repo1.maven.org/maven2/org/apache/httpcomponents/httpcore/4.4.16/httpcore-4.4.16.jar) | 否 | Android Tools SDK Common 传递依赖；JAR NOTICE 已核对 |
 | Apache HttpClient / HttpMime | 4.5.6 | Apache-2.0 | Copyright © 1999-2018 The Apache Software Foundation | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [HttpClient JAR](https://repo1.maven.org/maven2/org/apache/httpcomponents/httpclient/4.5.6/httpclient-4.5.6.jar) | 否 | 合并记录 HttpClient 和 HttpMime；JAR NOTICE 已核对 |
@@ -144,7 +150,7 @@ R8 的 ListenableFuture `9999.0-empty-to-avoid-conflict-with-guava` 是无 class
 | IntelliJ Platform Core / JPS Model | 213.7172.53 | Apache-2.0 | Copyright © 2000-2021 JetBrains s.r.o. and contributors | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [JPS Model JAR](https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/platform/jps-model/213.7172.53/jps-model-213.7172.53.jar) | 否 | Kotlin compiler 合并 IntelliJ Core 和 JPS Model；Core 无稳定独立下载 URL，最终可使用 compiler JAR 地址并在备注说明 |
 | PicoContainer，IntelliJ 精简 fork | 无 | BSD-3-Clause | Copyright © PicoContainer Organization; Copyright © 2003 NanoContainer Organization | [IntelliJ 固定版本 LICENSE](https://github.com/JetBrains/intellij-community/blob/idea/213.7172.25/license/picoContainer_license.txt) | [Kotlin compiler JAR](https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/1.9.23/kotlin-compiler-embeddable-1.9.23.jar) | 否 | compiler JAR 实际包含重定位后的 `org.jetbrains.kotlin.org.picocontainer` API；其协议和 Copyright 与 IntelliJ Platform 不同，按已确认规则单列；未保留可可靠映射的独立版本，填“无” |
 | IntelliJ fastutil fork | 8.5.4-9 | Apache-2.0 | Copyright © 2002-2021 Sebastiano Vigna, Paolo Boldi and contributors | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [JetBrains JAR](https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/fastutil/intellij-deps-fastutil/8.5.4-9/intellij-deps-fastutil-8.5.4-9.jar) | 否 | Kotlin compiler 内嵌在 relocated IntelliJ 包下；compiler JAR 保留 fastutil LICENSE |
-| Java Native Access，JetBrains dependency build | 5.9.0.26 | LGPL-2.1-or-later OR Apache-2.0 | Copyright © 2007-2021 Timothy Wall, Olivier Chafik and contributors | [upstream LICENSE](https://github.com/java-native-access/jna/blob/5.9.0/LICENSE) | [JetBrains JAR](https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/jna/jna/5.9.0.26/jna-5.9.0.26.jar) | 否 | 合并记录 jna、jna-platform；Kotlin compiler 内嵌并重定位 |
+| Java Native Access，JetBrains dependency build | 5.9.0.26 | Apache-2.0 | Copyright © 2007-2021 Timothy Wall, Olivier Chafik and contributors | [upstream LICENSE](https://github.com/java-native-access/jna/blob/5.9.0/LICENSE) | [JetBrains JAR](https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/jna/jna/5.9.0.26/jna-5.9.0.26.jar) | 否 | 本发行选择 Apache-2.0；合并记录 jna、jna-platform，Kotlin compiler 内嵌并重定位 |
 | LZ4 Java | 1.7.1 | Apache-2.0 | Copyright © 2011-2019 Adrien Grand, Yann Collet and contributors | [LICENSE](https://github.com/lz4/lz4-java/blob/1.7.1/LICENSE.txt) | [Maven JAR](https://repo1.maven.org/maven2/org/lz4/lz4-java/1.7.1/lz4-java-1.7.1.jar) | 否 | Kotlin compiler 内嵌并重定位至 `org.jetbrains.kotlin.net.jpountz` |
 | ASM all，JetBrains dependency build | 9.0 | BSD-3-Clause | Copyright © 2000-2011 INRIA, France Telecom | [ASM LICENSE](https://gitlab.ow2.org/asm/asm/-/blob/ASM_9_0/LICENSE.txt) | [JetBrains JAR](https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/asm-all/9.0/asm-all-9.0.jar) | 否 | Kotlin compiler 内嵌并重定位至 `org.jetbrains.org.objectweb.asm`；与 R8 9.6、Jugg 重打包 9.8 并存 |
 | Guava | 29.0-jre | Apache-2.0 | Copyright © 2005-2020 The Guava Authors | [版本 POM](https://repo1.maven.org/maven2/com/google/guava/guava/29.0-jre/guava-29.0-jre.pom) | [Maven JAR](https://repo1.maven.org/maven2/com/google/guava/guava/29.0-jre/guava-29.0-jre.jar) | 否 | Kotlin compiler 内嵌并重定位；与 R8 内嵌 32.1.2-jre 并存 |
@@ -180,6 +186,7 @@ R8 的 ListenableFuture `9999.0-empty-to-avoid-conflict-with-guava` 是无 class
 | LLVM libc++，Android toolchain build | 无 | Apache-2.0 WITH LLVM-exception | Copyright © LLVM Project contributors | [固定版本 LICENSE](https://android.googlesource.com/toolchain/llvm-project/+/477610d4d0d988e69dbc3fae4fe86bff3f07f2b5/LICENSE.TXT) | [Android LLVM source](https://android.googlesource.com/toolchain/llvm-project/+/477610d4d0d988e69dbc3fae4fe86bff3f07f2b5/libcxx/) | 否 | AAPT2 `Android.bp` 指定 `libc++_static`；Linux 二进制记录 Android clang `r510928` 和 LLVM commit `477610d4d0d988e69dbc3fae4fe86bff3f07f2b5`，但不能单独还原 libc++ release 版本，按附件规则填“无”；Jugg 未修改 toolchain 源码 |
 | Android JVMTI Apply Changes / Slicer source | 无 | Apache-2.0 | Copyright © 2017-2018 The Android Open Source Project | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | [AOSP tools/base](https://android.googlesource.com/platform/tools/base/) | 是 | 仓库文件头已核对；现有历史只能确认 2024-07-28 引入，无法定位精确 AOSP commit，按附件规则版本暂填“无” |
 | OpenJDK JVMTI header | 无 | GPL-2.0-only WITH Classpath-exception-2.0 | Copyright © 2003, 2011 Oracle and/or its affiliates | [GPLv2 + Classpath Exception](https://openjdk.org/legal/gplv2+ce.html) | [OpenJDK 8u202 jvmti.h](https://github.com/openjdk/jdk8u/blob/jdk8u202-b08/jdk/src/share/javavm/export/jvmti.h) | 是 | 与 `jdk8u202-b08`、`jdk8u302-b08`、`jdk8u402-b06`、`jdk8u442-b06` 的 header 比较结果相同，均只有 `JNINativeInterface_` 改为 `JNINativeInterface` 一处差异；无法唯一反推原始 tag，按附件规则版本填“无”，下载链接使用已验证内容一致的固定 tag |
+| Gradle Wrapper launch files | 7.0.2 | Apache-2.0 | Copyright © 2015 the original author or authors | [LICENSE](https://github.com/gradle/gradle/blob/v7.0.2/LICENSE) | [source zip](https://github.com/gradle/gradle/archive/refs/tags/v7.0.2.zip) | 是 | Jugg 随插件携带 `gradlew`、`gradlew.bat` 和 `gradle-wrapper.jar`，并在目标项目已有 `gradle-wrapper.properties` 但启动文件缺失时复制；wrapper JAR 与 Gradle v7.0.2 官方文件 SHA-256 一致，两个启动脚本相对 v7.0.2 仅移除默认 JVM 参数 `-Dfile.encoding=UTF-8`；不携带 `gradle-wrapper.properties` 或 Gradle Distribution |
 | rsync | 3.4.1 | GPL-3.0-or-later | Copyright © 1996-2025 Andrew Tridgell, Wayne Davison, and others | [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) | [source tarball](https://download.samba.org/pub/rsync/src/rsync-3.4.1.tar.gz) | 否 | 仓库二进制执行 `--version` 明确自报 3.4.1；该文件为 macOS x86_64/arm64 通用二进制，项目方确认对应源码未修改 |
 | sshpass | 1.10 | GPL-2.0-or-later | Copyright © 2006-2011 Lingnu Open Source Consulting Ltd.; 2015-2016, 2021-2022 Shachar Shemesh | [GPL-2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) | [source tarball](https://sourceforge.net/projects/sshpass/files/sshpass/1.10/sshpass-1.10.tar.gz/download) | 否 | 仓库二进制执行 `-V` 明确自报 1.10；该文件为 macOS arm64 二进制，项目方确认对应源码未修改 |
 | libpng | 1.6.40 | Libpng-2.0 | Copyright © 1995-2023 libpng authors | [LICENSE](https://github.com/pnggroup/libpng/blob/v1.6.40/LICENSE) | [source tarball](https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.40.tar.gz) | 否 | AAPT2 `Android.bp` 静态链接 `libpng`，三平台二进制均明确包含 `libpng version 1.6.40`；`aapt2_jugg` 不包含 libpng 源码，根提交至当前 HEAD 的历史也没有相关文件，未发现 Jugg 修改 |
@@ -193,10 +200,11 @@ R8 的 ListenableFuture `9999.0-empty-to-avoid-conflict-with-guava` 是无 class
 
 | 状态 | 事项 | 完成标准 |
 |---|---|---|
-| 已确认 | 使用范围完整性 | 本次覆盖插件发行包、`cmd_line` 独立发行物、仓库直接再分发的第三方代码/文件和 Stub API；明确不纳入测试/demo/fixture、纯构建工具、Wiki/npm、CI action、脚本运行时及服务端/云服务 |
+| 已确认 | 使用范围完整性 | 本次覆盖插件发行包、`cmd_line` 独立发行物、仓库直接再分发的第三方代码/文件、Gradle Wrapper 和 Stub API；明确不纳入测试/demo/fixture，以及不随产品分发、嵌入、复制或提供下载的纯构建工具、Wiki/npm、CI action、脚本运行时及服务端/云服务 |
 | 已确认 | 软件名称和拆分粒度 | 按上游项目合并：版本、协议、Copyright 和修改状态全部相同时合并为一行；任一字段不同时拆行，不按 Maven artifact 机械拆分 |
 | 已确认 | 精确版本 | AAPT2 inclink 和无法还原的 Android Studio API build 按附件规则填“无”；AOSP JVMTI/Slicer、OpenJDK header、framework stub 及 AAPT2 内嵌 protobuf 无法确认时同样填“无”；rsync 3.4.1、sshpass 1.10 已由程序自身输出确认 |
 | 已完成 | 开源协议和 Copyright | 已按对应版本的 LICENSE、NOTICE、POM 和源码文件头形成候选值；多权利人保留在同一单元格，`present` 仅在上游自身采用该表达时保留 |
+| 已完成 | 双许可证选择 | JavaParser、JNA 和 Fast Infoset 固定选择 Apache-2.0；juniversalchardet 固定选择 MPL-1.1；JavaBeans Activation Framework 固定选择 CDDL-1.1，发行清单、NOTICE 和 SBOM 使用同一选择 |
 | 已完成 | 协议链接和直接下载链接 | 已完成 URL 可达性扫描；已知版本使用固定 tag、固定 Maven/Google Maven 坐标或 source archive，版本填“无”的组件使用标准协议文本和可追溯上游源码入口；已修复 Commons IO 2.4 的 404 链接并移除 Trove4J 的 `master` 协议链接 |
 | 已确认 | AAPT2 外部构建树修改状态 | 项目方确认完整 AOSP build tree 不存在针对 libpng、zlib、protobuf、Expat、LLVM libc++ 与 AOSP support libraries 的未入库 patch；本次直接按“未修改”填写，不再深入追溯 |
 | 已完成 | 内嵌组件展开 | R8 `LICENSE` 的 53 个条目已逐项归并；无 class 的 ListenableFuture 冲突占位不单列；Kotlin compiler 中协议/Copyright 不同的 PicoContainer 已拆行；AAPT2 的显式静态依赖已按协议和修改状态拆分 |
@@ -226,8 +234,8 @@ R8 的 ListenableFuture `9999.0-empty-to-avoid-conflict-with-guava` 是无 class
 
 - 已对插件包中的 48 个第三方 JAR 建立依赖树，并结合 `cmd_line` 的 Data Binding `7.4.2` suite 形成 39 个顶层 JVM 候选行。
 - R8 内嵌依赖新增 26 个候选行，Kotlin compiler 内嵌依赖新增 17 个候选行，`cmd_line` Data Binding 差异依赖新增 7 个候选行；当前 JVM 候选共 89 行。
-- 已核对 14 个 native、内嵌源码和 API/Stub 候选行，当前总候选为 103 行。
-- 已修正 JGit 许可证、Trove4J 许可证范围、ASM Copyright、Fast Infoset 双许可证、AAPT2/zlib 版本等错误。
+- 已核对 15 个 native、内嵌源码、Gradle Wrapper 和 API/Stub 候选行，当前总候选为 104 行。
+- 已修正 JGit 许可证、Trove4J 许可证范围、ASM Copyright、双许可证选择、AAPT2/zlib 版本等错误。
 - 已拆出 Android Tools Annotations、Kotlin Android Extensions、ANTLR Runtime、JZlib、jBCrypt 和 OpenJDK JVMTI header 等原清单遗漏或错误合并项。
 - R8 与 Kotlin compiler embeddable 的插件内 JAR 均与对应官方 JAR SHA-256 相同；SQLite lite 的差异已确认仅为删除部分平台 native library；ASM 的包重定位范围和 Kotlin Android Extensions 的 4 个差异 class 已定位。
 - 项目方已确认 AAPT2 完整外部 build tree 没有未入库 patch，并决定不单列编译器自动注入或操作系统提供的标准运行库；附件范围内已无待确认项。
@@ -253,12 +261,14 @@ Kotlin `1.9.23` 源码 tag 已确认 compiler embeddable 使用的主要内嵌�
 
 ## 6. 后续步骤
 
-1. 以当前 103 个候选行为基线回填 Excel。
-2. 公司审批、历史清理和安全治理继续留在独立开源发布清单，不再混入附件填表 P0。
+1. 以 `third_party/components.csv` 的 104 个组件为附件和发行合规基线；法务送审排序版无表头 CSV 已生成，可直接粘贴到 Excel，行顺序和备注与发行合规资产使用同一事实口径。
+2. 每次依赖或第三方二进制变化后更新 `components.csv`，运行 `ruby tools/generate_third_party_compliance.rb`，再执行 `./gradlew :idea:buildPlugin`。
+3. 公司审批、历史清理和安全治理继续留在独立开源发布清单，不再混入附件填表 P0。
 
 ## 7. 当前结论
 
-- Jugg `3.1.5-release` 插件包包含数量较多的 JVM 第三方组件，且存在传递依赖和 JAR 内嵌许可证，不能只登记 `build.gradle` 中的直接依赖。
-- 就附件 1 而言，当前候选组件、版本填法、协议/Copyright/链接、修改状态和范围口径均已收口，可以进入 Excel 回填。
+- Jugg `3.2.2-release` 插件包包含数量较多的 JVM 第三方组件，且存在传递依赖和 JAR 内嵌许可证，不能只登记 `build.gradle` 中的直接依赖。
+- 就附件 1 而言，104 个组件、版本填法、协议/Copyright/链接、修改状态和范围口径均已收口，法务送审版 CSV 已生成；备注不再包含“已核对”“原清单”等开发过程语言。
+- `3.2.2-release` 发行包已包含 NOTICE、许可证、对应源码、修改声明、机器清单和 SPDX SBOM，并通过构建门禁验证。
 - 再分发义务、公司审批、仓库历史和安全问题仍然重要，但不应被称为“附件 1 填表 P0”。
-- 当前 Markdown 是 Excel 回填基线；最终提交件仍以回填并复核后的附件为准。
+- 当前 Markdown 与 `third_party/components.csv` 是 Excel 回填基线；最终提交件仍以回填并复核后的附件为准。
