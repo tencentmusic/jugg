@@ -88,7 +88,7 @@ Resource link generates `R.java`. Jugg fixes and compiles it, and may also gener
 
 ## Related Pages
 
-- [Incremental Compile](../../concepts/incremental-compile.md)
+- [Incremental Compile](../../concepts/incremental-compile/)
 - [Manifest](./manifest.md)
 - [Native Library Update](./so-update.md)
 - [DataBinding and ViewBinding](./databinding-viewbinding.md)

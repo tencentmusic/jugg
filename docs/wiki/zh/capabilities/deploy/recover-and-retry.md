@@ -54,8 +54,10 @@ deploy 失败
 
 Run 层拿到的是每台设备的 `DeployTaskResult`。如果失败允许 fallback 且配置开启自动回退，整轮 Run 会切到 Gradle 重新执行，而不是只重跑某一台设备。
 
-## 关联能力
+## 相关页面
 
+- [部署结果说明](../../guide/deploy.md)
+- [部署状态与恢复](../../concepts/deploy-state-recover.md)
 - [Clean Reinstall](./clean-reinstall.md)
 - [Direct Overlay](./direct-overlay.md)
 - [部署历史与缓存](./deploy-history-cache.md)

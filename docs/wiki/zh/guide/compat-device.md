@@ -43,5 +43,5 @@ Force use compat deploy for <device>
 - [运行 App](./run.md)
 - [多设备选择](./multi-device.md)
 - [清理数据](./clean-data.md)
-- [兼容层](../concepts/compatibility-layer.md)
+- [HarmonyOS 兼容部署](../capabilities/deploy/harmonyos-compat.md)
 - [部署问题排查](../troubleshooting/deploy.md)

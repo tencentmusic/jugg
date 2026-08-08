@@ -1,6 +1,6 @@
 ---
 title: 部署策略
-description: 从增量产物无法整包刷新这一前提出发，解释 Jugg 如何按产物类型和设备状态选择热重载、热修复、APK 更新或重装。
+description: 从完整 APK 安装与局部产物部署的差异出发，解释 Jugg 如何选择 APK 更新、Apply Changes、Activity 重建、App 重启和状态恢复。
 status: active
 tags:
   - concept
@@ -9,78 +9,87 @@ tags:
 
 # 部署策略
 
-增量编译产出的是局部产物：少量 DEX、resource overlay、assets，或者必须写回 APK 的 Manifest 与 native lib。部署阶段要把这些产物应用到设备上并让改动生效，是把增量速度收益保留到“看见运行结果”这一步的最后一环。
+一次标准 Android Run 会安装完整且已签名的 APK，系统随后启动新的应用进程。Jugg 增量编译得到的则是本轮变化对应的局部产物，例如 class、DEX、资源 overlay、assets、Manifest patch 或已经生成的 native lib。
 
-局部产物不能一概用整包重装处理，否则增量编译省下的时间会重新花在传输、安装和重启上。Jugg 按产物类型和设备状态选择热重载、热修复、APK 更新或恢复重装，让本轮改动以较小代价生效。
-
-## 常规重装的固定代价
-
-完整 APK 安装包含传输、校验、安装和应用进程重启，这些固定开销与本轮改动大小无关。大型工程里，部署固定开销会接近甚至抵消增量编译省下的时间；进程重启还会清掉当前页面、内存状态和调试现场。
-
-增量产物是“局部的”，重装是“整体的”。直接用整体动作去应用局部产物，既慢又会丢状态。Jugg 不把重装当默认路径，而是根据本轮产物类型和设备当前状态，选择代价较小、且能保证结果正确的应用方式。
-
-## 按产物与设备状态选择路径
-
-Jugg 使用混合部署策略：能在线生效的内容优先在线替换，必须改 APK 内容的产物走 APK 更新，不能在线替换的 class 走重启后生效的热修复，设备状态不可信时先恢复基线、必要时才重装。
+部署阶段需要把这些不同形态的产物组合成可运行结果。它先判断安装包内容是否需要更新，再判断当前 Activity 或 App 进程需要怎样刷新；设备状态无法承接本轮变化时，还要先恢复部署基线。
 
 ```text
-增量产物
-  -> 可在线替换的 class、可经 overlay 生效的资源/assets：热重载
-  -> 结构变化、已加载或需重启才能生效的 class：热修复
-  -> Manifest、resources.arsc、native lib 等必须写回 APK 的产物：APK 更新
-  -> 设备状态与本地基线对不上：先恢复，必要时重装
+本轮编译产物
+  -> 是否需要修改 APK
+  -> 设备能否承接增量部署
+  -> 下发 class 与 overlay
+  -> 重建 Activity / 重启 App / 启动新安装的 App
+  -> 成功后提交部署状态
 ```
 
-| 路径 | 适用产物与状态 | 对用户的可见结果 |
+## 完整安装和增量部署使用不同输入
+
+Gradle 构建会生成一组完整 APK。部署阶段直接安装这些 APK，并以安装结果作为设备的新基线。
+
+增量编译保留最近一次 Gradle APK，只生成本轮变化。普通 class、资源和 assets 可以作为增量数据下发；Manifest、native lib 等需要成为安装包内容的文件，则写回基线 APK 并重新签名。一次增量 Run 因此可以包含 APK 更新和运行时增量部署两个连续步骤。
+
+## 先判断 APK 是否需要更新
+
+| 本轮产物 | APK 处理 | 用户可见结果 |
 |---|---|---|
-| 热重载 | 方法体等结构未变、可在线替换的 class，以及能经 overlay 生效的资源、assets | 尽量不重启 App，改动即时生效 |
-| 热修复 | class 结构变化、目标 class 已被加载，或需要 overlay 恢复 | 重启 App 后生效 |
-| APK 更新 | Manifest、配套 `resources.arsc`、native lib 等无法靠普通 overlay 生效的文件 | 写回当前 APK、重新签名后安装 |
-| 重装 / Gradle fallback | APK 需要完整刷新，或设备状态不可信 | 重新建立设备与本地基线 |
+| Gradle 构建生成的完整 APK | 直接安装完整 APK | App 重新安装并启动，设备获得新的完整基线 |
+| 可增量 patch 的 Manifest、已经生成的 native lib | 写入最近一次 Gradle APK 并重新签名 | 安装更新后的 APK，无需重新执行完整 Gradle 构建 |
+| 普通 class、资源 overlay、assets | 保持 APK 基线，生成增量部署数据 | 通过 Apply Changes 或 overlay 通道下发 |
+| 同时包含 APK 条目和普通增量产物 | 先更新并安装 APK，再重新组织剩余增量数据 | 安装包和运行时内容在同一轮完成对齐 |
 
-### 热重载：复用 Apply Changes 通道
+APK 更新依赖可用的签名配置。Manifest 删除、完整 merge 规则变化、C/C++ 源码编译或 ABI 与 packaging 配置变化，仍需要 Gradle 重新生成对应产物。具体边界见 [Android Manifest 编译](./incremental-compile/manifest.md)和[assets 与 native lib](./incremental-compile/assets-native.md)。
 
-Apply Changes 利用 JVMTI 的类重定义能力在运行时替换 class 实现。Jugg 复用这条通道下发可在线替换的 class 字节码和资源 overlay，不再为在线替换另起一套传输机制。
+## 再判断运行态需要刷新到哪一层
 
-这条路径只适合结构未发生变化的 class 修改，以及能通过 overlay 生效的资源或 assets。它的边界直接来自 JVMTI：删除方法、修改方法签名、修改字段等结构变化，运行时无法在线替换。本轮如果不需要重启就走纯在线替换；如果只需要重建界面，就在替换后触发 Activity 重启。
+APK 处理完成后，Jugg 根据 class 结构、overlay 内容、设备兼容性和运行配置决定生命周期动作。
 
-### APK 更新：写回当前 APK
+| 部署数据 | 生效方式 | 用户看到什么 |
+|---|---|---|
+| 可在线替换的 class、普通资源或 assets overlay | Apply Changes | App 进程继续运行，当前实现通常会重建 Activity 以重新加载界面和资源 |
+| class 结构变化、需要进程重新加载的 overlay、Compose 资源等 | Hot Fix 后重启 App | 页面和进程内状态重新建立，新产物在新进程中生效 |
+| 当前设备需要兼容部署 | 将在线产物转换为兼容热修复数据并重启 App | 保留增量编译结果，改由下次进程启动加载 |
+| Debug、用户设置始终重启，或平台兼容处理需要新进程 | 部署完成后额外重启 App | 调试器或运行时组件连接到新的进程 |
 
-有些产物无法靠普通 overlay 生效。Manifest、与之配套的 `resources.arsc`、native lib 必须真正写进 APK 才能被系统正确加载。
+`Hot Reload` 是 Jugg 对本轮结果的分类，不等于 Activity 一定保持不变。当前实现对非空、无需重启 App 的增量数据使用 Apply Changes and Restart Activity；Activity 会重新执行生命周期，而 App 进程继续保留。空部署和 warm-up 探测使用不重建 Activity 的 Apply Changes。
+
+## 设备状态决定能否继续叠加差异
+
+增量数据以设备上一轮成功状态为起点。部署前，Jugg 会对照本地部署历史、Android Studio deployment cache 和设备端 overlay checkpoint。
+
+状态匹配时继续下发本轮差异。状态未知、App 被外部覆盖安装或 checkpoint 不匹配时，Jugg 先执行 Recover；校验仍然失败时，重新安装当前 APK 并重建部署状态。这个过程修复的是设备基线，通常不需要重新编译工程。
+
+设备尚未进入在线 Apply Changes 状态但 checkpoint 可以校验时，Jugg 还可以使用 Direct Overlay 写入增量文件。Direct Overlay 只改变传输方式，后续启动、重启和状态提交仍由同一套部署流程完成。状态模型见[部署状态与恢复](./deploy-state-recover.md)。
+
+## 同一轮变化如何组合生效
+
+源码、资源、Manifest 和 native lib 可以在同一轮发生变化。部署顺序需要保证安装包、运行时内容和设备 checkpoint 一起前进：
 
 ```text
-本轮产生需写回 APK 的文件
-  -> 基于当前 APK 把这些文件插入进去
-  -> 重新签名
-  -> 恢复部署状态后安装更新后的 APK
+生成完整部署数据
+  -> 写回需要更新的 APK 条目并重新签名
+  -> 安装更新后的 APK，恢复设备部署基线
+  -> 重新读取待部署的 class 与 overlay
+  -> Apply Changes 或 Hot Fix
+  -> 完成目标设备部署后提交本轮历史
 ```
 
-APK 更新不是一次完整 Gradle 构建。它基于设备上当前的 APK，只把本轮必须写回的文件替换进去再重签。因此它依赖可用的签名配置；签名缺失时这条路径会失败，并允许回退到更保守的路径。
+多 APK 工程还会按 base、split、test APK 的真实归属裁剪每次传输数据；这些局部数据只用于对应 APK，全局历史始终使用完整部署结果推进。多设备运行会逐台部署，再由 Run 层汇总结果并决定是否整体回到 Gradle。
 
-### 热修复：重启后让新产物优先生效
+## 部署失败如何收口
 
-热修复在 App 启动时插入新的 DEX、native lib 或资源路径，让重启后的进程优先读取本轮新产物。它的覆盖面比在线类替换更宽，能处理结构变化和已加载 class，代价是需要重启 App。
+失败处理会优先改变导致失败的最小条件：ADB 短暂离线时等待恢复，在线类替换失败时转 Hot Fix，JVMTI 或 agent 不兼容时转兼容部署，checkpoint 不匹配时先 Recover。只有这些路径无法形成可信结果，并且失败允许自动回退时，整轮 Run 才会改走 Gradle。
 
-它依赖的是经典的运行时加载机制，而非同一套在线类重定义能力：把新 DEX 接到 `BaseDexClassLoader` 的加载路径前部、把新 native lib 路径接入 so 搜索路径、构造新的 `AssetManager` 加载资源包并更新运行时资源引用。
-
-## 同一轮的混合与降级
-
-这几类产物可以出现在同一轮里。Jugg 会先处理需要写回 APK 的产物，保证 APK 内容与签名已经更新，再根据 class 和 overlay 数据决定走在线替换、重建 Activity、重启 App 还是兼容热修复。
-
-降级是这套策略的安全网。当设备的 JVMTI 不兼容、在线类替换失败，或用户主动启用兼容部署时，本轮原本计划在线替换的 class 会转为热修复重新下发。判断在线替换是否可行以真实设备反馈为准；设备返回失败信号后，Jugg 才把本轮转入兼容路径。
-
-## 混合部署的边界
-
-这套策略的能力边界都来自运行时与产物本身的限制。删方法、改签名、改字段等结构变化无法热重载，只能走热修复并重启；当设备运行时不支持在线类替换时，本轮原本计划的在线替换也会整体降级为热修复，部署仍能完成，但同样需要重启。APK 更新这条路径则依赖可用的签名配置，签名缺失时它会失败，并回退到更保守的路径。
-
-多类产物可以出现在同一轮里，但应用顺序是固定的：先更新 APK，再决定 class 与 overlay 的应用方式。所有这些路径还共享一个隐含前提：增量部署假设设备仍停在上一轮成功状态。一旦状态对不上，本轮会先恢复基线、必要时重装，这部分代价见[部署状态与恢复](./deploy-state-recover.md)。
+各级恢复行为和 Gradle 的边界见[回退与限制](./fallback-and-limits.md)。
 
 ## 相关页面
 
-- [部署数据与影响分析](./deploy-data-and-impact.md)
+- [部署结果说明](../guide/deploy.md)
+- [重启 App](../guide/restart-app.md)
+- [部署能力](../capabilities/deploy/)
+- [Restart 能力](../capabilities/deploy/restart.md)
 - [部署状态与恢复](./deploy-state-recover.md)
 - [兼容部署](./compat-deploy.md)
-- [JVMTI Agent](./jvmti-agent.md)
+- [Recover 与 Retry](../capabilities/deploy/recover-and-retry.md)
+- [Full Swap](../capabilities/deploy/full-swap.md)
+- [Direct Overlay](../capabilities/deploy/direct-overlay.md)
 - [回退与限制](./fallback-and-limits.md)
-- [Android Manifest 编译与 release 增量编译](./incremental-compile/manifest-minify.md)
-- [assets 与 native lib](./incremental-compile/assets-native.md)

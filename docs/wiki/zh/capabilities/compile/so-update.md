@@ -35,8 +35,9 @@ Jugg 支持更新已产出的 native lib / `.so` 文件，并通过写入 APK、
 
 `.so` 更新需要修改 APK 内容并重新签名。Jugg 负责把已有 `.so` 产物放入正确 APK；C/C++ 源码到 `.so` 的产物生成仍由 Gradle/NDK 完成。
 
-## 关联能力
+## 相关页面
 
 - [AndroidManifest 编译](./manifest.md)
 - [资源编译](./resource-compile.md)
 - [编译阶段说明](../../guide/compile.md)
+- [assets 与 native lib 原理](../../concepts/incremental-compile/assets-native.md)

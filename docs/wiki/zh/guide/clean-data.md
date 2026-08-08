@@ -46,5 +46,6 @@ jugg clean-reinstall
 
 - [运行 App](./run.md)
 - [降级 Gradle 编译](./downgrade-gradle.md)
+- [部署状态与恢复](../concepts/deploy-state-recover.md)
 - [Clean Reinstall 能力](../capabilities/deploy/clean-reinstall.md)
 - [部署问题排查](../troubleshooting/deploy.md)

@@ -1,6 +1,6 @@
 ---
 title: 源码增量编译
-description: 解释 Jugg 如何只把变化的 Java、Kotlin 文件送入编译器，并绕开编译器进程内的类冲突、模块识别和脱糖一致性问题。
+description: 解释 Jugg 只编译变化源码时，如何恢复 Gradle 提供的编译上下文、调用方检查和 DEX 结构一致性。
 status: active
 tags:
   - concept
@@ -10,72 +10,131 @@ tags:
 
 # 源码增量编译
 
-源码改动是日常 Run 中最常见的触发源。Jugg 要避免每次小改动都启动完整 Gradle 编译，但又不能把 Java、Kotlin 和 DEX 当成普通文本转换：编译器看到的 classpath、模块身份、生成源码和旧 APK 结构都必须与全量构建对齐。
+Gradle 编译一个模块时，不只是把 Java、Kotlin 转换成 class。它还会建立完整的 classpath，识别 Kotlin 模块边界，连接生成源码，检查没有修改的调用方，并用统一规则生成 DEX。
 
-源码增量编译处理 Java、Kotlin、class 文件，以及由资源或注解处理产生的源码。它复用最近一次 Gradle 构建的 classpath，只把本轮变化文件和必要的受影响文件送入编译器。难点不只是“少编译几个文件”，还包括在 IDE 进程里调用编译器时绕开类冲突、模块识别错位、关闭脱糖后与旧产物结构不一致等问题。
+Jugg 为了缩短日常 Run，只处理本轮变化源码。文件少了，Gradle 原本隐式提供的这些保障也随之消失。源码增量编译要解决的问题因此不是怎样调用 `javac` 和 `kotlinc`，而是怎样在局部编译中恢复完整构建的语义，并在无法恢复时回到 Gradle。
 
-## Kotlin 编译器的进程内类冲突与隔离
+## 只编译变化源码，会失去什么
 
-Kotlin 编译器（`kotlin-compiler-embeddable` 提供的 `K2JVMCompiler`）和 IntelliJ IDEA 内部存在包名相同、但实现版本不同的类时，直接在 IDE 进程的类加载环境里运行编译器会让两套同名类混用，编译行为变得不确定。
+一次可信的 Gradle 构建为后续增量编译留下 APK、class、依赖和编译参数。最朴素的增量方案可以直接复用这些 class 作为依赖，只把变化文件交给编译器：
 
-Jugg 用一个独立的 `ClassLoader` 加载 Kotlin 编译器及其依赖，把它与 IDE 进程的同名类隔离开。隔离后，编译器看到的是自己那套完整、版本一致的类，增量编译的 Kotlin 结果才能与全量构建对齐。Java 编译没有这层进程内冲突，接近直接调用 `javac`。
+```text
+最近一次 Gradle 产物
+  -> 作为本轮编译的 classpath
+  -> 编译变化的 Java / Kotlin
+  -> 生成新的 class
+```
 
-不过隔离加载只解决了"用哪套类"的问题；编译器还要正确判断"哪些 class 属于同一个模块"，否则会在 smart cast 上出错。
+这条路径省掉了完整 task 的调度和大量未变化输入，但也缩小了编译器能看到的范围。
 
-## 模块识别：输出目录与 smart cast 对齐
+| Gradle 原本提供的保障 | 朴素增量编译的问题 | Jugg 的处理方式 |
+|---|---|---|
+| 完整编译上下文 | classpath、模块身份或工具版本不一致 | 从 Gradle 基线恢复当前模块的编译上下文 |
+| Java、Kotlin 与生成源码同轮可见 | 编译器读取到上一轮的旧符号 | 按产物依赖安排编译顺序，并传入本轮源码 |
+| 全量调用方检查 | 未修改的调用方不会参与编译 | 对比 class 结构，继续编译受影响源码 |
+| 统一的 DEX 转换 | 新 DEX 与基线 APK 的脱糖结构不同 | 读取基线状态，补充受影响 classpath 并采用相同转换策略 |
 
-Kotlin 的 smart cast、`internal` 成员可见性等行为都依赖"编译器把哪些 class 看成同一个模块"。如果增量编译把同模块的 class 误判成外部依赖模块，编译器会拒绝本应成立的 smart cast，报出与全量构建不一致的错误。`internal` 成员还有一层字节码约束：它的命名包含模块名（module-name）。Gradle 全量编译用的是工程真实模块名；增量编译如果用了不一致的模块名，调用方在运行时会因为找不到对应符号而抛出 `NoSuchMethodError`。
+后面的几节分别解释这些缺口为什么会导致编译错误或运行时崩溃，以及 Jugg 如何收口。
 
-Jugg 在两处对齐模块身份：把 Kotlin 输出目录指向模块自身的 class 目录，使编译器把同模块 class 识别为同一模块而非外部依赖，让 smart cast 与全量构建一致；同时在编译参数中传入与 Gradle 一致的模块名和同模块 classpath 标记，让 `internal` 成员的字节码命名和可见性对齐。
+## 复用 Gradle 基线，而不是重新实现 Gradle
 
-模块身份对齐之外还有一个收尾约束：Kotlin 顶层声明、扩展函数等信息无法直接表达在 JVM 字节码里，而是记录在模块描述（`.kotlin_module`）中。单文件编译新增顶层声明时，新的描述内容需要合并回原模块描述，否则后续 Kotlin 编译会缺少这些声明。
+Java 编译相对直接。Jugg 从项目快照中恢复 classpath、源码和目标字节码版本等参数，再通过 JDK 编译器生成 class。部分 Android Studio 运行环境无法从标准入口取得 Java 编译器时，Jugg 会改用 JDK 自带的另一套工具入口，避免因为 IDE 使用的 Runtime 不同而中断增量编译。
 
-## 混编符号新鲜度与编译器获取兜底
+Kotlin 对编译上下文更敏感。编译器看到的模块名、输出目录和同模块 classpath，不只是命令行参数，它们会改变源码可见性和最终字节码。
 
-混编工程里，Kotlin 和 Java 互相引用。如果 Kotlin 编译时只能看到上一轮的旧 Java classpath，就会拿到过期符号；部分 Android Studio 版本中，JDK 标准入口 `ToolProvider.getSystemJavaCompiler()` 会返回空，直接用它获取编译器会拿到 `null`。
+| 上下文不一致 | 用户看到的结果 |
+|---|---|
+| 同模块 class 被识别成外部依赖 | Gradle 可以通过的 smart cast 在增量编译时报错 |
+| 模块名或同模块 classpath 不一致 | `internal` 成员无法访问，或者运行时出现 `NoSuchMethodError` |
+| 新的模块描述没有合并 | 后续 Kotlin 编译找不到新增的顶层声明或扩展函数 |
 
-Jugg 对这两点各有兜底：混编时先编译 Kotlin，并让 Kotlin 编译器直接读取同模块的 Java 源文件，避免只看到旧 classpath；当 `ToolProvider.getSystemJavaCompiler()` 返回空时，改用 JDK 内置的 javac 工具 API 获取编译器实例，绕开该环境下的缺陷。
+Jugg 把 Kotlin 输出写回当前模块的 class 目录，并传入与 Gradle 一致的模块身份。这样，编译器会把旧 class 和本轮源码视为同一个模块。单文件编译生成的 `.kotlin_module` 也会与原模块描述合并，新增的顶层声明才能继续被其他 Kotlin 文件引用。
 
-## 关闭脱糖后的 default method 补处理
+还有一层问题来自 Android Studio 本身。IDE 与 Kotlin 编译器可能包含包名相同、版本不同的类，直接在 IDE 的类加载环境中运行编译器会混用两套实现。Jugg 使用独立的类加载环境装载 Kotlin 编译器及其依赖，让编译器运行时只看到同一版本的实现。
 
-Java / Kotlin 编译产出 class 后，Jugg 用 D8 转成 DEX。D8 默认会做脱糖（desugaring），把接口的 default method 等高版本特性改写成低版本兼容形态。脱糖对全量构建无害，但在增量场景下耗时可观，因此 Jugg 可以关闭脱糖以提速。代价是结构一致性：基线 APK 里的接口和实现类已经脱糖、本轮新增 DEX 不脱糖时，子类或调用方会和旧结构对不上，运行时出现 `AbstractMethodError` 或找不到方法。
+Kotlin Multiplatform 又增加了 common source、platform source 和 source set 继承关系。Jugg 优先读取 Gradle Kotlin task 提供的 source set 与 fragment 信息；缓存缺失或关系无法确认时，不根据目录名猜测模块结构。辅助信息失败只影响对应能力，普通 Kotlin 编译仍沿用原有路径。
 
-Jugg 在关闭脱糖的同时做定向补处理：通过对基线产物的引用索引查找与 default method 相关的类，并重新生成对应 DEX。查询范围覆盖含默认方法的接口、它的子类、`invoke-static` 形式的调用，以及覆盖了接口默认方法又被删除的方法，让新旧结构在脱糖维度上保持一致。DEX 还按"每个 class 输出独立单元"的方式生成，以满足在线替换对单类粒度的要求。
+## 混编工程需要看到本轮最新符号
 
-## 扩散编译：只编直接改动并不安全
+Java 和 Kotlin 经常互相引用。假设同一轮同时修改一个 Java 接口和它的 Kotlin 实现，如果 Kotlin 编译器只能看到基线中的旧 Java class，它会基于过期的方法签名检查 Kotlin 文件，产生 `reference not found`、类型不匹配或未实现抽象方法等错误。
 
-只编译本轮直接变化的文件会漏掉调用方检查。删除方法、修改字段签名或给抽象父类新增抽象方法时，改动文件本身能编译通过，但旧调用方或子类仍留在 APK 中，直到运行时才抛出 `NoSuchMethodError` 或 `AbstractMethodError`。
+Jugg 先让 Kotlin 编译器读取本轮 Java 源码。Kotlin 生成的新 class 随后进入 Java 编译的 classpath，Java 阶段便能读取到最新 Kotlin 符号。
 
-首轮编译成功后，Jugg 会做一次影响分析：
+```text
+注解处理、DataBinding 等生成源码
+  -> Kotlin 读取本轮 Java 源码
+  -> Java 读取本轮 Kotlin class
+  -> 汇总所有新 class
+```
+
+生成源码必须排在语言编译之前。DataBinding、ViewBinding、注解处理器或 KSP/KAPT 产出的源码如果在语言编译之后才出现，本轮就无法形成完整 class。Jugg 会把已经产生的生成源码登记为本轮输入；生成上下文无法确认时，则通过 Gradle 重新建立基线。
+
+## 编译成功不代表修改可以安全运行
+
+全量编译会检查模块内所有源码。局部编译只检查直接变化文件，因此可能把原本应该在编译期发现的问题推迟到运行时。
+
+例如，类 A 删除了一个方法，调用它的类 B 没有修改：
+
+```text
+A 删除方法
+  -> A 自己编译成功
+  -> B 没有进入本轮编译，仍保留旧调用
+  -> 部署后调用旧方法
+  -> 运行时出现 NoSuchMethodError
+```
+
+新增抽象方法、修改字段签名或改变 inline 方法也有类似问题。Jugg 在首轮源码编译后比较新旧 class 结构，再通过基线和部署历史中的引用关系查找调用方、子类及对应源码，把它们加入下一轮编译。
 
 ```text
 变化 class
-  -> 与基线或已部署 class 做结构对比
-  -> 判断方法、字段、抽象方法或 inline 影响
-  -> 通过引用索引查出调用方、子类和对应源码
-  -> 把受影响源码加入下一轮编译
+  -> 与当前有效 class 做结构对比
+  -> 找出方法、字段、继承或 inline 影响
+  -> 查询调用方、子类和对应源码
+  -> 追加下一轮编译，直到影响范围收敛
 ```
 
-已经增量部署过的类也会参与对比，不能只看 Gradle 基线里的旧 class。扩散编译的传播规则、收敛边界和 release 补偿见[重编译 / 扩散编译](./recompile-propagation.md)；编译期常量的特殊处理见[常量引用分析](./const-ref.md)。
+这里比较的是设备当前可能使用的 class，不只是最近一次 Gradle APK 中的 class。已经增量部署过的修改也要参与分析，否则连续多轮修改会从错误的旧结构开始计算影响范围。传播规则见[重编译 / 扩散编译](./recompile-propagation.md)，编译期常量的处理见[常量引用分析](./const-ref.md)。
 
-## 阶段顺序约束
+## 新 DEX 必须与基线 APK 保持相同结构
 
-源码阶段内部的顺序不能随意调整，否则后续阶段会在缺少前置产物的情况下报出误导性错误：
+Java 和 Kotlin 先生成 class，随后由 D8 转换成 DEX。D8 还可能执行脱糖，把接口 default method 或较新的 JDK API 改写成低版本 Android 可以运行的结构。
+
+增量编译不能只根据当前模块的 `minSdk` 决定是否脱糖。设备中运行的是最近一次 Gradle 构建生成的 APK；如果基线 APK 已经脱糖，而本轮 DEX 没有脱糖，一个重新编译的子类可能不再包含脱糖阶段生成的方法，旧接口中也没有原始 default method，运行时便会出现 `AbstractMethodError`。反过来，基线没有脱糖时，本轮也不应凭空引入另一套结构。
+
+Jugg 会从基线 APK 的类结构判断当前应用是否启用了脱糖，再让本轮 D8 使用相同策略。启用脱糖时，D8 还需要读取 default method 相关接口。把整个模块 classpath 重新交给 D8 会扩大处理范围，因此 Jugg 先通过引用索引找出相关接口、子类和调用方，只把需要的 class 放入本轮临时 classpath：
 
 ```text
-注解处理与 DataBinding 生成源
-  -> Kotlin
-  -> Java
-  -> DEX
-  -> minify
+新的 class
+  -> 查询基线 APK 的脱糖状态
+  -> 找出 default method 相关接口和 core library 重写信息
+  -> 组装本轮需要的最小 classpath
+  -> 用相同脱糖策略生成单类粒度 DEX
 ```
 
-这些顺序来自产物依赖：生成源码必须早于语言编译，Kotlin 必须早于 Java（Java 阶段要消费 Kotlin 产出的 class），minify 必须在 DEX 之后。
+Jugg 还会优先使用当前项目 Android Gradle Plugin 配套的 D8，减少工具版本不同造成的字节码差异。项目工具无法安全加载或执行失败时，才回退到 Jugg 内置版本，并保留原始失败信息用于排查。
+
+## 一轮源码增量编译如何结束
+
+前面的处理最终汇合为一条固定流程：
+
+```text
+可信 Gradle 基线
+  -> 收集直接变化源码和本轮生成源码
+  -> Kotlin / Java 编译
+  -> 对比 class 结构，追加受影响源码
+  -> D8 生成 DEX，补处理脱糖结构差异
+  -> release 变体按原 mapping 处理类名
+  -> 将局部产物交给部署阶段
+```
+
+这条链路依赖可信基线。首次运行、构建脚本或依赖上下文变化、生成代码无法确认、增量影响范围过大，或者编译失败且无法恢复时，Jugg 会执行 Gradle 构建并刷新 APK、class 与本地索引。回到 Gradle 是增量编译的边界处理，不会把不完整产物当成成功结果。
 
 ## 相关页面
 
 - [增量编译总览](./index.md)
+- [重编译 / 扩散编译](./recompile-propagation.md)
+- [常量引用分析](./const-ref.md)
 - [DataBinding / ViewBinding](./databinding-viewbinding.md)
-- [Android Manifest 编译与 release 增量编译](./manifest-minify.md)
-- [重编译/扩散编译能力](../../capabilities/compile/recompile-propagation.md)
-- [常量引用分析](../../capabilities/compile/const-ref.md)
+- [release 增量编译](./release-compile.md)
+- [源码编译能力](../../capabilities/compile/source-compile.md)
+- [回退与限制](../fallback-and-limits.md)

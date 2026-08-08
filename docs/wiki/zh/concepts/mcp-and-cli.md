@@ -66,8 +66,8 @@ CLI 已封装这轮轮询；MCP 客户端直接调用时需要自己实现。
 
 ## 相关页面
 
-- [Android Test 流程](./android-test-flow.md)
-- [部署策略](./deploy-strategy.md)
 - [CLI 指南](../guide/cli.md)
 - [MCP 指南](../guide/mcp.md)
 - [Jugg CLI 与 Agent Skills](../capabilities/tools/)
+- [Jugg CLI 能力](../capabilities/tools/cli.md)
+- [面向 Agent 的 MCP](../capabilities/tools/mcp.md)

@@ -46,7 +46,7 @@ Jugg 会优先使用项目 Kotlin 编译器。当不能使用项目编译器时�
 - 修改 Compose compiler plugin、Kotlin 版本、Gradle plugin 或 compiler args 时，建议 Gradle。
 - 如果 Compose 编译后运行时异常只在 Jugg 增量出现，先用 Gradle 构建验证插件基线是否一致。
 
-## 关联能力
+## 相关页面
 
 - [源码编译](./source-compile.md)
 - [注解器](./annotation-processors.md)

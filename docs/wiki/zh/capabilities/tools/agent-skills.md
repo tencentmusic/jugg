@@ -49,7 +49,7 @@ androidTest 或 src/androidTest 任务
 - 构建类 CLI 命令会阻塞到终态；Agent 不需要自己轮询 MCP job。
 - 失败时先读取命令返回的 `detail`、日志路径和状态字段，再决定重试、回退 Gradle 构建或申请远端诊断。
 
-## 关联能力
+## 相关页面
 
 - [Jugg CLI](./cli.md)
 - [构建与部署](./cli-build-deploy.md)

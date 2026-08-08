@@ -58,8 +58,10 @@ Android Test 模式使用 `BuildTarget.ANDROID_TEST`。这个 target 表示当�
 | 常驻 test harness 或测试进程内 redefine | 暂不覆盖 |
 | Debug Executor | 暂不覆盖 |
 
-## 关联能力
+## 相关页面
 
+- [Android Test 指南](../../guide/android-test.md)
+- [Android Test 流程](../../concepts/android-test-flow.md)
 - [Library Android Test](./library-android-test.md)
 - [Test Results UI](./test-results-ui.md)
 - [Logcat 归因](./logcat-attribution.md)

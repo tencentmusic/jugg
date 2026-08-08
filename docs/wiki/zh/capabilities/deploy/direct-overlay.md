@@ -50,8 +50,9 @@ Direct Overlay 需要同时满足这些条件：
 - deploy data 非空，且不是 install。
 - 设备系统版本满足要求，App sandbox 可通过 `run-as` 写入。
 
-## 关联能力
+## 相关页面
 
+- [部署状态与恢复](../../concepts/deploy-state-recover.md)
 - [Hot Reload](./hot-reload.md)
 - [Recover 与 Retry](./recover-and-retry.md)
 - [部署历史与缓存](./deploy-history-cache.md)

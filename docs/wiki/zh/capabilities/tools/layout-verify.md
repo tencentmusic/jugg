@@ -63,7 +63,9 @@ centerY           = (top + bottom) / 2
 - `matchCount > 1` 时必须消歧，不能把第一个候选当作稳定证据。
 - 截图 action 当前未注册，不能作为默认 MCP 证据来源。
 
-## 关联能力
+## 相关页面
 
+- [UI 检查指南](../../guide/ui-inspection.md)
+- [布局 dump 与 UI 证据](../../concepts/layout-dump-and-ui-evidence.md)
 - [UI 自动化](./ui-automation.md)
 - [面向 Agent 的 MCP](./mcp.md)

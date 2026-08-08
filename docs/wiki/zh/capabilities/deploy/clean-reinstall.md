@@ -50,8 +50,10 @@ Clean Reinstall 通常出现在以下边界：
 
 成功 reinstall 后，后续修改仍会优先走增量部署。
 
-## 关联能力
+## 相关页面
 
+- [清理数据](../../guide/clean-data.md)
+- [部署状态与恢复](../../concepts/deploy-state-recover.md)
 - [Recover 与 Retry](./recover-and-retry.md)
 - [部署历史与缓存](./deploy-history-cache.md)
 - [多 APK](./multi-apk.md)

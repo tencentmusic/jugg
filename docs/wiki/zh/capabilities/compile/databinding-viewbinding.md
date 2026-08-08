@@ -44,7 +44,7 @@ DataBinding / ViewBinding layout 变化
 - DataBinding mapper 依赖上次 Gradle 产出的 layout info 和 BR 基线；缺失时需要 Gradle 重建。
 - stripped XML 既是资源产物，也是源码阶段判断 mapper 的输入之一，不能只看 Java 输出判断是否成功。
 
-## 关联能力
+## 相关页面
 
 - [资源编译](./resource-compile.md)
 - [注解器](./annotation-processors.md)

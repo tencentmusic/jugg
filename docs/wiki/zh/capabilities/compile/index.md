@@ -37,7 +37,7 @@ Jugg 编译能力建立在最近一次可用的 Gradle 构建结果之上。它�
 | 能力 | 当前支持情况 | 典型结果 |
 |---|---|---|
 | [依赖库增量编译](./dependency-incremental.md) | 支持对部分依赖变化做 diff 后增量处理 | 新旧 library 产物进入本轮编译/部署判断 |
-| [Release 编译](./release-compile.md) | 支持 mapping 一致性、inline 与删除成员补偿 | 产物重混淆后进入部署 |
+| [Release 编译](./release-compile.md) | 实验性支持 mapping 一致性、inline 与删除成员补偿 | 产物重混淆后进入部署 |
 | [常量引用分析](./const-ref.md) | 支持 Java/Kotlin 内联常量影响分析 | 找到引用方源码并触发扩散编译 |
 | [AabResGuard](./aab-resguard.md) | 支持读取 `resources-mapping.txt` 辅助资源增量 link | 保持资源混淆名称一致 |
 | [Gradle 回退](./gradle-fallback.md) | 支持自动或用户触发回退 | 重新建立可信构建基线 |

@@ -43,7 +43,7 @@ Jugg 支持 Java / Kotlin 内联常量的影响分析。当 `static final` 或 `
 - 注释和字符串里的伪引用会被忽略。
 - 分析缓存异常或超时时不会中断编译，但可能降低本轮补编译覆盖度。
 
-## 关联能力
+## 相关页面
 
 - [重编译/扩散编译](./recompile-propagation.md)
 - [Release 编译](./release-compile.md)

@@ -48,8 +48,10 @@ Jugg 支持在保留增量编译与部署能力的同时运行 Android instrumen
 | `androidTestAnnotationProcessor` / `androidTestKapt` | 暂不覆盖 |
 | Debug Executor | 暂不覆盖 |
 
-## 关联能力
+## 相关页面
 
+- [Android Test 指南](../../guide/android-test.md)
+- [Android Test 流程](../../concepts/android-test-flow.md)
 - [Application Android Test](./application-android-test.md)
 - [Library Android Test](./library-android-test.md)
 - [Test Results UI](./test-results-ui.md)

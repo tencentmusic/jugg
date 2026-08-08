@@ -45,8 +45,10 @@ runTask()
 | Clean Reinstall | 重新安装后启动 App |
 | JVMTI agent 更新 | 通常需要重启 App 后检测 |
 
-## 关联能力
+## 相关页面
 
+- [重启 App](../../guide/restart-app.md)
+- [部署策略](../../concepts/deploy-strategy.md)
 - [Full Swap](./full-swap.md)
 - [Hot Reload](./hot-reload.md)
 - [JVMTI Runtime](./jvmti-runtime.md)

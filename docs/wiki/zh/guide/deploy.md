@@ -94,6 +94,7 @@ build/jugg/log/compile_latest.log
 
 - [运行 App](./run.md)
 - [部署策略](../concepts/deploy-strategy.md)
+- [部署能力](../capabilities/deploy/)
 - [部署历史与缓存](../capabilities/deploy/deploy-history-cache.md)
 - [Hot Reload](../capabilities/deploy/hot-reload.md)
 - [Clean Reinstall](../capabilities/deploy/clean-reinstall.md)

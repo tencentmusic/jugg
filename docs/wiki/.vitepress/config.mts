@@ -63,7 +63,15 @@ const englishSidebar = {
       items: [
         { text: 'Overview', link: '/concepts/' },
         { text: 'How Jugg Works', link: '/concepts/how-jugg-works' },
-        { text: 'Incremental Compile', link: '/concepts/incremental-compile' },
+        {
+          text: 'Incremental Compile',
+          collapsed: false,
+          items: [
+            { text: 'Overview', link: '/concepts/incremental-compile/' },
+            { text: 'Android Manifest', link: '/concepts/incremental-compile/manifest' },
+            { text: 'Release Incremental Compile', link: '/concepts/incremental-compile/release-compile' }
+          ]
+        },
         { text: 'Deploy Strategy', link: '/concepts/deploy-strategy' },
         { text: 'Fallback and Limits', link: '/concepts/fallback-and-limits' },
         { text: 'Project Model', link: '/concepts/project-model' },
@@ -280,7 +288,8 @@ const chineseSidebar = {
             { text: '常量引用分析', link: '/zh/concepts/incremental-compile/const-ref' },
             { text: '资源增量编译', link: '/zh/concepts/incremental-compile/resource' },
             { text: 'DataBinding / ViewBinding', link: '/zh/concepts/incremental-compile/databinding-viewbinding' },
-            { text: 'Android Manifest / release', link: '/zh/concepts/incremental-compile/manifest-minify' },
+            { text: 'Android Manifest 编译', link: '/zh/concepts/incremental-compile/manifest' },
+            { text: 'release 增量编译', link: '/zh/concepts/incremental-compile/release-compile' },
             { text: 'assets / native lib', link: '/zh/concepts/incremental-compile/assets-native' },
             { text: '依赖库增量编译', link: '/zh/concepts/incremental-compile/dependency-incremental' },
             { text: '自定义编译器', link: '/zh/concepts/incremental-compile/custom-compiler' }

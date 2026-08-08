@@ -47,9 +47,8 @@ Jugg 支持通过自定义编译器 SPI 扩展内置增量编译链。自定义�
 | 混淆前后处理 | `beforeMinify` / `afterMinify` |
 | dex 前后处理 | `beforeDex` / `afterDex` |
 
-## 关联能力
+## 相关页面
 
 - [自定义编译器指南](../../guide/custom-compiler.md)
 - [源码编译](./source-compile.md)
-- [编译阶段说明](../../guide/compile.md)
 - [自定义编译器原理](../../concepts/incremental-compile/custom-compiler.md)

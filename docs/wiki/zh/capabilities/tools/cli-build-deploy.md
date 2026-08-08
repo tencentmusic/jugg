@@ -62,7 +62,7 @@ compile / deploy 失败
 
 `clean-reinstall` 只用于确实需要清 App 数据的场景，不是普通部署失败的默认修复动作。
 
-## 关联能力
+## 相关页面
 
 - [Jugg CLI](./cli.md)
 - [远端诊断](./remote-diagnosis.md)

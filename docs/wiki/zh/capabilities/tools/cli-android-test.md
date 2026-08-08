@@ -52,8 +52,10 @@ jugg status --console=json
 
 `instrument` 是构建类命令，会阻塞到终态。一次成功的 `jugg instrument` 表示 app 源码和 androidTest 源码已经被编译并部署到对应 APK，然后执行了 instrumentation。后续如果只需要更大范围的原生测试过滤，可以在 APK 已刷新后使用原生 `adb shell am instrument`。
 
-## 关联能力
+## 相关页面
 
+- [Android Test 指南](../../guide/android-test.md)
+- [Android Test 流程](../../concepts/android-test-flow.md)
 - [Application Android Test](../test/application-android-test.md)
 - [Library Android Test](../test/library-android-test.md)
 - [Test Results UI](../test/test-results-ui.md)

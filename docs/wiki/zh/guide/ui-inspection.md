@@ -126,6 +126,7 @@ jugg tap --x-percent 50 --y-percent 90
 
 ## 相关页面
 
+- [布局 dump 与 UI 证据](../concepts/layout-dump-and-ui-evidence.md)
 - [UI 自动化](../capabilities/tools/ui-automation.md)
 - [UI 布局证据](../capabilities/tools/layout-verify.md)
 - [CLI](./cli.md)

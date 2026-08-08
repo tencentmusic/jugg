@@ -44,8 +44,9 @@ Run 选中多台设备
 
 多设备不会把某台设备的临时 scoped data 直接提交成全局文件历史。Jugg 会在成功路径中按部署流程推进 history 和 overlay checkpoint，避免不同设备间串状态。
 
-## 关联能力
+## 相关页面
 
+- [多设备选择](../../guide/multi-device.md)
 - [Recover 与 Retry](./recover-and-retry.md)
 - [部署历史与缓存](./deploy-history-cache.md)
 - [Clean Reinstall](./clean-reinstall.md)

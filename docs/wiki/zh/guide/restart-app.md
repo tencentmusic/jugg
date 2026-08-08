@@ -47,4 +47,5 @@ Always restart app after deployment
 - [运行 App](./run.md)
 - [清理数据](./clean-data.md)
 - [高级选项](./advanced-options.md)
+- [部署策略](../concepts/deploy-strategy.md)
 - [Restart 能力](../capabilities/deploy/restart.md)

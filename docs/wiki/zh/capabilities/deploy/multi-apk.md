@@ -42,7 +42,7 @@ Jugg 支持把同一轮部署产物分配到正确的 APK 目标。对于 base A
 
 当 sourcePath 指向 library androidTest，而目标 test APK 还不存在时，Jugg 可以补齐对应 library Test APK，并在安装成功后更新 overlay ids。这样第一轮 replay 不会因为新增 APK 的 checkpoint 缺失而误判状态不匹配。
 
-## 关联能力
+## 相关页面
 
 - [部署历史与缓存](./deploy-history-cache.md)
 - [Recover 与 Retry](./recover-and-retry.md)

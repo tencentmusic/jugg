@@ -49,7 +49,7 @@ Jugg 会在以下情况离开普通 Hot Reload 路径：
 - payload 需要 App 重启或 Activity 重启。
 - JVMTI 不可用或部署失败信号要求兼容部署。
 
-## 关联能力
+## 相关页面
 
 - [Code Swap](./code-swap.md)
 - [Full Swap](./full-swap.md)

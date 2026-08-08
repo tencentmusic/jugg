@@ -75,6 +75,9 @@ tags:
 
 ## 相关页面
 
+- [清理数据](../guide/clean-data.md)
+- [Clean Reinstall 能力](../capabilities/deploy/clean-reinstall.md)
+- [部署历史与缓存](../capabilities/deploy/deploy-history-cache.md)
 - [部署策略](./deploy-strategy.md)
 - [部署数据与影响分析](./deploy-data-and-impact.md)
 - [Direct Overlay 能力](../capabilities/deploy/direct-overlay.md)

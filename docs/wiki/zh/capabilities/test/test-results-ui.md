@@ -49,8 +49,10 @@ Android Test run 创建 SM Runner console
 
 Rerun failed 只收集失败的 leaf test 节点，并生成新的 test filters。它会保留原 runner override 与 instrumentation arguments，但不会修改 Run Configuration General 页中的 class / method scope。
 
-## 关联能力
+## 相关页面
 
+- [Android Test 指南](../../guide/android-test.md)
+- [Android Test 流程](../../concepts/android-test-flow.md)
 - [Application Android Test](./application-android-test.md)
 - [Library Android Test](./library-android-test.md)
 - [Logcat 归因](./logcat-attribution.md)

@@ -49,6 +49,7 @@ Jugg 支持对 Android 资源相关文件进行增量编译，并把结果交给
 - [so 更新](./so-update.md)
 - [DataBinding/ViewBinding](./databinding-viewbinding.md)
 - [资源增量编译原理](../../concepts/incremental-compile/resource.md)
+- [assets 与 native lib 原理](../../concepts/incremental-compile/assets-native.md)
 - [编译阶段说明](../../guide/compile.md)
 - [编译问题排查](../../troubleshooting/compile.md)
 - [限制](../../reference/limits.md)

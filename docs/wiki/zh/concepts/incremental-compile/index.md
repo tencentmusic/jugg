@@ -22,7 +22,8 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
 | [常量引用分析](./const-ref.md) | Java/Kotlin 编译期常量变化后如何补编译引用方。 |
 | [资源增量编译](./resource.md) | aapt2 compile / link、Jugg 定制的 `inclink` 内存级缓存、资源表加载与资源 overlay。 |
 | [DataBinding / ViewBinding](./databinding-viewbinding.md) | layout split、base class、mapper、BR 与两阶段处理。 |
-| [Android Manifest 编译与 release 增量编译](./manifest-minify.md) | Manifest 增量合并、release mapping 重映射与 release 桥接补偿。 |
+| [Android Manifest 编译](./manifest.md) | merged manifest 基线、增量 patch 与完整 merge 边界。 |
+| [release 增量编译](./release-compile.md) | 实验性的 mapping 重映射、inline 与删除成员补偿。 |
 | [assets 与 native lib](./assets-native.md) | assets overlay 与需要写回 APK 的 native lib。 |
 | [依赖库增量编译](./dependency-incremental.md) | 构建文件确认、依赖变化对比、变化库差分编译与部署处理。 |
 | [自定义编译器](./custom-compiler.md) | 自定义编译器装载、扩展点插入位置与 hook 语义。 |
@@ -88,6 +89,8 @@ Gradle 回退成功后，Jugg 会重新收集构建产物，刷新项目快照�
 
 ## 相关页面
 
+- [编译阶段说明](../../guide/compile.md)
+- [编译能力](../../capabilities/compile/)
 - [编译调度流程](../compile-pipeline.md)
 - [部署数据与影响分析](../deploy-data-and-impact.md)
 - [回退与限制](../fallback-and-limits.md)

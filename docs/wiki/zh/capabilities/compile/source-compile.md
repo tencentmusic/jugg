@@ -45,10 +45,11 @@ Java / Kotlin / class 输入变化
 - 生成源码需要先由对应能力产出，例如 DataBinding/ViewBinding、注解器、KSP/KAPT 或 Compose。
 - release/minified 场景依赖当前 APK 对应的 mapping 基线，异常时优先用 Gradle release 构建对照。
 
-## 关联能力
+## 相关页面
 
 - [资源编译](./resource-compile.md)
 - [重编译/扩散编译](./recompile-propagation.md)
 - [Release 编译](./release-compile.md)
 - [Gradle 回退](./gradle-fallback.md)
+- [编译阶段说明](../../guide/compile.md)
 - [源码增量编译原理](../../concepts/incremental-compile/source.md)

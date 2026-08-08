@@ -126,5 +126,6 @@ agent push 放在部署之后，是因为 Android Studio Apply Changes 首次准
 - [Jugg Runtime](./jugg-runtime.md)
 - [JVMTI Agent](./jvmti-agent.md)
 - [部署状态与恢复](./deploy-state-recover.md)
+- [HarmonyOS 兼容部署](../capabilities/deploy/harmonyos-compat.md)
 - [Recover 与 Retry](../capabilities/deploy/recover-and-retry.md)
 - [JVMTI Runtime](../capabilities/deploy/jvmti-runtime.md)

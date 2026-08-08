@@ -70,4 +70,5 @@ Jugg 生成的 Compose accessor 会同步回模块的 generated source 目录，
 - [Kotlin Compose](./kotlin-compose.md)
 - [资源编译](./resource-compile.md)
 - [源码编译](./source-compile.md)
+- [资源增量编译原理](../../concepts/incremental-compile/resource.md)
 - [工程信息刷新与恢复](../../concepts/project-info-refresh.md)

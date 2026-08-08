@@ -46,9 +46,10 @@ Jugg 支持在一轮源码编译成功后继续分析影响范围，把没有直
 | 日志出现 `continue compile` | Jugg 正在追加下一轮编译 |
 | 小改动触发多文件编译 | 可能是接口、父类、泛型、常量或 release inline 影响 |
 
-## 关联能力
+## 相关页面
 
 - [源码编译](./source-compile.md)
 - [常量引用分析](./const-ref.md)
 - [Release 编译](./release-compile.md)
+- [编译阶段说明](../../guide/compile.md)
 - [重编译 / 扩散编译原理](../../concepts/incremental-compile/recompile-propagation.md)

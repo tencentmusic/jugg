@@ -27,3 +27,9 @@ tags:
 | [面向 Agent 的 MCP](./mcp.md) | Agent 直接通过 MCP 客户端调用 IDE 插件里的 Jugg 能力 | Jugg MCP endpoint 与已注册 action |
 
 精确的 MCP 工具名、参数和输出字段放在参考分类的 [MCP 工具](../../reference/mcp-tools.md)。
+
+## 相关页面
+
+- [CLI 指南](../../guide/cli.md)
+- [MCP 指南](../../guide/mcp.md)
+- [MCP 与 CLI 原理](../../concepts/mcp-and-cli.md)

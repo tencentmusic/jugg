@@ -47,7 +47,7 @@ Jugg 使用设备侧时间作为 logcat 起点，避免主机和设备时钟偏�
 > [!IMPORTANT]
 > Jugg 不会根据业务 tag、message 文本或相邻时间猜测日志属于哪个测试方法。方法归因只依赖 AndroidX TestRunner marker 或 instrumentation lifecycle。
 
-## 关联能力
+## 相关页面
 
 - [Application Android Test](./application-android-test.md)
 - [Library Android Test](./library-android-test.md)

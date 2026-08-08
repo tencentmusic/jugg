@@ -64,6 +64,4 @@ Quail 是一个典型边界：它不再携带旧的部署运行时，部署 API 
 
 ## 相关页面
 
-- [部署策略](./deploy-strategy.md)
-- [JVMTI Agent](./jvmti-agent.md)
 - [兼容性参考](../reference/compatibility.md)

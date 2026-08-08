@@ -54,8 +54,10 @@ Jugg 只补齐当前 `sourcePath` 精确命中的 library Test APK，避免一�
 
 历史记录只用于重新找到近期 library Test APK 构建任务，不代表 Test APK 永久有效；如果产物不存在，Jugg 会跳过该 optional APK，并在需要时重新进入补齐流程。
 
-## 关联能力
+## 相关页面
 
+- [Android Test 指南](../../guide/android-test.md)
+- [Android Test 流程](../../concepts/android-test-flow.md)
 - [Application Android Test](./application-android-test.md)
 - [Test Results UI](./test-results-ui.md)
 - [Logcat 归因](./logcat-attribution.md)

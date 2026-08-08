@@ -37,8 +37,9 @@ Gradle 构建产出 resources-mapping.txt
 
 Jugg 当前使用的默认路径是模块 build 目录下的 `outputs/bundle/<variant>/resources-mapping.txt`。
 
-## 关联能力
+## 相关页面
 
 - [资源编译](./resource-compile.md)
 - [Release 编译](./release-compile.md)
+- [资源增量编译原理](../../concepts/incremental-compile/resource.md)
 - [限制](../../reference/limits.md)

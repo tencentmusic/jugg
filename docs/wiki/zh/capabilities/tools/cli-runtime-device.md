@@ -67,7 +67,7 @@ jugg wait-logs --marker '\[JUGG_AR\] DONE' --tags MyAutoRun,AndroidRuntime --tim
 | `crash` | 检测到 crash | 按失败处理并查看 crash 日志 |
 | `timeout` | 超时未命中 marker | 结果不确定，结合 UI 或完整日志继续判断 |
 
-## 关联能力
+## 相关页面
 
 - [Jugg CLI](./cli.md)
 - [UI 自动化](./ui-automation.md)

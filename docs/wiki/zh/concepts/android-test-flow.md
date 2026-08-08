@@ -68,5 +68,8 @@ instrumentation 运行后，Jugg 会解析 `am instrument` 的输出并渲染到
 - [工程上下文获取](./project-model.md)
 - [部署策略](./deploy-strategy.md)
 - [Android Test 指南](../guide/android-test.md)
+- [测试能力](../capabilities/test/)
 - [Application Android Test](../capabilities/test/application-android-test.md)
 - [Library Android Test](../capabilities/test/library-android-test.md)
+- [Test Results UI](../capabilities/test/test-results-ui.md)
+- [Android Test CLI](../capabilities/tools/cli-android-test.md)

@@ -43,7 +43,7 @@ Full Swap 仍然属于增量部署。它的重点不是重新安装 APK，而是
 | Full Swap | 当前 Activity 会重启 | overlay 或代码变化需要界面重新加载 |
 | Restart | App 进程会重启 | hot fix、agent、调试或用户显式重启 |
 
-## 关联能力
+## 相关页面
 
 - [Code Swap](./code-swap.md)
 - [Hot Reload](./hot-reload.md)

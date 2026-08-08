@@ -47,7 +47,7 @@ JuggApt 是 fail-open：processor 异常会打印 warn，然后继续主编译�
 - KSP1 可通过 compiler plugin 参数运行；KSP2 更偏向两阶段生成源码再编译。
 - 修改注解器依赖、compiler plugin 或 processor 参数后，应通过 Gradle 刷新项目快照。
 
-## 关联能力
+## 相关页面
 
 - [DataBinding/ViewBinding](./databinding-viewbinding.md)
 - [Kotlin Compose](./kotlin-compose.md)

@@ -44,7 +44,7 @@ Jugg 把 agent push 放在部署之后，是为了避免 Android Studio Apply Ch
 
 部署失败后，Retry 链路会检测失败是否可能来自 JVMTI 兼容问题。若 App 写出了 not-available flag，Jugg 会记录当前 app/device 组合，并在后续部署中直接进入兼容部署，避免重复尝试不可用的 runtime 能力。
 
-## 关联能力
+## 相关页面
 
 - [Jugg Runtime](../../concepts/jugg-runtime.md)
 - [Restart](./restart.md)

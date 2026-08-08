@@ -44,8 +44,10 @@ Jugg 会优先尝试增量编译，但在本轮修改不适合旁路处理时，
 - 修改注解处理器、KSP/KAPT、Compose compiler plugin 配置。
 - release 增量后出现运行时异常。
 
-## 关联能力
+## 相关页面
 
 - [源码编译](./source-compile.md)
 - [依赖库增量编译](./dependency-incremental.md)
+- [降级 Gradle 编译](../../guide/downgrade-gradle.md)
 - [编译阶段说明](../../guide/compile.md)
+- [回退与限制](../../concepts/fallback-and-limits.md)

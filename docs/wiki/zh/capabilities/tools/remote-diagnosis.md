@@ -46,7 +46,7 @@ compile / deploy 失败
 
 `ssh-info` 返回的信息用于后续人工或 Agent 连接远端环境继续排查。它不代表问题已经被修复，也不替代构建命令的终态判断。
 
-## 关联能力
+## 相关页面
 
 - [构建与部署](./cli-build-deploy.md)
 - [运行时与设备](./cli-runtime-device.md)

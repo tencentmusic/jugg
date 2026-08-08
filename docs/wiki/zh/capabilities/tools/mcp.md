@@ -61,8 +61,10 @@ get-compile-status(projectDir, jobId, waitTimeoutMs)
 
 终态会返回编译和部署维度的字段，例如 `isCompileSuccess`、`isDeploySuccess`、`detail` 和日志路径。CLI 已封装这一轮询；直接使用 MCP 时需要客户端自己收口。
 
-## 关联能力
+## 相关页面
 
+- [MCP 指南](../../guide/mcp.md)
+- [MCP 与 CLI 原理](../../concepts/mcp-and-cli.md)
 - [Jugg CLI](./cli.md)
 - [UI 自动化](./ui-automation.md)
 - [UI 布局证据](./layout-verify.md)

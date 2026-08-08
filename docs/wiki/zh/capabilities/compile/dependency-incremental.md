@@ -42,7 +42,7 @@ Jugg 支持在修改构建文件或依赖声明后，读取 Gradle dependency di
 - 修改 Gradle 插件、source set、variant、annotation processor 或 Kotlin compiler 插件配置时，更适合直接 Gradle。
 - 如果依赖变化后出现源码解析失败，Jugg 会尝试更新 compile context 并重试一次；仍失败时建议 Gradle 构建。
 
-## 关联能力
+## 相关页面
 
 - [Gradle 回退](./gradle-fallback.md)
 - [源码编译](./source-compile.md)

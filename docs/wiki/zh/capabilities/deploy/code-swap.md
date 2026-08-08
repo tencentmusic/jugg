@@ -44,7 +44,7 @@ Code Swap 的关键判断发生在部署数据生成阶段。Jugg 会比较新�
 - [Full Swap](./full-swap.md) 用于需要重启 Activity 的 Apply Changes。
 - [Restart](./restart.md) 用于用户显式要求重启 App，或 payload 本身需要 App 重启才生效。
 
-## 关联能力
+## 相关页面
 
 - [Hot Reload](./hot-reload.md)
 - [Full Swap](./full-swap.md)

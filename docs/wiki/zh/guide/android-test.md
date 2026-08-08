@@ -93,6 +93,7 @@ Android Test 会使用 Test Results UI：
 ## 相关页面
 
 - [Android Test 流程](../concepts/android-test-flow.md)
+- [测试能力](../capabilities/test/)
 - [Application Android Test](../capabilities/test/application-android-test.md)
 - [Library Android Test](../capabilities/test/library-android-test.md)
 - [Test Results UI](../capabilities/test/test-results-ui.md)

@@ -77,8 +77,10 @@ jugg tap --action swipe --x-percent 50 --y-percent 80 --end-x-percent 50 --end-y
 
 触控前会检查 App 在线、设备可交互、目标 App 前台和 Activity 稳定性。元素模式多匹配时不会执行触控，而是返回候选摘要供调用方消歧。
 
-## 关联能力
+## 相关页面
 
+- [UI 检查指南](../../guide/ui-inspection.md)
+- [布局 dump 与 UI 证据](../../concepts/layout-dump-and-ui-evidence.md)
 - [UI 布局证据](./layout-verify.md)
 - [运行时与设备](./cli-runtime-device.md)
 - [面向 Agent 的 MCP](./mcp.md)

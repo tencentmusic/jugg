@@ -33,8 +33,10 @@ tags:
 
 部署历史、deployment cache 和 overlay id 的状态模型见 [部署状态与恢复](../../concepts/deploy-state-recover.md)。
 
-## 关联能力
+## 相关页面
 
+- [部署结果说明](../../guide/deploy.md)
+- [部署状态与恢复](../../concepts/deploy-state-recover.md)
 - [Hot Reload](./hot-reload.md)
 - [Direct Overlay](./direct-overlay.md)
 - [Recover 与 Retry](./recover-and-retry.md)

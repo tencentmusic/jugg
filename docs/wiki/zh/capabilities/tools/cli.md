@@ -56,3 +56,8 @@ CLI
 - **[远端诊断](./remote-diagnosis.md)**：`ssh-info`
 
 精确参数和输出字段见 [CLI 命令参考](../../reference/cli-commands.md) 与 [MCP 工具参考](../../reference/mcp-tools.md)。
+
+## 相关页面
+
+- [CLI 指南](../../guide/cli.md)
+- [MCP 与 CLI 原理](../../concepts/mcp-and-cli.md)

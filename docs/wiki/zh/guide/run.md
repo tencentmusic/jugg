@@ -105,4 +105,5 @@ build/jugg/log/compile_latest.log
 - [高级选项](./advanced-options.md)
 - [Debug](./debug.md)
 - [Android Test](./android-test.md)
+- [Jugg 工作原理](../concepts/how-jugg-works.md)
 - [回退与限制](../concepts/fallback-and-limits.md)
