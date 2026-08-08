@@ -75,7 +75,6 @@ class JuggRunningTask(
     private val eventTaskId = UUID.randomUUID().toString()
     private val eventStartedAt = System.currentTimeMillis()
     private var hasTerminalEvent = false
-    private val inputChangedFiles = eventModel.snapshot().context.changedFiles
     private var compileMode: JuggEvent.CompileMode? = null
     private var finalDeployType: JuggDeployData.DeployType? = null
     private var didInstall = false
@@ -101,14 +100,14 @@ class JuggRunningTask(
                 return
             }
 
+            controlPanelController?.refresh()
             recordEvent(
                 category = JuggEventCategory.COMPILE,
                 phase = JuggEventPhase.PREPARING,
                 status = JuggEventStatus.STARTED,
                 title = "Jugg task started",
-                changedFiles = inputChangedFiles,
+                changedFiles = eventModel.snapshot().context.changedFiles,
             )
-            controlPanelController?.refresh()
 
             statusManager.isProjectSwitchedThisRun =
                 lastCompileProjectRegistry.detectSwitch(options.projectRootPath)

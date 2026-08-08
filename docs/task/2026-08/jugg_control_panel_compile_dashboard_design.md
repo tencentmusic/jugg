@@ -75,7 +75,7 @@ THIS SESSION
 └──────────┴────────────┴─────────┴─────────┘
 
 RECENT RUNS                                5 rows ▾
-▾ 14:32  Incremental → Hot reload        1.8s  ✓
+▾ 14:32  Incremental → Hot reload        2.3s  ✓
     Compile 1.8s · Deploy 2.3s · Total 4.5s
     Changed files
       Kotlin  idea/.../JuggControlPanel.kt
@@ -298,10 +298,10 @@ Recent Runs 保存当前会话最近完成的 Run，默认展示 5 个运行记�
 收缩态固定为一行：
 
 ```text
-▸ 14:32  Incremental → Hot reload        1.8s  ✓
+▸ 14:32  Incremental → Hot reload        2.3s  ✓
 ```
 
-右侧耗时固定表示 compile duration，以满足快速比较最近编译耗时的需求。
+右侧耗时固定表示 deploy duration，以满足快速比较最近部署耗时的需求。Recent Runs 耗时统一使用秒，低于 1 秒时保留一位小数，例如 `0.3s`。
 
 ### 10.3 展开态
 

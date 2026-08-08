@@ -205,7 +205,7 @@ class JuggControlPanel(
                     append(formatTime(value.completedAt), SimpleTextAttributes.GRAYED_ATTRIBUTES)
                     append("  ${value.compileMode.displayName}")
                     value.deployType?.let { append(" → ${it.displayName}") }
-                    append("    ${value.compileDurationMillis?.let(::formatDuration).orEmpty()}  ${value.status.symbol}")
+                    append("    ${value.deployDurationMillis?.let(::formatDuration).orEmpty()}  ${value.status.symbol}")
                 }
             }
             addListSelectionListener { if (!it.valueIsAdjusting) renderRecentRunDetails(selectedValue) }
@@ -632,8 +632,8 @@ class JuggControlPanel(
                     "Deploy ${run.deployDurationMillis?.let(::formatDuration) ?: "—"} · Total ${formatDuration(run.totalDurationMillis)}"))
             run.fallback?.let { recentRunDetails.add(secondaryLabel(it)) }
             run.failureReason?.let { recentRunDetails.add(ActionLink("$it  View logs →") { select(Page.LOGS) }) }
-            if (run.changedFiles.isNotEmpty()) {
-                recentRunDetails.add(secondaryLabel(run.changedFiles.joinToString { "${it.moduleName} / ${it.path}" }))
+            run.changedFiles.forEach {
+                recentRunDetails.add(secondaryLabel("${it.moduleName} / ${it.path}"))
             }
         }
         refreshPanel(recentRunDetails)
@@ -773,7 +773,7 @@ class JuggControlPanel(
     }
 
     private fun formatDuration(durationMillis: Long): String {
-        return if (durationMillis < 1_000) "${durationMillis}ms" else String.format(Locale.US, "%.1fs", durationMillis / 1_000.0)
+        return String.format(Locale.US, "%.1fs", durationMillis / 1_000.0)
     }
 
     private fun formatTime(timestamp: Long): String = TIME_FORMAT.format(Date(timestamp))

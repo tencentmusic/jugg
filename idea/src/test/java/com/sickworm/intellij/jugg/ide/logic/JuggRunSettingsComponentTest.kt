@@ -4,6 +4,7 @@ import com.intellij.execution.RunManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
@@ -195,6 +196,58 @@ class JuggRunSettingsComponentTest {
         assertEquals(null, findNamedComponent<JLabel>(panel, "overview.package"))
         assertEquals(null, findNamedComponent<JLabel>(panel, "overview.devices"))
         assertEquals("Compiling", findNamedComponent<JLabel>(panel, "overview.currentTask")?.text)
+    }
+
+    @Test
+    fun `recent runs should show deploy duration in seconds`() {
+        TestGlobal.init()
+        val model = JuggControlPanelModel()
+        val panel = createPanel(model = model)
+        val event = JuggEvent(
+            taskId = "task-1",
+            source = JuggEventSource.IDE,
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = JuggEventStatus.STARTED,
+            level = JuggEventLevel.INFO,
+            title = "Compiling",
+            timestamp = 1_000L,
+            compileMode = JuggEvent.CompileMode.INCREMENTAL,
+        )
+        model.record(event)
+        model.record(event.copy(
+            status = JuggEventStatus.SUCCEEDED, title = "Compiled",
+            timestamp = 2_000L,
+            durationMillis = 2_400L,
+        ))
+        model.record(event.copy(
+            category = JuggEventCategory.DEPLOY,
+            phase = JuggEventPhase.DEPLOYING,
+            status = JuggEventStatus.SUCCEEDED,
+            title = "Deployed",
+            timestamp = 3_000L,
+            durationMillis = 250L,
+        ))
+        model.record(event.copy(
+            category = JuggEventCategory.DEPLOY,
+            phase = JuggEventPhase.COMPLETED,
+            status = JuggEventStatus.SUCCEEDED,
+            title = "Completed",
+            timestamp = 4_000L,
+            durationMillis = 3_000L,
+            isTaskTerminal = true,
+        ))
+        javax.swing.SwingUtilities.invokeAndWait {}
+
+        val list = findNamedComponent<JBList<JuggControlPanelModel.RunSummary>>(panel, "overview.recentRunsList")!!
+        val value = list.model.getElementAt(0)
+        val renderer = list.cellRenderer.getListCellRendererComponent(list, value, 0, false, false)
+                as SimpleColoredComponent
+        val text = renderer.getCharSequence(false).toString()
+
+        assertTrue(text.contains("0.3s"))
+        assertTrue(!text.contains("2.4s"))
+        assertTrue(!text.contains("ms"))
     }
 
     @Test
