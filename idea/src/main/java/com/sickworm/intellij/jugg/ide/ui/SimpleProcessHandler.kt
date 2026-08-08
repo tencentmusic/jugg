@@ -22,6 +22,8 @@ class SimpleProcessHandler : ProcessHandler(),
 
     override val isCanceled get() = isProcessTerminating || isProcessTerminated
 
+    override val stdoutType: Key<*> = ProcessOutputType.STDOUT
+
     override var isCanceledByNextTask = false
 
     override fun destroyProcessImpl() {

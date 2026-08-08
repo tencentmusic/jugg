@@ -19,7 +19,9 @@ compile/deploy failed after source fixes and 3 retries, or status/policy require
 
 - `compile`: default for source edits without device-side verification.
 - `deploy`: compile + device deploy/start when runtime state matters.
-- `gradle-build`: full Gradle build + install/start, fallback only.
+- `gradle-build`: full Gradle build fallback. IDEA installs/starts the app; standalone refreshes the incremental baseline and leaves install/start to the next `deploy`.
+
+When the standalone Runtime owns a Gradle project that has not been initialized, run `jugg init` once before this flow. Ordinary standalone build commands also attempt the same initialization, but explicit `init` makes the selected compile command visible before source changes begin.
 
 ---
 
@@ -98,7 +100,7 @@ Verdict: PASS (compile-only)
 If unsure on any → stop and ask user first.
 
 **Steps**:
-1. Run `gradle-build`.
+1. Run `gradle-build`. In standalone mode this refreshes the baseline only; run `deploy` afterward when device deployment is still required.
 2. On error → inspect `${projectDir}/build/jugg/log/compile_latest.log` for root cause.
 3. If still unclear → stop and ask user.
 

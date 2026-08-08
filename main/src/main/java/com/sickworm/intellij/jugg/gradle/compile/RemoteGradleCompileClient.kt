@@ -24,10 +24,16 @@ import java.util.concurrent.atomic.AtomicLong
  * Data Contract: [login] initializes/refreshes SSH channel state before build commands; authentication falls back across password and discovered key paths; login failures reset session fields and throw [JuggException.loginToRemoteFailed].
  */
 class RemoteGradleCompileClient(
-    private val project: Project,
+    private val projectDir: File,
     private val isRemoteWindows: Boolean = false,
-    private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
+    private val logger: com.intellij.openapi.diagnostic.Logger,
 ) : IGradleCompileClient {
+
+    constructor(
+        project: Project,
+        isRemoteWindows: Boolean = false,
+        logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
+    ) : this(File(project.basePath!!), isRemoteWindows, logger)
 
     @Volatile
     private var session: Session? = null
@@ -532,7 +538,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.compileCommand,
                 gradleCompileSettings.remoteProjectPath,
                 gradleCompileSettings.remoteInitGradleFilePath,
-                localProjectPath = project.basePath,
+                localProjectPath = projectDir.path,
                 logger = logger,
                 buildTarget = gradleCompileSettings.buildTarget,
                 libraryTestApkGradleTasks = gradleCompileSettings.libraryTestApkGradleTasks,
@@ -568,7 +574,7 @@ class RemoteGradleCompileClient(
         findApks.addAll(findOptionalLibraryTestApks(findApks.size, lookupPlan.optionalLibraryTestPatterns, gradleCompileSettings))
 
         if (failedApkPaths.isNotEmpty()) {
-            printToStreamError("Can't find apks in $failedApkPaths in ${project.basePath}, " +
+            printToStreamError("Can't find apks in $failedApkPaths in ${projectDir.path}, " +
                     "total: \"${gradleCompileSettings.outputApkName}\"")
             return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
         } else {
@@ -787,7 +793,7 @@ class RemoteGradleCompileClient(
             gradleCompileSettings.remoteProjectPath,
             gradleCompileSettings.remoteInitGradleFilePath,
             incDeployTimes,
-            localProjectPath = project.basePath,
+            localProjectPath = projectDir.path,
             buildTarget = gradleCompileSettings.buildTarget,
         )
         val compileProjectResult = invoke(diffLibraryChangesCommand)

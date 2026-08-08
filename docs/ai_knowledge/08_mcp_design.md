@@ -23,7 +23,7 @@
 | `McpRequestValidator` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/McpRequestValidator.kt` | schema 校验、默认值填充、unknown argument 拦截、projectDir 校验 |
 | `McpToolActionRegistry` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | 注册公开 MCP tool；`noProjectDirTools` 是全局工具白名单 |
 | `McpToolSchemas` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolSchemas.kt` | 复用 schema 片段 |
-| `IMcpRuntime` / `IdeaMcpRuntime` / `StandaloneProjectRuntime` | `main/.../ai/mcp/IMcpRuntime.kt`, `idea/.../ai/mcp/IdeaMcpRuntime.kt`, `cmd_line/.../standalone/StandaloneProjectRuntime.kt` | 以非空 host-neutral `projectDir` 将 action 连接到 IDEA 或 standalone 项目能力；接口不提供默认实现，Host 必须明确声明可用与缺失能力；action 不再读取 `Project.basePath` |
+| `IMcpRuntime` / `IdeaMcpRuntime` / `StandaloneProjectRuntime` | `main/.../ai/mcp/IMcpRuntime.kt`, `idea/.../ai/mcp/IdeaMcpRuntime.kt`, `cmd_line/.../standalone/StandaloneProjectRuntime.kt` | 以非空 host-neutral `projectDir` 将 action 连接到 IDEA 或 standalone 项目能力；所有能力均由 Host 显式实现，包括 unsupported 与 project-state lock 语义；action 不再读取 `Project.basePath` |
 | `ViewHierarchyClient` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt` | App 内 ViewHierarchy LocalSocket 客户端 |
 | `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | `layout-dump`、`view-locate` 和内部布局验证复用的 dump 能力 |
 | `McpAppReadyGuard` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpAppReadyGuard.kt` | runtime observe / mutate 类工具的 App ready 前后置检查 |
@@ -81,9 +81,11 @@ McpToolAction
 
 Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/baseline 校验、runtime observe 工具的 App ready 校验。未注册 action（如 `layout-verify`）即使保留内部校验，也不能视为公开 MCP 能力。
 
-IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 8 的 capability 仅包含 `version`、`list-projects`、`status`，编译部署能力需等待后续 Runtime 串联。
+IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 11 注册 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`；`init` action 仅加入 standalone action registry，不改变 IDEA 的公开工具集合。
 
 `McpLocalServer` 会在任意 HTTP 请求到达时触发外部活动回调；IDEA 使用默认空回调，standalone 用它刷新 4 小时 idle deadline。请求解析失败不影响该活动语义。
+
+`status` 使用项目锁的非阻塞读取边界：成功取得锁时先完成 Runtime owner 恢复与可选 Git refresh，再返回一致性快照；同 Runtime 正在编译或锁被其他项目写事务持有时立即返回内存与持久化状态组成的真实只读快照，不刷新 Git、不更新 `DeployFileManager`，也不伪造空文件或默认部署状态。这样既避免读取半提交状态，也不会阻塞 CLI 的 wait/heartbeat。
 
 ---
 

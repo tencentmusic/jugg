@@ -15,7 +15,15 @@ abstract class TestMcpRuntime : IMcpRuntime {
 
     override fun refreshChangedFilesForStatus() = Unit
 
+    override fun <T> withProjectStateLocked(action: () -> T): T = action()
+
+    override fun <T : Any> tryWithProjectStateLocked(action: () -> T): T? = action()
+
     override fun isAppReadyDeploy(): Boolean {
         return deployStateManager?.updateDeployState()?.isReadyDeploy ?: true
+    }
+
+    override fun initializeProject(): ProjectInitializationResult {
+        return ProjectInitializationResult(false, "Project initialization is not supported by this test runtime")
     }
 }

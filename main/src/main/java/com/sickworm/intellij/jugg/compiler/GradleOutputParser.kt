@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
@@ -28,8 +27,8 @@ class GradleOutputParser(
 
         val parsedOutput = parseOutput(line)
         if (isNeedPrint) {
-            processHandler.notifyTextAvailable(parsedOutput, ProcessOutputType.STDOUT)
-            processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
+            processHandler.notifyTextAvailable(parsedOutput, processHandler.stdoutType)
+            processHandler.notifyTextAvailable("\n", processHandler.stdoutType)
         }
 
         if (parsedOutput.startsWith("[Jugg] SyncFileCommand exec start")) {

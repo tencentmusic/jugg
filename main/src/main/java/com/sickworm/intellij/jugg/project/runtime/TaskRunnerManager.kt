@@ -139,6 +139,13 @@ class TaskRunnerManager internal constructor(
         return runProjectWriteTransaction(jobName, action)
     }
 
+    /** Runs a project transaction only when both the JVM and cross-process locks are immediately available. */
+    fun <T : Any> tryRunProjectWriteLocked(jobName: String, action: () -> T): T? {
+        return executionLockManager.tryWithProjectLock(jobName) {
+            runClaimedProjectAction(action)
+        }
+    }
+
     @Synchronized
     fun consumeRuntimeOwnerChange(): RuntimeOwnerChangeEvent? {
         val change = runtimeOwnerChange
@@ -250,21 +257,25 @@ class TaskRunnerManager internal constructor(
 
     private fun <T> runProjectWriteTransaction(jobName: String, action: () -> T): T {
         return executionLockManager.withProjectLock(jobName) {
-            val identity = runtimeIdentity
-            val ownerStore = runtimeOwnerStore
-            if (identity != null && ownerStore != null) {
-                try {
-                    ownerStore.claim(identity, logger)?.let { change ->
-                        synchronized(this) {
-                            runtimeOwnerChange = change
-                        }
-                    }
-                } catch (e: Exception) {
-                    logger.warn("persist runtime owner failed", e)
-                }
-            }
-            action()
+            runClaimedProjectAction(action)
         }
+    }
+
+    private fun <T> runClaimedProjectAction(action: () -> T): T {
+        val identity = runtimeIdentity
+        val ownerStore = runtimeOwnerStore
+        if (identity != null && ownerStore != null) {
+            try {
+                ownerStore.claim(identity, logger)?.let { change ->
+                    synchronized(this) {
+                        runtimeOwnerChange = change
+                    }
+                }
+            } catch (e: Exception) {
+                logger.warn("persist runtime owner failed", e)
+            }
+        }
+        return action()
     }
 
     private fun <T : Job> track(job: T): T {

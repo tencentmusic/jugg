@@ -32,6 +32,11 @@ class JuggDeploymentService(
         logger.debug("JuggDeploymentService.preInit, cost ${costTime}ms")
     }
 
+    /** Drops host-local deployment objects after another Runtime owned the project. */
+    fun invalidateMemoryCache() {
+        memoryCache.clear()
+    }
+
     override fun storeEntry(
         deviceSerial: String, packageName: String, newFiles: List<Apk>, overlayId: JuggOverlayId,
         applyChangesExecutor: IApplyChangesExecutor, logger: ILogger,
@@ -72,7 +77,7 @@ class JuggDeploymentService(
 
     private fun refreshMemoryCacheState() {
         val state = deploymentCacheStore.currentState()
-        if (!state.runtimeOwnerChanged && state.generation == memoryCacheGeneration) return
+        if (state.generation == memoryCacheGeneration) return
         memoryCache.clear()
         memoryCacheGeneration = state.generation
     }

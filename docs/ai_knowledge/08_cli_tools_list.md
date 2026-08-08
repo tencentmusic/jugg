@@ -53,7 +53,9 @@ CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目�
 
 目标项目未被任何 Runtime 持有时，普通 CLI 取得项目级 `build/jugg/runtime.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免并发 CLI 重复创建 daemon。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。Hook 调用必须设置 `JUGG_CALLER=hook`；只有 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动 standalone，否则直接以成功状态跳过，避免编辑/停止 hook 意外创建 daemon。
 
-standalone Step 8 仅支持 `version`、内部 `list-projects` 与 `status`；其他命令虽然仍在共享 `tools/list` 中，但在 Step 10～11 接入编译部署前不会形成成功的 standalone 执行结果。
+standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内部 `get-compile-status` 与 `status`；未被 standalone capability 注册的设备/UI/调试命令仍需 IDEA Runtime。当前配置启用 remote compile 时，standalone 会在执行前明确失败，用户必须改用 IDEA Runtime 或切换为本地 profile。
+
+`status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
 
 当启动失败或等待超时时，CLI 输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
 
@@ -125,11 +127,12 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 
 ## 5. 公开子命令
 
-当前公开 CLI 子命令共 16 个，来自 `jugg.py::COMMANDS`。
+当前公开 CLI 子命令共 17 个，来自 `jugg.py::COMMANDS`。
 
 | 子命令 | MCP tool | 说明 |
 |--------|----------|------|
 | `version` | `version` | 显示 CLI 版本和插件版本；无需 `projectDir` |
+| `init` | `init` | 自动选择/拉起 standalone，并根据 Gradle project info 创建当前 build profile |
 | `compile` | `compile` | 增量编译，自动轮询终态 |
 | `deploy` | `deploy` | 编译并部署，自动轮询终态 |
 | `gradle-build` | `gradle-build` | 强制 Gradle 构建并走后续安装/启动链路 |
@@ -160,6 +163,14 @@ jugg version
 
 无需 `projectDir`。默认输出 CLI version 与当前已初始化项目中的插件版本；`--console=json` 返回 `{"cliVersion": "...", "plugin": <MCP structuredContent>}`。
 
+### `init`
+
+```text
+jugg init
+```
+
+该命令固定选择 standalone Runtime。已有当前配置时幂等返回；缺少 Gradle project info 时执行一次 dry-run 生成快照，再创建默认 Application/debug profile。初始化、配置写入与 owner 接管都在项目写锁内执行。
+
 ### `compile`
 
 ```text
@@ -182,6 +193,8 @@ jugg deploy [--always-restart-app <true|false>]
 
 终态输出 `isCompileSuccess`、`isDeploySuccess` 与日志路径。判断部署是否成功时必须同时看 deploy 结果，不要只看 compile 是否成功。
 
+standalone 部署只允许确定的单设备目标：设置 `ANDROID_SERIAL` 时选择对应在线设备；未设置时仅在恰好一台设备在线时继续，多台设备会明确失败并提示设置 `ANDROID_SERIAL`，不会对全部设备批量部署。
+
 没有待部署文件时，终态 message 会明确说明当前 Jugg 检测到的修改均已部署，并展示本次 IDE 会话内最后一次包含文件变更的成功部署时间（绝对时间 + 相对时间）和项目相对路径；文件最多展示 20 条。该信息只保存在当前 IDE 会话，IDE 重启后无记录时会明确提示详情不可用。直接完成和异步轮询完成时输出一致。
 
 CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 compile/deploy 任务终态，不额外等待 App ready。
@@ -192,7 +205,7 @@ CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP
 jugg gradle-build
 ```
 
-无子命令参数。该命令会走 Gradle 构建后的安装/启动链路；无设备或启动失败时可能出现 `isCompileSuccess=true` 且 `isDeploySuccess=false`。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行；长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾。
+无子命令参数。IDEA Runtime 保持 Gradle 构建后的安装/启动链路；standalone Runtime 只建立/刷新 baseline，后续用 `jugg deploy` 完成安装或增量部署。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行；长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾。
 
 CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 Gradle build 任务终态，不额外等待 App ready。
 

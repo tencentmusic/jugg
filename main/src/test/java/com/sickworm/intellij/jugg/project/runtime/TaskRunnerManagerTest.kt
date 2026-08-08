@@ -360,6 +360,10 @@ class TaskRunnerManagerTest {
             return action()
         }
 
+        override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? {
+            return if (allowProjectLock.count == 0L) action() else null
+        }
+
         override fun <T> withGlobalLock(command: String, action: () -> T): T = action()
 
         override fun readProjectLockOwner(): ExecutionLockOwner? = null
@@ -370,6 +374,11 @@ class TaskRunnerManagerTest {
         val globalCommands = mutableListOf<String>()
 
         override fun <T> withProjectLock(command: String, action: () -> T): T {
+            projectCommands += command
+            return action()
+        }
+
+        override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? {
             projectCommands += command
             return action()
         }

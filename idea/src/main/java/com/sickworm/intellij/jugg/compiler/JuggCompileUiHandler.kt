@@ -75,10 +75,7 @@ open class JuggCompileUiHandler(
         )
     }
 
-    override fun confirmBuildChanges(
-        project: Project,
-        changedBuildFiles: List<Pair<File, File?>>
-    ): BuildChangesConfirmResult {
+    override fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult {
         if (isRpcMode) {
             return BuildChangesConfirmResult.FALLBACK
         }
@@ -114,6 +111,10 @@ open class JuggCompileUiHandler(
 
     override fun notifyByBalloon(text: String) {
         JuggRunningTask.notifyByBalloon(project, text)
+    }
+
+    override fun notifyFallbackByBalloon(reason: String) {
+        JuggRunningTask.notifyFallback(project, reason)
     }
 
     override fun ensureRunWindowCreated() {

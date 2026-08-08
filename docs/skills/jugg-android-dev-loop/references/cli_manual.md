@@ -2,7 +2,7 @@
 
 CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py [global options] <subcommand> [options]`.
 
-The CLI scans IDEA and standalone MCP runtimes and selects the one that owns the target project. Use `--runtime idea|standalone` to force a Runtime when both own the project. If no Runtime owns it, the CLI serializes launch attempts per project before starting `~/.jugg/standalone/bin/jugg-standalone` or `JUGG_STANDALONE_LAUNCHER`. Hook subprocesses set `JUGG_CALLER=hook` and only start standalone when `build/jugg/database/compile_context.db/complete_flag` exists. The current standalone skeleton supports `version`, `list-projects`, and `status`; build/deploy commands still require an IDEA Runtime.
+The CLI scans IDEA and standalone MCP runtimes and selects the one that owns the target project. Use `--runtime idea|standalone` to force a Runtime when both own the project. If no Runtime owns it, the CLI serializes launch attempts per project before starting `~/.jugg/standalone/bin/jugg-standalone` or `JUGG_STANDALONE_LAUNCHER`. Hook subprocesses set `JUGG_CALLER=hook` and only start standalone when `build/jugg/database/compile_context.db/complete_flag` exists. The standalone Runtime supports `version`, `list-projects`, `init`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, and `status`.
 
 ### CLI Output Format
 
@@ -84,6 +84,16 @@ Completion means the MCP compile/deploy job has reached a terminal state. The CL
 | `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
 | `instrument` | Run androidTest | Verify android test result |
 
+### `init`
+
+Initialize or reuse the standalone run configuration for the target Gradle project. The command always selects the standalone Runtime and prints the resolved compile command.
+
+```
+python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project init
+```
+
+If the project has no saved Gradle model yet, initialization runs the selected assemble task in Gradle dry-run mode to discover it. Subsequent standalone build commands also initialize on demand. A remote compile profile is rejected before execution; use the IDEA Runtime or select a local profile.
+
 ### `compile`/`deploy`/`gradle-build`/`clean-reinstall`
 
 ```
@@ -92,6 +102,8 @@ python3 {SKILL_DIR}/scripts/jugg.py deploy
 python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
+
+In standalone mode, `gradle-build` performs the full compile and refreshes the incremental baseline. It does not install or launch the app; use `deploy` next when device deployment is required. Standalone preserves an explicit `JAVA_HOME`. For deployment, set `ANDROID_SERIAL` when multiple devices are online; without it, standalone only proceeds when exactly one device is online. `clean-reinstall` and `instrument` remain IDEA-only.
 
 ### `instrument`
 

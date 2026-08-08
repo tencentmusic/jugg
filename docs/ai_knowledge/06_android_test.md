@@ -102,7 +102,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/AndroidTestCommandDeriver.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/FullBuildInfo.kt`
-- `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt`
 
 关键不变式：
 
@@ -111,7 +111,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 - 若 `LibraryTestApkBuildHistory` 命中近期 self-targeting library Test APK 记录，Gradle compile 会通过 `-Pjugg.libraryTestTasks=...` 传递历史 task 列表，init script 在同一 `projectsEvaluated` 阶段把这些 library androidTest task 也挂到用户请求的 Gradle task 前执行；`BuildTarget.APP` 不参与该逻辑。
 - Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径中的 `/outputs/apk/` 片段派生同 variant 的 `<actual-build-dir>/outputs/apk/androidTest/<variant>/*.apk`；history library Test APK output 同样从 `ModuleBuildPathInfo.buildDir` 派生，作为 optional APK 收集，命中则追加到本轮 APK 结果，缺失只记录日志，不进入 `failedApkPaths`。
 - `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
-- Gradle project info 读取阶段仅在 `-Pjugg.buildTarget=ANDROID_TEST` 时为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；`APP`/未传时不写入快照。project-info merge 与 localFetch 必须显式使用当前 run 的 `BuildTarget`，不能再从旧 `FullBuildInfo` 推断。首次从 `APP` 切到 `ANDROID_TEST` 且本地 Gradle full compile 成功后，`JuggCompileHelper` 会在 install/deploy 前按本次 target 立即执行一次 localFetch merge；remote compile 不走该补偿路径。Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
+- Gradle project info 读取阶段仅在 `-Pjugg.buildTarget=ANDROID_TEST` 时为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；`APP`/未传时不写入快照。project-info merge 与 localFetch 必须显式使用当前 run 的 `BuildTarget`，不能再从旧 `FullBuildInfo` 推断。首次从 `APP` 切到 `ANDROID_TEST` 且本地 Gradle full compile 成功后，`JuggCompilerHelper` 会在 install/deploy 前按本次 target 立即执行一次 localFetch merge；remote compile 不走该补偿路径。Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
 
 ### 3.2 增量编译
 
@@ -128,7 +128,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 - `BuildTarget.ANDROID_TEST`：纳入 `.androidTest` module。
 - `.test` / `.unitTest` 在两种 target 下都继续过滤。
 
-androidTest 重跑不复用普通 app run 的 no-changes fallback 语义。下一次 androidTest 运行如果没有新的文件变更、且没有 uncompiled 文件，`JuggCompileHelper` 会直接返回增量成功进入部署：存在 compiled/staging pending outputs 时复用这批产物；不存在 pending outputs 时直接进入空部署 / instrumentation，不重新执行 Kotlin / D8，也不把测试重跑误判为 Gradle fallback。
+androidTest 重跑不复用普通 app run 的 no-changes fallback 语义。下一次 androidTest 运行如果没有新的文件变更、且没有 uncompiled 文件，`JuggCompilerHelper` 会直接返回增量成功进入部署：存在 compiled/staging pending outputs 时复用这批产物；不存在 pending outputs 时直接进入空部署 / instrumentation，不重新执行 Kotlin / D8，也不把测试重跑误判为 Gradle fallback。
 
 `ModuleApkBelongsUtils` 返回 `ModuleApkBelongs` 封装类，默认通过 `getBelongsApk()` 保留现有单 APK 语义，同时用 `getAllBelongsApk()` 暴露多 APK 归属视图。androidTest module 按 runtime classloader 归属路由：app-style other-targeting androidTest 运行在 `instrumentationTargetPackage` 对应的 main APK 进程内，因此归属 main APK；self-targeting / library-style androidTest 的 `applicationId == instrumentationTargetPackage`，归属匹配的 Test APK。普通 library module 在存在 self-targeting library Test APK 时，`getAllBelongsApk()` 会同时包含 base APK 与 library Test APK。
 
@@ -230,8 +230,8 @@ androidTest 的 SM Runner process output 与普通 text console 一样接收 Jug
 
 入口：
 
-- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployTask.kt`
-- `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/LibraryTestApkBackfillHelper.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/ApkInstallOrder.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt`

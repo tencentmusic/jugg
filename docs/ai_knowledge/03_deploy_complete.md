@@ -18,8 +18,8 @@
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 总编排。准备 UI/日志，调用编译，按设备调用部署，汇总结果并决定是否 Gradle fallback。 |
-| `JuggCompileHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | 产出 `CompileTaskResult`，决定本轮是增量编译还是 Gradle 编译。 |
-| `JuggDeployerHelper` / `JuggDeployOrchestrator` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | Helper 选择 install / embedded / incremental；orchestrator 执行共享单设备 lifecycle。 |
+| `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | 产出 `CompileTaskResult`，决定本轮是增量编译还是 Gradle 编译。 |
+| `JuggDeployerHelper` / `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | Helper 选择 install / embedded / incremental；orchestrator 执行共享单设备 lifecycle。 |
 | `DeployOptions` / `DeployTaskResult` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Run 编排与 deploy helper 之间的请求/结果契约。 |
 | `JuggDeployData` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 部署 payload 与最终 deploy type 来源。 |
 | `DeployStateManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 单设备当前是否可增量部署、是否需要 recover 的状态来源。 |
@@ -32,8 +32,8 @@
 
 | 状态/数据 | 生产者 | 消费者 | 关键含义 |
 |---|---|---|---|
-| `CompileTaskResult.isGradleCompile` | `JuggCompileHelper.compile()` | `JuggRunningTask.deployDevice()` | Gradle 编译成功后 deploy 走 install；增量编译成功后 deploy 走 incremental changes。 |
-| `CompileTaskResult.isSuccess` | `JuggCompileHelper.compile()` | `JuggRunningTask.doRun()` | 失败时直接结束，不进入设备部署。 |
+| `CompileTaskResult.isGradleCompile` | `JuggCompilerHelper.compile()` | `JuggRunningTask.deployDevice()` | Gradle 编译成功后 deploy 走 install；增量编译成功后 deploy 走 incremental changes。 |
+| `CompileTaskResult.isSuccess` | `JuggCompilerHelper.compile()` | `JuggRunningTask.doRun()` | 失败时直接结束，不进入设备部署。 |
 | `CompileUiHandler.isSkipDeploy` | UI / MCP 调用方 | `JuggRunningTask.doRun()` | 编译成功但显式跳过部署；会 reset hasRun，避免下次误报 no file changes。 |
 | `DeployTaskResult` | `JuggDeployerHelper.deploy()` | `JuggRunningTask.doRun()` | 每台设备的成功状态、deploy type、fallback 资格和失败原因。 |
 | `RunResult` | `JuggRunningTask.doRun()` | `JuggRunningTask.run()` | 最终反馈给 UI、依赖变更管理器和 hasRun 状态。 |
@@ -47,7 +47,7 @@
 ```text
 JuggRunningTask.run()
   -> 准备 Run Tool Window / JuggLogger / juggServer.onCompile()
-  -> JuggCompileHelper.compile()
+  -> JuggCompilerHelper.compile()
   -> 编译失败: show Run window + 返回失败 RunResult
   -> skip deploy: 返回编译成功但部署未执行的 RunResult
   -> 单次读取 IDE 选中且已运行的设备快照

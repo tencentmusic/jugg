@@ -468,7 +468,6 @@ class JuggDeployerHelperDeployTest {
             }
 
         return JuggDeployerHelper(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,

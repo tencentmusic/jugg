@@ -130,6 +130,11 @@ object JuggLogger {
         map[project.instanceKey]?.fileLogger?.resetLatestCompileLog()
     }
 
+    @Synchronized
+    fun resetLatestCompileLog(instanceKey: String) {
+        map[instanceKey]?.fileLogger?.resetLatestCompileLog()
+    }
+
     private val map = ConcurrentHashMap<String, ProjectLogHolder>()
     private val globalLoggers = ConcurrentHashMap<String, LogDispatcher>()
 

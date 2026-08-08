@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.JuggCompiler
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.FullBuildInfo
@@ -18,6 +20,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.CompileEnvironmentSource
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
@@ -66,6 +69,51 @@ class JuggCompileHelperTest {
             TestGlobal.init()
             JuggLogger.register("/tmp/jugg-test", TestGlobal.projectInfo.projectRoot)
         }
+    }
+
+    @Test
+    fun replacingCompilerDisposesRegisteredChildren() {
+        val fixture = createFixture()
+        val oldCompiler = mock<JuggCompiler>()
+        val replacement = mock<JuggCompiler>()
+        val childDisposed = AtomicBoolean()
+        Disposer.register(oldCompiler, Disposable { childDisposed.set(true) })
+
+        try {
+            fixture.helper.juggCompiler = oldCompiler
+            fixture.helper.juggCompiler = replacement
+
+            assertTrue(childDisposed.get())
+        } finally {
+            Disposer.dispose(oldCompiler)
+            fixture.helper.close()
+        }
+    }
+
+    @Test
+    fun closingHelperDisposesRegisteredCompilerChildren() {
+        val fixture = createFixture()
+        val compiler = mock<JuggCompiler>()
+        val childDisposed = AtomicBoolean()
+        Disposer.register(compiler, Disposable { childDisposed.set(true) })
+
+        try {
+            fixture.helper.juggCompiler = compiler
+            fixture.helper.close()
+
+            assertTrue(childDisposed.get())
+        } finally {
+            Disposer.dispose(compiler)
+        }
+    }
+
+    @Test
+    fun checkingFallbackAgainstSnapshotDoesNotRefreshDeployState() {
+        val fixture = createFixture()
+
+        assertEquals(null, fixture.helper.checkFallback(JuggDeployState.READY))
+
+        verify(fixture.deployStateManager, never()).updateDeployState()
     }
 
     @Test
@@ -519,6 +567,7 @@ class JuggCompileHelperTest {
         val project = mock<Project>()
         whenever(project.basePath).thenReturn("/tmp/jugg-test")
         val pathManager = mock<JuggPathManager>()
+        whenever(pathManager.projectDir).thenReturn(temporaryFolder.root)
         val juggServer = mock<JuggServer>()
         val deployTargetManager = mock<IDeployTargetManager>()
         val deployStateManager = mock<DeployStateManager>()
@@ -544,7 +593,6 @@ class JuggCompileHelperTest {
         whenever(gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(true)
 
         val helper = JuggCompilerHelper(
-            project = project,
             pathManager = pathManager,
             juggServer = juggServer,
             deployTargetManager = deployTargetManager,
@@ -556,6 +604,7 @@ class JuggCompileHelperTest {
             fileChangesHandler = fileChangesHandler,
             dependencyChangeManager = dependencyChangeManager,
             gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
+            compileEnvironmentSource = CompileEnvironmentSource(null, emptyList()),
             gitFileChangesDetector = gitFileChangesDetector,
             taskRunnerManager = taskRunnerManager,
             logger = logger,
@@ -565,6 +614,7 @@ class JuggCompileHelperTest {
         return Fixture(
             helper = helper,
             pathManager = pathManager,
+            deployStateManager = deployStateManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
             dependencyChangeManager = dependencyChangeManager,
@@ -630,6 +680,7 @@ class JuggCompileHelperTest {
     private data class Fixture(
         val helper: JuggCompilerHelper,
         val pathManager: JuggPathManager,
+        val deployStateManager: DeployStateManager,
         val deployFileManager: DeployFileManager,
         val deployHistoryManager: IDeployHistoryManager,
         val deployTargetManager: IDeployTargetManager,

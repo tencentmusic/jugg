@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.CachedOverlayId
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -24,28 +23,6 @@ import org.junit.Test
 import org.mockito.Mockito
 
 class JuggDeployerHelperRecoverTest {
-
-    @Test
-    fun `mergeOverlayIds should keep existing package ids when library test apk is backfilled`() {
-        val currentIds = mapOf(
-            "com.example.myapplication" to "base-overlay",
-            "com.example.myapplication.test" to "app-test-overlay",
-        )
-        val backfilledIds = mapOf(
-            "com.example.library1.test" to "library-test-overlay",
-        )
-
-        val result = JuggDeployerHelper.mergeOverlayIds(currentIds, backfilledIds)
-
-        assertEquals(
-            mapOf(
-                "com.example.myapplication" to "base-overlay",
-                "com.example.myapplication.test" to "app-test-overlay",
-                "com.example.library1.test" to "library-test-overlay",
-            ),
-            result,
-        )
-    }
 
     @Test
     fun `tryDryDeploy should skip app launch when app is not installed`() {

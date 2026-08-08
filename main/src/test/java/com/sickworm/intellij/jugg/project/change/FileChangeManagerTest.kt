@@ -187,6 +187,15 @@ class FileChangeManagerTest {
             executionLockManager = object : IExecutionLockManager {
                 override fun <T> withProjectLock(command: String, action: () -> T): T = projectLock.withLock(action)
 
+                override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? {
+                    if (!projectLock.tryLock()) return null
+                    return try {
+                        action()
+                    } finally {
+                        projectLock.unlock()
+                    }
+                }
+
                 override fun <T> withGlobalLock(command: String, action: () -> T): T = action()
 
                 override fun readProjectLockOwner(): ExecutionLockOwner? = null

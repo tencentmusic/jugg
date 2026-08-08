@@ -27,6 +27,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.*
+import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -39,6 +40,7 @@ import com.sickworm.intellij.jugg.ide.ui.ReportIssueDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueResultDialog
 import com.sickworm.intellij.jugg.gradle.compile.CopyGeneratedSourceHelper
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.ui.RemoteCommandDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -110,20 +112,39 @@ class JuggManager @TestOnly constructor(
     private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, deployFileManager, taskRunnerManager, logger),
     private val fileChangeManager: FileChangeManager = FileChangeManager(fileChangesHandler, deployFileManager, dependencyChangeManager, gitFileChangesDetector, deployStateManager, taskRunnerManager, JuggLogger.getInstance(project, "FileChangeManager")),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(
-        project,
-        deployTargetManager,
-        deployFileManager,
-        deployHistoryManager,
-        deployStateManager,
-        dependencyChangeManager,
-        juggRunningTaskStatusManager,
-        compileContextManager,
-        juggServer,
-        taskRunnerManager,
+        deployTargetManager = deployTargetManager,
+        deployFileManager = deployFileManager,
+        deployHistoryManager = deployHistoryManager,
+        deployStateManager = deployStateManager,
+        dependencyChangeManager = dependencyChangeManager,
+        juggRunningTaskStatusManager = juggRunningTaskStatusManager,
+        compileContextManager = compileContextManager,
+        juggServer = juggServer,
+        taskRunnerManager = taskRunnerManager,
+        logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
+        libraryTestApkBackfillHelper = LibraryTestApkBackfillHelper(
+            project = project,
+            pathManager = pathManager,
+            deployHistoryManager = deployHistoryManager,
+            compileContextManager = compileContextManager,
+            compileClientFactory = {
+                LocalGradleCompileClient(
+                    pathManager.projectDir,
+                    pathManager.localClasspathStoragePathManager.classpathDir,
+                    compileEnvironmentSource.buildCompileEnv(logger),
+                    logger,
+                )
+            },
+            logger = logger,
+            onApksBackfilled = { apks ->
+                deployTargetManager.setApks(apks)
+                deployFileManager.updateApks(apks)
+            },
+        ),
         deploymentService = deploymentService,
         environment = IdeaDeployEnvironment(project, AsDeployerCompat, compileContextManager),
     ),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, gitFileChangesDetector, taskRunnerManager),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, compileEnvironmentSource, gitFileChangesDetector, taskRunnerManager, JuggLogger.getInstance(project, "JuggCompilerHelper")),
     private val projectCustomConfigManager: ProjectCustomConfigManager = ProjectCustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "ProjectCustomConfigManager"), juggServer, fileChangesHandler, deployHistoryManager, compileContextManager, customCompilerManager),
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
     private val runManager: RunManager = RunManager.getInstance(project),
@@ -149,7 +170,7 @@ class JuggManager @TestOnly constructor(
         deployFileManager = deployFileManager,
     )
     private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
-        IdeaMcpRuntime(logger.getInstance("McpRuntime"), pathManager.projectDir.absolutePath, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector),
+        IdeaMcpRuntime(logger.getInstance("McpRuntime"), pathManager.projectDir.absolutePath, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector, taskRunnerManager, ::recoverAfterRuntimeOwnerChange),
         eventModel = controlPanelController.model,
     )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
@@ -162,7 +183,6 @@ class JuggManager @TestOnly constructor(
     ): this(project = project2, pathManager)
 
     override fun init() {
-        Disposer.register(this, juggCompilerHelper)
         observeRunConfigurationSelection()
         runTaskSafe("Init Jugg", {
             JuggSettings.migrateLegacyJuggSettings(PropertiesComponent.getInstance())
@@ -322,12 +342,16 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun recoverDeployContext() {
+        recoverDeployContextFromDisk()
+    }
+
+    private fun recoverDeployContextFromDisk(): Boolean {
         logger.debug("Start recover deploy context")
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = true)
         if (deployContextRecoverInfo == null) {
             logger.debug("Can not recover from deploy history, please run gradle compile first")
-            return
+            return false
         } else {
             logger.debug("Recover deploy context from history successfully:")
             logger.debug("$deployContextRecoverInfo")
@@ -344,6 +368,23 @@ class JuggManager @TestOnly constructor(
         handleFileChangeResult(fileChangeManager.processFileChanges(deployContextRecoverInfo.changedFiles, emptyList(), FileChangeSource.RECOVER))
 
         logger.debug("Deploy history recover successfully, no need full compile.")
+        return true
+    }
+
+    private fun recoverAfterRuntimeOwnerChange(): Boolean {
+        val change = taskRunnerManager.consumeRuntimeOwnerChange() ?: return false
+        logger.debug("Recover IDEA runtime after owner changed: ${change.previousOwner.runtimeType} -> " +
+                change.currentOwner.runtimeType)
+        juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
+        deploymentService.invalidateMemoryCache()
+        if (!recoverDeployContextFromDisk()) {
+            juggCompilerHelper.juggCompiler = null
+            deployTargetManager.setApks(emptyList())
+            deployFileManager.init(emptyList(), emptyList(), null)
+            juggRunningTaskStatusManager.resetHasRun()
+        }
+        gitFileChangesDetector.updateChangedFiles()
+        return true
     }
 
     fun updateDeployState(): JuggDeployState {
@@ -781,6 +822,7 @@ class JuggManager @TestOnly constructor(
         controlPanelController.clear()
         gradleProjectInfoLocalFetchManager.close()
         customCompilerManager.close()
+        juggCompilerHelper.close()
         deployFileManager.dispose()
         taskRunnerManager.dispose()
         coroutineScope.cancel()
@@ -818,7 +860,8 @@ class JuggManager @TestOnly constructor(
             }
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-                compileUiHandler, controlPanelController.model, taskRunnerManager, androidTestRunSpec,
+                compileUiHandler, controlPanelController.model, taskRunnerManager, ::recoverAfterRuntimeOwnerChange,
+                androidTestRunSpec,
                 controlPanelController = controlPanelController,
             )
 
