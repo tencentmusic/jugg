@@ -1,6 +1,6 @@
 # 部署系统：影响分析与部署数据生成
 
-> 最后核对：2026-05-23
+> 最后核对：2026-08-07
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -20,6 +20,7 @@
 | `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | 从 `DeployItem` 和部署历史生成 `JuggDeployData`，集中决定 hot reload / hot fix / reinstall 输入 |
 | `DeployDataDatabase` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabase.kt` | APK 与增量部署索引 facade，聚合 SQLite helper 的引用查询和 commit |
 | `DeployDataDatabaseSqLiteHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabaseSqLiteHelper.kt` | method/field/subclass/source 索引的 SQLite 查询实现，是 effectedSource 传播的主要事实来源 |
+| `ApkParserProcessLauncher` / `ApkParserProcess` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/` | 在独立 JVM 中解析 APK/Dex 并直接更新 SQLite，隔离大工程解析时的瞬时堆占用 |
 | `ClassNodeComparator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ClassNodeComparator.kt` | 比较新旧 `ClassNode`，输出结构变化、abstract 变化和 generic signature 变化 |
 | `InlineMethodDetector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/InlineMethodDetector.kt` | release/minify 场景从 mapping 里找 R8 inline 调用方，补齐字节码补偿类 |
 | `EffectedClassNode` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/EffectedClassNode.kt` | 受影响类模型，区分源码重编译、inline 补偿、minify 移除补偿 |
@@ -33,13 +34,21 @@
 
 | 字段 | 来源 | 部署语义 |
 |---|---|---|
-| `newClasses` | 旧 DB 中不存在的新 class | 新增 class，通常不能只做 hot reload |
+| `newClasses` | 旧 DB 中不存在的新 class | 无需 JVMTI 重定义，作为新 class overlay 延迟加载 |
 | `hotReloadModifiedClasses` | `ClassNodeComparator.isCanHotReload = true` | 结构未变，可走更轻量的 class 更新 |
 | `hotFixModifiedClasses` | 多 dex / library dex / 结构变化 class | 结构或归属更复杂，走 hot fix 路径 |
 | `effectedSourceAndClassNodes` | method/field/subclass/generic/minify/inline 分析 | 需要源码重编译或字节码补偿的调用方 |
 | `overlays` / `isFullRes` | resource/asset 变更 + 首次 overlay 历史 | 首次资源部署会补齐全量 res，避免设备端缺资源 |
 | `updateApkFiles` | manifest、`resources.arsc`、native lib | 需要改 APK 并重签/重装的产物 |
 | `constRefEffectedSourcePaths` | `ConstRefEffectProvider` | 常量引用命中的源码路径，独立于 class 引用传播 |
+
+这三类 class 不是同一失败链路的不同名字，而是在部署前就按基线和结构差异主动分流：
+
+- `newClasses` 尚未被旧 APK/历史部署定义，写入 overlay 后可在首次引用时由 ClassLoader 加载。
+- `hotReloadModifiedClasses` 保持可重定义结构，`OverlayUpdateBuilder` 将其作为 `modifiedClasses` 交给 Android Studio deployer/JVMTI。
+- `hotFixModifiedClasses` 是已经存在但结构不满足 JVMTI 约束的 class。它和真正的新 class 一起走 deployer 的 `newClasses` transport，并由 `JuggDeployData.isNeedRestartApp` 要求重启进程，从 overlay 加载替代版本。
+
+因此 Jugg 的“热重载 + 热修复”复用同一份 overlay 数据通道，但分别使用 JVMTI redefine 和重启后 ClassLoader 覆盖。设备或运行时不适合 JVMTI 时，compat deploy 会进一步切为 push-only 并补入兼容运行时文件；若前置结构判断漏掉设备特有限制，`DeployRetryHandler` 仍会在 `JVMTI_ERROR_UNMODIFIABLE_CLASS`、redefiner/internal error 等确定信号下把全部 modified class 转为 HOT_FIX 重试一次。
 
 ### 3.2 `ClassNodeDiffResult` 到下游的映射
 
@@ -82,6 +91,14 @@
 
 不能把 `buildDeployData()` 的结果视为已提交状态。部署历史只在后续成功部署后由 `commitDeployedData()` 写回；失败轮的 staging / deploy data 不能污染下一轮。
 
+### 4.1 APK 基线索引与解析边界
+
+APK database 不只是“class 是否存在”的缓存。Jugg 需要持久化 class 结构、method/field 引用、父子类关系、source 映射，以及 APK 内 dex/resource entry 的 checksum，才能同时支撑 HOT_RELOAD/HOT_FIX 分类、影响传播、资源补全和下一次 APK 更新 diff。把这些数据长期留在 IDE heap 中会让大 APK 的解析峰值和 GC 直接影响 Android Studio，因此当前 `ApkParserProcessLauncher` 的隔离门槛为 0 MB，正常体积的 APK 会启动独立 JVM 解析；子进程直接更新 app-scoped SQLite，退出后释放解析期内存。
+
+解析仍按 Best-effort 收口：独立进程启动、classpath 或执行失败时会 warn，并回退当前 IDE 进程解析，而不是直接让完整构建后的上下文初始化失败。数据库更新先按 APK `lastModified` 快速判断，再用 entry checksum 找新增、删除和变化的 dex/overlay；变化 dex 超过 3 个或达到现有 dex 数量 20% 时重建该 app 数据库，否则只解析变化部分。这个阈值是性能策略，不是部署语义，调整时必须保留“少量变化增量更新、大量变化完整重建”的契约。
+
+查询时 `IncrementalDeployDataDatabase` 中已成功部署的 class/overlay 优先于 APK SQLite 基线。否则连续两次增量修改会一直和最初 APK 比较，既会误判 class 结构，也会让影响传播引用已经过时的数据。
+
 ---
 
 ## 5. effectedSource 传播规则
@@ -122,6 +139,7 @@ Generic signature 传播只能覆盖两类确定场景：子类声明链，以�
 - 首次 overlay 部署会通过 `addFullRes()` 补全资源；不要只根据本轮 changed resource 数量判断设备端资源完整性。
 - `updateApkFiles` 只收 manifest、配套 `resources.arsc` 和 native lib；普通 overlay 不等价于需要改 APK。
 - `deletedNormalMethodClasses` 会过滤方法名含 `$` 的合成方法，避免把编译器生成方法删除当作用户代码删除信号。
+- APK 解析独立进程只是内存隔离边界；SQLite 文件仍由 applicationId 归属。多 APK 同属一个 applicationId 时必须共享同一个 helper，废弃 applicationId 的 DB 只在新一轮初始化完成后清理。
 
 ---
 
@@ -136,6 +154,7 @@ Generic signature 传播只能覆盖两类确定场景：子类声明链，以�
 | release 方法体修改但调用方仍旧逻辑 | `InlineMethodDetector.findInlineEffectedClasses()` 和 mapping 文件是否存在 |
 | 常量改动未触发调用方 | `ConstRefEffectProvider.ensureReadyForRecompile()`，再转 `03_deploy_const_ref.md` |
 | `Isolated process parsing failed` 且 `ClassNotFoundException: ApkParserProcess` | `ApkParserProcessLauncher` 的 classpath 构建，检查是否用了 URL 编码路径 |
+| 完整构建后 APK DB 初始化导致 IDE 内存突增 | 确认是否进入独立进程；若已回退 in-process，先查 Java home、plugin classpath 与子进程输出 |
 
 ---
 

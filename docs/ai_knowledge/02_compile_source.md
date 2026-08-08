@@ -1,13 +1,13 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-07-30
+> 最后核对：2026-08-07
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
 ## 1. 文档定位
 
-本页覆盖源码到 dex 的增量编译主链路：JuggApt/KSP/KAPT 生成源码、DataBinding mapper、Kotlin/Java 编译、dex 生成、minified 变体重映射。它重点记录阶段顺序、失败降级和多 APK target 归属。
+本页覆盖源码到 dex 的增量编译主链路：JuggApt/KSP/KAPT 生成源码、DataBinding mapper、Kotlin/Java 编译、dex 生成、minified 变体重映射。它重点记录阶段顺序、Kotlin 模块身份、脱糖上下文、失败降级和多 APK target 归属。
 
 资源与 `R.java` 生成见 `02_compile_resource.md`；DataBinding 细节见 `02_compile_databinding.md`；release 混淆和 `_jugg_fix` 见 `02_compile_obfuscation.md`。
 
@@ -24,11 +24,13 @@
 | `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | DataBinding mapper 生成实现 |
 | `KotlinCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinCompiler.kt` | Kotlin 源码编译入口 |
 | `KotlinCompilerInvoker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinCompilerInvoker.kt` | Kotlin CLI 参数、插件参数、错误解析与重试 |
+| `IKmModuleMergerForCompilation` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/IKmModuleMergerForCompilation.kt` | 读取并合并模块 classpath 中的 `.kotlin_module`，保留顶层声明与 file facade 元数据 |
 | `KotlinComplementaryFilesCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinComplementaryFilesCache.kt` | 按需定位并读取项目 Kotlin Gradle incremental cache 的 complementary files |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 在常规 source 阶段前，以一次 Kotlin invocation 编译 Compose generated expect/actual sources |
 | `K2JVMCompilerIsolate` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/K2JVMCompilerIsolate.kt` | Kotlin 编译器隔离加载、classpath 检查、项目版本 ExpectActualTracker 注入与 incremental cache API 适配 |
 | `JavaCompiler` / `JavaCompilerInvoker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/JavaCompiler.kt`, `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/JavaCompilerInvoker.kt` | Java 编译与 javac 参数组装 |
-| `DexCompiler` / `DexFileMaker` / `DexFileMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/` | class 到 dex、file-per-class 输出与 dex 合并 |
+| `DexCompiler` / `DexFileMaker` / `DexFileMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/` | class 到 dex、file-per-class 输出、D8 脱糖上下文与 dex 合并 |
+| `CompileEffectAnalyzer` / `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/CompileEffectAnalyzer.kt`、`main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | 从 APK/deploy DB 识别 default interface 与 core library rewrite，补齐 D8 所需 classpath 和配置 |
 | `DexMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompiler.kt` | minified 变体的 dex 重映射与 `_jugg_fix` 生成 |
 
 ---
@@ -48,6 +50,8 @@
 | `kotlinCommonSourceDirs` | `GradleProjectInfoReader` | 普通 KMP Kotlin 增量编译 | 从选中 Android Kotlin task 的 `commonSourceSet` 结构或 FileTree relative path 读取；同时加入 `sourceDirs` 参与统一源码识别，自身保留 common 身份，不展开为全量编译 |
 | `agpR8Classpath` | `GradleProjectInfoReaderManager` | `DexCompiler` / `DexMinifyCompiler` | 引用项目 AGP 的 R8 分发包；Gradle code source 已 instrumentation 时解析原始 buildscript artifact；不复制 jar，不进入 `FullBuildInfo` 或 compile context 磁盘格式 |
 | 普通 KMP complementary closure | Kotlin Gradle incremental cache | `KotlinCompiler` | 仅 Android owner 存在 Gradle authoritative `kotlinCommonSourceDirs` 且源码出现 expect/actual token 时查询；requested 与 complementary files 按 canonical path 去重后在 Android owner invocation 中联合编译；成功后用 tracker 原地刷新双向 edge |
+| Kotlin module identity | `ModuleInfo` + Kotlin baseline output | `KotlinCompilerInvoker` | `module-name`、friend path、输出目录和 `.kotlin_module` 必须保持同一 Gradle module/variant 语义 |
+| `DesugarInfo` | APK/deploy DB + changed class parser | `DexCompiler` / D8 | default interface、`j$.*` rewrite 与 `desugar.json` 都以已安装 APK 的脱糖事实为基线 |
 
 ---
 
@@ -68,6 +72,41 @@ SourceCompiler.doModuleCompile()
 ```
 
 这条链路的核心顺序不能随意调整：JuggApt/DataBinding 必须在语言编译前完成，Kotlin 必须早于 Java，minify 必须在 dex 之后执行。
+
+### 4.1 Kotlin 模块身份与元数据
+
+```text
+KotlinCompilerInvoker
+  -> 优先使用项目 Kotlin compiler；不可用时回退内置 compiler
+  -> module-name = Gradle module name + build variant
+  -> friend path 指向本模块 baseline Kotlin output
+  -> Kotlin + 同模块 Java source roots 联合解析
+  -> 非 KAPT 编译直接写入模块 Kotlin classpath
+  -> 编译前后合并并保存 `.kotlin_module`
+```
+
+这组参数共同维护“本轮单文件仍属于原 Gradle 模块”的语义：
+
+- `-module-name` 必须与 Gradle 基线一致，否则 `internal` 方法/属性的 JVM 名称后缀会变化，调用方可能在运行时出现 `NoSuchMethodError`。
+- `-Xfriend-paths` 让本轮源码继续访问同模块 baseline 中的 `internal` 声明；KMP baseline 被隔离时，friend path 必须同步切到隔离视图。
+- 非 KAPT 编译把 `-d` 指向模块 Kotlin classpath，使编译器把 baseline class 与本轮源码视为共同编译结果，避免 `public API property declared in different module` 一类误判和 smart cast 失效。
+- `-Xjava-source-roots` 让 Kotlin 先读取本轮或同模块 Java 源码，解决 Java/Kotlin 相互引用；因此语言阶段固定 Kotlin 在前、Java 在后。
+- `.kotlin_module` 承载 class 文件无法完整表达的顶层函数、扩展函数和 file facade 信息。单文件编译前后都要合并 baseline 与新元数据；失败时仅告警并保留主编译结果，但后续可能出现 extension unresolved reference 或影响传播缺失。
+
+### 4.2 D8 脱糖决策
+
+```text
+DexCompiler
+  -> 从 APK database 判断基线是否已脱糖
+  -> 选择 D8 minApi：优先使用应用 minSdk；基线已脱糖且 minSdk >= 26 时回落到 21；缺少有效 minSdk 时按基线状态选择 21 或 31
+  -> 解析 changed class 的 interface / static invocation
+  -> 从 APK/deploy DB 查找 `$-CC` / `$DefaultImpls` 对应的 default interface
+  -> 把这些 baseline class 复制到临时 D8 classpath
+  -> APK 中存在 `j$.*` 时查找工程 coreLibraryDesugaring 的 `desugar.json`
+  -> 使用项目 AGP D8；API 不兼容或执行失败时回退内置 D8
+```
+
+这里不能只按当前模块 `minSdkVersion` 判断是否脱糖。Jugg 的增量 DEX 必须和已安装 APK 保持同一种字节码形态：基线存在 `$-CC` / `$DefaultImpls` 时，D8 需要看到对应接口 classpath，避免 default method 调用形态与 APK 不一致；基线存在 `j$.*` 时，还需要把项目 `coreLibraryDesugaring` 依赖中的 `desugar.json` 传给 D8。找不到配置时会 warn 并继续，最终风险是高版本 Java API 在设备端引用不一致。
 
 Compose resource generated source 是这条常规 source 链之前的独立前置步骤：`ComposeResourceCompiler` 将 Res、各 source set accessor、expect collector 和 Android actual collector 放进同一次 `KotlinCompilerInvoker` 调用，并显式传入 common source 文件列表。编译出的 class 随后才进入 `SourceCompiler` 的 class/dex 路径；不会分别编译 expect 与 actual。Gradle project info 仍可把 build directory 下的 generated source 保留在 `sourceDirs` 中，供 Kotlin compilation metadata 使用；`FileChangesHandler` 会在文件变更边界统一排除这些路径，避免它们再作为用户源码进入常规 Kotlin 阶段。JuggApt 等本轮由编译器直接登记的 generated source 不经过该文件事件过滤。
 
@@ -95,6 +134,9 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - minified 场景下 dex 先写到 `context.tempCompileDir/un_minify`，再由 `DexMinifyCompiler` 输出到最终 task outputDir；排查路径时不要只看最终目录。
 - `DexCompiler` 输出仍保留旧 `apkPath` 锚点，同时写入 module 的所有 `targetApkPaths`；部署层用 target 集合做多 APK 分流。
 - D8 版本选择以项目 AGP 实际加载的 R8 为准；Gradle instrumentation cache 必须先恢复为原始 buildscript artifact。project info 无安全路径、隔离 runtime 无法建立或外部 D8 执行失败时使用 Jugg 内置 R8。
+- 不要把 D8 为兼容已脱糖基线而回落到 21，或在缺少有效 `minSdk` 且无需脱糖时使用 31，当作应用真实 minSdk。这里利用 minApi 控制本轮 D8 的脱糖行为，目标是与 APK 基线保持一致。
+- default interface class 进入临时 classpath 是脱糖上下文，不是普通业务依赖补全；删除这一步可能让改动类生成与基线不同的 default method 调用形态。
+- core library rewrite 只在 APK database 已发现 `j$.*` 时查找 `desugar.json`；不能因为工程声明了依赖就无条件为所有模块启用。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。
 - `commonSourceFiles` 是 Kotlin invoker 的类型化参数，不靠调用方拼自由字符串；为空时不添加 multiplatform 参数，Compose generated expect/actual 场景则同时添加 `-Xmulti-platform` 和 `-Xcommon-sources`。
 - `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 和 fragment roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
@@ -116,8 +158,10 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 | JuggApt 生成代码导致编译失败 | `compileLanguageStagesWithRetry()` 和 `shouldRetryWithoutJuggApt()` |
 | Kotlin 编译失败后 Java 大量连带报错 | `compileLanguageStages()`：确认 Java 阶段是否被跳过，以及 Kotlin failed details |
 | classpath 缺失 / Kotlin metadata 异常 | `K2JVMCompilerIsolate.checkClasspath`、`KotlinCompilerOutputParser`、`KmModuleMergerForCompilation` |
+| Kotlin `internal` 运行时找不到方法或 smart cast 被误判跨模块 | `KotlinCompilerInvoker` 的 `module-name`、friend path 与 `-d` 输出目录 |
 | DataBinding mapper 未生成 | `SourceDataBindingProcessor.processDataBindingMapper()` 与 `DataBindingGenMapperCompiler` |
 | dex 合并失败 | `DexCompiler`、`DexFileMerger`、`IncrementalCompilerHelper.mergeDex` |
+| default method / `j$.*` 增量后运行异常 | `DexCompiler` 的 minApi、`CompileEffectAnalyzer.getDesugarInfo()`、`BaseCompileContext.findDesugaredLibraryConfiguration()` |
 | AGP/Kotlin 升级后 D8 assertion 或字节码不兼容 | `JuggProjectInfo.agpR8Classpath`、`DexFileMaker` 的隔离加载与版本日志 |
 | release dex 路径或类名不对 | `DexMinifyCompiler.preObfuscateForMinifyInfo()`、`obfuscateDexFile()` |
 | 多 APK 下 class/dex 部署归属丢失 | `DexCompiler` 输出的 `targetApkPaths` 与 `IncrementalCompilerHelper.mergeDex()` |

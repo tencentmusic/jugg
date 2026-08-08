@@ -1,6 +1,6 @@
 # 工程化：兼容层与命令行模块
 
-> 最后核对：2026-07-23
+> 最后核对：2026-08-07
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -30,6 +30,7 @@
 | `CmdPlatformApi` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/CmdPlatformApi.kt` | 命令行运行时的 `PlatformApi` 实现 |
 | `IDeviceAdb` / `IdeaDeviceAdb` / `IdeaDeviceAdbClient` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/IDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdbClient.kt` | 设备 ADB 语义抽象；IDE 侧通过 `IDevice` 封装 shell/push/pid/arch/uninstall，不再把这些 transport 能力挂在 deployer compat 上 |
 | `CmdLine` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/CmdLine.kt` | 命令行入口，分发 `buildGradleBase` / `buildIncrementalApk` |
+| `BuildGradleBaseCommand` / `BuildIncrementalApkCommand` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | CI 两阶段构建：建立可复用基线，再以调用方显式变更文件生成增量 APK |
 | `CustomCompilerManager` / `ICompilerCreator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/` | 自定义编译器 SPI 装载与生命周期管理 |
 
 ---
@@ -117,6 +118,13 @@ main(args)
 
 命令行入口复用 main 层编译能力，但没有 IDE 的运行配置、Run tool window、设备选择 UI。对比 CLI/IDE 行为时，优先看 `CmdPlatformApi` 与 `IdeaPlatformApi` 的差异。
 
+CI 命令行把构建拆成两个可审计阶段：
+
+1. `buildGradleBase` 清理目标 Jugg 目录，执行完整 Gradle 构建，保存 APK、project info、classpath、deploy history、APK database 和 source index，形成由 CI 管理的只读基线。
+2. `buildIncrementalApk` 从该基线恢复上下文，只编译调用方显式传入的 `changedFiles`，合并 dex 后把增量产物写回 APK 输出目录。
+
+这里故意不由 Jugg 自行猜测 CI diff。调用方负责给出将要编译的文件集合，命令会校验文件存在、位于 `sourceProjectDir`、能被 `FileChangesHandler` 完整识别且不含 build file。基线目录首次使用时写入 `.dirty`；同一份可变基线再次执行会失败，避免前一轮增量已经改写 history/database 后仍被当成干净输入。若流水线需要多组增量结果，应为每组复制独立基线，而不是并发共享同一目录。
+
 ---
 
 ## 5. 隐形约束
@@ -129,6 +137,7 @@ main(args)
 - 不要在 `JuggDeployTask` / `JuggDeployer` 等主路径直接访问 `StudioFlags` 字段；新增 flag 读取必须经兼容接口或安全反射封装。
 - `platform_compat/base_api` 只解决编译期 API 缺口，不表示运行时一定有对应 IDE 行为；运行时能力仍以当前 AS API 和 compat 实现为准。
 - 自定义编译器示例在 `custom_compilers`，生产装载由 `CustomCompilerManager` 读取 `build/jugg/config/custom_compilers`；示例代码不是默认编译阶段。
+- `buildIncrementalApk` 的 `changedFiles` 是外部契约，不是提示信息。过滤后数量与输入不一致、路径越界或含 build file 都必须明确失败，不能静默跳过后继续产出 APK。
 
 ---
 
@@ -141,6 +150,7 @@ main(args)
 | 设备选择 / APK provider 与 IDE 行为不一致 | `IAsDeployerCompat.getSelectedDevices()` / `getApkProvider()` 的版本实现 |
 | main 模块编译缺 IDE API | `platform_compat/base_api` 是否缺 stub |
 | CLI 行为与 IDE 不一致 | `CmdLine`、`CmdPlatformApi`、`IdeaPlatformApi` |
+| CI 增量基线提示 `.dirty` | 当前基线已被一次增量构建消费；重新复制未修改的 `buildGradleBase` 产物后再执行 |
 | 自定义编译器未加载 | `CustomCompilerManager` 与 `build/jugg/config/custom_compilers` |
 
 ---

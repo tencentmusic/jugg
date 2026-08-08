@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-08-02
+> 最后核对：2026-08-07
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -20,6 +20,7 @@
 | `JuggInitializer` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | 项目级插件实例注册、释放、Sync 事件转发、MCP local server 生命周期 |
 | `JuggLoader` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 隔离加载 Jugg manager，支持热更新/embedded jars fallback |
 | `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | 设置 `PlatformApi.impl`、注册项目日志、创建/释放 `JuggManager` |
+| `JuggHotUpdateDownloader` | `idea/src/main/java/com/sickworm/intellij/jugg/server/JuggHotUpdateDownloader.kt` | 定时检查更新、按缺失 jar 下载并校验 md5、更新 load list，并准备重启后的标准插件安装 |
 | `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDE 侧总装配器，连接 compile、deploy、project info、dependency、MCP、server、UI |
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 按钮后的后台任务，串联编译、部署、状态回写、Run tool window |
 | `JuggDebugProgramRunner` / `JuggDebugSessionManager` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggDebugProgramRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggDebugSessionManager.kt` | 接管 Jugg + Debug executor，让 Debug 按钮可用；Jugg 编译/部署输出挂到 Run tool window，部署成功后限制单设备并通过兼容层 attach Java debugger |
@@ -69,6 +70,10 @@ IDE project opened
 ```
 
 `recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。
+
+插件热更新依赖一条刻意收窄的 ClassLoader 边界。`JuggLoader` 根据 load list 选择 embedded 或 hot-update jars，并用代理把 `IJuggManagerCreator` / `IJuggManagerCaller` 调用跨回稳定 ClassLoader；创建热更新实例失败时直接回退 embedded jars，保证项目仍能打开。`loader`、`ide`、IntelliJ API 以及少量跨边界 DTO 固定由原 ClassLoader 加载，避免 IDE 已注册 extension/action 的 class identity 改变；`JuggManagerCreator` 例外由热更新 ClassLoader 加载，使主要业务实现能够替换。
+
+更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip 并调用 `PluginInstaller.installAfterRestart()`，确保下次 IDE 启动落到标准安装版本；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
 
 `DeployFileManager` 可在构造期直接创建 `ConstRefEngine` 对象，但 `ConstRefEngine` 构造期不能初始化 SQLite database、repo fingerprint store 或 impact resolver，避免全局 SQLite 缓存损坏阻断 manager 创建。这些 ConstRef runtime 资源由 `ConstRefEngine` 在 `updateModuleInfos()`、源码变更事件、编译前 readiness、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化；失败后降级为 no-op，主初始化、编译和部署继续。
 
@@ -153,6 +158,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 | Sync 后 project info / dependency 状态异常 | `JuggManager.onSyncEvent()`、`updateProjectInfo()`、`CompileContextManager.updateCompileContext()` |
 | Run UI 状态错乱或取消后下轮误判 | `JuggRunningTask.run()` finally 中 hasRun / processHandler / logger listener 收口 |
 | Panel 数据不刷新或热更新后仍显示旧组件 | `JuggControlPanelHost`、`JuggInitializer.getManager(project)`、`JuggManager.getJuggControlPanel()` 与 Panel subscription dispose |
+| 下载更新后当前工程仍运行旧实现 | 当前 manager 不原地换 ClassLoader；重新打开工程，若更新要求 reinstall 则重启 IDE |
 | Panel Logs 内容不可读或缺事件 | 检查 `JuggManager.onSyncEvent()`、`JuggRunningTask`、`McpToolInvoker` 的结构化事件生产；Panel 不应读取 raw log |
 | Jugg Debug attach 后断点不可用 | `04_engineering_debug_attach.md`，确认 WAITING、`Connected to the target VM` 与 `XDebugSession` |
 | androidTest 有结果但 Test Results 不完整 | `JuggManager.runTask()` 参数传递，确认 `executor` / `runProfile` / `androidTestRunSpec` 都非空 |

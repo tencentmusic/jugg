@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-08-03
+> 最后核对：2026-08-07
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -22,6 +22,7 @@
 | `JuggPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt` | 项目级 Jugg 文件布局：project info、compile context、deploy history、classpath、日志、MCP fetch cache |
 | `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggGlobalPathManager.kt` | 用户级 `~/.jugg` 文件布局：hot update、deploy cache、resource 等 |
 | `GradleProjectInfoReaderManager` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt` | Gradle init script 入口，读取/保存 project info、include build、dependency diff、androidTest task 注入 |
+| `GradleScriptWriter` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleScriptWriter.kt` | 把插件内置 `readProjectInfo.gradle.kts` 与 runtime jar 写到稳定目录，供本地、远端和 CLI 通过 `-I` 注入 |
 | `GradleProjectInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt` | 通过 Gradle 反射读取 module、variant、source set、classpath、依赖、androidTest synthetic module |
 | `GradleVariantCollector` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleVariantCollector.kt` | 配置阶段通过 Android Components API 收集 variant 名称，作为 AGP 9 移除 legacy variant API 后的回退数据源 |
 | `ProjectInfoSerializerInGradle` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/ProjectInfoSerializerInGradle.kt` | Gradle 脚本侧 project info JSON 序列化 |
@@ -109,6 +110,8 @@ IDE / Gradle compile 触发 project info 更新
 
 `main/src/main/java/.../gradle/script` 下的类同时作为生成 init script 的源码模板；排查时要同时关注生产 wrapper 和 `main/src/main/resources/gradle/readProjectInfo.gradle.kts` 中的内嵌结果。
 
+使用 Gradle init script 的核心目的不是替代 IDE model，而是在不修改工程 `build.gradle` 的前提下取得构建侧事实。IDE model 更适合提供 module/source 结构和当前 IDE 选择；真实 task、variant、classpath、依赖、注解处理器参数、Compose 任务元数据和自定义 build directory 则以 Gradle 执行环境更可靠。`JuggProjectInfoMerger` 因此合并两路数据，而不是假设任一路永远完整。`-I readProjectInfo.gradle.kts` 属于一次构建调用的外挂输入，不要求业务工程接入 Jugg Gradle plugin，也不会把读取逻辑写进用户脚本。
+
 `readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
 Android variant 读取保留 `applicationVariants`、`libraryVariants` 和 `featureVariants` 作为旧 AGP 的首选入口；仅当 legacy API 未返回 variant 时，才使用配置阶段从 `androidComponents.onVariants` 收集的名称。收集结果按 Gradle project path 存在 root project extra properties 中，不保留 AGP variant 实例；project info 的 `buildVariant` 推导和 AndroidTest assemble task 注入复用同一份回退数据。该注册同时覆盖 application、library 和 dynamic-feature plugin，反射注册失败时保持旧路径继续执行，不中断 Gradle 配置。
@@ -167,6 +170,10 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 | `ApkLookupPlanner` / `FindOutputCommand` | 根据 required/optional APK 规则定位输出产物 |
 | `GradleDependencyDiffer` | diff mode 下输出依赖变化结果，供 dependency manager 判断是否需要用户确认 |
 
+依赖变化采用显式确认契约。检测到 build file 变化后，Jugg 先展示文件 diff，由用户选择读取依赖变化、忽略本轮 build file 变化、回退 Gradle 或取消；只有用户确认后才把依赖库产物转换为 `ChangedFile` 进入增量编译。原因是 build script 可以改变任意构建行为，仅凭依赖列表无法证明 APK 其他部分没有变化，自动猜测会把无法判定的风险伪装成成功。
+
+Gradle diff 同时保留两个比较基线：`diffResult` 对比上一次构建依赖，用于展示本轮新增、删除和升级；`diffResultWithFull` 对比最近一次完整 Gradle 基线，用于确定真正需要编译、替换或回滚的 library 文件。library dex 可能在 APK 中合并为单个产物，不能只按上一轮增量结果推断旧 jar。用户选择“忽略”只表示接受当前 build file 对开发链路无影响，不代表 Jugg 已验证脚本等价；出现异常时仍应完整 Gradle 刷新基线。
+
 APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生成的 pattern 使用 IDE Android model 暴露的实际 build folder。androidTest pattern 从 `/outputs/apk/` 片段派生，因此同时支持 `app/build/...` 与项目根集中式 `build/app/...`。远端 classpath 同步使用相对项目根的 build output 路径，保证自定义 build directory 能回写到本地相同位置。
 
 远端 classpath 的 rsync 过滤规则会按 build directory 类型生成：使用 `${moduleRoot}/build` 的普通模块按 variant 复用 `build/...` 规则，避免大型多模块工程为每个模块重复展开相同参数；自定义 build directory、`customClasspath` 与 `customSyncFilePath` 继续使用项目根相对的精确路径，保证集中式输出和项目配置不会被通配规则覆盖。
@@ -205,6 +212,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - IDE 可能把不同 Gradle build 中的同名模块都简化为相同 simple name。若同名模块分别指向不同相对路径，只有 Gradle 侧模块明确为 `Application`、来自主 Gradle 快照且存在真实 R.jar 时，才完整保留该 Gradle Application；多个 R.jar 候选继续由 `ModuleBuildPathInfo.rFilePath` 按修改时间选择最新产物。条件不满足时仍走原有字段合并，普通 Library 不受影响。冲突日志会记录 IDE/Gradle 模块路径、是否属于主快照、候选 R.jar 和最终选择。
 - IDE project info 完全缺失某个 Gradle module 时，merge 会在该 Gradle-only module 已进入最终模块集合后补回指向它的 Gradle 依赖。补入前从目标模块检查是否能够沿当前依赖图到达 owner；若会形成环则打印 warning 并放弃该依赖。IDE 已识别模块之间的依赖仍保持原有选择策略，不执行无条件并集。
 - diff mode 只输出依赖差异并清理临时 project info；非 diff mode 才写正式 `gradle_project_infos.json`。
+- 依赖 diff 的用户确认是正确性边界，不要为了“自动化”直接把 `CHANGED_NOT_SYNCED` 改成 `INCREMENTAL_COMPILE`。diff 失败或用户拒绝时应保持 Gradle rebuild 语义；diff 无依赖变化时也只有用户明确选择忽略 build file 变化后才能继续增量。
 - androidTest task 注入发生在 Gradle task graph finalization 之前；如果请求任务名和真实 task path 对不上，注入会静默打印 “no requested task found” 并跳过。
 
 ---

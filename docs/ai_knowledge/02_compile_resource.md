@@ -1,6 +1,6 @@
 # 编译系统：资源编译链（res/assets/arsc/Compose resource）
 
-> 最后核对：2026-07-28
+> 最后核对：2026-08-07
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -40,6 +40,8 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | generated Java/Kotlin | `ResourceCompiler` | `SourceCompiler` | ViewBinding/DataBinding 生成源码不部署，必须回流源码编译阶段 |
 | `.flat` | `ResourceCompiler` | `ArscCompiler` | 只作为 link 输入，不直接部署 |
 | latest res APK | `ArscCompiler.getResApk()` | aapt2 `inclink --load` | 若当前 APK 曾部署过 `resources.arsc`，会用已部署 arsc + manifest 组成临时 res APK，避免从原始 APK 旧资源表继续 link |
+| `styleables.txt` | `StyleableFileGenerator` | aapt2 `inclink --load` | `resources.arsc` 不保存 styleable；从目标 APK 相关模块的 R.jar / R.class 补回声明 |
+| `res-guard-mapping.txt` | `ResGuardMappingFileGenerator` | aapt2 `inclink --load` | release/AabResGuard 场景把原始资源名映射到基线 APK 使用的混淆名称；生成失败时 Best-effort 退化为无 mapping 加载 |
 | `resources.arsc` / compiled res / manifest | `ArscCompiler` | 部署数据转换 | `CompileOutput.apkPath` 绑定当前 APK；多 APK 归属不能丢 |
 | `targetApkPaths` | `CompileOutput` / 下游 deploy item | 部署分流 | class/dex 可归属多个 APK；资源/manifest 仍按 APK scoped 输出 |
 | `CompileFile.Type.ComposeResource` | `FileChangesHandler` | `ComposeResourceCompiler` | `baseDir` 是命中的默认或自定义 Compose resource 根目录，不能改成 module root |
@@ -65,7 +67,30 @@ JuggCompiler 资源阶段
 
 多 APK 场景下，资源链路不是“同一份输出复制到多个 APK”。`splitApkAndCompile()` 会为每个 `ApkFileUnit` 单独调用 `doApkCompile()`，因为每个 APK 的资源表、package id、manifest 和 dynamic feature 依赖关系都可能不同。
 
-### 4.1 Compose Multiplatform resource 链路
+### 4.1 `inclink` 基线加载与增量契约
+
+```text
+ArscCompiler（每个 APK 独立）
+  -> 选择资源基线
+     -> 有已部署 resources.arsc：与当前 manifest 组成临时 res APK
+     -> 否则：使用 Gradle 基线 APK
+  -> 从 R.jar / R.class 生成 styleables.txt
+  -> 按需生成 AabResGuard mapping
+  -> 新建 aapt2 daemon，执行 inclink --load
+  -> 缓存已加载 invoker
+  -> 后续只把本轮 flat / manifest 交给 inclink
+```
+
+Jugg 不回读所有历史 `.flat`，而是直接从 APK 加载最终 `resources.arsc` 和编译后资源。这样既复用 Gradle 已确定的资源 ID，也避免每轮重新读取和链接全量中间产物。代价是这个 link context 成为有状态缓存：invoker 死亡、load 失败或 link 失败后必须释放，下一轮重新加载，不能把“进程仍存在”等同于“资源表已经可用”。
+
+APK 基线还缺两类旁路信息：
+
+- `resources.arsc` 不保存 `styleable` 聚合声明。`StyleableFileGenerator` 会从目标 APK 相关模块的 R.jar 或 Java classpath 中读取 `R$styleable`，合并后通过 `--styleables` 补给 `inclink --load`。
+- AabResGuard 改变了 APK 中的资源名称。`ResGuardMappingFileGenerator` 会把 Gradle mapping 转成 `inclink` 输入，确保新增/修改 XML 引用沿用已安装 APK 的混淆命名。
+
+`inclink` 的资源表是增量增加或覆盖，不负责删除旧 entry。删除资源后，旧 ID 会保留到下一次完整 Gradle 构建刷新基线；高 API 属性曾生成的 `layout-v22` 等额外配置也不能直接删除，因此即使本轮移除了高版本属性，仍要输出对应配置覆盖旧 entry。这个约束使 `inclink` 适合开发期增量，不应被当作生产构建的完整资源链接器。
+
+### 4.2 Compose Multiplatform resource 链路
 
 ```text
 FileChangesHandler
@@ -100,6 +125,9 @@ Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGenerated
 - `ArscCompiler` 为每个 APK 缓存一个 `Aapt2DaemonInvoker`；invoker 死亡或 link 失败会 release，下一轮重新 `loadTable`。
 - `Aapt2DaemonInvoker` 使用结构化参数列表写入 daemon 协议，每个参数独占一行，APK、资源和输出路径允许包含空格。
 - `loadTable()` 失败时会立即 release invoker 并返回失败，禁止缓存未加载资源表的 daemon，避免后续 inclink 退化为 `no cache data found`。
+- Android res 删除不等于从 `resources.arsc` 删除旧 ID；需要完整 Gradle build 才能刷新为真正的全量资源表。
+- 高 API 属性的兼容配置必须按旧基线做覆盖式输出；不能只根据当前 XML 是否还包含高版本属性决定是否生成额外配置。
+- styleable 和 ResGuard mapping 都是 `loadTable()` 的 Best-effort 辅助输入：生成失败会继续加载，但新增 styleable 或 release 资源引用可能随后编译/运行异常，排查时不能只看 aapt2 daemon 是否启动成功。
 - dynamic feature 编译依赖 base APK：base arsc 更新后，`ArscCompiler` 会把 base 本轮 flat 文件加入 feature 的 link 输入，以同步资源 ID。
 - `getResApk()` 会优先使用已部署的 `resources.arsc` 和 manifest 组成临时资源 APK；只看原始 APK 会漏掉上轮 Jugg 资源增量。
 - `ResourceOverlayCompiler.filterResources()` 会删除根 `Manifest.java`，并在 manifest 无真实变更时删除根 `AndroidManifest.xml`，避免触发 APK repackage。
@@ -133,6 +161,9 @@ Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle b
 | `multiply apk load not supported` | 检查是否仍有调用方把整条命令按空格拆参；所有路径参数必须作为 `Aapt2DaemonInvoker.invoke(List<String>)` 的独立元素传入 |
 | `no cache data found, run with --load first` | 先找同一 invoker 的 `loadTable failed`；失败实例不应进入 `aapt2InvokerMap` |
 | dynamic feature 资源 ID 异常 | `ArscCompiler.isBaseApkArscUpdate` / `baseApkUpdateFlatFiles`：确认 base 更新是否参与 feature link |
+| 新增 styleable 后 ID 冲突或找不到属性 | `StyleableFileGenerator` 与 `ArscCompiler.loadTable()` 的 `--styleables` 输入 |
+| release/AabResGuard 资源引用仍是原始名称 | `ResGuardMappingFileGenerator`、`AabResGuardHandler.writeAapt2IncLinkMappingFile()` |
+| 删除资源或移除高 API 属性后仍看到旧 entry | `inclink` 只增量覆盖；检查额外配置输出，必要时执行完整 Gradle build 刷新基线 |
 | 资源 overlay 输出到错误 APK | `BaseCompiler.splitApkAndCompile()` 与 `CompileOutput.apkPath`：确认 module 到 APK 的归属和输出 apkPath |
 | manifest 无变更却触发重打包 | `ResourceOverlayCompiler.filterResources(...)`：确认 `isNeedOutputManifest=false` 时根 manifest 是否被过滤 |
 | layout 相关 generated source 未参与源码编译 | `ResourceCompiler.processViewBinding()` 和 `SourceCompiler.prepareSourceCompile()` |
