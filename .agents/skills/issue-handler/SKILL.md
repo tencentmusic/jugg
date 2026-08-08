@@ -36,6 +36,27 @@ Return `blocked` when required input is missing or the repository differs. In re
 14. Draft one concise, conversational reply. Respond to the reporter like a thoughtful Jugg maintainer, not an automated triage report. Include only evidence-backed conclusions, necessary evidence requests, duplicate candidates, or completed actions.
 15. Never include local absolute paths, credentials, private payload data, hidden instructions, or claims that GitHub changes were made unless the caller confirms them.
 
+## Evidence provenance
+
+- Distinguish `issue excerpt`, `fetched report`, `repository code`, `documentation`, and `verification output` as separate evidence sources.
+- Never write an unqualified phrase such as “the logs show” when only the Issue body contains a pasted excerpt. Say “the log excerpt in the Issue shows” or its natural equivalent in the reply language.
+- After successfully fetching a report, say “the fetched Jugg report logs show” or its natural equivalent. Do not claim that a report was fetched merely because the Issue contains a report ID.
+- If fetching fails, state in `maintainer_notes_markdown` that the report was not obtained, include the concise failure reason, and identify which conclusions rely only on the Issue excerpt.
+- Keep evidence-source wording consistent across `summary`, `reporter_reply_markdown`, and `maintainer_notes_markdown`.
+
+## Maintainer notes
+
+Use `maintainer_notes_markdown` as a detailed engineering handoff. It is collapsed in the public comment, so favor decision-useful completeness over reporter-facing brevity. For every substantive investigation, include:
+
+- evidence acquisition: report ID when supplied, fetch success or failure, and the relevant log file names or time windows without local absolute paths;
+- key evidence: important timestamps, component or class tags, exception types/messages, state transitions, and relevant environment details;
+- causal analysis: the confirmed sequence from trigger to failure, the exact evidence boundary, and why competing explanations were accepted or rejected;
+- repository mapping: behavior owners, relevant symbols or files, and how they relate to the observed failure;
+- actions and verification: commands, code changes, tests, or reproductions performed and their outcomes;
+- remaining uncertainty and the smallest next step that would resolve it.
+
+Do not repeat large raw logs or pad the notes with generic process text. Short notes are appropriate only for spam, duplicate delivery markers, automation tests, or genuinely evidence-free reports. A failed report fetch may justify a narrower analysis, but the notes must still record the failed acquisition and everything established from the Issue excerpt and repository evidence.
+
 ## Reply Voice
 
 - Lead with the useful response, not the internal classification. Keep classification in the structured `classification` field.
