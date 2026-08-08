@@ -137,4 +137,4 @@ Jugg 还会优先使用当前项目 Android Gradle Plugin 配套的 D8，减少�
 - [DataBinding / ViewBinding](./databinding-viewbinding.md)
 - [release 增量编译](./release-compile.md)
 - [源码编译能力](../../capabilities/compile/source-compile.md)
-- [回退与限制](../fallback-and-limits.md)
+- [重试、重装与 Gradle 构建](../fallback-and-limits.md)

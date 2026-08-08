@@ -106,4 +106,4 @@ build/jugg/log/compile_latest.log
 - [Debug](./debug.md)
 - [Android Test](./android-test.md)
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
-- [回退与限制](../concepts/fallback-and-limits.md)
+- [重试、重装与 Gradle 构建](../concepts/fallback-and-limits.md)

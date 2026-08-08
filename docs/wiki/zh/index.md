@@ -56,7 +56,7 @@ layout: page
       </ol>
       <div class="jugg-run-foot">
         <span>不确定时不会冒险继续增量</span>
-        <a href="/zh/concepts/fallback-and-limits">查看回退规则 →</a>
+        <a href="/zh/concepts/fallback-and-limits">查看恢复与重建 →</a>
       </div>
     </div>
   </section>
