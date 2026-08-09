@@ -4,6 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
+import kotlin.system.measureTimeMillis
+import kotlin.test.assertFailsWith
 
 class WindowsUserPathHelperTest {
 
@@ -47,5 +50,24 @@ class WindowsUserPathHelperTest {
             "C:\\Users\\Admin\\.jugg\\bin;C:\\Windows",
             WindowsUserPathUpdater.parseRegQueryPathValue(output),
         )
+    }
+
+    @Test
+    fun runCommandWithTimeout_shouldStopWaitingWhenProcessDoesNotExit() {
+        val elapsed = measureTimeMillis {
+            assertFailsWith<IOException> {
+                runCommandWithTimeout(blockingCommand(), 100L)
+            }
+        }
+
+        assertTrue("Timed out process should return promptly", elapsed < 3_000L)
+    }
+
+    private fun blockingCommand(): List<String> {
+        return if (System.getProperty("os.name").lowercase().contains("windows")) {
+            listOf("cmd", "/c", "ping -n 6 127.0.0.1 >nul")
+        } else {
+            listOf("sh", "-c", "sleep 5")
+        }
     }
 }

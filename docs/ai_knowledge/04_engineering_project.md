@@ -57,7 +57,7 @@
 | `~/.jugg/library_test_build_records` | androidTest history | 记录 self-targeting library Test APK 构建历史 |
 | `build/jugg/config/run_configurations/<id>.json` | IDEA / standalone | 独立 CLI build profile；id 为稳定 UUID，重命名不改变 id |
 | `build/jugg/config/current_run_configuration.json` | IDEA / standalone | 当前配置指针，只保存 schemaVersion 与 configId |
-| `build/jugg/runtime.lock.owner.json` | 当前持锁 Runtime | 项目写锁期间的瞬时 owner metadata；释放锁后删除 |
+| `build/jugg/runtime.lock.owner.json` | 当前持有 Project Runtime lease 的 Runtime | 首个同 Runtime 项目任务取得 lease 时写入，最后一个引用释放后删除 |
 | `build/jugg/runtime.owner.json` | `TaskRunnerManager` | 上次取得项目写所有权的 IDEA/standalone Runtime；CI 不写入；使用临时文件与原子替换；内容损坏时按无历史 owner 处理并由当前 Runtime 覆盖 |
 | `build/jugg/runtime.launch.lock` | Python CLI | 同项目 standalone 自动拉起的跨进程互斥锁；锁内二次发现 Runtime，避免并发 CLI 重复创建 daemon |
 
@@ -185,7 +185,15 @@ jugg CLI 发现目标项目没有 Runtime
 
 Step 11 已由 `StandaloneProjectServices` 组装 Gradle-only model、Compile Context、历史恢复、WatchService/Git reconcile、共享 `JuggCompilerHelper` 与 `JuggDeployerHelper`。进程级 capability 为 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`；`gradle-build` 建立 baseline，`deploy` 负责安装或增量部署。Runtime 构造期的 config/history/context 恢复、显式 `init` 和每次完整 compile/deploy 链都持有同一项目写锁；standalone 项目写事务同时计入 daemon activity。空闲 `status` 仅在非阻塞取得项目锁后执行 owner 恢复、Git refresh 和一致性快照；同 Runtime 正在编译或项目锁正由其他写事务持有时，立即返回当前真实只读快照，不刷新或写入文件状态。运行期间检测到 IDEA/standalone owner 变化后，当前 Runtime 会在下一次成功取得项目写锁的业务链或 status snapshot 开始前重新加载 Compile Context、history、APK 与 Git 文件状态，并使 deployment memory cache 失效。
 
-`IExecutionLockManager` 与 `IMcpRuntime` 均不提供默认方法实现。锁等待/非阻塞取得、项目状态快照和 unsupported 能力必须由具体 Runtime 或测试实现显式声明，避免新增 Host 静默继承错误的并发或能力语义。
+Project Runtime Lock 只表示 IDEA、standalone、CI 等不同 Runtime 对项目的持有权，不负责同一 Runtime 的任务互斥。同一 `TaskRunnerManager` 首次进入项目事务时取得 NIO 文件锁，后续跨线程项目任务共享该 lease 并增加引用计数，最后一个任务结束后才释放。`RuntimeTaskCoordinator` 负责同 Runtime 互斥：独立项目事务使用不同逻辑 owner 并串行；事务内通过 `runTaskSafe`、`runBackgroundSafe` 或 `runAsyncSafe` 提交的子任务自动继承父 owner，跨线程加入同一事务而不等待父任务。另一个 Runtime 始终要等全部本 Runtime lease 引用结束。
+
+Global Resource Lock 只保护 `~/.jugg` 下共享资源的最小读改写提交，不再是 TaskRunner 的任务类型。`TaskRunnerManager` 不暴露 `isGlobalWrite` 或任意 global callback；settings、hot update、CLI/skills、runtime resource 和全局 history 等具体资源 owner 在内部取得 `~/.jugg/locks/global.lock`。Global Lock action 必须同步完成且只执行有界的本地资源读改写，不得启动异步任务、回调 IDEA/业务逻辑、申请业务 monitor，或等待网络、外部进程、线程与 Future。锁顺序固定为 Project Runtime Lock → Global Resource Lock；当前线程持有 G 时，阻塞式和 try Project Lock 获取都会立即失败，因此 G 保持锁等待图叶子。Hot update 使用“两阶段准备 + 短提交”：首次短锁快照可复用缓存与 metadata 基线，锁外完成下载和校验，最终短锁复核基线并原子发布；下载期间其他全局资源 owner 可以正常提交，较慢的旧更新不能覆盖已提交的新更新。Windows CLI 安装只在 G 内发布 `~/.jugg/bin` 文件，释放后才以 5 秒硬超时执行 `reg.exe` 更新用户 PATH，子进程不退出不会继续占用 G。
+
+固定顺序是“Runtime logical owner → Project Runtime lease”。协调器按 owner 引用计数，同 owner 重入只增加引用，不产生等待边；父任务等待子任务时，子任务因此不会反向等待父任务。无父 owner 的非阻塞 Host task 保留改造前的并发语义；其他独立项目事务继续串行，deployment cache 等既有调用方无需增加局部锁。`status` 通过协调器和 Project Runtime lease 的非阻塞 `try` 检查空闲状态，失败立即返回只读快照。调用方只声明任务属性，不需要判断自己是顶层任务还是事务内子任务。
+
+Runtime dispose 不强制修改 owner 或 Project Runtime lease 引用计数，所有锁仍由取得它们的任务在 `finally` 中自然释放。持锁任务依赖异步 completion 时，completion owner 必须在 `close()` 中结束等待并返回取消结果；调用方收到取消后立即退出事务。`GradleProjectInfoLocalFetchManager` 因此会在关闭时完成当前 remote-init completion，`JuggManager` 不再继续 classpath 初始化，避免 IDEA 工程关闭后已排队的 Host task 被平台丢弃而让项目 lease 永久保留。
+
+`IExecutionLockManager` 仅声明项目锁与 owner 读取，不提供默认方法实现。锁等待/非阻塞取得、项目状态快照和 unsupported 能力必须由具体 Runtime 或测试实现显式声明，避免新增 Host 静默继承错误的并发或能力语义。
 
 daemon 的 idle deadline 只由外部 MCP 请求刷新；WatchService、后台轮询和 update check 不刷新。达到 4 小时时，若存在 compile/deploy/Gradle job、项目写事务或更新下载，则每 1 分钟复查，条件解除后停止 MCP Server 并 dispose 全部项目 Runtime。
 

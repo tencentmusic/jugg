@@ -100,7 +100,7 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
 ```
 
-deployment cache 固定保存到 `<projectDir>/build/jugg/deploy_cache/.deploy_cache.db`。`JuggDeploymentService` 是项目 Runtime 实例，不再使用 `~/.jugg` 全局 singleton；同一 Runtime 优先读取 `memoryCache`，写入同步更新内存和磁盘 checkpoint。磁盘读写由项目锁串行，写入先落临时文件并 flush，再原子替换目标文件。
+deployment cache 固定保存到 `<projectDir>/build/jugg/deploy_cache/.deploy_cache.db`。`JuggDeploymentService` 是项目 Runtime 实例，不再使用 `~/.jugg` 全局 singleton；同一 Runtime 优先读取 `memoryCache`，写入同步更新内存和磁盘 checkpoint。磁盘读写由项目事务串行，不同 Runtime 由 Project Runtime lease 互斥；写入先落临时文件并 flush，再原子替换目标文件。
 
 install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。安装失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案。
 

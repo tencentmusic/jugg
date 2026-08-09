@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateBootstrap
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import kotlinx.coroutines.delay
@@ -25,22 +24,16 @@ import java.util.zip.ZipOutputStream
 /** Coordinates IDEA update checks, notifications, plugin installation, restart, and project reopening. */
 class IdeaHotUpdateCoordinator(
     private val juggServer: JuggServer,
-    private val taskRunnerManager: TaskRunnerManager,
     loggerArg: Logger,
 ) {
 
     private val logger = loggerArg.getInstance("IdeaHotUpdateCoordinator")
     private val juggHotUpdateManager = JuggHotUpdateManager(
         juggServer,
-        taskRunnerManager,
         JuggHotUpdateBootstrap.currentEmbeddedBuildTime,
         JuggHotUpdateBootstrap.hotUpdateDir,
         logger,
     )
-    private val hotUpdateDataFile = juggHotUpdateManager.hotUpdateDataFile
-    private val hotUpdateFlag = File(juggHotUpdateManager.hotUpdateDir, "first_update_flag")
-    private val installUpdateFlag = File(juggHotUpdateManager.hotUpdateDir, "install_update_flag")
-
     private val ideaPluginDescriptor: IdeaPluginDescriptor?
         get() = PluginManagerCore.getPlugin(PluginId.getId("com.sickworm.intellij.jugg"))
 
@@ -48,20 +41,16 @@ class IdeaHotUpdateCoordinator(
         publishEmbeddedIfNeeded()
         start()
         processHotUpdateNotification(project)
-        taskRunnerManager.runGlobalWriteLocked("Process installed update notification") {
-            notifyInstallUpdateIfNeeded(project)
-        }
+        notifyInstallUpdateIfNeeded(project)
     }
 
     private fun processHotUpdateNotification(project: Project) {
-        taskRunnerManager.runGlobalWriteLocked("Process hot update notification") {
-            notifyHotUpdateIfNeeded(project)
-            val referencedJarNames = JuggHotUpdateBootstrap.activeLoadManifest
-                ?.jarFileNames
-                ?.toSet()
-                .orEmpty()
-            juggHotUpdateManager.cleanupExpiredJars(referencedJarNames).forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
-        }
+        notifyHotUpdateIfNeeded(project)
+        val referencedJarNames = JuggHotUpdateBootstrap.activeLoadManifest
+            ?.jarFileNames
+            ?.toSet()
+            .orEmpty()
+        juggHotUpdateManager.cleanupExpiredJars(referencedJarNames).forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
     }
 
     private fun publishEmbeddedIfNeeded() {
@@ -95,7 +84,7 @@ class IdeaHotUpdateCoordinator(
     }
 
     private fun notifyHotUpdateIfNeeded(project: Project) {
-        val isHotUpdate = hotUpdateFlag.exists()
+        val isHotUpdate = juggHotUpdateManager.hasHotUpdateNotification()
         logger.debug("notifyHotUpdateIfNeeded $isHotUpdate")
         if (!isHotUpdate) {
             return
@@ -105,8 +94,7 @@ class IdeaHotUpdateCoordinator(
         }
 
         try {
-            val currentHotUpdateData = Gson().fromJson(hotUpdateDataFile.readText(), HotUpdateData::class.java)
-            hotUpdateFlag.delete()
+            val currentHotUpdateData = juggHotUpdateManager.consumeHotUpdateNotification() ?: return
             val notificationData = currentHotUpdateData.updateInfo
             logger.debug("show notifyHotUpdateIfNeeded ${currentHotUpdateData.updateInfo}")
             if (notificationData != null) {
@@ -119,13 +107,10 @@ class IdeaHotUpdateCoordinator(
     }
 
     private fun notifyInstallUpdateIfNeeded(project: Project) {
-        val isInstallUpdate = installUpdateFlag.exists()
-        logger.debug("notifyInstallUpdateIfNeeded $isInstallUpdate")
-        if (!isInstallUpdate) {
-            return
-        }
+        val currentHotUpdateData = juggHotUpdateManager.readInstallUpdateNotification()
+        logger.debug("notifyInstallUpdateIfNeeded ${currentHotUpdateData != null}")
+        if (currentHotUpdateData == null) return
         try {
-            val currentHotUpdateData = Gson().fromJson(hotUpdateDataFile.readText(), HotUpdateData::class.java)
             logger.debug("notifyInstallUpdateIfNeeded isNeedReInstall=true, " +
                     "pluginVersion: ${ideaPluginDescriptor?.version}, " +
                     "targetVersion: ${currentHotUpdateData.targetVersion}")
@@ -134,11 +119,11 @@ class IdeaHotUpdateCoordinator(
                 logger.debug("notifyInstallUpdateIfNeeded not install update, return")
                 if (!isUpdatedThisRuntime) {
                     // which means IDE has been rebooted, maybe update failed or override by other installation
-                    installUpdateFlag.delete()
+                    juggHotUpdateManager.clearInstallUpdateNotification(currentHotUpdateData)
                 }
                 return
             }
-            installUpdateFlag.delete()
+            if (!juggHotUpdateManager.clearInstallUpdateNotification(currentHotUpdateData)) return
             juggHotUpdateManager.activateReinstallCandidate(PluginInfoReader.getPluginCompileTimestamp())
             val notificationData = currentHotUpdateData.updateInfo
             logger.debug("show notifyInstallUpdateIfNeeded ${currentHotUpdateData.updateInfo}")
@@ -165,13 +150,8 @@ class IdeaHotUpdateCoordinator(
         return hotUpdateData
     }
 
+    @Synchronized
     fun downloadAndInstallUpdate(hotUpdateData: HotUpdateData) {
-        taskRunnerManager.runGlobalWriteLocked("Download hot update") {
-            downloadAndInstallUpdateLocked(hotUpdateData)
-        }
-    }
-
-    private fun downloadAndInstallUpdateLocked(hotUpdateData: HotUpdateData) {
         // 0. check has been installed and not reboot yet
         if (isUpdatedThisRuntime) {
             logEvent("downloadHotUpdate isUpdatedThisRuntime=true, just mark it success")
@@ -188,12 +168,9 @@ class IdeaHotUpdateCoordinator(
             return
         }
 
-        if (hotUpdateData.isNeedReinstall) {
-            installUpdateFlag.createNewFile()
-            hotUpdateFlag.delete()
-        } else {
-            installUpdateFlag.delete()
-            hotUpdateFlag.createNewFile()
+        if (!juggHotUpdateManager.publishUpdateNotification(hotUpdateData)) {
+            logEvent("downloadHotUpdate superseded by another update")
+            return
         }
 
         val detailMap = mapOf(

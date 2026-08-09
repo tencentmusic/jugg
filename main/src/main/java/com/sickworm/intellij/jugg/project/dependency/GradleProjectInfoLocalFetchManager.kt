@@ -59,6 +59,7 @@ class GradleProjectInfoLocalFetchManager(
         private set
     private var pendingUpdate: Pair<String?, BuildTarget>? = null
     private var isNeedWaitAfterRemoteCompile = false
+    private var isClosed = false
 
     @Volatile
     private var updateCompletion = CountDownLatch(0)
@@ -107,6 +108,8 @@ class GradleProjectInfoLocalFetchManager(
         buildTarget: BuildTarget = deployHistoryManager.getFullBuildInfo()?.buildTarget ?: BuildTarget.APP,
         shouldWaitForRemoteInit: Boolean = false,
     ) {
+        if (isClosed) return
+
         // make sure we have checked the gradle project info data
         // gradleProjectInfoFile will be deleted if data is invalid
         compileContextManager.ensureInitProjectInfo()
@@ -146,13 +149,14 @@ class GradleProjectInfoLocalFetchManager(
         }
     }
 
-    /** Waits only for project info refreshes required by remote compile initialization. */
-    fun waitForRemoteInitUpdate() {
+    /** Waits for the remote-init refresh and returns false when shutdown or interruption cancels it. */
+    fun waitForRemoteInitUpdate(): Boolean {
         val shouldWait = synchronized(this) {
+            if (isClosed) return false
             isNeedWaitAfterRemoteCompile.also { isNeedWaitAfterRemoteCompile = false }
         }
         if (!shouldWait) {
-            return
+            return true
         }
 
         while (true) {
@@ -165,10 +169,11 @@ class GradleProjectInfoLocalFetchManager(
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
                 logger.debug("wait for remote compile project info update interrupted", e)
-                return
+                return false
             }
-            if (completion === updateCompletion) {
-                return
+            synchronized(this) {
+                if (isClosed) return false
+                if (completion === updateCompletion) return true
             }
         }
     }
@@ -268,6 +273,16 @@ class GradleProjectInfoLocalFetchManager(
     }
 
     override fun close() {
+        val completion = synchronized(this) {
+            if (isClosed) return
+            isClosed = true
+            isNeedWaitAfterRemoteCompile = false
+            isUpdating = false
+            isRebuildingMissingProjectInfo = false
+            pendingUpdate = null
+            updateCompletion
+        }
+        completion.countDown()
         cmdExecutor.release()
     }
 }

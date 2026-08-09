@@ -5,7 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
-import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.io.FileOutputStream
@@ -48,7 +48,7 @@ class LibraryTestApkBuildHistory(
 
     fun record(record: LibraryTestApkBuildRecord) {
         val globalRootDir = recordDir.absoluteFile.parentFile ?: recordDir
-        TaskRunnerManager.runGlobalWriteLocked("Update library Test APK build history", globalRootDir) {
+        withGlobalResourceLock("Update library Test APK build history", globalRootDir) {
             val oldData = load()
             val records = oldData.records
                 .filterNot { it.moduleName == record.moduleName && it.buildVariant == record.buildVariant }

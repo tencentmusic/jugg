@@ -30,8 +30,6 @@ internal fun createTestTaskRunnerManager(coroutineScope: CoroutineScope): TaskRu
 
             override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? = action()
 
-            override fun <T> withGlobalLock(command: String, action: () -> T): T = action()
-
             override fun readProjectLockOwner(): ExecutionLockOwner? = null
         },
         coroutineScope = coroutineScope,
@@ -42,10 +40,9 @@ internal fun createImmediateTestTaskRunnerManager(): TaskRunnerManager {
     val manager = Mockito.mock(TaskRunnerManager::class.java)
     doReturn(Dispatchers.Unconfined).whenever(manager).dispatcher
     doAnswer { invocation ->
-        invocation.getArgument<Runnable>(5).run()
+        invocation.getArgument<Runnable>(4).run()
         Job()
     }.whenever(manager).runBackgroundSafe(
-        any(),
         any(),
         any(),
         any(),

@@ -44,6 +44,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
@@ -89,6 +90,7 @@ class JuggManagerFullBuildFlowTest {
         val coroutineScope = CoroutineScope(Dispatchers.Unconfined)
         val logger = mock<Logger>()
         val gradleProjectInfoLocalFetchManager = mock<GradleProjectInfoLocalFetchManager>()
+        whenever(gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()).thenReturn(true)
         val manager = JuggManager(
             project = project,
             pathManager = pathManager,
@@ -129,6 +131,15 @@ class JuggManagerFullBuildFlowTest {
             verify(juggCompilerHelper).fetchClasspath(any(), any(), anyOrNull(), any())
         }
         verify(deployHistoryManager, never()).deleteDeployHistory()
+
+        clearInvocations(gradleProjectInfoLocalFetchManager, compileContextManager, juggCompilerHelper)
+        whenever(gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()).thenReturn(false)
+
+        manager.initIncrementalCompileAfterFullBuild(1L, options)
+
+        verify(gradleProjectInfoLocalFetchManager).waitForRemoteInitUpdate()
+        verify(compileContextManager, never()).getProjectInfo()
+        verify(juggCompilerHelper, never()).fetchClasspath(any(), any(), anyOrNull(), any())
     }
 
     @Test

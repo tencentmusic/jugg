@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
-import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -98,10 +98,10 @@ fun List<File>.relativePathForPrintSafe(baseDirPath: File): List<File> {
 }
 
 fun copyResource(resourcePath: String): File {
-    return TaskRunnerManager.runGlobalWriteLocked("Extract runtime resource") {
+    return withGlobalResourceLock("Extract runtime resource") {
         val storePath = JuggGlobalPathManager.resourceFile(resourcePath)
         if (storePath.exists()) {
-            return@runGlobalWriteLocked storePath
+            return@withGlobalResourceLock storePath
         }
         storePath.parentFile.mkdirs()
         val tempFile = File(storePath.parentFile, "${storePath.name}.${UUID.randomUUID()}.tmp")

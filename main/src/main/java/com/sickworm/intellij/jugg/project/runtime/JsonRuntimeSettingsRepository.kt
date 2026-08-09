@@ -32,7 +32,7 @@ class JsonRuntimeSettingsRepository(
     fun mergeMissing(values: Map<String, JsonElement>): Boolean {
         if (values.isEmpty()) return true
         return try {
-            TaskRunnerManager.runGlobalWriteLocked("Migrate runtime settings", globalRootDir) {
+            withGlobalResourceLock("Migrate runtime settings", globalRootDir) {
                 val json = readJsonObject()
                 var changed = false
                 values.forEach { (name, value) ->
@@ -60,9 +60,9 @@ class JsonRuntimeSettingsRepository(
 
     private fun updateSafely(taskName: String, update: (JsonObject) -> Boolean): Boolean {
         return try {
-            TaskRunnerManager.runGlobalWriteLocked(taskName, globalRootDir) {
+            withGlobalResourceLock(taskName, globalRootDir) {
                 val json = readJsonObject()
-                if (!update(json)) return@runGlobalWriteLocked false
+                if (!update(json)) return@withGlobalResourceLock false
                 writeJsonObject(json)
                 true
             }

@@ -11,6 +11,7 @@ import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 
 class ProjectExecutionLockTest {
 
@@ -35,6 +36,63 @@ class ProjectExecutionLockTest {
         }
 
         assertFalse(pathManager.runtimeLockOwnerFile.exists())
+    }
+
+    @Test
+    fun `same runtime shares project lease until its last task finishes`() {
+        val projectDir = Files.createTempDirectory("jugg-project-shared-lease").toFile()
+        val pathManager = JuggPathManager(projectDir)
+        val sameRuntime = FileExecutionLockManager(pathManager, RuntimeIdentity("idea", "test"))
+        val otherRuntime = FileExecutionLockManager(pathManager, RuntimeIdentity("standalone", "test"))
+        val firstEntered = CountDownLatch(1)
+        val secondEntered = CountDownLatch(1)
+        val otherEntered = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val releaseSecond = CountDownLatch(1)
+
+        val firstThread = Thread {
+            sameRuntime.withProjectLock("first") {
+                firstEntered.countDown()
+                releaseFirst.await(5, TimeUnit.SECONDS)
+            }
+        }
+        val secondThread = Thread {
+            firstEntered.await(5, TimeUnit.SECONDS)
+            sameRuntime.withProjectLock("second") {
+                secondEntered.countDown()
+                releaseSecond.await(5, TimeUnit.SECONDS)
+            }
+        }
+        val otherThread = Thread {
+            secondEntered.await(5, TimeUnit.SECONDS)
+            otherRuntime.withProjectLock("other") {
+                otherEntered.countDown()
+            }
+        }
+
+        firstThread.start()
+        secondThread.start()
+        try {
+            assertTrue(firstEntered.await(5, TimeUnit.SECONDS))
+            assertTrue(secondEntered.await(500, TimeUnit.MILLISECONDS))
+            otherThread.start()
+            assertFalse(otherEntered.await(200, TimeUnit.MILLISECONDS))
+
+            releaseFirst.countDown()
+            firstThread.join(5_000)
+            assertFalse(otherEntered.await(200, TimeUnit.MILLISECONDS))
+            assertTrue(pathManager.runtimeLockOwnerFile.exists())
+
+            releaseSecond.countDown()
+            assertTrue(otherEntered.await(5, TimeUnit.SECONDS))
+        } finally {
+            releaseFirst.countDown()
+            releaseSecond.countDown()
+            firstThread.join(5_000)
+            secondThread.join(5_000)
+            if (otherThread.state == Thread.State.NEW) otherThread.start()
+            otherThread.join(5_000)
+        }
     }
 
     @Test
@@ -124,31 +182,42 @@ class ProjectExecutionLockTest {
     }
 
     @Test
-    fun `global lock serializes different projects and write types`() {
+    fun `project lock fails fast while current thread holds global resource lock`() {
+        val projectDir = Files.createTempDirectory("jugg-project-lock-order").toFile()
+        val globalRoot = Files.createTempDirectory("jugg-global-lock-order").toFile()
+        val lockManager = FileExecutionLockManager(JuggPathManager(projectDir), RuntimeIdentity("idea", "test"))
+
+        withGlobalResourceLock("global update", globalRoot) {
+            val blockingError = assertFailsWith<IllegalStateException> {
+                lockManager.withProjectLock("project update") { Unit }
+            }
+            val tryError = assertFailsWith<IllegalStateException> {
+                lockManager.tryWithProjectLock("project status") { Unit }
+            }
+
+            assertTrue(blockingError.message.orEmpty().contains("Global Resource Lock"))
+            assertTrue(tryError.message.orEmpty().contains("Global Resource Lock"))
+        }
+
+        assertEquals("acquired", lockManager.withProjectLock("project after global") { "acquired" })
+    }
+
+    @Test
+    fun `global resource lock serializes independent resource owners`() {
         val globalRoot = Files.createTempDirectory("jugg-global-lock").toFile()
-        val first = FileExecutionLockManager(
-            JuggPathManager(Files.createTempDirectory("jugg-global-first").toFile()),
-            RuntimeIdentity("idea", "test"),
-            globalRoot,
-        )
-        val second = FileExecutionLockManager(
-            JuggPathManager(Files.createTempDirectory("jugg-global-second").toFile()),
-            RuntimeIdentity("standalone", "test"),
-            globalRoot,
-        )
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
         val secondEntered = CountDownLatch(1)
 
         val firstThread = Thread {
-            first.withGlobalLock("cli update") {
+            withGlobalResourceLock("cli update", globalRoot) {
                 entered.countDown()
                 release.await(5, TimeUnit.SECONDS)
             }
         }
         val secondThread = Thread {
             entered.await(5, TimeUnit.SECONDS)
-            second.withGlobalLock("hot update") {
+            withGlobalResourceLock("hot update", globalRoot) {
                 secondEntered.countDown()
             }
         }
@@ -164,42 +233,6 @@ class ProjectExecutionLockTest {
     }
 
     @Test
-    fun `task runner global facade shares task runner instance lock`() {
-        val globalRoot = Files.createTempDirectory("jugg-global-direct-lock").toFile()
-        val taskLock = FileExecutionLockManager(
-            JuggPathManager(Files.createTempDirectory("jugg-global-task").toFile()),
-            RuntimeIdentity("idea", "test"),
-            globalRoot,
-        )
-        val entered = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        val taskEntered = CountDownLatch(1)
-
-        val directThread = Thread {
-            TaskRunnerManager.runGlobalWriteLocked("load hot update", globalRoot) {
-                entered.countDown()
-                release.await(5, TimeUnit.SECONDS)
-            }
-        }
-        val taskThread = Thread {
-            entered.await(5, TimeUnit.SECONDS)
-            taskLock.withGlobalLock("update cli") {
-                taskEntered.countDown()
-            }
-        }
-        directThread.start()
-        taskThread.start()
-
-        assertTrue(entered.await(5, TimeUnit.SECONDS))
-        assertFalse(taskEntered.await(200, TimeUnit.MILLISECONDS))
-        release.countDown()
-        assertTrue(taskEntered.await(5, TimeUnit.SECONDS))
-        directThread.join(5_000)
-        taskThread.join(5_000)
-        assertEquals(File(globalRoot, "locks/global.lock"), JuggGlobalPathManager.globalLockFile(globalRoot))
-    }
-
-    @Test
     fun `global lock waits for overlapping JVM file lock from another coordinator`() {
         val globalRoot = Files.createTempDirectory("jugg-global-overlapping-lock").toFile()
         val lockFile = JuggGlobalPathManager.globalLockFile(globalRoot)
@@ -209,7 +242,7 @@ class ProjectExecutionLockTest {
         RandomAccessFile(lockFile, "rw").channel.use { channel ->
             channel.lock().use {
                 val thread = Thread {
-                    TaskRunnerManager.runGlobalWriteLocked("wait for loader", globalRoot) {
+                    withGlobalResourceLock("wait for loader", globalRoot) {
                         entered.countDown()
                     }
                 }

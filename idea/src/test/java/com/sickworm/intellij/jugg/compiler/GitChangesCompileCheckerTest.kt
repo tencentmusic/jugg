@@ -186,16 +186,16 @@ class GitChangesCompileCheckerTest {
 
     private fun pendingTaskRunner(): TaskRunnerManager {
         val manager = mock<TaskRunnerManager>()
-        doReturn(Job()).whenever(manager).runBackgroundSafe(any(), any(), any(), any(), any(), any())
+        doReturn(Job()).whenever(manager).runBackgroundSafe(any(), any(), any(), any(), any())
         return manager
     }
 
     private fun immediateTaskRunner(): TaskRunnerManager {
         val manager = mock<TaskRunnerManager>()
         doAnswer { invocation ->
-            invocation.getArgument<Runnable>(5).run()
+            invocation.getArgument<Runnable>(4).run()
             Job().apply { complete() }
-        }.whenever(manager).runBackgroundSafe(any(), any(), any(), any(), any(), any())
+        }.whenever(manager).runBackgroundSafe(any(), any(), any(), any(), any())
         return manager
     }
 
@@ -205,8 +205,8 @@ class GitChangesCompileCheckerTest {
 
         init {
             doAnswer { invocation ->
-                PendingTask(invocation.getArgument(5), Job()).also(tasks::add).job
-            }.whenever(manager).runBackgroundSafe(any(), any(), any(), any(), any(), any())
+                PendingTask(invocation.getArgument(4), Job()).also(tasks::add).job
+            }.whenever(manager).runBackgroundSafe(any(), any(), any(), any(), any())
         }
 
         fun complete(index: Int) {

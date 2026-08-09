@@ -283,7 +283,7 @@ class MoreOptionsManager(
             content = "Here to set custom server url for redirecting uploading compilation cost, reporting issues etc.",
             defaultInputText = juggServer.customServerUrl,
         ) ?: return
-        taskRunnerManager.runBackgroundSafe("Set custom server", isGlobalWrite = true) {
+        taskRunnerManager.runBackgroundSafe("Set custom server") {
             juggServer.setCustomServer(serverUrl)
         }
     }
@@ -312,7 +312,7 @@ class MoreOptionsManager(
         taskRunnerManager.runBackgroundSafe("Check updates") {
             val hotUpdateData = ideaHotUpdateCoordinator.checkHotUpdate(isPositiveCheck = true)
             dialog.setHotUpdateData(hotUpdateData) {
-                taskRunnerManager.runBackgroundSafe("Download updates", isGlobalWrite = true) {
+                taskRunnerManager.runBackgroundSafe("Download updates") {
                     try {
                         ideaHotUpdateCoordinator.downloadAndInstallUpdate(hotUpdateData!!)
                         dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {

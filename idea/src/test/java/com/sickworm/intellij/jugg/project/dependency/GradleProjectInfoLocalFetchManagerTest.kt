@@ -24,6 +24,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -80,7 +81,7 @@ class GradleProjectInfoLocalFetchManagerTest {
         doAnswer {
             updateAction = it.getArgument(1)
             null
-        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any(), any())
+        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any())
         val manager = GradleProjectInfoLocalFetchManager(
             pathManager,
             mock<CompileContextManager>(),
@@ -108,9 +109,10 @@ class GradleProjectInfoLocalFetchManagerTest {
 
         val waitStarted = CountDownLatch(1)
         val waitFinished = CountDownLatch(1)
+        val waitResult = AtomicReference<Boolean>()
         val waiter = thread(isDaemon = true) {
             waitStarted.countDown()
-            manager.waitForRemoteInitUpdate()
+            waitResult.set(manager.waitForRemoteInitUpdate())
             waitFinished.countDown()
         }
         try {
@@ -119,7 +121,8 @@ class GradleProjectInfoLocalFetchManagerTest {
 
             updateAction!!.run()
             assertTrue(waitFinished.await(1, TimeUnit.SECONDS))
-            verify(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any(), eq(false))
+            assertTrue(waitResult.get())
+            verify(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), eq(false))
             verify(logger, never()).debug("finalCompileCommand: regular-invalid-command is not normal gradle command, can not update")
             verify(logger).debug("finalCompileCommand: remote-invalid-command is not normal gradle command, can not update")
         } finally {
@@ -129,6 +132,47 @@ class GradleProjectInfoLocalFetchManagerTest {
             waiter.join(1_000)
             manager.close()
         }
+    }
+
+    @Test
+    fun `close releases remote init waiter when queued refresh never starts`() {
+        val taskRunnerManager = mock<TaskRunnerManager>()
+        val pathManager = JuggPathManager(temporaryFolder.root)
+        val deployHistoryManager = mock<IDeployHistoryManager>()
+        whenever(deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew assembleDebug", BuildTarget.APP, 1L),
+        )
+        val manager = GradleProjectInfoLocalFetchManager(
+            pathManager,
+            mock<CompileContextManager>(),
+            taskRunnerManager,
+            mock<IDependencyChangeManager>(),
+            deployHistoryManager,
+            mock<ICompileEnvironmentSource>(),
+            mock<Logger>(),
+        )
+        manager.runUpdateIfNeeded(
+            isForce = true,
+            specificCompileCommand = "remote-invalid-command",
+            shouldWaitForRemoteInit = true,
+        )
+        val waitStarted = CountDownLatch(1)
+        val waitFinished = CountDownLatch(1)
+        val waitResult = AtomicReference<Boolean>()
+        val waiter = thread(isDaemon = true) {
+            waitStarted.countDown()
+            waitResult.set(manager.waitForRemoteInitUpdate())
+            waitFinished.countDown()
+        }
+
+        assertTrue(waitStarted.await(1, TimeUnit.SECONDS))
+        assertFalse(waitFinished.await(100, TimeUnit.MILLISECONDS))
+
+        manager.close()
+
+        assertTrue(waitFinished.await(1, TimeUnit.SECONDS))
+        assertFalse(waitResult.get())
+        waiter.join(1_000)
     }
 
     @Test
@@ -143,7 +187,7 @@ class GradleProjectInfoLocalFetchManagerTest {
         doAnswer {
             updateAction = it.getArgument(1)
             null
-        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any(), any())
+        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any())
         val manager = GradleProjectInfoLocalFetchManager(
             pathManager,
             mock<CompileContextManager>(),
@@ -166,7 +210,6 @@ class GradleProjectInfoLocalFetchManagerTest {
                 eq("Update project info from gradle"),
                 any(),
                 eq(true),
-                eq(false),
                 eq(true),
                 eq(false),
             )

@@ -45,7 +45,7 @@ class JuggResourceManager(
         val normalizedRoot = resourceRoot.trim('/')
         val metadata = readMetadata(normalizedRoot)
         validateMetadata(metadata)
-        return TaskRunnerManager.runGlobalWriteLocked("Prepare runtime resource", globalRootDir) {
+        return withGlobalResourceLock("Prepare runtime resource", globalRootDir) {
             val targetDir = resolveTarget(targetRelativePath)
             metadata.files.forEach { prepareFile(normalizedRoot, targetDir, it) }
             PreparedRuntimeResource(targetDir, metadata)

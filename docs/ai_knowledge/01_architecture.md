@@ -23,7 +23,7 @@
 | 核心逻辑层 | `main/src/main/java/com/sickworm/intellij/jugg` | 编译、部署、项目模型、Gradle、MCP、工具能力 |
 | 项目信息域 | `main/.../project/info` + `idea/.../compiler/context/IdeaProjectModelSource.kt` | project model source 边界、序列化/合并与 IDEA host model 读取 |
 | 项目变化域 | `main/.../project/change` + `idea/.../project/change` | 文件变化检测契约、过滤和 IDE VFS/Git detector |
-| 任务与锁域 | `main/.../project/runtime/TaskRunnerManager.kt`, `ExecutionLockManager.kt` | 统一任务串行、项目/全局跨进程锁、后台 Job 跟踪、完成事件上报和 dispose 取消；IDEA 仅提供任务展示 adapter，完成事件直接交给共享 `JuggServer` |
+| 任务与锁域 | `main/.../project/runtime/TaskRunnerManager.kt`, `ExecutionLockManager.kt` | `TaskRunnerManager` 串行同 Runtime 的阻塞项目任务，Project Runtime lease 只互斥不同 Runtime；同时管理全局跨进程锁、后台 Job、完成事件和 dispose；IDEA 仅提供任务展示 adapter |
 | 编译上下文域 | `main/.../compiler/context` | 共享 Compile Context 生命周期、full-build path 覆盖和 Gradle-only context；不依赖 IDEA model API |
 | 兼容层 | `deploy_compat/*` | Android Studio 版本 API 适配；共享部署调用使用 `deploy.api` 自有类型，外部类型只在边界转换 |
 | 平台桩层 | `platform_compat/base_api` | IntelliJ/log4j 最小实现，支撑非 IDE 编译并作为 CLI runtime stub；不提供 Android runtime class |
