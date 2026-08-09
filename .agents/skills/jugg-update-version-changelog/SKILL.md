@@ -7,7 +7,7 @@ description: Update the Jugg plugin version and changelog files, including final
 
 ## Overview
 
-Use this skill to update Jugg release metadata consistently: Gradle version, RC changelog YAML, HTML changelog pages, verification, and commit staging. Keep the workflow scoped to Jugg repositories only.
+Use this skill to update Jugg release metadata consistently: Gradle version, RC changelog YAML, HTML changelog pages, verification, commit staging, and version tagging. Keep the workflow scoped to Jugg repositories only.
 
 ## Scope Guard
 
@@ -74,11 +74,20 @@ Inside a Jugg project, follow the repository's `AGENTS.md` instructions first. I
    - Stage only files changed for this version/changelog task.
    - Never stage unrelated user changes or untracked generated files.
 
+8. Tag:
+   - Create a lightweight tag named exactly `X.Y.Z` on the completed version commit, without a `v` prefix.
+   - Create the tag only after the commit and all verification succeed.
+   - If the tag already resolves to the completed version commit, treat tagging as complete.
+   - If the tag exists on any other commit, stop and report the conflict. Never force, move, or delete it unless the user explicitly requests that destructive change.
+   - Verify the tag resolves to `HEAD` with `test "$(git rev-parse X.Y.Z^{commit})" = "$(git rev-parse HEAD)"`.
+   - Do not push the commit or tag unless the user explicitly asks.
+
 ## Finalize an Existing Version Commit
 
 Use this workflow when the user says `版本提交收尾` or asks to summarize changes since an existing version commit, amend the summary into that commit, and move the version commit to `HEAD` or the last commit.
 
 1. Resolve the version commit and original `HEAD`, then verify the version commit is an ancestor of `HEAD` and the working tree is clean.
+   - Resolve the exact version tag before rewriting. If it points to the version commit being finalized, recreate it on the amended successor only after the rewrite succeeds. If it points elsewhere, stop and report the conflict.
 2. Summarize the user-visible changes in `<version-commit>..HEAD`. Update the RC and aggregated HTML changelogs with that summary. Amend the matching RC version entry and follow the HTML deduplication rules.
 3. Keep one RC declaration per patch: amend it when the version exists, or prepend it when the version does not exist.
 4. Commit only the changelog summary as a temporary standalone commit.
@@ -86,6 +95,7 @@ Use this workflow when the user says `版本提交收尾` or asks to summarize c
 6. Amend only the temporary changelog-summary commit into the relocated version commit. Preserve the version commit's original subject, author, and author date unless the user explicitly requests changes.
 7. Never squash the commits in `<version-commit>..HEAD` into the version commit. In this workflow, "summarize changes" means update the release notes, not combine the implementation commits.
 8. Verify the final tree matches the tree produced by the original `HEAD` plus the changelog update. Confirm the version commit is `HEAD`, the intermediate commit count is preserved, and the working tree is clean.
+9. Create or recreate the lightweight `X.Y.Z` tag on the final `HEAD`, then verify it resolves to that commit. Never move a tag that originally pointed outside the version commit being finalized.
 
 Git amend changes the commit hash. Report the new hash as the amended successor of the original version commit rather than claiming the original hash still exists at `HEAD`.
 
@@ -113,4 +123,5 @@ When the Jugg repository requires a final execution checklist, include the repos
 - The files or docs used for locating the change.
 - Whether project docs needed updates.
 - The exact commit message or `N/A` if no repository commit was made.
+- The exact tag and target commit, or `N/A` if no tag was created or verified.
 - The exact verification commands run.
