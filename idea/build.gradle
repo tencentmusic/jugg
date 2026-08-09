@@ -66,6 +66,7 @@ def thirdPartySourceChecksums = [
         'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h': '229d8607d191a3d7815a887ca32d79da11ffa85b4cb16a43b6a01dbb0929d08d',
         'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h.patch': '5bde14952e873f5c40b68782ba52f16e2506f88fb513c405ef8a459dd85e63b7',
 ]
+def thirdPartySbomPath = 'jugg/third_party/sbom/jugg-3.2.2-release.spdx.json'
 
 def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
     group = 'verification'
@@ -108,7 +109,7 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
                 'jugg/third_party/sources/openjdk-jvmti-header/UPSTREAM_jvmti.h',
                 'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h',
                 'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h.patch',
-                "jugg/third_party/sbom/jugg-${project.version}.spdx.json",
+                thirdPartySbomPath,
         ]
 
         def zip = new ZipFile(distributions.first())
@@ -149,7 +150,7 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
             }
 
             def sbom = new JsonSlurper().parseText(zip.getInputStream(
-                    zip.getEntry("jugg/third_party/sbom/jugg-${project.version}.spdx.json"))
+                    zip.getEntry(thirdPartySbomPath))
                     .getText('UTF-8'))
             if (sbom.spdxVersion != 'SPDX-2.3' || sbom.packages?.size() != 104) {
                 throw new GradleException('Invalid SPDX SBOM')
