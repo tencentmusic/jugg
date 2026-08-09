@@ -28,7 +28,7 @@ Return `blocked` when required input is missing or the repository differs. In re
 6. Inspect the repository and identify likely modules, behavior owners, and evidence. Do not claim a root cause without code, documentation, log, or reproducible evidence.
 7. Mark the conclusion as clear only when the available evidence establishes the causal explanation or directly answers the reporter's question. Locating the failure stage, listing possible causes, or finding a related code path is not a clear conclusion.
 8. Calibrate `confidence` from evidence strength. Use `0.90` or above only for a complete causal chain supported by direct evidence. Use `0.70` to `0.89` when the conclusion is well supported but one link remains inferential. Cap confidence at `0.69` when the root cause or answer is not clear, and below `0.40` when evidence is missing or conflicting.
-9. When the conclusion is not clear, do not provide speculative fixes. State the confirmed evidence boundary, then request the specific missing evidence required to continue. Do not ask for a generic “full log” or “more information.”
+9. When the conclusion is not clear, do not provide fixes, workarounds, configuration changes, code directions, or speculative troubleshooting suggestions to either the reporter or maintainer. State the confirmed evidence boundary, then ask whether the reporter can provide the specific missing evidence required to continue. Make the request actionable: name the exact log, output, version, reproduction step, or time range; explain where to find or how to collect it with read-only commands when needed; and state which portion to return. Do not ask for a generic “full log” or “more information.”
 10. When the task requests implementation, modify code and files as needed, run risk-matched tests or other verification, and follow repository instructions for commits and documentation. Do not stop at a suggested patch when the requested change can be completed and verified locally.
 11. Use duplicate candidates only when the receiver supplies them. Do not invent or claim a duplicate based solely on memory.
 12. Recommend labels only from the supplied available-label list. Prefer one type label, one `area:*` label when supported, and `needs-repro` when necessary. Never recommend creating or removing labels.
@@ -53,7 +53,7 @@ Use `maintainer_notes_markdown` as a detailed engineering handoff. It is collaps
 - causal analysis: the confirmed sequence from trigger to failure, the exact evidence boundary, and why competing explanations were accepted or rejected;
 - repository mapping: behavior owners, relevant symbols or files, and how they relate to the observed failure;
 - actions and verification: commands, code changes, tests, or reproductions performed and their outcomes;
-- remaining uncertainty and the smallest next step that would resolve it.
+- remaining uncertainty and the exact missing evidence required to resolve it. When the conclusion is unclear, keep this to evidence acquisition and do not suggest fixes or implementation directions.
 
 Do not repeat large raw logs or pad the notes with generic process text. Short notes are appropriate only for spam, duplicate delivery markers, automation tests, or genuinely evidence-free reports. A failed report fetch may justify a narrower analysis, but the notes must still record the failed acquisition and everything established from the Issue excerpt and repository evidence.
 
