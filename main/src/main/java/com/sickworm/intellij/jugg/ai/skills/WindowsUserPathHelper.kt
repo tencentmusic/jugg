@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.ai.skills
 
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 
 /**
  * Pure helpers for merging a directory into the Windows user PATH.
@@ -47,6 +49,7 @@ object WindowsUserPathUpdater {
 
     private const val REG_KEY = "HKCU\\Environment"
     private const val PATH_VALUE = "Path"
+    private const val REG_COMMAND_TIMEOUT_MILLIS = 5_000L
 
     fun prependIfMissing(targetPath: String) {
         val targetFull = WindowsUserPathHelper.normalizePathEntry(targetPath)
@@ -62,34 +65,23 @@ object WindowsUserPathUpdater {
     }
 
     internal fun readUserPath(): String? {
-        val process = ProcessBuilder("reg", "query", REG_KEY, "/v", PATH_VALUE)
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        if (process.waitFor() != 0) {
+        val result = runCommandWithTimeout(
+            listOf("reg", "query", REG_KEY, "/v", PATH_VALUE),
+            REG_COMMAND_TIMEOUT_MILLIS,
+        )
+        if (result.exitCode != 0) {
             return null
         }
-        return parseRegQueryPathValue(output)
+        return parseRegQueryPathValue(result.output)
     }
 
     internal fun writeUserPath(value: String) {
-        val process = ProcessBuilder(
-            "reg",
-            "add",
-            REG_KEY,
-            "/v",
-            PATH_VALUE,
-            "/t",
-            "REG_SZ",
-            "/d",
-            value,
-            "/f",
+        val result = runCommandWithTimeout(
+            listOf("reg", "add", REG_KEY, "/v", PATH_VALUE, "/t", "REG_SZ", "/d", value, "/f"),
+            REG_COMMAND_TIMEOUT_MILLIS,
         )
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        if (process.waitFor() != 0) {
-            throw IOException("failed_to_update_user_path: ${output.trim()}")
+        if (result.exitCode != 0) {
+            throw IOException("failed_to_update_user_path: ${result.output.trim()}")
         }
     }
 
@@ -102,5 +94,30 @@ object WindowsUserPathUpdater {
             return null
         }
         return parts[2].trim()
+    }
+}
+
+internal data class ProcessCommandResult(val exitCode: Int, val output: String)
+
+/** Runs a short system command without allowing its output stream or process lifetime to block indefinitely. */
+internal fun runCommandWithTimeout(command: List<String>, timeoutMillis: Long): ProcessCommandResult {
+    require(command.isNotEmpty()) { "Process command is empty" }
+    require(timeoutMillis > 0L) { "Process timeout must be positive" }
+    val outputFile = Files.createTempFile("jugg-command-", ".log").toFile()
+    var process: Process? = null
+    try {
+        val runningProcess = ProcessBuilder(command)
+            .redirectErrorStream(true)
+            .redirectOutput(outputFile)
+            .start()
+        process = runningProcess
+        if (!runningProcess.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)) {
+            runningProcess.destroyForcibly()
+            throw IOException("process_timeout: ${command.first()}")
+        }
+        return ProcessCommandResult(runningProcess.exitValue(), outputFile.readText())
+    } finally {
+        if (process?.isAlive == true) process.destroyForcibly()
+        outputFile.delete()
     }
 }

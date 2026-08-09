@@ -252,7 +252,7 @@ class JuggDeployerInstallTest {
     }
 
     @Test
-    fun `production code uses task runner instead of execution lock types`() {
+    fun `production code does not expose project execution lock types`() {
         val allowedFiles = setOf(
             findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/runtime/TaskRunnerManager.kt").canonicalFile,
             findRepoFile("main/src/main/java/com/sickworm/intellij/jugg/project/runtime/ExecutionLockManager.kt").canonicalFile,
@@ -269,7 +269,7 @@ class JuggDeployerInstallTest {
 
         productionFiles.forEach { file ->
             val source = file.readText()
-            listOf("IExecutionLockManager", "GlobalExecutionLock", "RuntimeIdentity").forEach { type ->
+            listOf("IExecutionLockManager", "FileExecutionLockManager", "RuntimeIdentity").forEach { type ->
                 assertFalse("${file.path} should not expose $type", source.contains(type))
             }
         }

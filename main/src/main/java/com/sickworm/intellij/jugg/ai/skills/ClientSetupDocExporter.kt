@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.skills
 
-import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.File
 import java.io.FileNotFoundException
 
@@ -20,7 +20,7 @@ object ClientSetupDocExporter {
         userHome: File = File(System.getProperty("user.home")),
     ): File {
         val globalRootDir = File(userHome, ".jugg")
-        return TaskRunnerManager.runGlobalWriteLocked("Export client setup guide", globalRootDir) {
+        return withGlobalResourceLock("Export client setup guide", globalRootDir) {
             val bundledSkillsDir = JuggSkillInstaller.ensureBundledSkillsHome(userHome)
             val setupDocFile = File(bundledSkillsDir, SETUP_DOC_RELATIVE_PATH)
             if (!File(bundledSkillsDir, SKILL_NAME).isDirectory) {

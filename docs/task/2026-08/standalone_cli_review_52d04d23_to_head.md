@@ -45,6 +45,67 @@ IDEA 的 `HostTaskExecutor` 会把该任务排入另一个 `Task.Backgroundable`
 
 现有 `JuggManagerFullBuildFlowTest` mock 了 `TaskRunnerManager` 和 `GradleProjectInfoLocalFetchManager`，只验证方法调用顺序，没有运行真实的跨线程项目锁，因此测试通过不能排除该问题。
 
+### 实施结论
+
+已修复。Project Runtime Lock 改为同一 `FileExecutionLockManager` 内跨线程共享的引用计数 lease，只负责不同 Runtime 之间的项目持有权互斥。同 Runtime 由 `RuntimeTaskCoordinator` 按逻辑 owner 串行独立事务；远程编译事务通过 TaskRunner 提交默认阻塞、非阻塞、后台或 async 子任务时，子任务自动继承父 owner 并共享外层 Runtime lease，因此可在父任务等待期间完成。另一个 Runtime 仍需等到本 Runtime 的最后一个 lease 引用释放。
+
+调用方不需要识别顶层任务或事务内子任务。协调器自动捕获并传播当前 owner，同 owner 只有引用计数、没有等待边；无关 owner 继续串行。`status` 使用非阻塞 owner/lease 尝试保留“活跃事务期间不 refresh”的一致性快照语义。L2 回归覆盖同 Runtime lease 共享、最后引用释放、独立事务串行、默认阻塞/非阻塞/后台/async 子任务完成和非阻塞 `try`。
+
+dispose 生命周期也已闭环。IDEA 工程关闭时不强制释放共享 lease；`GradleProjectInfoLocalFetchManager.close()` 会完成尚未结束的 remote-init completion，并让等待方得到取消结果。`JuggManager` 收到取消后立即终止后续 classpath 初始化，TaskRunner 事务随后通过既有 `finally` 自然释放 logical owner 与 Project Runtime lease。即使 IDEA 平台未启动已排队的 Project Info Host task，也不会再遗留永久等待或跨 Runtime 文件锁。
+
+## 后续锁审查问题
+
+### 标题
+
+Global Lock 同时承担任务事务与资源提交，形成确定锁反序和父子进程互等
+
+### 复现步骤
+
+#### Settings 锁反序
+
+1. 在一个线程中修改 `JuggSettings`，使其进入同步的 `write()` 或 `migrate()`，先持有 `JuggSettings` monitor，再等待 Global Lock 写入 `settings.json`。
+2. 同时在 IDEA 中执行“Set custom server”。改造后的后台任务会先以 global write task 身份持有 Global Lock。
+3. 该任务调用 `JuggServer.setCustomServer()`，最终进入 `JuggSettings.serverUrl` setter，等待 `JuggSettings` monitor。
+4. 两个线程分别持有 monitor 与 Global Lock，并等待对方，形成永久等待。
+
+#### Standalone 安装父子进程互等
+
+1. 在 IDEA 的 Install Jugg Skills 对话框中选择需要安装 Standalone runtime 的选项。
+2. IDEA Host task 以 global write task 身份持有 `~/.jugg/locks/global.lock`。
+3. `StandaloneBundleInstallService` 启动独立安装器子进程并同步等待退出。
+4. 子进程中的 `StandaloneRuntimeInstaller` 尝试取得同一个 Global Lock 后才能安装。
+5. 父进程等待子进程，子进程等待父进程释放文件锁，安装永远无法完成。
+
+### 详细解释
+
+根因不是 Global Lock 本身，而是它同时承担了两种不兼容的职责：
+
+1. TaskRunner 任务锁：调用方先取锁，再在锁内执行任意业务 callback、IDEA API、settings setter 或子进程等待。
+2. 全局资源锁：具体资源 owner 在读改写 `~/.jugg` 共享文件时保证跨 Runtime 原子提交。
+
+第一种职责会让 Global Lock 出现在任意业务锁之前，并允许锁内继续申请 monitor、Project Runtime Lock 或由子进程再次申请 Global Lock，无法形成单向锁等待图。第二种职责只需要保护资源 owner 的提交边界，可以固定为等待图叶子。
+
+相关实现位置：
+
+- `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JsonRuntimeSettingsRepository.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/InstallJuggSkillsDialog.kt`
+- `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/StandaloneBundleInstallService.kt`
+- `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/standalone/StandaloneRuntimeInstaller.kt`
+
+### 实施结论
+
+已按职责删除方案修复。`TaskRunnerManager` 删除 `isGlobalWrite`、`runGlobalWriteLocked()` 和 `IExecutionLockManager.withGlobalLock()`，只负责普通任务与 Project Runtime 事务。IDEA 业务层不能直接取得 Global Resource Lock；settings repository、hot update manager、CLI/skills installer、runtime resource manager 和 history store 等资源 owner 在内部提交共享文件变更。
+
+因此 TaskRunner action、IDEA callback 和父进程等待不再持有 Global Lock。`JuggSettings` 只保留 monitor → Global Resource Lock 的单向关系，不再存在 Global Lock → monitor 的反向入口；Standalone 安装父进程也会在无锁状态启动并等待子进程，由子进程独占完成资源提交。静态架构守卫固定检查 TaskRunner 与 IDEA production source 不得重新引入 Global Resource Lock 所有权。
+
+后续独立审查发现，`JuggHotUpdateManager.prepareUpdate()` 仍曾在 Global Resource Lock 内执行同步 HTTP 下载，慢速且永不结束的响应会永久占用全部全局资源。现已改为两阶段资源事务：短锁快照已校验缓存与当前 metadata，锁外下载和校验到唯一 staging 目录，最终短锁比较 metadata 基线并原子发布。下载期间 settings、Standalone installer 等其他资源 owner 不再等待；若其他 Runtime 已先完成更新，较慢请求会被判定为 superseded，不能覆盖更新后的 manifest 与 metadata。
+
+Windows CLI 安装也曾在 Global Resource Lock 内通过 `reg.exe` 读改写用户 PATH，并在读取完整 stdout 后无超时等待进程退出；子进程不关闭输出或不退出时会永久持有 G。现已将 PATH 更新移到 CLI 文件提交之后的锁外阶段，`reg.exe` 输出重定向到临时文件并设置 5 秒硬超时，超时后强制终止并返回安装失败，不影响其他全局资源 owner。
+
+当前保留资源 owner 直接使用 `withGlobalResourceLock` 的轻量模型，并在 API 注释中固定临界区契约：action 必须同步完成，只能进行有界本地资源读改写，不得启动异步工作、等待外部资源、调用业务 callback 或申请业务 monitor。锁底层记录当前线程的 G 持有深度；若同线程在 G 内尝试阻塞式或 try Project Runtime Lock，立即抛出锁顺序错误，避免约定被直接调用路径破坏。
+
 ## 问题 2
 
 ### 标题

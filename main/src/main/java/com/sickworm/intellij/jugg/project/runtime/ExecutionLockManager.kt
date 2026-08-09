@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.project.runtime
 
 import com.google.gson.Gson
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -12,6 +13,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 import java.util.concurrent.locks.ReentrantLock
 
 /** Identifies the runtime process that owns a project or global execution lock. */
@@ -31,48 +33,69 @@ internal data class ExecutionLockOwner(
     val projectDir: String,
 )
 
-/** Serializes project and global write transactions across threads and runtime processes. */
+/** Coordinates project runtime ownership across runtime processes. */
 internal interface IExecutionLockManager {
     fun <T> withProjectLock(command: String, action: () -> T): T
     fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T?
-    fun <T> withGlobalLock(command: String, action: () -> T): T
     fun readProjectLockOwner(): ExecutionLockOwner?
 }
 
-/** Serializes writes to Jugg-owned global resources across threads and runtime processes. */
-internal class GlobalExecutionLock(
-    runtimeIdentity: RuntimeIdentity,
-    private val globalRootDir: File = JuggGlobalPathManager.rootDir,
-) {
-    private val fileLock = ExecutionFileLock(runtimeIdentity)
+/**
+ * Serializes a resource-owner mutation of Jugg-owned global files across runtime processes.
+ *
+ * The action must finish synchronously and only perform bounded local resource reads and writes. It must not launch
+ * asynchronous work, invoke business callbacks, wait for network, processes, threads, or futures, acquire business
+ * monitors, or attempt to acquire a Project Runtime Lock.
+ */
+internal fun <T> withGlobalResourceLock(
+    command: String,
+    globalRootDir: File = JuggGlobalPathManager.rootDir,
+    action: () -> T,
+): T {
+    val lockFile = JuggGlobalPathManager.globalLockFile(globalRootDir)
+    return ExecutionFileLock(RuntimeIdentity("resource", PluginInfoReader.getPluginVersion())).withLock(
+        lockFile = lockFile,
+        ownerFile = File(lockFile.parentFile, "${lockFile.name}.owner.json"),
+        command = command,
+        scopeDir = globalRootDir,
+        action = { ExecutionLockOrderGuard.withGlobalResourceLockHeld(action) },
+    )
+}
 
-    fun <T> withLock(command: String, action: () -> T): T {
-        val lockFile = JuggGlobalPathManager.globalLockFile(globalRootDir)
-        return fileLock.withLock(
-            lockFile = lockFile,
-            ownerFile = File(lockFile.parentFile, "${lockFile.name}.owner.json"),
-            command = command,
-            scopeDir = globalRootDir,
-            action = action,
-        )
+/** Enforces the one-way Project Runtime Lock to Global Resource Lock acquisition order on the current thread. */
+private object ExecutionLockOrderGuard {
+    private val globalResourceLockDepth = ThreadLocal<Int>()
+
+    fun <T> withGlobalResourceLockHeld(action: () -> T): T {
+        val previousDepth = globalResourceLockDepth.get() ?: 0
+        globalResourceLockDepth.set(previousDepth + 1)
+        try {
+            return action()
+        } finally {
+            if (previousDepth == 0) globalResourceLockDepth.remove() else globalResourceLockDepth.set(previousDepth)
+        }
+    }
+
+    fun checkProjectLockAllowed(command: String) {
+        check((globalResourceLockDepth.get() ?: 0) == 0) {
+            "Cannot acquire Project Runtime Lock while current thread holds Global Resource Lock: $command"
+        }
     }
 }
 
 /**
- * Uses a process-wide reentrant lock plus a NIO file lock to coordinate IDEA and standalone runtimes.
- * Nested calls on the owning thread reuse the outer file lock and preserve its diagnostic metadata.
+ * Shares one project lease inside this runtime while coordinating IDEA and standalone runtimes by file lock.
  */
 internal class FileExecutionLockManager(
     private val pathManager: JuggPathManager,
     runtimeIdentity: RuntimeIdentity,
-    globalRootDir: File = JuggGlobalPathManager.rootDir,
 ) : IExecutionLockManager {
 
-    private val fileLock = ExecutionFileLock(runtimeIdentity)
-    private val globalExecutionLock = GlobalExecutionLock(runtimeIdentity, globalRootDir)
+    private val projectLock = RuntimeSharedExecutionFileLock(runtimeIdentity)
 
     override fun <T> withProjectLock(command: String, action: () -> T): T {
-        return fileLock.withLock(
+        ExecutionLockOrderGuard.checkProjectLockAllowed(command)
+        return projectLock.withLock(
             lockFile = pathManager.runtimeLockFile,
             ownerFile = pathManager.runtimeLockOwnerFile,
             command = command,
@@ -82,7 +105,8 @@ internal class FileExecutionLockManager(
     }
 
     override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? {
-        return fileLock.tryWithLock(
+        ExecutionLockOrderGuard.checkProjectLockAllowed(command)
+        return projectLock.tryWithLock(
             lockFile = pathManager.runtimeLockFile,
             ownerFile = pathManager.runtimeLockOwnerFile,
             command = command,
@@ -91,15 +115,186 @@ internal class FileExecutionLockManager(
         )
     }
 
-    override fun <T> withGlobalLock(command: String, action: () -> T): T {
-        return globalExecutionLock.withLock(command, action)
-    }
-
     override fun readProjectLockOwner(): ExecutionLockOwner? {
-        val owner = fileLock.readOwner(pathManager.runtimeLockOwnerFile) ?: return null
-        if (fileLock.isHeld(pathManager.runtimeLockFile)) return owner
+        val owner = projectLock.readOwner(pathManager.runtimeLockOwnerFile) ?: return null
+        if (projectLock.isHeld(pathManager.runtimeLockFile)) return owner
         pathManager.runtimeLockOwnerFile.delete()
         return null
+    }
+}
+
+/** Keeps a reference-counted project lease that can be shared by concurrent tasks in one runtime. */
+private class RuntimeSharedExecutionFileLock(
+    private val runtimeIdentity: RuntimeIdentity,
+) {
+    private val stateLock = ReentrantLock(true)
+    private var lease: SharedFileLease? = null
+    private var referenceCount = 0
+
+    fun <T> withLock(
+        lockFile: File,
+        ownerFile: File,
+        command: String,
+        scopeDir: File,
+        action: () -> T,
+    ): T {
+        retain(lockFile, ownerFile, command, scopeDir)
+        try {
+            return action()
+        } finally {
+            release()
+        }
+    }
+
+    fun <T : Any> tryWithLock(
+        lockFile: File,
+        ownerFile: File,
+        command: String,
+        scopeDir: File,
+        action: () -> T,
+    ): T? {
+        if (!tryRetain(lockFile, ownerFile, command, scopeDir)) return null
+        try {
+            return action()
+        } finally {
+            release()
+        }
+    }
+
+    fun readOwner(ownerFile: File): ExecutionLockOwner? = ExecutionFileLockSupport.readOwner(ownerFile)
+
+    fun isHeld(lockFile: File): Boolean = ExecutionFileLockSupport.isHeld(lockFile)
+
+    private fun retain(lockFile: File, ownerFile: File, command: String, scopeDir: File) {
+        stateLock.lockInterruptibly()
+        try {
+            if (lease != null) {
+                referenceCount++
+                return
+            }
+            lease = acquireLease(lockFile, ownerFile, command, scopeDir)
+            referenceCount = 1
+        } finally {
+            stateLock.unlock()
+        }
+    }
+
+    private fun tryRetain(lockFile: File, ownerFile: File, command: String, scopeDir: File): Boolean {
+        if (!stateLock.tryLock()) return false
+        try {
+            if (lease != null) {
+                referenceCount++
+                return true
+            }
+            lease = tryAcquireLease(lockFile, ownerFile, command, scopeDir) ?: return false
+            referenceCount = 1
+            return true
+        } finally {
+            stateLock.unlock()
+        }
+    }
+
+    private fun release() {
+        var releasedLease: SharedFileLease? = null
+        stateLock.lock()
+        try {
+            check(referenceCount > 0)
+            referenceCount--
+            if (referenceCount == 0) {
+                releasedLease = lease
+                lease = null
+            }
+        } finally {
+            stateLock.unlock()
+        }
+        releasedLease?.close()
+    }
+
+    private fun acquireLease(lockFile: File, ownerFile: File, command: String, scopeDir: File): SharedFileLease {
+        val canonicalLockFile = lockFile.canonicalFile
+        val runtimePermit = ExecutionFileLockSupport.runtimePermit(canonicalLockFile)
+        runtimePermit.acquire()
+        val acquiredLease = checkNotNull(openLease(canonicalLockFile, ownerFile, runtimePermit) { channel ->
+            ExecutionFileLockSupport.acquireFileLock(channel)
+        })
+        try {
+            ExecutionFileLockSupport.writeOwner(runtimeIdentity, ownerFile, command, scopeDir)
+            return acquiredLease
+        } catch (e: Throwable) {
+            acquiredLease.close()
+            throw e
+        }
+    }
+
+    private fun tryAcquireLease(
+        lockFile: File,
+        ownerFile: File,
+        command: String,
+        scopeDir: File,
+    ): SharedFileLease? {
+        val canonicalLockFile = lockFile.canonicalFile
+        val runtimePermit = ExecutionFileLockSupport.runtimePermit(canonicalLockFile)
+        if (!runtimePermit.tryAcquire()) return null
+        val acquiredLease = openLease(canonicalLockFile, ownerFile, runtimePermit) { channel ->
+            ExecutionFileLockSupport.tryAcquireFileLock(channel)
+        } ?: return null
+        try {
+            ExecutionFileLockSupport.writeOwner(runtimeIdentity, ownerFile, command, scopeDir)
+            return acquiredLease
+        } catch (e: Throwable) {
+            acquiredLease.close()
+            throw e
+        }
+    }
+
+    private fun openLease(
+        lockFile: File,
+        ownerFile: File,
+        runtimePermit: Semaphore,
+        acquire: (FileChannel) -> FileLock?,
+    ): SharedFileLease? {
+        lockFile.parentFile?.mkdirs()
+        var channel: FileChannel? = null
+        var transferred = false
+        try {
+            val openedChannel = RandomAccessFile(lockFile, "rw").channel
+            channel = openedChannel
+            val fileLock = acquire(openedChannel) ?: return null
+            transferred = true
+            return SharedFileLease(ownerFile, openedChannel, fileLock, runtimePermit)
+        } finally {
+            if (!transferred) {
+                try {
+                    channel?.close()
+                } finally {
+                    runtimePermit.release()
+                }
+            }
+        }
+    }
+}
+
+/** Owns the physical project file lock until the runtime reference count reaches zero. */
+private class SharedFileLease(
+    private val ownerFile: File,
+    private val channel: FileChannel,
+    private val fileLock: FileLock,
+    private val runtimePermit: Semaphore,
+) : AutoCloseable {
+    override fun close() {
+        try {
+            ownerFile.delete()
+        } finally {
+            try {
+                fileLock.release()
+            } finally {
+                try {
+                    channel.close()
+                } finally {
+                    runtimePermit.release()
+                }
+            }
+        }
     }
 }
 
@@ -115,7 +310,7 @@ private class ExecutionFileLock(
         action: () -> T,
     ): T {
         val canonicalLockFile = lockFile.canonicalFile
-        val jvmLock = jvmLocks.computeIfAbsent(canonicalLockFile.path) { ReentrantLock(true) }
+        val jvmLock = ExecutionFileLockSupport.jvmLock(canonicalLockFile)
         jvmLock.lockInterruptibly()
         try {
             if (jvmLock.holdCount > 1) {
@@ -123,8 +318,8 @@ private class ExecutionFileLock(
             }
             canonicalLockFile.parentFile?.mkdirs()
             RandomAccessFile(canonicalLockFile, "rw").channel.use { channel ->
-                acquireFileLock(channel).use {
-                    writeOwner(ownerFile, command, scopeDir)
+                ExecutionFileLockSupport.acquireFileLock(channel).use {
+                    ExecutionFileLockSupport.writeOwner(runtimeIdentity, ownerFile, command, scopeDir)
                     try {
                         return action()
                     } finally {
@@ -145,15 +340,15 @@ private class ExecutionFileLock(
         action: () -> T,
     ): T? {
         val canonicalLockFile = lockFile.canonicalFile
-        val jvmLock = jvmLocks.computeIfAbsent(canonicalLockFile.path) { ReentrantLock(true) }
+        val jvmLock = ExecutionFileLockSupport.jvmLock(canonicalLockFile)
         if (!jvmLock.tryLock()) return null
         try {
             if (jvmLock.holdCount > 1) return action()
             canonicalLockFile.parentFile?.mkdirs()
             RandomAccessFile(canonicalLockFile, "rw").channel.use { channel ->
-                val fileLock = tryAcquireFileLock(channel) ?: return null
+                val fileLock = ExecutionFileLockSupport.tryAcquireFileLock(channel) ?: return null
                 fileLock.use {
-                    writeOwner(ownerFile, command, scopeDir)
+                    ExecutionFileLockSupport.writeOwner(runtimeIdentity, ownerFile, command, scopeDir)
                     try {
                         return action()
                     } finally {
@@ -166,7 +361,25 @@ private class ExecutionFileLock(
         }
     }
 
-    private fun acquireFileLock(channel: FileChannel): FileLock {
+    fun readOwner(ownerFile: File): ExecutionLockOwner? = ExecutionFileLockSupport.readOwner(ownerFile)
+
+    fun isHeld(lockFile: File): Boolean = ExecutionFileLockSupport.isHeld(lockFile)
+}
+
+private object ExecutionFileLockSupport {
+    private const val FILE_LOCK_RETRY_MILLIS = 25L
+    private val jvmLocks = ConcurrentHashMap<String, ReentrantLock>()
+    private val runtimePermits = ConcurrentHashMap<String, Semaphore>()
+
+    fun jvmLock(lockFile: File): ReentrantLock {
+        return jvmLocks.computeIfAbsent(lockFile.path) { ReentrantLock(true) }
+    }
+
+    fun runtimePermit(lockFile: File): Semaphore {
+        return runtimePermits.computeIfAbsent(lockFile.path) { Semaphore(1, true) }
+    }
+
+    fun acquireFileLock(channel: FileChannel): FileLock {
         while (true) {
             try {
                 return channel.lock()
@@ -177,7 +390,7 @@ private class ExecutionFileLock(
         }
     }
 
-    private fun tryAcquireFileLock(channel: FileChannel): FileLock? {
+    fun tryAcquireFileLock(channel: FileChannel): FileLock? {
         return try {
             channel.tryLock()
         } catch (_: OverlappingFileLockException) {
@@ -185,7 +398,7 @@ private class ExecutionFileLock(
         }
     }
 
-    private fun writeOwner(ownerFile: File, command: String, scopeDir: File) {
+    fun writeOwner(runtimeIdentity: RuntimeIdentity, ownerFile: File, command: String, scopeDir: File) {
         val owner = ExecutionLockOwner(
             runtimeType = runtimeIdentity.runtimeType,
             pid = ProcessHandle.current().pid(),
@@ -245,8 +458,4 @@ private class ExecutionFileLock(
         }
     }
 
-    private companion object {
-        const val FILE_LOCK_RETRY_MILLIS = 25L
-        val jvmLocks = ConcurrentHashMap<String, ReentrantLock>()
-    }
 }

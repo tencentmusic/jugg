@@ -288,7 +288,7 @@ class InstallJuggSkillsDialog(
                         promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
                     }
                 }
-            }, isGlobalWrite = true, isBlockIncrementalCompile = false)
+            }, isProjectWrite = false, isBlockIncrementalCompile = false)
         }
 
         /** Installs the standalone runtime and CLI before configuring optional hooks. */

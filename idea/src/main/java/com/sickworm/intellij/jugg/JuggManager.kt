@@ -98,7 +98,7 @@ class JuggManager @TestOnly constructor(
     private val deployStateManager: IDeployStateManager = DeployStateManager(deployTargetManager, deployHistoryManager, IdeaHostDeployStateResolver(project), JuggLogger.getInstance(project, "DeployStateManager")),
     private val hostTaskExecutor: HostTaskExecutor = HostTaskExecutor(project),
     private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(logger, deployStateManager, juggServer, hostTaskExecutor, pathManager, runtimeInfo.runtimeType, runtimeInfo.runtimeVersion, coroutineScope),
-    private val ideaHotUpdateCoordinator: IdeaHotUpdateCoordinator = IdeaHotUpdateCoordinator(juggServer, taskRunnerManager, logger),
+    private val ideaHotUpdateCoordinator: IdeaHotUpdateCoordinator = IdeaHotUpdateCoordinator(juggServer, logger),
     private val deploymentService: JuggDeploymentService = JuggDeploymentService(
         pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager), AsDeployerCompat),
     private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
@@ -204,7 +204,7 @@ class JuggManager @TestOnly constructor(
                 ideaHotUpdateCoordinator.init(project)
             }
 
-            taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000, isGlobalWrite = true) {
+            taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000) {
                 JuggCliAutoUpdater.checkAndUpdate(logger.getInstance("JuggCliAutoUpdater"))
             }
             taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
@@ -449,7 +449,10 @@ class JuggManager @TestOnly constructor(
         if (!isRemoteCompile) {
             compileContextManager.updateCompileContextAfterLocalFetch(options.buildTarget)
         } else {
-            gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()
+            if (!gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()) {
+                logger.debug("Skip incremental compile initialization after project info manager closed")
+                return
+            }
         }
 
         var projectInfo = compileContextManager.getProjectInfo()

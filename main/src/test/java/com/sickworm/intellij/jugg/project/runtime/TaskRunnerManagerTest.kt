@@ -14,6 +14,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -23,7 +24,9 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
+import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -109,6 +112,188 @@ class TaskRunnerManagerTest {
     }
 
     @Test
+    fun `blocking project tasks serialize while non blocking project task can run`() {
+        val hostTaskExecutor = ConcurrentHostTaskExecutor()
+        val manager = newManager(ImmediateExecutionLockManager(), hostTaskExecutor = hostTaskExecutor)
+        val firstEntered = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val secondEntered = CountDownLatch(1)
+        val nonBlockingEntered = CountDownLatch(1)
+
+        manager.runTaskSafe("first blocking task", Runnable {
+            firstEntered.countDown()
+            releaseFirst.await(5, TimeUnit.SECONDS)
+        })
+        assertTrue(firstEntered.await(1, TimeUnit.SECONDS))
+
+        manager.runTaskSafe("second blocking task", Runnable { secondEntered.countDown() })
+        manager.runTaskSafe(
+            jobName = "non blocking task",
+            action = Runnable { nonBlockingEntered.countDown() },
+            isProjectWrite = true,
+            isBlockIncrementalCompile = false,
+        )
+
+        try {
+            assertTrue(nonBlockingEntered.await(1, TimeUnit.SECONDS))
+            assertFalse(secondEntered.await(200, TimeUnit.MILLISECONDS))
+        } finally {
+            releaseFirst.countDown()
+            hostTaskExecutor.joinAll()
+        }
+        assertTrue(secondEntered.await(1, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun `independent project transactions serialize in the same runtime`() {
+        val manager = newManager(ImmediateExecutionLockManager())
+        val firstEntered = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val secondEntered = CountDownLatch(1)
+        val firstThread = Thread {
+            manager.runProjectWriteLocked("first transaction") {
+                firstEntered.countDown()
+                releaseFirst.await(5, TimeUnit.SECONDS)
+            }
+        }
+        val secondThread = Thread {
+            manager.runProjectWriteLocked("second transaction") { secondEntered.countDown() }
+        }
+
+        firstThread.start()
+        assertTrue(firstEntered.await(1, TimeUnit.SECONDS))
+        secondThread.start()
+        try {
+            assertFalse(secondEntered.await(200, TimeUnit.MILLISECONDS))
+        } finally {
+            releaseFirst.countDown()
+            firstThread.join(5_000)
+            secondThread.join(5_000)
+        }
+        assertTrue(secondEntered.await(1, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun `project transaction can wait for non blocking task in the same runtime`() {
+        val projectDir = Files.createTempDirectory("jugg-task-runner-shared-lease").toFile()
+        val lockManager = FileExecutionLockManager(JuggPathManager(projectDir), RuntimeIdentity("idea", "test"))
+        val hostTaskExecutor = ConcurrentHostTaskExecutor()
+        val manager = newManager(lockManager, hostTaskExecutor = hostTaskExecutor)
+        val childCompleted = CountDownLatch(1)
+        val childCompletedBeforeTimeout = AtomicBoolean()
+
+        val outerThread = Thread {
+            manager.runProjectWriteLocked("remote compile") {
+                manager.runTaskSafe(
+                    jobName = "project info",
+                    action = Runnable { childCompleted.countDown() },
+                    isProjectWrite = true,
+                    isBlockIncrementalCompile = false,
+                )
+                childCompletedBeforeTimeout.set(childCompleted.await(500, TimeUnit.MILLISECONDS))
+            }
+        }
+        outerThread.start()
+        outerThread.join(2_000)
+        hostTaskExecutor.joinAll()
+
+        assertFalse(outerThread.isAlive)
+        assertTrue(childCompletedBeforeTimeout.get())
+    }
+
+    @Test
+    fun `project transaction can wait for blocking task in the same runtime`() {
+        val projectDir = Files.createTempDirectory("jugg-task-runner-blocking-child").toFile()
+        val lockManager = FileExecutionLockManager(JuggPathManager(projectDir), RuntimeIdentity("idea", "test"))
+        val hostTaskExecutor = ConcurrentHostTaskExecutor()
+        val manager = newManager(lockManager, hostTaskExecutor = hostTaskExecutor)
+        val childCompleted = CountDownLatch(1)
+        val childCompletedBeforeTimeout = AtomicBoolean()
+
+        val outerThread = Thread {
+            manager.runProjectWriteLocked("remote compile") {
+                manager.runTaskSafe("blocking child", Runnable { childCompleted.countDown() })
+                childCompletedBeforeTimeout.set(childCompleted.await(500, TimeUnit.MILLISECONDS))
+            }
+        }
+        outerThread.start()
+        outerThread.join(2_000)
+        hostTaskExecutor.joinAll()
+
+        assertFalse(outerThread.isAlive)
+        assertTrue(childCompletedBeforeTimeout.get())
+    }
+
+    @Test
+    fun `project transaction can wait for project background task in the same runtime`() {
+        val projectDir = Files.createTempDirectory("jugg-task-runner-background-child").toFile()
+        val lockManager = FileExecutionLockManager(JuggPathManager(projectDir), RuntimeIdentity("idea", "test"))
+        val manager = newManager(lockManager)
+        val childCompleted = CountDownLatch(1)
+        val childCompletedBeforeTimeout = AtomicBoolean()
+
+        val outerThread = Thread {
+            manager.runProjectWriteLocked("remote compile") {
+                manager.runBackgroundSafe(
+                    jobName = "project background child",
+                    isProjectWrite = true,
+                    action = Runnable { childCompleted.countDown() },
+                )
+                childCompletedBeforeTimeout.set(childCompleted.await(500, TimeUnit.MILLISECONDS))
+            }
+        }
+        outerThread.start()
+        outerThread.join(2_000)
+        manager.dispose()
+
+        assertFalse(outerThread.isAlive)
+        assertTrue(childCompletedBeforeTimeout.get())
+    }
+
+    @Test
+    fun `project transaction can wait for async project transaction in the same runtime`() {
+        val manager = newManager(ImmediateExecutionLockManager())
+        val childCompleted = CountDownLatch(1)
+        val childCompletedBeforeTimeout = AtomicBoolean()
+
+        val outerThread = Thread {
+            manager.runProjectWriteLocked("remote compile") {
+                manager.runAsyncSafe("async child") {
+                    manager.runProjectWriteLocked("async child transaction") { childCompleted.countDown() }
+                }
+                childCompletedBeforeTimeout.set(childCompleted.await(500, TimeUnit.MILLISECONDS))
+            }
+        }
+        outerThread.start()
+        outerThread.join(2_000)
+        manager.dispose()
+
+        assertFalse(outerThread.isAlive)
+        assertTrue(childCompletedBeforeTimeout.get())
+    }
+
+    @Test
+    fun `try project write returns immediately while project transaction is active`() {
+        val manager = newManager(ImmediateExecutionLockManager())
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val ownerThread = Thread {
+            manager.runProjectWriteLocked("blocking task") {
+                entered.countDown()
+                release.await(5, TimeUnit.SECONDS)
+            }
+        }
+        ownerThread.start()
+        assertTrue(entered.await(1, TimeUnit.SECONDS))
+        try {
+            assertNull(manager.tryRunProjectWriteLocked("status") { "acquired" })
+        } finally {
+            release.countDown()
+            ownerThread.join(5_000)
+        }
+    }
+
+    @Test
     fun `incremental compile state is cleared when task fails`() {
         val deployStateManager = RecordingDeployStateManager()
         val manager = newManager(ImmediateExecutionLockManager(), deployStateManager)
@@ -135,21 +320,6 @@ class TaskRunnerManagerTest {
     }
 
     @Test
-    fun `global background task runs under global lock`() {
-        val lockManager = ImmediateExecutionLockManager()
-        val manager = newManager(lockManager)
-
-        val job = manager.runBackgroundSafe(
-            jobName = "global maintenance",
-            isGlobalWrite = true,
-            action = Runnable {},
-        )
-        runBlocking { job.join() }
-
-        assertTrue(lockManager.globalCommands.contains("global maintenance"))
-    }
-
-    @Test
     fun `background task does not report completion through jugg server`() {
         val juggServer = mock<JuggServer>()
         val manager = newManager(ImmediateExecutionLockManager(), juggServer = juggServer)
@@ -161,7 +331,7 @@ class TaskRunnerManagerTest {
     }
 
     @Test
-    fun `global host task runs under global lock without changing incremental compile state`() {
+    fun `host task without project write does not change incremental compile state`() {
         val lockManager = ImmediateExecutionLockManager()
         val deployStateManager = RecordingDeployStateManager()
         val manager = newManager(lockManager, deployStateManager)
@@ -169,10 +339,11 @@ class TaskRunnerManagerTest {
         manager.runTaskSafe(
             jobName = "install global tools",
             action = Runnable {},
-            isGlobalWrite = true,
+            isProjectWrite = false,
+            isBlockIncrementalCompile = false,
         )
 
-        assertTrue(lockManager.globalCommands.contains("install global tools"))
+        assertTrue(lockManager.projectCommands.isEmpty())
         assertFalse(deployStateManager.initializingStateEntered.get())
     }
 
@@ -209,35 +380,6 @@ class TaskRunnerManagerTest {
         runBlocking { job.join() }
 
         assertTrue(lockManager.projectCommands.isEmpty())
-        assertTrue(lockManager.globalCommands.isEmpty())
-    }
-
-    @Test
-    fun `background task cannot hold project and global write locks together`() {
-        val manager = newManager(ImmediateExecutionLockManager())
-
-        assertThrows(IllegalArgumentException::class.java) {
-            manager.runBackgroundSafe(
-                jobName = "invalid write",
-                isProjectWrite = true,
-                isGlobalWrite = true,
-                action = Runnable {},
-            )
-        }
-    }
-
-    @Test
-    fun `host task cannot hold project and global write locks together`() {
-        val manager = newManager(ImmediateExecutionLockManager())
-
-        assertThrows(IllegalArgumentException::class.java) {
-            manager.runTaskSafe(
-                jobName = "invalid write",
-                action = Runnable {},
-                isProjectWrite = true,
-                isGlobalWrite = true,
-            )
-        }
     }
 
     @Test
@@ -337,6 +479,25 @@ class TaskRunnerManagerTest {
         }
     }
 
+    private class ConcurrentHostTaskExecutor : IHostTaskExecutor {
+        override val isOnEdt: Boolean = false
+        private val threads = CopyOnWriteArrayList<Thread>()
+
+        override fun submit(title: String, cancelText: String, showIndicator: Boolean, action: Runnable) {
+            Thread(action, "task-runner-manager-test").also {
+                threads += it
+                it.start()
+            }
+        }
+
+        fun joinAll() {
+            threads.forEach {
+                it.join(2_000)
+                assertFalse(it.isAlive)
+            }
+        }
+    }
+
     private class QueuedHostTaskExecutor : IHostTaskExecutor {
         override val isOnEdt: Boolean = false
         private lateinit var action: Runnable
@@ -364,14 +525,11 @@ class TaskRunnerManagerTest {
             return if (allowProjectLock.count == 0L) action() else null
         }
 
-        override fun <T> withGlobalLock(command: String, action: () -> T): T = action()
-
         override fun readProjectLockOwner(): ExecutionLockOwner? = null
     }
 
     private class ImmediateExecutionLockManager : IExecutionLockManager {
-        val projectCommands = mutableListOf<String>()
-        val globalCommands = mutableListOf<String>()
+        val projectCommands = CopyOnWriteArrayList<String>()
 
         override fun <T> withProjectLock(command: String, action: () -> T): T {
             projectCommands += command
@@ -380,11 +538,6 @@ class TaskRunnerManagerTest {
 
         override fun <T : Any> tryWithProjectLock(command: String, action: () -> T): T? {
             projectCommands += command
-            return action()
-        }
-
-        override fun <T> withGlobalLock(command: String, action: () -> T): T {
-            globalCommands += command
             return action()
         }
 

@@ -4,7 +4,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.ReportEventData
-import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -14,10 +13,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 import java.lang.Runnable
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.system.measureTimeMillis
 
@@ -28,7 +27,7 @@ interface IHostTaskExecutor {
 }
 
 /**
- * Coordinates project write tasks, cross-process locks, background jobs, reporting, retry, and disposal.
+ * Coordinates runtime task serialization, cross-runtime locks, background jobs, reporting, retry, and disposal.
  * Host executors control how a task is scheduled and how its progress indicator is presented.
  */
 class TaskRunnerManager internal constructor(
@@ -64,6 +63,7 @@ class TaskRunnerManager internal constructor(
 
     private val disposed = AtomicBoolean()
     private val backgroundJobs = Collections.synchronizedSet(mutableSetOf<Job>())
+    private val runtimeTaskCoordinator = RuntimeTaskCoordinator()
     private var retryInitDelayMillis = 3_000L
     private var runtimeOwnerChange: RuntimeOwnerChangeEvent? = null
 
@@ -78,21 +78,20 @@ class TaskRunnerManager internal constructor(
         delayMs: Long = 0L,
         isNeedLog: Boolean = true,
         isProjectWrite: Boolean = false,
-        isGlobalWrite: Boolean = false,
         action: Runnable,
     ): Job {
-        require(!isProjectWrite || !isGlobalWrite) {
-            "A task cannot hold project and global write locks together"
-        }
+        val inheritedOwner = runtimeTaskCoordinator.captureOwner()
         return track(coroutineScope.launch {
             try {
                 if (delayMs > 0) delay(delayMs)
                 if (disposed.get()) return@launch
-                if (isNeedLog) logger.debug("background job <$jobName> start")
-                val costTime = measureTimeMillis {
-                    runWriteLocked(jobName, isProjectWrite, isGlobalWrite, action::run)
+                runtimeTaskCoordinator.withOwnerContext(inheritedOwner) {
+                    if (isNeedLog) logger.debug("background job <$jobName> start")
+                    val costTime = measureTimeMillis {
+                        runBackgroundWriteLocked(jobName, isProjectWrite, action::run)
+                    }
+                    if (isNeedLog) logger.debug("background job <$jobName> finished, cost ${costTime}ms")
                 }
-                if (isNeedLog) logger.debug("background job <$jobName> finished, cost ${costTime}ms")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -102,14 +101,17 @@ class TaskRunnerManager internal constructor(
     }
 
     fun <T> runAsyncSafe(jobName: String, action: CoroutineScope.() -> T): Deferred<T?> {
+        val inheritedOwner = runtimeTaskCoordinator.captureOwner()
         return track(coroutineScope.async {
-            try {
-                if (disposed.get()) return@async null
-                logger.debug("async job <$jobName> start")
-                action()
-            } catch (e: Exception) {
-                logger.warn("async job <$jobName> failed", e)
-                null
+            runtimeTaskCoordinator.withOwnerContext(inheritedOwner) {
+                try {
+                    if (disposed.get()) return@withOwnerContext null
+                    logger.debug("async job <$jobName> start")
+                    action()
+                } catch (e: Exception) {
+                    logger.warn("async job <$jobName> failed", e)
+                    null
+                }
             }
         })
     }
@@ -118,31 +120,32 @@ class TaskRunnerManager internal constructor(
         jobName: String,
         action: Runnable,
         isNeedShowIndicator: Boolean = true,
-        isGlobalWrite: Boolean = false,
-        isProjectWrite: Boolean = !isGlobalWrite,
+        isProjectWrite: Boolean = true,
         isBlockIncrementalCompile: Boolean = isProjectWrite,
     ) {
-        require(!isProjectWrite || !isGlobalWrite) {
-            "A task cannot hold project and global write locks together"
-        }
         require(isProjectWrite || !isBlockIncrementalCompile) {
             "A task cannot block incremental compile without holding the project write lock"
         }
         if (disposed.get()) return
         val title = "Jugg: $jobName"
+        val inheritedOwner = runtimeTaskCoordinator.captureOwner()
         hostTaskExecutor.submit(title, "Jugg: Stopping $jobName...", isNeedShowIndicator) {
-            executeTask(jobName, action, isProjectWrite, isGlobalWrite, isBlockIncrementalCompile)
+            runtimeTaskCoordinator.withOwnerContext(inheritedOwner) {
+                executeTask(jobName, action, isProjectWrite, isBlockIncrementalCompile)
+            }
         }
     }
 
     fun <T> runProjectWriteLocked(jobName: String, action: () -> T): T {
-        return runProjectWriteTransaction(jobName, action)
+        return runCoordinatedProjectWriteTransaction(jobName, action)
     }
 
-    /** Runs a project transaction only when both the JVM and cross-process locks are immediately available. */
+    /** Runs a project transaction only when no unrelated local owner or other runtime owns the project. */
     fun <T : Any> tryRunProjectWriteLocked(jobName: String, action: () -> T): T? {
-        return executionLockManager.tryWithProjectLock(jobName) {
-            runClaimedProjectAction(action)
+        return runtimeTaskCoordinator.tryWithLock {
+            executionLockManager.tryWithProjectLock(jobName) {
+                runClaimedProjectAction(action)
+            }
         }
     }
 
@@ -151,10 +154,6 @@ class TaskRunnerManager internal constructor(
         val change = runtimeOwnerChange
         runtimeOwnerChange = null
         return change
-    }
-
-    fun <T> runGlobalWriteLocked(jobName: String, action: () -> T): T {
-        return executionLockManager.withGlobalLock(jobName, action)
     }
 
     /** Prevents queued tasks from starting; an active locked write transaction is allowed to finish. */
@@ -169,7 +168,6 @@ class TaskRunnerManager internal constructor(
         jobName: String,
         action: Runnable,
         isProjectWrite: Boolean,
-        isGlobalWrite: Boolean,
         isBlockIncrementalCompile: Boolean,
     ) {
         if (disposed.get()) return
@@ -177,9 +175,7 @@ class TaskRunnerManager internal constructor(
         val startTime = System.currentTimeMillis()
         try {
             logger.debug("job <$jobName> start")
-            runWriteLocked(jobName, isProjectWrite, isGlobalWrite) {
-                runWithIncrementalCompileState(isBlockIncrementalCompile, action)
-            }
+            runTaskWriteLocked(jobName, isProjectWrite, isBlockIncrementalCompile, action)
             logger.debug("job <$jobName> finished, cost ${System.currentTimeMillis() - startTime}ms")
         } catch (e: Throwable) {
             logger.warn("job <$jobName> failed", e)
@@ -197,16 +193,11 @@ class TaskRunnerManager internal constructor(
             action,
             report.isSuccess,
             isProjectWrite,
-            isGlobalWrite,
             isBlockIncrementalCompile,
         )
     }
 
-    private fun runWithIncrementalCompileState(isBlockIncrementalCompile: Boolean, action: Runnable) {
-        if (!isBlockIncrementalCompile) {
-            action.run()
-            return
-        }
+    private fun runWithIncrementalCompileState(action: Runnable) {
         deployStateManager.isInitializingIncrementalCompile = true
         try {
             action.run()
@@ -220,7 +211,6 @@ class TaskRunnerManager internal constructor(
         action: Runnable,
         isSuccess: Boolean,
         isProjectWrite: Boolean,
-        isGlobalWrite: Boolean,
         isBlockIncrementalCompile: Boolean,
     ) {
         if (jobName != "Init project info") return
@@ -236,22 +226,46 @@ class TaskRunnerManager internal constructor(
                 jobName = jobName,
                 action = action,
                 isProjectWrite = isProjectWrite,
-                isGlobalWrite = isGlobalWrite,
                 isBlockIncrementalCompile = isBlockIncrementalCompile,
             )
         }
     }
 
-    private fun <T> runWriteLocked(
+    private fun runTaskWriteLocked(
         jobName: String,
         isProjectWrite: Boolean,
-        isGlobalWrite: Boolean,
+        isBlockIncrementalCompile: Boolean,
+        action: Runnable,
+    ) {
+        when {
+            isProjectWrite && isBlockIncrementalCompile -> runCoordinatedProjectWriteTransaction(jobName) {
+                runWithIncrementalCompileState(action)
+            }
+            isProjectWrite -> runInheritedProjectWriteTransaction(jobName, action::run)
+            else -> action.run()
+        }
+    }
+
+    private fun <T> runBackgroundWriteLocked(
+        jobName: String,
+        isProjectWrite: Boolean,
         action: () -> T,
     ): T {
         return when {
-            isProjectWrite -> runProjectWriteTransaction(jobName, action)
-            isGlobalWrite -> runGlobalWriteLocked(jobName, action)
+            isProjectWrite -> runCoordinatedProjectWriteTransaction(jobName, action)
             else -> action()
+        }
+    }
+
+    private fun <T> runCoordinatedProjectWriteTransaction(jobName: String, action: () -> T): T {
+        return runtimeTaskCoordinator.withLock {
+            runProjectWriteTransaction(jobName, action)
+        }
+    }
+
+    private fun <T> runInheritedProjectWriteTransaction(jobName: String, action: () -> T): T {
+        return runtimeTaskCoordinator.withInheritedLock {
+            runProjectWriteTransaction(jobName, action)
         }
     }
 
@@ -286,15 +300,89 @@ class TaskRunnerManager internal constructor(
 
     companion object {
         private val runtimeOwnerTypes = setOf("idea", "standalone")
+    }
+}
 
-        /** Runs global infrastructure writes that must happen before a TaskRunner instance exists. */
-        fun <T> runGlobalWriteLocked(
-            jobName: String,
-            globalRootDir: File = JuggGlobalPathManager.rootDir,
-            action: () -> T,
-        ): T {
-            val runtimeIdentity = RuntimeIdentity("infrastructure", PluginInfoReader.getPluginVersion())
-            return GlobalExecutionLock(runtimeIdentity, globalRootDir).withLock(jobName, action)
+/** Serializes unrelated runtime tasks while allowing child tasks to share their parent's logical owner. */
+private class RuntimeTaskCoordinator {
+    private val stateLock = ReentrantLock(true)
+    private val ownerReleased = stateLock.newCondition()
+    private val threadOwner = ThreadLocal<Any?>()
+    private var activeOwner: Any? = null
+    private var referenceCount = 0
+
+    fun captureOwner(): Any? = threadOwner.get()
+
+    fun <T> withOwnerContext(owner: Any?, action: () -> T): T {
+        if (owner == null) return action()
+        val previousOwner = threadOwner.get()
+        threadOwner.set(owner)
+        try {
+            return action()
+        } finally {
+            if (previousOwner == null) threadOwner.remove() else threadOwner.set(previousOwner)
+        }
+    }
+
+    fun <T> withLock(action: () -> T): T {
+        val owner = threadOwner.get() ?: Any()
+        acquire(owner)
+        try {
+            return withOwnerContext(owner, action)
+        } finally {
+            release(owner)
+        }
+    }
+
+    fun <T> withInheritedLock(action: () -> T): T {
+        if (threadOwner.get() == null) return action()
+        return withLock(action)
+    }
+
+    fun <T : Any> tryWithLock(action: () -> T?): T? {
+        val owner = threadOwner.get() ?: Any()
+        if (!tryAcquire(owner)) return null
+        try {
+            return withOwnerContext(owner, action)
+        } finally {
+            release(owner)
+        }
+    }
+
+    private fun acquire(owner: Any) {
+        stateLock.lockInterruptibly()
+        try {
+            while (activeOwner != null && activeOwner !== owner) ownerReleased.await()
+            activeOwner = owner
+            referenceCount++
+        } finally {
+            stateLock.unlock()
+        }
+    }
+
+    private fun tryAcquire(owner: Any): Boolean {
+        if (!stateLock.tryLock()) return false
+        try {
+            if (activeOwner != null && activeOwner !== owner) return false
+            activeOwner = owner
+            referenceCount++
+            return true
+        } finally {
+            stateLock.unlock()
+        }
+    }
+
+    private fun release(owner: Any) {
+        stateLock.lock()
+        try {
+            check(activeOwner === owner && referenceCount > 0)
+            referenceCount--
+            if (referenceCount == 0) {
+                activeOwner = null
+                ownerReleased.signalAll()
+            }
+        } finally {
+            stateLock.unlock()
         }
     }
 }

@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ai.skills
 
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -35,32 +36,34 @@ object JuggCliAutoUpdater {
         }
         isNeedCheckAndUpdate = true
 
-        val binDir = File(userHome, ".jugg/bin")
-        if (!binDir.exists()) {
-            logger.info("Jugg CLI bin dir not found, skipping auto-update")
-            return
-        }
-        val juggSkillDir = File(userHome, ".jugg/skills/$SKILL_NAME")
-        val bundledVersion = readVersionFromZip()
-        if (bundledVersion == null) {
-            logger.warn("Failed to read bundled skill version, skipping auto-update")
-            return
-        }
-        val localVersion = readVersionFromLocal(juggSkillDir) ?: "0.0.0"
-        if (compareVersion(bundledVersion, localVersion) <= 0) {
-            logger.info("Jugg CLI is up to date (local=$localVersion, bundled=$bundledVersion)")
-            return
-        }
-        logger.info("Updating Jugg CLI: $localVersion -> $bundledVersion")
-        updateBinDir(binDir)
-        setExecutable(binDir)
-        updateJuggSkillDir(juggSkillDir)
+        withGlobalResourceLock("Auto update Jugg CLI", File(userHome, ".jugg")) {
+            val binDir = File(userHome, ".jugg/bin")
+            if (!binDir.exists()) {
+                logger.info("Jugg CLI bin dir not found, skipping auto-update")
+                return@withGlobalResourceLock
+            }
+            val juggSkillDir = File(userHome, ".jugg/skills/$SKILL_NAME")
+            val bundledVersion = readVersionFromZip()
+            if (bundledVersion == null) {
+                logger.warn("Failed to read bundled skill version, skipping auto-update")
+                return@withGlobalResourceLock
+            }
+            val localVersion = readVersionFromLocal(juggSkillDir) ?: "0.0.0"
+            if (compareVersion(bundledVersion, localVersion) <= 0) {
+                logger.info("Jugg CLI is up to date (local=$localVersion, bundled=$bundledVersion)")
+                return@withGlobalResourceLock
+            }
+            logger.info("Updating Jugg CLI: $localVersion -> $bundledVersion")
+            updateBinDir(binDir)
+            setExecutable(binDir)
+            updateJuggSkillDir(juggSkillDir)
 
-        val installedClients = detectInstalledClients(userHome)
-        if (installedClients.isNotEmpty()) {
-            JuggSkillInstaller.install(File("."), installedClients, logger, userHome)
+            val installedClients = detectInstalledClients(userHome)
+            if (installedClients.isNotEmpty()) {
+                JuggSkillInstaller.install(File("."), installedClients, logger, userHome)
+            }
+            logger.info("Jugg CLI auto-update completed")
         }
-        logger.info("Jugg CLI auto-update completed")
     }
 
     /** Reads version from SKILL.md in the bundled zip resource. */
