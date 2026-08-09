@@ -48,6 +48,10 @@ Return `blocked` when required input is missing or the repository differs. In re
 
 Use `maintainer_notes_markdown` as a detailed engineering handoff. It is collapsed in the public comment, so favor decision-useful completeness over reporter-facing brevity. For every substantive investigation, include:
 
+- Always write the entire `maintainer_notes_markdown` in Simplified Chinese, regardless of the Issue language or `reply_language`. Preserve code symbols, file names, commands, log excerpts, exception messages, and product names in their original form.
+- Do not include the public wrapper heading in `maintainer_notes_markdown`; the receiver adds the fixed Chinese heading `仓库维护者备注`.
+- Do not use English section headings such as `Evidence acquisition`, `Key issue evidence`, or `Evidence boundary`. When headings improve readability, use concise Chinese headings such as `证据获取`, `关键证据`, `因果分析`, `仓库定位`, `操作与验证`, and `剩余不确定性`.
+
 - evidence acquisition: report ID when supplied, fetch success or failure, and the relevant log file names or time windows without local absolute paths;
 - key evidence: important timestamps, component or class tags, exception types/messages, state transitions, and relevant environment details;
 - causal analysis: the confirmed sequence from trigger to failure, the exact evidence boundary, and why competing explanations were accepted or rejected;
@@ -102,6 +106,6 @@ Return only the caller's JSON Schema fields:
 - `labels_to_add`
 - `reporter_reply_markdown`
 - `maintainer_notes_markdown`
-- `reply_language`
+- `reply_language`, which applies to `reporter_reply_markdown`; `maintainer_notes_markdown` is always Simplified Chinese
 - `maintainer_review`
 - `confidence`

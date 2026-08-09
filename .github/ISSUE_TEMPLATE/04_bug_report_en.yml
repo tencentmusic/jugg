@@ -1,0 +1,113 @@
+name: Bug Report
+description: Report a Jugg failure or unexpected behavior
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue with Jugg. Please provide the following information to help us reproduce and diagnose it.
+
+  - type: dropdown
+    id: problem_type
+    attributes:
+      label: Problem type
+      options:
+        - Compilation failure
+        - Deployment failure
+        - Runtime crash
+        - Changes not applied at runtime
+        - Android test issue
+        - IDE UI issue
+        - CLI/MCP issue
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description and reproduction steps
+      description: Describe the actual behavior, expected behavior, and shortest reproduction steps. If the issue is intermittent, include its frequency and the most recent occurrence.
+      value: |
+        #### Actual behavior
+        <!-- What happened? Please include the key error message. -->
+
+        #### Expected behavior
+        <!-- What did you expect to happen? -->
+
+        #### Steps to reproduce
+        1.
+        2.
+        3.
+
+        <!-- Optional: Add screenshots, screen recordings, or other relevant information. -->
+    validations:
+      required: true
+
+  - type: dropdown
+    id: diagnostic_type
+    attributes:
+      label: Diagnostic material type (choose one in priority order)
+      description: Select the highest-priority material you can provide.
+      options:
+        - Jugg Report ID (recommended)
+        - Diagnostics Bundle
+        - Reproducible demo
+        - Manual diagnostic information (only if the first three are unavailable)
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        If you upload an attachment, remove any information you do not want to make public.
+        Diagnostics referenced by a Report ID are stored temporarily on the Jugg server and are not exposed in the issue. They are deleted automatically when the issue is closed or the retention period expires.
+
+        <details>
+        <summary>How to get a Jugg Report ID or Diagnostics Bundle</summary>
+
+        1. In Android Studio, press Shift twice and select "Report Jugg Issue";
+           or open Jugg Running Panel and click "Report Issue".
+        2. Select "Upload logs" to upload the diagnostic files, then copy the Report ID from the result page.
+        3. If uploading is unavailable, select "Save locally without uploading" and click "Create Diagnostics Bundle" to export a ZIP file.
+
+        </details>
+
+        <details>
+        <summary>Cannot provide the first three options? Expand and copy the manual diagnostic template</summary>
+
+        ```text
+        Jugg version:
+        Android Studio version:
+        AGP version:
+        Gradle version:
+        Kotlin version:
+        JDK version:
+        Operating system (macOS/Windows/Linux):
+        Build variant:
+        Key logs or stack trace:
+        ```
+
+        </details>
+
+  - type: textarea
+    id: diagnostic_material
+    attributes:
+      label: Diagnostic material
+      description: Based on your selection above, paste the Report ID, attach the Diagnostics Bundle, provide the demo URL, or complete the manual diagnostic information.
+      placeholder: |
+        Provide one material matching the selected type, for example:
+        - Jugg Report ID: a1b2c3d4
+        - Diagnostics Bundle: drag the ZIP file here
+        - Reproducible demo: paste the repository URL or attach the files
+        - Manual diagnostic information: paste and complete the template above
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched the existing issues and did not find the same bug.
+          required: true

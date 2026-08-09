@@ -1,0 +1,113 @@
+name: Bug 反馈
+description: 报告 Jugg 故障或非预期行为
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你反馈有关 Jugg 的问题。请提供以下信息，帮助我们复现和定位问题。
+
+  - type: dropdown
+    id: problem_type
+    attributes:
+      label: 问题类型
+      options:
+        - 编译失败
+        - 部署失败
+        - 运行时 crash
+        - 运行时不生效
+        - Android test 功能问题
+        - IDE UI 问题
+        - CLI/MCP 问题
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述与复现
+      description: 请描述实际行为、预期行为和最短复现步骤；无法稳定复现时，请说明出现频率和最近一次发生时间。
+      value: |
+        #### 实际行为
+        <!-- 发生了什么？请粘贴关键错误信息。 -->
+
+        #### 预期行为
+        <!-- 你期望发生什么？ -->
+
+        #### 复现步骤
+        1.
+        2.
+        3.
+
+        <!-- 可选：提供截图、录屏或其他相关信息。 -->
+    validations:
+      required: true
+
+  - type: dropdown
+    id: diagnostic_type
+    attributes:
+      label: 诊断材料类型（按优先级任选一种）
+      description: 请选择你能够提供的最高优先级材料。
+      options:
+        - Jugg Report ID（最推荐）
+        - Diagnostics Bundle
+        - 可复现 Demo
+        - 手工诊断信息（仅当前三项均不可用）
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        如果要上传附件，请检查并移除不希望公开的信息。
+        Report ID 对应的诊断数据仅临时保存在 Jugg 后台服务器，不会在 Issue 中公开；Issue 关闭或超过保留期限后会自动删除。
+
+        <details>
+        <summary>Jugg Report ID 与 Diagnostics Bundle 获取方式</summary>
+
+        1. 在 Android Studio 中双击 Shift，搜索并选择「Report Jugg Issue」；
+           或打开 Jugg Running Panel，点击「Report Issue」。
+        2. 选择「Upload logs」上传诊断文件，然后复制结果页中的 Report ID。
+        3. 无法上传时，勾选「Save locally without uploading」，点击「Create Diagnostics Bundle」导出 ZIP。
+
+        </details>
+
+        <details>
+        <summary>无法提供前三种材料？展开复制手工诊断模板</summary>
+
+        ```text
+        Jugg 版本：
+        Android Studio 版本：
+        AGP 版本：
+        Gradle 版本：
+        Kotlin 版本：
+        JDK 版本：
+        操作系统 Mac/Windows/Linux：
+        Build variant：
+        关键日志或错误堆栈：
+        ```
+
+        </details>
+
+  - type: textarea
+    id: diagnostic_material
+    attributes:
+      label: 诊断材料
+      description: 请根据上方选择粘贴 Report ID、拖入 Diagnostics Bundle、提供 Demo 地址，或填写手工诊断信息。
+      placeholder: |
+        请按所选类型提供一种材料，例如：
+        - Jugg Report ID：a1b2c3d4
+        - Diagnostics Bundle：将 ZIP 拖入此处
+        - 可复现 Demo：粘贴仓库地址或拖入附件
+        - 手工诊断信息：粘贴上方模板并填写
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已搜索现有 Issue，未发现相同 bug 描述。
+          required: true

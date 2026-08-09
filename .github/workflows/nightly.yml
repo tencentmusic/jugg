@@ -85,7 +85,7 @@ jobs:
         run: |
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
-          release_notes="$(printf 'Automatically published from the latest successful main branch build. Nightly builds may be unstable.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+          release_notes="$(printf 'Automatically published from the latest successful main branch build. Nightly builds may be unstable. However, they include the latest bug fixes and features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
             '${{ steps.version.outputs.value }}' \
             "$short_sha" \
             "$GITHUB_SERVER_URL" \

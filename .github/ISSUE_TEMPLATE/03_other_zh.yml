@@ -1,0 +1,24 @@
+name: 其他反馈
+description: 提交无法归入错误反馈或功能建议的内容
+title: "[Other]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bug 和功能建议请分别使用「错误反馈」和「功能建议」模板，请不要使用此模板。
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: 反馈内容
+      description: 请说明相关背景、具体内容和期望获得的帮助。
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已确认此内容不属于错误反馈或功能建议，并搜索了现有 Issue。
+          required: true

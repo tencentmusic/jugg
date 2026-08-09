@@ -9,6 +9,7 @@
 - GitHub App 负责安装范围、Webhook 来源和短期 API 身份。
 - receiver 负责签名、仓库白名单、GitHub API 读取、Delivery 去重、任务持久化、Codex 监管、输出校验和写回。
 - `$issue-handler` 只读取 receiver 提供的不可信 Issue JSON 与本地项目知识库，输出分类、标签建议和回复草稿。
+- 面向报告者的回复跟随 `reply_language`；维护者备注正文固定使用简体中文，receiver 的公开折叠标题固定为“仓库维护者备注”。
 - 本阶段不修改代码、不关闭 Issue、不创建分支或 PR。
 
 ## 变更

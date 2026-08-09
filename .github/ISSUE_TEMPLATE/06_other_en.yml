@@ -1,0 +1,24 @@
+name: Other Feedback
+description: Submit feedback that is neither a bug report nor a feature request
+title: "[Other]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For bugs and feature requests, use the "Bug Report" and "Feature Request" templates instead.
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback
+      description: Describe the relevant context, specific feedback, and the help you expect.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I confirmed that this is neither a bug report nor a feature request, and I searched the existing issues.
+          required: true

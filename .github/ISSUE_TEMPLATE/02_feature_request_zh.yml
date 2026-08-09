@@ -1,0 +1,32 @@
+name: 功能建议
+description: 建议新的 Jugg 能力或工作流改进
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: 感谢你的建议。请先描述实际使用场景和当前遇到的问题。
+
+  - type: textarea
+    id: feature_request
+    attributes:
+      label: 功能建议
+      description: 请描述实际使用场景和期望的用户可观察结果，无需设计内部实现方案。
+      value: |
+        ### 使用场景与问题
+        <!-- 你在什么场景下遇到了什么问题？ -->
+
+        ### 期望结果
+        <!-- 你期望 Jugg 提供什么用户可观察的能力？ -->
+
+        ### 补充信息
+        <!-- 可选：当前替代方案、截图、类似产品、参考链接或其他约束。 -->
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已搜索现有 Issue，未发现相同功能请求。
+          required: true

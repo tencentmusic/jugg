@@ -1,0 +1,32 @@
+name: Feature Request
+description: Suggest a new Jugg capability or workflow improvement
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for your suggestion. Start by describing the actual use case and the problem you currently face.
+
+  - type: textarea
+    id: feature_request
+    attributes:
+      label: Feature request
+      description: Describe the actual use case and the expected user-visible outcome. You do not need to design the internal implementation.
+      value: |
+        ### Use case and problem
+        <!-- In what situation do you encounter this problem? -->
+
+        ### Expected outcome
+        <!-- What user-visible capability do you expect Jugg to provide? -->
+
+        ### Additional information
+        <!-- Optional: Current workarounds, screenshots, similar products, reference links, or other constraints. -->
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched the existing issues and did not find the same feature request.
+          required: true
