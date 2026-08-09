@@ -29,6 +29,7 @@ Jugg 编译能力建立在最近一次可用的 Gradle 构建结果之上。它�
 |---|---|---|
 | [DataBinding/ViewBinding](./databinding-viewbinding.md) | 支持 layout 变化后的两阶段处理 | 资源阶段生成 base/split 产物，源码阶段生成 mapper/BR |
 | [Kotlin Compose](./kotlin-compose.md) | 支持常见 Compose Kotlin 源码增量编译 | 加载项目 Compose 编译插件后生成 class/dex |
+| [KMP 与 Compose Multiplatform](./kmp-compose-multiplatform.md) | 支持 Android 目标的 KMP 源码，以及新增或修改 Compose Multiplatform 资源 | 补齐 KMP 编译输入，或生成 accessor 并部署资源 |
 | [注解器](./annotation-processors.md) | 支持明确列出的注解入口 | 生成源码继续进入源码编译 |
 | [自定义编译器](./custom-compiler.md) | 支持通过 SPI 插入编译阶段 | 扩展 Jugg 内置编译链 |
 
@@ -38,7 +39,6 @@ Jugg 编译能力建立在最近一次可用的 Gradle 构建结果之上。它�
 |---|---|---|
 | [依赖库增量编译](./dependency-incremental.md) | 支持对部分依赖变化做 diff 后增量处理 | 新旧 library 产物进入本轮编译/部署判断 |
 | [Release 编译](./release-compile.md) | 实验性支持 mapping 一致性、inline 与删除成员补偿 | 产物重混淆后进入部署 |
-| [常量引用分析](./const-ref.md) | 支持 Java/Kotlin 内联常量影响分析 | 找到引用方源码并触发扩散编译 |
 | [AabResGuard](./aab-resguard.md) | 支持读取 `resources-mapping.txt` 辅助资源增量 link | 保持资源混淆名称一致 |
 | [Gradle 回退](./gradle-fallback.md) | 支持自动或用户触发回退 | 重新建立可信构建基线 |
 

@@ -18,9 +18,11 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
 | 子文档 | 内容 |
 |---|---|
 | [源码增量编译](./source.md) | Java、Kotlin、DEX 与关闭脱糖后的 default method 处理。 |
+| [KMP 源码增量编译](./kmp-source.md) | 如何依据 Gradle 编译模型补齐 KMP `expect` / `actual` 与中间 source set 源码。 |
 | [重编译 / 扩散编译](./recompile-propagation.md) | 首轮编译后如何根据 class 结构和引用索引继续补编译源码。 |
 | [常量引用分析](./const-ref.md) | Java/Kotlin 编译期常量变化后如何补编译引用方。 |
 | [资源增量编译](./resource.md) | aapt2 compile / link、Jugg 定制的 `inclink` 内存级缓存、资源表加载与资源 overlay。 |
+| [Compose Multiplatform 资源](./compose-multiplatform-resource.md) | accessor 生成、完整资源上下文、增量部署与运行时重启边界。 |
 | [DataBinding / ViewBinding](./databinding-viewbinding.md) | layout split、base class、mapper、BR 与两阶段处理。 |
 | [Android Manifest 编译](./manifest.md) | merged manifest 基线、增量 patch 与完整 merge 边界。 |
 | [release 增量编译](./release-compile.md) | 实验性的 mapping 重映射、inline 与删除成员补偿。 |

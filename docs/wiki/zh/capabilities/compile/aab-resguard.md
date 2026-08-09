@@ -22,9 +22,6 @@ Jugg 支持读取 AabResGuard 生成的 `resources-mapping.txt`，并把资源�
 | mapping 缺失 | 自动跳过 | 不阻断资源编译 |
 | mapping 解析失败 | 降级跳过 | 打印 warning，不直接中断本轮 |
 
-> [!TIP]
-> 如果刚启用或修改 AabResGuard 配置，先执行一次对应 Gradle 构建，让 `resources-mapping.txt` 成为 Jugg 可读取的基线。
-
 ## AabResGuard 如何生效
 
 ```text

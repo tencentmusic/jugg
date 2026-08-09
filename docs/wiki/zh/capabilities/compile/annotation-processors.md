@@ -12,44 +12,30 @@ tags:
 
 # 注解器
 
-Jugg 支持少量明确识别的注解入口，并把对应生成源码纳入本轮源码编译。对用户来说，先判断自己使用的注解是否在支持列表中，比理解 JuggApt、KAPT 或 KSP 的内部路径更重要。
+Jugg 只对少量明确列出的注解入口提供增量处理，并把对应生成源码纳入本轮源码编译。未列出的 APT、KAPT 或 KSP processor 不会由 Jugg 独立增量执行，需要交给 Gradle。
 
-## 已支持能力
+## 支持范围
 
-| 注解 / 入口 | 当前支持情况 | 生效方式 |
+| 注解 / 入口 | 是否支持 | 实现方式 |
 |---|---|---|
-| `com.tencent.kuikly.core.annotations.Page` / `@Page` | 支持 | 更新 `KuiklyCoreEntry.kt` 中缺失的 page router 注册 |
-| `com.squareup.moshi.JsonClass` / `@JsonClass` | 支持 KSP 触发 | 命中后启用 KSP 相关参数或收集 KSP 生成源码 |
-| DataBinding `<layout>` XML | 支持 | 生成 DataBinding trigger，并运行 DataBinding annotation processor 生成 mapper / BR |
-| `androidx.databinding.BindingBuildInfo` / `android.databinding.BindingBuildInfo` | Jugg 内部生成 | 作为 DataBinding annotation processor 的 trigger source，用户通常不需要手写 |
+| 新增 `com.tencent.kuikly.core.annotations.Page` / `@Page` 页面 | 支持 | 基于已有路由入口补充缺失注册，并将更新后的入口加入本轮源码编译 |
+| 删除、重命名或修改已有 Kuikly `@Page` 路由 | 不支持 | 不移除旧路由注册，需要由 Gradle 重新生成完整入口 |
+| 使用 KSP1 的 `com.squareup.moshi.JsonClass` / `@JsonClass` | 支持 | 通过项目 KSP1 compiler plugin 生成 Moshi adapter，并继续源码编译 |
+| 使用 KSP2 的 `com.squareup.moshi.JsonClass` / `@JsonClass` | 不支持 | 不独立运行 KSP2 processor，只能继续编译 Gradle 已生成的源码 |
+| [DataBinding `<layout>`](./databinding-viewbinding.md) | 支持 | 通过专用 DataBinding annotation processor 生成 mapper、BR 和绑定相关源码 |
 
 > [!NOTE]
-> 除上表明确列出的入口外，不应默认认为任意 annotation processor 都能由 Jugg 完整增量执行。修改注解器依赖、参数或生成规则时，建议先 Gradle 构建。
+> 除上表明确列出的入口外，其他 annotation processor 均视为不支持 Jugg 独立增量执行。相关源码需要重新生成时，使用对应 Gradle 构建。
 
-## 实现方式
+## 使用边界
 
-```text
-源码或 layout 变化
-  -> Kuikly @Page 由 JuggApt 在语言编译前改写 KuiklyCoreEntry.kt
-  -> Moshi @JsonClass 命中 KSP 白名单后进入 KSP 参数/生成源码路径
-  -> DataBinding layout 生成 BindingBuildInfo trigger
-  -> DataBinding processor 生成 mapper / BR
-  -> 生成源码登记为 changed file
-  -> 源码编译继续 Kotlin / Java / dex
-```
-
-JuggApt 是 fail-open：processor 异常会打印 warn，然后继续主编译。若生成源码导致语言编译失败，Jugg 会在命中 JuggApt 产物时移除相关 changed-file 登记并重试一次。
-
-## KAPT / KSP 边界
-
-- KAPT 输出会从临时目录中收集 Java source 和 class 输出，继续交给源码编译后续阶段。
-- KSP 当前按源码 import 触发白名单场景；不是所有 KSP processor 都保证由 Jugg 独立运行。
-- KSP1 可通过 compiler plugin 参数运行；KSP2 更偏向两阶段生成源码再编译。
-- 修改注解器依赖、compiler plugin 或 processor 参数后，应通过 Gradle 刷新项目快照。
+- Kuikly `@Page` 增量处理依赖最近一次 Gradle/KSP 生成的路由入口基线，并且只补充缺失注册。删除页面、修改路由或重命名页面类时，应通过 Gradle 清理旧注册。
+- Moshi KSP 只在本轮 Kotlin 源码明确使用 `com.squareup.moshi.JsonClass` 且项目存在对应 KSP 依赖时触发。
+- KSP2 不由 Jugg 独立运行 processor；Jugg 只能继续编译 Gradle 已经生成的源码。
+- 修改 processor 依赖、compiler plugin、参数或生成规则后，工程模型变化时先完成 Sync，再执行 Gradle 构建刷新生成源码基线。
 
 ## 相关页面
 
 - [DataBinding/ViewBinding](./databinding-viewbinding.md)
-- [Kotlin Compose](./kotlin-compose.md)
 - [源码编译](./source-compile.md)
 - [Gradle 回退](./gradle-fallback.md)

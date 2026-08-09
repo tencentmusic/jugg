@@ -1,67 +1,87 @@
 ---
-title: 兼容层
-description: 解释 Android Studio 部署能力为什么不是稳定边界，Jugg 如何用自有抽象、按版本实现和显式分发隔离这些差异。
+title: Android Studio 版本兼容
+description: 解释 Jugg 在工程同步、设备选择、部署和调试阶段依赖哪些 Android Studio API，以及如何隔离版本差异并限制兼容兜底范围。
 status: active
 tags:
   - concept
   - compatibility
 ---
 
-# 兼容层
+# Android Studio 版本兼容
 
-Jugg 是 IDE 插件，既依赖 IntelliJ 平台接口，也要复用 Android Studio 插件里的部署能力。兼容层的任务，是把 Android Studio 部署能力的版本差异收敛在一处，让编译和部署主流程只面对 Jugg 自己的抽象。
+Jugg 会复用 Android Studio 的工程模型、Run Configuration、设备选择、安装、Apply Changes 和 Java debugger attach 能力。这些能力来自 Android Studio 内部 API，不是面向第三方插件的稳定公开接口；升级 IDE 后，相关类型和调用方式可能变化。Jugg 将这些差异限制在版本适配边界内，避免工程信息读取、编译和部署主流程随每个 Android Studio 版本一起变化。
 
-## 部署能力不是稳定的公开边界
+## Android Studio 升级为什么可能让插件提前失败
 
-Jugg 需要复用 Android Studio 的安装、Apply Changes、overlay swap 和 Java debugger attach 能力。但这些能力对插件来说不是有稳定契约的公开 API，不同 Android Studio 版本之间会变：
-
-- 部署运行时的类型可能迁移包名。
-- 安装方式、安装器、相关 UI 服务等对象可能更换构造方式。
-- deployment cache 条目和 overlay id 的内部类型可能变化。
-- debugger attach 入口可能迁移。
-- 新版 IDE 可能直接移除旧的部署运行时。
-
-主流程直接 import 这些内部类型时，问题不会停在“某个功能不可用”。JVM 在类加载阶段就会解析被引用的类型；升级后的 Android Studio 删除或改名旧类型后，插件会在项目打开阶段抛出 `NoClassDefFoundError` 或 `NoSuchMethodError`，业务还没开始就初始化失败。
-
-## 主流程只面对 Jugg 自有抽象
-
-为避免这种启动期就崩溃的风险，兼容层把版本差异收在内部，主流程只面对 Jugg 自己定义的抽象接口和中立的数据模型：
+Android Studio 升级可能迁移部署运行时的包名，更换安装器或调试入口，也可能直接移除旧类型。插件如果在主流程中直接引用这些类型，JVM 会在加载相关类时解析引用，而不是等到用户真正执行部署后再判断功能是否可用。
 
 ```text
-Jugg 部署主流程
-  -> Jugg 自有部署抽象（统一门面 + 中立数据模型）
-  -> 按当前 Android Studio 版本选中的实现
-  -> Android Studio 部署运行时
+Android Studio 移除或迁移内部类型
+  -> 插件加载仍引用旧类型的类
+  -> JVM 无法完成类型或方法解析
+  -> 项目初始化阶段出现 NoClassDefFoundError 或 NoSuchMethodError
+  -> Run 尚未开始，相关服务已经无法启动
 ```
 
-这套抽象靠几项设计支撑：
+因此，版本兼容首先要解决的不是部署失败后的重试，而是防止某个版本专用类型在不合适的 Android Studio 中被提前加载。
 
-- **按版本选择实现**：门面在初始化时读取当前 Android Studio 版本，选定优先实现；真正调用某个兼容能力时再分发到具体版本实现。
-- **显式分发而非通用 Proxy**：兼容门面不使用会在启动期反射解析接口全部方法签名的通用动态代理。否则一旦某个版本已移除旧部署类型，启动期的方法签名解析就会先于业务兜底直接终止插件初始化。改用显式分发后，只有在实际调用某个方法时才接触对应版本类型，并在那一刻捕获 API 形态差异错误。
-- **中立的数据模型**：主流程拿到的安装会话、overlay id、deployment cache 条目、部署异常等，都是 Jugg 自有的中立类型。Android Studio 的内部类型只在具体版本实现里局部出现，不外泄到部署编排层。
-- **自有快照持久化 deployment cache**：deployment cache 的落盘改用 Jugg 自有快照，只保存 APK 路径、overlay 标识与校验等中立字段。重新加载时再经兼容层解析 APK、重建当前版本能识别的 cache 条目，避免把某个 IDE 版本的内部对象当成长期存储契约。
-- **平台桩支撑核心模块脱离 IDE 编译**：核心模块不能直接依赖 IDE 运行时，因此另有一层平台桩提供 IntelliJ / Android API 的编译期替身，让核心模块在没有 IDE 的环境下也能编译；命令行入口正是借此在无 IDE 场景复用核心编译能力。
+## Jugg 把版本差异限制在调用边界
 
-## 版本选择与兜底
+编译和部署主流程只使用 Jugg 自有的接口与中立数据模型。需要调用 Android Studio 能力时，再由版本适配边界选择具体实现：
 
-兼容层按 Android Studio 版本拆分实现，覆盖 Chipmunk、Giraffe、Hedgehog、Iguana、Meerkat、Narwhal、Otter、Panda、Quail 等版本代号。门面按版本从高到低维护实现列表：
+```text
+Jugg 编译或部署主流程
+  -> Jugg 自有接口与数据模型
+  -> 当前 Android Studio 对应的版本实现
+  -> Android Studio 部署或调试 API
+```
 
-- 当前版本能精确匹配时，使用对应实现。
-- 当前 IDE 高于已知最高版本时，先使用最高版本实现。
-- 当前 IDE 低于已知最低版本时，退到最低版本实现。
+Android Studio 的安装会话、overlay 标识和 deployment cache 条目只在具体版本实现内部转换，不会成为主流程的数据契约。这样，新版本改变内部类型时，调整范围可以停留在版本实现内。
 
-调用具体能力时，先用优先实现；若因 API 形态差异抛出兼容错误，再逐个尝试其他版本实现，全部失败才上报。
+版本实现也不会在插件启动时统一解析所有方法签名。只有主流程实际调用某项能力时，才会接触对应的 Android Studio 类型；缺少旧类型只会影响当前调用，并为尝试其他版本实现留下空间。
 
-Quail 是一个典型边界：它不再携带旧的部署运行时，部署 API 已迁移到新的包，因此这一版的兼容实现独立编写，不继承旧实现链，避免父类或方法签名在启动期解析到已不存在的旧类型。
+## 当前依赖的 Android Studio API
 
-## 兜底只覆盖 API 形态差异
+不同阶段依赖的 API 及用途如下。表中只列出当前主流程会调用的关键类型，同一能力在不同 Android Studio 版本中可能位于不同包或使用不同方法签名。
 
-兼容设计有明确的作用范围：
+| 使用阶段 | 关键 API | 用途 |
+|---|---|---|
+| 插件初始化 | `ApplicationInfo` | 读取当前 IDE 产品和版本号，选择优先使用的版本实现。 |
+| Gradle 同步完成或工程信息刷新 | `GradleAndroidModel`、`ProjectBuildModel`、`GradleBuildModel`、`AndroidFacet`、`ModuleManager` | 读取模块目录、构建变体、SDK、Java/Kotlin 编译选项、Manifest 位置、APK 输出目录和 Android Test 包信息。 |
+| 创建或同步 Jugg Run Configuration | `RunManager`、`AndroidRunConfigurationType`、`AndroidRunConfiguration` | 查找现有 Android Run Configuration，并生成对应的 Jugg 编译命令、构建变体和 APK 输出路径。 |
+| 初始化 Jugg Run Configuration | `DeployableToDevice.KEY`、`DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE` | 告诉不同版本的 Android Studio，该 Run Configuration 可以使用 IDE 的设备选择器。这个标记发生在项目服务完成初始化之前。 |
+| Run 前解析设备 | `DeployTargetContext`、`DeployTarget`、`AdbService`、ddmlib `IDevice` | 读取 IDE 当前选中的已启动设备，并通过 ADB 获取已连接设备；Jugg 不会为了读取选择结果主动启动模拟器。 |
+| 安装或更新 APK | `ApkParser`、`AdbInstaller`、`ApkInstaller`、`InstallOptions`、`InstallMode`、`DeploymentPlan` | 解析 APK，创建安装会话，并在 Install 或 APK 更新阶段执行完整安装或增量安装。 |
+| Apply Changes | `ApplicationDumper`、`DexComparator`、`ClassRedefiner`、`OptimisticApkSwapper`、`OverlayId` | 在增量编译完成后校验设备上的 APK，组织 class 与资源 overlay，并执行 Code Swap 或 Full Swap。 |
+| Run 状态检查和恢复 | `DeploymentApplicationService`、ddmlib `Client` 与 `IDevice` | 判断设备授权状态、系统版本和目标进程是否可调试，为部署恢复和 Debug attach 提供状态。 |
+| Debug Run 部署成功后 | `AndroidConnectDebugger`、`AndroidJavaDebugger`、ddmlib `Client` | 等待目标进程进入 debugger waiting 状态，再交给 Android Studio 建立 Java Debug 会话。 |
 
-- 兼容兜底只处理 Android Studio 的 API 形态差异。安装失败、设备离线、payload 不合法这类业务错误不会被吞掉，否则用户会被引向错误的恢复路径；业务失败仍走部署重试、状态恢复或 Gradle 回退。
-- 主流程不直接引用 Android Studio 的部署运行时类型；新版本出现差异时，应新增或调整对应版本实现，而不是把版本分支写进部署编排层。
-- 平台桩只解决编译期的 API 缺口，不代表运行时一定具备同样行为。运行时能力仍以当前 Android Studio API、设备状态和具体版本实现为准。
+这些依赖发生在不同时间点。工程模型 API 在同步和刷新工程信息时使用；deployer API 只在本次 Run 已经进入安装或 Apply Changes 后使用；debugger API 只在 Debug Run 编译和部署都成功后使用。某一类 API 的版本差异不会触发其他阶段提前加载它的全部实现。
+
+## 版本选择是有限的 Best-effort
+
+Jugg 会优先选择与当前 Android Studio 精确匹配的实现。没有精确匹配时：
+
+- 当前 IDE 高于已知最高版本，优先尝试最高版本实现。
+- 当前 IDE 低于已知最低版本，退到最低版本实现。
+- 调用遇到类、方法或字段缺失等 API 形态错误时，再尝试其他已知版本实现。
+
+这种选择方式用于缩小版本差异造成的影响，不代表未验证版本一定完整兼容。当前支持的 Android Studio 版本及验证范围以[兼容性参考](../reference/compatibility.md)为准。
+
+兜底只处理 Android Studio API 的链接或形态差异。安装失败、设备离线、部署产物无效等业务错误会直接返回原有流程，由部署恢复或 Gradle 回退处理；切换版本实现无法改变这些失败条件，也不应掩盖真实原因。
+
+## 能力边界
+
+本机制只处理 Android Studio 内部部署和调试 API 的版本差异：
+
+- Android Studio 版本是否经过验证，以兼容性参考中的版本表为准。
+- 设备系统限制、JVMTI 不可用或厂商系统行为由[兼容部署](./compat-deploy.md)处理。
+- Gradle、AGP 和 Kotlin 插件版本是否受支持，属于构建工具兼容范围。
+- Java debugger attach 是否可用还取决于当前 Android Studio 版本，具体操作和失败入口参见 [Debug](../guide/debug.md)。
 
 ## 相关页面
 
 - [兼容性参考](../reference/compatibility.md)
+- [Apply Changes 中的 class 与 overlay](./apply-changes.md)
+- [兼容部署](./compat-deploy.md)
+- [Debug](../guide/debug.md)

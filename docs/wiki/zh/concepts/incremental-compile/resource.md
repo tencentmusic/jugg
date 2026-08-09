@@ -93,10 +93,10 @@ layout 生成的 Java/Kotlin 源码不会作为资源直接部署，而是交给
 
 ## inclink 的适用边界
 
-- **资源表只新增或覆盖，不删除旧 entry。** 删除资源后，旧资源 ID 会保留到下一次完整 Gradle 构建刷新基线，因此 `inclink` 只用于开发期增量，不是生产资源链接器。
+- **资源表只新增或覆盖，不生成删除操作。** 删除资源文件时，设备端原有 entry 和资源 ID 保持不变，仍可通过资源 API 读取；只有需要让删除真正生效时，才通过完整 Gradle 构建刷新基线。因此 `inclink` 只用于开发期增量，不是生产资源链接器。
 - **多 APK 必须分别链接。** 资源产物按目标 APK 独立生成，不能把同一份 overlay 复制给 base、feature 或其他 APK。
 - **dynamic feature 依赖 base 状态。** base 资源表变化需要参与 feature 的同轮 link，避免资源 ID 分叉。
-- **构建上下文变化需要刷新基线。** 修改 variant、source set、资源生成逻辑或资源混淆配置后，应先执行对应 Gradle 构建或 Sync。
+- **构建上下文变化需要刷新基线。** 修改 variant、source set、资源生成逻辑或资源混淆配置后，工程模型变化应先完成 Gradle Sync，再为目标变体执行完整 Gradle 构建，刷新 APK 和资源表基线。
 - **Compose Multiplatform 资源不走 aapt2 inclink。** 它们通过独立的资源生成和 asset / classpath resource overlay 链路处理；删除 Compose 资源同样需要完整 Gradle 构建。
 
 ## 相关页面

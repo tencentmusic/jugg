@@ -20,7 +20,6 @@ Jugg 支持 DataBinding / ViewBinding 相关 layout 修改的增量处理。它�
 | ViewBinding layout 修改 | 支持 | binding 相关源码会被更新并继续编译 |
 | DataBinding layout 修改 | 支持 | mapper、BR 等相关源码会被更新并继续编译 |
 | `<include>` 影响 | 支持基于 layout info 补齐 | 被 include 关系影响的 layout 会一起进入生成源码更新 |
-| Kotlin 源参与 DataBinding | 支持重试路径 | Kotlin 相关 class 准备完成后，DataBinding 生成可继续推进 |
 | Gradle layout info 维护 | 支持 | 后续 Gradle 构建仍能拿到必要 layout 基线 |
 
 > [!TIP]

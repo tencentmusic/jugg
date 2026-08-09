@@ -1,6 +1,6 @@
 ---
 title: Apply Changes 中的 class 与 overlay
-description: 解释 Android Studio Apply Changes 如何组合 class 替换与文件 overlay，以及 Jugg 为什么通常会在部署后重建 Activity。
+description: 解释 Android Studio Apply Changes 如何通过 JVMTI 在线替换 class、更新文件 overlay，以及 Jugg 为什么通常会在部署后重建 Activity。
 status: active
 tags:
   - concept
@@ -31,11 +31,13 @@ deployment cache 记录了设备上一次成功安装或 Apply Changes 后的 AP
 
 ## class 分为在线修改和新增内容
 
+Apply Changes 对已加载 class 的在线修改依赖 JVMTI。Apply Changes Agent 取得 JVMTI 后，对 modified class 执行 class redefinition，因此方法体修改可以在不重启 App 进程的情况下生效；字段、方法签名或继承关系等结构变化不能沿用这条在线替换路径，需要转为 Hot Fix 并在 App 重启后加载。Jugg 目前直接复用这条热重载通道，JVMTI 兼容检测和运行时修正见 [Jugg JVMTI Agent](./jugg-jvmti-agent.md)。
+
 Jugg 在部署前比较新旧 class 结构，并把 class 变化交给 Apply Changes 的两个输入集合。
 
 | class 变化 | Apply Changes 输入 | 生效边界 |
 |---|---|---|
-| 方法体变化，class 结构保持不变 | modified class | 可以由运行时替换已有 class 实现 |
+| 方法体变化，class 结构保持不变 | modified class | 由 JVMTI 在线替换已加载的 class 实现 |
 | 新增 class | new class | 作为新的 DEX 内容加入 overlay，由当前或下一次进程加载 |
 | 字段、方法签名、继承或泛型结构变化 | new class / Hot Fix 数据 | 不能依赖当前进程中的 class redefine，需要重启 App 后加载 |
 | library dex、multi-dex 等不能稳定在线替换的 class | Hot Fix 数据 | 重启 App 后由运行时加载 |
@@ -73,7 +75,7 @@ warm-up、状态探测或不需要界面刷新的特殊调用可以使用不重�
 - Compose 资源等具有进程级缓存的内容；
 - 用户开启“部署后始终重启”，或从 Debug 入口运行。
 
-这些场景仍可使用本轮增量编译产物，但新进程需要重新建立 ClassLoader、Resources 或运行时缓存。具体加载方式见[Jugg Runtime](./jugg-runtime.md)和[兼容部署](./compat-deploy.md)。
+这些场景仍可使用本轮增量编译产物，但新进程需要重新建立 ClassLoader、Resources 或运行时缓存。具体加载方式见[App 进程内 Jugg runtime](./jugg-runtime.md)和[兼容部署](./compat-deploy.md)。
 
 ## 相关页面
 
@@ -82,5 +84,6 @@ warm-up、状态探测或不需要界面刷新的特殊调用可以使用不重�
 - [APK 更新与安装](./apk-update-and-install.md)
 - [Direct Overlay 部署机制](./direct-overlay.md)
 - [部署状态与恢复](./deploy-state-recover.md)
+- [Jugg JVMTI Agent](./jugg-jvmti-agent.md)
 - [Code Swap 能力](../capabilities/deploy/code-swap.md)
 - [Full Swap 能力](../capabilities/deploy/full-swap.md)

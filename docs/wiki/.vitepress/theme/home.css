@@ -109,7 +109,7 @@
   padding: 0 18px;
   color: var(--home-ink);
   background: var(--home-surface);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 }
@@ -161,7 +161,7 @@
   gap: 16px;
   padding: 12px 16px;
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .jugg-run-toolbar {
@@ -205,7 +205,7 @@
   align-self: center;
   color: #79a5f6;
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -237,7 +237,7 @@
 .jugg-run-log time {
   color: #758a81;
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .jugg-log-state {
@@ -245,7 +245,7 @@
   border-radius: 3px;
   padding: 3px 5px;
   font-family: var(--vp-font-family-mono);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -268,7 +268,7 @@
 
 .jugg-run-log strong {
   color: #dce9e3;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
 }
 
@@ -312,7 +312,7 @@
 .jugg-eyebrow {
   color: var(--home-green);
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -325,13 +325,13 @@
   display: block;
   margin-top: 10px;
   color: var(--home-ink);
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .jugg-trust p {
   margin: 7px 0 0;
   color: var(--home-muted);
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .jugg-band {
@@ -363,7 +363,7 @@
 .jugg-section-head > p:last-child {
   margin: 14px 0 0;
   color: var(--home-muted);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.72;
 }
 
@@ -393,7 +393,7 @@
 .jugg-step-list li > span {
   color: var(--home-blue);
   font-family: var(--vp-font-family-mono);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -401,13 +401,13 @@
 .jugg-decision-list strong,
 .jugg-path-grid strong {
   color: var(--home-ink);
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .jugg-step-list p {
   margin: 9px 0 0;
   color: var(--home-muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
 }
 
@@ -416,7 +416,7 @@
   gap: 14px;
   margin-top: 28px;
   color: var(--home-green);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 720;
 }
 
@@ -446,7 +446,7 @@
   border-radius: 4px;
   padding: 5px 7px;
   font-family: var(--vp-font-family-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -456,7 +456,7 @@
 
 .jugg-decision-list small {
   color: var(--home-muted);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.65;
 }
 
@@ -488,7 +488,7 @@
 
 .jugg-path-grid span {
   color: var(--home-muted);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
@@ -499,7 +499,7 @@
   border-top: 1px solid var(--home-line);
   padding: 28px 0 44px;
   color: var(--home-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .jugg-home-footer p {
@@ -513,20 +513,20 @@
 
 .dark .jugg-home {
   --home-ink: #edf3f0;
-  --home-paper: #101614;
-  --home-surface: #171e1b;
-  --home-line: rgba(190, 211, 202, 0.16);
-  --home-green: #62c7a0;
-  --home-green-soft: rgba(48, 184, 132, 0.14);
+  --home-paper: #111315;
+  --home-surface: #1b1f22;
+  --home-line: rgba(214, 222, 218, 0.15);
+  --home-green: #7bc9a8;
+  --home-green-soft: rgba(92, 173, 139, 0.13);
   --home-blue: #91ade3;
-  --home-blue-soft: rgba(89, 139, 237, 0.14);
+  --home-blue-soft: rgba(89, 139, 237, 0.12);
   --home-amber: #d8a464;
-  --home-amber-soft: rgba(214, 136, 43, 0.14);
-  --home-muted: #aab8b2;
+  --home-amber-soft: rgba(214, 136, 43, 0.12);
+  --home-muted: #a6afaa;
 }
 
 .dark .jugg-hero {
-  background: #121916;
+  background: #15181a;
 }
 
 .dark .jugg-button.primary {
@@ -544,7 +544,7 @@
 
 .dark .jugg-path-grid a:hover,
 .dark .jugg-path-grid a:focus-visible {
-  background: #1d2521;
+  background: #23272a;
 }
 
 @media (max-width: 1040px) {
@@ -623,7 +623,7 @@
   }
 
   .jugg-hero-detail {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .jugg-actions {

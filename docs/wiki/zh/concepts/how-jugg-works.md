@@ -101,5 +101,5 @@ Gradle 回退用于重新建立可信起点。完整构建会刷新工程快照�
 - [增量编译](./incremental-compile/)：不同文件类型的编译与产物生成。
 - [部署策略](./deploy-strategy.md)：部署等级、设备能力和生效方式。
 - [部署自愈机制](./deploy-self-healing.md)：部署产物怎样通过重试、切换策略和重装继续生效。
-- [Jugg Runtime](./jugg-runtime.md)：局部代码和资源如何在应用进程中加载。
+- [App 进程内 Jugg runtime](./jugg-runtime.md)：局部代码和资源如何在应用进程中加载。
 - [Gradle 回退与基线重建](./gradle-fallback-baseline.md)：何时刷新完整构建基线。

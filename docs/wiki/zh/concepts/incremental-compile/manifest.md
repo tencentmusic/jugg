@@ -54,7 +54,7 @@ Jugg 因此优先使用上一轮增量写回的 merged manifest；没有这份�
 
 aapt2 无法加载当前资源表或 link 失败时，Manifest 不会绕过资源阶段单独部署，本轮资源编译会整体失败并进入既有失败收口。
 
-## 删除和完整 merge 语义需要回到 Gradle
+## 删除操作为什么不会改变已安装 Manifest
 
 增量阶段只能应用来源明确的新增和更新，不能可靠判断一个声明是否应该从最终 merged manifest 删除。旧声明可能来自其他 source set 或依赖库，直接删除会破坏 Gradle 已经合并好的结果。因此下列变化不会由增量 patch 完整处理：
 
@@ -63,7 +63,9 @@ aapt2 无法加载当前资源表或 link 失败时，Manifest 不会绕过资�
 - `uses-sdk`、manifest `package`、`versionCode` 和 `versionName`。
 - application `android:name`。
 
-这些变化需要执行完整 Gradle 构建，重新生成 merged manifest 基线。找不到可信的 merged manifest 时，Manifest 增量编译也会失败，并提示通过 Gradle 构建恢复基线。
+Jugg 会忽略这些删除或完整 merge 指令，不生成删除 patch，也不会仅因此让本轮增量编译失败。设备继续使用已安装 APK 中原有的节点和属性，通过系统或 `PackageManager` 查询时仍能看到旧内容。只有需要让删除真正生效时，才执行完整 Gradle 构建，重新生成 merged manifest 和 APK 基线。
+
+找不到可信的 merged manifest 属于另一类情况：此时新增和更新也缺少可用基线，Manifest 增量编译会失败，并提示通过 Gradle 构建恢复。
 
 ## 相关页面
 

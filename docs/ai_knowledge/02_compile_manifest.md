@@ -1,6 +1,6 @@
 # 编译系统：Manifest 增量合并
 
-> 最后核对：2026-08-07
+> 最后核对：2026-08-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -48,7 +48,7 @@ ResourceOverlayCompiler.doApkCompile()
 
 这条链路的关键点是“patch merged manifest”，不是重新跑完整 Gradle manifest merge。标准 `ManifestMerger2` 需要完整 placeholder、variant/flavor manifest、依赖 manifest 和 merge feature 上下文；增量现场不能保证这些输入与上次 Gradle 构建完全一致。Jugg 因此把上次最终 merged manifest 当作稳定基线，只套用能够确定恢复的局部变化。
 
-Manifest patch 是有意保守的：`ManifestDiffer` 只遍历新 manifest 中存在的节点和属性，新增节点或属性变化才进入 `DiffElement.changedChildren/changedAttributes`；旧 manifest 中存在、当前已删除的节点或属性不会生成删除操作。`tools:node="remove"` 会被视为无 patch，其他 `tools:*` 属性也不会写进最终 merged manifest。真正需要删除声明或依赖完整 `tools:remove/tools:replace` 语义时，必须通过完整 Gradle merge 刷新基线。
+Manifest patch 是有意保守的：`ManifestDiffer` 只遍历新 manifest 中存在的节点和属性，新增节点或属性变化才进入 `DiffElement.changedChildren/changedAttributes`；旧 manifest 中存在、当前已删除的节点或属性不会生成删除操作。`tools:node="remove"` 会被视为无 patch，其他 `tools:*` 属性也不会写进最终 merged manifest。这些删除或完整 merge 指令不会单独导致增量编译失败或自动回退，已安装 APK 继续保留原有 merged manifest 内容；只有需要让删除真正生效时，才通过完整 Gradle merge 刷新基线。
 
 ---
 

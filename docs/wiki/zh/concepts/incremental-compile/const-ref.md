@@ -85,4 +85,4 @@ Jugg 会比较同一文件分析前后的常量定义。常量名对应的类型
 - [重编译 / 扩散编译](./recompile-propagation.md)
 - [源码增量编译](./source.md)
 - [部署数据与影响分析](../deploy-data-and-impact.md)
-- [常量引用分析能力](../../capabilities/compile/const-ref.md)
+- [重编译/扩散编译能力](../../capabilities/compile/recompile-propagation.md)

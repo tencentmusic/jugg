@@ -68,5 +68,5 @@ Jugg 会读取 Gradle 项目信息、classpath、APK 输出和 androidTest 相�
 
 - [限制](./limits.md)
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
-- [兼容层](../concepts/compatibility-layer.md)
+- [Android Studio 版本兼容](../concepts/compatibility-layer.md)
 - [Debug](../guide/debug.md)

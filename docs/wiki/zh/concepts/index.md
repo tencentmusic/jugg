@@ -26,8 +26,8 @@ Jugg 将最近一次完整 Gradle 构建作为可信起点。后续点击 Run �
 | 为什么只改一个文件仍可能编译其他文件 | [增量编译](./incremental-compile/)、[工程模型同步](./project-model.md)、[部署数据与影响分析](./deploy-data-and-impact.md) |
 | class 和资源怎样进入设备，为什么有时重启或更新 APK | [增量部署](./deploy-strategy.md)、[Apply Changes 中的 class 与 overlay](./apply-changes.md)、[APK 更新与安装](./apk-update-and-install.md) |
 | 为什么设备未 ready 仍能部署，状态不一致时怎样恢复 | [Direct Overlay 部署机制](./direct-overlay.md)、[部署状态与恢复](./deploy-state-recover.md)、[部署自愈机制](./deploy-self-healing.md)、[兼容部署](./compat-deploy.md) |
-| 代码如何在应用进程中被替换并继续运行 | [Jugg Runtime](./jugg-runtime.md)、[JVMTI Agent](./jvmti-agent.md) |
-| 测试、界面取证和版本兼容如何接入主流程 | [Android Test 流程](./android-test-flow.md)、[布局导出与界面证据](./layout-dump-and-ui-evidence.md)、[兼容层](./compatibility-layer.md) |
+| 代码如何在应用进程中被替换并继续运行 | [App 进程内 Jugg runtime](./jugg-runtime.md)、[Jugg JVMTI Agent](./jugg-jvmti-agent.md) |
+| 测试、界面取证和版本兼容如何接入主流程 | [Android Test 流程](./android-test-flow.md)、[布局导出与界面证据](./layout-dump-and-ui-evidence.md)、[Android Studio 版本兼容](./compatibility-layer.md) |
 
 ## 推荐阅读路径
 

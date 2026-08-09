@@ -97,6 +97,6 @@ Jugg 当前对普通、非空且无需重启 App 的增量数据使用 Apply Cha
 
 - [部署结果说明](../guide/deploy.md)
 - [部署能力](../capabilities/deploy/)
-- [Jugg Runtime](./jugg-runtime.md)
-- [JVMTI Agent](./jvmti-agent.md)
+- [App 进程内 Jugg runtime](./jugg-runtime.md)
+- [Jugg JVMTI Agent](./jugg-jvmti-agent.md)
 - [Gradle 回退与基线重建](./gradle-fallback-baseline.md)

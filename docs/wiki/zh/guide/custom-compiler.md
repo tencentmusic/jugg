@@ -47,6 +47,33 @@ jar 可以来自：
 
 配置中需要包含 jar 文件名、路径和 md5。Jugg 会校验 md5；本地已有 jar 或远端下载 jar 不匹配时，不会作为有效自定义编译器使用。
 
+### 本地项目配置
+
+不通过后台下发时，可以在项目中维护以下文件：
+
+```text
+build/jugg/config/
+  custom_config.json
+  custom_compilers/
+    example.jar
+```
+
+将自定义编译器声明合并到 `build/jugg/config/custom_config.json` 的现有配置中：
+
+```json
+{
+  "customCompilers": [
+    {
+      "jarFileName": "example.jar",
+      "path": "build/jugg/config/custom_compilers/example.jar",
+      "md5": "<example.jar 的 md5>"
+    }
+  ]
+}
+```
+
+`path` 相对于项目根目录，也可以填写本地绝对路径。只把 jar 放入 `custom_compilers` 目录不会自动加载，仍需在 `custom_config.json` 中声明。保存配置后，下一次通过 Jugg Run 编译时会重新读取配置。
+
 ## 执行顺序
 
 自定义编译器通过 `CompileOrder` 选择插入点：
@@ -74,7 +101,7 @@ before hook 可以通过消费输入文件影响后续内置编译；after hook 
 
 | 现象 | 处理方式 |
 |---|---|
-| jar 配置后不生效 | 检查路径、md5 和配置是否已下发 |
+| jar 配置后不生效 | 检查路径、md5，以及本地 `custom_config.json` 或后台配置是否已生效 |
 | 远端 jar 下载成功但本轮没执行 | 再触发一轮编译，确认懒加载缓存已刷新 |
 | `ServiceLoader` 找不到实现 | 检查 `META-INF/services/...ICompilerCreator` |
 | 执行阶段不对 | 检查 `ICompiler.order` 是否落在目标阶段区间内 |

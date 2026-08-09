@@ -1,6 +1,6 @@
 ---
 title: 工程信息刷新与恢复
-description: 解释 Jugg 如何刷新 Gradle 工程信息、处理缺失快照，并适配 AGP 9、复合构建和自定义 build directory。
+description: 解释工程信息如何与完整构建基线对齐、刷新结果何时可用于本轮，以及何时需要完整 Gradle 构建。
 status: active
 tags:
   - concept
@@ -11,64 +11,83 @@ tags:
 
 # 工程信息刷新与恢复
 
-增量编译依赖最近一次完整构建确认的模块、依赖、variant、classpath 和输出路径。当 Gradle 命令、Build Variant、插件版本或工程结构变化后，旧快照即使还能读取，也不再足以证明本轮产物正确。
+一次成功的完整 Gradle 构建会留下两类状态：模块、variant、依赖、编译参数和输出路径等工程信息，以及 APK、classpath、资源表和生成代码等完整构建产物。Jugg 将两者组合为后续增量编译的起点。
 
-## 缺失工程信息时不会继续冒险部署
+工程信息把源码文件映射到模块、编译输入、输出路径和目标 APK。Jugg 可以在不重新生成 APK 的情况下单独读取这部分信息，但刷新结果只有在仍与现有完整构建产物对应时，才能用于本轮增量编译。
 
-Jugg 发现 Gradle 工程信息缺失或无效时，会先触发重建。增量任务若与重建并发，会等待当前重建结束；重建完成后重新判断是否具备增量条件。
+本文所说的工程信息“失效”，不是指文件保存时间较早，而是它已经无法描述当前构建配置，或者无法与现有完整构建产物对应。
 
-\`\`\`text
-发现工程信息缺失
+## 工程信息什么时候会失效
+
+工程信息和完整构建产物共同对应某个确定的构建目标。切换 Build Variant、BuildTarget 或 Gradle 编译命令后，两者仍属于上一个目标。
+
+```text
+编译目标从 debug 切换到 release
+  -> 现有工程信息和完整构建产物仍属于 debug
+  -> 它们无法描述 release 的编译输入与目标 APK
+  -> Jugg 执行完整 Gradle 构建
+  -> 新工程信息和新构建产物成为后续增量的起点
+```
+
+修改构建脚本、依赖、version catalog、source set 或构建插件也可能改变相同信息。明确的依赖变化可以进入依赖增量判断；无法收窄为局部依赖变化时，需要由 Gradle 重新确认完整构建结果。
+
+## 刷新如何更新增量输入
+
+工程信息需要更新时，Jugg 使用当前 Gradle 命令和构建目标读取真实构建环境，再与 Android Studio 提供的模块和源码结构合并。Gradle 侧提供实际 variant、依赖、编译参数和 build directory，IDE 侧补充当前工程中的模块与 source root。
+
+```text
+发现工程信息需要更新
+  -> 使用当前 Gradle 命令读取构建信息
+  -> 合并 IDE 与 Gradle 提供的工程结构
+  -> build 文件、编译命令和 BuildTarget 均未变化
+     -> 更新 classpath、输出路径和 APK 归属
+     -> 本轮可以继续增量编译
+  -> build 文件、编译命令或 BuildTarget 已变化
+     -> 新工程信息与现有构建产物不再对应
+     -> 本轮转完整 Gradle 构建
+     -> 使用新工程信息和新构建产物重建基线
+```
+
+明确识别为依赖库增删改、并经用户确认的 build 文件变化，可以进入依赖增量流程。该流程使用依赖差异临时调整本轮编译输入，不会把一次普通工程信息刷新直接作为新的完整构建基线。
+
+读取发生在当前工程的 Gradle 环境中，因此能够跟随 AGP variant API、Kotlin 编译任务和自定义 build directory 的实际变化。Jugg 会对已知版本差异使用匹配的读取方式；这一步只更新工程信息，不会生成 APK、资源表、生成代码或其它 Gradle task 产物。
+
+工程信息包含哪些字段、IDE 与 Gradle 数据如何合并，见[工程上下文获取](./project-model.md)。
+
+## 工程信息缺失时如何收口
+
+工程信息文件缺失、损坏或无法反序列化时，Jugg 会启动一次后台读取。仍准备执行增量编译的任务会等待这次工程信息重建完成，再重新检查增量条件。
+
+```text
+发现工程信息缺失或无效
   -> 启动 Gradle 工程信息读取
-  -> 增量任务等待重建结束
-  -> 快照有效：继续重新判断
-  -> 快照仍不可用：转为完整 Gradle 构建
-\`\`\`
+  -> 增量任务等待本轮重建结束
+  -> 读取成功且仍与现有基线对应：继续本轮增量
+  -> 读取失败或无法与现有基线对应：转完整 Gradle
+```
 
-这条保护避免在没有依赖、classpath 或 APK 归属证据时继续生成和部署局部产物。
+已经确定需要完整 Gradle 构建的路径不依赖这次后台读取完成，可以直接开始构建。这样，工程信息恢复只阻塞需要它的增量路径，不会把局部维护任务扩大成所有构建流程的等待条件。
 
-## 哪些变化会刷新快照
+远端编译命令变化时，Jugg 会用新命令刷新本地工程信息，并与远端完整构建并行执行。远端构建完成后，初始化下一轮增量只等待这次明确关联的刷新；IDE Sync 或依赖恢复触发的其它后台读取不会额外阻塞远端初始化。
 
-- Gradle 构建文件、依赖或 version catalog 变化。
-- Run Configuration 的编译命令或 BuildTarget 变化。
-- Android Studio Sync 或完整 Gradle 构建完成。
-- 远端编译命令变化。
-- 快照文件缺失、损坏或被判定为过期。
+## 刷新结果什么时候可以直接使用
 
-远端编译初始化只等待与本轮远端命令相关的刷新，不会被其它无关后台读取长期阻塞。
-
-## 完整构建是依赖事实来源
-
-完整构建完成后，Gradle 产生的依赖关系、classpath 和产物路径是本轮最权威的数据。即使 IDE 同时补充了模块与 source root 信息，也不会用较新的 IDE 文件时间覆盖同一次完整构建给出的 library dependencies。
-
-复合构建中，某个 included build 本轮读取失败时会尽量保留它上一次有效副本；从未成功读取过的 included build 才会被跳过。IDE 未识别但 Gradle 已确认的模块和依赖也会在不引入依赖环的前提下补回。
-
-## AGP 与 Kotlin 兼容
-
-新版本 AGP 会改变 variant API、Kotlin task 和输出目录。Jugg 的当前处理包括：
-
-- AGP 9 legacy variant API 无结果时，从 Android Components 收集 variant 名称。
-- 识别 AGP 9 Built-in Kotlin 的 task 与输出路径。
-- 从项目 Android Gradle Plugin 读取可用的 R8/D8 分发路径；Gradle 插桩 JAR 不可直接复用时回到原始 artifact 或 Jugg 内置实现。
-- Kotlin 2.x 优先读取 typed compiler options，旧版 Kotlin 才读取 legacy options。
-- 自定义或集中式 build directory 从工程模型读取，不硬编码模块 \`build/\`。
-
-这些适配只保证 Jugg 能建立与当前环境匹配的增量输入，不代表 Jugg 会替代完整 Gradle task graph。
-
-## 快照恢复仍有边界
-
-| 场景 | 处理 |
+| 工程状态变化 | Jugg 的处理 |
 |---|---|
-| 工程信息正在重建 | 等待本轮重建完成 |
-| 重建失败或完整构建基线不存在 | 转完整 Gradle 构建 |
-| included build 暂时读取失败 | 保留上次有效副本 |
-| 自定义 build directory | 按实际路径读取和同步产物 |
-| 切换 variant / BuildTarget | 建立新完整构建基线 |
-| 修改插件或 task graph | 由 Gradle 重新确认 |
+| build 文件、编译命令和 BuildTarget 均未变化 | 刷新工程信息，成功后继续复用现有完整构建基线 |
+| 工程信息文件缺失或无效，但构建配置未变化 | 重建工程信息，成功后可用于本轮增量 |
+| Android Studio Sync 更新模块结构，构建输入未变化 | 合并新的 IDE 信息，Gradle 信息缺失时异步补读 |
+| build 文件变化 | 默认执行完整 Gradle；明确确认的依赖变化可进入依赖增量流程 |
+| 远端编译命令变化 | 用当前命令刷新本地工程信息，同时执行远端完整构建 |
+| Build Variant、BuildTarget 或编译命令变化 | 执行完整 Gradle 构建，为新目标建立基线 |
+| 插件、task graph、source set 或工具链变化 | 由完整 Gradle 构建重新确认输入和产物 |
+| included build 本轮信息缺失 | 有上次有效副本时保留，没有历史副本时跳过 |
+
+复合构建的恢复遵循 Best-effort 原则：某个 included build 本轮没有生成工程信息时，只复用已经成功读取过的旧副本，不伪造新的模块或依赖。下一次读取成功后会用新结果替换旧副本。
 
 ## 相关页面
 
 - [工程上下文获取](./project-model.md)
+- [Gradle 回退与基线重建](./gradle-fallback-baseline.md)
 - [运行配置与构建变体](../guide/run-configuration.md)
 - [远端 Gradle 问题排查](../troubleshooting/remote-gradle.md)
-- [Gradle 回退](../capabilities/compile/gradle-fallback.md)

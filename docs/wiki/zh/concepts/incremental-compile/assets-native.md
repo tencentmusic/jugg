@@ -61,6 +61,7 @@ asset overlay 会保持 `assets/**` 路径，供新的资源加载路径读取�
 
 ## 需要回到 Gradle 的情况
 
+- 删除 asset 文件时，Jugg 不会生成移除设备端文件的 overlay；原有 asset 仍可通过 `AssetManager` 读取。只有需要让删除真正生效时，才执行完整 Gradle 构建。
 - 修改 C/C++ 源码、CMake、NDK、ABI、native source set 或 packaging 规则后，需要先由 Gradle/NDK 生成新的 `.so`。
 - 修改 asset source set、variant 或影响 APK 路径与归属的构建配置后，需要刷新 Gradle 基线。
 - native lib 更新依赖可用的 APK 签名配置；无法完成重签名时，不能继续使用这条增量更新路径。

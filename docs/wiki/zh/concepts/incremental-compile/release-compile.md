@@ -16,7 +16,7 @@ release 或其他启用 minify 的 APK 中，类名、方法名和字段名已�
 > [!WARNING]
 > **实验性能力**
 >
-> release 增量编译目前实际工程覆盖有限，不能替代完整 Gradle release 构建。修改 keep 规则、升级 R8 / ProGuard、切换 APK 基线，或遇到反射、注解、类型引用和成员访问异常时，应执行 Gradle release 构建验证并刷新基线。
+> release 增量编译尚未经过大规模实际工程验证。使用时可能出现改动未生效或运行时 crash；如果遇到问题，请提供可复现 Demo 并提交 issue。
 
 ## release 处理插在 D8 之后
 
@@ -94,9 +94,9 @@ APK 索引返回的类名可能已经混淆，Jugg 会通过同一份 mapping �
 
 ## mapping 基线缺失或失配时
 
-`mapping.txt` 既是重新混淆输入，也是是否进入 release 处理的门禁。文件不存在时，源码编译链会按非 minified 路径直接输出 DEX，不会执行 mapping 重放；这份 DEX 不能可靠部署到已经混淆的 APK，应通过 Gradle release 构建恢复 mapping 和 APK 基线。
+`mapping.txt` 既是重新混淆输入，也是是否进入 release 处理的门禁。文件不存在时，源码编译链会按非 minified 路径直接输出 DEX，不会执行 mapping 重放；这份 DEX 不能可靠部署到已经混淆的 APK。只有完整 Gradle release 构建产出匹配的 mapping 和 APK 基线后，release 增量编译才能继续复用这组结果。
 
-当前 mapping 与已安装 APK 不匹配时，即使名称转换本身成功，运行时仍可能出现 `NoClassDefFoundError`、`NoSuchMethodError`、`IllegalAccessError`、注解查找失败等问题。实验性 release 增量出现异常时，应保留日志，并首先使用同一代码执行完整 Gradle release 构建对照。
+当前 mapping 与已安装 APK 不匹配时，即使名称转换本身成功，运行时仍可能出现 `NoClassDefFoundError`、`NoSuchMethodError`、`IllegalAccessError`、注解查找失败等问题。遇到这些问题时，请保留日志，提供可复现 Demo 并提交 issue。
 
 ## 相关页面
 

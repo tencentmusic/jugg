@@ -28,7 +28,7 @@ Jugg 的能力页用于回答“这类修改或操作是否支持、会通过什
 | 修改资源、layout、assets 或 `R` 相关内容 | [资源编译](./compile/resource-compile.md) |
 | 修改 `AndroidManifest.xml` | [AndroidManifest 编译](./compile/manifest.md) |
 | 更新已产出的 native `.so` | [so 更新](./compile/so-update.md) |
-| 判断为什么需要重新编译调用方、子类或常量引用方 | [重编译/扩散编译](./compile/recompile-propagation.md)、[常量引用分析](./compile/const-ref.md) |
+| 判断为什么需要重新编译调用方、子类或常量引用方 | [重编译/扩散编译](./compile/recompile-propagation.md) |
 | 判断本轮部署是否能不重启 App | [Code Swap](./deploy/code-swap.md)、[Hot Reload](./deploy/hot-reload.md) |
 | 需要清数据重装或重新建立基线 | [Clean Reinstall](./deploy/clean-reinstall.md) |
 | 部署失败后想知道是否会自动恢复或重试 | [Recover 与 Retry](./deploy/recover-and-retry.md) |

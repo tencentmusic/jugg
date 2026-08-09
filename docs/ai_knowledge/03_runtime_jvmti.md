@@ -1,13 +1,13 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-07-30
+> 最后核对：2026-08-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
 ## 1. 文档定位
 
-本页描述 Jugg JVMTI agent 在部署链路中的职责：如何准备 startup agent、如何判断设备是否可用 JVMTI、何时触发兼容部署重试。
+本页描述 Apply Changes Agent、Jugg JVMTI Agent 与 IDE 部署编排的职责边界，以及 Jugg 如何准备 startup agent、判断设备是否可用 JVMTI、安装运行时 hook，并在必要时触发兼容部署重试。
 
 本页不展开 Direct Overlay 的传输细节、ViewHierarchy LocalSocket 协议、完整 install/code swap 流程；对应入口见 `03_deploy_core.md`、`03_deploy_complete.md`、`08_mcp_layout_verify_design.md`。
 
@@ -25,6 +25,7 @@
 | `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，写 `.jugg_jvmti_available` / `.jugg_jvmti_not_available` flag，并启动 instrumentation |
 | `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | 加载 `jugg-instruments.jar`，设置 class file load hook 并 retransform 目标类 |
 | `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
+| `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | 记录宿主 APK 路径，判断非宿主资源环境是否需要移除 Apply Changes overlay |
 | `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，并安装 dex/resource patch |
 | `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | 在 app `code_cache/startup_agents` 中放置版本化 agent so |
 | `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 打包 `jugg-instruments.jar`、64/32 位 so 和 setup script，生成 plugin resource |
@@ -38,11 +39,17 @@
 | Jugg agent bundle | `/data/local/tmp/jugg/{AGENT_VERSION}` | 设备全局临时目录，包含 `jugg-instruments.jar`、64/32 位 so、setup script |
 | App startup agent | `{app}/code_cache/startup_agents/{version}-jugg_jvmti_agent(.so/_alt.so)` | app sandbox 内真正被系统加载的 startup agent |
 | Apply Changes agent | `{app}/code_cache/startup_agents/{versionHash}-{dollName}` | Direct Overlay 复用的 AS startup agent；由 `AsStartupAgentPusher` 推送 |
-| `.jugg_jvmti_available` | `{app}/code_cache/.jugg_jvmti_available` | native `Agent_OnAttach` 成功取得 JVMTI/JNI 后写入 |
+| `.jugg_jvmti_available` | `{app}/code_cache/.jugg_jvmti_available` | native `Agent_OnAttach` 成功取得 JVMTI/JNI 后写入；不表示所有可选 framework hook 都成功 |
 | `.jugg_jvmti_not_available` | `{app}/code_cache/.jugg_jvmti_not_available` | native 无法取得 JVMTI/JNI 时写入，触发 compat device record |
 | compat device record | `CompatDeployHelper` 管理 | 某 app/device 已知 JVMTI 不可用后，后续直接进入兼容部署 |
 
 `JuggJvmtiAgentManagerHelper.isJvmtiAvailable()` 优先读 not-available flag，再读 available flag；两个 flag 都没有时返回 `null`，表示 app 启动或 agent 初始化状态尚不确定。
+
+### 3.1 Apply Changes 与 Jugg 的职责边界
+
+Jugg 目前直接复用 Android Studio Apply Changes 的热重载通道。普通修改类仍由 Apply Changes Agent 通过 JVMTI 执行 class redefinition；Jugg startup agent 不重复实现这条普通类热重载能力。
+
+Jugg startup agent 负责检测进程是否能取得 JVMTI/JNI，并对 framework 类安装有明确兼容目标的运行时 hook。IDE 部署编排负责准备两类 startup agent、读取可用性 flag，并在 JVMTI 不可用时记录 app/device 和切换 compat deploy。三者处于同一条部署链路，但行为 owner 不同。
 
 ---
 
@@ -94,7 +101,23 @@ DeployRetryHandler.tryRetry()
 
 `options[0] == '/'` 才按 startup agent 处理；shell attach 场景不会进入完整 instrumentation。
 
-### 4.4 ClassLoader resource overlay
+`.jugg_jvmti_available` 在取得 JVMTI/JNI 后、进入 `HandleStartupAgent()` 前写入。因此它只证明 JVMTI 基础环境可取得，不能用于断言后续每个 framework hook 都已安装成功。
+
+### 4.4 非宿主资源的 Apply Changes overlay 修正
+
+Apply Changes 可能把宿主应用的 resource overlay 带入非宿主包的 `AssetManager`。WebView provider 初始化时如果拿到包含宿主 overlay package id 的资源环境，可能触发 `java.lang.IllegalStateException: Already registered a list of actions in this process` 并导致 WebView 崩溃。
+
+Jugg 在 `ResourcesManager#createAssetManager` 的新旧签名中记录当前 `ResourcesKey.mResDir`，并与宿主 `ApplicationInfo` 中的 APK 路径比较：
+
+```text
+创建 AssetManager
+  -> resDir 属于宿主 APK：保留 Apply Changes overlay
+  -> resDir 不属于宿主 APK：移除 code_cache/.overlay 中的宿主 overlay
+```
+
+宿主 APK 路径尚未记录时，策略退回到旧的 `/data/app` 路径判断。该修正只处理非宿主资源环境，不能删除宿主 Activity 正常热更新所需的 overlay；compat deploy 启用时也必须跳过这条普通 Apply Changes overlay 修正。
+
+### 4.5 ClassLoader resource overlay
 
 legacy Compose resource 会通过 `ClassLoader#getResource()` 读取 APK 根目录文件，而不是通过 `AssetManager` 读取 `assets/`。Jugg 对 `java/lang/ClassLoader#getResource(String)` 做 retransformation，在原方法入口执行 overlay-first 查找：
 
@@ -123,6 +146,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - `BootstrapApplication` 查询不到 application meta-data 时按“没有原始 Application / AppComponentFactory”处理并继续启动；仅在 meta-data 中存在 Jugg 保存的原始类名时才创建和替换对应实例。
 - `BootstrapApplication.attachBaseContext()` 会创建并 attach 原始 Application；启动 `ContentProvider` 随后执行，早于 `BootstrapApplication.onCreate()` 中的 Application 引用替换。该窗口内 `BootstrapApplication.getApplicationContext()` 在原始 Application 已创建后直接返回原始实例，使 Provider 通过 `context.getApplicationContext()` 获得正常 Application；`ContentProvider.getContext()` 仍是 Framework 在 `attachInfo()` 时保存的 Bootstrap Context，不属于此兼容范围。
 - `InstrumentationHooks.isEnableHotfix()` 可能在 `HotfixLoader.init()` 之前被 ResourcesManager hook 调用。此时 `overlayFilesDir` 尚未初始化，只能临时返回 false，不能缓存判断结果；初始化完成后必须重新读取 compat flag。
+- framework hook transform 遵循 Best-effort：目标类不存在或单个 `RetransformClasses` 失败时记录 warning 并继续其他 transform，不把整个 Jugg agent 判为不可用。JVMTI capability、class file load hook event 等基础步骤失败仍按 agent instrumentation 失败处理。
 - ResourcesManager 两个 `createAssetManager` 签名的 exit hook 都必须在 compat deploy 启用时直接返回。否则普通模式的 `tryFixOutSideApk()` 会把路径位于 `code_cache/.overlay` 的 `resource.ap_` 当成 Apply Changes overlay 删除，导致新 Activity 的 AssetManager 丢失应用包 ID `0x7f`。
 - `ClassLoader#getResource` hook 必须保持 early-return + fail-open：只有 overlay URL 非空时提前返回，未命中和异常继续原方法。不要改回 exit hook，否则原始 resource lookup 会先执行，失去真正的 overlay-first 语义。
 - ClassLoader resource 的可靠刷新边界是进程重启，不是 Activity 重建。Compose resource 与 `JarURLConnection` 都可能缓存旧结果。
@@ -153,6 +177,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 | 检测一直不收口 | app 是否 restart、`code_cache` 是否存在、native `Agent_OnAttach` 是否写 flag |
 | Direct Overlay 缺 AS startup agent | `AsStartupAgentPusher.hasApplyChangesStartupAgent()` 与 `pushApplyChangesStartupAgent()` |
 | HarmonyOS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `hw_sc.build.platform.version` 与 `JuggSettings.finalIsEnableCompatibleDeploymentMode` |
+| WebView 初始化报 `Already registered a list of actions in this process` | 检查 `assetManager hook action=fix`、非宿主 `resDir` 和宿主 APK 路径是否已由 `ApplyChangesOverlayPolicy` 记录 |
 | compat deploy 中 Application 资源正常、Activity 报 `Resources$NotFoundException` | 检查 `isEnableHotfix()` 是否过早缓存 false，以及 `createAssetManagerNewExit()` 是否删除了 `resource.ap_` |
 | legacy Compose resource 仍是旧值 | 检查 `java/lang/ClassLoader` retransformation、`Classpath resource hook in`、overlay hit 来源，以及部署后是否重启进程 |
 

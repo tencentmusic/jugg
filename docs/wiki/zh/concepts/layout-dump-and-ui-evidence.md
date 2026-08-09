@@ -1,6 +1,6 @@
 ---
 title: 布局 dump 与 UI 证据
-description: 解释 layout-dump 为什么不用截图、也不是公开 layout-verify，而是通过 App 内 ViewHierarchy 通道导出视图树形成 UI 证据。
+description: 解释 layout-dump 如何从 App 内即时视图快照生成 HTML 证据，以及结构、属性、单位和快照时效的边界。
 status: active
 tags:
   - concept
@@ -10,74 +10,86 @@ tags:
 
 # 布局 dump 与 UI 证据
 
-`layout-dump` 是 Jugg MCP/CLI 里的一项 UI 检查能力。它既不是简单读取一张截图，也不是某种公开的批量布局校验。它通过 App 内的视图树通道导出当前页面结构，写成可读的 HTML 证据，`view-locate`、`view-inspect`、`tap` 再复用同一条通道。
+UI 判断需要同时说明预期是什么，以及设备当前实际呈现了什么。截图记录页面的像素外观，视图树则提供节点身份、层级、文本、bounds 和部分运行时属性；两类证据回答的问题不同，不能互相替代。
 
-## 截图与批量断言都不足以支撑 UI 证据
+Jugg 的 `layout-dump` 从运行中 App 内采集当前视图层级，将 Android View 与 Compose 节点整理成可阅读的 HTML artifact。这个产物代表一次请求发生时的页面快照，用于说明实际页面结构；它本身不提供设计预期，也不等于最终的通过或失败结论。
 
-Agent 要判断 UI 是否正确，最直接的想法是截图。但截图只是像素，无法回答“这个元素存不存在、它的 bounds 和间距是多少、某个属性是什么值”这类结构问题，也不能作为可搜索、可复算的证据。批量校验工具也有类似问题：它把判定逻辑藏在内部，口径不透明，结果难以解释；采证不足时，表面的通过结果没有排查价值。
+## 像素外观与视图结构回答不同问题
 
-## 从 App 内视图树导出结构化证据
+截图适合确认颜色、图像、阴影和整体视觉效果，但节点身份、资源 ID、精确层级和运行时 getter 值需要从 App 的视图结构中读取。反过来，视图树即使记录了 bounds 和文本，也不能完整表达抗锯齿、图片内容或最终像素合成效果。
 
-当前公开链路是：从 App 内的视图树服务导出页面结构，Jugg 把它转成 HTML 证据产物；需要精确数据时，再用同一条通道上的工具逐项取证。
+因此，一次可复核的 UI 判断通常需要分开记录：
+
+- 预期值来自设计稿、产品要求、代码公式或用户明确给出的标准。
+- 实际结构来自当前页面的视图快照。
+- 实际属性来自目标节点的运行时查询。
+- 通过或失败由预期值与实际值的比较得出。
+
+`layout-dump` 负责提供实际页面结构，不负责推断预期值或自动生成最终结论。
+
+## 一次 layout-dump 如何形成页面快照
+
+Jugg 不从系统级 uiautomator dump 读取页面，而是连接目标 App 内的 ViewHierarchy 服务。App 侧在收到请求时采集当前窗口中的 Android View 与 Compose 节点，Jugg 再统一整理节点字段和几何信息：
 
 ```text
-layout-dump
-  -> 选择在线设备
-  -> 等待目标 App 进入可观察状态
-  -> 通过 App 内视图树通道导出视图树
-  -> 按设备 density 把 bounds / padding 从 px 换算成 dp
-  -> 生成 HTML 证据产物并返回路径
+运行中的目标 App
+  -> 采集当前窗口的 Android View 与 Compose 节点
+  -> 整理窗口、层级、文本、ID 和 bounds
+  -> 按设备 density 将节点 bounds / padding 从 px 换算为 dp
+  -> 裁剪缺少语义内容的结构节点
+  -> 写入 HTML artifact
 ```
 
-公开结果只返回 HTML 证据的路径和内容。`layout-dump` 给 Agent 阅读全局结构，需要精确数据时继续用专项工具：
+公开结果提供 HTML 文件路径、artifact 信息和内容大小。用于生成 HTML 的结构化数据只供 Jugg 内部工具消费，不作为稳定的公开接口。
 
-```text
-layout-dump   -> 看页面结构与候选节点
-view-locate   -> 按 text / resourceId / contentDesc 查节点，返回 bounds / size / 命中数 / 命中列表
-view-inspect  -> 读取 View 的 getter 属性与 density
-tap           -> 需要交互时执行触控
-```
+## HTML 是阅读产物，不是完整数据接口
 
-### App 内视图树通道
+HTML 的目标是让 Agent 和开发者快速阅读页面结构、查找候选节点并引用本轮证据。为了控制信息量，它会省略没有文本、ID、描述或其他有效语义的中间结构节点，因此 HTML 不是 App 原始视图对象的逐字段镜像。
 
-这条链路依赖运行中 App 内的视图树服务。IDE 侧通过 `adb forward` 连到 App 内的 LocalSocket，发送导出请求；App 侧直接返回视图树内容，或返回远端文件路径再由 Jugg 拉回本地。`view-locate`、`view-inspect`、`tap` 都复用这同一条通道，因此它们看到的是同一棵实时视图树。
+不同证据由不同方式取得：
 
-### 当前公开的 UI 工具
-
-| 工具 | 用途 |
+| 要回答的问题 | 证据来源 |
 |---|---|
-| `layout-dump` | 导出页面结构 HTML。 |
-| `view-locate` | 按 text / resourceId / contentDesc 查节点和 bounds。 |
-| `view-inspect` | 读取 View 的 getter 属性。 |
-| `activity-stack` | 读取当前 Activity 栈。 |
-| `tap` | 按坐标、百分比或元素选择器触控。 |
-| `wait-logs` | 等待日志 marker、crash 或 timeout。 |
+| 当前有哪些窗口、节点和父子关系 | `layout-dump` 的 HTML 快照 |
+| 元素是否存在，以及 bounds、position 和 size | `view-locate` 的几何结果 |
+| 文本颜色、可见性、enabled 等运行时属性 | `view-inspect` 的 getter 结果 |
+| 交互后页面是否发生预期变化 | 交互前后的新快照或运行时证据 |
 
-部分历史上的批量布局校验能力当前没有作为公开工具暴露，不应在流程中承诺可直接调用。
+`view-locate` 返回适合计算间距和对齐的结构数据；`view-inspect` 返回 getter 原始值。二者用于补充 HTML 中没有直接表达的精确信息，而不是把内部布局 JSON 暴露为公共协议。
 
-## 单位换算
+## 每个请求都有自己的时间点
 
-App 侧返回的布局数据带有 density。Jugg 会按 density 把节点的 `bounds` 和 `padding` 从 px 换算成 dp，再返回：
+`layout-dump`、`view-locate`、`view-inspect` 和元素模式触控共享同一个 App 内视图数据源，但每次调用都会重新采集页面。它们看到的是各自请求时刻的快照，不是跨工具共享的一份固定视图树。
+
+页面动画、列表滚动、窗口切换或 Compose 重组都可能在两次请求之间改变节点、bounds 和虚拟 ID。页面发生交互后，之前的快照只能证明交互前的状态；判断交互结果时必须重新采集页面结构或运行时属性。
+
+虚拟 ID 在窗口顺序和 UI 结构保持不变时可以重复出现，但页面重排、插入节点或重组后可能变化，不能把它当成长期稳定的业务标识。
+
+## 几何数据和运行时属性采用不同单位契约
+
+App 侧视图结构携带设备 density。Jugg 会递归转换普通 View 与 Compose 节点的 `bounds` 和 `padding`：
 
 ```text
 dp = px / density
 ```
 
-换算会递归处理普通子节点与 Compose 节点，`view-locate` 返回的 bounds 也按 dp 口径。Agent 可以基于这些 dp bounds 直接计算间距与对齐，例如相邻元素的水平/垂直间距、中心点坐标。
+`layout-dump` 中的节点几何信息，以及 `view-locate` 返回的 bounds、position 和 size，都使用 dp。Agent 可以直接用这些值计算元素间距、中心点和对齐关系。
 
-## 取证链路的前提与约束
+`view-inspect` 返回 getter 的原始值，并同时返回 density。某个 getter 返回 px、sp、颜色整数还是业务对象，取决于该属性本身；使用前需要按对应 Android API 语义解释，不能因为布局 bounds 使用 dp，就把所有 getter 结果或触控坐标都视为 dp。
 
-用好这条链路需要记住几条前提：
+## 证据链的边界
 
-- 这条链路依赖 App 内视图树服务。socket 不可用时，当前公开流程不会自动切换到 uiautomator，应先排查 App 是否在前台、是否可观察。
-- `view-locate` 多命中时会返回命中数和命中列表；元素模式的 `tap` 遇到多命中不会执行，需要先用更强的选择器或坐标消歧。
-- `view-inspect` 可以读隐藏节点的属性。隐藏节点属性可以作为状态证据，但不能证明该节点当前可点击。
-- 所有几何数据以 dp 为口径；拿到 px 值时必须先经 density 换算，不要直接和 dp 混用。
+- App 内 ViewHierarchy 服务不可用时，公开流程不会自动切换到 uiautomator；应先确认 App 是否在线、处于前台并已加载对应运行时。
+- 视图快照有窗口、节点数量和层级深度限制。产物标记为截断时，未出现的节点不能直接判定为不存在。
+- 隐藏或 GONE 节点仍可能保留可查询属性，但这些属性不能证明节点当前可见或可点击。
+- Android View 与 Compose 节点使用统一结构输出，但 Compose 节点可查询的 getter 和可执行的交互语义取决于运行时实际暴露的信息。
+- `layout-verify` 与 `figma-layout-verify` 当前不是公开 MCP 工具。公开 UI 验证应保留预期来源、实际证据和比较过程，而不是依赖未注册的批量断言入口。
 
 ## 相关页面
 
-- [Jugg Runtime](./jugg-runtime.md)
+- [App 进程内 Jugg runtime](./jugg-runtime.md)
 - [UI 检查指南](../guide/ui-inspection.md)
 - [UI 自动化能力](../capabilities/tools/ui-automation.md)
 - [UI 布局证据能力](../capabilities/tools/layout-verify.md)
 - [MCP 工具参考](../reference/mcp-tools.md)
+- [UI 工具问题排查](../troubleshooting/ui-tools.md)

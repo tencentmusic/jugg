@@ -20,7 +20,13 @@ Jugg 支持通过自定义编译器 SPI 扩展内置增量编译链。自定义�
 | 远端 jar 自定义编译器 | 支持 | 远端扩展下载校验后参与编译 |
 | 阶段前置处理 | 支持 | 可在内置阶段前消费或改写输入 |
 | 阶段后置处理 | 支持 | 可在内置阶段后处理产物 |
-| 编译失败收口 | 支持 | 扩展异常会让当前任务失败并给出可见提示 |
+| 扩展执行失败 | 支持 | 扩展编译逻辑抛出异常时，当前任务失败并给出可见提示 |
+
+## 接入方式
+
+自定义编译器以 jar 提供。扩展需要实现 `ICompilerCreator`，由它为当前编译上下文创建 `ICompiler`；Jugg 通过 SPI 加载 jar 中的实现。
+
+项目后台只需在 `customCompilers` 配置中声明 jar 文件名、路径和 md5。路径可以是本地绝对路径、相对项目目录的路径或 HTTP / HTTPS 地址。
 
 > [!NOTE]
 > 自定义编译器运行在 Jugg 编译流程内，适合补充增量链路，不适合替代完整 Gradle task graph。
@@ -41,7 +47,8 @@ Jugg 支持通过自定义编译器 SPI 扩展内置增量编译链。自定义�
 
 | 目标 | 推荐区间 |
 |---|---|
-| 最早处理文件 | `atFirst` |
+| 最早或最后处理本轮输入和产物 | `atFirst` / `atLast` |
+| assets 和 native lib 前后处理 | `beforeAsset` / `afterAsset` |
 | 资源前后处理 | `beforeRes` / `afterRes` |
 | Java/Kotlin 前后处理 | `beforeSource` / `afterSource` |
 | 混淆前后处理 | `beforeMinify` / `afterMinify` |
@@ -50,5 +57,6 @@ Jugg 支持通过自定义编译器 SPI 扩展内置增量编译链。自定义�
 ## 相关页面
 
 - [自定义编译器指南](../../guide/custom-compiler.md)
+- [Jugg 后台项目配置下发](../../guide/jugg-backend/project-config.md)
 - [源码编译](./source-compile.md)
 - [自定义编译器原理](../../concepts/incremental-compile/custom-compiler.md)

@@ -1,6 +1,6 @@
 ---
 title: KMP 与 Compose Multiplatform
-description: 说明 Jugg 对 KMP expect/actual 源码和 Compose Multiplatform 资源增量编译的支持范围。
+description: 说明 Jugg 对 KMP expect/actual 源码和 Compose Multiplatform 资源的增量支持范围与回退边界。
 status: active
 tags:
   - capability
@@ -11,64 +11,68 @@ tags:
 
 # KMP 与 Compose Multiplatform
 
-Kotlin Multiplatform 的 Android 目标不仅要编译当前修改文件，还要保持 common 与 platform 声明、source set 层级和资源 accessor 一致。Jugg 会复用 Gradle 暴露的 Kotlin 与 Compose 元数据，在不执行完整 task graph 的情况下补齐本轮 Android 增量输入。
+Jugg 支持 Android 目标中的 KMP `expect` / `actual` 源码增量编译，也支持新增或修改 Compose Multiplatform 资源。两类能力都依赖 Gradle 同步提供的项目模型：Jugg 复用已有编译关系和资源生成配置，不根据目录名称猜测项目结构。
 
-## expect/actual 不能只按文件路径配对
+普通 Android 模块中的 Compose UI 源码属于 [Kotlin Compose](/zh/capabilities/compile/kotlin-compose)，不需要启用 KMP 或 Compose Multiplatform 资源能力。
 
-\`expect\` 与 \`actual\` 的关系来自 Kotlin 编译模型，不一定是 \`commonMain -> androidMain\` 的直接两层结构。工程还可以存在 \`sharedMain\` 等中间 source set。
+## 支持范围
 
-Jugg 从当前 Android Kotlin 编译任务读取 common roots、fragment 身份和 refinement 关系，并结合项目 Kotlin incremental cache 查找本轮需要一起编译的 complementary files。
+### KMP 源码
 
-\`\`\`text
-修改 common 或 Android Kotlin 文件
-  -> 确认当前 Android compilation
-  -> 查找 expect/actual 互补文件
-  -> 保留 fragment 与 refines 关系
-  -> 使用项目 Kotlin compiler 编译
-  -> class / dex 进入普通部署链路
-\`\`\`
+| 场景 | 支持情况 | 说明 |
+| --- | --- | --- |
+| 修改 common 与 Android source set 中的 `expect` / `actual` 源码 | 支持 | 按 Gradle 提供的 Android 目标编译模型，将必要的公共源码与平台源码放入同一轮编译 |
+| 使用 `sharedMain` 等中间 source set | 支持 | 需要 Gradle 模型暴露对应 fragment 及其依赖关系 |
+| Kotlin 1.9 与 K2 项目 | 支持 | 按项目实际编译模型处理缓存和 fragment 差异 |
+| 互补源码信息缺失或关系不明确 | Best-effort | 保留当前已确认的源码输入，不根据文件名或目录名补猜 `expect` / `actual` 关系 |
+| 普通 Android 模块中恰好存在 `commonMain` 目录 | 不自动按 KMP 处理 | 是否属于 KMP 由 Gradle 编译模型决定 |
+| 删除 KMP 源文件 | 需要 Gradle | 增量链路不处理删除后的完整输出清理 |
 
-这条链路兼容 Kotlin 1.9 与 K2 时代不同的缓存和 fragment 形态。Kotlin 1.9 下还会隔离旧 baseline 输出，避免未被本轮重新生成的旧 \`actual\` class 干扰结果。
+### Compose Multiplatform 资源
 
-## Compose Multiplatform 资源
+| 场景 | 支持情况 | 说明 |
+| --- | --- | --- |
+| 新增或修改 `string`、`drawable`、`font` 资源 | 支持 | 生成并编译类型安全 accessor，同时准备运行时资源 |
+| 新增或修改 `string-array`、`plurals` | 现代资源链路支持 | 旧版资源链路不支持这两类 accessor |
+| 新增或修改 `files/` 资源 | 支持部署 | 不生成类型安全 accessor |
+| 使用自定义 Compose 资源目录 | 支持 | 目录必须出现在 Gradle 同步得到的资源任务元数据中 |
+| 将生成的 accessor 同步到 IDE | Best-effort | 同步失败只影响 IDE 浏览和索引，不会把已完成的编译结果判定为失败 |
+| 删除 Compose Multiplatform 资源 | 需要 Gradle | 删除可能改变 accessor 集合和资源清单，需要完整任务重新计算 |
+| 当前 Compose 插件任务或 generator API 无法识别 | 明确失败 | 不会静默改按 Android `res/` 资源处理 |
 
-Jugg 支持 Compose Multiplatform 资源的新增和修改，并调用项目 Compose plugin 提供的官方 generator 生成 typed accessor。
+## 触发与结果
 
-| 资源类型 | 支持情况 |
-|---|---|
-| string | 支持 |
-| string-array | 现代资源管线支持 |
-| plurals | 现代资源管线支持 |
-| drawable | 支持 |
-| font | 支持 |
-| files | 作为资源文件部署，不生成 typed accessor |
+KMP 源码变更沿用源码编译链路：
 
-生成 accessor 时会读取工程快照中所有已知资源目录，避免只看 changed file 导致已有 key 丢失；实际部署只包含本轮新增或修改的资源。
+```text
+识别 Android 目标的 Kotlin 编译模型
+  → 补齐本轮必需的公共、平台和中间 source set 源码
+  → 编译 Kotlin 输出
+  → 转换并部署增量 DEX
+```
 
-## 现代与 legacy 资源生效路径
+Compose Multiplatform 资源由独立资源链路处理：
 
-现代 Compose 资源按 Gradle 元数据写入 assets 路径。legacy 资源仍通过 classloader 从 APK 根目录读取，因此 Jugg 会保持原始 classpath 相对路径，并让运行时优先命中 overlay 中的新文件。
+```text
+读取 Gradle 资源任务元数据
+  → 使用项目 Compose 插件提供的 generator 生成 accessor
+  → 编译 accessor，并准备发生变化的运行时资源
+  → 部署资源；存在有效资源变更时重启 App
+```
 
-两种路径都会在存在真实部署数据时重启 App 进程。Compose runtime 和 AssetManager 可能已经缓存资源，单纯重启 Activity 不足以保证读取新值。
+Compose Multiplatform 资源不经过 Android `aapt2`。Jugg 会为 accessor 生成读取完整的已知资源目录，但部署范围仍限制在本轮新增或修改的资源。
 
-## IDE 高亮与自动导入
+## 使用边界
 
-Jugg 生成的 Compose accessor 会同步回模块的 generated source 目录，使 Android Studio 能索引新增资源并恢复高亮、补全和自动 import。
-
-该同步属于 IDE 辅助能力。同步失败时，已经生成的增量编译产物仍然有效，但编辑器可能暂时无法识别新 accessor；可执行一次 Gradle 构建恢复 IDE 侧生成目录。
-
-## 回退边界
-
-- 删除 KMP 源码或 Compose 资源需要完整 Gradle 构建。
-- 修改 source set、target、Kotlin/Compose plugin 或 compiler args 后应重新 Sync 并建立基线。
-- complementary cache 或 fragment 信息缺失时，Jugg 采用 best-effort 输入并让 Kotlin compiler 给出最终结果，不猜测文件名或目录名配对。
-- Compose task 或 generator API 结构不受支持时会明确报告 unsupported，不会把资源静默当成普通 Android \`res/\`。
-- 非 KMP 工程中名为 \`commonMain\` 的普通目录不会自动切换到 multiplatform 编译。
+- 新增或调整 source set、Android target、Compose 插件版本、资源目录或 Kotlin 编译参数后，先执行 Gradle 同步和至少一次完整 Gradle 编译。
+- KMP 互补关系缺失时，Jugg 只使用能够从当前模型确认的输入；若仍出现 `expect` / `actual` 或符号解析错误，使用 Gradle 编译刷新基线。
+- Compose Multiplatform accessor 的 IDE 同步属于辅助结果。编译和部署成功但编辑器暂时无法跳转时，可重新同步 Gradle，不必把它视为本轮部署失败。
+- 删除 KMP 源码或 Compose Multiplatform 资源时，直接使用 Gradle 编译，避免残留输出或 accessor。
 
 ## 相关页面
 
-- [Kotlin Compose](./kotlin-compose.md)
-- [资源编译](./resource-compile.md)
-- [源码编译](./source-compile.md)
-- [资源增量编译原理](../../concepts/incremental-compile/resource.md)
-- [工程信息刷新与恢复](../../concepts/project-info-refresh.md)
+- [KMP 源码增量编译](/zh/concepts/incremental-compile/kmp-source)
+- [Compose Multiplatform 资源](/zh/concepts/incremental-compile/compose-multiplatform-resource)
+- [源码增量编译](/zh/concepts/incremental-compile/source)
+- [工程信息刷新与恢复](/zh/concepts/project-info-refresh)
+- [Gradle 编译回退](/zh/capabilities/compile/gradle-fallback)

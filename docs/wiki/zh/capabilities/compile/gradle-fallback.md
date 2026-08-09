@@ -10,7 +10,7 @@ tags:
 
 # Gradle 回退
 
-Jugg 会优先尝试增量编译，但在本轮修改不适合旁路处理时，会回退到 Gradle。回退的目标是重新建立可信构建基线，让后续增量继续基于正确产物运行。
+Jugg 会优先尝试增量编译。当当前构建基线不再适用，或失败结果明确允许回退时，本轮 Run 会切换到 Gradle。普通编译错误和用户取消不会自动触发完整构建。
 
 ## 触发 Gradle 回退的情况
 
@@ -19,30 +19,30 @@ Jugg 会优先尝试增量编译，但在本轮修改不适合旁路处理时，
 | 用户强制 Gradle | 支持 | 直接跳过增量检查 |
 | 没有文件变化 | 支持提示或自动回退 | 由配置决定是否确认 |
 | 文件过多或模块过多 | 支持自动回退 | 避免增量成本高于 Gradle |
-| 设备或部署状态不可用 | 支持自动回退 | 重新建立 install/deploy 状态 |
+| 设备被判定为无效 | 支持自动回退 | 本轮改走 Gradle；设备恢复后才能完成安装 |
 | build target 切换 | 支持自动回退 | App 与 androidTest 切换需要新 APK 基线 |
 | 构建文件/依赖变化 | 支持确认后回退或依赖增量 | 用户确认决定是否继续增量 |
 
-## 回退如何发生
+## 触发与结果
 
 ```text
-开始 Jugg 编译
-  -> 检查强制 Gradle、文件变化、设备状态、build target
-  -> 检查构建文件和依赖变化
-  -> 如果不适合增量，返回可回退结果
-  -> 执行本地或远端 Gradle 构建
-  -> 拉取 APK、classpath、mapping、资源等新基线
+开始 Run
+  -> 前置检查要求完整构建：当前 Run 切换到 Gradle
+  -> 增量编译出现普通错误：结束当前 Run，不立即回退
+  -> 部署失败：先尝试恢复，满足自动回退条件时整轮切换到 Gradle
+  -> Gradle 成功：使用新的完整构建产物继续安装或后续运行
 ```
 
-回退后，Jugg 会继续使用 Gradle 产物更新编译上下文、部署历史和 classpath。下一次小范围修改仍可继续走增量。
+Gradle 构建成功后，Jugg 会把新的 APK、classpath、mapping 和资源产物作为后续增量的起点。下一次小范围修改仍会优先尝试增量编译。
 
-## 什么时候主动 Gradle
+## 使用边界
 
-- 刚切分支或拉取大量代码。
-- 升级 AGP、Kotlin、Gradle、R8 或重要构建插件。
-- 修改 source set、variant、Manifest placeholder 来源。
-- 修改注解处理器、KSP/KAPT、Compose compiler plugin 配置。
-- release 增量后出现运行时异常。
+- 增量编译会先对已知且可恢复的输入问题进行有限重试。普通源码或资源错误在重试后仍失败时，本轮直接结束，不会用 Gradle 覆盖原始错误。
+- 用户取消是明确的停止信号，不触发自动回退。
+- App 未启动或部署状态需要恢复时，Jugg 会优先尝试 Recover、兼容部署或重新安装现有 APK。Gradle 回退不能修复设备离线、ADB 异常等设备问题。
+- 部署失败只有在失败结果允许回退，并且开启自动回退配置时，才会让整轮 Run 重新执行 Gradle；多设备运行不会只为单台设备切换构建基线。
+
+需要主动刷新完整构建基线时，按[降级 Gradle 编译](../../guide/downgrade-gradle.md)操作。回退条件和基线更新机制见[Gradle 回退与基线重建](../../concepts/gradle-fallback-baseline.md)。
 
 ## 相关页面
 
@@ -51,3 +51,4 @@ Jugg 会优先尝试增量编译，但在本轮修改不适合旁路处理时，
 - [降级 Gradle 编译](../../guide/downgrade-gradle.md)
 - [编译阶段说明](../../guide/compile.md)
 - [Gradle 回退与基线重建](../../concepts/gradle-fallback-baseline.md)
+- [部署自愈机制](../../concepts/deploy-self-healing.md)

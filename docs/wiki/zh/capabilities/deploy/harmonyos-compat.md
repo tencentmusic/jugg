@@ -21,7 +21,7 @@ Jugg 读取设备属性 \`hw_sc.build.platform.version\`。只要该值存在且
 读取目标设备属性
   -> HarmonyOS 属性非空
   -> 本轮直接使用兼容部署
-  -> App 重启后由 Jugg Runtime 加载增量产物
+  -> App 重启后由 App 进程内 Jugg runtime 加载增量产物
 \`\`\`
 
 属性缺失或为空时，继续使用普通 Android 判断，不会仅凭厂商名称猜测 HarmonyOS。
@@ -43,7 +43,7 @@ HarmonyOS 自动识别不会清除或改写已有手工兼容记录。
 
 ## 使用建议
 
-- 第一次安装或 Jugg Runtime 变化后，先完成一次完整 Gradle 构建和安装。
+- 第一次安装或 App 进程内 Jugg runtime 版本变化后，先完成一次完整 Gradle 构建和安装。
 - 部署成功后等待 App 完成重启，再验证修改。
 - 若资源或 class 仍未生效，先看 \`compile_latest.log\` 中是否显示兼容部署和重启结果。
 - 设备属性无法读取时，确认 ADB 连接与 shell 权限，再考虑手工启用兼容部署。
@@ -52,5 +52,5 @@ HarmonyOS 自动识别不会清除或改写已有手工兼容记录。
 
 - [设备兼容部署](../../guide/compat-device.md)
 - [兼容部署原理](../../concepts/compat-deploy.md)
-- [Jugg Runtime](../../concepts/jugg-runtime.md)
+- [App 进程内 Jugg runtime](../../concepts/jugg-runtime.md)
 - [JVMTI Runtime](./jvmti-runtime.md)

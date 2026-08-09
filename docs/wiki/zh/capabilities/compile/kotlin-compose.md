@@ -23,9 +23,6 @@ Jugg 支持常见 Kotlin Compose 源码的增量编译。它会在 Kotlin 源码
 | Kotlin 2.x Compose compiler plugin | 支持识别 | 查找 `kotlin-compose-compiler` 插件 |
 | 找不到 Compose plugin | 降级继续 | 打印 warning，编译结果可能不完整 |
 
-> [!IMPORTANT]
-> Compose 增量编译依赖项目 Kotlin compiler 和 Compose compiler plugin。若刚升级 Kotlin、Compose、AGP 或插件配置，先执行 Sync 和一次 Gradle 构建建立基线。
-
 ## Compose 编译如何生效
 
 ```text
@@ -43,7 +40,7 @@ Jugg 会优先使用项目 Kotlin 编译器。当不能使用项目编译器时�
 ## 使用边界
 
 - 仅修改 Compose UI Kotlin 源码通常适合增量。
-- 修改 Compose compiler plugin、Kotlin 版本、Gradle plugin 或 compiler args 时，建议 Gradle。
+- 修改 Compose compiler plugin、Kotlin 版本、Gradle plugin 或 compiler args 时，会触发 Gradle 回退并重新建立编译基线。
 - 如果 Compose 编译后运行时异常只在 Jugg 增量出现，先用 Gradle 构建验证插件基线是否一致。
 
 ## 相关页面

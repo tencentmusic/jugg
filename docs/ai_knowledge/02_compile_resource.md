@@ -1,6 +1,6 @@
 # 编译系统：资源编译链（res/assets/arsc/Compose resource）
 
-> 最后核对：2026-08-07
+> 最后核对：2026-08-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -88,7 +88,9 @@ APK 基线还缺两类旁路信息：
 - `resources.arsc` 不保存 `styleable` 聚合声明。`StyleableFileGenerator` 会从目标 APK 相关模块的 R.jar 或 Java classpath 中读取 `R$styleable`，合并后通过 `--styleables` 补给 `inclink --load`。
 - AabResGuard 改变了 APK 中的资源名称。`ResGuardMappingFileGenerator` 会把 Gradle mapping 转成 `inclink` 输入，确保新增/修改 XML 引用沿用已安装 APK 的混淆命名。
 
-`inclink` 的资源表是增量增加或覆盖，不负责删除旧 entry。删除资源后，旧 ID 会保留到下一次完整 Gradle 构建刷新基线；高 API 属性曾生成的 `layout-v22` 等额外配置也不能直接删除，因此即使本轮移除了高版本属性，仍要输出对应配置覆盖旧 entry。这个约束使 `inclink` 适合开发期增量，不应被当作生产构建的完整资源链接器。
+`inclink` 的资源表是增量增加或覆盖，不负责删除旧 entry。删除 `res/` 文件不会生成资源移除数据，已安装 APK 或既有 overlay 中的旧 ID 和资源内容仍可通过 `Resources` 访问。高 API 属性曾生成的 `layout-v22` 等额外配置也不能直接删除，因此即使本轮移除了高版本属性，仍要输出对应配置覆盖旧 entry。这个约束使 `inclink` 适合开发期增量，不应被当作生产构建的完整资源链接器；只有需要让旧资源真正消失时，才通过完整 Gradle 构建刷新基线。
+
+普通 `assets/` 文件删除也不会生成移除 overlay，已安装 APK 或既有 overlay 中的旧文件仍可通过 `AssetManager` 读取。重命名资源或 asset 时只有新路径会作为新增/修改输入，旧路径仍按删除语义保留。完整 Gradle 构建用于让这些删除真正生效，不是删除事件触发的自动回退。
 
 ### 4.2 Compose Multiplatform resource 链路
 
@@ -125,7 +127,7 @@ Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGenerated
 - `ArscCompiler` 为每个 APK 缓存一个 `Aapt2DaemonInvoker`；invoker 死亡或 link 失败会 release，下一轮重新 `loadTable`。
 - `Aapt2DaemonInvoker` 使用结构化参数列表写入 daemon 协议，每个参数独占一行，APK、资源和输出路径允许包含空格。
 - `loadTable()` 失败时会立即 release invoker 并返回失败，禁止缓存未加载资源表的 daemon，避免后续 inclink 退化为 `no cache data found`。
-- Android res 删除不等于从 `resources.arsc` 删除旧 ID；需要完整 Gradle build 才能刷新为真正的全量资源表。
+- Android res 删除不会让 `resources.arsc` 移除旧 ID，旧资源仍可被读取；只有需要让删除生效时，才通过完整 Gradle build 刷新为新的全量资源表。
 - 高 API 属性的兼容配置必须按旧基线做覆盖式输出；不能只根据当前 XML 是否还包含高版本属性决定是否生成额外配置。
 - styleable 和 ResGuard mapping 都是 `loadTable()` 的 Best-effort 辅助输入：生成失败会继续加载，但新增 styleable 或 release 资源引用可能随后编译/运行异常，排查时不能只看 aapt2 daemon 是否启动成功。
 - dynamic feature 编译依赖 base APK：base arsc 更新后，`ArscCompiler` 会把 base 本轮 flat 文件加入 feature 的 link 输入，以同步资源 ID。
@@ -138,7 +140,7 @@ Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGenerated
 - legacy Android runtime 通过 classloader 读取 `values/...`、`drawable/...` 等 APK 根目录资源，增量 overlay 必须使用显式的 `CompileFile.Type.ClasspathResource` 保持同名根路径；不能套用普通 Android asset 的 `assets/` 前缀。现代 Compose resource 继续使用 `CompileFile.Type.Asset` 和 Gradle metadata 提供的 asset relative path。
 - Compose resource compile 只在本轮实际存在非空部署数据时触发进程重启；普通 Android asset 不因位于 `assets/**` 自动升级为 App restart。
 - 现代管线支持 string、string-array、plurals、drawable、font，并透传 Res 类名与 content hash；legacy 管线按上游能力支持 string、drawable、font。`files/` 会复制到 asset，但不会生成 typed accessor。
-- 只支持新增和修改。删除文件无法由当前文件事件恢复资源类型和 `baseDir`，必须完整 Gradle build；当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图。
+- Compose resource 文件删除会被当前增量入口忽略，因为不存在的文件无法恢复资源类型和 `baseDir`。本轮不会生成 accessor、asset、classpath resource 或旧 class 的移除数据，既有产物继续保留；只有需要让删除生效时才执行完整 Gradle build。当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图。
 
 ### 5.1 测试落点
 
@@ -163,7 +165,8 @@ Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle b
 | dynamic feature 资源 ID 异常 | `ArscCompiler.isBaseApkArscUpdate` / `baseApkUpdateFlatFiles`：确认 base 更新是否参与 feature link |
 | 新增 styleable 后 ID 冲突或找不到属性 | `StyleableFileGenerator` 与 `ArscCompiler.loadTable()` 的 `--styleables` 输入 |
 | release/AabResGuard 资源引用仍是原始名称 | `ResGuardMappingFileGenerator`、`AabResGuardHandler.writeAapt2IncLinkMappingFile()` |
-| 删除资源或移除高 API 属性后仍看到旧 entry | `inclink` 只增量覆盖；检查额外配置输出，必要时执行完整 Gradle build 刷新基线 |
+| 删除 `res/` 或 `assets/` 文件后仍能读取旧内容 | 删除事件不生成移除数据，这是预期的增量结果；只有需要让旧内容消失时才执行完整 Gradle build 刷新基线 |
+| 移除高 API 属性后仍看到旧 entry | `inclink` 只增量覆盖；检查是否生成了覆盖旧配置的额外产物 |
 | 资源 overlay 输出到错误 APK | `BaseCompiler.splitApkAndCompile()` 与 `CompileOutput.apkPath`：确认 module 到 APK 的归属和输出 apkPath |
 | manifest 无变更却触发重打包 | `ResourceOverlayCompiler.filterResources(...)`：确认 `isNeedOutputManifest=false` 时根 manifest 是否被过滤 |
 | layout 相关 generated source 未参与源码编译 | `ResourceCompiler.processViewBinding()` 和 `SourceCompiler.prepareSourceCompile()` |

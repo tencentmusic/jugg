@@ -78,7 +78,7 @@ const englishSidebar = {
         { text: 'Project Information Refresh', link: '/concepts/project-info-refresh' },
         { text: 'Compile Pipeline', link: '/concepts/compile-pipeline' },
         { text: 'Deploy Data and Impact', link: '/concepts/deploy-data-and-impact' },
-        { text: 'JVMTI Agent', link: '/concepts/jvmti-agent' },
+        { text: 'Jugg JVMTI Agent', link: '/concepts/jugg-jvmti-agent' },
         { text: 'Android Test Flow', link: '/concepts/android-test-flow' },
         { text: 'MCP and CLI', link: '/concepts/mcp-and-cli' },
         { text: 'Compatibility Layer', link: '/concepts/compatibility-layer' }
@@ -284,9 +284,11 @@ const chineseSidebar = {
           items: [
             { text: '总览', link: '/zh/concepts/incremental-compile/' },
             { text: '源码增量编译', link: '/zh/concepts/incremental-compile/source' },
+            { text: 'KMP 源码增量编译', link: '/zh/concepts/incremental-compile/kmp-source' },
             { text: '重编译 / 扩散编译', link: '/zh/concepts/incremental-compile/recompile-propagation' },
             { text: '常量引用分析', link: '/zh/concepts/incremental-compile/const-ref' },
             { text: '资源增量编译', link: '/zh/concepts/incremental-compile/resource' },
+            { text: 'Compose Multiplatform 资源', link: '/zh/concepts/incremental-compile/compose-multiplatform-resource' },
             { text: 'DataBinding / ViewBinding', link: '/zh/concepts/incremental-compile/databinding-viewbinding' },
             { text: 'Android Manifest 编译', link: '/zh/concepts/incremental-compile/manifest' },
             { text: 'release 增量编译', link: '/zh/concepts/incremental-compile/release-compile' },
@@ -313,11 +315,11 @@ const chineseSidebar = {
         { text: '工程上下文获取', link: '/zh/concepts/project-model' },
         { text: '工程信息刷新与恢复', link: '/zh/concepts/project-info-refresh' },
         { text: '编译调度流程', link: '/zh/concepts/compile-pipeline' },
-        { text: 'Jugg Runtime', link: '/zh/concepts/jugg-runtime' },
-        { text: 'JVMTI Agent', link: '/zh/concepts/jvmti-agent' },
+        { text: 'App 进程内 Jugg runtime', link: '/zh/concepts/jugg-runtime' },
+        { text: 'Jugg JVMTI Agent', link: '/zh/concepts/jugg-jvmti-agent' },
         { text: 'Android Test 流程', link: '/zh/concepts/android-test-flow' },
         { text: '布局 dump 与 UI 证据', link: '/zh/concepts/layout-dump-and-ui-evidence' },
-        { text: '兼容层', link: '/zh/concepts/compatibility-layer' }
+        { text: 'Android Studio 版本兼容', link: '/zh/concepts/compatibility-layer' }
       ]
     }
   ],
@@ -342,7 +344,6 @@ const chineseSidebar = {
             { text: '注解器', link: '/zh/capabilities/compile/annotation-processors' },
             { text: '依赖库增量编译', link: '/zh/capabilities/compile/dependency-incremental' },
             { text: 'Release 编译', link: '/zh/capabilities/compile/release-compile' },
-            { text: '常量引用分析', link: '/zh/capabilities/compile/const-ref' },
             { text: 'AabResGuard', link: '/zh/capabilities/compile/aab-resguard' },
             { text: 'Gradle 回退', link: '/zh/capabilities/compile/gradle-fallback' },
             { text: '自定义编译器', link: '/zh/capabilities/compile/custom-compiler' }

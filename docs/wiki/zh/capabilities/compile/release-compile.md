@@ -14,7 +14,7 @@ tags:
 Jugg 支持 release / minified 场景下的增量编译。它会基于最近一次构建生成的 `mapping.txt` 和可选 `usage.txt`，让增量 class/dex 与已安装 APK 的混淆结果保持一致。本页说明支持范围和风险边界，mapping 对齐、inline 和 `_jugg_fix` 补偿机制见 [release 增量编译](../../concepts/incremental-compile/release-compile.md)。
 
 > [!WARNING]
-> Release 编译是实验性能力，实际工程覆盖有限。它不能替代完整 Gradle release 构建。
+> Release 编译是实验性能力，尚未经过大规模实际工程验证。使用时可能出现改动未生效或运行时 crash；如果遇到问题，请提供可复现 Demo 并提交 issue。
 
 ## 已支持能力
 
@@ -25,9 +25,6 @@ Jugg 支持 release / minified 场景下的增量编译。它会基于最近一�
 | R8/ProGuard 删除成员 | 支持部分补偿 | release 场景下生成兼容产物 |
 | 缺失 mapping | 不进入重新混淆 | 按普通 DEX 路径输出，不能保证与已混淆 APK 对齐 |
 
-> [!IMPORTANT]
-> release 增量依赖完整且匹配当前 APK 的 mapping 基线。升级 R8/ProGuard、修改 keep 规则、出现反射/注解/类型引用异常时，执行一次 Gradle release 构建验证。
-
 ## 触发与结果
 
 ```text
@@ -37,17 +34,17 @@ release / minified 产物变化
   -> 产物交给部署阶段
 ```
 
-用户需要关注的是：release 增量更依赖基线新鲜度。mapping、keep 规则或 R8 行为与当前 APK 不一致时，Jugg 会按当前可用信息降级继续；结果需要用 Gradle release 构建对照。
+Jugg 只根据当前可用的 mapping 执行名称重映射，不会重新运行完整 R8 来核对 keep 规则和优化结果。mapping、keep 规则或 R8 行为与当前 APK 不一致时，编译可能完成，但改动可能不生效或引发运行时 crash。
 
 ## 使用边界
 
 - `mapping.txt` 缺失时不会进入重新混淆，输出不能可靠部署到已混淆 APK。
 - `usage.txt` 主要用于被删除方法的 compatibility stub；字段删除当前更多作为影响分析信号。
-- 如果 release 增量后出现 `NoClassDefFoundError`、`NoSuchMethodError`、`IllegalAccessError`、注解查找失败等，先保留日志并用 Gradle release 构建对照。
+- 如果 release 增量后出现 `NoClassDefFoundError`、`NoSuchMethodError`、`IllegalAccessError`、注解查找失败等，请保留日志，提供可复现 Demo 并提交 issue。
 
 ## 相关页面
 
-- [常量引用分析](./const-ref.md)
+- [重编译/扩散编译](./recompile-propagation.md)
 - [AabResGuard](./aab-resguard.md)
 - [编译问题排查](../../troubleshooting/compile.md)
 - [release 增量编译](../../concepts/incremental-compile/release-compile.md)

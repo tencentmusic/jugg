@@ -1,6 +1,6 @@
 ---
-title: Jugg Runtime
-description: 解释 Jugg 放进目标 App 进程里的运行时能力如何服务热修复、兼容部署和 UI 工具。
+title: App 进程内 Jugg runtime
+description: 解释 Jugg 注入目标 App 进程的 runtime 如何接入构建产物、修正运行环境差异，并为 UI 工具提供 App 内服务。
 status: active
 tags:
   - concept
@@ -8,130 +8,113 @@ tags:
   - deploy
 ---
 
-# Jugg Runtime
+# App 进程内 Jugg runtime
 
-Jugg 的编译和部署主要发生在 Android Studio、Gradle 和 ADB 这一侧。但有些事情只能在目标 App 进程里做：增量 DEX 和资源要在 App 启动时接入，JVMTI 能力要由真实设备运行时确认，UI 工具也要读取当前页面的 View 树。Jugg Runtime 就是这层进入 App 进程的能力。它不是 Gradle，也不只是一个 JVMTI agent；它把部署结果、设备兼容判断和运行态工具接起来。
+Jugg 的编译、部署和流程决策主要发生在 Android Studio、Gradle 和 ADB 一侧，但 ClassLoader、Resources、Application 生命周期和当前 View 树的真实状态只存在于目标 App 进程。Jugg 因此会把一组运行组件放进 APK，在 App 启动和运行期间接入部署产物、修正运行环境，并为 UI 工具提供进程内服务。
 
-## 为什么需要 App 内运行时
+本文将这些组件统称为 **App 进程内 Jugg runtime**。这里的 runtime 特指进入目标 App 进程的部分，不是 Kotlin 编译器运行环境，也不是 IDE 插件内负责接收命令和编排任务的服务。
 
-增量部署不会直接安装一个新 APK。它会把本轮变化拆成 DEX、resource overlay、assets、native lib，或者少量必须写回 APK 的文件。部分产物可以通过 Apply Changes 在线生效，部分产物只能在 App 重启后通过新的加载路径生效。IDE 侧可以把文件送到设备上，但要让这些文件进入 ClassLoader、Resources 或 View 树，还得靠 App 进程内的运行时协作。
+## 为什么有些工作必须在 App 进程内完成
 
-Jugg Runtime 主要做这些事：
+完整 Gradle 构建会把代码、资源和 native lib 打包进 APK，Android 再根据安装包建立 ClassLoader、Resources 和 Application。Jugg 增量运行只生成并下发本轮局部产物时，文件到达设备并不表示它已经进入这些运行时对象。
 
-- 在 App 启动时接入热修复 DEX、资源包和 native lib 路径。
-- 在目标进程里确认 JVMTI 是否可用，并把结果反馈给部署链路。
-- 在 App 内提供 ViewHierarchy 通道，让 CLI/MCP 工具读取页面结构、定位元素、查询 View 属性并执行触控。
+App 进程外可以生成和传输文件，却无法直接判断增量 DEX 是否已经进入当前 ClassLoader、资源 overlay 是否污染了其它 package 的 AssetManager，或者页面上正在显示哪一棵 View 树。这些工作需要在真实 App 环境中完成。
 
-没有这层 runtime，Jugg 仍然可以编译和下发文件，但很难稳定回答两个问题：这台设备能不能在线替换？重启后的 App 会不会先加载本轮增量产物？
-
-## Runtime 包含哪些能力
-
-| 能力 | 进入 App 的方式 | 解决的问题 |
+| App 内职责 | 为什么需要进入进程 | 用户可见结果 |
 |---|---|---|
-| Startup agent | 部署后写入 App `code_cache/startup_agents`，App 重启时由系统加载 | 检测 JVMTI、加载 instrumentation、修正启动期运行环境 |
-| Hotfix bootstrap | App 使用 Jugg bootstrap Application 启动，再切回原始 Application | 在启动早期插入 DEX、资源和 native lib 路径 |
-| Runtime instrumentation | startup agent 加载 instrumentation jar 后对系统类做 hook | 修正 ClassLoader、Resources、ActivityThread 等在线部署相关行为 |
-| 兼容部署标记 | App `code_cache` 中的 flag 文件和设备记录 | 标记 JVMTI 可用性，触发后续 compat deploy |
-| ViewHierarchy 服务 | App 启动后创建 LocalSocket server | 提供 `layout-dump`、`view-locate`、`view-inspect`、`tap` 的 App 内通道 |
+| 修正运行环境差异 | 需要读取或调整 ClassLoader、Resources、ActivityThread 等真实对象 | 避免部署后代码未加载、资源异常或特定系统组合下的运行时崩溃 |
+| 接入增量产物 | 重启后的新进程需要重新建立代码、资源和 native lib 加载路径 | 结构变化或兼容部署产物在 App 启动后生效 |
+| 提供 ViewHierarchy 服务 | 当前 View、Compose 节点和属性只存在于 App 进程 | `layout-dump`、`view-locate`、`view-inspect` 和 `tap` 能读取或操作真实页面 |
 
-这些能力都运行在用户 App 的真实环境里。部署相关 runtime 关心产物怎么生效；UI 相关 runtime 关心当前界面怎么被观察和操作。
+## Jugg runtime 如何无侵入地进入 APK
 
-## 部署后如何进入 App 进程
-
-Jugg 不会在安装 APK 时一律推送 runtime。install 阶段通常没有增量部署文件，也不需要立刻准备 startup agent。增量部署完成后，Jugg 才检查目标 App sandbox 中是否已有 Jugg agent 和 Apply Changes agent；缺了再补。
+业务工程不需要显式依赖 Jugg SDK，也不需要修改自己的 Application。Jugg 发起会生成 APK 的 Gradle 构建时，会通过本次构建调用附加的 init script，把 runtime 加入目标 application variant，并调整构建生成的合并 Manifest。工程中的 Gradle 配置、Manifest 源文件和 Application 实现保持不变。
 
 ```text
-增量部署完成
-  -> 检查 App sandbox 中的 startup agents
-  -> 必要时 push Jugg agent bundle 到设备临时目录
-  -> 通过 run-as 把 agent setup 到 App code_cache/startup_agents
-  -> 按本轮部署结果启动或重启 App
-  -> 系统加载 startup agent
-  -> Jugg Runtime 在 App 进程内初始化
+Jugg 发起生成 APK 的 Gradle 构建
+  -> 通过本次 Gradle 调用注册 runtime 注入
+  -> 将 Jugg runtime 加入目标 application variant
+  -> 保存合并 Manifest 中的原始 Application 和 AppComponentFactory
+  -> 把本轮 APK 的启动入口替换为 Jugg runtime
+  -> Gradle 将 runtime 打包进 APK
+  -> App 启动后恢复原始入口和生命周期
 ```
 
-agent push 放在部署之后，是为了避开 Apply Changes 首次准备 startup agent 时清理目录的行为。推得太早，后续 Apply Changes 可能把 Jugg agent 删掉。JVMTI 检测也要等 App 重启，因为 startup agent 只有进程启动时才会加载。
+处理合并 Manifest 时，Jugg 会记录原始 Application 和 AppComponentFactory。App 启动后，runtime 先完成运行环境初始化，再创建原始对象并继续执行原有生命周期。release 混淆构建还会保留这些启动入口，避免它们在打包时被移除。
 
-## 启动期做了什么
+> [!NOTE]
+> 这里的“无侵入”是指业务工程无需修改源码、Manifest 源文件或 Gradle 配置。Jugg 会有意调整目标 variant 的构建依赖和合并 Manifest 产物，否则 runtime 无法进入最终 APK。
 
-App 启动时，Jugg Runtime 先处理运行环境，再把控制权交还给原始 App。
+## App 启动时如何建立运行环境
+
+Jugg runtime 有两个需要区分的启动时机。startup agent 由系统在进程启动时加载，用于确认 JVMTI 能力并安装必要的 Framework hook；runtime 的启动入口则在原始 Application 之前工作，用于准备增量加载路径并恢复业务工程自己的启动对象。
 
 ```text
-startup agent 被加载
-  -> 尝试取得 JVMTI / JNI
-  -> 写入 available 或 not-available 标记
-  -> 加载 Jugg instrumentation jar
-  -> hook Application、AppComponentFactory、ResourcesManager、ActivityThread
-  -> bootstrap Application 接入热修复产物
-  -> 创建原始 Application 并调用原始生命周期
-  -> 初始化 ViewHierarchy server
+App 进程启动
+  -> 必要时系统加载 startup agent
+  -> 检测 JVMTI 并安装运行环境修正
+  -> Jugg runtime 初始化代码、资源和 native lib 加载路径
+  -> 创建并恢复原始 Application / AppComponentFactory
+  -> 执行原始 Application 生命周期
+  -> 初始化 App 内 ViewHierarchy 服务
 ```
 
-这里有两个时机需要分清。startup agent 进入得更早，用来检测 JVMTI 并安装必要 hook。bootstrap Application 在原始 Application 前运行，负责补齐 DEX、资源和 native lib 的加载路径，然后再创建并替换回用户工程自己的 Application。
+恢复过程不只是重新调用一次 `Application.onCreate()`。Jugg 还会把 Framework 中指向临时启动对象的引用换回原始 Application，并迁移已经注册的 ActivityLifecycleCallbacks，使业务代码继续面对自己的 Application 实例。
 
-为了减少侵入感，bootstrap 会把原始 Application 和 AppComponentFactory 恢复到运行时对象里，也会迁移已注册的 ActivityLifecycleCallbacks。用户代码最终看到的仍然是自己的 Application。
+## 修正运行环境差异和运行时崩溃
 
-## 热修复和资源如何生效
+Android Studio、Android 版本和厂商系统对 Apply Changes 的处理并不完全一致。Jugg runtime 位于真实 App 进程，可以根据实际对象状态只修正命中的问题，而不需要为所有设备切换同一套部署策略。
 
-兼容部署、结构变化 class、已加载 class 这些场景不能依赖在线类替换。App 重启后，Jugg Runtime 会让新产物排在旧产物前面。
+### 增量 DEX 没有进入 ClassLoader
 
-- 新 DEX 接入 ClassLoader 搜索路径。
-- 新资源包接入 Resources / AssetManager。
-- native lib 路径进入 so 搜索路径。
-- 必要时根据兼容 flag 修正定制系统上的 DEX 路径。
+部分定制系统会提前初始化 ClassLoader。Apply Changes 已经把 DEX 写入 App 缓存目录时，当前 ClassLoader 的搜索路径仍可能缺少这些文件。Jugg runtime 会对比增量 DEX 与当前 dex elements；确认缺失后，再补齐 DEX 加载路径。判断结果会留在 App 缓存中，避免每次启动重复扫描。
 
-普通热重载仍然优先使用 Apply Changes / JVMTI 在线替换。只有本轮产物或设备状态要求重启后生效时，runtime 才承担热修复加载职责。Jugg Runtime 不会把所有变更都改慢；它只在在线路径不可靠时提供另一条生效路径。
+### overlay 进入了错误的资源环境
 
-## 和兼容部署的关系
+Apply Changes overlay 应用于宿主 App 资源，但 WebView provider 等独立 package 也会在宿主进程创建自己的 AssetManager。如果宿主 overlay 被带入这些资源环境，provider 初始化可能因资源 package ID 冲突而失败。
 
-兼容部署依赖 Jugg Runtime 的设备反馈。startup agent 启动后会写入 JVMTI 可用或不可用标记；部署链路读到不可用标记后，记录当前 app/device 组合，后续部署直接转入兼容路径。
+Jugg runtime 会识别当前 Resources 对应的 APK。宿主资源继续保留 overlay，非宿主资源环境则移除这条 overlay，避免局部资源更新扩大成其它组件的初始化异常。
 
-```text
-App 重启
-  -> Runtime 检测 JVMTI
-  -> 写入 not-available flag
-  -> 部署链路记录 compat device
-  -> 后续本设备跳过在线热重载
-  -> 增量产物改走重启后生效的热修复路径
-```
+### Android 版本与 Apply Changes 行为不匹配
 
-HarmonyOS 等定制系统上的 DEX 路径修复 flag 只表示需要修正加载路径，不表示 JVMTI 不可用。只有明确的 not-available 标记，或部署失败链路确认属于 JVMTI 兼容问题时，才会把设备记录为 compat device。
+Android 15 与较旧 Android Studio 组合中，Apply Changes 可能已经更新资源，却没有触发完整的资源刷新和 Activity 重建。Jugg runtime 会在命中该组合时补发 ApplicationInfo 更新，并按本轮部署要求重建 Activity，使页面读取新的资源状态。
 
-## 和 UI 工具的关系
+runtime 还会为 APK 根目录的 classpath resource 提供 overlay-first 查找。未命中增量文件或发生读取异常时继续执行原始 ClassLoader 查询，避免辅助兼容逻辑截断 App 原有资源加载。
 
-Jugg 的 UI 工具不是解析截图，也不是默认走 uiautomator。目标 App 启动后，Jugg Runtime 会初始化 App 内 ViewHierarchy 服务；IDE/CLI 侧通过 ADB 转发连接到这个 LocalSocket，再请求当前页面结构、元素位置、View getter 属性或触控动作。
+## 增量产物如何在 App 内生效
+
+普通方法体修改仍优先通过 Apply Changes 和 JVMTI 在线替换。结构变化 class、兼容部署产物或具有进程级缓存的资源需要重启 App；新进程启动时，Jugg runtime 再把对应 DEX、资源或 native lib 路径接入运行环境。
+
+这一过程只是 App 内运行机制的一部分。产物为什么转入兼容路径、部署数据如何变化以及何时重启，见[兼容部署](./compat-deploy.md)；在线替换与 Activity 重建的边界见[Apply Changes 中的 class 与 overlay](./apply-changes.md)。
+
+## 为 UI 工具提供 App 内服务
+
+原始 Application 启动后，Jugg runtime 会初始化 ViewHierarchy LocalSocket 服务。IDE/CLI 侧通过 ADB 转发连接该服务，在 App 主线程读取实时 View 树、查询 View 属性或执行触控。
 
 ```text
 layout-dump / view-locate / view-inspect / tap
-  -> 等待设备和 App 可观察
-  -> 连接 App 内 ViewHierarchy LocalSocket
-  -> 在主线程读取 View 树或执行触控
-  -> 返回 HTML 证据、bounds、属性值或操作结果
+  -> 检查目标 App 是否在线并处于可观察状态
+  -> 连接 App 内 ViewHierarchy 服务
+  -> 读取当前 View 树或执行触控
+  -> 返回页面结构、bounds、属性值或操作结果
 ```
 
-这条通道读到的是 App 内实时 View 树，所以能返回 bounds、density、隐藏节点属性等截图拿不到的信息。边界也很直接：App 不在前台、设备不可交互、runtime server 未初始化或 socket 不可用时，公开工具不会自动切换到 uiautomator。
+这条通道直接读取 App 内状态，不依赖截图推断，也不会在 socket 不可用时自动切换到 uiautomator。节点范围、Compose 支持和工具边界见[布局 dump 与 UI 证据](./layout-dump-and-ui-evidence.md)。
 
-## 边界与代价
+## 失败收口与边界
 
-Jugg Runtime 解决的是运行中怎么生效、怎么检测、怎么观测。它不解决构建问题。构建脚本变化、依赖变化、注解处理器结果不可信、APK 基线过期时，仍然需要回到 Gradle。
-
-使用 runtime 时还要记住几条限制：
-
-- startup agent 只有 App 重启后才会加载；首次检测 JVMTI 需要一次启动时机。
-- install 通常不会触发部署后补 push agent，不能用 install 后缺 agent 判断 runtime 异常。
-- 32 位和 64 位进程需要匹配不同 agent so；选错会导致 agent 加载失败。
-- 可选 hook 会受 Android 版本或厂商实现影响；Jugg 会尽量收集失败信息，不会把所有 hook 失败都升级为部署失败。
-- ViewHierarchy server 依赖目标 App 进程在线且前台可观察；socket 不可用时，需要先恢复 App 状态。
-
-这些限制让 Jugg Runtime 更像一层运行态协作机制，而不是万能旁路。它把设备差异和 App 运行状态纳入部署判断，让 Jugg 可以在速度和结果可信之间切换。
+- App 内热修复加载当前要求 Android 8.0 / API 26 及以上；更低版本不会初始化对应加载逻辑。
+- runtime 自身发生变化时，需要通过完整 Gradle 构建和安装更新 APK。普通增量部署只能复用当前 APK 已包含的 runtime。
+- JVMTI 不可用时，部署链路会记录设备状态并转入兼容部署，不会持续尝试当前设备无法完成的在线替换。
+- ViewHierarchy 初始化失败会记录原因并放弃 App 内 UI 服务，不会阻止原始 Application 继续启动；使用 UI 工具前仍需保证 App 在线且前台可观察。
+- 构建脚本、依赖、注解处理器结果或 APK 基线不可信时，必须回到 Gradle。App 内 runtime 不能修复构建阶段缺失的产物。
 
 ## 相关页面
 
 - [部署策略](./deploy-strategy.md)
 - [Apply Changes 中的 class 与 overlay](./apply-changes.md)
-- [Direct Overlay 部署机制](./direct-overlay.md)
 - [兼容部署](./compat-deploy.md)
-- [JVMTI Agent](./jvmti-agent.md)
+- [Jugg JVMTI Agent](./jugg-jvmti-agent.md)
 - [布局 dump 与 UI 证据](./layout-dump-and-ui-evidence.md)
 - [UI 检查](../guide/ui-inspection.md)
 - [JVMTI Runtime](../capabilities/deploy/jvmti-runtime.md)
