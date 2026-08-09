@@ -1,3 +1,17 @@
+- version: 3.2.3
+  date: 2026.08.09
+  updates:
+    - enable compat deploy on all HarmonyOS devices
+    - add a dedicated icon for Jugg run configurations
+    - let users configure remote synchronization exclude patterns
+    - preserve KMP fragment relationships and isolate stale Kotlin 1.9 outputs during incremental compilation
+    - preserve deleted Kotlin accessors in minified updates
+    - keep full-build project information authoritative and wait for rebuilds before incremental compilation
+    - make JVMTI setup and dry deploy status reporting reliable
+    - preserve IDE sync success across full builds
+    - prevent Windows remote builds from failing when gradlew uses CRLF line endings
+    - show complete recent run details in the Jugg control panel
+
 - version: 3.2.2
   date: 2026.08.04
   updates:

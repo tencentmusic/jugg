@@ -1,14 +1,25 @@
 <h1>Change Log</h1>
-<h2>3.2.2 (2026.08.04)</h2>
+<h2>3.2.3 (2026.08.09)</h2>
 <ol>
     <li>[feature] Support a native project-level Jugg control panel with a live compile dashboard, recent outcomes, logs, and settings</li>
     <li>[feature] Let users review redacted diagnostic bundles before upload or save them locally</li>
     <li>[feature] Supports compose layout dump, use Dragonfly as the layout hierarchy source for layout dump and interaction</li>
+    <li>[feature] Enable compat deploy on all HarmonyOS devices</li>
+    <li>[feature] Add a dedicated icon for Jugg run configurations</li>
+    <li>[feature] Let users configure remote synchronization exclude patterns</li>
     <li>[optimize] Expose complete Jugg status to agent hooks</li>
     <li>[optimize] Optimize recognization of project info reading</li>
+    <li>[optimize] Explain when detected changes are already deployed</li>
     <li>[bugfix] Prevent slow Git change checks from interrupting Jugg runs</li>
     <li>[bugfix] Use the project AGP D8 when Gradle exposes instrumented jars</li>
     <li>[bugfix] Restore IDE highlighting and auto-import for Compose resources added during incremental compilation</li>
+    <li>[bugfix] Prevent Windows remote builds from failing when gradlew uses CRLF line endings</li>
+    <li>[bugfix] Preserve deleted Kotlin accessors in minified updates</li>
+    <li>[bugfix] Preserve KMP fragment relationships and isolate stale Kotlin 1.9 outputs during incremental compilation</li>
+    <li>[bugfix] Keep full-build project information authoritative and wait for rebuilds before incremental compilation</li>
+    <li>[bugfix] Make JVMTI setup and dry deploy status reporting reliable</li>
+    <li>[bugfix] Preserve IDE sync success across full builds</li>
+    <li>[bugfix] Show complete recent run details in the Jugg control panel</li>
 </ol>
 <h2>3.1.5 (2026.07.31)</h2>
 <ol>

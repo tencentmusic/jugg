@@ -1,14 +1,25 @@
 <h1>更新日志</h1>
-<h2>3.2.2 (2026.08.04)</h2>
+<h2>3.2.3 (2026.08.09)</h2>
 <ol>
     <li>[feature] 新增原生 Jugg 运行面板，展示实时编译进度、近期结果、日志和设置</li>
     <li>[feature] 问题上报前可检查脱敏诊断包，也可仅保存到本地</li>
     <li>[feature] layout dump 和交互能力使用 Dragonfly 视图层级数据源</li>
+    <li>[feature] 所有 HarmonyOS 设备自动启用兼容部署</li>
+    <li>[feature] 新增 Jugg 运行配置专属图标</li>
+    <li>[feature] 支持用户配置远程同步排除规则</li>
     <li>[optimize] Agent hooks 可获取完整 Jugg 状态</li>
     <li>[optimize] 增强优化工程识别能力</li>
+    <li>[optimize] 检测到的变更已部署时展示明确说明</li>
     <li>[bugfix] 修复慢速 Git 变更补检中断 Jugg Run 的问题</li>
     <li>[bugfix] 修复 Gradle 插桩 JAR 导致增量 D8 错误回退到内置版本的问题</li>
     <li>[bugfix] 修复增量编译新增 Compose 资源后 IDE 无法高亮和自动导入的问题</li>
+    <li>[bugfix] 修复 gradlew 使用 CRLF 换行时 Windows 远程构建失败的问题</li>
+    <li>[bugfix] 修复混淆更新时已删除的 Kotlin accessor 未正确处理的问题</li>
+    <li>[bugfix] 增量编译保留 KMP fragment 关系，并隔离 Kotlin 1.9 过期输出</li>
+    <li>[bugfix] 完整构建后以最新项目信息为准，并等待项目信息重建完成后再增量编译</li>
+    <li>[bugfix] 修复 JVMTI 初始化状态和 dry deploy 状态上报不准确的问题</li>
+    <li>[bugfix] 完整构建后保留 IDE 同步成功状态</li>
+    <li>[bugfix] Jugg 运行面板展示完整的近期运行详情</li>
 </ol>
 <h2>3.1.5 (2026.07.31)</h2>
 <ol>
