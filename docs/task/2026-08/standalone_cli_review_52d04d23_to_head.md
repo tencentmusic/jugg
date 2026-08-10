@@ -145,6 +145,10 @@ Standalone Bundle 安装未形成 manifest 提交点控制的完整原子事务
 
 现有 `StandaloneRuntimeInstallerTest` 覆盖正常安装和 Bundle 预校验失败，但没有在 CLI、launcher 已发布而 active manifest 尚未提交的窗口注入失败。Standalone 已明确不保留 previous manifest，也不提供启动失败自动 rollback；安装或启动失败由用户重新安装恢复。
 
+### 实施结论
+
+已按主流程简化，不实现 tooling/runtime 的完整 crash-safe 事务。安装器仍以 active manifest 作为 Runtime 最后提交点；提交成功并释放 Global Resource Lock 后，扫描同一 Jugg 根目录下主类为 `StandaloneBootstrap` 的进程并强制终止，确保下一次 CLI 调用按新 manifest 启动 Runtime。安装失败由用户重新安装恢复，启动失败直接返回异常且不自动 rollback。
+
 ## 问题 3
 
 ### 标题
