@@ -1372,7 +1372,7 @@ IDEA 与 standalone 使用独立 active manifest；兼容 hot update 同时准�
 新增 standalone Flow，使用真实 demo 编译和真实 emulator/device：
 
 - Gradle baseline → 修改方法 → HOT RELOAD，进程不重启且行为变化。
-- 修改资源 → HOT RELOAD，Activity 不重启且 UI 生效。
+- 修改资源 → HOT RELOAD，App 进程不重启、Activity 恰好重建一次且 UI 生效。
 - IDEA deploy 后切 standalone deploy。
 - standalone deploy 后切 IDEA deploy。
 - overlay mismatch → recover → redeploy。
@@ -1382,7 +1382,7 @@ IDEA 与 standalone 使用独立 active manifest；兼容 hot update 同时准�
 - 旧 IDEA classloader 保持运行时启动新版 standalone，切换同一项目 owner 并完成状态读取、编译与部署恢复，验证兼容更新的双向持久化契约。
 - 从真实 Step 11 插件升级到首个 Step 12 完整插件 ZIP，确认新插件包含 Bundle、standalone 可安装，legacy updater 不参与重装。
 
-其中“资源更新时 Activity 不重启”仍是 Step 10～12 完整 standalone Flow 的最终验收目标。Step 9 只验证固定 Quail `OptimisticApkSwapper` 闭包，其 resource full swap 与现有 IDEA 路径一致，会执行一次预期 Activity restart，不代表最终无重启目标已完成。
+资源更新使用与 IDEA 路径一致的 Full Swap，执行一次预期 Activity restart 以刷新 `AssetManager/Resources`，同时保持 App 进程不变。Step 10～12 的完整 standalone Flow 应验证该共享行为，不要求 Standalone 超越插件版实现无 Activity 重启的资源刷新。
 
 涉及 IDEA deploy 编排下沉时，必须定向回归已有 `TopLevelFlowTest` 或等价 L3 Flow，不能只依赖 standalone 测试。
 
