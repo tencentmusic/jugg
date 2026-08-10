@@ -108,7 +108,7 @@ class DeployFileManagerRecoverTest {
         val testRoot = Files.createTempDirectory("deploy-recover-then-compile-test").toFile()
         val deployFileManager = DeployFileManager(
             pathManager = JuggPathManager(testRoot),
-            backgroundTaskRunner = immediateRunner,
+            taskRunnerManager = taskRunnerManager,
             logger = logger,
         )
         deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
