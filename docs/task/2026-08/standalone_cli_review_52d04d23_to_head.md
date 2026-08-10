@@ -195,7 +195,7 @@ Java 也存在同类问题。设计要求优先使用 `JAVA_HOME`，再回退 PA
 
 Standalone 安装器不再重新生成 Python wrapper，而是直接发布 Bundle 与 IDEA 插件共同使用的 `jugg` / `jugg.cmd`。两种 wrapper 每次执行时都按 `python3`、`python` 顺序校验 Python 3.7+，前一个命令存在但版本过低时继续回退；安装前环境校验保持相同顺序。这样安装入口、稳定 launcher 与 IDEA CLI 使用同一选择规则，也不引入 manifest 字段或额外配置。
 
-## 问题 4
+## 问题 4（已结单：非问题）
 
 ### 标题
 
@@ -210,18 +210,24 @@ Standalone 资源 HOT RELOAD 仍会重启 Activity，未达到最终 Flow 验收
 5. 资源能够更新，但 Activity 会被重启，可以观察到新的 `onCreate()` 调用。
 6. 对照最终 L3 验收目标，预期应是 UI 生效且 Activity 不重启。
 
-### 详细解释
+### 原审查判断
 
 共享 `JuggDeployer.fullSwap()` 固定调用 `optimisticSwap(..., argRestart = true, ...)`。Standalone 的 `StandaloneApplyChangesExecutor.optimisticSwap()` 又把该值原样传给 Quail `OptimisticApkSwapper` 的 `restartActivity` 参数，因此资源 full swap 的当前行为必然包含一次 Activity restart。
 
-这与 Step 9 验证固定 Quail deploy 闭包时的预期一致，但不是 Step 10～12 定义的最终结果。Standalone 设计文档明确把“资源更新时 Activity 不重启且 UI 生效”列为完整 Flow 的最终验收目标，并明确说明 Step 9 的 Activity restart 不能代表该目标已经完成。
+原审查基于当时的 Standalone 设计文档，将“资源更新时 Activity 不重启且 UI 生效”视为 Step 10～12 完整 Flow 的最终验收目标，因此认为 Step 9 已验证的预期 Activity restart 不能代表该目标已经完成。
 
 相关实现位置：
 
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt:131`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt:208`
 - `deploy_compat/standalone_deployer/src/main/java/com/sickworm/intellij/jugg/deploy/run/StandaloneApplyChangesExecutor.java:124`
-- `docs/task/2026-08/standalone_jugg_cli_design.md:1363`
-- `docs/task/2026-08/standalone_jugg_cli_design.md:1378`
+- `docs/task/2026-08/standalone_jugg_cli_design.md:1375`
+- `docs/task/2026-08/standalone_jugg_cli_design.md:1385`
 
-现有 Standalone deploy 单元和设备流程测试证明固定 Quail 路径可以完成部署，但没有提供真实资源变更后 Activity 生命周期保持不变的 L3 证据。因此当前 Standalone CLI 的编译部署主链已经建立，但资源 HOT RELOAD 仍不能判定为完整实现。
+现有 Standalone deploy 单元和设备流程测试已经证明固定 Quail 路径可以完成部署。原审查因缺少“真实资源变更后 Activity 生命周期保持不变”的 L3 证据，将资源 HOT RELOAD 判定为尚未完整实现；下述结单结论已撤销该判断。
+
+### 结单结论
+
+已结单，确认不是 Standalone 问题。标准资源 HOT RELOAD 复用插件版共享部署编排，两者都会通过 Full Swap 保持 App 进程不变并预期重建一次 Activity；Standalone executor 只是原样传递共享编排给出的 `restartActivity` 参数，没有引入行为差异。
+
+原“Activity 不重启且 UI 生效”验收条件与插件版既有行为、共享部署契约及 Android Studio Apply Changes 语义不一致，不应作为 Standalone 完整 Flow 的阻塞项。资源 Flow 的正确验收口径为：App 进程不重启、Activity 恰好重建一次且 UI 生效。
