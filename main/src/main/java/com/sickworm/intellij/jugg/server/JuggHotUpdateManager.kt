@@ -25,7 +25,6 @@ class JuggHotUpdateManager(
     val storageDir: File = File(hotUpdateDir, "jars")
     val loadManifestFile: File = File(hotUpdateDir, "load_manifest.json")
     val standaloneLoadManifestFile: File = File(hotUpdateDir, "standalone_load_manifest.json")
-    val standalonePreviousManifestFile: File = File(hotUpdateDir, "standalone_previous_load_manifest.json")
     val candidatesDir: File = File(hotUpdateDir, "candidates")
     val hotUpdateDataFile: File = File(hotUpdateDir, "hot_update_data.json")
     private val globalRootDir = checkNotNull(hotUpdateDir.absoluteFile.parentFile)
@@ -147,7 +146,6 @@ class JuggHotUpdateManager(
         val referencedJarNames = resolveLoadManifest(loadBaseBuildTime)?.jarFileNames.orEmpty().toMutableSet()
         referencedJarNames.addAll(jarFiles.map(File::getName))
         referencedJarNames.addAll(resolveStandaloneLoadManifest()?.jarFileNames.orEmpty())
-        referencedJarNames.addAll(resolveStandalonePreviousManifest()?.jarFileNames.orEmpty())
         referencedJarNames.addAll(standaloneJarFiles.map(File::getName))
         cleanupExpiredJarsLocked(referencedJarNames)
             .forEach { logger.debug("Delete expired hot update jar: ${it.absolutePath}") }
@@ -186,7 +184,6 @@ class JuggHotUpdateManager(
             val allReferenced = referencedJarNames.toMutableSet()
             allReferenced.addAll(resolveLoadManifest(loadBaseBuildTime)?.jarFileNames.orEmpty())
             allReferenced.addAll(resolveStandaloneLoadManifest()?.jarFileNames.orEmpty())
-            allReferenced.addAll(resolveStandalonePreviousManifest()?.jarFileNames.orEmpty())
             readHotUpdateData()?.let { data ->
                 allReferenced.addAll(data.jarFileInfos.orEmpty().map(JarFileInfo::uniqueName))
                 allReferenced.addAll(data.standaloneJarFileInfos.orEmpty().map(JarFileInfo::uniqueName))
@@ -206,8 +203,6 @@ class JuggHotUpdateManager(
     }
 
     internal fun resolveStandaloneLoadManifest(): StandaloneHotUpdateManifest? = readStandaloneManifest(standaloneLoadManifestFile)
-
-    internal fun resolveStandalonePreviousManifest(): StandaloneHotUpdateManifest? = readStandaloneManifest(standalonePreviousManifestFile)
 
     fun activateReinstallCandidate(activePluginBuildId: String): Boolean {
         return withGlobalResourceLock("Activate standalone reinstall candidate", globalRootDir) {
@@ -268,7 +263,6 @@ class JuggHotUpdateManager(
     private fun publishStandaloneLoadManifest(data: HotUpdateData, jarFiles: List<File>) {
         val buildId = requireNotNull(data.releaseBuildId) { "releaseBuildId is required for standalone hot update" }
         val current = resolveStandaloneLoadManifest()
-        if (current != null && current.releaseBuildId != buildId) writeJsonAtomically(standalonePreviousManifestFile, current)
         val manifest = StandaloneHotUpdateManifest(
             schemaVersion = 1,
             runtimeApiVersion = 1,

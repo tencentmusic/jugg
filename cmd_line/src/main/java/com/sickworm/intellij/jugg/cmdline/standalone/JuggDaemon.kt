@@ -62,21 +62,11 @@ fun main(args: Array<String>) {
 }
 
 internal fun runStandaloneDaemon(args: Array<String>) {
-    val rootDir = System.getProperty("jugg.root.dir")?.let(::File) ?: File(System.getProperty("user.home"), ".jugg")
-    val installer = StandaloneRuntimeInstaller(rootDir, rootDir.resolve("standalone/bin"))
-    val buildId = installer.readActiveManifest()?.releaseBuildId
-    runStandaloneDaemon(args) {
-        if (buildId != null) StandaloneActivationManager(rootDir, installer).onReady(buildId)
-    }
-}
-
-internal fun runStandaloneDaemon(args: Array<String>, onReady: () -> Unit) {
     val projectDirs = parseProjectDirs(args)
     val daemon = JuggDaemon()
     Runtime.getRuntime().addShutdownHook(Thread(daemon::close, "jugg-standalone-shutdown"))
     val port = daemon.start(projectDirs)
     println("Jugg standalone daemon started on port $port")
-    onReady()
     daemon.awaitTermination()
 }
 
