@@ -136,9 +136,7 @@ class DeployFileStateTracker(
 
     @Synchronized
     fun addStagingFiles(compileOutputFiles: List<CompileOutput>) {
-        compileOutputFiles.forEach {
-            stagingFiles[it.file.stdAbsPath] = it
-        }
+        compileOutputFiles.forEach(::addStagingFile)
     }
 
     @Synchronized
@@ -174,6 +172,41 @@ class DeployFileStateTracker(
 
     private fun CompileOutput.isLossyDexHistory(): Boolean {
         return type == CompileOutput.Type.Dex && apkPath == null && targetApkPaths.isEmpty()
+    }
+
+    /**
+     * Adds one output to the latest logical staging snapshot.
+     * Later outputs replace the same deploy key, while scoped Dex always wins over lossy recovered Dex.
+     */
+    private fun addStagingFile(output: CompileOutput) {
+        // A recovered Dex without APK scope must not replace an already staged scoped Dex.
+        if (output.isLossyDexHistory()) {
+            val scopedDex = stagingFiles.values.find {
+                !it.isLossyDexHistory() &&
+                    it.type == CompileOutput.Type.Dex &&
+                    it.relativeFile.path == output.relativeFile.path
+            }
+            if (scopedDex != null) {
+                logger?.debug("Ignore lossy staging dex, file=${output.file.stdAbsPath}, " +
+                        "scopedFile=${scopedDex.file.stdAbsPath}")
+                return
+            }
+        }
+
+        val deployKeys = output.deployKeys().toSet()
+        // Replace the same deploy key and any lossy Dex history represented by the same relative path.
+        val replacedFiles = stagingFiles.filterValues {
+            it.deployKeys().any(deployKeys::contains) ||
+                it.isLossyDexHistory() &&
+                output.type == CompileOutput.Type.Dex &&
+                it.relativeFile.path == output.relativeFile.path
+        }
+        replacedFiles.keys.forEach(stagingFiles::remove)
+        if (replacedFiles.isNotEmpty()) {
+            logger?.debug("Replace staging output, oldFiles=${replacedFiles.values.map { it.file.stdAbsPath }}, " +
+                    "newFile=${output.file.stdAbsPath}, deployKeys=$deployKeys")
+        }
+        stagingFiles[output.file.stdAbsPath] = output
     }
 
     private fun CompileOutput.deployKeys(): List<String> {
@@ -228,9 +261,7 @@ class DeployFileStateTracker(
     fun resetAfterReinstall() {
         val remainDeployedFiles = getNotStagingDeployedFiles()
         // put remainDeployedFiles into stagingFiles for next deployment
-        remainDeployedFiles.forEach {
-            stagingFiles[it.file.stdAbsPath] = it
-        }
+        remainDeployedFiles.forEach(::addStagingFile)
     }
     
     @Synchronized

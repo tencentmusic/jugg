@@ -115,6 +115,44 @@ class DeployFileManagerRecoverTest {
     }
 
     @Test
+    fun addStagingFilesShouldReplaceRecoveredDexWithoutApkMetadata() {
+        val testRoot = Files.createTempDirectory("deploy-recover-then-compile-test").toFile()
+        val deployFileManager = DeployFileManager(
+            pathManager = JuggPathManager(testRoot),
+            backgroundTaskRunner = immediateRunner,
+            logger = logger,
+        )
+        deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
+
+        val relativePath = "com/example/SidebarRedDotManager.dex"
+        val oldRecoveredDex = createDexOutput(
+            baseDir = File(testRoot, "deployed"),
+            relativePath = relativePath,
+            fixtureName = "R.dex",
+            apkPath = null,
+        )
+        val newStagingDex = createDexOutput(
+            baseDir = File(testRoot, "staging"),
+            relativePath = relativePath,
+            fixtureName = "R\$dimen.dex",
+            apkPath = "/base.apk",
+        )
+
+        deployFileManager.replaceDeployedFilesForTest(listOf(oldRecoveredDex))
+        deployFileManager.resetAfterReinstall()
+        deployFileManager.addStagingFiles(listOf(newStagingDex))
+
+        assertEquals(listOf(newStagingDex), deployFileManager.getStagingFiles())
+        val deployData = deployFileManager.getDeployData()
+        val classItems = deployData.newClasses + deployData.hotFixModifiedClasses + deployData.hotReloadModifiedClasses
+        val sidebarItems = classItems.filter {
+            it.name == "com.example.SidebarRedDotManager"
+        }
+        assertEquals(1, sidebarItems.size)
+        assertEquals(listOf(newStagingDex.toDeployItem().checksum), sidebarItems.map { it.checksum })
+    }
+
+    @Test
     fun resetAfterReinstallShouldKeepExplicitDexWithSameRelativePathForDifferentTargetApks() {
         val testRoot = Files.createTempDirectory("deploy-recover-multi-apk-dex-test").toFile()
         val deployFileManager = DeployFileManager(

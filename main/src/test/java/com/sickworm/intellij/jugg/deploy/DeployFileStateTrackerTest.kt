@@ -128,6 +128,49 @@ class DeployFileStateTrackerTest {
         assertEquals(listOf(baseOutput), tracker.getNotStagingDeployedFiles())
     }
 
+    @Test
+    fun addStagingFiles_replacesSameDeployKeyFromDifferentPhysicalPath() {
+        val tracker = DeployFileStateTracker()
+        val oldOutput = compileOutput(
+            root = temporaryFolder.newFolder("old_staging"),
+            relativePath = "resources.arsc",
+            apkPath = "/base.apk",
+            content = "old",
+        )
+        val newOutput = compileOutput(
+            root = temporaryFolder.newFolder("new_staging"),
+            relativePath = "resources.arsc",
+            apkPath = "/base.apk",
+            content = "new",
+        )
+
+        tracker.addStagingFiles(listOf(oldOutput, newOutput))
+
+        assertEquals(listOf(newOutput), tracker.getStagingFiles())
+    }
+
+    @Test
+    fun resetAfterReinstall_deduplicatesDeployedFilesByDeployKey() {
+        val tracker = DeployFileStateTracker()
+        val oldOutput = compileOutput(
+            root = temporaryFolder.newFolder("old_deployed"),
+            relativePath = "resources.arsc",
+            apkPath = "/base.apk",
+            content = "old",
+        )
+        val newOutput = compileOutput(
+            root = temporaryFolder.newFolder("new_deployed"),
+            relativePath = "resources.arsc",
+            apkPath = "/base.apk",
+            content = "new",
+        )
+
+        tracker.replaceDeployedFiles(listOf(oldOutput, newOutput))
+        tracker.resetAfterReinstall()
+
+        assertEquals(listOf(newOutput), tracker.getStagingFiles())
+    }
+
     private fun createSourceFile(name: String, content: String): File {
         return temporaryFolder.newFile(name).apply {
             writeText(content)

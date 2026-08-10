@@ -76,6 +76,8 @@ recover with reinstall
 
 multi APK 场景下，staging/deployed 的同名资源必须按“目标 APK + relative path”判定是否覆盖；不能只用 `relativeFile.path`，否则主包与 androidTest 都存在 `resources.arsc` 时会互相过滤，导致 full resource push 回读原 APK 资源。
 
+编译产物和 reinstall recover 历史进入 staging 时使用同一逻辑身份规则：相同“目标 APK + relative path”的产物后写覆盖，不同目标 APK 的同路径产物继续共存。恢复历史中缺失 APK scope 的 Dex 优先级低于有明确 scope 的 staging Dex，避免历史目录与新编译目录同时保留同一类定义。
+
 ---
 
 ## 4. 核心调用链路
