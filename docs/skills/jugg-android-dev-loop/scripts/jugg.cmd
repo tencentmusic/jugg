@@ -4,18 +4,19 @@ REM Place this in PATH or call directly: jugg.cmd compile --console=json
 
 setlocal
 set "SCRIPT_DIR=%~dp0"
-where python3 >nul 2>nul
-if not errorlevel 1 (
-  set "PYTHON=python3"
-) else (
-  where python >nul 2>nul
-  if errorlevel 1 (
-    echo jugg: Python 3.7+ was not found. Install Python or add python3/python to PATH. 1>&2
-    exit /b 127
+set "PYTHON="
+for %%P in (python3 python) do (
+  if not defined PYTHON (
+    where %%P >nul 2>nul
+    if not errorlevel 1 (
+      %%P -c "import sys; raise SystemExit(sys.version_info ^< (3, 7))" >nul 2>nul
+      if not errorlevel 1 set "PYTHON=%%P"
+    )
   )
-  set "PYTHON=python"
+)
+if not defined PYTHON (
+  echo jugg: Python 3.7+ was not found. Install Python or add python3/python to PATH. 1>&2
+  exit /b 127
 )
 "%PYTHON%" "%SCRIPT_DIR%jugg.py" --console=rich %*
-set "EXIT_CODE=%ERRORLEVEL%"
-endlocal
-exit /b %EXIT_CODE%
+exit /b %ERRORLEVEL%

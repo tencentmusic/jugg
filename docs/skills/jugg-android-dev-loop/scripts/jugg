@@ -3,9 +3,9 @@
 # Place this in PATH or call directly: jugg compile --console=json
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-if command -v python3 >/dev/null 2>&1; then
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 7))' >/dev/null 2>&1; then
   PYTHON=python3
-elif command -v python >/dev/null 2>&1; then
+elif command -v python >/dev/null 2>&1 && python -c 'import sys; raise SystemExit(sys.version_info < (3, 7))' >/dev/null 2>&1; then
   PYTHON=python
 else
   echo "jugg: Python 3.7+ was not found. Install Python or add python3/python to PATH." >&2

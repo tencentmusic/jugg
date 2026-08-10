@@ -28,6 +28,12 @@ class StandaloneRuntimeInstallerTest {
         assertEquals("second", installer.storageDir.resolve(secondBundle.manifest.jarFileNames.single()).readText())
         assertTrue(root.resolve("bin/jugg-standalone").canExecute())
         assertTrue(root.resolve("bin/jugg-standalone.cmd").isFile)
+        assertTrue(root.resolve("bin/jugg-standalone").readText().contains("JAVA_HOME"))
+        assertTrue(root.resolve("bin/jugg-standalone").readText().contains("command -v java"))
+        assertTrue(root.resolve("bin/jugg-standalone.cmd").readText().contains("%JAVA_HOME%\\bin\\java.exe"))
+        assertTrue(root.resolve("bin/jugg-standalone.cmd").readText().contains("where java"))
+        assertEquals(POSIX_PYTHON_LAUNCHER, root.resolve("home/bin/jugg").readText())
+        assertEquals(WINDOWS_PYTHON_LAUNCHER, root.resolve("home/bin/jugg.cmd").readText())
     }
 
     @Test
@@ -82,7 +88,12 @@ class StandaloneRuntimeInstallerTest {
 
     private fun bundle(dir: File, buildId: String, content: String): StandaloneBundle {
         val jarsDir = dir.resolve("jars").apply { mkdirs() }
-        dir.resolve("cli").apply { mkdirs(); resolve("jugg.py").writeText("print('jugg')") }
+        dir.resolve("cli").apply {
+            mkdirs()
+            resolve("jugg.py").writeText("print('jugg')")
+            resolve("jugg").writeText(POSIX_PYTHON_LAUNCHER)
+            resolve("jugg.cmd").writeText(WINDOWS_PYTHON_SOURCE)
+        }
         val bootstrapDir = dir.resolve("bootstrap").apply { mkdirs() }
         val bootstrap = "bootstrap".toByteArray()
         val bootstrapHash = MessageDigest.getInstance("SHA-256").digest(bootstrap).joinToString("") { "%02x".format(it) }
@@ -134,5 +145,11 @@ class StandaloneRuntimeInstallerTest {
         }
         process.destroyForcibly()
         error("Fake standalone daemon did not start")
+    }
+
+    private companion object {
+        const val POSIX_PYTHON_LAUNCHER = "#!/bin/sh\nbundle-python-launcher\n"
+        const val WINDOWS_PYTHON_SOURCE = "@echo off\nbundle-python-launcher\n"
+        const val WINDOWS_PYTHON_LAUNCHER = "@echo off\r\nbundle-python-launcher\r\n"
     }
 }
