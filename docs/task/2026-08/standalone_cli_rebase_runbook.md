@@ -39,7 +39,7 @@
 ## 3. 当前状态
 
 - 当前工作分支：`feature/standlone_cli`。
-- 最新 rebase 前备份：`feature/standlone_cli_rebase_20260806_old`，指向 `afe89f805`；既有 `feature/standlone_cli_old` 和 `feature/standlone_cli_rebase_20260804_old` 均未修改。
-- 当前 main 基线：`775bc23a7`。
-- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 15 节。
+- 最新 rebase 前备份：`feature/standlone_cli_rebase_20260810_old`，指向 `405d38437`；既有备份分支均未修改。
+- 当前 main 基线：`362f9b5e7`。
+- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 16 节。
 - 本次 rebase 记录、后续兼容修正和验证结果已分别可追溯；下一次 rebase 应新建备份，不复用当前备份名。

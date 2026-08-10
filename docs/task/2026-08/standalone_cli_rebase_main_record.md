@@ -824,3 +824,147 @@ McpInvokerTestBase.kt: Unresolved reference: ProjectDirNormalizer
 - 原 14 个 standalone CLI 提交全部完成映射，顺序保持不变。
 - rebase 后测试包迁移修正保持为独立 commit `fa0651e2a`。
 - 未执行 push。
+
+## 16. 2026-08-10 再次 rebase
+
+### 16.1 基本信息
+
+- 执行日期：2026-08-10（Asia/Shanghai）。
+- 工作分支：`feature/standlone_cli`。
+- rebase 前 HEAD：`405d38437e2f83c19196cb38656434a00990592c`。
+- rebase 前共同祖先：`453b67e74a655657138078b143f247fe733e1aff`。
+- 固定 main 基线：`362f9b5e78645f9623238ad2988a888036143d19`。
+- 备份分支：`feature/standlone_cli_rebase_20260810_old`。
+- 备份分支指向：`405d38437e2f83c19196cb38656434a00990592c`。
+- rebase 后 standalone 提交数：26；原图标提交已由 main 包含，因此未生成新提交。
+- rebase 后测试兼容修正：`b6b1c39d0 [test] keep deploy recovery tests compiling after runtime rebase`。
+
+开始前工作区存在用户对 `android_demo_project/app/src/main/java/com/example/myapplication/MainActivity.kt` 的未提交改动。该文件单独保存到 `stash@{0}`，未混入 rebase、冲突解决或后续提交，全部工作完成后恢复。
+
+当前 main 与 feature 曾分别重写历史，直接比较得到双方各 222 个提交。`git cherry main HEAD` 显示 193 个 patch 等价提交和 29 个候选独有提交，但其中 `53a7829c9`、`342ad8348` 是旧主线提交，不属于 standalone feature。最终保留 27 个真实 feature patch：图标提交由 main 自动跳过，剩余 26 个按原顺序重放。
+
+### 16.2 提交映射
+
+| 序号 | rebase 前提交 | rebase 后提交 | 结果 |
+|---|---|---|---|
+| 1 | `9d8ee7b65` | - | main 已包含相同图标 patch |
+| 2 | `700544c7b` | `a225a6f62` | patch 等价 |
+| 3 | `a5889a743` | `4185e9bf0` | patch 等价 |
+| 4 | `b497ee9b6` | `36d9bd815` | patch 等价 |
+| 5 | `52d04d238` | `45dbe493a` | 冲突整合 |
+| 6 | `6388d917f` | `07576fc38` | 冲突整合 |
+| 7 | `e8703a52c` | `3f27a686e` | 自动重放 |
+| 8 | `7ea4c8023` | `c6773da3f` | 冲突整合 |
+| 9 | `0cd329b97` | `d14862fa5` | 冲突整合 |
+| 10 | `073a67dbe` | `aaada1fc0` | 冲突整合 |
+| 11 | `1ed532035` | `57beecc84` | 冲突整合 |
+| 12 | `4c9ce2542` | `0d44a2cb1` | 冲突整合 |
+| 13 | `8cd400254` | `d6213de7a` | patch 含 main 文档演进 |
+| 14 | `685d94795` | `c4ff2c444` | 冲突整合 |
+| 15 | `e1c90a65b` | `96b6a4257` | 冲突整合 |
+| 16 | `9deaeb10b` | `5027e3d67` | patch 等价 |
+| 17 | `9ef9dd5fe` | `75e8470ea` | 冲突整合 |
+| 18 | `2b348eb63` | `3d82d3178` | patch 等价 |
+| 19 | `3f74c7cb6` | `1b5b6ed7f` | 冲突整合 |
+| 20 | `11c4bfc67` | `d6c49c2a3` | patch 含 main 文档演进 |
+| 21 | `5fe35de5e` | `07a641745` | 冲突整合 |
+| 22 | `18400686c` | `769ad4d2c` | patch 等价 |
+| 23 | `c73cd89de` | `6ecb5721c` | patch 等价 |
+| 24 | `191f58386` | `464420d3a` | 冲突整合 |
+| 25 | `76c3c4576` | `ace79b809` | patch 等价 |
+| 26 | `b815404ff` | `edb59fad3` | patch 等价 |
+| 27 | `405d38437` | `20f435b8c` | patch 等价 |
+
+### 16.3 提交边界误判
+
+1. `53a7829c9 [docs] refine wiki style` 被 Git 作为第 1 个候选提交重放，并在以下文件产生 add/add 冲突：
+   - `docs/wiki/.vitepress/theme/index.ts`
+   - `docs/wiki/.vitepress/theme/style.css`
+   - `docs/wiki/public/assets/run_configuration.svg`
+   该提交属于旧主线，不是 standalone feature。未解决文件内容，直接 `git rebase --skip`，由当前 main 保持最新 Wiki 实现。
+2. `342ad8348 [docs] make coding guidance easier for agents to apply...` 自动重放但同样属于旧主线。rebase 完成后用 `git rebase --onto` 从最终历史移除，23 个后续 standalone 提交无冲突重新重放。
+3. `9d8ee7b65 [feature] update run_configuration.svg` 被 Git 判定 patch 已在 main，自动 drop。最终图标仍由 main 提供，没有丢失产物。
+
+### 16.4 冲突提交与解决方案
+
+1. `52d04d238` step1：`docs/ai_knowledge/04_engineering_ide.md`。
+   - 保留 main 的 hot-update ClassLoader、标准插件安装和 IDE 生命周期说明。
+   - 补入共享 `DeployStateManager`、`IdeaHostDeployStateResolver` 与 Compile Context consumer 边界。
+2. `6388d917f` step2：`docs/ai_knowledge/04_engineering_ide.md`。
+   - 保留 hot-update 说明，采用 feature 的 `HostTaskExecutor` 和 `TaskRunnerManager` 释放语义。
+3. `7ea4c8023` step3：`04_engineering_ide.md`、`04_engineering_project.md`。
+   - 保留 main 的 Compose resource、第三方发行合规门禁和 hot-update 内容。
+   - 采用 `IProjectModelSource`、`IdeaProjectModelSource`、`ICompileEnvironmentSource`、共享 `CompileContextManager` 和 Gradle fetch 边界。
+4. `0cd329b97` step4：`04_engineering_ide.md`。
+   - 保留 main 的 hot-update 说明，采用 `FileChangeManager`、`IdeaFileChangeMonitor`、Host compile UI 和 pending barrier 边界。
+5. `073a67dbe` step5：`04_engineering_ide.md`。
+   - 保留 main 内容，并更新 dispose 契约为释放 custom compiler classloader、deploy runtime、TaskRunner 和 coroutine scope。
+6. `1ed532035` step6：`04_engineering_ide.md`。
+   - 旧 `JuggHotUpdateDownloader` 已迁移为共享 `JuggHotUpdateManager` + `IdeaHotUpdateCoordinator`，删除过时索引项并采用新的 runtime metadata 描述。
+7. `4c9ce2542` step7：`idea/.../JuggRunConfigurationOptions.kt`。
+   - 同时保留 main 新增的 `isRemoteSyncExcludePatternsCustomized` 和 feature 的 `cliRunConfigurationId`。
+   - 按 Options 顺序持久化约束，将新字段追加在现有字段之后，避免旧配置序号错位。
+8. `685d94795` step8：`04_engineering_project.md`。
+   - 仅日期冲突，保留 main 更新的 `2026-08-08`，正文完整接收 standalone daemon/runtime owner 内容。
+9. `e1c90a65b` step9：`04_engineering_compat.md`。
+   - 仅日期冲突，保留 main 更新日期，同时接收 Quail standalone deployer、资源 metadata 和 `JuggResourceManager` 说明。
+10. `9ef9dd5fe` owned API refactor：`04_engineering_compat.md`。
+    - 仅日期冲突；保留较新日期，正文采用自有 deploy API、converter owner 和 `base_api` 禁止 Android runtime class 的边界。
+11. `3f74c7cb6` step10：`04_engineering_ide.md`、`04_engineering_compat.md`、`03_runtime_jvmti.md`。
+    - 三处均为日期冲突，分别保留每份文档较新的日期；共享 deploy orchestrator、Host environment 和 JVMTI 边界完整重放。
+12. `5fe35de5e` step12：`idea/build.gradle`、`04_engineering_compat.md`。
+    - `prepareSandbox` 同时嵌入 `:cmd_line:standaloneBundle`、`third_party` 和 `THIRD_PARTY_NOTICES.md`。
+    - `buildPlugin` 同时依赖 standalone Bundle 并在结束后执行 `verifyThirdPartyCompliance`，没有牺牲任一发行门禁。
+    - 文档同时保留原 CI 两阶段命令和新增 standalone installer/bootstrap 入口。
+13. `191f58386` startup failure：`04_engineering_compat.md`。
+    - 保留 CI 命令索引，更新 standalone 语义为 active manifest 不自动 rollback，启动失败直接显式返回。
+
+所有冲突均按行为 owner 合并，没有整文件选择 ours/theirs。
+
+### 16.5 rebase 后语义修正
+
+首次定向 `:main:test` 在 `compileTestKotlin` 失败：
+
+```text
+DeployFileManagerRecoverTest.kt: Cannot find a parameter with this name: backgroundTaskRunner
+DeployFileManagerRecoverTest.kt: No value passed for parameter 'taskRunnerManager'
+```
+
+`DeployFileManager` 已迁移到共享 `TaskRunnerManager`，测试中一个自动合并的构造点仍使用旧 `backgroundTaskRunner`。修正复用该测试已有的 `createImmediateTestTaskRunnerManager()`。
+
+随后 `DeployCompatArchitectureTest` 失败：
+
+```text
+Cannot find idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt
+```
+
+step10 已将 `JuggDeployerHelper` 移到 main，静态架构守卫仍检查旧路径。修正只更新 owner 路径，legacy deployer forbidden types 断言保持不变。两项修正合并为独立提交 `b6b1c39d0`，未修改生产行为。
+
+### 16.6 验证结果
+
+以下验证通过：
+
+- `./gradlew :idea:compileKotlin`
+- `./gradlew :main:test --tests com.sickworm.intellij.jugg.project.info.ProjectModelSourceTest --tests com.sickworm.intellij.jugg.project.runtime.TaskRunnerManagerTest --tests com.sickworm.intellij.jugg.project.change.FileChangeManagerTest --tests com.sickworm.intellij.jugg.ai.mcp.actions.CompileAndDeployMcpToolActionTest --tests com.sickworm.intellij.jugg.project.runtime.JuggResourceManagerTest --tests com.sickworm.intellij.jugg.deploy.DeployFileManagerRecoverTest`
+- `./gradlew :idea:test --tests com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManagerTest --tests com.sickworm.intellij.jugg.project.runtime.IdeaCliRunConfigurationFlowTest --tests com.sickworm.intellij.jugg.manager.JuggManagerFullBuildFlowTest --tests com.sickworm.intellij.jugg.deploy.run.DeployCompatArchitectureTest --tests com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelperDeployFlowTest`
+- `./gradlew :cmd_line:test --tests com.sickworm.intellij.jugg.cmdline.standalone.DaemonIdleTimerTest --tests com.sickworm.intellij.jugg.cmdline.standalone.StandaloneRuntimeTest --tests com.sickworm.intellij.jugg.cmdline.standalone.StandaloneRuntimeInstallerTest --tests com.sickworm.intellij.jugg.cmdline.CmdLineDistributionArchitectureTest`
+- `./gradlew :deploy_compat:standalone_deployer:test --tests com.sickworm.intellij.jugg.deploy.run.StandaloneApplyChangesExecutorTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerArchitectureTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerDeviceFlowTest --tests com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerResourceTest`
+- `./gradlew :standalone_bootstrap:test --tests com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrapTest`
+- `./gradlew :idea:buildPlugin`
+- `python3 docs/skills/jugg-android-dev-loop/tests/test_jugglib.py`
+- `python3 docs/skills/jugg-android-dev-loop/tests/test_cmd_version.py`
+- `python3 docs/skills/hooks/tests/test_hooks_guard.py`
+- `git diff --check`
+- `git range-diff d343413cc..b497ee9b6 main..36d9bd815`
+- `git range-diff 342ad8348..feature/standlone_cli_rebase_20260810_old 36d9bd815..20f435b8c`
+
+`:idea:buildPlugin` 同时执行并通过 `:cmd_line:standaloneBundle` 与 `:idea:verifyThirdPartyCompliance`。构建仍输出既有 NDK `riscv64` metadata、IntelliJ `sourceCompatibility`/Kotlin stdlib、deprecated Gradle feature 和少量 Kotlin warning，不影响本轮结果。
+
+### 16.7 最终结果
+
+- 当前分支基于 main `362f9b5e78645f9623238ad2988a888036143d19`。
+- rebase 前状态保存在 `feature/standlone_cli_rebase_20260810_old`。
+- 27 个真实 standalone patch 均已审计：1 个由 main 包含，26 个完成映射且顺序保持不变。
+- 两个旧主线误判提交未进入最终历史。
+- rebase 后测试兼容修正保持为独立 commit `b6b1c39d0`。
+- 未执行 push。
