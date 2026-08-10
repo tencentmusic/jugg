@@ -16,6 +16,8 @@ class DeployFileStateTracker(
     private val logger: Logger? = null,
 ) {
     private var uncompiledFiles = mutableMapOf<String, ChangedFile>()
+    // Copied files may preserve old mtimes, so full-build cleanup must use when Jugg observed the change.
+    private var uncompiledObservedAt = mutableMapOf<String, Long>()
     private var compiledFiles = mutableMapOf<String, ChangedFile>()
     private var stagingFiles = mutableMapOf<String, CompileOutput>()
     private val deployedFiles = mutableMapOf<String, CompileOutput>()
@@ -70,6 +72,7 @@ class DeployFileStateTracker(
                 iterator.forEach { (stdPath, changedFile) ->
                     if (stdPath == file.stdPath || changedFile.file.isChild(file)) {
                         iterator.remove()
+                        uncompiledObservedAt.remove(stdPath)
                     }
                 }
             }
@@ -91,6 +94,7 @@ class DeployFileStateTracker(
             val changedFile = uncompiledFiles[fileKey] ?: return@forEach
             changedFile.compiledTimes++
             uncompiledFiles.remove(fileKey)
+            uncompiledObservedAt.remove(fileKey)
             compiledFiles[fileKey] = changedFile
             markHandled(it.file)
         }
@@ -233,6 +237,7 @@ class DeployFileStateTracker(
         removeBuildFileFiles.keys.forEach {
             onRemoveBuildFile(it)
             uncompiledFiles.remove(it)
+            uncompiledObservedAt.remove(it)
         }
     }
 
@@ -241,16 +246,21 @@ class DeployFileStateTracker(
         val remainUncompiledFiles = uncompiledFiles.filter {
             resetFilesBeforeTimeMill != null &&
                 it.value.file.exists() &&
-                it.value.file.lastModified() > resetFilesBeforeTimeMill
+                uncompiledObservedAt.getOrDefault(it.key, 0L) > resetFilesBeforeTimeMill
+        }
+        val remainObservedAt = remainUncompiledFiles.keys.associateWith {
+            uncompiledObservedAt.getValue(it)
         }
 
         uncompiledFiles.clear()
+        uncompiledObservedAt.clear()
         compiledFiles.clear()
         stagingFiles.clear()
         handledFileSnapshots.clear()
 
         if (remainUncompiledFiles.isNotEmpty()) {
             uncompiledFiles.putAll(remainUncompiledFiles)
+            uncompiledObservedAt.putAll(remainObservedAt)
             remainUncompiledFiles.values.forEach {
                 markHandled(it.file)
             }
@@ -267,11 +277,15 @@ class DeployFileStateTracker(
     @Synchronized
     fun remapUncompiledFiles(transform: (ChangedFile) -> ChangedFile?) {
         val mappedFiles = mutableMapOf<String, ChangedFile>()
-        uncompiledFiles.values.forEach { changedFile ->
+        val mappedObservedAt = mutableMapOf<String, Long>()
+        uncompiledFiles.forEach { (path, changedFile) ->
             val mapped = transform(changedFile) ?: return@forEach
-            mappedFiles[mapped.file.stdPath] = mapped
+            val mappedPath = mapped.file.stdPath
+            mappedFiles[mappedPath] = mapped
+            mappedObservedAt[mappedPath] = uncompiledObservedAt.getValue(path)
         }
         uncompiledFiles = mappedFiles
+        uncompiledObservedAt = mappedObservedAt
     }
 
     private fun isHandledSnapshot(changedFile: ChangedFile): Boolean {
@@ -288,8 +302,10 @@ class DeployFileStateTracker(
     }
 
     private fun markNeedsCompile(changedFile: ChangedFile) {
-        uncompiledFiles[changedFile.file.stdPath] = changedFile
-        compiledFiles.remove(changedFile.file.stdPath)
+        val filePath = changedFile.file.stdPath
+        uncompiledFiles[filePath] = changedFile
+        uncompiledObservedAt[filePath] = System.currentTimeMillis()
+        compiledFiles.remove(filePath)
         markHandled(changedFile.file)
     }
 

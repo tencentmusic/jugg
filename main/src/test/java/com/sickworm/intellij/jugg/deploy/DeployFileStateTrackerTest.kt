@@ -107,6 +107,38 @@ class DeployFileStateTrackerTest {
     }
 
     @Test
+    fun resetKeepingRecentUncompiled_keepsAssetObservedAfterFullBuildStartedWithOldTimestamp() {
+        val tracker = DeployFileStateTracker()
+        val fullBuildStart = System.currentTimeMillis() - 1
+        val assetFile = temporaryFolder.newFile("font.ttf").apply {
+            writeText("font")
+            assertTrue(setLastModified(fullBuildStart - 10_000))
+        }
+        val changedFile = ChangedFile(
+            type = CompileFile.Type.Asset,
+            file = assetFile.absoluteFile,
+            baseDir = temporaryFolder.root.absoluteFile,
+            module = ModuleInfo.virtualModule,
+        )
+        tracker.addChangedFiles(listOf(changedFile))
+
+        tracker.resetKeepingRecentUncompiled(fullBuildStart)
+
+        assertEquals(listOf(changedFile), tracker.getUncompiledFiles())
+    }
+
+    @Test
+    fun resetKeepingRecentUncompiled_dropsFileObservedBeforeFullBuildStarted() {
+        val tracker = DeployFileStateTracker()
+        val sourceFile = createSourceFile("MainActivity.kt", "class MainActivity")
+        tracker.addChangedFiles(listOf(changedFile(sourceFile)))
+
+        tracker.resetKeepingRecentUncompiled(System.currentTimeMillis() + 1)
+
+        assertTrue(tracker.getUncompiledFiles().isEmpty())
+    }
+
+    @Test
     fun getNotStagingDeployedFiles_keepsSameRelativePathForDifferentTargetApks() {
         val tracker = DeployFileStateTracker()
         val baseOutput = compileOutput(

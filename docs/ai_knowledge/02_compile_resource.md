@@ -135,6 +135,7 @@ Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGenerated
 - `ResourceOverlayCompiler.filterResources()` 会删除根 `Manifest.java`，并在 manifest 无真实变更时删除根 `AndroidManifest.xml`，避免触发 APK repackage。
 - aapt2 可能为一个资源生成多个配置目录产物；如果额外产物对应的 override XML 已存在，过滤逻辑会移除该额外产物，避免覆盖用户显式资源。
 - `ResourceCompiler` 对目录输入使用目录路径 MD5 建子输出目录，避免不同资源目录 flat 文件名冲突。
+- 全量 Gradle 构建期间新观察到的 asset/resource 变更会按 Jugg 接收事件的时间保留到下一轮增量编译，不依赖文件自身 `lastModified`；复制工具可能保留旧时间戳，而对应 Gradle merge task 已在文件出现前完成。
 - DataBinding mapper 生成不在资源阶段完成；资源阶段只处理 base class / split XML，mapper 交给 `SourceCompiler` 在源码编译前处理。
 - Compose preparation 由 Jugg 实现，不执行 Gradle Compose resource task；Kotlin 文件生成调用项目 Compose plugin JAR 的官方 generator API。当前兼容 legacy 单任务 API，以及带 converter/accessor/collector 的现代 API；API 缺失时按结构化原因回退 unsupported。
 - legacy Android runtime 通过 classloader 读取 `values/...`、`drawable/...` 等 APK 根目录资源，增量 overlay 必须使用显式的 `CompileFile.Type.ClasspathResource` 保持同名根路径；不能套用普通 Android asset 的 `assets/` 前缀。现代 Compose resource 继续使用 `CompileFile.Type.Asset` 和 Gradle metadata 提供的 asset relative path。
