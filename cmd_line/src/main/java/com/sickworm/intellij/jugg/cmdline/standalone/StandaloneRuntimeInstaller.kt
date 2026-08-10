@@ -9,6 +9,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 import javax.tools.ToolProvider
 
 /** Describes one complete standalone runtime snapshot. */
@@ -54,30 +55,34 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         installValidated(StandaloneBundle(bundle.rootDir, bundle.manifestFile, manifest), allowDowngrade)
     }
 
-    internal fun installValidated(bundle: StandaloneBundle, allowDowngrade: Boolean = false) = withGlobalLock {
-        validateBundle(bundle)
-        val current = readActiveManifest()
-        if (!shouldActivate(current, bundle.manifest, allowDowngrade)) {
-            check(bundle.manifest.managedBy == "idea" && current != null &&
-                    current.toolingReleaseBuildId == bundle.manifest.toolingReleaseBuildId) {
-                "Standalone runtime ${bundle.manifest.releaseBuildId} would downgrade or change the active channel"
+    internal fun installValidated(bundle: StandaloneBundle, allowDowngrade: Boolean = false) {
+        withGlobalLock {
+            validateBundle(bundle)
+            val current = readActiveManifest()
+            if (!shouldActivate(current, bundle.manifest, allowDowngrade)) {
+                check(bundle.manifest.managedBy == "idea" && current != null &&
+                        current.toolingReleaseBuildId == bundle.manifest.toolingReleaseBuildId) {
+                    "Standalone runtime ${bundle.manifest.releaseBuildId} would downgrade or change the active channel"
+                }
+                publishTooling(bundle)
+                installPythonCli(bundle.rootDir.resolve("cli"))
+                installLaunchers(current)
+                return@withGlobalLock
+            }
+            storageDir.mkdirs()
+            bundle.manifest.jarFileNames.forEach { jarName ->
+                publishImmutable(bundle.rootDir.resolve("jars/$jarName"), storageDir.resolve(jarName),
+                    bundle.manifest.jarSha256.getValue(jarName))
             }
             publishTooling(bundle)
+            val releaseDir = releasesDir.resolve(bundle.manifest.releaseBuildId)
+            releaseDir.mkdirs()
+            writeAtomically(releaseDir.resolve("standalone_load_manifest.json"), bundle.manifest)
             installPythonCli(bundle.rootDir.resolve("cli"))
-            installLaunchers(current)
-            return@withGlobalLock
+            installLaunchers(bundle.manifest)
+            writeAtomically(activeManifestFile, bundle.manifest)
         }
-        storageDir.mkdirs()
-        bundle.manifest.jarFileNames.forEach { jarName ->
-            publishImmutable(bundle.rootDir.resolve("jars/$jarName"), storageDir.resolve(jarName), bundle.manifest.jarSha256.getValue(jarName))
-        }
-        publishTooling(bundle)
-        val releaseDir = releasesDir.resolve(bundle.manifest.releaseBuildId)
-        releaseDir.mkdirs()
-        writeAtomically(releaseDir.resolve("standalone_load_manifest.json"), bundle.manifest)
-        installPythonCli(bundle.rootDir.resolve("cli"))
-        installLaunchers(bundle.manifest)
-        writeAtomically(activeManifestFile, bundle.manifest)
+        stopRunningDaemons()
     }
 
     fun readActiveManifest(): StandaloneRuntimeManifest? = readManifest(activeManifestFile)
@@ -185,6 +190,30 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         }
     }
 
+    private fun stopRunningDaemons() {
+        val currentPid = ProcessHandle.current().pid()
+        val rootPath = juggRootDir.canonicalFile.path
+        val daemons = ProcessHandle.allProcesses().use { processes ->
+            processes.iterator().asSequence().filter { process ->
+                process.pid() != currentPid && isStandaloneDaemon(process, rootPath)
+            }.toList()
+        }
+        daemons.forEach(ProcessHandle::destroyForcibly)
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (daemons.any(ProcessHandle::isAlive) && System.nanoTime() < deadline) Thread.sleep(20)
+        check(daemons.none(ProcessHandle::isAlive)) {
+            "Failed to stop standalone daemon processes: ${daemons.filter(ProcessHandle::isAlive).map(ProcessHandle::pid)}"
+        }
+    }
+
+    private fun isStandaloneDaemon(process: ProcessHandle, rootPath: String): Boolean {
+        val arguments = process.info().arguments().orElse(emptyArray())
+        if (STANDALONE_BOOTSTRAP_MAIN !in arguments) return false
+        val processRoot = arguments.firstOrNull { it.startsWith(JUGG_ROOT_ARGUMENT) }
+            ?.substringAfter('=') ?: File(System.getProperty("user.home"), ".jugg").path
+        return runCatching { File(processRoot).canonicalPath == rootPath }.getOrDefault(false)
+    }
+
     private fun readManifest(file: File): StandaloneRuntimeManifest? {
         if (!file.isFile) return null
         return runCatching { Gson().fromJson(file.readText(), StandaloneRuntimeManifest::class.java) }.getOrNull()
@@ -232,5 +261,10 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private companion object {
+        const val STANDALONE_BOOTSTRAP_MAIN = "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap"
+        const val JUGG_ROOT_ARGUMENT = "-Djugg.root.dir="
     }
 }

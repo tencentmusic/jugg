@@ -5,6 +5,8 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
+import javax.tools.ToolProvider
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -43,6 +45,21 @@ class StandaloneRuntimeInstallerTest {
 
         assertEquals("build-1", installer.readActiveManifest()?.releaseBuildId)
         assertFalse(installer.storageDir.resolve(invalid.manifest.jarFileNames.single()).exists())
+    }
+
+    @Test
+    fun `install stops the running standalone daemon`() {
+        val root = Files.createTempDirectory("jugg-standalone-stop").toFile()
+        val juggRoot = root.resolve("home")
+        val daemon = startFakeStandaloneDaemon(root.resolve("daemon"), juggRoot)
+        try {
+            StandaloneRuntimeInstaller(juggRoot, root.resolve("bin"))
+                .installValidated(bundle(root.resolve("bundle"), "build-1", "runtime"))
+
+            assertTrue(daemon.waitFor(5, TimeUnit.SECONDS))
+        } finally {
+            daemon.destroyForcibly()
+        }
     }
 
     @Test
@@ -90,5 +107,32 @@ class StandaloneRuntimeInstallerTest {
         )
         val manifestFile = dir.resolve("standalone_bundle_manifest.json").apply { writeText(Gson().toJson(manifest)) }
         return StandaloneBundle(dir, manifestFile, manifest)
+    }
+
+    private fun startFakeStandaloneDaemon(dir: File, juggRoot: File): Process {
+        val source = dir.resolve("src/com/sickworm/intellij/jugg/bootstrap/StandaloneBootstrap.java")
+        val classes = dir.resolve("classes").apply { mkdirs() }
+        val readyFile = dir.resolve("ready")
+        source.parentFile.mkdirs()
+        source.writeText("""
+            package com.sickworm.intellij.jugg.bootstrap;
+            public final class StandaloneBootstrap {
+                public static void main(String[] args) throws Exception {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(args[0]), "ready");
+                    Thread.sleep(Long.MAX_VALUE);
+                }
+            }
+        """.trimIndent())
+        val compiler = checkNotNull(ToolProvider.getSystemJavaCompiler())
+        assertEquals(0, compiler.run(null, null, null, "-d", classes.path, source.path))
+        val java = File(System.getProperty("java.home"), "bin/java")
+        val process = ProcessBuilder(java.path, "-Djugg.root.dir=${juggRoot.path}", "-cp", classes.path,
+            "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap", readyFile.path).start()
+        repeat(100) {
+            if (readyFile.isFile) return process
+            Thread.sleep(20)
+        }
+        process.destroyForcibly()
+        error("Fake standalone daemon did not start")
     }
 }

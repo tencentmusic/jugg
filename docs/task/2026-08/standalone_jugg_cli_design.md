@@ -760,6 +760,8 @@ jugg-standalone-<version>/
 
 完整安装先在 `~/.jugg/standalone/releases/<releaseBuildId>/` stage 并校验版本化 bootstrap、CLI 和其他 launcher 资源，再复制不可变 runtime JAR，最后以 `standalone_load_manifest.json` 的原子替换作为提交点。selector 和稳定 CLI wrapper 根据 manifest 的 `toolingReleaseBuildId` 选择版本化 release；普通热更新保持 `toolingReleaseBuildId` 不变。Standalone 不保留 previous manifest，安装或启动失败由用户重新安装恢复。
 
+active manifest 提交成功并释放 Global Resource Lock 后，安装器通过 `ProcessHandle` 扫描同一 Jugg 根目录、主类为 `StandaloneBootstrap` 的进程并强制终止，最长等待 5 秒。运行中的 daemon 不热换 classpath；强杀后由下一次 CLI 调用按新 active manifest 自动启动。未提交 active manifest 的失败安装不停止现有 daemon。
+
 bootstrap 按 active manifest 的声明顺序加载 Runtime JAR 并启动 daemon。class load、link 或 daemon 初始化失败时直接返回异常，active manifest 保持不变；Standalone 不提供自动或手工 rollback，用户通过重新安装修复不可启动版本。selector ABI 在 Step 12 固定，未来若必须改变 selector 本身，作为新的安装迁移处理，不属于普通 hot update。
 
 安装器统一承担三平台 JDK/Python 校验、全局文件锁、路径安全、SHA-256 和原子发布。Java 优先使用 `JAVA_HOME`，再使用 `PATH`，要求完整 JDK 而非仅 JRE；Python 复用现有 CLI 的 `python3` → `python` 发现顺序并要求 3.7+，缺失或版本过低时在提交安装前明确失败。Jugg daemon 目标支持 Java 11、17、21，目标 Android 工程自身的 AGP/Gradle JDK 下限仍由工程决定。当前 `cmd_line` distribution 中 `repository-32.0.1.jar` 已存在 major version 61 class，因此 Java 11 仍是 Step 12 必须消除的真实发行阻塞，不能只凭项目 `jvmTarget=11` 或 daemon 能启动判定兼容。安装结果固定为：
@@ -1292,7 +1294,7 @@ jugg init
 
 ### Step 12：三平台发行和验收
 
-实现状态：已完成。根构建生成全局唯一、可排序的 `releaseBuildId`，由 IDEA metadata、standalone metadata 和 Bundle manifest 复用；`:cmd_line:standaloneBundle` 从实际 runtimeClasspath 生成带版本的单一跨平台 ZIP，Runtime JAR 使用 SHA-256 内容寻址名称，并携带版本化 Python CLI、三平台安装入口和固定 Java 11 bootstrap。安装器验证完整 JDK 11+、Python 3.7+、路径/symlink/SHA-256，在统一全局锁内先发布 immutable JAR、tooling 和 CLI，最后提交 standalone active manifest；同 channel 按产品版本/build identity 接管，不同 channel 或降级需显式授权。bootstrap 不扫描共享池，按 manifest 顺序使用进程内 classloader，启动失败直接返回异常并保留 active manifest。
+实现状态：已完成。根构建生成全局唯一、可排序的 `releaseBuildId`，由 IDEA metadata、standalone metadata 和 Bundle manifest 复用；`:cmd_line:standaloneBundle` 从实际 runtimeClasspath 生成带版本的单一跨平台 ZIP，Runtime JAR 使用 SHA-256 内容寻址名称，并携带版本化 Python CLI、三平台安装入口和固定 Java 11 bootstrap。安装器验证完整 JDK 11+、Python 3.7+、路径/symlink/SHA-256，在统一全局锁内先发布 immutable JAR、tooling 和 CLI，最后提交 standalone active manifest；提交成功后在锁外强制停止同根目录 daemon，使新 Runtime 在下一次 CLI 调用时生效。同 channel 按产品版本/build identity 接管，不同 channel 或降级需显式授权。bootstrap 不扫描共享池，按 manifest 顺序使用进程内 classloader，启动失败直接返回异常并保留 active manifest。
 
 IDEA 与 standalone 使用独立 active manifest；兼容 hot update 同时准备两组文件，reinstall 只保存 candidate，插件 `releaseBuildId` 精确匹配后才激活。插件完整发行与 hot-update 重建 ZIP 均把 Bundle 放入 `jugg/standalone/`，standalone JAR 不进入 `jugg/lib/`；Step 11 legacy updater 不再生成缺 Bundle 的重装 ZIP。发行门禁覆盖 Bundle/manifest 一致性、Android class owner、普通 class major `<=55`、旧 Gson JSON、服务端路径、安装失败不切 active、接管矩阵和 candidate identity。macOS 已使用 JDK 11.0.26、17.0.17、21.0.6 完成真实 Bundle 安装及 ordered-classloader `--verify`；Linux、Windows、真实设备 HOT RELOAD 和 Step 11 实包升级仍需在对应发行环境执行验收矩阵。
 
@@ -1310,7 +1312,7 @@ IDEA 与 standalone 使用独立 active manifest；兼容 hot update 同时准�
 - 明确 standalone 接管策略：同 channel 先比较产品版本、同版本再比较 build，不同 channel 不自动接管；外部安装可显式降级，插件“Install CLI”默认不降级且对旧 bundled 版本要求确认；插件回退本身不静默回退 standalone。
 - 普通 hot update 后点击“Install CLI”先安装 bundled tooling，再正向检查并激活最新已校验 standalone runtime；管理 `hot_update/candidates/<releaseBuildId>/` 的 Bundle owner 和替换/成功/失败清理。
 - 普通兼容更新必须允许旧 IDEA 进程和新 standalone 长期并存并双向兼容共享持久化状态；不满足该契约时强制 `isNeedReinstall=true`。
-- Python CLI auto-start/stop daemon，launcher 每次启动读取 standalone manifest；运行中 daemon 不热换 classpath，新版本在下一次启动生效。
+- Python CLI 自动拉起 daemon，launcher 每次启动读取 standalone manifest；Bundle 提交成功后安装器强制停止同根目录 daemon，新版本在下一次 CLI 调用时生效。
 - 验证 standalone 独立安装、Step 11 → 首个 Step 12 完整插件升级、先安装 standalone 后安装 IDEA、先安装 IDEA 后安装 standalone、普通 hot update 后首次 Install CLI、IDEA 更新同步 standalone、Stable/Beta 交替启动、旧版本晚构建、external → plugin、插件回退、同版本不同 build、manifest 提交后启动失败、损坏 Bundle、下载中断、Windows 长路径和文件占用场景。
 
 实现顺序：

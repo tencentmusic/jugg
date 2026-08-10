@@ -127,7 +127,7 @@ JuggManager.init()
 
 Standalone 发行由 `:cmd_line:standaloneBundle` 从 `installDist` 的实际 runtimeClasspath 生成单一跨平台 ZIP。根构建生成的 `releaseBuildId` 同时进入 IDEA/standalone metadata 与 Bundle manifest；Bundle 内 JAR 使用 SHA-256 内容寻址名称，普通 class entry 必须满足 Java 11 major 55 边界。IDEA `prepareSandbox` 只把完整 Bundle 放入 `jugg/standalone/`，不得将其中的 `cmd_line`、真实 ddmlib、`base_api` 或 `standalone_deployer` JAR 展开到 `jugg/lib/`。
 
-Bundle 同时携带版本化 Python CLI、固定 `standalone_bootstrap` 和 Gson。外部脚本与插件 Install CLI 都执行 `StandaloneRuntimeInstaller`：提交前验证完整 JDK 11+、Python 3.7+、SHA-256、basename/path 和 symlink，先发布 immutable JAR/tooling/CLI，最后原子替换 `standalone_load_manifest.json`。launcher 只加载固定 bootstrap；bootstrap 每次读取 active manifest，以声明顺序创建 `URLClassLoader`，不扫描共享池。class load、link 或 daemon 初始化失败时直接返回异常并保留当前 active manifest，用户通过重新安装恢复。
+Bundle 同时携带版本化 Python CLI、固定 `standalone_bootstrap` 和 Gson。外部脚本与插件 Install CLI 都执行 `StandaloneRuntimeInstaller`：提交前验证完整 JDK 11+、Python 3.7+、SHA-256、basename/path 和 symlink，先发布 immutable JAR/tooling/CLI，最后原子替换 `standalone_load_manifest.json`。提交成功并释放 Global Resource Lock 后，安装器通过 `ProcessHandle` 强制停止同一 Jugg 根目录下主类为 `StandaloneBootstrap` 的 daemon；下次 CLI 调用按新 active manifest 重新启动。bootstrap 以声明顺序创建 `URLClassLoader` 且不扫描共享池，class load、link 或 daemon 初始化失败时直接返回异常并保留当前 active manifest，用户通过重新安装恢复。
 
 ```text
 main(args)
