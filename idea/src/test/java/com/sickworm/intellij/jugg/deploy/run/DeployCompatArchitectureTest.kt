@@ -109,7 +109,7 @@ class DeployCompatArchitectureTest {
             "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/IJuggDeployerDeploymentService.kt",
             "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt",
             "idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt",
-            "idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt",
+            "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt",
             "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt",
             "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt",
             "main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt",
