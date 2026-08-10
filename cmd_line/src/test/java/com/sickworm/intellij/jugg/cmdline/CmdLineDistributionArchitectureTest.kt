@@ -43,6 +43,16 @@ class CmdLineDistributionArchitectureTest {
                 zip.getInputStream(entry).use { verifyJava11Classes(it, fileName) }
             }
             assertNotNull(zip.getEntry("cli/jugg.py"))
+            val installSh = zip.readText("install.sh")
+            val installCmd = zip.readText("install.cmd")
+            val posixCli = zip.readText("cli/jugg")
+            val windowsCli = zip.readText("cli/jugg.cmd")
+            assertTrue(installSh.contains("JAVA_HOME"))
+            assertTrue(installSh.contains("command -v java"))
+            assertTrue(installCmd.contains("%JAVA_HOME%\\bin\\java.exe"))
+            assertTrue(installCmd.contains("where java"))
+            assertTrue(posixCli.contains("sys.version_info < (3, 7)"))
+            assertTrue(windowsCli.contains("sys.version_info ^< (3, 7)"))
         }
     }
 
@@ -97,6 +107,11 @@ class CmdLineDistributionArchitectureTest {
                 assertTrue(major <= 55, "Java $major class is not Java 11 compatible: $jarName!/${entry.name}")
             }
         }
+    }
+
+    private fun ZipFile.readText(path: String): String {
+        val entry = assertNotNull(getEntry(path), "Missing bundle entry: $path")
+        return getInputStream(entry).reader().use { it.readText() }
     }
 
     private companion object {

@@ -156,8 +156,36 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         binDir.mkdirs()
         val bootstrapDir = juggRootDir.resolve("standalone/bootstrap/${manifest.toolingReleaseBuildId}")
         val javaMain = "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap"
-        val posix = "#!/bin/sh\nset -eu\nexec java -cp \"${bootstrapDir.absolutePath}/*\" $javaMain \"\$@\"\n"
-        val windows = "@echo off\r\njava -cp \"${bootstrapDir.absolutePath}\\*\" $javaMain %*\r\n"
+        val posix = """
+            #!/bin/sh
+            set -eu
+            if [ -n "${'$'}{JAVA_HOME:-}" ] && [ -x "${'$'}JAVA_HOME/bin/java" ]; then
+              JAVA_CMD="${'$'}JAVA_HOME/bin/java"
+            elif command -v java >/dev/null 2>&1; then
+              JAVA_CMD=java
+            else
+              echo "jugg-standalone: Java was not found. Set JAVA_HOME or add java to PATH." >&2
+              exit 127
+            fi
+            exec "${'$'}JAVA_CMD" -cp "${bootstrapDir.absolutePath}/*" $javaMain "${'$'}@"
+        """.trimIndent() + "\n"
+        val windows = """
+            @echo off
+            setlocal
+            if defined JAVA_HOME if exist "%JAVA_HOME%\bin\java.exe" (
+              set "JAVA_EXE=%JAVA_HOME%\bin\java.exe"
+              goto run
+            )
+            where java >nul 2>nul
+            if errorlevel 1 (
+              echo jugg-standalone: Java was not found. Set JAVA_HOME or add java to PATH. 1>&2
+              exit /b 127
+            )
+            set "JAVA_EXE=java"
+            :run
+            "%JAVA_EXE%" -cp "${bootstrapDir.absolutePath}\*" $javaMain %*
+            exit /b %ERRORLEVEL%
+        """.trimIndent().replace("\n", "\r\n") + "\r\n"
         binDir.resolve("jugg-standalone").apply { writeText(posix); setExecutable(true, false) }
         binDir.resolve("jugg-standalone.cmd").writeText(windows)
         binDir.resolve("jugg-standalone.bat").writeText(windows)
@@ -174,17 +202,19 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
 
     private fun installPythonCli(sourceDir: File) {
         check(sourceDir.resolve("jugg.py").isFile) { "Standalone Bundle Python CLI is missing" }
+        check(sourceDir.resolve("jugg").isFile && sourceDir.resolve("jugg.cmd").isFile) {
+            "Standalone Bundle Python launcher is missing"
+        }
         val cliDir = juggRootDir.resolve("bin")
         val stageDir = juggRootDir.resolve("standalone/stage-cli-${System.nanoTime()}")
         try {
             sourceDir.copyRecursively(stageDir)
             cliDir.deleteRecursively()
             moveAtomically(stageDir, cliDir)
-            cliDir.resolve("jugg").apply {
-                writeText("#!/bin/sh\nexec python3 \"${cliDir.resolve("jugg.py").absolutePath}\" \"\$@\"\n")
-                setExecutable(true, false)
+            cliDir.resolve("jugg").setExecutable(true, false)
+            cliDir.resolve("jugg.cmd").apply {
+                writeText(readText().replace("\r\n", "\n").replace("\n", "\r\n"), Charsets.US_ASCII)
             }
-            cliDir.resolve("jugg.cmd").writeText("@echo off\r\npython \"${cliDir.resolve("jugg.py").absolutePath}\" %*\r\n")
         } finally {
             stageDir.deleteRecursively()
         }

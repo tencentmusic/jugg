@@ -764,7 +764,7 @@ active manifest 提交成功并释放 Global Resource Lock 后，安装器通过
 
 bootstrap 按 active manifest 的声明顺序加载 Runtime JAR 并启动 daemon。class load、link 或 daemon 初始化失败时直接返回异常，active manifest 保持不变；Standalone 不提供自动或手工 rollback，用户通过重新安装修复不可启动版本。selector ABI 在 Step 12 固定，未来若必须改变 selector 本身，作为新的安装迁移处理，不属于普通 hot update。
 
-安装器统一承担三平台 JDK/Python 校验、全局文件锁、路径安全、SHA-256 和原子发布。Java 优先使用 `JAVA_HOME`，再使用 `PATH`，要求完整 JDK 而非仅 JRE；Python 复用现有 CLI 的 `python3` → `python` 发现顺序并要求 3.7+，缺失或版本过低时在提交安装前明确失败。Jugg daemon 目标支持 Java 11、17、21，目标 Android 工程自身的 AGP/Gradle JDK 下限仍由工程决定。当前 `cmd_line` distribution 中 `repository-32.0.1.jar` 已存在 major version 61 class，因此 Java 11 仍是 Step 12 必须消除的真实发行阻塞，不能只凭项目 `jvmTarget=11` 或 daemon 能启动判定兼容。安装结果固定为：
+安装器统一承担三平台 JDK/Python 校验、全局文件锁、路径安全、SHA-256 和原子发布。Bundle 安装入口和稳定 daemon launcher 每次执行时都优先使用有效的 `JAVA_HOME/bin/java`，再回退 `PATH` 中的 `java`；不持久化安装时的 Java 绝对路径，安装器继续要求实际运行它的是完整 JDK 11+。Python CLI wrapper 由 Bundle 和 IDEA 安装共用，每次执行时按 `python3` → `python` 顺序校验 3.7+，命令存在但版本过低时继续尝试下一候选；安装前环境校验使用相同顺序，缺失或版本过低时在提交安装前明确失败。Jugg daemon 目标支持 Java 11、17、21，目标 Android 工程自身的 AGP/Gradle JDK 下限仍由工程决定。当前 `cmd_line` distribution 中 `repository-32.0.1.jar` 已存在 major version 61 class，因此 Java 11 仍是 Step 12 必须消除的真实发行阻塞，不能只凭项目 `jvmTarget=11` 或 daemon 能启动判定兼容。安装结果固定为：
 
 ```text
 ~/.jugg/bin/                         # 稳定 Python CLI wrapper

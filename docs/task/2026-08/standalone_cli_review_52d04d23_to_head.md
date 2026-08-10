@@ -174,9 +174,9 @@ Standalone 安装器验证的 Java/Python 命令与最终 launcher 实际使用�
 
 ### 详细解释
 
-`PythonRuntimeResolver.requireCommand()` 按 `python3`、`python` 顺序返回实际可用命令，但 `StandaloneRuntimeInstaller.validateEnvironment()` 只检查返回过程是否成功，没有保存该命令。安装后的 POSIX wrapper 固定写入 `python3`，Windows wrapper 固定写入 `python`，使环境验证与实际运行形成两套选择规则。
+修改前，`PythonRuntimeResolver.requireCommand()` 按 `python3`、`python` 顺序返回实际可用命令，但 `StandaloneRuntimeInstaller.validateEnvironment()` 只检查返回过程是否成功，没有保存该命令。安装后的 POSIX wrapper 固定写入 `python3`，Windows wrapper 固定写入 `python`，使环境验证与实际运行形成两套选择规则。
 
-Java 也存在同类问题。设计要求优先使用 `JAVA_HOME`，再回退 PATH，并验证是完整 JDK。当前 Bundle 的 `install.sh`、`install.cmd` 和安装后的 daemon launcher 都直接执行 `java`，没有统一的 Java 解析结果，也没有把安装阶段验证过的运行方式传递给稳定 launcher。
+Java 也存在同类问题。设计要求优先使用 `JAVA_HOME`，再回退 PATH，并验证是完整 JDK。修改前，Bundle 的 `install.sh`、`install.cmd` 和安装后的 daemon launcher 都直接执行 `java`，没有统一的 Java 选择规则。
 
 相关实现位置：
 
@@ -188,6 +188,12 @@ Java 也存在同类问题。设计要求优先使用 `JAVA_HOME`，再回退 PA
 - `docs/task/2026-08/standalone_jugg_cli_design.md:761`
 
 该问题会导致安装器在官方声明支持的环境组合中报告成功，但安装产物无法正常运行。
+
+### 实施结论
+
+不保存安装时解析出的绝对命令。Bundle 的 `install.sh` / `install.cmd` 与安装后的 `jugg-standalone` / `.cmd` 在每次执行时统一按“有效 `JAVA_HOME` 下的 Java → PATH 中的 `java`”动态选择；安装器仍负责确认实际启动它的 JVM 是完整 JDK 11+。
+
+Standalone 安装器不再重新生成 Python wrapper，而是直接发布 Bundle 与 IDEA 插件共同使用的 `jugg` / `jugg.cmd`。两种 wrapper 每次执行时都按 `python3`、`python` 顺序校验 Python 3.7+，前一个命令存在但版本过低时继续回退；安装前环境校验保持相同顺序。这样安装入口、稳定 launcher 与 IDEA CLI 使用同一选择规则，也不引入 manifest 字段或额外配置。
 
 ## 问题 4
 
