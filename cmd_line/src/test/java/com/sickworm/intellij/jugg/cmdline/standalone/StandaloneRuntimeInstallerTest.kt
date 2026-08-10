@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class StandaloneRuntimeInstallerTest {
 
     @Test
-    fun `install commits manifest last and preserves previous runtime`() {
+    fun `install commits the selected runtime manifest`() {
         val root = Files.createTempDirectory("jugg-standalone-install").toFile()
         val firstBundle = bundle(root.resolve("first"), "build-1", "first")
         val secondBundle = bundle(root.resolve("second"), "build-2", "second")
@@ -23,7 +23,6 @@ class StandaloneRuntimeInstallerTest {
         installer.installValidated(secondBundle)
 
         assertEquals("build-2", installer.readActiveManifest()?.releaseBuildId)
-        assertEquals("build-1", installer.readPreviousManifest()?.releaseBuildId)
         assertEquals("second", installer.storageDir.resolve(secondBundle.manifest.jarFileNames.single()).readText())
         assertTrue(root.resolve("bin/jugg-standalone").canExecute())
         assertTrue(root.resolve("bin/jugg-standalone.cmd").isFile)
@@ -44,35 +43,6 @@ class StandaloneRuntimeInstallerTest {
 
         assertEquals("build-1", installer.readActiveManifest()?.releaseBuildId)
         assertFalse(installer.storageDir.resolve(invalid.manifest.jarFileNames.single()).exists())
-    }
-
-    @Test
-    fun `rollback switches to previous manifest without loading runtime jars`() {
-        val root = Files.createTempDirectory("jugg-standalone-rollback").toFile()
-        val installer = StandaloneRuntimeInstaller(root.resolve("home"), root.resolve("bin"))
-        installer.installValidated(bundle(root.resolve("first"), "build-1", "first"))
-        installer.installValidated(bundle(root.resolve("second"), "build-2", "second"))
-
-        installer.rollback()
-
-        assertEquals("build-1", installer.readActiveManifest()?.releaseBuildId)
-    }
-
-    @Test
-    fun `activation failure rolls back once and ready records last known good`() {
-        val root = Files.createTempDirectory("jugg-standalone-activation").toFile()
-        val installer = StandaloneRuntimeInstaller(root.resolve("home"), root.resolve("bin"))
-        installer.installValidated(bundle(root.resolve("first"), "build-1", "first"))
-        installer.installValidated(bundle(root.resolve("second"), "build-2", "second"))
-        val activation = StandaloneActivationManager(root.resolve("home"), installer)
-
-        assertTrue(activation.onStartFailed("build-2"))
-        assertEquals("build-1", installer.readActiveManifest()?.releaseBuildId)
-        assertFalse(activation.onStartFailed("build-2"))
-        activation.onReady("build-1")
-
-        assertEquals("build-1", activation.readState()?.lastKnownGoodBuildId)
-        assertEquals("build-2", activation.readState()?.failedBuildId)
     }
 
     @Test

@@ -36,7 +36,7 @@
 | `IDeviceAdb` / `IdeaDeviceAdb` / `IdeaDeviceAdbClient` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/IDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdbClient.kt` | 设备 ADB 语义抽象；IDE 侧通过 `IDevice` 封装 shell/push/pid/arch/uninstall，不再把这些 transport 能力挂在 deployer compat 上 |
 | `CmdLine` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/CmdLine.kt` | 命令行入口，分发 `buildGradleBase` / `buildIncrementalApk` |
 | `BuildGradleBaseCommand` / `BuildIncrementalApkCommand` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | CI 两阶段构建：建立可复用基线，再以调用方显式变更文件生成增量 APK |
-| `StandaloneRuntimeInstaller` / `StandaloneBootstrap` | `cmd_line/.../standalone/StandaloneRuntimeInstaller.kt`, `standalone_bootstrap/.../StandaloneBootstrap.java` | 三平台 Bundle 安装事务、active/previous manifest、版本接管、固定 Java 11 selector、ordered classloader、ready 失败回退和独立 rollback |
+| `StandaloneRuntimeInstaller` / `StandaloneBootstrap` | `cmd_line/.../standalone/StandaloneRuntimeInstaller.kt`, `standalone_bootstrap/.../StandaloneBootstrap.java` | 三平台 Bundle 安装事务、active manifest、版本接管、固定 Java 11 bootstrap 和 ordered classloader；启动失败直接返回异常，不自动切换旧 Runtime |
 | `CustomCompilerManager` / `ICompilerCreator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/` | 自定义编译器 SPI 装载与生命周期管理 |
 
 ---
@@ -127,7 +127,7 @@ JuggManager.init()
 
 Standalone 发行由 `:cmd_line:standaloneBundle` 从 `installDist` 的实际 runtimeClasspath 生成单一跨平台 ZIP。根构建生成的 `releaseBuildId` 同时进入 IDEA/standalone metadata 与 Bundle manifest；Bundle 内 JAR 使用 SHA-256 内容寻址名称，普通 class entry 必须满足 Java 11 major 55 边界。IDEA `prepareSandbox` 只把完整 Bundle 放入 `jugg/standalone/`，不得将其中的 `cmd_line`、真实 ddmlib、`base_api` 或 `standalone_deployer` JAR 展开到 `jugg/lib/`。
 
-Bundle 同时携带版本化 Python CLI、固定 `standalone_bootstrap` 和 Gson。外部脚本与插件 Install CLI 都执行 `StandaloneRuntimeInstaller`：提交前验证完整 JDK 11+、Python 3.7+、SHA-256、basename/path 和 symlink，先发布 immutable JAR/tooling/CLI，再保存 previous manifest，最后原子替换 `standalone_load_manifest.json`。launcher 只加载固定 bootstrap；bootstrap 每次读取 active manifest，以声明顺序创建 `URLClassLoader`，不扫描共享池。MCP ready 后记录 last-known-good；ready 前 class load/link 失败只对同一 build 自动回退一次，`--rollback` 不加载 Runtime JAR。
+Bundle 同时携带版本化 Python CLI、固定 `standalone_bootstrap` 和 Gson。外部脚本与插件 Install CLI 都执行 `StandaloneRuntimeInstaller`：提交前验证完整 JDK 11+、Python 3.7+、SHA-256、basename/path 和 symlink，先发布 immutable JAR/tooling/CLI，最后原子替换 `standalone_load_manifest.json`。launcher 只加载固定 bootstrap；bootstrap 每次读取 active manifest，以声明顺序创建 `URLClassLoader`，不扫描共享池。class load、link 或 daemon 初始化失败时直接返回异常并保留当前 active manifest，用户通过重新安装恢复。
 
 ```text
 main(args)

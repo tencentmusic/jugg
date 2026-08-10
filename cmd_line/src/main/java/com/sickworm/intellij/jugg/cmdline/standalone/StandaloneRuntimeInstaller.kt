@@ -44,7 +44,6 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
     val hotUpdateDir = juggRootDir.resolve("hot_update")
     val storageDir = hotUpdateDir.resolve("jars")
     private val activeManifestFile = hotUpdateDir.resolve("standalone_load_manifest.json")
-    private val previousManifestFile = hotUpdateDir.resolve("standalone_previous_load_manifest.json")
     private val releasesDir = juggRootDir.resolve("standalone/releases")
     private val globalLockFile = juggRootDir.resolve("locks/global.lock")
 
@@ -76,24 +75,12 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         val releaseDir = releasesDir.resolve(bundle.manifest.releaseBuildId)
         releaseDir.mkdirs()
         writeAtomically(releaseDir.resolve("standalone_load_manifest.json"), bundle.manifest)
-        if (current != null && current.releaseBuildId != bundle.manifest.releaseBuildId) {
-            writeAtomically(previousManifestFile, current)
-        }
         installPythonCli(bundle.rootDir.resolve("cli"))
         installLaunchers(bundle.manifest)
         writeAtomically(activeManifestFile, bundle.manifest)
     }
 
-    fun rollback() = withGlobalLock {
-        val previous = readPreviousManifest() ?: error("No previous standalone runtime is available")
-        validateInstalledManifest(previous)
-        readActiveManifest()?.let { writeAtomically(previousManifestFile, it) }
-        writeAtomically(activeManifestFile, previous)
-    }
-
     fun readActiveManifest(): StandaloneRuntimeManifest? = readManifest(activeManifestFile)
-
-    fun readPreviousManifest(): StandaloneRuntimeManifest? = readManifest(previousManifestFile)
 
     internal fun shouldActivate(current: StandaloneRuntimeManifest?, candidate: StandaloneRuntimeManifest, allowDowngrade: Boolean): Boolean {
         if (current == null || allowDowngrade || current.releaseBuildId == candidate.releaseBuildId) return true
@@ -140,14 +127,6 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
             val source = bundle.rootDir.resolve("bootstrap/$name")
             check(source.isFile && !Files.isSymbolicLink(source.toPath())) { "Invalid standalone bootstrap file: $name" }
             check(source.sha256() == manifest.bootstrapSha256[name]) { "SHA-256 check failed for $name" }
-        }
-    }
-
-    private fun validateInstalledManifest(manifest: StandaloneRuntimeManifest) {
-        manifest.jarFileNames.forEach { name ->
-            validateFileName(name)
-            val jar = storageDir.resolve(name)
-            check(jar.isFile && jar.sha256() == manifest.jarSha256[name]) { "Installed standalone runtime is invalid: $name" }
         }
     }
 

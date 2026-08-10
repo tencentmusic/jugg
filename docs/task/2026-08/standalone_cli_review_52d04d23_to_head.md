@@ -143,7 +143,7 @@ Standalone Bundle 安装未形成 manifest 提交点控制的完整原子事务
 - `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/standalone/StandaloneRuntimeInstaller.kt:191`
 - `docs/task/2026-08/standalone_jugg_cli_design.md:755`
 
-现有 `StandaloneRuntimeInstallerTest` 覆盖正常安装、Bundle 预校验失败和 manifest previous/rollback，但没有在 CLI、launcher 已发布而 active manifest 尚未提交的窗口注入失败。
+现有 `StandaloneRuntimeInstallerTest` 覆盖正常安装和 Bundle 预校验失败，但没有在 CLI、launcher 已发布而 active manifest 尚未提交的窗口注入失败。Standalone 已明确不保留 previous manifest，也不提供启动失败自动 rollback；安装或启动失败由用户重新安装恢复。
 
 ## 问题 3
 
