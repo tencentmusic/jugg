@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import org.junit.Assert
 import org.junit.Test
+import java.io.File
 
 class LastChangedDeployRegistryTest {
 
@@ -10,7 +11,7 @@ class LastChangedDeployRegistryTest {
         val registry = LastChangedDeployRegistry()
         registry.record(
             projectDir = "/fake/project",
-            files = listOf("/fake/project/module/Foo.kt"),
+            files = listOf(File("/fake/project/module/Foo.kt")),
             deployedAtMillis = 100L,
         )
 
@@ -23,7 +24,7 @@ class LastChangedDeployRegistryTest {
         Assert.assertEquals(
             LastChangedDeploySnapshot(
                 deployedAtMillis = 100L,
-                files = listOf("module/Foo.kt"),
+                files = listOf(File("/fake/project/module/Foo.kt")),
             ),
             registry.get("/fake/project/"),
         )

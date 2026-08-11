@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 data class LastChangedDeploySnapshot(
     val deployedAtMillis: Long,
-    val files: List<String>,
+    val files: List<File>,
 )
 
 /**
@@ -20,37 +20,24 @@ class LastChangedDeployRegistry {
 
     fun record(
         projectDir: String,
-        files: List<String>,
+        files: List<File>,
         deployedAtMillis: Long = System.currentTimeMillis(),
     ) {
         if (projectDir.isBlank()) {
             return
         }
-        val normalizedFiles = files.mapNotNull { normalizeFilePath(projectDir, it) }.distinct()
-        if (normalizedFiles.isEmpty()) {
+        val deployedFiles = files.filter { it.path.isNotBlank() }.distinct()
+        if (deployedFiles.isEmpty()) {
             return
         }
         snapshots[normalizeProjectDir(projectDir)] = LastChangedDeploySnapshot(
             deployedAtMillis = deployedAtMillis,
-            files = normalizedFiles,
+            files = deployedFiles,
         )
     }
 
     fun get(projectDir: String): LastChangedDeploySnapshot? {
         return snapshots[normalizeProjectDir(projectDir)]
-    }
-
-    private fun normalizeFilePath(projectDir: String, path: String): String? {
-        if (path.isBlank()) {
-            return null
-        }
-        val file = File(path)
-        val normalized = if (file.isAbsolute) {
-            file.relativeToOrSelf(File(projectDir)).path
-        } else {
-            path
-        }
-        return normalized.replace('\\', '/').trimStart('/')
     }
 
     private fun normalizeProjectDir(projectDir: String): String {

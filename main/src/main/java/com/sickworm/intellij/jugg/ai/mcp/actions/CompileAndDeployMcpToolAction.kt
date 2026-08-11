@@ -151,21 +151,18 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 append(" (")
                 append(formatRelativeTime(snapshot.deployedAtMillis))
                 appendLine(")")
-                appendLine("  files (${snapshot.files.size}):")
+                append("  files (${snapshot.files.size}): ")
                 appendFilePreview(snapshot)
             }.trimEnd()
         }
 
         private fun StringBuilder.appendFilePreview(snapshot: LastChangedDeploySnapshot) {
-            snapshot.files.take(LAST_DEPLOY_FILE_LIMIT).forEach { file ->
-                append("    ")
-                appendLine(file)
-            }
+            append(snapshot.files.take(LAST_DEPLOY_FILE_LIMIT).joinToString(", ") { it.name })
             val remainingCount = snapshot.files.size - LAST_DEPLOY_FILE_LIMIT
             if (remainingCount > 0) {
-                append("    ... and ")
+                append(", ... and ")
                 append(remainingCount)
-                appendLine(" more")
+                append(" more")
             }
         }
 

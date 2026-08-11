@@ -63,7 +63,7 @@ class TopLevelFlowTest {
         jugg.deployCompiledApp()
 
         val snapshot = requireNotNull(LastChangedDeployRegistry.INSTANCE.get(jugg.projectDir.path))
-        assertTrue(snapshot.files.contains("app/src/main/java/com/example/myapplication/MainActivity2.java"))
+        assertTrue(snapshot.files.contains(File(jugg.projectDir, "app/src/main/java/com/example/myapplication/MainActivity2.java")))
     }
 
     @Test

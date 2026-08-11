@@ -24,6 +24,7 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -538,8 +539,8 @@ class CompileAndDeployMcpToolActionTest {
         LastChangedDeployRegistry.INSTANCE.record(
             projectDir = "/fake/project/last-changed-deploy",
             files = listOf(
-                "module_features/feature-bubble/BubbleMsgAudio.kt",
-                "module_features/feature-bubble/BubbleMsgCell.kt",
+                File("/fake/project/last-changed-deploy/module_features/feature-bubble/BubbleMsgAudio.kt"),
+                File("/fake/project/last-changed-deploy/module_features/feature-bubble/BubbleMsgCell.kt"),
             ),
         )
         val result = CompileAndDeployMcpToolAction.deployAction(
@@ -552,9 +553,8 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertTrue(result.message.contains("Last successful deployment with file changes:"))
         Assert.assertTrue(result.message.contains("deployedAt:"))
         Assert.assertTrue(result.message.contains("ago)"))
-        Assert.assertTrue(result.message.contains("files (2):"))
-        Assert.assertTrue(result.message.contains("module_features/feature-bubble/BubbleMsgAudio.kt"))
-        Assert.assertTrue(result.message.contains("module_features/feature-bubble/BubbleMsgCell.kt"))
+        Assert.assertTrue(result.message.contains("files (2): BubbleMsgAudio.kt, BubbleMsgCell.kt"))
+        Assert.assertFalse(result.message.contains("module_features/feature-bubble"))
     }
 
     @Test
@@ -574,7 +574,7 @@ class CompileAndDeployMcpToolActionTest {
         )
         LastChangedDeployRegistry.INSTANCE.record(
             projectDir = projectDir,
-            files = (1..22).map { "module/File$it.kt" },
+            files = (1..22).map { File("$projectDir/module/File$it.kt") },
         )
 
         val result = CompileAndDeployMcpToolAction.deployAction(
@@ -582,10 +582,9 @@ class CompileAndDeployMcpToolActionTest {
             toolName = McpToolActionRegistry.ToolNames.DEPLOY,
         )
 
-        Assert.assertTrue(result.message.contains("files (22):"))
-        Assert.assertTrue(result.message.contains("module/File20.kt"))
+        Assert.assertTrue(result.message.contains("files (22): File1.kt, File2.kt"))
+        Assert.assertTrue(result.message.contains("File20.kt, ... and 2 more"))
         Assert.assertFalse(result.message.contains("module/File21.kt"))
-        Assert.assertTrue(result.message.contains("... and 2 more"))
     }
 
     @Test

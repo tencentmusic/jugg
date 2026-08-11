@@ -247,7 +247,7 @@ class DeployFileManager(
         logger.trace("[PERF] DeployFileManager.commit entered, thread=${Thread.currentThread().name}")
         logger.debug("commit juggDeployData, staging file size: ${stateTracker.getStagingFiles().size}, " +
                 "deployed file size: ${stateTracker.getDeployedFiles()}")
-        val deployedChangedFiles = stateTracker.getUndeployedFiles().map { it.file.path }
+        val deployedChangedFiles = stateTracker.getUndeployedFiles().map { it.file }
         deployDataGenerator.commitDeployedData(juggDeployData)
         if (isConstRefTasksEnabled) {
             constRefEngine.acknowledgeEffectedFilesAfterDeployCommit()
