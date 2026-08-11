@@ -55,7 +55,7 @@ class TaskRunnerManager internal constructor(
         deployStateManager,
         juggServer,
         hostTaskExecutor,
-        FileExecutionLockManager(pathManager, RuntimeIdentity(runtimeType, runtimeVersion)),
+        FileExecutionLockManager(pathManager, RuntimeIdentity(runtimeType, runtimeVersion), logger),
         coroutineScope,
         RuntimeIdentity(runtimeType, runtimeVersion).takeIf { runtimeType in runtimeOwnerTypes },
         RuntimeOwnerStore(pathManager.runtimeOwnerFile).takeIf { runtimeType in runtimeOwnerTypes },

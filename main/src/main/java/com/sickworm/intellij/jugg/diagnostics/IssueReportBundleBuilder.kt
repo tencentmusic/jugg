@@ -27,6 +27,7 @@ class IssueReportBundleBuilder(
         environment: Map<String, Any?>,
         projectSummary: Map<String, Any?>,
         logFiles: List<File>,
+        standaloneLogDir: File?,
         logcat: String,
         hookDebugLog: File? = null,
         knownSecrets: Set<String> = emptySet(),
@@ -38,7 +39,7 @@ class IssueReportBundleBuilder(
         candidates += writeJsonCandidate("diagnostics/project-summary.json", projectSummary, IssueReportSensitivity.MEDIUM)
         logFiles.filter { it.isFile }.forEach { logFile ->
             candidates += writeTextCandidate(
-                "diagnostics/logs/${logFile.name}",
+                logEntryPath(logFile, standaloneLogDir),
                 redact(logFile.readText(), knownSecrets),
                 IssueReportSensitivity.MEDIUM,
                 true,
@@ -62,6 +63,13 @@ class IssueReportBundleBuilder(
         }
         preparedCandidates = candidates
         return candidates
+    }
+
+    private fun logEntryPath(logFile: File, standaloneLogDir: File?): String {
+        val directory = standaloneLogDir?.canonicalFile
+        val isStandaloneLog = directory != null && logFile.canonicalFile.parentFile == directory
+        val relativePath = if (isStandaloneLog) "standlone_cli/${logFile.name}" else logFile.name
+        return "diagnostics/logs/$relativePath"
     }
 
     fun build(selectedPaths: Set<String>): IssueReportBundle {
@@ -135,5 +143,18 @@ class IssueReportBundleBuilder(
                 Regex("(?i)(password|token|secret|cookie)\\s*[=:]\\s*[^\\s,;]+"),
                 "\$1=[REDACTED]",
             )
+    }
+
+    companion object {
+        private const val MAX_REPORT_LOG_FILES = 10
+
+        fun selectRecentLogFiles(logDir: File, standaloneLogDir: File): List<File> {
+            return listOf(logDir, standaloneLogDir).flatMap { directory ->
+                directory.listFiles().orEmpty().filter { file ->
+                    file.isFile && !file.name.startsWith("compile_latest") && !file.name.endsWith(".lck")
+                }
+            }.sortedWith(compareByDescending<File> { it.lastModified() }.thenBy(File::getAbsolutePath))
+                .take(MAX_REPORT_LOG_FILES)
+        }
     }
 }

@@ -30,6 +30,7 @@ class StandaloneProjectRuntime internal constructor(
     private val invoker = McpToolInvoker(services.projectDir.path, this, toolRegistry)
 
     override val projectDir: String = services.projectDir.path
+    override val compileLatestLogPath: String = "build/jugg/log/standlone_cli/compile_latest.log"
     override val logger: Logger = services.logger
     override val deployTargetManager: IDeployTargetManager = services.deployTargetManager
     override val deployStateManager: IDeployStateManager = services.deployStateManager

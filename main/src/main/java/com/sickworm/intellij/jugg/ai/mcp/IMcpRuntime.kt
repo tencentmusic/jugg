@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 interface IMcpRuntime {
     val logger: Logger
     val projectDir: String
+    val compileLatestLogPath: String
     val deployTargetManager: IDeployTargetManager
     val deployStateManager: IDeployStateManager?
     val deployFileManager: DeployFileManager?

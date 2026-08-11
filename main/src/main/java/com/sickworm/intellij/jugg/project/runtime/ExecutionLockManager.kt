@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.project.runtime
 
 import com.google.gson.Gson
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import java.io.File
 import java.io.FileOutputStream
@@ -89,9 +90,10 @@ private object ExecutionLockOrderGuard {
 internal class FileExecutionLockManager(
     private val pathManager: JuggPathManager,
     runtimeIdentity: RuntimeIdentity,
+    logger: Logger? = null,
 ) : IExecutionLockManager {
 
-    private val projectLock = RuntimeSharedExecutionFileLock(runtimeIdentity)
+    private val projectLock = RuntimeSharedExecutionFileLock(runtimeIdentity, logger)
 
     override fun <T> withProjectLock(command: String, action: () -> T): T {
         ExecutionLockOrderGuard.checkProjectLockAllowed(command)
@@ -126,6 +128,7 @@ internal class FileExecutionLockManager(
 /** Keeps a reference-counted project lease that can be shared by concurrent tasks in one runtime. */
 private class RuntimeSharedExecutionFileLock(
     private val runtimeIdentity: RuntimeIdentity,
+    private val logger: Logger?,
 ) {
     private val stateLock = ReentrantLock(true)
     private var lease: SharedFileLease? = null
@@ -213,17 +216,46 @@ private class RuntimeSharedExecutionFileLock(
     private fun acquireLease(lockFile: File, ownerFile: File, command: String, scopeDir: File): SharedFileLease {
         val canonicalLockFile = lockFile.canonicalFile
         val runtimePermit = ExecutionFileLockSupport.runtimePermit(canonicalLockFile)
-        runtimePermit.acquire()
-        val acquiredLease = checkNotNull(openLease(canonicalLockFile, ownerFile, runtimePermit) { channel ->
-            ExecutionFileLockSupport.acquireFileLock(channel)
-        })
+        var waitStart: Long? = null
+        var owner: ExecutionLockOwner? = null
+        if (!runtimePermit.tryAcquire()) {
+            waitStart = System.currentTimeMillis()
+            owner = ExecutionFileLockSupport.readOwner(ownerFile)
+            logContention(command, owner)
+            runtimePermit.acquire()
+        }
+        var acquiredLease = openLease(canonicalLockFile, ownerFile, runtimePermit) { channel ->
+            ExecutionFileLockSupport.tryAcquireFileLock(channel)
+        }
+        if (acquiredLease == null) {
+            if (waitStart == null) {
+                waitStart = System.currentTimeMillis()
+                owner = ExecutionFileLockSupport.readOwner(ownerFile)
+                logContention(command, owner)
+            }
+            runtimePermit.acquire()
+            acquiredLease = checkNotNull(openLease(canonicalLockFile, ownerFile, runtimePermit) { channel ->
+                ExecutionFileLockSupport.acquireFileLock(channel)
+            })
+        }
         try {
             ExecutionFileLockSupport.writeOwner(runtimeIdentity, ownerFile, command, scopeDir)
+            waitStart?.let { start ->
+                logger?.debug("Runtime lock acquired after contention: runtime=${runtimeIdentity.runtimeType}, " +
+                        "command=$command, ownerRuntime=${owner?.runtimeType ?: "unknown"}, " +
+                        "waitMs=${System.currentTimeMillis() - start}")
+            }
             return acquiredLease
         } catch (e: Throwable) {
             acquiredLease.close()
             throw e
         }
+    }
+
+    private fun logContention(command: String, owner: ExecutionLockOwner?) {
+        logger?.debug("Runtime lock contention: runtime=${runtimeIdentity.runtimeType}, command=$command, " +
+                "ownerRuntime=${owner?.runtimeType ?: "unknown"}, ownerPid=${owner?.pid ?: "unknown"}, " +
+                "ownerCommand=${owner?.command ?: "unknown"}, ownerJobId=${owner?.jobId ?: "unknown"}")
     }
 
     private fun tryAcquireLease(

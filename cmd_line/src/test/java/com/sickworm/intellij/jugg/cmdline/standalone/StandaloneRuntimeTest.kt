@@ -146,6 +146,16 @@ class StandaloneRuntimeTest {
         assertEquals(1, registry!!.getInitializedProjectDirs().size)
     }
 
+    @Test
+    fun `standalone runtime exposes its dedicated compile log path`() {
+        val projectDir = temporaryFolder.newFolder("project")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1"))
+
+        val runtime = registry!!.initialize(projectDir)
+
+        assertEquals("build/jugg/log/standlone_cli/compile_latest.log", runtime.compileLatestLogPath)
+    }
+
     private fun call(toolName: String, arguments: Map<String, Any?> = emptyMap()): McpToolCallResult {
         val response = registry!!.invokeMcp(
             McpJsonRpcRequest(

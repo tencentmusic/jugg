@@ -40,6 +40,7 @@ object CompileJobManager {
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
+            logPath = runtime.compileLatestLogPath,
             runTask = {
                 val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlocking(
                     autoConfirm = true,
@@ -72,6 +73,7 @@ object CompileJobManager {
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
+            logPath = runtime.compileLatestLogPath,
             runTask = {
                 val runResponse = runtime.juggConfigurationRunner.runFirstConfigurationWithSpec(
                     isRpcMode = true,
@@ -158,6 +160,7 @@ object CompileJobManager {
 
     private fun trigger(
         executionType: String,
+        logPath: String,
         runTask: () -> CompileJobExecutionResult,
     ): CompileJobTriggerResult {
         val jobId = UUID.randomUUID().toString()
@@ -200,7 +203,7 @@ object CompileJobManager {
                 accepted = true,
                 jobId = jobId,
                 executionType = finalState.executionType,
-                logPath = COMPILE_LATEST_LOG_PATH,
+                logPath = logPath,
                 isFinal = true,
                 status = finalState.status,
                 message = finalState.message,
@@ -213,7 +216,7 @@ object CompileJobManager {
                 accepted = true,
                 jobId = jobId,
                 executionType = initial.executionType,
-                logPath = COMPILE_LATEST_LOG_PATH,
+                logPath = logPath,
                 isFinal = false,
                 status = "running",
                 message = RUNNING_MESSAGE_TEMPLATE.format(jobId),
@@ -239,7 +242,7 @@ object CompileJobManager {
                 accepted = true,
                 jobId = jobId,
                 executionType = initial.executionType,
-                logPath = COMPILE_LATEST_LOG_PATH,
+                logPath = logPath,
                 isFinal = true,
                 status = normalizedStatus,
                 message = normalizedResult.message,

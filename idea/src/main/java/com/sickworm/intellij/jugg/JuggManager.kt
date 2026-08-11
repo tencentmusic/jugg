@@ -629,10 +629,9 @@ class JuggManager @TestOnly constructor(
                     File(System.getProperty("user.home")),
                     logger.getInstance("IssueReportBundleBuilder"),
                 )
-                val logFiles = pathManager.logDir.listFiles().orEmpty()
-                    .filter { it.isFile && !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck") }
-                    .sortedByDescending { it.lastModified() }
-                    .take(10)
+                val logFiles = IssueReportBundleBuilder.selectRecentLogFiles(
+                    pathManager.logDir, pathManager.standaloneCliLogDir,
+                )
                 val candidates = builder.prepare(
                     environment = mapOf(
                         "pluginVersion" to juggServer.version,
@@ -644,6 +643,7 @@ class JuggManager @TestOnly constructor(
                         "moduleCount" to compileContextManager.compileContext.modules.size,
                     ),
                     logFiles = logFiles,
+                    standaloneLogDir = pathManager.standaloneCliLogDir,
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                     knownSecrets = knownSecrets,

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project.runtime
 
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -311,6 +312,64 @@ class ProjectExecutionLockTest {
         assertEquals(0, second.exitValue())
     }
 
+    @Test
+    fun `alternating runtime processes log project lock contention`() {
+        val projectDir = Files.createTempDirectory("jugg-project-lock-contention").toFile()
+        val firstIdeaReady = File(projectDir, "idea-1.ready")
+        val standaloneReady = File(projectDir, "standalone.ready")
+        val secondIdeaReady = File(projectDir, "idea-2.ready")
+        val releaseFirstIdea = File(projectDir, "release-idea-1")
+        val releaseStandalone = File(projectDir, "release-standalone")
+        val releaseSecondIdea = File(projectDir, "release-idea-2")
+        val ideaLogDir = JuggPathManager(projectDir).logDir
+        val standaloneLogDir = File(ideaLogDir, "standlone_cli")
+        val firstIdea = startLockProcess(projectDir, "idea", firstIdeaReady, releaseFirstIdea)
+        var standalone: Process? = null
+        var secondIdea: Process? = null
+        try {
+            assertTrue(waitForFile(firstIdeaReady))
+            standalone = startLockProcess(projectDir, "standalone", standaloneReady, releaseStandalone)
+            Thread.sleep(300)
+            assertFalse(standaloneReady.exists())
+
+            releaseFirstIdea.writeText("release")
+            assertTrue(waitForFile(standaloneReady))
+            assertTrue(firstIdea.waitFor(5, TimeUnit.SECONDS))
+
+            secondIdea = startLockProcess(projectDir, "idea", secondIdeaReady, releaseSecondIdea)
+            Thread.sleep(300)
+            assertFalse(secondIdeaReady.exists())
+
+            releaseStandalone.writeText("release")
+            assertTrue(waitForFile(secondIdeaReady))
+            assertTrue(standalone.waitFor(5, TimeUnit.SECONDS))
+
+            releaseSecondIdea.writeText("release")
+            assertTrue(secondIdea.waitFor(5, TimeUnit.SECONDS))
+            assertEquals(1, countLogEntries(standaloneLogDir, "Runtime lock contention: runtime=standalone"))
+            assertEquals(1, countLogEntries(ideaLogDir, "Runtime lock contention: runtime=idea"))
+            assertTrue(readLogs(standaloneLogDir).contains("ownerRuntime=idea"))
+            assertTrue(readLogs(ideaLogDir).contains("ownerRuntime=standalone"))
+            assertTrue(readLogs(standaloneLogDir).contains("ownerPid="))
+            assertTrue(readLogs(standaloneLogDir).contains("ownerCommand=process-idea"))
+            assertTrue(readLogs(standaloneLogDir).contains("ownerJobId="))
+            assertTrue(readLogs(ideaLogDir).contains("ownerPid="))
+            assertTrue(readLogs(ideaLogDir).contains("ownerCommand=process-standalone"))
+            assertTrue(readLogs(ideaLogDir).contains("ownerJobId="))
+            assertTrue(readLogs(standaloneLogDir).contains("Runtime lock acquired after contention"))
+            assertTrue(readLogs(ideaLogDir).contains("Runtime lock acquired after contention"))
+            assertTrue(readLogs(standaloneLogDir).contains("waitMs="))
+            assertTrue(readLogs(ideaLogDir).contains("waitMs="))
+        } finally {
+            releaseFirstIdea.writeText("release")
+            releaseStandalone.writeText("release")
+            releaseSecondIdea.writeText("release")
+            firstIdea.destroyForcibly()
+            standalone?.destroyForcibly()
+            secondIdea?.destroyForcibly()
+        }
+    }
+
     private fun startLockProcess(projectDir: File, readyFile: File, holdMillis: Long): Process {
         return ProcessBuilder(
             File(System.getProperty("java.home"), "bin/java").absolutePath,
@@ -323,6 +382,19 @@ class ProjectExecutionLockTest {
         ).redirectErrorStream(true).start()
     }
 
+    private fun startLockProcess(projectDir: File, runtimeType: String, readyFile: File, releaseFile: File): Process {
+        return ProcessBuilder(
+            File(System.getProperty("java.home"), "bin/java").absolutePath,
+            "-cp",
+            System.getProperty("java.class.path"),
+            ProjectLockProcessMain::class.java.name,
+            projectDir.absolutePath,
+            runtimeType,
+            readyFile.absolutePath,
+            releaseFile.absolutePath,
+        ).redirectErrorStream(true).start()
+    }
+
     private fun waitForFile(file: File): Boolean {
         repeat(100) {
             if (file.exists()) return true
@@ -330,11 +402,26 @@ class ProjectExecutionLockTest {
         }
         return false
     }
+
+    private fun countLogEntries(logDir: File, message: String): Int {
+        return readLogs(logDir).lineSequence().count { message in it }
+    }
+
+    private fun readLogs(logDir: File): String {
+        return logDir.listFiles().orEmpty()
+            .filter { it.isFile && !it.name.startsWith("compile_latest") }
+            .joinToString("\n") { it.readText() }
+    }
+
 }
 
 object ProjectLockProcessMain {
     @JvmStatic
     fun main(args: Array<String>) {
+        if (args.size == 4) {
+            runContentionProcess(args)
+            return
+        }
         val projectDir = File(args[0])
         val readyFile = File(args[1])
         val holdMillis = args[2].toLong()
@@ -347,6 +434,27 @@ object ProjectLockProcessMain {
             if (holdMillis > 0L) {
                 Thread.sleep(holdMillis)
             }
+        }
+    }
+
+    private fun runContentionProcess(args: Array<String>) {
+        val projectDir = File(args[0])
+        val runtimeType = args[1]
+        val readyFile = File(args[2])
+        val releaseFile = File(args[3])
+        val pathManager = JuggPathManager(projectDir)
+        val logDir = if (runtimeType == "standalone") File(pathManager.logDir, "standlone_cli") else pathManager.logDir
+        val logKey = projectDir.absolutePath
+        JuggLogger.register(logKey, logDir)
+        try {
+            val logger = JuggLogger.getInstance(logKey, "ProjectLockProcess")
+            val lockManager = FileExecutionLockManager(pathManager, RuntimeIdentity(runtimeType, "test"), logger)
+            lockManager.withProjectLock("process-$runtimeType") {
+                readyFile.writeText("ready")
+                while (!releaseFile.exists()) Thread.sleep(20)
+            }
+        } finally {
+            JuggLogger.unregister(logKey)
         }
     }
 }

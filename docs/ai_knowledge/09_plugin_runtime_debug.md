@@ -26,7 +26,10 @@ build/jugg/                            # juggRootDir
 ├── log/                               # 日志目录
 │   ├── compile_latest.log             # 当前主日志的 best-effort 快捷入口
 │   ├── compile_latest-1.log           # 上一份主日志的 best-effort 快捷入口
-│   └── compile_YYYY-MM-DD_HH-mm-ss.0.log
+│   ├── compile_YYYY-MM-DD_HH-mm-ss.0.log
+│   └── standlone_cli/                  # standalone Runtime 独立日志目录
+│       ├── compile_latest.log
+│       └── compile_YYYY-MM-DD_HH-mm-ss.0.log
 ├── build/staging/                     # 本次增量编译输出（dex/资源）
 ├── database/
 │   ├── apk/                           # APK 解析后的 SQLite DB（*.db）
@@ -59,7 +62,7 @@ ${projectRoot}/.gradle/jugg/
 
 **代码位置**：`main/src/main/java/.../project/runtime/JuggPathManager.kt`
 
-当前 `reportIssue()` 继续通过 `ProjectInfoReader.printInfo()`、设备 logcat dump 和 `JuggServer.reportAndUploadLogs()` 收集信息，不额外生成 runtime diagnostics JSON。standalone doctor/report 在真实命令入口落地时再设计共享诊断模型。
+当前 `reportIssue()` 继续通过 `ProjectInfoReader.printInfo()`、设备 logcat dump 和 `JuggServer.reportAndUploadLogs()` 收集信息，不额外生成 runtime diagnostics JSON。IDEA 与 standalone 两个日志目录各自保留最近 10 份；上报时按修改时间合并，仅选择最新 10 份，并以 `diagnostics/logs/standlone_cli/` 标识 standalone 来源。standalone doctor/report 在真实命令入口落地时再设计共享诊断模型。
 
 ---
 
@@ -72,6 +75,7 @@ ${projectRoot}/.gradle/jugg/
 - 时间戳精确到**毫秒**
 - 级别：`FINE`=debug / `INFO` / `WARNING` / `SEVERE`
 - `[ClassName]` 由 `logger.getInstance("ClassName")` 决定，可直接作为代码定位依据
+- 日志来源由目录区分：`log/` 是 IDEA，`log/standlone_cli/` 是 standalone；出现 `Runtime lock contention` 与 `Runtime lock acquired after contention` 时，可按 `runtime`、`ownerRuntime`、`ownerPid`、`ownerCommand`、`ownerJobId` 和 `waitMs` 还原交替持锁时序。
 
 ---
 

@@ -33,7 +33,7 @@
 ```text
 JuggManager 初始化
   -> JuggPathManager 定义 project-local build/jugg、database、log、tmp、mcp_fetch
-  -> JuggLogger.register(project, pathManager.logDir) 建立项目日志分发
+  -> IDEA Runtime 注册 pathManager.logDir；standalone Runtime 注册 pathManager.standaloneCliLogDir
   -> 编译/部署/MCP 共享同一 Logger 与路径对象
   -> FileLogger 写 compile_*.log，并维护 compile_latest.log / compile_latest-1.log
 ```
@@ -92,6 +92,7 @@ Hot update
 
 - `JuggLogger.getInstance(...)` 要求对应 project key 已注册；未注册会 fail fast，排查“拿不到 logger”先看初始化时机，而不是补空 logger。
 - `FileLogger` 的 `compile_latest.log` 是 best-effort 快捷入口；真实滚动文件仍是 `compile_yyyy-MM-dd_HH-mm-ss.%g.log`，日志丢失排查要同时看当前主文件和 `compile_latest-1.log`。
+- IDEA 日志位于 `build/jugg/log/`，standalone 日志位于 `build/jugg/log/standlone_cli/`；两个目录各自最多保留 10 份日志。Issue Report 按两目录的修改时间合并，只带最新 10 份，并保留 `standlone_cli/` 目录层级。
 - `TimeLogger.start/end` 以字符串 tag 配对；同一 tag 被跨阶段复用会污染耗时判断，新增高频埋点前先确认 tag 唯一性。
 - `TaskRunnerManager.runTaskSafe` 仅在后台任务失败时上报任务名、耗时与异常信息；成功任务不发送事件。
 - 每次 `JuggServer.report()` 都先 Best-effort 写入 `~/.jugg/action.db`；无服务器或远端失败不影响本地记录，本地写入失败也不阻止远端上报。
@@ -115,6 +116,7 @@ Hot update
 | 现象 | 优先入口 |
 |------|----------|
 | `compile_latest.log` 不更新或只看到旧日志 | `JuggLogger.register/unregister`、`FileLogger.recreateIfDeleted()`、`FileLogger.resetLatestCompileLog()` |
+| 需要判断日志来自哪个 Runtime | `build/jugg/log/`（IDEA）或 `build/jugg/log/standlone_cli/`（standalone）；锁竞争再查看 `Runtime lock contention` |
 | 日志里缺某个阶段耗时 | 对应调用点是否成对调用 `TimeLogger.start/end` |
 | APK 修改后安装无效或签名异常 | `ApkFileModifier.insertAndResign()`、`alignApk()`、`signApk()` |
 | worktree 下变更识别错乱 | `GitManager` 与 `WorktreeFileRepository` |

@@ -62,7 +62,7 @@ class StandaloneProjectServices(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        JuggLogger.register(logKey, pathManager.logDir)
+        JuggLogger.register(logKey, pathManager.standaloneCliLogDir)
     }
 
     val logger: Logger = JuggLogger.getInstance(logKey, "StandaloneProjectRuntime")
