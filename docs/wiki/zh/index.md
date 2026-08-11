@@ -17,8 +17,8 @@ layout: page
         复用 Gradle 可信产物，增量编译并按设备状态部署。条件不满足时，自动回到 Gradle 重建基线。
       </p>
       <div class="jugg-actions">
-        <a class="jugg-button primary" href="/zh/onboarding/">开始接入 <span aria-hidden="true">→</span></a>
-        <a class="jugg-button secondary" href="/zh/reference/compatibility">查看兼容范围</a>
+        <a class="jugg-button primary" href="./onboarding/">开始接入 <span aria-hidden="true">→</span></a>
+        <a class="jugg-button secondary" href="./reference/compatibility">查看兼容范围</a>
       </div>
     </div>
     <div class="jugg-run-scene" aria-label="一次典型的 Jugg Run 决策记录">
@@ -56,7 +56,7 @@ layout: page
       </ol>
       <div class="jugg-run-foot">
         <span>不确定时不会冒险继续增量</span>
-        <a href="/zh/concepts/gradle-fallback-baseline">了解 Gradle 回退机制 →</a>
+        <a href="./concepts/gradle-fallback-baseline">了解 Gradle 回退机制 →</a>
       </div>
     </div>
   </section>
@@ -108,7 +108,7 @@ layout: page
         </div>
       </li>
     </ol>
-    <a class="jugg-text-link" href="/zh/onboarding/">打开完整接入指南 <span aria-hidden="true">→</span></a>
+    <a class="jugg-text-link" href="./onboarding/">打开完整接入指南 <span aria-hidden="true">→</span></a>
   </section>
 
   <section class="jugg-safety jugg-band">
@@ -118,17 +118,17 @@ layout: page
       <p>Jugg 只在现有状态能够解释本轮变化时使用增量路径。</p>
     </header>
     <div class="jugg-decision-list">
-      <a href="/zh/capabilities/compile/source-compile">
+      <a href="./capabilities/compile/source-compile">
         <span class="jugg-decision-signal green">状态可信</span>
         <strong>只编译变化与受影响部分</strong>
         <small>源码、资源、Manifest 与依赖影响共同决定编译范围</small>
       </a>
-      <a href="/zh/capabilities/deploy/hot-reload">
+      <a href="./capabilities/deploy/hot-reload">
         <span class="jugg-decision-signal blue">产物可部署</span>
         <strong>按结果选择热替换、重启或 overlay</strong>
         <small>部署方式由本轮产物和设备历史决定</small>
       </a>
-      <a href="/zh/capabilities/compile/gradle-fallback">
+      <a href="./capabilities/compile/gradle-fallback">
         <span class="jugg-decision-signal amber">状态不确定</span>
         <strong>回到 Gradle，重新建立可信基线</strong>
         <small>构建配置、依赖或关键状态变化时优先保证一致性</small>
@@ -142,17 +142,17 @@ layout: page
       <h2>从你现在要做的事继续</h2>
     </header>
     <nav class="jugg-path-grid" aria-label="文档入口">
-      <a href="/zh/guide/run"><strong>运行 App</strong><span>日常 Run、取消与可见结果</span></a>
-      <a href="/zh/concepts/how-jugg-works"><strong>理解工作原理</strong><span>基线、影响分析与部署决策</span></a>
-      <a href="/zh/capabilities/"><strong>检查能力范围</strong><span>源码、资源、部署与测试支持</span></a>
-      <a href="/zh/troubleshooting/"><strong>定位异常</strong><span>从现象、日志和运行结果开始</span></a>
-      <a href="/zh/guide/remote-gradle"><strong>配置远端 Gradle</strong><span>降低本机完整构建等待</span></a>
-      <a href="/zh/reference/"><strong>查阅参考</strong><span>兼容性、配置、命令与限制</span></a>
+      <a href="./guide/run"><strong>运行 App</strong><span>日常 Run、取消与可见结果</span></a>
+      <a href="./concepts/how-jugg-works"><strong>理解工作原理</strong><span>基线、影响分析与部署决策</span></a>
+      <a href="./capabilities/"><strong>检查能力范围</strong><span>源码、资源、部署与测试支持</span></a>
+      <a href="./troubleshooting/"><strong>定位异常</strong><span>从现象、日志和运行结果开始</span></a>
+      <a href="./guide/remote-gradle"><strong>配置远端 Gradle</strong><span>降低本机完整构建等待</span></a>
+      <a href="./reference/"><strong>查阅参考</strong><span>兼容性、配置、命令与限制</span></a>
     </nav>
   </section>
 
   <footer class="jugg-home-footer">
     <p>Jugg 不替代 Gradle。它让可信基线之上的日常迭代更短。</p>
-    <a href="/">English</a>
+    <a href="../">English</a>
   </footer>
 </main>
