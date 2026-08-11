@@ -1,75 +1,15 @@
 ---
 title: 日志
-description: 说明 Jugg 问题排查时优先保存和查看的日志、数据库与提交问题信息。
+description: 原日志排查入口，当前优先使用报告问题上传现场，日志路径移至参考页。
 status: active
 tags:
   - troubleshooting
-  - logs
+  - compatibility-route
 ---
 
 # 日志
 
-排查 Jugg 问题时，最重要的是保留本轮现场。优先查看和保存项目目录下的 Jugg 日志。
+问题排查页面现在优先提供用户可执行的恢复动作，不再要求先手工分析日志。
 
-## 编译与部署日志
-
-优先查看：
-
-```text
-build/jugg/log/compile_latest.log
-```
-
-如果这个快捷文件不存在，查看同目录下最新的：
-
-```text
-build/jugg/log/compile_*.log
-```
-
-常用搜索关键词：
-
-```text
-Found incremental compile error
-No file changes
-fallback
-Deploy Changes failed
-Install APK failed
-Try recover deploy state failed
-MISSING_AGENT_RESPONSES
-Got deploy timeout exception
-Jugg Debug attach failed
-Instrumentation test run reported failures
-```
-
-## 状态与数据库
-
-如果问题和增量部署状态、设备状态恢复、代码不生效有关，保存：
-
-```text
-build/jugg/database/
-```
-
-其中部署历史异常时，可以重点关注：
-
-```text
-build/jugg/database/deploy_history.db/
-```
-
-> [!WARNING]
-> 不建议在没有备份的情况下删除整个 `build/jugg/`。这会丢失日志、数据库和现场产物。
-
-## 提交问题时附带什么
-
-请尽量附带：
-
-- `build/jugg/log/compile_latest.log` 或最新 `compile_*.log`。
-- 本轮修改了哪些文件。
-- 是否是 debug / release / androidTest。
-- 是否使用多设备、dynamic feature、资源混淆、远端 Gradle 或依赖库增量编译。
-- 设备型号、Android 版本。
-- 如果有 crash，附完整 crash 堆栈。
-
-## 相关页面
-
-- [日志文件参考](../reference/log-files.md)
-- [编译问题排查](./compile.md)
-- [部署问题排查](./deploy.md)
+- 恢复动作仍未解决问题时，使用[报告问题](../guide/report-issue.md)上传现场并复制 Report ID。
+- 需要手工查找日志和诊断文件时，查看[日志文件参考](../reference/log-files.md)。

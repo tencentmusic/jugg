@@ -65,5 +65,6 @@ Jugg 编译能力建立在最近一次可用的 Gradle 构建结果之上。它�
 
 - [编译阶段说明](../../guide/compile.md)
 - [增量编译概念](../../concepts/incremental-compile/)
-- [编译问题排查](../../troubleshooting/compile.md)
+- [编译失败](../../troubleshooting/compile-failed.md)
+- [改动没有生效](../../troubleshooting/changes-not-applied.md)
 - [限制](../../reference/limits.md)

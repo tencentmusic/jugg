@@ -410,16 +410,19 @@ const chineseSidebar = {
       text: '问题排查',
       items: [
         { text: '概览', link: '/zh/troubleshooting/' },
-        { text: '编译', link: '/zh/troubleshooting/compile' },
-        { text: '部署', link: '/zh/troubleshooting/deploy' },
-        { text: '运行时', link: '/zh/troubleshooting/runtime' },
-        { text: '日志', link: '/zh/troubleshooting/logs' },
-        { text: 'Android Test', link: '/zh/troubleshooting/android-test' },
-        { text: 'Debug', link: '/zh/troubleshooting/debug' },
-        { text: 'MCP 与 CLI', link: '/zh/troubleshooting/mcp-cli' },
-        { text: '远端 Gradle', link: '/zh/troubleshooting/remote-gradle' },
-        { text: 'UI 工具', link: '/zh/troubleshooting/ui-tools' },
-        { text: '性能', link: '/zh/troubleshooting/performance' }
+        { text: '编译失败', link: '/zh/troubleshooting/compile-failed' },
+        { text: '改动没有生效', link: '/zh/troubleshooting/changes-not-applied' },
+        { text: '部署后 App 崩溃', link: '/zh/troubleshooting/runtime-crash' },
+        { text: '无法安装、启动或进入 Debug', link: '/zh/troubleshooting/app-cannot-run' },
+        { text: 'Jugg 运行缓慢或卡住', link: '/zh/troubleshooting/jugg-slow-or-stuck' }
+      ]
+    },
+    {
+      text: '特定功能问题',
+      items: [
+        { text: 'Android Test 无法运行或测试失败', link: '/zh/troubleshooting/android-test-failed' },
+        { text: '云端编译失败', link: '/zh/troubleshooting/remote-build-failed' },
+        { text: 'Agent 或命令执行失败', link: '/zh/troubleshooting/agent-command-failed' }
       ]
     }
   ],

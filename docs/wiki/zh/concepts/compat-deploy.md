@@ -114,7 +114,7 @@ agent push 放在部署之后，是因为 Android Studio Apply Changes 首次准
 | 现象 | 第一跳 |
 |---|---|
 | Jugg 输出 `fallback to compat deploy` | 查看[设备兼容部署](../guide/compat-device.md)，确认是否要为当前设备长期开启 |
-| `MISSING_AGENT_RESPONSES` / `AGENT_ATTACH_FAILED` | 查看[部署问题排查](../troubleshooting/deploy.md#jvmti-agent-无响应) |
+| `MISSING_AGENT_RESPONSES` / `AGENT_ATTACH_FAILED` | 查看[无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md) |
 | 开启兼容部署后仍失败 | 先执行 Clean Reinstall 或 Gradle 安装，确认 APK 基线和设备状态可信 |
 | 兼容部署后变慢 | 检查是否误把普通设备长期设为兼容模式 |
 | 资源或类加载结果和预期不一致 | 对照 Gradle 安装结果，区分设备兼容问题和代码/构建结果问题 |

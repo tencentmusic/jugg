@@ -84,6 +84,6 @@ Jugg 不直接接管 Debug tool window，也不直接创建最终的 XDebugSessi
 
 - [运行 App](./run.md)
 - [部署结果说明](./deploy.md)
-- [Debug 问题排查](../troubleshooting/debug.md)
+- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)
 - [限制](../reference/limits.md)
 - [兼容性](../reference/compatibility.md)

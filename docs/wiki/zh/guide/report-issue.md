@@ -62,5 +62,6 @@ build/jugg/log/compile_latest.log
 
 - [首次运行](../onboarding/first-run.md)
 - [日志文件](../reference/log-files.md)
-- [编译问题排查](../troubleshooting/compile.md)
-- [部署问题排查](../troubleshooting/deploy.md)
+- [编译失败](../troubleshooting/compile-failed.md)
+- [改动没有生效](../troubleshooting/changes-not-applied.md)
+- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)

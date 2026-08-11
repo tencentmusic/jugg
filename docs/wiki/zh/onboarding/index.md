@@ -34,7 +34,8 @@ Jugg 是 Android Studio 上的 Android 增量构建插件，主要用于减少�
 
 先按现象选入口，不用从头翻文档：
 
-- **编译失败或频繁回退**：看 [编译问题排查](../troubleshooting/compile.md)。
-- **部署失败、App 没有按预期更新**：看 [部署问题排查](../troubleshooting/deploy.md)。
-- **App 崩溃或运行结果异常**：看 [运行时问题排查](../troubleshooting/runtime.md)。
+- **编译出现源码、资源或生成源码错误**：看 [编译失败](../troubleshooting/compile-failed.md)。
+- **运行成功但代码或资源仍是旧结果**：看 [改动没有生效](../troubleshooting/changes-not-applied.md)。
+- **App 无法安装、启动或进入 Debug**：看 [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)。
+- **部署后 App 崩溃**：看 [部署后 App 崩溃](../troubleshooting/runtime-crash.md)。
 - **不确定要提交哪些信息**：用 [报告问题](../guide/report-issue.md) 上传日志并附上 Issue ID。

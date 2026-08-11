@@ -37,4 +37,4 @@ Jugg Debug 当前只支持单设备 attach。要调试断点时，只保留一�
 - [运行 App](./run.md)
 - [Debug](./debug.md)
 - [多设备能力](../capabilities/deploy/multi-device.md)
-- [部署问题排查](../troubleshooting/deploy.md)
+- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)

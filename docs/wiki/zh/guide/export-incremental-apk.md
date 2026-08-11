@@ -45,4 +45,4 @@ Not all files are compiled:
 
 - [降级 Gradle 编译](./downgrade-gradle.md)
 - [运行 App](./run.md)
-- [性能问题排查](../troubleshooting/performance.md)
+- [Jugg 运行缓慢或卡住](../troubleshooting/jugg-slow-or-stuck.md)

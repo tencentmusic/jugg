@@ -62,4 +62,5 @@ Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基�
 - [清理数据](./clean-data.md)
 - [Gradle 回退与基线重建](../concepts/gradle-fallback-baseline.md)
 - [Gradle 回退](../capabilities/compile/gradle-fallback.md)
-- [编译问题排查](../troubleshooting/compile.md)
+- [编译失败](../troubleshooting/compile-failed.md)
+- [改动没有生效](../troubleshooting/changes-not-applied.md)

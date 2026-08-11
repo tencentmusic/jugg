@@ -145,7 +145,7 @@ layout: page
       <a href="./guide/run"><strong>运行 App</strong><span>日常 Run、取消与可见结果</span></a>
       <a href="./concepts/how-jugg-works"><strong>理解工作原理</strong><span>基线、影响分析与部署决策</span></a>
       <a href="./capabilities/"><strong>检查能力范围</strong><span>源码、资源、部署与测试支持</span></a>
-      <a href="./troubleshooting/"><strong>定位异常</strong><span>从现象、日志和运行结果开始</span></a>
+      <a href="./troubleshooting/"><strong>定位异常</strong><span>从可见现象和恢复动作开始</span></a>
       <a href="./guide/remote-gradle"><strong>配置远端 Gradle</strong><span>降低本机完整构建等待</span></a>
       <a href="./reference/"><strong>查阅参考</strong><span>兼容性、配置、命令与限制</span></a>
     </nav>

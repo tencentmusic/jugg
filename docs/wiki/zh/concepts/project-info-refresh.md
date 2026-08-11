@@ -90,4 +90,4 @@ tags:
 - [工程上下文获取](./project-model.md)
 - [Gradle 回退与基线重建](./gradle-fallback-baseline.md)
 - [运行配置与构建变体](../guide/run-configuration.md)
-- [远端 Gradle 问题排查](../troubleshooting/remote-gradle.md)
+- [云端编译失败](../troubleshooting/remote-build-failed.md)

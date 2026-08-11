@@ -150,5 +150,6 @@ build/jugg/log/compile_latest.log
 - [AndroidManifest 编译](../capabilities/compile/manifest.md)
 - [so 更新](../capabilities/compile/so-update.md)
 - [Gradle 回退](../capabilities/compile/gradle-fallback.md)
-- [编译问题排查](../troubleshooting/compile.md)
+- [编译失败](../troubleshooting/compile-failed.md)
+- [改动没有生效](../troubleshooting/changes-not-applied.md)
 - [限制](../reference/limits.md)

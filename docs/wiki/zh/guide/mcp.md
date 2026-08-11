@@ -100,4 +100,4 @@ MCP 适合：
 - [MCP 与 CLI](../concepts/mcp-and-cli.md)
 - [面向 Agent 的 MCP](../capabilities/tools/mcp.md)
 - [MCP 工具](../reference/mcp-tools.md)
-- [MCP 与 CLI 问题排查](../troubleshooting/mcp-cli.md)
+- [Agent 或命令执行失败](../troubleshooting/agent-command-failed.md)

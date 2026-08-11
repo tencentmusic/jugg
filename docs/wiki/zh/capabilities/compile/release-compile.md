@@ -46,5 +46,6 @@ Jugg 只根据当前可用的 mapping 执行名称重映射，不会重新运行
 
 - [重编译/扩散编译](./recompile-propagation.md)
 - [AabResGuard](./aab-resguard.md)
-- [编译问题排查](../../troubleshooting/compile.md)
+- [编译失败](../../troubleshooting/compile-failed.md)
+- [部署后 App 崩溃](../../troubleshooting/runtime-crash.md)
 - [release 增量编译](../../concepts/incremental-compile/release-compile.md)

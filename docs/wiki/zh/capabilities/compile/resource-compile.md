@@ -71,5 +71,6 @@ assets 变化
 - [资源增量编译原理](../../concepts/incremental-compile/resource.md)
 - [assets 与 native lib 原理](../../concepts/incremental-compile/assets-native.md)
 - [编译阶段说明](../../guide/compile.md)
-- [编译问题排查](../../troubleshooting/compile.md)
+- [编译失败](../../troubleshooting/compile-failed.md)
+- [改动没有生效](../../troubleshooting/changes-not-applied.md)
 - [限制](../../reference/limits.md)

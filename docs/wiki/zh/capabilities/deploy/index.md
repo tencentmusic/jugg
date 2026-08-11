@@ -59,5 +59,6 @@ Run 触发
 - [Apply Changes 中的 class 与 overlay](../../concepts/apply-changes.md)
 - [APK 更新与安装](../../concepts/apk-update-and-install.md)
 - [Direct Overlay 部署机制](../../concepts/direct-overlay.md)
-- [部署问题排查](../../troubleshooting/deploy.md)
+- [无法安装、启动或进入 Debug](../../troubleshooting/app-cannot-run.md)
+- [部署后 App 崩溃](../../troubleshooting/runtime-crash.md)
 - [限制](../../reference/limits.md)

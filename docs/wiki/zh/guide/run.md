@@ -83,16 +83,12 @@ Jugg Run
 | 现象 | 先看什么 |
 |---|---|
 | Run 后没有进入 Jugg 输出 | 确认 Run Configuration 是 Jugg 类型 |
-| 编译失败 | 看 [编译问题排查](../troubleshooting/compile.md) |
-| 部署失败、App 没启动 | 看 [部署问题排查](../troubleshooting/deploy.md) |
-| Debug 断点不可用 | 看 [Debug](./debug.md) 和 [Debug 问题排查](../troubleshooting/debug.md) |
-| 增量结果和预期不一致 | 先执行一次 Gradle 构建对照，再保留日志 |
+| 编译失败 | 看 [编译失败](../troubleshooting/compile-failed.md) |
+| 运行成功但修改没有生效 | 看 [改动没有生效](../troubleshooting/changes-not-applied.md) |
+| App 无法安装、启动或进入 Debug | 看 [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md) |
+| 部署后 App 崩溃 | 看 [部署后 App 崩溃](../troubleshooting/runtime-crash.md) |
 
-日志统一从这里开始看：
-
-```bash
-build/jugg/log/compile_latest.log
-```
+上述恢复动作仍未解决问题时，使用[报告问题](./report-issue.md)上传现场。
 
 ## 相关页面
 

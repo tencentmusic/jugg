@@ -112,4 +112,4 @@ before hook 可以通过消费输入文件影响后续内置编译；after hook 
 - [编译阶段说明](./compile.md)
 - [自定义编译器能力](../capabilities/compile/custom-compiler.md)
 - [自定义编译器原理](../concepts/incremental-compile/custom-compiler.md)
-- [编译问题排查](../troubleshooting/compile.md)
+- [编译失败](../troubleshooting/compile-failed.md)

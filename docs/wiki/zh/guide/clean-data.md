@@ -48,4 +48,4 @@ jugg clean-reinstall
 - [降级 Gradle 编译](./downgrade-gradle.md)
 - [部署状态与恢复](../concepts/deploy-state-recover.md)
 - [Clean Reinstall 能力](../capabilities/deploy/clean-reinstall.md)
-- [部署问题排查](../troubleshooting/deploy.md)
+- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)

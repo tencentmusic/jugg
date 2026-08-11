@@ -56,5 +56,5 @@ tags:
 ## 相关页面
 
 - [日志文件](../../reference/log-files.md)
-- [编译问题排查](../../troubleshooting/compile.md)
-- [部署问题排查](../../troubleshooting/deploy.md)
+- [编译失败](../../troubleshooting/compile-failed.md)
+- [无法安装、启动或进入 Debug](../../troubleshooting/app-cannot-run.md)

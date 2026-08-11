@@ -107,4 +107,5 @@ layout 生成的 Java/Kotlin 源码不会作为资源直接部署，而是交给
 - [资源编译能力](../../capabilities/compile/resource-compile.md)
 - [AabResGuard](../../capabilities/compile/aab-resguard.md)
 - [KMP / Compose Multiplatform](../../capabilities/compile/kmp-compose-multiplatform.md)
-- [编译问题排查](../../troubleshooting/compile.md)
+- [编译失败](../../troubleshooting/compile-failed.md)
+- [改动没有生效](../../troubleshooting/changes-not-applied.md)

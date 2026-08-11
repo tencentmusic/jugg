@@ -102,4 +102,5 @@ build/jugg/log/compile_latest.log
 - [Hot Reload](../capabilities/deploy/hot-reload.md)
 - [Clean Reinstall](../capabilities/deploy/clean-reinstall.md)
 - [Recover 与 Retry](../capabilities/deploy/recover-and-retry.md)
-- [部署问题排查](../troubleshooting/deploy.md)
+- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)
+- [部署后 App 崩溃](../troubleshooting/runtime-crash.md)

@@ -80,5 +80,6 @@ Settings 页可以直接调整常用运行行为：
 
 - [运行 App](./run.md)
 - [运行配置与构建变体](./run-configuration.md)
-- [日志](../troubleshooting/logs.md)
+- [报告问题](./report-issue.md)
+- [日志文件参考](../reference/log-files.md)
 - [报告问题](./report-issue.md)

@@ -81,7 +81,7 @@ Jugg 的主日志位于项目目录下的 `build/jugg/log/`。排查编译、部
 
 ## 相关页面
 
-- [问题排查：日志](../troubleshooting/logs.md)
-- [问题排查：编译](../troubleshooting/compile.md)
-- [问题排查：部署](../troubleshooting/deploy.md)
+- [报告问题](../guide/report-issue.md)
+- [编译失败](../troubleshooting/compile-failed.md)
+- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)
 - [MCP 工具](./mcp-tools.md)
