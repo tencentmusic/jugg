@@ -202,8 +202,9 @@ class JuggControlPanel(
             cellRenderer = object : ColoredListCellRenderer<JuggControlPanelModel.RunSummary>() {
                 override fun customizeCellRenderer(list: JList<out JuggControlPanelModel.RunSummary>, value: JuggControlPanelModel.RunSummary,
                                                    index: Int, selected: Boolean, hasFocus: Boolean) {
-                    append(formatTime(value.completedAt), SimpleTextAttributes.GRAYED_ATTRIBUTES)
-                    append("  ${value.compileMode.displayName}")
+                    val timeEnd = list.getFontMetrics(list.font).stringWidth("00:00") + JBUI.scale(12)
+                    append(formatTime(value.completedAt), SimpleTextAttributes.GRAYED_ATTRIBUTES, timeEnd, SwingConstants.LEFT)
+                    append(value.compileMode.displayName)
                     value.deployType?.let { append(" → ${it.displayName}") }
                     append("    ${value.deployDurationMillis?.let(::formatDuration).orEmpty()}  ${value.status.symbol}")
                 }
