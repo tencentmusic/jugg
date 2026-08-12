@@ -4,8 +4,11 @@ import org.junit.Test
 import com.google.gson.JsonParser
 import java.io.File
 import java.io.InputStream
+import java.nio.file.Files
 import java.util.jar.JarFile
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
+import javax.tools.ToolProvider
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -79,6 +82,41 @@ class CmdLineDistributionArchitectureTest {
         JarFile(baseApi).use { jar ->
             assertFalse(jar.entries().asSequence().any { it.name.startsWith("com/android/") })
         }
+    }
+
+    @Test
+    fun `content addressed runtime accepts packaged protocol dependencies`() {
+        val runtimeJars = findRepoFile("cmd_line/build/standalone-bundle/jars").listFiles()
+            .orEmpty().filter { it.extension == "jar" }
+        val root = Files.createTempDirectory("jugg-standalone-protocol").toFile()
+        val source = root.resolve("src/ProtocolDependencyProbe.java")
+        val classes = root.resolve("classes").apply { mkdirs() }
+        source.parentFile.mkdirs()
+        source.writeText("""
+            public final class ProtocolDependencyProbe {
+                public static void main(String[] args) throws Exception {
+                    Class<?> type = Class.forName("com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerResources");
+                    Object instance = type.getField("INSTANCE").get(null);
+                    type.getMethod("prepare", String.class).invoke(instance, "test-version");
+                }
+            }
+        """.trimIndent())
+        val compiler = checkNotNull(ToolProvider.getSystemJavaCompiler())
+        assertEquals(0, compiler.run(null, null, null, "-d", classes.path, source.path))
+        val classpath = (listOf(classes) + runtimeJars).joinToString(File.pathSeparator) { it.path }
+        val java = File(System.getProperty("java.home"), "bin/java")
+
+        val process = ProcessBuilder(
+            java.path,
+            "-Djugg.root.dir=${root.resolve("home").path}",
+            "-cp",
+            classpath,
+            "ProtocolDependencyProbe",
+        ).redirectErrorStream(true).start()
+        assertTrue(process.waitFor(30, TimeUnit.SECONDS), "Protocol dependency probe timed out")
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+
+        assertEquals(0, process.exitValue(), output)
     }
 
     private fun findRepoFile(path: String): File {

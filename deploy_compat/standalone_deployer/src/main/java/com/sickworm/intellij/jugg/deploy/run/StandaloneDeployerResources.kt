@@ -38,7 +38,7 @@ object StandaloneDeployerResources {
             val name = dependency.path.substringAfterLast('/')
             val owner = owners[name] ?: error("Unknown standalone protocol dependency: ${dependency.path}")
             val source = File(owner.protectionDomain.codeSource.location.toURI())
-            check(source.isFile && source.name == name && source.sha256() == dependency.sha256) {
+            check(source.isFile && source.sha256() == dependency.sha256) {
                 "Standalone protocol dependency mismatch: ${dependency.path}"
             }
         }

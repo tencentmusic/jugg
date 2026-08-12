@@ -66,7 +66,7 @@ class StandaloneProjectServices(
     }
 
     val logger: Logger = JuggLogger.getInstance(logKey, "StandaloneProjectRuntime")
-    val compileEnvironmentSource = StandaloneCompileEnvironmentSource()
+    val compileEnvironmentSource = StandaloneCompileEnvironmentSource(projectDir)
     private var deviceManager: StandaloneDeviceManager? = null
     private val adbFile = resolveAdb()
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(projectDir, pathManager.juggRootDir, logger)
