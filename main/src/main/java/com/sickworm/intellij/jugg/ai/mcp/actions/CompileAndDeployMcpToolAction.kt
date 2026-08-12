@@ -77,9 +77,15 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             waitAppReadyAfterSuccess: Boolean = false,
             compiledFiles: List<String> = emptyList(),
         ): McpToolResult {
+            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
+            val successMessage = buildSuccessMessage(toolName, projectDir, compiledFiles)
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
+                successMessage = successMessage.takeIf {
+                    toolName == McpToolActionRegistry.ToolNames.COMPILE ||
+                            toolName == McpToolActionRegistry.ToolNames.DEPLOY
+                },
                 isAlwaysRestartApp = isAlwaysRestartApp,
                 androidTestRunSpec = androidTestRunSpec,
                 buildTargetOverride = buildTargetOverride,
@@ -113,27 +119,38 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                     extraData = jobMetaData,
                 )
             }
-            var result = buildRunToolResult(
+            val result = buildRunToolResult(
                 toolName = toolName,
-                successMessage = if (trigger.status == "success") {
-                    "$toolName executed successfully."
-                } else {
-                    "$toolName finished with status=${trigger.status}."
-                },
+                successMessage = successMessage,
                 runResultObject = JsonParser.parseString(Gson().toJson(runResponse.runResult)) as? JsonObject,
                 detail = runResponse.detail,
                 extraData = jobMetaData,
-                compiledFiles = compiledFiles,
             )
             // Record deploy completion timestamp so wait-logs can use it as the log start point.
-            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
             if (result.status == McpToolStatus.OK && projectDir != null) {
                 LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir)
-                if (toolName == McpToolActionRegistry.ToolNames.DEPLOY && compiledFiles.isEmpty()) {
-                    result = result.copy(message = buildNoPendingDeployMessage(projectDir))
-                }
             }
             return result
+        }
+
+        private fun buildSuccessMessage(
+            toolName: String,
+            projectDir: String?,
+            compiledFiles: List<String>,
+        ): String {
+            val successMessage = "$toolName executed successfully."
+            return when {
+                compiledFiles.isNotEmpty() -> {
+                    "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ")}"
+                }
+                toolName == McpToolActionRegistry.ToolNames.COMPILE -> {
+                    "$successMessage No pending file changes."
+                }
+                toolName == McpToolActionRegistry.ToolNames.DEPLOY && projectDir != null -> {
+                    buildNoPendingDeployMessage(projectDir)
+                }
+                else -> "$successMessage  Compiled files (total: 0)"
+            }
         }
 
         private fun buildNoPendingDeployMessage(projectDir: String): String {
@@ -316,7 +333,6 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             runResultObject: JsonObject?,
             detail: String,
             extraData: Map<String, Any>,
-            compiledFiles: List<String> = emptyList(),
         ): McpToolResult {
             if (runResultObject == null) {
                 val detailResult = resolveDetailResult(toolName, detail)
@@ -364,14 +380,9 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 DetailResult()
             }
 
-            val message = if (compiledFiles.isNotEmpty()) {
-                "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ")}"
-            } else {
-                "$successMessage  Compiled files (total: 0)"
-            }
             return McpToolResult(
                 status = McpToolStatus.OK,
-                message = message,
+                message = successMessage,
                 data = data,
                 artifacts = detailResult.artifacts,
                 errorCode = null,

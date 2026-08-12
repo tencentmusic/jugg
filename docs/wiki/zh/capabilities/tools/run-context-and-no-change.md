@@ -1,6 +1,6 @@
 ---
 title: 运行上下文与无变化结果
-description: 说明 CLI/MCP 如何选择 Jugg 配置，以及 deploy 没有待处理文件时如何解读结果。
+description: 说明 CLI/MCP 如何选择 Jugg 配置，以及 compile 或 deploy 没有待处理文件时如何解读结果。
 status: active
 tags:
   - capability
@@ -37,9 +37,13 @@ CLI/MCP 按以下顺序选择 Jugg 配置：
 
 ## No pending file changes 是成功状态
 
+\`compile\` 返回成功但没有 compiled files 时，表示当前没有文件需要编译，本轮没有生成新的编译产物。命令仍然成功，并且不会执行部署。
+
 \`deploy\` 返回成功但没有 compiled files 时，表示当前 Jugg 检测到的修改已经部署，没有新的待处理文件。它不等同于“命令没有执行”，也不代表重新编译了一遍所有文件。
 
-结果会尽量附带当前 IDE 会话内最近一次“包含文件变化且部署成功”的信息：
+命令在首次调用内完成或经过异步轮询完成时，最终的 no-pending message 保持一致。
+
+\`deploy\` 结果会尽量附带当前 IDE 会话内最近一次“包含文件变化且部署成功”的信息：
 
 - 绝对时间和相对时间。
 - 项目相对文件路径。

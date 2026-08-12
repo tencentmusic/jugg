@@ -64,6 +64,7 @@ object CompileJobManager {
     fun triggerJuggCompile(
         runtime: IMcpRuntime,
         isSkipDeploy: Boolean,
+        successMessage: String?,
         isAlwaysRestartApp: Boolean = false,
         androidTestRunSpec: AndroidTestRunSpec? = null,
         buildTargetOverride: BuildTarget? = null,
@@ -104,7 +105,7 @@ object CompileJobManager {
                 }
                 val finalStatus = resolveRunResultStatus(runResult, isSkipDeploy)
                 val finalMessage = if (finalStatus == "success") {
-                    "Jugg compile finished successfully."
+                    successMessage ?: "Jugg compile finished successfully."
                 } else {
                     "Jugg compile finished with status=$finalStatus."
                 }

@@ -49,6 +49,7 @@ print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')
 1. **Modify** — Edit source files.
 2. **Compile** — Run `compile`.
    - On `status: OK` → Step 3.
+   - `message: compile executed successfully. No pending file changes.` is also a successful terminal result. It means no new compile output was generated and deploy was skipped.
    - On `status: ERROR`:
      a. Read `message` from JSON output to identify the error.
      b. Load `error_patterns.md`, apply Error Reviewer to diagnose and fix.
@@ -71,6 +72,7 @@ Verdict: PASS (compile-only)
 1. **Modify** — Edit source files.
 2. **Deploy** — Run `deploy`. Blocks until completion.
    - On `status: OK` + `isFinal: true` → Step 3.
+   - `message` containing `No pending file changes` is also a successful terminal result. It means all Jugg-detected changes are already deployed.
    - On `status: ERROR`:
      a. Read `message` from JSON output to identify the error.
      b. Load `error_patterns.md`, apply Error Reviewer to diagnose and fix.
