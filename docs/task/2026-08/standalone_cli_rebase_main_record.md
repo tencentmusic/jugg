@@ -968,3 +968,65 @@ step10 已将 `JuggDeployerHelper` 移到 main，静态架构守卫仍检查旧�
 - 两个旧主线误判提交未进入最终历史。
 - rebase 后测试兼容修正保持为独立 commit `b6b1c39d0`。
 - 未执行 push。
+
+## 17. 2026-08-12 按 main drop 结果重新 rebase
+
+### 17.1 重做原因与基线
+
+第一次 rebase 将 main 中的 `dda77ecd6 [refactor] make IDE module discovery easier to maintain` 一并带入了 `develop`。该提交实际应从 main 历史中 drop，因此本轮没有在第一次结果上继续修补，而是按以下方式重新开始：
+
+- rebase 前原始 `develop`：`884c62839eaa0f4d757095a118fdd6e49bf7e1cd`。
+- 原始状态备份：`backup/develop-before-rebase-20260812`。
+- 第一次 rebase 结果：`a9cc3af99ebaab6db713eab62fbbf6e7418ac901`。
+- 第一次结果备份：`backup/develop-first-rebase-result-20260812`，只用于审计，不再作为后续基线。
+- 用户 drop 后的 main：`48a9513aaa387391bd94269e5cb661706a5a1fa0`。
+- 从原始 `develop` 重新执行 rebase 后的功能 HEAD：`bc36e15ddd1efad80c26c8bab479d7350c3ba43d`。
+
+原始 35 个 feature commit 均按原顺序重放。以旧共同基线 `5b254c9d2` 和新 main 为边界执行 `git range-diff`，35 个提交均有一对一映射；标记为 `!` 的差异均来自本节记录的冲突解法或新 main 已存在的行为，没有 feature commit 丢失或额外 drop。
+
+### 17.2 冲突与解决方式
+
+本轮共出现 5 个冲突暂停点：
+
+1. `49954204d` package restructure：`CompileEffectAnalyzerTest.kt`。
+   - 使用 feature 重组后的 `project.change.ChangedFile`、`project.info.ModuleInfo` 和 `project.runtime.JuggPathManager` 包路径。
+   - 同时保留 main 新增的 `AssembleAndroidProjectOnce`、`TestGlobal`、`@Rule` 以及 desugar superclass-chain 回归场景。
+   - 重放后提交：`6c7ae0675`。
+2. `1c617a53f` runtime settings：`JuggSettings.kt`、`JuggManager.kt`。
+   - `isEnableCompatibleDeploymentMode` 使用新 settings owner 的 `setting(true)` 持久化方式。
+   - `JuggManager` 同时保留 main 的 `updateCompatibleDeploymentMode()` 和 feature 的 `prepareRun()`，避免兼容部署开关与 standalone 准备流程互相覆盖。
+   - 重放后提交：`52cdb8f2a`。
+3. `de4f31e6f` standalone runtime MCP：`CompileAndDeployMcpToolAction.kt`。
+   - 项目路径统一从 `runtime.projectDir.takeIf { it.isNotBlank() }` 获取，符合共享 runtime 契约。
+   - 删除冲突产生的重复声明，同时保留 main 的无待部署文件提示和部署完成时间记录。
+   - 重放后提交：`02e6973ba`。
+4. `8ce00d494` CLI 文档：`08_cli_tools_list.md`。
+   - 将 `init` 放在 `compile` 前，保持命令顺序清晰。
+   - 同时保留 main 的 compile no-op 输出说明，以及 feature 的 standalone 单设备选择规则和直接完成/异步轮询输出一致性。
+   - 重放后提交：`03a4c7a42`。
+5. `67a85f5d1` 版本更新：`build.gradle`、中英文 changelog YAML 与 HTML。
+   - 当前版本保持 feature 目标 `4.0.0`。
+   - 历史版本顺序为 `4.0.0`、main 新增的 `3.2.4`、既有 `3.2.3`；HTML 直接复用 `3.2.4` 的内容，不创建空版本标题。
+   - 重放后提交：`3e93916a7`。
+
+`75b2ff44d` step3 本轮自动应用，没有冲突。由于新 main 已删除模块扫描重构，本轮没有从第一次 rebase 结果迁移 `readModuleInfo`、`createModuleCandidate`、`ModuleScanResult` 等拆分结构；`IdeaProjectModelSource` 保持 drop 后 main 的扫描实现与 feature 的 project-model owner 变更组合。
+
+### 17.3 drop 结果核对
+
+- `git merge-base HEAD main` 返回 `48a9513aaa387391bd94269e5cb661706a5a1fa0`，确认当前分支基于用户更新后的 main。
+- `git merge-base --is-ancestor dda77ecd6 HEAD` 返回非零，确认被 drop 的提交不在新历史中。
+- `IdeaProjectModelSource.kt` 中不存在第一次结果带入的 `readModuleInfo`、`createModuleCandidate`、`ModuleScanResult` 或 `ModuleCandidate`。
+- 第一次结果仍保存在独立备份分支，需要时可用于对照，但不会被当前 `develop` 继承。
+
+### 17.4 验证结果
+
+以下验证通过：
+
+- `./gradlew :idea:compileKotlin`
+- `./gradlew :main:test --tests com.sickworm.intellij.jugg.deploy.CompileEffectAnalyzerTest --tests com.sickworm.intellij.jugg.project.info.ProjectModelSourceTest --tests com.sickworm.intellij.jugg.project.runtime.JuggSettingsTest --tests com.sickworm.intellij.jugg.ai.mcp.actions.CompileAndDeployMcpToolActionTest`
+- `./gradlew :idea:test --tests com.sickworm.intellij.jugg.compiler.context.CompileContextManagerBuildPathInfoTest --tests com.sickworm.intellij.jugg.compiler.context.CompileContextManagerAndroidTestFilterTest --tests com.sickworm.intellij.jugg.manager.JuggManagerFullBuildFlowTest --tests com.sickworm.intellij.jugg.manager.JuggManagerRunConfigurationSyncTest`
+- `git range-diff 5b254c9d2..backup/develop-before-rebase-20260812 48a9513aa..bc36e15dd`
+- changelog YAML 解析、版本顺序及 HTML 历史内容一致性检查
+- 冲突标记扫描与 `git diff --check`
+
+未执行 push。

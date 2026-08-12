@@ -38,8 +38,10 @@
 
 ## 3. 当前状态
 
-- 当前工作分支：`feature/standlone_cli`。
-- 最新 rebase 前备份：`feature/standlone_cli_rebase_20260810_old`，指向 `405d38437`；既有备份分支均未修改。
-- 当前 main 基线：`362f9b5e7`。
-- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 16 节。
-- 本次 rebase 记录、后续兼容修正和验证结果已分别可追溯；下一次 rebase 应新建备份，不复用当前备份名。
+- 当前工作分支：`develop`。
+- 本轮原始 rebase 前备份：`backup/develop-before-rebase-20260812`，指向 `884c62839`。
+- 已废弃的第一次 rebase 结果备份：`backup/develop-first-rebase-result-20260812`，指向 `a9cc3af99`；该结果包含后来从 main drop 的模块扫描重构，只用于审计。
+- 当前 main 基线：`48a9513aa`。
+- 当前功能 HEAD：`bc36e15dd`，不包含被 drop 的 `dda77ecd6`。
+- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 17 节。
+- review 完成前保留两条备份引用；下一次 rebase 应新建备份，不复用当前备份名。
