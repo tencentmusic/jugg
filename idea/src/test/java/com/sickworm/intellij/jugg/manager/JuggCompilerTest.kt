@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.deploy.data.ApkParser
+import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceSuffix
 import com.sickworm.intellij.jugg.mock.androidApkPackage
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
@@ -172,6 +174,23 @@ class JuggCompilerTest {
     fun testJavaMethodChangeContent() {
         jugg.changeFileAndNotify("MainActivity2.changeContent.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
+
+    @Test
+    fun testInheritedDefaultInterfaceOverrideIsKept() {
+        val packageName = "com.sickworm.jugg.demo.testcase.defaultinterface"
+        jugg.changeFileAndNotify(
+            "ParentOverrideChildClass.addMarker.java" to "ParentOverrideChildClass.java",
+            directory = "app/src/main/java/${packageName.replace('.', '/')}",
+        )
+
+        val dexFile = File(
+            jugg.pathManager.stagingDir,
+            "classes/${packageName.replace('.', '/')}/ParentOverrideChildClass.dex",
+        )
+        assertTrue(dexFile.isFile)
+        val parsedDex = ApkParser().parseDexFiles(listOf(dexFile))
+        assertFalse(parsedDex.methodRefs.any { it.key.owner.endsWith(desugarDefaultInterfaceSuffix) })
     }
 
     // java static method, skip because I don't have static method on demo project, and

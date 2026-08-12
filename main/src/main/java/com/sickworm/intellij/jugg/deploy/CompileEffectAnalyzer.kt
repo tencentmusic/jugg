@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
+import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
@@ -108,7 +109,15 @@ class CompileEffectAnalyzer(
         val desugarInfo = deployDataGenerator.getDesugarInfo(filteredClassFiles, apkFile)
         val defaultInterfaces = desugarInfo.allInterfacesWithDefaultMethod
         logger.debug("getAllDesugarClasspath all defaultInterfaces: $defaultInterfaces")
-        val files = getClassFilesByName(defaultInterfaces, moduleInfo, moduleInfos)
+        val interfaceFiles = getClassFilesByName(defaultInterfaces, moduleInfo, moduleInfos)
+        val superclassFiles = if (defaultInterfaces.isEmpty()) {
+            emptyList()
+        } else {
+            getDesugarSuperclassFiles(filteredClassFiles, moduleInfo, moduleInfos)
+        }
+        val files = (interfaceFiles + superclassFiles).distinctBy {
+            it.file.relativeTo(it.baseDir).path
+        }
         logger.debug("getAllDesugarClasspath all files: ${files.map { it.file.path }}")
         files.forEach {
             val relativePath = it.file.relativeTo(it.baseDir).path
@@ -117,6 +126,36 @@ class CompileEffectAnalyzer(
         }
         TimeLogger.end("getDesugarInfo", logger)
         return desugarInfo
+    }
+
+    /** Resolves the complete external superclass chain required by D8 method dispatch analysis. */
+    private fun getDesugarSuperclassFiles(
+        compileFiles: List<CompileFile>,
+        moduleInfo: ModuleInfo,
+        moduleInfos: Map<String, ModuleInfo>,
+    ): List<ChangedFile> {
+        val pendingClasses = getExternalSuperClasses(compileFiles.map { it.file }).toMutableSet()
+        val visitedClasses = mutableSetOf<String>()
+        val superclassFiles = mutableListOf<ChangedFile>()
+        while (pendingClasses.isNotEmpty()) {
+            val classNames = pendingClasses.filter { visitedClasses.add(it) }
+            pendingClasses.clear()
+            if (classNames.isEmpty()) {
+                continue
+            }
+            val foundFiles = getClassFilesByName(classNames, moduleInfo, moduleInfos)
+            superclassFiles.addAll(foundFiles)
+            pendingClasses.addAll(getExternalSuperClasses(foundFiles.map { it.file }))
+        }
+        logger.debug("getAllDesugarClasspath all superClasses: ${visitedClasses.toList()}")
+        return superclassFiles
+    }
+
+    private fun getExternalSuperClasses(classFiles: List<File>): Set<String> {
+        if (classFiles.isEmpty()) {
+            return emptySet()
+        }
+        return ClassFileParser(classFiles).apply { parse() }.externalSuperClasses
     }
 
     fun getMinifyInfo(

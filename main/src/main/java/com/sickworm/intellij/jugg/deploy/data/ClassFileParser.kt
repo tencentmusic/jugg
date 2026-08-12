@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.deploy.classSigName
+import com.sickworm.intellij.jugg.deploy.isBootClasspathClass
 import com.sickworm.intellij.jugg.org.objectweb.asm.*
 import java.io.File
 import java.util.zip.ZipFile
@@ -16,6 +17,13 @@ class ClassFileParser(
     val classes: MutableSet<String> = mutableSetOf()
     val interfaces: MutableSet<String> = mutableSetOf()
     val staticInvocationRefs: MutableSet<String> = mutableSetOf()
+    private val declaredSuperClasses: MutableSet<String> = mutableSetOf()
+
+    /** Superclasses referenced outside the current program input and Android boot classpath. */
+    val externalSuperClasses: Set<String>
+        get() = declaredSuperClasses.filterNot {
+            it in classes || it.isBootClasspathClass
+        }.toSet()
 
     fun parse() {
         for (classFile in classFiles) {
@@ -64,6 +72,9 @@ class ClassFileParser(
             if (this@ClassFileParser.staticInvocationRefs.contains(classSignName)) {
                 // which means it will compile together, so no need to add it to staticInvocationRefs
                 this@ClassFileParser.staticInvocationRefs.remove(classSignName)
+            }
+            superName?.let {
+                declaredSuperClasses.add(it.classSigName)
             }
 
             interfaces?.forEach {

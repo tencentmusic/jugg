@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.mock.assetsDir
 import com.sickworm.intellij.jugg.mock.assetsLibDir
+import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertContentEquals
@@ -65,6 +66,40 @@ class ClassFileParserTest {
     }
 
     @Test
+    fun testExternalSuperClasses() {
+        val javaClassPath = AssembleAndroidProjectOnce.getProjectInfo()
+            .modules.getValue("app").buildPathInfo.javaClassPath
+        val childClass = File(
+            javaClassPath,
+            "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildClass.class",
+        )
+        val baseClass = File(
+            javaClassPath,
+            "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideBaseClass.class",
+        )
+
+        assertResult(
+            listOf(childClass),
+            expectedInterfaces = listOf(
+                "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildInterface;",
+            ),
+            expectedSuperClasses = listOf(
+                "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideBaseClass;",
+            ),
+        )
+        assertResult(
+            listOf(childClass, baseClass),
+            expectedInterfaces = listOf(
+                "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildInterface;",
+                "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideDefaultInterface;",
+            ),
+            expectedSuperClasses = listOf(
+                "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideRootClass;",
+            ),
+        )
+    }
+
+    @Test
     fun testJars() {
         assertResult(
             listOf(
@@ -116,7 +151,8 @@ class ClassFileParserTest {
 
     private fun assertResult(classFiles: List<File>,
                              expectedInterfaces: List<String> = emptyList(),
-                             expectedStaticInvocations: List<String> = emptyList()) {
+                             expectedStaticInvocations: List<String> = emptyList(),
+                             expectedSuperClasses: List<String> = emptyList()) {
         val classParser = ClassFileParser(classFiles)
         classParser.parse()
 
@@ -128,6 +164,11 @@ class ClassFileParserTest {
         assertContentEquals(
             expectedStaticInvocations,
             classParser.staticInvocationRefs
+        )
+
+        assertContentEquals(
+            expectedSuperClasses,
+            classParser.externalSuperClasses,
         )
     }
 }

@@ -1,6 +1,6 @@
 # 部署系统：影响分析与部署数据生成
 
-> 最后核对：2026-08-07
+> 最后核对：2026-08-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -25,6 +25,7 @@
 | `InlineMethodDetector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/InlineMethodDetector.kt` | release/minify 场景从 mapping 里找 R8 inline 调用方，补齐字节码补偿类 |
 | `EffectedClassNode` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/EffectedClassNode.kt` | 受影响类模型，区分源码重编译、inline 补偿、minify 移除补偿 |
 | `ConstRefEffectProvider` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt` | 常量引用影响分析入口；结果走 `constRefEffectedSourcePaths`，不混入 `effectedClassNodes` |
+| `ClassFileParser` / `CompileEffectAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/` | 收集默认接口与外部父类依赖，为增量 class 构造完整 D8 desugar classpath |
 
 ---
 
@@ -91,7 +92,13 @@
 
 不能把 `buildDeployData()` 的结果视为已提交状态。部署历史只在后续成功部署后由 `commitDeployedData()` 写回；失败轮的 staging / deploy data 不能污染下一轮。
 
-### 4.1 APK 基线索引与解析边界
+### 4.1 D8 desugar classpath
+
+受影响源码重新编译时，`DeployDataGenerator.getDesugarInfo()` 只负责识别含默认方法的接口及其接口继承链；`CompileEffectAnalyzer.getDesugarInfo()` 再通过 `ClassFileParser` 收集本轮 class 引用的外部直接父类，并递归补齐完整父类层级。默认接口和父类 class 会一起复制到 D8 classpath。
+
+父类层级不能省略：若子类同时继承父类实现、实现带默认方法的接口，而 D8 只能看到接口却看不到父类，D8 可能在子类中生成调用接口默认实现的 synthetic bridge，绕过父类中的真实 override。当前 program input 内已有的父类无需重复复制，Android boot classpath 类型也会过滤。
+
+### 4.2 APK 基线索引与解析边界
 
 APK database 不只是“class 是否存在”的缓存。Jugg 需要持久化 class 结构、method/field 引用、父子类关系、source 映射，以及 APK 内 dex/resource entry 的 checksum，才能同时支撑 HOT_RELOAD/HOT_FIX 分类、影响传播、资源补全和下一次 APK 更新 diff。把这些数据长期留在 IDE heap 中会让大 APK 的解析峰值和 GC 直接影响 Android Studio，因此当前 `ApkParserProcessLauncher` 的隔离门槛为 0 MB，正常体积的 APK 会启动独立 JVM 解析；子进程直接更新 app-scoped SQLite，退出后释放解析期内存。
 
