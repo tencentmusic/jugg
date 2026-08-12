@@ -16,7 +16,6 @@ import com.sickworm.intellij.jugg.deploy.run.DeployProgress
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.runtime.toCompileOptions
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -132,7 +131,6 @@ class StandaloneConfigurationRunner(
     private fun runCompileAndDeploy(
         options: JuggGradleCompileOptions, handler: StandaloneCompileUiHandler, request: RunRequest,
     ): JuggRunInvocationResult {
-        JuggLogger.resetLatestCompileLog(services.projectDir.absolutePath)
         services.refreshCustomConfig()
         services.refreshChangedFiles()
         val startTime = System.currentTimeMillis()

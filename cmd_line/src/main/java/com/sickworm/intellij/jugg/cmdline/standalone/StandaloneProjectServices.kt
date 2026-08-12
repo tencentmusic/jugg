@@ -66,6 +66,12 @@ class StandaloneProjectServices(
     }
 
     val logger: Logger = JuggLogger.getInstance(logKey, "StandaloneProjectRuntime")
+
+    init {
+        logger.info("Start Init Jugg standalone on ${projectDir.absolutePath}, version=${runtimeInfo.runtimeVersion}, " +
+                "host=${runtimeInfo.hostVersion}")
+    }
+
     val compileEnvironmentSource = StandaloneCompileEnvironmentSource(projectDir)
     private var deviceManager: StandaloneDeviceManager? = null
     private val adbFile = resolveAdb()
@@ -204,6 +210,7 @@ class StandaloneProjectServices(
 
     fun initAfterFullBuild(startCompileTime: Long, options: JuggGradleCompileOptions) {
         JuggLogger.resetLatestCompileLog(logKey)
+        logger.info("Standalone Gradle build completed, reinitializing project runtime on ${projectDir.absolutePath}")
         juggServer.afterFullCompile()
         pathManager.stagingDir.deleteRecursively()
         pathManager.compileRootDir.deleteRecursively()
@@ -301,6 +308,7 @@ class StandaloneProjectServices(
     }
 
     override fun close() {
+        logger.info("Close Jugg standalone project on ${projectDir.absolutePath}")
         fileMonitor.close()
         gradleProjectInfoManager.close()
         compilerHelper.close()

@@ -9,48 +9,31 @@
   "files": [
     {
       "path": "installer/arm64-v8a/installer",
-      "sha256": "43a6b515b4637890b5cecefac289286495fbbaa5dea98762ca3a5c2e191dbf27",
       "executable": true
     },
     {
       "path": "installer/armeabi-v7a/installer",
-      "sha256": "6497099661a69b2fab007fe4b8f5e848aa116f8a1705398763968bb11403cf9b",
       "executable": true
     },
     {
       "path": "installer/x86/installer",
-      "sha256": "80f23f871679236b6e9f592d1e342175b9ed9c48e9f6c33c8454229e7e11e414",
       "executable": true
     },
     {
       "path": "installer/x86_64/installer",
-      "sha256": "e22a54a88f4306267f1ae0fb5b14bfc1afba79c7b99b3fbc7a282f0029de2b08",
       "executable": true
     },
     {
       "path": "NOTICE.txt",
-      "sha256": "01a48f485e0a9252765fce88e6c23f7939e885e0403a883da68402bb7e3af64d",
       "executable": false
     },
     {
       "path": "LICENSE-APACHE-2.0.txt",
-      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
       "executable": false
     },
     {
       "path": "SOURCE_CLASSES.sha256",
-      "sha256": "c3534f9d820af9f61a6be065d0cc96b8fa521360ed5ba689e20e07e1e63961aa",
       "executable": false
-    }
-  ],
-  "protocolDependencies": [
-    {
-      "path": "libs/deploy_java_proto.jar",
-      "sha256": "b56b29fa20cc897c80b29d5946d42c61f8366cab2ba4839d054788b35e6611e3"
-    },
-    {
-      "path": "libs/studio-proto.jar",
-      "sha256": "88f5f7ac3b5bdfffbcedd9de6158740249ad4b71cb61d0d42b12b70949434f12"
     }
   ]
 }

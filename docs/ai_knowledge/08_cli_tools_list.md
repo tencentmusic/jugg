@@ -51,13 +51,13 @@ jugg.py
 
 CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目标 `projectDir` 选择 IDEA 或 standalone Runtime；端口缓存只用于优先探测，不覆盖项目归属判断。同一项目同时出现在两个 Runtime 时，仅在确认 `runtime.lock` 正被持有后采用 `runtime.lock.owner.json`，否则读取 `runtime.owner.json` 选择最近 owner。全局参数 `--runtime idea|standalone` 可覆盖自动选择；已知项目列表不匹配的 legacy Runtime 不阻止 standalone 拉起，只有无法读取项目列表时才使用兼容 fallback。
 
-目标项目未被任何 Runtime 持有时，普通 CLI 取得项目级 `build/jugg/runtime.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免并发 CLI 重复创建 daemon。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。Hook 调用必须设置 `JUGG_CALLER=hook`；只有 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动 standalone，否则直接以成功状态跳过，避免编辑/停止 hook 意外创建 daemon。
+目标项目未被任何 Runtime 持有时，普通 CLI 取得项目级 `build/jugg/runtime.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免并发 CLI 重复创建 daemon。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动阶段向 stderr 输出 Runtime 探测、daemon 启动、工程初始化等待和端口就绪进度；子进程 stdout/stderr 写入目标工程 `build/jugg/log/standlone_cli/standalone_startup.log`。进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径，不再等待到探测超时。Hook 调用必须设置 `JUGG_CALLER=hook`；只有 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动 standalone，否则直接以成功状态跳过，避免编辑/停止 hook 意外创建 daemon。
 
 standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内部 `get-compile-status` 与 `status`；未被 standalone capability 注册的设备/UI/调试命令仍需 IDEA Runtime。当前配置启用 remote compile 时，standalone 会在执行前明确失败，用户必须改用 IDEA Runtime 或切换为本地 profile。
 
 `status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
 
-当启动失败或等待超时时，CLI 输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
+当进程仍存活但等待端口超时时，CLI 先输出 `standalone_startup.log` 尾部与路径，再输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
 
 | 文件 | 默认路径 | 环境变量 |
 |------|----------|----------|

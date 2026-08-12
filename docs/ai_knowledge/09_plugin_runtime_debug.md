@@ -29,6 +29,7 @@ build/jugg/                            # juggRootDir
 │   ├── compile_YYYY-MM-DD_HH-mm-ss.0.log
 │   └── standlone_cli/                  # standalone Runtime 独立日志目录
 │       ├── compile_latest.log
+│       ├── standalone_startup.log       # CLI 启动 daemon 时捕获的 stdout/stderr
 │       └── compile_YYYY-MM-DD_HH-mm-ss.0.log
 ├── build/staging/                     # 本次增量编译输出（dex/资源）
 ├── database/
@@ -63,6 +64,8 @@ ${projectRoot}/.gradle/jugg/
 **代码位置**：`main/src/main/java/.../project/runtime/JuggPathManager.kt`
 
 当前 `reportIssue()` 继续通过 `ProjectInfoReader.printInfo()`、设备 logcat dump 和 `JuggServer.reportAndUploadLogs()` 收集信息，不额外生成 runtime diagnostics JSON。IDEA 与 standalone 两个日志目录各自保留最近 10 份；上报时按修改时间合并，仅选择最新 10 份，并以 `diagnostics/logs/standlone_cli/` 标识 standalone 来源。standalone doctor/report 在真实命令入口落地时再设计共享诊断模型。
+
+standalone 主日志按工程 runtime 生命周期分段：工程初始化时创建，普通 `compile/deploy` 继续追加；成功完成 Gradle 全量构建并开始重建编译上下文时重新分段。`standalone_startup.log` 每次 CLI 发起 daemon 启动时覆盖写入，只服务于启动失败的即时诊断。
 
 ---
 

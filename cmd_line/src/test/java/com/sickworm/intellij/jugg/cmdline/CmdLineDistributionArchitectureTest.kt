@@ -85,7 +85,7 @@ class CmdLineDistributionArchitectureTest {
     }
 
     @Test
-    fun `content addressed runtime accepts packaged protocol dependencies`() {
+    fun `content addressed runtime prepares packaged deployer resources`() {
         val runtimeJars = findRepoFile("cmd_line/build/standalone-bundle/jars").listFiles()
             .orEmpty().filter { it.extension == "jar" }
         val root = Files.createTempDirectory("jugg-standalone-protocol").toFile()

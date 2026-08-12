@@ -22,16 +22,12 @@ class StandaloneDeployerResourceTest {
     }
 
     @Test
-    fun `prepare validates protocol and all installer binaries`() {
+    fun `prepare validates protocol and extracts all installer binaries`() {
         JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("jugg-home")
 
         val prepared = StandaloneDeployerResources.prepare("test-version")
 
         assertEquals(Version.hash(), prepared.metadata.protocolVersion)
-        assertEquals(
-            setOf("deploy_java_proto.jar", "studio-proto.jar"),
-            prepared.metadata.protocolDependencies.map { it.path.substringAfterLast('/') }.toSet(),
-        )
         listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64").forEach { abi ->
             assertTrue(prepared.directory.resolve("installer/$abi/installer").isFile)
         }

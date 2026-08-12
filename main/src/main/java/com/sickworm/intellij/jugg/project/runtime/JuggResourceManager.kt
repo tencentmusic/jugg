@@ -5,20 +5,12 @@ import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.security.MessageDigest
 import java.util.UUID
 
-/** Describes one verified file embedded in a versioned runtime resource bundle. */
+/** Describes one file embedded in a versioned runtime resource bundle. */
 data class RuntimeResourceFile(
     val path: String,
-    val sha256: String,
     val executable: Boolean = false,
-)
-
-/** Describes one classpath JAR whose protocol classes must match the runtime bundle. */
-data class RuntimeProtocolDependency(
-    val path: String,
-    val sha256: String,
 )
 
 /** Describes the protocol and files that form one runtime resource bundle. */
@@ -26,16 +18,15 @@ data class RuntimeResourceMetadata(
     val schemaVersion: Int,
     val protocolVersion: String,
     val files: List<RuntimeResourceFile>,
-    val protocolDependencies: List<RuntimeProtocolDependency>,
 )
 
-/** Returns the verified target directory together with the metadata used to prepare it. */
+/** Returns the prepared target directory together with its embedded metadata. */
 data class PreparedRuntimeResource(
     val directory: File,
     val metadata: RuntimeResourceMetadata,
 )
 
-/** Extracts classpath runtime resources under the shared global write lock and verifies SHA-256. */
+/** Extracts missing classpath runtime resources under the shared global write lock. */
 class JuggResourceManager(
     private val classLoader: ClassLoader = JuggResourceManager::class.java.classLoader,
     private val globalRootDir: File = JuggGlobalPathManager.rootDir,
@@ -67,14 +58,7 @@ class JuggResourceManager(
         check(metadata.protocolVersion.isNotBlank()) { "Runtime resource protocol version is empty" }
         check(metadata.files.isNotEmpty()) { "Runtime resource file list is empty" }
         metadata.files.forEach {
-            check(it.path.isNotBlank() && it.sha256.matches(SHA_256_PATTERN)) {
-                "Invalid runtime resource entry: ${it.path}"
-            }
-        }
-        metadata.protocolDependencies.forEach {
-            check(it.path.isNotBlank() && it.sha256.matches(SHA_256_PATTERN)) {
-                "Invalid runtime protocol dependency: ${it.path}"
-            }
+            check(it.path.isNotBlank()) { "Invalid runtime resource entry: ${it.path}" }
         }
     }
 
@@ -91,7 +75,7 @@ class JuggResourceManager(
         check(target.toPath().startsWith(targetDir.canonicalFile.toPath())) {
             "Runtime resource path escapes target directory: ${entry.path}"
         }
-        if (target.isFile && target.sha256() == entry.sha256) {
+        if (target.isFile) {
             if (entry.executable) check(target.setExecutable(true, true)) {
                 "Cannot make runtime resource executable: ${entry.path}"
             }
@@ -104,7 +88,6 @@ class JuggResourceManager(
         val tempFile = File(target.parentFile, "${target.name}.${UUID.randomUUID()}.tmp")
         try {
             input.use { source -> tempFile.outputStream().use { output -> source.copyTo(output) } }
-            check(tempFile.sha256() == entry.sha256) { "Runtime resource checksum mismatch: ${entry.path}" }
             moveAtomically(tempFile, target)
             if (entry.executable) check(target.setExecutable(true, true)) {
                 "Cannot make runtime resource executable: ${entry.path}"
@@ -122,21 +105,7 @@ class JuggResourceManager(
         }
     }
 
-    private fun File.sha256(): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
-
     private companion object {
         const val SCHEMA_VERSION = 1
-        val SHA_256_PATTERN = Regex("[0-9a-f]{64}")
     }
 }

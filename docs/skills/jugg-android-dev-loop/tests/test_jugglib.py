@@ -130,13 +130,51 @@ class ResolvePortTest(unittest.TestCase):
         os.makedirs(project_dir)
         endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [project_dir])
 
+        class RunningProcess:
+            def poll(self):
+                return None
+
+        launch = jugglib.StandaloneLaunch(RunningProcess(), Path(project_dir) / "startup.log")
+
+        stderr = io.StringIO()
+
         with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
              patch.object(jugglib, "discover_runtime_endpoints", side_effect=[[], [], [endpoint]]), \
-             patch.object(jugglib, "launch_standalone") as mock_launch:
+             patch.object(jugglib, "launch_standalone", return_value=launch) as mock_launch, \
+             contextlib.redirect_stderr(stderr):
             port = jugglib.resolve_port()
 
         self.assertEqual(12324, port)
         mock_launch.assert_called_once_with(project_dir)
+        self.assertIn("Starting Jugg standalone runtime", stderr.getvalue())
+        self.assertIn(" with ", stderr.getvalue())
+        self.assertIn("Standalone runtime ready on port 12324", stderr.getvalue())
+
+    def test_resolve_port_reports_standalone_process_startup_failure(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+        startup_log = Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.log"
+        startup_log.parent.mkdir(parents=True)
+        startup_log.write_text("IllegalStateException: standalone protocol mismatch\n")
+
+        class FailedProcess:
+            def poll(self):
+                return 7
+
+        launch = jugglib.StandaloneLaunch(FailedProcess(), startup_log)
+        stderr = io.StringIO()
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", side_effect=[[], [], []]), \
+             patch.object(jugglib, "launch_standalone", return_value=launch), \
+             contextlib.redirect_stderr(stderr), \
+             self.assertRaises(SystemExit) as cm:
+            jugglib.resolve_port()
+
+        self.assertEqual(1, cm.exception.code)
+        output = stderr.getvalue()
+        self.assertIn("standalone failed to start (exit code 7)", output)
+        self.assertIn("standalone protocol mismatch", output)
+        self.assertIn(str(startup_log), output)
 
     def test_resolve_port_rechecks_under_launch_lock_before_starting_daemon(self):
         project_dir = os.path.join(self.tmp, "project")

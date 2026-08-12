@@ -10,6 +10,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -81,6 +82,13 @@ class RuntimeEndpoint:
     runtime_type: str
     projects: list[str]
     projects_known: bool = True
+
+
+@dataclass
+class StandaloneLaunch:
+    """Detached standalone process and the file receiving its startup output."""
+    process: subprocess.Popen
+    log_path: Path
 
 
 _selected_runtime_port: Optional[int] = None
@@ -321,7 +329,17 @@ def _standalone_launcher_path() -> Path:
     return Path.home() / ".jugg" / "standalone" / "bin" / executable
 
 
-def launch_standalone(project_dir: str) -> None:
+def _standalone_java_command() -> str:
+    java_home = os.environ.get("JAVA_HOME", "")
+    if java_home:
+        executable = "java.exe" if sys.platform == "win32" else "java"
+        java = Path(java_home) / "bin" / executable
+        if java.is_file():
+            return str(java)
+    return shutil.which("java") or "java"
+
+
+def launch_standalone(project_dir: str) -> StandaloneLaunch:
     """Start the installed standalone daemon for one project."""
     launcher = _standalone_launcher_path()
     if not launcher.is_file():
@@ -331,17 +349,34 @@ def launch_standalone(project_dir: str) -> None:
     command = [str(launcher), "--project-dir", project_dir]
     if sys.platform == "win32" and launcher.suffix.lower() in (".bat", ".cmd"):
         command = ["cmd", "/c", *command]
-    popen_args = {
-        "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-        "close_fds": True,
-    }
+    startup_log = Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.log"
+    startup_log.parent.mkdir(parents=True, exist_ok=True)
+    popen_args = {"stdin": subprocess.DEVNULL, "close_fds": True}
     if sys.platform == "win32":
         popen_args["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
     else:
         popen_args["start_new_session"] = True
-    subprocess.Popen(command, **popen_args)
+    with startup_log.open("w", encoding="utf-8") as output:
+        output.write(f"=== Starting Jugg standalone for {project_dir} ===\n")
+        output.flush()
+        process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT, **popen_args)
+    return StandaloneLaunch(process, startup_log)
+
+
+def _startup_log_tail(log_path: Path, line_count: int = 20) -> str:
+    try:
+        return "\n".join(log_path.read_text(errors="replace").splitlines()[-line_count:])
+    except OSError:
+        return ""
+
+
+def _print_standalone_startup_failure(launch: StandaloneLaunch, reason: str) -> None:
+    print(f"ERROR: Jugg standalone {reason}.", file=sys.stderr)
+    tail = _startup_log_tail(launch.log_path)
+    if tail:
+        print("Startup error:", file=sys.stderr)
+        print(tail, file=sys.stderr)
+    print(f"Full startup log: {launch.log_path}", file=sys.stderr)
 
 
 @contextlib.contextmanager
@@ -404,8 +439,10 @@ def resolve_port() -> int:
         return _selected_runtime_port
 
     project_dir = candidate_project_dir()
+    _print_progress_heartbeat(f"Checking Jugg runtime for {project_dir}...")
     endpoints = discover_runtime_endpoints()
     selected = _select_runtime(endpoints, project_dir)
+    launch: Optional[StandaloneLaunch] = None
     if selected is None:
         if runtime_type_override == "idea":
             print(f"ERROR: No IDEA Runtime owns project '{project_dir}'.", file=sys.stderr)
@@ -417,10 +454,21 @@ def resolve_port() -> int:
                 endpoints = discover_runtime_endpoints()
                 selected = _select_runtime(endpoints, project_dir)
                 if selected is None:
-                    launch_standalone(project_dir)
+                    _print_progress_heartbeat(
+                        f"Starting Jugg standalone runtime for {project_dir} with {_standalone_java_command()}..."
+                    )
+                    launched = launch_standalone(project_dir)
+                    if isinstance(launched, StandaloneLaunch):
+                        launch = launched
+                        _print_progress_heartbeat(f"Waiting for standalone project initialization; startup log: {launch.log_path}")
                 for _ in range(50):
                     if selected is not None:
                         break
+                    if launch is not None:
+                        exit_code = launch.process.poll()
+                        if exit_code is not None:
+                            _print_standalone_startup_failure(launch, f"failed to start (exit code {exit_code})")
+                            sys.exit(1)
                     endpoints = discover_runtime_endpoints()
                     selected = _select_runtime(endpoints, project_dir)
                     if selected is not None:
@@ -431,6 +479,8 @@ def resolve_port() -> int:
             sys.exit(1)
 
     if selected is None:
+        if launch is not None:
+            _print_standalone_startup_failure(launch, "startup timed out")
         results = _scan_ports(range(12320, 12330))
         _print_port_probe_failure(results)
         sys.exit(1)
@@ -438,6 +488,10 @@ def resolve_port() -> int:
     _selected_runtime_port = selected.port
     _selected_project_dir = project_dir
     write_port_cache(selected.port)
+    if launch is not None:
+        _print_progress_heartbeat(f"Standalone runtime ready on port {selected.port}.")
+    else:
+        _print_progress_heartbeat(f"Using {selected.runtime_type} runtime on port {selected.port}.")
     return selected.port
 
 

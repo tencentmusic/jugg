@@ -15,12 +15,12 @@ class JuggResourceManagerTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun `prepare extracts verified files and repairs corrupted content`() {
+    fun `prepare extracts missing files and reuses existing content without checksum validation`() {
         val resourcesDir = temporaryFolder.newFolder("resources")
         resourcesDir.resolve("deployer/test/installer/arm64-v8a").mkdirs()
         resourcesDir.resolve("deployer/test/installer/arm64-v8a/installer").writeText("installer-v1")
         resourcesDir.resolve("deployer/test/metadata.json").writeText(
-            """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"installer/arm64-v8a/installer","sha256":"0f6021accfba7c54e082115fa269a53a997ad5c1ac90340ad179b2b764e126c4","executable":true}],"protocolDependencies":[]}"""
+            """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"installer/arm64-v8a/installer","executable":true}]}"""
         )
         val globalRoot = temporaryFolder.newFolder("jugg-home")
         val classLoader = URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null)
@@ -34,7 +34,7 @@ class JuggResourceManagerTest {
 
         installer.writeText("broken")
         manager.prepare("deployer/test", "runtime/1/deployer/test")
-        assertEquals("installer-v1", installer.readText())
+        assertEquals("broken", installer.readText())
 
         assumeTrue(installer.setExecutable(false, true))
         manager.prepare("deployer/test", "runtime/1/deployer/test")
@@ -42,12 +42,11 @@ class JuggResourceManagerTest {
     }
 
     @Test
-    fun `prepare rejects resource checksum mismatch`() {
+    fun `prepare fails when a missing target has no embedded resource`() {
         val resourcesDir = temporaryFolder.newFolder("bad-resources")
         resourcesDir.resolve("deployer/test").mkdirs()
-        resourcesDir.resolve("deployer/test/file.bin").writeText("content")
         resourcesDir.resolve("deployer/test/metadata.json").writeText(
-            """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"file.bin","sha256":"0000000000000000000000000000000000000000000000000000000000000000","executable":false}],"protocolDependencies":[]}"""
+            """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"file.bin","executable":false}]}"""
         )
         val manager = JuggResourceManager(
             URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null),
