@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
@@ -106,7 +107,7 @@ class JuggRunSettingsComponentTest {
         val settingRows = settingGroupNames.flatMap { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
         }
-        assertEquals(7, settingCheckboxes)
+        assertEquals(8, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
@@ -156,6 +157,30 @@ class JuggRunSettingsComponentTest {
         assertTrue(defaultActionInvoked)
         assertEquals("More options", link.text)
         assertEquals(2, tabs.selectedIndex)
+    }
+
+    @Test
+    fun `control panel should edit compat deploy setting`() {
+        TestGlobal.init()
+        JuggSettings.isEnableCompatibleDeploymentMode = true
+        val controller = Mockito.mock(JuggControlPanelController::class.java)
+        val model = JuggControlPanelModel().apply {
+            updateSettings(JuggControlPanelModel.Settings(compatibleDeployment = true))
+        }
+        val panel = JuggControlPanel(mockProject(), model, controller)
+        javax.swing.SwingUtilities.invokeAndWait {}
+
+        val toggle = descendants(panel)
+            .filterIsInstance<JBCheckBox>()
+            .first { it.text == "Enable compat deploy" }
+        assertTrue(toggle.isSelected)
+
+        toggle.doClick()
+
+        Mockito.verify(controller).updateSetting(
+            JuggControlPanelController.Setting.COMPAT_DEPLOY,
+            false,
+        )
     }
 
     @Test

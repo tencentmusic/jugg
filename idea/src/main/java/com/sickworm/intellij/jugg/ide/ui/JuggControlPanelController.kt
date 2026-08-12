@@ -83,6 +83,10 @@ open class JuggControlPanelController(
         when (setting) {
             Setting.CONFIRM_FALLBACK -> JuggSettings.isConfirmFallbackWhenNoFileChanges = enabled
             Setting.ALWAYS_RESTART -> JuggSettings.isAlwaysRestartAppAfterDeployment = enabled
+            Setting.COMPAT_DEPLOY -> {
+                JuggSettings.isEnableCompatibleDeploymentMode = enabled
+                manager.updateCompatibleDeploymentMode()
+            }
             Setting.QUICK_DEPLOY -> JuggSettings.isEnableDirectOverlayDeploy = enabled
             Setting.AUTO_FALLBACK -> JuggSettings.isAutoFallbackToGradleWhenDeployError = enabled
             Setting.EMBED_APK -> JuggSettings.isEmbeddedToApk = enabled
@@ -154,6 +158,7 @@ open class JuggControlPanelController(
         return JuggControlPanelModel.Settings(
             confirmFallbackWhenNoFileChanges = JuggSettings.isConfirmFallbackWhenNoFileChanges,
             alwaysRestartAppAfterDeployment = JuggSettings.isAlwaysRestartAppAfterDeployment,
+            compatibleDeployment = JuggSettings.isEnableCompatibleDeploymentMode,
             quickDeploy = JuggSettings.isEnableDirectOverlayDeploy,
             autoFallbackAfterDeployFailure = JuggSettings.isAutoFallbackToGradleWhenDeployError,
             embedChangesIntoApk = JuggSettings.isEmbeddedToApk,
@@ -197,6 +202,7 @@ open class JuggControlPanelController(
     enum class Setting {
         CONFIRM_FALLBACK,
         ALWAYS_RESTART,
+        COMPAT_DEPLOY,
         QUICK_DEPLOY,
         AUTO_FALLBACK,
         EMBED_APK,

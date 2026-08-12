@@ -350,6 +350,7 @@ class JuggControlPanel(
                 settingToggle("Confirm fallback when no files changed", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK),
                 settingToggle("Always restart app after deployment", "Disables hot reload when a restart is safer.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
+                settingToggle("Enable compat deploy", "Supports devices where standard Apply Changes is unavailable.", JuggControlPanelController.Setting.COMPAT_DEPLOY),
                 settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
                 settingToggle("Auto fallback after deploy failure", "Recover with a full Gradle build.", JuggControlPanelController.Setting.AUTO_FALLBACK),
                 settingToggle("Embed changes into APK", "Supports Android RemoteViews with a slower deploy.", JuggControlPanelController.Setting.EMBED_APK)),
@@ -706,6 +707,7 @@ class JuggControlPanel(
         val values = mapOf(
             JuggControlPanelController.Setting.CONFIRM_FALLBACK to settings.confirmFallbackWhenNoFileChanges,
             JuggControlPanelController.Setting.ALWAYS_RESTART to settings.alwaysRestartAppAfterDeployment,
+            JuggControlPanelController.Setting.COMPAT_DEPLOY to settings.compatibleDeployment,
             JuggControlPanelController.Setting.QUICK_DEPLOY to settings.quickDeploy,
             JuggControlPanelController.Setting.AUTO_FALLBACK to settings.autoFallbackAfterDeployFailure,
             JuggControlPanelController.Setting.EMBED_APK to settings.embedChangesIntoApk,

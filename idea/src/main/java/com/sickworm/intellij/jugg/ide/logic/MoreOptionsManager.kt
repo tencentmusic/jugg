@@ -10,7 +10,6 @@ import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -276,19 +275,6 @@ class MoreOptionsManager(
     private fun setCustomServerUrl() {
         logger.info("[options] setNewServerUrl")
         juggServer.setCustomServer()
-    }
-
-    private fun enableCompatibleDeploymentMode() {
-        logger.info("[options] enableCompatibleDeploymentMode")
-        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
-
-        taskRunnerManager.runTaskSafe("Remove Jugg JVMTI agents", {
-            val devices = deployTargetManager.getSelectedDevices()
-            devices.forEach {
-                val result = JuggJvmtiAgentManager(IdeaDeviceAdb(it, logger), logger).removeAllAgents()
-                logger.debug("Remove Jugg JVMTI agents result: $result, device: $it")
-            }
-        })
     }
 
     private fun setEnableBackupClasspath() {

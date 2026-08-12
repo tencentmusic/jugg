@@ -257,6 +257,7 @@ class JuggControlPanelModel(
     data class Settings(
         val confirmFallbackWhenNoFileChanges: Boolean = true,
         val alwaysRestartAppAfterDeployment: Boolean = false,
+        val compatibleDeployment: Boolean = true,
         val quickDeploy: Boolean = true,
         val autoFallbackAfterDeployFailure: Boolean = false,
         val embedChangesIntoApk: Boolean = false,

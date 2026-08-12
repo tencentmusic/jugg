@@ -856,6 +856,17 @@ class JuggManager @TestOnly constructor(
         })
     }
 
+    /** Applies the persisted compat deploy switch to the IDE deployer and connected devices. */
+    fun updateCompatibleDeploymentMode() {
+        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
+        runTaskSafe("Remove Jugg JVMTI agents", {
+            deployTargetManager.getSelectedDevices().forEach {
+                val result = JuggJvmtiAgentManager(IdeaDeviceAdb(it, logger), logger).removeAllAgents()
+                logger.debug("Remove Jugg JVMTI agents result: $result, device: $it")
+            }
+        })
+    }
+
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
         taskRunnerManager.runTaskSafe(jobName, action, isNeedShowIndicator)
     }
