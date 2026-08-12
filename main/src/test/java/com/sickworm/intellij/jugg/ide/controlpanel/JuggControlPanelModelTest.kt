@@ -218,6 +218,7 @@ class JuggControlPanelModelTest {
         val snapshot = model.snapshot()
         assertNull(snapshot.currentTask)
         assertEquals(1, snapshot.recentRuns.size)
+        assertEquals(JuggEvent.Category.DEPLOY, snapshot.recentRuns.single().terminalCategory)
         assertEquals(JuggDeployData.DeployType.COMPAT_HOT_FIX, snapshot.recentRuns.single().deployType)
         assertEquals(files, snapshot.recentRuns.single().changedFiles)
         assertEquals(1, snapshot.sessionStats.compiles)

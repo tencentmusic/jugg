@@ -205,8 +205,8 @@ class JuggControlPanel(
                     val timeEnd = list.getFontMetrics(list.font).stringWidth("00:00") + JBUI.scale(12)
                     append(formatTime(value.completedAt), SimpleTextAttributes.GRAYED_ATTRIBUTES, timeEnd, SwingConstants.LEFT)
                     append(value.compileMode.displayName)
-                    value.deployType?.let { append(" → ${it.displayName}") }
-                    append("    ${value.deployDurationMillis?.let(::formatDuration).orEmpty()}  ${value.status.symbol}")
+                    append(" → ${value.resultDisplayName}")
+                    append("    ${formatDuration(value.totalDurationMillis)}  ${value.status.symbol}")
                 }
             }
             addListSelectionListener { if (!it.valueIsAdjusting) renderRecentRunDetails(selectedValue) }
@@ -863,6 +863,19 @@ private val com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.disp
         com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.INSTALL,
         com.sickworm.intellij.jugg.deploy.run.JuggDeployData.DeployType.EMBEDDED -> "Install"
         else -> name.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)
+    }
+
+private val JuggControlPanelModel.RunSummary.resultDisplayName: String
+    get() {
+        val resultDeployType = deployType
+        return when {
+            status == JuggEvent.Status.FAILED && terminalCategory == JuggEvent.Category.COMPILE -> "Compile failed"
+            status == JuggEvent.Status.FAILED && failureReason?.startsWith("No device found.") == true -> "No device"
+            status == JuggEvent.Status.FAILED && terminalCategory == JuggEvent.Category.DEPLOY -> "Deploy failed"
+            status == JuggEvent.Status.SUCCEEDED && terminalCategory == JuggEvent.Category.COMPILE -> "Compile only"
+            status == JuggEvent.Status.SUCCEEDED && resultDeployType != null -> resultDeployType.displayName
+            else -> status.displayName
+        }
     }
 
 private val JuggEvent.Status.symbol: String

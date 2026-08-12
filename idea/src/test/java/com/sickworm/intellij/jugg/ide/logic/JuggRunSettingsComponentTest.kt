@@ -18,6 +18,7 @@ import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
@@ -202,7 +203,7 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `recent runs should show deploy duration in seconds`() {
+    fun `recent runs should show successful deploy result and total duration`() {
         TestGlobal.init()
         val model = JuggControlPanelModel()
         val panel = createPanel(model = model)
@@ -238,19 +239,45 @@ class JuggRunSettingsComponentTest {
             title = "Completed",
             timestamp = 4_000L,
             durationMillis = 3_000L,
+            deployType = JuggDeployData.DeployType.HOT_RELOAD,
             isTaskTerminal = true,
         ))
         javax.swing.SwingUtilities.invokeAndWait {}
 
-        val list = findNamedComponent<JBList<JuggControlPanelModel.RunSummary>>(panel, "overview.recentRunsList")!!
-        val value = list.model.getElementAt(0)
-        val renderer = list.cellRenderer.getListCellRendererComponent(list, value, 0, false, false)
-                as SimpleColoredComponent
-        val text = renderer.getCharSequence(false).toString()
+        val text = renderRecentRunText(panel)
 
-        assertTrue(text.contains("0.3s"))
+        assertTrue(text.contains("Incremental → Hot reload"))
+        assertTrue(text.contains("3.0s"))
+        assertTrue(!text.contains("0.3s"))
         assertTrue(!text.contains("2.4s"))
         assertTrue(!text.contains("ms"))
+    }
+
+    @Test
+    fun `recent runs should always show terminal result and total duration`() {
+        TestGlobal.init()
+
+        assertRecentRunText(
+            terminalCategory = JuggEventCategory.COMPILE,
+            terminalStatus = JuggEventStatus.SUCCEEDED,
+            expectedResult = "Compile only",
+        )
+        assertRecentRunText(
+            terminalCategory = JuggEventCategory.COMPILE,
+            terminalStatus = JuggEventStatus.FAILED,
+            expectedResult = "Compile failed",
+        )
+        assertRecentRunText(
+            terminalCategory = JuggEventCategory.DEPLOY,
+            terminalStatus = JuggEventStatus.FAILED,
+            expectedResult = "Deploy failed",
+        )
+        assertRecentRunText(
+            terminalCategory = JuggEventCategory.DEPLOY,
+            terminalStatus = JuggEventStatus.FAILED,
+            detail = "No device found. Stop deploying.",
+            expectedResult = "No device",
+        )
     }
 
     @Test
@@ -445,6 +472,52 @@ class JuggRunSettingsComponentTest {
     ): JuggControlPanel {
         val controller = Mockito.mock(JuggControlPanelController::class.java)
         return JuggControlPanel(project, model, controller)
+    }
+
+    private fun assertRecentRunText(
+        terminalCategory: JuggEventCategory,
+        terminalStatus: JuggEventStatus,
+        detail: String? = null,
+        expectedResult: String,
+    ) {
+        val model = JuggControlPanelModel()
+        val panel = createPanel(model = model)
+        val started = JuggEvent(
+            taskId = "task",
+            source = JuggEventSource.IDE,
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = JuggEventStatus.STARTED,
+            level = JuggEventLevel.INFO,
+            title = "Compiling",
+            timestamp = 1_000L,
+            compileMode = JuggEvent.CompileMode.INCREMENTAL,
+        )
+        model.record(started)
+        model.record(started.copy(
+            category = terminalCategory,
+            phase = JuggEventPhase.COMPLETED,
+            status = terminalStatus,
+            level = if (terminalStatus == JuggEventStatus.FAILED) JuggEventLevel.WARN else JuggEventLevel.INFO,
+            title = expectedResult,
+            detail = detail,
+            timestamp = 2_500L,
+            durationMillis = 1_500L,
+            isTaskTerminal = true,
+        ))
+        javax.swing.SwingUtilities.invokeAndWait {}
+
+        val text = renderRecentRunText(panel)
+        assertTrue(text.contains("Incremental → $expectedResult"))
+        assertTrue(text.contains("1.5s"))
+    }
+
+    private fun renderRecentRunText(panel: JuggControlPanel): String {
+        val list = findNamedComponent<JBList<JuggControlPanelModel.RunSummary>>(panel, "overview.recentRunsList")!!
+        val value = list.model.getElementAt(0)
+        val renderer = list.cellRenderer.getListCellRendererComponent(list, value, 0, false, false)
+                as SimpleColoredComponent
+        return renderer.getCharSequence(false).toString()
     }
 
     private inline fun <reified T : Component> findNamedComponent(component: Component, name: String): T? {
