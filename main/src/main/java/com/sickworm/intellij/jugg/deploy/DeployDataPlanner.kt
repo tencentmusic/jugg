@@ -62,8 +62,11 @@ class DeployDataPlanner(
         val stagingDexOutputs = stagingOutputs.filter { it.type == CompileOutput.Type.Dex }
         if (stagingDexOutputs.isNotEmpty() && allDex.size > MAX_DEPLOYED_DEX_COUNT) {
             logger.info("Current dex count(${allDex.size}) exceeds threshold($MAX_DEPLOYED_DEX_COUNT), trigger dex merge.")
-            deployData = convertToMergedDexDeployData(deployData, stagingOutputs, notStagingDeployedFiles)
-            stateTracker.markMergedDexFilePaths(allDex)
+            val mergedDeployData = convertToMergedDexDeployData(deployData, stagingOutputs, notStagingDeployedFiles)
+            if (mergedDeployData != null) {
+                deployData = mergedDeployData
+                stateTracker.markMergedDexFilePaths(allDex)
+            }
         }
         if (isEnableCompatDeploy) {
             deployData = appendCompatDeployFiles(deployData, notStagingDeployedFiles)
@@ -105,13 +108,13 @@ class DeployDataPlanner(
         deployData: JuggDeployData,
         stagingFiles: List<CompileOutput>,
         notStagingDeployedFiles: List<CompileOutput>,
-    ): JuggDeployData {
+    ): JuggDeployData? {
         val mergeOutputDir = File(pathManager.tmpDir, "deploy_merged_dex")
         val deployedDexOutputs = notStagingDeployedFiles.filter { it.type == CompileOutput.Type.Dex }
         val mergedOutputs = mergeDex(stagingFiles + deployedDexOutputs, mergeOutputDir)
         if (mergedOutputs == null) {
             logger.warn("Dex merge failed, continue with original dex outputs.")
-            return deployData
+            return null
         }
 
         val mergedDexDeployItems = mergedOutputs
@@ -119,7 +122,7 @@ class DeployDataPlanner(
             .map { it.toDeployItem() }
         if (mergedDexDeployItems.isEmpty()) {
             logger.warn("Dex merge finished but merged dex is empty, continue with original deploy data.")
-            return deployData
+            return null
         }
 
         val isHasDuplicate = deployData.updateApkFiles.any { mergedDex ->
@@ -129,7 +132,7 @@ class DeployDataPlanner(
             logger.debug("Dex merge failed, mergedDexDeployItems: ${mergedDexDeployItems.map { it.name }}, " +
                     "deployData.updateApkFiles: ${deployData.updateApkFiles.map { it.name }}")
             logger.warn("Dex merge failed, updateApkFiles has duplicate entry. Continue with original dex outputs.")
-            return deployData
+            return null
         }
         val stagingDexOutputs = stagingFiles.filter { it.type == CompileOutput.Type.Dex }
         logger.info("Dex merge success, staging dex: ${stagingDexOutputs.size}, merged dex: ${mergedDexDeployItems.size}")

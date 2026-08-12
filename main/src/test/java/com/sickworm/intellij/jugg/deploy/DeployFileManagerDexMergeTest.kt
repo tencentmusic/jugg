@@ -121,6 +121,42 @@ class DeployFileManagerDexMergeTest {
     }
 
     @Test
+    fun testFailedDexMergeShouldKeepHistoryForReinstallRecovery() {
+        val testRoot = Files.createTempDirectory("deploy-dex-merge-failure-recovery-test").toFile()
+        val pathManager = JuggPathManager(testRoot)
+        Mockito.mockConstruction(DexFileMerger::class.java) { mock, _ ->
+            Mockito.doThrow(IllegalStateException("merge failed"))
+                .`when`(mock).merge(
+                    ArgumentMatchers.anyList<File>() ?: emptyList(),
+                    ArgumentMatchers.any(File::class.java) ?: File(""),
+                )
+        }.use {
+            val deployFileManager = DeployFileManager(
+                pathManager = pathManager,
+                taskRunnerManager = taskRunnerManager,
+                logger = logger,
+            )
+
+            deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
+            val historyDex = createDexOutputs("his", File(testRoot, "history"), 500)
+            setDeployedFiles(deployFileManager, historyDex)
+
+            val stagingDex = createDexOutputs(
+                "sta",
+                File(testRoot, "staging"),
+                DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT - historyDex.size + 1,
+            )
+            deployFileManager.addStagingFiles(stagingDex)
+
+            val deployData = deployFileManager.getDeployData()
+            deployFileManager.commit(deployData)
+            deployFileManager.resetAfterReinstall()
+
+            assertEquals(historyDex.size + stagingDex.size, deployFileManager.getStagingFiles().size)
+        }
+    }
+
+    @Test
     fun testMergedDexKeepsUnionTargetApkPaths() {
         val testRoot = Files.createTempDirectory("deploy-dex-merge-test-3").toFile()
         Mockito.mockConstruction(DexFileMerger::class.java) { mock, _ ->
