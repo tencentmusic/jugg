@@ -35,16 +35,20 @@ import java.util.concurrent.atomic.AtomicBoolean
 class JuggServer(
     private val projectName: String,
     private val pathManager: JuggPathManager,
-    private val coroutineScope: CoroutineScope,
+    coroutineScope: CoroutineScope,
     private val runtimeInfo: RuntimeInfo,
     loggerArg: Logger,
     private val eventLocalStore: JuggEventLocalStore = JuggEventLocalStore(
         JuggGlobalPathManager.actionDbFile,
         loggerArg.getInstance("JuggEventLocalStore"),
     ),
-): CoroutineScope by coroutineScope {
+): CoroutineScope {
 
     private var logger: Logger = loggerArg.getInstance("JuggServer")
+
+    override val coroutineContext = coroutineScope.coroutineContext +
+        SupervisorJob(coroutineScope.coroutineContext[Job]) +
+        CoroutineExceptionHandler { _, throwable -> logger.warn("server task failed", throwable) }
 
     private val juggServerChooser = JuggServerChooser(logger)
     private val serverUrl: String? get() = JuggSettings.serverUrl
