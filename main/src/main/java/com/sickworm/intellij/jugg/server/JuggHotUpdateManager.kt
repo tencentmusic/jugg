@@ -179,9 +179,9 @@ class JuggHotUpdateManager(
         }
     }
 
-    fun cleanupExpiredJars(referencedJarNames: Set<String>, nowMillis: Long = System.currentTimeMillis()): List<File> {
+    fun cleanupExpiredJars(nowMillis: Long = System.currentTimeMillis()): List<File> {
         return withGlobalResourceLock("Cleanup hot update jars", globalRootDir) {
-            val allReferenced = referencedJarNames.toMutableSet()
+            val allReferenced = mutableSetOf<String>()
             allReferenced.addAll(resolveLoadManifest(loadBaseBuildTime)?.jarFileNames.orEmpty())
             allReferenced.addAll(resolveStandaloneLoadManifest()?.jarFileNames.orEmpty())
             readHotUpdateData()?.let { data ->

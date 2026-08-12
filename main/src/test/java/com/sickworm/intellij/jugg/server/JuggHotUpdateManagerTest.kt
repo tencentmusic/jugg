@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.server
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
 import com.sickworm.intellij.jugg.project.runtime.StandaloneHotUpdateManifest
 import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
@@ -375,8 +376,9 @@ class JuggHotUpdateManagerTest {
             1, 1, 1, "4.0", "build", "stable", "build", "external",
             listOf(standaloneJar.name), mapOf(standaloneJar.name to "sha"),
         )))
+        manager.publishLoadManifest(HotUpdateLoadManifest("standalone-build-1", listOf(activeJar.name)))
 
-        manager.cleanupExpiredJars(setOf(activeJar.name), nowMillis)
+        manager.cleanupExpiredJars(nowMillis)
 
         assertTrue(activeJar.exists())
         assertFalse(expiredJar.exists())

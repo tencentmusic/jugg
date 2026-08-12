@@ -4,8 +4,7 @@ import com.google.gson.Gson
 import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
 import org.junit.Test
 import java.nio.file.Files
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import kotlin.test.assertContentEquals
 
 class JuggHotUpdateBootstrapTest {
 
@@ -16,8 +15,11 @@ class JuggHotUpdateBootstrapTest {
         val manifest = HotUpdateLoadManifest("embedded-2", listOf("main.jar", "idea.jar"))
         manifestFile.writeText(Gson().toJson(manifest))
 
-        assertEquals(manifest, JuggHotUpdateBootstrap.resolveLoadManifest(manifestFile, "embedded-2"))
-        assertNull(JuggHotUpdateBootstrap.resolveLoadManifest(manifestFile, "embedded-1"))
+        assertContentEquals(
+            manifest.jarFileNames.toTypedArray(),
+            JuggHotUpdateBootstrap.resolveActiveJarFileNames(manifestFile, "embedded-2"),
+        )
+        assertContentEquals(emptyArray(), JuggHotUpdateBootstrap.resolveActiveJarFileNames(manifestFile, "embedded-1"))
     }
 
     @Test
@@ -25,6 +27,9 @@ class JuggHotUpdateBootstrapTest {
         val directory = Files.createTempDirectory("jugg-hot-update-legacy").toFile()
         directory.resolve("load_list.txt").writeText("main.jar")
 
-        assertNull(JuggHotUpdateBootstrap.resolveLoadManifest(directory.resolve("load_manifest.json"), "embedded-1"))
+        assertContentEquals(
+            emptyArray(),
+            JuggHotUpdateBootstrap.resolveActiveJarFileNames(directory.resolve("load_manifest.json"), "embedded-1"),
+        )
     }
 }

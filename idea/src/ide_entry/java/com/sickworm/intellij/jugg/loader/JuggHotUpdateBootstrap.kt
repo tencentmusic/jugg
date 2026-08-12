@@ -12,13 +12,16 @@ object JuggHotUpdateBootstrap {
     val storageDir: File = File(hotUpdateDir, "jars")
     private val loadManifestFile = File(hotUpdateDir, "load_manifest.json")
 
-    internal val activeLoadManifest: HotUpdateLoadManifest?
-        get() = resolveLoadManifest(loadManifestFile, currentEmbeddedBuildTime)
+    internal val activeJarFileNames: Array<String>
+        get() = resolveActiveJarFileNames(loadManifestFile, currentEmbeddedBuildTime)
 
-    internal fun resolveLoadManifest(manifestFile: File, embeddedBuildTime: String): HotUpdateLoadManifest? {
-        if (embeddedBuildTime.isEmpty() || !manifestFile.isFile) return null
+    internal fun resolveActiveJarFileNames(manifestFile: File, embeddedBuildTime: String): Array<String> {
+        if (embeddedBuildTime.isEmpty() || !manifestFile.isFile) return emptyArray()
         return runCatching { Gson().fromJson(manifestFile.readText(), HotUpdateLoadManifest::class.java) }.getOrNull()
             ?.takeIf { it.baseEmbeddedBuildTime == embeddedBuildTime && it.jarFileNames.isNotEmpty() }
+            ?.jarFileNames
+            ?.toTypedArray()
+            ?: emptyArray()
     }
 
     internal val currentEmbeddedBuildTime: String by lazy {

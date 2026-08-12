@@ -46,11 +46,7 @@ class IdeaHotUpdateCoordinator(
 
     private fun processHotUpdateNotification(project: Project) {
         notifyHotUpdateIfNeeded(project)
-        val referencedJarNames = JuggHotUpdateBootstrap.activeLoadManifest
-            ?.jarFileNames
-            ?.toSet()
-            .orEmpty()
-        juggHotUpdateManager.cleanupExpiredJars(referencedJarNames).forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
+        juggHotUpdateManager.cleanupExpiredJars().forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
     }
 
     private fun publishEmbeddedIfNeeded() {
