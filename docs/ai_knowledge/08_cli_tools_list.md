@@ -163,6 +163,8 @@ jugg compile
 
 无子命令参数。终态输出 `status`、`message`、`full log`、`detail` 等字段。
 
+没有待编译文件时，终态 message 会显示 `compile executed successfully. No pending file changes.`。该状态表示本轮没有生成新的编译产物，命令仍然成功且不会执行部署；直接完成和异步轮询完成时输出一致。
+
 ### `deploy`
 
 ```text
@@ -175,7 +177,7 @@ jugg deploy [--always-restart-app <true|false>]
 
 终态输出 `isCompileSuccess`、`isDeploySuccess` 与日志路径。判断部署是否成功时必须同时看 deploy 结果，不要只看 compile 是否成功。
 
-没有待部署文件时，终态 message 会明确说明当前 Jugg 检测到的修改均已部署，并展示本次 IDE 会话内最后一次包含文件变更的成功部署时间（绝对时间 + 相对时间）和项目相对路径；文件最多展示 20 条。该信息只保存在当前 IDE 会话，IDE 重启后无记录时会明确提示详情不可用。
+没有待部署文件时，终态 message 会明确说明当前 Jugg 检测到的修改均已部署，并展示本次 IDE 会话内最后一次包含文件变更的成功部署时间（绝对时间 + 相对时间）和项目相对路径；文件最多展示 20 条。该信息只保存在当前 IDE 会话，IDE 重启后无记录时会明确提示详情不可用。直接完成和异步轮询完成时输出一致。
 
 CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 compile/deploy 任务终态，不额外等待 App ready。
 

@@ -498,7 +498,7 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
-    fun testSuccessMessageWithoutCompiledFiles() {
+    fun testCompileWithoutChangedFilesShowsNoPendingMessage() {
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
                 isSuccess = true,
@@ -518,7 +518,89 @@ class CompileAndDeployMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertEquals("compile executed successfully.  Compiled files (total: 0)", result.message)
+        Assert.assertEquals("compile executed successfully. No pending file changes.", result.message)
+    }
+
+    @Test
+    fun testAsyncCompileWithoutChangedFilesKeepsNoPendingMessage() {
+        CompileJobManager.softTimeoutMillisOverrideForTest = 10L
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                Thread.sleep(80L)
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = false,
+                        isCancel = false,
+                    ),
+                )
+            },
+        )
+
+        val triggerResult = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.COMPILE,
+            isSkipDeploy = true,
+        )
+        @Suppress("UNCHECKED_CAST")
+        val jobId = (triggerResult.data as Map<String, Any>)["jobId"] as String
+        waitUntilTerminal(jobId)
+
+        val statusResult = GetCompileStatusMcpToolAction().execute(
+            mapOf("projectDir" to "/fake/project", "jobId" to jobId),
+            runtime,
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val statusData = statusResult.data as Map<String, Any>
+        Assert.assertEquals("compile executed successfully. No pending file changes.", statusData["message"])
+    }
+
+    @Test
+    fun testAsyncDeployWithoutChangedFilesKeepsNoPendingMessage() {
+        CompileJobManager.softTimeoutMillisOverrideForTest = 10L
+        val projectDir = "/fake/project/async-no-pending-deploy"
+        LastChangedDeployRegistry.INSTANCE.record(
+            projectDir = projectDir,
+            files = listOf(File("$projectDir/app/src/main/java/Foo.kt")),
+        )
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                Thread.sleep(80L)
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = true,
+                        isCancel = false,
+                    ),
+                )
+            },
+            projectDir = projectDir,
+        )
+
+        val triggerResult = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.DEPLOY,
+        )
+        @Suppress("UNCHECKED_CAST")
+        val jobId = (triggerResult.data as Map<String, Any>)["jobId"] as String
+        waitUntilTerminal(jobId)
+
+        val statusResult = GetCompileStatusMcpToolAction().execute(
+            mapOf("projectDir" to projectDir, "jobId" to jobId),
+            runtime,
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val statusData = statusResult.data as Map<String, Any>
+        val message = statusData["message"] as String
+        Assert.assertTrue(message.startsWith("deploy executed successfully. No pending file changes."))
+        Assert.assertTrue(message.contains("Last successful deployment with file changes:"))
+        Assert.assertTrue(message.contains("files (1): Foo.kt"))
     }
 
     @Test
