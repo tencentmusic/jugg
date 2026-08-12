@@ -48,23 +48,23 @@
 - 完成开发后必须执行已选定的定向测试或替代验证；禁止无 `--tests` 过滤的全量 `:main:test` / `:idea:test`。编译验证可使用 `./gradlew :idea:compileKotlin`。
 
 ## commit 规范
-_根据以下规则编写提交信息：
+
+根据以下规则编写提交信息：
+
 1. 必须用英文
-2. 根据修改内容使用前缀[feature]/[optimize]/[bugfix]/[refactor]/[docs]/[other]。[optimize] 不适用于工程构建优化，仅适用代码性能优化和交互体验优化；如果仅修改单元测试，一律用 [test]
+2. 前缀按用户可观察行为的性质判定，不得因为任务被描述为“修复”就默认使用 `[bugfix]`：
+   - `[bugfix]`：仅用于修复 Jugg 已有能力的漏洞、异常行为或与既定预期不符的结果
+   - `[feature]`：用于用户可感知的新能力拓展
+   - `[optimize]`：用于既有行为上用户可感知的改善，包括日志与终端输出的可读性、重试策略、代码性能和耗时优化。不适用于工程构建优化
+   - `[refactor]` / `[docs]` / `[other]`：分别用于无用户行为变化的重构、纯文档修改和其他无法归类的改动
+   - `[test]`：仅修改单元测试时使用
 3. 不包含任何代码块
 4. 提交标题在前缀之后以小写字母开头，结尾不用句号
 5. 每次完成任务后，将改动直接 git commit，但不要 commit 非本次改动的文件
-6. 提交标题必须优先描述解决的用户可观察问题或行为结果，不得只描述内部实现动作；没有直接终端用户时，从调用方、维护者、Agent 或运维人员可观察的影响描述
-7. 标题无法充分说明修改原因和方式时必须添加正文；标题与正文之间空一行，正文说明问题原因和解决方式，必要时补充关键实现约束
-8. 正文默认使用自然语言，不添加 `Solution:` 等标签；仅当正文较长且分段能显著提升可读性时，才使用 `Problem:`、`Cause:`、`Solution:` 等小标题
-9. 示例：
-   ```text
-   [bugfix] prevent agents from missing changes in large file sets
-
-   Jugg status returned only the first 20 modified file paths, so agents
-   could miss the remaining changes. Request refreshed full status in hooks
-   to expose every modified file.
-   ```
+6. 提交标题优先描述用户场景、被解决的问题或可观察结果，不得只描述内部状态、实现动作或解决方案；没有直接用户时，从调用方、维护者、Agent 或运维人员可观察的影响描述
+7. `[bugfix]` 标题必须体现异常场景和可观察失败；内部根因和解决方式放在正文中
+8. 标题无法充分说明修改原因和方式时必须添加正文；标题与正文之间空一行，正文说明问题原因和解决方式，必要时补充关键实现约束
+9. 正文默认使用自然语言，不添加 `Solution:` 等标签；仅当正文较长且分段能显著提升可读性时，才使用 `Problem:`、`Cause:`、`Solution:` 等小标题
 
 ## 问题排查流程
 
