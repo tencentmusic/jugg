@@ -273,6 +273,23 @@ class DexTest {
         )
     }
 
+    @Test
+    fun dexSubclassKeepsInheritedDefaultInterfaceOverride() {
+        dexAndCheckNew(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.ParentOverrideChildClass",
+            listOf(
+                "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildClass.dex",
+            ),
+            dependencies = listOf(
+                getClassFile("com.sickworm.jugg.demo.testcase.defaultinterface.ParentOverrideDefaultInterface"),
+                getClassFile("com.sickworm.jugg.demo.testcase.defaultinterface.ParentOverrideChildInterface"),
+                getClassFile("com.sickworm.jugg.demo.testcase.defaultinterface.ParentOverrideBaseClass"),
+                getClassFile("com.sickworm.jugg.demo.testcase.defaultinterface.ParentOverrideRootClass"),
+            ),
+            isHasDefaultMethodInvocation = false,
+        )
+    }
+
     private fun dexAndCheckNew(className: String, expect: List<String>,
                                dependencies: List<CompileFile> = emptyList(),
                                isHasDefaultMethodInvocation: Boolean? = null,
@@ -304,8 +321,9 @@ class DexTest {
 
     private fun getClassFile(className: String): CompileFile {
         val relativePath = className.classNameToPath
-        val baseJavaDir = assetsAndroidDir.resolve("app/build/intermediates/javac/debug/classes")
-        val baseKotlinDir = assetsAndroidDir.resolve("app/build/tmp/kotlin-classes/debug")
+        val buildPathInfo = AssembleAndroidProjectOnce.getProjectInfo().modules.getValue("app").buildPathInfo
+        val baseJavaDir = buildPathInfo.javaClassPath
+        val baseKotlinDir = buildPathInfo.kotlinClassPath
         if (File(baseJavaDir, relativePath).exists()) {
             val file = File(baseJavaDir, relativePath)
             return CompileFile(

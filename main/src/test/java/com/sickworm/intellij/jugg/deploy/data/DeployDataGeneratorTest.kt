@@ -186,6 +186,12 @@ class DeployDataGeneratorTest {
             "com.sickworm.jugg.demo.testcase.defaultinterface.InvokerClass2",
             "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterfaceLambda;",
         )
+
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.ParentOverrideChildClass",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildInterface;",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideDefaultInterface;",
+        )
     }
 
     @Test
@@ -532,8 +538,9 @@ class DeployDataGeneratorTest {
 
     private fun getClassFile(className: String): CompileFile {
         val relativePath = className.classNameToPath
-        val baseJavaDir = assetsAndroidDir.resolve("app/build/intermediates/javac/debug/classes")
-        val baseKotlinDir = assetsAndroidDir.resolve("app/build/tmp/kotlin-classes/debug")
+        val buildPathInfo = AssembleAndroidProjectOnce.getProjectInfo().modules.getValue("app").buildPathInfo
+        val baseJavaDir = buildPathInfo.javaClassPath
+        val baseKotlinDir = buildPathInfo.kotlinClassPath
         if (File(baseJavaDir, relativePath).exists()) {
             val file = File(baseJavaDir, relativePath)
             return CompileFile(

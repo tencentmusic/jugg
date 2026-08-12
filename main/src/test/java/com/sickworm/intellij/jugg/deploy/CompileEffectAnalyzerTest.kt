@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
@@ -10,7 +11,11 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
+import com.sickworm.intellij.jugg.mock.TestGlobal
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
@@ -21,6 +26,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CompileEffectAnalyzerTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
 
     @Test
     fun `isBootClasspathClass returns true for java stdlib classes`() {
@@ -170,6 +178,71 @@ class CompileEffectAnalyzerTest {
             isNeedCheckRecompileMinifyRemovedClass = eq(false),
             isCompilingEffectedSourceFiles = eq(true),
             constRefChangedSourcePaths = eq(emptyList()),
+        )
+    }
+
+    @Test
+    fun `getDesugarInfo includes superclass chain in d8 classpath`() {
+        val projectInfo = AssembleAndroidProjectOnce.getProjectInfo()
+        val appModule = projectInfo.modules.getValue("app")
+        val javaClassPath = appModule.buildPathInfo.javaClassPath
+        val childClass = File(
+            javaClassPath,
+            "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildClass.class",
+        )
+        val deployDataGenerator = mock<DeployDataGenerator>()
+        whenever(deployDataGenerator.getDesugarInfo(any(), any())).thenReturn(
+            DesugarInfo(
+                allInterfacesWithDefaultMethod = listOf(
+                    "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildInterface;",
+                    "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideDefaultInterface;",
+                ),
+                coreLibraryRewriteClassMap = emptyMap(),
+                isNeedRewriteCoreLibrary = false,
+                desugaredLibraryConfiguration = null,
+            )
+        )
+        val outputDir = temporaryFolder.newFolder("desugar-classpath")
+        val analyzer = CompileEffectAnalyzer(
+            pathManager = JuggPathManager(TestGlobal.projectRootDir),
+            deployDataGenerator = deployDataGenerator,
+            sourceFileManager = mock(),
+            logger = mock(),
+        )
+
+        analyzer.getDesugarInfo(
+            compileFiles = listOf(
+                CompileFile(CompileFile.Type.Class, childClass, javaClassPath, appModule),
+            ),
+            moduleInfo = appModule,
+            moduleInfos = projectInfo.modules,
+            toDir = outputDir,
+            apkFile = TestGlobal.apkFile,
+        )
+
+        assertTrue(
+            File(
+                outputDir,
+                "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildInterface.class",
+            ).exists()
+        )
+        assertTrue(
+            File(
+                outputDir,
+                "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideDefaultInterface.class",
+            ).exists()
+        )
+        assertTrue(
+            File(
+                outputDir,
+                "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideBaseClass.class",
+            ).exists()
+        )
+        assertTrue(
+            File(
+                outputDir,
+                "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideRootClass.class",
+            ).exists()
         )
     }
 
