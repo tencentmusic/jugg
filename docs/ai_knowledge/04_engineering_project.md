@@ -104,7 +104,7 @@ androidTest synthetic module 命名为 `${module.name}.androidTest`，`buildVari
 
 IDEA 使用 `IdeaProjectModelSource`，保持“IDE model + Gradle model”；standalone/无 IDE 场景使用 `GradleProjectModelSource`，直接合并 root 与 include-build Gradle 快照，不创建空壳 IDE project info。`BuildTarget.APP` 会过滤 Gradle-only androidTest module，`BuildTarget.ANDROID_TEST` 才纳入。
 
-`CompileContextManager` 持有 source model，并在内存中应用 module custom classpath 得到 effective model。当前没有依赖跨 Runtime model identity 的生产消费者，因此不持久化额外 fingerprint/generation 状态；若后续 runtime cache 失效策略需要该能力，应由具体消费者和恢复协议共同引入。
+`CompileContextManager` 持有 source model，并在内存中应用 module custom classpath 得到 effective model。当前没有依赖跨 Runtime model identity 的生产消费者，因此不持久化额外 fingerprint/generation 状态；IDEA/standalone 在 Runtime owner 切换后恢复 Compile Context 时必须先从 Gradle snapshot 重载 source model，避免继续使用另一 Runtime 全量构建前的进程内模块与依赖数据。
 
 `CliRunConfigurationGenerator` 同样消费 effective Gradle project info：最近成功配置优先，其次选择名为 `app` 的 application module，再按 module path/name 稳定排序；variant 取 `buildVariant`，缺失时使用 `debug`。默认 UUID 由 module path + variant 确定性生成，`Debug` / `Release` flavor variant 的 APK 目录按 `<flavor>/<buildType>` 推断。Gradle 成功后会用实际 compile options 回写当前配置，避免长期依赖默认推断。
 

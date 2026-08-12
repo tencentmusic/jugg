@@ -230,9 +230,9 @@ class StandaloneProjectServices(
         initCompile(contextInfo, emptyList(), startCompileTime)
     }
 
-    private fun recoverDeployContext(): Boolean {
+    private fun recoverDeployContext(reloadProjectModel: Boolean = false): Boolean {
         val recoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = true) ?: return false
-        initCompile(recoverInfo.compileContextInfo, recoverInfo.deployedFiles, null)
+        initCompile(recoverInfo.compileContextInfo, recoverInfo.deployedFiles, null, reloadProjectModel)
         deployTargetManagerInside.setApks(recoverInfo.compileContextInfo.apkInfos)
         fileChangeManager.processFileChanges(recoverInfo.changedFiles, emptyList(), FileChangeSource.RECOVER)
         return true
@@ -243,7 +243,7 @@ class StandaloneProjectServices(
                 change.currentOwner.runtimeType)
         runningTaskStatusManager.isProjectSwitchedThisRun = true
         deploymentService.invalidateMemoryCache()
-        if (!recoverDeployContext()) {
+        if (!recoverDeployContext(reloadProjectModel = true)) {
             compilerHelper.juggCompiler = null
             deployTargetManagerInside.setApks(emptyList())
             deployFileManager.init(emptyList(), emptyList(), null)
@@ -256,6 +256,7 @@ class StandaloneProjectServices(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<com.sickworm.intellij.jugg.compiler.CompileOutput>,
         startCompileTime: Long?,
+        reloadProjectModel: Boolean = false,
     ) {
         deployStateManager.isBuildFileChanged = false
         val apkInfos = if (projectCustomConfigManager.hasEmbeddedApks()) {
@@ -265,7 +266,7 @@ class StandaloneProjectServices(
         } else {
             compileContextInfo.apkInfos
         }
-        compileContextManager.setCompileContext(compileContextInfo)
+        compileContextManager.setCompileContext(compileContextInfo, reloadProjectModel)
         deployTargetManagerInside.setApks(apkInfos)
         deployFileManager.init(apkInfos, deployedFiles, startCompileTime)
         dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)

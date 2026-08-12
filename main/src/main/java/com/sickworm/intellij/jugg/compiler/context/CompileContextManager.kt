@@ -49,9 +49,15 @@ class CompileContextManager(
     private var compileContextInfo: CompileContextInfo? = null
 
     /** Updates the context with authoritative full-build paths and APK metadata. */
-    fun setCompileContext(compileContextInfo: CompileContextInfo) {
+    fun setCompileContext(
+        compileContextInfo: CompileContextInfo,
+        reloadProjectModel: Boolean = false,
+    ) {
         logger.debug("setCompileContext")
         ensureInitProjectInfo()
+        if (reloadProjectModel) {
+            loadProjectInfo(ProjectModelLoadReason.GRADLE_FETCH)
+        }
         this.compileContextInfo = compileContextInfo
         val projectInfo = getProjectInfo()
         compileContextInside.update(

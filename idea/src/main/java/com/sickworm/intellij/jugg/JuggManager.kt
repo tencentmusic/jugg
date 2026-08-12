@@ -344,7 +344,7 @@ class JuggManager @TestOnly constructor(
         recoverDeployContextFromDisk()
     }
 
-    private fun recoverDeployContextFromDisk(): Boolean {
+    private fun recoverDeployContextFromDisk(reloadProjectModel: Boolean = false): Boolean {
         logger.debug("Start recover deploy context")
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = true)
@@ -357,8 +357,11 @@ class JuggManager @TestOnly constructor(
         }
 
         // step 1: recover compile context
-        initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles,
-            startCompileTime = null
+        initCompile(
+            deployContextRecoverInfo.compileContextInfo,
+            deployContextRecoverInfo.deployedFiles,
+            startCompileTime = null,
+            reloadProjectModel = reloadProjectModel,
         )
         // step 2: recover deploy files
         logger.debug("Start recover deploy history...")
@@ -376,7 +379,7 @@ class JuggManager @TestOnly constructor(
                 change.currentOwner.runtimeType)
         juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
         deploymentService.invalidateMemoryCache()
-        if (!recoverDeployContextFromDisk()) {
+        if (!recoverDeployContextFromDisk(reloadProjectModel = true)) {
             juggCompilerHelper.juggCompiler = null
             deployTargetManager.setApks(emptyList())
             deployFileManager.init(emptyList(), emptyList(), null)
@@ -716,6 +719,7 @@ class JuggManager @TestOnly constructor(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<CompileOutput>,
         startCompileTime: Long?,
+        reloadProjectModel: Boolean = false,
     ) {
         logger.info("Init compile...")
 
@@ -731,7 +735,7 @@ class JuggManager @TestOnly constructor(
         }
 
         val costTime = measureTimeMillis {
-            compileContextManager.setCompileContext(compileContextInfo)
+            compileContextManager.setCompileContext(compileContextInfo, reloadProjectModel)
             deployFileManager.init(finalApkInfos, deployedFiles, startCompileTime)
             dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)
             rebindCompileContext()

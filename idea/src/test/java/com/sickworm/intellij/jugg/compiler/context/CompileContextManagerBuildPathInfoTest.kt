@@ -102,6 +102,29 @@ class CompileContextManagerBuildPathInfoTest {
     }
 
     @Test
+    fun setCompileContext_reloadProjectModel_readsLatestRuntimeSnapshot() {
+        TestGlobal.init()
+        val projectDir = temporaryFolder.newFolder("runtime-handoff")
+        val appDir = projectDir.resolve("app").also { it.mkdirs() }
+        val initialModule = createModule(projectDir, appDir)
+        val latestModule = initialModule.copy(sourceDirs = listOf(File(appDir, "src/latest/java")))
+        val source = mock<IProjectModelSource>()
+        whenever(source.load(eq(ProjectModelLoadReason.INITIALIZE), any<BuildTarget>())).thenReturn(
+            ProjectModelResult(JuggProjectInfo(mapOf(initialModule.name to initialModule), agpR8Classpath = null), true)
+        )
+        whenever(source.load(eq(ProjectModelLoadReason.GRADLE_FETCH), any<BuildTarget>())).thenReturn(
+            ProjectModelResult(JuggProjectInfo(mapOf(latestModule.name to latestModule), agpR8Classpath = null), true)
+        )
+        val manager = createManager(JuggPathManager(projectDir), source)
+        val compileContextInfo = CompileContextInfo(emptyList(), emptyMap())
+        manager.setCompileContext(compileContextInfo)
+
+        manager.setCompileContext(compileContextInfo, reloadProjectModel = true)
+
+        assertEquals(latestModule.sourceDirs, manager.compileContext.modules.getValue("app").sourceDirs)
+    }
+
+    @Test
     fun compileContext_readsEnvironmentWhenContextIsCreated() {
         TestGlobal.init()
         val projectDir = temporaryFolder.newFolder("environment")
