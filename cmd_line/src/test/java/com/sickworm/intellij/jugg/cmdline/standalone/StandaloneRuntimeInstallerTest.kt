@@ -34,6 +34,7 @@ class StandaloneRuntimeInstallerTest {
         assertTrue(root.resolve("bin/jugg-standalone.cmd").readText().contains("where java"))
         assertEquals(POSIX_PYTHON_LAUNCHER, root.resolve("home/bin/jugg").readText())
         assertEquals(WINDOWS_PYTHON_LAUNCHER, root.resolve("home/bin/jugg.cmd").readText())
+        assertTrue(root.resolve("home/bin/jugg.py").canExecute())
     }
 
     @Test
@@ -69,7 +70,7 @@ class StandaloneRuntimeInstallerTest {
     }
 
     @Test
-    fun `automatic install does not change channel or downgrade build identity`() {
+    fun `install can downgrade runtime and change channel`() {
         val root = Files.createTempDirectory("jugg-standalone-takeover").toFile()
         val installer = StandaloneRuntimeInstaller(root.resolve("home"), root.resolve("bin"))
         val current = bundle(root.resolve("current"), "build-2", "current")
@@ -79,11 +80,12 @@ class StandaloneRuntimeInstallerTest {
             StandaloneBundle(it.rootDir, it.manifestFile, it.manifest.copy(releaseChannel = "beta"))
         }
 
-        assertFailsWith<IllegalStateException> { installer.installValidated(older) }
-        assertFailsWith<IllegalStateException> { installer.installValidated(beta) }
-        installer.installValidated(older, allowDowngrade = true)
-
+        installer.installValidated(older)
         assertEquals("build-1", installer.readActiveManifest()?.releaseBuildId)
+        installer.installValidated(beta)
+
+        assertEquals("build-3", installer.readActiveManifest()?.releaseBuildId)
+        assertEquals("beta", installer.readActiveManifest()?.releaseChannel)
     }
 
     private fun bundle(dir: File, buildId: String, content: String): StandaloneBundle {

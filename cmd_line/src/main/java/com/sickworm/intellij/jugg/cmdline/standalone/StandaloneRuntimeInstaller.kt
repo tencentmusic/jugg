@@ -48,27 +48,16 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
     private val releasesDir = juggRootDir.resolve("standalone/releases")
     private val globalLockFile = juggRootDir.resolve("locks/global.lock")
 
-    fun install(bundleDir: File, managedBy: String = "external", allowDowngrade: Boolean = false) {
+    fun install(bundleDir: File, managedBy: String = "external") {
         validateEnvironment()
         val bundle = StandaloneBundle.read(bundleDir)
         val manifest = bundle.manifest.copy(managedBy = managedBy)
-        installValidated(StandaloneBundle(bundle.rootDir, bundle.manifestFile, manifest), allowDowngrade)
+        installValidated(StandaloneBundle(bundle.rootDir, bundle.manifestFile, manifest))
     }
 
-    internal fun installValidated(bundle: StandaloneBundle, allowDowngrade: Boolean = false) {
+    internal fun installValidated(bundle: StandaloneBundle) {
         withGlobalLock {
             validateBundle(bundle)
-            val current = readActiveManifest()
-            if (!shouldActivate(current, bundle.manifest, allowDowngrade)) {
-                check(bundle.manifest.managedBy == "idea" && current != null &&
-                        current.toolingReleaseBuildId == bundle.manifest.toolingReleaseBuildId) {
-                    "Standalone runtime ${bundle.manifest.releaseBuildId} would downgrade or change the active channel"
-                }
-                publishTooling(bundle)
-                installPythonCli(bundle.rootDir.resolve("cli"))
-                installLaunchers(current)
-                return@withGlobalLock
-            }
             storageDir.mkdirs()
             bundle.manifest.jarFileNames.forEach { jarName ->
                 publishImmutable(bundle.rootDir.resolve("jars/$jarName"), storageDir.resolve(jarName),
@@ -87,28 +76,11 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
 
     fun readActiveManifest(): StandaloneRuntimeManifest? = readManifest(activeManifestFile)
 
-    internal fun shouldActivate(current: StandaloneRuntimeManifest?, candidate: StandaloneRuntimeManifest, allowDowngrade: Boolean): Boolean {
-        if (current == null || allowDowngrade || current.releaseBuildId == candidate.releaseBuildId) return true
-        if (current.releaseChannel != candidate.releaseChannel) return false
-        val versionOrder = compareProductVersions(candidate.targetVersion, current.targetVersion)
-        return versionOrder > 0 || versionOrder == 0 && candidate.releaseBuildId > current.releaseBuildId
-    }
-
     private fun validateEnvironment() {
         check(Runtime.version().feature() >= 11 && ToolProvider.getSystemJavaCompiler() != null) {
             "A complete JDK 11+ is required to install Jugg standalone"
         }
         PythonRuntimeResolver.requireCommand()
-    }
-
-    private fun compareProductVersions(first: String, second: String): Int {
-        val firstParts = first.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
-        val secondParts = second.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
-        repeat(maxOf(firstParts.size, secondParts.size)) { index ->
-            val result = (firstParts.getOrNull(index) ?: 0).compareTo(secondParts.getOrNull(index) ?: 0)
-            if (result != 0) return result
-        }
-        return 0
     }
 
     private fun validateBundle(bundle: StandaloneBundle) {
@@ -212,6 +184,10 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
             cliDir.deleteRecursively()
             moveAtomically(stageDir, cliDir)
             cliDir.resolve("jugg").setExecutable(true, false)
+            val pythonCli = cliDir.resolve("jugg.py")
+            check(pythonCli.setExecutable(true, false) || pythonCli.canExecute()) {
+                "Failed to make standalone Python CLI executable: $pythonCli"
+            }
             cliDir.resolve("jugg.cmd").apply {
                 writeText(readText().replace("\r\n", "\n").replace("\n", "\r\n"), Charsets.US_ASCII)
             }

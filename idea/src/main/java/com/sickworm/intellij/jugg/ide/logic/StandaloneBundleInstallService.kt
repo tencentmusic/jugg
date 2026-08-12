@@ -25,8 +25,10 @@ object StandaloneBundleInstallService {
             } else {
                 listOf("sh", stageDir.resolve("install.sh").absolutePath, "--managed-by=idea")
             }
-            val process = ProcessBuilder(command).inheritIO().start()
-            check(process.waitFor() == 0) { "Standalone Bundle installer exited with ${process.exitValue()}" }
+            val process = ProcessBuilder(command).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+            check(exitCode == 0) { installerFailureMessage(exitCode, output) }
         } finally {
             stageDir.deleteRecursively()
         }
@@ -45,6 +47,15 @@ object StandaloneBundleInstallService {
                 }
                 zip.closeEntry()
             }
+        }
+    }
+
+    internal fun installerFailureMessage(exitCode: Int, output: String): String {
+        val details = output.trim()
+        return if (details.isEmpty()) {
+            "Standalone Bundle installer exited with $exitCode"
+        } else {
+            "Standalone Bundle installer exited with $exitCode:\n$details"
         }
     }
 }

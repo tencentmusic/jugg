@@ -256,37 +256,46 @@ class InstallJuggSkillsDialog(
                 return
             }
             taskRunnerManager.runTaskSafe("Install Jugg Skills", {
-                val shouldInstallCli = options.requiresCli
-                val runtimeSummary = installRuntimeComponents(options, logger)
-                val skillClients = options.skillClients()
-                val skillSummary = if (skillClients.isNotEmpty()) {
-                    JuggSkillInstaller.install(projectDir, skillClients, logger)
-                } else {
-                    InstallSummary(emptyList())
-                }
-                val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
-                    (runtimeSummary.results.isEmpty() || runtimeSummary.isAllSuccess)
-                ) {
-                    "Install Completed"
-                } else {
-                    "Install Completed with Issues"
-                }
-                val hasIssues = title != "Install Completed"
-                ApplicationManager.getApplication().invokeLater {
-                    val displayText = buildInstallResultText(
-                        options,
-                        shouldInstallCli,
-                        skillSummary,
-                        runtimeSummary,
-                    )
-                    if (hasIssues) {
-                        Messages.showWarningDialog(project, displayText, title)
+                try {
+                    val shouldInstallCli = options.requiresCli
+                    val runtimeSummary = installRuntimeComponents(options, logger)
+                    val skillClients = options.skillClients()
+                    val skillSummary = if (skillClients.isNotEmpty()) {
+                        JuggSkillInstaller.install(projectDir, skillClients, logger)
                     } else {
-                        Messages.showInfoMessage(project, displayText, title)
+                        InstallSummary(emptyList())
                     }
-                    if (shouldPromptCcSwitchSetup(options, runtimeSummary)) {
-                        promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
+                    val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
+                        (runtimeSummary.results.isEmpty() || runtimeSummary.isAllSuccess)
+                    ) {
+                        "Install Completed"
+                    } else {
+                        "Install Completed with Issues"
                     }
+                    val hasIssues = title != "Install Completed"
+                    ApplicationManager.getApplication().invokeLater {
+                        val displayText = buildInstallResultText(
+                            options,
+                            shouldInstallCli,
+                            skillSummary,
+                            runtimeSummary,
+                        )
+                        if (hasIssues) {
+                            Messages.showWarningDialog(project, displayText, title)
+                        } else {
+                            Messages.showInfoMessage(project, displayText, title)
+                        }
+                        if (shouldPromptCcSwitchSetup(options, runtimeSummary)) {
+                            promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
+                        }
+                    }
+                } catch (error: Throwable) {
+                    logger.warn("[Install Jugg Skills] failed", error)
+                    ApplicationManager.getApplication().invokeLater {
+                        val message = error.message?.takeIf(String::isNotBlank) ?: error.javaClass.simpleName
+                        Messages.showErrorDialog(project, message, "Install Failed")
+                    }
+                    throw error
                 }
             }, isProjectWrite = false, isBlockIncrementalCompile = false)
         }
