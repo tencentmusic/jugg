@@ -27,14 +27,25 @@ class IdeaRuntimeSettingsMigrationTest {
         whenever(properties.getValue("jugg.compileOnSave")).thenReturn("true")
         whenever(properties.isValueSet("jugg.isUseProjectKotlinCompiler_v3")).thenReturn(true)
         whenever(properties.getValue("jugg.isUseProjectKotlinCompiler_v3")).thenReturn("false")
+        whenever(properties.isValueSet("jugg.isEnableCompatibleDeploymentMode")).thenReturn(true)
+        whenever(properties.getValue("jugg.isEnableCompatibleDeploymentMode")).thenReturn("false")
         whenever(properties.isValueSet("jugg.serverExpireTimeMill")).thenReturn(true)
         whenever(properties.getValue("jugg.serverExpireTimeMill")).thenReturn("123")
 
         val values = readLegacyJuggSettings(properties)
 
-        assertEquals(setOf("compileOnSave", "isUseProjectKotlinCompiler", "serverExpireTimeMill"), values.keys)
+        assertEquals(
+            setOf(
+                "compileOnSave",
+                "isUseProjectKotlinCompiler",
+                "isEnableCompatibleDeploymentMode",
+                "serverExpireTimeMill",
+            ),
+            values.keys,
+        )
         assertTrue(values.getValue("compileOnSave").asBoolean)
         assertFalse(values.getValue("isUseProjectKotlinCompiler").asBoolean)
+        assertFalse(values.getValue("isEnableCompatibleDeploymentMode").asBoolean)
         assertEquals(123L, values.getValue("serverExpireTimeMill").asLong)
     }
 

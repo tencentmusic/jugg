@@ -45,6 +45,7 @@ internal fun readLegacyJuggSettings(propertiesComponent: PropertiesComponent): M
     addBoolean("isAutoFallbackToGradleWhenDeployError", "isAutoFallbackToGradleWhenDeployError")
     addBoolean("isEmbeddedToApk", "isEmbeddedToApk")
     addBoolean("isCheckChecksumWhenFileChanges", "isCheckChecksumWhenFileChanges")
+    addBoolean("isEnableCompatibleDeploymentMode", "isEnableCompatibleDeploymentMode")
     addBoolean("isEnableDirectOverlayDeploy", "isEnableDirectOverlayDeploy")
     addBoolean("isUseProjectKotlinCompiler", "isUseProjectKotlinCompiler_v3")
     addBoolean("isEnableBackupClasspath", "isEnableBackupClasspath_v2")
