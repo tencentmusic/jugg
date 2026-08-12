@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project.runtime
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.ReportEventData
 import kotlinx.coroutines.CoroutineScope
@@ -281,6 +282,7 @@ class TaskRunnerManager internal constructor(
         if (identity != null && ownerStore != null) {
             try {
                 ownerStore.claim(identity, logger)?.let { change ->
+                    JuggSettings.reload()
                     synchronized(this) {
                         runtimeOwnerChange = change
                     }

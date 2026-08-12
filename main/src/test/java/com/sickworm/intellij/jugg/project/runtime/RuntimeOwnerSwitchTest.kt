@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project.runtime
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +12,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.mock
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RuntimeOwnerSwitchTest {
 
@@ -46,6 +49,29 @@ class RuntimeOwnerSwitchTest {
 
         assertEquals("standalone", RuntimeOwnerStore(pathManager.runtimeOwnerFile).read()?.runtimeType)
         assertNull(manager.consumeRuntimeOwnerChange())
+    }
+
+    @Test
+    fun `runtime switch reloads shared settings`() {
+        val oldRootDir = JuggGlobalPathManager.rootDir
+        val pathManager = JuggPathManager(temporaryFolder.newFolder("project"))
+        val settingsFile = JuggGlobalPathManager.settingsFile(pathManager.projectDir)
+        val ideaManager = createManager(pathManager, "idea", "4.0")
+        val standaloneManager = createManager(pathManager, "standalone", "4.0")
+
+        try {
+            JuggGlobalPathManager.rootDir = pathManager.projectDir
+            settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":false}""")
+            assertFalse(JuggSettings.isEnableCompatibleDeploymentMode)
+            ideaManager.runProjectWriteLocked("initialize idea") {}
+
+            settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":true}""")
+            standaloneManager.runProjectWriteLocked("initialize standalone") {}
+
+            assertTrue(JuggSettings.isEnableCompatibleDeploymentMode)
+        } finally {
+            JuggGlobalPathManager.rootDir = oldRootDir
+        }
     }
 
     private fun createManager(pathManager: JuggPathManager, runtimeType: String, runtimeVersion: String): TaskRunnerManager {

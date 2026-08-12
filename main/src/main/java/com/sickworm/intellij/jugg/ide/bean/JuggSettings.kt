@@ -37,6 +37,12 @@ object JuggSettings {
         return success
     }
 
+    /** Discards the process snapshot so the next access reads settings written by another runtime. */
+    @Synchronized
+    fun reload() {
+        storageCache = null
+    }
+
     var compileOnSave by setting(false)
     var deployOnSave by setting(false)
 

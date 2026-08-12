@@ -56,6 +56,26 @@ class JuggSettingsTest {
     }
 
     @Test
+    fun `reload reads settings updated by another runtime`() {
+        val oldRootDir = JuggGlobalPathManager.rootDir
+        val rootDir = temporaryFolder.newFolder("runtime_switch")
+        val settingsFile = JuggGlobalPathManager.settingsFile(rootDir)
+        settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":false}""")
+
+        try {
+            JuggGlobalPathManager.rootDir = rootDir
+            assertFalse(JuggSettings.isEnableCompatibleDeploymentMode)
+
+            settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":true}""")
+            JuggSettings.reload()
+
+            assertTrue(JuggSettings.isEnableCompatibleDeploymentMode)
+        } finally {
+            JuggGlobalPathManager.rootDir = oldRootDir
+        }
+    }
+
+    @Test
     fun `process backup classpath override is not persisted`() {
         val oldRootDir = JuggGlobalPathManager.rootDir
         val rootDir = temporaryFolder.newFolder("process_override")

@@ -63,6 +63,7 @@ IDEA Runtime settings 初始化
 Standalone/CLI Runtime settings
   -> 首次 persisted setting get/set 通过 JsonRuntimeSettingsRepository 读取同一 settings.json
   -> 文件缺失时使用 JuggSettings 默认值且不创建文件
+  -> TaskRunner 确认 Runtime owner 切换时丢弃进程内 settings snapshot，接管方下一次读取使用最新磁盘值
 
 Project custom config
   -> ProjectCustomConfigManager 私有持有 ProjectCustomConfigStore
@@ -100,7 +101,7 @@ Hot update
 - 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`，不展示地址或尝试 fallback。
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、deployment cache、DB、日志优先 project-local；跨项目复用的 hot update、history、hook / resource 文件优先 `JuggGlobalPathManager`，写事务进入固定全局锁。
-- `settings.json` 写入使用固定全局锁、临时文件和原子替换；同进程更新由 `JuggSettings` 串行，字段修改会在锁内基于最新磁盘快照更新，避免双 Runtime 的不同字段互相覆盖；IDEA legacy migration 只补缺失字段，不能覆盖已存在 JSON 值。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 切换后 `JuggSettings` 会自动丢弃旧 root 缓存，测试通过独立 root 隔离真实用户设置。
+- `settings.json` 写入使用固定全局锁、临时文件和原子替换；同进程更新由 `JuggSettings` 串行，字段修改会在锁内基于最新磁盘快照更新，避免双 Runtime 的不同字段互相覆盖；IDEA legacy migration 只补缺失字段，不能覆盖已存在 JSON 值。Runtime owner 切换后必须丢弃进程内 settings snapshot，避免 IDEA/standalone 接管项目时继续使用另一进程更新前的兼容记录和用户开关。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 切换后 `JuggSettings` 会自动丢弃旧 root 缓存，测试通过独立 root 隔离真实用户设置。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - `JuggServer` 的 runtime identity 必须由 Host 注入 `RuntimeInfo`；IDEA、CI、standalone 不得在共享 Server 内推断 plugin/IDE metadata。事件保留后端兼容的 `version/ide_version` 字段，实际值分别来自 `runtimeVersion/hostVersion`；`runtimeType` 仅用于 Runtime 锁 owner identity，不进入事件上报。
