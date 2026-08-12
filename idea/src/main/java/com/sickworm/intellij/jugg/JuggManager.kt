@@ -174,7 +174,6 @@ class JuggManager @TestOnly constructor(
         eventModel = controlPanelController.model,
     )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
-    private val runConfigurationLock = Any()
     private val cliRunConfigurationStore = CliRunConfigurationStore(pathManager)
     private val ideaCliRunConfigurationManager = IdeaCliRunConfigurationManager(runManager, compileContextManager, cliRunConfigurationStore)
     constructor(
@@ -300,7 +299,7 @@ class JuggManager @TestOnly constructor(
 
     private fun updateProjectInfoAndRunConfigurations(isAfterSync: Boolean) {
         updateProjectInfo(isAfterSync)
-        synchronized(runConfigurationLock) {
+        taskRunnerManager.runProjectWriteLocked("Reconcile CLI run configurations") {
             ideaCliRunConfigurationManager.reconcileActiveBuildVariants()
         }
     }
@@ -308,7 +307,7 @@ class JuggManager @TestOnly constructor(
     private fun tryCreateRunConfigurations(
         isSyncFinished: Boolean,
         maxRetryCount: Int = MAX_RUN_CONFIG_RETRIES,
-    ): Unit = synchronized(runConfigurationLock) {
+    ) {
         val isReady = try {
             taskRunnerManager.runProjectWriteLocked("Initialize CLI run configuration") {
                 ideaCliRunConfigurationManager.ensureConfiguration()
