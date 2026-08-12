@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
+import com.sickworm.intellij.jugg.mock.TestPlatformApi
+import com.sickworm.intellij.jugg.platform.PlatformApi
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.util.Base64
@@ -10,6 +13,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class ApkParserProcessLauncherTest {
+
+    @Before
+    fun setUp() {
+        PlatformApi.impl = TestPlatformApi()
+    }
 
     @Test
     fun `buildProcessCommand passes apk files as url safe base64`() {

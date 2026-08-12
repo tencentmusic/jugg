@@ -22,11 +22,13 @@ class ProjectInfoSerializerInGradleTest {
 
         private val mockJugg = MockJugg()
         private val gradleProjectInfo = mockJugg.pathManager.gradleProjectInfoFile
-        private val ideProjectInfoFile = File("src/test/assets/android/modify_source/project_infos.json")
+        private val ideProjectInfoFixtureFile = File("src/test/assets/android/modify_source/project_infos.json")
+        private val ideProjectInfoFile = File(buildDir, "project_infos_fixture.json")
 
         @JvmStatic
         @BeforeClass
         fun runAndGenerate() {
+            ideProjectInfoFixtureFile.copyTo(ideProjectInfoFile, overwrite = true)
             val gradleProjectInfoLocalFetchManager = mockJugg.gradleProjectInfoLocalFetchManager
             mockJugg.pathManager.markProjectInfoNeedUpdateFlagFile.delete()
             gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true)

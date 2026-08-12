@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg.git
 
-import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.tempCompileDir
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 import java.util.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -14,7 +14,12 @@ import kotlin.test.assertTrue
 
 open class GitManagerTest {
 
-    protected var gitManager = GitManager(assetsAndroidDir)
+    protected var gitManager = GitManager(
+        Files.createTempDirectory("jugg-git-manager-test").toFile().also {
+            File(it, "seed.txt").writeText("seed")
+            it.deleteOnExit()
+        },
+    )
 
     @Before
     @After

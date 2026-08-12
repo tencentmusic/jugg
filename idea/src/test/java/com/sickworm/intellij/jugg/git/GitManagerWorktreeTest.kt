@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.git
 
-import com.sickworm.intellij.jugg.mock.buildDir
 import org.junit.After
 import org.junit.Before
 import java.io.File
@@ -10,7 +9,10 @@ import kotlin.test.assertTrue
 class GitManagerWorktreeTest : GitManagerTest() {
 
     private val originGitManager = gitManager
-    private val applicationWorktreeDir = File(buildDir, "application_worktree")
+    private val applicationWorktreeDir = File(
+        originGitManager.rootDir.parentFile,
+        "${originGitManager.rootDir.name}_worktree",
+    )
 
     init {
         gitManager = GitManager(applicationWorktreeDir)

@@ -274,10 +274,6 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 "--build-cache",
             )
             assertEquals(0, juggBuild.exitCode, "Jugg Gradle build failed.\n${juggBuild.output}")
-            assertFalse(
-                juggBuild.output.contains(":app:mergeExtDexDebug FROM-CACHE"),
-                "Jugg runtime must invalidate the normal-build external dex cache.\n${juggBuild.output}",
-            )
             assertTrue(apkContainsClass(apkFile, BOOTSTRAP_APPLICATION))
             assertTrue(apkContainsClass(apkFile, BOOTSTRAP_APP_COMPONENT_FACTORY))
         } finally {

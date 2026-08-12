@@ -8,20 +8,16 @@ import java.io.File
 
 object AssembleAndroidProjectOnce {
 
-    private var hasAssemble = false
-    init {
-        // backdoor for convenient testing
-        if (TestModeManager.isSkipTestAssemblyEnabled()) {
-            hasAssemble = true
-        }
-    }
-
     val scriptFile = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts")
     val gradleProjectInfoFile = JuggPathManager(TestGlobal.projectRootDir).gradleProjectInfoFile
     private val serializer = ProjectInfoSerializer(gradleProjectInfoFile, logger)
+    private var hasAssemble = TestModeManager.isSkipTestAssemblyEnabled() && gradleProjectInfoFile.exists()
 
     fun ensure() {
         logger.debug("ensure assemble, hasAssemble: $hasAssemble")
+        if (hasAssemble && !gradleProjectInfoFile.exists()) {
+            hasAssemble = false
+        }
         if (!hasAssemble) {
             GradleBuildHelper.clean()
             GradleBuildHelper.appAssembleDebug(scriptFile.absolutePath)

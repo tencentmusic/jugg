@@ -59,6 +59,22 @@ afterEvaluate {
         it.tasks.withType(Jar).all {
             duplicatesStrategy 'exclude'
         }
+        it.tasks.withType(Test).all {
+            filter {
+                excludeTestsMatching 'local.*'
+            }
+        }
+    }
+}
+
+gradle.projectsEvaluated {
+    // These test suites mutate the same android_demo_project fixture.
+    project(':main').tasks.named('test').configure {
+        mustRunAfter project(':cmd_line').tasks.named('test')
+    }
+    project(':idea').tasks.named('test').configure {
+        mustRunAfter project(':cmd_line').tasks.named('test')
+        mustRunAfter project(':main').tasks.named('test')
     }
 }
 

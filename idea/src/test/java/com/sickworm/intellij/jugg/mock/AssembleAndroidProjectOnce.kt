@@ -8,24 +8,15 @@ import java.io.File
 
 object AssembleAndroidProjectOnce {
 
-    private var hasAssemble = false
-    init {
-        // backdoor for convenient testing
-        if (TestModeManager.isSkipTestAssemblyEnabled()) {
-            hasAssemble = true
-        }
-    }
-
     private val scriptFile = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts")
     private val gradleProjectInfoFile = JuggPathManager(projectInfo.projectRoot).gradleProjectInfoFile
     private val serializer = ProjectInfoSerializer(gradleProjectInfoFile, logger)
+    private var hasAssemble = TestModeManager.isSkipTestAssemblyEnabled() && gradleProjectInfoFile.exists()
+    private var projectInfoLastModified = gradleProjectInfoFile.takeIf(File::exists)?.lastModified()
 
     fun ensure(isNeedClean: Boolean = true) {
         logger.debug("ensure assemble, hasAssemble: $hasAssemble")
-        // Also re-assemble if the project info file was deleted externally (e.g. by gradlew clean),
-        // unless the skip-assemble backdoor is active.
-        val isSkipAssembly = TestModeManager.isSkipTestAssemblyEnabled()
-        val needAssemble = !hasAssemble || (!isSkipAssembly && !gradleProjectInfoFile.exists())
+        val needAssemble = !hasAssemble || !gradleProjectInfoFile.exists()
         if (needAssemble) {
             // Only run clean on the very first assembly, not when the file was unexpectedly deleted.
             if (isNeedClean && !hasAssemble) {
@@ -34,12 +25,16 @@ object AssembleAndroidProjectOnce {
             GradleBuildHelper.appAssembleDebug(scriptFile.absolutePath)
             hasAssemble = true
         }
+        val lastModified = gradleProjectInfoFile.takeIf(File::exists)?.lastModified()
+        if (lastModified != projectInfoLastModified) {
+            serializer.clearMemoryCache()
+            projectInfoLastModified = lastModified
+        }
     }
 
     fun forceRecompile(isNeedClean: Boolean) {
         hasAssemble = false
         ensure(isNeedClean)
-        serializer.clearMemoryCache()
     }
 
     fun getProjectInfo(): JuggProjectInfo {

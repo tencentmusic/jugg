@@ -30,8 +30,8 @@ fun changeAndRevert(
         val destFile = File(assetsAndroidDir, "$directory/$destFileName")
         sourceFile to destFile
     }
-    val revertFileMark = filePairs.map { (_, destFile) ->
-        destFile to destFile.exists()
+    val originalFiles = filePairs.map { (_, destFile) ->
+        destFile to destFile.takeIf(File::exists)?.readBytes()
     }
 
     // copy
@@ -45,14 +45,12 @@ fun changeAndRevert(
         block(files)
     } finally {
         // revert
-        revertFileMark.forEach { (originFile, isExist) ->
-            val sourceFile = File(assetsAndroidModifySourceDir, "$directory/${originFile.name}")
-            val destFile = File(assetsAndroidDir, "$directory/${originFile.name}")
-            if (!isExist) {
+        originalFiles.forEach { (destFile, content) ->
+            if (content == null) {
                 destFile.delete()
-                return@forEach
+            } else {
+                destFile.writeBytes(content)
             }
-            sourceFile.copyTo(destFile, overwrite = true)
         }
     }
 }

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.cmdline
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -15,6 +16,7 @@ class CmdLineTest {
         val resultInt = CmdExecutor(StdLogger("JuggTest")).invoke(cmd)
         assertEquals(0, resultInt)
 
+        File(Global.buildOutputDir, "backups").deleteRecursively()
         val outputDir = File("${Global.buildOutputDir}/outputs")
         val args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_GRADLE_BASE.value}",
@@ -50,30 +52,29 @@ class CmdLineTest {
 
         // backup juggRootDir and delete origin for test
         val baseBuildJuggRootDir = File(Global.projectRootDir, "build/jugg")
-        val backupBaseBuildJuggRootDir = File(Global.buildOutputDir, "backups")
-        backupBaseBuildJuggRootDir.deleteRecursively()
-        backupBaseBuildJuggRootDir.mkdirs()
-        baseBuildJuggRootDir.copyRecursively(backupBaseBuildJuggRootDir)
-        baseBuildJuggRootDir.deleteRecursively()
+        val backupBaseBuildJuggRootDir = Files.createTempDirectory("jugg-cmdline-backup").toFile()
+        try {
+            baseBuildJuggRootDir.copyRecursively(backupBaseBuildJuggRootDir)
+            baseBuildJuggRootDir.deleteRecursively()
 
-        val changedFiles = modify.invoke()
+            val changedFiles = modify.invoke()
 
-        var args = arrayOf(
-            "cmd=${CmdLine.Command.BUILD_INCREMENTAL_APK.value}",
-            "baseBuildJuggRootDir=$backupBaseBuildJuggRootDir",
-            "sourceProjectDir=${Global.projectRootDir}",
-            "outputApkDir=${Global.buildOutputDir}/outputs",
-            "logLevel=debug",
-            "changedFiles=${changedFiles.joinToString(":")}",
-        )
-        extraArgs?.let {
-            args += it()
+            var args = arrayOf(
+                "cmd=${CmdLine.Command.BUILD_INCREMENTAL_APK.value}",
+                "baseBuildJuggRootDir=$backupBaseBuildJuggRootDir",
+                "sourceProjectDir=${Global.projectRootDir}",
+                "outputApkDir=${Global.buildOutputDir}/outputs",
+                "logLevel=debug",
+                "changedFiles=${changedFiles.joinToString(":")}",
+            )
+            extraArgs?.let {
+                args += it()
+            }
+            assertTrue(CmdLine().run(args))
+        } finally {
+            revert.invoke()
+            backupBaseBuildJuggRootDir.deleteRecursively()
         }
-        val result = CmdLine().run(args)
-
-        revert.invoke()
-
-        assertTrue(result)
     }
 
 

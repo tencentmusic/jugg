@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClasses
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -590,6 +591,12 @@ open class DataBindingCompileTest {
     }
 
     companion object {
+
+        @BeforeClass
+        @JvmStatic
+        fun prepareFixture() {
+            AssembleAndroidProjectOnce.forceRecompile(isNeedClean = true)
+        }
 
         private fun withPatchedFiles(vararg patches: Pair<File, String>, block: () -> Unit) {
             val backup = patches.associate { (file, _) -> file to if (file.exists()) file.readText() else null }
