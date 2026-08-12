@@ -78,6 +78,8 @@ multi APK 场景下，staging/deployed 的同名资源必须按“目标 APK + r
 
 编译产物和 reinstall recover 历史进入 staging 时使用同一逻辑身份规则：相同“目标 APK + relative path”的产物后写覆盖，不同目标 APK 的同路径产物继续共存。恢复历史中缺失 APK scope 的 Dex 优先级低于有明确 scope 的 staging Dex，避免历史目录与新编译目录同时保留同一类定义。
 
+部署成功提交时沿用相同 shadow 规则：staging 产物进入 deployed 前，先移除相同 deploy key 的旧记录；有明确 APK scope 的 staging Dex 同时覆盖相同 relative path 的无 scope 历史 Dex。deployed 不再因物理目录不同保留同一逻辑类的多份记录，避免后续自动 Dex merge 收到重复类型。发生清理时，`DeployFileStateTracker` 会用一条 debug 日志记录清理目的、数量、原因分类及前 20 个旧文件；无 shadow 冲突时不输出该日志。
+
 ---
 
 ## 4. 核心调用链路

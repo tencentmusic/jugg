@@ -203,6 +203,79 @@ class DeployFileStateTrackerTest {
         assertEquals(listOf(newOutput), tracker.getStagingFiles())
     }
 
+    @Test
+    fun commitAndClear_replacesRecoveredDexShadowedByScopedStagingDex() {
+        val tracker = DeployFileStateTracker()
+        val oldOutput = compileOutput(
+            root = temporaryFolder.newFolder("old_deployed"),
+            relativePath = "com/example/SharedClass.dex",
+            apkPath = null,
+            content = "old",
+            type = CompileOutput.Type.Dex,
+        )
+        val newOutput = compileOutput(
+            root = temporaryFolder.newFolder("new_staging"),
+            relativePath = "com/example/SharedClass.dex",
+            apkPath = "/base.apk",
+            content = "new",
+            type = CompileOutput.Type.Dex,
+        )
+
+        tracker.replaceDeployedFiles(listOf(oldOutput))
+        tracker.addStagingFiles(listOf(newOutput))
+        tracker.commitAndClear { }
+
+        assertEquals(listOf(newOutput), tracker.getDeployedFiles())
+    }
+
+    @Test
+    fun commitAndClear_replacesSameDeployKeyFromDifferentPhysicalPath() {
+        val tracker = DeployFileStateTracker()
+        val oldOutput = compileOutput(
+            root = temporaryFolder.newFolder("old_deployed"),
+            relativePath = "resources.arsc",
+            apkPath = "/base.apk",
+            content = "old",
+        )
+        val newOutput = compileOutput(
+            root = temporaryFolder.newFolder("new_staging"),
+            relativePath = "resources.arsc",
+            apkPath = "/base.apk",
+            content = "new",
+        )
+
+        tracker.replaceDeployedFiles(listOf(oldOutput))
+        tracker.addStagingFiles(listOf(newOutput))
+        tracker.commitAndClear { }
+
+        assertEquals(listOf(newOutput), tracker.getDeployedFiles())
+    }
+
+    @Test
+    fun commitAndClear_keepsSameRelativePathForDifferentTargetApks() {
+        val tracker = DeployFileStateTracker()
+        val baseOutput = compileOutput(
+            root = temporaryFolder.newFolder("base_deployed"),
+            relativePath = "com/example/SharedClass.dex",
+            apkPath = "/base.apk",
+            content = "base",
+            type = CompileOutput.Type.Dex,
+        )
+        val testOutput = compileOutput(
+            root = temporaryFolder.newFolder("test_staging"),
+            relativePath = "com/example/SharedClass.dex",
+            apkPath = "/androidTest.apk",
+            content = "test",
+            type = CompileOutput.Type.Dex,
+        )
+
+        tracker.replaceDeployedFiles(listOf(baseOutput))
+        tracker.addStagingFiles(listOf(testOutput))
+        tracker.commitAndClear { }
+
+        assertEquals(listOf(baseOutput, testOutput), tracker.getDeployedFiles())
+    }
+
     private fun createSourceFile(name: String, content: String): File {
         return temporaryFolder.newFile(name).apply {
             writeText(content)
@@ -230,15 +303,16 @@ class DeployFileStateTrackerTest {
     private fun compileOutput(
         root: File,
         relativePath: String,
-        apkPath: String,
+        apkPath: String?,
         content: String,
+        type: CompileOutput.Type = CompileOutput.Type.Res,
     ): CompileOutput {
         val file = File(root, relativePath).apply {
             parentFile.mkdirs()
             writeText(content)
         }
         return CompileOutput(
-            type = CompileOutput.Type.Res,
+            type = type,
             file = file,
             baseDir = root,
             apkPath = apkPath,

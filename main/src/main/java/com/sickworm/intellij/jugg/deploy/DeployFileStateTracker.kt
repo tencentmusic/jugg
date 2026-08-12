@@ -161,11 +161,8 @@ class DeployFileStateTracker(
             .map { it.relativeFile.path }
             .toSet()
         return deployedFiles.values.filter {
-            if (it.deployKeys().any { key -> key in stagingDeployKeys }) {
-                return@filter false // staging file
-            }
-            if (it.isLossyDexHistory() && it.relativeFile.path in stagingDexRelativePaths) {
-                return@filter false // staging dex shadows recovered history without APK scope
+            if (it.isShadowedByStaging(stagingDeployKeys, stagingDexRelativePaths)) {
+                return@filter false
             }
             if (it.relativeFile.path in mergedDexFilePathSet) {
                 return@filter false // merged dex file
@@ -176,6 +173,14 @@ class DeployFileStateTracker(
 
     private fun CompileOutput.isLossyDexHistory(): Boolean {
         return type == CompileOutput.Type.Dex && apkPath == null && targetApkPaths.isEmpty()
+    }
+
+    private fun CompileOutput.isShadowedByStaging(
+        stagingDeployKeys: Set<String>,
+        stagingDexRelativePaths: Set<String>,
+    ): Boolean {
+        return deployKeys().any { it in stagingDeployKeys } ||
+            isLossyDexHistory() && relativeFile.path in stagingDexRelativePaths
     }
 
     /**
@@ -227,6 +232,28 @@ class DeployFileStateTracker(
      */
     @Synchronized
     fun commitAndClear(onRemoveBuildFile: (String) -> Unit) {
+        val stagingDeployKeys = stagingFiles.values.flatMap { it.deployKeys() }.toSet()
+        val stagingDexRelativePaths = stagingFiles.values
+            .filter { it.type == CompileOutput.Type.Dex }
+            .map { it.relativeFile.path }
+            .toSet()
+        val shadowedDeployedFiles = deployedFiles.filterValues {
+            it.isShadowedByStaging(stagingDeployKeys, stagingDexRelativePaths)
+        }
+        if (shadowedDeployedFiles.isNotEmpty()) {
+            val details = shadowedDeployedFiles.values.take(20).map {
+                val reason = if (it.deployKeys().any(stagingDeployKeys::contains)) {
+                    "same deploy key"
+                } else {
+                    "unscoped dex replaced by scoped staging dex"
+                }
+                "${it.file.stdAbsPath} ($reason)"
+            }
+            logger?.debug("Remove shadowed deployed outputs before commit because staging replacements must be " +
+                    "the only deployed records; otherwise a later deploy or dex merge may consume duplicate " +
+                    "logical artifacts. removed=${shadowedDeployedFiles.size}, first20=$details")
+        }
+        shadowedDeployedFiles.keys.forEach(deployedFiles::remove)
         deployedFiles.putAll(stagingFiles)
         stagingFiles.clear()
         compiledFiles.clear()
