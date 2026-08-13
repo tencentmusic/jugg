@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.project
 
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import java.io.File
 
 /**
  * Central policy for module identity and IDE/Gradle merge decisions that rely on
@@ -29,6 +31,18 @@ object ModulePathMergePolicy {
 
     fun isAndroidTestModule(module: ModuleInfo): Boolean =
         classify(module) == ModuleSourceKind.AndroidTest
+
+    /** Returns included-build module roots only when the primary Gradle snapshot is available. */
+    fun findIncludedBuildModuleRoots(projectInfos: List<JuggProjectInfo?>): Set<File> {
+        val primaryProjectInfo = projectInfos.firstOrNull() ?: return emptySet()
+        val primaryModuleRoots = primaryProjectInfo.modules.values
+            .mapTo(mutableSetOf()) { it.moduleRootDir.absoluteFile.normalize().path }
+        return projectInfos.drop(1)
+            .filterNotNull()
+            .flatMap { it.modules.values }
+            .map { it.moduleRootDir.absoluteFile.normalize() }
+            .filterTo(mutableSetOf()) { it.path !in primaryModuleRoots }
+    }
 
     /**
      * Whether an IDE module should be collected into project info for the current [buildTarget].

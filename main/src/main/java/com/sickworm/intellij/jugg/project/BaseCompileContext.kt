@@ -40,7 +40,10 @@ class BaseCompileContext(
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val customCompilerManager: CustomCompilerManager,
+    includedBuildModuleRoots: Set<File> = emptySet(),
 ): ICompileContext {
+
+    private var includedBuildModuleRootPaths = includedBuildModuleRoots.toNormalizedPaths()
 
     private val tempLibraryDir: File = File(tempModuleDir, "libs")
     private val tempLibraryRecordFile: File = File(tempLibraryDir, "infos.json")
@@ -291,17 +294,43 @@ class BaseCompileContext(
 
         val dependencies = mutableListOf(androidJar)
         dependencies.addAll(tempDependencies)
+        val targetRFile = findIncludedBuildTargetRFile(moduleInfo)
+        if (targetRFile != null) {
+            dependencies.add(targetRFile.absolutePath)
+        }
         dependencies.addAll(classpathDependencies)
         dependencies.addAll(moduleDependencies)
         dependencies.addAll(libraryDependency)
         dependencies.addAll(parentLibraryModuleDependency)
-        dependencies.addAll(finalRFiles) // place to the last, to let R file compiled into classpathDependencies go first
+        dependencies.addAll(finalRFiles.filter { it != targetRFile?.absolutePath })
 
         task.files.forEach {
             dependencies.addAll(it.dependencyPaths)
         }
 
         return dependencies
+    }
+
+    private fun findIncludedBuildTargetRFile(moduleInfo: ModuleInfo): File? {
+        if (moduleInfo.moduleType != ModuleInfo.Type.Library &&
+            moduleInfo.moduleType != ModuleInfo.Type.JavaLibrary ||
+            moduleInfo.moduleRootDir.normalizedPath !in includedBuildModuleRootPaths
+        ) {
+            return null
+        }
+        val targetModule = findRelativeApkModule(moduleInfo)
+        if (targetModule.moduleRootDir.normalizedPath in includedBuildModuleRootPaths) {
+            return null
+        }
+        val targetRFile = targetModule.buildPathInfo.rFilePath
+        if (!targetRFile.exists()) {
+            logger.debug("Included build module ${moduleInfo.name} target R.jar not found in ${targetModule.name}, " +
+                    "keep existing classpath order.")
+            return null
+        }
+        logger.debug("Included build module ${moduleInfo.name} uses target APK R.jar from " +
+                "${targetModule.name}: ${targetRFile.absolutePath}")
+        return targetRFile
     }
 
     private fun ModuleInfo.getLibraryDependencyPaths(): List<String> {
@@ -589,10 +618,14 @@ class BaseCompileContext(
         apkInfos: List<ApkInfo>? = null,
         modules: Map<String, ModuleInfo>? = null,
         agpR8Classpath: File? = this.agpR8Classpath,
+        includedBuildModuleRoots: Set<File>? = null,
         addedTempLibraries: List<LibraryDependency>? = null,
         removedTempLibraries: List<LibraryDependency>? = null,
     ) {
         this.agpR8Classpath = agpR8Classpath
+        includedBuildModuleRoots?.let {
+            includedBuildModuleRootPaths = it.toNormalizedPaths()
+        }
         apkInfos?.let {
             this.apkInfos = it
             moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)
@@ -624,6 +657,10 @@ class BaseCompileContext(
         }
         dispatch()
     }
+
+    private val File.normalizedPath: String get() = absoluteFile.normalize().path
+
+    private fun Set<File>.toNormalizedPaths(): Set<String> = mapTo(mutableSetOf()) { it.normalizedPath }
 
     private fun saveTempLibraries(newLibraries: List<LibraryDependency>, oldLibraries: List<LibraryDependency>): List<LibraryDependency> {
         val savedTempLibraries = newLibraries.map {

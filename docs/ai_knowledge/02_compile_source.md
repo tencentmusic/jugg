@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-08-10
+> 最后核对：2026-08-13
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -52,6 +52,7 @@
 | 普通 KMP complementary closure | Kotlin Gradle incremental cache | `KotlinCompiler` | 仅 Android owner 存在 Gradle authoritative `kotlinCommonSourceDirs` 且源码出现 expect/actual token 时查询；requested 与 complementary files 按 canonical path 去重后在 Android owner invocation 中联合编译；成功后用 tracker 原地刷新双向 edge |
 | Kotlin module identity | `ModuleInfo` + Kotlin baseline output | `KotlinCompilerInvoker` | `module-name`、friend path、输出目录和 `.kotlin_module` 必须保持同一 Gradle module/variant 语义 |
 | `DesugarInfo` | APK/deploy DB + changed class parser | `DexCompiler` / D8 | default interface、`j$.*` rewrite 与 `desugar.json` 都以已安装 APK 的脱糖事实为基线 |
+| included build module roots | 主 Gradle project info + `include_build_*` project info | `BaseCompileContext` | 只按快照来源识别；主快照中的同目录模块优先，不根据模块是否位于工程根目录外推断 |
 
 ---
 
@@ -93,6 +94,8 @@ KotlinCompilerInvoker
 - `-Xjava-source-roots` 让 Kotlin 先读取本轮或同模块 Java 源码，解决 Java/Kotlin 相互引用；因此语言阶段固定 Kotlin 在前、Java 在后。
 - `.kotlin_module` 承载 class 文件无法完整表达的顶层函数、扩展函数和 file facade 信息。单文件编译前后都要合并 baseline 与新元数据；失败时仅告警并保留主编译结果，但后续可能出现 extension unresolved reference 或影响传播缺失。
 
+included build 的 Library/JavaLibrary 源码可能同时看到 included build 独立构建的 R 与主 APK 最终 R。IDE 场景会从 Gradle 快照来源保存 included module roots；当该模块最终归属主 build 生成的 APK 且目标 Application/Dynamic Feature `R.jar` 存在时，`BaseCompileContext.getModuleDependencies()` 将目标 APK R 放到普通 module output 前。本轮 Jugg 生成的 temp classpath 仍保持最高优先级；普通主 build 模块、其他模块类型、目标 R 缺失或快照身份不完整时保持原 classpath 顺序。
+
 ### 4.2 D8 脱糖决策
 
 ```text
@@ -131,6 +134,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - Kotlin 编译失败时，非 Kotlin 输入会被标记为 skipped，避免 Java 阶段在缺少 Kotlin class 的情况下继续产生误导性错误。
 - 删除整个 Java/Kotlin 源文件不会形成新的编译输入，也不会生成 class 移除数据。已安装 APK 或既有增量部署中的旧 class 会继续存在，直接引用、反射和类加载仍可能访问它。重命名文件时新路径可以参与编译，但旧路径对应的 class 同样不会因删除事件被移除；只有需要验证旧 class 已不存在时，才通过完整 Gradle build 刷新 APK 基线。
 - `ModuleBuildPathInfo.kotlinClassPath` 会在 AGP 9 Built-in Kotlin 的 `intermediates/built_in_kotlinc/<variant>/compile<Variant>Kotlin/classes` 与 legacy `tmp/kotlin-classes/<variant>` 中选择更新时间最新的现存目录；时间相同时选择 Built-in Kotlin，均不存在时回退 legacy 路径。classpath 同步会同时覆盖两种目录，避免远程全量构建后本地仍缺少 Kotlin class。`android_demo_project` 的 AGP 9 profile 直接使用完整 `src/main` Demo，不再维护隔离 source set；app 保留 KSP，ARouter 统一走 Java `annotationProcessor`，避免 Built-in KAPT 与 KSP/DataBinding 的任务依赖冲突，KMP 则迁移到 `com.android.kotlin.multiplatform.library`。AABResGuard 0.1.10 依赖已移除的 `AppExtension`，因此 AGP 9 profile 不加载该插件，release APK 仍使用标准 R8 构建；其他 profile 继续保留 AABResGuard 集成覆盖。
+- include build 身份只在 IDE 的多快照 project-info 合并链保存为运行时集合，不进入 `ModuleInfo` 序列化协议。主 Gradle 快照缺失、included 快照不可读或命令行只加载单份 Gradle project info 时集合为空，按既有顺序 best-effort 编译。
 - `compileDexOutputs()` 会把语言阶段非 class 输出保留下来；这些通常是 generated source 或其他不直接进入 dex 的附属产物。
 - minified 场景下 dex 先写到 `context.tempCompileDir/un_minify`，再由 `DexMinifyCompiler` 输出到最终 task outputDir；排查路径时不要只看最终目录。
 - `DexCompiler` 输出仍保留旧 `apkPath` 锚点，同时写入 module 的所有 `targetApkPaths`；部署层用 target 集合做多 APK 分流。
@@ -160,6 +164,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 | 删除或重命名源码文件后旧 class 仍可加载 | 删除路径不会生成 class 移除数据；这是预期的增量结果，只有需要让旧 class 消失时才刷新完整 Gradle APK 基线 |
 | Kotlin 编译失败后 Java 大量连带报错 | `compileLanguageStages()`：确认 Java 阶段是否被跳过，以及 Kotlin failed details |
 | classpath 缺失 / Kotlin metadata 异常 | `K2JVMCompilerIsolate.checkClasspath`、`KotlinCompilerOutputParser`、`KmModuleMergerForCompilation` |
+| included build 源码增量后资源 ID 错误 | `CompileContextManager` 的 included build module roots、`BaseCompileContext.findIncludedBuildTargetRFile()` 与 Kotlin 实际 `-classpath`；确认目标 APK R 位于 included module output 前 |
 | Kotlin `internal` 运行时找不到方法或 smart cast 被误判跨模块 | `KotlinCompilerInvoker` 的 `module-name`、friend path 与 `-d` 输出目录 |
 | DataBinding mapper 未生成 | `SourceDataBindingProcessor.processDataBindingMapper()` 与 `DataBindingGenMapperCompiler` |
 | dex 合并失败 | `DexCompiler`、`DexFileMerger`、`IncrementalCompilerHelper.mergeDex` |

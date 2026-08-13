@@ -10,7 +10,7 @@
 jugg_scene_module-app_20260813_143324.zip
 ```
 
-本问题只涉及源码增量编译时的 R 解析顺序。本阶段记录问题、比较方案并确定验证边界，不修改生产代码。
+本问题只涉及源码增量编译时的 R 解析顺序。方案已按 include build 身份做风险隔离并完成实现。
 
 ## 用户可见问题
 
@@ -211,7 +211,37 @@ libraries
 
 结论：暂不采用；只有低 AGP 或其他目录级 R shadow 被真实报告后再升级。
 
-## 推荐实现
+## 最终实现（2026-08-13）
+
+首版采用窄范围修复：
+
+1. `CompileContextManager` 按 project info 快照来源识别 included build module roots：第 0 份为主 Gradle 快照，后续为 included build；主快照目录优先。
+2. 身份仅作为 `BaseCompileContext` 运行时集合传递，不修改 `ModuleInfo` 序列化协议。
+3. 仅当当前模块来自 included build、模块类型为 Library/JavaLibrary、目标 APK module 来自主 build 且目标 `R.jar` 存在时，将目标 R 放在普通 module output 前。
+4. 本轮 Jugg temp classpath 继续保持第一优先级；普通模块、其他模块类型、身份或目标 R 不完整时保持旧顺序。
+5. 命令行增量只读取主 Gradle project info，不启用该 IDE 多快照门禁。
+
+实际顺序为：
+
+```text
+android.jar
+→ 本轮 Jugg temp classpath
+→ included build 命中时的目标 APK R.jar
+→ 当前模块和模块依赖输出
+→ libraries / parent libraries
+→ 其他 final R.jar
+→ task dependencyPaths
+```
+
+验证覆盖：
+
+- 修改前 included build 用例证明目标 Application R 位于 module Kotlin output 后，测试失败。
+- 修改后 included Library 的目标 R 前移。
+- 主 build 中位于工程根目录外的普通模块保持旧顺序。
+- included Application 和 Unknown 模块保持旧顺序。
+- 主快照缺失时不识别 included build；同一 module root 同时出现在主/included 快照时主快照优先。
+
+## 实施前方案设计
 
 ### 1. 按 module 解析目标 R module
 

@@ -452,6 +452,8 @@ cp -r  {projectDir}/build/jugg/database/     $BACKUP/database/
 
 可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存上述现场。脚本默认复制本地 APK、全部 `R.jar` 候选及其路径/hash，并在设备在线时保存 crash buffer 与 logcat tail、拉取实际安装 APK、overlay DEX，以及 `code_cache/.overlay` 下的 `resource.ap_`、`resources.arsc`、兼容部署标记和 overlay id。双击脚本时会依次从 `PATH`、Android SDK 环境变量、项目 `local.properties` 和系统默认 SDK 目录定位 ADB，定位结果记录在 `meta/adb_resolution.txt`。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging、resource APK 与设备 overlay 被覆盖。
 
+只修改 included build 的 Library/JavaLibrary 源码后出现资源 ID crash 时，先对比新 class 内联 ID 与实际 APK `resources.arsc`，再检查 Kotlin classpath 中目标 APK `R.jar` 是否早于 included module 的 Kotlin/Java output。Jugg 只对 project-info 快照明确标记的 included Library/JavaLibrary 前移目标 R；工程根目录外的普通模块、其他模块类型以及身份或目标 R 不完整的场景保持原顺序。
+
 ---
 
 ## 6. 运行时修复验证流程

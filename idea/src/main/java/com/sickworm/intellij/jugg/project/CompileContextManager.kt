@@ -42,6 +42,7 @@ class CompileContextManager(
 
     private val projectInfoSerializer = ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger)
     private var allGradleProjectInfoSerializerList = emptyList<ProjectInfoSerializer>()
+    private var includedBuildModuleRoots = emptySet<File>()
     private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger)
 
     private val compileContextInside: BaseCompileContext by lazy { createCompileContext() }
@@ -64,6 +65,7 @@ class CompileContextManager(
             apkInfos = compileContextInfo.apkInfos,
             modules = copyModules,
             agpR8Classpath = projectInfo.agpR8Classpath,
+            includedBuildModuleRoots = includedBuildModuleRoots,
         )
     }
 
@@ -97,6 +99,7 @@ class CompileContextManager(
                 apkInfos = compileContextInfo?.apkInfos,
                 modules = buildEffectiveModules(projectInfo.modules),
                 agpR8Classpath = projectInfo.agpR8Classpath,
+                includedBuildModuleRoots = includedBuildModuleRoots,
             )
         }
 
@@ -157,6 +160,7 @@ class CompileContextManager(
             apkInfos = compileContextInfo?.apkInfos,
             modules = buildEffectiveModules(projectInfo.modules),
             agpR8Classpath = projectInfo.agpR8Classpath,
+            includedBuildModuleRoots = includedBuildModuleRoots,
         )
     }
 
@@ -170,6 +174,9 @@ class CompileContextManager(
             }
             newGradleInfos.addAll(newIncludeGradleInfos)
         }
+        includedBuildModuleRoots = ModulePathMergePolicy.findIncludedBuildModuleRoots(
+            newGradleInfos.map { it.load() }
+        )
         return newGradleInfos
     }
 
@@ -204,6 +211,7 @@ class CompileContextManager(
         compileContextInside.update(
             modules = buildEffectiveModules(projectInfo.modules),
             agpR8Classpath = projectInfo.agpR8Classpath,
+            includedBuildModuleRoots = includedBuildModuleRoots,
         )
     }
 
@@ -310,6 +318,7 @@ class CompileContextManager(
             incrementalDataDir = File(pathManager.compileRootDir, "incremental"),
             cmdCompileEnv = LocalGradleCompileClient.buildCompileEnv(project, logger),
             scene = ICompileContext.Scene.IDE,
+            includedBuildModuleRoots = includedBuildModuleRoots,
         )
         TimeLogger.end("createCompileContext", logger)
         return context
