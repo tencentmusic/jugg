@@ -122,7 +122,7 @@ class DeployFileManagerDexMergeTest {
         }.use {
             val deployFileManager = DeployFileManager(
                 pathManager = pathManager,
-                backgroundTaskRunner = immediateRunner,
+                taskRunnerManager = taskRunnerManager,
                 logger = logger,
             )
 
