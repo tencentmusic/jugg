@@ -29,7 +29,10 @@ Collected content:
 - `build/jugg/classpath`: classpath inventory, mapping-like text files, and all
   discovered `R.jar` candidates with path, size, mtime, and SHA-256 metadata.
 - APK files under `build/jugg/classpath/apk`; copied by default.
-- Git metadata and optional `adb devices` / logcat tail snapshot.
+- Git metadata and optional `adb devices`, crash buffer, and logcat tail snapshots.
+- ADB resolution metadata in `meta/adb_resolution.txt`. The collector checks
+  `PATH`, Android SDK environment variables, project `local.properties`, and
+  standard SDK directories so macOS double-click launches can still find ADB.
 - ADB device selection metadata in `meta/adb_targets.txt`; when multiple online
   devices are connected, each device is collected under `device/devices/<serial>`.
   Pass `--device-serial` or set `ANDROID_SERIAL` to collect only one device.

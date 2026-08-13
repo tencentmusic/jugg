@@ -9,6 +9,10 @@ SKIP_ADB=false
 OPEN_FINDER=true
 PACKAGE_NAME=""
 DEVICE_SERIAL=""
+ADB_BIN=""
+ADB_RESOLUTION_SOURCE=""
+ADB_RESOLUTION_SOURCES=()
+ADB_RESOLUTION_CANDIDATES=()
 ADB_TARGET_ARGS=()
 ADB_TARGET_SERIALS=()
 DEVICE_OUTPUT_DIR="device"
@@ -165,6 +169,62 @@ run_capture() {
     echo "$ $*"
     "$@"
   } >"$OUT_DIR/$dest_rel" 2>&1 || true
+}
+
+try_adb_candidate() {
+  local source="$1"
+  local candidate="$2"
+  [[ -n "$candidate" ]] || return 1
+
+  ADB_RESOLUTION_SOURCES+=("$source")
+  ADB_RESOLUTION_CANDIDATES+=("$candidate")
+  if [[ -x "$candidate" ]]; then
+    ADB_BIN="$candidate"
+    ADB_RESOLUTION_SOURCE="$source"
+    return 0
+  fi
+  return 1
+}
+
+resolve_adb() {
+  local path_adb=""
+  local sdk_dir=""
+
+  if path_adb="$(command -v adb 2>/dev/null)" && try_adb_candidate "PATH" "$path_adb"; then
+    return 0
+  fi
+
+  if try_adb_candidate "ANDROID_SDK_ROOT" "${ANDROID_SDK_ROOT:+$ANDROID_SDK_ROOT/platform-tools/adb}"; then
+    return 0
+  fi
+  if try_adb_candidate "ANDROID_HOME" "${ANDROID_HOME:+$ANDROID_HOME/platform-tools/adb}"; then
+    return 0
+  fi
+
+  if [[ -f "$PROJECT_DIR/local.properties" ]]; then
+    sdk_dir="$(sed -n 's/^sdk\.dir=//p' "$PROJECT_DIR/local.properties" | tail -n 1)"
+    sdk_dir="${sdk_dir%$'\r'}"
+    if try_adb_candidate "local.properties" "${sdk_dir:+$sdk_dir/platform-tools/adb}"; then
+      return 0
+    fi
+  fi
+
+  if try_adb_candidate "macOS default SDK" "$HOME/Library/Android/sdk/platform-tools/adb"; then
+    return 0
+  fi
+  try_adb_candidate "Linux default SDK" "$HOME/Android/Sdk/platform-tools/adb"
+}
+
+write_adb_resolution() {
+  local index
+  {
+    echo "Selected: ${ADB_BIN:-unavailable}"
+    echo "Source: ${ADB_RESOLUTION_SOURCE:-unavailable}"
+    echo "Candidates:"
+    for ((index = 0; index < ${#ADB_RESOLUTION_CANDIDATES[@]}; index++)); do
+      printf '  %s: %s\n' "${ADB_RESOLUTION_SOURCES[$index]}" "${ADB_RESOLUTION_CANDIDATES[$index]}"
+    done
+  } > "$OUT_DIR/meta/adb_resolution.txt"
 }
 
 write_summary() {
@@ -354,14 +414,14 @@ pull_device_apks() {
   local pm_path_file="$package_dir/pm_path.txt"
   mkdir -p "$package_dir/apk"
 
-  run_capture "$DEVICE_OUTPUT_DIR/packages/$package_name/pm_path.txt" adb "${ADB_TARGET_ARGS[@]}" shell pm path "$package_name"
+  run_capture "$DEVICE_OUTPUT_DIR/packages/$package_name/pm_path.txt" "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" shell pm path "$package_name"
 
   sed -n 's/^package://p' "$pm_path_file" |
     while IFS= read -r remote_apk; do
       [[ -n "$remote_apk" ]] || continue
       local apk_name
       apk_name="$(basename "$remote_apk")"
-      run_capture "$DEVICE_OUTPUT_DIR/packages/$package_name/apk/pull_${apk_name}.log" adb "${ADB_TARGET_ARGS[@]}" pull "$remote_apk" "$package_dir/apk/$apk_name"
+      run_capture "$DEVICE_OUTPUT_DIR/packages/$package_name/apk/pull_${apk_name}.log" "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" pull "$remote_apk" "$package_dir/apk/$apk_name"
     done
 }
 
@@ -375,7 +435,7 @@ dump_device_overlay_dex() {
   mkdir -p "$overlay_dir"
   rm -f "$error_log" "$tmp_error"
 
-  adb "${ADB_TARGET_ARGS[@]}" shell run-as "$package_name" find code_cache/.overlay -type f -name '*.dex' -print \
+  "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" shell run-as "$package_name" find code_cache/.overlay -type f -name '*.dex' -print \
     > "$listing_file" 2>&1 || true
 
   sed -n '/^code_cache\/.overlay\/.*\.dex$/p' "$listing_file" |
@@ -383,7 +443,7 @@ dump_device_overlay_dex() {
       local rel="${remote_dex#code_cache/.overlay/}"
       local dest="$overlay_dir/$rel"
       mkdir -p "$(dirname "$dest")"
-      if ! adb "${ADB_TARGET_ARGS[@]}" exec-out run-as "$package_name" cat "$remote_dex" > "$dest" 2>"$tmp_error"; then
+      if ! "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" exec-out run-as "$package_name" cat "$remote_dex" > "$dest" 2>"$tmp_error"; then
         {
           echo "Failed to pull $remote_dex"
           cat "$tmp_error"
@@ -408,7 +468,7 @@ dump_device_overlay_resources() {
   mkdir -p "$overlay_dir"
   rm -f "$hashes_file" "$error_log" "$tmp_error"
 
-  adb "${ADB_TARGET_ARGS[@]}" shell run-as "$package_name" find code_cache/.overlay -type f -print \
+  "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" shell run-as "$package_name" find code_cache/.overlay -type f -print \
     > "$listing_file" 2>&1 || true
 
   while IFS= read -r remote_file; do
@@ -423,7 +483,7 @@ dump_device_overlay_resources() {
     local rel="${remote_file#code_cache/.overlay/}"
     local dest="$overlay_dir/$rel"
     mkdir -p "$(dirname "$dest")"
-    if ! adb "${ADB_TARGET_ARGS[@]}" exec-out run-as "$package_name" cat "$remote_file" > "$dest" 2>"$tmp_error"; then
+    if ! "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" exec-out run-as "$package_name" cat "$remote_file" > "$dest" 2>"$tmp_error"; then
       {
         echo "Failed to pull $remote_file"
         cat "$tmp_error"
@@ -524,7 +584,8 @@ collect_adb_for_device() {
     DEVICE_OUTPUT_DIR="device"
   fi
 
-  run_capture "$DEVICE_OUTPUT_DIR/logcat_tail.log" adb "${ADB_TARGET_ARGS[@]}" logcat -d -t 20000
+  run_capture "$DEVICE_OUTPUT_DIR/logcat_crash.log" "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" logcat -b crash -d
+  run_capture "$DEVICE_OUTPUT_DIR/logcat_tail.log" "$ADB_BIN" "${ADB_TARGET_ARGS[@]}" logcat -d -t 20000
 
   while IFS= read -r package_name; do
     [[ -n "$package_name" ]] || continue
@@ -546,12 +607,14 @@ collect_adb_snapshot() {
     return 0
   fi
 
-  if ! command -v adb >/dev/null 2>&1; then
-    echo "adb not found" > "$OUT_DIR/meta/adb_unavailable.txt"
+  if ! resolve_adb; then
+    write_adb_resolution
+    echo "adb executable not found in PATH, Android SDK environment variables, project local.properties, or default SDK directories" > "$OUT_DIR/meta/adb_unavailable.txt"
     return 0
   fi
+  write_adb_resolution
 
-  run_capture "device/adb_devices.txt" adb devices -l
+  run_capture "device/adb_devices.txt" "$ADB_BIN" devices -l
   select_adb_devices
   infer_package_names
 
