@@ -9,6 +9,7 @@ import dalvik.system.PathClassLoader;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.List;
 
 /**
@@ -49,7 +50,7 @@ class AndroidNClassLoader extends PathClassLoader {
         final String[] splitSourceDirs = applicationInfo.splitSourceDirs;
         final String baseApkFullPath = base.getPackageCodePath();
 
-        if (splitSourceDirs == null || splitSourceDirs.length == 0) {
+        if (!shouldIncludeSplitSourceDirs(applicationInfo)) {
             boolean isFirstItem = true;
             for (Object dexElement : dexElements) {
                 final DexFile dexFile = (DexFile) dexFileField.get(dexElement);
@@ -93,6 +94,21 @@ class AndroidNClassLoader extends PathClassLoader {
 
         final String libraryPath = libraryPathBuilder.toString();
         return dexPathListConstructor.newInstance(newDefiningContext, dexPath, libraryPath, null);
+    }
+
+    private static boolean shouldIncludeSplitSourceDirs(ApplicationInfo applicationInfo) {
+        if (applicationInfo.splitSourceDirs == null || applicationInfo.splitSourceDirs.length == 0) {
+            return false;
+        }
+        try {
+            final Method method = ReflectUtil.findMethod(applicationInfo,
+                    "requestsIsolatedSplitLoading");
+            return !(boolean) method.invoke(applicationInfo);
+        } catch (Throwable throwable) {
+            // Keep the base-only behavior when the platform cannot expose isolated split state.
+            LogUtils.w(TAG, "Unable to detect isolated split loading, ignore split APKs: " + throwable);
+            return false;
+        }
     }
 
     /**

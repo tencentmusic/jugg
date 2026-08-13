@@ -166,7 +166,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - `AsStartupAgentPusher` 推 AS agent 的路径不要求 app 进程在线；它用 host matryoshka 解析出的 agent so，经 `run-as cp` 放进 app sandbox。
 - `CompatDeployHelper` 读取 `hw_sc.build.platform.version`；属性非空时即识别为 HarmonyOS 并直接启用 compat deploy，不限制系统版本。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
 - `jugg_agent_setup.sh` 不再按 HarmonyOS 版本创建 `.need_fix_dex_path_list`。升级前已经存在的旧 flag 不在本轮主动清理，避免误删 `DexPathListFixer` 自检测产生的状态。
-- `AndroidNClassLoader` 重建 dex path 时，仅在 PackageManager 返回非空 `splitSourceDirs` 时使用 `sourceDir + splitSourceDirs`；无 split APK 时继续沿用原有 base APK 筛选。不能只从原 `dexElements` 取 split 路径，因为应用早期启动阶段已安装的 split APK 可能尚未挂入该数组。
+- `AndroidNClassLoader` 重建 dex path 时，仅在非 isolated split 场景使用 `sourceDir + splitSourceDirs`；无 split APK、启用 isolated split loading 或无法可靠识别隔离状态时继续沿用原有 base APK 筛选。不能只从原 `dexElements` 取 split 路径，因为应用早期启动阶段已安装的 split APK 可能尚未挂入该数组。
 
 ---
 
