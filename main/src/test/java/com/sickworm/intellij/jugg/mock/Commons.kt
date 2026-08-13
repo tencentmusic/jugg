@@ -49,11 +49,15 @@ val String.systemBasedPath get() = File(this).path
 fun CompileTask(files: List<CompileFile>, outputDir: File) = CompileTask(files, outputDir, CompileStatusHolder.DEFAULT)
 
 /**
- * JUnit 4 ClassRule that skips the entire test class when no Android device is connected.
+ * JUnit 4 ClassRule that skips the test class when device tests are disabled or no device is available.
  * Usage: companion object { @ClassRule @JvmField val deviceRule = RequiresDeviceRule() }
  */
 class RequiresDeviceRule : ExternalResource() {
     override fun before() {
+        Assume.assumeFalse(
+            "Device tests disabled by JUGG_TEST_SKIP_DEVICE",
+            System.getenv("JUGG_TEST_SKIP_DEVICE").toBoolean(),
+        )
         RequiresDeviceChecker(RequiresDeviceSystemCommandRunner()).ensureDevice()
     }
 }

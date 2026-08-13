@@ -342,6 +342,16 @@ fun clearBuild() {
 
 禁止无 `--tests` 的全量 `:main:test` / `:idea:test`。
 
+需要运行全量 JVM 测试但明确跳过真机测试时，设置 `JUGG_TEST_SKIP_DEVICE=true`。所有使用
+`RequiresDeviceRule` 的测试类会在探测 adb 或启动模拟器前直接 skip，不需要维护测试类清单。
+
+```bash
+JUGG_TEST_SKIP_DEVICE=true ./gradlew test --continue
+```
+
+该模式用于包含普通测试的批量执行。不要只用 `--tests` 选中单个真机测试类，否则整类 skip 后
+Gradle 会因过滤结果中没有实际测试事件而报告 `No tests found`。
+
 ```bash
 # L3
 ./gradlew :idea:test --tests "com.sickworm.intellij.jugg.manager.TopLevelFlowTest"
