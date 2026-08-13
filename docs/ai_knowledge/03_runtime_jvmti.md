@@ -28,7 +28,7 @@
 | `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | 记录宿主 APK 路径，判断非宿主资源环境是否需要移除 Apply Changes overlay |
 | `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，并安装 dex/resource patch |
 | `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | 在 app `code_cache/startup_agents` 中放置版本化 agent so |
-| `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 打包 `jugg-instruments.jar`、64/32 位 so 和 setup script，生成 plugin resource |
+| `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 将 Jugg runtime 与预处理后的 Dragonfly JAR 编译进 `jugg-instruments.jar`，并打包 64/32 位 so 和 setup script，生成 plugin resource |
 
 ---
 
@@ -139,6 +139,9 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 
 - native 目标库是 `jugg_jvmti_agent`，构建入口是 `jvmti_agent/CMakeLists.txt`。
 - `jvmti_agent/buildAgentBundle.gradle` 生成 `BuildConfig.AGENT_VERSION`、`AGENT_BUNDLE_PATH`、flag 文件名，并把 agent bundle 放到 plugin resource 路径。
+- `jugg-instruments.jar` 是 native agent 通过 `AddToBootstrapClassLoaderSearch()` 实际加载的 DEX JAR；ViewHierarchy 依赖的 Dragonfly 必须随 Jugg runtime class 一起进入该产物，不能只存在于 Gradle 注入 App 的 `jugg-runtime.jar`。
+- Dragonfly 源 DEX JAR 只用于离线预处理。`jvmti_agent/libs/dragonfly/preprocess.sh` 固定并校验 dex2jar、Jar Jar Abrams 版本与 SHA-256，先转为 class JAR，再将 Dragonfly API 和其内置 Kotlin、coroutines、Guava、dexlib2 依赖统一重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.**`；正式 Gradle 流程只消费仓库中的 `*-jugg.jar`，避免与宿主 App 的同名类冲突。
+- `jugg-runtime.jar` 继续合并相同的预处理 Dragonfly JAR，保持 `GradleApplicationInjector` 的单 runtime JAR 接口；构建同时校验私有 Dragonfly、Kotlin runtime 入口存在且原包 class entry 不存在。Dragonfly 不再依赖宿主 App 提供 Kotlin runtime。
 - 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
 - 修改 `jvmti_agent` 里的 native、Java runtime、setup script 或 bundle 内容后，必须递增 `agentVersion`；否则设备端已有 `{AGENT_VERSION}` 目录会让 `isAgentBundlePushed()` 误认为无需更新。
 - 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。

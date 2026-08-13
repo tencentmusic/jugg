@@ -1,0 +1,6 @@
+rule top.kokomi.dragonfly.** com.sickworm.intellij.jugg.internal.dragonfly.@1
+rule kotlin.** com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.@1
+rule kotlinx.coroutines.** com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlinx.coroutines.@1
+rule com.google.common.** com.sickworm.intellij.jugg.internal.dragonfly.runtime.guava.@1
+rule org.jf.** com.sickworm.intellij.jugg.internal.dragonfly.runtime.dexlib2.@1
+rule _COROUTINE.** com.sickworm.intellij.jugg.internal.dragonfly.runtime.coroutine_debug.@1

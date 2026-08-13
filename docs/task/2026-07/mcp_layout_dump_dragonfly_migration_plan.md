@@ -1,6 +1,6 @@
 # MCP UI 数据源统一迁移到 Dragonfly 方案
 
-> 状态：统一数据源版本已实施；Dragonfly Core/Compose 已拆包并完成兼容行为对齐
+> 状态：统一数据源版本已实施；Dragonfly 已更新为自带私有运行时的 DEX JAR
 > 日期：2026-07-22  
 > 目标：移除 Jugg 自有的 layout dump 数据采集实现，改用 App 端 Dragonfly；保持 MCP/CLI 对外参数、返回结构和 HTML artifact 格式不变，并增加 Compose 节点抓取。
 
@@ -26,17 +26,17 @@ MCP / CLI（保持不变）
 
 当前接入产物：
 
-- `dragonfly-v0.0.0.S.aar`，SHA-256 `b0be4870ce4a7595fc594a5d9873e38031876c608eafdefaf90b0cb21eab5080`
-- `dragonfly-compose-v0.0.0.S.aar`，SHA-256 `38be968899285b4dfc6fa0f9fb6b8789d2c7ab7568f621fa5a86f5bbf5abff15`
-- 两个 AAR 的 `classes.jar` 与 Jugg App runtime 合并为单一 `jugg-runtime.jar`，电脑端 main/idea classpath 不引入 Dragonfly。
-- Core 与 Compose 已拆包；Compose 不兼容由 Dragonfly 内部局部收口。纯 Java 工程因 Core 仍依赖 Kotlin runtime，统一返回“本工程没有 kotlin 依赖，不支持此功能”。
+- `dragonfly_0.jar`，SHA-256 `320aa0bf78caef7fb586a96d511cf6f01f8b2a494e796f670b72b9cc9f508abd`
+- `implementation_0.jar`，SHA-256 `3d7433d930ac5eac9486d76e0460490a4b10974fb8f5964a8f279e69cbb4dc9d`
+- 两个 DEX JAR 先离线转为 class JAR，再将 Dragonfly API 与内置 Kotlin、coroutines、Guava、dexlib2 依赖统一重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.**`。预处理 JAR 同时进入 bootstrap 加载的 `jugg-instruments.jar` 与 Gradle 注入 App 的 `jugg-runtime.jar`，电脑端 main/idea classpath 不引入 Dragonfly。
+- Dragonfly 自带私有运行时，纯 Java 工程不再依赖宿主 Kotlin；Compose 不兼容仍由 Dragonfly 内部局部收口。
 - 指定 `rootLayout` 时无视 top-window 默认值并自动跨窗口查找，恢复旧行为。
 
 ## 2. 当前已知限制
 
-### 2.1 Core 依赖宿主 Kotlin runtime
+### 2.1 Dragonfly 使用私有运行时
 
-当前 Core AAR 不内置 Kotlin stdlib，class major version 为 55（Java 11）。Jugg 在调用 Dragonfly 前检查 Kotlin runtime；Java-only App 返回明确的不支持错误，不再暴露 `NoClassDefFoundError`。Compose 相关类位于独立 AAR，其兼容失败由 Dragonfly 局部收口。
+`implementation_0.jar` 内置 Kotlin stdlib、coroutines、Guava 与 dexlib2。Jugg 在离线预处理时同步重命名这些类和 `dragonfly_0.jar` 中的引用，避免与宿主 App 同名依赖冲突；Java-only App 可直接使用。Compose 兼容失败仍由 Dragonfly 局部收口。
 
 ### 2.2 Dragonfly 字段不足以原样提供 Jugg 当前语义
 
@@ -199,14 +199,14 @@ Dragonfly 节点统一适配为标准 `children[]`，不直接暴露 Dragonfly �
 
 | 测试文件 | 层级 | 覆盖内容 |
 |----------|------|----------|
-| `jvmti_agent/src/test/java/com/sickworm/intellij/jugg/viewhierarchy/DragonflyHierarchySourceTest.java` | L1 | 同一 snapshot 驱动 dump/selector、确定性 ID、过滤 GONE、子树、Android 字段与截断 |
+| `jvmti_agent/src/test/java/com/sickworm/intellij/jugg/viewhierarchy/DragonflyHierarchySourceTest.java` | L1 | 同一 snapshot 驱动 dump/selector、确定性 ID、过滤 GONE、子树与截断；DEX JAR 转换出的真实 Android 节点类不在 JVM 加载，交给 L3 覆盖 |
 | `jvmti_agent/src/test/java/com/sickworm/intellij/jugg/viewhierarchy/ViewTapperTest.java` | L1 | Compose 坐标 tap、long press 异步抬起且不阻塞主线程 |
 | `jvmti_agent/src/test/java/com/sickworm/intellij/jugg/viewhierarchy/LayoutVerifierTest.java` | L1 | Android 属性验证回归、Compose 缺失属性显式 unavailable |
 | `main/src/test/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpMcpToolActionTest.kt` | L2 | MCP `data/artifacts/message` 前后不变；Compose 标准 JSON 仍生成 HTML |
 | `main/src/test/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutHtmlConverterTest.kt` | L1 | Compose 节点在现有 HTML 格式中可见，虚拟 id 规则不变 |
 | `main/src/test/java/com/sickworm/intellij/jugg/ai/mcp/actions/ViewLocateMcpToolActionTest.kt` | L2 | Compose text 可通过现有 `view-locate` 返回 bounds |
 | `main/src/test/java/com/sickworm/intellij/jugg/gradle/script/ReadProjectInfoGradle7CompatTest.kt` | L2 | runtime JAR 注入后构建成功且包含 Dragonfly 类 |
-| `idea/src/test/java/com/sickworm/intellij/jugg/manager/McpLayoutDumpFlowTest.kt` | L3 | 真设备/模拟器上的传统 View + Compose 页面实际 dump，公开格式回归 |
+| `idea/src/test/java/com/sickworm/intellij/jugg/manager/TopLevelFlowTest.kt#testLayoutDumpWithBundledDragonflyRuntime` | L3 | 真设备完整安装、增量下发并重启 startup agent 后实际 dump，验证私有 Dragonfly runtime 可加载并返回窗口根节点 |
 
 所有生产代码修改必须在上述失败测试和测试路径清单确认后开始。
 
@@ -225,11 +225,12 @@ Dragonfly 节点统一适配为标准 `children[]`，不直接暴露 Dragonfly �
 
 ### 阶段 D：构建产物接入
 
-1. `buildAgentBundle.gradle` 将 Dragonfly class 合并进现有 `jugg-runtime.jar`，避免改变 `GradleApplicationInjector` 的单 runtime JAR 接口。
-2. 排除签名文件和重复 `META-INF` 条目。
-3. Dragonfly 不进入电脑端 main/idea classpath。
-4. 不调用 `Dragonfly.init()`，不启用 flight receiver。
-5. 构建时校验最终 runtime JAR 包含 `top/kokomi/dragonfly/Dragonfly.class`。
+1. `preprocess.sh` 使用固定版本和 SHA-256 的 dex2jar、Jar Jar Abrams，将源 DEX JAR 转为 class JAR，并把 Dragonfly API 与内置运行依赖离线重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.**`；正式 Gradle 流程只消费提交到仓库的预处理 JAR。
+2. `buildAgentBundle.gradle` 将预处理 Dragonfly JAR 同时交给 D8 生成 `jugg-instruments.jar`，并合并进现有 `jugg-runtime.jar`，避免改变 `GradleApplicationInjector` 的单 runtime JAR 接口。
+3. runtime JAR 合并时排除签名文件和重复 `META-INF` 条目。
+4. Dragonfly 不进入电脑端 main/idea classpath。
+5. 不调用 `Dragonfly.init()`，不启用 flight receiver。
+6. 构建时校验 instruments/runtime 产物包含私有 Dragonfly 与 Kotlin runtime 入口，runtime JAR 不得包含原包 class entry。
 
 ### 阶段 E：文档同步
 
@@ -271,12 +272,12 @@ Dragonfly 节点统一适配为标准 `children[]`，不直接暴露 Dragonfly �
 
 - Kotlin 1.7.21 / AGP 7.2.2 demo 注入新 runtime 后 `assembleDebug` 成功。
 - 传统 View MCP 测试页：`layout_dump` 成功；`find_and_tap` 点击成功；`eval_view` 实时读到点击后的文本；`verify` 文本断言 PASS。
-- 旧版 Compose AAR 在 Compose 1.2.x 页暴露 tooling API 缺失；当前拆包 AAR 已替换该版本，仍需重新执行目标 Compose App 的 L3 验证。
+- 旧版 Compose AAR 在 Compose 1.2.x 页暴露 tooling API 缺失；当前 DEX JAR 已替换该版本，仍需重新执行目标 Compose App 的 L3 验证。
 - 实体机因同包名签名不一致未卸载原 App；上述运行验证在 Pixel 6 API 35 模拟器完成。
 
 ## 7. 待完善功能点
 
-1. Dragonfly 仍需给出 Kotlin/Compose runtime/tooling 兼容矩阵，并在目标 Compose App 上完成覆盖验证。
+1. Dragonfly 仍需给出 Compose runtime/tooling 兼容矩阵，并在目标 Compose App 上完成覆盖验证。
 2. Dragonfly Compose 节点尚无语义 action。Jugg 的中心点 MotionEvent fallback 不等价于 Semantics `OnClick` / `OnLongClick`，也无法识别 disabled/stale 节点。
 3. Compose 节点缺少 `contentDescription/clickable/enabled/longClickable/padding/alpha/backgroundColor` 等属性；selector 候选提示与 layout verify 只能显式返回 unavailable。
 4. Compose inspect 当前反射读取 Dragonfly 节点对象；Android View 专属 getter 会逐表达式返回错误，仍需要稳定的 Compose property/read API。

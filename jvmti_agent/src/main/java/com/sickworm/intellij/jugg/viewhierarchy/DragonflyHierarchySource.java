@@ -10,6 +10,10 @@ import android.view.WindowManager;
 import android.widget.TextView;
 
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
+import com.sickworm.intellij.jugg.internal.dragonfly.Dragonfly;
+import com.sickworm.intellij.jugg.internal.dragonfly.extractor.ViewExtractorKt;
+import com.sickworm.intellij.jugg.internal.dragonfly.node.HierarchyNode;
+import com.sickworm.intellij.jugg.internal.dragonfly.node.android.WindowNode;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -25,11 +29,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
-import top.kokomi.dragonfly.Dragonfly;
-import top.kokomi.dragonfly.extractor.ViewExtractorKt;
-import top.kokomi.dragonfly.node.HierarchyNode;
-import top.kokomi.dragonfly.node.android.WindowNode;
 
 /**
  * Captures one Dragonfly hierarchy snapshot for dump, selector, action, inspect, and verify flows.
@@ -48,7 +47,6 @@ public class DragonflyHierarchySource {
      * Capture the current top window or all windows in top-to-bottom order.
      */
     public Snapshot capture(boolean topWindowOnly) {
-        ensureKotlinRuntimeAvailable();
         List<WindowNode> windows = extractWindows(topWindowOnly);
         if (!composeEnabled && containsComposeView(windows) && Dragonfly.enableComposeExtract()) {
             composeEnabled = true;
@@ -269,14 +267,6 @@ public class DragonflyHierarchySource {
         }
     }
 
-    private void ensureKotlinRuntimeAvailable() {
-        try {
-            Class.forName("kotlin.LazyThreadSafetyMode", false, getClass().getClassLoader());
-        } catch (ClassNotFoundException exception) {
-            throw new IllegalStateException("Kotlin runtime is unavailable; this feature is not supported", exception);
-        }
-    }
-
     /**
      * Capture one node while preserving its Dragonfly object, optional Android View, and stable path.
      */
@@ -428,10 +418,10 @@ public class DragonflyHierarchySource {
     }
 
     private View androidView(HierarchyNode node) {
-        if (!(node instanceof top.kokomi.dragonfly.node.android.ViewNode)) {
+        if (!(node instanceof com.sickworm.intellij.jugg.internal.dragonfly.node.android.ViewNode)) {
             return null;
         }
-        return ((top.kokomi.dragonfly.node.android.ViewNode) node).getView();
+        return ((com.sickworm.intellij.jugg.internal.dragonfly.node.android.ViewNode) node).getView();
     }
 
     private HierarchyNode firstChild(HierarchyNode node) {

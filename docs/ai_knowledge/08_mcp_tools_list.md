@@ -212,7 +212,7 @@
 - 虚拟 ID 格式 `_vir_id_<hash>`；Dragonfly window/children 遍历顺序和 UI 结构不变时跨请求一致，可用于后续 selector，但不保证列表重排或页面重组后仍指向同一业务节点。
 - `className` 仅保留简单类名；`id` 去掉包名前缀。
 - Kuikly 框架控件（`KRRichTextView` 等）text 通过 `KuiklyViewResolver` 反射提取。
-- 纯 Java 工程没有 Kotlin runtime 时返回 `FEATURE_NOT_SUPPORTED` 和“本工程没有 kotlin 依赖，不支持此功能”。Compose runtime/tooling 不兼容时由拆分后的 Dragonfly Compose 能力局部收口，不切换到旧节点数据源。
+- Dragonfly 自带私有化 Kotlin/协程运行时，纯 Java 工程不再因缺少宿主 Kotlin 而返回 `FEATURE_NOT_SUPPORTED`。Compose runtime/tooling 不兼容时由 Dragonfly 局部收口，不切换到旧节点数据源。
 - socket 不可连时：先 `restart` 一次 → 若仍失败 `gradle-build` → `deploy` → `restart` → 重试。
 
 ---
@@ -398,7 +398,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 | `NO_DEVICE` | 无可用设备 |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态，需唤醒/解锁后重试 |
 | `APP_NOT_FOREGROUND` | 目标 App 不在前台，需切回目标 App 后重试 |
-| `FEATURE_NOT_SUPPORTED` | 当前工程不支持该能力，例如纯 Java 工程缺少 Dragonfly 所需 Kotlin runtime |
+| `FEATURE_NOT_SUPPORTED` | 当前工程或运行环境不支持该能力 |
 | `INTERNAL_ERROR` | 内部错误 |
 
 ---

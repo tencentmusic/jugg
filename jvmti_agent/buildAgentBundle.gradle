@@ -13,14 +13,15 @@ import com.android.tools.r8.D8Command
 import com.android.tools.r8.origin.Origin
 
 import java.nio.file.Files
+import java.nio.charset.StandardCharsets
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 File jarFile = new File(project.projectDir, "build/intermediates/aar_main_jar/release/classes.jar")
-List<File> dragonflyAarFiles = [
-    new File(project.projectDir, "libs/dragonfly/dragonfly-v0.0.0.S.aar"),
-    new File(project.projectDir, "libs/dragonfly/dragonfly-compose-v0.0.0.S.aar")
+List<File> dragonflyJarFiles = [
+    new File(project.projectDir, "libs/dragonfly/dragonfly_0-jugg.jar"),
+    new File(project.projectDir, "libs/dragonfly/implementation_0-jugg.jar")
 ]
 File instrumentsJarFile = new File(project.projectDir, "build/outputs/jugg-instruments.jar")
 File mergedRuntimeJarFile = new File(project.projectDir, "build/outputs/jugg-runtime.jar")
@@ -51,7 +52,7 @@ android {
 
 tasks.register('buildInstrumentJar') {
 
-    inputs.file jarFile
+    inputs.files jarFile, dragonflyJarFiles
     outputs.file instrumentsJarFile
 
     doLast {
@@ -62,11 +63,34 @@ tasks.register('buildInstrumentJar') {
         instrumentsJarFile.parentFile.mkdirs()
         instrumentsJarFile.delete()
 
-        String[] args = "--min-api 26 --output $instrumentsJarFile $jarFile".split(' ')
+        List<String> args = ["--min-api", "26", "--output", instrumentsJarFile.absolutePath]
+        args.add(jarFile.absolutePath)
+        args.addAll(dragonflyJarFiles.collect { it.absolutePath })
         D8Command command = D8Command
-                .parse(args, Origin.root())
+                .parse(args.toArray(new String[0]), Origin.root())
                 .build()
         D8.run(command)
+
+        ZipFile instrumentsJar = new ZipFile(instrumentsJarFile)
+        try {
+            List<? extends ZipEntry> dexEntries = Collections.list(instrumentsJar.entries()).findAll {
+                it.name ==~ /classes\d*\.dex/
+            }
+            if (dexEntries.isEmpty()) {
+                throw new IllegalStateException("DEX entries missing from $instrumentsJarFile")
+            }
+            String dexContent = dexEntries.collect { dexEntry ->
+                new String(instrumentsJar.getInputStream(dexEntry).readAllBytes(), StandardCharsets.ISO_8859_1)
+            }.join()
+            if (!dexContent.contains("Lcom/sickworm/intellij/jugg/internal/dragonfly/Dragonfly;")) {
+                throw new IllegalStateException("Dragonfly classes missing from $instrumentsJarFile")
+            }
+            if (!dexContent.contains("Lcom/sickworm/intellij/jugg/internal/dragonfly/runtime/kotlin/LazyThreadSafetyMode;")) {
+                throw new IllegalStateException("Dragonfly Kotlin runtime missing from $instrumentsJarFile")
+            }
+        } finally {
+            instrumentsJar.close()
+        }
     }
 
     it.dependsOn('assembleRelease')
@@ -74,30 +98,16 @@ tasks.register('buildInstrumentJar') {
 
 tasks.register('buildRuntimeJar') {
 
-    inputs.files jarFile, dragonflyAarFiles
+    inputs.files jarFile, dragonflyJarFiles
     outputs.file mergedRuntimeJarFile
 
     doLast {
         List<File> inputJars = [jarFile]
-        dragonflyAarFiles.each { aarFile ->
-            if (!aarFile.exists()) {
-                throw new IllegalStateException("Dragonfly AAR $aarFile not exists")
+        dragonflyJarFiles.each { dragonflyJarFile ->
+            if (!dragonflyJarFile.exists()) {
+                throw new IllegalStateException("Preprocessed Dragonfly JAR $dragonflyJarFile not exists")
             }
-            ZipFile aar = new ZipFile(aarFile)
-            try {
-                ZipEntry classesEntry = aar.getEntry("classes.jar")
-                if (classesEntry == null) {
-                    throw new IllegalStateException("Dragonfly AAR $aarFile has no classes.jar")
-                }
-                File extractedJar = new File(temporaryDir, aarFile.name.replace(".aar", ".jar"))
-                extractedJar.parentFile.mkdirs()
-                aar.getInputStream(classesEntry).withCloseable { input ->
-                    extractedJar.withOutputStream { output -> output << input }
-                }
-                inputJars.add(extractedJar)
-            } finally {
-                aar.close()
-            }
+            inputJars.add(dragonflyJarFile)
         }
 
         mergedRuntimeJarFile.parentFile.mkdirs()
@@ -138,11 +148,20 @@ tasks.register('buildRuntimeJar') {
 
         ZipFile runtimeJar = new ZipFile(mergedRuntimeJarFile)
         try {
-            if (runtimeJar.getEntry("top/kokomi/dragonfly/Dragonfly.class") == null) {
+            if (runtimeJar.getEntry("com/sickworm/intellij/jugg/internal/dragonfly/Dragonfly.class") == null) {
                 throw new IllegalStateException("Dragonfly classes missing from $mergedRuntimeJarFile")
             }
-            if (runtimeJar.getEntry("top/kokomi/dragonfly/compose/ComposeAdapter.class") == null) {
+            if (runtimeJar.getEntry("com/sickworm/intellij/jugg/internal/dragonfly/compose/ComposeAdapter.class") == null) {
                 throw new IllegalStateException("Dragonfly Compose classes missing from $mergedRuntimeJarFile")
+            }
+            if (runtimeJar.getEntry("com/sickworm/intellij/jugg/internal/dragonfly/runtime/kotlin/LazyThreadSafetyMode.class") == null) {
+                throw new IllegalStateException("Dragonfly Kotlin runtime missing from $mergedRuntimeJarFile")
+            }
+            if (runtimeJar.getEntry("top/kokomi/dragonfly/Dragonfly.class") != null) {
+                throw new IllegalStateException("Unrelocated Dragonfly classes found in $mergedRuntimeJarFile")
+            }
+            if (runtimeJar.getEntry("kotlin/LazyThreadSafetyMode.class") != null) {
+                throw new IllegalStateException("Unrelocated Kotlin runtime found in $mergedRuntimeJarFile")
             }
         } finally {
             runtimeJar.close()

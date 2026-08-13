@@ -2,14 +2,14 @@ package com.sickworm.intellij.jugg.viewhierarchy;
 
 import android.view.View;
 
+import com.sickworm.intellij.jugg.internal.dragonfly.node.HierarchyNode;
+
 import org.json.JSONException;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.Collections;
 import java.util.Map;
-
-import top.kokomi.dragonfly.node.HierarchyNode;
 
 /**
  * MatchedElement keeps the normalized node and its optional runtime objects for follow-up actions.

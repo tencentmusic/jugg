@@ -1,7 +1,11 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.LayoutDumpResult
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
+import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.mock.GradleBuildHelper
 import com.sickworm.intellij.jugg.mock.RequiresDeviceRule
@@ -52,6 +56,36 @@ class TopLevelFlowTest {
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
 
         jugg.deploy()
+    }
+
+    @Test
+    fun testLayoutDumpWithBundledDragonflyRuntime() {
+        testInstallAndLaunch()
+
+        jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+        jugg.deployCompiledApp()
+
+        val device = jugg.deployTargetManager.getSelectedDevices().single()
+        assertTrue(jugg.deployTargetManager.restartApp(device))
+        jugg.waitingLaunchAppAndCheck()
+        val result = waitForLayoutDump(ViewHierarchyClient(IdeaDeviceAdb(device, logger), projectInfo.packageName))
+        assertEquals(null, result.errorMessage)
+        val windows = JsonParser.parseString(requireNotNull(result.payloadJson))
+            .asJsonObject.getAsJsonArray("windows")
+        assertTrue(windows.size() > 0, "Dragonfly layout dump returned no windows")
+        assertTrue(windows[0].asJsonObject.has("root"), "Dragonfly layout dump returned no root")
+    }
+
+    private fun waitForLayoutDump(client: ViewHierarchyClient): LayoutDumpResult {
+        repeat(20) {
+            val result = client.dumpLayout()
+            if (result?.payloadJson != null || result?.errorMessage != null) {
+                return result
+            }
+            Thread.sleep(250)
+        }
+        throw AssertionError("ViewHierarchy server did not return a layout dump")
     }
 
     @Test

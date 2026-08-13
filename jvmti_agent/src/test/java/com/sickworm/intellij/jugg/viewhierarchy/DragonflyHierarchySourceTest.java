@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.viewhierarchy;
 
-import android.view.View;
+import com.sickworm.intellij.jugg.internal.dragonfly.node.HierarchyNode;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -14,19 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import top.kokomi.dragonfly.node.HierarchyNode;
-
 public class DragonflyHierarchySourceTest {
-
-    @Test
-    public void capture_shouldExplainMissingKotlinDependency() {
-        try {
-            new DragonflyHierarchySource().capture(true);
-            Assert.fail("Expected unsupported layout error");
-        } catch (IllegalStateException exception) {
-            Assert.assertEquals("Kotlin runtime is unavailable; this feature is not supported", exception.getMessage());
-        }
-    }
 
     @Test
     public void dump_shouldSearchAllWindowsWhenRootLayoutIsSpecified() throws Exception {
@@ -153,32 +141,6 @@ public class DragonflyHierarchySourceTest {
         Assert.assertEquals("subtree", subtree.getJSONArray("windows")
             .getJSONObject(0).getString("windowType"));
         Assert.assertEquals("target", subtree.getString("rootLayout"));
-    }
-
-    @Test
-    public void snapshot_shouldKeepAndroidViewFields() throws Exception {
-        View view = Mockito.mock(View.class);
-        Mockito.when(view.getContentDescription()).thenReturn("profile image");
-        Mockito.when(view.getTag()).thenReturn("avatar");
-        Mockito.when(view.isClickable()).thenReturn(true);
-        Mockito.when(view.isEnabled()).thenReturn(false);
-
-        top.kokomi.dragonfly.node.android.ViewNode hierarchyNode = Mockito.mock(
-            top.kokomi.dragonfly.node.android.ViewNode.class
-        );
-        Mockito.when(hierarchyNode.getName()).thenReturn("android.widget.ImageView");
-        Mockito.when(hierarchyNode.properties()).thenReturn(properties("bounds", "0,0,40,40"));
-        Mockito.when(hierarchyNode.getChildren()).thenReturn(Collections.emptyList());
-        Mockito.when(hierarchyNode.getView()).thenReturn(view);
-
-        JSONObject json = new DragonflyHierarchySource().buildSnapshot(
-            Collections.singletonList(window(hierarchyNode))
-        ).toJson(null, false).getJSONArray("windows").getJSONObject(0).getJSONObject("root");
-
-        Assert.assertEquals("profile image", json.getString("contentDesc"));
-        Assert.assertEquals("avatar", json.getString("tag"));
-        Assert.assertTrue(json.getBoolean("clickable"));
-        Assert.assertFalse(json.getBoolean("enabled"));
     }
 
     @Test

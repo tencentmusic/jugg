@@ -263,7 +263,7 @@ jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 | `--all-windows` / `--allWindows` | `allWindows=true` | 导出所有窗口 |
 
 公开输出是 HTML artifact；内部 JSON 仅供 `view-locate` / 布局验证实现消费。
-App 侧所有 UI 查询和动作统一通过 Dragonfly 实时 snapshot；传统 Android View 与 Compose 节点保持原有 HTML/JSON 字段格式。纯 Java 工程明确返回不支持；Compose tooling 不兼容时由 Dragonfly 局部收口，不回退旧 ViewTree。5000 节点/60 层 snapshot 截断范围同时约束 dump、selector、tap、inspect 和 verify。
+App 侧所有 UI 查询和动作统一通过 Dragonfly 实时 snapshot；传统 Android View 与 Compose 节点保持原有 HTML/JSON 字段格式。Dragonfly 自带私有化 Kotlin/协程运行时，纯 Java 工程同样可用；Compose tooling 不兼容时由 Dragonfly 局部收口，不回退旧 ViewTree。5000 节点/60 层 snapshot 截断范围同时约束 dump、selector、tap、inspect 和 verify。
 
 ### `view-locate`
 
