@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.2.4 (2026.08.12)</h2>
+<h2>3.2.5 (2026.08.13)</h2>
 <ol>
     <li>[feature] 新增原生 Jugg 运行面板，展示实时编译进度、近期结果、日志和设置</li>
     <li>[feature] 问题上报前可检查脱敏诊断包，也可仅保存到本地</li>
@@ -23,6 +23,9 @@
     <li>[bugfix] 完整构建期间新增的 assets 和 resources 保留到后续增量部署</li>
     <li>[bugfix] 修复恢复的 dex 文件重复参与合并的问题</li>
     <li>[bugfix] 修复默认接口脱糖时未保留父类继承重写的问题</li>
+    <li>[bugfix] 修复 included build 源码变更后资源 ID 错误导致崩溃的问题</li>
+    <li>[bugfix] 修复 split APK 共享返回类型时热更新崩溃的问题</li>
+    <li>[bugfix] 修复应用启动环境未配置 ADB PATH 时未收集设备运行日志的问题</li>
 </ol>
 <h2>3.1.5 (2026.07.31)</h2>
 <ol>

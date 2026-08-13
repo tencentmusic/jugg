@@ -1,3 +1,11 @@
+- version: 3.2.5
+  date: 2026.08.13
+  updates:
+    - 更新 layout dump 和交互使用的 Dragonfly 运行时，避免运行时类缺失或冲突
+    - 修复 included build 源码变更后资源 ID 错误导致崩溃的问题
+    - 修复 split APK 共享返回类型时热更新崩溃的问题
+    - 修复应用启动环境未配置 ADB PATH 时未收集设备运行日志的问题
+
 - version: 3.2.4
   date: 2026.08.12
   updates:

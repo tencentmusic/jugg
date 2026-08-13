@@ -1,3 +1,11 @@
+- version: 3.2.5
+  date: 2026.08.13
+  updates:
+    - update the Dragonfly runtime used by layout dump and interaction, preventing missing or conflicting runtime classes
+    - prevent resource ID crashes after source changes in included builds
+    - prevent hot update crashes for split APKs with shared return types
+    - collect device runtime logs when ADB is unavailable from the application PATH
+
 - version: 3.2.4
   date: 2026.08.12
   updates:
