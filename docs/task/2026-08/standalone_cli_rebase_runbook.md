@@ -39,9 +39,9 @@
 ## 3. 当前状态
 
 - 当前工作分支：`develop`。
-- 本轮原始 rebase 前备份：`backup/develop-before-rebase-20260812`，指向 `884c62839`。
-- 已废弃的第一次 rebase 结果备份：`backup/develop-first-rebase-result-20260812`，指向 `a9cc3af99`；该结果包含后来从 main drop 的模块扫描重构，只用于审计。
-- 当前 main 基线：`48a9513aa`。
-- 当前功能 HEAD：`bc36e15dd`，不包含被 drop 的 `dda77ecd6`。
-- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 17 节。
-- review 完成前保留两条备份引用；下一次 rebase 应新建备份，不复用当前备份名。
+- 本轮 rebase 前备份：`backup/develop-before-rebase-20260813`，指向 `1e019b6b5`。
+- 当前 main 基线：`cd6079fbe`（`3.2.5`）。
+- 40 个原提交重放后的功能 HEAD：`e0f510467`。
+- 验证完成时的功能 HEAD：`52bcc7699`，包含独立测试兼容修正；其后仅增加本轮记录文档提交。
+- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 18 节。
+- review 完成前保留本轮备份引用；下一次 rebase 应新建备份，不复用当前备份名。

@@ -1030,3 +1030,46 @@ step10 已将 `JuggDeployerHelper` 移到 main，静态架构守卫仍检查旧�
 - 冲突标记扫描与 `git diff --check`
 
 未执行 push。
+
+## 18. 2026-08-13 rebase 到 3.2.5 main
+
+### 18.1 基线与结果
+
+- rebase 前 `develop`：`1e019b6b5a6680777ac9d9c6b68c619cc3782fdf`。
+- rebase 前共同祖先：`c26d056063330da77d8dabbd12623374d5d1e54e`。
+- 固定 main 基线：`cd6079fbe325591e639c9baaa76b97f912d0a412`（`3.2.5`）。
+- rebase 前分叉计数：main 侧 9 个提交，develop 侧 40 个提交。
+- 备份分支：`backup/develop-before-rebase-20260813`。
+- 40 个提交重放完成时的功能 HEAD：`e0f5104672fe`。
+- rebase 后测试兼容修正：`52bcc7699 [test] keep main regressions compiling after project model rebase`。
+- 验证完成时的功能历史相对 main 包含 41 个提交：40 个原提交和 1 个独立兼容修正；本节记录另以 docs commit 保存。
+
+### 18.2 冲突点、解决方式与风险等级
+
+| 冲突提交 | 冲突文件 / 类型 | 解决方式 | 风险等级 |
+|---|---|---|---|
+| `05059fa6a` package restructure | `ModulePathMergePolicy.kt`、`ModulePathMergePolicyTest.kt` 内容冲突 | 使用 feature 的 `project.info` 包 owner；完整保留 main 新增的 `findIncludedBuildModuleRoots()` 和对应回归用例。重放后提交为 `14362bfa8`。 | 中：冲突集中在包迁移，但若整侧覆盖会丢失 included-build 识别行为。 |
+| `d37f042db` project model domain | IDEA `CompileContextManager.kt` modify/delete | 保留 feature 的共享 `CompileContextManager` + `IdeaProjectModelSource` 架构；将 main 的 included-build roots 结果加入 `ProjectModelResult`，由 IDEA/standalone project-model source 计算，并传递到 `BaseCompileContext`。重放后提交为 `e25264232`。 | 高：简单接受删除会静默丢失 main 的 included-build R classpath 修复，可能重新引入资源 ID crash。 |
+| `e686ac6c8` version update | `build.gradle`、中英文 changelog YAML/HTML 内容冲突 | 版本保持 feature 目标 `4.0.0`；完整保留 main 的 `3.2.5` 历史内容，并保留 main 的 `agentVersion=1.0.57` 和测试串行化配置。重放后提交为 `147eb7ff9`。 | 中：主要风险是覆盖发布版本历史、agent 版本或测试任务约束。 |
+
+### 18.3 文本冲突之外的语义修正
+
+首次定向验证在 `:main:compileTestKotlin` 阶段失败，发现两个自动合并遗留：
+
+1. `BaseCompileContextModuleDependenciesTest.kt` 仍引用迁移前的 `project.data` 和旧 `BaseCompileContext` 包。
+2. `DeployFileManagerDexMergeTest.kt` 仍使用已移除的 `backgroundTaskRunner` 构造参数。
+
+两处都只调整测试到当前 behavior owner：前者改用 `compiler.context.BaseCompileContext` 与 `project.info` 模型，后者复用测试已有的 `taskRunnerManager`。没有修改生产行为，独立提交为 `52bcc7699`。
+
+### 18.4 验证结果
+
+以下验证通过：
+
+- `./gradlew :idea:compileKotlin`
+- `./gradlew :main:test --tests com.sickworm.intellij.jugg.project.info.ModulePathMergePolicyTest --tests com.sickworm.intellij.jugg.project.BaseCompileContextModuleDependenciesTest --tests com.sickworm.intellij.jugg.project.info.ProjectModelSourceTest --tests com.sickworm.intellij.jugg.project.info.ProjectModelFlowTest --tests com.sickworm.intellij.jugg.deploy.DeployFileManagerDexMergeTest`
+- `./gradlew :idea:test --tests com.sickworm.intellij.jugg.compiler.context.CompileContextManagerBuildPathInfoTest --tests com.sickworm.intellij.jugg.compiler.context.CompileEnvironmentSourceTest`
+- `git range-diff c26d056063330da77d8dabbd12623374d5d1e54e..backup/develop-before-rebase-20260813 cd6079fbe325591e639c9baaa76b97f912d0a412..e0f5104672fe`
+- `git merge-base HEAD main` 返回 `cd6079fbe325591e639c9baaa76b97f912d0a412`。
+- changelog YAML 解析、版本顺序、冲突标记扫描和 `git diff --check`。
+
+`range-diff` 确认原 40 个提交均有一对一映射；差异来自上述冲突解法和 main 已新增的行为，没有 feature commit 丢失。构建中的 NDK `riscv64` metadata、IntelliJ `sourceCompatibility`/Kotlin stdlib 和既有 Kotlin warning 均为非阻断提示。未执行 push。
