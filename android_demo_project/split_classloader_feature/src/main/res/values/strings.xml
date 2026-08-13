@@ -1,0 +1,3 @@
+<resources>
+    <string name="split_classloader_feature_name">Split ClassLoader Fixture</string>
+</resources>

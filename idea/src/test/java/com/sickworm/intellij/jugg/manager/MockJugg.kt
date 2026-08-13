@@ -30,6 +30,7 @@ import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.AdbDeviceHelper
+import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.JuggMockProject
 import com.sickworm.intellij.jugg.mock.MockAndroidProfilerDownloader
 import com.sickworm.intellij.jugg.mock.MockFileChangesDetector
@@ -62,6 +63,8 @@ class MockJugg(
     val projectDir: File = projectInfo.projectRoot,
     private val compileCommand: String = "./gradlew :app:assembleDebug",
     private val isIdeSynced: Boolean = false,
+    private val outputApkName: String = projectInfo.apkPath,
+    private val baselineCompileCommand: List<String>? = null,
 ) {
 
     lateinit var project: JuggMockProject
@@ -125,6 +128,9 @@ class MockJugg(
 
     init {
         adbDeviceHelper.init()
+        baselineCompileCommand?.let {
+            AssembleAndroidProjectOnce.ensure(compileCommand = it, forceAssemble = true)
+        }
         renewComponents()
         renewManager()
         juggManager.updateDeployState()
@@ -251,7 +257,7 @@ class MockJugg(
         return output + error
     }
 
-    private fun adbCommand(vararg arguments: String): List<String> {
+    fun adbCommand(vararg arguments: String): List<String> {
         val serial = adbDeviceHelper.getSelectedDeviceList().singleOrNull()?.serialNumber
         return buildList {
             add("adb")
@@ -317,7 +323,7 @@ class MockJugg(
     private fun createRunOptions(enableAndroidTest: Boolean): JuggRunConfigurationOptions {
         return JuggRunConfigurationOptions().also {
             it.compileCommand = compileCommand
-            it.outputApkName = projectInfo.apkPath
+            it.outputApkName = outputApkName
             it.enableAndroidTest = enableAndroidTest
         }
     }
@@ -350,12 +356,12 @@ class MockJugg(
             }
 
             override fun startApp(device: IDevice): Boolean {
-                AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
+                AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, currentApkInfos)
                 return true
             }
 
             override fun restartApp(device: IDevice): Boolean {
-                AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
+                AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, currentApkInfos)
                 return true
             }
 

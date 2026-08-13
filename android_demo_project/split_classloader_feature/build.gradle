@@ -1,0 +1,17 @@
+plugins {
+    id 'com.android.dynamic-feature'
+}
+
+android {
+    namespace 'com.sickworm.jugg.demo.split.feature'
+    compileSdkVersion 34
+
+    defaultConfig {
+        minSdkVersion 21
+    }
+}
+
+dependencies {
+    implementation project(':app')
+    implementation project(':split_classloader_api')
+}

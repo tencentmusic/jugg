@@ -14,15 +14,19 @@ object AssembleAndroidProjectOnce {
     private var hasAssemble = TestModeManager.isSkipTestAssemblyEnabled() && gradleProjectInfoFile.exists()
     private var projectInfoLastModified = gradleProjectInfoFile.takeIf(File::exists)?.lastModified()
 
-    fun ensure(isNeedClean: Boolean = true) {
+    fun ensure(
+        isNeedClean: Boolean = true,
+        compileCommand: List<String> = listOf(":app:assembleDebug"),
+        forceAssemble: Boolean = false,
+    ) {
         logger.debug("ensure assemble, hasAssemble: $hasAssemble")
-        val needAssemble = !hasAssemble || !gradleProjectInfoFile.exists()
+        val needAssemble = forceAssemble || !hasAssemble || !gradleProjectInfoFile.exists()
         if (needAssemble) {
             // Only run clean on the very first assembly, not when the file was unexpectedly deleted.
-            if (isNeedClean && !hasAssemble) {
+            if (isNeedClean && (!hasAssemble || forceAssemble)) {
                 GradleBuildHelper.clean()
             }
-            GradleBuildHelper.appAssembleDebug(scriptFile.absolutePath)
+            GradleBuildHelper.assembleDebug(compileCommand, scriptFile.absolutePath)
             hasAssemble = true
         }
         val lastModified = gradleProjectInfoFile.takeIf(File::exists)?.lastModified()

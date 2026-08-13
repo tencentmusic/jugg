@@ -20,12 +20,17 @@ object GradleBuildHelper {
     }
 
     fun appAssembleDebug(initScriptPath: String? = null) {
+        assembleDebug(listOf(":app:assembleDebug"), initScriptPath)
+    }
+
+    fun assembleDebug(tasksAndArguments: List<String>, initScriptPath: String? = null) {
         val command = if (isWindows) {
             mutableListOf("cmd.exe", "/c", "gradlew")
         } else {
             mutableListOf("./gradlew")
         }
-        command += listOf(":app:assembleDebug", "--no-daemon")
+        command += tasksAndArguments
+        command += "--no-daemon"
         if (initScriptPath != null) {
             command += listOf("-I", initScriptPath)
         }

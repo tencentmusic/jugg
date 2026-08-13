@@ -1,5 +1,9 @@
 include ':app'
 include ':library1'
+if (providers.gradleProperty('juggSplitClassLoaderFixture').orNull == 'true') {
+    include ':split_classloader_api'
+    include ':split_classloader_feature'
+}
 if (providers.gradleProperty('excludeKmpCompose').orNull != 'true') {
     include ':kmpCompose'
 }

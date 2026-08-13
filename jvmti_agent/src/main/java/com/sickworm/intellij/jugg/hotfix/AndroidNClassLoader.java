@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.hotfix;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.res.Resources;
 import dalvik.system.BaseDexClassLoader;
 import dalvik.system.DexFile;
@@ -22,18 +23,17 @@ class AndroidNClassLoader extends PathClassLoader {
     private static final String TAG = HotfixLoader.TAG + "#AndroidNClassLoader";
     /** @noinspection FieldCanBeLocal*/
     private static Object oldDexPathListHolder = null;
-    private static String baseApkFullPath = null;
 
     private final BaseDexClassLoader originClassLoader;
 
-    private AndroidNClassLoader(String dexPath, BaseDexClassLoader parent, Context base) {
+    private AndroidNClassLoader(String dexPath, BaseDexClassLoader parent) {
         super(dexPath, parent.getParent());
         originClassLoader = parent;
-        baseApkFullPath = base.getPackageCodePath();
     }
 
     @SuppressWarnings("unchecked")
-    private static Object recreateDexPathList(Object originalDexPathList, ClassLoader newDefiningContext) throws Exception {
+    private static Object recreateDexPathList(Object originalDexPathList, ClassLoader newDefiningContext,
+                                              Context base) throws Exception {
 
         final Constructor<?> dexPathListConstructor = ReflectUtil.findConstructor(originalDexPathList, ClassLoader.class, String.class, String.class, File.class);
         final Field dexElementsField = ReflectUtil.findField(originalDexPathList, "dexElements");
@@ -45,28 +45,40 @@ class AndroidNClassLoader extends PathClassLoader {
         final StringBuilder dexPathBuilder = new StringBuilder();
         assert dexElements != null;
         final Field dexFileField = ReflectUtil.findField(dexElements.getClass().getComponentType(), "dexFile");
+        final ApplicationInfo applicationInfo = base.getApplicationInfo();
+        final String[] splitSourceDirs = applicationInfo.splitSourceDirs;
+        final String baseApkFullPath = base.getPackageCodePath();
 
-        boolean isFirstItem = true;
-        for (Object dexElement : dexElements) {
-            final DexFile dexFile = (DexFile) dexFileField.get(dexElement);
-            if (dexFile == null || dexFile.getName() == null) {
-                continue;
+        if (splitSourceDirs == null || splitSourceDirs.length == 0) {
+            boolean isFirstItem = true;
+            for (Object dexElement : dexElements) {
+                final DexFile dexFile = (DexFile) dexFileField.get(dexElement);
+                if (dexFile == null || dexFile.getName() == null) {
+                    continue;
+                }
+                if (!dexFile.getName().equals(baseApkFullPath)) {
+                    continue;
+                }
+                if (isFirstItem) {
+                    isFirstItem = false;
+                } else {
+                    dexPathBuilder.append(File.pathSeparator);
+                }
+                dexPathBuilder.append(dexFile.getName());
             }
-            if (!dexFile.getName().equals(baseApkFullPath)) {
-                continue;
-            }
-            if (isFirstItem) {
-                isFirstItem = false;
-            } else {
+        } else {
+            // Installed splits may not be present in dexElements yet during early application startup.
+            dexPathBuilder.append(applicationInfo.sourceDir);
+            for (String splitSourceDir : splitSourceDirs) {
                 dexPathBuilder.append(File.pathSeparator);
+                dexPathBuilder.append(splitSourceDir);
             }
-            dexPathBuilder.append(dexFile.getName());
         }
 
         final String dexPath = dexPathBuilder.toString();
 
         final StringBuilder libraryPathBuilder = new StringBuilder();
-        isFirstItem = true;
+        boolean isFirstItem = true;
         for (File libDir : nativeLibraryDirectories) {
             if (libDir == null) {
                 continue;
@@ -88,12 +100,12 @@ class AndroidNClassLoader extends PathClassLoader {
      */
     private static AndroidNClassLoader createAndroidNClassLoader(BaseDexClassLoader originalClassLoader, Context base) throws Exception {
         //let all element ""
-        final AndroidNClassLoader androidNClassLoader = new AndroidNClassLoader("",  originalClassLoader, base);
+        final AndroidNClassLoader androidNClassLoader = new AndroidNClassLoader("", originalClassLoader);
         final Field pathListField = ReflectUtil.findField(originalClassLoader, "pathList");
         final Object originPathList = pathListField.get(originalClassLoader);
         assert originPathList != null;
 
-        Object newPathList = recreateDexPathList(originPathList, androidNClassLoader);
+        Object newPathList = recreateDexPathList(originPathList, androidNClassLoader, base);
 
         // Update new classloader's pathList.
         pathListField.set(androidNClassLoader, newPathList);

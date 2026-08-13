@@ -92,6 +92,11 @@ android {
     lint {
         checkReleaseBuilds false
     }
+
+    if (project.hasProperty('juggSplitClassLoaderFixture')) {
+        dynamicFeatures = [':split_classloader_feature']
+        sourceSets.main.java.srcDir 'src/splitClassLoader/java'
+    }
 }
 
 dependencies {
@@ -131,4 +136,7 @@ dependencies {
 
     implementation project(':library1')
     implementation project(':kmpCompose')
+    if (project.hasProperty('juggSplitClassLoaderFixture')) {
+        compileOnly project(':split_classloader_api')
+    }
 }
