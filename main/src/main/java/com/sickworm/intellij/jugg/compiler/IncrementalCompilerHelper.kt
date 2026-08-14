@@ -45,8 +45,11 @@ class IncrementalCompilerHelper(
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
+        val retryModules = if (compileLoopStatus.isRetry) compiler.context.modules else emptyMap()
         val compileFiles = undeployedFiles.map {
-            CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
+            // A project-model repair must take effect before the retry compile starts.
+            val module = retryModules[it.module.name] ?: it.module
+            CompileFile(it.type, it.file, it.baseDir, module, it.extraInfo)
         }
 
         // do compile

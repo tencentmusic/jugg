@@ -249,17 +249,19 @@ class IncrementalCompilerHelperTest {
             parentFile.mkdirs()
             writeText("package com.example\nconst val A = 1\n")
         }
+        val oldModule = ModuleInfo.virtualModule.copy(name = "app")
+        val refreshedModule = oldModule.copy(sourceDirs = listOf(File(tempDir, "src/refreshed")))
         val changedFile = ChangedFile(
             type = CompileFile.Type.Kotlin,
             file = sourceFile,
             baseDir = tempDir,
-            module = ModuleInfo.virtualModule,
+            module = oldModule,
         )
         val compileFile = CompileFile(
             type = CompileFile.Type.Kotlin,
             file = sourceFile,
             baseDir = tempDir,
-            module = ModuleInfo.virtualModule,
+            module = oldModule,
         )
         val failResult = CompileResult(
             task = CompileTask(listOf(compileFile), File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
@@ -281,6 +283,7 @@ class IncrementalCompilerHelperTest {
         val retryResolver: IIncrementalCompileRetryResolver = mock()
         val juggDeployData: JuggDeployData = mock()
         whenever(compiler.context).thenReturn(compileContext)
+        whenever(compileContext.modules).thenReturn(mapOf(refreshedModule.name to refreshedModule))
         whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
         // First compile fails, second (retry) succeeds
         whenever(compiler.compile(any())).thenReturn(failResult, successResult)
@@ -316,7 +319,10 @@ class IncrementalCompilerHelperTest {
         // retryResolver.resolve() called once for the first failure; not called on retry round
         verify(retryResolver, Mockito.times(1)).resolve(any())
         // compiler.compile() called twice: first round + retry round
-        verify(compiler, Mockito.times(2)).compile(any())
+        val taskCaptor = argumentCaptor<CompileTask>()
+        verify(compiler, Mockito.times(2)).compile(taskCaptor.capture())
+        assertEquals(oldModule, taskCaptor.firstValue.files.single().module)
+        assertEquals(refreshedModule, taskCaptor.secondValue.files.single().module)
     }
 
     @Test

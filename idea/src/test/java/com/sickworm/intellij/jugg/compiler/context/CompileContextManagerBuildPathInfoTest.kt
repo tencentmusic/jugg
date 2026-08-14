@@ -82,7 +82,7 @@ class CompileContextManagerBuildPathInfoTest {
     }
 
     @Test
-    fun triggerMerge_keepsExistingCompileContextUntilCallerRebinds() {
+    fun triggerMerge_updatesCompileContextBeforeRetry() {
         TestGlobal.init()
         val projectDir = temporaryFolder.newFolder("merge")
         val appDir = projectDir.resolve("app").also { it.mkdirs() }
@@ -92,13 +92,13 @@ class CompileContextManagerBuildPathInfoTest {
         whenever(source.load(eq(ProjectModelLoadReason.INITIALIZE), any<BuildTarget>())).thenReturn(ProjectModelResult(JuggProjectInfo(mapOf(initialModule.name to initialModule), agpR8Classpath = null), true))
         whenever(source.load(eq(ProjectModelLoadReason.MERGE), any<BuildTarget>())).thenReturn(ProjectModelResult(JuggProjectInfo(mapOf(mergedModule.name to mergedModule), agpR8Classpath = null), true, isFixMissingOrDelete = true))
         val manager = createManager(JuggPathManager(projectDir), source)
-        val initialSourceDirs = manager.compileContext.modules.getValue("app").sourceDirs
+        val compileContext = manager.compileContext
 
         val isFixed = manager.triggerMerge()
 
         assertEquals(true, isFixed)
         assertEquals(mergedModule.sourceDirs, manager.getProjectInfo().modules.getValue("app").sourceDirs)
-        assertEquals(initialSourceDirs, manager.compileContext.modules.getValue("app").sourceDirs)
+        assertEquals(mergedModule.sourceDirs, compileContext.modules.getValue("app").sourceDirs)
     }
 
     @Test

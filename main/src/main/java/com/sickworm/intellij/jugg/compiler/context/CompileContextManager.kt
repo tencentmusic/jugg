@@ -95,7 +95,11 @@ class CompileContextManager(
     /** Tries to repair dependency gaps by merging the latest source snapshots. */
     fun triggerMerge(): Boolean {
         val result = loadProjectInfo(ProjectModelLoadReason.MERGE)
-        return result.isFixMissingOrDelete
+        if (!result.isFixMissingOrDelete) {
+            return false
+        }
+        updateCompileContextModules(result.projectInfo!!)
+        return true
     }
 
     fun updateTempLibraries(
