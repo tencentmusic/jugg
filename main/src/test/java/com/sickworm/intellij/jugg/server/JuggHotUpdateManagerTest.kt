@@ -317,37 +317,6 @@ class JuggHotUpdateManagerTest {
     }
 
     @Test
-    fun `embedded snapshot does not create hot update directory`() {
-        val rootDir = Files.createTempDirectory("jugg-hot-update-disabled").toFile()
-        val server = downloadServer(emptyMap())
-        val manager = newManager(rootDir, server)
-        val embeddedLibDir = rootDir.resolve("lib").apply { mkdirs() }
-        embeddedLibDir.resolve("main.jar").writeText("main")
-
-        assertFalse(manager.publishEmbeddedIfNeeded(embeddedLibDir))
-        assertFalse(manager.hotUpdateDir.exists())
-    }
-
-    @Test
-    fun `embedded snapshot publishes and replaces packaged jars for a new build`() {
-        val rootDir = Files.createTempDirectory("jugg-hot-update-embedded").toFile()
-        val server = downloadServer(emptyMap())
-        val firstManager = newManager(rootDir, server, "embedded-1")
-        firstManager.hotUpdateDir.mkdirs()
-        val embeddedLibDir = rootDir.resolve("lib").apply { mkdirs() }
-        embeddedLibDir.resolve("main.jar").writeText("old")
-        assertTrue(firstManager.publishEmbeddedIfNeeded(embeddedLibDir))
-        embeddedLibDir.resolve("main.jar").writeText("new")
-        val secondManager = newManager(rootDir, server, "embedded-2")
-
-        assertTrue(secondManager.publishEmbeddedIfNeeded(embeddedLibDir))
-        val activeJarName = secondManager.resolveLoadManifest("embedded-2")?.jarFileNames?.single()
-        assertEquals("new", secondManager.storageDir.resolve(requireNotNull(activeJarName)).readText())
-        assertEquals(2, secondManager.storageDir.listFiles().orEmpty().count { it.extension == "jar" })
-        assertEquals("embedded-2", secondManager.resolveLoadManifest("embedded-2")?.baseEmbeddedBuildTime)
-    }
-
-    @Test
     fun `cleanup removes only unreferenced jars older than ninety days`() {
         val rootDir = Files.createTempDirectory("jugg-hot-update-cleanup").toFile()
         val server = downloadServer(emptyMap())

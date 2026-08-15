@@ -38,7 +38,6 @@ class IdeaHotUpdateCoordinator(
         get() = PluginManagerCore.getPlugin(PluginId.getId("com.sickworm.intellij.jugg"))
 
     fun init(project: Project) {
-        publishEmbeddedIfNeeded()
         start()
         processHotUpdateNotification(project)
         notifyInstallUpdateIfNeeded(project)
@@ -47,16 +46,6 @@ class IdeaHotUpdateCoordinator(
     private fun processHotUpdateNotification(project: Project) {
         notifyHotUpdateIfNeeded(project)
         juggHotUpdateManager.cleanupExpiredJars().forEach { logEvent("delete expired hot update jar: ${it.absolutePath}") }
-    }
-
-    private fun publishEmbeddedIfNeeded() {
-        if (!juggHotUpdateManager.hotUpdateDir.exists()) {
-            return
-        }
-        val embeddedLibDir = ideaPluginDescriptor?.pluginPath?.resolve("lib")?.toFile() ?: return
-        if (juggHotUpdateManager.publishEmbeddedIfNeeded(embeddedLibDir)) {
-            logEvent("publish embedded hot update: ${JuggHotUpdateBootstrap.currentEmbeddedBuildTime}")
-        }
     }
 
     private fun start() {

@@ -151,34 +151,6 @@ class JuggHotUpdateManager(
             .forEach { logger.debug("Delete expired hot update jar: ${it.absolutePath}") }
     }
 
-    fun publishEmbeddedIfNeeded(embeddedLibDir: File): Boolean {
-        if (!hotUpdateDir.exists() || loadBaseBuildTime.isEmpty() || !embeddedLibDir.isDirectory) return false
-        return withGlobalResourceLock("Publish embedded hot update", globalRootDir) {
-            if (resolveLoadManifest(loadBaseBuildTime) != null) return@withGlobalResourceLock false
-            val embeddedJars = embeddedLibDir.listFiles().orEmpty().filter { it.isFile && it.extension == "jar" }.sortedBy { it.name }
-            if (embeddedJars.isEmpty()) return@withGlobalResourceLock false
-            storageDir.mkdirs()
-            val targetNames = embeddedJars.map { source ->
-                val targetName = "${source.nameWithoutExtension}-${source.sha256()}.jar"
-                val target = storageDir.resolve(targetName)
-                if (target.isFile) {
-                    check(target.sha256() == source.sha256()) { "Immutable embedded JAR conflicts with existing file: $targetName" }
-                    return@map targetName
-                }
-                val temp = File(storageDir, "$targetName.${UUID.randomUUID()}.tmp")
-                try {
-                    source.copyTo(temp, overwrite = true)
-                    replaceFile(temp, target)
-                } finally {
-                    temp.delete()
-                }
-                targetName
-            }
-            publishLoadManifest(HotUpdateLoadManifest(loadBaseBuildTime, targetNames))
-            true
-        }
-    }
-
     fun cleanupExpiredJars(nowMillis: Long = System.currentTimeMillis()): List<File> {
         return withGlobalResourceLock("Cleanup hot update jars", globalRootDir) {
             val allReferenced = mutableSetOf<String>()
