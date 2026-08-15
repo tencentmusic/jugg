@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.project.change
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sun.nio.file.ExtendedWatchEventModifier
 import java.io.File
 import java.nio.file.FileSystems
 import java.nio.file.FileVisitResult
@@ -12,6 +13,7 @@ import java.nio.file.StandardWatchEventKinds.ENTRY_DELETE
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
 import java.nio.file.StandardWatchEventKinds.OVERFLOW
 import java.nio.file.ClosedWatchServiceException
+import java.nio.file.WatchEvent
 import java.nio.file.WatchKey
 import java.nio.file.WatchService
 import java.nio.file.attribute.BasicFileAttributes
@@ -40,13 +42,15 @@ class WatchServiceFileChangeMonitor(
     private var listener: FileChangesListener? = null
     private var flushFuture: ScheduledFuture<*>? = null
     private var watchThread: Thread? = null
+    private var isNativeRecursiveWatch = false
 
     override fun startListen(listener: FileChangesListener) {
         check(!closed.get()) { "WatchServiceFileChangeMonitor is closed" }
         this.listener = listener
         if (!started.compareAndSet(false, true)) return
         require(Files.isDirectory(rootPath)) { "Project directory does not exist: $rootPath" }
-        registerTree(rootPath)
+        isNativeRecursiveWatch = registerNativeRecursive()
+        if (!isNativeRecursiveWatch) registerTree(rootPath)
         watchThread = Thread(::watchLoop, "jugg-watch-service").apply {
             isDaemon = true
             start()
@@ -87,15 +91,30 @@ class WatchServiceFileChangeMonitor(
             @Suppress("UNCHECKED_CAST")
             val relativePath = (event.context() as Path)
             val path = directory.resolve(relativePath).toAbsolutePath().normalize()
+            if (isIgnored(path)) return@forEach
             when (event.kind()) {
                 ENTRY_DELETE -> recordDeleted(path)
                 ENTRY_CREATE, ENTRY_MODIFY -> {
-                    if (event.kind() == ENTRY_CREATE && Files.isDirectory(path)) registerTree(path)
+                    if (!isNativeRecursiveWatch && event.kind() == ENTRY_CREATE && Files.isDirectory(path)) {
+                        registerTree(path)
+                    }
                     recordChanged(path)
                 }
             }
         }
         if (!key.reset()) synchronized(watchDirectories) { watchDirectories.remove(key) }
+    }
+
+    private fun registerNativeRecursive(): Boolean {
+        val events = arrayOf<WatchEvent.Kind<*>>(ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)
+        return try {
+            val key = rootPath.register(watchService, events, ExtendedWatchEventModifier.FILE_TREE)
+            synchronized(watchDirectories) { watchDirectories[key] = rootPath }
+            logger.debug("WatchService native recursive monitoring enabled for $rootPath")
+            true
+        } catch (_: UnsupportedOperationException) {
+            false
+        }
     }
 
     private fun registerTree(start: Path) {
@@ -110,6 +129,11 @@ class WatchServiceFileChangeMonitor(
                 return FileVisitResult.CONTINUE
             }
         })
+    }
+
+    private fun isIgnored(path: Path): Boolean {
+        if (!path.startsWith(rootPath)) return false
+        return rootPath.relativize(path).any { it.toString() in ignoredDirectoryNames }
     }
 
     private fun recordChanged(path: Path) {

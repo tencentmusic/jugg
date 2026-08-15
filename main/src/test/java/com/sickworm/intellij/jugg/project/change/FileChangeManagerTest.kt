@@ -19,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
@@ -102,6 +103,29 @@ class FileChangeManagerTest {
             verify(gitFileChangesDetector).updateChangedFiles()
             verify(deployStateManager).endFileProcessing()
         }
+    }
+
+    @Test
+    fun `watcher startup failure should preserve git fallback`() {
+        val monitor = FailingFileChangeMonitor()
+        val sourceFile = File("/project/app/src/main/Foo.kt")
+        val sourceChangedFile = changedFile(CompileFile.Type.Kotlin, sourceFile)
+        val callbacks = mutableListOf<FileChangeResult>()
+        var gitListener: FileChangesListener? = null
+        whenever(fileChangesHandler.filter(listOf(sourceFile))).thenReturn(listOf(sourceChangedFile))
+        doAnswer {
+            gitListener = it.getArgument(0)
+            null
+        }.whenever(gitFileChangesDetector).startListen(any())
+        doAnswer {
+            gitListener?.onFileChanges(listOf(sourceFile), emptyList())
+            null
+        }.whenever(gitFileChangesDetector).updateChangedFiles()
+
+        manager.start(monitor, callbacks::add)
+
+        assertTrue(monitor.isClosed)
+        assertEquals(listOf(FileChangeResult(listOf(sourceChangedFile))), callbacks)
     }
 
     @Test
@@ -219,6 +243,19 @@ class FileChangeManagerTest {
 
         fun notifyOverflow() {
             listener.onOverflow()
+        }
+    }
+
+    private class FailingFileChangeMonitor : IFileChangeMonitor {
+        var isClosed = false
+            private set
+
+        override fun startListen(listener: FileChangesListener) {
+            throw IllegalStateException("Too many open files")
+        }
+
+        override fun close() {
+            isClosed = true
         }
     }
 }

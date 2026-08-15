@@ -27,20 +27,32 @@ class FileChangeManager(
     }
 
     fun start(monitor: IFileChangeMonitor, onProcessed: (FileChangeResult) -> Unit) {
-        monitor.startListen(object : FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
-                processMonitorChanges(changedFiles, deletedFiles, onProcessed)
-            }
+        var monitorFailed = false
+        try {
+            monitor.startListen(object : FileChangesListener {
+                override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
+                    processMonitorChanges(changedFiles, deletedFiles, onProcessed)
+                }
 
-            override fun onOverflow() {
-                reconcileAfterOverflow()
-            }
-        })
+                override fun onOverflow() {
+                    reconcileAfterOverflow()
+                }
+            })
+        } catch (e: Exception) {
+            monitorFailed = true
+            logger.warn("WatchService monitor startup failed, use Git file checker instead", e)
+            runCatching { monitor.close() }
+                .onFailure { logger.warn("Close failed WatchService monitor", it) }
+        }
         gitFileChangesDetector.startListen(object : FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
                 onProcessed(processFileChanges(changedFiles, deletedFiles, FileChangeSource.GIT))
             }
         })
+        if (monitorFailed) {
+            runCatching { gitFileChangesDetector.updateChangedFiles() }
+                .onFailure { logger.warn("Initial Git file check after WatchService failure failed", it) }
+        }
     }
 
     private fun processMonitorChanges(
