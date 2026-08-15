@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-08-05
+> 最后核对：2026-08-15
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -46,6 +46,8 @@ jugg.py
 ```
 
 传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，也会从当前 Runtime 的已初始化项目中做最长前缀匹配。若路径是已初始化项目的子目录，则使用匹配到的父目录作为 MCP `projectDir`；未匹配时才保留显式路径。`--projectDir` 作为 camelCase 全局别名也会被归一化。
+
+macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；`Checking Jugg runtime`、IDE Runtime 未找到和 standalone 启动进度仍显示用户输入或当前工程的原始大小写路径。
 
 ### 3.2 端口与缓存
 

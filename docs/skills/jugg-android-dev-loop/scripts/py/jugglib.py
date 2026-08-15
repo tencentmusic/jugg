@@ -233,12 +233,15 @@ def reset_runtime_selection() -> None:
 def candidate_project_dir() -> str:
     """Resolve the project a standalone daemon should initialize."""
     if project_dir_override:
-        return normalize_project_dir(project_dir_override)
+        trimmed = project_dir_override.strip()
+        if not trimmed:
+            return trimmed
+        return _resolve_to_absolute_path(_convert_posix_style_windows_path(trimmed))
     current = Path.cwd().resolve()
     for directory in (current, *current.parents):
         if (directory / "settings.gradle").is_file() or (directory / "settings.gradle.kts").is_file():
-            return normalize_project_dir(str(directory))
-    return normalize_project_dir(str(current))
+            return str(directory)
+    return str(current)
 
 
 def _is_project_lock_held(project_dir: str) -> bool:
@@ -438,26 +441,27 @@ def resolve_port() -> int:
     if _selected_runtime_port is not None and ping_port(_selected_runtime_port):
         return _selected_runtime_port
 
-    project_dir = candidate_project_dir()
-    _print_progress_heartbeat(f"Checking Jugg runtime for {project_dir}...")
+    display_project_dir = candidate_project_dir()
+    runtime_project_dir = normalize_project_dir(display_project_dir)
+    _print_progress_heartbeat(f"Checking Jugg runtime for {display_project_dir}...")
     endpoints = discover_runtime_endpoints()
-    selected = _select_runtime(endpoints, project_dir)
+    selected = _select_runtime(endpoints, runtime_project_dir)
     launch: Optional[StandaloneLaunch] = None
     if selected is None:
         if runtime_type_override == "idea":
-            print(f"ERROR: No IDEA Runtime owns project '{project_dir}'.", file=sys.stderr)
+            print(f"ERROR: No IDEA Runtime owns project '{display_project_dir}'.", file=sys.stderr)
             sys.exit(1)
-        if not _hook_can_launch(project_dir):
+        if not _hook_can_launch(display_project_dir):
             sys.exit(0)
         try:
-            with _standalone_launch_lock(project_dir):
+            with _standalone_launch_lock(display_project_dir):
                 endpoints = discover_runtime_endpoints()
-                selected = _select_runtime(endpoints, project_dir)
+                selected = _select_runtime(endpoints, runtime_project_dir)
                 if selected is None:
                     _print_progress_heartbeat(
-                        f"Starting Jugg standalone runtime for {project_dir} with {_standalone_java_command()}..."
+                        f"Starting Jugg standalone runtime for {display_project_dir} with {_standalone_java_command()}..."
                     )
-                    launched = launch_standalone(project_dir)
+                    launched = launch_standalone(display_project_dir)
                     if isinstance(launched, StandaloneLaunch):
                         launch = launched
                         _print_progress_heartbeat(f"Waiting for standalone project initialization; startup log: {launch.log_path}")
@@ -470,7 +474,7 @@ def resolve_port() -> int:
                             _print_standalone_startup_failure(launch, f"failed to start (exit code {exit_code})")
                             sys.exit(1)
                     endpoints = discover_runtime_endpoints()
-                    selected = _select_runtime(endpoints, project_dir)
+                    selected = _select_runtime(endpoints, runtime_project_dir)
                     if selected is not None:
                         break
                     time.sleep(0.2)
@@ -486,7 +490,7 @@ def resolve_port() -> int:
         sys.exit(1)
 
     _selected_runtime_port = selected.port
-    _selected_project_dir = project_dir
+    _selected_project_dir = runtime_project_dir
     write_port_cache(selected.port)
     if launch is not None:
         _print_progress_heartbeat(f"Standalone runtime ready on port {selected.port}.")
