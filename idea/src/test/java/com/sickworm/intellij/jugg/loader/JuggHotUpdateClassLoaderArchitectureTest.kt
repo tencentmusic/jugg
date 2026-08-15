@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.loader
 
 import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
+import com.sickworm.intellij.jugg.ide.logic.IdeaPlatformApi
+import com.sickworm.intellij.jugg.platform.IPlatformApi
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.server.HotUpdateBootstrapChildCaller
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
@@ -12,6 +15,21 @@ import java.nio.file.Files
 
 /** Guards the stable bootstrap API shared by the plugin and hot-update classloaders. */
 class JuggHotUpdateClassLoaderArchitectureTest {
+
+    @Test
+    fun `platform bridge stays in host classloader`() {
+        val missingContractTypes = IPlatformApi::class.java.methods
+            .flatMap { method -> listOf(method.returnType) + method.parameterTypes }
+            .map(::componentType)
+            .filter { it.name.startsWith(JUGG_PACKAGE_PREFIX) }
+            .filterNot { JuggLoader.canNotHotUpdateClass.contains(it.name) }
+            .map(Class<*>::getName)
+
+        assertTrue("Platform bridge contract types are not host loaded: $missingContractTypes", missingContractTypes.isEmpty())
+        assertTrue(JuggLoader.canNotHotUpdateClass.contains(PlatformApi::class.java.name))
+        assertTrue(JuggLoader.canNotHotUpdateClass.contains(IPlatformApi::class.java.name))
+        assertTrue(JuggLoader.canNotHotUpdateClass.contains(IdeaPlatformApi::class.java.name))
+    }
 
     @Test
     fun `bootstrap API only exposes platform classes`() {
@@ -62,5 +80,17 @@ class JuggHotUpdateClassLoaderArchitectureTest {
         if (type.isPrimitive || type == Void.TYPE) return true
         if (type.isArray) return isPlatformType(type.componentType)
         return type.classLoader == null
+    }
+
+    private fun componentType(type: Class<*>): Class<*> {
+        var componentType = type
+        while (componentType.isArray) {
+            componentType = componentType.componentType
+        }
+        return componentType
+    }
+
+    private companion object {
+        const val JUGG_PACKAGE_PREFIX = "com.sickworm.intellij.jugg."
     }
 }

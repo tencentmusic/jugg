@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.*
+import com.sickworm.intellij.jugg.ide.logic.IdeaPlatformApi
+import com.sickworm.intellij.jugg.platform.IPlatformApi
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 import java.lang.reflect.Proxy
 
@@ -122,15 +125,25 @@ class JuggLoader(val project: Project, val projectDir: File) {
             "com.sickworm.intellij.jugg.ide",
             "com.intellij",
             )
+
+        // The host implementation and every direct Jugg type in its interface descriptor must use one classloader.
+        private val hostPlatformBridgeClassNames = buildSet {
+            add(PlatformApi::class.java.name)
+            add(IPlatformApi::class.java.name)
+            add(IdeaPlatformApi::class.java.name)
+            IPlatformApi::class.java.methods.forEach { method ->
+                addHostPlatformBridgeClass(this, method.returnType)
+                method.parameterTypes.forEach { addHostPlatformBridgeClass(this, it) }
+            }
+        }
+
         val canNotHotUpdateClass = setOf(
             // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, java.util.List, java.util.function.Consumer, int, kotlin.jvm.internal.DefaultConstructorMarker)
             // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, kotlin.jvm.functions.Function1)
             "kotlin.jvm.internal.DefaultConstructorMarker",
             "kotlin.jvm.functions.Function1",
-            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest",
-            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse",
             "com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec",
-        )
+        ) + hostPlatformBridgeClassNames
 
         private var cacheKey: String? = null
         private var cacheHotUpdateClassLoader: ClassLoader? = null
@@ -138,5 +151,17 @@ class JuggLoader(val project: Project, val projectDir: File) {
         private fun getCacheKey(jarFileNames: Array<String>): String {
             return "${JuggHotUpdateBootstrap.currentEmbeddedBuildTime}:${jarFileNames.joinToString(",")}"
         }
+
+        private fun addHostPlatformBridgeClass(classNames: MutableSet<String>, type: Class<*>) {
+            var componentType = type
+            while (componentType.isArray) {
+                componentType = componentType.componentType
+            }
+            if (!componentType.isPrimitive && componentType.name.startsWith(JUGG_PACKAGE_PREFIX)) {
+                classNames.add(componentType.name)
+            }
+        }
+
+        private const val JUGG_PACKAGE_PREFIX = "com.sickworm.intellij.jugg."
     }
 }

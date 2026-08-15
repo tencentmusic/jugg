@@ -34,21 +34,31 @@ Inside a Jugg project, follow the repository's `AGENTS.md` instructions first. I
    - Otherwise increment the patch version from the existing Jugg plugin version.
    - Use the local date in `YYYY.MM.DD` format for changelog entries.
 
-3. Update version metadata:
+3. Determine whether the release needs a plugin reinstall:
+   - Resolve the same source commit range used for release notes, then run:
+     ```bash
+     python3 .agents/skills/jugg-update-version-changelog/scripts/detect_reinstall.py --range <commit-range>
+     ```
+   - The script reports `isNeedReinstall`, every checked file, and the files that require a reinstall. Use its boolean in both RC YAML files.
+   - Do not downgrade a `true` result. A `false` result only means that no known host-loaded or plugin-packaging path changed; still use `true` when the release changes another known host-loaded boundary.
+   - For a target version that already has an RC entry, run the script against the complete release range, not only the newest commit. Remove an existing `isNeedReinstall` field when the final result is `false`.
+
+4. Update version metadata:
    - Update the root `build.gradle` `versionName` value.
    - Keep formatting consistent with the existing file.
 
-4. Update RC changelog YAML:
+5. Update RC changelog YAML:
    - Update `change_log/change_log_rc.yaml`.
    - Update `change_log/change_log_rc_cn.yaml`.
    - Keep exactly one top-level `- version: X.Y.Z` declaration per patch version.
    - If the target version does not exist, prepend a new top-level entry.
    - If the target version already exists, amend that entry's `date`, `isNeedReinstall`, and `updates` as needed. Never create a second entry for the same patch version.
+   - Set `isNeedReinstall: true` exactly when the detection result is true; otherwise omit the field.
    - Include `date: YYYY.MM.DD`.
    - Keep English and Chinese content aligned by meaning, not by literal wording.
    - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too. Do not create or stage untracked resource copies unless the repository already tracks them.
 
-5. Update HTML changelog pages:
+6. Update HTML changelog pages:
    - Update `change_log/change_log.html`.
    - Update `change_log/change_log_cn.html`.
    - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too.
@@ -62,19 +72,19 @@ Inside a Jugg project, follow the repository's `AGENTS.md` instructions first. I
    - Sort entries by category within the section: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
    - If an entry has another recognized prefix from the repository's commit convention, place it after the three main product categories unless the user says otherwise.
 
-6. Verify:
+7. Verify:
    - Run `git diff --check`.
    - Run a targeted version check, usually `./gradlew :idea:properties --no-daemon | rg "Plugin Version|^version:"`.
    - For changelog-only/version metadata changes, do not add JOOX Android unit tests.
    - Inspect `git diff --stat` and `git diff -- <files>` before committing.
 
-7. Commit:
+8. Commit:
    - Use the exact commit message when the user provides one.
    - Otherwise use `[other] update version to X.Y.Z`.
    - Stage only files changed for this version/changelog task.
    - Never stage unrelated user changes or untracked generated files.
 
-8. Tag:
+9. Tag:
    - Create a lightweight tag named exactly `X.Y.Z` on the completed version commit, without a `v` prefix.
    - Create the tag only after the commit and all verification succeed.
    - If the tag already resolves to the completed version commit, treat tagging as complete.
@@ -109,6 +119,8 @@ Usually inspect or edit these files:
 - `change_log/change_log.html`
 - `change_log/change_log_cn.html`
 
+The bundled `scripts/detect_reinstall.py` is read-only. Run it against the release commit range before editing release metadata.
+
 Only if tracked:
 
 - `idea/src/main/resources/change_log/change_log_rc.yaml`
@@ -125,3 +137,4 @@ When the Jugg repository requires a final execution checklist, include the repos
 - The exact commit message or `N/A` if no repository commit was made.
 - The exact tag and target commit, or `N/A` if no tag was created or verified.
 - The exact verification commands run.
+- The `isNeedReinstall` decision and the matched file paths, or that no known reinstall path matched.
