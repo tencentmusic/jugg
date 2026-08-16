@@ -16,9 +16,11 @@
 
 实际结果：`standalone init` 返回 “Standalone Runtime does not support remote compile profiles. Use IDEA or select a local profile.”，无法继续创建或选择可用的 local standalone profile。
 
-预期结果：standalone 不支持远程编译时，应在不改写 remote profile 的前提下选择已有 local profile，或创建 local standalone profile；不应因为当前 profile 是 remote 而阻断初始化。
+原预期：standalone 不支持远程编译时，应在不改写 remote profile 的前提下选择已有 local profile，或创建 local standalone profile；不应因为当前 profile 是 remote 而阻断初始化。
 
-定位：`StandaloneProjectInitializer.initialize()` 在读取当前 profile 后直接返回失败（`cmd_line/.../StandaloneProjectInitializer.kt:25-26`）；`StandaloneConfigurationRunner` 也在运行前直接拒绝 remote profile（`.../StandaloneConfigurationRunner.kt:109-113`）。同时 `resolveExecutionType()` 固定返回 `local`（`:244`），需要与最终 profile 选择语义一并核对。
+定位：`StandaloneProjectInitializer.initialize()` 在读取当前 profile 后直接返回失败（`cmd_line/.../StandaloneProjectInitializer.kt:25-26`）；`StandaloneConfigurationRunner` 也在运行前直接拒绝 remote profile（`.../StandaloneConfigurationRunner.kt:109-113`）。同时 `resolveExecutionType()` 固定返回 `local`（`:244`）。
+
+后续决策：改为直接支持 remote compile，不再通过自动选择 local profile 绕过。实施方案见 [standalone_remote_compile_plan.md](standalone_remote_compile_plan.md)，待下一个会话 review 后落地。
 
 ## 已解决问题
 
