@@ -169,7 +169,7 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 
 **当前期望行为**：
 - `DeployFileManager` 可直接创建 `ConstRefEngine`，但 `ConstRefEngine` 构造不应初始化 SQLite runtime；`JuggManager.<init>` 不应因 ConstRef DB 异常失败。
-- `ConstRefCacheDatabase` 初始化遇到损坏库时会重建 `~/.jugg/const_ref/const_ref_shared.db` 及其 WAL/SHM。
+- `ConstRefCacheDatabase` 初始化或运行期 DB 操作遇到损坏库时会重建 `~/.jugg/const_ref/const_ref_shared.db` 及其 WAL/SHM；运行期只重试触发损坏的原操作一次。
 - 若 DB 重建或 `RepoSharedFingerprintStore` 初始化仍失败，日志应出现 `fallback to no-op const-ref`，后续编译/部署按无 ConstRef 继续。
 
 **人工恢复**：若仍因文件权限或磁盘状态导致无法重建，可关闭 IDE 后删除 `~/.jugg/const_ref/const_ref_shared.db*` 和 `~/.jugg/const_ref/repo_fingerprint.db*`，重新打开项目。

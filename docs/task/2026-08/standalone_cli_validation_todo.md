@@ -20,13 +20,15 @@
 
 定位：`StandaloneProjectInitializer.initialize()` 在读取当前 profile 后直接返回失败（`cmd_line/.../StandaloneProjectInitializer.kt:25-26`）；`StandaloneConfigurationRunner` 也在运行前直接拒绝 remote profile（`.../StandaloneConfigurationRunner.kt:109-113`）。同时 `resolveExecutionType()` 固定返回 `local`（`:244`），需要与最终 profile 选择语义一并核对。
 
+## 已解决问题
+
 ### TODO-2：ConstRef 运行期扫描遇到 SQLite 缓存损坏
 
 在 `android_demo_project` 的 standalone `gradle-build` 成功后，`compile_latest.log` 记录 `ConstRefEngine scene FULL_SCAN failed`，原因为 `SQLITE_CORRUPT_INDEX`；随后 `ConstRefCacheCleaner` 记录 `const-ref cache db cleanup failed`。
 
 完整 Gradle 构建与后续 deploy 仍成功，因此主流程被正确隔离；但 FULL_SCAN 未完成，可能降低后续常量引用分析的可靠性。当前清理逻辑仅记录 warning，未见运行期损坏后的重建或显式 no-op 降级。
 
-期望：对运行期 `SQLITE_CORRUPT_INDEX` 采用可诊断且有界的恢复策略，例如重建缓存，或明确禁用受影响的 ConstRef 能力并保留主流程。
+已修复：运行期命中损坏信号后，关闭连接、删除或移走 DB/WAL/SHM、重建 schema，并仅重试原操作一次；重建或重试失败时保留当前操作降级，主流程继续。
 
 ## 跳过范围
 

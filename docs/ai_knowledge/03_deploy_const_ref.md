@@ -110,7 +110,7 @@ analyzeFiles()
   -> analysis miss: parser 解析 definitions + reference candidates 后落库
 ```
 
-`ConstRefEngine` 不直接拼 DB 路径；`DeployFileManager` 从 `JuggPathManager.constRefSharedDbFile` 和 `repoFingerprintDbFile` 注入，并可在构造期直接创建 `ConstRefEngine` 对象。SQLite database、repo fingerprint store 与 impact resolver 属于 `ConstRefEngine` 内部 runtime，不能在 `ConstRefEngine` 构造期初始化；它们在 `updateModuleInfos()`、保存/删除事件、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化。runtime 初始化失败后本轮进程熔断为 no-op；初始化成功后的运行期分析、影响查询、full scan、cleanup 或调度异常只降级当前操作，编译/部署主流程继续，后续 ConstRef 调用仍可重试。
+`ConstRefEngine` 不直接拼 DB 路径；`DeployFileManager` 从 `JuggPathManager.constRefSharedDbFile` 和 `repoFingerprintDbFile` 注入，并可在构造期直接创建 `ConstRefEngine` 对象。SQLite database、repo fingerprint store 与 impact resolver 属于 `ConstRefEngine` 内部 runtime，不能在 `ConstRefEngine` 构造期初始化；它们在 `updateModuleInfos()`、保存/删除事件、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化。runtime 初始化失败后本轮进程熔断为 no-op；已初始化的共享 SQLite 缓存若在运行期报损坏，会关闭连接、删除或移走 DB/WAL/SHM、重建 schema，并对原操作重试一次。其他运行期分析、影响查询、full scan、cleanup 或调度异常只降级当前操作，编译/部署主流程继续，后续 ConstRef 调用仍可重试。
 
 ---
 
@@ -140,7 +140,7 @@ analyzeFiles()
 - 支持 `queryClassesBySimpleNames` 通过 `simple_class_id + const_name_id` 索引实现点查，避免全表扫描。
 - 使用共享 SQLite 长连接，避免高频建连；latest 版本选择追加 `checksum` 作为稳定 tie-breaker。
 - `PRAGMA schema_version=7`，不兼容时重建；parser 可见性规则或索引语义变化必须 bump version，避免旧库中的 stale definition/candidate 继续参与影响分析。
-- 初始化识别 `SQLITE_CORRUPT` / `SQLITE_NOTADB` / `database disk image is malformed` 等损坏信号时会删除或旁路旧 DB 后重建；若重建或后续 ConstRef runtime 初始化仍失败，上层降级为 no-op，不阻断正常编译/部署。
+- 初始化和运行期 DB 操作均识别 `SQLITE_CORRUPT` / `SQLITE_NOTADB` / `database disk image is malformed` 等损坏信号。运行期命中后会删除或旁路旧 DB 后重建，并只重试原操作一次；若重建或重试失败，上层按当前操作降级，不阻断正常编译/部署。
 
 ### 5.2 `RepoSharedFingerprintStore`
 
@@ -189,7 +189,7 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 - const-ref definition diff 的清理时机是成功部署后的 commit ack，而不是影响查询本身；编译失败、跟编失败或部署失败时，同一批 const diff 应在下一次编译继续可查。
 - `private const val` 与 `private static final` 不进入 definition 索引和 diff；它们只影响声明所在源码文件，本文件已在首批编译内，不需要额外跟编引用方。
 - full scan、file change 分析、cache cleanup、delete cleanup 等后台链路异常仅 debug，不影响增量编译；删除 cleanup 遇到 SQLite busy/locked 会在后台有限重试，仍失败时去重后延迟重新入队。
-- ConstRef 是可选系统：DB / fingerprint store 初始化失败会把本进程 ConstRef runtime 降级为 no-op；full scan、保存/删除分析、pre-compile readiness、on-demand 分析、effected files 查询、cleanup、commit ack 等运行期失败只影响当前操作，不允许影响 Run / compile / deploy 主流程，也不应永久禁用已初始化 runtime。调度取消（如 `CancellationException`）属于正常重排/释放信号，不视为 runtime 故障。
+- ConstRef 是可选系统：DB / fingerprint store 初始化失败会把本进程 ConstRef runtime 降级为 no-op；运行期 SQLite 损坏会先执行一次删除重建和原操作重试，仍失败时 full scan、保存/删除分析、pre-compile readiness、on-demand 分析、effected files 查询、cleanup、commit ack 等操作只影响当前操作，不允许影响 Run / compile / deploy 主流程，也不应永久禁用已初始化 runtime。调度取消（如 `CancellationException`）属于正常重排/释放信号，不视为 runtime 故障。
 - Java 只记录可内联类型的 `static final` 字段；Kotlin 支持 top-level、object、companion、嵌套 class/object 的 `const val`。
 - Java/Kotlin parser 都忽略注释和字符串文本中的伪引用。
 
