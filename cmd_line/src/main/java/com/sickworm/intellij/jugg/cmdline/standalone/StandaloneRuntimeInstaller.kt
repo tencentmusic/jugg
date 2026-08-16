@@ -131,6 +131,16 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         val posix = """
             #!/bin/sh
             set -eu
+            JUGG_NOFILE_TARGET=65536
+            JUGG_NOFILE_SOFT="${'$'}(ulimit -Sn)"
+            JUGG_NOFILE_HARD="${'$'}(ulimit -Hn)"
+            if [ "${'$'}JUGG_NOFILE_SOFT" != "unlimited" ] && [ "${'$'}JUGG_NOFILE_SOFT" -lt "${'$'}JUGG_NOFILE_TARGET" ]; then
+              if [ "${'$'}JUGG_NOFILE_HARD" != "unlimited" ] && [ "${'$'}JUGG_NOFILE_HARD" -lt "${'$'}JUGG_NOFILE_TARGET" ]; then
+                JUGG_NOFILE_TARGET="${'$'}JUGG_NOFILE_HARD"
+              fi
+              ulimit -Sn "${'$'}JUGG_NOFILE_TARGET" 2>/dev/null || true
+            fi
+            echo "Jugg standalone max open files: ${'$'}(ulimit -Sn)"
             if [ -n "${'$'}{JAVA_HOME:-}" ] && [ -x "${'$'}JAVA_HOME/bin/java" ]; then
               JAVA_CMD="${'$'}JAVA_HOME/bin/java"
             elif command -v java >/dev/null 2>&1; then

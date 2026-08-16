@@ -51,6 +51,10 @@ class WatchServiceFileChangeMonitor(
         require(Files.isDirectory(rootPath)) { "Project directory does not exist: $rootPath" }
         isNativeRecursiveWatch = registerNativeRecursive()
         if (!isNativeRecursiveWatch) registerTree(rootPath)
+        val mode = if (isNativeRecursiveWatch) "native-recursive" else "directory-tree"
+        val watchKeyCount = synchronized(watchDirectories) { watchDirectories.size }
+        logger.debug("WatchService monitoring started, mode=$mode, " +
+                "watchKeys=$watchKeyCount, root=$rootPath")
         watchThread = Thread(::watchLoop, "jugg-watch-service").apply {
             isDaemon = true
             start()
@@ -110,7 +114,6 @@ class WatchServiceFileChangeMonitor(
         return try {
             val key = rootPath.register(watchService, events, ExtendedWatchEventModifier.FILE_TREE)
             synchronized(watchDirectories) { watchDirectories[key] = rootPath }
-            logger.debug("WatchService native recursive monitoring enabled for $rootPath")
             true
         } catch (_: UnsupportedOperationException) {
             false

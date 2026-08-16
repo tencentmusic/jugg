@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
 import com.google.gson.Gson
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
@@ -35,6 +36,31 @@ class StandaloneRuntimeInstallerTest {
         assertEquals(POSIX_PYTHON_LAUNCHER, root.resolve("home/bin/jugg").readText())
         assertEquals(WINDOWS_PYTHON_LAUNCHER, root.resolve("home/bin/jugg.cmd").readText())
         assertTrue(root.resolve("home/bin/jugg.py").canExecute())
+    }
+
+    @Test
+    fun `standalone launcher raises file descriptor limit for java`() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows", ignoreCase = true))
+        val root = Files.createTempDirectory("jugg-standalone-nofile").toFile()
+        val binDir = root.resolve("bin")
+        val fakeJava = root.resolve("jdk/bin/java").apply {
+            parentFile.mkdirs()
+            writeText("#!/bin/sh\nprintf 'java max open files: %s\\n' \"${'$'}(ulimit -Sn)\"\n")
+            setExecutable(true)
+        }
+        StandaloneRuntimeInstaller(root.resolve("home"), binDir)
+            .installValidated(bundle(root.resolve("bundle"), "build-1", "runtime"))
+
+        val process = ProcessBuilder(
+            "/bin/sh", "-c", "ulimit -Sn 256; exec \"${'$'}1\"", "sh", binDir.resolve("jugg-standalone").path,
+        ).redirectErrorStream(true).apply {
+            environment()["JAVA_HOME"] = fakeJava.parentFile.parent
+        }.start()
+        val output = process.inputStream.bufferedReader().readText()
+
+        assertEquals(0, process.waitFor())
+        assertTrue(output.contains("Jugg standalone max open files: 65536"), output)
+        assertTrue(output.contains("java max open files: 65536"), output)
     }
 
     @Test
