@@ -4,9 +4,9 @@
 
 - 验证工程：`/Users/wormchen/IdeaProjects/joox/JOOX_Android_2`
 - 补充验证工程：`/Users/wormchen/IdeaProjects/jugg/jugg/android_demo_project`
-- 验证设备：已连接的 Pixel 7 虚拟设备。
+- 验证设备：Pixel_6 AVD（本次验证后已关闭）。
 - standalone Runtime 声明能力为 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`。
-- 使用本地 profile 时，`init`、`status`、增量 `compile`、`deploy`、`gradle-build` 均已到达服务端成功终态；完整 Gradle 构建的 `get-compile-status` 记录为 `success`。
+- 使用本地 profile 时，`init`、`status`、增量 `compile`、`deploy`、`gradle-build` 均已到达服务端成功终态；两个工程完整 Gradle 构建的 `get-compile-status` 均记录为 `success`。
 
 ## 已确认问题
 
@@ -20,24 +20,21 @@
 
 定位：`StandaloneProjectInitializer.initialize()` 在读取当前 profile 后直接返回失败（`cmd_line/.../StandaloneProjectInitializer.kt:25-26`）；`StandaloneConfigurationRunner` 也在运行前直接拒绝 remote profile（`.../StandaloneConfigurationRunner.kt:109-113`）。同时 `resolveExecutionType()` 固定返回 `local`（`:244`），需要与最终 profile 选择语义一并核对。
 
-## 待复现问题
+### TODO-2：ConstRef 运行期扫描遇到 SQLite 缓存损坏
 
-### TODO-2：deploy 与 gradle-build 的 CLI 终端输出缺失
+在 `android_demo_project` 的 standalone `gradle-build` 成功后，`compile_latest.log` 记录 `ConstRefEngine scene FULL_SCAN failed`，原因为 `SQLITE_CORRUPT_INDEX`；随后 `ConstRefCacheCleaner` 记录 `const-ref cache db cleanup failed`。
 
-在本次 Codex 工具调用中，`deploy` 和 `gradle-build` 未返回 CLI JSON；但 standalone 服务端 job 实际继续执行并成功结束。`compile_2026-08-16_17-07-50.0.log` 记录 `onEndBuilding isSuccess: true`，且 `get-compile-status` 返回 `Gradle build finished successfully.`。
+完整 Gradle 构建与后续 deploy 仍成功，因此主流程被正确隔离；但 FULL_SCAN 未完成，可能降低后续常量引用分析的可靠性。当前清理逻辑仅记录 warning，未见运行期损坏后的重建或显式 no-op 降级。
 
-需要在普通终端直接运行相同命令，区分 CLI stdout/阻塞问题与 Codex 工具输出采集现象；未复现前不得作为产品缺陷处理。
+期望：对运行期 `SQLITE_CORRUPT_INDEX` 采用可诊断且有界的恢复策略，例如重建缓存，或明确禁用受影响的 ConstRef 能力并保留主流程。
 
-## 验证前置条件
+## 跳过范围
 
-### TODO-3：JOOX Agent hooks 的端到端验证需要以 JOOX 为 task 工作区
+### Agent hooks
 
-Jugg hooks 已安装，当前 Codex 会话中的 `PreToolUse` 事件也已写入 `jugg-hook-debug.log`。但 hook payload 的 `cwd` 固定为当前 task 工作区 `/Users/wormchen/IdeaProjects/jugg/jugg_f2`，不会因为 shell 命令的工作目录或 `--project-dir` 切换为 JOOX。因此本会话不能真实验证 JOOX 的“源码编辑 → raw Gradle 拦截 → Stop hook”链路。
+按用户指示跳过真实端到端 hooks 验证。此前已确认 Jugg hooks 安装且当前 Codex 会话可以触发 `PreToolUse`，但未把该观察当作 JOOX hooks 链路通过证据。
 
-后续应在以 `/Users/wormchen/IdeaProjects/joox/JOOX_Android_2` 为工作区的 Codex task 中执行该链路；不得通过直接运行 hook 脚本伪造事件。
+## 已关闭的验证观察
 
-### TODO-4：android_demo_project 的完整 Gradle 验证需要干净工作树或明确许可
-
-该工程当前含有用户未提交的 `app/build.gradle`、`settings.gradle`、`buildSrc` 构建产物、日志删除和新增源码目录。standalone 已可完成 `init`、`list-projects` 与“无待编译文件”的 `compile`，但运行 `gradle-build` 可能重写已修改的跟踪构建产物。
-
-后续应在干净副本中执行完整 Gradle 验证，或由用户明确许可在当前工作树运行。该项是验证前置条件，不是 standalone 产品缺陷。
+- `deploy` 与 `gradle-build` 在伪终端均输出完整 JSON；此前缺失输出是 Codex 调用采集现象，不是 CLI stdout 问题。
+- 用户授权后，`android_demo_project` 已在原工作树成功运行 `gradle-build`；未发现本次验证引入新的 Git 状态条目。
