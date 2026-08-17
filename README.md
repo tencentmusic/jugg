@@ -24,7 +24,8 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
 ## Download / 下载
 
 - [Latest stable release / 最新稳定版](https://github.com/sickworm/jugg/releases/latest)
-- [Latest nightly build / 最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly/jugg-nightly.zip)（自动从 `main` 构建，可能不稳定）
+- [Latest main nightly build / main 最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly-main/jugg-nightly-main.zip)（main 有新 commit 时自动构建，可能不稳定）
+- [Latest develop nightly build / develop 最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly-develop/jugg-nightly-develop.zip)（develop 有新 commit 时自动构建，可能不稳定）
 
 # Project Structure
 ## Modules

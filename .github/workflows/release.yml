@@ -5,6 +5,7 @@ on:
     tags:
       - "*"
       - "!nightly"
+      - "!nightly-*"
 
 permissions:
   contents: write

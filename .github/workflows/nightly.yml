@@ -14,31 +14,65 @@ concurrency:
 
 jobs:
   build:
+    name: Build ${{ matrix.branch }} nightly
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      matrix:
+        include:
+          - branch: main
+            release_tag: nightly-main
+            release_title: Jugg Nightly (main)
+            asset_name: jugg-nightly-main.zip
+          - branch: develop
+            release_tag: nightly-develop
+            release_title: Jugg Nightly (develop)
+            asset_name: jugg-nightly-develop.zip
 
     steps:
-      - name: Check out main branch
+      - name: Check out branch
         uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ matrix.branch }}
+          fetch-depth: 1
+
+      - name: Check for unpublished commits
+        id: check
+        env:
+          RELEASE_TAG: ${{ matrix.release_tag }}
+        shell: bash
+        run: |
+          branch_sha="$(git rev-parse HEAD)"
+          nightly_sha="$(git ls-remote --refs origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')"
+          if [[ "$branch_sha" == "$nightly_sha" ]]; then
+            echo "No commits since the current $RELEASE_TAG release."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Branch HEAD $branch_sha differs from $RELEASE_TAG tag $nightly_sha."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Java
+        if: steps.check.outputs.should_build == 'true'
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
+        if: steps.check.outputs.should_build == 'true'
         uses: android-actions/setup-android@v4
 
       - name: Install Android build tools
+        if: steps.check.outputs.should_build == 'true'
         run: sdkmanager "platforms;android-33" "ndk;27.0.12077973" "cmake;3.22.1"
 
       - name: Set up Gradle
+        if: steps.check.outputs.should_build == 'true'
         uses: gradle/actions/setup-gradle@v6
 
       - name: Generate nightly version
+        if: steps.check.outputs.should_build == 'true'
         id: version
         shell: bash
         run: |
@@ -47,16 +81,20 @@ jobs:
             echo "Cannot read versionName from build.gradle." >&2
             exit 1
           fi
-          nightly_version="${base_version}-nightly.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          nightly_version="${base_version}-${{ matrix.branch }}-nightly.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
           echo "value=$nightly_version" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin
+        if: steps.check.outputs.should_build == 'true'
         run: |
           ./gradlew :idea:buildPlugin \
             -PpluginVersion="${{ steps.version.outputs.value }}" \
             --no-daemon
 
       - name: Prepare nightly assets
+        if: steps.check.outputs.should_build == 'true'
+        env:
+          ASSET_NAME: ${{ matrix.asset_name }}
         shell: bash
         run: |
           shopt -s nullglob
@@ -65,27 +103,34 @@ jobs:
             echo "Expected one plugin zip, found ${#plugin_zips[@]}." >&2
             exit 1
           fi
-          cp "${plugin_zips[0]}" jugg-nightly.zip
-          sha256sum jugg-nightly.zip > jugg-nightly.zip.sha256
+          cp "${plugin_zips[0]}" "$ASSET_NAME"
+          sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
 
       - name: Upload nightly artifact
+        if: steps.check.outputs.should_build == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: jugg-${{ steps.version.outputs.value }}
           path: |
-            jugg-nightly.zip
-            jugg-nightly.zip.sha256
+            ${{ matrix.asset_name }}
+            ${{ matrix.asset_name }}.sha256
           if-no-files-found: error
           retention-days: 14
 
       - name: Publish rolling nightly release
+        if: steps.check.outputs.should_build == 'true'
         env:
+          ASSET_NAME: ${{ matrix.asset_name }}
+          BRANCH: ${{ matrix.branch }}
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ matrix.release_tag }}
+          RELEASE_TITLE: ${{ matrix.release_title }}
         shell: bash
         run: |
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
-          release_notes="$(printf 'Automatically published from the latest successful main branch build. Nightly builds may be unstable. However, they include the latest bug fixes and features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+          release_notes="$(printf 'Automatically published from the latest %s branch build. Nightly builds may be unstable. However, they include the latest bug fixes and features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+            "$BRANCH" \
             '${{ steps.version.outputs.value }}' \
             "$short_sha" \
             "$GITHUB_SERVER_URL" \
@@ -97,23 +142,23 @@ jobs:
             "$GITHUB_RUN_ID")"
 
           # GITHUB_TOKEN tag updates do not trigger the tagged release workflow.
-          git tag --force nightly "$commit_sha"
-          git push --force origin refs/tags/nightly
+          git tag --force "$RELEASE_TAG" "$commit_sha"
+          git push --force origin "refs/tags/$RELEASE_TAG"
 
-          if gh release view nightly >/dev/null 2>&1; then
-            gh release edit nightly \
-              --title "Jugg Nightly" \
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
               --notes "$release_notes" \
               --prerelease
           else
-            gh release create nightly \
+            gh release create "$RELEASE_TAG" \
               --verify-tag \
-              --title "Jugg Nightly" \
+              --title "$RELEASE_TITLE" \
               --notes "$release_notes" \
               --prerelease
           fi
 
-          gh release upload nightly \
-            jugg-nightly.zip \
-            jugg-nightly.zip.sha256 \
+          gh release upload "$RELEASE_TAG" \
+            "$ASSET_NAME" \
+            "$ASSET_NAME.sha256" \
             --clobber
