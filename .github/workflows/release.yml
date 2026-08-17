@@ -16,7 +16,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check-release-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check whether tag commit is on main
+        id: check
+        shell: bash
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag commit is reachable from main."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag commit is not reachable from main; skipping release build."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check-release-branch
+    if: needs.check-release-branch.outputs.should_release == 'true'
     runs-on: ubuntu-latest
 
     steps:

@@ -25,7 +25,7 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
 
 - [Latest stable release / 最新稳定版](https://github.com/sickworm/jugg/releases/latest)
 - [Latest main nightly build / main 最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly-main/jugg-nightly-main.zip)（main 有新 commit 时自动构建，可能不稳定）
-- [Latest develop canary build / develop 最新 Canary 构建](https://github.com/sickworm/jugg/releases/download/canary-develop/jugg-canary-develop.zip)（develop 有新 commit 时自动构建，可能不稳定）
+- [Latest develop canary build / develop 最新 Canary 构建](https://github.com/sickworm/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)（develop 有新 commit 时自动构建，可能不稳定）
 
 # Project Structure
 ## Modules

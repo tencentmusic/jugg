@@ -28,9 +28,9 @@ jobs:
             version_channel: nightly
           - branch: develop
             channel: canary
-            release_tag: canary-develop
-            release_title: Jugg Canary (develop)
-            asset_name: jugg-canary-develop.zip
+            release_tag: canary-nightly
+            release_title: Jugg Canary
+            asset_name: jugg-canary-nightly.zip
             version_channel: canary
 
     steps:
