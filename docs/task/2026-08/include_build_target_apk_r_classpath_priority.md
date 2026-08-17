@@ -10,7 +10,7 @@
 jugg_scene_module-app_20260813_143324.zip
 ```
 
-本问题只涉及源码增量编译时的 R 解析顺序。方案已按 include build 身份做风险隔离并完成实现。
+本问题只涉及源码增量编译时的 R 解析顺序。方案已按 include build 身份做风险隔离；2026-08-17 的 dynamic-feature 现场进一步补齐了 host feature R 的优先级边界。
 
 ## 用户可见问题
 
@@ -121,14 +121,12 @@ RIF 独立构建生成自己的 R
 - 仅按 R.jar 文件大小排序不能表达 APK ownership。
 - 仅把目标 R.jar 调整到 `finalRFiles` 第一位仍然无效，因为普通 module output 位于整个 `finalRFiles` 之前。
 
-## 当前假设
+## 已验证边界
 
-- 对当前 non-namespaced/transitive R 工程，目标 Application 或 Dynamic Feature 的最终 R.jar 包含源码需要解析的业务 module R package。
-  - 验证方式：使用 QQMusic/RIF 或测试 fixture 枚举目标 R.jar 中相关 `R$layout`、`R$id` entry。
+- 单个推断目标 `R.jar` 不一定包含源码需要解析的业务 R package。2026-08-17 现场中，base `qqmusic` R 被正确前移，但 `com.tme.rif.business.gift.R` 只存在于 `karaokektvplugin` split；编译随后命中 included build 自己的同名 R，仍产生错误 ID。
 - 同一轮资源和源码一起变化时，`tempModule` 生成的 R class 已包含新资源字段，并且应继续高于目标 APK R。
   - 验证方式：保留并扩展 `compileResourceAddIds` Flow，检查随后编译源码时使用新 ID。
-- 当前事故中最先命中的错误 provider 来自 RIF module output，而不是尾部 RIF app R.jar。
-  - 验证方式：在原始工程按真实 Kotlin `-cp` 顺序枚举第一个包含对应 `R$layout.class` / `R$id.class` 的目录或 jar。
+- 错误 provider 既可能来自 included module output，也可能来自 included Application 的尾部 R.jar；修复必须让主 build 的目标/base/feature R 全部位于这些 provider 之前。
 
 ## 方案比较
 
@@ -217,7 +215,7 @@ libraries
 
 1. `CompileContextManager` 按 project info 快照来源识别 included build module roots：第 0 份为主 Gradle 快照，后续为 included build；主快照目录优先。
 2. 身份仅作为 `BaseCompileContext` 运行时集合传递，不修改 `ModuleInfo` 序列化协议。
-3. 仅当当前模块来自 included build、模块类型为 Library/JavaLibrary、目标 APK module 来自主 build 且目标 `R.jar` 存在时，将目标 R 放在普通 module output 前。
+3. 仅当当前模块来自 included build、模块类型为 Library/JavaLibrary 时，将推断目标 APK R 放在最前，并补齐主 build 的 Application/Dynamic Feature R；只使用实际存在且不属于 included build 的 R.jar。
 4. 本轮 Jugg temp classpath 继续保持第一优先级；普通模块、其他模块类型、身份或目标 R 不完整时保持旧顺序。
 5. 命令行增量只读取主 Gradle project info，不启用该 IDE 多快照门禁。
 
@@ -226,7 +224,7 @@ libraries
 ```text
 android.jar
 → 本轮 Jugg temp classpath
-→ included build 命中时的目标 APK R.jar
+→ included build 命中时的推断目标、host base/feature R.jar
 → 当前模块和模块依赖输出
 → libraries / parent libraries
 → 其他 final R.jar
@@ -240,6 +238,23 @@ android.jar
 - 主 build 中位于工程根目录外的普通模块保持旧顺序。
 - included Application 和 Unknown 模块保持旧顺序。
 - 主快照缺失时不识别 included build；同一 module root 同时出现在主/included 快照时主快照优先。
+- base R 不含业务命名空间、feature R 含正确值且 included output 含错误值时，源码使用 feature R 的值。
+
+## Dynamic feature 后续现场（2026-08-17）
+
+用户在 RIF 源码切换为本地 included build 后，第一次 Gradle 构建正常，第二次 Jugg 增量编译 `GiftPanelContainerAdapterV2.kt` 发生 `Resources$NotFoundException: Resource ID #0x7f0b009c`。
+
+现场证据形成完整因果链：
+
+- Jugg 日志确认历史修复已命中，`qqmusic` R.jar 位于 `business_gift` output 前。
+- 增量 DEX 的 `onCreateViewHolder()` 把布局内联为 `0x7f0b009c`。
+- base 与 split APK 资源表都不存在 `0x7f0b009c`。
+- 同名 `layout/rif_business_gift_panel_group_layout_v2` 实际位于 `karaokektvplugin` split，ID 为 `0x7e07000a`。
+- 基线 split DEX 通过 `com.tme.rif.business.gift.R$layout` 读取该值，说明业务 R package 由 feature R 提供，而不是 base R。
+
+直接根因是首版只前移一个推断目标 R。该 R 不包含业务命名空间时，classpath 继续命中 included build 独立构建的同名 R，并内联不属于已安装 APK 的 ID。
+
+当前实现保留推断目标 R 第一优先级，同时补齐主 build 的 Application/Dynamic Feature R，再进入 included module output。缺失某个 host R 时只跳过该候选；所有候选均不可用时沿用原 best-effort 顺序。
 
 ## 实施前方案设计
 

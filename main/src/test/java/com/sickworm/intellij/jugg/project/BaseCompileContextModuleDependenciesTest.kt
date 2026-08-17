@@ -64,6 +64,36 @@ class BaseCompileContextModuleDependenciesTest {
     }
 
     @Test
+    fun `included build source uses host feature R before included outputs`() {
+        withFixture { fixture ->
+            compileRClass(fixture.root, fixture.targetFeatureRClasses, 1)
+            writeClassesToJar(fixture.targetFeatureRClasses, fixture.featureR)
+            compileRClass(fixture.root, fixture.includedKotlinClasses, 2)
+            val dependencies = fixture.context.getModuleDependencies(fixture.includedModule, fixture.task)
+            val outputDir = File(fixture.root, "compiled-feature-source")
+            val source = File(fixture.root, "UseFeatureR.java").apply {
+                writeText("public class UseFeatureR { public static final int VALUE = sample.R.id.value; }")
+            }
+
+            val result = ToolProvider.getSystemJavaCompiler().run(
+                null,
+                null,
+                null,
+                "-classpath",
+                dependencies.joinToString(File.pathSeparator),
+                "-d",
+                outputDir.absolutePath,
+                source.absolutePath,
+            )
+
+            assertEquals(0, result)
+            URLClassLoader(arrayOf(outputDir.toURI().toURL()), null).use { classLoader ->
+                assertEquals(1, classLoader.loadClass("UseFeatureR").getField("VALUE").getInt(null))
+            }
+        }
+    }
+
+    @Test
     fun `primary build module keeps module outputs before final R`() {
         withFixture { fixture ->
             val dependencies = fixture.context.getModuleDependencies(fixture.primaryLibraryModule, fixture.task)
@@ -106,6 +136,12 @@ class BaseCompileContextModuleDependenciesTest {
     private fun createFixture(root: File): Fixture {
         val projectDir = File(root, "main").apply { mkdirs() }
         val applicationModule = module(projectDir, File(projectDir, "app"), "app", ModuleInfo.Type.Application)
+        val featureModule = module(
+            projectDir,
+            File(projectDir, "feature"),
+            "feature",
+            ModuleInfo.Type.DynamicFeature,
+        )
         val includedModule = module(projectDir, File(root, "included/library"), "includedLibrary", ModuleInfo.Type.Library)
         val includedApplicationModule = module(
             projectDir,
@@ -115,7 +151,9 @@ class BaseCompileContextModuleDependenciesTest {
         )
         val primaryLibraryModule = module(projectDir, File(root, "external/library"), "primaryLibrary", ModuleInfo.Type.Library)
         val applicationR = createRJar(applicationModule)
+        val featureR = createRJar(featureModule)
         val targetRClasses = File(root, "target-r-classes")
+        val targetFeatureRClasses = File(root, "target-feature-r-classes")
         val includedKotlinClasses = includedModule.buildPathInfo.kotlinClassPath.apply { mkdirs() }
         val includedApplicationKotlinClasses = includedApplicationModule.buildPathInfo.kotlinClassPath.apply { mkdirs() }
         val primaryLibraryKotlinClasses = primaryLibraryModule.buildPathInfo.kotlinClassPath.apply { mkdirs() }
@@ -136,6 +174,7 @@ class BaseCompileContextModuleDependenciesTest {
             androidHome = androidHome,
             modules = linkedMapOf(
                 applicationModule.name to applicationModule,
+                featureModule.name to featureModule,
                 includedModule.name to includedModule,
                 includedApplicationModule.name to includedApplicationModule,
                 primaryLibraryModule.name to primaryLibraryModule,
@@ -159,7 +198,9 @@ class BaseCompileContextModuleDependenciesTest {
             context,
             task,
             applicationR,
+            featureR,
             targetRClasses,
+            targetFeatureRClasses,
             includedModule,
             includedKotlinClasses,
             includedApplicationModule,
@@ -230,7 +271,9 @@ class BaseCompileContextModuleDependenciesTest {
         val context: BaseCompileContext,
         val task: CompileTask,
         val applicationR: File,
+        val featureR: File,
         val targetRClasses: File,
+        val targetFeatureRClasses: File,
         val includedModule: ModuleInfo,
         val includedKotlinClasses: File,
         val includedApplicationModule: ModuleInfo,

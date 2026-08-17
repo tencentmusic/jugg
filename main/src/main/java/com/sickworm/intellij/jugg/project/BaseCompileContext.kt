@@ -294,15 +294,14 @@ class BaseCompileContext(
 
         val dependencies = mutableListOf(androidJar)
         dependencies.addAll(tempDependencies)
-        val targetRFile = findIncludedBuildTargetRFile(moduleInfo)
-        if (targetRFile != null) {
-            dependencies.add(targetRFile.absolutePath)
-        }
+        val targetRFiles = findIncludedBuildTargetRFiles(moduleInfo)
+        val targetRPaths = targetRFiles.map { it.absolutePath }
+        dependencies.addAll(targetRPaths)
         dependencies.addAll(classpathDependencies)
         dependencies.addAll(moduleDependencies)
         dependencies.addAll(libraryDependency)
         dependencies.addAll(parentLibraryModuleDependency)
-        dependencies.addAll(finalRFiles.filter { it != targetRFile?.absolutePath })
+        dependencies.addAll(finalRFiles.filter { it !in targetRPaths })
 
         task.files.forEach {
             dependencies.addAll(it.dependencyPaths)
@@ -311,26 +310,28 @@ class BaseCompileContext(
         return dependencies
     }
 
-    private fun findIncludedBuildTargetRFile(moduleInfo: ModuleInfo): File? {
+    private fun findIncludedBuildTargetRFiles(moduleInfo: ModuleInfo): List<File> {
         if (moduleInfo.moduleType != ModuleInfo.Type.Library &&
             moduleInfo.moduleType != ModuleInfo.Type.JavaLibrary ||
             moduleInfo.moduleRootDir.normalizedPath !in includedBuildModuleRootPaths
         ) {
-            return null
+            return emptyList()
         }
-        val targetModule = findRelativeApkModule(moduleInfo)
-        if (targetModule.moduleRootDir.normalizedPath in includedBuildModuleRootPaths) {
-            return null
+        val targetModules = (listOf(findRelativeApkModule(moduleInfo)) +
+                listOfNotNull(applicationModule) + dynamicFeatureModules)
+            .distinctBy { it.moduleRootDir.normalizedPath }
+            .filter { it.moduleRootDir.normalizedPath !in includedBuildModuleRootPaths }
+        return targetModules.mapNotNull { targetModule ->
+            val targetRFile = targetModule.buildPathInfo.rFilePath
+            if (!targetRFile.exists()) {
+                logger.debug("Included build module ${moduleInfo.name} target R.jar not found in ${targetModule.name}, " +
+                        "skip this host APK R.jar.")
+                return@mapNotNull null
+            }
+            logger.debug("Included build module ${moduleInfo.name} uses host APK R.jar from " +
+                    "${targetModule.name}: ${targetRFile.absolutePath}")
+            targetRFile
         }
-        val targetRFile = targetModule.buildPathInfo.rFilePath
-        if (!targetRFile.exists()) {
-            logger.debug("Included build module ${moduleInfo.name} target R.jar not found in ${targetModule.name}, " +
-                    "keep existing classpath order.")
-            return null
-        }
-        logger.debug("Included build module ${moduleInfo.name} uses target APK R.jar from " +
-                "${targetModule.name}: ${targetRFile.absolutePath}")
-        return targetRFile
     }
 
     private fun ModuleInfo.getLibraryDependencyPaths(): List<String> {

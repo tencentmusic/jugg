@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-08-13
+> 最后核对：2026-08-17
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -94,7 +94,7 @@ KotlinCompilerInvoker
 - `-Xjava-source-roots` 让 Kotlin 先读取本轮或同模块 Java 源码，解决 Java/Kotlin 相互引用；因此语言阶段固定 Kotlin 在前、Java 在后。
 - `.kotlin_module` 承载 class 文件无法完整表达的顶层函数、扩展函数和 file facade 信息。单文件编译前后都要合并 baseline 与新元数据；失败时仅告警并保留主编译结果，但后续可能出现 extension unresolved reference 或影响传播缺失。
 
-included build 的 Library/JavaLibrary 源码可能同时看到 included build 独立构建的 R 与主 APK 最终 R。IDE 场景会从 Gradle 快照来源保存 included module roots；当该模块最终归属主 build 生成的 APK 且目标 Application/Dynamic Feature `R.jar` 存在时，`BaseCompileContext.getModuleDependencies()` 将目标 APK R 放到普通 module output 前。本轮 Jugg 生成的 temp classpath 仍保持最高优先级；普通主 build 模块、其他模块类型、目标 R 缺失或快照身份不完整时保持原 classpath 顺序。
+included build 的 Library/JavaLibrary 源码可能同时看到 included build 独立构建的 R 与主 APK 最终 R。IDE 场景会从 Gradle 快照来源保存 included module roots；命中后，`BaseCompileContext.getModuleDependencies()` 先放入推断目标 APK 的 `R.jar`，再补齐主 build 的 Application/Dynamic Feature `R.jar`，最后才放普通 module output。这样即使 base `R.jar` 不包含只存在于 split 的业务 R package，Kotlin/Java 仍会先命中 host feature 的最终资源 ID，而不会退回 included build 的独立 R。本轮 Jugg 生成的 temp classpath 仍保持最高优先级；普通主 build 模块、其他模块类型、host R 全部缺失或快照身份不完整时保持原 classpath 顺序。
 
 ### 4.2 D8 脱糖决策
 
@@ -164,7 +164,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 | 删除或重命名源码文件后旧 class 仍可加载 | 删除路径不会生成 class 移除数据；这是预期的增量结果，只有需要让旧 class 消失时才刷新完整 Gradle APK 基线 |
 | Kotlin 编译失败后 Java 大量连带报错 | `compileLanguageStages()`：确认 Java 阶段是否被跳过，以及 Kotlin failed details |
 | classpath 缺失 / Kotlin metadata 异常 | `K2JVMCompilerIsolate.checkClasspath`、`KotlinCompilerOutputParser`、`KmModuleMergerForCompilation` |
-| included build 源码增量后资源 ID 错误 | `CompileContextManager` 的 included build module roots、`BaseCompileContext.findIncludedBuildTargetRFile()` 与 Kotlin 实际 `-classpath`；确认目标 APK R 位于 included module output 前 |
+| included build 源码增量后资源 ID 错误 | `CompileContextManager` 的 included build module roots、`BaseCompileContext.findIncludedBuildTargetRFiles()` 与 Kotlin 实际 `-classpath`；确认推断目标和 host feature R 都位于 included module output 前，并对比新 DEX 内联 ID 与实际 base/split APK 资源表 |
 | Kotlin `internal` 运行时找不到方法或 smart cast 被误判跨模块 | `KotlinCompilerInvoker` 的 `module-name`、friend path 与 `-d` 输出目录 |
 | DataBinding mapper 未生成 | `SourceDataBindingProcessor.processDataBindingMapper()` 与 `DataBindingGenMapperCompiler` |
 | dex 合并失败 | `DexCompiler`、`DexFileMerger`、`IncrementalCompilerHelper.mergeDex` |
