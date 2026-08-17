@@ -1,4 +1,4 @@
-name: Build release channels
+name: Build Canary
 
 on:
   schedule:
@@ -9,50 +9,35 @@ permissions:
   contents: write
 
 concurrency:
-  group: nightly-build
+  group: canary-build
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build ${{ matrix.channel }} channel
+    name: Build Canary
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      matrix:
-        include:
-          - branch: main
-            channel: nightly
-            release_tag: nightly-main
-            release_title: Jugg Nightly (main)
-            asset_name: jugg-nightly-main.zip
-            version_channel: nightly
-          - branch: develop
-            channel: canary
-            release_tag: canary-nightly
-            release_title: Jugg Canary
-            asset_name: jugg-canary-nightly.zip
-            version_channel: canary
 
     steps:
-      - name: Check out branch
+      - name: Check out develop branch
         uses: actions/checkout@v6
         with:
-          ref: ${{ matrix.branch }}
+          ref: develop
           fetch-depth: 1
 
       - name: Check for unpublished commits
         id: check
         env:
-          RELEASE_TAG: ${{ matrix.release_tag }}
+          RELEASE_TAG: canary-nightly
         shell: bash
         run: |
           branch_sha="$(git rev-parse HEAD)"
-          nightly_sha="$(git ls-remote --refs origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')"
-          if [[ "$branch_sha" == "$nightly_sha" ]]; then
+          published_sha="$(git ls-remote --refs origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')"
+          if [[ "$branch_sha" == "$published_sha" ]]; then
             echo "No commits since the current $RELEASE_TAG release."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Branch HEAD $branch_sha differs from $RELEASE_TAG tag $nightly_sha."
+            echo "Branch HEAD $branch_sha differs from $RELEASE_TAG tag $published_sha."
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -75,7 +60,7 @@ jobs:
         if: steps.check.outputs.should_build == 'true'
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Generate nightly version
+      - name: Generate canary version
         if: steps.check.outputs.should_build == 'true'
         id: version
         shell: bash
@@ -85,8 +70,8 @@ jobs:
             echo "Cannot read versionName from build.gradle." >&2
             exit 1
           fi
-          nightly_version="${base_version}-${{ matrix.version_channel }}.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
-          echo "value=$nightly_version" >> "$GITHUB_OUTPUT"
+          canary_version="${base_version}-canary.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          echo "value=$canary_version" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin
         if: steps.check.outputs.should_build == 'true'
@@ -95,10 +80,10 @@ jobs:
             -PpluginVersion="${{ steps.version.outputs.value }}" \
             --no-daemon
 
-      - name: Prepare nightly assets
+      - name: Prepare canary assets
         if: steps.check.outputs.should_build == 'true'
         env:
-          ASSET_NAME: ${{ matrix.asset_name }}
+          ASSET_NAME: jugg-canary-nightly.zip
         shell: bash
         run: |
           shopt -s nullglob
@@ -110,30 +95,30 @@ jobs:
           cp "${plugin_zips[0]}" "$ASSET_NAME"
           sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
 
-      - name: Upload nightly artifact
+      - name: Upload canary artifact
         if: steps.check.outputs.should_build == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: jugg-${{ steps.version.outputs.value }}
           path: |
-            ${{ matrix.asset_name }}
-            ${{ matrix.asset_name }}.sha256
+            jugg-canary-nightly.zip
+            jugg-canary-nightly.zip.sha256
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish rolling nightly release
+      - name: Publish rolling canary release
         if: steps.check.outputs.should_build == 'true'
         env:
-          ASSET_NAME: ${{ matrix.asset_name }}
-          BRANCH: ${{ matrix.branch }}
+          ASSET_NAME: jugg-canary-nightly.zip
+          BRANCH: develop
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ matrix.release_tag }}
-          RELEASE_TITLE: ${{ matrix.release_title }}
+          RELEASE_TAG: canary-nightly
+          RELEASE_TITLE: Jugg Canary
         shell: bash
         run: |
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
-          release_notes="$(printf 'Automatically published from the latest %s branch build. Nightly builds may be unstable. However, they include the latest bug fixes and features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+          release_notes="$(printf 'Automatically published from the latest %s branch build. Canary builds may be unstable. However, they include the latest bug fixes and features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
             "$BRANCH" \
             '${{ steps.version.outputs.value }}' \
             "$short_sha" \
