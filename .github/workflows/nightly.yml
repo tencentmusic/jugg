@@ -24,10 +24,12 @@ jobs:
             release_tag: nightly-main
             release_title: Jugg Nightly (main)
             asset_name: jugg-nightly-main.zip
+            version_channel: nightly
           - branch: develop
             release_tag: nightly-develop
             release_title: Jugg Nightly (develop)
             asset_name: jugg-nightly-develop.zip
+            version_channel: canary
 
     steps:
       - name: Check out branch
@@ -81,7 +83,7 @@ jobs:
             echo "Cannot read versionName from build.gradle." >&2
             exit 1
           fi
-          nightly_version="${base_version}-${{ matrix.branch }}-nightly.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          nightly_version="${base_version}-${{ matrix.version_channel }}.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
           echo "value=$nightly_version" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin

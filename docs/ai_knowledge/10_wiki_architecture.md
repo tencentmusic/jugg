@@ -246,7 +246,7 @@ yun:~/jugg_backend/wiki
 - README 和 Wiki 使用固定的 main / develop Nightly 地址，因此每次构建不需要更新页面链接。
 - `release.yml` 必须排除 Nightly tag，避免滚动 tag 被正式发布流程校验为版本号。
 
-每个 Nightly 只在对应分支有新 commit 时重新发布。develop Nightly 可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
+每个 Nightly 只在对应分支有新 commit 时重新发布。main 包使用 `${baseVersion}-nightly.<日期>.<run>`，develop 包使用 `${baseVersion}-canary.<日期>.<run>`；版本渠道只由构建分支决定。develop Nightly 可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
 
 ## 11. 关联文档
 
