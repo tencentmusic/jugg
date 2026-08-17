@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.jcraft.jsch.ChannelShell
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.JSchException
@@ -102,6 +101,18 @@ class JschShellTerminalHelperTest {
     }
 
     @Test
+    fun shellEchoDisableCommandUsesSingleLineAndParsesResult() {
+        assertTrue(JschShellTerminalHelper.DISABLE_SHELL_ECHO_COMMAND.startsWith("stty -echo"))
+        assertTrue(!JschShellTerminalHelper.DISABLE_SHELL_ECHO_COMMAND.contains("\n"))
+        assertEquals(0, JschShellTerminalHelper.parseShellEchoDisabledResult("(Jugg) ShellEchoDisabled result: 0"))
+        assertNull(
+            JschShellTerminalHelper.parseShellEchoDisabledResult(
+                "(Jugg) ShellEchoDisabled result: \$__jugg_exit"
+            )
+        )
+    }
+
+    @Test
     fun passwordLoginSuccessDoesNotSearchAvailableKeys() {
         val originalUserHome = System.getProperty("user.home")
         val sshDir = temporaryFolder.root.resolve(".ssh").also { it.mkdirs() }
@@ -110,6 +121,7 @@ class JschShellTerminalHelperTest {
 
         val session = mock<Session>()
         val shell = mock<ChannelShell>()
+        val shellOutput = ByteArrayOutputStream()
         val logger = mock<Logger>()
         val options = mock<JuggGradleCompileOptions>()
         whenever(options.remoteSshPassword).thenReturn("password")
@@ -121,9 +133,11 @@ class JschShellTerminalHelperTest {
         whenever(session.getConfig("PubkeyAcceptedAlgorithms")).thenReturn("ssh-ed25519")
         whenever(session.openChannel("shell")).thenReturn(shell)
         whenever(shell.inputStream).thenReturn(
-            ByteArrayInputStream("(Jugg) ShellReady result: 0\n".toByteArray()),
+            ByteArrayInputStream(
+                "(Jugg) ShellReady result: 0\n(Jugg) ShellEchoDisabled result: 0\n".toByteArray()
+            ),
         )
-        whenever(shell.outputStream).thenReturn(ByteArrayOutputStream())
+        whenever(shell.outputStream).thenReturn(shellOutput)
         whenever(shell.isConnected).thenReturn(true)
         whenever(shell.isClosed).thenReturn(false)
 
@@ -131,12 +145,13 @@ class JschShellTerminalHelperTest {
             Mockito.mockConstruction(JSch::class.java) { jsch, _ ->
                 whenever(jsch.getSession(any(), any(), any())).thenReturn(session)
             }.use {
-                val remoteClient = RemoteGradleCompileClient(mock<Project>(), logger = logger)
+                val remoteClient = RemoteGradleCompileClient(temporaryFolder.root, logger = logger)
                 remoteClient.login(options)
                 remoteClient.dispose()
             }
 
             verify(logger, never()).debug(argThat<String> { startsWith("found keys in .ssh") })
+            assertTrue(shellOutput.toString().contains(JschShellTerminalHelper.DISABLE_SHELL_ECHO_COMMAND))
         } finally {
             System.setProperty("user.home", originalUserHome)
         }
@@ -164,7 +179,7 @@ class JschShellTerminalHelperTest {
             Mockito.mockConstruction(JSch::class.java) { jsch, _ ->
                 whenever(jsch.getSession(any(), any(), any())).thenReturn(session)
             }.use {
-                val remoteClient = RemoteGradleCompileClient(mock<Project>(), logger = logger)
+                val remoteClient = RemoteGradleCompileClient(temporaryFolder.root, logger = logger)
                 assertFailsWith<JuggException> { remoteClient.login(options) }
                 remoteClient.dispose()
             }

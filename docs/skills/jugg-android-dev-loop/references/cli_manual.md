@@ -92,7 +92,7 @@ Initialize or reuse the standalone run configuration for the target Gradle proje
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project init
 ```
 
-If the project has no saved Gradle model yet, initialization runs the selected assemble task in Gradle dry-run mode to discover it. Subsequent standalone build commands also initialize on demand. A remote compile profile is rejected before execution; use the IDEA Runtime or select a local profile.
+If the project has no saved Gradle model yet, initialization runs the selected assemble task in local Gradle dry-run mode to discover it. Subsequent standalone build commands also initialize on demand. An already selected remote profile is reused without modification.
 
 ### `compile`/`deploy`/`gradle-build`/`clean-reinstall`
 
@@ -103,7 +103,7 @@ python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
 
-In standalone mode, `gradle-build` performs the full compile and refreshes the incremental baseline. It does not install or launch the app; use `deploy` next when device deployment is required. Standalone preserves an explicit `JAVA_HOME`. For deployment, set `ANDROID_SERIAL` when multiple devices are online; without it, standalone only proceeds when exactly one device is online. `clean-reinstall` and `instrument` remain IDEA-only.
+In standalone mode, `gradle-build` performs the full compile and refreshes the incremental baseline. With a remote profile, only the Gradle full build/fallback runs remotely; project-info dry-runs, incremental compilation, and device operations stay on the standalone host. Remote authentication is non-interactive, so configure SSH credentials in the profile or authenticate the external iFT client before running the command. It does not install or launch the app; use `deploy` next when device deployment is required. Standalone preserves an explicit `JAVA_HOME`. For deployment, set `ANDROID_SERIAL` when multiple devices are online; without it, standalone only proceeds when exactly one device is online. `clean-reinstall` and `instrument` remain IDEA-only.
 
 ### `instrument`
 

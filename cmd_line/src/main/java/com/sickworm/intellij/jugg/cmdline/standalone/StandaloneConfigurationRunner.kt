@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployProgress
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
+import com.sickworm.intellij.jugg.project.runtime.CliRunConfigurationStore
 import com.sickworm.intellij.jugg.project.runtime.toCompileOptions
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -108,9 +109,6 @@ class StandaloneConfigurationRunner(
         if (canceled.get()) return canceledResult(request.isSkipDeploy)
         val configuration = services.configurationStore.loadCurrent()
             ?: return JuggRunInvocationResult(false, errorMessage = "Run jugg init before compiling.")
-        if (configuration.isRemoteCompile) {
-            return JuggRunInvocationResult(false, errorMessage = StandaloneProjectInitializer.REMOTE_COMPILE_UNSUPPORTED)
-        }
         val baseOptions = configuration.toCompileOptions(services.pathManager)
         val options = request.buildTargetOverride?.let { baseOptions.copy(buildTarget = it) } ?: baseOptions
         val handler = StandaloneCompileUiHandler(
@@ -216,6 +214,7 @@ class StandaloneConfigurationRunner(
 /** Exposes standalone Gradle builds through the shared MCP job protocol. */
 class StandaloneForceGradleCompileHelper(
     private val runner: StandaloneConfigurationRunner,
+    private val configurationStore: CliRunConfigurationStore,
 ) : ForceGradleCompileHelper() {
     override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
         executeGradleCompileBlocking(autoConfirm, useCleanAndReinstall)
@@ -241,7 +240,9 @@ class StandaloneForceGradleCompileHelper(
         )
     }
 
-    override fun resolveExecutionType(): String = "local"
+    override fun resolveExecutionType(): String {
+        return if (configurationStore.loadCurrent()?.isRemoteCompile == true) "remote" else "local"
+    }
 
     override fun requestRemoteSshInfo(requestedBy: String, reason: String): RemoteSshInfoResult {
         return RemoteSshInfoResult(false, "Standalone remote SSH configuration is not available.")

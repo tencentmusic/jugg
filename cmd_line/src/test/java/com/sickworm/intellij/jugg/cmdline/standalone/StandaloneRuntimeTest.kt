@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
+import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpc
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpProjectInfo
@@ -16,11 +17,13 @@ import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -104,7 +107,7 @@ class StandaloneRuntimeTest {
     }
 
     @Test
-    fun `standalone rejects remote compile profiles before execution`() {
+    fun `standalone accepts the selected remote profile and reports remote execution`() {
         val projectDir = temporaryFolder.newFolder("project")
         val pathManager = JuggPathManager(projectDir)
         val moduleDir = projectDir.resolve("app")
@@ -116,7 +119,15 @@ class StandaloneRuntimeTest {
             buildVariant = "debug",
             buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
         )
-        val configuration = CliRunConfigurationGenerator.generateForModule(app).copy(isRemoteCompile = true)
+        ProjectInfoSerializer(pathManager.gradleProjectInfoFile, Logger.getInstance("StandaloneRuntimeTest"))
+            .save(JuggProjectInfo(linkedMapOf("app" to app), agpR8Classpath = null))
+        val configuration = CliRunConfigurationGenerator.generateForModule(app).copy(
+            isRemoteCompile = true,
+            remoteSshUser = "tester",
+            remoteSshIp = "127.0.0.1",
+            remoteSshPort = 1,
+            syncMode = SyncMode.RSYNC_SIMPLE.modeName,
+        )
         CliRunConfigurationStore(pathManager).apply {
             save(configuration)
             select(configuration.id)
@@ -126,12 +137,34 @@ class StandaloneRuntimeTest {
         }
 
         val initResult = call("init", mapOf("projectDir" to projectDir.absolutePath))
+        val statusResult = call("status", mapOf("projectDir" to projectDir.absolutePath))
         val compileResult = call("compile", mapOf("projectDir" to projectDir.absolutePath))
 
-        assertEquals("ERROR", initResult.structuredContent["status"])
-        assertEquals("ERROR", compileResult.structuredContent["status"])
-        assertTrue(initResult.structuredContent["message"].toString().contains("does not support remote compile profiles"))
-        assertTrue(compileResult.structuredContent["message"].toString().contains("does not support remote compile profiles"))
+        assertEquals("OK", initResult.structuredContent["status"])
+        assertEquals(configuration.id, CliRunConfigurationStore(pathManager).loadCurrent()?.id)
+        assertEquals(true, CliRunConfigurationStore(pathManager).loadCurrent()?.isRemoteCompile)
+        assertEquals("remote", statusResult.data()["executionType"])
+        assertEquals("remote", compileResult.data()["executionType"])
+        assertTrue(compileResult.data()["jobId"].toString().isNotBlank())
+    }
+
+    @Test
+    fun `standalone credential input fails with a non interactive message`() {
+        val runtimeInfo = RuntimeInfo("standalone", "4.0", "java-11", "build-1")
+        val standaloneRegistry = StandaloneProjectRegistry(runtimeInfo)
+
+        try {
+            val error = assertFailsWith<JuggException> {
+                StandalonePlatformApi(standaloneRegistry, runtimeInfo).showUserAndPasswordInputDialog(
+                    content = "SSH Password or Key Path",
+                    isPassword = true,
+                )
+            }
+
+            assertTrue(error.message.orEmpty().contains("non-interactive"))
+        } finally {
+            standaloneRegistry.close()
+        }
     }
 
     @Test

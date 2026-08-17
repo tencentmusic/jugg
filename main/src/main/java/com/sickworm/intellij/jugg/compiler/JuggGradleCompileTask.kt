@@ -60,35 +60,44 @@ class JuggGradleCompileTask(
                 outputParser.updateIndicatorWithTime()
             }
         }
+        try {
+            TimeLogger.start("compile")
+            juggGradleCompileOptions.checkConfig()
+            compileClient.login(juggGradleCompileOptions)
+            val result = compileClient.compileAndFetchResult(isOnlyFetchResult)
+            val costTime = TimeLogger.getCostTime("compile")
 
-        TimeLogger.start("compile")
-        juggGradleCompileOptions.checkConfig()
-        compileClient.login(juggGradleCompileOptions)
-        val result = compileClient.compileAndFetchResult(isOnlyFetchResult)
-        val costTime = TimeLogger.getCostTime("compile")
-        updateTimeJob.cancel()
-
-        val isCanceled = uiHandler.isCanceled
-        if (result.isSuccess) {
-            logger.info("\nBUILD SUCCESSFUL in ${costTime / 1000}s.\n")
-        } else if (isCanceled) {
-            logger.warn("\nBUILD CANCELED in ${costTime / 1000}s.\n")
-        } else {
-            if (outputParser.possibleErrorLog.isNotEmpty()) {
-                logger.warn("\n[Jugg] Found error in logs:")
-                outputParser.possibleErrorLog.forEach { logger.warn(it) }
+            val isCanceled = uiHandler.isCanceled
+            if (result.isSuccess) {
+                logger.info("\nBUILD SUCCESSFUL in ${costTime / 1000}s.\n")
+            } else if (isCanceled) {
+                logger.warn("\nBUILD CANCELED in ${costTime / 1000}s.\n")
+            } else {
+                if (outputParser.possibleErrorLog.isNotEmpty()) {
+                    logger.warn("\n[Jugg] Found error in logs:")
+                    outputParser.possibleErrorLog.forEach { logger.warn(it) }
+                }
+                logger.warn("\nBUILD FAILED in ${costTime / 1000}s.\n")
             }
-            logger.warn("\nBUILD FAILED in ${costTime / 1000}s.\n")
-        }
 
-        compileClient.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
-        uiHandler.listenCancelAction(null)
-        logger.debug("[Jugg] compile cancel listener cleared, client=${compileClient::class.simpleName}")
-        // Attach collected error lines to the result so callers can use a compact error summary.
-        return if (!result.isSuccess && !isCanceled && outputParser.possibleErrorLog.isNotEmpty()) {
-            result.copy(errorLog = outputParser.possibleErrorLog.toList())
-        } else {
-            result
+            // Attach collected error lines to the result so callers can use a compact error summary.
+            return if (!result.isSuccess && !isCanceled && outputParser.possibleErrorLog.isNotEmpty()) {
+                result.copy(errorLog = outputParser.possibleErrorLog.toList())
+            } else {
+                result
+            }
+        } catch (e: Throwable) {
+            try {
+                compileClient.dispose()
+            } catch (cleanupError: Throwable) {
+                e.addSuppressed(cleanupError)
+            }
+            throw e
+        } finally {
+            updateTimeJob.cancel()
+            compileClient.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
+            uiHandler.listenCancelAction(null)
+            logger.debug("[Jugg] compile cancel listener cleared, client=${compileClient::class.simpleName}")
         }
     }
 

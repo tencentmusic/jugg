@@ -69,7 +69,7 @@
 
 ### `init`
 
-仅 standalone Runtime 注册。根据 Gradle project info 创建并选择当前 CLI Run Configuration；project info 缺失时先执行一次 `assembleDebug --dry-run --no-daemon` 生成快照。已存在当前配置时幂等返回该配置。初始化在项目写锁内执行；若当前配置启用 remote compile，则返回结构化错误，standalone 不发起 SSH。
+仅 standalone Runtime 注册。根据 Gradle project info 创建并选择当前 CLI Run Configuration；project info 缺失时先执行一次本地 `assembleDebug --dry-run --no-daemon` 生成快照。已存在当前配置时幂等返回该配置，不改写已选中的 remote profile。初始化在项目写锁内执行。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -142,7 +142,7 @@
 
 **异步返回**：同 `deploy`。
 
-**行为补充**：IDEA 保持现有 Gradle 构建后的安装/启动链路；standalone `gradle-build` 只建立或刷新 baseline，并将成功结果映射为 `isCompileSuccess=true`、`isDeploySuccess=true` 以保持共享 job 成功契约，实际安装/增量更新由后续 `deploy` 完成。
+**行为补充**：IDEA 保持现有 Gradle 构建后的安装/启动链路；standalone `gradle-build` 只建立或刷新 baseline，并将成功结果映射为 `isCompileSuccess=true`、`isDeploySuccess=true` 以保持共享 job 成功契约，实际安装/增量更新由后续 `deploy` 完成。当前配置为 remote 时，Gradle full build/fallback 复用 IDEA 的 SSH/iFT 远程客户端，但本地 project info dry-run、增量编译和设备操作仍在 standalone 所在主机执行。standalone 无交互认证 UI；缺少 SSH 凭据或 iFT 认证时返回 failed 终态和明确操作提示。
 
 **失败详情**：失败终态会在 data 中附带 `detail` / `detailLength` / `detailTruncated`（如有），内容来自本次 Gradle build + 安装/启动日志摘要；异步场景通过 `get-compile-status` 获取同一份详情。长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾，避免只保留 stack/footer 而丢失根因。
 

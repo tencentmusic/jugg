@@ -98,6 +98,9 @@ standalone 主日志按工程 runtime 生命周期分段：工程初始化时创
 | 编译耗时 | `cost ${costTime}ms` |
 | 回退原因 | `fallback` / `Fallback` |
 | 编译失败 | `incremental compile error` / `SEVERE` |
+| standalone 远程认证 | `Standalone Runtime is non-interactive` / `remote login` |
+| 远程 shell 安全握手 | `failed to disable remote shell echo` / `Remote shell echo could not be disabled safely` |
+| 远程同步与产物拉取 | `Sync file` / `Fetch` / `RemoteGradleCompileClient` |
 | UI freeze 起点 | `uiFreezeStarted` / `InvocationEvent has timed out` |
 | ConstRef 启动延后 | `ConstRefEngine defer initial full scan until startup stabilizes` |
 | ConstRef 限速实值 | `ConstRefEngine io throttle enabled` |
@@ -109,6 +112,8 @@ standalone 主日志按工程 runtime 生命周期分段：工程初始化时创
 | 重混淆类型引用遗漏 | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
 | 重混淆 access flag 宽化 | `widenAccessFlags` / `invoke-direct` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
 | Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Debugger is waiting for application to start` / `Connected to the target VM` |
+
+standalone remote compile 失败时，先读取 `{projectDir}/build/jugg/log/standlone_cli/compile_latest.log`，按 `RemoteGradleCompileClient` 的 command id 串联登录、同步、Gradle 与产物拉取阶段。出现 `Standalone Runtime is non-interactive` 表示配置中缺少可直接使用的 SSH 凭据或 iFT 仍需交互认证，应先在 IDEA/profile 或外部 iFT 客户端完成配置。日志不会保留原始远程 command，环境变量也只有白名单路径值可见；排查时不应要求用户上传明文密码或完整环境。
 
 ---
 

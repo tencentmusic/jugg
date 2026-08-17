@@ -22,10 +22,7 @@ class StandaloneProjectInitializer(
     private val store = CliRunConfigurationStore(pathManager)
 
     fun initialize(): ProjectInitializationResult {
-        store.loadCurrent()?.let {
-            if (it.isRemoteCompile) return ProjectInitializationResult(false, REMOTE_COMPILE_UNSUPPORTED)
-            return it.toResult("Standalone project is already initialized.")
-        }
+        store.loadCurrent()?.let { return it.toResult("Standalone project is already initialized.") }
         if (!pathManager.gradleProjectInfoFile.isFile && !fetchProjectInfo()) {
             return ProjectInitializationResult(false, "Unable to read Gradle project information. Check the compile log for details.")
         }
@@ -55,9 +52,4 @@ class StandaloneProjectInitializer(
 
     private fun com.sickworm.intellij.jugg.project.runtime.CliRunConfiguration.toResult(message: String) =
         ProjectInitializationResult(true, message, id, name, compileCommand)
-
-    companion object {
-        const val REMOTE_COMPILE_UNSUPPORTED =
-            "Standalone Runtime does not support remote compile profiles. Use IDEA or select a local profile."
-    }
 }

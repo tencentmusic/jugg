@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
+import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -17,7 +18,17 @@ class StandalonePlatformApi(
 ) : IPlatformApi {
     override fun showDialog(title: String, content: String, okButtonText: String?, cancelButtonText: String?, isShowCancelButton: Boolean): Boolean = false
 
-    override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean, defaultInputText: String?, title: String?): String? = null
+    override fun showUserAndPasswordInputDialog(
+        content: String,
+        subTitle: String?,
+        isPassword: Boolean,
+        defaultInputText: String?,
+        title: String?,
+    ): String? {
+        throw JuggException(
+            "Standalone Runtime is non-interactive. Configure SSH credentials or authenticate iFT before retrying."
+        )
+    }
 
     override fun allAvailableJavaHomes(): List<String> {
         return listOfNotNull(System.getProperty("java.home"), System.getenv("JAVA_HOME")).distinct()

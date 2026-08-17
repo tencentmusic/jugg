@@ -55,7 +55,7 @@ CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目�
 
 目标项目未被任何 Runtime 持有时，普通 CLI 取得项目级 `build/jugg/runtime.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免并发 CLI 重复创建 daemon。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动阶段向 stderr 输出 Runtime 探测、daemon 启动、工程初始化等待和端口就绪进度；子进程 stdout/stderr 写入目标工程 `build/jugg/log/standlone_cli/standalone_startup.log`。进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径，不再等待到探测超时。Hook 调用必须设置 `JUGG_CALLER=hook`；只有 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动 standalone，否则直接以成功状态跳过，避免编辑/停止 hook 意外创建 daemon。
 
-standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内部 `get-compile-status` 与 `status`；未被 standalone capability 注册的设备/UI/调试命令仍需 IDEA Runtime。当前配置启用 remote compile 时，standalone 会在执行前明确失败，用户必须改用 IDEA Runtime 或切换为本地 profile。
+standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内部 `get-compile-status` 与 `status`；未被 standalone capability 注册的设备/UI/调试命令仍需 IDEA Runtime。当前配置启用 remote compile 时，standalone 复用 IDEA 的远程 Gradle 客户端执行 full build/fallback；增量编译和设备操作仍在 standalone 所在本机执行。远程构建前仍可能在本地执行 project info Gradle dry-run，不应把 remote 理解为“本地不运行 Gradle”。
 
 `status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
 
@@ -171,7 +171,7 @@ jugg version
 jugg init
 ```
 
-该命令固定选择 standalone Runtime。已有当前配置时幂等返回；缺少 Gradle project info 时执行一次 dry-run 生成快照，再创建默认 Application/debug profile。初始化、配置写入与 owner 接管都在项目写锁内执行。
+该命令固定选择 standalone Runtime。已有当前配置时幂等返回，包括已选中的 remote profile；缺少 Gradle project info 时执行一次本地 dry-run 生成快照，再创建默认 Application/debug profile。初始化、配置写入与 owner 接管都在项目写锁内执行。
 
 ### `compile`
 
@@ -207,7 +207,7 @@ CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP
 jugg gradle-build
 ```
 
-无子命令参数。IDEA Runtime 保持 Gradle 构建后的安装/启动链路；standalone Runtime 只建立/刷新 baseline，后续用 `jugg deploy` 完成安装或增量部署。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行；长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾。
+无子命令参数。IDEA Runtime 保持 Gradle 构建后的安装/启动链路；standalone Runtime 只建立/刷新 baseline，后续用 `jugg deploy` 完成安装或增量部署。选中 remote profile 时，Gradle full build/fallback 走 SSH/iFT 远程编译，同步、产物拉取与回退语义对齐 IDEA；standalone 不会弹出认证框，SSH 凭据缺失或 iFT 未认证时以 failed 终态返回明确提示。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行；长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾。
 
 CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 Gradle build 任务终态，不额外等待 App ready。
 

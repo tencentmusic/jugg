@@ -15,9 +15,14 @@ object JschShellTerminalHelper {
     const val BACKGROUND_COLOR_REPORT = "\u001B]11;rgb:0000/0000/0000\u001B\\"
 
     const val SHELL_READY_RESULT_ECHO = "(Jugg) ShellReady result: "
+    const val SHELL_ECHO_DISABLED_RESULT_ECHO = "(Jugg) ShellEchoDisabled result: "
 
     /** Probe command to verify the remote shell accepts stdin and can execute commands. */
     const val SHELL_READY_PROBE_COMMAND = "echo ; echo \"${SHELL_READY_RESULT_ECHO}\$?\""
+
+    /** Disable PTY input echo before commands containing credentials or environment variables are sent. */
+    const val DISABLE_SHELL_ECHO_COMMAND =
+        "stty -echo ; __jugg_exit=\$? ; echo ; echo \"${SHELL_ECHO_DISABLED_RESULT_ECHO}\$__jugg_exit\""
 
     /**
      * Detect a completed terminal query in [buffer] and return the response.
@@ -58,6 +63,13 @@ object JschShellTerminalHelper {
     fun parseShellReadyResult(line: String): Int? {
         if (line.startsWith(SHELL_READY_RESULT_ECHO) && !line.endsWith("?")) {
             return line.substring(SHELL_READY_RESULT_ECHO.length).toIntOrNull()
+        }
+        return null
+    }
+
+    fun parseShellEchoDisabledResult(line: String): Int? {
+        if (line.startsWith(SHELL_ECHO_DISABLED_RESULT_ECHO) && !line.endsWith("__jugg_exit")) {
+            return line.substring(SHELL_ECHO_DISABLED_RESULT_ECHO.length).toIntOrNull()
         }
         return null
     }
