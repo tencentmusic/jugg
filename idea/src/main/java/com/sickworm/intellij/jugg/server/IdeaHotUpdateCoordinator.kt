@@ -8,6 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.logic.PluginVersionComparator
+import com.sickworm.intellij.jugg.ide.logic.StandaloneEmbeddedBundle
 import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateBootstrap
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -18,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.io.File
 import java.nio.file.Path
+import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -175,17 +177,26 @@ class IdeaHotUpdateCoordinator(
         logEvent("downloadHotUpdate install")
         val zipFile = File(juggHotUpdateManager.hotUpdateDir, "jugg_plugin_${System.currentTimeMillis()}.zip")
         zipFile.parentFile?.mkdirs()
-        ZipOutputStream(zipFile.outputStream()).use { zip ->
-            updateResult.jarFiles.forEach { file ->
-                zip.putNextEntry(ZipEntry("jugg/lib/${file.name}"))
-                file.inputStream().use { it.copyTo(zip) }
-                zip.closeEntry()
+        val embeddedBundle = updateResult.standaloneBundleCandidate?.let { bundle ->
+            File(juggHotUpdateManager.hotUpdateDir, ".standalone-${UUID.randomUUID()}.zip").also {
+                StandaloneEmbeddedBundle.createDeltaBundle(bundle, updateResult.jarFiles, it)
             }
-            updateResult.standaloneBundleCandidate?.let { bundle ->
-                zip.putNextEntry(ZipEntry("jugg/standalone/jugg-standalone-$targetVersion.zip"))
-                bundle.inputStream().use { it.copyTo(zip) }
-                zip.closeEntry()
+        }
+        try {
+            ZipOutputStream(zipFile.outputStream()).use { zip ->
+                updateResult.jarFiles.forEach { file ->
+                    zip.putNextEntry(ZipEntry("jugg/lib/${file.name}"))
+                    file.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+                embeddedBundle?.let { bundle ->
+                    zip.putNextEntry(ZipEntry("jugg/standalone/jugg-standalone-$targetVersion.zip"))
+                    bundle.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
             }
+        } finally {
+            embeddedBundle?.delete()
         }
         if (!zipFile.exists() || zipFile.length() <= 0) {
             logEvent("downloadHotUpdate zip file is invalid, skip install")

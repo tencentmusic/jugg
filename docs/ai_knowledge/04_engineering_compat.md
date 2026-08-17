@@ -1,6 +1,6 @@
 # 工程化：兼容层与命令行模块
 
-> 最后核对：2026-08-09
+> 最后核对：2026-08-17
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -37,6 +37,7 @@
 | `CmdLine` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/CmdLine.kt` | 命令行入口，分发 `buildGradleBase` / `buildIncrementalApk` |
 | `BuildGradleBaseCommand` / `BuildIncrementalApkCommand` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | CI 两阶段构建：建立可复用基线，再以调用方显式变更文件生成增量 APK |
 | `StandaloneRuntimeInstaller` / `StandaloneBootstrap` | `cmd_line/.../standalone/StandaloneRuntimeInstaller.kt`, `cmd_line/standalone_bootstrap/.../StandaloneBootstrap.java` | 三平台 Bundle 安装事务、active manifest、版本接管、固定 Java 11 bootstrap 和 ordered classloader；启动失败直接返回异常，不自动切换旧 Runtime |
+| `StandaloneEmbeddedBundle` / `StandaloneBundleInstallService` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/` | IDEA 内嵌 Bundle 的 SHA-256 差量裁剪与安装前恢复；只复用插件 `jugg/lib` 中内容完全一致的 JAR，恢复完成后仍进入统一安装事务 |
 | `CustomCompilerManager` / `ICompilerCreator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/` | 自定义编译器 SPI 装载与生命周期管理 |
 
 ---
@@ -125,7 +126,7 @@ JuggManager.init()
 
 ### 4.2 命令行入口
 
-Standalone 发行由 `:cmd_line:standaloneBundle` 从 `installDist` 的实际 runtimeClasspath 生成单一跨平台 ZIP。根构建生成的 `releaseBuildId` 同时进入 IDEA/standalone metadata 与 Bundle manifest；Bundle 内 JAR 使用 SHA-256 内容寻址名称，普通 class entry 必须满足 Java 11 major 55 边界。IDEA `prepareSandbox` 只把完整 Bundle 放入 `jugg/standalone/`，不得将其中的 `cmd_line`、真实 ddmlib、`base_api` 或 `standalone_deployer` JAR 展开到 `jugg/lib/`。
+Standalone 发行由 `:cmd_line:standaloneBundle` 从 `installDist` 的实际 runtimeClasspath 生成单一、完整、自包含的跨平台 ZIP。根构建生成的 `releaseBuildId` 同时进入 IDEA/standalone metadata 与 Bundle manifest；Bundle 内 JAR 使用 SHA-256 内容寻址名称，普通 class entry 必须满足 Java 11 major 55 边界。IDEA `prepareSandbox` 复制该完整 Bundle 后，将其重写为只供插件安装使用的差量 ZIP：完整保留 manifest、脚本、CLI 和非 JAR 内容，只省略在插件 `jugg/lib` 中存在相同 SHA-256 的 runtime/bootstrap JAR。`StandaloneBundleInstallService` 在临时安装目录中按 manifest 和 SHA-256 恢复省略文件，再调用同一个 Bundle installer；IDEA 热更新重装插件时也按本次 `jarFiles` 生成同样的差量 ZIP。Standalone 独有的 `cmd_line`、真实 ddmlib、`base_api` 或 `standalone_deployer` JAR 仍不得进入 `jugg/lib/`，外部 `:cmd_line:standaloneBundle` 不得被裁剪。构建产物校验必须证明每个省略 JAR 都能由 `jugg/lib` 精确恢复，并拒绝把 Apache Ant 带入插件或 standalone Runtime。
 
 Bundle 同时携带版本化 Python CLI、固定 `standalone_bootstrap` 和 Gson。Bundle 安装入口与稳定 daemon launcher 每次执行时统一按有效 `JAVA_HOME/bin/java`、PATH `java` 的顺序动态选择 Java；POSIX daemon launcher 在启动 Java 前将进程 soft `nofile` limit best-effort 提升至 65536，且不超过 hard limit，并将实际值写入启动日志。standalone 编译环境优先读取 `ANDROID_HOME` / `ANDROID_SDK_ROOT`，未配置时回退到目标工程根目录 `local.properties` 的 `sdk.dir`。Python wrapper 由 Bundle 与 IDEA 安装共用，每次执行时按 `python3`、`python` 顺序校验 Python 3.7+，前一候选版本过低时继续回退，不保存安装时解析出的绝对命令。外部脚本与插件 Install CLI 都执行 `StandaloneRuntimeInstaller`：提交前验证完整 JDK 11+、Python 3.7+、SHA-256、basename/path 和 symlink，先发布 immutable JAR/tooling/CLI，最后原子替换 `standalone_load_manifest.json`。提交成功并释放 Global Resource Lock 后，安装器通过 `ProcessHandle` 强制停止同一 Jugg 根目录下主类为 `StandaloneBootstrap` 的 daemon；下次 CLI 调用按新 active manifest 重新启动。IDEA 项目启动时，如果 CLI 已安装且 active manifest 由 IDEA 管理，会比较内置 Bundle 的 `releaseBuildId` 与 active `toolingReleaseBuildId`，tooling 不一致时复用同一安装事务刷新 runtime；相同 tooling build 上的 compatible hot update 和外部管理 runtime 不自动覆盖。CLI 启动 standalone 时将子进程输出写入工程 `build/jugg/log/standlone_cli/standalone_startup.log`，等待阶段持续展示进度；进程提前退出或启动超时时打印日志尾部和完整路径。bootstrap 以声明顺序创建 `URLClassLoader` 且不扫描共享池，class load、link 或 daemon 初始化失败时直接返回异常并保留当前 active manifest，用户通过重新安装恢复。
 

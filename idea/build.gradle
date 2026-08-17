@@ -1,9 +1,13 @@
 import org.apache.commons.io.FileUtils
 import groovy.json.JsonSlurper
 
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 plugins {
     id 'java'
@@ -23,6 +27,60 @@ test {
 group 'com.sickworm.intellij'
 
 version pluginVersion
+
+def sha256Stream = { InputStream input ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    byte[] buffer = new byte[8192]
+    for (int read = input.read(buffer); read >= 0; read = input.read(buffer)) {
+        if (read > 0) digest.update(buffer, 0, read)
+    }
+    digest.digest().encodeHex().toString()
+}
+
+def sha256File = { File file ->
+    file.withInputStream { sha256Stream(it) }
+}
+
+def createEmbeddedStandaloneBundle = { File bundle, File pluginLibDir ->
+    def sharedHashes = pluginLibDir.listFiles().findAll {
+        it.isFile() && it.name.endsWith('.jar') && !Files.isSymbolicLink(it.toPath())
+    }.collect { sha256File(it) }.toSet()
+    def source = new ZipFile(bundle)
+    def manifest = new JsonSlurper().parseText(source.getInputStream(
+            source.getEntry('standalone_bundle_manifest.json')).getText('UTF-8'))
+    def omittedPaths = [] as Set
+    manifest.jarSha256.each { name, hash ->
+        if (hash in sharedHashes) omittedPaths.add("jars/$name".toString())
+    }
+    manifest.bootstrapSha256.each { name, hash ->
+        if (hash in sharedHashes) omittedPaths.add("bootstrap/$name".toString())
+    }
+    def tempBundle = new File(bundle.parentFile, "${bundle.name}.${System.nanoTime()}.tmp")
+    try {
+        int omittedCount = 0
+        new ZipOutputStream(tempBundle.newOutputStream()).withCloseable { target ->
+            source.entries().each { entry ->
+                if (omittedPaths.contains(entry.name)) {
+                    omittedCount++
+                } else {
+                    def targetEntry = new ZipEntry(entry.name)
+                    targetEntry.time = entry.time
+                    target.putNextEntry(targetEntry)
+                    if (!entry.directory) source.getInputStream(entry).withCloseable { it.transferTo(target) }
+                    target.closeEntry()
+                }
+            }
+        }
+        if (omittedCount != omittedPaths.size()) {
+            throw new GradleException("Expected to omit ${omittedPaths.size()} standalone JARs, omitted $omittedCount")
+        }
+        Files.move(tempBundle.toPath(), bundle.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        logger.lifecycle("Embedded standalone Bundle: $omittedCount shared JARs omitted from ${bundle.name}")
+    } finally {
+        source.close()
+        tempBundle.delete()
+    }
+}
 
 // record compile time
 def compileTime = rootProject.releaseBuildId
@@ -136,6 +194,16 @@ tasks.named('prepareSandbox').configure {
     from(thirdPartySourceChecksumsFile) {
         into('jugg/third_party')
         rename { 'SOURCE_SHA256SUMS' }
+    }
+    doLast {
+        def pluginDir = new File(destinationDir, 'jugg')
+        def bundles = new File(pluginDir, 'standalone').listFiles().findAll {
+            it.isFile() && it.name.startsWith('jugg-standalone-') && it.name.endsWith('.zip')
+        }
+        if (bundles.size() != 1) {
+            throw new GradleException("Expected one embedded standalone Bundle, found ${bundles.size()}")
+        }
+        createEmbeddedStandaloneBundle(bundles.first(), new File(pluginDir, 'lib'))
     }
 }
 
@@ -276,8 +344,85 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
     }
 }
 
+def verifyEmbeddedStandaloneBundle = tasks.register('verifyEmbeddedStandaloneBundle') {
+    group = 'verification'
+    description = 'Verifies that the plugin standalone Bundle can be restored from its embedded delta and plugin libraries.'
+    doLast {
+        def distributions = fileTree("$buildDir/distributions").matching { include '*.zip' }.files
+        if (distributions.size() != 1) {
+            throw new GradleException("Expected one plugin distribution, found ${distributions.size()}")
+        }
+
+        def pluginZip = new ZipFile(distributions.first())
+        def tempBundle = File.createTempFile('jugg-standalone-', '.zip')
+        try {
+            def pluginJarHashes = [] as Set
+            def bundleEntries = []
+            pluginZip.entries().each { entry ->
+                if (!entry.directory && entry.name ==~ /jugg\/lib\/[^\/]+\.jar/) {
+                    pluginZip.getInputStream(entry).withCloseable { pluginJarHashes.add(sha256Stream(it)) }
+                    if (new File(entry.name).name ==~ /(?i)ant(?:-launcher)?-.+\.jar/) {
+                        throw new GradleException("Ant must not be packaged in the IDEA plugin: ${entry.name}")
+                    }
+                }
+                if (!entry.directory && entry.name ==~ /jugg\/standalone\/jugg-standalone-.+\.zip/) {
+                    bundleEntries.add(entry)
+                }
+            }
+            if (bundleEntries.size() != 1) {
+                throw new GradleException("Expected one embedded standalone Bundle, found ${bundleEntries.size()}")
+            }
+            pluginZip.getInputStream(bundleEntries.first()).withCloseable { input ->
+                tempBundle.withOutputStream { input.transferTo(it) }
+            }
+
+            def bundleZip = new ZipFile(tempBundle)
+            try {
+                def manifestEntry = bundleZip.getEntry('standalone_bundle_manifest.json')
+                if (manifestEntry == null) {
+                    throw new GradleException('Embedded standalone Bundle manifest is missing')
+                }
+                def manifest = new JsonSlurper().parseText(bundleZip.getInputStream(manifestEntry).getText('UTF-8'))
+                def antJar = (manifest.jarFileNames + manifest.bootstrapFileNames).find {
+                    it ==~ /(?i)ant(?:-launcher)?-.+\.jar/
+                }
+                if (antJar != null) {
+                    throw new GradleException("Ant must not be packaged in the standalone Bundle: $antJar")
+                }
+
+                def declaredFiles = [:]
+                manifest.jarSha256.each { name, hash -> declaredFiles["jars/$name"] = hash }
+                manifest.bootstrapSha256.each { name, hash -> declaredFiles["bootstrap/$name"] = hash }
+                int omittedCount = 0
+                declaredFiles.each { path, expectedHash ->
+                    def entry = bundleZip.getEntry(path)
+                    if (entry == null) {
+                        omittedCount++
+                        if (!(expectedHash in pluginJarHashes)) {
+                            throw new GradleException("Embedded standalone Bundle cannot restore $path")
+                        }
+                    } else {
+                        def actualHash = bundleZip.getInputStream(entry).withCloseable { sha256Stream(it) }
+                        if (actualHash != expectedHash) {
+                            throw new GradleException("Invalid SHA-256 for embedded standalone Bundle entry $path")
+                        }
+                    }
+                }
+                if (omittedCount == 0) {
+                    throw new GradleException('Embedded standalone Bundle did not omit any shared JAR')
+                }
+            } finally {
+                bundleZip.close()
+            }
+        } finally {
+            pluginZip.close()
+            tempBundle.delete()
+        }
+    }
+}
+
 tasks.named('buildPlugin').configure {
-    finalizedBy verifyThirdPartyCompliance
+    finalizedBy verifyThirdPartyCompliance, verifyEmbeddedStandaloneBundle
 }
 
 sourceCompatibility = 11

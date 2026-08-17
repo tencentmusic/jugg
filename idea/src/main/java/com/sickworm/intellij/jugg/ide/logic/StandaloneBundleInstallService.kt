@@ -16,7 +16,8 @@ object StandaloneBundleInstallService {
     private const val BUNDLE_MANIFEST = "standalone_bundle_manifest.json"
 
     fun install() {
-        install(resolveBundle())
+        val embeddedBundle = resolveBundle()
+        install(embeddedBundle.bundle, embeddedBundle.pluginLibDir)
     }
 
     /** Refreshes an IDEA-managed standalone runtime when the embedded tooling build changes. */
@@ -25,13 +26,13 @@ object StandaloneBundleInstallService {
         val juggRootDir = File(System.getProperty("user.home"), ".jugg")
         val isCliInstalled = juggRootDir.resolve("bin").isDirectory
         if (!isCliInstalled) return false
-        val bundle = resolveBundle()
-        val bundledManifest = readBundleManifest(bundle)
+        val embeddedBundle = resolveBundle()
+        val bundledManifest = readBundleManifest(embeddedBundle.bundle)
         val activeManifest = readManifest(juggRootDir.resolve("hot_update/standalone_load_manifest.json"))
         if (!shouldInstallRuntime(isCliInstalled, activeManifest, bundledManifest.releaseBuildId)) {
             return false
         }
-        install(bundle)
+        install(embeddedBundle.bundle, embeddedBundle.pluginLibDir)
         return true
     }
 
@@ -46,12 +47,13 @@ object StandaloneBundleInstallService {
         return activeManifest.toolingReleaseBuildId != bundledReleaseBuildId
     }
 
-    private fun resolveBundle(): File {
+    private fun resolveBundle(): EmbeddedBundleLocation {
         val plugin = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID)) ?: error("Jugg plugin is not installed")
         val standaloneDir = plugin.pluginPath.resolve("standalone").toFile()
-        return standaloneDir.listFiles().orEmpty().singleOrNull {
+        val bundle = standaloneDir.listFiles().orEmpty().singleOrNull {
             it.isFile && it.name.startsWith("jugg-standalone-") && it.extension == "zip"
         } ?: error("Jugg standalone Bundle is missing")
+        return EmbeddedBundleLocation(bundle, plugin.pluginPath.resolve("lib").toFile())
     }
 
     private fun readBundleManifest(bundle: File): StandaloneHotUpdateManifest {
@@ -68,10 +70,11 @@ object StandaloneBundleInstallService {
         return runCatching { Gson().fromJson(file.readText(), StandaloneHotUpdateManifest::class.java) }.getOrNull()
     }
 
-    private fun install(bundle: File) {
+    private fun install(bundle: File, pluginLibDir: File) {
         val stageDir = Files.createTempDirectory("jugg-standalone-install").toFile()
         try {
             extract(bundle, stageDir)
+            StandaloneEmbeddedBundle.restoreSharedJars(stageDir, pluginLibDir)
             val command = if (System.getProperty("os.name").lowercase().contains("win")) {
                 listOf("cmd", "/c", stageDir.resolve("install.cmd").absolutePath, "--managed-by=idea")
             } else {
@@ -110,4 +113,6 @@ object StandaloneBundleInstallService {
             "Standalone Bundle installer exited with $exitCode:\n$details"
         }
     }
+
+    private data class EmbeddedBundleLocation(val bundle: File, val pluginLibDir: File)
 }
