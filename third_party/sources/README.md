@@ -1,6 +1,6 @@
 # Corresponding Source Archives
 
-These archives accompany redistributed components whose selected licenses require source availability or stronger traceability.
+These archives are tracked in the public Jugg source revision for redistributed components whose selected licenses require source availability or stronger traceability. Plugin distributions identify the exact revision and checksums through `third_party/SOURCE.md` and `third_party/SOURCE_SHA256SUMS`.
 
 | Archive | Component | Reason |
 |---|---|---|
@@ -13,4 +13,4 @@ These archives accompany redistributed components whose selected licenses requir
 | `openjdk-jvmti-header/UPSTREAM_jvmti.h` | OpenJDK JVMTI header | Content-equivalent upstream baseline from `jdk8u202-b08` |
 | `openjdk-jvmti-header/jvmti.h.patch` | OpenJDK JVMTI header | One-line Jugg modification against the upstream baseline |
 
-All five archives are unmodified upstream source distributions. Their SHA-256 checksums are verified by `:idea:verifyThirdPartyCompliance`.
+All five archives are unmodified upstream source distributions. Their SHA-256 checksums are verified by `:idea:verifyThirdPartyCompliance`; CI release packaging also requires this directory to match the source revision.

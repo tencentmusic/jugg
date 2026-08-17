@@ -54,6 +54,13 @@ jobs:
       - name: Build plugin
         run: ./gradlew :idea:buildPlugin --no-daemon
 
+      - name: Verify public corresponding source
+        shell: bash
+        run: |
+          source_revision="$(git rev-parse HEAD)"
+          source_url="https://github.com/${GITHUB_REPOSITORY}/archive/${source_revision}.tar.gz"
+          curl --fail --location --retry 3 --output /dev/null "$source_url"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:

@@ -10,7 +10,7 @@ THIRD_PARTY_DIR = File.join(ROOT, 'third_party')
 COMPONENTS_FILE = File.join(THIRD_PARTY_DIR, 'components.csv')
 NOTICE_FILE = File.join(ROOT, 'THIRD_PARTY_NOTICES.md')
 MODIFICATIONS_FILE = File.join(THIRD_PARTY_DIR, 'MODIFICATIONS.md')
-SBOM_FILE = File.join(THIRD_PARTY_DIR, 'sbom', 'jugg-3.2.2-release.spdx.json')
+SBOM_FILE = File.join(THIRD_PARTY_DIR, 'sbom', 'jugg-third-party.spdx.json')
 HEADERS = %w[name version license copyright license_url download_url modified notes].freeze
 
 LICENSE_SELECTIONS = {
@@ -96,7 +96,7 @@ def write_notice(rows)
     '',
     'Jugg is distributed under the repository license. Third-party software remains under its own license; the Jugg license does not replace or narrow those terms.',
     '',
-    'The machine-readable inventory is `third_party/components.csv`. Corresponding license texts are in `third_party/licenses/`, and source archives required for redistributed copyleft components are in `third_party/sources/`.',
+    'The machine-readable inventory is `third_party/components.csv`. Corresponding license texts are in `third_party/licenses/`. The plugin distribution records the exact public source revision and source checksums in `third_party/SOURCE.md` and `third_party/SOURCE_SHA256SUMS`.',
     ''
   ]
 
@@ -166,8 +166,8 @@ def write_sbom(rows)
     'spdxVersion' => 'SPDX-2.3',
     'dataLicense' => 'CC0-1.0',
     'SPDXID' => 'SPDXRef-DOCUMENT',
-    'name' => 'Jugg-3.2.2-release',
-    'documentNamespace' => "https://jugg.sickworm.com/spdx/jugg-3.2.2-release-#{digest}",
+    'name' => 'Jugg-third-party-components',
+    'documentNamespace' => "https://jugg.sickworm.com/spdx/third-party-components-#{digest}",
     'creationInfo' => {
       'created' => '2026-08-08T00:00:00Z',
       'creators' => ['Tool: tools/generate_third_party_compliance.rb']

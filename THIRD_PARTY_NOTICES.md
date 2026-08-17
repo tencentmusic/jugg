@@ -2,7 +2,7 @@
 
 Jugg is distributed under the repository license. Third-party software remains under its own license; the Jugg license does not replace or narrow those terms.
 
-The machine-readable inventory is `third_party/components.csv`. Corresponding license texts are in `third_party/licenses/`, and source archives required for redistributed copyleft components are in `third_party/sources/`.
+The machine-readable inventory is `third_party/components.csv`. Corresponding license texts are in `third_party/licenses/`. The plugin distribution records the exact public source revision and source checksums in `third_party/SOURCE.md` and `third_party/SOURCE_SHA256SUMS`.
 
 ## 1. OpenJDK JVMTI header 无
 
@@ -11,7 +11,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://openjdk.org/legal/gplv2+ce.html
 - Download/source: https://github.com/openjdk/jdk8u/blob/jdk8u202-b08/jdk/src/share/javavm/export/jvmti.h
 - Modified by Jugg: 是
-- Notes: 作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 随发行包提供。
+- Notes: 作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 由插件内 SOURCE.md 定位到公开提交提供。
 
 ## 2. rsync 3.4.1
 
@@ -20,7 +20,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://github.com/RsyncProject/rsync/blob/v3.4.1/COPYING
 - Download/source: https://download.samba.org/pub/rsync/src/rsync-3.4.1.tar.gz
 - Modified by Jugg: 否
-- Notes: 以 macOS 通用可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码与 GPL-3.0-or-later 文本随发行包提供。
+- Notes: 以 macOS 通用可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-3.0-or-later 文本随发行包提供。
 
 ## 3. sshpass 1.10
 
@@ -29,7 +29,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://sourceforge.net/p/sshpass/code-git/ci/v1.10/tree/COPYING
 - Download/source: https://sourceforge.net/projects/sshpass/files/sshpass/1.10/sshpass-1.10.tar.gz/download
 - Modified by Jugg: 否
-- Notes: 以 macOS arm64 可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码与 GPL-2.0-or-later 文本随发行包提供。
+- Notes: 以 macOS arm64 可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-2.0-or-later 文本随发行包提供。
 
 ## 4. Trove4J，JetBrains fork 1.0.20200330
 
@@ -38,7 +38,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://repo1.maven.org/maven2/org/jetbrains/intellij/deps/trove4j/1.0.20200330/trove4j-1.0.20200330.pom
 - Download/source: https://repo1.maven.org/maven2/org/jetbrains/intellij/deps/trove4j/1.0.20200330/trove4j-1.0.20200330.jar
 - Modified by Jugg: 否
-- Notes: 以独立 JAR 随插件发行并由 JVM 加载；对应 source JAR 与 LGPL-2.1-or-later 许可证文本随发行包提供。
+- Notes: 以独立 JAR 随插件发行并由 JVM 加载；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，LGPL-2.1-or-later 许可证文本随发行包提供。
 
 ## 5. juniversalchardet 1.0.3
 
@@ -47,7 +47,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://repo1.maven.org/maven2/com/googlecode/juniversalchardet/juniversalchardet/1.0.3/juniversalchardet-1.0.3.pom
 - Download/source: https://repo1.maven.org/maven2/com/googlecode/juniversalchardet/juniversalchardet/1.0.3/juniversalchardet-1.0.3.jar
 - Modified by Jugg: 否
-- Notes: 以独立 JAR 随插件发行；本发行按上游 POM 选择 MPL-1.1，对应 source JAR 与许可证文本随发行包提供。
+- Notes: 以独立 JAR 随插件发行；本发行按上游 POM 选择 MPL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。
 
 ## 6. JavaBeans Activation Framework 1.2.0
 
@@ -56,7 +56,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://github.com/javaee/activation/blob/JAF-1_2_0/LICENSE.txt
 - Download/source: https://repo1.maven.org/maven2/com/sun/activation/javax.activation/1.2.0/javax.activation-1.2.0.jar
 - Modified by Jugg: 否
-- Notes: 作为 Android Tools Repository 依赖内嵌于 R8 8.4.21；本发行选择 CDDL-1.1，对应 source JAR 与许可证文本随发行包提供。
+- Notes: 作为 Android Tools Repository 依赖内嵌于 R8 8.4.21；本发行选择 CDDL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。
 
 ## 7. Xerial SQLite JDBC 3.42.0.0
 

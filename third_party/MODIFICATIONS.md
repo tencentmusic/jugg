@@ -4,7 +4,7 @@ The following redistributed third-party components are marked as modified. The d
 
 ## OpenJDK JVMTI header 无
 
-作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 随发行包提供。
+作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 由插件内 SOURCE.md 定位到公开提交提供。
 
 Upstream reference: https://github.com/openjdk/jdk8u/blob/jdk8u202-b08/jdk/src/share/javavm/export/jvmti.h
 

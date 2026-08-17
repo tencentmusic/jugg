@@ -47,38 +47,134 @@ tasks.named('buildPlugin').configure {
     mustRunAfter ':main:prepareInternalServers'
 }
 
+def thirdPartySourcesDir = rootProject.file('third_party/sources')
+def thirdPartySourceChecksumsFile = new File(thirdPartySourcesDir, 'SHA256SUMS')
+def generatedThirdPartyDir = new File(buildDir, 'generated/third-party-compliance')
+def thirdPartySourceInfoFile = new File(generatedThirdPartyDir, 'SOURCE.md')
+def thirdPartyRepositoryUrl = 'https://github.com/sickworm/jugg'
+
+def gitHead = {
+    def process = ['git', 'rev-parse', 'HEAD'].execute(null, rootDir)
+    def output = process.text.trim()
+    if (process.waitFor() != 0 || !(output ==~ /[0-9a-f]{40}/)) {
+        throw new GradleException('Cannot resolve the Git commit for third-party source references')
+    }
+    output
+}
+
+def sourceChecksums = {
+    def checksums = [:]
+    thirdPartySourceChecksumsFile.eachLine('UTF-8') { line ->
+        def value = line.trim()
+        if (value) {
+            def parts = value.split(/\s+/, 2)
+            if (parts.size() != 2 || !(parts[0] ==~ /[0-9a-f]{64}/)) {
+                throw new GradleException("Invalid third-party source checksum line: $line")
+            }
+            checksums[parts[1]] = parts[0]
+        }
+    }
+    checksums
+}
+
+def sha256 = { InputStream input ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    byte[] buffer = new byte[8192]
+    int read
+    while ((read = input.read(buffer)) != -1) {
+        digest.update(buffer, 0, read)
+    }
+    digest.digest().encodeHex().toString()
+}
+
+def generateThirdPartySourceInfo = tasks.register('generateThirdPartySourceInfo') {
+    group = 'build'
+    description = 'Generates immutable source locations for redistributed third-party components.'
+    inputs.file thirdPartySourceChecksumsFile
+    inputs.property 'pluginVersion', provider { version.toString() }
+    inputs.property 'sourceRevision', provider { gitHead() }
+    outputs.file thirdPartySourceInfoFile
+    doLast {
+        def revision = gitHead()
+        generatedThirdPartyDir.mkdirs()
+        thirdPartySourceInfoFile.write("""# Corresponding Source
+
+Jugg plugin version: `${version}`
+Source revision: `${revision}`
+
+The complete source tree for this distribution, including `third_party/sources`, is available at:
+
+- Archive: ${thirdPartyRepositoryUrl}/archive/${revision}.tar.gz
+- Third-party sources: ${thirdPartyRepositoryUrl}/tree/${revision}/third_party/sources
+
+`SOURCE_SHA256SUMS` records the expected SHA-256 values of the redistributed third-party source files.
+""", 'UTF-8')
+    }
+}
+
 tasks.named('prepareSandbox').configure {
+    dependsOn generateThirdPartySourceInfo
     from(rootProject.file('third_party')) {
         into('jugg/third_party')
+        exclude('sources/**')
     }
     from(rootProject.file('THIRD_PARTY_NOTICES.md')) {
         into('jugg/third_party')
     }
+    from(thirdPartySourceInfoFile) {
+        into('jugg/third_party')
+    }
+    from(thirdPartySourceChecksumsFile) {
+        into('jugg/third_party')
+        rename { 'SOURCE_SHA256SUMS' }
+    }
 }
 
-def thirdPartySourceChecksums = [
-        'jugg/third_party/sources/javax.activation-1.2.0-sources.jar': '7e5aed0cc354684f1c96a1d24513c95f0971541b9ed03bf90a782ba189571022',
-        'jugg/third_party/sources/juniversalchardet-1.0.3-sources.jar': '3d1cb067f5cfe3cc19b77c837156f22368462af9acac5dd878e785966758fc27',
-        'jugg/third_party/sources/rsync-3.4.1.tar.gz': '2924bcb3a1ed8b551fc101f740b9f0fe0a202b115027647cf69850d65fd88c52',
-        'jugg/third_party/sources/sshpass-1.10.tar.gz': 'ad1106c203cbb56185ca3bad8c6ccafca3b4064696194da879f81c8d7bdfeeda',
-        'jugg/third_party/sources/trove4j-1.0.20200330-sources.jar': '2e0174e80b989eb5deafcfb77407c908a0abe1f67a80306f98aeca63246e5481',
-        'jugg/third_party/sources/openjdk-jvmti-header/UPSTREAM_jvmti.h': '205725ea21b4606039de36fc85b2781621bf3aa5b3487e35ba67cc4e432d37b4',
-        'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h': '229d8607d191a3d7815a887ca32d79da11ffa85b4cb16a43b6a01dbb0929d08d',
-        'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h.patch': '5bde14952e873f5c40b68782ba52f16e2506f88fb513c405ef8a459dd85e63b7',
-]
-def thirdPartySbomPath = 'jugg/third_party/sbom/jugg-3.2.2-release.spdx.json'
+def thirdPartySbomPath = 'jugg/third_party/sbom/jugg-third-party.spdx.json'
 
 def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
     group = 'verification'
-    description = 'Verifies third-party notices, licenses, sources, and SBOM in the plugin distribution.'
+    description = 'Verifies third-party notices, source references, licenses, and SBOM in the plugin distribution.'
     doLast {
         def distributions = fileTree("$buildDir/distributions").matching { include '*.zip' }.files
         if (distributions.size() != 1) {
             throw new GradleException("Expected one plugin distribution, found ${distributions.size()}")
         }
 
+        if (System.getenv('CI') == 'true') {
+            def sourceStatusProcess = ['git', 'status', '--porcelain', '--untracked-files=all', '--',
+                                       'third_party/sources'].execute(null, rootDir)
+            def sourceStatus = sourceStatusProcess.text.trim()
+            if (sourceStatusProcess.waitFor() != 0) {
+                throw new GradleException('Cannot verify the Git status of third-party sources')
+            }
+            if (sourceStatus) {
+                throw new GradleException("Third-party sources must match HEAD before packaging:\n$sourceStatus")
+            }
+        }
+
+        def checksums = sourceChecksums()
+        def sourceFiles = fileTree(thirdPartySourcesDir) {
+            include '**/*'
+            exclude 'README.md', 'SHA256SUMS'
+        }.files.collect {
+            thirdPartySourcesDir.toPath().relativize(it.toPath()).toString().replace(File.separator, '/')
+        }.sort()
+        if (sourceFiles != checksums.keySet().toList().sort()) {
+            throw new GradleException('Third-party source files do not match SOURCE_SHA256SUMS')
+        }
+        checksums.each { path, expectedHash ->
+            def sourceFile = new File(thirdPartySourcesDir, path)
+            def actualHash = sourceFile.withInputStream { input -> sha256(input) }
+            if (actualHash != expectedHash) {
+                throw new GradleException("Invalid SHA-256 for third-party source $path: $actualHash")
+            }
+        }
+
         def requiredEntries = [
                 'jugg/third_party/README.md',
+                'jugg/third_party/SOURCE.md',
+                'jugg/third_party/SOURCE_SHA256SUMS',
                 'jugg/third_party/THIRD_PARTY_NOTICES.md',
                 'jugg/third_party/MODIFICATIONS.md',
                 'jugg/third_party/components.csv',
@@ -104,36 +200,44 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
                 'jugg/third_party/licenses/W3C-19980720.txt',
                 'jugg/third_party/licenses/Zlib.txt',
                 'jugg/third_party/licenses/kXML2.txt',
-                'jugg/third_party/sources/README.md',
-                'jugg/third_party/sources/SHA256SUMS',
-                'jugg/third_party/sources/openjdk-jvmti-header/UPSTREAM_jvmti.h',
-                'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h',
-                'jugg/third_party/sources/openjdk-jvmti-header/jvmti.h.patch',
                 thirdPartySbomPath,
         ]
 
         def zip = new ZipFile(distributions.first())
         try {
-            (requiredEntries + thirdPartySourceChecksums.keySet()).each { path ->
+            requiredEntries.each { path ->
                 def entry = zip.getEntry(path)
                 if (entry == null || entry.size <= 0) {
                     throw new GradleException("Missing third-party compliance file: $path")
                 }
             }
 
-            thirdPartySourceChecksums.each { path, expectedHash ->
-                def digest = MessageDigest.getInstance('SHA-256')
-                zip.getInputStream(zip.getEntry(path)).withCloseable { input ->
-                    byte[] buffer = new byte[8192]
-                    int read
-                    while ((read = input.read(buffer)) != -1) {
-                        digest.update(buffer, 0, read)
-                    }
-                }
-                def actualHash = digest.digest().encodeHex().toString()
-                if (actualHash != expectedHash) {
-                    throw new GradleException("Invalid SHA-256 for $path: $actualHash")
-                }
+            def entries = Collections.list(zip.entries())
+            def packagedSources = entries.findAll { it.name.startsWith('jugg/third_party/sources/') }
+            if (packagedSources) {
+                throw new GradleException("Third-party source payload must not be packaged: ${packagedSources*.name}")
+            }
+
+            def packagedChecksums = zip.getInputStream(
+                    zip.getEntry('jugg/third_party/SOURCE_SHA256SUMS')).getText('UTF-8')
+            if (packagedChecksums != thirdPartySourceChecksumsFile.getText('UTF-8')) {
+                throw new GradleException('Packaged third-party source checksums do not match the repository')
+            }
+
+            def sourceInfo = zip.getInputStream(zip.getEntry('jugg/third_party/SOURCE.md'))
+                    .getText('UTF-8')
+            def revision = gitHead()
+            if (!sourceInfo.contains("Source revision: `${revision}`") ||
+                    !sourceInfo.contains("${thirdPartyRepositoryUrl}/archive/${revision}.tar.gz")) {
+                throw new GradleException('Packaged third-party source reference does not match HEAD')
+            }
+
+            def thirdPartyCompressedSize = entries.findAll {
+                it.name.startsWith('jugg/third_party/')
+            }.sum { Math.max(it.compressedSize, 0L) } ?: 0L
+            if (thirdPartyCompressedSize > 256 * 1024) {
+                throw new GradleException("Packaged third-party compliance data is too large: " +
+                        "$thirdPartyCompressedSize bytes")
             }
 
             def components = zip.getInputStream(zip.getEntry('jugg/third_party/components.csv'))
@@ -152,7 +256,9 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
             def sbom = new JsonSlurper().parseText(zip.getInputStream(
                     zip.getEntry(thirdPartySbomPath))
                     .getText('UTF-8'))
-            if (sbom.spdxVersion != 'SPDX-2.3' || sbom.packages?.size() != 104) {
+            if (sbom.spdxVersion != 'SPDX-2.3' ||
+                    sbom.name != 'Jugg-third-party-components' ||
+                    sbom.packages?.size() != 104) {
                 throw new GradleException('Invalid SPDX SBOM')
             }
         } finally {

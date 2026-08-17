@@ -31,7 +31,7 @@
 | `LocalGradleCompileClient` / `RemoteGradleCompileClient` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/` | 本地/远端 Gradle 构建、APK 查找、classpath 拉取与 diff 参数拼装 |
 | `GradleWrapperRepairer` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleWrapperRepairer.kt` | 在 `JuggCompilerHelper.gradleCompile()` 真正执行 Gradle 前，针对已有 `gradle-wrapper.properties` 的工程补齐缺失 wrapper 启动文件 |
 | `ComposeResourceInfo` / `ComposeResourceDirectory` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | 保存 Compose generator classpath/package/public flag、asset 相对路径，以及 source set 到默认/自定义资源目录的对应关系 |
-| 插件发行合规门禁 | `idea/build.gradle`、`third_party`、`tools/generate_third_party_compliance.rb` | 将第三方 NOTICE、许可证、对应源码、修改声明、104 行清单和 SPDX SBOM 打入插件，并在 `buildPlugin` 后校验完整性与源码 SHA-256 |
+| 插件发行合规门禁 | `idea/build.gradle`、`third_party`、`tools/generate_third_party_compliance.rb` | 将第三方 NOTICE、许可证、公开源码 revision、修改声明、104 行清单和 SPDX SBOM 打入插件；对应源码保留在公开 Git revision，并在 `buildPlugin` 后校验产物完整性、源码 SHA-256 与源码 revision 一致性 |
 
 ---
 
@@ -207,7 +207,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `ModuleBuildPathInfo.rFilePath` 只在既有 application R.jar 匹配候选内选择；当 AGP 升级或远端同步导致多个候选 `R.jar` 并存时，按 `lastModifiedTime` 选择最新产物，mtime 相同时保留候选匹配顺序，低版本 library R.jar 仍走独立兼容分支；`BaseCompileContext` 会在多候选时打印 debug 日志。
 - `ModuleBuildPathInfo.javaClassPath` 在 `intermediates/javac/<variant>/classes` 与 `compile<Variant>JavaWithJavac/classes` 并存时同样按 `lastModifiedTime` 选择最新目录；`allClassPath` 只挂载解析后的单一 Java 输出目录，避免 AGP 升级后旧目录 shadow 新 class。
 - `readProjectInfo.gradle.kts` 读取依赖时使用上次 project info 做 CRC 缓存，但不能只依赖缓存，因为 transitive dependency 信息可能不完整。
-- `:idea:prepareSandbox` 必须把仓库 `third_party` 和根目录 `THIRD_PARTY_NOTICES.md` 放入 `jugg/third_party`；`:idea:buildPlugin` 结束后由 `verifyThirdPartyCompliance` 校验 104 行组件清单、固定许可证选择、许可证/源码/修改声明、源码 SHA-256 和 104 个 package 的 SPDX 2.3 SBOM。第三方资产缺失或不匹配必须让发行构建失败，不能降级为 warning。
+- `:idea:prepareSandbox` 必须把仓库 `third_party`（排除 `sources` payload）、根目录 `THIRD_PARTY_NOTICES.md`、生成的 `SOURCE.md` 和源码校验值放入 `jugg/third_party`；对应源码保留在 `SOURCE.md` 指向的公开不可变 Git revision。`:idea:buildPlugin` 结束后由 `verifyThirdPartyCompliance` 校验 104 行组件清单、固定许可证选择、许可证/源码定位/修改声明、仓库源码 SHA-256、CI 源码 Git 状态、插件内无源码 payload、合规数据压缩后不超过 256 KiB，以及 104 个 package 的 SPDX 2.3 SBOM。第三方资产缺失或不匹配必须让发行构建失败，不能降级为 warning。
 - include build 会把各自的 `gradle_project_infos.json` 复制成 `include_build_N_gradle_project_infos.json`，主工程只通过列表文件引用。
 - include build project info task 仅在 composite build 根构建中注入；无 included build 的项目不注册额外 task，也不改变原有读取时机。
 - include build 本轮快照缺失时保留同索引的上一次有效副本；只有旧副本也不存在时才从列表跳过，避免一次读取失败清空可用元数据。

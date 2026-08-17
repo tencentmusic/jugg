@@ -2,8 +2,8 @@
   "spdxVersion": "SPDX-2.3",
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
-  "name": "Jugg-3.2.2-release",
-  "documentNamespace": "https://jugg.sickworm.com/spdx/jugg-3.2.2-release-92df37d0fe908e3759ab43494408d62033cea037a478be38f74299d896a19cbd",
+  "name": "Jugg-third-party-components",
+  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-10d1c7170f4dcee58d0b7e2177d8e4fd09e481934a8ef71cb6981ccf661c0b2b",
   "creationInfo": {
     "created": "2026-08-08T00:00:00Z",
     "creators": [
@@ -126,7 +126,7 @@
       "licenseConcluded": "GPL-2.0-only WITH Classpath-exception-2.0",
       "licenseDeclared": "GPL-2.0-only WITH Classpath-exception-2.0",
       "copyrightText": "Copyright © 2003, 2011 Oracle and/or its affiliates",
-      "comment": "作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 随发行包提供。"
+      "comment": "作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 由插件内 SOURCE.md 定位到公开提交提供。"
     },
     {
       "SPDXID": "SPDXRef-Package-002",
@@ -137,7 +137,7 @@
       "licenseConcluded": "GPL-3.0-or-later",
       "licenseDeclared": "GPL-3.0-or-later",
       "copyrightText": "Copyright © 1996-2025 Andrew Tridgell, Wayne Davison, and others",
-      "comment": "以 macOS 通用可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码与 GPL-3.0-or-later 文本随发行包提供。"
+      "comment": "以 macOS 通用可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-3.0-or-later 文本随发行包提供。"
     },
     {
       "SPDXID": "SPDXRef-Package-003",
@@ -148,7 +148,7 @@
       "licenseConcluded": "GPL-2.0-or-later",
       "licenseDeclared": "GPL-2.0-or-later",
       "copyrightText": "Copyright © 2006-2011 Lingnu Open Source Consulting Ltd.; 2015-2016, 2021-2022 Shachar Shemesh",
-      "comment": "以 macOS arm64 可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码与 GPL-2.0-or-later 文本随发行包提供。"
+      "comment": "以 macOS arm64 可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-2.0-or-later 文本随发行包提供。"
     },
     {
       "SPDXID": "SPDXRef-Package-004",
@@ -159,7 +159,7 @@
       "licenseConcluded": "LGPL-2.1-or-later",
       "licenseDeclared": "LGPL-2.1-or-later",
       "copyrightText": "Copyright © 2002 Eric D. Friedman and Trove contributors",
-      "comment": "以独立 JAR 随插件发行并由 JVM 加载；对应 source JAR 与 LGPL-2.1-or-later 许可证文本随发行包提供。"
+      "comment": "以独立 JAR 随插件发行并由 JVM 加载；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，LGPL-2.1-or-later 许可证文本随发行包提供。"
     },
     {
       "SPDXID": "SPDXRef-Package-005",
@@ -170,7 +170,7 @@
       "licenseConcluded": "MPL-1.1",
       "licenseDeclared": "MPL-1.1",
       "copyrightText": "Copyright © 1998 Netscape Communications Corporation; Kohei TAKETA and Java port contributors",
-      "comment": "以独立 JAR 随插件发行；本发行按上游 POM 选择 MPL-1.1，对应 source JAR 与许可证文本随发行包提供。"
+      "comment": "以独立 JAR 随插件发行；本发行按上游 POM 选择 MPL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。"
     },
     {
       "SPDXID": "SPDXRef-Package-006",
@@ -181,7 +181,7 @@
       "licenseConcluded": "CDDL-1.1",
       "licenseDeclared": "CDDL-1.1",
       "copyrightText": "Copyright © 1997-2017 Oracle and/or its affiliates",
-      "comment": "作为 Android Tools Repository 依赖内嵌于 R8 8.4.21；本发行选择 CDDL-1.1，对应 source JAR 与许可证文本随发行包提供。"
+      "comment": "作为 Android Tools Repository 依赖内嵌于 R8 8.4.21；本发行选择 CDDL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。"
     },
     {
       "SPDXID": "SPDXRef-Package-007",

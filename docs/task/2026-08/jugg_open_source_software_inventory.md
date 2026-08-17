@@ -3,7 +3,7 @@
 > 状态：附件字段与发行合规资产已完成，尚未经过法务或公司开源流程确认
 > 基线：Jugg `3.2.2-release` 插件包与 2026-08-08 当前工作树
 > 目标：维护《附件1.开源软件信息表》的事实基线，并与插件发行包中的第三方合规资产保持一致
-> 重要：本文件不是法律结论。机器清单见 `third_party/components.csv`，SPDX 2.3 SBOM 见 `third_party/sbom/jugg-3.2.2-release.spdx.json`；文档与代码或产物冲突时，以实际发布产物和上游许可证文件为准。
+> 重要：本文件不是法律结论。机器清单见 `third_party/components.csv`，SPDX 2.3 SBOM 见 `third_party/sbom/jugg-third-party.spdx.json`；文档与代码或产物冲突时，以实际发布产物和上游许可证文件为准。
 
 《附件1.开源软件信息表》实际只有 8 个字段：开源软件名称、版本号、开源协议、Copyright、协议链接、下载链接、是否修改、备注。本文件的 P0 仅表示“缺少这些字段会阻塞附件填写”，不代表完整的开源发布门禁。
 
@@ -34,7 +34,7 @@ Jugg 插件实际携带 `gradlew`、`gradlew.bat` 和 `gradle-wrapper.jar`，并
 
 本清单的附件字段和内部口径均已确认，可作为 Excel 回填基线；它仍不代表公司或法务已经批准开源。机器清单按协议义务组、修改状态、组件名称和版本排序；备注统一采用法务送审口径，仅说明使用关系、分发方式、实际修改内容，以及适用时的源码或许可证履行方式，不再重复“未修改”状态或记录开发核对过程。
 
-发行合规资产已落地到 `third_party`：包含 104 行机器清单、许可证文本、GPL/LGPL/MPL/CDDL 对应源码、修改声明和 SPDX 2.3 SBOM。`:idea:buildPlugin` 会将这些文件复制到插件根目录，`:idea:verifyThirdPartyCompliance` 在缺失文件、源码 SHA-256 不匹配、许可证选择回退或 SBOM package 数量不为 104 时使构建失败。
+发行合规资产已落地到 `third_party`：包含 104 行机器清单、许可证文本、GPL/LGPL/MPL/CDDL 对应源码、修改声明和 SPDX 2.3 SBOM。`:idea:buildPlugin` 会将 NOTICE、许可证、公开源码 revision 与校验值、修改声明、清单和 SBOM 复制到插件根目录，不重复打包 `sources` payload；`:idea:verifyThirdPartyCompliance` 在缺失文件、仓库源码 SHA-256 或 CI Git 状态不匹配、插件重新携带源码 payload、许可证选择回退或 SBOM package 数量不为 104 时使构建失败。
 
 附件说明中的“使用”范围比“进入插件发布包”更广，还包括动态或静态链接、随附文件、通过插件或服务器下载、网络或云服务，以及开源软件的 API、代码和文件。因此 Stub API 替换只改变仓库中的文件形态，不会自动免除对应上游 API 的填报判断。
 
@@ -52,8 +52,8 @@ Jugg 插件实际携带 `gradlew`、`gradlew.bat` 和 `gradle-wrapper.jar`，并
 | `jvmti_agent/framework_class_stub` | 确认由挑选、简化的 Android framework 源码生成的编译桩 |
 | 第三方 JAR 内 `LICENSE`、`NOTICE`、`pom.properties` | 核对许可证、Copyright 和 Maven 坐标 |
 | `docs/task/2026-07/open_source_readiness_checklist.md` §3 P0-01 | 确认第三方二进制与知识产权归属是公开发布阻断项 |
-| `third_party`、`THIRD_PARTY_NOTICES.md` | 发行包实际分发的机器清单、许可证、对应源码、修改声明、NOTICE 和 SPDX SBOM |
-| `idea/build.gradle` 的 `verifyThirdPartyCompliance` | 校验发行包合规资产完整性、对应源码 SHA-256、固定许可证选择和 SBOM package 数量 |
+| `third_party`、`THIRD_PARTY_NOTICES.md` | 发行包实际分发的机器清单、许可证、公开源码 revision 与校验值、修改声明、NOTICE 和 SPDX SBOM；对应源码 payload 保留在公开 Git revision |
+| `idea/build.gradle` 的 `verifyThirdPartyCompliance` | 校验发行包合规资产完整性、仓库源码 SHA-256 与 CI Git 状态、源码 revision、插件内无源码 payload、固定许可证选择和 SBOM package 数量 |
 
 ## 3. 插件发布包中的 JVM 组件
 
