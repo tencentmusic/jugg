@@ -1,4 +1,4 @@
-name: Nightly build
+name: Build release channels
 
 on:
   schedule:
@@ -14,21 +14,23 @@ concurrency:
 
 jobs:
   build:
-    name: Build ${{ matrix.branch }} nightly
+    name: Build ${{ matrix.channel }} channel
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       matrix:
         include:
           - branch: main
+            channel: nightly
             release_tag: nightly-main
             release_title: Jugg Nightly (main)
             asset_name: jugg-nightly-main.zip
             version_channel: nightly
           - branch: develop
-            release_tag: nightly-develop
-            release_title: Jugg Nightly (develop)
-            asset_name: jugg-nightly-develop.zip
+            channel: canary
+            release_tag: canary-develop
+            release_title: Jugg Canary (develop)
+            asset_name: jugg-canary-develop.zip
             version_channel: canary
 
     steps:

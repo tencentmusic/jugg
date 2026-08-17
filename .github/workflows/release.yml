@@ -6,6 +6,7 @@ on:
       - "*"
       - "!nightly"
       - "!nightly-*"
+      - "!canary-*"
 
 permissions:
   contents: write

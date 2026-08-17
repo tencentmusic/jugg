@@ -21,7 +21,7 @@
 | `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search/dev-only 页面排除。 |
 | `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布。 |
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release，发布永久保留的稳定版插件包。 |
-| `.github/workflows/nightly.yml` | 每日或手工检查 `main` 与 `develop`；仅在各自 HEAD 与对应 Nightly tag 不同时构建，并更新独立 prerelease、插件包和 SHA-256。 |
+| `.github/workflows/nightly.yml` | 每日或手工检查 `main` 与 `develop`；仅在各自 HEAD 与对应滚动 tag 不同时构建，并更新独立 prerelease、插件包和 SHA-256。 |
 | `~/Documents/shell/publish_jugg_wiki.sh` | Wiki 后台发布脚本：打包 production 产物并同步到 `ali` / `yun` 后台 Wiki 根目录。 |
 | `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/zh/dev/elements-demo.md` | 中文 dev-only 元素样板页，只用于开发环境视觉验收。 |
@@ -238,15 +238,15 @@ yun:~/jugg_backend/wiki
 
 ## 10. 公开插件下载
 
-正式版和 Nightly 使用不同发布语义：
+正式版、Nightly 和 Canary 使用不同发布语义：
 
 - 正式版由版本 tag 触发 `release.yml`，每个版本创建独立 GitHub Release。
-- Nightly 由 `nightly.yml` 分别更新可移动的 `nightly-main` 与 `nightly-develop` tag，并覆盖对应的 `Jugg Nightly (main)` / `Jugg Nightly (develop)` prerelease。
-- Nightly 的 Actions artifact 只保留 14 天，用于构建排查；公开下载入口必须指向 GitHub Release asset，不能依赖 workflow run 页面。
-- README 和 Wiki 使用固定的 main / develop Nightly 地址，因此每次构建不需要更新页面链接。
-- `release.yml` 必须排除 Nightly tag，避免滚动 tag 被正式发布流程校验为版本号。
+- `nightly.yml` 分别更新可移动的 `nightly-main` 与 `canary-develop` tag，并覆盖对应的 `Jugg Nightly (main)` / `Jugg Canary (develop)` prerelease。
+- Nightly 与 Canary 的 Actions artifact 都只保留 14 天，用于构建排查；公开下载入口必须指向 GitHub Release asset，不能依赖 workflow run 页面。
+- README 和 Wiki 使用固定的 main Nightly / develop Canary 地址，因此每次构建不需要更新页面链接。
+- `release.yml` 必须排除 Nightly 与 Canary tag，避免滚动 tag 被正式发布流程校验为版本号。
 
-每个 Nightly 只在对应分支有新 commit 时重新发布。main 包使用 `${baseVersion}-nightly.<日期>.<run>`，develop 包使用 `${baseVersion}-canary.<日期>.<run>`；版本渠道只由构建分支决定。develop Nightly 可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
+每个渠道只在对应分支有新 commit 时重新发布。main 包使用 `${baseVersion}-nightly.<日期>.<run>`，develop 包使用 `${baseVersion}-canary.<日期>.<run>`；版本渠道只由构建分支决定。develop Canary 可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
 
 ## 11. 关联文档
 

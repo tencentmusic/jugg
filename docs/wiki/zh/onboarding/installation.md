@@ -17,7 +17,7 @@ Jugg 以 Android Studio 插件形式安装。安装后不用修改工程代码�
 
 - [最新稳定版](https://github.com/sickworm/jugg/releases/latest)
 - [main 最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly-main/jugg-nightly-main.zip)：`main` 有新 commit 时自动构建
-- [develop 最新 Nightly 构建](https://github.com/sickworm/jugg/releases/download/nightly-develop/jugg-nightly-develop.zip)：`develop` 有新 commit 时自动构建，可能包含未经完整验证的改动
+- [develop 最新 Canary 构建](https://github.com/sickworm/jugg/releases/download/canary-develop/jugg-canary-develop.zip)：`develop` 有新 commit 时自动构建，可能包含未经完整验证的改动
 
 团队有内部下载页时，优先遵循团队的版本发布与灰度安排。
 
