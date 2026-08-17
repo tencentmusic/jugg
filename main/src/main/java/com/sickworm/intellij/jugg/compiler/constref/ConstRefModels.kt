@@ -62,8 +62,10 @@ internal fun ConstReferenceCandidate.mayReference(definition: ConstDefinition): 
 
 private fun ConstDefinition.candidateOwnerNames(): Set<String> {
     val simpleName = fqClassName.substringAfterLast('.')
+    val packageRelativeName = fqClassName.removePrefix("$packageName.")
     return linkedSetOf(
         fqClassName,
+        packageRelativeName,
         simpleName,
         "$fqClassName.Companion",
         "$simpleName.Companion",

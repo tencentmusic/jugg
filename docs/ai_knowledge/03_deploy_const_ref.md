@@ -180,6 +180,7 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 
 - 引用扫描不查询 definitions，也不要求目标 const 已经被扫描；影响查询阶段用变更后的 definition 与 syntax candidate 保守匹配，原则是允许多编译，不能漏编译。
 - companion const 会同时匹配 `Owner.CONST` 与 `Owner.Companion.CONST` 形态。
+- 同包嵌套 class/object 的限定引用会以相对 owner（如 `Outer.Inner.CONST`）匹配定义侧的全限定 owner。
 - `const` 被降级为普通 `val` 或删除时，`removedDefinitionKeys` 会继续命中旧候选索引。
 - `awaitAnalysis()` 成功条件是目标文件 `analyzedAt >= 等待开始时间`；full scan ready 不再阻塞编译。
 - `ensureReadyForRecompile()` / `analyzeOnDemand()` / `getEffectedFiles()` 等用户主动等待或查询链路异常时 warning，并按降级语义继续。
@@ -222,7 +223,7 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 | 测试文件 | 重点验证 |
 |---|---|
 | `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefEngineTest.kt` | 编辑态延迟、await 冲刷、删除清理、removed keys、full scan 不阻塞就绪、on-demand 降级。 |
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefIntegrationTest.kt` | 冷启动 full scan、companion const、无关类不误报。 |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefIntegrationTest.kt` | 冷启动 full scan、companion const、同包嵌套 object const、无关类不误报。 |
 | `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefAnalyzerTest.kt` | Java/Kotlin parser 并发访问串行化。 |
 | `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
 | `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/KotlinConstParserTest.kt` | Kotlin alias/星号导入、同包解析、忽略注释/字符串。 |

@@ -134,6 +134,60 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should detect effected files when nested object const changes in same package`() {
+        val rootDir = createTempDirectory("const_ref_integration_nested_object")
+        File(rootDir, ".git").mkdirs()
+        val configFile = File(rootDir, "NestedObjectConfig.kt").apply {
+            writeText(nestedObjectConfigSource("old"))
+        }
+        val invokerFile = File(rootDir, "NestedObjectConfigInvoker.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                val method = NestedObjectConfig.FeedbackServer.METHOD
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            taskRunnerManager = createTestTaskRunnerManager(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(configFile.absolutePath)
+            scheduler.onFileSaved(invokerFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(configFile.absolutePath, invokerFile.absolutePath), timeoutMs = 10_000L)
+
+            configFile.writeText(nestedObjectConfigSource("new"))
+            scheduler.onFileSaved(configFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(configFile.absolutePath), timeoutMs = 10_000L)
+
+            val effected = scheduler.getEffectedFiles(listOf(configFile.absolutePath))
+            assertEquals(setOf(invokerFile.toStdPath()), effected.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    private fun nestedObjectConfigSource(method: String): String {
+        return """
+            package com.example
+
+            object NestedObjectConfig {
+                object FeedbackServer {
+                    const val METHOD = "$method"
+                }
+            }
+        """.trimIndent()
+    }
+
+    @Test
     fun `should not detect effected files when unrelated class changes`() {
         val rootDir = createTempDirectory("const_ref_integration_unrelated")
         File(rootDir, ".git").mkdirs()
