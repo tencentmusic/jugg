@@ -36,7 +36,7 @@
 | `IDeviceAdb` / `IdeaDeviceAdb` / `IdeaDeviceAdbClient` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/IDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdbClient.kt` | 设备 ADB 语义抽象；IDE 侧通过 `IDevice` 封装 shell/push/pid/arch/uninstall，不再把这些 transport 能力挂在 deployer compat 上 |
 | `CmdLine` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/CmdLine.kt` | 命令行入口，分发 `buildGradleBase` / `buildIncrementalApk` |
 | `BuildGradleBaseCommand` / `BuildIncrementalApkCommand` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | CI 两阶段构建：建立可复用基线，再以调用方显式变更文件生成增量 APK |
-| `StandaloneRuntimeInstaller` / `StandaloneBootstrap` | `cmd_line/.../standalone/StandaloneRuntimeInstaller.kt`, `standalone_bootstrap/.../StandaloneBootstrap.java` | 三平台 Bundle 安装事务、active manifest、版本接管、固定 Java 11 bootstrap 和 ordered classloader；启动失败直接返回异常，不自动切换旧 Runtime |
+| `StandaloneRuntimeInstaller` / `StandaloneBootstrap` | `cmd_line/.../standalone/StandaloneRuntimeInstaller.kt`, `cmd_line/standalone_bootstrap/.../StandaloneBootstrap.java` | 三平台 Bundle 安装事务、active manifest、版本接管、固定 Java 11 bootstrap 和 ordered classloader；启动失败直接返回异常，不自动切换旧 Runtime |
 | `CustomCompilerManager` / `ICompilerCreator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/` | 自定义编译器 SPI 装载与生命周期管理 |
 
 ---

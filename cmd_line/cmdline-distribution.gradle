@@ -20,7 +20,7 @@ def standaloneStartScripts = tasks.register('standaloneStartScripts', CreateStar
 }
 
 def standaloneBundleStageDir = layout.buildDirectory.dir('standalone-bundle')
-def bootstrapProject = project(':standalone_bootstrap')
+def bootstrapProject = project(':cmd_line:standalone_bootstrap')
 def sha256 = { File file ->
     def digest = MessageDigest.getInstance('SHA-256')
     file.withInputStream { input ->
