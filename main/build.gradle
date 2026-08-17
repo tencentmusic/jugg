@@ -128,12 +128,12 @@ dependencies {
     implementation 'com.github.mwiede:jsch:0.2.16'
     implementation "com.github.javaparser:javaparser-core:3.17.0"
 
-    // databinding 8.7.3, which use kotlin 1.9.20
-    // only for jugg parsing, kapt will use project classpath
-    implementation 'androidx.databinding:databinding-compiler:8.7.3'
-    implementation 'androidx.databinding:databinding-compiler-common:8.7.3'
+    // Keep IDEA and standalone on the same Java 11-compatible Data Binding compiler.
+    // Only used for Jugg parsing; kapt uses the project classpath.
+    implementation 'androidx.databinding:databinding-compiler:7.4.2'
+    implementation 'androidx.databinding:databinding-compiler-common:7.4.2'
     implementation 'com.squareup:javapoet:1.10.0' // fix apt error: Compile DataBinding failed: java.lang.NoClassDefFoundError: com/squareup/javapoet/TypeSpec
-//    implementation('androidx.databinding:databinding-adapters:8.7.3') // it's an aar, should extra and put the jar in libs
+//    implementation('androidx.databinding:databinding-adapters:7.4.2') // it's an aar, should extra and put the jar in libs
 
 
     // backend

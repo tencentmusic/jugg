@@ -395,6 +395,12 @@ def verifyEmbeddedStandaloneBundle = tasks.register('verifyEmbeddedStandaloneBun
                 if (jnaJar != null) {
                     throw new GradleException("JNA must not be packaged in the standalone Bundle: $jnaJar")
                 }
+                def embeddedDataBindingJar = manifest.jarFileNames.find { name ->
+                    name ==~ /(?i)(?:databinding-.+|baseLibrary-.+)\.jar/ && bundleZip.getEntry("jars/$name") != null
+                }
+                if (embeddedDataBindingJar != null) {
+                    throw new GradleException("Data Binding must be restored from IDEA plugin libraries: $embeddedDataBindingJar")
+                }
 
                 def declaredFiles = [:]
                 manifest.jarSha256.each { name, hash -> declaredFiles["jars/$name"] = hash }
