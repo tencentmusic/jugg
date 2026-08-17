@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.2.5 (2026.08.13)</h2>
+<h2>3.2.6 (2026.08.17)</h2>
 <ol>
     <li>[feature] 新增原生 Jugg 运行面板，展示实时编译进度、近期结果、日志和设置</li>
     <li>[feature] 问题上报前可检查脱敏诊断包，也可仅保存到本地</li>
@@ -10,6 +10,7 @@
     <li>[optimize] Agent hooks 可获取完整 Jugg 状态</li>
     <li>[optimize] 增强优化工程识别能力</li>
     <li>[optimize] 检测到的变更已部署时展示明确说明</li>
+    <li>[optimize] 减小插件下载体积，同时保留源码访问能力</li>
     <li>[bugfix] 修复慢速 Git 变更补检中断 Jugg Run 的问题</li>
     <li>[bugfix] 修复 Gradle 插桩 JAR 导致增量 D8 错误回退到内置版本的问题</li>
     <li>[bugfix] 修复增量编译新增 Compose 资源后 IDE 无法高亮和自动导入的问题</li>
@@ -26,6 +27,7 @@
     <li>[bugfix] 修复 included build 源码变更后资源 ID 错误导致崩溃的问题</li>
     <li>[bugfix] 修复 split APK 共享返回类型时热更新崩溃的问题</li>
     <li>[bugfix] 修复应用启动环境未配置 ADB PATH 时未收集设备运行日志的问题</li>
+    <li>[bugfix] 修复同包嵌套常量调用方未重新编译的问题</li>
 </ol>
 <h2>3.1.5 (2026.07.31)</h2>
 <ol>
