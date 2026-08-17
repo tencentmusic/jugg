@@ -82,6 +82,7 @@ dependencies {
 
 configurations.runtimeClasspath {
     exclude group: 'com.android.tools', module: 'repository'
+    exclude group: 'net.java.dev.jna'
     resolutionStrategy.force 'androidx.databinding:databinding-compiler:7.4.2',
             'androidx.databinding:databinding-compiler-common:7.4.2',
             'androidx.databinding:databinding-common:7.4.2'

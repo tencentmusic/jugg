@@ -36,6 +36,7 @@ class CmdLineDistributionArchitectureTest {
             assertEquals(declaredJars.sorted(), actualJars.sorted())
             assertTrue(declaredJars.isNotEmpty())
             assertTrue(declaredJars.all(CONTENT_ADDRESSED_JAR::matches))
+            assertFalse(declaredJars.any { it.startsWith("jna-") })
             actualJars.forEach { jarName ->
                 zip.getInputStream(zip.getEntry("jars/$jarName")).use { verifyJava11Classes(it, jarName) }
             }

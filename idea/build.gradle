@@ -389,6 +389,12 @@ def verifyEmbeddedStandaloneBundle = tasks.register('verifyEmbeddedStandaloneBun
                 if (antJar != null) {
                     throw new GradleException("Ant must not be packaged in the standalone Bundle: $antJar")
                 }
+                def jnaJar = (manifest.jarFileNames + manifest.bootstrapFileNames).find {
+                    it ==~ /(?i)jna(?:-platform)?-.+\.jar/
+                }
+                if (jnaJar != null) {
+                    throw new GradleException("JNA must not be packaged in the standalone Bundle: $jnaJar")
+                }
 
                 def declaredFiles = [:]
                 manifest.jarSha256.each { name, hash -> declaredFiles["jars/$name"] = hash }
