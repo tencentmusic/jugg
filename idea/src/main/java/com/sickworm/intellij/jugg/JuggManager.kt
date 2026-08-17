@@ -203,7 +203,10 @@ class JuggManager @TestOnly constructor(
                 ideaHotUpdateCoordinator.init(project)
             }
 
-            taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000) {
+            taskRunnerManager.runBackgroundSafe("Auto update Jugg standalone and CLI", delayMs = 10_000) {
+                runCatching { StandaloneBundleInstallService.installIfNeeded() }
+                    .onSuccess { if (it) logger.info("Jugg standalone runtime updated from embedded Bundle") }
+                    .onFailure { logger.warn("Auto update Jugg standalone failed", it) }
                 JuggCliAutoUpdater.checkAndUpdate(logger.getInstance("JuggCliAutoUpdater"))
             }
             taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {

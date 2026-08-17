@@ -1,22 +1,74 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.google.gson.Gson
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.extensions.PluginId
+import com.sickworm.intellij.jugg.project.runtime.StandaloneHotUpdateManifest
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 
 /** Installs the embedded standalone Bundle without adding its JARs to the IDEA classpath. */
 object StandaloneBundleInstallService {
     private const val PLUGIN_ID = "com.sickworm.intellij.jugg"
+    private const val BUNDLE_MANIFEST = "standalone_bundle_manifest.json"
 
     fun install() {
+        install(resolveBundle())
+    }
+
+    /** Refreshes an IDEA-managed standalone runtime when the embedded tooling build changes. */
+    @Synchronized
+    fun installIfNeeded(): Boolean {
+        val juggRootDir = File(System.getProperty("user.home"), ".jugg")
+        val isCliInstalled = juggRootDir.resolve("bin").isDirectory
+        if (!isCliInstalled) return false
+        val bundle = resolveBundle()
+        val bundledManifest = readBundleManifest(bundle)
+        val activeManifest = readManifest(juggRootDir.resolve("hot_update/standalone_load_manifest.json"))
+        if (!shouldInstallRuntime(isCliInstalled, activeManifest, bundledManifest.releaseBuildId)) {
+            return false
+        }
+        install(bundle)
+        return true
+    }
+
+    internal fun shouldInstallRuntime(
+        isCliInstalled: Boolean,
+        activeManifest: StandaloneHotUpdateManifest?,
+        bundledReleaseBuildId: String,
+    ): Boolean {
+        if (!isCliInstalled) return false
+        if (activeManifest == null) return true
+        if (activeManifest.managedBy == "external") return false
+        return activeManifest.toolingReleaseBuildId != bundledReleaseBuildId
+    }
+
+    private fun resolveBundle(): File {
         val plugin = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID)) ?: error("Jugg plugin is not installed")
         val standaloneDir = plugin.pluginPath.resolve("standalone").toFile()
-        val bundle = standaloneDir.listFiles().orEmpty().singleOrNull {
+        return standaloneDir.listFiles().orEmpty().singleOrNull {
             it.isFile && it.name.startsWith("jugg-standalone-") && it.extension == "zip"
         } ?: error("Jugg standalone Bundle is missing")
+    }
+
+    private fun readBundleManifest(bundle: File): StandaloneHotUpdateManifest {
+        return ZipFile(bundle).use { zip ->
+            val entry = zip.getEntry(BUNDLE_MANIFEST) ?: error("Jugg standalone Bundle manifest is missing")
+            zip.getInputStream(entry).reader().use {
+                Gson().fromJson(it, StandaloneHotUpdateManifest::class.java)
+            }
+        }.also { check(it.releaseBuildId.isNotBlank()) { "Jugg standalone Bundle build ID is missing" } }
+    }
+
+    private fun readManifest(file: File): StandaloneHotUpdateManifest? {
+        if (!file.isFile) return null
+        return runCatching { Gson().fromJson(file.readText(), StandaloneHotUpdateManifest::class.java) }.getOrNull()
+    }
+
+    private fun install(bundle: File) {
         val stageDir = Files.createTempDirectory("jugg-standalone-install").toFile()
         try {
             extract(bundle, stageDir)

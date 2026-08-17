@@ -61,6 +61,8 @@
 | `build/jugg/runtime.owner.json` | `TaskRunnerManager` | 上次取得项目写所有权的 IDEA/standalone Runtime；CI 不写入；使用临时文件与原子替换；内容损坏时按无历史 owner 处理并由当前 Runtime 覆盖 |
 | `build/jugg/runtime.launch.lock` | Python CLI | 同项目 standalone 自动拉起的跨进程互斥锁；锁内二次发现 Runtime，避免并发 CLI 重复创建 daemon |
 
+IDEA Jugg Run Configuration 是共享 profile 的同步源。项目启动时会按稳定 UUID 覆盖保存当前 IDEA 配置，并将当前选中的 Jugg Configuration 写入 pointer；因此重命名不生成新 profile，远端开关、认证与 Gradle command 也不会继续沿用上次退出时的旧快照。后续选择和编辑事件继续执行同一 `save + select` 契约。
+
 `GradleProjectInfoReaderManager` 优先读取 Gradle property `jugg.projectDir` 作为 IDE project dir；当 Gradle root 与 IDE project root 不一致时，不能直接用 `rootProject.rootDir` 推断 Jugg 文件位置。
 
 ### 3.2 `ModuleInfo` 关键字段

@@ -72,11 +72,11 @@ IDE project opened
      设置 IdeaPlatformApi，创建 JuggPathManager，注册 JuggLogger
   -> JuggManager.init()
      创建 IDEA RuntimeInfo，再由 Init Jugg 后台任务首次转换并迁移旧 PropertiesComponent 字段，失败时下次启动重试，然后显式初始化 Host-neutral JuggServer；settings 在首次访问时自动加载
-     通过 ProjectCustomConfigManager 刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录；导入已有 Jugg Run Configuration，缺失时由 Gradle project info 生成确定性默认配置
+     通过 ProjectCustomConfigManager 刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录；导入已有 Jugg Run Configuration，并用 IDEA 当前内容刷新相同稳定 id 的共享 profile 与 current pointer，缺失时由 Gradle project info 生成确定性默认配置
   -> JuggManager.recoverDeployContext()
      从 deploy history 恢复 compile context、APK、changed files，避免无必要全量构建
   -> background tasks
-     预初始化 deployment service、检查更新；CLI/skills auto update 在全局锁内执行，MCP fetch cleanup 保持普通后台任务
+     预初始化 deployment service、检查更新；已安装 CLI 时先按 embedded tooling build 刷新 IDEA 管理的 standalone runtime，再执行 CLI/skills auto update，MCP fetch cleanup 保持普通后台任务
 ```
 
 `recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。
@@ -145,7 +145,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 
 ## 5. UI 与工具入口
 
-- 默认 Run 配置由 `CliRunConfigurationGenerator` 基于 Gradle project info 推断，不再使用 `SuggestRunConfiguration`；优先 `app` application module，否则按稳定排序选择，variant 使用当前 `buildVariant`，缺失时为 `debug`。IDEA 只导入 Jugg Run Configuration，选择/修改事件在项目锁内更新共享配置或指针。
+- 默认 Run 配置由 `CliRunConfigurationGenerator` 基于 Gradle project info 推断，不再使用 `SuggestRunConfiguration`；优先 `app` application module，否则按稳定排序选择，variant 使用当前 `buildVariant`，缺失时为 `debug`。IDEA 只导入 Jugg Run Configuration；项目启动时刷新全部已有 Jugg profile 并更新当前指针，后续选择/修改事件继续在项目锁内同步，避免同一稳定 id 保留上次退出时的旧参数。
 - IDEA Runtime 的 CLI/MCP Gradle 调用优先当前选中的 Jugg Run Configuration；未选中 Jugg 时按最近成功 full build 的 command + target、command、列表首项依次回退。Gradle build 成功且 APK 已确认后回写本轮实际 task、APK pattern 和远端字段。
 - More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
 - `Jugg Running Pannel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
@@ -163,7 +163,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - hot update 的下载、MD5 校验、metadata/load manifest 发布和过期清理由共享 `JuggHotUpdateManager` 完成；`load_manifest.json` 仅由真实 IDEA 热更新发布，IDEA 内置 jar 与 standalone CLI 安装均不会写入它。`IdeaHotUpdateCoordinator` 保留 IDEA 定时检查、频控、notification、plugin install/restart 与 reopen project。`JuggHotUpdateBootstrap` 在 Loader 创建 hot-update classloader 前无锁只读 manifest，其跨 classloader API 仅暴露 JDK 平台类型，禁止返回 hot-update Runtime DTO。
 - `Set custom server URL` 的 dialog 留在 `MoreOptionsManager`，输入结果通过不产生任务事件上报的全局锁后台任务交给 `JuggServer` 写共享 settings；`Clean and reset Jugg` 保持原有直接删除项目状态并 reopen project 的行为。
 - `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；安装 CLI 或 hooks 前先检测 Python 3.7+（`python3` 优先，`python` 回退），未满足时不写入 CLI 或 hook 配置。成功安装 Claude hooks 且检测到 CC Switch 配置目录时，安装结果关闭后会提示用户导出 Common Config JSON，不提供单独的 CC Switch 安装选项，也不直接修改 CC Switch 配置。选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 Codex home（优先 `CODEX_HOME`，否则 `~/.codex`）下 `rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认，并在安装日志记录 rules file、prefix 与 installed/already_installed/fail 状态；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。
-- 内置 standalone Bundle 每次安装都会替换当前 active runtime，不限制版本降级或 channel 切换，并为 `~/.jugg/bin/jugg.py` 写入可执行权限；安装进程失败时保留进程输出并弹出 `Install Failed` 错误窗口。
+- 内置 standalone Bundle 每次手动安装都会替换当前 active runtime，不限制版本降级或 channel 切换，并为 `~/.jugg/bin/jugg.py` 写入可执行权限。IDEA 启动后台任务只自动刷新已经安装且 `managedBy=idea` 的 runtime，并以 `toolingReleaseBuildId` 判断 embedded tooling 是否变化；相同 tooling 上的 compatible hot update 与 `managedBy=external` 的 runtime 保持不变。自动刷新失败只记录 warn，不阻断 CLI/skills 更新；手动安装失败保留进程输出并弹出 `Install Failed` 错误窗口。
 - CLI/MCP/RPC 在 EDT 上读取 IDE 当前选择项、Jugg configuration 列表和配置 options。优先使用当前选中的 Jugg configuration；选择项不可用或不是 Jugg configuration 时，先按最近一次成功 Gradle full build 的 `compileCommand + buildTarget` 完全匹配，再按 `compileCommand` 完全匹配，最后回退到列表中的首个 Jugg 配置。同层存在多个匹配项时使用该层首项；最终首项兜底会打印 `warn`，同时以精简 `debug` 日志记录 selected、full build、resolution source 与 chosen configuration。运行时会创建对应 Run content，但默认不激活 Run tool window；失败等需要用户注意的场景才显式 show。
 - `reportIssue()` 在准备诊断数据和上传期间使用模态进度窗口；生成经过脱敏的白名单诊断候选项后，确认窗口说明运行环境日志已脱敏并用于问题分析，只展示 IDEA `log/` 和 standalone `log/standlone_cli/` 按修改时间合并后的最近 10 个 Jugg 日志文件的路径和 KB/MB 大小，默认全选，并将 Jugg 日志置顶且锁定选择。上传的 standalone 日志保留 `diagnostics/logs/standlone_cli/` 层级。上传按钮显示 `Upload logs`；选择仅保存时切换为 `Create Diagnostics Bundle`，生成后由系统文件管理器选中 ZIP。Report ID 保持为 8 位小写十六进制。上传固定提交到 `https://jugg.sickworm.com/report_issue`，不展示或持久化上传地址；结果页不展示临时 ZIP 路径。`build/jugg/tmp/diagnostics` 中达到 7 天的文件在项目启动后的延迟清理时机单独清理。
 

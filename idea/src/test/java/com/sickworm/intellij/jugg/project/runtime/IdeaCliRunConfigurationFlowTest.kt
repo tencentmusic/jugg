@@ -51,6 +51,25 @@ class IdeaCliRunConfigurationFlowTest {
     }
 
     @Test
+    fun `startup refreshes an existing selected profile from idea state`() {
+        val fixture = fixture("startup_refresh")
+        val options = ideaOptions("./gradlew :app:assembleDebug", "app/build/outputs/apk/debug/*.apk")
+        val settings = juggSettings("jugg:app_local", options)
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(settings))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(settings)
+        fixture.manager.syncExistingConfigurations()
+
+        options.isRemoteCompile = true
+        whenever(settings.name).thenReturn("jugg:app")
+
+        assertTrue(fixture.manager.ensureConfiguration())
+        val current = fixture.store.loadCurrent()!!
+        assertEquals("jugg:app", current.name)
+        assertTrue(current.isRemoteCompile)
+    }
+
+    @Test
     fun `successful gradle build updates actual task and apk output of current configuration`() {
         val fixture = fixture("gradle_success")
         val options = ideaOptions("./gradlew :app:assembleDebug", "app/build/outputs/apk/debug/*.apk")

@@ -162,11 +162,7 @@ class IdeaCliRunConfigurationManager(
     private fun ensureImportedConfigurations(settings: List<RunnerAndConfigurationSettings>) {
         val projectInfo = compileContextManager.getProjectInfo()
         val configurations = settings.mapNotNull { toCliConfiguration(it, projectInfo) }
-        configurations.forEach { configuration ->
-            if (store.load(configuration.id) == null) {
-                store.save(configuration)
-            }
-        }
+        configurations.forEach(store::save)
         val selectedId = (runManager.selectedConfiguration?.configuration as? JuggRunConfiguration)
             ?.state
             ?.cliRunConfigurationId
