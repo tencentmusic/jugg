@@ -98,6 +98,8 @@ open class JuggControlPanelController(
 
     open fun fullGradleBuild() = manager.gradleCompile()
 
+    open fun runRemoteCommand() = manager.runRemoteCommand()
+
     open fun restartApp() {
         val taskId = UUID.randomUUID().toString()
         recordEvent(taskId, JuggEvent.Category.APP, JuggEvent.Phase.LAUNCHING, JuggEvent.Status.STARTED, "Restart app started")

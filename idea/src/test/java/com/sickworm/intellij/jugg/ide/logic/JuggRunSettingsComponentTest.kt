@@ -90,7 +90,7 @@ class JuggRunSettingsComponentTest {
         assertEquals(3, quickActionsLayout.columns)
         assertEquals(3, quickActions.componentCount)
         assertEquals(listOf(
-            "Build" to listOf("Fallback to Gradle", "Clear Jugg Build"),
+            "Build" to listOf("Fallback to Gradle", "Remote Command...", "Clear Jugg Build"),
             "Device" to listOf("Restart App", "Clear app data"),
             "Jugg Plugin" to listOf("Report Issue", "Check updates", "Install CLI & Skill"),
         ), quickActionGroups)
@@ -119,7 +119,7 @@ class JuggRunSettingsComponentTest {
         assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.changedFilesList"))
         assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.recentRunsList"))
         assertTrue(actionTexts.containsAll(listOf(
-            "Fallback to Gradle", "Clear Jugg Build", "Restart App", "Clear app data",
+            "Fallback to Gradle", "Remote Command...", "Clear Jugg Build", "Restart App", "Clear app data",
             "Report Issue", "Check updates", "Install CLI & Skill", "Install…", "Check now", "Clear…",
         )))
         assertTrue("More…" !in actionTexts)

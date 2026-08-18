@@ -223,6 +223,7 @@ class JuggControlPanel(
         name = "quickActions"
         add(actionGroup("Build",
             actionLink("Fallback to Gradle", controller::fullGradleBuild),
+            actionLink("Remote Command...", controller::runRemoteCommand),
             actionLink("Clear Jugg Build", controller::resetJuggCache)))
         add(actionGroup("Device",
             actionLink("Restart App", controller::restartApp),

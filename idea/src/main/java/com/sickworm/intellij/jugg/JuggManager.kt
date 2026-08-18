@@ -14,6 +14,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.*
@@ -32,6 +33,7 @@ import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueResultDialog
+import com.sickworm.intellij.jugg.ide.ui.RemoteCommandDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -639,6 +641,44 @@ class JuggManager @TestOnly constructor(
     override fun gradleCompile() {
         logger.debug("[action] gradleCompile")
         forceGradleCompileHelper.executeGradleCompile()
+    }
+
+    /** Runs a non-interactive command with the currently selected remote Jugg configuration. */
+    fun runRemoteCommand() {
+        val selectedSettings = RunManager.getInstance(project).selectedConfiguration
+        val configuration = selectedSettings?.configuration as? JuggRunConfiguration
+            ?: return showRemoteCommandWarning("Select a Jugg run configuration first.")
+        val state = configuration.state
+            ?: return showRemoteCommandWarning("The selected Jugg configuration is unavailable.")
+        if (!state.isRemoteCompile) {
+            return showRemoteCommandWarning("The selected Jugg configuration does not use remote compilation.")
+        }
+        if (state.remoteSshUser.isNullOrBlank() || state.remoteSshIp.isNullOrBlank() || state.remoteSshPort <= 0) {
+            return showRemoteCommandWarning("Complete the SSH user, host, and port in the selected Jugg configuration.")
+        }
+        val (options, workingDirectory) = try {
+            state.toCompileOptions(pathManager).let { it to it.remoteProjectPath }
+        } catch (e: Exception) {
+            logger.warn("Failed to prepare remote command configuration", e)
+            return showRemoteCommandWarning(e.message ?: "Failed to resolve the remote project directory.")
+        }
+        val target = "${options.remoteSshUser}@${options.remoteSshIp}:${options.remoteSshPort}"
+        val targetKey = "$target|$workingDirectory"
+        val dialog = RemoteCommandDialog(
+            project,
+            selectedSettings.name,
+            target,
+            workingDirectory,
+            JuggSettings.getRemoteCommandHistory(targetKey),
+        )
+        if (!dialog.showAndGet()) return
+        val command = dialog.command()
+        RemoteCommandRunner(project, logger).run(selectedSettings.name, options, command)
+        JuggSettings.recordRemoteCommand(targetKey, command)
+    }
+
+    private fun showRemoteCommandWarning(message: String) {
+        Messages.showWarningDialog(project, message, "Run Remote Command")
     }
 
     override fun restartApp() {

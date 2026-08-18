@@ -29,7 +29,9 @@ class RemoteGradleCompileClient(
     private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
 ) : IGradleCompileClient {
 
+    @Volatile
     private var session: Session? = null
+    @Volatile
     private var channel: Channel? = null
     private var inputStream: InputStream? = null
     private var shellInputStream: BufferedInputStream? = null
@@ -50,11 +52,23 @@ class RemoteGradleCompileClient(
     private var currentRemoteCommandId: Long? = null
     private var cancelCtrlCAttempts = 0
     private var lastCancelCtrlCAtMs = Long.MIN_VALUE
+    private var isTerminalOutputLoggingEnabled = true
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
+        isTerminalOutputLoggingEnabled = true
+        login(juggGradleCompileOptions, resetCanceled = true, connectTimeoutMs = null)
+    }
+
+    private fun login(
+        juggGradleCompileOptions: JuggGradleCompileOptions,
+        resetCanceled: Boolean,
+        connectTimeoutMs: Int?,
+    ) {
         logger.debug("[Jugg] remote login starts with fresh shell, reuse disabled")
         dispose()
-        isCanceled = false
+        if (resetCanceled) {
+            isCanceled = false
+        }
         resetCancelCtrlCState()
         currentRemoteCommandName = null
         currentRemoteCommandId = null
@@ -73,7 +87,9 @@ class RemoteGradleCompileClient(
 
         // if key path is empty and password is empty, show dialog to input password
         if (keyPathList.isEmpty() && finalPasswordOrKey.isEmpty()) {
+            throwIfCanceled()
             finalPasswordOrKey = showDialogAndGetPasswordOrKey(extraTips = "and keys not found in .ssh")
+            throwIfCanceled()
         }
 
         // first, if finalPasswordOrKey is not empty, try without extra keyPathList
@@ -83,11 +99,12 @@ class RemoteGradleCompileClient(
                 convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey)?.let {
                     keyList.add(it)
                 }
-                doLogin(juggGradleCompileOptions, keyList, finalPasswordOrKey)
+                doLogin(juggGradleCompileOptions, keyList, finalPasswordOrKey, connectTimeoutMs)
                 logger.debug("login success with password")
                 keyPathList = mutableListOf() // won't use keyPathList in laster rsync
                 return
             } catch (e: Exception) {
+                if (isCanceled) throw e
                 logger.debug("login failed with password", e)
             }
         }
@@ -99,17 +116,20 @@ class RemoteGradleCompileClient(
             keyPathList = keyPathList.distinct().toMutableList()
         }
         try {
-            doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey)
+            doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey, connectTimeoutMs)
         } catch (e: Exception) {
+            if (isCanceled) throw e
             if (keyPathList.isNotEmpty() && finalPasswordOrKey.isEmpty()) {
                 // use ssh key failed and password is empty, show dialog to input password
+                throwIfCanceled()
                 finalPasswordOrKey = showDialogAndGetPasswordOrKey(extraTips = "and login is failed")
+                throwIfCanceled()
                 convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey)?.let {
                     logger.debug("found key path in user input2: $it")
                     keyPathList.add(it)
                 }
                 try {
-                    doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey)
+                    doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey, connectTimeoutMs)
                 } catch (e: Exception) {
                     // login failed
                     onLoginFailed(e)
@@ -158,7 +178,13 @@ class RemoteGradleCompileClient(
         ) ?: throw JuggException.loginToRemoteFailed("User canceled.")
     }
 
-    private fun doLogin(juggGradleCompileOptions: JuggGradleCompileOptions, keyPathList: List<String>, password: String) {
+    private fun doLogin(
+        juggGradleCompileOptions: JuggGradleCompileOptions,
+        keyPathList: List<String>,
+        password: String,
+        connectTimeoutMs: Int?,
+    ) {
+        throwIfCanceled()
         val jsch = JSch()
         keyPathList.filter {
             File(it).exists()
@@ -182,9 +208,15 @@ class RemoteGradleCompileClient(
         // fix some servers do not return "ssh-rsa" algorithms
         val algorithms = session.getConfig("PubkeyAcceptedAlgorithms").split(',') + "ssh-rsa"
         session.setConfig("PubkeyAcceptedAlgorithms", algorithms.joinToString(","))
-        session.connect()
-
+        throwIfCanceled()
         this.session = session
+        if (connectTimeoutMs == null) {
+            session.connect()
+        } else {
+            session.connect(connectTimeoutMs)
+        }
+        throwIfCanceled()
+
         this.juggGradleCompileOptions = juggGradleCompileOptions
         updateRemoteEnvironmentPrefix(juggGradleCompileOptions.environmentVariables)
         openShellChannel()
@@ -192,6 +224,35 @@ class RemoteGradleCompileClient(
             throw JuggException.loginToRemoteFailed("Remote shell is not ready, terminal handshake may have failed.")
         }
         logger.debug("login success, isUseKey: $isUseKey")
+    }
+
+    /**
+     * Executes one user-provided command in the configured remote project directory.
+     * The caller owns this client's lifecycle and may cancel it through [cancelAction].
+     */
+    fun executeRemoteCommand(juggGradleCompileOptions: JuggGradleCompileOptions, command: String): Int {
+        require(command.isNotBlank()) { "Remote command must not be blank." }
+        isTerminalOutputLoggingEnabled = false
+        if (isCanceled) {
+            return IGradleCompileClient.Error.ERROR_CANCELED
+        }
+        try {
+            login(
+                juggGradleCompileOptions,
+                resetCanceled = false,
+                connectTimeoutMs = REMOTE_COMMAND_CONNECT_TIMEOUT_MS,
+            )
+        } catch (e: Throwable) {
+            if (isCanceled) {
+                return IGradleCompileClient.Error.ERROR_CANCELED
+            }
+            throw e
+        }
+        if (isCanceled) {
+            return IGradleCompileClient.Error.ERROR_CANCELED
+        }
+        val remoteCommand = RemoteUserCommand(juggGradleCompileOptions.remoteProjectPath, command.trim())
+        return invoke(remoteCommand, noOutputTimeoutMs = null)
     }
 
     private fun openShellChannel() {
@@ -308,12 +369,16 @@ class RemoteGradleCompileClient(
                 }
                 if (code == '\n'.code || code == '\r'.code) {
                     val line = decodeTerminalLine(rawBuffer)
-                    if (line.isNotEmpty() && (command == null || command.isCanOutput(line, false))) {
-                        printToStream(line)
-                        if (onLineMatched(line)) {
+                    if (line.isNotEmpty()) {
+                        val isMatched = onLineMatched(line)
+                        val isCanOutput = command == null || command.isCanOutput(line, false)
+                        if (isCanOutput) {
+                            printToStream(line)
+                        }
+                        if (isMatched) {
                             return PollShellInputResult(isMatched = true, isNoOutputTimeout = false)
                         }
-                        if (command != null) {
+                        if (command != null && isCanOutput) {
                             val output = command.getInput(line)
                             if (output != null) {
                                 logger.debug("output: $output")
@@ -769,11 +834,16 @@ class RemoteGradleCompileClient(
         isCanceled = true
         logger.info("[Jugg] remote compile cancel requested, sessionConnected=${session?.isConnected}, " +
             "channelConnected=${channel?.isConnected}, channelClosed=${channel?.isClosed}")
-        if (session == null || channel == null) {
+        cmdExecutor.release()
+        if (channel == null) {
             logger.info("[Jugg] remote compile cancel requested before shell ready")
+            try {
+                session?.disconnect()
+            } catch (e: Exception) {
+                logger.debug("cancelAction disconnect pending session failed", e)
+            }
             return
         }
-        cmdExecutor.release()
         val commandId = currentRemoteCommandId
         if (commandId == null) {
             logger.info("[Jugg] remote compile cancel requested with no active remote shell command")
@@ -824,14 +894,14 @@ class RemoteGradleCompileClient(
             System.currentTimeMillis() - lastCancelCtrlCAtMs >= CANCEL_CTRL_C_INTERVAL_MS
     }
 
-    private fun invoke(command: ISshCommand): Int {
+    private fun invoke(command: ISshCommand, noOutputTimeoutMs: Long? = NO_OUTPUT_TIMEOUT_MS): Int {
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
 
         command.beforeInvokeCommand()
         val result = if (command is RsyncCommand) {
             invokeRsyncCommand(command)
         } else {
-            remoteInvoke(command)
+            remoteInvoke(command, noOutputTimeoutMs)
         }
 
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
@@ -875,7 +945,7 @@ class RemoteGradleCompileClient(
         return result
     }
 
-    private fun remoteInvoke(command: ISshCommand): Int {
+    private fun remoteInvoke(command: ISshCommand, noOutputTimeoutMs: Long?): Int {
         if (isCanceled) {
             return IGradleCompileClient.Error.ERROR_CANCELED
         }
@@ -899,7 +969,6 @@ class RemoteGradleCompileClient(
         currentRemoteCommandId = commandId
         logger.info("[Jugg][cmd-$commandId] send ${command::class.simpleName}")
         logger.debug("[Jugg][cmd-$commandId] safeCommandHash=${safeCommand.hashCode()} length=${safeCommand.length}")
-        logger.debug("Jsch invoke command: $commandString")
         commander.printlnCompat(commandString)
         commander.flush()
 
@@ -914,7 +983,7 @@ class RemoteGradleCompileClient(
                 deadlineMs = Long.MAX_VALUE,
                 command = command,
                 commandId = commandId,
-                noOutputTimeoutMs = NO_OUTPUT_TIMEOUT_MS,
+                noOutputTimeoutMs = noOutputTimeoutMs,
             ) { line ->
                 val currentResult = command.hasFinishWithResult(line)
                 if (currentResult != null) {
@@ -958,7 +1027,7 @@ class RemoteGradleCompileClient(
             } catch (e: Exception) {
                 -1
             }
-            val timeoutMessage = "[Jugg][cmd-$commandId] no output in ${NO_OUTPUT_TIMEOUT_MS}ms after send, " +
+            val timeoutMessage = "[Jugg][cmd-$commandId] no output in ${noOutputTimeoutMs}ms after send, " +
                 "command=${command::class.simpleName}, sessionConnected=${session?.isConnected}, " +
                 "channelConnected=${channel.isConnected}, channelClosed=${channel.isClosed}, " +
                 "exitStatus=${channel.exitStatus}, inputAvailable=$available, elapsed=${elapsedMs}ms"
@@ -988,7 +1057,9 @@ class RemoteGradleCompileClient(
 
     private fun printToStream(line: String) {
         terminalOutputListener.onOutput(line)
-        logger.debug(line)
+        if (isTerminalOutputLoggingEnabled) {
+            logger.debug(line)
+        }
     }
 
     private fun printToStreamInfo(line: String) {
@@ -1069,7 +1140,15 @@ class RemoteGradleCompileClient(
         /** Timeout for commands that produce no shell output at all after being sent. */
         private const val NO_OUTPUT_TIMEOUT_MS = 90_000L
 
+        private const val REMOTE_COMMAND_CONNECT_TIMEOUT_MS = 30_000
+
         private const val CANCEL_CTRL_C_MAX_ATTEMPTS = 5
         private const val CANCEL_CTRL_C_INTERVAL_MS = 1_000L
+    }
+
+    private fun throwIfCanceled() {
+        if (isCanceled) {
+            throw JuggException.loginToRemoteFailed("User canceled.")
+        }
     }
 }

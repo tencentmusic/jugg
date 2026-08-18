@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
 import kotlin.reflect.KProperty
@@ -17,7 +18,10 @@ import kotlin.reflect.KProperty
  */
 object JuggSettings {
 
+    private const val MAX_REMOTE_COMMAND_HISTORY_SIZE = 10
+
     private val propertiesComponent get() = PropertiesComponent.getInstance()
+    private val logger by lazy { JuggLogger.getGlobalLogger("JuggSettings") }
 
     var compileOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
 
@@ -117,6 +121,8 @@ object JuggSettings {
 
     var sliceDeployRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 
+    private var remoteCommandHistoryJson: String by propertiesComponent.delegate(defaultValue = "")
+
     var isIgnoreWontCompileModules: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     /**
@@ -150,7 +156,49 @@ object JuggSettings {
 
     var serverUrl: String? by propertiesComponent.delegate(defaultValue = null)
     var serverExpireTimeMill: Long by propertiesComponent.delegate(defaultValue = 0L)
+
+    /** Returns recent commands for one remote SSH target and project directory. */
+    fun getRemoteCommandHistory(targetKey: String): List<String> {
+        if (targetKey.isBlank()) return emptyList()
+        return readRemoteCommandHistory()[targetKey].orEmpty()
+    }
+
+    /** Records one command for a remote target, moving duplicates to the front and keeping ten entries. */
+    fun recordRemoteCommand(targetKey: String, command: String) {
+        val normalizedCommand = command.trim()
+        if (targetKey.isBlank() || normalizedCommand.isEmpty()) return
+        try {
+            val history = readRemoteCommandHistory().toMutableMap()
+            val targetHistory = mutableListOf(normalizedCommand)
+            targetHistory.addAll(history[targetKey].orEmpty().filterNot { it == normalizedCommand })
+            history[targetKey] = targetHistory.take(MAX_REMOTE_COMMAND_HISTORY_SIZE)
+            remoteCommandHistoryJson = Gson().toJson(RemoteCommandHistoryData(history))
+        } catch (e: Exception) {
+            logger.debug("Failed to record remote command history", e)
+        }
+    }
+
+    private fun readRemoteCommandHistory(): Map<String, List<String>> {
+        return try {
+            val historyJson = remoteCommandHistoryJson
+            if (historyJson.isBlank()) {
+                emptyMap()
+            } else {
+                Gson().fromJson(historyJson, RemoteCommandHistoryData::class.java)
+                    ?.commandsByTarget
+                    ?.mapValues { (_, commands) -> commands.filter(String::isNotBlank).take(MAX_REMOTE_COMMAND_HISTORY_SIZE) }
+                    .orEmpty()
+            }
+        } catch (e: Exception) {
+            logger.debug("Failed to read remote command history", e)
+            emptyMap()
+        }
+    }
 }
+
+private data class RemoteCommandHistoryData(
+    val commandsByTarget: Map<String, List<String>> = emptyMap(),
+)
 
 /**
  * Use PropertiesComponent to delegate variable.
