@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.project.Project
+import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -15,6 +15,7 @@ import java.awt.GridBagLayout
 import javax.swing.JComponent
 import javax.swing.JComboBox
 import javax.swing.JPanel
+import javax.swing.event.DocumentEvent
 
 /** Collects one non-interactive command for a clearly displayed remote target. */
 class RemoteCommandDialog(
@@ -40,8 +41,13 @@ class RemoteCommandDialog(
     init {
         title = "Run Remote Command"
         setOKButtonText("Run")
+        isOKActionEnabled = false
+        commandTextArea.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                isOKActionEnabled = commandTextArea.text.isNotBlank()
+            }
+        })
         init()
-        initValidation()
     }
 
     override fun createCenterPanel(): JComponent {
@@ -60,14 +66,6 @@ class RemoteCommandDialog(
     }
 
     override fun getPreferredFocusedComponent(): JComponent = commandTextArea
-
-    override fun doValidate(): ValidationInfo? {
-        return if (commandTextArea.text.isBlank()) {
-            ValidationInfo("Command must not be empty.", commandTextArea)
-        } else {
-            null
-        }
-    }
 
     fun command(): String = commandTextArea.text.trim()
 

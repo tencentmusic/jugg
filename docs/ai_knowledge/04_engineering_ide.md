@@ -138,7 +138,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - MCP lifecycle 固定记录 `MCP request` / `MCP response`，tool 与结果摘要进入 detail。
 - Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action，七个开关直接读写 `JuggSettings`。无真实后端的预览设置和动作不显示。
 - Overview Quick Actions 按 Build、Device、Jugg Plugin 分组；`Clear app data` 复用通用确认弹窗，确认后才执行清除 App 数据、完整 Gradle 构建和重装。`Clear Jugg Build` 保留既有清理 Jugg 项目构建数据并重新初始化项目的行为。
-- Build Quick Actions 的 `Remote Command...` 只接受当前选中的远程 Jugg Configuration，不使用 full build history 或首个配置兜底。对话框固定展示 SSH target 与 `remoteProjectPath`，支持从该目标最近 10 条命令中选择并回填；历史由 `JuggSettings` 按 `user + host + port + remoteProjectPath` 隔离。执行创建独立 `Jugg Remote Command` Run Content、专用 ProcessHandler 与 SSH client，不进入 `JuggConfigurationRunner` / `JuggRunningTask`；Stop 只取消本次命令，并在后台确认取消后以非零状态结束 Run Content。
+- Build Quick Actions 最下方的 `Exec remote CMD` 只接受当前选中的远程 Jugg Configuration，不使用 full build history 或首个配置兜底。对话框固定展示 SSH target 与 `remoteProjectPath`，命令为空时只禁用 Run，不显示校验错误；支持从该目标最近 10 条命令中选择并回填，历史由 `JuggSettings` 按 `user + host + port + remoteProjectPath` 隔离。执行创建独立 `Jugg Remote Command` Run Content、专用 ProcessHandler 与 SSH client，不进入 `JuggConfigurationRunner` / `JuggRunningTask`；Stop 只取消本次命令，并在后台确认取消后以非零状态结束 Run Content。
 - `MockJuggControlPanelModel` 只通过真实 Model API 构造测试场景；Panel 在 real/mock model 之间切换时复用同一个订阅和 render 路径，不保留 UI 内置 `MockData`。
 - `JuggToolWindowFactory` 与 `OpenJuggControlPanelAction` 均实现 `DumbAware`；Panel 不依赖索引，IDE 处于 indexing / dumb mode 时仍可创建和打开。
 - Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Pannel` 并选中 Settings；Settings 包含持久化的 compat deploy 开关，切换后同步更新 deployer API 下限并清理已下发的 Jugg JVMTI agent；Tools 菜单的独立 action 仍从 Overview 打开。

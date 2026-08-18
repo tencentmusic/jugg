@@ -19,9 +19,9 @@
 
 ## 3. 用户行为
 
-1. 用户在 Control Panel 的 Build Quick Actions 点击 `Remote Command...`。
+1. 用户在 Control Panel 的 Build Quick Actions 最下方点击 `Exec remote CMD`。
 2. 插件读取当前选中的 Jugg Run Configuration；不是远程配置时明确提示并终止。
-3. 对话框展示 Configuration、SSH Target 和 Working Directory，并提供多行命令输入框。
+3. 对话框展示 Configuration、SSH Target 和 Working Directory，并提供多行命令输入框；命令为空时只禁用 Run，不显示校验错误。
 4. 对话框提供当前远程目标最近执行的 10 条命令下拉框，选择后回填完整命令。
 5. 用户点击 Run 后创建独立的 `Jugg Remote Command` Run Content，并将本次命令去重后置于历史首位。
 6. Run Content 流式展示远程输出，并在结束时展示 exit code。
