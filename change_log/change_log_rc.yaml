@@ -1,3 +1,10 @@
+- version: 3.3.0
+  date: 2026.08.18
+  updates:
+    - run custom commands on the selected remote server
+    - simplify the remote command entry and disable Run for blank commands
+    - resolve nested CLI project paths to their initialized parent project
+
 - version: 3.2.6
   date: 2026.08.17
   updates:
