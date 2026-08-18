@@ -39,9 +39,9 @@
 ## 3. 当前状态
 
 - 当前工作分支：`develop`。
-- 本轮 rebase 前备份：`backup/develop-before-rebase-20260813`，指向 `1e019b6b5`。
-- 当前 main 基线：`cd6079fbe`（`3.2.5`）。
-- 40 个原提交重放后的功能 HEAD：`e0f510467`。
-- 验证完成时的功能 HEAD：`52bcc7699`，包含独立测试兼容修正；其后仅增加本轮记录文档提交。
-- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 18 节。
+- 本轮 rebase 前备份：`backup/develop-before-rebase-20260818`，指向 `2b5de5344`。
+- 当前 main 基线：`e85882235`（`3.3.0`）。
+- 61 个原提交重放后的功能 HEAD：`479c409a7`。
+- 验证完成时的功能 HEAD：`87af026d8`，包含独立测试兼容修正；其后仅增加本轮记录文档提交。
+- 最新冲突与验证详情参见 [standalone CLI rebase main 记录](standalone_cli_rebase_main_record.md) 第 19 节。
 - review 完成前保留本轮备份引用；下一次 rebase 应新建备份，不复用当前备份名。

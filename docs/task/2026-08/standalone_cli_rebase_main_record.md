@@ -1073,3 +1073,67 @@ step10 已将 `JuggDeployerHelper` 移到 main，静态架构守卫仍检查旧�
 - changelog YAML 解析、版本顺序、冲突标记扫描和 `git diff --check`。
 
 `range-diff` 确认原 40 个提交均有一对一映射；差异来自上述冲突解法和 main 已新增的行为，没有 feature commit 丢失。构建中的 NDK `riscv64` metadata、IntelliJ `sourceCompatibility`/Kotlin stdlib 和既有 Kotlin warning 均为非阻断提示。未执行 push。
+
+## 19. 2026-08-18 rebase 到 3.3.0 main
+
+### 19.1 基线与结果
+
+- rebase 前 `develop`：`2b5de5344007d07220ca2a49cff32ee4f928babd`。
+- rebase 前共同祖先：`a5f8e50b73ee7376dc673af5dbfa4d1800e77a13`（`3.2.6`）。
+- 固定 main 基线：`e858822358990a5823b6854effcbe1cc19549871`（`3.3.0`）。
+- rebase 前分叉计数：main 侧 5 个提交，develop 侧 61 个提交。
+- 备份分支：`backup/develop-before-rebase-20260818`。
+- 61 个提交重放完成时的功能 HEAD：`479c409a72fa`。
+- rebase 后测试兼容修正：`87af026d8 [test] keep remote command tests compiling after json settings rebase`。
+- 验证完成时的功能历史相对 main 包含 62 个提交：61 个原提交和 1 个独立兼容修正；本节记录另以 docs commit 保存。
+
+main 独有提交为：
+
+- `387d596c0 [other] clarify bug report guidance`
+- `a191f754a [feature] run custom commands on the selected remote server`
+- `3c1e27bfd [bugfix] prevent nested CLI projects from being routed to parent IDEA`
+- `3f9966f00 [optimize] simplify remote command entry`
+- `e85882235 [other] update version to 3.3.0`
+
+其中 nested CLI 与 develop HEAD 修复同一问题，按维护者要求保留 develop 实现，不保留 main 的 prefix-match-to-parent 行为。
+
+### 19.2 冲突点、解决方式与风险等级
+
+| 冲突提交 | 冲突文件 / 类型 | 解决方式 | 风险等级 |
+|---|---|---|---|
+| `366bc56fc` package restructure | `JuggManager.kt` import、`98_code_map.md` Gradle 客户端行 | 同时保留 main 的 `RemoteCommandDialog` 与 feature 的 `CopyGeneratedSourceHelper`；知识库行合并远端命令说明和 generated sync 回写。重放后提交为 `e122baed8`。 | 低：仅 import 与文档行合并。 |
+| `8cd583add` runtime configuration | `JuggSettings.kt` 内容冲突 | 保留 feature 的 `JsonRuntimeSettingsRepository`；把 main 的远程命令历史改写为 `setting("")`，并在 IDEA legacy migration 中补 `remoteCommandHistoryJson`。重放后提交为 `1c513770e`。 | 高：整侧覆盖会丢失远程命令历史或把 JSON 设置打回 PropertiesComponent。 |
+| `3e778f17e` server and hot update | `05_utilities.md` | 同时保留 main 的远程命令历史约束和 feature 的 RuntimeInfo / hot update 约束。重放后提交为 `cbeea3bc2`。 | 低：仅文档。 |
+| `ed8df835e` standalone runtime | `jugglib.py`、`98_code_map.md` | `jugglib.py` 采用 feature 的 Runtime 选择结构，nested CLI 留给最后一提交；知识库保留远端命令说明并采用 feature 的 MCP Runtime 描述。重放后提交为 `aefcd1c66`。 | 中：若此时并入 main 的 nested CLI，会与最后一提交再次冲突。 |
+| `cbc3b3eb9` share deploy lifecycle | `98_code_map.md` 日期 | 保留较新核对日期 `2026-08-18`。重放后提交为 `59d3bba69`。 | 低。 |
+| `2c590e1e2` connect compile and deploy | `RemoteGradleCompileClient.kt`、`JuggManager.kt`、`04_engineering_ide.md` | 保留 feature 的 `Project` 构造和 main 的 `@Volatile session`、远端命令入口文档。重放后提交为 `1536b7a5f`。 | 中：漏掉 `Project` 构造会破坏 standalone 编译入口。 |
+| `35dcafb0f` version 4.0.0 | `build.gradle`、中英文 changelog | 版本保持 feature 目标 `4.0.0`；完整保留 main 的 `3.3.0` 历史条目。重放后提交为 `b11380ab9`。 | 中：覆盖会丢失 3.3.0 远程命令发布记录。 |
+| `95f1b386a` runtime diagnostics | 三份工程文档日期 | 保留较新核对日期 `2026-08-18`。重放后提交为 `5017b5f23`。 | 低。 |
+| `ac34f7a7d` server failures | `05_utilities.md` 日期 | 保留较新核对日期 `2026-08-18`。重放后提交为 `9d798a220`。 | 低。 |
+| `f2a14454c` IDEA CLI runtime discovery | `05_utilities.md` | 采用 feature 的 PlatformApi 宿主 ClassLoader 约束，并保留 main 的远程命令历史说明。重放后提交为 `6bfe135fa`。 | 低：仅文档。 |
+| `665202070` standalone remote compile profiles | `RemoteGradleCompileClient.doLogin()` | 合并 main 的 `connectTimeoutMs` / `throwIfCanceled()` 与 feature 的 `disableShellEcho()`、失败时关闭连接。重放后提交为 `d31a9ac61`。 | 高：只取一侧会分别丢失远程命令超时取消或 standalone 认证失败资源回收。 |
+| `2b5de5344` nested CLI project routing | `jugglib.py`、CLI 文档、Python 测试 | 按维护者要求完整采用 develop 版本：显式路径先做 Runtime 精确匹配，不再把子目录解析到父 IDEA 项目。重放后提交为 `479c409a7`。 | 中：误用 main 版本会把嵌套 Gradle 工程重新路由到父 IDEA。 |
+
+### 19.3 文本冲突之外的语义修正
+
+首次 `:idea:compileTestKotlin` 失败：
+
+1. `RemoteUserCommandTest` 用无类型 `mock()` 构造 `RemoteGradleCompileClient`，与 rebase 后同时存在的 `Project` / `File` 构造冲突。
+2. IDEA `JuggSettingsTest` 仍断言 PropertiesComponent，而 settings 已迁移到共享 JSON。
+
+只调整测试到当前 behavior owner：前者显式使用 `File` 构造；后者把远程命令历史用例迁到 `main` 的 `JuggSettingsTest`，并删除过时的 IDEA PropertiesComponent 用例。没有修改生产行为，独立提交为 `87af026d8`。
+
+### 19.4 验证结果
+
+以下验证通过：
+
+- `./gradlew :idea:compileKotlin :main:compileTestKotlin :cmd_line:compileTestKotlin`
+- `python3 -m unittest test_jugglib.py`（66 tests）
+- `./gradlew :main:test --tests com.sickworm.intellij.jugg.project.info.ModulePathMergePolicyTest --tests com.sickworm.intellij.jugg.project.BaseCompileContextModuleDependenciesTest --tests com.sickworm.intellij.jugg.project.info.ProjectModelSourceTest --tests com.sickworm.intellij.jugg.project.info.ProjectModelFlowTest --tests com.sickworm.intellij.jugg.deploy.DeployFileManagerDexMergeTest --tests com.sickworm.intellij.jugg.project.runtime.JuggSettingsTest --tests com.sickworm.intellij.jugg.gradle.compile.RemoteUserCommandTest`
+- `./gradlew :idea:test --tests com.sickworm.intellij.jugg.compiler.context.CompileContextManagerBuildPathInfoTest --tests com.sickworm.intellij.jugg.compiler.context.CompileEnvironmentSourceTest --tests com.sickworm.intellij.jugg.gradle.compile.RemoteUserCommandTest --tests com.sickworm.intellij.jugg.ide.ui.RemoteCommandDialogTest --tests com.sickworm.intellij.jugg.ide.logic.RemoteCommandProcessHandlerTest --tests com.sickworm.intellij.jugg.project.runtime.IdeaRuntimeSettingsMigrationTest`
+- `./gradlew :cmd_line:test --tests com.sickworm.intellij.jugg.cmdline.standalone.StandaloneRemoteCompileFlowTest`
+- `git range-diff a5f8e50b73ee7376dc673af5dbfa4d1800e77a13..backup/develop-before-rebase-20260818 e858822358990a5823b6854effcbe1cc19549871..479c409a72fa`
+- `git merge-base HEAD main` 返回 `e858822358990a5823b6854effcbe1cc19549871`。
+- changelog YAML 解析、版本顺序、冲突标记扫描和 `git diff --check`。
+
+`range-diff` 确认原 61 个提交均有一对一映射；差异来自上述冲突解法和 main 已新增的远程命令行为，没有 feature commit 丢失。构建中的 NDK `riscv64` metadata、IntelliJ `sourceCompatibility`/Kotlin stdlib 和既有 Kotlin warning 均为非阻断提示。未执行 push。
