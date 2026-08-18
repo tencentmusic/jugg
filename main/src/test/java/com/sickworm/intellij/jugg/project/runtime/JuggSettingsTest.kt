@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.project.runtime
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -88,6 +89,46 @@ class JuggSettingsTest {
             assertFalse(JuggGlobalPathManager.settingsFile.exists())
         } finally {
             JuggSettings.isForceEnableBackupClasspath = false
+            JuggGlobalPathManager.rootDir = oldRootDir
+        }
+    }
+
+    @Test
+    fun `remote command history is isolated deduplicated and limited`() {
+        val oldRootDir = JuggGlobalPathManager.rootDir
+        val rootDir = temporaryFolder.newFolder("remote_history")
+
+        try {
+            JuggGlobalPathManager.rootDir = rootDir
+            repeat(11) { JuggSettings.recordRemoteCommand("target-a", "command-$it") }
+            JuggSettings.recordRemoteCommand("target-a", "command-5")
+            JuggSettings.recordRemoteCommand("target-b", "other-command")
+
+            assertEquals(
+                listOf("command-5", "command-10", "command-9", "command-8", "command-7",
+                    "command-6", "command-4", "command-3", "command-2", "command-1"),
+                JuggSettings.getRemoteCommandHistory("target-a"),
+            )
+            assertEquals(listOf("other-command"), JuggSettings.getRemoteCommandHistory("target-b"))
+        } finally {
+            JuggGlobalPathManager.rootDir = oldRootDir
+        }
+    }
+
+    @Test
+    fun `remote command history ignores blank commands and corrupted data`() {
+        val oldRootDir = JuggGlobalPathManager.rootDir
+        val rootDir = temporaryFolder.newFolder("remote_history_corrupt")
+        JuggGlobalPathManager.settingsFile(rootDir).writeText("""{"remoteCommandHistoryJson":"not-json"}""")
+
+        try {
+            JuggGlobalPathManager.rootDir = rootDir
+            assertEquals(emptyList<String>(), JuggSettings.getRemoteCommandHistory("target"))
+
+            JuggSettings.recordRemoteCommand("target", "  ")
+
+            assertEquals(emptyList<String>(), JuggSettings.getRemoteCommandHistory("target"))
+        } finally {
             JuggGlobalPathManager.rootDir = oldRootDir
         }
     }

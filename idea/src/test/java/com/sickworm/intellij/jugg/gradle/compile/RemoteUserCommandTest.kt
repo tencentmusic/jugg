@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
+import java.io.File
 import java.nio.file.Files
 
 class RemoteUserCommandTest {
@@ -43,7 +44,7 @@ class RemoteUserCommandTest {
 
     @Test
     fun `command canceled before worker starts should not login`() {
-        val client = RemoteGradleCompileClient(mock(), logger = mock())
+        val client = RemoteGradleCompileClient(File("."), logger = mock())
         client.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.IDLE
         client.cancelAction(true)
 
