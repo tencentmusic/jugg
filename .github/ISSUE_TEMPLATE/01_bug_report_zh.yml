@@ -27,20 +27,17 @@ body:
     id: description
     attributes:
       label: 问题描述与复现
-      description: 请描述实际行为、预期行为和最短复现步骤；无法稳定复现时，请说明出现频率和最近一次发生时间。
+      description: 请说明问题表现和最短复现步骤；编译、部署或运行时 crash 请粘贴关键错误信息。行为与预期不符时，请同时说明期望结果。无法稳定复现时，请说明出现频率和最近一次发生时间。
       value: |
-        #### 实际行为
-        <!-- 发生了什么？请粘贴关键错误信息。 -->
-
-        #### 预期行为
-        <!-- 你期望发生什么？ -->
+        #### 问题表现
+        <!-- 编译、部署或运行时 crash：请粘贴关键错误信息或堆栈；运行时不生效、Android test、IDE UI、CLI/MCP 等行为异常：请说明实际现象，以及你原本期望的结果。 -->
 
         #### 复现步骤
         1.
         2.
         3.
 
-        <!-- 可选：提供截图、录屏或其他相关信息。 -->
+        <!-- 可选：如涉及界面、视觉或操作流程异常，请提供截图、录屏或其他相关信息。 -->
     validations:
       required: true
 
@@ -96,7 +93,7 @@ body:
       label: 诊断材料
       description: 请根据上方选择粘贴 Report ID、拖入 Diagnostics Bundle、提供 Demo 地址，或填写手工诊断信息。
       placeholder: |
-        请按所选类型提供一种材料，例如：
+        不同类型诊断材料示例：
         - Jugg Report ID：a1b2c3d4
         - Diagnostics Bundle：将 ZIP 拖入此处
         - 可复现 Demo：粘贴仓库地址或拖入附件

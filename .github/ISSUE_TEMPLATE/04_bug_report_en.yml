@@ -27,20 +27,17 @@ body:
     id: description
     attributes:
       label: Description and reproduction steps
-      description: Describe the actual behavior, expected behavior, and shortest reproduction steps. If the issue is intermittent, include its frequency and the most recent occurrence.
+      description: Describe the issue and shortest reproduction steps. For compilation, deployment, or runtime crashes, include the key error information. If the behavior differs from your expectation, also describe the expected result. If the issue is intermittent, include its frequency and the most recent occurrence.
       value: |
-        #### Actual behavior
-        <!-- What happened? Please include the key error message. -->
-
-        #### Expected behavior
-        <!-- What did you expect to happen? -->
+        #### Issue symptoms
+        <!-- For compilation, deployment, or runtime crashes: include the key error message or stack trace; for runtime changes not applied, Android test, IDE UI, CLI/MCP, or similar behavior issues: describe what happened and what you expected. -->
 
         #### Steps to reproduce
         1.
         2.
         3.
 
-        <!-- Optional: Add screenshots, screen recordings, or other relevant information. -->
+        <!-- Optional: For UI, visual, or interaction issues, add screenshots, screen recordings, or other relevant information. -->
     validations:
       required: true
 
@@ -96,7 +93,7 @@ body:
       label: Diagnostic material
       description: Based on your selection above, paste the Report ID, attach the Diagnostics Bundle, provide the demo URL, or complete the manual diagnostic information.
       placeholder: |
-        Provide one material matching the selected type, for example:
+        Examples of diagnostic material by type:
         - Jugg Report ID: a1b2c3d4
         - Diagnostics Bundle: drag the ZIP file here
         - Reproducible demo: paste the repository URL or attach the files
