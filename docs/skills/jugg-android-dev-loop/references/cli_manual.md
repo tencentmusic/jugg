@@ -28,7 +28,7 @@ python3 {SKILL_DIR}/scripts/jugg.py --project-dir=/path/to/project --console=jso
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project --runtime idea status
 ```
 
-When the path is a subdirectory of a project already initialized by the connected Runtime, the CLI sends that parent project directory as `projectDir`.
+For an explicit subdirectory under an initialized IDEA project, the CLI selects that IDEA Runtime and sends its opened project directory as MCP `projectDir`. A standalone subproject can still be selected explicitly with `--runtime standalone`.
 
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
 

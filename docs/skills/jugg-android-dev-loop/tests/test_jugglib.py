@@ -267,6 +267,18 @@ class ResolvePortTest(unittest.TestCase):
 
         self.assertEqual(12321, port)
 
+    def test_explicit_project_dir_selects_idea_parent_project(self):
+        project_dir = os.path.join(self.tmp, "project")
+        nested_project_dir = os.path.join(project_dir, "nested-project")
+        jugglib.set_project_dir_override(nested_project_dir)
+
+        selected = jugglib._select_runtime(
+            [jugglib.RuntimeEndpoint(12320, "idea", [project_dir])],
+            nested_project_dir,
+        )
+
+        self.assertEqual(12320, selected.port)
+
     def test_same_project_selection_uses_last_runtime_owner(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(os.path.join(project_dir, "build", "jugg"))
@@ -410,33 +422,29 @@ class ProjectDirMatchTest(unittest.TestCase):
 class ProjectDirOverrideTest(unittest.TestCase):
 
     def tearDown(self):
+        jugglib.reset_runtime_selection()
         jugglib.set_project_dir_override("")
 
-    def test_resolve_project_dir_preserves_unmatched_explicit_value(self):
+    def test_resolve_project_dir_uses_explicit_value_without_list_projects(self):
         jugglib.set_project_dir_override("/manual/project")
 
-        with patch.object(jugglib, "resolve_port") as mock_resolve_port, \
-             patch.object(jugglib, "raw_call", return_value={
-                 "result": {"structuredContent": {"data": {"projects": []}}}
-             }) as mock_raw_call:
+        with patch.object(jugglib, "resolve_port", return_value=12320) as mock_resolve_port, \
+             patch.object(jugglib, "raw_call") as mock_raw_call:
             result = jugglib.resolve_project_dir()
 
         self.assertEqual(result, "/manual/project")
         mock_resolve_port.assert_called_once()
-        mock_raw_call.assert_called_once_with(mock_resolve_port.return_value, "list-projects", {})
+        mock_raw_call.assert_not_called()
 
-    def test_resolve_project_dir_uses_parent_project_for_explicit_nested_project(self):
-        jugglib.set_project_dir_override("/manual/project/nested-project")
+    def test_resolve_project_dir_uses_selected_idea_parent_for_explicit_nested_project(self):
+        parent_project_dir = "/manual/project"
+        jugglib.set_project_dir_override(f"{parent_project_dir}/nested-project")
+        jugglib._selected_project_dir = parent_project_dir
 
-        with patch.object(jugglib, "resolve_port", return_value=12320), \
-             patch.object(jugglib, "raw_call", return_value={
-                 "result": {"structuredContent": {"data": {"projects": [
-                     {"projectDir": "/manual/project"}
-                 ]}}}
-             }):
+        with patch.object(jugglib, "resolve_port", return_value=12320):
             result = jugglib.resolve_project_dir()
 
-        self.assertEqual(result, "/manual/project")
+        self.assertEqual(result, parent_project_dir)
 
 
 class JuggGlobalProjectDirTest(unittest.TestCase):

@@ -45,7 +45,7 @@ jugg.py
   -> 将匹配结果作为 MCP projectDir
 ```
 
-传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，也会从当前 Runtime 的已初始化项目中做最长前缀匹配。若路径是已初始化项目的子目录，则使用匹配到的父目录作为 MCP `projectDir`；未匹配时才保留显式路径。`--projectDir` 作为 camelCase 全局别名也会被归一化。
+传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，CLI 仍用该路径发现 Runtime，但会将最长前缀匹配到的已初始化项目目录作为 MCP `projectDir`。因此，位于 IDEA 工程根目录下的子目录会由 IDEA Runtime 处理，并以该 IDEA 工程根目录发起请求；未匹配时才按 standalone 启动流程处理。`--projectDir` 作为 camelCase 全局别名也会被归一化。
 
 macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；`Checking Jugg runtime`、IDE Runtime 未找到和 standalone 启动进度仍显示用户输入或当前工程的原始大小写路径。
 

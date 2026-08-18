@@ -490,7 +490,7 @@ def resolve_port() -> int:
         sys.exit(1)
 
     _selected_runtime_port = selected.port
-    _selected_project_dir = runtime_project_dir
+    _selected_project_dir = normalize_project_dir(match_project_dir(runtime_project_dir, selected.projects)) or runtime_project_dir
     write_port_cache(selected.port)
     if launch is not None:
         _print_progress_heartbeat(f"Standalone runtime ready on port {selected.port}.")
@@ -657,7 +657,8 @@ def set_project_dir_override(project_dir: str) -> None:
 def resolve_project_dir() -> str:
     """Call list_projects and resolve projectDir from $PWD."""
     if project_dir_override:
-        return normalize_project_dir(project_dir_override)
+        resolve_port()
+        return _selected_project_dir or normalize_project_dir(project_dir_override)
 
     port = resolve_port()
     response = raw_call(port, "list-projects", {})
