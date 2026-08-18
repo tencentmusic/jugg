@@ -130,16 +130,31 @@ class ProjectDirOverrideTest(unittest.TestCase):
     def tearDown(self):
         jugglib.set_project_dir_override("")
 
-    def test_resolve_project_dir_uses_explicit_value_without_list_projects(self):
+    def test_resolve_project_dir_preserves_unmatched_explicit_value(self):
         jugglib.set_project_dir_override("/manual/project")
 
         with patch.object(jugglib, "resolve_port") as mock_resolve_port, \
-             patch.object(jugglib, "raw_call") as mock_raw_call:
+             patch.object(jugglib, "raw_call", return_value={
+                 "result": {"structuredContent": {"data": {"projects": []}}}
+             }) as mock_raw_call:
             result = jugglib.resolve_project_dir()
 
         self.assertEqual(result, "/manual/project")
-        mock_resolve_port.assert_not_called()
-        mock_raw_call.assert_not_called()
+        mock_resolve_port.assert_called_once()
+        mock_raw_call.assert_called_once_with(mock_resolve_port.return_value, "list-projects", {})
+
+    def test_resolve_project_dir_uses_parent_project_for_explicit_nested_project(self):
+        jugglib.set_project_dir_override("/manual/project/nested-project")
+
+        with patch.object(jugglib, "resolve_port", return_value=12320), \
+             patch.object(jugglib, "raw_call", return_value={
+                 "result": {"structuredContent": {"data": {"projects": [
+                     {"projectDir": "/manual/project"}
+                 ]}}}
+             }):
+            result = jugglib.resolve_project_dir()
+
+        self.assertEqual(result, "/manual/project")
 
 
 class JuggGlobalProjectDirTest(unittest.TestCase):

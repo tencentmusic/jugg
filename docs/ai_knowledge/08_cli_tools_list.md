@@ -45,7 +45,7 @@ jugg.py
   -> 将匹配结果作为 MCP projectDir
 ```
 
-传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，直接把该路径作为 MCP `projectDir`，跳过 `list-projects` 与 `$PWD` 匹配。`--projectDir` 作为 camelCase 全局别名也会被归一化。
+传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，也会从当前 Runtime 的已初始化项目中做最长前缀匹配。若路径是已初始化项目的子目录，则使用匹配到的父目录作为 MCP `projectDir`；未匹配时才保留显式路径。`--projectDir` 作为 camelCase 全局别名也会被归一化。
 
 ### 3.2 端口与缓存
 

@@ -25,6 +25,8 @@ python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project status
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir=/path/to/project --console=json deploy
 ```
 
+When the path is a subdirectory of a project already initialized by the connected Runtime, the CLI sends that parent project directory as `projectDir`.
+
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
 
 Print local help without connecting to MCP:

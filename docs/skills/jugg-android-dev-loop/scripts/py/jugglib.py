@@ -324,25 +324,25 @@ def set_project_dir_override(project_dir: str) -> None:
 
 
 def resolve_project_dir() -> str:
-    """Call list_projects and resolve projectDir from $PWD."""
-    if project_dir_override:
-        return project_dir_override
-
+    """Call list_projects and resolve projectDir from the override or $PWD."""
     port = resolve_port()
     response = raw_call(port, "list-projects", {})
     structured = extract_structured(response)
     projects_list = structured.get("data", {}).get("projects", [])
     project_dirs = [p.get("projectDir", "") for p in projects_list]
 
-    cwd = os.getcwd()
-    matched = match_project_dir(cwd, project_dirs)
-    if not matched:
-        print(f"ERROR: Current directory '{cwd}' is not under any Jugg project.",
-              file=sys.stderr)
-        print("       Run this command from within a project directory.",
-              file=sys.stderr)
-        sys.exit(1)
-    return matched
+    work_dir = project_dir_override or os.getcwd()
+    matched = match_project_dir(work_dir, project_dirs)
+    if matched:
+        return matched
+    if project_dir_override:
+        return project_dir_override
+
+    print(f"ERROR: Current directory '{work_dir}' is not under any Jugg project.",
+          file=sys.stderr)
+    print("       Run this command from within a project directory.",
+          file=sys.stderr)
+    sys.exit(1)
 
 
 # ─── record session cache ────────────────────────────────────────────────────
