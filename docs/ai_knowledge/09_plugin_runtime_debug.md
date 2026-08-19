@@ -32,7 +32,9 @@ build/jugg/                            # juggRootDir
 │   ├── apk/                           # APK 解析后的 SQLite DB（*.db）
 │   ├── project_infos.db/              # 模块/APK 配置快照
 │   │   ├── project_infos.json
-│   │   └── gradle_project_infos.json
+│   │   ├── gradle_project_infos.json
+│   │   ├── include_build_*_gradle_project_infos.json
+│   │   └── gradle_include_builds.txt
 │   ├── compile_context.db/            # classpath、模块信息
 │   │   ├── complete_flag               # compile context 完整写入标记
 │   │   ├── module_builds.json          # module build path 快照
@@ -447,13 +449,17 @@ cp -r  {projectDir}/build/jugg/database/     $BACKUP/database/
 | IDE 主日志 | `idea.log` | 用于对齐 `uiFreezeStarted`、`InvocationEvent has timed out`、`postInit` 等信号 |
 | freeze thread dump | `threadDumps-freeze-*` | UI freeze 时 IDE 自动抓取的线程快照 |
 | 现场线程栈 | `jcmd <pid> Thread.print -l` 输出 | 补足自动 dump 之外的即时线程状态 |
-| 项目信息 | `build/jugg/database/project_infos.db/project_infos.json` | |
+| IDE 项目信息 | `build/jugg/database/project_infos.db/project_infos.json` | IDE 原始快照，不是最终合并结果 |
+| Gradle 项目信息 | `build/jugg/database/project_infos.db/gradle_project_infos.json` | 主构建已解析的模块、variant 与依赖快照 |
+| include build 项目信息 | `build/jugg/database/project_infos.db/include_build_*_gradle_project_infos.json`、`gradle_include_builds.txt` | included build 快照及其索引 |
 | APK 数据库 | `build/jugg/database/apk/*.db` | DB 状态相关问题 |
 | 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态相关 |
 
 可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存上述现场。脚本默认复制本地 APK、全部 `R.jar` 候选及其路径/hash，并在设备在线时保存 crash buffer 与 logcat tail、拉取实际安装 APK、overlay DEX，以及 `code_cache/.overlay` 下的 `resource.ap_`、`resources.arsc`、兼容部署标记和 overlay id。双击脚本时会依次从 `PATH`、Android SDK 环境变量、项目 `local.properties` 和系统默认 SDK 目录定位 ADB，定位结果记录在 `meta/adb_resolution.txt`。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging、resource APK 与设备 overlay 被覆盖。
 
 只修改 included build 的 Library/JavaLibrary 源码后出现资源 ID crash 时，先对比新 class 内联 ID 与实际 base/split APK `resources.arsc`，再检查 Kotlin classpath 中推断目标、host Application 和 Dynamic Feature 的 `R.jar` 是否都早于 included module 的 Kotlin/Java output。只看 base R 不够：业务 R package 可能只存在于 dynamic-feature R，若随后命中 included build 自己的同名 R，仍会内联独立资源表 ID。Jugg 只对 project-info 快照明确标记的 included Library/JavaLibrary 前移 host APK R；工程根目录外的普通模块、其他模块类型以及身份不完整或 host R 全部缺失的场景保持原顺序。
+
+Application / Dynamic Feature 的模块归属异常时，直接检查 `gradle_project_infos.json` 中两个 APK 根模块的 `runtimeModuleDependencies`：base 不应包含 feature 独占模块，目标 feature 应包含该模块，且 `moduleName` 必须与项目模块名精确一致，不能带前导 `.`。该字段来自 Gradle resolved runtime classpath，已经包含 `exclude`、依赖替换和 variant 选择结果；字段为 `null` 才会回退 IDE/compile dependency 图。磁盘 `project_infos.json` 只是 IDE 输入快照，最终合并结果仅存在编译上下文内存中，不能用它的时间戳或字段是否存在判断最终 `ModuleApkBelongs`。
 
 ---
 

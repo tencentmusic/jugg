@@ -41,8 +41,9 @@
 
 | 文件/目录 | 来源 | 用途 |
 |---|---|---|
-| `build/jugg/database/project_infos.db/project_infos.json` | IDE 侧 | IDE project info 快照 |
+| `build/jugg/database/project_infos.db/project_infos.json` | IDE 侧 | IDE project info 原始快照，不是最终合并结果 |
 | `build/jugg/database/project_infos.db/gradle_project_infos.json` | Gradle init script | Gradle 反射读取的模块/依赖/variant 快照 |
+| `build/jugg/database/project_infos.db/include_build_*_gradle_project_infos.json` | included build Gradle init script | included build 的模块/依赖/variant 快照 |
 | `build/jugg/database/project_infos.db/gradle_include_builds.txt` | Gradle init script | include build project info 文件列表 |
 | `build/jugg/database/project_infos.db/is_dirty` | project info 管理 | 标记需要更新 project info |
 | `build/jugg/classpath/` | Gradle/full build fetch | 本地 classpath、APK、library backup、embedded APK |
@@ -143,6 +144,8 @@ JuggManager.onSyncEvent()
 ```
 
 项目快照更新不是单纯替换 JSON。它会影响 classpath、module-to-APK 归属、文件变更过滤、自定义编译器、依赖变化确认和部署历史恢复。
+
+`JuggProjectInfoMerger` 合并得到的最终 `JuggProjectInfo` / `ModuleInfo` 只保存在编译上下文内存中，不会回写 `project_infos.json`。磁盘上的 `project_infos.json`、`gradle_project_infos.json` 和 include build 快照分别代表各自输入源，时间戳和单个文件字段都不能直接代表最终合并状态；排查最终行为时应结合全部输入快照与编译日志判断。
 
 全量构建完成后，如果 IDE 没有可靠返回 Sync Success，Jugg 会补偿读取一次 IDE project info。该分支仅使用 IDE 数据补充 module/source 结构，library dependency 始终以同一次全量构建生成的 Gradle project info 为准，不受 IDE JSON mtime 更新影响；正常 IDE Sync 仍沿用现有的 mtime 新旧判断。
 
