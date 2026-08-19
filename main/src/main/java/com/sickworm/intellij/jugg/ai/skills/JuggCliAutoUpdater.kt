@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ai.skills
 
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -35,12 +36,13 @@ object JuggCliAutoUpdater {
         }
         isNeedCheckAndUpdate = true
 
-        val binDir = File(userHome, ".jugg/bin")
+        val juggRoot = JuggGlobalPathManager.rootDirFor(userHome)
+        val binDir = File(juggRoot, "bin")
         if (!binDir.exists()) {
             logger.info("Jugg CLI bin dir not found, skipping auto-update")
             return
         }
-        val juggSkillDir = File(userHome, ".jugg/skills/$SKILL_NAME")
+        val juggSkillDir = File(juggRoot, "skills/$SKILL_NAME")
         val bundledVersion = readVersionFromZip()
         if (bundledVersion == null) {
             logger.warn("Failed to read bundled skill version, skipping auto-update")

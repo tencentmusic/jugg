@@ -4,7 +4,9 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import java.io.BufferedReader
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
+import java.nio.file.Files
 import java.util.*
 
 /**
@@ -99,7 +101,13 @@ fun copyResource(resourcePath: String): File {
     if (storePath.exists() && !isAlwaysUpdate) {
         return storePath
     }
-    storePath.parentFile.mkdirs()
+    val parent = storePath.parentFile
+        ?: throw IOException("Invalid Jugg resource path: $resourcePath")
+    try {
+        Files.createDirectories(parent.toPath())
+    } catch (e: IOException) {
+        throw IOException("Failed to create Jugg resource directory: ${parent.absolutePath}", e)
+    }
     JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { ins ->
         storePath.outputStream().use { ous ->
             ins.copyTo(ous)

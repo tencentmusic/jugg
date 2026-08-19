@@ -13,6 +13,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
     fun printInfo() {
         val startTime = System.currentTimeMillis()
         try {
+            logger.debug("Jugg home directory: ${JuggGlobalPathManager.rootDir.absolutePath}")
             logger.debug("IDE version: ${AsDeployerCompat.ideVersion}")
             logger.debug("plugin info: ${PluginInfoReader.getPluginCompileInfo()}")
             logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")

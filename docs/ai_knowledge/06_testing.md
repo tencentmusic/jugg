@@ -377,7 +377,7 @@ touch ~/.jugg/test_flag/enabled
 touch ~/.jugg/test_flag/skip_assemble
 ```
 
-新增 testcase 后必须删除 `skip_assemble`。
+`~/.jugg` 不可写时，flag 目录在 `${java.io.tmpdir}/jugg-<user>/test_flag`。新增 testcase 后必须删除 `skip_assemble`。
 
 ---
 

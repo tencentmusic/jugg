@@ -53,6 +53,7 @@ ${projectRoot}/.gradle/jugg/
 └── jugg-runtime.jar
 
 ~/.jugg/const_ref/                     # 跨项目常量引用缓存（全局）
+# 若 ~/.jugg 不可写，上述全局文件改落到 ${java.io.tmpdir}/jugg-<user>/
 ```
 
 **代码位置**：`main/src/main/java/.../project/JuggPathManager.kt`
@@ -161,7 +162,7 @@ idea/.../project/TaskRunnerManager.kt         # isOnEdt 实现（ApplicationMana
 - `ConstRefCacheDatabase` 初始化遇到损坏库时会重建 `~/.jugg/const_ref/const_ref_shared.db` 及其 WAL/SHM。
 - 若 DB 重建或 `RepoSharedFingerprintStore` 初始化仍失败，日志应出现 `fallback to no-op const-ref`，后续编译/部署按无 ConstRef 继续。
 
-**人工恢复**：若仍因文件权限或磁盘状态导致无法重建，可关闭 IDE 后删除 `~/.jugg/const_ref/const_ref_shared.db*` 和 `~/.jugg/const_ref/repo_fingerprint.db*`，重新打开项目。
+**人工恢复**：若仍因文件权限或磁盘状态导致无法重建，可关闭 IDE 后删除全局 const-ref DB（默认 `~/.jugg/const_ref/const_ref_shared.db*` 与 `repo_fingerprint.db*`；若日志出现 `using <tmpdir>/jugg-<user>` 则删该回退目录），重新打开项目。
 
 ### 4.1.3 Jugg Debug 断点不生效
 

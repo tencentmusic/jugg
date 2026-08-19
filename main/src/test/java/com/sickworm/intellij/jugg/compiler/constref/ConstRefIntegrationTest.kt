@@ -155,7 +155,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            taskRunnerManager = createTestTaskRunnerManager(scope),
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {

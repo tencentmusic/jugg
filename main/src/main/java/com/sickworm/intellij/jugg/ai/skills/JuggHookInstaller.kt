@@ -8,6 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ai.skills.agents.AgentHookConfigStyle
 import com.sickworm.intellij.jugg.ai.skills.agents.AgentHookTarget
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -23,10 +24,6 @@ import java.nio.file.StandardCopyOption
 object JuggHookInstaller {
     private const val MATCHER_ALL = "*"
     private const val CLIENT_OPTION = "--client"
-    private const val START_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/start.py"
-    private const val STOP_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/stop.py"
-    private const val EDIT_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/edit.py"
-    private const val COMMAND_HOOK_RELATIVE_PATH = ".jugg/skills/hooks/command.py"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
 
     /** Installs hook configuration for Claude. */
@@ -48,10 +45,10 @@ object JuggHookInstaller {
         logger: Logger,
         pythonCommand: String,
     ): HookInstallSummary {
-        val startScriptPath = File(userHome, START_HOOK_RELATIVE_PATH).absolutePath
-        val stopScriptPath = File(userHome, STOP_HOOK_RELATIVE_PATH).absolutePath
-        val editScriptPath = File(userHome, EDIT_HOOK_RELATIVE_PATH).absolutePath
-        val commandScriptPath = File(userHome, COMMAND_HOOK_RELATIVE_PATH).absolutePath
+        val startScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "start.py").absolutePath
+        val stopScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "stop.py").absolutePath
+        val editScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "edit.py").absolutePath
+        val commandScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "command.py").absolutePath
         val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath,
             editScriptPath, commandScriptPath, pythonCommand)
         val results = targets.map { target ->

@@ -1,17 +1,20 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import java.io.File
 
 /**
  * Unified manager for Jugg test modes.
  *
- * Master switch: ~/.jugg/test_flag/enabled (checked once, cached)
+ * Master switch: `{juggRoot}/test_flag/enabled` (checked once, cached).
+ * [juggRoot] is `~/.jugg` or the temp fallback from [JuggGlobalPathManager].
  * - When OFF: all test modes return false with zero overhead
  * - When ON: individual test modes check their flag files, and info.json is generated
  */
 object TestModeManager {
 
-    private val flagDir = File(System.getProperty("user.home"), ".jugg/test_flag")
+    private val flagDir: File
+        get() = JuggGlobalPathManager.testFlagDir()
 
     private data class FlagInfo(val file: String, val description: String)
 

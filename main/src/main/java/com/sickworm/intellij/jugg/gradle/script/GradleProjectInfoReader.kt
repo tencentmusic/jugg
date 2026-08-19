@@ -380,8 +380,8 @@ class GradleProjectInfoReader(
                 resolutionResult.allComponents.forEach componentForEach@{ component ->
                     val identifier = component.id as? ProjectComponentIdentifier ?: return@componentForEach
                     if (identifier == resolutionResult.root.id) return@componentForEach
-                    val moduleName = identifier.projectPath.standardModuleName.ifEmpty {
-                        identifier.build.name.removePrefix(":").standardModuleName
+                    val moduleName = identifier.projectPath.standardModuleNameForProjectPath.ifEmpty {
+                        identifier.projectName
                     }
                     if (moduleName.isEmpty()) return@componentForEach
                     result[moduleName] = ModuleDependency(moduleName)
@@ -1146,6 +1146,10 @@ class GradleProjectInfoReader(
         }
         moduleName = moduleName.replace(":", ".")
         return moduleName
+    }
+
+    private val String.standardModuleNameForProjectPath: String get() {
+        return removePrefix(":").replace(":", ".")
     }
 
     private val ResolvedDependency.moduleNameIfIsProject: String? get() {

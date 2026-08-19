@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import java.io.File
 import java.nio.file.Files
 
@@ -11,7 +12,7 @@ import java.nio.file.Files
 object CcSwitchCommonConfigGuideExporter {
     private const val CONFIG_DIR_NAME = ".cc-switch"
     private const val CONFIG_DIR_ENV = "CC_SWITCH_CONFIG_DIR"
-    private const val GUIDE_RELATIVE_PATH = ".jugg/cc-switch/claude-hooks-common-config.json"
+    private const val GUIDE_FILE_NAME = "claude-hooks-common-config.json"
     private const val JUGG_HOOK_PATH = ".jugg/skills/hooks/"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
 
@@ -23,8 +24,9 @@ object CcSwitchCommonConfigGuideExporter {
         val settingsFile = File(userHome, ".claude/settings.json")
         val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
         val hooks = root.getAsJsonObject("hooks") ?: throw IllegalStateException("Claude hooks not found")
-        val commonConfig = JsonObject().apply { add("hooks", copyJuggHooks(hooks)) }
-        val outputFile = File(userHome, GUIDE_RELATIVE_PATH)
+        val copiedHooks = copyJuggHooks(hooks, userHome)
+        val commonConfig = JsonObject().apply { add("hooks", copiedHooks) }
+        val outputFile = File(JuggGlobalPathManager.ccSwitchDir(userHome), GUIDE_FILE_NAME)
         outputFile.parentFile.mkdirs()
         Files.writeString(outputFile.toPath(), gson.toJson(commonConfig))
         return outputFile
@@ -38,13 +40,13 @@ object CcSwitchCommonConfigGuideExporter {
         return directories.toList()
     }
 
-    private fun copyJuggHooks(hooks: JsonObject): JsonObject {
+    private fun copyJuggHooks(hooks: JsonObject, userHome: File): JsonObject {
         val copiedHooks = JsonObject()
         hooks.entrySet().forEach { (eventName, eventValue) ->
             val copiedEntries = JsonArray()
             eventValue.asJsonArray.forEach entryLoop@{ entry ->
                 val copiedCommands = entry.asJsonObject.getAsJsonArray("hooks")
-                    .filter { hook -> isJuggHook(hook.asJsonObject) }
+                    .filter { hook -> isJuggHook(hook.asJsonObject, userHome) }
                 if (copiedCommands.isEmpty()) {
                     return@entryLoop
                 }
@@ -60,8 +62,12 @@ object CcSwitchCommonConfigGuideExporter {
         return copiedHooks
     }
 
-    private fun isJuggHook(hook: JsonObject): Boolean {
+    private fun isJuggHook(hook: JsonObject, userHome: File): Boolean {
         val command = hook.get("command")?.asString?.replace('\\', '/') ?: return false
-        return hook.get("type")?.asString == "command" && command.contains(JUGG_HOOK_PATH)
+        if (hook.get("type")?.asString != "command") {
+            return false
+        }
+        val hooksPath = JuggGlobalPathManager.hooksDir(userHome).absolutePath.replace('\\', '/')
+        return command.contains(hooksPath) || command.contains(JUGG_HOOK_PATH)
     }
 }

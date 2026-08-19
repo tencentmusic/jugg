@@ -20,7 +20,7 @@
 | `JuggProjectInfo` / `ModuleInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | Gradle 项目/模块快照，记录 AGP R8 classpath、source/res/manifest/classpath/dependency/applicationId/androidTest 等信息 |
 | `ModuleBuildPathInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | 多 AGP 版本及自定义 Gradle build directory 的输出路径兼容推断 |
 | `JuggPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt` | 项目级 Jugg 文件布局：project info、compile context、deploy history、classpath、日志、MCP fetch cache |
-| `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggGlobalPathManager.kt` | 用户级 `~/.jugg` 文件布局：hot update、deploy cache、resource 等 |
+| `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggGlobalPathManager.kt` | 用户级全局文件布局：优先 `~/.jugg`，不可写时回退 `${java.io.tmpdir}/jugg-<user>`；覆盖 hot update、deploy cache、resource、CLI/skills/hooks、test flag |
 | `GradleProjectInfoReaderManager` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt` | Gradle init script 入口，读取/保存 project info、include build、dependency diff、androidTest task 注入 |
 | `GradleScriptWriter` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleScriptWriter.kt` | 把插件内置 `readProjectInfo.gradle.kts` 与 runtime jar 写到稳定目录，供本地、远端和 CLI 通过 `-I` 注入 |
 | `GradleProjectInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt` | 通过 Gradle 反射读取 module、variant、source set、classpath、依赖、androidTest synthetic module |
@@ -200,10 +200,11 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 ## 6. 隐形约束
 
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
-- `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。解析 composite build 根项目时需从 build identity 恢复模块名，不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
+- `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。`ProjectComponentIdentifier.projectPath` 必须用独立规则去除开头的 `:` 后再把层级分隔符转换为 `.`，composite build 根项目则使用 `projectName`；不能复用面向 display name 的通用转换，也不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。
+- `buildReadProjectInfoScript.gradle` 必须收集 init script 内嵌源码的全部非 Gradle classpath 依赖，并按声明依赖排序；`JuggPathManager` 引用 `JuggGlobalPathManager` 时，两者必须同时收集且后者排在前面，避免生成的独立 KTS 编译失败。
 - Project info 只记录选中 Android Kotlin task 为本轮增量编译暴露的 fragment graph，不构建项目全部 target 的完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
 - `ModuleBuildPathInfo` 是 AGP 路径兼容层；不要在编译器里散落硬编码 `build/intermediates/...` 路径。
 - `ModuleBuildPathInfo.buildDirRelativePath` 必须在 Gradle JSON、IDE project info、compile context merge、classpath backup 和 deploy history 序列化中完整保留；修改字段结构时先判断旧值能否确定性迁移，不能仅通过提升 compile context 版本迫使用户重新全量构建。
