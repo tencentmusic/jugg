@@ -393,11 +393,18 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
         }
 
-        if (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo) {
+        if (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo &&
+            deployHistoryManager.getFullBuildInfo()?.compileCommand != null
+        ) {
             logger.info("Waiting Gradle project info rebuild finish...")
             while (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo) {
                 Thread.sleep(200)
             }
+        }
+
+        if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
+            logger.info("Gradle project info unavailable, forcing Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, GRADLE_PROJECT_INFO_UNAVAILABLE)
         }
 
         checkDeviceFallback()?.let {

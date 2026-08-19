@@ -192,7 +192,7 @@ APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生�
 
 本地 project info 读取属于后台维护任务，其 Gradle stdout/stderr 统一记录为 `debug`，不得打印用户可见的 `warn`；读取结果仍通过同步状态和返回值参与后续上下文更新。
 
-Gradle project info 因序列化版本不兼容或读取失败被删除后，本地重建任务保持非阻塞，避免占用同时覆盖增量与全量 Gradle 编译的全局初始化状态。增量编译可用性由“Gradle project info 可用且缺失快照重建已完成”共同决定；即使 JSON 已由 Gradle 提前写出，也必须等刷新任务完成 compile context 更新后才能恢复增量编译。已明确需要全量 Gradle 编译的路径直接执行；仍准备增量编译时轮询等待重建结束，重建失败再回退全量 Gradle 编译，不得继续仅使用 IDE project info 部署。
+Gradle project info 因序列化版本不兼容或读取失败被删除后，本地重建任务保持非阻塞，避免占用同时覆盖增量与全量 Gradle 编译的全局初始化状态。JSON 快照存在只表示 Gradle project info 可读，不等于增量编译可用；增量编译还要求 `FullBuildInfo.compileCommand` 存在，且缺失快照重建已经结束。`isRebuildingMissingProjectInfo` 只在启动刷新时 JSON 尚不存在时置位。JSON 已在、仅缺全量基线时不得等待重建，远程编译也不得仅因此强制再跑 dry-run。即使 JSON 已由 Gradle 提前写出，也必须等这次缺失快照刷新完成 compile context 更新后才能恢复增量编译。已明确需要全量 Gradle 编译的路径直接执行；仍准备增量编译时轮询等待重建结束，重建失败再回退全量 Gradle 编译，不得继续仅使用 IDE project info 部署。
 
 远程编译切换 compile command 时，即使本地已有 Gradle project info，也必须使用当前命令启动一次本地 project info dry-run。该刷新与远程构建并行，并通过 `shouldWaitForRemoteInit` 设置远程初始化等待标记；远程 full build 完成后，初始化增量编译先读取并清除该标记，只有标记存在时才等待本地刷新结束，避免 IDE Sync、依赖恢复等普通后台刷新额外阻塞远程链路。等待完成后读取 project info 和拉取 classpath，避免继续按旧 variant 拼装同步路径。如果远程 full build 成功后 classpath 拉取失败，本轮不初始化增量编译，同时保留已有 compile context 与 deploy history。
 

@@ -177,4 +177,33 @@ class GradleProjectInfoLocalFetchManagerTest {
             manager.dispose()
         }
     }
+
+    @Test
+    fun `existing snapshot without full build does not mark missing rebuild`() {
+        val taskRunnerManager = mock<TaskRunnerManager>()
+        val pathManager = JuggPathManager(temporaryFolder.root)
+        pathManager.gradleProjectInfoFile.parentFile.mkdirs()
+        pathManager.gradleProjectInfoFile.writeText("{}")
+        val deployHistoryManager = mock<IDeployHistoryManager>()
+        whenever(deployHistoryManager.getFullBuildInfo()).thenReturn(null)
+        val manager = GradleProjectInfoLocalFetchManager(
+            mock<Project>(),
+            pathManager,
+            mock<CompileContextManager>(),
+            taskRunnerManager,
+            mock<IDependencyChangeManager>(),
+            deployHistoryManager,
+            mock<Logger>(),
+        )
+
+        try {
+            manager.runUpdateIfNeeded(isForce = true, specificCompileCommand = "regular-invalid-command")
+
+            assertTrue(manager.isProjectInfoAvailable)
+            assertFalse(manager.isRebuildingMissingProjectInfo)
+            assertFalse(manager.isIncrementalCompileAvailable)
+        } finally {
+            manager.dispose()
+        }
+    }
 }

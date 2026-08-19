@@ -321,6 +321,10 @@ class JuggCompileHelperTest {
         val isRebuilding = AtomicBoolean(true)
         val rebuildCheckStarted = CountDownLatch(1)
         val preprocessFinished = CountDownLatch(1)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
         whenever(fixture.gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo).thenAnswer {
             rebuildCheckStarted.countDown()
             isRebuilding.get()
@@ -337,6 +341,19 @@ class JuggCompileHelperTest {
         isRebuilding.set(false)
 
         assertTrue(preprocessFinished.await(1, TimeUnit.SECONDS))
+    }
+
+    @Test(timeout = 1_000)
+    fun preprocessIncrementalCompile_rebuildingWithoutFullBuild_doesNotWait() {
+        val fixture = createFixture()
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo).thenReturn(true)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(null)
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("Gradle project info unavailable", result.failedReason)
     }
 
     @Test(timeout = 1_000)
@@ -398,6 +415,24 @@ class JuggCompileHelperTest {
             specificCompileCommand = compileCommand,
             buildTarget = BuildTarget.APP,
             shouldWaitForRemoteInit = true,
+        )
+    }
+
+    @Test
+    fun prepareRemoteProjectInfo_snapshotExistsWithoutFullBuild_doesNotForceRefresh() {
+        val fixture = createFixture()
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.options.buildTarget).thenReturn(BuildTarget.APP)
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(null)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isProjectInfoAvailable).thenReturn(true)
+
+        invokePrepareRemoteProjectInfo(fixture.helper, fixture.options)
+
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).runUpdateIfNeeded(
+            any(),
+            anyOrNull(),
+            any(),
+            any(),
         )
     }
 
