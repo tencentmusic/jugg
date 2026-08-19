@@ -400,11 +400,6 @@ class JuggCompilerHelper(
             }
         }
 
-        if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
-            logger.info("Gradle project info is unavailable, forcing Gradle full compile.")
-            return CompileTaskResult.incrementalFailed(true, GRADLE_PROJECT_INFO_UNAVAILABLE)
-        }
-
         checkDeviceFallback()?.let {
             return it
         }
