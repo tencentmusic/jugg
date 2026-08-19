@@ -68,6 +68,10 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                                 ?: ""
                         ),
                         moduleType = ModuleInfo.Type.valueOf(module["moduleType"] as String),
+                        runtimeModuleDependencies = (module["runtimeModuleDependencies"] as? List<Map<String, Any>>)
+                            ?.mapNotNull { dependency ->
+                                (dependency["moduleName"] as? String)?.let(::ModuleDependency)
+                            },
                         instrumentationTargetPackage = module["instrumentationTargetPackage"] as? String,
                         composeResourceInfo = parseComposeResourceInfo(module["composeResourceInfo"]),
                     )

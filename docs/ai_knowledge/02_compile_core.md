@@ -126,6 +126,7 @@ JuggCompiler.doCompile(task)
 - `BaseCompiler` 是所有子编译器的模板层，负责类型校验、模块/androidTest 分批、APK 分流和 custom compiler hook；单个子编译器内部顺序优先直接读对应实现。
 - `splitModuleAndCompile()` 会把 androidTest module 单独分批，且 androidTest 的 module 分组 key 包含 module root，避免同名测试模块被合并。
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
+- `RDexForSubmoduleCompiler` 生成的模块 `R.dex` 必须携带 `ModuleApkBelongs` 给出的 `apkPath` / `targetApkPaths`。Dynamic Feature 场景若遗漏该归属，产物会退化为通用 class dex 并扩散到所有 APK，使同包名但资源集合不同的 R 类相互覆盖。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
 - `FileChangesHandler` 统一排除所有模块的实际 Gradle build directory 与传统 `${moduleRootDir}/build`。文件监听、Git 补检、恢复事件和源码影响传播经过该入口时，Gradle generated source、resource、asset、manifest、native lib 或 build file 都不会进入变更列表；目录事件会在递归前剪枝。该规则不影响编译器在本轮内直接登记和交接的 JuggApt/Resource/Compose generated source。
 - 删除事件只按路径移除此前登记的待编译项；已不存在的文件不会转成 `ChangedFile`，也不会生成 class、resource、asset 或 Manifest 的移除数据。删除本身因此不会让增量编译失败或自动回退，设备继续保留已安装 APK 和既有 overlay 中的旧内容。重命名会被拆成旧路径删除和新路径新增/修改，只有新路径能够进入编译。需要让旧内容真正消失时，才通过完整 Gradle build 刷新 APK 基线。

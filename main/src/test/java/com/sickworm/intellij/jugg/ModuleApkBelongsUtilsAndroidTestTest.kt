@@ -4,9 +4,11 @@ import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class ModuleApkBelongsUtilsAndroidTestTest {
 
@@ -216,5 +218,80 @@ class ModuleApkBelongsUtilsAndroidTestTest {
         val testApkUnit = apkInfos.first { it.isTestApk }.files.first()
         assertEquals(baseApkUnit, result.getBelongsApk(libraryMod))
         assertEquals(listOf(baseApkUnit, testApkUnit), result.getAllBelongsApk(libraryMod))
+    }
+
+    @Test
+    fun `runtime module dependencies keep feature only dependency out of base apk`() {
+        val testRoot = Files.createTempDirectory("jugg-module-apk-runtime").toFile()
+        try {
+            val appMod = appModule().copy(
+                projectRootDir = testRoot,
+                moduleRootDir = File(testRoot, "app"),
+                buildPathInfo = ModuleBuildPathInfo(testRoot, File(testRoot, "app"), "debug", buildDirRelativePath = ""),
+                moduleDependencies = listOf(ModuleDependency("mlive")),
+                runtimeModuleDependencies = listOf(ModuleDependency("mlive")),
+            )
+            val featureDir = File(testRoot, "feature")
+            val featureMod = ModuleInfo.virtualModule.copy(
+                name = "feature",
+                moduleType = ModuleInfo.Type.DynamicFeature,
+                projectRootDir = testRoot,
+                moduleRootDir = featureDir,
+                buildPathInfo = ModuleBuildPathInfo(testRoot, featureDir, "debug", buildDirRelativePath = ""),
+                moduleDependencies = listOf(ModuleDependency("mlive")),
+                runtimeModuleDependencies = listOf(ModuleDependency("mlive"), ModuleDependency("business_gift")),
+            )
+            featureMod.buildPathInfo.mergedManifest.apply {
+                parentFile.mkdirs()
+                writeText("<manifest featureSplit=\"feature\" />")
+            }
+            val mlive = libraryModule("mlive").copy(
+                projectRootDir = testRoot,
+                moduleRootDir = File(testRoot, "mlive"),
+                moduleDependencies = listOf(ModuleDependency("business_gift")),
+            )
+            val businessGift = libraryModule("business_gift").copy(
+                projectRootDir = testRoot,
+                moduleRootDir = File(testRoot, "business_gift"),
+            )
+            val modules = listOf(appMod, featureMod, mlive, businessGift).associateBy { it.name }
+            val baseApk = ApkFileUnit("com.example.app", "", true, File("base.apk"))
+            val featureApk = ApkFileUnit("com.example.app", "feature", true, File("feature.apk"))
+
+            val result = ModuleApkBelongsUtils.getModuleApkBelongs(
+                appMod,
+                listOf(ApkInfo(listOf(baseApk, featureApk), "com.example.app")),
+                modules,
+                ModuleInfo.virtualModule,
+                com.intellij.openapi.diagnostic.Logger.getInstance("test"),
+            )
+
+            assertEquals(baseApk, result.getBelongsApk(mlive))
+            assertEquals(featureApk, result.getBelongsApk(businessGift))
+        } finally {
+            testRoot.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `missing runtime module dependencies use legacy dependency traversal`() {
+        val appMod = appModule().copy(moduleDependencies = listOf(ModuleDependency("mlive")))
+        val mlive = libraryModule("mlive").copy(
+            moduleDependencies = listOf(ModuleDependency("business_gift")),
+        )
+        val businessGift = libraryModule("business_gift")
+        val featureApk = ApkFileUnit("com.example.app", "feature", true, File("feature.apk"))
+        val baseApk = appApkInfo().files.first()
+        val modules = listOf(appMod, mlive, businessGift).associateBy { it.name }
+
+        val result = ModuleApkBelongsUtils.getModuleApkBelongs(
+            appMod,
+            listOf(ApkInfo(listOf(baseApk, featureApk), "com.example.app")),
+            modules,
+            ModuleInfo.virtualModule,
+            com.intellij.openapi.diagnostic.Logger.getInstance("test"),
+        )
+
+        assertEquals(baseApk, result.getBelongsApk(businessGift))
     }
 }

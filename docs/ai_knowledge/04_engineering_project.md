@@ -58,7 +58,7 @@
 | `moduleRootDir` / `projectRootDir` | 模块根与 IDE 项目根；相对路径用于跨机器/远端同步 |
 | `sourceDirs` | 模块全部有效源码根的扁平集合；KMP common roots 也必须包含在内 |
 | `buildVariant` / `buildPathInfo` | 当前变体及 AGP 输出路径推断 |
-| `moduleDependencies` / `libraryDependencies` / `runtimeLibraryDependencies` | 编译、运行和模块依赖 |
+| `moduleDependencies` / `runtimeModuleDependencies` / `libraryDependencies` / `runtimeLibraryDependencies` | 编译、APK 运行时归属和库依赖；`runtimeModuleDependencies=null` 表示旧快照，继续使用旧的模块依赖遍历 |
 | `applicationId` / `namespace` | APK 归属、manifest、androidTest target 解析基础 |
 | `instrumentationTargetPackage` | 非空表示 synthetic androidTest module |
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
@@ -112,6 +112,8 @@ IDE / Gradle compile 触发 project info 更新
 `main/src/main/java/.../gradle/script` 下的类同时作为生成 init script 的源码模板；排查时要同时关注生产 wrapper 和 `main/src/main/resources/gradle/readProjectInfo.gradle.kts` 中的内嵌结果。
 
 使用 Gradle init script 的核心目的不是替代 IDE model，而是在不修改工程 `build.gradle` 的前提下取得构建侧事实。IDE model 更适合提供 module/source 结构和当前 IDE 选择；真实 task、variant、classpath、依赖、注解处理器参数、Compose 任务元数据和自定义 build directory 则以 Gradle 执行环境更可靠。`JuggProjectInfoMerger` 因此合并两路数据，而不是假设任一路永远完整。`-I readProjectInfo.gradle.kts` 属于一次构建调用的外挂输入，不要求业务工程接入 Jugg Gradle plugin，也不会把读取逻辑写进用户脚本。
+
+Application 与 Dynamic Feature 的 APK 模块归属使用 Gradle 已解析的 variant runtime classpath。`GradleProjectInfoReader` 从 `ProjectComponentIdentifier` 收集本构建和 composite build 的 project component，Gradle DSL 的 `exclude`、依赖替换和变体选择已经在该边界生效；`ModuleApkBelongsUtils` 直接使用这份扁平 resolved module 集合，不再沿 IDE/compile dependency 图递归推导。读取失败、目标 runtime configuration 不存在或旧 JSON 没有 `runtimeModuleDependencies` 时字段保持 `null`，整体回退既有 `moduleDependencies` 遍历，不能把“不知道”序列化成权威空集合。
 
 `readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
@@ -198,6 +200,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 ## 6. 隐形约束
 
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
+- `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。解析 composite build 根项目时需从 build identity 恢复模块名，不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。

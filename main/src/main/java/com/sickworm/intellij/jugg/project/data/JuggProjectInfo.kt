@@ -73,6 +73,8 @@ data class ModuleInfo(
     val javaTargetCompatibility: String?,
     val buildPathInfo: ModuleBuildPathInfo,
     val moduleDependencies: List<ModuleDependency>,
+    /** Resolved runtime project modules for APK roots; null keeps legacy dependency traversal. */
+    val runtimeModuleDependencies: List<ModuleDependency>? = null,
     val libraryDependencies: List<LibraryDependency>,
     val runtimeLibraryDependencies: List<LibraryDependency>,
     val annotationProcessorDependencies: List<LibraryDependency>,

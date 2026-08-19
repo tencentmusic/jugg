@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.gradle.script
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
 import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
 import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
@@ -81,6 +82,44 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 loaded?.modules?.first { it.moduleInfoExceptLibraries.name == "app" }
                     ?.moduleInfoExceptLibraries?.instrumentationTargetPackage
             )
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `save and load preserves optional runtime module dependencies`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        try {
+            val serializer = ProjectInfoSerializerInGradle(tmpFile)
+            val app = ModuleInfo.virtualModule.copy(
+                name = "app",
+                runtimeModuleDependencies = listOf(ModuleDependency("mlive")),
+            )
+
+            serializer.save(projectInfoWithoutAgpR8(mapOf("app" to app)))
+            val loaded = serializer.load()
+
+            assertEquals(
+                listOf(ModuleDependency("mlive")),
+                loaded?.modules?.single()?.moduleInfoExceptLibraries?.runtimeModuleDependencies,
+            )
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `load old snapshot without runtime module dependencies keeps null`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        try {
+            val serializer = ProjectInfoSerializerInGradle(tmpFile)
+            serializer.save(projectInfoWithoutAgpR8(mapOf("app" to ModuleInfo.virtualModule.copy(name = "app"))))
+            tmpFile.writeText(tmpFile.readText().replace("\"runtimeModuleDependencies\":null,", ""))
+
+            val loaded = serializer.load()
+
+            assertNull(loaded?.modules?.single()?.moduleInfoExceptLibraries?.runtimeModuleDependencies)
         } finally {
             tmpFile.delete()
         }

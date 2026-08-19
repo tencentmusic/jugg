@@ -71,6 +71,28 @@ class JuggProjectInfoSerializerAndroidTestTest {
     }
 
     @Test
+    fun `deserialize module with missing runtime module dependencies yields null`() {
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(
+                name = "app",
+                runtimeModuleDependencies = listOf(ModuleDependency("library1")),
+            ))
+        )
+        val json = JsonParser.parseString(
+            ProjectInfoSerializer.gson.toJson(JuggProjectInfoSerialize.serialize(original))
+        ).asJsonObject
+        json.getAsJsonArray("modules")[0]
+            .asJsonObject
+            .getAsJsonObject("moduleInfoExceptLibraries")
+            .remove("runtimeModuleDependencies")
+        val serialized = ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java)
+
+        val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
+
+        assertNull(restored.modules["app"]?.runtimeModuleDependencies)
+    }
+
+    @Test
     fun `serialize preserves instrumentationTargetPackage distinct from applicationId`() {
         val original = projectInfoWithoutAgpR8(
             modules = mapOf("app.androidTest" to androidTestModule())

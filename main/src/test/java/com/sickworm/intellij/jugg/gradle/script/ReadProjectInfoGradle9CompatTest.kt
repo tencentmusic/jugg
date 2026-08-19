@@ -80,6 +80,128 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
     }
 
     @Test
+    fun generatedScript_shouldUseResolvedRuntimeModulesAfterExcludes() {
+        val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_runtime_modules").toFile()
+        try {
+            File(System.getProperty("user.dir"), "src/test/assets/android-app-agp9")
+                .copyRecursively(fixtureDir, overwrite = true)
+            File(fixtureDir, "settings.gradle").appendText(
+                """
+
+                include ':feature', ':mlive'
+                includeBuild('business_gift') {
+                    dependencySubstitution {
+                        substitute module('com.tme.rif:business_gift') using project(':')
+                    }
+                }
+                """.trimIndent(),
+            )
+            val rootBuildFile = File(fixtureDir, "build.gradle")
+            rootBuildFile.writeText(
+                rootBuildFile.readText().replace(
+                    "id 'com.android.application' version '8.7.2' apply false",
+                    """
+                    id 'com.android.application' version '8.7.2' apply false
+                    id 'com.android.dynamic-feature' version '8.7.2' apply false
+                    id 'com.android.library' version '8.7.2' apply false
+                    """.trimIndent(),
+                )
+            )
+            File(fixtureDir, "app/build.gradle").appendText(
+                """
+
+                android.dynamicFeatures = [':feature']
+                dependencies {
+                    implementation(project(':mlive')) {
+                        exclude group: 'com.tme.rif'
+                    }
+                }
+                """.trimIndent(),
+            )
+            writeFile(
+                File(fixtureDir, "mlive/build.gradle"),
+                """
+                plugins { id 'com.android.library' }
+                android {
+                    namespace 'com.jugg.fixture.mlive'
+                    compileSdk 35
+                    defaultConfig { minSdk 21 }
+                }
+                dependencies {
+                    implementation 'com.tme.rif:business_gift:1.0'
+                }
+                """.trimIndent(),
+            )
+            writeFile(
+                File(fixtureDir, "feature/build.gradle"),
+                """
+                plugins { id 'com.android.dynamic-feature' }
+                android {
+                    namespace 'com.jugg.fixture.feature'
+                    compileSdk 35
+                    defaultConfig { minSdk 21 }
+                }
+                dependencies {
+                    implementation project(':app')
+                    implementation project(':mlive')
+                }
+                """.trimIndent(),
+            )
+            writeFile(
+                File(fixtureDir, "business_gift/settings.gradle"),
+                """
+                pluginManagement {
+                    repositories {
+                        google()
+                        mavenCentral()
+                        gradlePluginPortal()
+                    }
+                }
+                rootProject.name = 'business_gift'
+                """.trimIndent(),
+            )
+            writeFile(
+                File(fixtureDir, "business_gift/build.gradle"),
+                """
+                plugins { id 'com.android.library' version '8.7.2' }
+                group = 'com.tme.rif'
+                version = '1.0'
+                android {
+                    namespace 'com.tme.rif.business.gift'
+                    compileSdk 35
+                    defaultConfig { minSdk 21 }
+                }
+                """.trimIndent(),
+            )
+            writeSdkLocalProperties(fixtureDir)
+            writeWrapper(fixtureDir, gradleVersion)
+            val initScript = copyGeneratedInitScript(fixtureDir)
+
+            val result = runGradle(
+                fixtureDir,
+                "help",
+                "-I", initScript.absolutePath,
+                "--console=plain",
+                "--no-daemon",
+            )
+
+            assertEquals(0, result.exitCode, "Gradle $gradleVersion runtime dependency check failed.\n${result.output}")
+            val projectInfo = ProjectInfoSerializer(
+                JuggPathManager(fixtureDir).gradleProjectInfoFile,
+                mock(Logger::class.java),
+            ).load(isSkipVersionCheck = true)
+            assertNotNull(projectInfo)
+            val appRuntimeModules = projectInfo.modules.getValue("app").runtimeModuleDependencies
+            val featureRuntimeModules = projectInfo.modules.getValue("feature").runtimeModuleDependencies
+            assertTrue(appRuntimeModules.orEmpty().any { it.moduleName == "mlive" })
+            assertFalse(appRuntimeModules.orEmpty().any { it.moduleName == "business_gift" })
+            assertTrue(featureRuntimeModules.orEmpty().any { it.moduleName == "business_gift" })
+        } finally {
+            fixtureDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun generatedScript_shouldKeepRootProjectInfoWhenIncludedBuildInfoIsMissing() {
         val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_9_2_1_include_build").toFile()
         try {
