@@ -1,3 +1,13 @@
+- version: 3.3.1
+  date: 2026.08.20
+  updates:
+    - keep incremental compilation when Gradle project info is unavailable
+    - list currently opened Jugg projects when the requested projectDir is not initialized
+    - let view-inspect read public fields and Kotlin properties
+    - prevent feature resource IDs from failing incremental compilation
+    - initialize incremental compile when home directory is not writable
+    - stop waiting for Gradle project info rebuild before the first full compile
+
 - version: 3.3.0
   date: 2026.08.18
   updates:
