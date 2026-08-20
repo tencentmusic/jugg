@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.viewhierarchy;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -8,14 +9,19 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * ViewExpressionEvaluator parses dot-separated method-call expressions and evaluates them
- * reflectively on a root object (typically a View). Only getter/query methods are allowed;
- * methods with side effects are blocked.
+ * ViewExpressionEvaluator parses dot-separated read-only expressions and evaluates them
+ * reflectively on a root object (typically a View). Explicit method calls must be
+ * getter/query names; names without "()" may also resolve to public fields.
+ * Methods with side effects are blocked.
  *
  * Supported syntax:
- *   expression := method_call ("." method_call)*
+ *   expression := access ("." access)*
+ *   access := method_call | name
  *   method_call := method_name "()" | method_name "(" literal ")"
  *   literal := integer | float | string_literal
+ *
+ * A name without "()" is resolved as a public field first, then as a no-arg getter
+ * (getName / Kotlin property getXxx / isXxx).
  */
 public class ViewExpressionEvaluator {
 
@@ -59,6 +65,10 @@ public class ViewExpressionEvaluator {
         for (MethodCall call : chain) {
             if (current == null) {
                 return new Result(null, "null");
+            }
+            if (call.bareAccess) {
+                current = resolveBareAccess(current, call.methodName);
+                continue;
             }
             validateMethodName(call.methodName);
             Method method = findMethod(current.getClass(), call.methodName, call.argTypes);
@@ -110,10 +120,9 @@ public class ViewExpressionEvaluator {
             }
             String methodName = expression.substring(nameStart, pos);
 
-            // Expect '('
             if (pos >= len || expression.charAt(pos) != '(') {
-                throw new EvalException("expected '(' after method name '"
-                    + methodName + "' at position " + pos + " in: " + expression);
+                result.add(new MethodCall(methodName, new Object[0], new Class[0], true));
+                continue;
             }
             pos++;
 
@@ -137,7 +146,7 @@ public class ViewExpressionEvaluator {
                 argTypes = new Class[]{literal.type};
             }
 
-            result.add(new MethodCall(methodName, args, argTypes));
+            result.add(new MethodCall(methodName, args, argTypes, false));
         }
 
         return result;
@@ -194,25 +203,92 @@ public class ViewExpressionEvaluator {
     // ---- Security validation ----
 
     static void validateMethodName(String name) throws EvalException {
-        // Check blocked prefixes
+        validateBlockedPrefix(name);
+        if (hasAllowedPrefix(name) || ALLOWLIST.contains(name)) {
+            return;
+        }
+        throw new EvalException("method '" + name
+            + "' is not in the getter allowlist");
+    }
+
+    static void validateBlockedPrefix(String name) throws EvalException {
         for (String prefix : BLOCKED_PREFIXES) {
             if (name.startsWith(prefix)) {
                 throw new EvalException("method '" + name
                     + "' is blocked (potential side-effect)");
             }
         }
-        // Check allowed prefixes
-        for (String prefix : ALLOWED_PREFIXES) {
-            if (name.startsWith(prefix)) {
-                return;
+    }
+
+    private static Object resolveBareAccess(Object current, String name) throws EvalException {
+        validateBlockedPrefix(name);
+        Field field = findPublicField(current.getClass(), name);
+        if (field != null) {
+            try {
+                return field.get(current);
+            } catch (Exception e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                throw new EvalException(cause.getClass().getSimpleName()
+                    + ": " + cause.getMessage());
             }
         }
-        // Check explicit allowlist
-        if (ALLOWLIST.contains(name)) {
-            return;
+        for (String methodName : getterNamesFor(name)) {
+            try {
+                validateMethodName(methodName);
+            } catch (EvalException ignored) {
+                continue;
+            }
+            Method method = findMethod(current.getClass(), methodName, new Class[0]);
+            if (method == null) {
+                continue;
+            }
+            method.setAccessible(true);
+            try {
+                return method.invoke(current);
+            } catch (Exception e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                throw new EvalException(cause.getClass().getSimpleName()
+                    + ": " + cause.getMessage());
+            }
         }
-        throw new EvalException("method '" + name
-            + "' is not in the getter allowlist");
+        throw new EvalException("NoSuchFieldException/NoSuchMethodException: "
+            + name + " on " + current.getClass().getName());
+    }
+
+    private static List<String> getterNamesFor(String name) {
+        List<String> names = new ArrayList<>();
+        if (hasAllowedPrefix(name)) {
+            names.add(name);
+            return names;
+        }
+        String capitalized = capitalize(name);
+        names.add("get" + capitalized);
+        names.add("is" + capitalized);
+        return names;
+    }
+
+    private static boolean hasAllowedPrefix(String name) {
+        for (String prefix : ALLOWED_PREFIXES) {
+            if (name.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String capitalize(String name) {
+        if (name.isEmpty()) {
+            return name;
+        }
+        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
+    }
+
+    private static Field findPublicField(Class<?> clazz, String name) {
+        try {
+            return clazz.getField(name);
+        } catch (NoSuchFieldException ignored) {
+            return null;
+        }
     }
 
     // ---- Reflection helpers ----
@@ -356,11 +432,13 @@ public class ViewExpressionEvaluator {
         final String methodName;
         final Object[] args;
         final Class<?>[] argTypes;
+        final boolean bareAccess;
 
-        MethodCall(String methodName, Object[] args, Class<?>[] argTypes) {
+        MethodCall(String methodName, Object[] args, Class<?>[] argTypes, boolean bareAccess) {
             this.methodName = methodName;
             this.args = args;
             this.argTypes = argTypes;
+            this.bareAccess = bareAccess;
         }
     }
 

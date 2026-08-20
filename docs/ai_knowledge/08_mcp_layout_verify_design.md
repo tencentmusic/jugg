@@ -1,6 +1,6 @@
 # MCP UI 布局验证设计
 
-> 最后核对：2026-07-22
+> 最后核对：2026-08-20
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -30,7 +30,7 @@ activity-stack
 | `LayoutDumpMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpMcpToolAction.kt` | 公开 `layout-dump`，导出 HTML 视图树 artifact |
 | `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | 复用的内部 dump 能力；生成公开 HTML 和内部 JSON |
 | `UiFindMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/UiFindMcpToolAction.kt` | 公开 `view-locate`，按 text/resourceId/contentDesc 查元素 bounds |
-| `EvalViewMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/EvalViewMcpToolAction.kt` | 公开 `view-inspect`，通过 App 内反射读取 getter 链 |
+| `EvalViewMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/EvalViewMcpToolAction.kt` | 公开 `view-inspect`，通过 App 内反射读取 getter 或 public 字段 |
 | `TapMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/TapMcpToolAction.kt` | 公开 `tap`，支持坐标、百分比和元素选择器模式 |
 | `McpAppReadyGuard` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpAppReadyGuard.kt` | runtime observe/mutate 工具的 App 在线、前台和设备交互态检查 |
 | `ViewHierarchyClient` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt` | IDE 侧 LocalSocket 客户端，连接 App 内 ViewHierarchy server |
@@ -47,7 +47,7 @@ activity-stack
 | `activity-stack` | 公开 MCP | 当前页面是否在目标 Activity | 具体 View 属性 |
 | `layout-dump` | 公开 MCP + CLI | 全局视图树、候选节点、窗口/弹窗结构 | 直接断言颜色、字号等 View getter 属性 |
 | `view-locate` | 公开 MCP + CLI | 元素是否存在、bounds、size、间距、对齐 | maxLines、ellipsize、颜色、圆角等内部属性 |
-| `view-inspect` | 公开 MCP + CLI | getter 可读的 View 属性、density、隐藏但仍在树里的 View 属性 | 点击坐标、是否安全可点 |
+| `view-inspect` | 公开 MCP + CLI | getter / Kotlin property / public 字段可读的 View 属性、density、隐藏但仍在树里的 View 属性 | 点击坐标、是否安全可点 |
 | `tap` | 公开 MCP + CLI | 执行 tap/long-press/swipe | 作为验证工具替代 `view-locate` |
 | `wait-logs` | 公开 MCP + CLI | App 日志 marker、crash、auto-run 闭环 | UI 几何属性 |
 | `layout-verify` | 未注册 | 旧批量断言实现参考 | 公开 MCP/CLI 调用 |

@@ -18,7 +18,7 @@ UI 自动化命令用于让 Agent 在设备上读取页面结构、定位元素�
 |---|---|---|
 | 导出当前 UI 层级 | 支持 | `layout-dump` |
 | 按 text / resource id / content-desc 定位元素 | 支持 | `view-locate` |
-| 查询 View getter 属性 | 支持 | `view-inspect` |
+| 查询 View 只读属性 | 支持 | `view-inspect` |
 | tap / long-press / swipe | 支持 | `tap` |
 | 截图 | 当前 MCP/CLI 不公开 | `screenshot` action 未注册 |
 
@@ -60,9 +60,10 @@ jugg view-locate --content-desc "Back"
 ```text
 jugg view-inspect --text "Submit" "getText()" "isEnabled()"
 jugg view-inspect --resource-id btn_confirm "getCurrentTextColor()" "getTextSize()"
+jugg view-inspect --resource-id bubble_container "layoutParams.leftMargin" "getLayoutParams().getMarginStart()"
 ```
 
-`view-inspect` 通过 App 内反射执行只读 getter / query 表达式，并返回原始值与 `density`。它可以读取仍在 View 树中的隐藏节点属性；隐藏节点可作为状态证据，但不能证明可点击。
+`view-inspect` 通过 App 内反射执行只读表达式，并返回原始值与 `density`。表达式可以是 getter、Kotlin property 或 public 字段；不带括号的名字会先读字段，再按 `getXxx()` / `isXxx()` 解析。它可以读取仍在 View 树中的隐藏节点属性；隐藏节点可作为状态证据，但不能证明可点击。
 
 ## 触控
 

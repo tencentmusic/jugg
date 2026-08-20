@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.loader.JuggInitializer
+import com.sickworm.intellij.jugg.ai.mcp.actions.ListProjectsMcpToolAction
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
@@ -56,15 +57,43 @@ class IdeaMcpRuntime(
 
             val normalizedProjectDir = ProjectDirNormalizer.normalizeProjectDir(projectDir)
             val juggManager = JuggInitializer.getManager(normalizedProjectDir)
-                ?: run {
-                    return McpResultMapper().toolError(
-                        id = request.id,
-                        errorCode = McpErrorCode.PROJECT_NOT_INITIALIZED,
-                        message = "invoke_mcp failed. Reason: project is not initialized.")
-                }
+                ?: return uninitializedProjectError(request.id, normalizedProjectDir)
 
             val response = juggManager.invokeMcp(withNormalizedProjectDir(request, normalizedProjectDir))
             return response
+        }
+
+        private fun uninitializedProjectError(requestId: Any?, requestedProjectDir: String): McpJsonRpcResponse {
+            val projects = initializedProjectList()
+            return McpResultMapper().toolError(
+                id = requestId,
+                errorCode = McpErrorCode.PROJECT_NOT_INITIALIZED,
+                message = uninitializedProjectMessage(requestedProjectDir, projects),
+                data = mapOf("projects" to projects),
+            )
+        }
+
+        private fun initializedProjectList(): List<McpProjectInfo> {
+            val data = ListProjectsMcpToolAction().listProjectsAction().data as? Map<*, *>
+            val projects = data?.get("projects") as? List<*> ?: return emptyList()
+            return projects.filterIsInstance<McpProjectInfo>()
+        }
+
+        private fun uninitializedProjectMessage(
+            requestedProjectDir: String,
+            projects: List<McpProjectInfo>,
+        ): String {
+            val initializedBlock = if (projects.isEmpty()) {
+                "Initialized projects: (none)"
+            } else {
+                buildString {
+                    appendLine("Initialized projects:")
+                    projects.forEach { append("  ").appendLine(it.projectDir) }
+                }.trimEnd()
+            }
+            return "invoke_mcp failed. Reason: project is not initialized.\n" +
+                "Requested: $requestedProjectDir\n" +
+                initializedBlock
         }
 
         private fun withNormalizedProjectDir(

@@ -90,6 +90,7 @@ Build Fallback Chain → 编译失败回退路径（两个 flow 共用）
 | 新增错误模式 | 只改 `error_patterns.md`，SKILL.md 无需改动 |
 | 新增 CLI 命令（高频/必须了解） | 改 SKILL.md §CLI Quick Reference |
 | 新增 CLI 命令（低频/参数复杂） | 改 `cli_manual.md` + 在 SKILL.md §UI Commands 补指针 |
+| 修改 CLI 脚本、help 或 skill 文案 | 必须递增 `scripts/py/cmd/cmd_version.py` 的 `CLI_VERSION`，以及本 skill `SKILL.md` 的 `version`/`date`；自动刷新只比较 `SKILL.md` 版本 |
 | 新增场景流程 | 新建 `flow_*.md` + 更新 Phase 1 路由树和场景表 |
 | 修改路由决策 | 改 SKILL.md Phase 1 + 本 README §3 决策表 |
 

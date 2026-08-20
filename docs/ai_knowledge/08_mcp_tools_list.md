@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-08-05
+> 最后核对：2026-08-20
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -233,16 +233,17 @@
 
 ### `view-inspect`
 
-通过反射查询实时 Dragonfly snapshot 中节点的 getter 方法链，返回原始值。Android 节点以原始 View 为查询对象，Compose 节点以 Dragonfly 节点对象为查询对象。
+通过反射查询实时 Dragonfly snapshot 中节点的只读属性，返回原始值。Android 节点以原始 View 为查询对象，Compose 节点以 Dragonfly 节点对象为查询对象。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
 | `target` | object | **是** | 元素选择器：`resourceId`/`text`/`contentDesc`/`className`（AND 逻辑） |
-| `expressions` | array\<string\> | **是** | getter 方法表达式（1~20 个），如 `getText()`、`getCurrentTextColor()`、`getMaxLines()` |
+| `expressions` | array\<string\> | **是** | 只读表达式（1~20 个），如 `getText()`、`layoutParams.leftMargin`、`getLayoutParams().getMarginStart()` |
 
 **行为要点**：
-- 仅允许 getter/查询方法白名单（`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length` 等）。
+- 显式 `foo()` 只走 getter/query 白名单（`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length` 等）。
+- 无 `()` 的 identifier 先读 public 字段，再按 Kotlin/Java getter 解析：已是 `get*`/`is*` 前缀则直接调用；否则试 `getXxx()` / `isXxx()`。
 - 返回 `data.values[]`，每项含 `expression`/`value`/`type`/`error`。
 - 返回 `data.density`（设备像素密度），便于 px→dp 换算。
 - 可读取仍在 View 树中的隐藏节点属性；隐藏节点不应作为点击目标。
@@ -394,7 +395,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 | `METHOD_NOT_SUPPORTED` | 不支持的方法 |
 | `TOOL_NOT_FOUND` | 工具未注册 |
 | `INVALID_PARAMS` | 参数错误 |
-| `PROJECT_NOT_INITIALIZED` | 项目未初始化 |
+| `PROJECT_NOT_INITIALIZED` | 项目未初始化。IDE 入口会在 message 中给出 Requested 路径和已初始化项目，`data.projects` 结构与 `list-projects` 相同 |
 | `NO_DEVICE` | 无可用设备 |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态，需唤醒/解锁后重试 |
 | `APP_NOT_FOREGROUND` | 目标 App 不在前台，需切回目标 App 后重试 |

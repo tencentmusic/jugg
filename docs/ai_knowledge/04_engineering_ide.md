@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-08-18
+> 最后核对：2026-08-20
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -33,6 +33,7 @@
 | `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | 热更新层项目级持有 Model/Panel，刷新 IDE facts、编排 Sync/App events 与 Panel 动作，并在 Manager dispose 时 clear 稳定 Host |
 | `CompileContextManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt` | 项目信息、编译上下文、部署上下文的 IDE 侧同步 |
 | `MoreOptionsManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More Options 菜单，挂载 Gradle compile、restart、skills、report 等操作 |
+| `JuggCliAutoUpdater` | `main/src/main/java/com/sickworm/intellij/jugg/ai/skills/JuggCliAutoUpdater.kt` | 插件启动后比较 bundled `SKILL.md` version，更高才刷新 `~/.jugg/bin` 与已安装 skill |
 | `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 仅在存在有效 Jugg Run Configuration 时创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
 
 ---
@@ -71,6 +72,8 @@ IDE project opened
 ```
 
 `recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。
+
+`JuggCliAutoUpdater` 仅在 `~/.jugg/bin` 已存在时运行，比较插件内 `docs-skills.zip` 与 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md` 的 `version:`。bundled 更高才覆盖 CLI 和已安装 skill。触发条件是 `SKILL.md` 版本，不是 `CLI_VERSION`。变更规则见 `08_cli_tools_list.md` §3.7。
 
 插件热更新依赖一条刻意收窄的 ClassLoader 边界。`JuggLoader` 根据 load list 选择 embedded 或 hot-update jars，并用代理把 `IJuggManagerCreator` / `IJuggManagerCaller` 调用跨回稳定 ClassLoader；创建热更新实例失败时直接回退 embedded jars，保证项目仍能打开。`loader`、`ide`、IntelliJ API 以及少量跨边界 DTO 固定由原 ClassLoader 加载，避免 IDE 已注册 extension/action 的 class identity 改变；`JuggManagerCreator` 例外由热更新 ClassLoader 加载，使主要业务实现能够替换。
 
@@ -165,6 +168,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 | Jugg Debug attach 后断点不可用 | `04_engineering_debug_attach.md`，确认 WAITING、`Connected to the target VM` 与 `XDebugSession` |
 | androidTest 有结果但 Test Results 不完整 | `JuggManager.runTask()` 参数传递，确认 `executor` / `runProfile` / `androidTestRunSpec` 都非空 |
 | skill / hook 安装入口异常 | `MoreOptionsManager`、`InstallJuggSkillsDialog`、`JuggSkillInstaller` |
+| 更新插件后 CLI/skill 仍是旧实现 | `JuggCliAutoUpdater` 与 bundled `SKILL.md` version，见 `08_cli_tools_list.md` §3.7 |
 | MCP 本地服务没有启动或未停止 | `JuggInitializer.init()` / `release()` 对 `McpLocalServer.start()` / `stop()` 的调用 |
 
 ---
@@ -178,3 +182,4 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - 部署流程：`03_deploy_complete.md`
 - 插件运行时排查：`09_plugin_runtime_debug.md`
 - MCP：`08_mcp_design.md`、`08_mcp_tools_list.md`
+- CLI / skill 自动刷新：`08_cli_tools_list.md` §3.7

@@ -68,17 +68,19 @@ jugg view-locate --content-desc 返回
 ```bash
 jugg view-inspect --resource-id title getText() getVisibility()
 jugg view-inspect --text 登录 --class-name TextView getText() isEnabled()
+jugg view-inspect --resource-id bubble_container layoutParams.leftMargin getLayoutParams().getMarginStart()
 ```
 
-`view-inspect` 用于读取 getter / query 方法结果，例如：
+`view-inspect` 用于读取只读属性，例如：
 
 - `getText()`
 - `getVisibility()`
 - `isEnabled()`
 - `getContentDescription()`
 - `getCurrentTextColor()`
+- `layoutParams.leftMargin`
 
-它适合确认文案、可见性、颜色、选中状态等信息。坐标计算仍应使用 `view-locate`。
+不带括号的名字会先读 public 字段，再按 `getXxx()` / `isXxx()` 解析。它适合确认文案、可见性、颜色、边距、选中状态等信息。坐标计算仍应使用 `view-locate`。
 
 ## 触控
 

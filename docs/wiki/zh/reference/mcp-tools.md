@@ -57,7 +57,7 @@ tags:
 | `devices` | `projectDir` | 列出设备并标记 selected。 |
 | `layout-dump` | `projectDir`、`rootLayout`、`includeGone`、`allWindows` | 导出 UI 层级 HTML。 |
 | `view-locate` | `projectDir`、`target` | 查找 UI 元素位置。 |
-| `view-inspect` | `projectDir`、`target`、`expressions` | 反射读取 View getter/query 属性。 |
+| `view-inspect` | `projectDir`、`target`、`expressions` | 反射读取 View 只读属性，含 getter、Kotlin property 和 public 字段。 |
 | `activity-stack` | `projectDir` | 读取 Activity 栈。 |
 | `tap` | `projectDir`、坐标/百分比/元素 selector | 执行 tap、long-press 或 swipe。 |
 | `status` | `projectDir`、`refreshChanges` | 查询部署状态和未编译文件摘要。 |
@@ -96,7 +96,7 @@ tags:
 |---|---|
 | `layout-dump` | 输出 HTML artifact；内部 JSON 不作为公开契约。 |
 | `view-locate` | 坐标和尺寸单位为 dp；多匹配时不能把首个结果当作安全点击目标。 |
-| `view-inspect` | 只允许 getter/query 白名单表达式。 |
+| `view-inspect` | 只允许只读表达式。显式 `foo()` 走 getter/query 白名单；无括号名字先读 public 字段，再按 `getXxx()` / `isXxx()` 解析。 |
 | `tap` | 模式优先级为 coordinate > percent > element；元素多匹配时不执行。 |
 | `activity-stack` | 用于确认前台 Activity 和页面稳定性。 |
 
@@ -111,7 +111,7 @@ ViewHierarchy 相关工具执行前会等待 App 在线。设备息屏或未解�
 | `TOOL_NOT_FOUND` | 工具未注册。 |
 | `INVALID_PARAMS` | 参数错误。 |
 | `INVALID_REGEX` | 日志 marker 正则非法。 |
-| `PROJECT_NOT_INITIALIZED` | 项目未完成 Jugg 初始化。 |
+| `PROJECT_NOT_INITIALIZED` | 项目未完成 Jugg 初始化。错误信息会给出请求路径和当前已初始化项目。 |
 | `NO_DEPLOY_BASELINE` | 缺少部署或 full build 基线。 |
 | `NO_DEVICE` | 无可用设备。 |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态。 |

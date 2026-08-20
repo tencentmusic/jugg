@@ -43,7 +43,7 @@
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
 | 兼容层（AS 版本适配、Stub 生成与产物一致性验证） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt`, `deploy_compat/verify_stub_api.sh` |
 | MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `ai/mcp/McpToolInvoker.kt`, `ai/mcp/actions/*`, `ai/mcp/util/CrashDetector.kt`, `ai/mcp/util/LastDeployTimestampRegistry.kt` |
-| jugg CLI 子命令使用 / **新增或修改 CLI 参数** | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` |
+| jugg CLI 子命令使用 / **新增或修改 CLI 参数** / CLI 脚本或 skill 版本 | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py`、`JuggCliAutoUpdater` |
 | MCP UI 布局验证设计（公开工具边界 / 证据链） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `McpToolActionRegistry.kt`, `LayoutDumpHelper.kt`, `UiFindMcpToolAction.kt`, `EvalViewMcpToolAction.kt`, `TapMcpToolAction.kt` |
 | MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_tools_list.md` | `ai/mcp/actions/McpToolActionRegistry.kt`, `ai/mcp/actions/*` |
 | MCP UI 验证盲测 / view-inspect | `98_code_map.md`, `08_mcp_layout_verify_design.md`, `08_mcp_ui_verify_checklist.md` | `ai/mcp/actions/*` |
@@ -112,4 +112,4 @@
 - **新增专题文档**：必须同时在第3节添加任务类型行、在第4节添加文档描述行。
 - 更新已有专题时，直接描述当前最新实现；不要用“某日期起”这类时间分界来表达当前行为。
 - 若暂未同步文档：在结论中标注"以代码为准"。
-- **MCP/CLI 行为变更**：同步规则见 `08_mcp_design.md §9`。
+- **MCP/CLI 行为变更**：同步规则见 `08_mcp_design.md` §9–§10；CLI/skill 版本递增见 `08_cli_tools_list.md` §3.7。

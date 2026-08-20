@@ -170,7 +170,7 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     ),
     "view-inspect": CommandHelp(
         "view-inspect",
-        "Evaluate getter expressions on a View element.",
+        "Evaluate read-only View expressions (getters, Kotlin properties, or public fields).",
         "jugg view-inspect (--text <text> | --resource-id <id> | --content-desc <desc>) "
         "[--class-name <class>] <expr1> [<expr2> ...]",
         (

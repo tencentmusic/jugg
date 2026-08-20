@@ -195,10 +195,12 @@ If `matchCount > 1`, do not use the first result as a safe click target without 
 python3 {SKILL_DIR}/scripts/jugg.py view-inspect --text "Submit" "getText()" "getVisibility()"
 python3 {SKILL_DIR}/scripts/jugg.py view-inspect --resource-id btn_confirm "getBackground()" "getTextSize()"
 python3 {SKILL_DIR}/scripts/jugg.py view-inspect --content-desc "Avatar" "getWidth()" "getHeight()" "getTranslationY()"
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --resource-id bubble_container "layoutParams.leftMargin" "getLayoutParams().getMarginStart()"
 ```
 
 - Selector: `--text`/`--resource-id`/`--content-desc` (at least one), with optional `--class-name`.
-- `<expr>`: read-only getter/query method expression. Common: `getText()`, `getVisibility()`, `getWidth()`, `getHeight()`, `getTextSize()`, `getCurrentTextColor()`, `getBackground()`, `getTranslationX()`, `getTranslationY()`, `getAlpha()`, `isClickable()`, `isEnabled()`.
+- `<expr>`: read-only getter, Kotlin property, or public field expression. Common: `getText()`, `getVisibility()`, `layoutParams.leftMargin`, `getWidth()`, `getHeight()`, `getTextSize()`, `getCurrentTextColor()`, `getBackground()`, `getTranslationX()`, `getTranslationY()`, `getAlpha()`, `isClickable()`, `isEnabled()`.
+- A name without `()` is resolved as a public field first, then as `getXxx()` / `isXxx()` (`layoutParams` → `getLayoutParams()`, `enabled` → `isEnabled()`).
 - `view-inspect` may read non-clickable hidden views that stay in the hierarchy; hidden views are not safe tap targets.
 - Android nodes inspect their original View; Compose nodes inspect the Dragonfly node object, so Android View-only getters return a per-expression error.
 - Output: expression/value/type pairs + density for px→dp conversion.

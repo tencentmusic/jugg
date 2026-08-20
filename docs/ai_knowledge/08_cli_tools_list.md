@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-08-05
+> 最后核对：2026-08-20
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -100,6 +100,19 @@ jugg <subcommand> --help
 ```
 
 help 在 `jugg.py` 内直接返回，只读取 `help_registry.py`，不会连接 MCP、解析 `projectDir`、触发编译或部署。
+
+### 3.7 CLI / skill 版本
+
+`jugg version` 的 `cliVersion` 来自 `scripts/py/cmd/cmd_version.py` 的 `CLI_VERSION`。
+
+插件初始化后 `JuggCliAutoUpdater` 会比较插件内 `docs-skills.zip` 与 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md` 的 `version:`。只有 bundled 更高时才覆盖 `~/.jugg/bin` 和已安装的 agent skill。比较的是 `SKILL.md` 版本，不是 `CLI_VERSION`。
+
+修改 `docs/skills/jugg-android-dev-loop/scripts/`、help 或 skill references 后必须同时：
+
+1. 递增 `CLI_VERSION`
+2. 递增 `SKILL.md` frontmatter 的 `version`，并更新 `date`
+
+只改脚本不改 `SKILL.md` version，用户更新插件后仍会继续用旧 CLI 和 skill。
 
 ---
 
@@ -294,7 +307,7 @@ jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>)
 | `--class-name` / `--className` | `target.className` |
 | 位置参数 | `expressions[]` |
 
-表达式使用 getter/query 方法调用格式，例如 `getText()`、`getVisibility()`、`isEnabled()`。
+表达式可以是 getter/query 方法，或无括号名字。无括号名字先读 public 字段，再按 Kotlin property / `getXxx()` / `isXxx()` 解析，例如 `getText()`、`layoutParams.leftMargin`、`getLayoutParams().getMarginStart()`。
 Android 节点读取原始 View；Compose 节点读取 Dragonfly 节点对象，因此 View 专属 getter 可能返回单项 error。
 
 ### `tap`
@@ -377,6 +390,7 @@ jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 | CLI 找不到项目 | `jugglib.resolve_project_dir()`、`list-projects` 返回 |
 | compile 类命令一直等待 | `status.isCompiling`、`jugglib.wait_for_compile_idle()` |
 | 命令显示 compile 成功但部署失败 | 终态 `isCompileSuccess` / `isDeploySuccess` 与 `full log` |
+| 更新插件后 CLI/skill 仍是旧文案或旧行为 | bundled `SKILL.md` `version` 必须高于 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md`；规则见 §3.7 |
 
 ---
 
@@ -385,4 +399,5 @@ jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 - MCP 工具参数清单：`08_mcp_tools_list.md`
 - MCP 设计说明：`08_mcp_design.md`
 - 代码路径速查：`98_code_map.md`
-- CLI / MCP 行为变更后的 skill 同步规则：`08_mcp_design.md` §9
+- CLI / MCP 行为变更后的 skill 同步规则：`08_mcp_design.md` §9–§10
+- CLI/skill 版本递增：本页 §3.7
