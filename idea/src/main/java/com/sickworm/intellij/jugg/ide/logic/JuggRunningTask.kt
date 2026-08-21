@@ -62,7 +62,7 @@ class JuggRunningTask(
     private val juggCompileHelper: JuggCompilerHelper,
     private val juggDeployHelper: JuggDeployerHelper,
     private val initIncrementalCompileTask: () -> Unit,
-    private val compileUiHandler: CompileUiHandler,
+    baseCompileUiHandler: CompileUiHandler,
     private val eventModel: JuggControlPanelModel,
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
@@ -70,6 +70,12 @@ class JuggRunningTask(
     private val controlPanelController: JuggControlPanelController? = null,
 ) : Task.Backgroundable(project, "Running Jugg..."), IJuggRunningTask {
 
+    private val compileUiHandler = object : CompileUiHandler by baseCompileUiHandler {
+        override fun onCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {
+            baseCompileUiHandler.onCompileStarted(isGradleCompile, fallbackReason)
+            recordCompileStarted(isGradleCompile, fallbackReason)
+        }
+    }
     private val processHandler: IProcessHandler get() = compileUiHandler.processHandler
     private val androidTestResultModel: AndroidTestResultModel = AndroidTestResultModel()
     private val eventTaskId = UUID.randomUUID().toString()
@@ -101,13 +107,6 @@ class JuggRunningTask(
             }
 
             controlPanelController?.refresh()
-            recordEvent(
-                category = JuggEventCategory.COMPILE,
-                phase = JuggEventPhase.PREPARING,
-                status = JuggEventStatus.STARTED,
-                title = "Jugg task started",
-                changedFiles = eventModel.snapshot().context.changedFiles,
-            )
 
             statusManager.isProjectSwitchedThisRun =
                 lastCompileProjectRegistry.detectSwitch(options.projectRootPath)
@@ -187,13 +186,6 @@ class JuggRunningTask(
         val detailMap = mutableMapOf<String, String>()
         detailMap["isForceGradleCompile"] = compileUiHandler.isForceGradleCompile.toString()
 
-        recordEvent(
-            category = JuggEventCategory.COMPILE,
-            phase = JuggEventPhase.COMPILING,
-            status = JuggEventStatus.STARTED,
-            title = if (compileUiHandler.isForceGradleCompile) "Gradle compile started" else "Incremental compile started",
-        )
-
         val compileTaskResult = juggCompileHelper.compile(
             options,
             compileUiHandler,
@@ -215,19 +207,41 @@ class JuggRunningTask(
             costTime = compileTaskResult.costTime
             detail = Gson().toJson(detailMap)
         }
-        recordEvent(
-            category = JuggEventCategory.COMPILE,
-            phase = JuggEventPhase.COMPILING,
-            status = if (compileTaskResult.isSuccess) JuggEventStatus.SUCCEEDED else JuggEventStatus.FAILED,
-            title = if (compileTaskResult.isSuccess) "Compile completed" else "Compile failed",
-            detail = compileTaskResult.failedReason,
-            durationMillis = compileTaskResult.costTime,
+        val isCompileCanceled = compileUiHandler.isCanceled || processHandler.isCanceled
+        val compileStatus = when {
+            isCompileCanceled -> JuggEventStatus.CANCELED
+            compileTaskResult.isSuccess -> JuggEventStatus.SUCCEEDED
+            else -> JuggEventStatus.FAILED
+        }
+        val compileTitle = buildCompileEventTitle(
+            isGradleCompile = compileTaskResult.isGradleCompile,
+            isSuccess = compileTaskResult.isSuccess,
+            isCanceled = isCompileCanceled,
+            hasFileChanges = compileTaskResult.hasFileChanges,
         )
+        if (isCompileCanceled || !compileTaskResult.isSuccess || compileUiHandler.isSkipDeploy) {
+            finishEvent(
+                category = JuggEventCategory.COMPILE,
+                status = compileStatus,
+                title = compileTitle,
+                detail = compileTaskResult.failedReason,
+                durationMillis = compileTaskResult.costTime,
+            )
+        } else {
+            recordEvent(
+                category = JuggEventCategory.COMPILE,
+                phase = JuggEventPhase.COMPILING,
+                status = compileStatus,
+                title = compileTitle,
+                detail = compileTaskResult.failedReason,
+                durationMillis = compileTaskResult.costTime,
+            )
+        }
 
         if (!compileTaskResult.isSuccess) {
             failedAndActiveRunWindowIfNotCanceled()
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile,
-                isCompileSuccess = false, isDeploySuccess = false, isCancel = processHandler.isCanceled,
+                isCompileSuccess = false, isDeploySuccess = false, isCancel = isCompileCanceled,
                 errorLog = compileTaskResult.errorLog)
         }
 
@@ -255,9 +269,8 @@ class JuggRunningTask(
             if (compileTaskResult.isGradleCompile) {
                 initIncrementalCompileTask.invoke()
             }
-            recordEvent(
+            finishEvent(
                 category = JuggEventCategory.DEPLOY,
-                phase = JuggEventPhase.DEPLOYING,
                 status = JuggEventStatus.FAILED,
                 title = "Deploy failed",
                 detail = failedReason,
@@ -446,6 +459,21 @@ class JuggRunningTask(
         compileUiHandler.showRunWindow()
     }
 
+    private fun recordCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {
+        compileMode = if (isGradleCompile) JuggEvent.CompileMode.GRADLE else JuggEvent.CompileMode.INCREMENTAL
+        if (isGradleCompile && !compileUiHandler.isForceGradleCompile) {
+            fallbackPath = fallbackReason?.let { "Incremental skipped → Gradle: $it" }
+        }
+        recordEvent(
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = JuggEventStatus.STARTED,
+            title = if (isGradleCompile) "Gradle compile started" else "Incremental compile started",
+            detail = fallbackReason?.takeIf { isGradleCompile && !compileUiHandler.isForceGradleCompile },
+            changedFiles = eventModel.snapshot().context.changedFiles,
+        )
+    }
+
     private fun finishEvent(
         category: JuggEventCategory,
         status: JuggEventStatus,
@@ -551,6 +579,21 @@ internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiH
 
 internal fun shouldDetachProcessOnTaskStop(isProcessCanceled: Boolean): Boolean {
     return !isProcessCanceled
+}
+
+internal fun buildCompileEventTitle(
+    isGradleCompile: Boolean,
+    isSuccess: Boolean,
+    isCanceled: Boolean,
+    hasFileChanges: Boolean,
+): String {
+    val mode = if (isGradleCompile) "Gradle" else "Incremental"
+    return when {
+        isCanceled -> "$mode compile canceled"
+        !isSuccess -> "$mode compile failed"
+        !isGradleCompile && !hasFileChanges -> "No compile needed"
+        else -> "$mode compile completed"
+    }
 }
 
 internal fun createRunProjectLogListener(processHandler: IProcessHandler): ProcessHandlerLoggerWrapper {

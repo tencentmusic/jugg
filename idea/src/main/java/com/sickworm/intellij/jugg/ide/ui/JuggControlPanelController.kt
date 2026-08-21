@@ -94,6 +94,27 @@ open class JuggControlPanelController(
             Setting.BACKUP_CLASSPATH -> JuggSettings.isEnableBackupClasspath = enabled
         }
         model.updateSettings(currentSettings())
+        recordEvent(
+            taskId = UUID.randomUUID().toString(),
+            category = JuggEvent.Category.USER_ACTION,
+            phase = JuggEvent.Phase.COMPLETED,
+            status = JuggEvent.Status.SUCCEEDED,
+            title = "Setting changed",
+            detail = "${setting.displayName}: ${if (enabled) "enabled" else "disabled"}",
+            isTerminal = true,
+        )
+    }
+
+    open fun recordUserAction(action: String) {
+        recordEvent(
+            taskId = UUID.randomUUID().toString(),
+            category = JuggEvent.Category.USER_ACTION,
+            phase = JuggEvent.Phase.COMPLETED,
+            status = JuggEvent.Status.SUCCEEDED,
+            title = "Action triggered",
+            detail = action,
+            isTerminal = true,
+        )
     }
 
     open fun fullGradleBuild() = manager.gradleCompile()
@@ -117,6 +138,15 @@ open class JuggControlPanelController(
             title = "Clear App Data",
             content = "<html>This will clear app data, run a full Gradle build, and reinstall the app.<br>Are you sure you want to continue?</html>",
             okButtonText = "Clear App Data",
+        )
+        recordEvent(
+            taskId = UUID.randomUUID().toString(),
+            category = JuggEvent.Category.USER_ACTION,
+            phase = JuggEvent.Phase.COMPLETED,
+            status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
+            title = "Clear app data confirmation",
+            detail = if (confirmed) "confirmed" else "canceled",
+            isTerminal = true,
         )
         if (confirmed) manager.cleanAndReinstall()
     }
@@ -201,14 +231,14 @@ open class JuggControlPanelController(
     }
 
     /** Identifies the persisted Jugg switch edited by a control panel toggle. */
-    enum class Setting {
-        CONFIRM_FALLBACK,
-        ALWAYS_RESTART,
-        COMPAT_DEPLOY,
-        QUICK_DEPLOY,
-        AUTO_FALLBACK,
-        EMBED_APK,
-        PROJECT_KOTLIN,
-        BACKUP_CLASSPATH,
+    enum class Setting(val displayName: String) {
+        CONFIRM_FALLBACK("Confirm fallback"),
+        ALWAYS_RESTART("Always restart app"),
+        COMPAT_DEPLOY("Compat deploy"),
+        QUICK_DEPLOY("Quick deploy"),
+        AUTO_FALLBACK("Auto fallback"),
+        EMBED_APK("Embed changes into APK"),
+        PROJECT_KOTLIN("Project Kotlin compiler"),
+        BACKUP_CLASSPATH("Backup classpath"),
     }
 }

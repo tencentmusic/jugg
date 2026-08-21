@@ -525,6 +525,37 @@ class JuggCompileHelperTest {
         assertFalse(logger.messages.any { it.contains("Found incremental compile error:\n") })
     }
 
+    @Test
+    fun compile_automaticFallback_reportsGradleModeBeforeExecution() {
+        val fixture = createFixture()
+        whenever(fixture.pathManager.projectDir).thenReturn(temporaryFolder.root)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleRelease")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        var selectedMode: Boolean? = null
+        var selectedFallbackReason: String? = null
+        val recordingUiHandler = object : CompileUiHandler by fixture.uiHandler {
+            override fun onCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {
+                selectedMode = isGradleCompile
+                selectedFallbackReason = fallbackReason
+                throw StopAfterModeSelected()
+            }
+        }
+
+        try {
+            fixture.helper.compile(
+                fixture.options,
+                recordingUiHandler,
+            )
+            throw AssertionError("Expected compile to stop after selecting its mode")
+        } catch (_: StopAfterModeSelected) {
+        }
+
+        assertEquals(true, selectedMode)
+        assertEquals("Compile command changed", selectedFallbackReason)
+    }
+
     private fun prepareIncrementalCompileFailure(fixture: Fixture) {
         val sourceFile = temporaryFolder.newFile("Broken.kt")
         val changedFile = ChangedFile(
@@ -635,6 +666,8 @@ class JuggCompileHelperTest {
         @Suppress("UnstableApiUsage")
         override fun setLevel(level: Level) = Unit
     }
+
+    private class StopAfterModeSelected : RuntimeException()
 
     private fun invokePreprocessIncrementalCompile(
         helper: JuggCompilerHelper,

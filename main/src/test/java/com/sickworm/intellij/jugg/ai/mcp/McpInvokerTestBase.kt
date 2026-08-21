@@ -118,7 +118,7 @@ abstract class McpInvokerTestBase {
                         "user" to "root",
                         "ip" to "127.0.0.1",
                         "port" to 22,
-                        "password" to "",
+                        "password" to "top-secret",
                         "sshLoginCommand" to "ssh root@127.0.0.1 -p 22",
                     ),
                     emptyList(),

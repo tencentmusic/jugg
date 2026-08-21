@@ -12,6 +12,10 @@ import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
+import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
@@ -181,6 +185,76 @@ class JuggRunSettingsComponentTest {
             JuggControlPanelController.Setting.COMPAT_DEPLOY,
             false,
         )
+    }
+
+    @Test
+    fun `logs source filter should default to all and keep ide and cli mcp filters`() {
+        TestGlobal.init()
+        val model = JuggControlPanelModel()
+        val panel = createPanel(model = model)
+        model.record(JuggEvent(
+            source = JuggEventSource.IDE,
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = JuggEventStatus.STARTED,
+            level = JuggEventLevel.INFO,
+            title = "IDE compile",
+        ))
+        model.record(JuggEvent(
+            source = JuggEventSource.MCP,
+            category = JuggEventCategory.MCP,
+            phase = JuggEventPhase.PREPARING,
+            status = JuggEventStatus.STARTED,
+            level = JuggEventLevel.INFO,
+            title = "MCP request",
+        ))
+        javax.swing.SwingUtilities.invokeAndWait {}
+
+        val source = findNamedComponent<JComboBox<*>>(panel, "logs.source")!!
+        val logs = findNamedComponent<JBList<JuggEvent>>(panel, "logs.events")!!
+        assertEquals(listOf("ALL", "IDE", "CLI / MCP"), (0 until source.itemCount).map(source::getItemAt))
+        assertEquals(listOf("IDE compile", "MCP request"), listValues(logs).map(JuggEvent::title))
+
+        source.selectedIndex = 1
+        javax.swing.SwingUtilities.invokeAndWait {}
+        assertEquals(listOf("IDE compile"), listValues(logs).map(JuggEvent::title))
+
+        source.selectedIndex = 2
+        javax.swing.SwingUtilities.invokeAndWait {}
+        assertEquals(listOf("MCP request"), listValues(logs).map(JuggEvent::title))
+    }
+
+    @Test
+    fun `quick action click should be recorded before execution`() {
+        TestGlobal.init()
+        val controller = Mockito.mock(JuggControlPanelController::class.java)
+        val panel = createPanel(controller = controller)
+        val action = descendants(panel).filterIsInstance<ActionLink>()
+            .first { it.text == "Fallback to Gradle" }
+
+        action.doClick()
+
+        Mockito.verify(controller).recordUserAction("Fallback to Gradle")
+        Mockito.verify(controller).fullGradleBuild()
+    }
+
+    @Test
+    fun `setting change should be recorded as a user action`() {
+        TestGlobal.init()
+        val controller = JuggControlPanelController(
+            project = mockProject(),
+            manager = Mockito.mock(JuggManager::class.java),
+            deployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
+            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+            deployFileManager = Mockito.mock(DeployFileManager::class.java),
+        )
+
+        controller.updateSetting(JuggControlPanelController.Setting.QUICK_DEPLOY, true)
+
+        val event = controller.model.snapshot().recentEvents.single()
+        assertEquals(JuggEventCategory.USER_ACTION, event.category)
+        assertEquals("Setting changed", event.title)
+        assertEquals("Quick deploy: enabled", event.detail)
     }
 
     @Test
@@ -494,9 +568,13 @@ class JuggRunSettingsComponentTest {
     private fun createPanel(
         project: Project = mockProject(),
         model: JuggControlPanelModel = JuggControlPanelModel(),
+        controller: JuggControlPanelController = Mockito.mock(JuggControlPanelController::class.java),
     ): JuggControlPanel {
-        val controller = Mockito.mock(JuggControlPanelController::class.java)
         return JuggControlPanel(project, model, controller)
+    }
+
+    private fun <T> listValues(list: JBList<T>): List<T> {
+        return (0 until list.model.size).map(list.model::getElementAt)
     }
 
     private fun assertRecentRunText(

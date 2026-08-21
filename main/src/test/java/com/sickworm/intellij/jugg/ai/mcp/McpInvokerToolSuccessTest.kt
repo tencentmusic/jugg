@@ -31,7 +31,37 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         Assert.assertEquals(listOf("MCP request", "MCP response"), events.map { it.title })
         Assert.assertEquals(listOf(JuggEvent.Status.STARTED, JuggEvent.Status.SUCCEEDED), events.map { it.status })
         Assert.assertTrue(events.all { it.source == JuggEvent.Source.MCP })
+        Assert.assertFalse(events.any { it.detail.orEmpty().contains("/tmp/projectA") })
+        Assert.assertTrue(events.first().detail.orEmpty().contains("{}"))
+        Assert.assertTrue(events.last().detail.orEmpty().contains("\"status\":\"OK\""))
+        Assert.assertTrue(events.last().detail.orEmpty().contains("\"isCompileSuccess\":true"))
         Assert.assertTrue(events.last().isTaskTerminal)
+    }
+
+    @Test
+    fun testToolCallLogIncludesArgumentsAndRedactsSensitiveResponseContent() {
+        val model = JuggControlPanelModel()
+        val invoker = newToolInvoker(eventModel = model)
+
+        invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 41,
+                params = mapOf(
+                    "name" to "ssh-info",
+                    "arguments" to mapOf(
+                        "projectDir" to "/tmp/projectA",
+                        "reason" to "manual troubleshooting",
+                    ),
+                ),
+            )
+        )
+
+        val events = model.snapshot().recentEvents
+        Assert.assertTrue(events.first().detail.orEmpty().contains("\"reason\":\"manual troubleshooting\""))
+        Assert.assertFalse(events.any { it.detail.orEmpty().contains("/tmp/projectA") })
+        Assert.assertTrue(events.last().detail.orEmpty().contains("\"password\":\"[REDACTED]\""))
+        Assert.assertFalse(events.last().detail.orEmpty().contains("top-secret"))
     }
 
     @Test

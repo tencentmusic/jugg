@@ -47,6 +47,8 @@ interface CompileUiHandler {
     fun showRunWindow()
 
     fun shouldAutoConfirmDeployPrompt(message: String): Boolean = false
+    /** Notifies consumers immediately before an incremental or Gradle compile path starts. */
+    fun onCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) = Unit
     fun onDeployUiMessage(message: String) = Unit
 
     fun onEnd(runResult: RunResult) = Unit

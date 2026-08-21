@@ -97,7 +97,7 @@ class JuggControlPanel(
     private val settingToggles = mutableMapOf<JuggControlPanelController.Setting, JBCheckBox>()
     private var latestSnapshot = JuggControlPanelSnapshot()
     private var modelSubscription: AutoCloseable? = null
-    private var selectedLogSource = "deploy"
+    private var selectedLogSource = "all"
     private var selectedLogLevel: JuggEventLevel? = null
     private var currentTaskOnly = false
     private var followLogs = true
@@ -281,10 +281,10 @@ class JuggControlPanel(
             emptyText.text = "Search events"
         }
         logSearch = search
-        val sourceFilter = ComboBox(arrayOf("Deploy", "Runtime", "CLI / MCP")).apply {
+        val sourceFilter = ComboBox(arrayOf("ALL", "IDE", "CLI / MCP")).apply {
             name = "logs.source"
             addActionListener {
-                selectedLogSource = listOf("deploy", "runtime", "mcp")[selectedIndex]
+                selectedLogSource = listOf("all", "ide", "mcp")[selectedIndex]
                 refreshLogs()
             }
         }
@@ -405,7 +405,10 @@ class JuggControlPanel(
     }
 
     private fun settingAction(label: String, help: String, text: String, action: () -> Unit): JComponent {
-        return settingRow(label, help, ActionLink(text) { action() })
+        return settingRow(label, help, ActionLink(text) {
+            controller.recordUserAction(label)
+            action()
+        })
     }
 
     private fun settingRow(label: String, help: String, control: JComponent): JComponent {
@@ -502,7 +505,10 @@ class JuggControlPanel(
         actions.forEach(::add)
     }
 
-    private fun actionLink(text: String, action: () -> Unit): ActionLink = ActionLink(text) { action() }
+    private fun actionLink(text: String, action: () -> Unit): ActionLink = ActionLink(text) {
+        controller.recordUserAction(text)
+        action()
+    }
         .also(quickActions::add)
 
     private fun verticalGap(size: Int): Component = Box.createVerticalStrut(JBUI.scale(size))
@@ -754,8 +760,8 @@ class JuggControlPanel(
 
     private fun matchesSelectedLogSource(event: JuggEvent): Boolean {
         return when (selectedLogSource) {
-            "deploy" -> event.category in setOf(JuggEventCategory.COMPILE, JuggEventCategory.DEPLOY, JuggEventCategory.APP)
-            "runtime" -> event.source == JuggEventSource.IDE
+            "all" -> true
+            "ide" -> event.source == JuggEventSource.IDE
             "mcp" -> event.source in setOf(JuggEventSource.CLI, JuggEventSource.MCP) ||
                 event.category in setOf(JuggEventCategory.CLI, JuggEventCategory.MCP)
             else -> true

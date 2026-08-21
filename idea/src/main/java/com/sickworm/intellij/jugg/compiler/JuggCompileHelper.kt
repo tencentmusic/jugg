@@ -158,6 +158,7 @@ class JuggCompilerHelper(
         }
 
         if (!isGradleCompile) {
+            uiHandler.onCompileStarted(false, null)
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
             incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
@@ -206,6 +207,7 @@ class JuggCompilerHelper(
         } else {
             options
         }
+        uiHandler.onCompileStarted(true, incrementalResult?.failedReason)
         val result = gradleCompile(gradleOptions, uiHandler)
         if (result.isSuccess) {
             JuggSettings.defaultCompileSettings = options.toRunConfigurationTemplate()
