@@ -96,7 +96,27 @@ final class MatchedElement {
         json.put("bounds", boundsArray);
         json.put("centerX", centerX);
         json.put("centerY", centerY);
+        JSONObject source = sourceLocationJson();
+        if (source != null) {
+            json.put("source", source);
+        }
         return json;
+    }
+
+    JSONObject sourceLocationJson() throws JSONException {
+        String sourceFile = properties.get("sourceFile");
+        Integer lineNumber = positiveInt(properties.get("lineNumber"));
+        if ((sourceFile == null || sourceFile.trim().isEmpty()) && lineNumber == null) {
+            return null;
+        }
+        JSONObject source = new JSONObject();
+        if (sourceFile != null && !sourceFile.trim().isEmpty()) {
+            source.put("file", sourceFile.trim());
+        }
+        if (lineNumber != null) {
+            source.put("line", lineNumber);
+        }
+        return source;
     }
 
     String describe() {
@@ -121,6 +141,18 @@ final class MatchedElement {
     private void appendWithComma(StringBuilder sb) {
         if (sb.length() > 0) {
             sb.append(", ");
+        }
+    }
+
+    private Integer positiveInt(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException ignore) {
+            return null;
         }
     }
 }

@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-08-20
+> 最后核对：2026-08-21
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -219,15 +219,17 @@
 
 ### `view-locate`
 
-查找 UI 元素，返回首个匹配元素的位置和尺寸；重复命中时同时返回候选摘要。
+在 App 侧实时 Dragonfly snapshot 中查找 UI 元素。多个非空 selector 使用 AND 逻辑；返回数量受预算控制。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
-| `target` | object | **是** | 元素选择器：`text`/`resourceId`/`contentDesc` |
-| `figmaNode` | object | 否 | 保留字段；当前公开实现仍以 `target` 的 text/resourceId/contentDesc 精确匹配为准 |
+| `target` | object | **是** | 元素选择器：`text`/`resourceId`/`contentDesc`/`className`；至少一项非空，全部精确匹配并使用 AND 逻辑。resourceId 支持完整/短 ID，className 支持完整类名/simple name |
+| `visibleOnly` | boolean | 否 | 仅返回可见节点，默认 `true`；设为 `false` 时包含仍可检查的隐藏节点 |
+| `maxResults` | integer | 否 | 最大返回候选数，范围 `1..100`，默认 `10` |
+| `figmaNode` | object | 否 | 仅为旧调用兼容而保留，当前忽略，不参与匹配 |
 
-**返回 data**（found=true 时）：`bounds`（`[l,t,r,b]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`、`resourceId`、`matchCount`、`matches[]`。所有坐标单位 dp；`matchCount > 1` 时不能把首个结果直接当作安全点击目标。
+**返回 data**：`matchCount` 是总命中数，`returnedCount` 是实际返回数，`truncated` 表示是否按预算截断，`matches[]` 为候选摘要。唯一命中时额外返回顶层 `bounds`（`[l,t,r,b]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`、`resourceId`；多命中时不隐式选择第一个节点。所有坐标单位 dp。runtime 能提供时，候选与唯一命中顶层返回 `source: {file?, line?}`。
 
 ---
 
@@ -238,7 +240,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
-| `target` | object | **是** | 元素选择器：`resourceId`/`text`/`contentDesc`/`className`（AND 逻辑） |
+| `target` | object | **是** | 元素选择器：`resourceId`/`text`/`contentDesc`/`className`（AND 逻辑）；className 支持完整类名/simple name 精确匹配 |
 | `expressions` | array\<string\> | **是** | 只读表达式（1~20 个），如 `getText()`、`layoutParams.leftMargin`、`getLayoutParams().getMarginStart()` |
 
 **行为要点**：
@@ -246,6 +248,7 @@
 - 无 `()` 的 identifier 先读 public 字段，再按 Kotlin/Java getter 解析：已是 `get*`/`is*` 前缀则直接调用；否则试 `getXxx()` / `isXxx()`。
 - 返回 `data.values[]`，每项含 `expression`/`value`/`type`/`error`。
 - 返回 `data.density`（设备像素密度），便于 px→dp 换算。
+- runtime 能提供时返回 `data.source: {file?, line?}`，用于把验证证据关联到源码位置。
 - 可读取仍在 View 树中的隐藏节点属性；隐藏节点不应作为点击目标。
 - Compose 节点只支持其运行时对象实际暴露的 getter；Android View 专属 getter 会在对应 expression 返回 error。
 - 与 `view-locate` 分工：坐标计算用 `view-locate`；属性查询用 `view-inspect`。

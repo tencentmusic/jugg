@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-08-20
+> 最后核对：2026-08-21
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -146,7 +146,7 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 | `instrument` | `instrument` | 从 androidTest 源文件锚点运行测试 |
 | `status` | `status` | 查看部署状态、未编译文件摘要、androidTest baseline 与 compile 运行态 |
 | `layout-dump` | `layout-dump` | 导出 UI 层级 HTML |
-| `view-locate` | `view-locate` | 查找元素位置 |
+| `view-locate` | `view-locate` | 查找元素位置、候选预算和源码位置 |
 | `view-inspect` | `view-inspect` | 反射读取 View 属性 |
 | `tap` | `tap` | 坐标、百分比或元素模式触控 |
 | `devices` | `devices` | 列出设备 |
@@ -275,13 +275,14 @@ jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 | `--include-gone` / `--includeGone` | `includeGone=true` | 包含 GONE 节点 |
 | `--all-windows` / `--allWindows` | `allWindows=true` | 导出所有窗口 |
 
-公开输出是 HTML artifact；内部 JSON 仅供 `view-locate` / 布局验证实现消费。
+公开输出是 HTML artifact；内部 JSON 仅供布局验证的存量实现消费。
 App 侧所有 UI 查询和动作统一通过 Dragonfly 实时 snapshot；传统 Android View 与 Compose 节点保持原有 HTML/JSON 字段格式。Dragonfly 自带私有化 Kotlin/协程运行时，纯 Java 工程同样可用；Compose tooling 不兼容时由 Dragonfly 局部收口，不回退旧 ViewTree。5000 节点/60 层 snapshot 截断范围同时约束 dump、selector、tap、inspect 和 verify。
 
 ### `view-locate`
 
 ```text
-jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
+jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc> | --class-name <cls>)
+                 [--visible-only <true|false>] [--max-results <1..100>]
 ```
 
 | CLI flag | MCP 参数 |
@@ -289,8 +290,11 @@ jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
 | `--text` | `target.text` |
 | `--resource-id` / `--resourceId` | `target.resourceId` |
 | `--content-desc` / `--contentDesc` | `target.contentDesc` |
+| `--class-name` / `--className` | `target.className` |
+| `--visible-only` / `--visibleOnly` | `visibleOnly` |
+| `--max-results` / `--maxResults` | `maxResults` |
 
-`matchCount > 1` 表示存在重复候选，不能直接把首个结果当作安全点击目标。
+多个 selector 使用 AND 逻辑；resourceId 支持完整/短 ID，className 支持完整类名/simple name 精确匹配。CLI 省略 `visibleOnly` / `maxResults` 时不发送，由 MCP 使用默认值 `true` / `10`。返回 `matchCount`、`returnedCount`、`truncated` 和 `matches[]`；只有唯一命中才返回顶层 bounds/position/size。runtime 能提供时同时返回源码文件和行号。
 
 ### `view-inspect`
 

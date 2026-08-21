@@ -197,12 +197,18 @@ class EvalViewMcpToolAction : McpToolAction {
                     }
                 }
 
-                val data = mapOf(
-                    "className" to evalResult.className,
-                    "resourceId" to evalResult.resourceId,
-                    "density" to evalResult.density,
-                    "values" to valuesData,
-                )
+                val data = buildMap<String, Any?> {
+                    put("className", evalResult.className)
+                    put("resourceId", evalResult.resourceId)
+                    put("density", evalResult.density)
+                    evalResult.source?.let { source ->
+                        put("source", buildMap {
+                            source.file?.takeIf { it.isNotBlank() }?.let { put("file", it) }
+                            source.line?.takeIf { it > 0 }?.let { put("line", it) }
+                        })
+                    }
+                    put("values", valuesData)
+                }
 
                 val errorCount = evalResult.values.count { it.error != null }
                 val message = if (errorCount == 0) {

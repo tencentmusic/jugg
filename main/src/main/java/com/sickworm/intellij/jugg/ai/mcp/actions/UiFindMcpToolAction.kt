@@ -1,152 +1,282 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.google.gson.JsonParser
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
+import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
+import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
+import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
+import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
+import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.FindElementsResult
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.MatchCandidate
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.SourceLocation
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.ai.mcp.*
-import com.sickworm.intellij.jugg.ai.mcp.layout.matcher.ElementMatcher
-import com.sickworm.intellij.jugg.ai.mcp.layout.model.AndroidNode
-import com.sickworm.intellij.jugg.ai.mcp.layout.model.FigmaNode
-import java.io.File
+import com.sickworm.intellij.jugg.platform.PlatformApi
 
+/**
+ * UiFindMcpToolAction locates live UI nodes with the shared selector contract.
+ */
+@OptIn(ExperimentalStdlibApi::class)
 class UiFindMcpToolAction : McpToolAction {
     override val toolName: String = McpToolActionRegistry.ToolNames.VIEW_LOCATE
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Locate a UI element and return its spatial position and size (bounds, center). " +
-            "Data comes from a layout snapshot (layout-dump). Uses fuzzy matching with IoU algorithm. " +
-            "✅ Use for: spacing calculation, alignment check, confirming where an element is on screen. " +
-            "❌ Do NOT use for: text content, colors, maxLines, ellipsize, or any View-internal property " +
-            "not visible in the layout tree — use view-inspect instead.",
+        description = "Locate live UI elements and return bounds, position, size, and best-effort source location. " +
+            "All non-empty selectors use AND logic. " +
+            "✅ Use for: spacing calculation, alignment checks, and locating elements on screen. " +
+            "❌ Do NOT use for: View-internal properties such as maxLines or ellipsize — use view-inspect instead.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 "target" to McpJsonSchemaProperty(
                     type = "object",
-                    description = "Element selector.",
+                    description = "Element selector. All non-empty fields use AND logic.",
                     properties = mapOf(
-                        "text" to McpJsonSchemaProperty(type = "string"),
-                        "resourceId" to McpJsonSchemaProperty(type = "string"),
-                        "contentDesc" to McpJsonSchemaProperty(type = "string")
-                    )
+                        "text" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Visible text. Exact match only.",
+                        ),
+                        "resourceId" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Full or short resource ID. Exact match only.",
+                        ),
+                        "contentDesc" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Content description. Exact match only.",
+                        ),
+                        "className" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Full or simple class name. Exact match only.",
+                        ),
+                    ),
+                    additionalProperties = false,
+                ),
+                "visibleOnly" to McpJsonSchemaProperty(
+                    type = "boolean",
+                    description = "Only return visible elements.",
+                    default = true,
+                ),
+                "maxResults" to McpJsonSchemaProperty(
+                    type = "integer",
+                    description = "Maximum number of matches returned.",
+                    default = 10,
+                    minimum = 1.0,
+                    maximum = 100.0,
                 ),
                 "figmaNode" to McpJsonSchemaProperty(
                     type = "object",
-                    description = "Optional Figma node for fuzzy matching (id, name, bounds)."
-                )
+                    description = "Deprecated compatibility field. Ignored by view-locate.",
+                ),
             ),
             required = listOf("projectDir", "target"),
-            additionalProperties = false
+            additionalProperties = false,
         ),
-        outputSchema = McpToolSchemas.baseOutputSchema
+        outputSchema = McpToolSchemas.baseOutputSchema,
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        val logger = runtime.logger.getInstance("UiFindMcpToolAction")
         val target = arguments["target"] as? Map<*, *>
-            ?: return McpToolResult.internalErrorResult(toolName, "target is required")
+            ?: return invalidParams("'target' is required and must be an object")
+        val maxResults = parseMaxResults(arguments["maxResults"])
+        if (maxResults == null) {
+            return invalidParams(
+                "maxResults must be an integer between $MIN_MAX_RESULTS and $MAX_MAX_RESULTS"
+            )
+        }
+        val request = parseRequest(
+            target,
+            arguments["visibleOnly"] as? Boolean ?: true,
+            maxResults,
+        ) ?: return invalidParams("target must have at least one selector")
+        val adb = resolveOnlineAdb(runtime) ?: return noDeviceResult()
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        if (!preWaitResult.isReady) {
+            return preWaitResult.errorResult
+                ?: McpToolResult.internalErrorResult(toolName, "app is not ready")
+        }
+        val packageName = runCatching { runtime.deployTargetManager.getPackageName() }
+            .getOrNull()?.takeIf { it.isNotBlank() }
+            ?: return McpToolResult.internalErrorResult(toolName, "failed to resolve package name")
+        return executeLookup(runtime, adb, packageName, request)
+    }
 
-        try {
-            val dumpResult = LayoutDumpHelper.dumpInternal(runtime, toolName)
-            if (dumpResult is LayoutDumpHelper.DumpInternalResult.Failure) {
-                return dumpResult.result
+    private fun parseRequest(
+        target: Map<*, *>,
+        visibleOnly: Boolean,
+        maxResults: Int,
+    ): LocateRequest? {
+        val text = target.nonBlankString("text")
+        val resourceId = target.nonBlankString("resourceId")
+        val contentDesc = target.nonBlankString("contentDesc")
+        val className = target.nonBlankString("className")
+        if (text == null && resourceId == null && contentDesc == null && className == null) {
+            return null
+        }
+        return LocateRequest(text, resourceId, contentDesc, className, visibleOnly, maxResults)
+    }
+
+    private fun resolveOnlineAdb(runtime: IMcpRuntime) =
+        (DeviceSelectionResolver().resolve(runtime.deployTargetManager) as? DeviceSelectionResult.Selected)
+            ?.device
+            ?.let { PlatformApi.toDeviceAdb(it) }
+            ?.takeIf { it.isOnline }
+
+    private fun executeLookup(
+        runtime: IMcpRuntime,
+        adb: IDeviceAdb,
+        packageName: String,
+        request: LocateRequest,
+    ): McpToolResult {
+        val logger = runtime.logger.getInstance("UiFindMcpToolAction")
+        return McpAppReadyGuard.executeWithRuntimeObserveRetry {
+            try {
+                val result = ViewHierarchyClient(adb, packageName).findElements(
+                    request.text,
+                    request.resourceId,
+                    request.contentDesc,
+                    request.className,
+                    request.visibleOnly,
+                    request.maxResults,
+                ) ?: return@executeWithRuntimeObserveRetry ViewHierarchyFailureDiagnoser.unavailableResult(
+                    toolName = toolName,
+                    adb = adb,
+                    packageName = packageName,
+                    fallbackMessage = "ViewHierarchy server is unavailable or returned invalid response",
+                )
+                if (result.errorMessage != null) {
+                    return@executeWithRuntimeObserveRetry ViewHierarchyFailureDiagnoser.toolError(
+                        toolName,
+                        result.errorMessage,
+                    )
+                }
+                buildResult(result)
+            } catch (e: Exception) {
+                logger.warn("$toolName failed: ${e.message}", e)
+                McpToolResult.internalErrorResult(toolName, e.message ?: "unknown error")
             }
-            val layoutFile = (dumpResult as LayoutDumpHelper.DumpInternalResult.Success).jsonFile
-            val layoutJson = JsonParser.parseString(layoutFile.readText()).asJsonObject
-            val androidNodes = parseAndroidNodes(layoutJson)
-            val matches = findMatches(androidNodes, target)
+        }
+    }
 
-            if (matches.isNotEmpty()) {
-                return buildFoundResult(matches)
-            }
+    private data class LocateRequest(
+        val text: String?,
+        val resourceId: String?,
+        val contentDesc: String?,
+        val className: String?,
+        val visibleOnly: Boolean,
+        val maxResults: Int,
+    )
 
+    private fun buildResult(result: FindElementsResult): McpToolResult {
+        if (result.matchCount == 0) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
                 message = "Element not found",
-                data = mapOf("found" to false),
-                artifacts = emptyList(),
-                errorCode = "ELEMENT_NOT_FOUND"
+                data = mapOf(
+                    "found" to false,
+                    "matchCount" to 0,
+                    "returnedCount" to result.returnedCount,
+                    "truncated" to result.truncated,
+                    "matches" to emptyList<Any>(),
+                ),
+                errorCode = "ELEMENT_NOT_FOUND",
             )
-        } catch (e: Exception) {
-            logger.warn("$toolName failed: ${e.message}", e)
-            return McpToolResult.internalErrorResult(toolName, e.message ?: "unknown error")
         }
-    }
 
-    private fun findMatches(androidNodes: List<AndroidNode>, target: Map<*, *>): List<AndroidNode> {
-        val text = target["text"] as? String
-        val resourceId = target["resourceId"] as? String
-        val contentDesc = target["contentDesc"] as? String
-        return androidNodes.filter { node ->
-            (text != null && node.text == text) ||
-            (resourceId != null && node.id == resourceId) ||
-            (contentDesc != null && node.contentDesc == contentDesc)
+        val data = linkedMapOf<String, Any?>(
+            "found" to true,
+            "matchCount" to result.matchCount,
+            "returnedCount" to result.returnedCount,
+            "truncated" to result.truncated,
+            "matches" to result.matches.map { it.toOutput(result.density) },
+        )
+        if (result.matchCount == 1) {
+            result.matches.singleOrNull()?.let { match ->
+                match.bounds?.let { bounds ->
+                    val boundsDp = bounds.map { pxToDp(it, result.density) }
+                    data["bounds"] = boundsDp
+                    data["position"] = mapOf("x" to boundsDp[0], "y" to boundsDp[1])
+                    data["size"] = mapOf(
+                        "width" to boundsDp[2] - boundsDp[0],
+                        "height" to boundsDp[3] - boundsDp[1],
+                    )
+                }
+                data["className"] = match.className
+                data["resourceId"] = match.resourceId
+                match.source?.toOutput()?.let { data["source"] = it }
+            }
         }
-    }
-
-    private fun buildFoundResult(matches: List<AndroidNode>): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.OK,
-            message = if (matches.size > 1) {
-                "Element found with ${matches.size} matches"
-            } else {
-                "Element found"
+            message = if (result.matchCount == 1) "Element found" else {
+                "Element found with ${result.matchCount} matches"
             },
-            data = buildMatchedData(matches.first(), matches),
-            artifacts = emptyList(),
-            errorCode = null
+            data = data,
         )
     }
 
-    private fun buildMatchedData(matched: AndroidNode, matches: List<AndroidNode>): Map<String, Any?> {
-        return mapOf(
-            "found" to true,
-            "bounds" to matched.bounds.toList(),
-            "position" to mapOf("x" to matched.bounds[0], "y" to matched.bounds[1]),
-            "size" to mapOf(
-                "width" to (matched.bounds[2] - matched.bounds[0]),
-                "height" to (matched.bounds[3] - matched.bounds[1])
-            ),
-            "className" to matched.className,
-            "resourceId" to matched.id,
-            "matchCount" to matches.size,
-            "matches" to matches.map { it.toSummaryMap() },
-        )
-    }
-
-    private fun AndroidNode.toSummaryMap(): Map<String, Any?> {
-        return mapOf(
-            "resourceId" to id,
-            "text" to text,
-            "contentDesc" to contentDesc,
-            "className" to className,
-            "bounds" to bounds.toList(),
-        )
-    }
-
-    private fun parseAndroidNodes(json: com.google.gson.JsonObject): List<AndroidNode> {
-        val nodes = mutableListOf<AndroidNode>()
-        val windows = json.getAsJsonArray("windows")
-        windows.forEach { windowElement ->
-            val window = windowElement.asJsonObject
-            val root = window.getAsJsonObject("root")
-            collectNodes(root, nodes)
+    private fun MatchCandidate.toOutput(density: Double): Map<String, Any?> {
+        return buildMap {
+            put("resourceId", resourceId)
+            put("text", text)
+            put("contentDesc", contentDesc)
+            put("className", className)
+            bounds?.let { put("bounds", it.map { value -> pxToDp(value, density) }) }
+            source?.toOutput()?.let { put("source", it) }
         }
-        return nodes
     }
 
-    private fun collectNodes(node: com.google.gson.JsonObject, result: MutableList<AndroidNode>) {
-        val className = node.get("className")?.asString ?: ""
-        val id = node.get("id")?.asString
-        val text = node.get("text")?.asString
-        val contentDesc = node.get("contentDesc")?.asString
-        val boundsArray = node.getAsJsonArray("bounds")
-        val bounds = IntArray(4) { boundsArray[it].asInt }
-
-        result.add(AndroidNode(className, id, text, bounds, contentDesc))
-
-        node.getAsJsonArray("children")?.forEach { child ->
-            collectNodes(child.asJsonObject, result)
+    private fun SourceLocation.toOutput(): Map<String, Any> {
+        return buildMap {
+            file?.takeIf { it.isNotBlank() }?.let { put("file", it) }
+            line?.takeIf { it > 0 }?.let { put("line", it) }
         }
+    }
+
+    private fun Map<*, *>.nonBlankString(key: String): String? {
+        return (this[key] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun parseMaxResults(value: Any?): Int? {
+        if (value == null) {
+            return DEFAULT_MAX_RESULTS
+        }
+        val number = value as? Number ?: return null
+        val doubleValue = number.toDouble()
+        if (doubleValue % 1.0 != 0.0) {
+            return null
+        }
+        val parsed = doubleValue.toInt()
+        return parsed.takeIf { it in MIN_MAX_RESULTS..MAX_MAX_RESULTS }
+    }
+
+    private fun pxToDp(px: Int, density: Double): Int {
+        return if (density > 0.0) (px / density).toInt() else px
+    }
+
+    private fun invalidParams(reason: String): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "$toolName failed. Reason: $reason.",
+            errorCode = McpErrorCode.INVALID_PARAMS,
+        )
+    }
+
+    private fun noDeviceResult(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "$toolName failed. Reason: No connected device is available.",
+            errorCode = McpErrorCode.NO_DEVICE,
+        )
+    }
+
+    companion object {
+        private const val DEFAULT_MAX_RESULTS = 10
+        private const val MIN_MAX_RESULTS = 1
+        private const val MAX_MAX_RESULTS = 100
     }
 }

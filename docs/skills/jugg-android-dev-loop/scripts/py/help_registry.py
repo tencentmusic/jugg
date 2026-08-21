@@ -155,16 +155,35 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     ),
     "view-locate": CommandHelp(
         "view-locate",
-        "Find a UI element position and bounds.",
-        "jugg view-locate (--text <text> | --resource-id <id> | --content-desc <desc>)",
+        "Find live UI element positions, bounds, and source locations.",
+        "jugg view-locate (--text <text> | --resource-id <id> | --content-desc <desc> | "
+        "--class-name <class>) [--visible-only <true|false>] [--max-results <1..100>]",
         (
-            OptionHelp(("--text",), "Match by visible text.", "<text>", "target.text"),
-            OptionHelp(("--resource-id", "--resourceId"), "Match by resource id.", "<id>", "target.resourceId"),
+            OptionHelp(("--text",), "Exact visible-text selector.", "<text>", "target.text"),
+            OptionHelp(("--resource-id", "--resourceId"), "Exact full or short resource ID.", "<id>", "target.resourceId"),
             OptionHelp(
                 ("--content-desc", "--contentDesc"),
-                "Match by content description.",
+                "Exact content-description selector.",
                 "<desc>",
                 "target.contentDesc",
+            ),
+            OptionHelp(
+                ("--class-name", "--className"),
+                "Exact full or simple class name.",
+                "<class>",
+                "target.className",
+            ),
+            OptionHelp(
+                ("--visible-only", "--visibleOnly"),
+                "Only return visible nodes (default: true).",
+                "<true|false>",
+                "visibleOnly",
+            ),
+            OptionHelp(
+                ("--max-results", "--maxResults"),
+                "Maximum returned matches (default: 10).",
+                "<1..100>",
+                "maxResults",
             ),
         ),
     ),

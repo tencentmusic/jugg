@@ -158,6 +158,43 @@ public class DragonflyHierarchySourceTest {
     }
 
     @Test
+    public void finder_shouldMatchFullAndSimpleClassNameExactly() {
+        HierarchyNode target = node(
+            "com.example.ProfileCard",
+            properties("text", "Profile", "bounds", "0,0,100,40")
+        );
+        ElementFinder finder = new ElementFinder(new DragonflyHierarchySource().buildSnapshot(
+            Collections.singletonList(window(node("Root", properties("bounds", "0,0,100,100"), target)))
+        ));
+
+        Assert.assertEquals(1, finder.find(null, null, null, "com.example.ProfileCard", true).size());
+        Assert.assertEquals(1, finder.find(null, null, null, "ProfileCard", true).size());
+        Assert.assertTrue(finder.find(null, null, null, "Profile", true).isEmpty());
+    }
+
+    @Test
+    public void matchedElement_shouldExposeSourceLocation() throws Exception {
+        HierarchyNode target = node(
+            "Text",
+            properties(
+                "text", "Profile",
+                "bounds", "0,0,100,40",
+                "sourceFile", "ProfileScreen.kt",
+                "lineNumber", "42"
+            )
+        );
+        ElementFinder finder = new ElementFinder(new DragonflyHierarchySource().buildSnapshot(
+            Collections.singletonList(window(node("Root", properties("bounds", "0,0,100,100"), target)))
+        ));
+
+        JSONObject source = finder.find("Profile", null, null, null, true).get(0)
+            .toMatchedElementJson().getJSONObject("source");
+
+        Assert.assertEquals("ProfileScreen.kt", source.getString("file"));
+        Assert.assertEquals(42, source.getInt("line"));
+    }
+
+    @Test
     public void snapshot_shouldKeepDepthTruncationContract() throws Exception {
         HierarchyNode root = node("Leaf", properties("text", "Beyond limit", "bounds", "0,0,1,1"));
         for (int depth = 0; depth < 62; depth++) {

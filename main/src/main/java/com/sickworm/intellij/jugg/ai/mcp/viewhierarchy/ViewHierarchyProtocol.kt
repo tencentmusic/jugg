@@ -40,6 +40,27 @@ data class MatchCandidate(
     val bounds: List<Int>?,
     val centerX: Int,
     val centerY: Int,
+    val source: SourceLocation? = null,
+)
+
+/**
+ * SourceLocation carries best-effort source metadata reported by the app runtime.
+ */
+data class SourceLocation(
+    val file: String? = null,
+    val line: Int? = null,
+)
+
+/**
+ * FindElementsResult models a budgeted find_elements response.
+ */
+data class FindElementsResult(
+    val matchCount: Int,
+    val returnedCount: Int,
+    val truncated: Boolean,
+    val density: Double,
+    val matches: List<MatchCandidate>,
+    val errorMessage: String? = null,
 )
 
 /**
@@ -53,6 +74,7 @@ data class MatchedElementData(
     val bounds: List<Int>,
     val centerX: Int,
     val centerY: Int,
+    val source: SourceLocation? = null,
 )
 
 /**
@@ -98,6 +120,7 @@ data class EvalViewResult(
     val resourceId: String,
     val density: Double,
     val values: List<EvalViewValue>,
+    val source: SourceLocation? = null,
     val errorMessage: String? = null,
 )
 

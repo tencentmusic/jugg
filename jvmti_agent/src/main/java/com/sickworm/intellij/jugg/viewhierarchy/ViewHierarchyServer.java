@@ -265,12 +265,17 @@ public class ViewHierarchyServer {
         String resourceId = optString(params, "resourceId");
         String contentDesc = optString(params, "contentDesc");
         String className = optString(params, "className");
+        boolean visibleOnly = optBoolean(params, "visibleOnly", true);
+        Integer maxResultsValue = optInt(params, "maxResults");
+        int maxResults = maxResultsValue == null ? 10 : Math.max(1, Math.min(100, maxResultsValue));
         boolean topWindowOnly = optBoolean(params, "topWindowOnly", true);
 
         try {
             ElementFinder elementFinder = captureFinder(topWindowOnly);
-            List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly);
-            return ok(buildElementsData(matches));
+            List<MatchedElement> matches = visibleOnly
+                ? elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly)
+                : elementFinder.findInspectable(text, resourceId, contentDesc, className, topWindowOnly);
+            return ok(buildFindElementsData(matches, maxResults));
         } catch (Throwable t) {
             LogUtils.e(TAG, "doFindElements failed", t);
             return error("find_elements failed: " + t.getMessage(), null);
@@ -443,6 +448,10 @@ public class ViewHierarchyServer {
             data.put("resourceId", ViewNode.shortenId(target.resourceId));
             data.put("density", android.content.res.Resources.getSystem()
                 .getDisplayMetrics().density);
+            JSONObject source = target.sourceLocationJson();
+            if (source != null) {
+                data.put("source", source);
+            }
             data.put("values", values);
             return ok(data);
 
@@ -485,6 +494,21 @@ public class ViewHierarchyServer {
             elements.put(match.toMatchedElementJson());
         }
         data.put("matchCount", matches.size());
+        data.put("elements", elements);
+        return data;
+    }
+
+    private JSONObject buildFindElementsData(List<MatchedElement> matches, int maxResults) throws Exception {
+        JSONObject data = new JSONObject();
+        JSONArray elements = new JSONArray();
+        int returnedCount = Math.min(matches.size(), maxResults);
+        for (int index = 0; index < returnedCount; index++) {
+            elements.put(matches.get(index).toMatchedElementJson());
+        }
+        data.put("matchCount", matches.size());
+        data.put("returnedCount", returnedCount);
+        data.put("truncated", returnedCount < matches.size());
+        data.put("density", android.content.res.Resources.getSystem().getDisplayMetrics().density);
         data.put("elements", elements);
         return data;
     }

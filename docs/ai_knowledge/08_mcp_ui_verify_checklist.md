@@ -1,6 +1,6 @@
 # MCP UI 验证执行情况检查清单
 
-> 最后核对：2026-05-23
+> 最后核对：2026-08-21
 > 依据：`08_mcp_layout_verify_design.md`、`08_mcp_tools_list.md` 与当前 `McpToolActionRegistry.defaultActions()`。
 > 用于验收 Agent 是否按当前公开 MCP 工具完成 UI 证据采集。每条问题要求给出事实回答；未遵守时说明原因。
 
@@ -27,9 +27,9 @@
 
 ## D. Selector 与多命中
 
-11. selector 是否优先使用稳定 `resourceId`，再考虑 `text` / `contentDesc`？
-12. `view-locate.data.matchCount > 1` 时，你是否消歧后再做断言或点击？
-13. selector 查不到元素时，你是否用 `layout-dump` 检查真实 text/id/contentDesc，而不是只重试同一个 selector？
+11. selector 是否优先使用稳定 `resourceId`，并在需要时用 `text` / `contentDesc` / `className` 组成 AND 条件？className 是否使用完整名或 simple name 精确值，而不是子串？
+12. `view-locate.data.matchCount > 1` 时，你是否没有使用不存在的顶层 bounds，并根据 `matches[]` 消歧后再做断言或点击？
+13. `truncated=true` 时，你是否识别到 `matchCount > returnedCount`，并收紧 selector 或在 `1..100` 内调整 `maxResults`？selector 查不到元素时，是否用 `layout-dump` 检查真实 text/id/contentDesc/className 和可见性？
 14. 对隐藏或 GONE 节点，你是否区分“属性仍可读”和“不能作为安全点击目标”？
 
 ## E. 数值与单位
@@ -49,5 +49,5 @@
 
 22. 报告是否逐条列出 `Expected`、`Actual`、`Diff`、`Evidence tool`、`Verdict`？
 23. 是否没有 silently omit 失败或无法验证的断言？
-24. FAIL 项是否包含具体修复方向，并指明优先查看的文件、布局或 View getter？
+24. FAIL 项是否包含具体修复方向，并优先引用 `view-locate` / `view-inspect` 的 `source.file`、`source.line`；源码位置缺失时再指明应查看的布局或 View getter？
 25. 修复后是否完整 re-verify 受影响页面，而不是只检查上一次 FAIL 的单个数值？

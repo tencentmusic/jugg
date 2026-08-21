@@ -743,7 +743,7 @@ public class DragonflyHierarchySource {
                 return true;
             }
             String simpleName = ViewNode.shortenClassName(value);
-            return simpleName != null && simpleName.contains(selector);
+            return selector.equals(simpleName);
         }
     }
 
