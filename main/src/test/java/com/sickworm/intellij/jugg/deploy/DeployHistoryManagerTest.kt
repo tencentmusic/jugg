@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.*
 
 class DeployHistoryManagerTest {
@@ -177,6 +178,43 @@ class DeployHistoryManagerTest {
         val result = historyManager.tryGetContextRecoverInfoFromDb()
         assertNull(result)
         assertFalse(historyManager.hasBeenFullCompiled)
+    }
+
+    @Test
+    fun testRuntimeGitRefreshShouldNotInvalidateContextWhenApkIsTemporarilyMissing() {
+        gitManager.init()
+        val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
+
+        gitManager.addAllAndCommit("first commit")
+        historyManager.reInitAfterFullCompiled(FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, System.currentTimeMillis()), projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+        assertTrue(historyManager.hasBeenFullCompiled)
+
+        val apkFile = projectInfo.apkFile
+        val backupFile = File(apkFile.parentFile, "${apkFile.name}.${System.nanoTime()}.backup")
+        Files.move(apkFile.toPath(), backupFile.toPath())
+        try {
+            assertNotNull(historyManager.getChangedFilesSinceLastFullCompiled())
+            assertTrue(historyManager.hasBeenFullCompiled)
+        } finally {
+            Files.move(backupFile.toPath(), apkFile.toPath())
+        }
+    }
+
+    @Test
+    fun testRuntimeGitRefreshShouldKeepHistoryWhenCommitIsMissing() {
+        gitManager.init()
+        val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
+
+        gitManager.addAllAndCommit("first commit")
+        historyManager.reInitAfterFullCompiled(FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, System.currentTimeMillis()), projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+        assertTrue(historyManager.hasBeenFullCompiled)
+
+        gitManager.deleteGit()
+        gitManager.init()
+        gitManager.addAllAndCommit("fresh commit after rebase")
+
+        assertNull(historyManager.getChangedFilesSinceLastFullCompiled())
+        assertTrue(historyManager.hasBeenFullCompiled)
     }
 
     @Test

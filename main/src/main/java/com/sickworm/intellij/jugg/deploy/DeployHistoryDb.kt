@@ -104,7 +104,7 @@ class DeployHistoryDb(
             changedFiles.add(File(projectDir, path))
         }
         dirAndCommitMap.forEach { (rootDir, commit) ->
-            val subChangedFiles = getGitChangedFiles(File(rootDir), commit)
+            val subChangedFiles = getGitChangedFiles(File(rootDir), commit, isOnInit)
             logger.debug("getChangedFilesSinceLastFullCompiled, dir: ${rootDir}, files: ${subChangedFiles?.map { it.name }}")
             if (subChangedFiles == null) {
                 logger.warn("getChangedFilesSinceLastFullCompiled failed")
@@ -144,7 +144,7 @@ class DeployHistoryDb(
                     "crcMatched=$crcMatchedCount, selectedSamples=$selectedSamples")
     }
 
-    private fun getGitChangedFiles(rootDir: File, lastDeployCommitHash: String?): List<File>? {
+    private fun getGitChangedFiles(rootDir: File, lastDeployCommitHash: String?, isOnInit: Boolean): List<File>? {
         if (lastDeployCommitHash == null) {
             logger.warn("${rootDir.absolutePath} has no full compile on specific commit, maybe Git is init after full compilation.")
             return null
@@ -161,10 +161,12 @@ class DeployHistoryDb(
         val changedSinceLastDeployFiles = try {
             gitManager.getChangedFiles(lastDeployCommitHash, lastProjectCommitHash)
         } catch (e: Exception) {
-            // Saved commit no longer exists (rebase / gc / force-push). Clear stale history
-            // so the next run triggers a full compile instead of repeatedly failing.
-            logger.warn("Saved commit ${lastDeployCommitHash.take(8)} is missing in ${rootDir.name}, clearing history. ${e.message}")
-            deleteHistory()
+            val fallback = if (isOnInit) "clearing history" else "skip runtime Git refresh"
+            logger.warn("Saved commit ${lastDeployCommitHash.take(8)} is missing in ${rootDir.name}, " +
+                    "$fallback. ${e.message}")
+            if (isOnInit) {
+                deleteHistory()
+            }
             return null
         }
         logger.trace("[PERF] gitManager.getChangedFiles for ${rootDir.name}, cost=${System.currentTimeMillis() - gitChangedStart}ms, thread=${Thread.currentThread().name}")

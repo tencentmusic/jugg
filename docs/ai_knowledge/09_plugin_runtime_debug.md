@@ -232,6 +232,8 @@ deploy_compat/v_quail/.../QuailAsDeployerCompat.kt
 
 **当前期望行为**：
 - Git 补检在增量编译前异步启动，用于发现 IDE 文件事件遗漏的磁盘修改。
+- 补检只读取 Git changed files，不加载或校验 compile context，因此 APK 更新、重签名或替换期间的短暂文件缺失不会清除 `compile_context.db/complete_flag`。
+- 运行期 Git 查询失败或保存的 commit 已不存在时，只跳过本次补检并保留 deploy history；项目初始化恢复仍会清理已确认无法恢复的旧历史。
 - 编译结束后只消费已经完成的补检结果，不等待仍在运行的查询。
 - 查询未完成时仅记录 debug，当前编译和部署继续；迟到结果不触发本轮二次编译，也不会被后续 Run 误读。
 - 后台查询可以自然完成，其文件刷新结果可进入后续 Run 的待编译状态。
@@ -239,7 +241,8 @@ deploy_compat/v_quail/.../QuailAsDeployerCompat.kt
 **排查步骤**：
 1. 搜 `gitManager.getChangedFiles` 与 `gitManager.getUncommittedFiles`，区分 commit diff 和工作区扫描耗时。
 2. 搜 `Git recovery CRC summary`，确认候选文件和历史 CRC 规模。
-3. 该日志本身不表示本次 Run 失败；只有持续高频出现时才继续检查仓库规模、未跟踪文件和部署历史。
+3. 若同一时间窗口出现 `Apk file not exists` 后紧接 `No compile context db found`，确认运行版本是否仍从 Git 补检调用完整恢复入口；当前实现不应出现这条调用链。
+4. 该日志本身不表示本次 Run 失败；只有持续高频出现时才继续检查仓库规模、未跟踪文件和部署历史。
 
 ### 4.3 APK 数据库初始化慢
 
