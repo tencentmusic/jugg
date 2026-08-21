@@ -179,6 +179,55 @@ class ViewLocateMcpToolActionTest {
         }
     }
 
+    @Test
+    fun executeUsesExplicitSerialForInternalLayoutDump() {
+        val projectDir = createTempDir(prefix = "jugg_view_locate_serial_")
+        val selectedDevice = Mockito.mock(IDevice::class.java)
+        val targetDevice = Mockito.mock(IDevice::class.java)
+        val selectedAdb = FakeDeviceAdb("device-1")
+        val targetAdb = FakeDeviceAdb("device-2")
+        PlatformApi.impl = FakePlatformApi(mapOf(selectedDevice to selectedAdb, targetDevice to targetAdb))
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(selectedDevice))
+        Mockito.`when`(deployTargetManager.getTargetDevices("device-2")).thenReturn(listOf(targetDevice))
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+        val deployStateManager = Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState(targetDevice))
+            .thenReturn(com.sickworm.intellij.jugg.deploy.JuggDeployState.READY)
+        val runtime = object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
+            override val logger: Logger = Logger.getInstance("ViewLocateSerialTest")
+            override val projectDir: String = projectDir.absolutePath
+            override val deployTargetManager: IDeployTargetManager = deployTargetManager
+            override val deployStateManager = deployStateManager
+            override val forceGradleCompileHelper = FakeForceGradleCompileHelper()
+            override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
+        }
+        val layoutJson = """
+            {"windows":[{"root":{"className":"Button","id":"target","text":"Target","bounds":[0,0,10,10]}}]}
+        """.trimIndent()
+        var constructedAdb: Any? = null
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, context ->
+            constructedAdb = context.arguments().firstOrNull()
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
+                LayoutDumpResult(payloadJson = layoutJson, remoteFilePath = null),
+            )
+        }.use {
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to projectDir.absolutePath,
+                    "serial" to "device-2",
+                    "target" to mapOf("text" to "Target"),
+                ),
+                runtime,
+            )
+
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertSame(targetAdb, constructedAdb)
+            Mockito.verify(deployStateManager).updateDeployState(targetDevice)
+        }
+    }
+
     private fun buildRuntime(projectDir: File): IMcpRuntime {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
@@ -199,10 +248,11 @@ class ViewLocateMcpToolActionTest {
         }
     }
 
-    private class FakeDeviceAdb : IDeviceAdb {
+    private class FakeDeviceAdb(
+        override val serial: String = "emulator-5554",
+    ) : IDeviceAdb {
         override val displayName: String? = "fake_device"
         override val api: Int = 34
-        override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
         override fun execAdbShellCmd(cmd: String): String = ""

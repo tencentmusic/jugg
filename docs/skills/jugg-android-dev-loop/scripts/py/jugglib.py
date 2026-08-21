@@ -94,7 +94,24 @@ class StandaloneLaunch:
 _selected_runtime_port: Optional[int] = None
 _selected_project_dir: str = ""
 runtime_type_override: str = ""
+device_serial_override: str = ""
 _STANDALONE_LAUNCH_LOCK_TIMEOUT_SECONDS = 15
+
+DEVICE_TARGET_TOOLS = {
+    "restart",
+    "deploy",
+    "instrument",
+    "clean-reinstall",
+    "gradle-build",
+    "devices",
+    "layout-dump",
+    "view-locate",
+    "view-inspect",
+    "activity-stack",
+    "tap",
+    "status",
+    "wait-logs",
+}
 
 
 def _is_connection_refused(reason: Any) -> bool:
@@ -291,6 +308,12 @@ def set_runtime_type_override(runtime_type: str) -> None:
     """Set an explicit IDEA or standalone Runtime selection."""
     global runtime_type_override
     runtime_type_override = runtime_type
+
+
+def set_device_serial_override(device_serial: str) -> None:
+    """Set the request-scoped adb serial injected into device-targeting tools."""
+    global device_serial_override
+    device_serial_override = device_serial.strip()
 
 
 def _matches_runtime_override(endpoint: RuntimeEndpoint) -> bool:
@@ -519,11 +542,14 @@ def http_post(port: int, body: str, timeout: int = 120) -> dict:
 
 def raw_call(port: int, tool: str, params: dict) -> dict:
     """Assemble JSON-RPC 2.0 tools/call body and POST it."""
+    request_params = dict(params)
+    if device_serial_override and tool in DEVICE_TARGET_TOOLS:
+        request_params.setdefault("serial", device_serial_override)
     body = json.dumps({
         "jsonrpc": "2.0",
         "id": 1,
         "method": "tools/call",
-        "params": {"name": tool, "arguments": params},
+        "params": {"name": tool, "arguments": request_params},
     })
     return http_post(port, body)
 

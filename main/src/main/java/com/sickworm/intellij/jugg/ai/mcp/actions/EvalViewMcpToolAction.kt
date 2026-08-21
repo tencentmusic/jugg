@@ -33,6 +33,7 @@ class EvalViewMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "target" to McpJsonSchemaProperty(
                     type = "object",
                     description = "Element selector. Same selector format as layout_verify/tap element mode.",
@@ -129,7 +130,8 @@ class EvalViewMcpToolAction : McpToolAction {
         }
 
         // Resolve device
-        val selected = resolveOnlineDevice(runtime)
+        val targetDeviceSerial = arguments.deviceSerial()
+        val selected = resolveOnlineDevice(runtime, targetDeviceSerial)
             ?: run {
                 logger.warn("view-inspect failed: no online device")
                 return McpToolResult(
@@ -140,7 +142,7 @@ class EvalViewMcpToolAction : McpToolAction {
             }
 
         // Wait for app ready
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             logger.warn("view-inspect failed: app not ready")
             return preWaitResult.errorResult
@@ -223,8 +225,8 @@ class EvalViewMcpToolAction : McpToolAction {
 
     private data class SelectedAdb(val adb: IDeviceAdb)
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime, targetDeviceSerial: String?): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }

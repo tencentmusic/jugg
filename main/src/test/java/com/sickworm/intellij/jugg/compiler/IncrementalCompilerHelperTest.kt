@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.RecompileFiles
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.mock.logger
@@ -413,6 +414,7 @@ class IncrementalCompilerHelperTest {
         val fileChangesHandler: IFileChangesHandler = mock()
         val retryResolver: IIncrementalCompileRetryResolver = mock()
         val juggDeployData: JuggDeployData = mock()
+        val targetDevice: IDevice = mock()
         whenever(compiler.context).thenReturn(compileContext)
         whenever(compileContext.mappingFile).thenReturn(null)
         whenever(compileContext.isMinified).thenReturn(false)
@@ -425,7 +427,7 @@ class IncrementalCompilerHelperTest {
             val files = invocation.getArgument<List<File>>(0)
             files.map { file -> changedFile(file, tempDir) }
         }
-        whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        whenever(deployStateManager.updateDeployState(targetDevice)).thenReturn(JuggDeployState.READY)
         doNothing().whenever(deployFileManager).updateUncompiledFiles(any(), any())
         doNothing().whenever(deployFileManager).addStagingFiles(any())
         doNothing().whenever(deployFileManager).awaitConstRefAnalysis(any())
@@ -446,7 +448,15 @@ class IncrementalCompilerHelperTest {
             }
         }
 
-        val helper = buildHelper(compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, retryResolver)
+        val helper = buildHelper(
+            compiler,
+            pathManager,
+            deployStateManager,
+            deployFileManager,
+            fileChangesHandler,
+            retryResolver,
+            targetDevice,
+        )
         helper.compile(
             undeployedFiles = listOf(callerChanged),
             uiHandler = CompileUiHandler.DEFAULT,
@@ -457,6 +467,7 @@ class IncrementalCompilerHelperTest {
         verify(compiler, Mockito.times(2)).compile(taskCaptor.capture())
         val secondRoundPaths = taskCaptor.allValues[1].files.map { it.file.absolutePath }.toSet()
         assertEquals(setOf(defFile.absolutePath), secondRoundPaths)
+        verify(deployStateManager, never()).updateDeployState()
     }
 
     @Test
@@ -849,6 +860,7 @@ class IncrementalCompilerHelperTest {
         deployFileManager: DeployFileManager,
         fileChangesHandler: IFileChangesHandler,
         retryResolver: IIncrementalCompileRetryResolver,
+        targetDevice: IDevice? = null,
     ) = IncrementalCompilerHelper(
         compiler = compiler,
         pathManager = pathManager,
@@ -857,5 +869,6 @@ class IncrementalCompilerHelperTest {
         fileChangesHandler = fileChangesHandler,
         retryResolver = retryResolver,
         loggerArg = logger,
+        targetDevice = targetDevice,
     )
 }

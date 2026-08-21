@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
@@ -40,14 +42,18 @@ object McpAppReadyGuard {
      * Wait before runtime-observe tools.
      * Poll interval is 100ms and max wait is 10s.
      */
-    fun waitBeforeRuntimeObserve(runtime: IMcpRuntime, toolName: String): PreWaitResult {
+    fun waitBeforeRuntimeObserve(
+        runtime: IMcpRuntime,
+        toolName: String,
+        targetDeviceSerial: String? = null,
+    ): PreWaitResult {
         val timeoutMs = resolvePreTimeoutMs()
         val pollMs = resolvePrePollIntervalMs()
         val deadline = System.currentTimeMillis() + timeoutMs
         var checks = 0
         while (System.currentTimeMillis() <= deadline) {
             checks++
-            if (runtime.isAppReadyDeploy()) {
+            if (isAppReady(runtime, targetDeviceSerial)) {
                 return PreWaitResult(
                     isReady = true,
                     checks = checks,
@@ -95,8 +101,12 @@ object McpAppReadyGuard {
     /**
      * Wait after mutating tools (restart/build/deploy).
      */
-    fun waitAfterMutating(runtime: IMcpRuntime, toolName: String): WaitResult {
-        if (runtime.isAppReadyDeploy()) {
+    fun waitAfterMutating(
+        runtime: IMcpRuntime,
+        toolName: String,
+        targetDeviceSerial: String? = null,
+    ): WaitResult {
+        if (isAppReady(runtime, targetDeviceSerial)) {
             return WaitResult(isReady = true, checks = 1)
         }
         val timeoutMs = resolvePostTimeoutMs()
@@ -106,7 +116,7 @@ object McpAppReadyGuard {
         while (System.currentTimeMillis() < deadline) {
             sleep(pollMs)
             checks++
-            if (runtime.isAppReadyDeploy()) {
+            if (isAppReady(runtime, targetDeviceSerial)) {
                 return WaitResult(isReady = true, checks = checks)
             }
         }
@@ -171,6 +181,17 @@ object McpAppReadyGuard {
             return false
         }
         return result.errorCode.isNullOrBlank() || result.errorCode == McpErrorCode.INTERNAL_ERROR
+    }
+
+    private fun isAppReady(runtime: IMcpRuntime, targetDeviceSerial: String?): Boolean {
+        if (targetDeviceSerial == null) {
+            return runtime.isAppReadyDeploy()
+        }
+        val selection = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
+        if (selection !is DeviceSelectionResult.Selected) {
+            return false
+        }
+        return runtime.deployStateManager?.updateDeployState(selection.device)?.isReadyDeploy == true
     }
 }
 

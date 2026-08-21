@@ -23,6 +23,8 @@ interface CompileUiHandler {
     val isDebugRun: Boolean get() = false
     /** When true, the compile flow was triggered by MCP/RPC instead of an IDE Run action. */
     val isRpcMode: Boolean get() = false
+    /** Optional request-scoped adb serial. Null preserves the Host's default device selection. */
+    val targetDeviceSerial: String? get() = null
     val isGradleCacheRefreshRequested: Boolean get() = false
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected

@@ -425,6 +425,7 @@ class InstrumentMcpToolActionTest {
                     isAlwaysRestartApp: Boolean,
                     androidTestRunSpec: AndroidTestRunSpec?,
                     buildTargetOverride: BuildTarget?,
+                    targetDeviceSerial: String?,
                 ): JuggRunInvocationResult {
                     return runFirstConfiguration(
                         isRpcMode,

@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -125,6 +126,21 @@ class JuggCompileHelperTest {
 
         verify(fixture.gitChangeChecker).checkUndetectedFilesAsync(any())
         verify(fixture.gitChangeChecker, never()).checkUndetectedFiles(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_explicitSerial_usesTargetDeviceState() {
+        val fixture = createFixture()
+        val targetDevice: IDevice = mock()
+        whenever(fixture.uiHandler.targetDeviceSerial).thenReturn("serial-b")
+        whenever(fixture.deployTargetManager.getTargetDevices("serial-b")).thenReturn(listOf(targetDevice))
+        whenever(fixture.deployStateManager.updateDeployState(targetDevice)).thenReturn(JuggDeployState.READY)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+
+        assertEquals(null, invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler))
+
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState(targetDevice)
+        verify(fixture.deployStateManager, never()).updateDeployState()
     }
 
     @Test

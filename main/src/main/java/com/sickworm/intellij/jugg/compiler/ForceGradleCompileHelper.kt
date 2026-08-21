@@ -18,6 +18,15 @@ abstract class ForceGradleCompileHelper {
         useCleanAndReinstall: Boolean = false,
     ): GradleCompileExecutionResult
 
+    /** Executes the Gradle fallback for one request-scoped device when the Host supports deployment. */
+    open fun executeGradleCompileBlockingForDevice(
+        autoConfirm: Boolean = true,
+        useCleanAndReinstall: Boolean = false,
+        targetDeviceSerial: String?,
+    ): GradleCompileExecutionResult {
+        return executeGradleCompileBlocking(autoConfirm, useCleanAndReinstall)
+    }
+
     abstract fun resolveExecutionType(): String
 
     abstract fun requestRemoteSshInfo(

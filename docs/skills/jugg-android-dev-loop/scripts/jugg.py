@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.join(SCRIPT_DIR, "py"))
 from help_registry import COMMAND_HELP, format_command_help
 
 USAGE_HEAD = """\
-Usage: jugg [--console=plain|rich|json] [--project-dir <path>] [--runtime idea|standalone] [--if-compiling wait|interrupt] <subcommand> [options]
+Usage: jugg [--console=plain|rich|json] [--project-dir <path>] [--serial <adbSerial>] [--runtime idea|standalone] [--if-compiling wait|interrupt] <subcommand> [options]
        jugg help <subcommand>
 
 Global options:
@@ -42,6 +42,7 @@ Global options:
   --console=plain     No spinner; plain text output (default for direct python3 calls)
   --console=json      Structured JSON output; implies no spinner
   --project-dir PATH   Use this projectDir instead of resolving it from the current directory
+  --serial SERIAL      Target one online adb device for device-related commands
   --runtime TYPE       Explicitly use the IDEA or standalone Runtime
   --if-compiling MODE  For compile/deploy/gradle-build/instrument: wait (default) until the
                        current compile finishes, or interrupt it and start immediately.
@@ -94,6 +95,7 @@ def main() -> None:
     # Extract global flags before subcommand dispatch.
     console = "plain"
     project_dir = ""
+    device_serial = ""
     runtime_type = ""
     if_compiling = "wait"
     remaining = []
@@ -122,6 +124,20 @@ def main() -> None:
             project_dir = a[len("--project-dir="):]
             if not project_dir:
                 print("jugg: --project-dir requires a path", file=sys.stderr)
+                sys.exit(1)
+        elif a == "--serial":
+            if i + 1 >= len(args):
+                print("jugg: --serial requires an adb device serial", file=sys.stderr)
+                sys.exit(1)
+            device_serial = args[i + 1].strip()
+            if not device_serial:
+                print("jugg: --serial requires an adb device serial", file=sys.stderr)
+                sys.exit(1)
+            i += 1
+        elif a.startswith("--serial="):
+            device_serial = a[len("--serial="):].strip()
+            if not device_serial:
+                print("jugg: --serial requires an adb device serial", file=sys.stderr)
                 sys.exit(1)
         elif a == "--runtime":
             if i + 1 >= len(args):
@@ -166,6 +182,7 @@ def main() -> None:
     jugglib.spinner_enabled = (console == "rich")
     jugglib.json_mode = (console == "json")
     jugglib.set_project_dir_override(project_dir)
+    jugglib.set_device_serial_override(device_serial)
     jugglib.set_runtime_type_override(runtime_type)
     jugglib.if_compiling = if_compiling
 

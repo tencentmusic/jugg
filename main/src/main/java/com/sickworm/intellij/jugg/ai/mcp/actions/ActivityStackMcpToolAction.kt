@@ -27,6 +27,7 @@ class ActivityStackMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -52,13 +53,13 @@ class ActivityStackMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return activityStackAction(runtime)
+        return activityStackAction(runtime, arguments.deviceSerial())
     }
 
-    private fun activityStackAction(runtime: IMcpRuntime): McpToolResult {
-        val selected = resolveOnlineDevice(runtime)
+    private fun activityStackAction(runtime: IMcpRuntime, targetDeviceSerial: String?): McpToolResult {
+        val selected = resolveOnlineDevice(runtime, targetDeviceSerial)
             ?: return noDeviceResult(toolName)
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             return preWaitResult.errorResult ?: McpToolResult.internalErrorResult(toolName, "app is not ready")
         }
@@ -172,8 +173,8 @@ class ActivityStackMcpToolAction : McpToolAction {
         val adb: IDeviceAdb,
     )
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime, targetDeviceSerial: String?): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }

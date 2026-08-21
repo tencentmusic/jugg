@@ -28,7 +28,10 @@ class TapMcpToolAction : McpToolAction {
             "or element selectors (text/id/desc, optional class). id=resourceId alias, desc=contentDesc alias, class=className alias. " +
             "Mode priority: coordinate > percent > element.",
         inputSchema = McpJsonSchemaObject(
-            properties = mapOf("projectDir" to McpToolSchemas.projectDirProperty) + McpToolSchemas.tapActionProperties,
+            properties = mapOf(
+                "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
+            ) + McpToolSchemas.tapActionProperties,
             required = listOf("projectDir"),
             additionalProperties = false,
         ),
@@ -42,12 +45,13 @@ class TapMcpToolAction : McpToolAction {
         if (validationError != null) {
             return validationError
         }
-        val selected = resolveOnlineDevice(runtime)
+        val targetDeviceSerial = arguments.deviceSerial()
+        val selected = resolveOnlineDevice(runtime, targetDeviceSerial)
             ?: run {
                 logger.warn("tap failed: no online device")
                 return noDeviceResult("tap")
             }
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             logger.warn("tap failed: app not ready after pre-check timeout")
             return preWaitResult.errorResult ?: McpToolResult.internalErrorResult("tap", "app is not ready")
@@ -738,8 +742,8 @@ class TapMcpToolAction : McpToolAction {
         }
     }
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime, targetDeviceSerial: String?): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }

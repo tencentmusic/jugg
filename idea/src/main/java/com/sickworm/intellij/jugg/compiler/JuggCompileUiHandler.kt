@@ -37,6 +37,7 @@ open class JuggCompileUiHandler(
     override val isSkipDeploy: Boolean = false,
     override val isAlwaysRestartApp: Boolean = false,
     override val isDebugRun: Boolean = false,
+    override val targetDeviceSerial: String? = null,
     isGradleCacheRefreshRequested: Boolean = false,
     private val onEndListener: ((RunResult) -> Unit)? = null,
 ) : CompileUiHandler {

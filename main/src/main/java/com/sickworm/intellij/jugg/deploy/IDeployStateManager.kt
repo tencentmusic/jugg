@@ -19,6 +19,9 @@ interface IDeployStateManager {
 
     fun getDeployState(device: IDevice): JuggDeployState
 
+    /** Refreshes and returns deploy state for one request-scoped device. */
+    fun updateDeployState(device: IDevice): JuggDeployState = getDeployState(device)
+
     fun beginFileProcessing()
 
     fun endFileProcessing()

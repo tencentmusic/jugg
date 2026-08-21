@@ -31,8 +31,8 @@ interface IJuggConfigurationRunner {
     fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean = false, isAlwaysRestartApp: Boolean = false): JuggRunInvocationResult
 
     /**
-     * Optional overload for MCP-side invocations that need explicit androidTest filters
-     * or BuildTarget override without mutating persisted run configuration.
+     * Optional overload for MCP-side invocations that need request-scoped test, build target,
+     * or device overrides without mutating persisted run configuration.
      */
     fun runFirstConfigurationWithSpec(
         isRpcMode: Boolean,
@@ -40,6 +40,7 @@ interface IJuggConfigurationRunner {
         isAlwaysRestartApp: Boolean = false,
         androidTestRunSpec: AndroidTestRunSpec? = null,
         buildTargetOverride: BuildTarget? = null,
+        targetDeviceSerial: String? = null,
     ): JuggRunInvocationResult {
         return runFirstConfiguration(
             isRpcMode = isRpcMode,

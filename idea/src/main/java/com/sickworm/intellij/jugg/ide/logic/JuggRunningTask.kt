@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.getTargetDeviceSerialList
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
@@ -163,7 +164,7 @@ class JuggRunningTask(
             if (isNeedResetHasRun) {
                 statusManager.resetHasRun()
             } else {
-                statusManager.setHasRun(deployTargetManager.getDeviceNameList())
+                statusManager.setHasRun(deployTargetManager.getTargetDeviceSerialList(compileUiHandler.targetDeviceSerial))
             }
             statusManager.isProjectSwitchedThisRun = false
             if (!hasTerminalEvent && isCanceled) {
@@ -252,14 +253,16 @@ class JuggRunningTask(
                 isCompileSuccess = true, isDeploySuccess = false, isNeedResetHasRun = true, isCancel = processHandler.isCanceled)
         }
 
-        val devices = deployTargetManager.getSelectedDevices()
+        val devices = deployTargetManager.getTargetDevices(compileUiHandler.targetDeviceSerial)
         if (devices.isEmpty()) {
             val deployType = if (compileTaskResult.isGradleCompile) {
                 "installing"
             } else {
                 "deploying"
             }
-            val failedReason = "No device found. Stop $deployType."
+            val failedReason = compileUiHandler.targetDeviceSerial?.let {
+                "Device $it is not connected. Stop $deployType."
+            } ?: "No device found. Stop $deployType."
             logger.warn(failedReason)
             failedAndActiveRunWindowIfNotCanceled()
 

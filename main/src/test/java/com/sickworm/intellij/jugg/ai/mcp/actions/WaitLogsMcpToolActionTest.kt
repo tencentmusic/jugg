@@ -78,6 +78,26 @@ class WaitLogsMcpToolActionTest {
     }
 
     @Test
+    fun testExplicitSerialUsesDeviceDeployBaseline() {
+        registry.setTimestamp(projectDir.absolutePath, "04-19 09:00:00.000")
+        registry.setTimestamp(projectDir.absolutePath, "04-19 10:00:00.000", adb.serial)
+        adb.mainPids = setOf(1234)
+        adb.enqueueLine("04-19 10:00:01.000  1234  1234 I MyTag: DONE")
+
+        val result = WaitLogsMcpToolAction(registry).execute(
+            mapOf(
+                "projectDir" to projectDir.absolutePath,
+                "serial" to adb.serial,
+                "marker" to "DONE",
+            ),
+            runtime,
+        )
+
+        assertEquals(McpToolStatus.OK, result.status)
+        assertEquals("04-19 10:00:00.000", adb.lastSinceTime)
+    }
+
+    @Test
     fun testMarkerFromOtherAppIgnored() {
         // PID 9999 does not belong to our package
         adb.packageName = "com.example.app"
@@ -532,6 +552,7 @@ class WaitLogsMcpToolActionTest {
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.getTargetDevices(fakeAdb.serial)).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getPackageName()).thenAnswer { resolvePackageName(fakeAdb) }
         Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenAnswer { resolvePackageName(fakeAdb) }
 
@@ -568,12 +589,14 @@ class WaitLogsMcpToolActionTest {
         private var pidofCallCount = 0
 
         private val logLines = java.util.concurrent.LinkedBlockingQueue<String>()
+        var lastSinceTime: String? = null
 
         fun enqueueLine(line: String) {
             logLines.offer(line)
         }
 
         override fun createLogcatSource(sinceTime: String): AdbLogcatSource {
+            lastSinceTime = sinceTime
             return object : AdbLogcatSource {
                 override fun nextLine(pollTimeoutMs: Long): String? =
                     logLines.poll(pollTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)

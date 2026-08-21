@@ -3,31 +3,39 @@ package com.sickworm.intellij.jugg.ai.mcp.util
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * LastDeployTimestampRegistry records the most-recent successful deploy/restart timestamp per project.
+ * LastDeployTimestampRegistry records the most-recent successful deploy/restart timestamp per project and device.
  * The timestamp format matches `adb logcat -v threadtime`: "MM-dd HH:mm:ss.SSS".
  */
 class LastDeployTimestampRegistry {
 
-    private val timestamps = ConcurrentHashMap<String, String>()
+    private val timestamps = ConcurrentHashMap<TimestampKey, String>()
 
     /**
      * Record a successful deploy/restart for [projectDir] at the current system time.
      * Automatically formats the timestamp to match logcat threadtime output.
      */
-    fun recordNow(projectDir: String) {
+    fun recordNow(projectDir: String, serial: String? = null) {
         val ts = formatNow()
-        timestamps[projectDir] = ts
+        timestamps[TimestampKey(projectDir, serial)] = ts
     }
 
     /** Directly set a timestamp string (used in tests and by deploy/restart success paths). */
-    fun setTimestamp(projectDir: String, timestamp: String) {
-        timestamps[projectDir] = timestamp
+    fun setTimestamp(projectDir: String, timestamp: String, serial: String? = null) {
+        timestamps[TimestampKey(projectDir, serial)] = timestamp
     }
 
     /**
-     * Return the stored timestamp for [projectDir], or null if none has been recorded.
+     * Returns the device timestamp first, then falls back to the legacy project timestamp.
      */
-    fun getTimestamp(projectDir: String): String? = timestamps[projectDir]
+    fun getTimestamp(projectDir: String, serial: String? = null): String? {
+        return timestamps[TimestampKey(projectDir, serial)]
+            ?: serial?.let { timestamps[TimestampKey(projectDir, null)] }
+    }
+
+    private data class TimestampKey(
+        val projectDir: String,
+        val serial: String?,
+    )
 
     private fun formatNow(): String {
         val now = java.util.Date()

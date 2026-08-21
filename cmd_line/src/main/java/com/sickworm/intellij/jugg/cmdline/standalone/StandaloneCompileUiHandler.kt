@@ -24,6 +24,7 @@ class StandaloneCompileUiHandler(
     override val isSkipDeploy: Boolean,
     override val isAlwaysRestartApp: Boolean,
     override val isRpcMode: Boolean,
+    override val targetDeviceSerial: String?,
     override var isForceGradleCompile: Boolean,
     private val logger: Logger,
 ) : CompileUiHandler {

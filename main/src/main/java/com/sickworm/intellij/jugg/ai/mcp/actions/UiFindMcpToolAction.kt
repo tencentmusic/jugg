@@ -21,6 +21,7 @@ class UiFindMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "target" to McpJsonSchemaProperty(
                     type = "object",
                     description = "Element selector.",
@@ -47,7 +48,9 @@ class UiFindMcpToolAction : McpToolAction {
             ?: return McpToolResult.internalErrorResult(toolName, "target is required")
 
         try {
-            val dumpResult = LayoutDumpHelper.dumpInternal(runtime, toolName)
+            val dumpResult = LayoutDumpHelper.dumpInternal(
+                runtime, toolName, targetDeviceSerial = arguments.deviceSerial(),
+            )
             if (dumpResult is LayoutDumpHelper.DumpInternalResult.Failure) {
                 return dumpResult.result
             }

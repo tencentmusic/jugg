@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -30,6 +31,7 @@ class IncrementalCompilerHelper(
     private val fileChangesHandler: IFileChangesHandler,
     private val retryResolver: IIncrementalCompileRetryResolver,
     loggerArg: Logger,
+    private val targetDevice: IDevice? = null,
 ) {
     private val logger = loggerArg.getInstance("JuggCompilerHelper")
 
@@ -278,7 +280,8 @@ class IncrementalCompilerHelper(
         }
 
         // deploy state fallback
-        val deployState = deployStateManager.updateDeployState()
+        val deployState = targetDevice?.let { deployStateManager.updateDeployState(it) }
+            ?: deployStateManager.updateDeployState()
         if (!deployState.isReadyDeploy) {
             if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
                 logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")

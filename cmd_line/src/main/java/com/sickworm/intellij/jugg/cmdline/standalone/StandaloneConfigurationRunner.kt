@@ -47,7 +47,7 @@ class StandaloneConfigurationRunner(
     override fun runFirstConfiguration(
         isRpcMode: Boolean, isSkipDeploy: Boolean, isAlwaysRestartApp: Boolean,
     ): JuggRunInvocationResult = runFirstConfigurationWithSpec(
-        isRpcMode, isSkipDeploy, isAlwaysRestartApp, null, null,
+        isRpcMode, isSkipDeploy, isAlwaysRestartApp, null, null, null,
     )
 
     override fun runFirstConfigurationWithSpec(
@@ -56,12 +56,16 @@ class StandaloneConfigurationRunner(
         isAlwaysRestartApp: Boolean,
         androidTestRunSpec: AndroidTestRunSpec?,
         buildTargetOverride: BuildTarget?,
+        targetDeviceSerial: String?,
     ): JuggRunInvocationResult {
-        return execute(isRpcMode, isSkipDeploy, isAlwaysRestartApp, androidTestRunSpec, buildTargetOverride, false)
+        return execute(
+            isRpcMode, isSkipDeploy, isAlwaysRestartApp, androidTestRunSpec, buildTargetOverride,
+            targetDeviceSerial, false,
+        )
     }
 
-    fun executeGradleBuild(): JuggRunInvocationResult {
-        return execute(true, true, false, null, null, true)
+    fun executeGradleBuild(targetDeviceSerial: String?): JuggRunInvocationResult {
+        return execute(true, true, false, null, null, targetDeviceSerial, true)
     }
 
     private fun execute(
@@ -70,6 +74,7 @@ class StandaloneConfigurationRunner(
         isAlwaysRestartApp: Boolean,
         androidTestRunSpec: AndroidTestRunSpec?,
         buildTargetOverride: BuildTarget?,
+        targetDeviceSerial: String?,
         forceGradle: Boolean,
     ): JuggRunInvocationResult {
         val canceled = AtomicBoolean()
@@ -81,7 +86,8 @@ class StandaloneConfigurationRunner(
         synchronized(runLock) {
             if (canceled.get()) return canceledResult(isSkipDeploy)
             return executeLocked(RunRequest(
-                isRpcMode, isSkipDeploy, isAlwaysRestartApp, androidTestRunSpec, buildTargetOverride, forceGradle,
+                isRpcMode, isSkipDeploy, isAlwaysRestartApp, androidTestRunSpec, buildTargetOverride,
+                targetDeviceSerial, forceGradle,
             ), canceled)
         }
     }
@@ -112,7 +118,8 @@ class StandaloneConfigurationRunner(
         val baseOptions = configuration.toCompileOptions(services.pathManager)
         val options = request.buildTargetOverride?.let { baseOptions.copy(buildTarget = it) } ?: baseOptions
         val handler = StandaloneCompileUiHandler(
-            options, request.isSkipDeploy, request.isAlwaysRestartApp, request.isRpcMode, request.forceGradle, services.logger,
+            options, request.isSkipDeploy, request.isAlwaysRestartApp, request.isRpcMode,
+            request.targetDeviceSerial, request.forceGradle, services.logger,
         )
         currentHandler = handler
         if (canceled.get()) handler.cancel()
@@ -165,11 +172,14 @@ class StandaloneConfigurationRunner(
     private fun deploy(
         compileResult: CompileTaskResult, handler: StandaloneCompileUiHandler, androidTestRunSpec: AndroidTestRunSpec?,
     ): JuggRunInvocationResult {
-        val devices = services.deployTargetManager.getSelectedDevices()
+        val devices = services.deployTargetManager.getTargetDevices(handler.targetDeviceSerial)
         if (devices.isEmpty()) {
+            val failedReason = handler.targetDeviceSerial?.let {
+                "Device $it is not connected. Stop deploying."
+            } ?: "No device found. Stop deploying."
             val runResult = RunResult(
                 compileResult.isGradleCompile, true, false, handler.isCanceled,
-                failedReason = "No device found. Stop deploying.",
+                failedReason = failedReason,
             )
             return result(runResult, false)
         }
@@ -207,6 +217,7 @@ class StandaloneConfigurationRunner(
         val isAlwaysRestartApp: Boolean,
         val androidTestRunSpec: AndroidTestRunSpec?,
         val buildTargetOverride: BuildTarget?,
+        val targetDeviceSerial: String?,
         val forceGradle: Boolean,
     )
 }
@@ -223,8 +234,14 @@ class StandaloneForceGradleCompileHelper(
     override fun executeGradleCompileBlocking(
         autoConfirm: Boolean, useCleanAndReinstall: Boolean,
     ): GradleCompileExecutionResult {
+        return executeGradleCompileBlockingForDevice(autoConfirm, useCleanAndReinstall, null)
+    }
+
+    override fun executeGradleCompileBlockingForDevice(
+        autoConfirm: Boolean, useCleanAndReinstall: Boolean, targetDeviceSerial: String?,
+    ): GradleCompileExecutionResult {
         if (useCleanAndReinstall) runner.forceReInstallNextTime()
-        val invocation = runner.executeGradleBuild()
+        val invocation = runner.executeGradleBuild(targetDeviceSerial)
         val runResult = invocation.runResult
         val isCompileSuccess = runResult?.isCompileSuccess == true
         return GradleCompileExecutionResult(

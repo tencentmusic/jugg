@@ -451,6 +451,7 @@ class JuggGlobalProjectDirTest(unittest.TestCase):
 
     def tearDown(self):
         jugglib.set_project_dir_override("")
+        jugglib.set_device_serial_override("")
         jugglib.set_runtime_type_override("")
 
     def test_project_dir_global_flag_sets_override_and_does_not_reach_subcommand(self):
@@ -478,6 +479,40 @@ class JuggGlobalProjectDirTest(unittest.TestCase):
             jugg.main()
 
         self.assertEqual(jugglib.project_dir_override, "/manual/project")
+
+    def test_serial_global_flag_sets_override_and_does_not_reach_subcommand(self):
+        import jugg
+
+        captured_args = []
+        fake_module = types.SimpleNamespace(cmd_deploy=lambda args: captured_args.append(args))
+
+        with patch.object(sys, "argv", ["jugg.py", "--serial", "emulator-5556", "deploy"]), \
+             patch("importlib.import_module", return_value=fake_module):
+            jugg.main()
+
+        self.assertEqual(jugglib.device_serial_override, "emulator-5556")
+        self.assertEqual(captured_args, [[]])
+
+    def test_serial_global_flag_accepts_equals_form(self):
+        import jugg
+
+        fake_module = types.SimpleNamespace(cmd_status=lambda args: None)
+
+        with patch.object(sys, "argv", ["jugg.py", "--serial=R58M123", "status"]), \
+             patch("importlib.import_module", return_value=fake_module):
+            jugg.main()
+
+        self.assertEqual(jugglib.device_serial_override, "R58M123")
+
+    def test_serial_global_flag_rejects_blank_value(self):
+        import jugg
+
+        with patch.object(sys, "argv", ["jugg.py", "--serial=  ", "status"]), \
+             contextlib.redirect_stderr(io.StringIO()), \
+             self.assertRaises(SystemExit) as cm:
+            jugg.main()
+
+        self.assertEqual(1, cm.exception.code)
 
     def test_runtime_global_flag_sets_explicit_runtime(self):
         import jugg
@@ -525,6 +560,7 @@ class JuggHelpTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Usage: jugg", stderr)
         self.assertIn("jugg help <subcommand>", stderr)
+        self.assertIn("--serial SERIAL", stderr)
 
     def test_help_subcommand_prints_options_without_importing_command(self):
         with patch("importlib.import_module") as mock_import:
@@ -551,6 +587,45 @@ class JuggHelpTest(unittest.TestCase):
         from help_registry import COMMAND_HELP
 
         self.assertEqual(set(COMMAND_HELP.keys()), set(jugg.COMMANDS.keys()))
+
+    def test_device_command_help_includes_global_serial(self):
+        code, _, stderr = self._run_main(["jugg.py", "help", "view-locate"])
+
+        self.assertEqual(code, 0)
+        self.assertIn("--serial <adbSerial>", stderr)
+
+
+class DeviceSerialInjectionTest(unittest.TestCase):
+
+    def tearDown(self):
+        jugglib.set_device_serial_override("")
+
+    def test_raw_call_injects_serial_into_device_tool(self):
+        jugglib.set_device_serial_override("emulator-5556")
+
+        with patch.object(jugglib, "http_post", return_value={}) as mock_post:
+            jugglib.raw_call(12320, "view-locate", {"projectDir": "/proj"})
+
+        request = json.loads(mock_post.call_args[0][1])
+        self.assertEqual("emulator-5556", request["params"]["arguments"]["serial"])
+
+    def test_raw_call_does_not_inject_serial_into_non_device_tool(self):
+        jugglib.set_device_serial_override("emulator-5556")
+
+        with patch.object(jugglib, "http_post", return_value={}) as mock_post:
+            jugglib.raw_call(12320, "compile", {"projectDir": "/proj"})
+
+        request = json.loads(mock_post.call_args[0][1])
+        self.assertNotIn("serial", request["params"]["arguments"])
+
+    def test_raw_call_keeps_explicit_serial(self):
+        jugglib.set_device_serial_override("emulator-5556")
+
+        with patch.object(jugglib, "http_post", return_value={}) as mock_post:
+            jugglib.raw_call(12320, "deploy", {"projectDir": "/proj", "serial": "device-2"})
+
+        request = json.loads(mock_post.call_args[0][1])
+        self.assertEqual("device-2", request["params"]["arguments"]["serial"])
 
 
 class InitCommandTest(unittest.TestCase):

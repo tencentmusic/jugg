@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
@@ -9,6 +10,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
@@ -38,6 +40,7 @@ class GetStatusMcpToolAction(
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 REFRESH_CHANGES_PARAM to McpJsonSchemaProperty(
                     type = "boolean",
                     description = "When true, refresh git-tracked changed files before reading status. Default is true.",
@@ -151,7 +154,26 @@ class GetStatusMcpToolAction(
         }
 
         val deployStateManager = runtime.deployStateManager
-        val deployState = (if (updateDeployState) deployStateManager?.updateDeployState() else deployStateManager?.deployState)
+        val targetDeviceSerial = arguments.deviceSerial()
+        val targetSelection = targetDeviceSerial?.let {
+            DeviceSelectionResolver().resolve(runtime.deployTargetManager, it)
+        }
+        val targetDevice = (targetSelection as? DeviceSelectionResult.Selected)?.device
+        val deployState = (if (targetDevice != null) {
+            if (updateDeployState) deployStateManager?.updateDeployState(targetDevice)
+            else deployStateManager?.getDeployState(targetDevice)
+        } else if (targetDeviceSerial != null) {
+            JuggDeployState(
+                state = JuggDeployState.State.NOTHING_CAN_DO,
+                msg = (targetSelection as? DeviceSelectionResult.NoDevice)?.messageDetail
+                    ?: "Device $targetDeviceSerial is not online.",
+                ideDeployState = com.sickworm.intellij.jugg.deploy.run.IdeDeployState.ok,
+            )
+        } else if (updateDeployState) {
+            deployStateManager?.updateDeployState()
+        } else {
+            deployStateManager?.deployState
+        })
             ?: JuggDeployState(
                 state = JuggDeployState.State.READY_FULL_COMPILE,
                 msg = "standalone runtime is ready for Gradle baseline",
@@ -202,7 +224,7 @@ class GetStatusMcpToolAction(
         val hasBeenFullCompiled = projectDir?.let { hasBeenFullCompiled(File(it)) } ?: false
 
         val data: Map<String, Any> = mapOf(
-            "hasDevice" to (runtime.deployTargetManager.hasDevice),
+            "hasDevice" to if (targetDeviceSerial == null) runtime.deployTargetManager.hasDevice else targetDevice != null,
             "needFallback" to needFallback,
             "executionType" to runtime.forceGradleCompileHelper.resolveExecutionType(),
             "stateMessage" to deployState.msg,

@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.getTargetDeviceSerialList
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
@@ -195,7 +196,7 @@ class StandaloneProjectServices(
         if (isCanceled || runResult?.isNeedResetHasRun == true) {
             runningTaskStatusManager.resetHasRun()
         } else {
-            runningTaskStatusManager.setHasRun(deployTargetManagerInside.getDeviceNameList())
+            runningTaskStatusManager.setHasRun(deployTargetManagerInside.getTargetDeviceSerialList(handler.targetDeviceSerial))
         }
         runningTaskStatusManager.isProjectSwitchedThisRun = false
     }

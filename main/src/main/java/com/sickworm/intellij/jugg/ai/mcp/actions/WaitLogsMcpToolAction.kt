@@ -43,6 +43,7 @@ class WaitLogsMcpToolAction(
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "marker" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Stop-condition regex (Java Pattern dialect) matched against log message part.",
@@ -93,11 +94,12 @@ class WaitLogsMcpToolAction(
         }
 
         // --- deploy baseline ---
-        val sinceTime = timestampRegistry.getTimestamp(projectDir)
+        val targetDeviceSerial = arguments.deviceSerial()
+        val sinceTime = timestampRegistry.getTimestamp(projectDir, targetDeviceSerial)
             ?: return errorResult(McpErrorCode.NO_DEPLOY_BASELINE, "No deploy baseline found for project. Run deploy or restart first.")
 
         // --- device ---
-        val adb = resolveAdb(runtime)
+        val adb = resolveAdb(runtime, targetDeviceSerial)
             ?: return errorResult(McpErrorCode.NO_DEVICE, "No connected device is available.")
 
         val packageName = runtime.deployTargetManager.getPackageNameOrNull() ?: ""
@@ -282,8 +284,8 @@ class WaitLogsMcpToolAction(
         return PID_REGEX.findAll(raw).mapNotNull { it.value.toIntOrNull() }.toSet()
     }
 
-    private fun resolveAdb(runtime: IMcpRuntime): IDeviceAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
+    private fun resolveAdb(runtime: IMcpRuntime, targetDeviceSerial: String?): IDeviceAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
         if (selectionResult !is DeviceSelectionResult.Selected) return null
         val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
         if (!adb.isOnline) return null

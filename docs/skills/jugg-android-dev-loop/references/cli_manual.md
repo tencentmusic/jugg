@@ -4,6 +4,8 @@ CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py [global options] <subcommand> [o
 
 The CLI scans IDEA and standalone MCP runtimes and selects the one that owns the target project. Use `--runtime idea|standalone` to force a Runtime when both own the project. If no Runtime owns it, the CLI serializes launch attempts per project before starting `~/.jugg/standalone/bin/jugg-standalone` or `JUGG_STANDALONE_LAUNCHER`. Hook subprocesses set `JUGG_CALLER=hook` and only start standalone when `build/jugg/database/compile_context.db/complete_flag` exists. The standalone Runtime supports `version`, `list-projects`, `init`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, and `status`.
 
+Use global `--serial <adbSerial>` or `--serial=<adbSerial>` with device-related commands to override IDEA selection or standalone `ANDROID_SERIAL` for that request. The value is injected into `deploy`, `gradle-build`, `clean-reinstall`, `restart`, `instrument`, `status`, `devices`, `layout-dump`, `view-locate`, `view-inspect`, `tap`, `activity-stack`, and `wait-logs`; it is not sent to non-device tools. Explicit serial matching is exact and online-only, with no fallback to another device.
+
 ### CLI Output Format
 
 Controlled by the global `--console` flag (must appear before the subcommand):
@@ -103,7 +105,7 @@ python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
 
-In standalone mode, `gradle-build` performs the full compile and refreshes the incremental baseline. With a remote profile, only the Gradle full build/fallback runs remotely; project-info dry-runs, incremental compilation, and device operations stay on the standalone host. Remote authentication is non-interactive, so configure SSH credentials in the profile or authenticate the external iFT client before running the command. It does not install or launch the app; use `deploy` next when device deployment is required. Standalone preserves an explicit `JAVA_HOME`. For deployment, set `ANDROID_SERIAL` when multiple devices are online; without it, standalone only proceeds when exactly one device is online. `clean-reinstall` and `instrument` remain IDEA-only.
+In standalone mode, `gradle-build` performs the full compile and refreshes the incremental baseline. With a remote profile, only the Gradle full build/fallback runs remotely; project-info dry-runs, incremental compilation, and device operations stay on the standalone host. Remote authentication is non-interactive, so configure SSH credentials in the profile or authenticate the external iFT client before running the command. It does not install or launch the app; use `deploy` next when device deployment is required. Standalone preserves an explicit `JAVA_HOME`. For deployment, prefer request-level `--serial`; otherwise standalone uses `ANDROID_SERIAL`, then only proceeds without either setting when exactly one device is online. `clean-reinstall`, `instrument`, device listing, runtime UI inspection, touch, activity-stack, restart, and wait-logs remain IDEA-only capabilities.
 
 ### `instrument`
 

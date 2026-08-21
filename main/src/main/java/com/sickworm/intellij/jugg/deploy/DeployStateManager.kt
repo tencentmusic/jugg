@@ -116,12 +116,18 @@ class DeployStateManager(
     }
 
     override fun getDeployState(device: IDevice): JuggDeployState {
-        return deployStateMap[device.name] ?: getNewDeployState(device)
+        return deployStateMap[device.serialNumber] ?: getNewDeployState(device)
+    }
+
+    override fun updateDeployState(device: IDevice): JuggDeployState {
+        val state = getNewDeployState(device)
+        deployStateMap = deployStateMap + (device.serialNumber to state)
+        return state
     }
 
     private fun getNewDeployState(): JuggDeployState {
         deployStateMap = deployTargetManager.getSelectedDevices().associate {
-            it.name to getNewDeployState(it)
+            it.serialNumber to getNewDeployState(it)
         }
         return if (deployStateMap.isEmpty()) {
             getNewDeployState(null)

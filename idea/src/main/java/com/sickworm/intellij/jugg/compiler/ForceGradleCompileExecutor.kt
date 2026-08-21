@@ -123,6 +123,14 @@ class IdeaForceGradleCompileHelper(
         autoConfirm: Boolean,
         useCleanAndReinstall: Boolean,
     ): GradleCompileExecutionResult {
+        return executeGradleCompileBlockingForDevice(autoConfirm, useCleanAndReinstall, null)
+    }
+
+    override fun executeGradleCompileBlockingForDevice(
+        autoConfirm: Boolean,
+        useCleanAndReinstall: Boolean,
+        targetDeviceSerial: String?,
+    ): GradleCompileExecutionResult {
         ForceGradleCompileHelper.isGradleCacheRefreshNextTime = false
         if (!autoConfirm) {
             return GradleCompileExecutionResult(
@@ -137,7 +145,14 @@ class IdeaForceGradleCompileHelper(
         } else {
             ForceGradleCompileHelper.isForceGradleCompileNextTime = true
         }
-        val result = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
+        val result = if (targetDeviceSerial == null) {
+            juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
+        } else {
+            juggConfigurationRunner.runFirstConfigurationWithSpec(
+                isRpcMode = true,
+                targetDeviceSerial = targetDeviceSerial,
+            )
+        }
         if (!result.isSuccess) {
             return GradleCompileExecutionResult(
                 status = "failed",

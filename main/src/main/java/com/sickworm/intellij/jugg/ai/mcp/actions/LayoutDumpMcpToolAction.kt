@@ -20,6 +20,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "rootLayout" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Optional node id to dump only that subtree. Pass the `id` value from previous layout_dump (prefer short id, e.g. \"content\").",
@@ -44,6 +45,6 @@ class LayoutDumpMcpToolAction : McpToolAction {
         // Accept both new ("includeGone") and legacy ("isIncludeGone") param names.
         val includeGone = (arguments["includeGone"] ?: arguments["isIncludeGone"]) as? Boolean ?: false
         val allWindows = (arguments["allWindows"] ?: arguments["isAllWindows"]) as? Boolean ?: false
-        return LayoutDumpHelper.dump(runtime, toolName, rootLayout, includeGone, allWindows)
+        return LayoutDumpHelper.dump(runtime, toolName, rootLayout, includeGone, allWindows, arguments.deviceSerial())
     }
 }

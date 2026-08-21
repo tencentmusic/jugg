@@ -31,10 +31,11 @@ Collect mandatory variables before any action. For install-only requests, skip J
 | Variable | Source | Fallback |
 |----------|--------|----------|
 | `projectDir` | CLI auto-resolved from `$PWD`, or explicit `--project-dir <path>` when provided | Ask user only if neither current directory nor provided path identifies the target project |
+| `serial` | Optional global `--serial <adbSerial>` for device-related commands | Use when multiple devices are online or the requested device differs from IDEA selection |
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 | `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
 
-The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns the project, it may start an installed standalone daemon; concurrent launch attempts are serialized per project. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, compile status polling, and `status`; device inspection, UI, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
+The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns the project, it may start an installed standalone daemon; concurrent launch attempts are serialized per project. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, compile status polling, and `status`; device inspection, UI, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
 
 ---
 
@@ -79,7 +80,7 @@ Supplementary references load on-demand at the step that needs them.
 ### Entry
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] [--runtime idea|standalone] <subcommand> [options]
+python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] [--serial <adbSerial>] [--runtime idea|standalone] <subcommand> [options]
 python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 ```
 

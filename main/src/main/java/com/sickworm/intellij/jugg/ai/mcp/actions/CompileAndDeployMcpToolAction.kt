@@ -34,6 +34,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "alwaysRestartApp" to McpJsonSchemaProperty(
                     type = "boolean",
                     description = "When true (default), always restart the app after deployment (HOT_FIX behavior). " +
@@ -57,6 +58,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             isAlwaysRestartApp = isAlwaysRestartApp,
             waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
             compiledFiles = compiledFiles,
+            targetDeviceSerial = arguments.deviceSerial(),
         )
     }
 
@@ -76,6 +78,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             buildTargetOverride: BuildTarget? = null,
             waitAppReadyAfterSuccess: Boolean = false,
             compiledFiles: List<String> = emptyList(),
+            targetDeviceSerial: String? = null,
         ): McpToolResult {
             val projectDir = runtime.projectDir.takeIf { it.isNotBlank() }
             val successMessage = buildSuccessMessage(toolName, projectDir, compiledFiles)
@@ -90,6 +93,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 androidTestRunSpec = androidTestRunSpec,
                 buildTargetOverride = buildTargetOverride,
                 waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
+                targetDeviceSerial = targetDeviceSerial,
             )
             val jobMetaData = buildJobMetaData(trigger)
             if (!trigger.isFinal) {
@@ -128,7 +132,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             )
             // Record deploy completion timestamp so wait-logs can use it as the log start point.
             if (result.status == McpToolStatus.OK && projectDir != null) {
-                LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir)
+                LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir, targetDeviceSerial)
             }
             return result
         }

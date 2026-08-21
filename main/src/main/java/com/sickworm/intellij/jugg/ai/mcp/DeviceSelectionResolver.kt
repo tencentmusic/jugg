@@ -9,7 +9,15 @@ import com.sickworm.intellij.jugg.platform.PlatformApi
  */
 class DeviceSelectionResolver {
 
-    fun resolve(deployTargetManager: IDeployTargetManager): DeviceSelectionResult {
+    fun resolve(deployTargetManager: IDeployTargetManager, serial: String? = null): DeviceSelectionResult {
+        val targetSerial = serial?.trim()?.takeIf { it.isNotEmpty() }
+        if (targetSerial != null) {
+            val selectedDevice = deployTargetManager.getTargetDevices(targetSerial)
+                .firstOrNull { isDeviceOnline(it) }
+                ?: return DeviceSelectionResult.NoDevice("Device $targetSerial is not online.")
+            return DeviceSelectionResult.Selected(selectedDevice)
+        }
+
         val selectedDevices = deployTargetManager.getSelectedDevices().filter { isDeviceOnline(it) }
         val connectedDevices = deployTargetManager.getConnectedDevices().filter { isDeviceOnline(it) }
 

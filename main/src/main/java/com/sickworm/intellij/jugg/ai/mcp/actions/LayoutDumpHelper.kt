@@ -38,8 +38,11 @@ internal object LayoutDumpHelper {
         rootLayout: String? = null,
         isIncludeGone: Boolean = false,
         isAllWindows: Boolean = false,
+        targetDeviceSerial: String? = null,
     ): McpToolResult {
-        return when (val output = dumpInternal(runtime, callerToolName, rootLayout, isIncludeGone, isAllWindows)) {
+        return when (val output = dumpInternal(
+            runtime, callerToolName, rootLayout, isIncludeGone, isAllWindows, targetDeviceSerial,
+        )) {
             is DumpInternalResult.Failure -> output.result
             is DumpInternalResult.Success -> output.toPublicResult()
         }
@@ -55,16 +58,17 @@ internal object LayoutDumpHelper {
         rootLayout: String? = null,
         isIncludeGone: Boolean = false,
         isAllWindows: Boolean = false,
+        targetDeviceSerial: String? = null,
     ): DumpInternalResult {
         val logger = runtime.logger.getInstance("LayoutDumpHelper")
 
-        val selected = resolveOnlineDevice(runtime)
+        val selected = resolveOnlineDevice(runtime, targetDeviceSerial)
             ?: run {
                 logger.warn("$callerToolName: no online device")
                 return DumpInternalResult.Failure(noDeviceResult(callerToolName))
             }
 
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, callerToolName)
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, callerToolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             logger.warn("$callerToolName: app not ready after pre-check retries")
             return DumpInternalResult.Failure(preWaitResult.errorResult
@@ -189,8 +193,8 @@ internal object LayoutDumpHelper {
 
     private data class SelectedAdb(val adb: IDeviceAdb)
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime, targetDeviceSerial: String?): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
         if (selectionResult !is DeviceSelectionResult.Selected) return null
         val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
         return if (adb.isOnline) SelectedAdb(adb) else null

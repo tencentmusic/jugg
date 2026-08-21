@@ -246,6 +246,22 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     ),
 }
 
+DEVICE_TARGET_COMMANDS = {
+    "deploy",
+    "gradle-build",
+    "clean-reinstall",
+    "restart",
+    "instrument",
+    "status",
+    "devices",
+    "layout-dump",
+    "view-locate",
+    "view-inspect",
+    "tap",
+    "activity-stack",
+    "wait-logs",
+}
+
 
 def format_command_help(command: CommandHelp) -> str:
     lines = [
@@ -253,6 +269,12 @@ def format_command_help(command: CommandHelp) -> str:
         "",
         f"Usage: {command.usage}",
     ]
+    if command.name in DEVICE_TARGET_COMMANDS:
+        lines.extend([
+            "",
+            "Global device option:",
+            "  --serial <adbSerial>                       Target one online adb device for this command.",
+        ])
     if command.options:
         lines.extend(["", "Options:"])
         for option in command.options:

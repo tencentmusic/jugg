@@ -37,13 +37,15 @@ object CompileJobManager {
     fun triggerForceGradleCompile(
         runtime: IMcpRuntime,
         waitAppReadyAfterSuccess: Boolean = false,
+        targetDeviceSerial: String? = null,
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
             logPath = runtime.compileLatestLogPath,
             runTask = {
-                val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlocking(
+                val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlockingForDevice(
                     autoConfirm = true,
+                    targetDeviceSerial = targetDeviceSerial,
                 )
                 val status = resolveGradleBuildStatus(result)
                 val initialResult = CompileJobExecutionResult(
@@ -53,8 +55,8 @@ object CompileJobManager {
                     isDeploySuccess = result.isDeploySuccess,
                     detail = result.detail,
                 )
-                if (runtime.deployTargetManager.hasDevice && waitAppReadyAfterSuccess) {
-                    waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
+                if (waitAppReadyAfterSuccess) {
+                    waitAppReadyIfSuccess(runtime, "gradle-build", initialResult, targetDeviceSerial)
                 } else {
                     initialResult
                 }
@@ -70,6 +72,7 @@ object CompileJobManager {
         androidTestRunSpec: AndroidTestRunSpec? = null,
         buildTargetOverride: BuildTarget? = null,
         waitAppReadyAfterSuccess: Boolean = false,
+        targetDeviceSerial: String? = null,
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
@@ -81,6 +84,7 @@ object CompileJobManager {
                     isAlwaysRestartApp = isAlwaysRestartApp,
                     androidTestRunSpec = androidTestRunSpec,
                     buildTargetOverride = buildTargetOverride,
+                    targetDeviceSerial = targetDeviceSerial,
                 )
                 val runResult = runResponse.runResult
                 val compileOk = runResult?.isCompileSuccess
@@ -123,7 +127,7 @@ object CompileJobManager {
                 if (isSkipDeploy || !waitAppReadyAfterSuccess) {
                     initialResult
                 } else {
-                    waitAppReadyIfSuccess(runtime, "deploy", initialResult)
+                    waitAppReadyIfSuccess(runtime, "deploy", initialResult, targetDeviceSerial)
                 }
             },
         )
@@ -294,11 +298,12 @@ object CompileJobManager {
         runtime: IMcpRuntime,
         toolName: String,
         result: CompileJobExecutionResult,
+        targetDeviceSerial: String?,
     ): CompileJobExecutionResult {
         if (result.status != "success") {
             return result
         }
-        val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
+        val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName, targetDeviceSerial)
         if (waitResult.isReady) {
             return result
         }

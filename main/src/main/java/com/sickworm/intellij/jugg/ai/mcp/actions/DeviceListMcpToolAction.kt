@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
@@ -20,6 +21,7 @@ class DeviceListMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -53,15 +55,28 @@ class DeviceListMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return deviceListAction(runtime)
+        return deviceListAction(runtime, arguments.deviceSerial())
     }
 
-    private fun deviceListAction(runtime: IMcpRuntime): McpToolResult {
-        val selectedSerials = runtime.deployTargetManager.getSelectedDevices()
-            .mapNotNull { PlatformApi.toDeviceAdb(it)?.serial }
-            .toSet()
+    private fun deviceListAction(runtime: IMcpRuntime, targetDeviceSerial: String?): McpToolResult {
+        val selectedSerials = targetDeviceSerial?.let(::setOf)
+            ?: runtime.deployTargetManager.getSelectedDevices()
+                .mapNotNull { PlatformApi.toDeviceAdb(it)?.serial }
+                .toSet()
         val connectedDevices = runtime.deployTargetManager.getConnectedDevices()
             .mapNotNull { PlatformApi.toDeviceAdb(it) }
+            .filter { it.isOnline }
+            .filter { targetDeviceSerial == null || it.serial == targetDeviceSerial }
+
+        if (targetDeviceSerial != null && connectedDevices.isEmpty()) {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "devices failed. Reason: Device $targetDeviceSerial is not online.",
+                data = mapOf("devices" to emptyList<Any>()),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.NO_DEVICE,
+            )
+        }
 
         val devices = connectedDevices.map { adb ->
             mapOf(

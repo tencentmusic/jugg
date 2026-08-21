@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-08-05
+> 最后核对：2026-08-21
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -33,6 +33,8 @@
 ## MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
 
 共 **18 个**注册工具，按注册顺序排列。
+
+以下设备相关工具公开可选 `serial: string`：`restart`、`deploy`、`clean-reinstall`、`gradle-build`、`instrument`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`status`、`wait-logs`。显式 serial 按大小写敏感的在线设备精确匹配，覆盖 IDEA 选中设备与 standalone `ANDROID_SERIAL`，只影响当前请求；未命中时不得回退其他设备。`devices` 传 serial 时只返回该在线设备，未命中返回 `NO_DEVICE`。
 
 ### `version`
 
@@ -86,6 +88,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径（pattern: `^/.+`） |
+| `serial` | string | 否 | 本次请求的 adb serial |
 | `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时重启成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
 **行为补充**：成功路径默认只确认 restart 命令执行完成；需要把 App ready 作为工具成功条件时显式传 `waitAppReadyAfterSuccess=true`。
@@ -111,6 +114,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial |
 | `alwaysRestartApp` | boolean | 否 | `true`（默认）时部署后强制重启 App（HOT_FIX 行为）；`false` 时仅在类结构变化时才重启（允许 HOT RELOAD） |
 | `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时部署成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
@@ -127,6 +131,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial |
 | `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时重装成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
 ---
@@ -138,6 +143,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial；standalone 仅建立 baseline，不执行设备操作 |
 | `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时构建/安装成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
 **异步返回**：同 `deploy`。
@@ -153,6 +159,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial |
 | `sourcePath` | string | **是** | androidTest 源文件路径，用于解析 module 与 test APK |
 | `class` | string | 否 | 文件内测试类，单 class 文件可省略 |
 | `method` | string | 否 | 测试方法，需已唯一确定 class |
@@ -204,6 +211,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 只返回该在线设备；未命中返回 `NO_DEVICE` |
 
 ---
 
@@ -214,6 +222,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial |
 | `rootLayout` | string | 否 | 节点 id，仅返回该子树（推荐 short id，如 `"content"`）；指定后自动跨窗口查找 |
 | `includeGone` | boolean | 否 | `true` 时包含 GONE 节点（默认 `false`） |
 | `allWindows` | boolean | 否 | `true` 时导出所有窗口（默认 `false`，仅 top window） |
@@ -239,6 +248,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial；内部 layout dump 使用同一设备 |
 | `target` | object | **是** | 元素选择器：`text`/`resourceId`/`contentDesc` |
 | `figmaNode` | object | 否 | 保留字段；当前公开实现仍以 `target` 的 text/resourceId/contentDesc 精确匹配为准 |
 
@@ -253,6 +263,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial |
 | `target` | object | **是** | 元素选择器：`resourceId`/`text`/`contentDesc`/`className`（AND 逻辑） |
 | `expressions` | array\<string\> | **是** | getter 方法表达式（1~20 个），如 `getText()`、`getCurrentTextColor()`、`getMaxLines()` |
 
@@ -273,6 +284,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial |
 
 **返回 data**：`topActivity`、`activities[]`、`dumpFile`、`sourceCommand`。
 
@@ -285,6 +297,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 本次请求的 adb serial |
 | `action` | string | 否 | `tap`（默认）/`long-press`/`swipe` |
 | `x` | number | 否 | X 坐标（坐标模式，min: 0） |
 | `y` | number | 否 | Y 坐标（坐标模式，min: 0） |
@@ -319,6 +332,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 返回该设备的 deploy state；未命中时 `hasDevice=false` 并在 `stateMessage` 说明原因 |
 | `refreshChanges` | boolean | 否 | 是否先刷新 git-tracked changed files；默认 `true`，传 `false` 时跳过刷新 |
 | `fullInfo` | boolean | 否 | 是否返回完整状态信息；默认 `false`，传 `true` 时 `files` 返回全部未编译文件路径 |
 
@@ -347,6 +361,7 @@
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |------|------|------|------|------|
 | `projectDir` | string | **是** | — | 项目绝对路径（pattern: `^/.+`） |
+| `serial` | string | 否 | — | 本次请求的 adb serial；优先读取项目 + serial 的 deploy/restart 时间戳 |
 | `marker` | string | **是** | — | 停止条件正则（Java Pattern 方言），匹配日志 message 部分 |
 | `tags` | array[string] | 否 | `[]` | tag 白名单（精确匹配，空 = 不按 tag 过滤） |
 | `timeoutMs` | integer | 否 | `30000` | 硬超时毫秒，范围 `[1000, 300000]` |

@@ -146,6 +146,7 @@ class JuggConfigurationRunner(
             isAlwaysRestartApp = isAlwaysRestartApp,
             androidTestRunSpec = null,
             buildTargetOverride = null,
+            targetDeviceSerial = null,
         )
     }
 
@@ -155,6 +156,7 @@ class JuggConfigurationRunner(
         isAlwaysRestartApp: Boolean,
         androidTestRunSpec: AndroidTestRunSpec?,
         buildTargetOverride: BuildTarget?,
+        targetDeviceSerial: String?,
     ): JuggRunInvocationResult {
         val fullBuildInfo = deployHistoryManager.getFullBuildInfo()
         val resolved = try {
@@ -211,6 +213,7 @@ class JuggConfigurationRunner(
             logger = logger,
             isSkipDeploy = isSkipDeploy,
             isAlwaysRestartApp = isAlwaysRestartApp,
+            targetDeviceSerial = targetDeviceSerial,
         ) {
             override fun onEnd(runResult: RunResult) {
                 synchronized(waitLock) {

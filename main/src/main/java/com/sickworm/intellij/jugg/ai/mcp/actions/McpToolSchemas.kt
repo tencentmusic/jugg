@@ -20,6 +20,13 @@ object McpToolSchemas {
         description = "When true, wait until the app is ready after the tool succeeds. Default: false.",
     )
 
+    val serialProperty = McpJsonSchemaProperty(
+        type = "string",
+        description = "Optional adb device serial. When set, it overrides IDEA selected devices and " +
+            "standalone ANDROID_SERIAL for this request only.",
+        pattern = ".*\\S.*",
+    )
+
     val baseOutputSchema = McpJsonSchemaObject(
         description = "Structured result returned via tools/call structuredContent.",
         properties = mapOf(
@@ -128,4 +135,8 @@ object McpToolSchemas {
             description = "Alias for className. Class name filter for element mode (AND with other selectors).",
         ),
     )
+}
+
+internal fun Map<String, Any?>.deviceSerial(): String? {
+    return (this["serial"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
 }

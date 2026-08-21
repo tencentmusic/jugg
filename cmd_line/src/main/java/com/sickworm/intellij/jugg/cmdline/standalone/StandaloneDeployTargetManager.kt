@@ -33,7 +33,7 @@ class StandaloneDeployTargetManager(
             return listOf(selected)
         }
         check(connectedDevices.size <= 1) {
-            "Multiple devices are online. Set ANDROID_SERIAL to select one device."
+            "Multiple devices are online. Pass CLI --serial or set ANDROID_SERIAL to select one device."
         }
         return connectedDevices
     }

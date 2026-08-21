@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.*
@@ -417,13 +418,14 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, GRADLE_PROJECT_INFO_UNAVAILABLE)
         }
 
-        checkDeviceFallback()?.let {
+        val targetDeployState = updateDeployState(uiHandler.targetDeviceSerial)
+        checkDeviceFallback(targetDeployState)?.let {
             return it
         }
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkFilesRollback()
         }
-        checkFilesFallback(deployFileManager.getUncompiledFiles())?.let {
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), targetDeployState)?.let {
             return it
         }
 
@@ -431,10 +433,10 @@ class JuggCompilerHelper(
             checkLibraryIncrementalCompile(options, uiHandler) // user may cancel in this step
         }
 
-        val deployState = deployStateManager.updateDeployState()
+        val deployState = updateDeployState(uiHandler.targetDeviceSerial)
         logger.debug("Try incremental compile. Current state: $deployState")
         if (!deployState.isReadyIncCompile) {
-            logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
+            logger.info("Deploy state $deployState not ready for incremental compile. Return.")
             return CompileTaskResult.incrementalFailed(true, deployState.msg)
         }
 
@@ -445,6 +447,19 @@ class JuggCompilerHelper(
             }
         }
         return null
+    }
+
+    private fun updateDeployState(targetDeviceSerial: String?): JuggDeployState {
+        if (targetDeviceSerial == null) {
+            return deployStateManager.updateDeployState()
+        }
+        val targetDevice = deployTargetManager.getTargetDevices(targetDeviceSerial).firstOrNull()
+            ?: return JuggDeployState(
+                JuggDeployState.State.NOTHING_CAN_DO,
+                "Device $targetDeviceSerial is not online.",
+                IdeDeployState(IdeDeployState.State.INVALID_DEVICE, "device is not online"),
+            )
+        return deployStateManager.updateDeployState(targetDevice)
     }
 
     private fun isCompileCommandChanged(options: JuggGradleCompileOptions): Boolean {
@@ -608,8 +623,8 @@ class JuggCompilerHelper(
                 ).copy(hasFileChanges = false)
             }
 
-            val deviceName = deployTargetManager.getDeviceNameList()
-            if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
+            val deviceSerials = deployTargetManager.getTargetDeviceSerialList(uiHandler.targetDeviceSerial)
+            if (juggRunningTaskStatusManager.isFirstTimeRun(deviceSerials)) {
                 if (uncompiledFiles.isEmpty()) {
                     logger.info("No file changes, but it's first time run, deploy directly.")
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
@@ -687,9 +702,20 @@ class JuggCompilerHelper(
         }
 
         val incrementalCompilerHelper = IncrementalCompilerHelper(
-            compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, dependencyMissingResolver, logger
+            compiler,
+            pathManager,
+            deployStateManager,
+            deployFileManager,
+            fileChangesHandler,
+            dependencyMissingResolver,
+            logger,
+            resolveTargetDevice(uiHandler.targetDeviceSerial),
         )
         return incrementalCompilerHelper.compile(undeployedFiles, uiHandler, uiHandler.createCompileStatusHolder())
+    }
+
+    private fun resolveTargetDevice(targetDeviceSerial: String?): IDevice? {
+        return targetDeviceSerial?.let { deployTargetManager.getTargetDevices(it).firstOrNull() }
     }
 
     fun warmUp() {
