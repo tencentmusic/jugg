@@ -31,8 +31,8 @@ if (homepageStyle.includes('.jugg-run-scene:after')) {
 }
 
 for (const homepagePath of homepagePaths) {
-  const pageAsset = pageAssets.find(({ content }) =>
-    content.includes(`"relativePath":"${homepagePath}"`)
+  const pageAsset = pageAssets.find(({ name, content }) =>
+    !name.endsWith('.lean.js') && content.includes(`"relativePath":"${homepagePath}"`)
   )
 
   if (!pageAsset) {
@@ -43,8 +43,24 @@ for (const homepagePath of homepagePaths) {
     throw new Error(`Homepage HTML rendered as code in ${homepagePath}`)
   }
 
-  if (!pageAsset.content.includes('class="jugg-run-scene"')) {
+  if (!pageAsset.content.includes('class:"jugg-run-scene"')) {
     throw new Error(`Missing rendered Run scene in ${homepagePath}`)
+  }
+
+  if (!pageAsset.content.includes('class:"jugg-video-shell"')) {
+    throw new Error(`Missing rendered demo video in ${homepagePath}`)
+  }
+
+  if (!pageAsset.content.includes('class:"jugg-compat"')) {
+    throw new Error(`Missing rendered compatibility rail in ${homepagePath}`)
+  }
+
+  if (!pageAsset.content.includes('class:"jugg-stack jugg-band"')) {
+    throw new Error(`Missing rendered technology stack section in ${homepagePath}`)
+  }
+
+  if (pageAsset.content.includes('class:"jugg-safety jugg-band"')) {
+    throw new Error(`Removed compile and deploy section still renders in ${homepagePath}`)
   }
 }
 

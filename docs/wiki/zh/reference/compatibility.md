@@ -1,6 +1,6 @@
 ---
 title: 兼容性
-description: 汇总 Jugg 对 Android Studio、设备、Debug、Gradle 和运行环境的兼容口径。
+description: 汇总 Jugg 支持的 IDE、AGP、Gradle、Kotlin、Android 设备和产品能力范围。
 status: active
 tags:
   - reference
@@ -9,64 +9,44 @@ tags:
 
 # 兼容性
 
-Jugg 运行在 Android Studio / IntelliJ 插件环境中，并复用 Android Studio 的项目模型、设备选择、部署器和 Debug 能力。兼容性主要取决于当前 Android Studio API、设备状态、Gradle 项目结构和 Jugg 的本地缓存是否一致。
+本页用于快速确认当前开发环境和目标能力是否在 Jugg 的支持范围内。具体触发条件、处理结果和限制请进入对应能力页查看。
 
-## Android Studio 版本
+## 环境兼容范围
 
-Jugg 通过兼容层适配 Android Studio deployer API 的版本差异。
-
-| 兼容层目录 | Android Studio 代号 |
+| 项目 | 支持范围 |
 |---|---|
-| `deploy_compat/v_quail` | Quail |
-| `deploy_compat/v_panda` | Panda |
-| `deploy_compat/v_otter` | Otter 2 Feature Drop |
-| `deploy_compat/v_narwhal_feature` | Narwhal Feature Drop |
-| `deploy_compat/v_narwhal` | Narwhal |
-| `deploy_compat/v_meerkat` | Meerkat |
-| `deploy_compat/v_iguana` | Iguana |
-| `deploy_compat/v_hedgehog` | Hedgehog |
-| `deploy_compat/v_giraffe` | Giraffe |
-| `deploy_compat/v_chipmunk` | Chipmunk |
+| Android Studio | Bumblebee 至 Quail |
+| IntelliJ IDEA | 2021.1.3 至 2025.1 Beta |
+| AGP | 3.4 至 9.1 |
+| Gradle | 5.4.1 至 9.2.1 |
+| Kotlin | 1.3 至 2.2 |
+| target API | 21 至 36 |
+| Android 设备 | Android 8 至 16 |
 
-当当前 Android Studio 高于已知最高版本时，Jugg 会优先尝试最高版本兼容实现；低于已知最低版本时会退到 Chipmunk 兼容实现。兼容层只能处理 Android Studio API 形态差异，不能掩盖真实部署失败。
+- Android Studio 当前兼容实现覆盖 Chipmunk 至 Quail；Bumblebee 使用低版本兼容实现。
+- AGP 已验证 3.4.2、3.5.4、4.1.3、4.2.0、7.2.2、8.3.0、8.7.0、8.13.0、9.1.2。
+- Gradle 兼容验证覆盖 5.4.1、6.8、7.3.3、9.2.1，Gradle 8.x 也在支持范围内。
+- Android 8 至 10 使用兼容部署；Android 11 及以上支持标准增量部署。
 
-## 设备和系统
+> [!NOTE]
+> 版本范围表示 Jugg 已覆盖的兼容边界。未列入已验证版本的中间版本通常可以直接使用；遇到兼容问题时，请通过插件的 Report issues 提交报告。
 
-Jugg 支持常见 Android 设备开发循环，但设备兼容还受以下因素影响：
+## 能力支持范围
 
-- 设备必须可被 Android Studio / ADB 正常识别。
-- App 被卸载、覆盖安装或设备重启后，可能需要 clean reinstall 或 Gradle 构建重新建立基线。
-- HarmonyOS、HyperOS、Android 11 以下设备等场景会走兼容部署策略。
-- 设备息屏、未解锁、目标 App 不在前台时，UI 类 MCP 工具会直接返回对应错误。
-
-> [!IMPORTANT]
-> Jugg 的增量部署依赖“本地部署历史、设备安装状态、当前 APK 结构”一致。三者不一致时，重新安装比继续增量更可靠。
-
-## Debug 兼容
-
-Jugg Debug 会在 Jugg 编译和部署成功后，调用 Android Studio 的 Java Debugger attach 能力。
-
-| 场景 | 兼容口径 |
+| 范围 | 支持能力 |
 |---|---|
-| 普通 Run | 不创建 Java debugger session。 |
-| Jugg Debug | 部署成功后等待目标进程进入 debugger ready 状态，再交给 Android Studio 创建 session。 |
-| 低版本或不支持的 AS API | 可能显示明确的不支持原因，需要使用 Android Studio 原生 Debug 或 Attach。 |
-| App 非 debuggable | 断点不会命中，需先确认构建类型和安装包状态。 |
+| 编译 | [源码编译](../capabilities/compile/source-compile.md)、[重编译/扩散编译](../capabilities/compile/recompile-propagation.md)、[资源编译](../capabilities/compile/resource-compile.md)、[AndroidManifest 编译](../capabilities/compile/manifest.md)、[so 更新](../capabilities/compile/so-update.md)、[DataBinding/ViewBinding](../capabilities/compile/databinding-viewbinding.md)、[Kotlin Compose](../capabilities/compile/kotlin-compose.md)、[KMP 与 Compose Multiplatform](../capabilities/compile/kmp-compose-multiplatform.md)、[注解器](../capabilities/compile/annotation-processors.md)、[自定义编译器](../capabilities/compile/custom-compiler.md)、[依赖库增量编译](../capabilities/compile/dependency-incremental.md)、[AabResGuard](../capabilities/compile/aab-resguard.md) |
+| 部署 | [多 APK](../capabilities/deploy/multi-apk.md)、[多设备](../capabilities/deploy/multi-device.md) |
+| Android Test | [Application Android Test](../capabilities/test/application-android-test.md)、[Library Android Test](../capabilities/test/library-android-test.md)、[Test Results UI](../capabilities/test/test-results-ui.md)、[Logcat 归因](../capabilities/test/logcat-attribution.md) |
+| Agent、CLI 与 MCP | [Agent Skills](../capabilities/tools/agent-skills.md)、[Jugg CLI](../capabilities/tools/cli.md)、[构建与部署](../capabilities/tools/cli-build-deploy.md)、[Android Test CLI](../capabilities/tools/cli-android-test.md)、[运行时与设备](../capabilities/tools/cli-runtime-device.md)、[UI 自动化](../capabilities/tools/ui-automation.md)、[UI 布局证据](../capabilities/tools/layout-verify.md)、[远端诊断](../capabilities/tools/remote-diagnosis.md)、[MCP](../capabilities/tools/mcp.md) |
 
-## Gradle / AGP 兼容
-
-Jugg 会读取 Gradle 项目信息、classpath、APK 输出和 androidTest 相关产物，但它不是完整 Gradle pipeline 的替代品。
-
-更容易需要 Gradle 构建的变化包括：
-
-- 修改 Gradle 脚本、插件版本、依赖声明或 version catalog。
-- 切换 build variant、source set、target package 或 androidTest 目标。
-- 依赖 Gradle task 副作用生成源码、资源、Manifest 或 classpath。
-- AGP、Kotlin、R8、资源混淆等构建链路升级。
+- [Release 编译](../capabilities/compile/release-compile.md)为实验性支持。
+- Gradle 脚本、依赖、变体、source set 或复杂插件配置变化需要 Gradle 构建。
+- Android Test 默认关闭，首次使用时会有对应开启提示。
+- Agent、CLI 与 MCP 使用前需先 [主动安装](../guide/cli)。
 
 ## 相关页面
 
+- [Jugg 能力概览](../capabilities/)
 - [限制](./limits.md)
-- [Jugg 工作原理](../concepts/how-jugg-works.md)
 - [Android Studio 版本兼容](../concepts/compatibility-layer.md)
-- [Debug](../guide/debug.md)
