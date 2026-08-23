@@ -98,4 +98,4 @@ Android Test 会使用 Test Results UI：
 - [Library Android Test](../capabilities/test/library-android-test.md)
 - [Test Results UI](../capabilities/test/test-results-ui.md)
 - [CLI Android Test](../capabilities/tools/cli-android-test.md)
-- [Android Test 无法运行或测试失败](../troubleshooting/android-test-failed.md)
+- [Android Test 运行或测试失败](../troubleshooting/android-test-failed.md)

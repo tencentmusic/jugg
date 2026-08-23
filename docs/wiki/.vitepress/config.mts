@@ -413,16 +413,16 @@ const chineseSidebar = {
         { text: '编译失败', link: '/zh/troubleshooting/compile-failed' },
         { text: '改动没有生效', link: '/zh/troubleshooting/changes-not-applied' },
         { text: '部署后 App 崩溃', link: '/zh/troubleshooting/runtime-crash' },
-        { text: '无法安装、启动或进入 Debug', link: '/zh/troubleshooting/app-cannot-run' },
+        { text: '无法安装、部署、启动或 Debug', link: '/zh/troubleshooting/app-cannot-run' },
         { text: 'Jugg 运行缓慢或卡住', link: '/zh/troubleshooting/jugg-slow-or-stuck' }
       ]
     },
     {
       text: '特定功能问题',
       items: [
-        { text: 'Android Test 无法运行或测试失败', link: '/zh/troubleshooting/android-test-failed' },
-        { text: '云端编译失败', link: '/zh/troubleshooting/remote-build-failed' },
-        { text: 'Agent 或命令执行失败', link: '/zh/troubleshooting/agent-command-failed' }
+        { text: '远程编译失败', link: '/zh/troubleshooting/remote-build-failed' },
+        { text: 'Android Test 运行或测试失败', link: '/zh/troubleshooting/android-test-failed' },
+        { text: 'Agent 或 CLI 执行失败', link: '/zh/troubleshooting/agent-command-failed' }
       ]
     }
   ],

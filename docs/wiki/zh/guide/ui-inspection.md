@@ -132,4 +132,4 @@ jugg tap --x-percent 50 --y-percent 90
 - [UI 自动化](../capabilities/tools/ui-automation.md)
 - [UI 布局证据](../capabilities/tools/layout-verify.md)
 - [CLI](./cli.md)
-- [Agent 或命令执行失败](../troubleshooting/agent-command-failed.md)
+- [Agent 或 CLI 执行失败](../troubleshooting/agent-command-failed.md)
