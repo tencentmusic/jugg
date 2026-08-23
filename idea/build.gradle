@@ -299,7 +299,18 @@ sourceSets {
     }
 }
 
-patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log/change_log.html").getText('UTF-8')
+patchPluginXml {
+    sinceBuild = '211.7628.21'
+    changeNotes = new File("${rootProject.rootDir}/change_log/change_log.html").getText('UTF-8')
+}
+
+runPluginVerifier {
+    ideVersions = [
+            'AI-2021.1.1.20',
+            'AI-2022.3.1.18',
+    ]
+}
+
 FileUtils.copyDirectory(file("${rootProject.rootDir}/change_log") , file("src/main/resources/change_log"))
 new File("src/main/resources/docs/skills").mkdirs()
 def skillsBundleZipFile = file("src/main/resources/docs/skills/docs-skills.zip")

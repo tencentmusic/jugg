@@ -14,10 +14,11 @@ import javax.swing.JScrollPane
 import java.util.Locale
 
 /**
- * Confirms the whitelist entries before creating a diagnostics bundle for the fixed Jugg endpoint.
+ * Confirms the whitelist entries and upload destination before creating a diagnostics bundle.
  */
 class ReportIssueDialog(
     candidates: List<IssueReportCandidate>,
+    private val uploadUrl: String,
 ) : DialogWrapper(true) {
     private val saveLocallyCheckBox = JCheckBox("Save locally without uploading")
     private val candidateCheckBoxes = candidates.sortedByDescending { it.isJuggLog() }.associateWith { candidate ->
@@ -48,7 +49,9 @@ class ReportIssueDialog(
             candidateCheckBoxes.values.forEach(::add)
         }
         panel.add(
-            JLabel("The following runtime logs have been redacted and will be used to analyze your issue:"),
+            JLabel("<html>The following runtime logs have been redacted and will be used to analyze your issue." +
+                    "<br>Upload destination: <b>$uploadUrl</b>" +
+                    "<br>Selected diagnostics will be uploaded only to this address.</html>"),
             BorderLayout.NORTH,
         )
         panel.add(JScrollPane(entries), BorderLayout.CENTER)

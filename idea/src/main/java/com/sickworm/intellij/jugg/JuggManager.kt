@@ -775,7 +775,7 @@ class JuggManager @TestOnly constructor(
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    showReportIssueDialog(builder, candidates)
+                    showReportIssueDialog(builder, candidates, IssueReportUploader.JUGG_REPORT_URL)
                 }
             } catch (e: Throwable) {
                 SwingUtilities.invokeLater {
@@ -790,8 +790,9 @@ class JuggManager @TestOnly constructor(
     private fun showReportIssueDialog(
         builder: IssueReportBundleBuilder,
         candidates: List<com.sickworm.intellij.jugg.diagnostics.IssueReportCandidate>,
+        uploadUrl: String,
     ) {
-        val dialog = ReportIssueDialog(candidates)
+        val dialog = ReportIssueDialog(candidates, uploadUrl)
         if (!dialog.showAndGet()) {
             return
         }
@@ -803,20 +804,20 @@ class JuggManager @TestOnly constructor(
                     ReportIssueResultDialog(null).show()
                 }
             } else {
-                uploadIssueReport(bundle)
+                uploadIssueReport(bundle, uploadUrl)
             }
         }
     }
 
-    private fun uploadIssueReport(bundle: IssueReportBundle) {
+    private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String) {
         SwingUtilities.invokeLater {
             val progressDialog = ReportIssueProgressDialog("Uploading logs...")
             taskRunnerManager.runBackgroundSafe("Upload issue report") {
-                val uploadResult = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL)
+                val uploadResult = IssueReportUploader().upload(bundle, uploadUrl)
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
                     ReportIssueResultDialog(uploadResult) {
-                        uploadIssueReport(bundle)
+                        uploadIssueReport(bundle, uploadUrl)
                     }.show()
                 }
             }

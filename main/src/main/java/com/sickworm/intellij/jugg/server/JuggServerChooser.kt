@@ -175,7 +175,9 @@ class JuggServerChooser(logger: Logger) {
     fun setCustomServer() {
         val newServerUrl = PlatformApi.showUserAndPasswordInputDialog(
             title = "Set Custom Server",
-            content = "Here to set custom server url for redirecting uploading compilation cost, reporting issues etc.",
+            content = "Custom server URL",
+            subTitle = "This server can be used for remote compilation, issue reporting, Jugg update checks, " +
+                    "and custom compiler downloads.",
             defaultInputText = if (isSetCustomServer) JuggSettings.serverUrl else "",
         )
         logger.debug("New server url: $newServerUrl")
@@ -188,6 +190,21 @@ class JuggServerChooser(logger: Logger) {
             updateServerIfExpired()
             return
         } else {
+            val displayUrl = newServerUrl.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            val confirmed = PlatformApi.showDialog(
+                title = "Trust Custom Server?",
+                content = "<html>Jugg will connect to:<br><b>$displayUrl</b><br><br>" +
+                        "This server can check for Jugg updates, download and install Jugg update JARs, " +
+                        "and download and load custom compiler JARs. Continue only if you control or trust it.</html>",
+                okButtonText = "Trust Server",
+                cancelButtonText = "Cancel",
+            )
+            if (!confirmed) {
+                logger.debug("User cancelled custom server confirmation.")
+                return
+            }
             logger.debug("User input server url, set to custom.")
             JuggSettings.serverUrl = newServerUrl
             isSetCustomServer = true
