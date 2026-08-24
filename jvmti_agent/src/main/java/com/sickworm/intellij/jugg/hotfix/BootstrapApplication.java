@@ -140,22 +140,43 @@ public class BootstrapApplication extends Application {
     }
 
     /**
-     * Create a new instance of raw application and then call "attachBaseContext()" on it.
+     * Creates the original factory when Android did not initialize it before Application startup.
      */
-    private void generateRawAppComponentFactory(ApplicationInfo applicationInfo, Context base) throws Throwable {
-        String rawAppComponentFactoryName = applicationInfo.metaData.getString(BuildConfig.META_DATA_LABEL_RAW_APP_COMPONENT_FACTORY);
-        LogUtils.i(TAG, "generateRawAppComponentFactory: rawAppComponentFactoryName: " + rawAppComponentFactoryName);
+    private void generateRawAppComponentFactory(
+            ApplicationInfo applicationInfo,
+            Context base
+    ) throws ReflectiveOperationException {
+        if (rawAppComponentFactory == null) {
+            rawAppComponentFactory = createRawAppComponentFactory(applicationInfo, base.getClassLoader());
+        }
+        LogUtils.i(TAG, "generateRawAppComponentFactory: rawAppComponentFactory: " +
+                rawAppComponentFactory);
+    }
 
-        if (TextUtils.isEmpty(rawAppComponentFactoryName) || rawAppComponentFactoryName.equals("null") || BootstrapAppComponentFactory.class.getName().equals(rawAppComponentFactoryName)) {
-            LogUtils.i(TAG, "generateRawAppComponentFactory: no raw appComponentFactory, exit generate");
-            return;
+    /**
+     * Creates the original factory with the ClassLoader Android uses for manifest components.
+     */
+    static AppComponentFactory createRawAppComponentFactory(
+            ApplicationInfo applicationInfo,
+            ClassLoader classLoader
+    ) throws ReflectiveOperationException {
+        if (applicationInfo.metaData == null) {
+            return null;
         }
-        Class<?> clazz = getClassLoader().loadClass(rawAppComponentFactoryName);
-        rawAppComponentFactory = (AppComponentFactory) clazz.newInstance();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            rawAppComponentFactory.instantiateClassLoader(base.getClassLoader(), applicationInfo);
+        String rawAppComponentFactoryName = applicationInfo.metaData.getString(
+                BuildConfig.META_DATA_LABEL_RAW_APP_COMPONENT_FACTORY
+        );
+        LogUtils.i(TAG, "createRawAppComponentFactory: rawAppComponentFactoryName: " +
+                rawAppComponentFactoryName);
+
+        if (TextUtils.isEmpty(rawAppComponentFactoryName)
+                || rawAppComponentFactoryName.equals("null")
+                || BootstrapAppComponentFactory.class.getName().equals(rawAppComponentFactoryName)) {
+            LogUtils.i(TAG, "createRawAppComponentFactory: no raw appComponentFactory");
+            return null;
         }
-        LogUtils.i(TAG, "generateRawAppComponentFactory: rawAppComponentFactory : " + rawAppComponentFactory);
+        Class<?> clazz = classLoader.loadClass(rawAppComponentFactoryName);
+        return (AppComponentFactory) clazz.newInstance();
     }
 
     /**

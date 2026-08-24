@@ -7,11 +7,38 @@ import android.app.Service;
 import android.content.*;
 import android.content.pm.ApplicationInfo;
 
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
+
 public class BootstrapAppComponentFactory extends AppComponentFactory {
+
+    private static final String TAG = HotfixLoader.TAG + "#BootstrapAppComponentFactory";
 
     @Override
     public ClassLoader instantiateClassLoader(ClassLoader cl, ApplicationInfo aInfo) {
-        return super.instantiateClassLoader(cl, aInfo);
+        try {
+            if (BootstrapApplication.rawAppComponentFactory == null) {
+                BootstrapApplication.rawAppComponentFactory =
+                        BootstrapApplication.createRawAppComponentFactory(aInfo, cl);
+            }
+        } catch (ReflectiveOperationException | ClassCastException e) {
+            BootstrapApplication.rawAppComponentFactory = null;
+            LogUtils.w(TAG, "instantiateClassLoader: failed to create raw AppComponentFactory, using default: " +
+                    e);
+        }
+
+        if (BootstrapApplication.rawAppComponentFactory == null) {
+            return super.instantiateClassLoader(cl, aInfo);
+        }
+
+        ApplicationInfo rawApplicationInfo = new ApplicationInfo(aInfo);
+        rawApplicationInfo.className = aInfo.metaData.getString(BuildConfig.META_DATA_LABEL_RAW_APPLICATION);
+        rawApplicationInfo.appComponentFactory = aInfo.metaData.getString(
+                BuildConfig.META_DATA_LABEL_RAW_APP_COMPONENT_FACTORY
+        );
+        ClassLoader rawClassLoader = BootstrapApplication.rawAppComponentFactory.instantiateClassLoader(
+                cl, rawApplicationInfo);
+        LogUtils.i(TAG, "instantiateClassLoader: raw classLoader: " + rawClassLoader);
+        return rawClassLoader;
     }
 
     @Override
