@@ -1,54 +1,53 @@
 ---
-title: Advanced Options
-description: Explains switches and tool entries in the More Options menu of a Jugg Run Configuration.
+title: Advanced options
+description: Understand the less frequently used experience settings, tool entry points, and test diagnostics in More Options.
 status: active
 tags:
   - guide
   - options
 ---
 
-# Advanced Options
+# Advanced options
 
-More Options in a Jugg Run Configuration groups run behavior, tool entries, and a few internal diagnostics actions. Change these options only when you intentionally want to change the run strategy; otherwise keep the defaults.
+More Options contains less frequently used settings and tool entry points. This page covers only options that are uncommon in everyday workflows; common actions are documented on their scenario pages.
 
 ## Run Options
 
-| Option | Effect |
+| Option | Purpose |
 |---|---|
-| Confirm fallback when no file changes | Shows a confirmation before falling back to Gradle when Jugg detects no file changes. When disabled, Jugg falls back to Gradle directly. |
-| Always restart app after deployment | Restarts the app after every deployment. This is useful after changing startup logic, singleton caches, static members, companion objects, or Kotlin top-level declarations. |
-| Auto fallback to gradle when deploy error | Falls back to Gradle build and install automatically when deployment fails and the error can be recovered by fallback. |
-| Embedded to APK(for Android RemoteViews) | Embeds incremental changes into the APK so APK-backed features such as Android RemoteViews can see the update. Deployment takes longer when enabled. |
-| Force use compat deploy for `<device>` | Forces the compatibility deploy path for the selected connected device and makes the next run reinstall. Use it for device JVMTI or Apply Changes compatibility issues. |
+| Confirm fallback when no file changes | Ask for confirmation before falling back to Gradle when no file changes are detected but the run requires fallback; when disabled, fallback starts immediately. |
+| Always restart app after deployment | Restart the app after every deployment so results remain predictable after changes to startup logic, singleton caches, static / companion members, or Kotlin top-level declarations. |
+| Auto fallback to gradle when deploy error | Automatically use a Gradle build and installation when deployment fails with an error that permits fallback. |
 
 ## Tools
 
-| Option | Effect |
+| Option | Purpose |
 |---|---|
-| Install Jugg Skills | Installs the Jugg CLI, agent skill, and hooks. |
-| Set custom server URL | Sets a custom Jugg backend URL for internal configuration, updates, or diagnostics services. |
-| Check updates | Checks whether an update is available for the current plugin version. |
-| Clean and reset Jugg | Deletes local Jugg caches and reopens the project. Use it when the local cache state is clearly broken. |
+| Install Jugg Skills | Install the Jugg CLI, agent skill, and hooks. |
+| Set custom server URL | Configure a custom Jugg backend URL for internal configuration, updates, or diagnostics. |
+| Check updates | Check whether an update is available for the current plugin version. |
+| Clean and reset Jugg | Delete local Jugg caches and reopen the project; use when cache state is clearly abnormal. |
 
 ## Function Switches
 
-| Option | Effect |
+| Option | Purpose |
 |---|---|
-| Enable quick deploy(skip App startup) | Enables a faster deploy path that can skip waiting for app startup in some recover or deploy flows. It is enabled by default. |
-| Enable use project Kotlin compiler | Uses the project's Kotlin compiler for incremental compilation. It is enabled by default; disable it only when investigating Kotlin compiler compatibility issues. |
-| Enable backup classpath | Uses a backup classpath to improve compilation stability. Toggling it clears deploy history, and it may be hidden on unsupported platforms or environments. |
+| Enable quick deploy(skip App startup) | Enable the quick-deployment path so some recovery or deployment scenarios can skip waiting for app startup; enabled by default. |
+| Enable use project Kotlin compiler | Use the project's own Kotlin compiler for incremental compilation; enabled by default and should be disabled only when diagnosing Kotlin compiler compatibility. |
+| Enable backup classpath | Use a backup classpath to improve compilation stability; changing the setting clears deployment history, and the option is hidden on some platforms or environments. |
 
 ## Test Mock Events
 
-These entries are mainly for internal diagnostics and are not recommended for daily runs.
+These entry points are mainly for internal diagnostics and are not recommended for everyday runs.
 
-| Option | Effect |
+| Option | Purpose |
 |---|---|
-| Mark as project synced and re-init compiler | Simulates a successful Gradle Sync and reinitializes the compiler. |
-| Mark as gradle compiled and re-init compiler | Simulates a completed Gradle build and reinitializes the compiler. This may make Jugg state inconsistent with real build artifacts. |
+| Mark as project synced and re-init compiler | Simulate completion of Gradle Sync and reinitialize the compiler. |
+| Mark as gradle compiled and re-init compiler | Simulate completion of a Gradle build and reinitialize the compiler; this can make Jugg state inconsistent with actual build artifacts. |
 
-## Related Pages
+## Related pages
 
-- [Run App](./run.md)
-- [Deploy Results](./deploy.md)
+- [Run an app](./run.md)
+- [Restart the app](./restart-app.md)
+- [Fall back to Gradle compilation](./downgrade-gradle.md)
 - [CLI](./cli.md)

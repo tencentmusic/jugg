@@ -1,6 +1,6 @@
 ---
-title: Resource Compile
-description: Explains Jugg's incremental handling for res, assets, R files, and resource overlays.
+title: Resource compilation
+description: Explains Jugg's incremental handling scope and fallback boundaries for Android res, assets, and resource-generated artifacts.
 status: active
 tags:
   - capability
@@ -8,90 +8,69 @@ tags:
   - resource
 ---
 
-# Resource Compile
+# Resource compilation
 
-Jugg can incrementally compile Android resource-related files and pass the result to deployment. The resource pipeline covers `res/`, `assets/`, `resources.arsc`, `R.java`, and the handoff required by ViewBinding/DataBinding layouts.
+Jugg incrementally handles Android `res/` and `assets/` and connects them with resource-related capabilities such as AndroidManifest and DataBinding/ViewBinding. Android `res/` passes through `aapt2` compilation and incremental linking, while `assets/` is organized directly as an overlay. `resources.arsc`, `R.java`, and `R.dex` are downstream artifacts that resource changes may produce, not resource inputs that users modify directly.
 
-## Supported Capabilities
+This page explains whether a resource change is supported and what deployment result to expect. For aapt2 `inclink` and resource-table reuse, see [Incremental resource compilation](../../concepts/incremental-compile/resource.md). Compose Multiplatform resources use a separate generator and deployment path; see [KMP and Compose Multiplatform](./kmp-compose-multiplatform.md).
 
-| Change type | Current support | Result |
+## Supported scope
+
+| Resource or scenario | Current support | User-visible result |
 |---|---|---|
-| Regular `res/` files | Supported | Compiled by aapt2 into `.flat` files, then linked into a deployable resource overlay |
-| `res/values` | Supported | Updates the resource table and produces a new `resources.arsc` |
-| `assets/` | Supported | Deployed as an overlay to the target APK |
-| `AndroidManifest.xml` | Incremental patch supported | Participates in resource link, then takes effect by updating and re-signing the APK; see [Manifest](./manifest.md) |
-| ViewBinding/DataBinding layouts | Resource-stage handoff supported | Handles split XML / generated source before resource and source compile; see [DataBinding and ViewBinding](./databinding-viewbinding.md) |
-| `R.java` / `R.dex` | Triggered by resource link | Generates and fixes `R.java` after resource table changes, then compiles dex when needed |
+| Regular Android `res/` files | Supported | Produces a resource overlay owned by the target APK |
+| `res/values` | Supported | Updates the resource table and may continue by generating and compiling R declarations when resource symbols change |
+| `assets/` | Supported | Preserves paths relative to `assets/` and deploys them as an overlay to the target APK |
+| `AndroidManifest.xml` | Incremental patch supported | Updates and re-signs the APK; see [AndroidManifest compilation](./manifest.md) for the complete scope |
+| ViewBinding/DataBinding layouts | Resource-stage handoff supported | Produces both resource artifacts and binding-related generated sources; see [DataBinding/ViewBinding](./databinding-viewbinding.md) |
+| Resource-obfuscated projects with an existing AabResGuard mapping | Supported | Incremental resources attempt to reuse the resource names in the installed APK; see [AabResGuard](./aab-resguard.md) |
 
-> [!TIP]
-> If you change Gradle configuration, source sets, variant selection, or resource generation logic, run the matching Gradle build or Sync first so Jugg can continue incrementally from the new build result.
+## Results produced by resource changes
 
-## How Resource Compile Works
-
-### Resource Compile Pipeline
-
-A resource change usually flows through this pipeline:
+| Artifact or handling | Source | Subsequent result |
+|---|---|---|
+| Compiled resources and `resources.arsc` | Incremental link of Android `res/` | Enter deployment as a resource overlay |
+| `R.java`, and `R.dex` needed by some R-reference scenarios | Resource IDs or symbols change | `R.java` continues into source compilation, and generated DEX deploys with the resource artifacts |
+| ViewBinding/DataBinding generated sources | Binding layout changes | Continue into Java/Kotlin source compilation |
+| Asset overlay | `assets/` changes | Bypasses `aapt2` and deploys according to target APK |
+| Updated Manifest | The Manifest contains an actual incremental change | Is written to the target APK, re-signed, and installed |
 
 ```text
-detect res / Manifest / assets changes
-  -> split compile tasks by target APK
-  -> process Manifest diff
-  -> hand off ViewBinding / DataBinding layouts
-  -> run aapt2 compile to produce .flat files
-  -> run aapt2 inclink to produce resources.arsc, compiled res, and R.java
-  -> filter extra artifacts that should not be deployed
-  -> pass resource / asset overlays to deployment, and Manifest-related outputs to APK update and re-sign
-  -> pass generated source to source compile
+Android res changes
+  -> aapt2 compile produces flat files for the current run
+  -> Incrementally link against the current APK resource table
+  -> Output compiled resources, resources.arsc, and optional R.java
+
+assets changes
+  -> Preserve paths relative to assets
+  -> Produce an asset overlay
+
+Generated sources
+  -> Continue into source compilation
+  -> Route all artifacts by target APK before deployment
 ```
 
-Two details matter:
+Deployment of a regular resource or asset overlay normally restarts the Activity. An actual Manifest change enters the APK update, re-signing, and installation path. Projects with multiple APKs or dynamic features produce separate resource artifacts for each target instead of copying the same overlay into every APK.
 
-1. **Resources are not copied directly**. Most `res/` files must go through aapt2 compile and link.
-2. **Resource compile can trigger source compile**. `R.java` and ViewBinding/DataBinding generated source become Java/Kotlin compile inputs.
-3. **Link continues from the latest usable resource table**. This allows multiple resource incremental rounds to build on each other instead of restarting from the original APK resource table every time.
+## Boundaries
 
-### APK-Scoped Compile
+- When a `res/` or asset file is deleted, Jugg does not produce deployment data that removes the device-side file or resource entry. The old resource remains readable through `Resources` or `AssetManager`, and its resource ID remains unchanged. Run a full Gradle build only when the deletion must actually take effect.
+- Manifest node deletion, attribute deletion, or `tools:*` operations that depend on a complete merge do not produce corresponding removal or merge results. The device continues using the previous merged manifest content. See [AndroidManifest compilation](./manifest.md) for details.
+- After changing a source set, variant, resource directory, resource generation logic, or resource obfuscation configuration, complete Gradle Sync when the project model changes, then run a full Gradle build for the target variant to establish a new APK and resource-table baseline.
+- Added or modified styleables depend on R declarations from the latest build, and resource obfuscation depends on a mapping that matches the current APK. Use a Gradle build to refresh a missing or inconsistent baseline.
+- Compose Multiplatform resources do not pass through Android `aapt2` and are not handled by the Android `res/` rules on this page.
+- On the first resource overlay deployment, Jugg may include resource files from the baseline, so the number of deployed files can exceed the number changed directly in the current run.
 
-In multi-APK or dynamic feature projects, resources from one module can affect different APKs. Jugg compiles per APK scope instead of copying one output to every APK.
+## Related pages
 
-| Scenario | Handling |
-|---|---|
-| Single APK | Continue incremental link from the current APK resource table |
-| Base APK | Update the base resource table first |
-| Dynamic feature | Link with the base APK resource table and current base resource changes |
-| Multiple APK ownership | Generate separate overlay outputs for each target APK |
-
-> [!NOTE]
-> A resource overlay deployed to the wrong APK usually appears as missing resources, abnormal resource IDs, or feature resource inconsistency at runtime.
-
-### Manifest
-
-Manifest participates in the resource pipeline as an aapt2 link input. Jugg does not rerun the full Gradle Manifest merge. It starts from the latest merged manifest produced by a build and patches the current Manifest change into the deploy artifact.
-
-Manifest is not deployed as a normal resource overlay. Deployment writes the updated `AndroidManifest.xml` into the APK and re-signs it. For Manifest support boundaries, placeholder limits, and the full effect path, see [Manifest](./manifest.md).
-
-### Native Library Update
-
-`.so` update is not resource compile, and it is not "so compile". Jugg can update an APK from existing native library artifacts and re-sign it. See [Native Library Update](./so-update.md).
-
-### DataBinding And ViewBinding
-
-When a layout file changes, the resource stage first checks whether ViewBinding/DataBinding processing is required. When needed, Jugg uses split XML for aapt2 compile and sends generated source to source compile.
-
-For generated source, mapper handling, and the source compile handoff, see [DataBinding and ViewBinding](./databinding-viewbinding.md).
-
-### Resource Obfuscation And R Files
-
-In release or resource obfuscation scenarios, Jugg reuses existing mapping information so incremental artifacts keep resource names consistent with the installed APK.
-
-Resource link generates `R.java`. Jugg fixes and compiles it, and may also generate `R.dex` for `R.styleable` or some `R.*` references that cannot be inlined.
-
-## Related Pages
-
-- [Incremental Compile](../../concepts/incremental-compile/)
-- [Manifest](./manifest.md)
-- [Native Library Update](./so-update.md)
-- [DataBinding and ViewBinding](./databinding-viewbinding.md)
-- [Compile Guide](../../guide/compile.md)
-- [Compilation Failed](../../troubleshooting/compile-failed.md)
+- [Source compilation](./source-compile.md)
+- [AndroidManifest compilation](./manifest.md)
+- [DataBinding/ViewBinding](./databinding-viewbinding.md)
+- [AabResGuard](./aab-resguard.md)
+- [KMP and Compose Multiplatform](./kmp-compose-multiplatform.md)
+- [Incremental resource compilation](../../concepts/incremental-compile/resource.md)
+- [Assets and native library internals](../../concepts/incremental-compile/assets-native.md)
+- [Compilation stages](../../guide/compile.md)
+- [Compilation failed](../../troubleshooting/compile-failed.md)
+- [Changes did not take effect](../../troubleshooting/changes-not-applied.md)
 - [Limits](../../reference/limits.md)

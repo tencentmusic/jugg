@@ -1,6 +1,6 @@
 ---
 title: 术语表
-description: 解释 Jugg Wiki 中常见的编译、部署、测试与缓存术语。
+description: 解释 Jugg Wiki 中常见的编译、部署、工程与缓存术语。
 status: active
 tags:
   - reference
@@ -51,12 +51,3 @@ tags:
 | 暂存目录 | Staging | 本轮增量编译输出的临时部署目录，位于 `build/jugg/build/staging/`。 |
 | 类路径备份 | Classpath backup | Jugg 保存的类路径、APK、依赖库备份和内嵌 APK 缓存。 |
 | 包含构建 | Included build | Gradle 复合构建（composite build）中被合并进主工程模型的外部构建。 |
-
-## androidTest
-
-| 中文术语 | 英文术语 | 含义 |
-|---|---|---|
-| 插桩测试 | Instrumentation | Android `am instrument` 测试运行方式。 |
-| 测试 APK | Test APK | 包含 androidTest 代码和测试运行器的 APK。 |
-| 库测试 APK | Library Test APK | 库模块自测时生成的测试 APK。 |
-| 合成测试模块 | Synthetic module | Jugg 为 androidTest 源码集构造的测试模块视图。 |

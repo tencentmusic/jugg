@@ -150,16 +150,17 @@ H1 与首个 H2 之间必须有独立入口段，优先补齐读者理解正文�
 
 ## 执行中译英
 
-中文页面是英文页面的唯一内容基准。英文页面必须保持相同的相对路径、页面类型、章节顺序、表格行、提示块、代码块和相关页面结构；英文 nav/sidebar 必须镜像中文的层级与顺序。
+中文页面是英文页面的唯一内容基准。英文页面必须保持相同的相对路径、页面类型、章节顺序、表格条目、提示块、代码块和相关页面结构；英文 nav/sidebar 必须镜像中文的层级与顺序。
 
 - 使用美式英语和 sentence case 标题，以自然英文表达原意，不保留中文句式。
 - 可以拆分长句、调整主被动和删除中文填充连接词，但不得增加、删除、重排或弱化事实与边界。
 - `title`、`description`、H1 和导航文字翻译为英文；`status`、`tags`、`visibility` 保持一致。
 - `compile` 用作动词，`compilation` 用作过程或机制；`build` 对应构建；`fall back` 用作动词，`fallback` 用作名词或定语。
-- 统一使用 `incremental compilation`、`incremental deployment`、`recompilation propagation`、`self-healing`、`baseline`、`take effect` 和 `project information`。
+- 统一使用 `incremental compilation`、`incremental deployment`、`recompilation`、`self-healing`、`baseline`、`take effect` 和 `project information`；“重编译”和次术语“扩散编译”都译为 `recompilation`。
 - Jugg、Android Studio、Gradle、Kotlin、Java、APK、DEX、AAPT2、JVMTI、MCP、CLI、Apply Changes、Code Swap、Full Swap、Hot Reload 以及命令、参数、路径、配置值、日志关键词和实际 UI 文案保持原样。
 - 站内链接改为对应英文镜像路径；外部链接和锚点语义保持不变。
 - 英文不得独立增加产品事实。仅修正英文拼写、语法或自然度且不改变事实、结构、边界和链接时，可以只修改英文。
+- 术语表是列结构例外：中文 `zh/reference/glossary.md` 使用“中文术语 / 英文术语 / 含义”三列，没有中文名称的术语写 `-`；英文 `reference/glossary.md` 只使用“Term / Meaning”两列，不反向加入中文。两页的术语条目、顺序和含义仍须对应。
 
 ## 控制范围和中英文同步
 
@@ -216,7 +217,7 @@ H1 与首个 H2 之间必须有独立入口段，优先补齐读者理解正文�
 - 明确能力边界和回退行为。
 - 新写或重写页面的产品行为与当前代码一致，历史资料已核验、标记或舍弃；中译英内容与中文基准一致。
 - `concepts` 与 `capabilities` 不重复同一段机制解释。
-- 中英文 Markdown 路径、页面结构和导航层级严格镜像。
+- 中英文 Markdown 路径、页面结构和导航层级严格镜像；术语表仅允许已定义的列结构差异。
 - 除纯英文语言修正外，中英文内容变化已在同一任务中同步。
 - 文字克制、具体，没有明显 AI 写作痕迹。
 - 实际文章改动已通过 production build 和链接检查；只读审阅已提供仓库证据。

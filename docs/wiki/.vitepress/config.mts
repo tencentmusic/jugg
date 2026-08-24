@@ -5,7 +5,7 @@ const productionSrcExclude = isWikiDev ? [] : ['dev/**', 'zh/dev/**']
 const wikiBase = process.env.JUGG_WIKI_BASE || '/'
 
 const englishNav = [
-  { text: 'Onboarding', link: '/onboarding/' },
+  { text: 'Get started', link: '/onboarding/' },
   { text: 'Guide', link: '/guide/' },
   { text: 'How it works', link: '/concepts/' },
   { text: 'Capabilities', link: '/capabilities/' },
@@ -17,12 +17,12 @@ const englishNav = [
 const englishSidebar = {
   '/onboarding/': [
     {
-      text: 'Onboarding',
+      text: 'Get started',
       items: [
         { text: 'Overview', link: '/onboarding/' },
         { text: 'Installation', link: '/onboarding/installation' },
         { text: 'First run', link: '/onboarding/first-run' },
-        { text: 'Agent setup', link: '/onboarding/agent-setup' }
+        { text: 'Remote build machine setup', link: '/onboarding/agent-setup' }
       ]
     }
   ],
@@ -31,9 +31,9 @@ const englishSidebar = {
       text: 'Guide',
       items: [
         { text: 'Overview', link: '/guide/' },
-        { text: 'Run app', link: '/guide/run' },
+        { text: 'Run an app', link: '/guide/run' },
         { text: 'Jugg Control Panel', link: '/guide/control-panel' },
-        { text: 'Run configuration and build variants', link: '/guide/run-configuration' },
+        { text: 'Run configurations and build variants', link: '/guide/run-configuration' },
         { text: 'Fall back to Gradle compilation', link: '/guide/downgrade-gradle' },
         { text: 'Export an incremental APK', link: '/guide/export-incremental-apk' },
         { text: 'Restart the app', link: '/guide/restart-app' },
@@ -51,15 +51,15 @@ const englishSidebar = {
         { text: 'Advanced options', link: '/guide/advanced-options' },
         { text: 'Report an issue', link: '/guide/report-issue' },
         {
-          text: 'Jugg Backend',
+          text: 'Jugg backend',
           collapsed: true,
           items: [
             { text: 'Overview', link: '/guide/jugg-backend/' },
             { text: 'Self-hosting checklist', link: '/guide/jugg-backend/self-hosting' },
-            { text: 'Project configuration', link: '/guide/jugg-backend/project-config' },
-            { text: 'Plugin delivery', link: '/guide/jugg-backend/plugin-delivery' },
-            { text: 'Diagnostics', link: '/guide/jugg-backend/diagnostics' },
-            { text: 'Remote server application', link: '/guide/jugg-backend/remote-server-apply' }
+            { text: 'Project configuration distribution', link: '/guide/jugg-backend/project-config' },
+            { text: 'Plugin distribution and hot updates', link: '/guide/jugg-backend/plugin-delivery' },
+            { text: 'Diagnostics reporting', link: '/guide/jugg-backend/diagnostics' },
+            { text: 'Remote-machine application', link: '/guide/jugg-backend/remote-server-apply' }
           ]
         }
       ]
@@ -78,7 +78,7 @@ const englishSidebar = {
             { text: 'Overview', link: '/concepts/incremental-compile/' },
             { text: 'Source incremental compilation', link: '/concepts/incremental-compile/source' },
             { text: 'KMP source incremental compilation', link: '/concepts/incremental-compile/kmp-source' },
-            { text: 'Recompilation propagation', link: '/concepts/incremental-compile/recompile-propagation' },
+            { text: 'Recompilation', link: '/concepts/incremental-compile/recompile-propagation' },
             { text: 'Constant reference analysis', link: '/concepts/incremental-compile/const-ref' },
             { text: 'Resource incremental compilation', link: '/concepts/incremental-compile/resource' },
             { text: 'Compose Multiplatform resources', link: '/concepts/incremental-compile/compose-multiplatform-resource' },
@@ -128,7 +128,7 @@ const englishSidebar = {
             { text: 'Overview', link: '/capabilities/compile/' },
             { text: 'Source compilation', link: '/capabilities/compile/source-compile' },
             { text: 'KMP and Compose Multiplatform', link: '/capabilities/compile/kmp-compose-multiplatform' },
-            { text: 'Recompilation propagation', link: '/capabilities/compile/recompile-propagation' },
+            { text: 'Recompilation', link: '/capabilities/compile/recompile-propagation' },
             { text: 'Resource compilation', link: '/capabilities/compile/resource-compile' },
             { text: 'AndroidManifest compilation', link: '/capabilities/compile/manifest' },
             { text: 'Native library updates', link: '/capabilities/compile/so-update' },
@@ -206,15 +206,15 @@ const englishSidebar = {
         { text: 'Compilation failed', link: '/troubleshooting/compile-failed' },
         { text: 'Changes did not take effect', link: '/troubleshooting/changes-not-applied' },
         { text: 'App crashed after deployment', link: '/troubleshooting/runtime-crash' },
-        { text: 'Installation, deployment, launch, or debugging failed', link: '/troubleshooting/app-cannot-run' },
+        { text: 'Installation, deployment, launch, or Debug failed', link: '/troubleshooting/app-cannot-run' },
         { text: 'Jugg is slow or stuck', link: '/troubleshooting/jugg-slow-or-stuck' }
       ]
     },
     {
       text: 'Feature-specific issues',
       items: [
-        { text: 'Remote build failed', link: '/troubleshooting/remote-build-failed' },
-        { text: 'Android Test failed', link: '/troubleshooting/android-test-failed' },
+        { text: 'Remote compilation failed', link: '/troubleshooting/remote-build-failed' },
+        { text: 'Android Test run or test failed', link: '/troubleshooting/android-test-failed' },
         { text: 'Agent or CLI command failed', link: '/troubleshooting/agent-command-failed' }
       ]
     }
