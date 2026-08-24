@@ -1,3 +1,11 @@
+- version: 3.3.2
+  date: 2026.08.24
+  updates:
+    - require explicit confirmation before trusting a custom server that can deliver updates and compiler JARs
+    - locate live UI elements with exact combined selectors and return bounded matches with source locations
+    - make Jugg control panel logs reflect actual compile, deploy, user, and MCP actions with sanitized details
+    - prevent asynchronous Git refresh during APK updates from forcing a later Gradle build
+
 - version: 3.3.1
   date: 2026.08.20
   updates:
