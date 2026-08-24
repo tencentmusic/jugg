@@ -41,5 +41,5 @@ Store the zip and return a 2xx response. The response may contain a JSON `report
 ## Related Pages
 
 - [Log Files](../../reference/log-files.md)
-- [Compile Troubleshooting](../../troubleshooting/compile.md)
-- [Deploy Troubleshooting](../../troubleshooting/deploy.md)
+- [Compilation Failed](../../troubleshooting/compile-failed.md)
+- [Installation, Deployment, Launch, or Debugging Failed](../../troubleshooting/app-cannot-run.md)

@@ -1,3 +1,0 @@
-# Performance Troubleshooting
-
-Coming soon.

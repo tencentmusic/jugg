@@ -93,5 +93,5 @@ Resource link generates `R.java`. Jugg fixes and compiles it, and may also gener
 - [Native Library Update](./so-update.md)
 - [DataBinding and ViewBinding](./databinding-viewbinding.md)
 - [Compile Guide](../../guide/compile.md)
-- [Compile Troubleshooting](../../troubleshooting/compile.md)
+- [Compilation Failed](../../troubleshooting/compile-failed.md)
 - [Limits](../../reference/limits.md)

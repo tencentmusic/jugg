@@ -23,29 +23,37 @@ tags:
 | Resource compile | 处理 `res/`、`assets/`、资源表和资源 APK 的编译阶段。 |
 | Manifest compile | 处理 AndroidManifest 合并、差异和安装包声明的阶段。 |
 | Const-ref | 编译期常量定义和引用影响分析，用于判断常量变更需要重编译哪些源码。 |
+| 重编译 | 声明变化影响未修改源码时，把受影响源码追加到本轮编译。 |
+| 扩散编译 | 根据引用、继承、常量或生成源码影响继续扩大重编译范围，直到没有新的受影响源码。 |
 
 ## 部署
 
 | 术语 | 含义 |
 |---|---|
 | Deploy | 把编译产物安装或更新到设备，并按策略启动、重启或热更新 App。 |
-| Clean reinstall | 清除数据并重新安装 APK，用于恢复不一致状态。 |
-| Code swap | 只下发可热替换的代码变化，尽量避免重启 App。 |
-| Full swap | 下发更完整的变更集合，通常比 code swap 更重，可能需要重启。 |
-| Hot reload | 部署后不重启 App 的快速路径，要求变更满足运行时热更新条件。 |
-| Hot fix | 更保守的部署路径，通常会强制重启 App。 |
-| Direct overlay | 不依赖 App 进程在线的 overlay 部署快捷路径。 |
-| Deploy history | Jugg 记录的已部署 APK、overlay、dex 和设备状态历史。 |
+| 增量部署 | 只把本轮变化需要的代码、资源或 overlay 更新到设备。 |
+| Clean Reinstall | 清除数据并重新安装 APK，用于恢复不一致状态。 |
+| Code Swap | 只下发可热替换的代码变化，尽量避免重启 App。 |
+| Full Swap | 下发更完整的变更集合，通常比 Code Swap 更重，可能需要重启。 |
+| Hot Reload | 部署后不重启 App 的快速路径，要求变更满足运行时热更新条件。 |
+| Hot Fix | 更保守的部署路径，通常会强制重启 App。 |
+| Apply Changes | Android Studio 提供的运行时代码替换和资源更新机制。 |
+| Direct Overlay | 不依赖 App 进程在线的 overlay 部署快捷路径。 |
+| 兼容部署 | 设备或系统不适合默认部署路径时使用的兼容模式部署。 |
+| 部署状态恢复 | 设备状态、部署历史或缓存不一致时，重新建立可信部署状态。 |
+| 部署自愈 | 部署失败后根据已知失败条件选择有限重试、扩大恢复范围或重新安装。 |
+| Deploy History | Jugg 记录的已部署 APK、overlay、DEX 和设备状态历史。 |
 
 ## 项目和缓存
 
 | 术语 | 含义 |
 |---|---|
 | Project info | Jugg 从 IDE 和 Gradle 读取的模块、source set、variant、依赖和 APK 信息快照。 |
+| Project info refresh | 重新读取或恢复项目快照，使后续编译使用当前模块、variant、依赖和产物信息。 |
 | Compile context | 增量编译使用的模块、classpath、依赖和构建目标上下文。 |
 | Staging | 本轮增量编译输出的临时部署目录，位于 `build/jugg/build/staging/`。 |
 | Classpath backup | Jugg 保存的 classpath、APK、library backup 和 embedded APK 缓存。 |
-| Include build | Gradle composite build 中被合并进主工程模型的外部构建。 |
+| Included build | Gradle composite build 中被合并进主工程模型的外部构建。 |
 
 ## androidTest
 

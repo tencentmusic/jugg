@@ -57,7 +57,7 @@ layout: page
       </ol>
       <div class="jugg-run-foot">
         <span>Uncertain state never continues incrementally</span>
-        <a href="./concepts/fallback-and-limits">Fallback rules →</a>
+        <a href="./concepts/gradle-fallback-baseline">Fallback rules →</a>
       </div>
     </div>
   </section>

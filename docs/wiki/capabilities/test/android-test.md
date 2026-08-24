@@ -1,3 +1,0 @@
-# Android Test
-
-Coming soon.

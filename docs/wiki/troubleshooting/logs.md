@@ -1,3 +1,0 @@
-# Logs
-
-Coming soon.
