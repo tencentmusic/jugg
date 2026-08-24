@@ -95,6 +95,9 @@ class JuggControlPanel(
         name = "logs.events"
     }
     private val settingToggles = mutableMapOf<JuggControlPanelController.Setting, JBCheckBox>()
+    private val settingRows = mutableMapOf<JuggControlPanelController.Setting, JComponent>()
+    private val settingGroups = linkedMapOf<String, JPanel>()
+    private val forceCompatDevicesPanel = contentPanel(4)
     private var latestSnapshot = JuggControlPanelSnapshot()
     private var modelSubscription: AutoCloseable? = null
     private var selectedLogSource = "all"
@@ -102,6 +105,7 @@ class JuggControlPanel(
     private var currentTaskOnly = false
     private var followLogs = true
     private var logSearch: JBTextField? = null
+    private var settingsSearch: JBTextField? = null
     private var isRenderingSettings = false
 
     private val tabs = createTabs()
@@ -117,6 +121,11 @@ class JuggControlPanel(
         addTab("Overview", createOverview())
         addTab("Logs", createLogs())
         addTab("Settings", createSettings())
+        addChangeListener {
+            if (selectedIndex == Page.SETTINGS.ordinal) {
+                controller.refreshSettings()
+            }
+        }
     }
 
     private fun createOverview(): JComponent = scrollPanel("overview.scroll") {
@@ -351,23 +360,27 @@ class JuggControlPanel(
                 settingToggle("Confirm fallback when no files changed", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK),
                 settingToggle("Always restart app after deployment", "Disables hot reload when a restart is safer.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
-                settingToggle("Enable compat deploy", "Supports devices where standard Apply Changes is unavailable.", JuggControlPanelController.Setting.COMPAT_DEPLOY),
                 settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
                 settingToggle("Auto fallback after deploy failure", "Recover with a full Gradle build.", JuggControlPanelController.Setting.AUTO_FALLBACK),
-                settingToggle("Embed changes into APK", "Supports Android RemoteViews with a slower deploy.", JuggControlPanelController.Setting.EMBED_APK)),
+                settingToggle("Embed changes into APK", "Supports Android RemoteViews with a slower deploy.", JuggControlPanelController.Setting.EMBED_APK),
+                forceCompatDevicesPanel),
             settingGroup("Compiler", "compiler",
                 settingToggle("Use project Kotlin compiler", "Matches the compiler configured by the project.", JuggControlPanelController.Setting.PROJECT_KOTLIN),
                 settingToggle("Backup classpath", "May improve recovery at the cost of extra storage.", JuggControlPanelController.Setting.BACKUP_CLASSPATH)),
             settingGroup("Integrations", "integrations",
                 settingAction("Install CLI and agent skills", "Install the Jugg CLI, agent skills, hooks, and required permissions.", "Install…", controller::installSkills),
-                settingAction("Check Jugg updates", "Check whether a newer Jugg plugin is available.", "Check now", controller::checkUpdates)),
+                settingAction("Check Jugg updates", "Check whether a newer Jugg plugin is available.", "Check now", controller::checkUpdates),
+                settingAction("Set custom server URL", "Configure the server used by Jugg services.", "Set…", controller::setCustomServerUrl)),
             settingGroup("Advanced", "advanced",
-                settingAction("Clear Jugg Build", "Delete Jugg project build data and reinitialize the project.", "Clear…", controller::resetJuggCache)),
+                settingAction("Clear Jugg Build", "Delete Jugg project build data and reinitialize the project.", "Clear…", controller::resetJuggCache),
+                settingAction("Mark as project synced and re-init compiler", "Reload project information without running Gradle sync.", "Mark synced…", controller::markAsProjectSyncedAndReInitCompiler),
+                settingAction("Mark as Gradle compiled and re-init compiler", "Reuse the selected Jugg configuration outputs without building.", "Mark compiled…", controller::markAsGradleCompiledAndReInitCompiler)),
         )
         val search = JBTextField().apply {
             name = "settings.search"
             emptyText.text = "Search settings"
         }
+        settingsSearch = search
         search.document.addDocumentListener(documentListener { filterSettings(groups, search.text) })
         return scrollPanel("settings.scroll", 10) {
             border = JBUI.Borders.empty(10)
@@ -379,10 +392,12 @@ class JuggControlPanel(
     private fun settingGroup(title: String, id: String, vararg rows: JComponent): JPanel {
         return contentPanel(4).apply {
             name = "settings.group.$id"
-            putClientProperty(SETTING_SEARCH_TEXT, (listOf(title) + rows.map { it.name.orEmpty() }).joinToString(" ").lowercase())
+            val searchText = (listOf(title) + rows.map { it.name.orEmpty() }).joinToString(" ").lowercase()
+            putClientProperty(SETTING_SEARCH_TEXT, searchText)
+            putClientProperty(SETTING_BASE_SEARCH_TEXT, searchText)
             add(TitledSeparator(title))
             rows.forEach(::add)
-        }
+        }.also { settingGroups[id] = it }
     }
 
     private fun settingToggle(
@@ -401,7 +416,7 @@ class JuggControlPanel(
             border = JBUI.Borders.emptyLeft(4)
             add(toggle)
             add(secondaryLabel(help).apply { border = JBUI.Borders.emptyLeft(24) })
-        }
+        }.also { settingRows[setting] = it }
     }
 
     private fun settingAction(label: String, help: String, text: String, action: () -> Unit): JComponent {
@@ -714,7 +729,6 @@ class JuggControlPanel(
         val values = mapOf(
             JuggControlPanelController.Setting.CONFIRM_FALLBACK to settings.confirmFallbackWhenNoFileChanges,
             JuggControlPanelController.Setting.ALWAYS_RESTART to settings.alwaysRestartAppAfterDeployment,
-            JuggControlPanelController.Setting.COMPAT_DEPLOY to settings.compatibleDeployment,
             JuggControlPanelController.Setting.QUICK_DEPLOY to settings.quickDeploy,
             JuggControlPanelController.Setting.AUTO_FALLBACK to settings.autoFallbackAfterDeployFailure,
             JuggControlPanelController.Setting.EMBED_APK to settings.embedChangesIntoApk,
@@ -724,6 +738,41 @@ class JuggControlPanel(
         isRenderingSettings = true
         values.forEach { (setting, enabled) -> settingToggles[setting]?.isSelected = enabled }
         isRenderingSettings = false
+        listOf(
+            JuggControlPanelController.Setting.QUICK_DEPLOY,
+            JuggControlPanelController.Setting.EMBED_APK,
+            JuggControlPanelController.Setting.PROJECT_KOTLIN,
+        ).forEach { settingRows[it]?.isVisible = settings.isInjectGradleCompileEnabled }
+        settingRows[JuggControlPanelController.Setting.BACKUP_CLASSPATH]?.isVisible = settings.canUseBackupClasspath
+        renderForceCompatDevices(settings)
+    }
+
+    private fun renderForceCompatDevices(settings: JuggPanelSettings) {
+        forceCompatDevicesPanel.removeAll()
+        if (settings.isInjectGradleCompileEnabled) {
+            settings.forceCompatDevices.forEach { device ->
+                forceCompatDevicesPanel.add(contentPanel(2).apply {
+                    name = "Force use compat deploy for ${device.displayName} Use compat deploy only for this connected device."
+                    border = JBUI.Borders.emptyLeft(4)
+                    add(JBCheckBox("Force use compat deploy for ${device.displayName}", device.enabled).apply {
+                        addActionListener {
+                            if (!isRenderingSettings) controller.updateForceCompatDevice(device.displayName, isSelected)
+                        }
+                    })
+                    add(secondaryLabel("Use compat deploy only for this connected device.").apply {
+                        border = JBUI.Borders.emptyLeft(24)
+                    })
+                })
+            }
+        }
+        forceCompatDevicesPanel.isVisible = settings.isInjectGradleCompileEnabled && settings.forceCompatDevices.isNotEmpty()
+        settingGroups["deployment"]?.let { group ->
+            val baseSearchText = group.getClientProperty(SETTING_BASE_SEARCH_TEXT)?.toString().orEmpty()
+            val deviceSearchText = settings.forceCompatDevices.joinToString(" ") { it.displayName }.lowercase()
+            group.putClientProperty(SETTING_SEARCH_TEXT, "$baseSearchText $deviceSearchText")
+        }
+        settingsSearch?.let { filterSettings(settingGroups.values.toList(), it.text) }
+        refreshPanel(forceCompatDevicesPanel)
     }
 
     private fun refreshLogs() {
@@ -791,6 +840,12 @@ class JuggControlPanel(
     private fun formatTimeWithSeconds(timestamp: Long): String = TIME_WITH_SECONDS_FORMAT.format(Date(timestamp))
 
     private fun select(page: Page) {
+        if (tabs.selectedIndex == page.ordinal) {
+            if (page == Page.SETTINGS) {
+                controller.refreshSettings()
+            }
+            return
+        }
         tabs.selectedIndex = page.ordinal
     }
 
@@ -821,6 +876,7 @@ class JuggControlPanel(
         private const val CHANGED_FILES_VISIBLE_ROWS = 5
         private const val RECENT_RUNS_VISIBLE_ROWS = 5
         private const val SETTING_SEARCH_TEXT = "JuggControlPanel.settingSearchText"
+        private const val SETTING_BASE_SEARCH_TEXT = "JuggControlPanel.settingBaseSearchText"
         private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.US)
         private val TIME_WITH_SECONDS_FORMAT = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 

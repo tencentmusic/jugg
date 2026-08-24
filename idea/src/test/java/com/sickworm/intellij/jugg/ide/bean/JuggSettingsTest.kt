@@ -3,21 +3,23 @@ package com.sickworm.intellij.jugg.ide.bean
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class JuggSettingsTest {
 
     @Test
-    fun `compat deploy setting should be persisted`() {
+    fun `compat deploy should always be enabled`() {
         TestGlobal.init()
+        val properties = PropertiesComponent.getInstance()
+        val settingKey = "jugg.isEnableCompatibleDeploymentMode"
+        val oldValue = properties.getValue(settingKey)
+        properties.setValue(settingKey, false)
         try {
-            JuggSettings.isEnableCompatibleDeploymentMode = false
-
-            assertFalse(PropertiesComponent.getInstance()
-                .getBoolean("jugg.isEnableCompatibleDeploymentMode", true))
+            assertTrue(JuggSettings.isEnableCompatibleDeploymentMode)
+            assertTrue(JuggSettings.finalIsEnableCompatibleDeploymentMode)
         } finally {
-            JuggSettings.isEnableCompatibleDeploymentMode = true
+            properties.setValue(settingKey, oldValue)
         }
     }
 

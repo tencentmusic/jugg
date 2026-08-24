@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-08-21
+> 最后核对：2026-08-24
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -32,7 +32,6 @@
 | `JuggControlPanelModel` / `JuggEvent` | `main/src/main/java/com/sickworm/intellij/jugg/ide/controlpanel/` | 无 Project/Swing 依赖的项目 facts、任务状态和结构化核心事件；只公开两个入口类，投影与枚举使用嵌套类型，供 IDE、MCP 与后续 CLI 复用 |
 | `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | 热更新层项目级持有 Model/Panel，刷新 IDE facts、编排 Sync/App events 与 Panel 动作，并在 Manager dispose 时 clear 稳定 Host |
 | `CompileContextManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/CompileContextManager.kt` | 项目信息、编译上下文、部署上下文的 IDE 侧同步 |
-| `MoreOptionsManager` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/MoreOptionsManager.kt` | More Options 菜单，挂载 Gradle compile、restart、skills、report 等操作 |
 | `JuggCliAutoUpdater` | `main/src/main/java/com/sickworm/intellij/jugg/ai/skills/JuggCliAutoUpdater.kt` | 插件启动后比较 bundled `SKILL.md` version，更高才刷新 `~/.jugg/bin` 与已安装 skill |
 | `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 仅在存在有效 Jugg Run Configuration 时创建 `Jugg Running Pannel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
 
@@ -133,19 +132,20 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 ## 5. UI 与工具入口
 
 - 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；配置名包含 variant，APK 路径使用 IDE model 的实际 build folder。Sync 后如果没有可用配置会短暂重试，并只在检测到 Active Build Variant command 变化时自动切换。
-- More Options 统一从 `JuggManager.getMoreOptions()` 进入 `MoreOptionsManager`，挂载 Gradle compile、restart app、skill/install、report issue 等操作。
+- Run Configuration 的 `More options` 只负责保存配置并打开 `Jugg Running Pannel` Settings；稳定桥接接口仍保留返回空 ActionGroup 的兼容方法，不再创建旧下拉菜单。
 - `Jugg Running Pannel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
 - `OpenJuggControlPanelAction` 位于 `ide_entry`，只调用 Host；`JuggInitializer` 不引用 Host。Manager dispose 委托 Controller clear Host，JuggManager 自身不保存 Panel、事件枚举或 Sync taskId。
 - Overview 作为编译驾驶舱，固定展示 Run Status、Changed Files、按 Build / Device / Jugg Plugin 分组的 Quick Actions、This Session 和 Recent Runs。预处理确定真实编译路径后，`JuggCompilerHelper` 通过 `CompileUiHandler.onCompileStarted()` 发出领域通知，`JuggRunningTask` 再投影为 Control Panel 事件并捕获 undeployed 输入快照；不再记录无业务信息的 `Jugg task started`。terminal 后任务才进入 Recent Runs；原始 compile mode、deploy type、terminal category、fallback 与各阶段耗时由结构化事件传递，Panel 只负责展示映射。编译事件固定区分 `Incremental compile` 与 `Gradle compile` 的 started/completed/failed/canceled；增量无实际编译时显示 `No compile needed`。Recent Runs 每行固定展示编译模式、最终结果、总耗时和状态，其中 compile-only、编译失败、部署失败与无设备分别使用明确结果文本，成功部署展示实际 deploy type；选中后再展示 Compile / Deploy / Total 分阶段详情。Changed Files 与 Recent Runs 使用 IDE 原生可选列表，Changed Files 双击打开文件；运行耗时由 Swing Timer 每秒刷新且不写回 Model。
 - Logs 只展示 sync、compile、deploy、app、user action、CLI/MCP 等结构化核心事件，不读取或轮询 `compile_latest.log`；来源筛选默认 `ALL` 展示所有事件，`IDE` 只保留 `source=IDE`，`CLI / MCP` 保持 CLI/MCP 来源或分类过滤。级别下拉框、当前任务与 Follow 复选框及搜索框继续叠加过滤，日志列表支持多选和平台复制快捷键。
 - MCP lifecycle 固定记录 `MCP request` / `MCP response`：request detail 保留去除 `projectDir` 后的具体参数，response detail 保留 status/message/data/artifacts/errorCode；面板内容统一递归移除 `projectDir`、脱敏敏感字段并限制最大长度。
-- Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action，七个开关直接读写 `JuggSettings`。无真实后端的预览设置和动作不显示。
+- Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action。Quick deploy、Embed APK、Project Kotlin 与按设备 compat 只在 Gradle 注入能力开启时展示，Backup classpath 只在当前环境可用时展示；Embed APK 与 Backup classpath 保留确认流程，后者切换成功后删除 deploy history。
+- Settings 的 Deployment 按已连接设备动态展示强制 compat deploy，每次进入或再次打开 Settings 时刷新设备列表；Integrations 提供 custom server URL，Advanced 保留 mark synced / mark Gradle compiled 两个测试操作；这些入口直接复用项目级 Manager 与 Controller，不再维护独立菜单状态。
 - Overview Quick Actions 按 Build、Device、Jugg Plugin 分组；Quick Actions、Settings 文字动作、设置开关与 `Clear app data` 确认结果会记录为 User Action，Tab、日志筛选和列表选择等纯浏览操作不记录。`Clear app data` 复用通用确认弹窗，确认后才执行清除 App 数据、完整 Gradle 构建和重装。`Clear Jugg Build` 保留既有清理 Jugg 项目构建数据并重新初始化项目的行为。
 - Build Quick Actions 最下方的 `Exec remote CMD` 只接受当前选中的远程 Jugg Configuration，不使用 full build history 或首个配置兜底。对话框固定展示 SSH target 与 `remoteProjectPath`，命令为空时只禁用 Run，不显示校验错误；支持从该目标最近 10 条命令中选择并回填，历史由 `JuggSettings` 按 `user + host + port + remoteProjectPath` 隔离。执行创建独立 `Jugg Remote Command` Run Content、专用 ProcessHandler 与 SSH client，不进入 `JuggConfigurationRunner` / `JuggRunningTask`；Stop 只取消本次命令，并在后台确认取消后以非零状态结束 Run Content。
 - `MockJuggControlPanelModel` 只通过真实 Model API 构造测试场景；Panel 在 real/mock model 之间切换时复用同一个订阅和 render 路径，不保留 UI 内置 `MockData`。
 - `JuggToolWindowFactory` 与 `OpenJuggControlPanelAction` 均实现 `DumbAware`；Panel 不依赖索引，IDE 处于 indexing / dumb mode 时仍可创建和打开。
-- Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Pannel` 并选中 Settings；Settings 包含持久化的 compat deploy 开关，切换后同步更新 deployer API 下限并清理已下发的 Jugg JVMTI agent；Tools 菜单的独立 action 仍从 Overview 打开。
-- `Check Jugg Update` 独立 action 经 `JuggManager.checkUpdates()` 复用 `MoreOptionsManager.checkUpdates()`，行为与 More Options 中的更新检查一致；从 Run Configuration 触发更新时，执行 `Reopen IDE` / `Reopen projects` 前会先关闭更新弹窗和外层 Run Configuration，避免模态窗口阻塞 reopen。
+- Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Pannel` 并选中 Settings；全局 compat deploy 恒为开启且不提供开关，Settings 仅保留按设备强制 compat deploy；Tools 菜单的独立 action 仍从 Overview 打开。
+- `Check Jugg Update` 独立 action 与 Settings 均调用 `JuggManager.checkUpdates()`；从 Run Configuration 触发更新时，执行 `Reopen IDE` / `Reopen projects` 前会先关闭更新弹窗和外层 Run Configuration，避免模态窗口阻塞 reopen。
 - `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；安装 CLI 或 hooks 前先检测 Python 3.7+（`python3` 优先，`python` 回退），未满足时不写入 CLI 或 hook 配置。成功安装 Claude hooks 且检测到 CC Switch 配置目录时，安装结果关闭后会提示用户导出 Common Config JSON，不提供单独的 CC Switch 安装选项，也不直接修改 CC Switch 配置。选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 Codex home（优先 `CODEX_HOME`，否则 `~/.codex`）下 `rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认，并在安装日志记录 rules file、prefix 与 installed/already_installed/fail 状态；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。
 - CLI/MCP/RPC 在 EDT 上读取 IDE 当前选择项、Jugg configuration 列表和配置 options。优先使用当前选中的 Jugg configuration；选择项不可用或不是 Jugg configuration 时，先按最近一次成功 Gradle full build 的 `compileCommand + buildTarget` 完全匹配，再按 `compileCommand` 完全匹配，最后回退到列表中的首个 Jugg 配置。同层存在多个匹配项时使用该层首项；最终首项兜底会打印 `warn`，同时以精简 `debug` 日志记录 selected、full build、resolution source 与 chosen configuration。运行时会创建对应 Run content，但默认不激活 Run tool window；失败等需要用户注意的场景才显式 show。
 - `reportIssue()` 在准备诊断数据和上传期间使用模态进度窗口；生成经过脱敏的白名单诊断候选项后，确认窗口说明运行环境日志已脱敏并用于问题分析，只展示最近 10 个 Jugg 日志文件的路径和 KB/MB 大小，默认全选，并将 Jugg 日志置顶且锁定选择。上传按钮显示 `Upload logs`；选择仅保存时切换为 `Create Diagnostics Bundle`，生成后由系统文件管理器选中 ZIP。Report ID 保持为 8 位小写十六进制。上传固定提交到 `https://jugg.sickworm.com/report_issue`；确认窗口展示该固定、单一的 HTTPS 目标地址，但不持久化地址且不尝试 fallback；结果页不展示临时 ZIP 路径。`build/jugg/tmp/diagnostics` 中达到 7 天的文件在项目启动后的延迟清理时机单独清理。
@@ -167,7 +167,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 | Panel Logs 内容不可读或缺事件 | 检查 `JuggManager.onSyncEvent()`、`JuggRunningTask`、`McpToolInvoker` 的结构化事件生产；Panel 不应读取 raw log |
 | Jugg Debug attach 后断点不可用 | `04_engineering_debug_attach.md`，确认 WAITING、`Connected to the target VM` 与 `XDebugSession` |
 | androidTest 有结果但 Test Results 不完整 | `JuggManager.runTask()` 参数传递，确认 `executor` / `runProfile` / `androidTestRunSpec` 都非空 |
-| skill / hook 安装入口异常 | `MoreOptionsManager`、`InstallJuggSkillsDialog`、`JuggSkillInstaller` |
+| skill / hook 安装入口异常 | `JuggControlPanelController`、`InstallJuggSkillsDialog`、`JuggSkillInstaller` |
 | 更新插件后 CLI/skill 仍是旧实现 | `JuggCliAutoUpdater` 与 bundled `SKILL.md` version，见 `08_cli_tools_list.md` §3.7 |
 | MCP 本地服务没有启动或未停止 | `JuggInitializer.init()` / `release()` 对 `McpLocalServer.start()` / `stop()` 的调用 |
 
