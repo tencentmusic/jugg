@@ -1,9 +1,10 @@
 <h1>Change Log</h1>
-<h2>3.3.2 (2026.08.24)</h2>
+<h2>3.3.3 (2026.08.26)</h2>
 <ol>
     <li>[feature] Run custom commands on the selected remote server</li>
     <li>[feature] Require explicit confirmation before trusting a custom server that can deliver updates and compiler JARs</li>
     <li>[feature] Locate live UI elements with exact combined selectors and return bounded matches with source locations</li>
+    <li>[feature] Manage legacy Jugg options from the running panel</li>
     <li>[optimize] Simplify the remote command entry and disable Run for blank commands</li>
     <li>[optimize] Keep incremental compilation when Gradle project info is unavailable</li>
     <li>[optimize] List currently opened Jugg projects when the requested projectDir is not initialized</li>
@@ -14,6 +15,7 @@
     <li>[bugfix] Initialize incremental compile when home directory is not writable</li>
     <li>[bugfix] Stop waiting for Gradle project info rebuild before the first full compile</li>
     <li>[bugfix] Prevent asynchronous Git refresh during APK updates from forcing a later Gradle build</li>
+    <li>[bugfix] Prevent startup crashes when applications use custom class loaders</li>
 </ol>
 <h2>3.2.6 (2026.08.17)</h2>
 <ol>

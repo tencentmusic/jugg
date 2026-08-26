@@ -1,9 +1,10 @@
 <h1>更新日志</h1>
-<h2>3.3.2 (2026.08.24)</h2>
+<h2>3.3.3 (2026.08.26)</h2>
 <ol>
     <li>[feature] 支持在选中的远程服务器运行自定义命令</li>
     <li>[feature] 自定义服务器可提供更新和编译器 JAR，保存前必须明确确认信任</li>
     <li>[feature] UI 元素定位支持精确组合 selector、限制返回数量并提供源码位置</li>
+    <li>[feature] 旧版 Jugg 选项统一迁移到运行面板管理</li>
     <li>[optimize] 简化远程命令入口，空命令时禁用运行按钮</li>
     <li>[optimize] Gradle 项目信息不可用时继续增量编译，不再回退完整构建</li>
     <li>[optimize] 请求的 projectDir 未初始化时，列出当前已打开的 Jugg 项目</li>
@@ -14,6 +15,7 @@
     <li>[bugfix] 修复 home 目录不可写时增量编译无法初始化的问题</li>
     <li>[bugfix] 首次完整编译前不再等待 Gradle 项目信息重建</li>
     <li>[bugfix] 修复 APK 更新期间异步 Git 刷新误触发后续 Gradle 构建的问题</li>
+    <li>[bugfix] 修复应用使用自定义 ClassLoader 时的启动崩溃</li>
 </ol>
 <h2>3.2.6 (2026.08.17)</h2>
 <ol>
