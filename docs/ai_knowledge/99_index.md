@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-05-23
+> 最后核对：2026-08-27
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -49,8 +49,8 @@
 | MCP UI 验证盲测 / view-inspect | `98_code_map.md`, `08_mcp_layout_verify_design.md`, `08_mcp_ui_verify_checklist.md` | `ai/mcp/actions/*` |
 | figma-layout-verify 内部算法（关系提取/IoU 匹配/容差） | `08_mcp_figma_layout_verify_internals.md` | `ai/mcp/layout/RelationExtractor.kt`, `ElementMatcher.kt`, `RelationVerifier.kt` |
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk`, `main/.../git`, `main/.../logger`, `main/.../server` |
-| **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_obfuscation.md`, `09_plugin_runtime_debug.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
-| **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`, `04_engineering_ide.md`, `03_deploy_const_ref.md` | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
+| **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_obfuscation.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
+| **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`，再按症状路由读取专题 | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
 | 知识库维护 / 专题文档重整 | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai_knowledge/*` |
 | Wiki 架构 / 本地运行 / 发布 | `10_wiki_architecture.md`, `97_maintenance_manual.md` | `docs/wiki/package.json`, `docs/wiki/.vitepress/config.mts` |
 | Wiki 文章写作 / Markdown 元素 | `10_wiki_authoring.md`, `97_maintenance_manual.md` | `docs/wiki/**/*.md` |
@@ -88,7 +88,7 @@
 | `08_mcp_tools_list.md` | MCP 工具完整参数清单（18 个注册工具、通用行为、错误码） |
 | `08_cli_tools_list.md` | `jugg` CLI（MCP 封装层）子命令参数与行为差异 |
 | `08_mcp_figma_layout_verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |
-| `09_plugin_runtime_debug.md` | 运行时排查手册：目录结构、日志分析、IDE freeze 证据保全、高频问题根因、修复验证流程 |
+| `09_plugin_runtime_debug.md` | 运行时排查入口：证据边界、反证门禁、现场保全与症状到专题的第一跳路由 |
 | `10_wiki_architecture.md` | Wiki 架构与运行：VitePress 结构、dev-only 页面规则、本地 dev、production build、preview 与发布边界 |
 | `10_wiki_authoring.md` | Wiki 文章编写准则：frontmatter、Markdown 支持元素、提示块、工程语义块、中英文同步与能力篇引用规则 |
 | `97_maintenance_manual.md` | AI 知识库维护手册：专题文档整理标准、结构模板、密度控制、自审清单 |

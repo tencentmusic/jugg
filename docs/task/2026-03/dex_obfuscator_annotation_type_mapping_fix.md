@@ -130,4 +130,4 @@ main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyComp
 1. **dex2jar visitor pattern 的 `visitAnnotation` 需要特别关注**：在 visitor 链的每个层级（class/field/method），`visitAnnotation()` 的 `name` 参数都是类型描述符，必须通过 `mapType()` 映射
 2. **增加混淆回归测试**：对包含常用注解（`@Subscribe`、`@Inject`、`@Provides` 等）的类编写增量编译 + 重混淆的 round-trip 测试
 3. **代码审查 checklist**：在混淆相关代码的 review 中，增加"所有类型描述符是否都经过 `mapType()` 映射"检查项
-4. **调试工具链沉淀**：将 `dexdump` 对比 DEX 注解的调试方法纳入排查手册（已更新至 `docs/ai_knowledge/09_plugin_runtime_debug.md` §4.4）
+4. **调试工具链沉淀**：将 `dexdump` 对比 DEX 注解的调试方法纳入混淆专题（已更新至 `docs/ai_knowledge/02_compile_obfuscation.md` §5.1）

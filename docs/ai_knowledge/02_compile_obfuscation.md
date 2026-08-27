@@ -1,6 +1,6 @@
 # 编译系统：混淆映射
 
-> 最后核对：2026-06-17
+> 最后核对：2026-08-27
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -59,6 +59,20 @@ SourceCompiler.compileDexOutputs()
 - 部分 R8 版本会在 `usage.txt` 中擦除 Kotlin property accessor 的参数信息。精确签名未命中时，只有 usage 与 class bytecode 中该方法名都唯一才按名称回退；任一侧存在 overload 就保持原方法，避免误裁剪同名成员。
 - `preObfuscateForMinifyInfo()` 是为了让 DB 查询使用 APK 里的混淆类名；若跳过这一步，容易误判“类在 DB 中缺失”。
 
+### 5.1 DEX 映射完整性边界
+
+`DexObfuscator` 使用 dex2jar visitor，不能像 ASM `ClassRemapper` 一样自动覆盖所有类型引用。release runtime crash 需要按 DEX 位置区分映射缺口：
+
+| 异常模式 | 当前映射约束 | 关键入口 |
+|----------|--------------|----------|
+| 注解/反射查找失败 | class、field、method annotation 的类型描述符都必须经过 `mapType()` | `visitAnnotation()` |
+| `NoClassDefFoundError` | `const-class`、field/method owner 与 proto、invoke-custom 参数、数组、异常表、type stmt 都要映射 | `visitCode()` 的各 `DexCodeVisitor` 覆写 |
+| `IllegalAccessError` / `IncompatibleClassChangeError` | 成员 access flags 要与 R8 `-allowaccessmodification` 基线一致；本类非构造、非 static 的 direct invoke 需与宽化后的 virtual 形态一致 | `widenAccessFlags()`、`visitMethodStmt()` |
+| 新增类或 lambda 的 `AbstractMethodError` | 类自身无 mapping 时，方法名先从接口/父类推导，再回退类自身 | `mapMethodForCurrentClass()` |
+| Kotlin facade / keep 类 `NoSuchMethodError` | R8 synthesized 条目需规范化 qualified 方法名和中间参数类型，且恒等映射不能覆盖真实重命名 | `normalizeMethodParams()`、`methodNameMap` 构建 |
+
+诊断时先确认 `mapping.txt` 已加载且日志出现 `Obfuscated:`，再用 `dexdump -a` 对比 staging DEX 与 APK DEX。异常类型只用于选择对比位置，不能直接证明具体 visitor 或 mapping 条目失败。
+
 ---
 
 ## 6. 排查入口
@@ -66,7 +80,7 @@ SourceCompiler.compileDexOutputs()
 | 现象 | 优先入口 |
 |---|---|
 | release 增量后类名/方法名不匹配 | `DexMinifyCompiler.initIfNeeded()` 与 `DexObfuscator`：先确认 mapping 加载成功 |
-| release 增量后 `NoClassDefFoundError` / `NoSuchMethodError` | `09_plugin_runtime_debug.md` §4.4-§4.11；同时查 `R8UsageReader` 与 `DexMinifyCompiler.generateJuggFixClasses()` |
+| release 增量后注解/类型/access/method 映射异常 | 本文 §5.1；对比 staging/APK DEX 与 mapping 后再定位 `DexObfuscator` |
 | `_jugg_fix` 类存在但运行时调用异常 | `generateJuggFixClasses()`：检查 D8 输出类名匹配、obfuscate 后路径、`renameDexClassDeclaration()` |
 | minify 删除成员影响分析异常 | `03_deploy_data_generator.md` §5.6：检查 `effectedType=MINIFY_MEMBER_REMOVED` |
 

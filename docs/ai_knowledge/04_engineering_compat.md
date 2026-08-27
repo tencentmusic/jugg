@@ -1,6 +1,6 @@
 # 工程化：兼容层与命令行模块
 
-> 最后核对：2026-08-07
+> 最后核对：2026-08-27
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -31,6 +31,7 @@
 | `IDeviceAdb` / `IdeaDeviceAdb` / `IdeaDeviceAdbClient` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/IDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdb.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/IdeaDeviceAdbClient.kt` | 设备 ADB 语义抽象；IDE 侧通过 `IDevice` 封装 shell/push/pid/arch/uninstall，不再把这些 transport 能力挂在 deployer compat 上 |
 | `CmdLine` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/CmdLine.kt` | 命令行入口，分发 `buildGradleBase` / `buildIncrementalApk` |
 | `BuildGradleBaseCommand` / `BuildIncrementalApkCommand` | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | CI 两阶段构建：建立可复用基线，再以调用方显式变更文件生成增量 APK |
+| `CmdExecutor` / `ProcessOutputReader` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/` | 命令执行与原始输出读取；Windows 按行适配 UTF-8/GBK 混合输出 |
 | `CustomCompilerManager` / `ICompilerCreator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/` | 自定义编译器 SPI 装载与生命周期管理 |
 
 ---
@@ -138,6 +139,7 @@ CI 命令行把构建拆成两个可审计阶段：
 - `platform_compat/base_api` 只解决编译期 API 缺口，不表示运行时一定有对应 IDE 行为；运行时能力仍以当前 AS API 和 compat 实现为准。
 - 自定义编译器示例在 `custom_compilers`，生产装载由 `CustomCompilerManager` 读取 `build/jugg/config/custom_compilers`；示例代码不是默认编译阶段。
 - `buildIncrementalApk` 的 `changedFiles` 是外部契约，不是提示信息。过滤后数量与输入不一致、路径越界或含 build file 都必须明确失败，不能静默跳过后继续产出 APK。
+- Windows 同一命令管道可能混合 UTF-8 与 GBK。`ProcessOutputReader` 必须先按行保留原始字节，再严格校验 UTF-8，失败时回退 GBK；不能先用固定编码构造字符串，也不能锁定整个进程编码。日志已出现 `�` 时原始字节可能已丢失，切换查看器编码无法恢复。
 
 ---
 
@@ -150,6 +152,7 @@ CI 命令行把构建拆成两个可审计阶段：
 | 设备选择 / APK provider 与 IDE 行为不一致 | `IAsDeployerCompat.getSelectedDevices()` / `getApkProvider()` 的版本实现 |
 | main 模块编译缺 IDE API | `platform_compat/base_api` 是否缺 stub |
 | CLI 行为与 IDE 不一致 | `CmdLine`、`CmdPlatformApi`、`IdeaPlatformApi` |
+| Windows 命令中文输出乱码 | `CmdExecutor` 的 stdout/stderr 是否都经过 `ProcessOutputReader`，以及原始字节是否在此前已被解码 |
 | CI 增量基线提示 `.dirty` | 当前基线已被一次增量构建消费；重新复制未修改的 `buildGradleBase` 产物后再执行 |
 | 自定义编译器未加载 | `CustomCompilerManager` 与 `build/jugg/config/custom_compilers` |
 

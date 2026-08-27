@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-08-17
+> 最后核对：2026-08-27
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -152,6 +152,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - Compose common/platform 分类使用同 owner module root 下的 IDE source-set module 身份；`androidMain` 始终是 platform，其他 `Unknown` source-set module 可表示非 `commonMain` 的 common source set，不从 custom resource root 路径反推。
 - generated Kotlin 编译失败时，`KotlinCompilerInvoker` 的原始行号和 diagnostic 文本会聚合回原 Compose resource 输入，不能替换成通用失败文案。
 - Compose resource 编译按 generator task/API 结构识别能力，不使用 Kotlin/Compose 精确版本白名单；Kotlin 1.9、2.1、2.3 profile 均有定向回归。
+- IDE JVM 也是进程内 Kotlin compiler 的宿主环境。旧 Kotlin compiler 的 shaded `JavaVersion.current()` 在新宿主 JDK 上可能解析失败；`KotlinCompilerHostCompat` 只在探测失败时预置宿主 feature，宿主 JDK >= 25 且 classpath 含 android.jar 时，`KotlinCompilerInvoker` 同时添加 `-no-jdk`。recreate compiler 不会改变宿主环境，因此相同 `INTERNAL_ERROR` 重试失败时应检查 `preset shaded JavaVersion.current to`、`add -no-jdk` 和实际项目 Kotlin 版本。
 
 ---
 
@@ -170,6 +171,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 | dex 合并失败 | `DexCompiler`、`DexFileMerger`、`IncrementalCompilerHelper.mergeDex` |
 | default method / `j$.*` 增量后运行异常 | `DexCompiler` 的 minApi、`CompileEffectAnalyzer.getDesugarInfo()`、`BaseCompileContext.findDesugaredLibraryConfiguration()` |
 | AGP/Kotlin 升级后 D8 assertion 或字节码不兼容 | `JuggProjectInfo.agpR8Classpath`、`DexFileMaker` 的隔离加载与版本日志 |
+| Kotlin `INTERNAL_ERROR` 栈含 shaded `JavaVersion.parse` | `KotlinCompilerHostCompat`、`K2JVMCompilerIsolate` 与 `KotlinCompilerInvoker` 的宿主 JDK 兼容日志 |
 | release dex 路径或类名不对 | `DexMinifyCompiler.preObfuscateForMinifyInfo()`、`obfuscateDexFile()` |
 | 多 APK 下 class/dex 部署归属丢失 | `DexCompiler` 输出的 `targetApkPaths` 与 `IncrementalCompilerHelper.mergeDex()` |
 
