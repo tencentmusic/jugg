@@ -11,6 +11,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -19,6 +20,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.ide.ui.TooManyChangesConfirmDialog
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -102,6 +104,13 @@ open class JuggCompileUiHandler(
             okButtonText = "Yes, embed to APK",
             negativeButtonText = "No, disable embedded mode",
         )
+    }
+
+    override fun confirmTooManyChanges(info: TooManyChangesInfo): TooManyChangesConfirmResult {
+        if (isRpcMode) {
+            return TooManyChangesConfirmResult.FALLBACK
+        }
+        return TooManyChangesConfirmDialog.showAndGetResult(info)
     }
 
     override fun updateIndicatorText(text: String) {

@@ -15,7 +15,7 @@ tags:
 | 你想做什么 | 推荐页面 | 适合场景 |
 |---|---|---|
 | 修改代码或资源后运行 App | [运行 App](./run.md) | 点击 Jugg Run 后，一次完成编译、部署、启动和结果判断 |
-| 没有文件变化但想重新构建 | [降级 Gradle 编译](./downgrade-gradle.md) | 处理无文件变化运行降级、主动点击降级按钮、依赖变化弹窗 |
+| 没有文件变化但想重新构建 | [降级 Gradle 编译](./downgrade-gradle.md) | 处理无文件变化运行降级、主动点击降级按钮、依赖变化弹窗、源码过多确认 |
 | 把本轮增量结果导成 APK | [导出增量 APK](./export-incremental-apk.md) | 从降级确认弹窗导出已编译的增量 APK |
 | 不重新编译，只重启当前 App | [重启 App](./restart-app.md) | 验证启动逻辑、缓存、单例、static / companion 变化 |
 | 清理 App 数据并重装 | [清理数据](./clean-data.md) | 需要干净安装现场，或设备部署状态需要重建 |

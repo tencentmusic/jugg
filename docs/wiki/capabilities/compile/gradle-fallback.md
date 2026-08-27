@@ -18,7 +18,7 @@ Jugg prioritizes incremental compilation. When the current build baseline is no 
 |---|---|---|
 | User forces Gradle | Supported | Skips incremental checks directly |
 | No files changed | Prompt or automatic fallback supported | Configuration determines whether confirmation is required |
-| Too many files or modules | Automatic fallback supported | Avoids incremental work that would cost more than Gradle |
+| Too many files or modules | Confirmation can select fallback | Defaults to Gradle; after the countdown, incremental compilation can continue for this run |
 | Device is considered invalid | Automatic fallback supported | The current run uses Gradle; installation can complete only after the device recovers |
 | Build target switches | Automatic fallback supported | Switching between app and androidTest requires a new APK baseline |
 | Build-file or dependency changes | Confirmation can select fallback or incremental dependency handling | The user's choice determines whether incremental handling continues |

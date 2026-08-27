@@ -5,6 +5,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -38,6 +39,8 @@ interface CompileUiHandler {
     fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult
     fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?): ConfirmResult
     fun confirmEmbeddedToApk(): ConfirmResult
+    fun confirmTooManyChanges(info: TooManyChangesInfo): TooManyChangesConfirmResult =
+        TooManyChangesConfirmResult.FALLBACK
 
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
@@ -72,6 +75,7 @@ interface CompileUiHandler {
             override fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>) = BuildChangesConfirmResult.FALLBACK
             override fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?) = ConfirmResult.POSITIVE
             override fun confirmEmbeddedToApk(): ConfirmResult = ConfirmResult.POSITIVE
+            override fun confirmTooManyChanges(info: TooManyChangesInfo) = TooManyChangesConfirmResult.FALLBACK
 
             override fun updateIndicatorText(text: String) = Unit
             override fun listenCancelAction(listener: (() -> Unit)?) = Unit

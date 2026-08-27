@@ -32,7 +32,7 @@ Before each incremental compilation, Jugg checks whether the current Run can con
 | First Run or missing project information | A complete starting point including APKs, classpath, resource tables, and generated code |
 | Build target switches between app and androidTest | Matching APKs and compilation context for the new target |
 | Compilation command changes | Build results based on the new tasks and arguments |
-| Changed source spans too many files or modules | A full build instead of overly expensive local compilation and impact analysis |
+| Changed source spans too many files or modules | A full build by default; after confirmation, incremental compilation can continue for this run |
 | The user explicitly selects Gradle | Refresh the baseline or compare the full build with incremental results |
 | A later Run has no new changes and the user chooses to continue building | Rerun the complete build and installation flow |
 

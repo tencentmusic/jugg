@@ -83,11 +83,12 @@ BaseCompileContext.customCompilers
 | `isSkipDeploy` / `isAlwaysRestartApp` | `CompileUiHandler` | 编译后的部署策略输入 |
 | `createCompileStatusHolder()` | `CompileUiHandler` | 创建取消与当前文件状态对象 |
 | `createOutputParser()` | `CompileUiHandler` | Gradle 编译输出解析入口 |
-| `confirmBuildChanges()` / `confirmDependencyChanges()` | `CompileUiHandler` | 构建文件/依赖变化时的用户确认 |
+| `confirmBuildChanges()` / `confirmDependencyChanges()` / `confirmTooManyChanges()` | `CompileUiHandler` | 构建文件/依赖变化/源码过多时的用户确认 |
 | `notifyByBalloon()` / `updateIndicatorText()` | `CompileUiHandler` | 用户可见进度提示 |
 | `testEventSinkFactory` | `CompileUiHandler` | androidTest 运行时把 instrumentation 事件接到 Test Results |
 | `RunResult` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ui/RunResult.kt` | 编译/部署终态描述 |
 | `BuildChangesConfirmResult` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ui/BuildChangesConfirmResult.kt` | 构建变更确认结果 |
+| `TooManyChangesConfirmResult` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ui/TooManyChangesConfirmResult.kt` | 源码过多确认结果 |
 
 ---
 

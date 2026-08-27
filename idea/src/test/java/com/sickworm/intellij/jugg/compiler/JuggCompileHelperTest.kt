@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -492,7 +493,7 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun checkFallback_tooManySourceFiles_doesNotWarn() {
+    fun checkFallback_tooManySourceFiles_doesNotWarnOrAskConfirm() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger)
         whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
@@ -502,21 +503,58 @@ class JuggCompileHelperTest {
         }
 
         assertFalse(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+        verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
     }
 
     @Test
-    fun preprocessIncrementalCompile_tooManySourceFiles_warnsFallback() {
+    fun preprocessIncrementalCompile_tooManySourceFiles_fallbackAfterConfirm() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger)
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
         whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.FALLBACK)
 
         val result = withLoweredSourceFilePointLimit(2) {
             invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
         }
 
         assertEquals("Too many changes", result?.failedReason)
+        assertTrue(result!!.isCanFallback)
         assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_continueAllowsIncremental() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals(null, result)
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+        verify(fixture.uiHandler, never()).cancel()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_cancelStopsCompile() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CANCEL)
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals("Compile canceled", result?.failedReason)
+        assertFalse(result!!.isCanFallback)
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+        verify(fixture.uiHandler).cancel()
     }
 
     @Test

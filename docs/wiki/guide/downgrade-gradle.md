@@ -1,6 +1,6 @@
 ---
 title: Fall back to Gradle compilation
-description: Learn when to make Jugg use Gradle compilation after a no-change run, through the fallback button, or from the dependency-change dialog.
+description: Learn when to make Jugg use Gradle compilation after a no-change run, through the fallback button, from the dependency-change dialog, or from the too-many-changes dialog.
 status: active
 tags:
   - guide
@@ -54,6 +54,18 @@ After you modify `build.gradle`, `settings.gradle`, or dependency declarations, 
 | Close the dialog | Cancel this run |
 
 When in doubt, choose Fallback to Gradle. Spending more time here is usually easier than continuing with an inaccurate baseline.
+
+## The too-many-changes dialog
+
+When one change covers too many source files or modules, or when the current change requires compiling too many additional affected files, Jugg may show a confirmation dialog. Incremental compilation of that set is usually slower than a full Gradle build, so Gradle remains the default.
+
+| Choice | Result |
+|---|---|
+| Fallback to Gradle | Use a full build for this run. The button is available immediately |
+| Continue Incremental Compile | Keep incremental compilation for this run only. The button waits for a 2-second countdown |
+| Close the dialog | Cancel this run |
+
+MCP, CLI, and status queries do not show this dialog and fall back to Gradle directly.
 
 ## Related pages
 

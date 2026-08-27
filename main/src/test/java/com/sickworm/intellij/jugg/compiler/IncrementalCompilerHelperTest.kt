@@ -1,11 +1,13 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.RecompileFiles
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
@@ -820,6 +822,123 @@ class IncrementalCompilerHelperTest {
             juggDeployData = deployData,
         )
         assertEquals(listOf(callerFile.absolutePath), filtered.map { it.file.absolutePath })
+    }
+
+    @Test
+    fun `should fallback when continue compile exceeds too many changes`() {
+        val fixture = continueCompileTooManyFixture()
+        val result = withLoweredSourceFilePointLimit(2) {
+            fixture.helper.compile(
+                undeployedFiles = listOf(fixture.triggerChanged),
+                uiHandler = CompileUiHandler.DEFAULT,
+                compileStatusHolder = CompileStatusHolder.DEFAULT,
+            )
+        }
+        assertFalse(result.isSuccess)
+        assertTrue(result.isCanFallback)
+        assertEquals("Too many changes", result.failedReason)
+        verify(fixture.compiler, Mockito.times(1)).compile(any())
+    }
+
+    @Test
+    fun `should continue compile when user confirms too many changes`() {
+        val fixture = continueCompileTooManyFixture()
+        val uiHandler = mock<CompileUiHandler>()
+        whenever(uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+        whenever(uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        val result = withLoweredSourceFilePointLimit(2) {
+            fixture.helper.compile(
+                undeployedFiles = listOf(fixture.triggerChanged),
+                uiHandler = uiHandler,
+                compileStatusHolder = CompileStatusHolder.DEFAULT,
+            )
+        }
+        assertTrue(result.isSuccess)
+        verify(uiHandler).confirmTooManyChanges(any())
+        verify(fixture.compiler, Mockito.times(2)).compile(any())
+    }
+
+    private fun continueCompileTooManyFixture(): ContinueCompileTooManyFixture {
+        val tempDir = Files.createTempDirectory("inc_compile_too_many_changes").toFile()
+        val triggerFile = File(tempDir, "src/Trigger.kt").apply {
+            parentFile.mkdirs()
+            writeText("class Trigger\n")
+        }
+        val effectedFile = File(tempDir, "src/Effected.kt").apply {
+            writeText("class Effected\n")
+        }
+        val triggerChanged = changedFile(triggerFile, tempDir)
+        val deployData = deployDataWithSourceEffects(
+            listOf(
+                EffectedClassNode(
+                    className = "Lcom/example/Effected;",
+                    sourceFileName = "Effected.kt",
+                    effectedByClasses = listOf("Lcom/example/Trigger;"),
+                    effectedType = EffectedClassNode.EffectedType.SOURCE,
+                ),
+            ),
+        )
+        val successResult = { files: List<CompileFile> ->
+            CompileResult(
+                task = CompileTask(files, File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
+                details = files.map { Result.success(it) },
+                outputs = emptyList(),
+            )
+        }
+        val compiler: JuggCompiler = mock()
+        val compileContext: ICompileContext = mock()
+        val pathManager: JuggPathManager = mock()
+        val deployStateManager: IDeployStateManager = mock()
+        val deployFileManager: DeployFileManager = mock()
+        val fileChangesHandler: IFileChangesHandler = mock()
+        val retryResolver: IIncrementalCompileRetryResolver = mock()
+        whenever(compiler.context).thenReturn(compileContext)
+        whenever(compileContext.mappingFile).thenReturn(null)
+        whenever(compileContext.isMinified).thenReturn(false)
+        whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
+        whenever(compiler.compile(any())).thenAnswer { invocation ->
+            successResult(invocation.getArgument<CompileTask>(0).files)
+        }
+        whenever(fileChangesHandler.filter(any())).thenAnswer { invocation ->
+            invocation.getArgument<List<File>>(0).map { file -> changedFile(file, tempDir) }
+        }
+        whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        doNothing().whenever(deployFileManager).updateUncompiledFiles(any(), any())
+        doNothing().whenever(deployFileManager).addStagingFiles(any())
+        doNothing().whenever(deployFileManager).awaitConstRefAnalysis(any())
+        whenever(deployFileManager.getRecompileFiles(any(), any(), isNull())).thenReturn(
+            RecompileFiles(
+                effectedSourceFiles = listOf(effectedFile),
+                redexClasses = emptyList(),
+                juggDeployData = deployData,
+            ),
+            RecompileFiles(
+                effectedSourceFiles = emptyList(),
+                redexClasses = emptyList(),
+                juggDeployData = deployData,
+            ),
+        )
+        return ContinueCompileTooManyFixture(
+            helper = buildHelper(compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, retryResolver),
+            compiler = compiler,
+            triggerChanged = triggerChanged,
+        )
+    }
+
+    private data class ContinueCompileTooManyFixture(
+        val helper: IncrementalCompilerHelper,
+        val compiler: JuggCompiler,
+        val triggerChanged: ChangedFile,
+    )
+
+    private fun <T> withLoweredSourceFilePointLimit(limit: Int, block: () -> T): T {
+        val original = JuggSettings.maxCompileSourceFilePoints
+        JuggSettings.maxCompileSourceFilePoints = limit
+        try {
+            return block()
+        } finally {
+            JuggSettings.maxCompileSourceFilePoints = original
+        }
     }
 
     private fun deployDataWithSourceEffects(nodes: List<EffectedClassNode>): JuggDeployData {

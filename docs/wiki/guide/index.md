@@ -15,7 +15,7 @@ These pages are for everyday Jugg users who have already installed the plugin an
 | What you want to do | Recommended page | When to use it |
 |---|---|---|
 | Run the app after changing code or resources | [Run an app](./run.md) | Compile, deploy, launch, and assess the result in one Jugg Run |
-| Rebuild when no files have changed | [Fall back to Gradle compilation](./downgrade-gradle.md) | Handle no-change fallback, use the fallback button, or respond to a dependency-change dialog |
+| Rebuild when no files have changed | [Fall back to Gradle compilation](./downgrade-gradle.md) | Handle no-change fallback, use the fallback button, respond to a dependency-change dialog, or confirm a large incremental compile |
 | Export the current incremental result as an APK | [Export an incremental APK](./export-incremental-apk.md) | Export the compiled incremental APK from the fallback confirmation dialog |
 | Restart the current app without recompiling | [Restart the app](./restart-app.md) | Verify startup logic, caches, singletons, or static / companion changes |
 | Clear app data and reinstall | [Clear app data](./clean-data.md) | Create a clean installation state or rebuild device deployment state |

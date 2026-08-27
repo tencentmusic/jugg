@@ -20,7 +20,7 @@ Common cases and their corresponding actions:
 
 - You clicked Run by mistake without any file changes: Cancel the current Gradle build.
 - You switched between app and Android Test targets: This is expected. Wait for the current run to establish a new APK baseline.
-- You modified too many files or modules: This is expected. Jugg selects a full Gradle build when incremental compilation would cost more.
+- You modified too many files or modules: Jugg shows a confirmation dialog and defaults to a full Gradle build. After the countdown you can continue incremental compilation for this run.
 - The previous incremental compilation failed: This is expected. The current Gradle build restores a trusted baseline.
 
 If none of these cases apply, [report the issue](../guide/report-issue.md).

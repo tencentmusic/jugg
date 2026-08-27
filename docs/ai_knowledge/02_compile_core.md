@@ -144,7 +144,7 @@ JuggCompiler.doCompile(task)
 - 用户强制回退。
 - 当前 Configuration 的 compile command 与最近一次成功 full build 基线不一致（例如 Sync 后切换了 Active Build Variant）。
 - 设备状态不满足增量部署。
-- 变更文件点数/模块数超过阈值。
+- 变更文件点数/模块数超过阈值时弹出确认框：默认 Gradle，倒计时后可选择本轮继续增量。MCP/CLI 与 `checkFallback()` 不弹窗，直接回退。
 - 依赖变化、构建脚本变化或编译失败不可恢复。
 
 无文件变化的 fallback 确认框和手动 `Force Gradle Compile` 确认框均允许用户选择忽略 Gradle build cache。选中后，本轮 Gradle command 追加 `--no-build-cache --rerun-tasks`；该选项只影响本轮回退，不写回 Run Configuration，并在任务启动后清除。
