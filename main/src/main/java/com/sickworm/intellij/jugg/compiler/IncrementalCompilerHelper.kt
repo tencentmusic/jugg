@@ -3,11 +3,9 @@ package com.sickworm.intellij.jugg.compiler
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
-import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -261,25 +259,13 @@ class IncrementalCompilerHelper(
                     "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
         }
         if (tooManyChanges != null && !skipTooManyChangesCheck) {
-            when (uiHandler.confirmTooManyChanges(tooManyChanges)) {
-                TooManyChangesConfirmResult.CONTINUE -> {
-                    skipTooManyChangesCheck = true
-                }
-                TooManyChangesConfirmResult.CANCEL -> {
-                    uiHandler.cancel()
-                    return CompileTaskResult.incrementalFailed(false, "Compile canceled")
-                }
-                TooManyChangesConfirmResult.FALLBACK -> {
-                    if (tooManyChanges.moduleCount > JuggSettings.maxCompileSourceModules) {
-                        logger.warn("Compile modules too much(${tooManyChanges.moduleCount} modules), " +
-                                "will fallback to gradle compile for better performance.")
-                    } else {
-                        logger.warn("Compile files too much(${tooManyChanges.javaFileCount + tooManyChanges.kotlinFileCount} files), " +
-                                "will fallback to gradle compile for better performance.")
-                    }
-                    return CompileTaskResult.incrementalFailed(true, "Too many changes")
-                }
-            }
+            TooManyChanges.applyUserChoice(
+                info = tooManyChanges,
+                confirm = uiHandler.confirmTooManyChanges(tooManyChanges),
+                logger = logger,
+                onContinue = { skipTooManyChangesCheck = true },
+                onCancel = { uiHandler.cancel() },
+            )?.let { return it }
         }
 
         // deploy state fallback

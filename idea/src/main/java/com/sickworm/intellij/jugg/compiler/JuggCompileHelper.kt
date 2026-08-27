@@ -478,23 +478,16 @@ class JuggCompilerHelper(
         if (tooManyChanges != null) {
             logger.debug("javaSourceSize: ${tooManyChanges.javaFileCount}, " +
                     "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
-        }
-        if (tooManyChanges != null && !allowLargeIncrementalThisCompile) {
             val confirm = uiHandler?.confirmTooManyChanges(tooManyChanges)
                 ?: TooManyChangesConfirmResult.FALLBACK
-            when (confirm) {
-                TooManyChangesConfirmResult.CONTINUE -> {
-                    allowLargeIncrementalThisCompile = true
-                }
-                TooManyChangesConfirmResult.CANCEL -> {
-                    uiHandler?.cancel()
-                    return CompileTaskResult.incrementalFailed(false, "Compile canceled")
-                }
-                TooManyChangesConfirmResult.FALLBACK -> {
-                    logTooManyChangesFallback(tooManyChanges, logFallback)
-                    return CompileTaskResult.incrementalFailed(true, "Too many changes")
-                }
-            }
+            TooManyChanges.applyUserChoice(
+                info = tooManyChanges,
+                confirm = confirm,
+                logger = logger,
+                logFallback = logFallback,
+                onContinue = { allowLargeIncrementalThisCompile = true },
+                onCancel = { uiHandler?.cancel() },
+            )?.let { return it }
         }
 
         // deploy state fallback
@@ -507,22 +500,6 @@ class JuggCompilerHelper(
         }
 
         return null
-    }
-
-    private fun logTooManyChangesFallback(
-        info: TooManyChangesInfo,
-        logFallback: Boolean,
-    ) {
-        if (!logFallback) {
-            return
-        }
-        if (info.moduleCount > JuggSettings.maxCompileSourceModules) {
-            logger.warn("Compile modules too much(${info.moduleCount} modules), " +
-                    "will fallback to gradle compile for better performance.")
-        } else {
-            logger.warn("Compile files too much(${info.javaFileCount + info.kotlinFileCount} files), " +
-                    "will fallback to gradle compile for better performance.")
-        }
     }
 
     private fun checkLibraryIncrementalCompile(options: JuggGradleCompileOptions, uiHandler: CompileUiHandler) {

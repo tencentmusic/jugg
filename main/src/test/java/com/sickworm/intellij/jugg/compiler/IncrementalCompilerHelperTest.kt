@@ -858,6 +858,26 @@ class IncrementalCompilerHelperTest {
         verify(fixture.compiler, Mockito.times(2)).compile(any())
     }
 
+    @Test
+    fun `should cancel continue compile when user cancels too many changes`() {
+        val fixture = continueCompileTooManyFixture()
+        val uiHandler = mock<CompileUiHandler>()
+        whenever(uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CANCEL)
+        whenever(uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        val result = withLoweredSourceFilePointLimit(2) {
+            fixture.helper.compile(
+                undeployedFiles = listOf(fixture.triggerChanged),
+                uiHandler = uiHandler,
+                compileStatusHolder = CompileStatusHolder.DEFAULT,
+            )
+        }
+        assertFalse(result.isSuccess)
+        assertFalse(result.isCanFallback)
+        assertEquals("Compile canceled", result.failedReason)
+        verify(uiHandler).cancel()
+        verify(fixture.compiler, Mockito.times(1)).compile(any())
+    }
+
     private fun continueCompileTooManyFixture(): ContinueCompileTooManyFixture {
         val tempDir = Files.createTempDirectory("inc_compile_too_many_changes").toFile()
         val triggerFile = File(tempDir, "src/Trigger.kt").apply {

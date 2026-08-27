@@ -541,6 +541,24 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun checkFallback_afterContinue_stillReportsTooManyChanges() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+
+        withLoweredSourceFilePointLimit(2) {
+            val preprocessResult = invokePreprocessIncrementalCompile(
+                fixture.helper, fixture.options, fixture.uiHandler,
+            )
+            assertEquals(null, preprocessResult)
+            assertEquals("Too many changes", fixture.helper.checkFallback())
+        }
+
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+    }
+
+    @Test
     fun preprocessIncrementalCompile_tooManySourceFiles_cancelStopsCompile() {
         val fixture = createFixture()
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
