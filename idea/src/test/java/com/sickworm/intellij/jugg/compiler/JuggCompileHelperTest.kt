@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -59,6 +60,7 @@ class JuggCompileHelperTest {
         private const val DIRECT_RUN_FALLBACK_HINT = "Run again directly will fall back to gradle compile."
         private const val NO_FILE_CHANGES_FALLBACK = "No file changes. will fallback to gradle compile."
         private const val NO_FILE_CHANGES_DRY_DEPLOY = "No file changes, dry deploy once."
+        private const val TOO_MANY_FILES_FALLBACK = "Compile files too much"
 
         @BeforeClass
         @JvmStatic
@@ -490,6 +492,34 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun checkFallback_tooManySourceFiles_doesNotWarn() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+
+        withLoweredSourceFilePointLimit(2) {
+            assertEquals("Too many changes", fixture.helper.checkFallback())
+        }
+
+        assertFalse(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_warnsFallback() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals("Too many changes", result?.failedReason)
+        assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+    }
+
+    @Test
     fun compile_incrementalFailure_nonRpcModePrintsDirectRunFallbackHint() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger = logger)
@@ -668,6 +698,26 @@ class JuggCompileHelperTest {
     }
 
     private class StopAfterModeSelected : RuntimeException()
+
+    private fun kotlinChangedFile(): ChangedFile {
+        val sourceFile = temporaryFolder.newFile("TooMany.kt")
+        return ChangedFile(
+            CompileFile.Type.Kotlin,
+            sourceFile,
+            sourceFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+    }
+
+    private fun <T> withLoweredSourceFilePointLimit(limit: Int, block: () -> T): T {
+        val original = JuggSettings.maxCompileSourceFilePoints
+        JuggSettings.maxCompileSourceFilePoints = limit
+        try {
+            return block()
+        } finally {
+            JuggSettings.maxCompileSourceFilePoints = original
+        }
+    }
 
     private fun invokePreprocessIncrementalCompile(
         helper: JuggCompilerHelper,

@@ -93,7 +93,9 @@ class JuggCompilerHelper(
             return GRADLE_PROJECT_INFO_UNAVAILABLE
         }
         checkDeviceFallback()?.let { return it.failedReason }
-        checkFilesFallback(deployFileManager.getUncompiledFiles())?.let { return it.failedReason }
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), logFallback = false)?.let {
+            return it.failedReason
+        }
         val deployState = deployStateManager.updateDeployState()
         if (!deployState.isReadyIncCompile) {
             return deployState.msg
@@ -463,7 +465,10 @@ class JuggCompilerHelper(
     /**
      * @return need fallback when result is not null
      */
-    private fun checkFilesFallback(undeployedFiles: List<ChangedFile>): CompileTaskResult? {
+    private fun checkFilesFallback(
+        undeployedFiles: List<ChangedFile>,
+        logFallback: Boolean = true,
+    ): CompileTaskResult? {
         // too many changes fallback
         val undeployedSourceFiles = undeployedFiles.filter {
             it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
@@ -479,12 +484,16 @@ class JuggCompilerHelper(
         logger.debug("javaSourceSize: ${javaSourceFiles.size}, kotlinSourceFiles ${kotlinSourceFiles.size}, undeployedSourceFilesPoints: $undeployedSourceFilesPoints")
 
         if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
-            logger.warn("Compile modules too much(${undeployedSourceModules.size} modules), " +
-                    "will fallback to gradle compile for better performance.")
+            if (logFallback) {
+                logger.warn("Compile modules too much(${undeployedSourceModules.size} modules), " +
+                        "will fallback to gradle compile for better performance.")
+            }
             return CompileTaskResult.incrementalFailed(true, "Too many changes")
         } else if (undeployedSourceFilesPoints > JuggSettings.maxCompileSourceFilePoints) {
-            logger.warn("Compile files too much(${undeployedSourceFiles.size} files), " +
-                    "will fallback to gradle compile for better performance.")
+            if (logFallback) {
+                logger.warn("Compile files too much(${undeployedSourceFiles.size} files), " +
+                        "will fallback to gradle compile for better performance.")
+            }
             return CompileTaskResult.incrementalFailed(true, "Too many changes")
         }
 
