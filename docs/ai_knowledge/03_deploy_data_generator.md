@@ -57,7 +57,7 @@
 |---|---|---|
 | `effectMethods` | 方法删除、签名变化、`private` 与非 private 切换、其他有效 access flag 变化 | `changedMethodRef` |
 | `deletedFields` | 字段删除 | `changedFieldRef` |
-| `isAddedAbstractMethodForNonAbstractClass` | 抽象类/接口新增 abstract 方法 | `changedAbstractClasses` |
+| `isAddedAbstractMethodForNonAbstractClass` 或父类/接口列表变化 | 抽象类/接口新增 abstract 方法，或 class hierarchy 变化 | `changedAbstractClasses` |
 | `modifiedGenericSignature` | 类级泛型 signature 变化 | `changedGenericSignatureClasses` |
 
 `effectMethods` 判断会忽略 `ACC_ABSTRACT` 和 `ACC_PRIVATE` 之外的等价细节；仅方法体变化不会进入 `effectMethods`。`R$xxx` class 会整体跳过 method/field 引用传播，避免资源修复流程制造大量误重编译。
@@ -117,7 +117,7 @@ APK database 不只是“class 是否存在”的缓存。Jugg 需要持久化 c
 | Step 1 | 将 changed method/field/abstract/generic class 转成 DB classId | 后续 SQL 都依赖历史 APK / deploy DB 中已有 classId |
 | Step 2 | 对非 static changed method 的 owner 查 `subclass_refs`，构造子类虚拟 method ref | 只模拟虚方法分发；static 方法保留给 Step 3，但不能启动子类遍历 |
 | Step 3 | 查 `method_refs` / `field_refs`，找到直接调用或访问变更成员的类 | `changedMethodRefsWithSubclasses` 包含 static 方法，保证 static 直接调用仍会命中 |
-| Step 4 | 对新增 abstract method 的 class/interface 递归找子类 | 非抽象子类必须重编；abstract 子类继续向下传播 |
+| Step 4 | 对新增 abstract method 或 class hierarchy 变化的 class/interface 递归找子类 | 所有直接子类必须重编；abstract 子类继续向下传播 |
 | Step 5 | 对 generic signature 变化类及其子类，查直接 member callers 并递归找子类 | 解决 DEX 擦除后 descriptor 不变但源码泛型约束改变的问题 |
 | Step 6 | 将受影响 classId 反查 class name/source，生成 `EffectedClassNode(SOURCE)` | 这里才形成 SourceCompiler 可消费的源码路径 |
 

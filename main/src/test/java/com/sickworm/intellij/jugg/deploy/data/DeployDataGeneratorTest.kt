@@ -155,6 +155,29 @@ class DeployDataGeneratorTest {
     }
 
     @Test
+    fun testAddingParentInterfaceTriggersImplementorRecompile() {
+        val interfaceClassName = "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementBaseInterface3"
+        val implementorClassName = "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3"
+        assertTrue(
+            parsedApk.subclassRefs.getValue(interfaceClassName.classSigName).contains(implementorClassName.classSigName),
+        )
+
+        val parsedDex = getParsedDex(interfaceClassName)
+        val addedParentInterface = "com.sickworm.jugg.demo.testcase.defaultinterface.DefaultInterfaceLambda".classSigName
+        val modifiedParsedDex = parsedDex.updates(
+            interfaceNames = parsedDex.classDeployItems.single().classNode.interfaceNames + addedParentInterface,
+        )
+
+        val deployData = generator.buildDeployData(modifiedParsedDex, emptyList())
+
+        assertTrue(
+            deployData.effectedSourceFileNames.contains("ImplementClass3.java"),
+            "ImplementClass3.java should be recompiled when its interface adds a parent interface. " +
+                "effected: ${deployData.effectedSourceFileNames}",
+        )
+    }
+
+    @Test
     fun testGetDesugarClasspath() {
         assertDesugarClasspath(
             "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1",
