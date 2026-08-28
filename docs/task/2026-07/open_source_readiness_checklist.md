@@ -69,7 +69,7 @@
 - `deploy_compat/README.md` 指向 Android Studio 安装目录作为这些依赖的来源。
 - `main/libs` 包含 R8、修改版 Kotlin Android Extensions、SQLite、ASM 等预编译 JAR。
 - 插件资源包含 AAPT2 inclink、rsync、sshpass 等平台二进制。
-- 仓库已提供 `THIRD_PARTY_NOTICES.md`、104 行 `third_party/components.csv`、许可证文本、对应源码、修改声明和 SPDX 2.3 SBOM；插件携带精确公开源码 revision 和校验值，不重复打包源码 payload。
+- 仓库已使用法务提供的完整 `LICENSE`，并提供 `THIRD_PARTY_NOTICES.md`、104 行 `third_party/components.csv`、许可证文本、对应源码、第三方修改 changelog、集成边界说明和 SPDX 2.3 SBOM；插件携带相同 `LICENSE`、精确公开源码 revision 和校验值，不重复打包源码 payload。
 - `rsync 3.4.1`、`sshpass 1.10`、Trove4J、juniversalchardet 和 JavaBeans Activation Framework 的对应源码保留在公开 Git revision；修改版 OpenJDK `jvmti.h` 同时提供上游基线、Jugg 文件和 patch。
 - 技术侧再分发材料已经补齐，但 Jugg 自有代码、职务成果和第三方资产的公司/法务批准仍需外部书面确认。
 
@@ -95,8 +95,9 @@
 
 **已完成的技术证据**
 
-- `:idea:buildPlugin` 会把排除 `sources` payload 的 `third_party`、根目录 `THIRD_PARTY_NOTICES.md`、精确源码 revision 和源码校验值复制到插件根目录。
-- `:idea:verifyThirdPartyCompliance` 校验 NOTICE、104 行组件清单、许可证、公开源码定位、OpenJDK 修改 patch、仓库源码 SHA-256、CI 源码 Git 状态、插件内无源码 payload 和 104 个 package 的 SPDX 2.3 SBOM；缺失或不匹配时构建失败。
+- `:idea:buildPlugin` 会把根目录 `LICENSE`、`THIRD_PARTY_NOTICES.md`、排除 `sources` payload 的 `third_party`、精确源码 revision 和源码校验值复制到插件根目录。
+- `:idea:verifyThirdPartyCompliance` 校验根目录 LICENSE 与发行包副本、NOTICE、104 行组件清单、第三方修改 changelog、集成边界说明、许可证、公开源码定位、OpenJDK 修改 patch、仓库源码 SHA-256、CI 源码 Git 状态、插件内无源码 payload 和 104 个 package 的 SPDX 2.3 SBOM；缺失或不匹配时构建失败。
+- 法务关注的地址空间边界已按实际实现记录在 `third_party/INTEGRATION.md`：`rsync`、`sshpass` 为独立进程；Checker Qual 和 JavaBeans Activation Framework 分别选择 MIT、CDDL-1.1；OpenJDK JVMTI header 使用 GPL-2.0 WITH Classpath Exception；Trove4J、juniversalchardet 保持独立 JAR 动态加载。该技术事实仍需法务确认其法律口径。
 - `tools/generate_third_party_compliance.rb` 从 `components.csv` 重新生成 NOTICE、修改声明、SBOM 和无表头附件 CSV，固定 JavaParser/JNA/Fast Infoset 使用 Apache-2.0、juniversalchardet 使用 MPL-1.1、JavaBeans Activation Framework 使用 CDDL-1.1。
 
 P0-01 当前只剩公司/法务审批、版权方授权等仓库外证据，不能由代码或构建门禁替代。
@@ -345,7 +346,7 @@ README 只提供基础 Gradle 命令，没有完整描述 JDK、Android Studio�
 
 **当前进度**
 
-- 根目录已有 `THIRD_PARTY_NOTICES.md`，发行包内包含等价 NOTICE、104 行机器清单、许可证、公开源码 revision 与校验值、修改声明和 SPDX 2.3 SBOM；源码 payload 保留在公开 Git revision。
+- 根目录已有法务提供的完整 `LICENSE` 和 `THIRD_PARTY_NOTICES.md`，发行包内包含相同 LICENSE、等价 NOTICE、104 行机器清单、许可证、公开源码 revision 与校验值、第三方修改 changelog、集成边界说明和 SPDX 2.3 SBOM；源码 payload 保留在公开 Git revision。
 - `:idea:verifyThirdPartyCompliance` 已对文件完整性、仓库源码 SHA-256、源码 revision、插件内无源码 payload、固定许可证选择和 SBOM package 数量设置构建门禁。
 - 尚未接入自动依赖/license 扫描，依赖升级仍需人工更新 `components.csv` 后重新生成并复核，因此本项保持“进行中”。
 

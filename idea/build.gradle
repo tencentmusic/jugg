@@ -121,6 +121,9 @@ tasks.named('prepareSandbox').configure {
     from(rootProject.file('THIRD_PARTY_NOTICES.md')) {
         into('jugg/third_party')
     }
+    from(rootProject.file('LICENSE')) {
+        into('jugg')
+    }
     from(thirdPartySourceInfoFile) {
         into('jugg/third_party')
     }
@@ -172,7 +175,9 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
         }
 
         def requiredEntries = [
+                'jugg/LICENSE',
                 'jugg/third_party/README.md',
+                'jugg/third_party/INTEGRATION.md',
                 'jugg/third_party/SOURCE.md',
                 'jugg/third_party/SOURCE_SHA256SUMS',
                 'jugg/third_party/THIRD_PARTY_NOTICES.md',
@@ -210,6 +215,11 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
                 if (entry == null || entry.size <= 0) {
                     throw new GradleException("Missing third-party compliance file: $path")
                 }
+            }
+
+            def packagedLicense = zip.getInputStream(zip.getEntry('jugg/LICENSE')).getText('UTF-8')
+            if (packagedLicense != rootProject.file('LICENSE').getText('UTF-8')) {
+                throw new GradleException('Packaged repository license does not match LICENSE')
             }
 
             def entries = Collections.list(zip.entries())

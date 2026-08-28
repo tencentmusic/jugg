@@ -1,6 +1,6 @@
 # Jugg 开源软件清单基线
 
-> 状态：附件字段与发行合规资产已完成，尚未经过法务或公司开源流程确认
+> 状态：附件字段与发行合规资产已完成；已收到法务补充要求，技术落实结果仍需法务确认
 > 基线：Jugg `3.2.2-release` 插件包与 2026-08-08 当前工作树
 > 目标：维护《附件1.开源软件信息表》的事实基线，并与插件发行包中的第三方合规资产保持一致
 > 重要：本文件不是法律结论。机器清单见 `third_party/components.csv`，SPDX 2.3 SBOM 见 `third_party/sbom/jugg-third-party.spdx.json`；文档与代码或产物冲突时，以实际发布产物和上游许可证文件为准。
@@ -34,7 +34,9 @@ Jugg 插件实际携带 `gradlew`、`gradlew.bat` 和 `gradle-wrapper.jar`，并
 
 本清单的附件字段和内部口径均已确认，可作为 Excel 回填基线；它仍不代表公司或法务已经批准开源。机器清单按协议义务组、修改状态、组件名称和版本排序；备注统一采用法务送审口径，仅说明使用关系、分发方式、实际修改内容，以及适用时的源码或许可证履行方式，不再重复“未修改”状态或记录开发核对过程。
 
-发行合规资产已落地到 `third_party`：包含 104 行机器清单、许可证文本、GPL/LGPL/MPL/CDDL 对应源码、修改声明和 SPDX 2.3 SBOM。`:idea:buildPlugin` 会将 NOTICE、许可证、公开源码 revision 与校验值、修改声明、清单和 SBOM 复制到插件根目录，不重复打包 `sources` payload；`:idea:verifyThirdPartyCompliance` 在缺失文件、仓库源码 SHA-256 或 CI Git 状态不匹配、插件重新携带源码 payload、许可证选择回退或 SBOM package 数量不为 104 时使构建失败。
+发行合规资产已落地到根目录和 `third_party`：根目录使用法务提供的完整 `LICENSE`；`third_party` 包含 104 行机器清单、许可证文本、GPL/LGPL/MPL/CDDL 对应源码、第三方修改 changelog、集成边界说明和 SPDX 2.3 SBOM。`:idea:buildPlugin` 会将 LICENSE、NOTICE、许可证、公开源码 revision 与校验值、修改 changelog、集成边界说明、清单和 SBOM 复制到插件根目录，不重复打包 `sources` payload；`:idea:verifyThirdPartyCompliance` 在 LICENSE 副本不一致、缺失文件、仓库源码 SHA-256 或 CI Git 状态不匹配、插件重新携带源码 payload、许可证选择回退或 SBOM package 数量不为 104 时使构建失败。
+
+法务补充关注的集成事实记录在 `third_party/INTEGRATION.md`。其中只有 `rsync`、`sshpass` 通过独立进程避免与插件 JVM 共享地址空间；Checker Qual 3.33.0/3.5.0 选择 MIT，JavaBeans Activation Framework 选择 CDDL-1.1，OpenJDK JVMTI header 使用带 Classpath Exception 的 GPL-2.0，不能把这四项描述为“均已通过进程隔离”。Trove4J 和 juniversalchardet 以独立 JAR 由 JVM 动态加载。上述内容是代码与产物事实，最终法律判断仍由法务确认。
 
 附件说明中的“使用”范围比“进入插件发布包”更广，还包括动态或静态链接、随附文件、通过插件或服务器下载、网络或云服务，以及开源软件的 API、代码和文件。因此 Stub API 替换只改变仓库中的文件形态，不会自动免除对应上游 API 的填报判断。
 
@@ -52,7 +54,7 @@ Jugg 插件实际携带 `gradlew`、`gradlew.bat` 和 `gradle-wrapper.jar`，并
 | `jvmti_agent/framework_class_stub` | 确认由挑选、简化的 Android framework 源码生成的编译桩 |
 | 第三方 JAR 内 `LICENSE`、`NOTICE`、`pom.properties` | 核对许可证、Copyright 和 Maven 坐标 |
 | `docs/task/2026-07/open_source_readiness_checklist.md` §3 P0-01 | 确认第三方二进制与知识产权归属是公开发布阻断项 |
-| `third_party`、`THIRD_PARTY_NOTICES.md` | 发行包实际分发的机器清单、许可证、公开源码 revision 与校验值、修改声明、NOTICE 和 SPDX SBOM；对应源码 payload 保留在公开 Git revision |
+| `LICENSE`、`third_party`、`THIRD_PARTY_NOTICES.md` | 法务提供的项目许可证，以及发行包实际分发的机器清单、许可证、公开源码 revision 与校验值、修改 changelog、集成边界说明、NOTICE 和 SPDX SBOM；对应源码 payload 保留在公开 Git revision |
 | `idea/build.gradle` 的 `verifyThirdPartyCompliance` | 校验发行包合规资产完整性、仓库源码 SHA-256 与 CI Git 状态、源码 revision、插件内无源码 payload、固定许可证选择和 SBOM package 数量 |
 
 ## 3. 插件发布包中的 JVM 组件
@@ -262,13 +264,14 @@ Kotlin `1.9.23` 源码 tag 已确认 compiler embeddable 使用的主要内嵌�
 ## 6. 后续步骤
 
 1. 以 `third_party/components.csv` 的 104 个组件为附件和发行合规基线；法务送审排序版无表头 CSV 已生成，可直接粘贴到 Excel，行顺序和备注与发行合规资产使用同一事实口径。
-2. 每次依赖或第三方二进制变化后更新 `components.csv`，运行 `ruby tools/generate_third_party_compliance.rb`，再执行 `./gradlew :idea:buildPlugin`。
-3. 公司审批、历史清理和安全治理继续留在独立开源发布清单，不再混入附件填表 P0。
+2. 将 `third_party/INTEGRATION.md` 的地址空间、双许可证选择和 Classpath Exception 技术事实回传法务确认，不把共享 JVM 的组件误报为进程隔离。
+3. 每次依赖或第三方二进制变化后更新 `components.csv`，运行 `ruby tools/generate_third_party_compliance.rb`，再执行 `./gradlew :idea:buildPlugin`。
+4. 公司审批、历史清理和安全治理继续留在独立开源发布清单，不再混入附件填表 P0。
 
 ## 7. 当前结论
 
 - Jugg `3.2.2-release` 插件包包含数量较多的 JVM 第三方组件，且存在传递依赖和 JAR 内嵌许可证，不能只登记 `build.gradle` 中的直接依赖。
 - 就附件 1 而言，104 个组件、版本填法、协议/Copyright/链接、修改状态和范围口径均已收口，法务送审版 CSV 已生成；备注不再包含“已核对”“原清单”等开发过程语言。
-- `3.2.2-release` 发行包已包含 NOTICE、许可证、对应源码、修改声明、机器清单和 SPDX SBOM，并通过构建门禁验证。
+- 发行包构建已要求包含与仓库一致的法务 LICENSE、NOTICE、许可证、对应源码定位、第三方修改 changelog、集成边界说明、机器清单和 SPDX SBOM，并通过构建门禁验证。
 - 再分发义务、公司审批、仓库历史和安全问题仍然重要，但不应被称为“附件 1 填表 P0”。
 - 当前 Markdown 与 `third_party/components.csv` 是 Excel 回填基线；最终提交件仍以回填并复核后的附件为准。

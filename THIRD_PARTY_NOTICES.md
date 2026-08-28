@@ -119,7 +119,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://android.googlesource.com/platform/tools/base/+/refs/heads/studio-main/deploy/agent/native/instrumenter.cc
 - Download/source: https://android.googlesource.com/platform/tools/base/+archive/refs/heads/studio-main/deploy/agent/native.tar.gz
 - Modified by Jugg: 是
-- Notes: 项目包含并修改 AOSP JVMTI Apply Changes/Slicer 源码，编译进入随插件发行的 JVMTI agent；无法定位精确上游 commit，因此版本填“无”；修改后源码保留在仓库中。
+- Notes: 项目包含并修改 AOSP JVMTI Apply Changes/Slicer 源码，编译进入随插件发行的 JVMTI agent；Jugg 增加 Android 8-15 Application、ResourcesManager、ActivityThread 和 ClassLoader hook，增加可选 transform 的 Best-effort 降级与诊断日志；无法定位精确上游 commit，因此版本填“无”；修改后源码保留在仓库中。
 
 ## 14. Android Studio / Android Plugin APIs 无
 
