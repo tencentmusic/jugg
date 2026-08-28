@@ -45,8 +45,8 @@ class DexFileNodeCollector(
         return object : DexClassVisitor(cn) {
 
             override fun visitMethod(accessFlags: Int, method: Method?): DexMethodVisitor {
-                super.visitMethod(accessFlags, method)
-                return object : DexMethodVisitor() {
+                val methodVisitor = super.visitMethod(accessFlags, method)
+                return object : DexMethodVisitor(methodVisitor) {
                     override fun visitCode(): DexCodeVisitor {
                         return object : DexCodeVisitor() {
                             override fun visitFieldStmt(op: Op?, a: Int, b: Int, field: Field?) {

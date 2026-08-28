@@ -129,6 +129,7 @@ class DeployDataGenerator(
                 // ignore abstract can stop recompile when redex interface class default method (which will make methods be not abstract)
                 changedMethodRef.addAll(result.effectMethods)
                 changedFieldRef.addAll(result.deletedFields)
+                changedFieldRef.addAll(result.modifiedGenericSignatureFields)
                 val isClassHierarchyChanged = result.modifiedParentClass.isNotEmpty() ||
                         result.addedInterfaces.isNotEmpty() || result.deletedInterfaces.isNotEmpty()
                 if (result.isAddedAbstractMethodForNonAbstractClass || isClassHierarchyChanged) {
