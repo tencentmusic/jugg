@@ -32,15 +32,16 @@ class ClassNodeComparator(
         } else {
             null
         }
+        // Member equality excludes generic signatures and represents the erased DEX identity.
+        val newMethodsByIdentity = newClassNode.methods.associateBy { it }
         val modifiedGenericSignatureMethods = oldClassNode.methods.filter { oldMethod ->
-            newClassNode.methods.any { newMethod ->
-                oldMethod == newMethod && oldMethod.genericSignature != newMethod.genericSignature
-            }
+            val newMethod = newMethodsByIdentity[oldMethod]
+            newMethod != null && oldMethod.genericSignature != newMethod.genericSignature
         }
+        val newFieldsByIdentity = newClassNode.fields.associateBy { it }
         val modifiedGenericSignatureFields = oldClassNode.fields.filter { oldField ->
-            newClassNode.fields.any { newField ->
-                oldField == newField && oldField.genericSignature != newField.genericSignature
-            }
+            val newField = newFieldsByIdentity[oldField]
+            newField != null && oldField.genericSignature != newField.genericSignature
         }
 
         // here, we don't use map or set to diff result, because in most cases,
