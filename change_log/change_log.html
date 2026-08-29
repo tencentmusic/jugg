@@ -1,10 +1,11 @@
 <h1>Change Log</h1>
-<h2>3.3.3 (2026.08.26)</h2>
+<h2>3.3.4 (2026.08.29)</h2>
 <ol>
     <li>[feature] Run custom commands on the selected remote server</li>
     <li>[feature] Require explicit confirmation before trusting a custom server that can deliver updates and compiler JARs</li>
     <li>[feature] Locate live UI elements with exact combined selectors and return bounded matches with source locations</li>
     <li>[feature] Manage legacy Jugg options from the running panel</li>
+    <li>[feature] Ask before falling back to Gradle when too many files change</li>
     <li>[optimize] Simplify the remote command entry and disable Run for blank commands</li>
     <li>[optimize] Keep incremental compilation when Gradle project info is unavailable</li>
     <li>[optimize] List currently opened Jugg projects when the requested projectDir is not initialized</li>
@@ -16,6 +17,10 @@
     <li>[bugfix] Stop waiting for Gradle project info rebuild before the first full compile</li>
     <li>[bugfix] Prevent asynchronous Git refresh during APK updates from forcing a later Gradle build</li>
     <li>[bugfix] Prevent startup crashes when applications use custom class loaders</li>
+    <li>[bugfix] Stop status queries from repeatedly showing too-many-files fallback warnings</li>
+    <li>[bugfix] Recompile implementation classes after interface parent changes</li>
+    <li>[bugfix] Prevent runtime type crashes after generic member changes</li>
+    <li>[bugfix] Find AndroidTest APKs when apps use custom deploy paths</li>
 </ol>
 <h2>3.2.6 (2026.08.17)</h2>
 <ol>

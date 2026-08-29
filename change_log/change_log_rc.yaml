@@ -1,3 +1,12 @@
+- version: 3.3.4
+  date: 2026.08.29
+  updates:
+    - ask before falling back to Gradle when too many files change
+    - stop status queries from repeatedly showing too-many-files fallback warnings
+    - recompile implementation classes after interface parent changes
+    - prevent runtime type crashes after generic member changes
+    - find AndroidTest APKs when apps use custom deploy paths
+
 - version: 3.3.3
   date: 2026.08.26
   updates:
