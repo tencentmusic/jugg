@@ -95,7 +95,15 @@ _selected_runtime_port: Optional[int] = None
 _selected_project_dir: str = ""
 runtime_type_override: str = ""
 device_serial_override: str = ""
-_STANDALONE_LAUNCH_LOCK_TIMEOUT_SECONDS = 15
+_STANDALONE_STARTUP_TIMEOUT_SECONDS = 60
+_STANDALONE_STARTUP_HEARTBEAT_SECONDS = 10
+_STANDALONE_STARTUP_POLL_INTERVAL_SECONDS = 0.2
+_STANDALONE_LAUNCH_LOCK_TIMEOUT_SECONDS = _STANDALONE_STARTUP_TIMEOUT_SECONDS + 15
+_STANDALONE_RUNTIME_LOG_READ_BYTES = 1024 * 1024
+_STANDALONE_RUNTIME_LOG_LINE_MAX_CHARS = 500
+_JUGG_RUNTIME_LOG_PATTERN = re.compile(
+    r"^\[[^]]+\]\s+\[[^]]+\]\s+\[([^]]+)\]\s+(.*)$"
+)
 
 DEVICE_TARGET_TOOLS = {
     "restart",
@@ -405,6 +413,46 @@ def _print_standalone_startup_failure(launch: StandaloneLaunch, reason: str) -> 
     print(f"Full startup log: {launch.log_path}", file=sys.stderr)
 
 
+def _standalone_runtime_log_path(project_dir: str) -> Path:
+    return Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "compile_latest.log"
+
+
+def _latest_standalone_runtime_log_line(project_dir: str) -> str:
+    log_path = _standalone_runtime_log_path(project_dir)
+    try:
+        with log_path.open("rb") as log_file:
+            log_file.seek(0, os.SEEK_END)
+            size = log_file.tell()
+            log_file.seek(max(0, size - _STANDALONE_RUNTIME_LOG_READ_BYTES))
+            content = log_file.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+    for line in reversed(content.splitlines()):
+        match = _JUGG_RUNTIME_LOG_PATTERN.match(line.strip())
+        if not match:
+            continue
+        latest = f"[{match.group(1)}] {match.group(2)}"
+        if len(latest) <= _STANDALONE_RUNTIME_LOG_LINE_MAX_CHARS:
+            return latest
+        return latest[:_STANDALONE_RUNTIME_LOG_LINE_MAX_CHARS - 3] + "..."
+    return ""
+
+
+def _print_standalone_startup_heartbeat(project_dir: str, elapsed_seconds: int) -> None:
+    latest_log = _latest_standalone_runtime_log_line(project_dir)
+    if latest_log:
+        _print_progress_heartbeat(
+            f"Waiting for standalone project initialization, elapsed {elapsed_seconds}s. "
+            f"Latest runtime log: {latest_log}"
+        )
+        return
+    _print_progress_heartbeat(
+        f"Waiting for standalone project initialization, elapsed {elapsed_seconds}s. "
+        f"Runtime log is not available yet: {_standalone_runtime_log_path(project_dir)}"
+    )
+
+
 @contextlib.contextmanager
 def _standalone_launch_lock(project_dir: str):
     lock_file = Path(project_dir) / "build" / "jugg" / "runtime.launch.lock"
@@ -488,9 +536,10 @@ def resolve_port() -> int:
                     if isinstance(launched, StandaloneLaunch):
                         launch = launched
                         _print_progress_heartbeat(f"Waiting for standalone project initialization; startup log: {launch.log_path}")
-                for _ in range(50):
-                    if selected is not None:
-                        break
+                wait_started_at = time.monotonic()
+                wait_deadline = wait_started_at + _STANDALONE_STARTUP_TIMEOUT_SECONDS
+                next_heartbeat_at = wait_started_at + _STANDALONE_STARTUP_HEARTBEAT_SECONDS
+                while selected is None:
                     if launch is not None:
                         exit_code = launch.process.poll()
                         if exit_code is not None:
@@ -500,7 +549,14 @@ def resolve_port() -> int:
                     selected = _select_runtime(endpoints, runtime_project_dir)
                     if selected is not None:
                         break
-                    time.sleep(0.2)
+                    now = time.monotonic()
+                    if launch is not None and now >= next_heartbeat_at:
+                        _print_standalone_startup_heartbeat(display_project_dir, int(now - wait_started_at))
+                        while next_heartbeat_at <= now:
+                            next_heartbeat_at += _STANDALONE_STARTUP_HEARTBEAT_SECONDS
+                    if now >= wait_deadline:
+                        break
+                    time.sleep(min(_STANDALONE_STARTUP_POLL_INTERVAL_SECONDS, wait_deadline - now))
         except OSError as error:
             print(f"ERROR: Failed to coordinate standalone launch: {error}", file=sys.stderr)
             sys.exit(1)

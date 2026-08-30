@@ -150,6 +150,100 @@ class ResolvePortTest(unittest.TestCase):
         self.assertIn(" with ", stderr.getvalue())
         self.assertIn("Standalone runtime ready on port 12324", stderr.getvalue())
 
+    def test_resolve_port_waits_for_slow_standalone_and_reports_latest_runtime_log(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+        runtime_log = Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "compile_latest.log"
+        runtime_log.parent.mkdir(parents=True)
+        long_details = "x" * 600
+        runtime_log.write_text(
+            "[2026-08-30 21:53:49.685] [FINE   ] [DeployDataDatabase] "
+            f"SQLite run doInsertMethodRef cost 4182ms {long_details}\n"
+            "non-structured continuation\n"
+        )
+        endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [project_dir])
+
+        class RunningProcess:
+            def poll(self):
+                return None
+
+        class FakeClock:
+            now = 0.0
+
+            def monotonic(self):
+                return self.now
+
+            def sleep(self, seconds):
+                self.now += seconds
+
+        clock = FakeClock()
+        launch = jugglib.StandaloneLaunch(RunningProcess(), Path(project_dir) / "startup.log")
+
+        def discover_runtime_endpoints():
+            return [endpoint] if clock.now >= 25 else []
+
+        stderr = io.StringIO()
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", side_effect=discover_runtime_endpoints), \
+             patch.object(jugglib, "launch_standalone", return_value=launch), \
+             patch.object(jugglib.time, "monotonic", side_effect=clock.monotonic), \
+             patch.object(jugglib.time, "sleep", side_effect=clock.sleep), \
+             contextlib.redirect_stderr(stderr):
+            port = jugglib.resolve_port()
+
+        output = stderr.getvalue()
+        self.assertEqual(12324, port)
+        self.assertIn("elapsed 10s", output)
+        self.assertIn("elapsed 20s", output)
+        self.assertIn("[DeployDataDatabase] SQLite run doInsertMethodRef cost 4182ms", output)
+        self.assertNotIn(long_details, output)
+        self.assertNotIn("non-structured continuation", output)
+
+    def test_resolve_port_still_has_a_bounded_standalone_startup_timeout(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+
+        class RunningProcess:
+            def poll(self):
+                return None
+
+        class FakeClock:
+            now = 0.0
+
+            def monotonic(self):
+                return self.now
+
+            def sleep(self, seconds):
+                self.now += seconds
+
+        clock = FakeClock()
+        launch = jugglib.StandaloneLaunch(RunningProcess(), Path(project_dir) / "startup.log")
+        refused = {
+            port: jugglib.PortProbeResult(False, "connection refused", False)
+            for port in range(12320, 12330)
+        }
+
+        stderr = io.StringIO()
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", return_value=[]), \
+             patch.object(jugglib, "launch_standalone", return_value=launch), \
+             patch.object(jugglib, "_scan_ports", return_value=refused), \
+             patch.object(jugglib.time, "monotonic", side_effect=clock.monotonic), \
+             patch.object(jugglib.time, "sleep", side_effect=clock.sleep), \
+             contextlib.redirect_stderr(stderr), \
+             self.assertRaises(SystemExit) as cm:
+            jugglib.resolve_port()
+
+        self.assertEqual(1, cm.exception.code)
+        self.assertGreaterEqual(clock.now, jugglib._STANDALONE_STARTUP_TIMEOUT_SECONDS)
+        self.assertLess(
+            clock.now,
+            jugglib._STANDALONE_STARTUP_TIMEOUT_SECONDS + jugglib._STANDALONE_STARTUP_POLL_INTERVAL_SECONDS,
+        )
+        output = stderr.getvalue()
+        self.assertIn("elapsed 60s", output)
+        self.assertIn("Runtime log is not available yet", output)
+
     def test_resolve_port_reports_standalone_process_startup_failure(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(project_dir)
