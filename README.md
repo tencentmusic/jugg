@@ -1,59 +1,109 @@
+<p align="right">
+  <strong>English</strong> | <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
 # Jugg
 
-## Network and diagnostics privacy
+> See changes in 3 seconds—even in large Android codebases.
 
-The standard `buildPlugin` artifact contains no predefined Jugg backend configuration and keeps local compile, deploy, CLI, and MCP workflows offline by default. A user-configured Custom Server remains supported. Issue reports are created from a redacted whitelist, show the exact destination and file list before upload, and can be saved locally without sending a request.
+**Life is short, Jugg it!**
 
-Life is short, Jugg it! 
+Jugg is an open-source incremental build and deployment tool from the Tencent Music engineering team, designed to bring changes in large Android codebases on screen within seconds. Delivered as an Android Studio / IntelliJ IDEA plugin, it reuses trusted outputs from the latest Gradle build, compiles only the current changes and the code affected by them, and quickly deploys code and resources to a device. Small day-to-day changes can typically become visible within 3 seconds.
 
-人生苦短，Jugg 一下。
+Jugg only requires an IDE plugin. It does not modify Gradle scripts or require an SDK integration. Developers keep using the familiar Run action; when a project change falls outside the incremental path, Jugg falls back to Gradle and establishes a new baseline.
 
+- [Download the latest stable release](https://github.com/sickworm/jugg/releases/latest)
+- [Jugg Wiki](https://sickworm.github.io/jugg/)
+- [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
 
-[演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
+## How Jugg works
 
-Jugg is an Android incremental deploy plugin running on Android Studio and Intellij Idea. Jugg has **super-fast** speed on deploying your changed code and assets, without restart App in most situations.
+Gradle and AGP produce complete, trusted Android build outputs, but the fixed cost of Gradle startup, configuration, and task orchestration does not shrink with the size of a change. In a large codebase, changing a single line of code or one resource file can still require a long wait before the result becomes visible.
 
-Jugg 是一个基于 Android Studio 的 Android 增量部署插件，也支持 Intellij Idea。它可以以极快的速度将你的代码和资源更新到正在运行的 App 中。因为使用了 JVMTI（ARTTI）接口，改动甚至不需要重启 App。
+Jugg does not replace Gradle. After a full build, it reuses the generated APKs, classes, dependencies, and generated sources to establish an incremental compilation baseline. Subsequent runs skip Gradle work unrelated to the current change and directly perform change detection, impact analysis, incremental compilation, and device deployment. Changes to build scripts, dependencies, or other baseline inputs cause Jugg to return to the Gradle path when necessary.
 
-Jugg 跳过了 gradle 构建，这意味着 gradle 相关的能力，如注解，插桩等能力都无法生效。但 Jugg 也因此获得了极快的部署速度（单文件编译 1-5s），且部署速度与你的工程体量不再挂钩。
+Development of Jugg began in 2021, and it was released internally at Tencent Music in 2023. Before becoming open source, it was used in large Android codebases including WeSing, QQ Music, JOOX, Kugou Music, Kugou Live, QQ Browser, and Yangshipin. Every project used the same general-purpose implementation without business-specific customization.
 
-Jugg 不需要侵入你的工程代码，配置完成后只需要点击 run 即可使用；
+Validation data collected before the open-source release:
 
-Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会有健全的降级 gradle 编译的流程。你可以随时使用和停用 Jugg 的增量部署功能。
+- **10+** large Android codebases
+- **800,000+** incremental compilations
+- **36,000+** hours of build waiting time saved
 
-## Download / 下载
+> Jugg no longer collects project usage statistics after becoming open source.
 
-- [Latest stable release / 最新稳定版](https://github.com/sickworm/jugg/releases/latest)
-- [Latest develop canary build / develop 最新 Canary 构建](https://github.com/sickworm/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)（develop 有新 commit 时自动构建，可能不稳定）
+## What happens during a Jugg Run
 
-# Project Structure
-## Modules
-* **idea**: Plugin layer
-* **main**: Logic layer
-* **deploy_compat**: Compatibility layer for Android Studio
-* **platform_compat**: API Mock for **main** to invoke **idea** API
-* **jvmti_agent**: Agent for JVMTI for deploy compatability
-* **aapt2-inclink**: AAPT2 incremental link native libraries
-* **custom_compilers**: Build custom compilers for customize project
+1. **Reuse the baseline**: Read the APKs, classes, dependencies, and project information produced by the latest full Gradle build.
+2. **Detect changes**: Combine IDE file events with Git status to identify the source, resource, and project files that actually changed.
+3. **Compile incrementally**: Invoke Java, Kotlin, D8, and Jugg's customized AAPT2 directly to produce only the required incremental outputs.
+4. **Propagate impact**: Analyze calls, inheritance, inlined constants, and method signatures to automatically recompile affected source files.
+5. **Deploy changes**: Select hot reload, hot fix, incremental APK update, or reinstallation according to the change type and device state.
+6. **Save state**: After a successful deployment, save incremental outputs and change records as the starting point for the next Run.
 
-## Core Classes
-* **JuggManager**: Core manager of Jugg
-* **JuggCompilerHelper**: Compile process
-* **JuggDeployHelper**: Deploy process
-* **JuggCompiler**: Compile implementation
+Jugg is fast because it processes only the necessary inputs. Impact propagation, Gradle fallback, and deployment state recovery keep the result reliable.
 
-# How to Run This Project
+## Capabilities
+
+| Area | Supported capabilities |
+|---|---|
+| Source and resources | Java, Kotlin, mixed Java/Kotlin, Compose, KMP, Compose Multiplatform, `res`, assets, Manifest, native `.so` files |
+| Android projects | DataBinding, ViewBinding, supported annotation processors, incremental dependency compilation, incremental builds for release variants, AabResGuard, custom compilers |
+| Deployment | Hot reload, hot fix, incremental APKs, multiple APKs, multiple devices, Dynamic Feature, compatibility deployment, and failure recovery |
+| Android Test | Application / Library Android Test, Test Results UI, and Logcat attribution |
+| Automation | Jugg CLI, MCP, Agent Skills, build and deployment, device and runtime queries, UI automation, and remote diagnostics |
+
+See the [compatibility reference](https://sickworm.github.io/jugg/reference/compatibility) for detailed requirements and behavior boundaries.
+
+## Verified compatibility
+
+| Environment | Supported range |
+|---|---|
+| Android Studio | 2021 (Bumblebee) to present |
+| IntelliJ IDEA | 2021.1.3 to 2025.1 Beta |
+| Android Gradle Plugin | 3.4 to 9.1 |
+| Gradle | 5.4.1 to 9.2.1 |
+| Kotlin | 1.3 to 2.2 |
+| Android | 8 to 16 |
+
+Versions outside these ranges may still work, but they can contain compatibility differences that have not yet been covered. Please open an [Issue](https://github.com/sickworm/jugg/issues) when you encounter a reproducible problem.
+
+## Quick start
+
+1. Download and install the plugin from [Releases](https://github.com/sickworm/jugg/releases/latest).
+2. Open an existing Android project and create or select a Jugg Run Configuration.
+3. The first Run uses Gradle to establish a trusted baseline. After that, modify source code or resources and click Run again to see the incremental result.
+
+See [Getting started](https://sickworm.github.io/jugg/onboarding/) for the complete setup guide.
+
+## Network and diagnostic privacy
+
+The standard `buildPlugin` artifact contains no predefined Jugg backend configuration and runs offline by default. Users can still configure a Custom Server.
+
+Issue reports collect only privacy-redacted diagnostic files from an explicit allowlist. Before upload, Jugg shows the exact destination and file list. Reports can also be saved locally without sending a network request.
+
+## Project structure
+
+| Module | Responsibility |
+|---|---|
+| `idea` | IDE plugin entry points, Run Configurations, task orchestration, and UI |
+| `main` | Core incremental compilation, deployment, project model, Gradle, and MCP logic |
+| `deploy_compat` | Deployment API compatibility across Android Studio versions |
+| `platform_compat` | Platform API compatibility stubs used to compile the core logic |
+| `jvmti_agent` | JVMTI Agent and app runtime capabilities |
+| `aapt2-inclink` | AAPT2 incremental linking tool resources |
+| `custom_compilers` | Custom compiler examples |
+
+## Build the project
+
+```shell
+# Build the plugin. Output: idea/build/distributions
+./gradlew buildPlugin
+
+# Start an IDE instance for development and debugging
+./gradlew runIde
 ```
-./gradlew buildPlugin // build plugin, output path: ./idea/build/distributions
-./gradlew runIde // run/debug in runtime IDEA
-```
 
-# Commit Rules
+## License
 
-Use [feature] [optimize] [bugfix] [test] [docs] [other] for commit message head.
-
-# License
-
-Jugg is released under the [MIT License](LICENSE).
-
-Jugg 使用 [MIT License](LICENSE) 开源。
+Jugg is open source under the [MIT License](LICENSE).
