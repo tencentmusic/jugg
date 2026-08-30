@@ -1,12 +1,106 @@
-"""Tests for subcommand argument parsing (tap, view-locate, view-inspect, etc.)."""
+"""Tests for subcommand argument parsing and local CLI control commands."""
 
+import contextlib
+import io
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 # Ensure modules are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "py"))
+
+
+class StopCommandTest(unittest.TestCase):
+
+    def setUp(self):
+        from cmd import cmd_stop
+        self.command = cmd_stop
+        self.original_runtime_type = cmd_stop.jugglib.runtime_type_override
+        self.original_json_mode = cmd_stop.jugglib.json_mode
+
+    def tearDown(self):
+        self.command.jugglib.runtime_type_override = self.original_runtime_type
+        self.command.jugglib.json_mode = self.original_json_mode
+
+    def test_invokes_launcher_without_resolving_runtime(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project_dir = Path(temp, "project")
+            project_dir.mkdir()
+            Path(project_dir, "settings.gradle").touch()
+            working_dir = Path(project_dir, "app", "src")
+            working_dir.mkdir(parents=True)
+            launcher = Path(temp, "jugg-standalone")
+            launcher.touch()
+            completed = subprocess.CompletedProcess([], 0, "Stopped Jugg standalone runtime.\n", "")
+            output = io.StringIO()
+
+            with patch.object(self.command.jugglib, "candidate_project_dir", return_value=str(working_dir)), \
+                 patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
+                 patch.object(self.command.jugglib, "resolve_port", side_effect=AssertionError("must not resolve Runtime")), \
+                 patch.object(self.command.subprocess, "run", return_value=completed) as run, \
+                 contextlib.redirect_stdout(output):
+                self.command.cmd_stop([])
+
+            self.assertEqual(
+                [str(launcher), "--stop-project", str(project_dir.resolve())],
+                run.call_args.args[0],
+            )
+            self.assertIn("Stopped Jugg standalone runtime.", output.getvalue())
+
+    def test_rejects_idea_runtime(self):
+        self.command.jugglib.runtime_type_override = "idea"
+        error = io.StringIO()
+
+        with contextlib.redirect_stderr(error), self.assertRaises(SystemExit) as raised:
+            self.command.cmd_stop([])
+
+        self.assertEqual(1, raised.exception.code)
+        self.assertIn("only available for the standalone Runtime", error.getvalue())
+
+    def test_launcher_failure_is_reported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            launcher = Path(temp, "jugg-standalone")
+            launcher.touch()
+            completed = subprocess.CompletedProcess([], 7, "", "Unable to stop runtime.\n")
+            error = io.StringIO()
+
+            with patch.object(self.command.jugglib, "candidate_project_dir", return_value=temp), \
+                 patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
+                 patch.object(self.command.subprocess, "run", return_value=completed), \
+                 contextlib.redirect_stderr(error), self.assertRaises(SystemExit) as raised:
+                self.command.cmd_stop([])
+
+            self.assertEqual(1, raised.exception.code)
+            self.assertIn("Unable to stop runtime.", error.getvalue())
+
+    def test_json_failure_prefers_bootstrap_error_over_launcher_output(self):
+        with tempfile.TemporaryDirectory() as temp:
+            launcher = Path(temp, "jugg-standalone")
+            launcher.touch()
+            completed = subprocess.CompletedProcess(
+                [],
+                1,
+                "Jugg standalone max open files: 65536\n",
+                "IllegalStateException: Failed to stop standalone Runtime processes: [123]\n",
+            )
+            output = io.StringIO()
+            self.command.jugglib.json_mode = True
+
+            with patch.object(self.command.jugglib, "candidate_project_dir", return_value=temp), \
+                 patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
+                 patch.object(self.command.subprocess, "run", return_value=completed), \
+                 contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+                self.command.cmd_stop([])
+
+            result = json.loads(output.getvalue())
+            self.assertEqual("ERROR", result["status"])
+            self.assertIn("Failed to stop standalone Runtime processes", result["message"])
+            self.assertNotIn("max open files", result["message"])
 
 
 class TapBuildParamsTest(unittest.TestCase):

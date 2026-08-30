@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-08-21
+> 最后核对：2026-08-30
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -20,8 +20,8 @@
 | `docs/skills/jugg-android-dev-loop/scripts/jugg.py` | CLI 总入口；解析全局参数、处理本地 help、懒加载子命令 |
 | `docs/skills/jugg-android-dev-loop/scripts/py/help_registry.py` | side-effect-free help 文案；`COMMAND_HELP` 必须覆盖全部公开 CLI 子命令 |
 | `docs/skills/jugg-android-dev-loop/scripts/py/jugglib.py` | MCP 端口发现、projectDir 解析、kebab-case 归一化、异步轮询、输出格式 |
-| `docs/skills/jugg-android-dev-loop/scripts/py/cmd/cmd_*.py` | 各子命令参数解析；只做 MCP 参数直传和必要的本地校验 |
-| `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | MCP 注册工具事实来源；CLI 子命令必须映射到这里的公开工具 |
+| `docs/skills/jugg-android-dev-loop/scripts/py/cmd/cmd_*.py` | 各子命令参数解析；通常只做 MCP 参数直传和必要的本地校验，`stop` 直接调用 standalone launcher |
+| `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | MCP 注册工具事实来源；除本地生命周期命令外，CLI 子命令映射到这里的公开工具 |
 
 ---
 
@@ -53,7 +53,7 @@ macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；`Checki
 
 ### 3.1.1 设备 serial
 
-`--serial <adbSerial>` / `--serial=<adbSerial>` 是与 `--project-dir` 同级的全局参数。它会向消费设备目标的命令注入 MCP `serial`：`deploy`、`gradle-build`、`clean-reinstall`、`restart`、`instrument`、`status`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs`。`version`、`init`、`compile`、`ssh-info` 和内部 `get-compile-status` 不接收该参数。
+`--serial <adbSerial>` / `--serial=<adbSerial>` 是与 `--project-dir` 同级的全局参数。它会向消费设备目标的命令注入 MCP `serial`：`deploy`、`gradle-build`、`clean-reinstall`、`restart`、`instrument`、`status`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs`。`version`、`init`、`stop`、`compile`、`ssh-info` 和内部 `get-compile-status` 不接收该参数。
 
 显式 serial 使用大小写敏感的精确在线设备匹配，优先级高于 IDEA 当前选中设备和 standalone daemon 启动时继承的 `ANDROID_SERIAL`；只影响当前 CLI 请求，不修改 IDE 选择、Run Configuration 或后续调用。未传 serial 时保持原有 Host 行为。
 
@@ -68,6 +68,8 @@ standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内�
 `status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
 
 当进程仍存活但等待端口达到 60 秒硬超时时，CLI 先输出 `standalone_startup.log` 尾部与路径，再输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
+
+`jugg stop` 是 standalone CLI 专用的本地生命周期命令，不扫描 MCP 端口，也不调用 `resolve_port()`，因此不会在停止时意外拉起 Runtime。CLI 根据当前目录或 `--project-dir` 向上查找最近的 Gradle 根目录，再同步调用 standalone launcher 的 `--stop-project` 控制模式。bootstrap 在加载 active Runtime JAR 前按 Jugg 根目录和 canonical project path 精确匹配进程；平台支持正常终止时先请求正常退出并等待 5 秒，仍存活时强制终止，不支持的平台直接强制终止。未找到目标进程时幂等成功。该命令不删除 run configuration、Compile Context、历史或日志，`--runtime idea` 明确失败。
 
 | 文件 | 默认路径 | 环境变量 |
 |------|----------|----------|
@@ -131,6 +133,7 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 | CLI 省略参数即不发送给 MCP | 不传 `--always-restart-app` | CLI 硬编码默认值覆盖 MCP 默认值 |
 | CLI-only 参数必须留在全局层 | `--if-compiling` 只影响触发前等待 | 把 CLI-only 参数塞进 MCP arguments |
 | 请求级设备参数由全局层注入 | `--serial emulator-5556 deploy` -> `deploy.serial` | 修改 IDE 选中设备或 daemon 进程环境 |
+| 本地生命周期命令不进入 MCP | `stop` 直接调用 standalone launcher | 为停止 Runtime 先执行端口发现或自动启动 |
 
 `jugglib.normalize_args()` 只做 kebab-case 到 camelCase 的机械转换，不做语义 alias。每个 `cmd_*.py` 的 `build_params()` 是实际参数直传边界。
 
@@ -138,12 +141,13 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 
 ## 5. 公开子命令
 
-当前公开 CLI 子命令共 17 个，来自 `jugg.py::COMMANDS`。
+当前公开 CLI 子命令共 18 个，来自 `jugg.py::COMMANDS`。
 
 | 子命令 | MCP tool | 说明 |
 |--------|----------|------|
 | `version` | `version` | 显示 CLI 版本和插件版本；无需 `projectDir` |
 | `init` | `init` | 自动选择/拉起 standalone，并根据 Gradle project info 创建当前 build profile |
+| `stop` | CLI local | 停止目标工程的 standalone Runtime；不连接或启动 Runtime |
 | `compile` | `compile` | 增量编译，自动轮询终态 |
 | `deploy` | `deploy` | 编译并部署，自动轮询终态 |
 | `gradle-build` | `gradle-build` | 强制 Gradle 构建并走后续安装/启动链路 |
@@ -181,6 +185,15 @@ jugg init
 ```
 
 该命令固定选择 standalone Runtime。已有当前配置时幂等返回，包括已选中的 remote profile；缺少 Gradle project info 时执行一次本地 dry-run 生成快照，再创建默认 Application/debug profile。初始化、配置写入与 owner 接管都在项目写锁内执行。
+
+### `stop`
+
+```text
+jugg stop
+jugg --project-dir <path> stop
+```
+
+该命令只停止目标工程的 standalone CLI Runtime，不支持 IDEA Runtime。它不经过 MCP，不要求 daemon 已完成端口初始化；支持正常终止的平台等待最多 5 秒后强制终止仍存活的目标进程，不支持的平台直接强制终止。没有目标进程时返回成功，项目持久化状态保持不变。
 
 ### `compile`
 

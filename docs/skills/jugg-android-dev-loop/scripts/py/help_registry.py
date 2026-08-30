@@ -38,6 +38,11 @@ COMMAND_HELP: dict[str, CommandHelp] = {
         "Initialize the standalone run configuration from Gradle project information.",
         "jugg init",
     ),
+    "stop": CommandHelp(
+        "stop",
+        "Stop the standalone Runtime for the target project.",
+        "jugg stop",
+    ),
     "compile": CommandHelp(
         "compile",
         "Compile modified sources without deploying.",

@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.24
-date: 2026-08-05
+version: 1.0.25
+date: 2026-08-30
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -35,7 +35,7 @@ Collect mandatory variables before any action. For install-only requests, skip J
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 | `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
 
-The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns the project, it may start an installed standalone daemon; concurrent launch attempts are serialized per project. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, compile status polling, and `status`; device inspection, UI, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
+The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns the project, it may start an installed standalone daemon; concurrent launch attempts are serialized per project. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, compile status polling, and `status`; `stop` is a standalone-only local lifecycle command that does not connect to or start a Runtime. Device inspection, UI, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
 
 ---
 
@@ -119,6 +119,7 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
+python3 {SKILL_DIR}/scripts/jugg.py stop                 # stop this project's standalone Runtime; use only when explicitly requested
 python3 {SKILL_DIR}/scripts/jugg.py status               # refresh changed files and show status summary
 python3 {SKILL_DIR}/scripts/jugg.py status --refresh-changes false  # skip changed-file refresh
 python3 {SKILL_DIR}/scripts/jugg.py status --full-info true  # return full status information and all file paths

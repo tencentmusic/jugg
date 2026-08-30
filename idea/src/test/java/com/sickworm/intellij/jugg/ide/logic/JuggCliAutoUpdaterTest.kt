@@ -135,6 +135,7 @@ class JuggCliAutoUpdaterTest {
         val updatedVersion = JuggCliAutoUpdater.readVersionFromLocal(juggSkillDir)
         val bundledVersion = JuggCliAutoUpdater.readVersionFromZip()
         assertEquals("Version should match bundled after update", bundledVersion, updatedVersion)
+        assertTrue("Updated CLI should contain stop command", File(userHome, ".jugg/bin/py/cmd/cmd_stop.py").isFile)
     }
 
     @Test

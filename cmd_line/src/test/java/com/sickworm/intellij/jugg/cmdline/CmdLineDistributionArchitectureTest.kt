@@ -47,6 +47,7 @@ class CmdLineDistributionArchitectureTest {
                 zip.getInputStream(entry).use { verifyJava11Classes(it, fileName) }
             }
             assertNotNull(zip.getEntry("cli/jugg.py"))
+            assertNotNull(zip.getEntry("cli/py/cmd/cmd_stop.py"))
             val installSh = zip.readText("install.sh")
             val installCmd = zip.readText("install.cmd")
             val posixCli = zip.readText("cli/jugg")
