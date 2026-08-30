@@ -40,12 +40,14 @@
 ```text
 jugg.py
   -> jugglib.resolve_project_dir()
-  -> list-projects
-  -> 用当前工作目录和已初始化项目做最长前缀匹配
-  -> 将匹配结果作为 MCP projectDir
+  -> 从当前目录向上查找最近的 settings.gradle(.kts)
+  -> 仅选择精确拥有该 Gradle 工程的 IDEA / standalone Runtime
+  -> 未命中时启动该工程自己的 standalone Runtime
 ```
 
-传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，CLI 仍用该路径发现 Runtime，但会将最长前缀匹配到的已初始化项目目录作为 MCP `projectDir`。因此，位于 IDEA 工程根目录下的子目录会由 IDEA Runtime 处理，并以该 IDEA 工程根目录发起请求；未匹配时才按 standalone 启动流程处理。`--projectDir` 作为 camelCase 全局别名也会被归一化。
+自动解析时，独立嵌套 Gradle 工程不会被已打开的父 IDEA 工程截获；例如父仓库与其 `android_demo_project` 都有 `settings.gradle(.kts)` 时，从后者目录执行 CLI 会使用后者的 Runtime，未打开时启动后者自己的 standalone Runtime。
+
+传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，CLI 仍用该路径发现 Runtime，并允许将最长前缀匹配到的已初始化项目目录作为 MCP `projectDir`。因此，显式传入 IDEA 工程根目录下的普通子目录时会由该 IDEA Runtime 处理；未匹配时才按 standalone 启动流程处理。`--projectDir` 作为 camelCase 全局别名也会被归一化。
 
 macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；`Checking Jugg runtime`、IDE Runtime 未找到和 standalone 启动进度仍显示用户输入或当前工程的原始大小写路径。
 

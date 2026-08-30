@@ -332,10 +332,15 @@ def _matches_runtime_override(endpoint: RuntimeEndpoint) -> bool:
     return runtime_type_override == "idea" and endpoint.runtime_type == "unknown"
 
 
-def _select_runtime(endpoints: list[RuntimeEndpoint], project_dir: str) -> Optional[RuntimeEndpoint]:
+def _select_runtime(
+    endpoints: list[RuntimeEndpoint],
+    project_dir: str,
+    allow_parent_project: bool = True,
+) -> Optional[RuntimeEndpoint]:
     matching = [
         endpoint for endpoint in endpoints
-        if match_project_dir(project_dir, endpoint.projects) and _matches_runtime_override(endpoint)
+        if _runtime_owns_project(endpoint, project_dir, allow_parent_project)
+        and _matches_runtime_override(endpoint)
     ]
     if matching:
         if runtime_type_override:
@@ -353,6 +358,17 @@ def _select_runtime(endpoints: list[RuntimeEndpoint], project_dir: str) -> Optio
         ),
         None,
     )
+
+
+def _runtime_owns_project(
+    endpoint: RuntimeEndpoint,
+    project_dir: str,
+    allow_parent_project: bool,
+) -> bool:
+    matched = match_project_dir(project_dir, endpoint.projects)
+    if not matched:
+        return False
+    return allow_parent_project or _project_dir_key(matched) == _project_dir_key(project_dir)
 
 
 def _standalone_launcher_path() -> Path:
@@ -514,9 +530,10 @@ def resolve_port() -> int:
 
     display_project_dir = candidate_project_dir()
     runtime_project_dir = normalize_project_dir(display_project_dir)
+    allow_parent_project = bool(project_dir_override.strip())
     _print_progress_heartbeat(f"Checking Jugg runtime for {display_project_dir}...")
     endpoints = discover_runtime_endpoints()
-    selected = _select_runtime(endpoints, runtime_project_dir)
+    selected = _select_runtime(endpoints, runtime_project_dir, allow_parent_project)
     launch: Optional[StandaloneLaunch] = None
     if selected is None:
         if runtime_type_override == "idea":
@@ -527,7 +544,7 @@ def resolve_port() -> int:
         try:
             with _standalone_launch_lock(display_project_dir):
                 endpoints = discover_runtime_endpoints()
-                selected = _select_runtime(endpoints, runtime_project_dir)
+                selected = _select_runtime(endpoints, runtime_project_dir, allow_parent_project)
                 if selected is None:
                     _print_progress_heartbeat(
                         f"Starting Jugg standalone runtime for {display_project_dir} with {_standalone_java_command()}..."
@@ -546,7 +563,7 @@ def resolve_port() -> int:
                             _print_standalone_startup_failure(launch, f"failed to start (exit code {exit_code})")
                             sys.exit(1)
                     endpoints = discover_runtime_endpoints()
-                    selected = _select_runtime(endpoints, runtime_project_dir)
+                    selected = _select_runtime(endpoints, runtime_project_dir, allow_parent_project)
                     if selected is not None:
                         break
                     now = time.monotonic()

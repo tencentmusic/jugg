@@ -30,7 +30,7 @@ python3 {SKILL_DIR}/scripts/jugg.py --project-dir=/path/to/project --console=jso
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project --runtime idea status
 ```
 
-For an explicit subdirectory under an initialized IDEA project, the CLI selects that IDEA Runtime and sends its opened project directory as MCP `projectDir`. A standalone subproject can still be selected explicitly with `--runtime standalone`.
+Automatic project discovery uses the nearest `settings.gradle` or `settings.gradle.kts` project and only selects a Runtime that owns that exact project. An independent nested Gradle project therefore starts its own standalone Runtime when it is not open in IDEA. For an explicit `--project-dir` subdirectory under an initialized IDEA project, the CLI still selects that IDEA Runtime and sends its opened project directory as MCP `projectDir`.
 
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
 

@@ -373,6 +373,31 @@ class ResolvePortTest(unittest.TestCase):
 
         self.assertEqual(12320, selected.port)
 
+    def test_auto_detected_nested_project_starts_its_own_runtime(self):
+        parent_project_dir = os.path.join(self.tmp, "project")
+        nested_project_dir = os.path.join(parent_project_dir, "nested-project")
+        os.makedirs(nested_project_dir)
+        parent_endpoint = jugglib.RuntimeEndpoint(12320, "idea", [parent_project_dir])
+        nested_endpoint = jugglib.RuntimeEndpoint(12321, "standalone", [nested_project_dir])
+
+        class RunningProcess:
+            def poll(self):
+                return None
+
+        launch = jugglib.StandaloneLaunch(RunningProcess(), Path(nested_project_dir) / "startup.log")
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=nested_project_dir), \
+             patch.object(
+                 jugglib,
+                 "discover_runtime_endpoints",
+                 side_effect=[[parent_endpoint], [parent_endpoint], [parent_endpoint, nested_endpoint]],
+             ), \
+             patch.object(jugglib, "launch_standalone", return_value=launch) as mock_launch:
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12321, port)
+        mock_launch.assert_called_once_with(nested_project_dir)
+
     def test_same_project_selection_uses_last_runtime_owner(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(os.path.join(project_dir, "build", "jugg"))
