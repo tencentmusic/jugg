@@ -11,6 +11,7 @@ const englishNav = [
   { text: 'Capabilities', link: '/capabilities/' },
   { text: 'Troubleshooting', link: '/troubleshooting/' },
   { text: 'Reference', link: '/reference/' },
+  { text: 'Technical Articles', link: '/articles/' },
   ...(isWikiDev ? [{ text: 'Dev', link: '/dev/elements-demo' }] : [])
 ]
 
@@ -234,6 +235,22 @@ const englishSidebar = {
       ]
     }
   ],
+  '/articles/': [
+    {
+      text: 'Technical Articles',
+      items: [
+        { text: 'Overview', link: '/articles/' },
+        { text: 'Jugg (1): Architecture and Usage', link: '/articles/01-jugg-introduction/' },
+        { text: 'Jugg (2): Source Incremental Compilation', link: '/articles/02-source-incremental-compilation/' },
+        { text: 'Jugg (3): Resource Incremental Compilation', link: '/articles/03-resource-incremental-compilation/' },
+        { text: 'Jugg (4): Incremental Deployment', link: '/articles/04-incremental-deployment/' },
+        { text: 'Jugg 2.0', link: '/articles/05-jugg-2-0/' },
+        { text: 'How Much Compilation Time Did Jugg Save?', link: '/articles/06-time-savings/' },
+        { text: 'Jugg 2.x Evolution', link: '/articles/07-jugg-2-x-evolution/' },
+        { text: 'Jugg 3.0: From Fast Compilation to Agent Verification', link: '/articles/08-jugg-3-0/' }
+      ]
+    }
+  ],
   ...(isWikiDev
     ? {
         '/dev/': [
@@ -253,6 +270,7 @@ const chineseNav = [
   { text: '能力', link: '/zh/capabilities/' },
   { text: '问题排查', link: '/zh/troubleshooting/' },
   { text: '参考', link: '/zh/reference/' },
+  { text: '技术文章', link: '/zh/articles/' },
   ...(isWikiDev ? [{ text: 'Dev', link: '/zh/dev/elements-demo' }] : [])
 ]
 
@@ -476,6 +494,22 @@ const chineseSidebar = {
       ]
     }
   ],
+  '/zh/articles/': [
+    {
+      text: '技术文章',
+      items: [
+        { text: '概览', link: '/zh/articles/' },
+        { text: 'Jugg（1）：整体方案与使用介绍', link: '/zh/articles/01-jugg-introduction/' },
+        { text: 'Jugg（2）：源码增量编译方案', link: '/zh/articles/02-source-incremental-compilation/' },
+        { text: 'Jugg（3）：资源增量编译', link: '/zh/articles/03-resource-incremental-compilation/' },
+        { text: 'Jugg（4）：增量部署方案', link: '/zh/articles/04-incremental-deployment/' },
+        { text: 'Jugg 2.0', link: '/zh/articles/05-jugg-2-0/' },
+        { text: 'Jugg 节省了安卓开发多少编译时间？', link: '/zh/articles/06-time-savings/' },
+        { text: 'Jugg 2.X 能力演进', link: '/zh/articles/07-jugg-2-x-evolution/' },
+        { text: 'Jugg 3.0：从秒级编译到 Agent 自验证', link: '/zh/articles/08-jugg-3-0/' }
+      ]
+    }
+  ],
   ...(isWikiDev
     ? {
         '/zh/dev/': [
@@ -494,6 +528,27 @@ export default defineConfig({
   description: 'User documentation for Jugg',
   cleanUrls: true,
   srcExclude: productionSrcExclude,
+  markdown: {
+    config(md) {
+      const normalizeHistoricalAssets = (content: string) =>
+        content.replace(/(<img\b[^>]*\bsrc=["'])(?![./]|https?:|data:)([^"']+)(["'])/g, '$1./$2$3')
+      const renderHtmlInline = md.renderer.rules.html_inline ?? ((tokens, idx) => tokens[idx].content)
+      const renderHtmlBlock = md.renderer.rules.html_block ?? ((tokens, idx) => tokens[idx].content)
+      md.renderer.rules.html_inline = (tokens, idx, options, env, self) => {
+        const content = tokens[idx].content
+        if (env.relativePath?.startsWith('zh/articles/') && /^<\/?[A-Za-z][A-Za-z0-9]*>$/.test(content)) {
+          return md.utils.escapeHtml(content)
+        }
+        const normalized = env.relativePath?.startsWith('zh/articles/') ? normalizeHistoricalAssets(content) : content
+        return renderHtmlInline([{ ...tokens[idx], content: normalized }], 0, options, env, self)
+      }
+      md.renderer.rules.html_block = (tokens, idx, options, env, self) => {
+        const content = tokens[idx].content
+        const normalized = env.relativePath?.startsWith('zh/articles/') ? normalizeHistoricalAssets(content) : content
+        return renderHtmlBlock([{ ...tokens[idx], content: normalized }], 0, options, env, self)
+      }
+    }
+  },
   locales: {
     root: {
       label: 'English',
