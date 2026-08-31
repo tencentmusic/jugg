@@ -101,6 +101,8 @@ _STANDALONE_STARTUP_POLL_INTERVAL_SECONDS = 0.2
 _STANDALONE_LAUNCH_LOCK_TIMEOUT_SECONDS = _STANDALONE_STARTUP_TIMEOUT_SECONDS + 15
 _STANDALONE_RUNTIME_LOG_READ_BYTES = 1024 * 1024
 _STANDALONE_RUNTIME_LOG_LINE_MAX_CHARS = 500
+_WINDOWS_CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+_WINDOWS_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 _JUGG_RUNTIME_LOG_PATTERN = re.compile(
     r"^\[[^]]+\]\s+\[[^]]+\]\s+\[([^]]+)\]\s+(.*)$"
 )
@@ -403,7 +405,9 @@ def launch_standalone(project_dir: str) -> StandaloneLaunch:
     startup_log.parent.mkdir(parents=True, exist_ok=True)
     popen_args = {"stdin": subprocess.DEVNULL, "close_fds": True}
     if sys.platform == "win32":
-        popen_args["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+        popen_args["creationflags"] = (
+            _WINDOWS_CREATE_NEW_PROCESS_GROUP | _WINDOWS_CREATE_NO_WINDOW
+        )
     else:
         popen_args["start_new_session"] = True
     with startup_log.open("w", encoding="utf-8") as output:

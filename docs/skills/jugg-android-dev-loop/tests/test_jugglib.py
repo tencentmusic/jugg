@@ -86,6 +86,24 @@ class ResolvePortTest(unittest.TestCase):
         jugglib.set_runtime_type_override("")
         shutil.rmtree(self.tmp, ignore_errors=True)
 
+    def test_launch_standalone_hides_the_windows_console(self):
+        project_dir = os.path.join(self.tmp, "project")
+        launcher = Path(self.tmp) / "jugg-standalone.bat"
+        launcher.write_text("@echo off\n")
+        process = object()
+
+        with patch.object(jugglib, "_standalone_launcher_path", return_value=launcher), \
+             patch.object(jugglib.sys, "platform", "win32"), \
+             patch.object(jugglib.subprocess, "Popen", return_value=process) as mock_popen:
+            launch = jugglib.launch_standalone(project_dir)
+
+        self.assertEqual(
+            jugglib._WINDOWS_CREATE_NEW_PROCESS_GROUP | jugglib._WINDOWS_CREATE_NO_WINDOW,
+            mock_popen.call_args.kwargs["creationflags"],
+        )
+        self.assertIs(process, launch.process)
+        self.assertTrue(launch.log_path.is_file())
+
     def test_hook_does_not_retry_or_launch_for_closed_ports_without_baseline(self):
         refused = urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
 
