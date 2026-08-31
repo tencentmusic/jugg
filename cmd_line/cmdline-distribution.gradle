@@ -117,7 +117,7 @@ def prepareStandaloneBundle = tasks.register('prepareStandaloneBundle') {
                 ')',
                 'set "JAVA_EXE=java"',
                 ':run',
-                '"%JAVA_EXE%" -cp "%~dp0jars\\*" com.sickworm.intellij.jugg.cmdline.standalone.StandaloneBundleInstallerMain "%~dp0" %*',
+                '"%JAVA_EXE%" -cp "%~dp0jars\\*" com.sickworm.intellij.jugg.cmdline.standalone.StandaloneBundleInstallerMain "%~dp0." %*',
                 'exit /b %ERRORLEVEL%',
         ].join('\r\n') + '\r\n'
     }

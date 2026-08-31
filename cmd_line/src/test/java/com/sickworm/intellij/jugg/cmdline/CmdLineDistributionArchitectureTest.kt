@@ -56,6 +56,7 @@ class CmdLineDistributionArchitectureTest {
             assertTrue(installSh.contains("command -v java"))
             assertTrue(installCmd.contains("%JAVA_HOME%\\bin\\java.exe"))
             assertTrue(installCmd.contains("where java"))
+            assertTrue(installCmd.contains("StandaloneBundleInstallerMain \"%~dp0.\" %*"))
             assertTrue(posixCli.contains("sys.version_info < (3, 7)"))
             assertTrue(windowsCli.contains("sys.version_info ^< (3, 7)"))
         }
