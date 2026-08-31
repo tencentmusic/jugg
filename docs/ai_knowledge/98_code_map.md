@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-08-24
+> 最后核对：2026-08-31
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -81,7 +81,7 @@
 ## 5. 高频定位建议
 
 - 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  
-- 查“编译为何回退”：从 `JuggCompileHelper` -> `preprocessIncrementalCompile`。  
+- 查“编译为何回退”：从 `JuggCompilerHelper` -> `preprocessIncrementalCompile`。
 - 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `DeployStateRecover.recoverDeployState`。  
 - 查“MCP 参数规则”：从 tool action 的 `inputSchema` 和 `execute` 实现确认。
 

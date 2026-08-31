@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-08-10
+> 最后核对：2026-08-31
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -21,7 +21,7 @@
 
 | 入口类 | 文件 | 作用 |
 |--------|------|------|
-| `JuggCompileHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | IDE compile 入口，等待初始化/文件处理，决定增量或 Gradle，处理 Git 补检和回退提示 |
+| `JuggCompilerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | IDE compile 入口，等待初始化/文件处理，决定增量或 Gradle，处理 Git 补检和回退提示 |
 | `IncrementalCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/IncrementalCompilerHelper.kt` | 单轮增量循环，更新 undeployed/staging 状态，驱动影响传播重编译和一次性失败重试 |
 | `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | 组合 Compose resource/asset/resource/R.dex/source/dex/minify 等子阶段，按阶段失败快速收口 |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 为受支持的 Compose Multiplatform 资源准备 CVR/asset、生成 accessor Kotlin 并编译 generated expect/actual |
@@ -51,16 +51,28 @@
 ### 4.1 IDE compile 到增量/Gradle 决策
 
 ```text
-JuggCompileHelper.compile(options, uiHandler)
+JuggCompilerHelper.compile(options, uiHandler)
   -> 记录 LastCompileTimestampRegistry，用于 MCP/status/hook 基线
   -> 等待初始化和 pending file processing，避免文件事件未入队就开始判断
   -> preprocessIncrementalCompile()
-     -> 有强制回退、构建/依赖/设备/文件数量等风险时返回一个增量失败结果
+     -> 异步启动 Git 漏文件检查；它不决定本轮 Gradle 回退
+     -> 按固定优先级判断：
+        1. Force Gradle Compile
+        2. BuildTarget 切换（APP <-> ANDROID_TEST）
+        3. compile command 与 full-build 基线不一致
+        4. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
+        5. INVALID_DEVICE
+        6. 回滚内容未变的文件，再检查 build file / dependency 变化
+        7. DeployState 要求 full compile（未建立基线、上次 Gradle 失败、build file 要求 rebuild）
+        8. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
+     -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
   -> 增量失败但不可回退：提示下一次直接运行会回退，当前返回失败
   -> 需要回退：通知 fallback，执行 gradleCompile()
 ```
+
+`checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`project info 不可用 -> INVALID_DEVICE -> DeployState 必须 full compile -> 变更文件过多`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
 
 ### 4.2 单轮增量编译与影响传播
 
@@ -139,15 +151,15 @@ JuggCompiler.doCompile(task)
 
 ## 7. 回退与重试机制
 
-### 7.1 触发 Gradle 回退的常见条件
+### 7.1 Gradle 回退边界
 
-- 用户强制回退。
-- 当前 Configuration 的 compile command 与最近一次成功 full build 基线不一致（例如 Sync 后切换了 Active Build Variant）。
-- 设备状态不满足增量部署。
-- 变更文件点数/模块数超过阈值时弹出确认框：默认 Gradle，倒计时后可选择本轮继续增量。MCP/CLI 与 `checkFallback()` 不弹窗，直接回退。
-- 依赖变化、构建脚本变化或编译失败不可恢复。
+Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 
-`DeployState` 已确认必须 full compile（例如上次 Gradle 编译失败）时，先返回该强制回退原因；只有仍具备增量资格时，才评估“变更文件过多”的性能确认，避免下一次运行重复弹出无效确认框。
+- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用。
+- 状态强制：`DeployState` 为未建立基线、上次 Gradle 失败或 build file 要求 rebuild；该类条件优先于“变更过多”，避免用户在必然 full compile 的场景看到无效确认框。
+- 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
+
+进入增量编译后的回退语义独立于 Run 前预检：编译器未初始化、无文件变化确认、未预期异常、递归跟编文件过多或运行中设备失效可在本轮转 Gradle；普通源码编译失败则本轮直接失败，不自动执行 Gradle。失败文件仍保留为已编译过的待处理变更，下一次 Run 才按无文件变化策略决定是否 Gradle。
 
 无文件变化的 fallback 确认框和手动 `Force Gradle Compile` 确认框均允许用户选择忽略 Gradle build cache。选中后，本轮 Gradle command 追加 `--no-build-cache --rerun-tasks`；该选项只影响本轮回退，不写回 Run Configuration，并在任务启动后清除。
 
@@ -166,7 +178,7 @@ JuggCompiler.doCompile(task)
 
 | 现象 | 优先入口 |
 |------|----------|
-| 用户说“这次没走增量 / 直接 Gradle” | `JuggCompileHelper.preprocessIncrementalCompile()`、`checkFallback()` |
+| 用户说“这次没走增量 / 直接 Gradle” | `JuggCompilerHelper.preprocessIncrementalCompile()`、`checkFallback()` |
 | 编译成功后日志出现 `found effected source files, continue compile` | `IncrementalCompilerHelper.compile()` 中 `getRecompileFiles()` 后的 `unCompiledEffectedFiles` |
 | 编译成功后又因 Git 补检 `compile again` | `GitChangesCompileChecker.getAsyncResultIfCompleted()` |
 | 资源/manifest/asset 产物影响错 APK | `BaseCompiler.splitApkAndCompile()` 与子类 `doApkCompile()` 输出的 `targetApkPaths` |
