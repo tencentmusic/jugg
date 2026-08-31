@@ -96,12 +96,12 @@ class JuggCompilerHelper(
             return GRADLE_PROJECT_INFO_UNAVAILABLE
         }
         checkDeviceFallback()?.let { return it.failedReason }
-        checkFilesFallback(deployFileManager.getUncompiledFiles(), logFallback = false)?.let {
-            return it.failedReason
-        }
         val deployState = deployStateManager.updateDeployState()
         if (!deployState.isReadyIncCompile) {
             return deployState.msg
+        }
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), logFallback = false)?.let {
+            return it.failedReason
         }
         return null
     }
@@ -421,9 +421,6 @@ class JuggCompilerHelper(
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkFilesRollback()
         }
-        checkFilesFallback(deployFileManager.getUncompiledFiles(), uiHandler = uiHandler)?.let {
-            return it
-        }
 
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkLibraryIncrementalCompile(options, uiHandler) // user may cancel in this step
@@ -434,6 +431,9 @@ class JuggCompilerHelper(
         if (!deployState.isReadyIncCompile) {
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
             return CompileTaskResult.incrementalFailed(true, deployState.msg)
+        }
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), uiHandler = uiHandler)?.let {
+            return it
         }
 
         if (JuggSettings.isEmbeddedToApk) {
