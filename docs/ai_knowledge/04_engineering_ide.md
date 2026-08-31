@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-08-18
+> 最后核对：2026-08-31
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -111,7 +111,7 @@ JuggGradleSyncListener
 
 Sync 成功会重置 hasRun，避免旧运行状态让“无文件变化”判断污染下一轮。
 
-Sync 完成或被 IDE 标记为 `SKIPPED` 后，先更新 effective `JuggProjectInfo`，再由 `IdeaCliRunConfigurationManager.reconcileActiveBuildVariants()` 为每个 application module 补齐当前 `buildVariant` 对应的 Jugg Configuration。候选配置由 `CliRunConfigurationGenerator.generateForModule()` 确定性生成；同 module + variant 已存在时完全保留名称、command、APK output、远端参数和环境变量。当前 selected Configuration 不是 Jugg 时只创建、不改变选择和 CLI current pointer；当前选择是 Jugg 时，只切换到同 module 的 active variant 并更新 pointer。该流程不依赖已废弃的 `SuggestRunConfiguration`，也不导入普通 Android Run Configuration。
+Sync 完成或被 IDE 标记为 `SKIPPED` 后，先更新 effective `JuggProjectInfo`，再由 `IdeaCliRunConfigurationManager.reconcileActiveBuildVariants()` 为每个 application module 补齐当前 `buildVariant` 对应的 Jugg Configuration。候选配置由 `CliRunConfigurationGenerator.generateForModule()` 确定性生成；同 module + variant 已存在时完全保留名称、command、APK output、远端参数和环境变量。当前 selected Configuration 不是 Jugg 时只创建、不改变选择和 CLI current pointer；当前选择是 Jugg 时，只有 command 精确等于 Jugg 为某个已知 variant 生成的单 task `./gradlew :modulePath:assemble{Variant}`，且能按当前 active variant 的稳定配置 id 唯一找到同样未修改 command 的目标配置时，才自动切换并更新 pointer。附加 Gradle 参数、多 task、`deployDebug` / `packageDebug` / `uploadDebug`、`happyBuild` 等自定义 command，以及仅存在同 variant 自定义目标配置的场景都保持用户选择；允许漏切，不通过 task 名后缀猜测用户意图。该流程不依赖已废弃的 `SuggestRunConfiguration`，也不导入普通 Android Run Configuration。
 
 建议配置的 APK output pattern 从 Android Studio Android model 的实际 build folder 生成，支持 `${moduleDir}/build` 和项目根集中式 `build/${moduleName}`。该路径只用于创建新的 Jugg Configuration；Sync 不修改已有配置的 APK output pattern。
 

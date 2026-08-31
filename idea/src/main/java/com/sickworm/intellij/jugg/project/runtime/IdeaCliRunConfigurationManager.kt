@@ -147,14 +147,36 @@ class IdeaCliRunConfigurationManager(
         val applicationModules = projectInfo.modules.values.filter {
             it.moduleType == ModuleInfo.Type.Application && !it.isAndroidTestModule
         }
-        val selectedModule = applicationModules.firstOrNull {
-            CliRunConfigurationGenerator.matchesBuildIdentity(selected.compileCommand, it, selected.variant)
-        } ?: applicationModules.singleOrNull { it.name == selected.moduleName } ?: return
+        val selectedTarget = applicationModules.mapNotNull { module ->
+            CliRunConfigurationGenerator.findGeneratedConfiguration(selected.compileCommand, module)?.let {
+                module to it
+            }
+        }.singleOrNull()
+        if (selectedTarget == null) {
+            store.select(selected.id)
+            return
+        }
+        val (selectedModule, selectedGenerated) = selectedTarget
+        val activeVariant = selectedModule.buildVariant.ifBlank { ModuleInfo.DEFAULT_BUILD_VARIANT }
+        if (selectedGenerated.variant == activeVariant) {
+            store.select(selected.id)
+            return
+        }
         val expected = CliRunConfigurationGenerator.generateForModule(selectedModule)
-        val active = configurations.firstOrNull { matchesConfiguration(it, expected, selectedModule, projectInfo) } ?: return
-        val activeSettings = settings.firstOrNull {
+        val active = configurations.singleOrNull {
+            it.id == expected.id && it.compileCommand.trim() == expected.compileCommand
+        }
+        if (active == null) {
+            store.select(selected.id)
+            return
+        }
+        val activeSettings = settings.singleOrNull {
             (it.configuration as? JuggRunConfiguration)?.state?.cliRunConfigurationId == active.id
-        } ?: return
+        }
+        if (activeSettings == null) {
+            store.select(selected.id)
+            return
+        }
         runManager.selectedConfiguration = activeSettings
         store.select(active.id)
     }

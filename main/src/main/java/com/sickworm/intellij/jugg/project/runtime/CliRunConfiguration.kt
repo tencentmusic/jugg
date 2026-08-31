@@ -131,23 +131,10 @@ object CliRunConfigurationGenerator {
     }
 
     fun resolveBuildIdentity(projectInfo: JuggProjectInfo, compileCommand: String): Pair<String, String> {
-        val tasks = compileCommand.split(Regex("\\s+")).filter { it.isNotBlank() }
         val applicationModules = projectInfo.applicationModules()
         applicationModules.forEach { module ->
-            val variants = (listOf(module.buildVariant) + module.variants.map { it.name })
-                .filter { it.isNotBlank() }
-                .distinct()
-            variants.forEach { variant ->
-                if (tasks.contains("${module.gradleModulePath()}assemble${variant.upperCamel()}")) {
-                    return module.name to variant
-                }
-            }
-        }
-        val inferredTask = tasks.firstNotNullOfOrNull { parseAssembleTask(it) }
-        if (inferredTask != null) {
-            val module = applicationModules.firstOrNull { it.moduleStdPath.replace('/', ':') == inferredTask.first }
-            if (module != null) {
-                return module.name to inferredTask.second
+            encodedBuildVariant(compileCommand, module)?.let { variant ->
+                return module.name to variant
             }
         }
         val fallback = selectApplicationModule(projectInfo)
@@ -155,8 +142,33 @@ object CliRunConfigurationGenerator {
     }
 
     fun matchesBuildIdentity(compileCommand: String, module: ModuleInfo, variant: String): Boolean {
-        val task = "${module.gradleModulePath()}assemble${variant.upperCamel()}"
-        return compileCommand.split(Regex("\\s+")).contains(task)
+        return encodedBuildVariant(compileCommand, module) == variant
+    }
+
+    /**
+     * True only when the command encodes a known variant of [module] that is not [activeVariant].
+     * Unknown or custom tasks are not treated as a variant switch.
+     */
+    fun targetsDifferentBuildVariant(
+        compileCommand: String,
+        module: ModuleInfo,
+        activeVariant: String,
+    ): Boolean {
+        return gradleTasks(compileCommand)
+            .mapNotNull { variantInModuleTask(it, module) }
+            .any { it != activeVariant }
+    }
+
+    fun encodedBuildVariant(compileCommand: String, module: ModuleInfo): String? {
+        return gradleTasks(compileCommand).firstNotNullOfOrNull { variantInModuleTask(it, module) }
+    }
+
+    /** Returns the generated profile only when the command is still the exact generated command. */
+    fun findGeneratedConfiguration(compileCommand: String, module: ModuleInfo): CliRunConfiguration? {
+        return module.knownVariants()
+            .asSequence()
+            .map { variant -> generateForModule(module.copy(buildVariant = variant)) }
+            .singleOrNull { it.compileCommand == compileCommand.trim() }
     }
 
     private fun selectApplicationModule(projectInfo: JuggProjectInfo): ModuleInfo {
@@ -175,9 +187,30 @@ object CliRunConfigurationGenerator {
         return if (path.isEmpty()) "" else ":$path:"
     }
 
-    private fun parseAssembleTask(task: String): Pair<String, String>? {
-        val match = Regex("^:?(.*?):assemble([A-Z].*)$").matchEntire(task) ?: return null
-        return match.groupValues[1].trim(':') to match.groupValues[2].lowerCamel()
+    private fun gradleTasks(compileCommand: String): List<String> {
+        return compileCommand.split(Regex("\\s+")).filter { it.isNotBlank() }
+    }
+
+    private fun ModuleInfo.knownVariants(): List<String> {
+        return (listOf(buildVariant) + variants.map { it.name })
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
+    private fun variantInModuleTask(task: String, module: ModuleInfo): String? {
+        val modulePath = module.gradleModulePath()
+        if (modulePath.isEmpty() || !task.startsWith(modulePath)) {
+            return null
+        }
+        val remainder = task.removePrefix(modulePath)
+        if (remainder.isEmpty() || remainder.contains(':')) {
+            return null
+        }
+        return module.knownVariants()
+            .map { it to it.upperCamel() }
+            .sortedByDescending { it.second.length }
+            .firstOrNull { remainder.endsWith(it.second) }
+            ?.first
     }
 
     private fun stableId(modulePath: String, variant: String): String {
@@ -188,25 +221,11 @@ object CliRunConfigurationGenerator {
         return replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
 
-    private fun String.lowerCamel(): String {
-        return replaceFirstChar { it.lowercase() }
-    }
-
     private fun String.outputDirectory(): String {
         val match = Regex("^(.*?)(Debug|Release)$").matchEntire(this) ?: return this
         val flavor = match.groupValues[1]
         val buildType = match.groupValues[2].lowercase()
         return if (flavor.isEmpty()) buildType else "$flavor/$buildType"
-    }
-
-    private inline fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
-        for (element in this) {
-            val result = transform(element)
-            if (result != null) {
-                return result
-            }
-        }
-        return null
     }
 }
 

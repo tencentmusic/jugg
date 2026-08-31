@@ -401,8 +401,10 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Build target changed to ${options.buildTarget}")
         }
 
-        if (isCompileCommandChanged(options)) {
-            logger.info("Compile command changed, forcing Gradle full compile.")
+        val lastCompileCommand = deployHistoryManager.getFullBuildInfo()?.compileCommand
+        if (lastCompileCommand != null && lastCompileCommand != options.compileCommand) {
+            logger.info("Compile command changed, forcing Gradle full compile. " +
+                    "last=$lastCompileCommand current=${options.compileCommand}")
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
         }
 

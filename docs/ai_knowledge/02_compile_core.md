@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-08-10
+> 最后核对：2026-08-31
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -140,7 +140,7 @@ JuggCompiler.doCompile(task)
 ### 7.1 触发 Gradle 回退的常见条件
 
 - 用户强制回退。
-- 当前 Configuration 的 compile command 与最近一次成功 full build 基线不一致（例如 Sync 后切换了 Active Build Variant）。
+- 当前 Configuration 的 compile command 与最近一次成功 full build 基线不一致（例如 Sync 后切换了 Active Build Variant）。日志会同时打印 `last=` 与 `current=` 两条 command，便于确认是 task 切换还是选中了另一条 Jugg Configuration。
 - 设备状态不满足增量部署。
 - 变更文件点数/模块数超过阈值。
 - 依赖变化、构建脚本变化或编译失败不可恢复。

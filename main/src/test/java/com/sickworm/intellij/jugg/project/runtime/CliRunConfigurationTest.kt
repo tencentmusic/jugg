@@ -4,9 +4,11 @@ import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.Variant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -73,6 +75,75 @@ class CliRunConfigurationTest {
         assertEquals("./gradlew :paid:assembleRelease", first.compileCommand)
         assertEquals("paid/build/outputs/apk/release/*.apk", first.outputApkName)
         assertEquals(first.id, second.id)
+    }
+
+    @Test
+    fun `build identity follows known variant suffix on the leaf module task`() {
+        val projectDir = temporaryFolder.newFolder("variant_suffix_identity")
+        val app = applicationModule(projectDir, "app", "debug").copy(
+            variants = listOf(Variant("debug", null), Variant("release", null)),
+        )
+        val musicAppDir = File(projectDir, "app/musicApp")
+        val musicApp = ModuleInfo.virtualModule.copy(
+            name = "app.musicApp",
+            moduleType = ModuleInfo.Type.Application,
+            projectRootDir = projectDir,
+            moduleRootDir = musicAppDir,
+            buildVariant = "debug",
+            variants = listOf(Variant("debug", null), Variant("release", null)),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, musicAppDir, "debug", buildDirRelativePath = ""),
+        )
+        val projectInfo = projectInfo(app, musicApp)
+        val customDebug = "gradlew.bat :app:musicApp:deployDebug --stacktrace"
+
+        assertEquals("app.musicApp" to "debug", CliRunConfigurationGenerator.resolveBuildIdentity(projectInfo, customDebug))
+        assertNull(CliRunConfigurationGenerator.encodedBuildVariant(customDebug, app))
+        assertTrue(CliRunConfigurationGenerator.matchesBuildIdentity(customDebug, musicApp, "debug"))
+        assertFalse(CliRunConfigurationGenerator.targetsDifferentBuildVariant(customDebug, musicApp, "debug"))
+        assertTrue(
+            CliRunConfigurationGenerator.targetsDifferentBuildVariant(
+                "./gradlew :app:musicApp:assembleRelease",
+                musicApp,
+                "debug",
+            ),
+        )
+        assertFalse(
+            CliRunConfigurationGenerator.targetsDifferentBuildVariant(
+                "./gradlew :app:musicApp:customTask",
+                musicApp,
+                "debug",
+            ),
+        )
+    }
+
+    @Test
+    fun `build identity prefers the longest known variant suffix`() {
+        val projectDir = temporaryFolder.newFolder("longest_variant_suffix")
+        val app = applicationModule(projectDir, "app", "debug").copy(
+            variants = listOf(Variant("debug", null), Variant("paidDebug", null)),
+        )
+
+        assertEquals(
+            "paidDebug",
+            CliRunConfigurationGenerator.encodedBuildVariant("./gradlew :app:assemblePaidDebug", app),
+        )
+        assertFalse(CliRunConfigurationGenerator.matchesBuildIdentity("./gradlew :app:assemblePaidDebug", app, "debug"))
+        assertTrue(CliRunConfigurationGenerator.targetsDifferentBuildVariant("./gradlew :app:assemblePaidDebug", app, "debug"))
+    }
+
+    @Test
+    fun `generated profile identity rejects custom commands`() {
+        val projectDir = temporaryFolder.newFolder("generated_profile_identity")
+        val app = applicationModule(projectDir, "app", "release").copy(
+            variants = listOf(Variant("debug", null), Variant("release", null)),
+        )
+
+        assertEquals(
+            "debug",
+            CliRunConfigurationGenerator.findGeneratedConfiguration("./gradlew :app:assembleDebug", app)?.variant,
+        )
+        assertNull(CliRunConfigurationGenerator.findGeneratedConfiguration("./gradlew :app:uploadDebug", app))
+        assertNull(CliRunConfigurationGenerator.findGeneratedConfiguration("./gradlew :app:assembleDebug --offline", app))
     }
 
     @Test

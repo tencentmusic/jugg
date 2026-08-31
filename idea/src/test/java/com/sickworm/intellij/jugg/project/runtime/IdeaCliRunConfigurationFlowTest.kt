@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.Variant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -128,6 +129,75 @@ class IdeaCliRunConfigurationFlowTest {
     }
 
     @Test
+    fun `active variant reconciliation keeps selected custom command when it still encodes the active variant`() {
+        val fixture = fixture("keep_custom_deploy", appVariant = "debug", includePaid = false)
+        val assemble = juggSettings("jugg:app", ideaOptions("./gradlew :app:assembleDebug", "app/build/outputs/apk/debug/*.apk"))
+        val deployOptions = ideaOptions("gradlew.bat :app:deployDebug --stacktrace", "app/build/deploy/*_arm64.apk")
+        val deploy = juggSettings("jugg:musicApp", deployOptions)
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(assemble, deploy))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(deploy)
+
+        fixture.manager.reconcileActiveBuildVariants()
+
+        verify(fixture.runManager, org.mockito.kotlin.never()).createConfiguration(
+            org.mockito.kotlin.any<String>(),
+            org.mockito.kotlin.any<ConfigurationFactory>(),
+        )
+        verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
+        assertEquals(deployOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
+        assertEquals("gradlew.bat :app:deployDebug --stacktrace", deployOptions.compileCommand)
+    }
+
+    @Test
+    fun `active variant reconciliation keeps selected custom command when its suffix resembles another variant`() {
+        val fixture = fixture("keep_custom_suffix", appVariant = "release", includePaid = false)
+        val customOptions = ideaOptions("./gradlew :app:uploadDebug", "artifacts/custom.apk")
+        val custom = juggSettings("custom debug", customOptions)
+        val release = juggSettings("app release", ideaOptions("./gradlew :app:assembleRelease", "app/build/outputs/apk/release/*.apk"))
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(custom, release))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(custom)
+
+        fixture.manager.reconcileActiveBuildVariants()
+
+        verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
+        assertEquals(customOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
+    }
+
+    @Test
+    fun `active variant reconciliation keeps selected assemble command with custom arguments`() {
+        val fixture = fixture("keep_custom_arguments", appVariant = "release", includePaid = false)
+        val customOptions = ideaOptions("./gradlew :app:assembleDebug --offline", "app/build/outputs/apk/debug/*.apk")
+        val custom = juggSettings("custom debug", customOptions)
+        val release = juggSettings("app release", ideaOptions("./gradlew :app:assembleRelease", "app/build/outputs/apk/release/*.apk"))
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(custom, release))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(custom)
+
+        fixture.manager.reconcileActiveBuildVariants()
+
+        verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
+        assertEquals(customOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
+    }
+
+    @Test
+    fun `active variant reconciliation does not select a custom configuration as the active target`() {
+        val fixture = fixture("keep_when_target_is_custom", appVariant = "release", includePaid = false)
+        val debugOptions = ideaOptions("./gradlew :app:assembleDebug", "app/build/outputs/apk/debug/*.apk")
+        val debug = juggSettings("app debug", debugOptions)
+        val customRelease = juggSettings("custom release", ideaOptions("./gradlew :app:deployRelease", "artifacts/custom-release.apk"))
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(debug, customRelease))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
+
+        fixture.manager.reconcileActiveBuildVariants()
+
+        verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
+        assertEquals(debugOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
+    }
+
+    @Test
     fun `active variant reconciliation preserves an existing matching profile`() {
         val fixture = fixture("existing_active_variant", appVariant = "release", includePaid = false)
         val options = ideaOptions("./gradlew :app:assembleRelease", "custom-release.apk")
@@ -225,6 +295,7 @@ class IdeaCliRunConfigurationFlowTest {
                 projectRootDir = projectDir,
                 moduleRootDir = moduleDir,
                 buildVariant = variant,
+                variants = listOf(variant, "debug", "release").distinct().map { Variant(it, null) },
                 buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, variant, buildDirRelativePath = ""),
             )
         }
