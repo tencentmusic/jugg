@@ -119,7 +119,7 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
-python3 {SKILL_DIR}/scripts/jugg.py stop                 # stop this project's standalone Runtime; use only when explicitly requested
+python3 {SKILL_DIR}/scripts/jugg.py stop                 # stop all standalone Runtimes under the same Jugg root; use only when explicitly requested
 python3 {SKILL_DIR}/scripts/jugg.py status               # refresh changed files and show status summary
 python3 {SKILL_DIR}/scripts/jugg.py status --refresh-changes false  # skip changed-file refresh
 python3 {SKILL_DIR}/scripts/jugg.py status --full-info true  # return full status information and all file paths

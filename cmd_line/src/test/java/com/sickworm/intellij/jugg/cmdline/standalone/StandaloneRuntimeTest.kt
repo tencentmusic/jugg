@@ -230,6 +230,23 @@ class StandaloneRuntimeTest {
     }
 
     @Test
+    fun `registry validates the tool before requiring project directory`() {
+        val projectDir = temporaryFolder.newFolder("project")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectDir)
+        }
+
+        val missingName = registry!!.invokeMcp(
+            McpJsonRpcRequest(method = McpJsonRpc.Method.ToolsCall, id = 1, params = emptyMap<String, Any?>())
+        ).result as McpToolCallResult
+        val unknownTool = call("unknown-tool")
+
+        assertEquals(McpErrorCode.INVALID_PARAMS, missingName.structuredContent["errorCode"])
+        assertTrue(missingName.content.first().text.contains("Tool name is required"))
+        assertEquals(McpErrorCode.TOOL_NOT_FOUND, unknownTool.structuredContent["errorCode"])
+    }
+
+    @Test
     fun `failed automatic initialization does not affect registered projects`() {
         val projectA = temporaryFolder.newFolder("project-a")
         val missingProject = temporaryFolder.root.resolve("missing-project")

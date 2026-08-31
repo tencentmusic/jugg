@@ -149,7 +149,7 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 |--------|----------|------|
 | `version` | `version` | 显示 CLI 版本和插件版本；无需 `projectDir` |
 | `init` | `init` | 自动选择/拉起 standalone，并根据 Gradle project info 创建当前 build profile |
-| `stop` | CLI local | 停止目标工程的 standalone Runtime；不连接或启动 Runtime |
+| `stop` | CLI local | 停止同一 Jugg root 下的全部 standalone Runtime；不连接或启动 Runtime |
 | `compile` | `compile` | 增量编译，自动轮询终态 |
 | `deploy` | `deploy` | 编译并部署，自动轮询终态 |
 | `gradle-build` | `gradle-build` | 强制 Gradle 构建并走后续安装/启动链路 |
@@ -195,7 +195,7 @@ jugg stop
 jugg --project-dir <path> stop
 ```
 
-该命令只停止目标工程的 standalone CLI Runtime，不支持 IDEA Runtime。它不经过 MCP，不要求 daemon 已完成端口初始化；支持正常终止的平台等待最多 5 秒后强制终止仍存活的目标进程，不支持的平台直接强制终止。没有目标进程时返回成功，项目持久化状态保持不变。
+该命令停止同一 Jugg root 下的全部 standalone CLI Runtime，不支持 IDEA Runtime；`--project-dir` 不会缩小停止范围。它不经过 MCP，不要求 daemon 已完成端口初始化；支持正常终止的平台等待最多 5 秒后强制终止仍存活的目标进程，不支持的平台直接强制终止。没有匹配进程时返回成功，各项目持久化状态保持不变。
 
 ### `compile`
 

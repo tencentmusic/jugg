@@ -87,20 +87,17 @@ class StandaloneProjectRegistry(
         if (toolName in McpToolActionRegistry.noProjectDirTools) {
             return baseInvoker.invokeMcp(request)
         }
-        val projectDir = extractProjectDir(request)
-            ?: return resultMapper.toolError(
-                request.id,
-                McpErrorCode.INVALID_PARAMS,
-                "invoke_mcp failed. Reason: projectDir is required.",
-            )
-        val normalizedProjectDir = normalizeExistingProjectDir(projectDir)
-        val normalizedRequest = withProjectDir(request, normalizedProjectDir)
-        val validation = McpRequestValidator(normalizedProjectDir, toolRegistry).validate(normalizedRequest)
+        val normalizedProjectDir = extractProjectDir(request)
+            ?.takeIf(String::isNotBlank)
+            ?.let(::normalizeExistingProjectDir)
+        val normalizedRequest = normalizedProjectDir?.let { withProjectDir(request, it) } ?: request
+        val validation = McpRequestValidator(normalizedProjectDir.orEmpty(), toolRegistry).validate(normalizedRequest)
         if (validation is McpValidationResult.Invalid) {
             return invalidResponse(request, validation)
         }
+        val projectDir = checkNotNull(normalizedProjectDir) { "Validated project request is missing projectDir" }
         val runtime = try {
-            runtimes[normalizedProjectDir] ?: initialize(File(normalizedProjectDir))
+            runtimes[projectDir] ?: initialize(File(projectDir))
         } catch (error: Exception) {
             return resultMapper.toolError(
                 request.id,
