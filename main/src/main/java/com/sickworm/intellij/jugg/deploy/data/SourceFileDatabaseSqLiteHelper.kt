@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import java.io.File
+import java.io.IOException
 import java.sql.DriverManager
 import java.sql.ResultSet
 
@@ -19,12 +20,13 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
     }
 
     @Synchronized
-    fun init(isRecreate: Boolean = false) {
+    fun init(isRecreate: Boolean = false): Boolean {
         SqLiteDriverLoader.load(logger)
         dbFile.parentFile?.mkdirs()
 
+        var shouldRecreate = false
         // Create a new database connection
-        DriverManager.getConnection(url).use { connection ->
+        DriverManager.getConnection(url).use databaseConnection@{ connection ->
             val readVersionSQL = "PRAGMA schema_version;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQuery(readVersionSQL)
@@ -33,14 +35,12 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                     logger.debug("Current database version: ${if (version == 0) "not set" else "$version"}")
                     if (version > 0 && version != VERSION) {
                         logger.debug("Database version is not match, expect: ${VERSION}, actual: ${version}. recreate database.")
-                        connection.close()
-                        statement.close()
                         if (isRecreate) {
                             logger.warn("database already recreated, but version is not match, may be fatal problem.")
                         } else {
-                            recreateDatabase()
+                            shouldRecreate = true
+                            return@databaseConnection
                         }
-                        return
                     }
                 }
             }
@@ -66,7 +66,12 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
             }
         }
 
+        if (shouldRecreate) {
+            recreateDatabase()
+            return true
+        }
         logger.debug("Init database ${dbFile.name} success.")
+        return false
     }
 
     @Synchronized
@@ -212,7 +217,9 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
 
     @Synchronized
     fun recreateDatabase() {
-        dbFile.delete()
+        if (dbFile.exists() && !dbFile.delete()) {
+            throw IOException("Failed to delete database ${dbFile.absolutePath}")
+        }
         init(isRecreate = true)
     }
 

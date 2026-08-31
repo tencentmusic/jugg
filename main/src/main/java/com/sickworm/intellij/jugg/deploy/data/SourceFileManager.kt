@@ -5,10 +5,11 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import org.sqlite.SQLiteException
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
-import java.nio.file.attribute.BasicFileAttributes
-import java.text.SimpleDateFormat
-import java.util.*
+import java.nio.file.StandardCopyOption
+import java.util.UUID
 
 
 /**
@@ -21,6 +22,7 @@ class SourceFileManager(
 ) {
 
     private val dbFile = File(dbDir, "source_files.db")
+    private val rebuildStampFile = File(dbDir, "source_files.rebuild_at")
     private val database = SourceFileDatabaseSqLiteHelper(projectDir, dbFile, logger.getInstance("SourceFileDatabaseSqLiteHelper"))
 
     private var sourceDirs = emptyList<File>()
@@ -30,23 +32,36 @@ class SourceFileManager(
     @Synchronized
     fun init(sourceDirs: List<File>) {
         this.sourceDirs = sourceDirs
+        initDatabase(sourceDirs, forceRecreate = false)
+    }
 
+    private fun initDatabase(sourceDirs: List<File>, forceRecreate: Boolean) {
         val startTime = System.currentTimeMillis()
         try {
-            if (isNeedRecreate()) {
+            val databaseExists = dbFile.exists()
+            val shouldRecreate = forceRecreate || isNeedRecreate()
+            val isRecreated = if (shouldRecreate) {
                 database.recreateDatabase()
+                true
+            } else {
+                database.init()
             }
 
-            database.init()
             database.updateSourceDirs(sourceDirs)
+            if (!databaseExists || isRecreated) {
+                try {
+                    writeLastSuccessfulRebuildAt(System.currentTimeMillis())
+                } catch (e: Exception) {
+                    logger.warn("Write source file db rebuild stamp failed", e)
+                }
+            }
             isCanRecreateOnError = true
         } catch (e: Exception) {
             logger.warn("init error", e)
             if (isCanRecreateOnError && (e is SQLiteException)) {
                 isCanRecreateOnError = false
                 logger.debug("get SQLiteException on init, recreate database")
-                database.recreateDatabase()
-                init(sourceDirs)
+                initDatabase(sourceDirs, forceRecreate = true)
             } else {
                 isCanRecreateOnError = false
             }
@@ -59,16 +74,61 @@ class SourceFileManager(
         if (!dbFile.exists()) {
             return false
         }
-        val attr: BasicFileAttributes = Files.readAttributes(dbFile.toPath(), BasicFileAttributes::class.java)
-        val creationTime = attr.creationTime()
-        val creationTimeString = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date(creationTime.toMillis()))
-        val daysSinceCreated = (System.currentTimeMillis() - creationTime.toMillis()) / (1000 * 60 * 60 * 24)
-        logger.debug("dbFile creationTime: $creationTimeString, daysSinceCreated: $daysSinceCreated")
-        if (daysSinceCreated > 14) {
-            logger.debug("dbFile is too old, recreate database")
+        val lastSuccessfulRebuildAt = readLastSuccessfulRebuildAt() ?: return true
+        val now = System.currentTimeMillis()
+        if (lastSuccessfulRebuildAt > now + FUTURE_TIMESTAMP_TOLERANCE_MS) {
+            logger.debug("source file db rebuild stamp is in the future, recreate database")
+            return true
+        }
+        val ageMillis = (now - lastSuccessfulRebuildAt).coerceAtLeast(0)
+        logger.debug("source file db daysSinceRebuilt: ${ageMillis / DAY_MILLIS}")
+        if (ageMillis > MAX_DATABASE_AGE_MILLIS) {
+            logger.debug("source file db is too old, recreate database")
             return true
         }
         return false
+    }
+
+    private fun readLastSuccessfulRebuildAt(): Long? {
+        if (!rebuildStampFile.isFile) {
+            logger.debug("source file db rebuild stamp is missing, recreate database")
+            return null
+        }
+        return try {
+            rebuildStampFile.readText(Charsets.UTF_8).trim().toLongOrNull()
+                ?.takeIf { it > 0 }
+                ?: run {
+                    logger.debug("source file db rebuild stamp is invalid, recreate database")
+                    null
+                }
+        } catch (e: Exception) {
+            logger.warn("Read source file db rebuild stamp failed", e)
+            null
+        }
+    }
+
+    private fun writeLastSuccessfulRebuildAt(timestamp: Long) {
+        rebuildStampFile.parentFile?.mkdirs()
+        val tempFile = File(rebuildStampFile.parentFile, "${rebuildStampFile.name}.${UUID.randomUUID()}.tmp")
+        try {
+            FileOutputStream(tempFile).use { output ->
+                output.write(timestamp.toString().toByteArray(Charsets.UTF_8))
+                output.flush()
+                output.fd.sync()
+            }
+            try {
+                Files.move(
+                    tempFile.toPath(),
+                    rebuildStampFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(tempFile.toPath(), rebuildStampFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            tempFile.delete()
+        }
     }
 
     @Synchronized
@@ -79,9 +139,9 @@ class SourceFileManager(
         } catch (e: Exception) {
             logger.warn("updateFiles error", e)
             if (isCanRecreateOnError && (e is SQLiteException)) {
+                isCanRecreateOnError = false
                 logger.debug("get SQLiteException on updateFiles, recreate database")
-                database.recreateDatabase()
-                init(sourceDirs)
+                initDatabase(sourceDirs, forceRecreate = true)
             }
         }
         val costTime = System.currentTimeMillis() - startTime
@@ -104,5 +164,11 @@ class SourceFileManager(
             logger.warn("getFiles error", e)
             emptyList()
         }
+    }
+
+    companion object {
+        private const val DAY_MILLIS = 24L * 60 * 60 * 1000
+        private const val MAX_DATABASE_AGE_MILLIS = 14 * DAY_MILLIS
+        private const val FUTURE_TIMESTAMP_TOLERANCE_MS = 5L * 60 * 1000
     }
 }
