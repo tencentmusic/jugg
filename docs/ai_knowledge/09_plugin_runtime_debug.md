@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-08-27
+> 最后核对：2026-08-31
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -123,6 +123,7 @@
 | 升级后 `not gradle compile yet` | 查 `complete_flag`、`module_builds.json` 版本及恢复日志；缺失 flag 不应手工伪造 | `CompileContextDb`、`BuildPathInfoSerializer`；`04_engineering_project.md` |
 | `Git check after compile is still running` | 该 debug 只表示本轮不等待异步补检，不代表编译失败；持续出现才检查 Git 查询规模与历史 | `GitChangesCompileChecker`；`02_compile_core.md` |
 | APK DB 初始化慢 | 对齐 APK 大小、隔离解析信号、数据库体积和实际耗时 | APK parser / database；`05_utilities.md` |
+| `source_files.db` 每次启动都重建 | 检查 rebuild stamp、删除失败与 `SQLITE_BUSY`；不要使用 DB creation/modified time 判断最近重建 | `SourceFileManager`、`SourceFileDatabaseSqLiteHelper`；本节 4.3 |
 | release 增量后 runtime crash | 先确认 mapping 加载与 `Obfuscated:`，再对比 staging DEX 和 APK DEX；异常名不能单独决定映射缺口 | `DexObfuscator`、`DexMinifyCompiler`；`02_compile_obfuscation.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 shaded `JavaVersion` | recreate compiler 同样失败只能增强“宿主环境”推断；继续核对宿主 JDK、项目 Kotlin 版本和兼容日志 | `KotlinCompilerHostCompat`；`02_compile_source.md` |
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
@@ -155,6 +156,29 @@
 | Kotlin facade 或 keep 类 `NoSuchMethodError` | 检查 R8 synthesized 条目的方法名、参数格式及恒等映射覆盖 |
 
 这些模式的当前实现约束统一记录在 `02_compile_obfuscation.md`。仅凭异常类型或“日志中没有目标类名”不能确认具体缺口；必须核对收集范围和 DEX/mapping 证据。
+
+### 4.3 `source_files.db` 每次启动都重建
+
+**信号**：IDEA 或 standalone 初始化时反复出现 `source file db is too old, recreate database`，源码索引扫描耗时被重复放大，随后可能出现 `SQLITE_BUSY`。
+
+**当前期望行为**：
+- 最近一次完整重建时间保存在 `build/jugg/database/source_files.rebuild_at`，不使用 DB 的 creation time 或 last modified time。
+- stamp 只在数据库创建或重建、schema 初始化、`updateSourceDirs()` 完整提交后更新；普通增量 `updateFiles()` 不刷新。
+- 老版本 DB 缺少 stamp、stamp 损坏、超过 14 天或明显位于未来时完整重建一次；重建失败不更新 stamp。
+- 删除旧 DB 失败时必须明确失败，不能继续在原文件上伪装重建成功。
+- `Clear Jugg Build` 会同时删除 DB 与 stamp，重新打开项目后按新库正常初始化。
+
+**排查步骤**：
+1. 检查 `source_files.db` 与 `source_files.rebuild_at` 是否同时存在。
+2. 搜 `source file db rebuild stamp` / `source file db daysSinceRebuilt`，确认是缺失、损坏、未来时间还是超过 14 天。
+3. 搜 `Failed to delete database` 与 `SQLITE_BUSY`，并对齐 IDEA、`standlone_cli` 日志，确认是否有另一 Runtime 正在写入。
+4. 不要用 creation time 或 last modified time 人工修复 stamp；需要恢复时使用 `Clear Jugg Build`，或关闭相关 Runtime 后删除 `source_files.db` 与 `source_files.rebuild_at`。
+
+**关键类**：
+```
+main/.../deploy/data/SourceFileManager.kt
+main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
+```
 
 ---
 
