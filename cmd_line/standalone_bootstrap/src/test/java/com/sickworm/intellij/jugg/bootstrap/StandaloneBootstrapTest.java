@@ -34,7 +34,7 @@ public class StandaloneBootstrapTest {
     }
 
     @Test
-    public void stopProjectOnlyStopsMatchingStandaloneDaemons() throws Exception {
+    public void stopAllOnlyStopsStandaloneDaemonsFromTheSameRoot() throws Exception {
         Path temp = Files.createTempDirectory("jugg-bootstrap-stop");
         Path root = Files.createDirectories(temp.resolve("root"));
         Path foreignRoot = Files.createDirectories(temp.resolve("foreign-root"));
@@ -48,30 +48,39 @@ public class StandaloneBootstrapTest {
             Process otherProjectProcess = startFakeStandaloneDaemon(classes, root, otherProject, false, temp.resolve("other.ready"));
             Process foreignRootProcess = startFakeStandaloneDaemon(classes, foreignRoot, targetProject, false, temp.resolve("foreign.ready"));
             Process unrelatedProcess = startFakeUnrelatedProcess(classes, root, targetProject, temp.resolve("unrelated.ready"));
+            Process verifyProcess = startFakeStandaloneControl(classes, root, "--verify", temp.resolve("verify.ready"));
+            Process stopProcess = startFakeStandaloneControl(classes, root, "--stop-all", temp.resolve("stop.ready"));
             processes.add(splitArgument);
             processes.add(equalsArgument);
             processes.add(otherProjectProcess);
             processes.add(foreignRootProcess);
             processes.add(unrelatedProcess);
+            processes.add(verifyProcess);
+            processes.add(stopProcess);
 
-            List<Long> stopped = StandaloneBootstrap.stopProjectDaemons(root.toFile(), targetProject.toFile(), 2_000L);
+            List<Long> stopped = StandaloneBootstrap.stopAllDaemons(root.toFile(), 2_000L);
 
             assertEquals(
-                    List.of(splitArgument.pid(), equalsArgument.pid()),
+                    List.of(splitArgument.pid(), equalsArgument.pid(), otherProjectProcess.pid())
+                            .stream()
+                            .sorted()
+                            .collect(Collectors.toList()),
                     stopped.stream().sorted().collect(Collectors.toList())
             );
             assertTrue(splitArgument.waitFor(2, TimeUnit.SECONDS));
             assertTrue(equalsArgument.waitFor(2, TimeUnit.SECONDS));
-            assertFalse(otherProjectProcess.waitFor(200, TimeUnit.MILLISECONDS));
+            assertTrue(otherProjectProcess.waitFor(2, TimeUnit.SECONDS));
             assertFalse(foreignRootProcess.waitFor(200, TimeUnit.MILLISECONDS));
             assertFalse(unrelatedProcess.waitFor(200, TimeUnit.MILLISECONDS));
+            assertFalse(verifyProcess.waitFor(200, TimeUnit.MILLISECONDS));
+            assertFalse(stopProcess.waitFor(200, TimeUnit.MILLISECONDS));
         } finally {
             processes.forEach(Process::destroyForcibly);
         }
     }
 
     @Test
-    public void stopProjectForcesDaemonThatBlocksNormalShutdown() throws Exception {
+    public void stopAllForcesDaemonThatBlocksNormalShutdown() throws Exception {
         Path temp = Files.createTempDirectory("jugg-bootstrap-force-stop");
         Path root = Files.createDirectories(temp.resolve("root"));
         Path project = Files.createDirectories(temp.resolve("project"));
@@ -80,16 +89,14 @@ public class StandaloneBootstrapTest {
         Process process = startFakeJavaProcess(
                 classes,
                 root,
-                project,
-                false,
                 temp.resolve("blocking.ready"),
                 "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap",
-                shutdownStarted
+                shutdownStarted,
+                List.of("--project-dir", project.toString())
         );
         try {
             boolean supportsNormalTermination = process.toHandle().supportsNormalTermination();
-            assertEquals(List.of(process.pid()), StandaloneBootstrap.stopProjectDaemons(
-                    root.toFile(), project.toFile(), 200L));
+            assertEquals(List.of(process.pid()), StandaloneBootstrap.stopAllDaemons(root.toFile(), 200L));
             assertTrue(process.waitFor(2, TimeUnit.SECONDS));
             assertEquals("Unexpected shutdown hook behavior", supportsNormalTermination, shutdownStarted.toFile().isFile());
         } finally {
@@ -98,20 +105,19 @@ public class StandaloneBootstrapTest {
     }
 
     @Test
-    public void stopProjectIsIdempotentWhenNoDaemonMatches() throws Exception {
+    public void stopAllIsIdempotentWhenNoDaemonMatches() throws Exception {
         Path temp = Files.createTempDirectory("jugg-bootstrap-stop-empty");
 
-        assertTrue(StandaloneBootstrap.stopProjectDaemons(
-                temp.resolve("root").toFile(), temp.resolve("project").toFile(), 100L).isEmpty());
+        assertTrue(StandaloneBootstrap.stopAllDaemons(temp.resolve("root").toFile(), 100L).isEmpty());
     }
 
     @Test
-    public void stopProjectCommandDoesNotRequireAnInstalledRuntimeManifest() throws Exception {
+    public void stopAllCommandDoesNotRequireAnInstalledRuntimeManifest() throws Exception {
         Path temp = Files.createTempDirectory("jugg-bootstrap-stop-without-manifest");
         String previousRoot = System.getProperty("jugg.root.dir");
         try {
             System.setProperty("jugg.root.dir", temp.resolve("root").toString());
-            StandaloneBootstrap.main(new String[]{"--stop-project", temp.resolve("project").toString()});
+            StandaloneBootstrap.main(new String[]{"--stop-all"});
         } finally {
             if (previousRoot == null) System.clearProperty("jugg.root.dir");
             else System.setProperty("jugg.root.dir", previousRoot);
@@ -161,29 +167,48 @@ public class StandaloneBootstrapTest {
             boolean equalsArgument,
             Path readyFile
     ) throws Exception {
+        List<String> arguments = equalsArgument
+                ? List.of("--project-dir=" + project)
+                : List.of("--project-dir", project.toString());
         return startFakeJavaProcess(
                 classes,
                 root,
-                project,
-                equalsArgument,
                 readyFile,
                 "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap",
-                null
+                null,
+                arguments
         );
     }
 
     private Process startFakeUnrelatedProcess(Path classes, Path root, Path project, Path readyFile) throws Exception {
-        return startFakeJavaProcess(classes, root, project, false, readyFile, "example.UnrelatedJavaProcess", null);
+        return startFakeJavaProcess(
+                classes,
+                root,
+                readyFile,
+                "example.UnrelatedJavaProcess",
+                null,
+                List.of("--project-dir", project.toString())
+        );
+    }
+
+    private Process startFakeStandaloneControl(Path classes, Path root, String argument, Path readyFile) throws Exception {
+        return startFakeJavaProcess(
+                classes,
+                root,
+                readyFile,
+                "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap",
+                null,
+                List.of(argument)
+        );
     }
 
     private Process startFakeJavaProcess(
             Path classes,
             Path root,
-            Path project,
-            boolean equalsArgument,
             Path readyFile,
             String mainClass,
-            Path shutdownFile
+            Path shutdownFile,
+            List<String> arguments
     ) throws Exception {
         File java = new File(System.getProperty("java.home"), "bin/java");
         List<String> command = new ArrayList<>(List.of(
@@ -195,12 +220,7 @@ public class StandaloneBootstrapTest {
                 mainClass
         ));
         if (shutdownFile != null) command.add(3, "-Dfake.shutdown=" + shutdownFile);
-        if (equalsArgument) {
-            command.add("--project-dir=" + project);
-        } else {
-            command.add("--project-dir");
-            command.add(project.toString());
-        }
+        command.addAll(arguments);
         Process process = new ProcessBuilder(command).start();
         for (int attempt = 0; attempt < 100 && !readyFile.toFile().isFile(); attempt++) {
             Thread.sleep(20L);

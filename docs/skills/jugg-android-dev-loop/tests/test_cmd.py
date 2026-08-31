@@ -29,28 +29,19 @@ class StopCommandTest(unittest.TestCase):
 
     def test_invokes_launcher_without_resolving_runtime(self):
         with tempfile.TemporaryDirectory() as temp:
-            project_dir = Path(temp, "project")
-            project_dir.mkdir()
-            Path(project_dir, "settings.gradle").touch()
-            working_dir = Path(project_dir, "app", "src")
-            working_dir.mkdir(parents=True)
             launcher = Path(temp, "jugg-standalone")
             launcher.touch()
-            completed = subprocess.CompletedProcess([], 0, "Stopped Jugg standalone runtime.\n", "")
+            completed = subprocess.CompletedProcess([], 0, "Stopped all Jugg standalone runtimes.\n", "")
             output = io.StringIO()
 
-            with patch.object(self.command.jugglib, "candidate_project_dir", return_value=str(working_dir)), \
-                 patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
+            with patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
                  patch.object(self.command.jugglib, "resolve_port", side_effect=AssertionError("must not resolve Runtime")), \
                  patch.object(self.command.subprocess, "run", return_value=completed) as run, \
                  contextlib.redirect_stdout(output):
                 self.command.cmd_stop([])
 
-            self.assertEqual(
-                [str(launcher), "--stop-project", str(project_dir.resolve())],
-                run.call_args.args[0],
-            )
-            self.assertIn("Stopped Jugg standalone runtime.", output.getvalue())
+            self.assertEqual([str(launcher), "--stop-all"], run.call_args.args[0])
+            self.assertIn("Stopped all Jugg standalone runtimes.", output.getvalue())
 
     def test_rejects_idea_runtime(self):
         self.command.jugglib.runtime_type_override = "idea"
@@ -69,8 +60,7 @@ class StopCommandTest(unittest.TestCase):
             completed = subprocess.CompletedProcess([], 7, "", "Unable to stop runtime.\n")
             error = io.StringIO()
 
-            with patch.object(self.command.jugglib, "candidate_project_dir", return_value=temp), \
-                 patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
+            with patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
                  patch.object(self.command.subprocess, "run", return_value=completed), \
                  contextlib.redirect_stderr(error), self.assertRaises(SystemExit) as raised:
                 self.command.cmd_stop([])
@@ -91,8 +81,7 @@ class StopCommandTest(unittest.TestCase):
             output = io.StringIO()
             self.command.jugglib.json_mode = True
 
-            with patch.object(self.command.jugglib, "candidate_project_dir", return_value=temp), \
-                 patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
+            with patch.object(self.command.jugglib, "_standalone_launcher_path", return_value=launcher), \
                  patch.object(self.command.subprocess, "run", return_value=completed), \
                  contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
                 self.command.cmd_stop([])

@@ -59,7 +59,7 @@
 | `build/jugg/config/current_run_configuration.json` | IDEA / standalone | 当前配置指针，只保存 schemaVersion 与 configId |
 | `build/jugg/runtime.lock.owner.json` | 当前持有 Project Runtime lease 的 Runtime | 首个同 Runtime 项目任务取得 lease 时写入，最后一个引用释放后删除 |
 | `build/jugg/runtime.owner.json` | `TaskRunnerManager` | 上次取得项目写所有权的 IDEA/standalone Runtime；CI 不写入；使用临时文件与原子替换；内容损坏时按无历史 owner 处理并由当前 Runtime 覆盖 |
-| `build/jugg/runtime.launch.lock` | Python CLI | 同项目 standalone 自动拉起的跨进程互斥锁；锁内二次发现 Runtime，避免并发 CLI 重复创建 daemon |
+| `~/.jugg/locks/standalone.launch.lock` | Python CLI | standalone 自动拉起的进程级互斥锁；锁内二次发现 Runtime，避免不同项目并发创建多个 daemon |
 
 IDEA Jugg Run Configuration 是共享 profile 的同步源。项目启动时会按稳定 UUID 覆盖保存当前 IDEA 配置，并将当前选中的 Jugg Configuration 写入 pointer；因此重命名不生成新 profile，远端开关、认证与 Gradle command 也不会继续沿用上次退出时的旧快照。后续选择和编辑事件继续执行同一 `save + select` 契约。
 
@@ -172,11 +172,15 @@ JuggManager.onSyncEvent()
 ### 4.3 Standalone daemon 项目注册
 
 ```text
-jugg CLI 发现目标项目没有 Runtime
-  -> 启动 jugg-standalone --project-dir <projectDir>
+jugg CLI 发现目标项目没有 owner
+  -> 优先复用任意已运行的 standalone Runtime
+  -> 没有 standalone 时通过全局 launch lock 启动 jugg-standalone --project-dir <projectDir>
   -> JuggDaemon
      创建 StandaloneProjectRegistry
-     为项目调用 StandaloneJuggRuntimeAssembler
+     为启动项目调用 StandaloneJuggRuntimeAssembler
+  -> 首个合法项目级 MCP 请求
+     校验工具、参数和 projectDir
+     未注册时调用 StandaloneJuggRuntimeAssembler
   -> StandaloneProjectRuntime
      在项目锁内记录 runtime.owner.json / owner-change event
      创建项目级 McpToolInvoker
@@ -185,7 +189,9 @@ jugg CLI 发现目标项目没有 Runtime
      init / compile / deploy / gradle-build / status 按 projectDir 路由到项目 Runtime
 ```
 
-`jugg stop` 不进入上述 MCP 路由。CLI 直接同步调用稳定 standalone launcher 的 `--stop-project <projectDir>` 控制模式；bootstrap 在加载 active Runtime JAR 前，通过 `ProcessHandle` 按同一 Jugg 根目录和 canonical project path 匹配 `StandaloneBootstrap` 进程。平台支持正常终止时先请求正常退出，5 秒后仍存活则强制终止；不支持的平台直接强制终止。该路径可处理端口尚未 ready 的启动卡顿，同时不会停止 IDEA Runtime、其他工程 daemon，也不会删除项目持久化状态。
+`version`、`list-projects` 等全局请求不会注册项目；非法工具、非法 schema 或不存在的项目目录也不会产生注册副作用。项目初始化按 canonical projectDir 独立协调：同项目并发请求共享一次初始化，不同项目并行初始化，慢项目不会阻塞已注册项目的请求。构造失败会对称关闭该项目已创建的 monitor、scope、task manager 和日志资源，再返回 `PROJECT_NOT_INITIALIZED`；已经注册的项目继续工作，失败项目也可安全重试。CLI 在目标项目尚未出现在 `list-projects` 时保留 pending projectDir，首个项目请求等待自动初始化并沿用 standalone 启动 heartbeat。
+
+`jugg stop` 不进入上述 MCP 路由。CLI 直接同步调用稳定 standalone launcher 的 `--stop-all` 控制模式；bootstrap 在加载 active Runtime JAR 前，通过 `ProcessHandle` 按同一 Jugg 根目录匹配全部 `StandaloneBootstrap` 进程。平台支持正常终止时先请求正常退出，5 秒后仍存活则强制终止；不支持的平台直接强制终止。该路径可处理端口尚未 ready 的启动卡顿，同时不会停止 IDEA Runtime、其他 Jugg 根目录的进程，也不会删除项目持久化状态。
 
 Step 11 已由 `StandaloneProjectServices` 组装 Gradle-only model、Compile Context、历史恢复、WatchService/Git reconcile、共享 `JuggCompilerHelper` 与 `JuggDeployerHelper`。WatchService 优先使用 JDK `FILE_TREE` 对工程根注册单个原生递归 WatchKey，不支持时回退逐目录注册；两条路径都忽略 `.git`、`.gradle`、`.idea` 和 `build` 子树事件。启动期若因文件句柄等原因失败，会关闭已创建的 watcher、注册 Git listener 并立即执行一次 Git refresh，后续 `status`、`compile`、`deploy` 也会继续通过 Git refresh 恢复变更。进程级 capability 为 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`；`gradle-build` 建立 baseline，`deploy` 负责安装或增量部署。当前 profile 为 remote 时，standalone 在 Gradle full build/fallback 中复用 IDEA 的 `RemoteGradleCompileClient`、SSH/iFT 连接、文件同步和产物拉取链路；`rsync` 与 iFT 仍是 standalone 所在主机需要提供的外部工具。增量编译、设备操作与远程构建前的 project info Gradle dry-run 仍在该本机执行。standalone 不提供认证弹窗，必须在配置中预先提供 SSH 凭据或完成 iFT 认证；否则 compile job 返回 failed，清理终端输出与取消监听器，并给出非交互认证提示。Runtime 构造期的 config/history/context 恢复、显式 `init` 和每次完整 compile/deploy 链都持有同一项目写锁；standalone 项目写事务同时计入 daemon activity。空闲 `status` 仅在非阻塞取得项目锁后执行 owner 恢复、Git refresh 和一致性快照；同 Runtime 正在编译或项目锁正由其他写事务持有时，立即返回当前真实只读快照，不刷新或写入文件状态。运行期间检测到 IDEA/standalone owner 变化后，当前 Runtime 会在下一次成功取得项目写锁的业务链或 status snapshot 开始前重新加载 Compile Context、history、APK 与 Git 文件状态，并使 deployment memory cache 失效。
 
@@ -199,7 +205,7 @@ Runtime dispose 不强制修改 owner 或 Project Runtime lease 引用计数，�
 
 `IExecutionLockManager` 仅声明项目锁与 owner 读取，不提供默认方法实现。锁等待/非阻塞取得、项目状态快照和 unsupported 能力必须由具体 Runtime 或测试实现显式声明，避免新增 Host 静默继承错误的并发或能力语义。
 
-daemon 的 idle deadline 只由外部 MCP 请求刷新；WatchService、后台轮询和 update check 不刷新。达到 4 小时时，若存在 compile/deploy/Gradle job、项目写事务或更新下载，则每 1 分钟复查，条件解除后停止 MCP Server 并 dispose 全部项目 Runtime。用户也可通过项目级 `jugg stop` 提前结束 standalone daemon；支持正常终止的平台会先触发 JVM shutdown hook，超时后再强制终止，Windows 等不支持正常终止的平台直接强制终止。
+daemon 的 idle deadline 只由外部 MCP 请求刷新；WatchService、后台轮询和 update check 不刷新。达到 4 小时时，若存在 compile/deploy/Gradle job、项目写事务或更新下载，则每 1 分钟复查，条件解除后停止 MCP Server 并 dispose 全部项目 Runtime。用户也可通过 `jugg stop` 结束同一 Jugg 根目录下的全部 standalone daemon；支持正常终止的平台会先触发 JVM shutdown hook，超时后再强制终止，Windows 等不支持正常终止的平台直接强制终止。
 
 ### 4.4 androidTest 相关读取
 

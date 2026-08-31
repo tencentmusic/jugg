@@ -53,20 +53,24 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Owns the standalone project domain shared by MCP compile, deploy, and status tools. */
-class StandaloneProjectServices(
+internal class StandaloneProjectServices(
     val projectDir: File,
     runtimeInfo: RuntimeInfo,
     private val activity: StandaloneDaemonActivity,
+    private val resources: StandaloneProjectResources,
 ) : AutoCloseable {
     val pathManager = JuggPathManager(projectDir)
     private val logKey = projectDir.absolutePath
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
         JuggLogger.register(logKey, pathManager.standaloneCliLogDir)
+        resources.register { JuggLogger.unregister(logKey) }
     }
 
     val logger: Logger = JuggLogger.getInstance(logKey, "StandaloneProjectRuntime")
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scope ->
+        resources.register { scope.cancel() }
+    }
 
     init {
         logger.info("Start Init Jugg standalone on ${projectDir.absolutePath}, version=${runtimeInfo.runtimeVersion}, " +
@@ -86,9 +90,16 @@ class StandaloneProjectServices(
     private val taskRunnerManager = TaskRunnerManager(
         logger, deployStateManager, juggServer, ImmediateHostTaskExecutor, pathManager,
         runtimeInfo.runtimeType, runtimeInfo.runtimeVersion, scope,
-    )
-    val deployFileManager = DeployFileManager(pathManager, taskRunnerManager, logger)
-    private val customCompilerManager = CustomCompilerManager(projectDir, pathManager.customCompilerDir, juggServer, logger)
+    ).also { manager -> resources.register(manager::dispose) }
+    val deployFileManager = DeployFileManager(pathManager, taskRunnerManager, logger).also { manager ->
+        resources.register(manager::dispose)
+    }
+    private val customCompilerManager = CustomCompilerManager(
+        projectDir,
+        pathManager.customCompilerDir,
+        juggServer,
+        logger,
+    ).also { manager -> resources.register(manager::close) }
     private val compileContextManager = CompileContextManager(
         pathManager, GradleProjectModelSource(pathManager, logger), deployFileManager, deployHistoryManager,
         customCompilerManager, compileEnvironmentSource, ICompileContext.Scene.IDE, logger,
@@ -98,7 +109,7 @@ class StandaloneProjectServices(
     private val gradleProjectInfoManager = GradleProjectInfoLocalFetchManager(
         pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager,
         deployHistoryManager, compileEnvironmentSource, logger,
-    )
+    ).also { manager -> resources.register(manager::close) }
     private val gitFileChangesDetector = GitFileChangesDetector(
         deployHistoryManager, deployFileManager, taskRunnerManager, logger,
     )
@@ -106,10 +117,16 @@ class StandaloneProjectServices(
         fileChangesHandler, deployFileManager, dependencyChangeManager, gitFileChangesDetector,
         deployStateManager, taskRunnerManager, logger,
     )
-    private val fileMonitor = WatchServiceFileChangeMonitor(projectDir, logger)
-    private val deploymentService = JuggDeploymentService(
-        pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager), StandaloneApplyChangesExecutor(),
-    )
+    private val fileMonitor = WatchServiceFileChangeMonitor(projectDir, logger).also { monitor ->
+        resources.register(monitor::close)
+    }
+    private val deploymentService by lazy {
+        JuggDeploymentService(
+            pathManager,
+            JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager),
+            StandaloneApplyChangesExecutor(),
+        )
+    }
     private val projectCustomConfigManager = ProjectCustomConfigManager(
         pathManager.configDir, logger, juggServer, fileChangesHandler, deployHistoryManager,
         compileContextManager, customCompilerManager,
@@ -119,7 +136,7 @@ class StandaloneProjectServices(
         deployHistoryManager, runningTaskStatusManager, compileContextManager, fileChangesHandler,
         dependencyChangeManager, gradleProjectInfoManager, compileEnvironmentSource,
         gitFileChangesDetector, taskRunnerManager, logger,
-    )
+    ).also { helper -> resources.register(helper::close) }
     val deployerHelper: JuggDeployerHelper by lazy {
         JuggDeployerHelper(
             deployTargetManagerInside, deployFileManager, deployHistoryManager, deployStateManager,
@@ -132,6 +149,7 @@ class StandaloneProjectServices(
     var ownerChange: RuntimeOwnerChangeEvent? = null
         private set
     private val monitoringStarted = AtomicBoolean()
+    private val closed = AtomicBoolean()
 
     init {
         juggServer.initialize()
@@ -300,7 +318,10 @@ class StandaloneProjectServices(
     private fun getDeviceManager(): StandaloneDeviceManager {
         deviceManager?.let { return it }
         check(adbFile.isFile) { "ADB executable not found. Set ANDROID_HOME or ANDROID_SDK_ROOT." }
-        return StandaloneDeviceManager(adbFile).also { deviceManager = it }
+        return StandaloneDeviceManager(adbFile).also { manager ->
+            resources.register(manager::close)
+            deviceManager = manager
+        }
     }
 
     private fun resolveAdb(): File {
@@ -310,16 +331,15 @@ class StandaloneProjectServices(
     }
 
     override fun close() {
-        logger.info("Close Jugg standalone project on ${projectDir.absolutePath}")
-        fileMonitor.close()
-        gradleProjectInfoManager.close()
-        compilerHelper.close()
-        deployFileManager.dispose()
-        customCompilerManager.close()
-        deviceManager?.close()
-        taskRunnerManager.dispose()
-        scope.cancel()
-        JuggLogger.unregister(logKey)
+        if (!closed.compareAndSet(false, true)) return
+        val errors = mutableListOf<Throwable>()
+        runCatching { logger.info("Close Jugg standalone project on ${projectDir.absolutePath}") }
+            .exceptionOrNull()
+            ?.let(errors::add)
+        errors += resources.cleanup()
+        if (errors.isNotEmpty()) {
+            throw errors.first().also { first -> errors.drop(1).forEach(first::addSuppressed) }
+        }
     }
 
     private object ImmediateHostTaskExecutor : IHostTaskExecutor {

@@ -93,6 +93,7 @@ class StandaloneLaunch:
 
 _selected_runtime_port: Optional[int] = None
 _selected_project_dir: str = ""
+_selected_project_registered: bool = True
 runtime_type_override: str = ""
 device_serial_override: str = ""
 _STANDALONE_STARTUP_TIMEOUT_SECONDS = 60
@@ -121,6 +122,13 @@ DEVICE_TARGET_TOOLS = {
     "tap",
     "status",
     "wait-logs",
+}
+PROJECT_REGISTRATION_REJECTED_ERRORS = {
+    "INVALID_JSON_RPC",
+    "METHOD_NOT_SUPPORTED",
+    "TOOL_NOT_FOUND",
+    "INVALID_PARAMS",
+    "PROJECT_NOT_INITIALIZED",
 }
 
 
@@ -252,9 +260,10 @@ def discover_runtime_endpoints() -> list[RuntimeEndpoint]:
 
 def reset_runtime_selection() -> None:
     """Forget the in-process runtime selection."""
-    global _selected_runtime_port, _selected_project_dir
+    global _selected_runtime_port, _selected_project_dir, _selected_project_registered
     _selected_runtime_port = None
     _selected_project_dir = ""
+    _selected_project_registered = True
 
 
 def candidate_project_dir() -> str:
@@ -362,6 +371,26 @@ def _select_runtime(
     )
 
 
+def _select_runtime_or_standalone(
+    endpoints: list[RuntimeEndpoint],
+    project_dir: str,
+    allow_parent_project: bool = True,
+) -> tuple[Optional[RuntimeEndpoint], bool]:
+    selected = _select_runtime(endpoints, project_dir, allow_parent_project)
+    if selected is not None:
+        return selected, True
+    if runtime_type_override == "idea":
+        return None, False
+    standalone = next(
+        (
+            endpoint for endpoint in endpoints
+            if endpoint.runtime_type == "standalone" and _matches_runtime_override(endpoint)
+        ),
+        None,
+    )
+    return standalone, False
+
+
 def _runtime_owns_project(
     endpoint: RuntimeEndpoint,
     project_dir: str,
@@ -392,7 +421,7 @@ def _standalone_java_command() -> str:
 
 
 def launch_standalone(project_dir: str) -> StandaloneLaunch:
-    """Start the installed standalone daemon for one project."""
+    """Start the installed standalone daemon with its first project."""
     launcher = _standalone_launcher_path()
     if not launcher.is_file():
         print(f"ERROR: Jugg standalone launcher not found: {launcher}", file=sys.stderr)
@@ -475,7 +504,7 @@ def _print_standalone_startup_heartbeat(project_dir: str, elapsed_seconds: int) 
 
 @contextlib.contextmanager
 def _standalone_launch_lock(project_dir: str):
-    lock_file = Path(project_dir) / "build" / "jugg" / "runtime.launch.lock"
+    lock_file = _standalone_launch_lock_path(project_dir)
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     with lock_file.open("a+b") as handle:
         if lock_file.stat().st_size == 0:
@@ -490,6 +519,12 @@ def _standalone_launch_lock(project_dir: str):
             yield
         finally:
             _unlock_file(handle)
+
+
+def _standalone_launch_lock_path(project_dir: str) -> Path:
+    del project_dir
+    configured = os.environ.get("JUGG_STANDALONE_LAUNCH_LOCK")
+    return Path(configured) if configured else Path.home() / ".jugg" / "locks" / "standalone.launch.lock"
 
 
 def _try_lock_file(handle) -> bool:
@@ -528,7 +563,7 @@ def _hook_can_launch(project_dir: str) -> bool:
 
 def resolve_port() -> int:
     """Resolve the runtime owning the target project, starting standalone when needed."""
-    global _selected_runtime_port, _selected_project_dir
+    global _selected_runtime_port, _selected_project_dir, _selected_project_registered
     if _selected_runtime_port is not None and ping_port(_selected_runtime_port):
         return _selected_runtime_port
 
@@ -537,18 +572,27 @@ def resolve_port() -> int:
     allow_parent_project = bool(project_dir_override.strip())
     _print_progress_heartbeat(f"Checking Jugg runtime for {display_project_dir}...")
     endpoints = discover_runtime_endpoints()
-    selected = _select_runtime(endpoints, runtime_project_dir, allow_parent_project)
+    selected, project_registered = _select_runtime_or_standalone(
+        endpoints,
+        runtime_project_dir,
+        allow_parent_project,
+    )
     launch: Optional[StandaloneLaunch] = None
-    if selected is None:
+    if selected is None or not project_registered:
         if runtime_type_override == "idea":
             print(f"ERROR: No IDEA Runtime owns project '{display_project_dir}'.", file=sys.stderr)
             sys.exit(1)
         if not _hook_can_launch(display_project_dir):
             sys.exit(0)
+    if selected is None:
         try:
             with _standalone_launch_lock(display_project_dir):
                 endpoints = discover_runtime_endpoints()
-                selected = _select_runtime(endpoints, runtime_project_dir, allow_parent_project)
+                selected, project_registered = _select_runtime_or_standalone(
+                    endpoints,
+                    runtime_project_dir,
+                    allow_parent_project,
+                )
                 if selected is None:
                     _print_progress_heartbeat(
                         f"Starting Jugg standalone runtime for {display_project_dir} with {_standalone_java_command()}..."
@@ -567,7 +611,11 @@ def resolve_port() -> int:
                             _print_standalone_startup_failure(launch, f"failed to start (exit code {exit_code})")
                             sys.exit(1)
                     endpoints = discover_runtime_endpoints()
-                    selected = _select_runtime(endpoints, runtime_project_dir, allow_parent_project)
+                    selected, project_registered = _select_runtime_or_standalone(
+                        endpoints,
+                        runtime_project_dir,
+                        allow_parent_project,
+                    )
                     if selected is not None:
                         break
                     now = time.monotonic()
@@ -590,7 +638,11 @@ def resolve_port() -> int:
         sys.exit(1)
 
     _selected_runtime_port = selected.port
-    _selected_project_dir = normalize_project_dir(match_project_dir(runtime_project_dir, selected.projects)) or runtime_project_dir
+    _selected_project_registered = project_registered
+    _selected_project_dir = (
+        normalize_project_dir(match_project_dir(runtime_project_dir, selected.projects))
+        if project_registered else runtime_project_dir
+    ) or runtime_project_dir
     write_port_cache(selected.port)
     if launch is not None:
         _print_progress_heartbeat(f"Standalone runtime ready on port {selected.port}.")
@@ -619,6 +671,7 @@ def http_post(port: int, body: str, timeout: int = 120) -> dict:
 
 def raw_call(port: int, tool: str, params: dict) -> dict:
     """Assemble JSON-RPC 2.0 tools/call body and POST it."""
+    global _selected_project_registered
     request_params = dict(params)
     if device_serial_override and tool in DEVICE_TARGET_TOOLS:
         request_params.setdefault("serial", device_serial_override)
@@ -628,7 +681,42 @@ def raw_call(port: int, tool: str, params: dict) -> dict:
         "method": "tools/call",
         "params": {"name": tool, "arguments": request_params},
     })
+    project_dir = request_params.get("projectDir")
+    if (
+        not _selected_project_registered
+        and isinstance(project_dir, str)
+        and _project_dir_key(project_dir) == _project_dir_key(_selected_project_dir)
+    ):
+        response = _http_post_with_registration_heartbeat(port, body, project_dir)
+        if extract_structured(response).get("errorCode") not in PROJECT_REGISTRATION_REJECTED_ERRORS:
+            _selected_project_registered = True
+        return response
     return http_post(port, body)
+
+
+def _http_post_with_registration_heartbeat(port: int, body: str, project_dir: str) -> dict:
+    result: dict[str, Any] = {}
+    completed = threading.Event()
+
+    def post() -> None:
+        try:
+            result["response"] = http_post(port, body, timeout=_STANDALONE_STARTUP_TIMEOUT_SECONDS)
+        except BaseException as error:
+            result["error"] = error
+        finally:
+            completed.set()
+
+    threading.Thread(target=post, name="jugg-project-registration", daemon=True).start()
+    started_at = time.monotonic()
+    next_heartbeat_at = started_at + _STANDALONE_STARTUP_HEARTBEAT_SECONDS
+    while not completed.wait(max(0.0, next_heartbeat_at - time.monotonic())):
+        now = time.monotonic()
+        _print_standalone_startup_heartbeat(project_dir, int(now - started_at))
+        while next_heartbeat_at <= now:
+            next_heartbeat_at += _STANDALONE_STARTUP_HEARTBEAT_SECONDS
+    if "error" in result:
+        raise result["error"]
+    return result["response"]
 
 
 def extract_structured(response: dict) -> dict:
@@ -764,6 +852,8 @@ def resolve_project_dir() -> str:
         return _selected_project_dir or normalize_project_dir(project_dir_override)
 
     port = resolve_port()
+    if _selected_project_dir and not _selected_project_registered:
+        return _selected_project_dir
     response = raw_call(port, "list-projects", {})
     structured = extract_structured(response)
     projects_list = structured.get("data", {}).get("projects", [])

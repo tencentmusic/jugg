@@ -75,7 +75,7 @@
 | standalone_deployer | `deploy_compat/standalone_deployer/src/main/java/`, `deploy_compat/standalone_deployer/src/main/resources/deployer/quail/` | 固定 Quail 1 的 Java 11 deployer 最小闭包、`StandaloneApplyChangesExecutor`、真实 ddmlib `StandaloneDeviceManager`、installer/protocol 资源与 SHA-256 metadata；不打包或加载完整 `sdk-tools.jar` |
 | platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/log4j 最小实现，供 `main` 编译并作为 CLI runtime stub；禁止包含 `com.android.*` |
 | Stub API 工具 | `tools/stub_api_generator/`, `deploy_compat/*.sh`, `deploy_compat/stub_api/` | 从已编译 compat JAR 的字节码引用闭包生成版本化 compile-only Stub；脚本负责创建模块、显式切换真实 JAR/Stub、生成 Stub，并通过 `verify_stub_api.sh` clean 构建两边产物后验证 AS API 调用一致性 |
-| cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | 现有 `CmdLine`/CI 命令保持不变；`standalone/` 提供 daemon/project runtime、init、Gradle/增量 compile、deploy、status 与懒加载 ddmlib 生命周期 |
+| cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | 现有 `CmdLine`/CI 命令保持不变；`standalone/` 由进程级 registry 承载多个 project runtime，合法项目请求按需注册，并提供 init、Gradle/增量 compile、deploy、status 与懒加载 ddmlib 生命周期；`standalone_bootstrap/` 提供同 Jugg 根目录 stop-all |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |
 | jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/` | JVMTI native 能力（`native-lib.cpp`、`instrumenter.cc`）+ runtime instrument 修复（`ApplyChangesOverlayPolicy` 等）+ App 内 ViewHierarchy LocalSocket Server；`DragonflyHierarchySource` 是 dump、selector、tap、inspect、layout verify 的唯一节点数据源，Dragonfly DEX JAR 及内置 Kotlin/协程等依赖经离线预处理为 Jugg 私有包并同时进入 instruments/runtime JAR，窗口枚举失败时 Best-effort 复用旧 ActivityThread/WindowManagerGlobal 根列表；由 `BootstrapApplication` 初始化 |
 

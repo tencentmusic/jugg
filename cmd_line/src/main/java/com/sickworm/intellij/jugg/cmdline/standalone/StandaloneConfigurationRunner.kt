@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /** Executes one standalone compile/deploy chain and cancels the previous run when replaced. */
-class StandaloneConfigurationRunner(
+internal class StandaloneConfigurationRunner(
     private val services: StandaloneProjectServices,
     private val activity: StandaloneDaemonActivity,
 ) : IJuggConfigurationRunner {
@@ -223,7 +223,7 @@ class StandaloneConfigurationRunner(
 }
 
 /** Exposes standalone Gradle builds through the shared MCP job protocol. */
-class StandaloneForceGradleCompileHelper(
+internal class StandaloneForceGradleCompileHelper(
     private val runner: StandaloneConfigurationRunner,
     private val configurationStore: CliRunConfigurationStore,
 ) : ForceGradleCompileHelper() {

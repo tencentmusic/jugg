@@ -1,5 +1,7 @@
 # Standalone CLI Stop 方案
 
+> 已由 `standalone_multi_project_runtime.md` 的 stop-all 语义取代；以下内容仅保留历史设计记录。
+
 ## 背景
 
 Standalone Runtime 由全局 CLI 按项目自动拉起，并以独立进程持续运行。当前 CLI 没有停止命令；用户只能先通过 `pgrep` 查找 `StandaloneBootstrap`，再手工执行 `kill`。该方式依赖平台命令，且容易误停其他工程的 Runtime。

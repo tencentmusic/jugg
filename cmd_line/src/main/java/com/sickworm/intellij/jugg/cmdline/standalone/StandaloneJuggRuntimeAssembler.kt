@@ -11,6 +11,39 @@ class StandaloneJuggRuntimeAssembler(
     private val toolRegistry: McpToolRegistry,
 ) {
     fun create(projectDir: File): StandaloneProjectRuntime {
-        return StandaloneProjectRuntime(projectDir, runtimeInfo, activity, toolRegistry)
+        val resources = StandaloneProjectResources()
+        return try {
+            StandaloneProjectRuntime(projectDir, runtimeInfo, activity, toolRegistry, resources)
+        } catch (error: Throwable) {
+            resources.cleanup().forEach(error::addSuppressed)
+            throw error
+        }
+    }
+}
+
+/** Tracks project resources during construction so partial runtimes can be closed safely. */
+internal class StandaloneProjectResources {
+    private val cleanupActions = mutableListOf<() -> Unit>()
+    private var closed = false
+
+    fun register(action: () -> Unit) {
+        val closeNow = synchronized(this) {
+            if (closed) {
+                true
+            } else {
+                cleanupActions.add(action)
+                false
+            }
+        }
+        if (closeNow) action()
+    }
+
+    fun cleanup(): List<Throwable> {
+        val actions = synchronized(this) {
+            if (closed) return emptyList()
+            closed = true
+            cleanupActions.asReversed().toList().also { cleanupActions.clear() }
+        }
+        return actions.mapNotNull { action -> runCatching(action).exceptionOrNull() }
     }
 }

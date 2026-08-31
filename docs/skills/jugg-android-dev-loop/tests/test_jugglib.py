@@ -168,6 +168,26 @@ class ResolvePortTest(unittest.TestCase):
         self.assertIn(" with ", stderr.getvalue())
         self.assertIn("Standalone runtime ready on port 12324", stderr.getvalue())
 
+    def test_resolve_port_reuses_standalone_for_an_unregistered_project(self):
+        project_dir = os.path.join(self.tmp, "project")
+        other_project = os.path.join(self.tmp, "other-project")
+        os.makedirs(project_dir)
+        endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [other_project])
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", return_value=[endpoint]), \
+             patch.object(
+                 jugglib,
+                 "launch_standalone",
+                 side_effect=AssertionError("must reuse the running standalone"),
+             ) as mock_launch:
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12324, port)
+        self.assertEqual(jugglib.normalize_project_dir(project_dir), jugglib._selected_project_dir)
+        self.assertFalse(jugglib._selected_project_registered)
+        mock_launch.assert_not_called()
+
     def test_resolve_port_waits_for_slow_standalone_and_reports_latest_runtime_log(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(project_dir)
@@ -333,6 +353,17 @@ class ResolvePortTest(unittest.TestCase):
                     process.terminate()
                     process.wait(timeout=5)
 
+    def test_standalone_launch_lock_is_shared_by_different_projects(self):
+        project_a = os.path.join(self.tmp, "project-a")
+        project_b = os.path.join(self.tmp, "project-b")
+        lock_file = os.path.join(self.tmp, "standalone.launch.lock")
+
+        with patch.dict(os.environ, {"JUGG_STANDALONE_LAUNCH_LOCK": lock_file}):
+            self.assertEqual(
+                jugglib._standalone_launch_lock_path(project_a),
+                jugglib._standalone_launch_lock_path(project_b),
+            )
+
     def test_hook_without_complete_flag_skips_daemon_start(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(project_dir)
@@ -340,6 +371,22 @@ class ResolvePortTest(unittest.TestCase):
         with patch.dict(os.environ, {"JUGG_CALLER": "hook"}), \
              patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
              patch.object(jugglib, "discover_runtime_endpoints", return_value=[]), \
+             patch.object(jugglib, "launch_standalone") as mock_launch, \
+             self.assertRaises(SystemExit) as cm:
+            jugglib.resolve_port()
+
+        self.assertEqual(0, cm.exception.code)
+        mock_launch.assert_not_called()
+
+    def test_hook_without_complete_flag_does_not_register_in_an_existing_daemon(self):
+        project_dir = os.path.join(self.tmp, "project")
+        other_project = os.path.join(self.tmp, "other-project")
+        os.makedirs(project_dir)
+        endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [other_project])
+
+        with patch.dict(os.environ, {"JUGG_CALLER": "hook"}), \
+             patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", return_value=[endpoint]), \
              patch.object(jugglib, "launch_standalone") as mock_launch, \
              self.assertRaises(SystemExit) as cm:
             jugglib.resolve_port()
@@ -583,6 +630,18 @@ class ProjectDirOverrideTest(unittest.TestCase):
 
         self.assertEqual(result, parent_project_dir)
 
+    def test_resolve_project_dir_uses_pending_standalone_project_without_listing_it(self):
+        project_dir = "/standalone/project"
+        jugglib._selected_project_dir = project_dir
+        jugglib._selected_project_registered = False
+
+        with patch.object(jugglib, "resolve_port", return_value=12320), \
+             patch.object(jugglib, "raw_call") as mock_raw_call:
+            result = jugglib.resolve_project_dir()
+
+        self.assertEqual(project_dir, result)
+        mock_raw_call.assert_not_called()
+
 
 class JuggGlobalProjectDirTest(unittest.TestCase):
 
@@ -763,6 +822,47 @@ class DeviceSerialInjectionTest(unittest.TestCase):
 
         request = json.loads(mock_post.call_args[0][1])
         self.assertEqual("device-2", request["params"]["arguments"]["serial"])
+
+
+class StandaloneProjectRegistrationHeartbeatTest(unittest.TestCase):
+
+    def tearDown(self):
+        jugglib.reset_runtime_selection()
+
+    def test_first_project_request_reports_slow_automatic_registration(self):
+        project_dir = "/pending/project"
+        jugglib._selected_project_dir = project_dir
+        jugglib._selected_project_registered = False
+
+        def delayed_post(*_args, **_kwargs):
+            time.sleep(0.04)
+            return {"result": {"structuredContent": {"status": "OK"}}}
+
+        with patch.object(jugglib, "http_post", side_effect=delayed_post), \
+             patch.object(jugglib, "_STANDALONE_STARTUP_HEARTBEAT_SECONDS", 0.01), \
+             patch.object(jugglib, "_print_standalone_startup_heartbeat") as heartbeat:
+            jugglib.raw_call(12320, "status", {"projectDir": project_dir})
+
+        heartbeat.assert_called()
+        self.assertTrue(jugglib._selected_project_registered)
+
+    def test_invalid_first_project_request_remains_pending(self):
+        project_dir = "/pending/project"
+        jugglib._selected_project_dir = project_dir
+        jugglib._selected_project_registered = False
+        response = {
+            "result": {
+                "structuredContent": {
+                    "status": "ERROR",
+                    "errorCode": "INVALID_PARAMS",
+                },
+            },
+        }
+
+        with patch.object(jugglib, "http_post", return_value=response):
+            jugglib.raw_call(12320, "status", {"projectDir": project_dir})
+
+        self.assertFalse(jugglib._selected_project_registered)
 
 
 class InitCommandTest(unittest.TestCase):

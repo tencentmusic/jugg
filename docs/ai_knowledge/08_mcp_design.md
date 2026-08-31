@@ -76,12 +76,12 @@ McpToolAction
 - `required` 字段缺失会返回 `INVALID_PARAMS`。
 - 嵌套 object 也按 schema 校验 `additionalProperties`。
 - 只有 `McpToolActionRegistry.noProjectDirTools` 中的工具不要求 `projectDir`；当前是 `list-projects` 与 `version`。
-- 非全局工具会校验项目是否已初始化。
+- IDEA 的非全局工具会校验项目是否已初始化；standalone 对未知项目先完成工具和 schema 校验，合法请求再自动初始化并路由。
 - `projectDir` 在 schema 校验前经 `ProjectDirNormalizer.normalizeProjectDir` 统一规范化（`/` 分隔、Windows 盘符路径、MSYS `/d/...`、Cygwin `/cygdrive/d/...`、WSL `/mnt/d/...`）；`list-projects` 输出与 `JuggInitializer.getManager` 查找均使用同一 canonical 形式。
 
 Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/baseline 校验、runtime observe 工具的 App ready 校验。未注册 action（如 `layout-verify`）即使保留内部校验，也不能视为公开 MCP 能力。
 
-IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 11 注册 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`；`init` action 仅加入 standalone action registry，不改变 IDEA 的公开工具集合。
+IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。standalone 的 `version`、`list-projects` 不触发项目注册；未知项目的合法项目级请求由 `StandaloneProjectRegistry` 自动初始化后继续执行，非法工具、非法 schema、非法路径和初始化失败不会污染注册表。初始化按 canonical projectDir 共享 completion，不同项目间不持有 registry 全局构造锁；失败路径关闭已创建的项目资源并允许重试，因此慢项目或失败项目不影响其他已初始化项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 11 注册 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`；`init` action 仅加入 standalone action registry，不改变 IDEA 的公开工具集合。
 
 设备选择采用请求级上下文，不维护 MCP server 全局“当前设备”。设备相关 schema 公开可选 `serial`，`DeviceSelectionResolver` 对显式值做在线精确匹配且禁止回退；编译/部署通过 `CompileUiHandler.targetDeviceSerial` 将其贯穿首次运行判断、Gradle fallback、deploy、hasRun 与 app-ready。未传 serial 时继续使用 IDEA 选择或 standalone `ANDROID_SERIAL`。standalone 当前只在已注册的 `deploy`、`gradle-build`、`status` 能力中消费该上下文，UI、日志与运行控制工具仍不扩展 capability。
 

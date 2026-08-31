@@ -2,7 +2,7 @@
 
 CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py [global options] <subcommand> [options]`.
 
-The CLI scans IDEA and standalone MCP runtimes and selects the one that owns the target project. Use `--runtime idea|standalone` to force a Runtime when both own the project. If no Runtime owns it, the CLI serializes launch attempts per project before starting `~/.jugg/standalone/bin/jugg-standalone` or `JUGG_STANDALONE_LAUNCHER`. Standalone startup has a 60-second hard timeout. After 10 seconds, the CLI prints the latest structured entry from `build/jugg/log/standlone_cli/compile_latest.log` every 10 seconds so slow database recovery and file-monitor initialization remain observable. Missing runtime logs do not interrupt startup, and displayed entries are truncated to 500 characters. Hook subprocesses set `JUGG_CALLER=hook` and only start standalone when `build/jugg/database/compile_context.db/complete_flag` exists. The standalone Runtime supports `version`, `list-projects`, `init`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, and `status`. The standalone-only `stop` command is local to the CLI and launcher; it does not use MCP or start a Runtime.
+The CLI scans IDEA and standalone MCP runtimes and first selects one that owns the target project. Use `--runtime idea|standalone` to override automatic selection. If no Runtime owns it, the CLI reuses any running standalone Runtime and automatically registers the project on its first valid request. Only when no standalone exists does it acquire the global `~/.jugg/locks/standalone.launch.lock` and start `~/.jugg/standalone/bin/jugg-standalone` or `JUGG_STANDALONE_LAUNCHER`; `JUGG_STANDALONE_LAUNCH_LOCK` can override the lock path. Standalone startup and first-project registration each have a 60-second hard timeout. After 10 seconds, the CLI prints the latest structured entry from the target project's `build/jugg/log/standlone_cli/compile_latest.log` every 10 seconds so slow database recovery and file-monitor initialization remain observable. Missing runtime logs do not interrupt startup, and displayed entries are truncated to 500 characters. Hook subprocesses set `JUGG_CALLER=hook` and only start or register standalone when `build/jugg/database/compile_context.db/complete_flag` exists. The standalone Runtime supports `version`, `list-projects`, `init`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, and `status`. The standalone-only `stop` command is local to the CLI and launcher; it does not use MCP or start a Runtime and stops all standalone projects together.
 
 Use global `--serial <adbSerial>` or `--serial=<adbSerial>` with device-related commands to override IDEA selection or standalone `ANDROID_SERIAL` for that request. The value is injected into `deploy`, `gradle-build`, `clean-reinstall`, `restart`, `instrument`, `status`, `devices`, `layout-dump`, `view-locate`, `view-inspect`, `tap`, `activity-stack`, and `wait-logs`; it is not sent to non-device tools. Explicit serial matching is exact and online-only, with no fallback to another device.
 
@@ -30,7 +30,7 @@ python3 {SKILL_DIR}/scripts/jugg.py --project-dir=/path/to/project --console=jso
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project --runtime idea status
 ```
 
-Automatic project discovery uses the nearest `settings.gradle` or `settings.gradle.kts` project and only selects a Runtime that owns that exact project. An independent nested Gradle project therefore starts its own standalone Runtime when it is not open in IDEA. For an explicit `--project-dir` subdirectory under an initialized IDEA project, the CLI still selects that IDEA Runtime and sends its opened project directory as MCP `projectDir`.
+Automatic project discovery uses the nearest `settings.gradle` or `settings.gradle.kts` project and only lets an exact owner claim it. An independent nested Gradle project is therefore not captured by its parent IDEA Runtime; when it is not open in IDEA, the CLI registers it in a running standalone Runtime or starts one if none exists. For an explicit `--project-dir` subdirectory under an initialized IDEA project, the CLI still selects that IDEA Runtime and sends its opened project directory as MCP `projectDir`.
 
 All flags accept both kebab-case (`--resource-id`) and camelCase (`--resourceId`).
 
@@ -98,14 +98,14 @@ If the project has no saved Gradle model yet, initialization runs the selected a
 
 ### `stop`
 
-Stop the standalone Runtime launched for the target Gradle project without deleting its saved configuration, compile context, history, or logs.
+Stop all standalone Runtime processes and every project they host without deleting saved configuration, compile context, history, or logs.
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py stop
 python3 {SKILL_DIR}/scripts/jugg.py --project-dir /path/to/project stop
 ```
 
-This command never resolves an MCP port and therefore does not start a missing Runtime. On platforms that support normal process termination, it first requests a normal exit, waits up to five seconds, and forcibly terminates a surviving target process; other platforms terminate it forcibly immediately. No matching process is a successful no-op. `--runtime idea` is rejected, and other independent standalone daemons are not stopped. If one daemon was explicitly launched with multiple `--project-dir` arguments, stopping any registered project ends that shared process and all projects hosted by it. Only run it when the user explicitly asks to stop the standalone Runtime or the active workflow requires that lifecycle action.
+This command never resolves an MCP port and therefore does not start a missing Runtime. It stops every standalone daemon launched from the same Jugg root. On platforms that support normal process termination, it first requests a normal exit, waits up to five seconds, and forcibly terminates surviving processes; other platforms terminate them forcibly immediately. No matching process is a successful no-op. `--runtime idea` is rejected. Only run it when the user explicitly asks to stop standalone or the active workflow requires that lifecycle action.
 
 ### `compile`/`deploy`/`gradle-build`/`clean-reinstall`
 
@@ -150,7 +150,7 @@ When the project has no AndroidTest full-build baseline, `instrument` returns `E
 
 | Command | Purpose |
 |---------|---------|
-| `stop` | Stop the target project's standalone Runtime without deleting project state |
+| `stop` | Stop all standalone Runtimes and hosted projects without deleting project state |
 | `restart` | Restart app |
 | `wait-logs` | Block until app log marker, crash, or timeout |
 | `activity-stack` | Show current Activity stack |

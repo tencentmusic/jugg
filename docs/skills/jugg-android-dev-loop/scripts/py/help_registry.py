@@ -40,7 +40,7 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     ),
     "stop": CommandHelp(
         "stop",
-        "Stop the standalone Runtime for the target project.",
+        "Stop all standalone Runtimes and hosted projects.",
         "jugg stop",
     ),
     "compile": CommandHelp(

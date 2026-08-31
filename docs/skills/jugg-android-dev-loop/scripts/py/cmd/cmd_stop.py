@@ -1,10 +1,9 @@
-"""cmd_stop — stop the standalone Runtime that owns the target project."""
+"""cmd_stop — stop all standalone Runtime processes."""
 
 from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 
@@ -26,8 +25,7 @@ def cmd_stop(args: list[str]) -> None:
         print("       Install the standalone runtime or set JUGG_STANDALONE_LAUNCHER.", file=sys.stderr)
         sys.exit(1)
 
-    project_dir = _target_project_dir()
-    command = [str(launcher), "--stop-project", project_dir]
+    command = [str(launcher), "--stop-all"]
     if sys.platform == "win32" and launcher.suffix.lower() in (".bat", ".cmd"):
         command = ["cmd", "/c", *command]
     result = subprocess.run(command, capture_output=True, text=True)
@@ -37,7 +35,7 @@ def cmd_stop(args: list[str]) -> None:
         print(json.dumps({
             "status": "OK" if result.returncode == 0 else "ERROR",
             "message": message,
-            "data": {"projectDir": project_dir},
+            "data": {"scope": "all"},
         }))
     elif result.returncode == 0:
         print(message)
@@ -50,18 +48,10 @@ def cmd_stop(args: list[str]) -> None:
         sys.exit(1)
 
 
-def _target_project_dir() -> str:
-    candidate = Path(jugglib.candidate_project_dir()).resolve()
-    for directory in (candidate, *candidate.parents):
-        if (directory / "settings.gradle").is_file() or (directory / "settings.gradle.kts").is_file():
-            return str(directory)
-    return str(candidate)
-
-
 def _result_message(result: subprocess.CompletedProcess[str]) -> str:
     if result.returncode != 0:
-        return result.stderr.strip() or result.stdout.strip() or "Unable to stop Jugg standalone Runtime."
+        return result.stderr.strip() or result.stdout.strip() or "Unable to stop Jugg standalone Runtimes."
     lines = (result.stdout or result.stderr).strip().splitlines()
     if lines:
         return lines[-1]
-    return "Jugg standalone Runtime stopped."
+    return "All Jugg standalone Runtimes stopped."

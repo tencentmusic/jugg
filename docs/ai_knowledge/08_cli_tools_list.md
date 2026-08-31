@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-08-30
+> 最后核对：2026-08-31
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -41,11 +41,12 @@
 jugg.py
   -> jugglib.resolve_project_dir()
   -> 从当前目录向上查找最近的 settings.gradle(.kts)
-  -> 仅选择精确拥有该 Gradle 工程的 IDEA / standalone Runtime
-  -> 未命中时启动该工程自己的 standalone Runtime
+  -> 优先选择精确拥有该 Gradle 工程的 IDEA / standalone Runtime
+  -> 未命中时复用任意 standalone Runtime，由首个合法项目请求自动注册
+  -> 没有 standalone Runtime 时才启动新进程
 ```
 
-自动解析时，独立嵌套 Gradle 工程不会被已打开的父 IDEA 工程截获；例如父仓库与其 `android_demo_project` 都有 `settings.gradle(.kts)` 时，从后者目录执行 CLI 会使用后者的 Runtime，未打开时启动后者自己的 standalone Runtime。
+自动解析时，独立嵌套 Gradle 工程不会被已打开的父 IDEA 工程截获；例如父仓库与其 `android_demo_project` 都有 `settings.gradle(.kts)` 时，从后者目录执行 CLI 会使用后者的 Runtime，未打开时复用或启动 standalone Runtime，并在首个项目请求中注册该嵌套工程。
 
 传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，CLI 仍用该路径发现 Runtime，并允许将最长前缀匹配到的已初始化项目目录作为 MCP `projectDir`。因此，显式传入 IDEA 工程根目录下的普通子目录时会由该 IDEA Runtime 处理；未匹配时才按 standalone 启动流程处理。`--projectDir` 作为 camelCase 全局别名也会被归一化。
 
@@ -59,9 +60,9 @@ macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；`Checki
 
 ### 3.2 端口与缓存
 
-CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目标 `projectDir` 选择 IDEA 或 standalone Runtime；端口缓存只用于优先探测，不覆盖项目归属判断。同一项目同时出现在两个 Runtime 时，仅在确认 `runtime.lock` 正被持有后采用 `runtime.lock.owner.json`，否则读取 `runtime.owner.json` 选择最近 owner。全局参数 `--runtime idea|standalone` 可覆盖自动选择；已知项目列表不匹配的 legacy Runtime 不阻止 standalone 拉起，只有无法读取项目列表时才使用兼容 fallback。
+CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，优先按目标 `projectDir` 选择 IDEA 或 standalone Runtime；端口缓存只用于优先探测，不覆盖项目归属判断。同一项目同时出现在两个 Runtime 时，仅在确认 `runtime.lock` 正被持有后采用 `runtime.lock.owner.json`，否则读取 `runtime.owner.json` 选择最近 owner。全局参数 `--runtime idea|standalone` 可覆盖自动选择。没有项目 owner 且未强制 IDEA 时，CLI 复用任意已运行的 standalone Runtime，并将目标项目保留为 pending projectDir，首个合法项目请求完成自动注册。
 
-目标项目未被任何 Runtime 持有时，普通 CLI 取得项目级 `build/jugg/runtime.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免并发 CLI 重复创建 daemon。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动等待硬超时为 60 秒，launch lock 最长等待 75 秒；目标项目 Runtime ready 或子进程提前退出时立即结束等待。初始化超过 10 秒后，CLI 每 10 秒从 `build/jugg/log/standlone_cli/compile_latest.log` 读取最后一条结构化日志并向 stderr 输出 heartbeat；日志缺失或读取失败只显示日志暂不可用，不中断启动。日志行最多输出 500 个字符，避免大型工程的 module/classpath 信息占满终端。子进程 stdout/stderr 仍写入目标工程 `build/jugg/log/standlone_cli/standalone_startup.log`；进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径，不再等待到探测超时。Hook 调用必须设置 `JUGG_CALLER=hook`；只有 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动 standalone，否则直接以成功状态跳过，避免编辑/停止 hook 意外创建 daemon。
+当前没有 standalone Runtime 时，普通 CLI 取得 `~/.jugg/locks/standalone.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免不同项目并发创建多个 daemon。测试或特殊环境可用 `JUGG_STANDALONE_LAUNCH_LOCK` 覆盖锁路径。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动和首个项目自动注册的等待硬超时均为 60 秒；launch lock 最长等待 75 秒。初始化超过 10 秒后，CLI 每 10 秒从目标项目 `build/jugg/log/standlone_cli/compile_latest.log` 读取最后一条结构化日志并向 stderr 输出 heartbeat；日志缺失或读取失败只显示日志暂不可用，不中断启动。日志行最多输出 500 个字符。新进程 stdout/stderr 仍写入启动项目 `build/jugg/log/standlone_cli/standalone_startup.log`；进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径。Hook 调用必须设置 `JUGG_CALLER=hook`；只有目标项目 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动进程或在已有 standalone 中注册新项目，否则直接以成功状态跳过。
 
 standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内部 `get-compile-status` 与 `status`。其中 `deploy --serial` 可在 daemon 已运行后按请求切换设备，`status --serial` 返回指定设备状态；standalone `gradle-build` 只建立 baseline，不执行设备安装。`devices`、`restart`、`clean-reinstall`、`instrument`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs` 仍未注册为 standalone capability，需 IDEA Runtime。当前配置启用 remote compile 时，standalone 复用 IDEA 的远程 Gradle 客户端执行 full build/fallback；增量编译和设备操作仍在 standalone 所在本机执行。远程构建前仍可能在本地执行 project info Gradle dry-run，不应把 remote 理解为“本地不运行 Gradle”。
 
@@ -69,12 +70,13 @@ standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内�
 
 当进程仍存活但等待端口达到 60 秒硬超时时，CLI 先输出 `standalone_startup.log` 尾部与路径，再输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
 
-`jugg stop` 是 standalone CLI 专用的本地生命周期命令，不扫描 MCP 端口，也不调用 `resolve_port()`，因此不会在停止时意外拉起 Runtime。CLI 根据当前目录或 `--project-dir` 向上查找最近的 Gradle 根目录，再同步调用 standalone launcher 的 `--stop-project` 控制模式。bootstrap 在加载 active Runtime JAR 前按 Jugg 根目录和 canonical project path 精确匹配进程；平台支持正常终止时先请求正常退出并等待 5 秒，仍存活时强制终止，不支持的平台直接强制终止。未找到目标进程时幂等成功。该命令不删除 run configuration、Compile Context、历史或日志，`--runtime idea` 明确失败。
+`jugg stop` 是 standalone CLI 专用的本地生命周期命令，不扫描 MCP 端口，也不调用 `resolve_port()`，因此不会在停止时意外拉起 Runtime。CLI 同步调用 standalone launcher 的 `--stop-all` 控制模式；bootstrap 在加载 active Runtime JAR 前按 Jugg 根目录匹配全部 standalone 进程。平台支持正常终止时先请求正常退出并等待 5 秒，仍存活时强制终止，不支持的平台直接强制终止。未找到进程时幂等成功。该命令会同时停止这些进程承载的所有项目，但不删除 run configuration、Compile Context、历史或日志；`--runtime idea` 明确失败。
 
 | 文件 | 默认路径 | 环境变量 |
 |------|----------|----------|
 | 端口缓存 | `~/.cache/jugg/port`（Linux/macOS）/ `%LOCALAPPDATA%/jugg/port`（Windows） | `JUGG_PORT_CACHE` |
 | 缓存根目录 | `~/.cache/jugg/` | `JUGG_CACHE_DIR` |
+| standalone 启动锁 | `~/.jugg/locks/standalone.launch.lock` | `JUGG_STANDALONE_LAUNCH_LOCK` |
 
 ### 3.3 输出模式
 

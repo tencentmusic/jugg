@@ -20,6 +20,7 @@ public final class StandaloneBootstrap {
     private static final Gson GSON = new Gson();
     private static final String MAIN_CLASS = "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap";
     private static final String PROJECT_DIR_ARGUMENT = "--project-dir";
+    private static final String STOP_ALL_ARGUMENT = "--stop-all";
     private static final String ROOT_ARGUMENT = "-Djugg.root.dir=";
     private static final long STOP_TIMEOUT_MILLIS = 5_000L;
 
@@ -27,14 +28,12 @@ public final class StandaloneBootstrap {
 
     public static void main(String[] args) throws Exception {
         File root = new File(System.getProperty("jugg.root.dir", new File(System.getProperty("user.home"), ".jugg").getPath()));
-        String stopProject = stopProjectArgument(args);
-        if (stopProject != null) {
-            File stopProjectDir = new File(stopProject).getCanonicalFile();
-            List<Long> stopped = stopProjectDaemons(root, stopProjectDir, STOP_TIMEOUT_MILLIS);
+        if (isStopAll(args)) {
+            List<Long> stopped = stopAllDaemons(root, STOP_TIMEOUT_MILLIS);
             if (stopped.isEmpty()) {
-                System.out.println("No Jugg standalone Runtime is running for " + stopProjectDir + ".");
+                System.out.println("No Jugg standalone Runtime is running.");
             } else {
-                System.out.println("Stopped Jugg standalone Runtime for " + stopProjectDir +
+                System.out.println("Stopped all Jugg standalone Runtimes" +
                         " (PID: " + stopped.stream().map(String::valueOf).collect(Collectors.joining(", ")) + ").");
             }
             return;
@@ -52,16 +51,15 @@ public final class StandaloneBootstrap {
         launch(new File(hotUpdate, "jars"), manifest, args);
     }
 
-    /** Stops standalone daemon processes that were launched for the exact target project. */
-    static List<Long> stopProjectDaemons(File root, File projectDir, long timeoutMillis) throws Exception {
+    /** Stops every standalone daemon process launched from the same Jugg root. */
+    static List<Long> stopAllDaemons(File root, long timeoutMillis) throws Exception {
         long currentPid = ProcessHandle.current().pid();
         String rootKey = pathKey(root);
-        String projectKey = pathKey(projectDir);
         List<ProcessHandle> daemons;
         try (Stream<ProcessHandle> processes = ProcessHandle.allProcesses()) {
             daemons = processes
                     .filter(process -> process.pid() != currentPid)
-                    .filter(process -> isStandaloneProjectDaemon(process, rootKey, projectKey))
+                    .filter(process -> isStandaloneDaemon(process, rootKey))
                     .sorted(Comparator.comparingLong(ProcessHandle::pid))
                     .collect(Collectors.toList());
         }
@@ -80,31 +78,29 @@ public final class StandaloneBootstrap {
         return daemons.stream().map(ProcessHandle::pid).collect(Collectors.toList());
     }
 
-    private static String stopProjectArgument(String[] args) {
-        if (args.length == 2 && "--stop-project".equals(args[0]) && !args[1].isBlank()) return args[1];
-        if (args.length == 1 && args[0].startsWith("--stop-project=")) {
-            String projectDir = args[0].substring("--stop-project=".length());
-            if (!projectDir.isBlank()) return projectDir;
-        }
+    private static boolean isStopAll(String[] args) {
+        if (args.length == 1 && STOP_ALL_ARGUMENT.equals(args[0])) return true;
         for (String argument : args) {
-            if ("--stop-project".equals(argument) || argument.startsWith("--stop-project=")) {
-                throw new IllegalArgumentException("--stop-project requires exactly one project path");
+            if (STOP_ALL_ARGUMENT.equals(argument)) {
+                throw new IllegalArgumentException("--stop-all does not accept other arguments");
             }
         }
-        return null;
+        return false;
     }
 
-    private static boolean isStandaloneProjectDaemon(ProcessHandle process, String rootKey, String projectKey) {
+    private static boolean isStandaloneDaemon(ProcessHandle process, String rootKey) {
         String[] arguments = process.info().arguments().orElse(new String[0]);
-        if (!contains(arguments, MAIN_CLASS) || !rootKey.equals(processRootKey(arguments))) return false;
+        return contains(arguments, MAIN_CLASS) && rootKey.equals(processRootKey(arguments)) && hasProjectDir(arguments);
+    }
+
+    private static boolean hasProjectDir(String[] arguments) {
         for (int index = 0; index < arguments.length; index++) {
             String argument = arguments[index];
-            if (PROJECT_DIR_ARGUMENT.equals(argument) && index + 1 < arguments.length && projectKey.equals(pathKey(arguments[index + 1]))) {
-                return true;
+            if (PROJECT_DIR_ARGUMENT.equals(argument)) {
+                return index + 1 < arguments.length && !arguments[index + 1].isBlank();
             }
-            if (argument.startsWith(PROJECT_DIR_ARGUMENT + "=") &&
-                    projectKey.equals(pathKey(argument.substring((PROJECT_DIR_ARGUMENT + "=").length())))) {
-                return true;
+            if (argument.startsWith(PROJECT_DIR_ARGUMENT + "=")) {
+                return !argument.substring((PROJECT_DIR_ARGUMENT + "=").length()).isBlank();
             }
         }
         return false;

@@ -55,7 +55,7 @@
 
 ### `list-projects`
 
-列出当前 IDEA 或 standalone Runtime 进程已初始化的项目。
+列出当前 IDEA 或 standalone Runtime 进程已初始化的项目。该全局工具不会触发 standalone 项目自动注册；未知项目只会在首个合法项目级请求到达时注册。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -426,7 +426,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 | `METHOD_NOT_SUPPORTED` | 不支持的方法 |
 | `TOOL_NOT_FOUND` | 工具未注册 |
 | `INVALID_PARAMS` | 参数错误 |
-| `PROJECT_NOT_INITIALIZED` | 项目未初始化 |
+| `PROJECT_NOT_INITIALIZED` | IDEA 项目未初始化，或 standalone 项目自动初始化失败 |
 | `NO_DEVICE` | 无可用设备 |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态，需唤醒/解锁后重试 |
 | `APP_NOT_FOREGROUND` | 目标 App 不在前台，需切回目标 App 后重试 |
@@ -439,7 +439,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 
 > 仅在"连通性/上下文异常排查"场景使用以下步骤；正常使用无需把 `list-projects` / `devices` 作为固定 preflight。
 
-1. 先确认 IDE 已初始化该项目（`list-projects`）。
+1. IDEA 场景先确认 IDE 已初始化该项目（`list-projects`）；standalone 场景允许首个合法项目请求自动注册。
 2. 参数异常先对照 `tools/list` 返回的 `inputSchema`。
 3. 设备类工具失败时再执行 `devices`。
 4. 编译类异步任务卡住时，用 `get-compile-status` + `compile_latest.log`。

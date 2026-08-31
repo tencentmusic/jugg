@@ -23,8 +23,9 @@ class StandaloneProjectRuntime internal constructor(
     runtimeInfo: RuntimeInfo,
     activity: StandaloneDaemonActivity,
     toolRegistry: McpToolRegistry,
+    resources: StandaloneProjectResources,
 ) : IMcpRuntime, AutoCloseable {
-    private val services = StandaloneProjectServices(projectDirectory.canonicalFile, runtimeInfo, activity)
+    private val services = StandaloneProjectServices(projectDirectory.canonicalFile, runtimeInfo, activity, resources)
     private val configurationRunner = StandaloneConfigurationRunner(services, activity)
     private val gradleCompileHelper = StandaloneForceGradleCompileHelper(configurationRunner, services.configurationStore)
     private val invoker = McpToolInvoker(services.projectDir.path, this, toolRegistry)

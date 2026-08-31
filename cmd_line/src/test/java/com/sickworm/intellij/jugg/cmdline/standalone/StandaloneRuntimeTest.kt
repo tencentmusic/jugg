@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
 import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpc
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpProjectInfo
@@ -18,10 +19,19 @@ import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
+import java.io.RandomAccessFile
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -180,6 +190,159 @@ class StandaloneRuntimeTest {
     }
 
     @Test
+    fun `registry automatically initializes a project on its first valid request`() {
+        val projectA = temporaryFolder.newFolder("project-a")
+        val projectB = temporaryFolder.newFolder("project-b")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectA)
+        }
+
+        val status = call("status", mapOf("projectDir" to projectB.absolutePath))
+
+        assertEquals("OK", status.structuredContent["status"])
+        assertEquals(
+            listOf(projectA.canonicalPath, projectB.canonicalPath),
+            registry!!.getInitializedProjectDirs().map(File::getCanonicalPath),
+        )
+    }
+
+    @Test
+    fun `registry does not initialize a project for an invalid request`() {
+        val projectA = temporaryFolder.newFolder("project-a")
+        val projectB = temporaryFolder.newFolder("project-b")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectA)
+        }
+
+        val response = registry!!.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 1,
+                params = mapOf(
+                    "name" to "status",
+                    "arguments" to mapOf("projectDir" to projectB.absolutePath, "unknown" to true),
+                ),
+            )
+        )
+
+        assertFalse(response.result == null)
+        assertEquals(listOf(projectA.canonicalPath), registry!!.getInitializedProjectDirs().map(File::getCanonicalPath))
+    }
+
+    @Test
+    fun `failed automatic initialization does not affect registered projects`() {
+        val projectA = temporaryFolder.newFolder("project-a")
+        val missingProject = temporaryFolder.root.resolve("missing-project")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectA)
+        }
+
+        val failed = call("status", mapOf("projectDir" to missingProject.absolutePath))
+        val existing = call("status", mapOf("projectDir" to projectA.absolutePath))
+
+        assertEquals(McpErrorCode.PROJECT_NOT_INITIALIZED, failed.structuredContent["errorCode"])
+        assertEquals("OK", existing.structuredContent["status"])
+        assertEquals(listOf(projectA.canonicalPath), registry!!.getInitializedProjectDirs().map(File::getCanonicalPath))
+    }
+
+    @Test
+    fun `initializing one project does not block requests for another project`() {
+        val projectA = temporaryFolder.newFolder("project-a")
+        val projectB = temporaryFolder.newFolder("project-b")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectA)
+        }
+        val executor = Executors.newFixedThreadPool(3)
+        val lockHeld = CountDownLatch(1)
+        val releaseLock = CountDownLatch(1)
+        val lockHolder = holdProjectLock(projectB, executor, lockHeld, releaseLock)
+
+        try {
+            assertTrue(lockHeld.await(2, TimeUnit.SECONDS))
+            val initialization = executor.submit<StandaloneProjectRuntime> { registry!!.initialize(projectB) }
+            Thread.sleep(100)
+            assertFalse(initialization.isDone)
+
+            val compileStatus = executor.submit<McpToolCallResult> {
+                call(
+                    "get-compile-status",
+                    mapOf("projectDir" to projectA.absolutePath, "jobId" to "missing-job"),
+                )
+            }.get(2, TimeUnit.SECONDS)
+
+            assertEquals("ERROR", compileStatus.structuredContent["status"])
+            releaseLock.countDown()
+            initialization.get(2, TimeUnit.SECONDS)
+        } finally {
+            releaseLock.countDown()
+            lockHolder.get(2, TimeUnit.SECONDS)
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `interrupted automatic initialization cleans resources and can retry`() {
+        val projectA = temporaryFolder.newFolder("project-a")
+        val projectB = temporaryFolder.newFolder("project-b")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectA)
+        }
+        val executor = Executors.newSingleThreadExecutor()
+        val lockHeld = CountDownLatch(1)
+        val releaseLock = CountDownLatch(1)
+        val lockHolder = holdProjectLock(projectB, executor, lockHeld, releaseLock)
+        val failure = AtomicReference<Throwable>()
+
+        try {
+            assertTrue(lockHeld.await(2, TimeUnit.SECONDS))
+            val initializationThread = thread(name = "standalone-project-initialization") {
+                try {
+                    registry!!.initialize(projectB)
+                } catch (error: Throwable) {
+                    failure.set(error)
+                }
+            }
+            waitUntilBlocked(initializationThread)
+            initializationThread.interrupt()
+            initializationThread.join(2_000)
+
+            assertTrue(failure.get() is InterruptedException)
+            assertFailsWith<IllegalAccessException> {
+                JuggLogger.getInstance(projectB.canonicalPath, "StandaloneRuntimeTest")
+            }
+
+            releaseLock.countDown()
+            lockHolder.get(2, TimeUnit.SECONDS)
+            assertEquals(projectB.canonicalPath, registry!!.initialize(projectB).projectDir)
+        } finally {
+            releaseLock.countDown()
+            lockHolder.get(2, TimeUnit.SECONDS)
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `construction failure cleans resources and can retry`() {
+        val projectA = temporaryFolder.newFolder("project-a")
+        val projectB = temporaryFolder.newFolder("project-b")
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
+            initialize(projectA)
+        }
+        val apkInfoFile = File(JuggPathManager(projectB).compileContextDbDir, "apks/apks.json")
+        apkInfoFile.parentFile.mkdirs()
+        apkInfoFile.writeText("{")
+
+        val failure = runCatching { registry!!.initialize(projectB) }.exceptionOrNull()
+
+        assertTrue(failure != null)
+        assertFailsWith<IllegalAccessException> {
+            JuggLogger.getInstance(projectB.canonicalPath, "StandaloneRuntimeTest")
+        }
+        apkInfoFile.delete()
+        assertEquals(projectB.canonicalPath, registry!!.initialize(projectB).projectDir)
+    }
+
+    @Test
     fun `standalone runtime exposes its dedicated compile log path`() {
         val projectDir = temporaryFolder.newFolder("project")
         registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1"))
@@ -201,8 +364,38 @@ class StandaloneRuntimeTest {
         return response.result as McpToolCallResult
     }
 
+    private fun waitUntilBlocked(thread: Thread) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (thread.state !in blockedThreadStates && System.nanoTime() < deadline) {
+            Thread.sleep(10)
+        }
+        assertTrue(thread.state in blockedThreadStates)
+    }
+
+    private fun holdProjectLock(
+        projectDir: File,
+        executor: java.util.concurrent.ExecutorService,
+        lockHeld: CountDownLatch,
+        releaseLock: CountDownLatch,
+    ): Future<*> {
+        val lockFile = JuggPathManager(projectDir).runtimeLockFile
+        lockFile.parentFile.mkdirs()
+        return executor.submit {
+            RandomAccessFile(lockFile, "rw").channel.use { channel ->
+                channel.lock().use {
+                    lockHeld.countDown()
+                    releaseLock.await()
+                }
+            }
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun McpToolCallResult.data(): Map<String, Any?> {
         return structuredContent["data"] as Map<String, Any?>
+    }
+
+    private companion object {
+        val blockedThreadStates = setOf(Thread.State.WAITING, Thread.State.TIMED_WAITING)
     }
 }
