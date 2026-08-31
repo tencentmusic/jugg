@@ -463,7 +463,7 @@ class ResolvePortTest(unittest.TestCase):
         self.assertEqual(12321, port)
         mock_launch.assert_called_once_with(nested_project_dir)
 
-    def test_same_project_selection_uses_last_runtime_owner(self):
+    def test_same_project_selection_prefers_idea_over_last_standalone_owner(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(os.path.join(project_dir, "build", "jugg"))
         owner_file = os.path.join(project_dir, "build", "jugg", "runtime.owner.json")
@@ -476,7 +476,23 @@ class ResolvePortTest(unittest.TestCase):
 
         selected = jugglib._select_runtime(endpoints, project_dir)
 
-        self.assertEqual(12321, selected.port)
+        self.assertEqual(12320, selected.port)
+
+    def test_same_project_selection_prefers_idea_over_current_standalone_lock_owner(self):
+        project_dir = os.path.join(self.tmp, "project")
+        jugg_dir = os.path.join(project_dir, "build", "jugg")
+        os.makedirs(jugg_dir)
+        with open(os.path.join(jugg_dir, "runtime.lock.owner.json"), "w") as output:
+            json.dump({"runtimeType": "standalone"}, output)
+        endpoints = [
+            jugglib.RuntimeEndpoint(12320, "idea", [project_dir]),
+            jugglib.RuntimeEndpoint(12321, "standalone", [project_dir]),
+        ]
+
+        with patch.object(jugglib, "_is_project_lock_held", return_value=True):
+            selected = jugglib._select_runtime(endpoints, project_dir)
+
+        self.assertEqual(12320, selected.port)
 
     def test_same_project_selection_uses_verified_current_lock_owner(self):
         project_dir = os.path.join(self.tmp, "project")
@@ -496,7 +512,7 @@ class ResolvePortTest(unittest.TestCase):
 
         self.assertEqual(12320, selected.port)
 
-    def test_same_project_selection_ignores_stale_current_owner_file(self):
+    def test_same_project_selection_prefers_idea_when_current_owner_file_is_stale(self):
         project_dir = os.path.join(self.tmp, "project")
         jugg_dir = os.path.join(project_dir, "build", "jugg")
         os.makedirs(jugg_dir)
@@ -512,7 +528,7 @@ class ResolvePortTest(unittest.TestCase):
         with patch.object(jugglib, "_is_project_lock_held", return_value=False):
             selected = jugglib._select_runtime(endpoints, project_dir)
 
-        self.assertEqual(12321, selected.port)
+        self.assertEqual(12320, selected.port)
 
     def test_explicit_runtime_selection_overrides_owner(self):
         project_dir = os.path.join(self.tmp, "project")
@@ -525,6 +541,37 @@ class ResolvePortTest(unittest.TestCase):
         selected = jugglib._select_runtime(endpoints, project_dir)
 
         self.assertEqual(12320, selected.port)
+
+    def test_explicit_standalone_runtime_overrides_idea_preference(self):
+        project_dir = os.path.join(self.tmp, "project")
+        endpoints = [
+            jugglib.RuntimeEndpoint(12320, "idea", [project_dir]),
+            jugglib.RuntimeEndpoint(12321, "standalone", [project_dir]),
+        ]
+        jugglib.set_runtime_type_override("standalone")
+
+        selected = jugglib._select_runtime(endpoints, project_dir)
+
+        self.assertEqual(12321, selected.port)
+
+    def test_resolve_port_keeps_selected_standalone_for_current_command(self):
+        project_dir = os.path.join(self.tmp, "project")
+        standalone = jugglib.RuntimeEndpoint(12321, "standalone", [project_dir])
+        idea = jugglib.RuntimeEndpoint(12320, "idea", [project_dir])
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(
+                 jugglib,
+                 "discover_runtime_endpoints",
+                 side_effect=[[standalone], [idea]],
+             ) as discovery, \
+             patch.object(jugglib, "ping_port", return_value=True):
+            first_port = jugglib.resolve_port()
+            second_port = jugglib.resolve_port()
+
+        self.assertEqual(12321, first_port)
+        self.assertEqual(12321, second_port)
+        self.assertEqual(1, discovery.call_count)
 
     def test_explicit_idea_runtime_does_not_launch_standalone_when_missing(self):
         project_dir = os.path.join(self.tmp, "project")

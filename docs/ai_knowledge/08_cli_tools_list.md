@@ -41,7 +41,8 @@
 jugg.py
   -> jugglib.resolve_project_dir()
   -> 从当前目录向上查找最近的 settings.gradle(.kts)
-  -> 优先选择精确拥有该 Gradle 工程的 IDEA / standalone Runtime
+  -> 精确拥有该 Gradle 工程的 IDEA Runtime 存在时优先选择 IDEA
+  -> 没有匹配 IDEA 时选择拥有该工程的 standalone Runtime
   -> 未命中时复用任意 standalone Runtime，由首个合法项目请求自动注册
   -> 没有 standalone Runtime 时才启动新进程
 ```
@@ -60,7 +61,7 @@ macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；`Checki
 
 ### 3.2 端口与缓存
 
-CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，优先按目标 `projectDir` 选择 IDEA 或 standalone Runtime；端口缓存只用于优先探测，不覆盖项目归属判断。同一项目同时出现在两个 Runtime 时，仅在确认 `runtime.lock` 正被持有后采用 `runtime.lock.owner.json`，否则读取 `runtime.owner.json` 选择最近 owner。全局参数 `--runtime idea|standalone` 可覆盖自动选择。没有项目 owner 且未强制 IDEA 时，CLI 复用任意已运行的 standalone Runtime，并将目标项目保留为 pending projectDir，首个合法项目请求完成自动注册。
+CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目标 `projectDir` 选择 Runtime；端口缓存只用于优先探测，不覆盖项目归属判断。默认模式下，同一项目同时出现在 IDEA 与 standalone Runtime 时稳定选择 IDEA，不跟随瞬时 `runtime.lock.owner.json` 或最近 `runtime.owner.json` 切回 standalone；没有匹配 IDEA 时才参考 owner 信息选择其他 Runtime。全局参数 `--runtime idea|standalone` 可覆盖自动选择。单条 CLI 命令选定端口后在进程内持续复用，不因 owner 变化或新 Runtime 出现而迁移；选定端口失效时当前命令失败。没有项目 owner 且未强制 IDEA 时，CLI 复用任意已运行的 standalone Runtime，并将目标项目保留为 pending projectDir，首个合法项目请求完成自动注册。
 
 当前没有 standalone Runtime 时，普通 CLI 取得 `~/.jugg/locks/standalone.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免不同项目并发创建多个 daemon。测试或特殊环境可用 `JUGG_STANDALONE_LAUNCH_LOCK` 覆盖锁路径。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动和首个项目自动注册的等待硬超时均为 60 秒；launch lock 最长等待 75 秒。初始化超过 10 秒后，CLI 每 10 秒从目标项目 `build/jugg/log/standlone_cli/compile_latest.log` 读取最后一条结构化日志并向 stderr 输出 heartbeat；日志缺失或读取失败只显示日志暂不可用，不中断启动。日志行最多输出 500 个字符。新进程 stdout/stderr 仍写入启动项目 `build/jugg/log/standlone_cli/standalone_startup.log`；进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径。Hook 调用必须设置 `JUGG_CALLER=hook`；只有目标项目 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动进程或在已有 standalone 中注册新项目，否则直接以成功状态跳过。
 

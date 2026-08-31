@@ -356,6 +356,9 @@ def _select_runtime(
     if matching:
         if runtime_type_override:
             return matching[0]
+        idea = next((endpoint for endpoint in matching if endpoint.runtime_type == "idea"), None)
+        if idea:
+            return idea
         preferred_type = _preferred_runtime_type(project_dir)
         if preferred_type:
             preferred = next((endpoint for endpoint in matching if endpoint.runtime_type == preferred_type), None)
