@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-08-24
+> 最后核对：2026-08-31
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -99,7 +99,7 @@ JuggGradleSyncListener
 
 Sync 成功会重置 hasRun，避免旧运行状态让“无文件变化”判断污染下一轮。
 
-Sync 完成或被 IDE 标记为 `SKIPPED` 后，`tryCreateRunConfigurations()` 会读取 Android Studio 当前 Active Build Variant 对应的 Gradle command，并按需创建对应 Jugg Configuration。项目原来没有可用 Jugg Configuration 时，首次创建后自动选择；已有 Jugg Configuration 且当前 selected Configuration 不是 Jugg 时只创建、不改变选择；当前 selected Configuration 是 Jugg 且不包含 suggestion 提供的唯一 Gradle task 时，自动选择同模块的目标 Configuration。模块首个 Configuration 沿用 `jugg:<module>`，该名称已存在时使用 `jugg:<module>:<variant>`，目标 Gradle task 已存在时直接复用。匹配以 suggestion 中的唯一 task 为基准，已有命令中的 `--offline`、`-Pxxx` 等附加参数不影响复用，因此用户为同一 variant 定制的 Gradle 参数会保留；切回该 variant 时也优先复用已有配置。suggestion 无法解析出唯一 task 时，创建去重退回完整 command 匹配，并禁止自动切换当前 Configuration。`FullBuildInfo.compileCommand` 不参与 Sync 阶段的 Configuration 创建和自动切换，仅用于 CLI/MCP/RPC 运行时的历史配置兜底，以及切换后首次 Run 的基线判断；command 不一致时，`JuggCompileHelper.preprocessIncrementalCompile()` 会强制走 Gradle full build，成功后刷新基线。
+Sync 完成或被 IDE 标记为 `SKIPPED` 后，`tryCreateRunConfigurations()` 会读取 Android Studio 当前 Active Build Variant 对应的 Gradle command，并按需创建对应 Jugg Configuration。项目原来没有可用 Jugg Configuration 时，首次创建后自动选择；已有 Jugg Configuration 且当前 selected Configuration 不是 Jugg 时只创建、不改变选择。当前 selected Configuration 是 Jugg 时，只有 source command 和 active suggestion 都精确符合单 task `./gradlew :modulePath:assemble{Variant}`、两边 variant 明确不同，并且能唯一找到同时精确匹配 suggestion command 与 APK output path 的目标配置时，才自动切换。`deployDebug` / `packageDebug` / `uploadDebug`、`happyBuild`、带 `--offline` / `-Pxxx` 的 assemble、多 task 或脚本包装等自定义 command 全部保持用户选择；允许边界漏切，不通过 task 名后缀猜测用户意图。模块首个 Configuration 沿用 `jugg:<module>`，该名称已存在时使用 `jugg:<module>:<variant>`；创建和去重仍沿用 suggestion 的唯一 task 逻辑，但宽松 task 匹配不再用于自动选择目标。suggestion 无法解析出唯一标准 assemble task 时禁止自动切换当前 Configuration。`FullBuildInfo.compileCommand` 不参与 Sync 阶段的 Configuration 创建和自动切换，仅用于 CLI/MCP/RPC 运行时的历史配置兜底，以及切换后首次 Run 的基线判断；command 不一致时，`JuggCompileHelper.preprocessIncrementalCompile()` 会强制走 Gradle full build，成功后刷新基线。日志会同时打印 `last=` 与 `current=` 两条 command。
 
 建议配置的 APK output pattern 从 Android Studio Android model 的实际 build folder 生成，支持 `${moduleDir}/build` 和项目根集中式 `build/${moduleName}`。该路径只用于创建新的 Jugg Configuration；Sync 不修改已有配置的 APK output pattern。
 
@@ -131,7 +131,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 
 ## 5. UI 与工具入口
 
-- 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；配置名包含 variant，APK 路径使用 IDE model 的实际 build folder。Sync 后如果没有可用配置会短暂重试，并只在检测到 Active Build Variant command 变化时自动切换。
+- 默认 Run 配置由 `JuggManager.tryCreateRunConfigurations()` 通过 `AsDeployerCompat.getSuggestRunConfigurations()` 推断；配置名包含 variant，APK 路径使用 IDE model 的实际 build folder。Sync 后如果没有可用配置会短暂重试，并只在 source、variant、唯一标准目标三项均可确定时自动切换。
 - Run Configuration 的 `More options` 只负责保存配置并打开 `Jugg Running Pannel` Settings；稳定桥接接口仍保留返回空 ActionGroup 的兼容方法，不再创建旧下拉菜单。
 - `Jugg Running Pannel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
 - `OpenJuggControlPanelAction` 位于 `ide_entry`，只调用 Host；`JuggInitializer` 不引用 Host。Manager dispose 委托 Controller clear Host，JuggManager 自身不保存 Panel、事件枚举或 Sync taskId。

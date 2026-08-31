@@ -159,7 +159,7 @@ Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 - 状态强制：`DeployState` 为未建立基线、上次 Gradle 失败或 build file 要求 rebuild；该类条件优先于“变更过多”，避免用户在必然 full compile 的场景看到无效确认框。
 - 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
 
-进入增量编译后的回退语义独立于 Run 前预检：编译器未初始化、无文件变化确认、未预期异常、递归跟编文件过多或运行中设备失效可在本轮转 Gradle；普通源码编译失败则本轮直接失败，不自动执行 Gradle。失败文件仍保留为已编译过的待处理变更，下一次 Run 才按无文件变化策略决定是否 Gradle。
+进入增量编译后的回退语义独立于 Run 前预检：编译器未初始化、无文件变化确认、未预期异常、递归跟编文件过多或运行中设备失效可在本轮转 Gradle；普通源码编译失败则本轮直接失败，不自动执行 Gradle。失败文件仍保留为已编译过的待处理变更，下一次 Run 才按无文件变化策略决定是否 Gradle。compile command 变化时日志会同时打印 `last=` 与 `current=`，便于确认是 task 切换还是选中了另一条 Jugg Configuration。
 
 无文件变化的 fallback 确认框和手动 `Force Gradle Compile` 确认框均允许用户选择忽略 Gradle build cache。选中后，本轮 Gradle command 追加 `--no-build-cache --rerun-tasks`；该选项只影响本轮回退，不写回 Run Configuration，并在任务启动后清除。
 

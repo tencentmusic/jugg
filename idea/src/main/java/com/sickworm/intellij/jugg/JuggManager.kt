@@ -386,7 +386,7 @@ class JuggManager @TestOnly constructor(
         return settingsList
     }
 
-    /** Selects the active variant only when the current selection is a Jugg configuration. */
+    /** Selects the active variant only when both profiles are exact generated configurations. */
     private fun trySelectActiveBuildVariantConfiguration(
         runManager: RunManager,
         availableSettings: List<RunnerAndConfigurationSettings>,
@@ -396,19 +396,31 @@ class JuggManager @TestOnly constructor(
         val selectedState = (selectedSettings.configuration as? JuggRunConfiguration)?.state ?: return
         val selectedModuleName = SuggestRunConfiguration.getModuleNameByRunConfigName(selectedSettings.name)
         val selectedCompileCommand = selectedState.compileCommand ?: return
-        val activeVariant = suggestions.firstOrNull {
-            it.moduleName == selectedModuleName &&
-                suggestionGradleTask(it.compileCommand)?.let { task ->
-                    task !in gradleTaskTokens(selectedCompileCommand)
-                } == true
-        } ?: return
-        val activeSettings = availableSettings.firstOrNull {
-            val compileCommand = (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
-                ?: return@firstOrNull false
-            matchesCompileTarget(compileCommand, activeVariant.compileCommand)
-        } ?: return
+        val activeSuggestion = suggestions.firstOrNull { it.moduleName == selectedModuleName } ?: return
+        val selectedVariantName = generatedVariant(selectedCompileCommand, selectedModuleName) ?: return
+        val activeVariantName = activeSuggestion.variantName ?: return
+        if (selectedVariantName == activeVariantName) {
+            return
+        }
+        if (generatedVariant(activeSuggestion.compileCommand, selectedModuleName) != activeVariantName) {
+            return
+        }
+        val activeSettings = availableSettings.filter {
+            val state = (it.configuration as? JuggRunConfiguration)?.state ?: return@filter false
+            state.compileCommand?.trim() == activeSuggestion.compileCommand.trim() &&
+                state.outputApkName == activeSuggestion.outputApkPath
+        }.singleOrNull() ?: return
         logger.info("Active Build Variant changed, select ${activeSettings.name} configuration.")
         runManager.selectedConfiguration = activeSettings
+    }
+
+    private fun generatedVariant(compileCommand: String, moduleName: String): String? {
+        val modulePath = Regex.escape(moduleName.replace('.', ':'))
+        val match = Regex("^\\./gradlew\\s+:$modulePath:assemble([A-Z][A-Za-z0-9]*)$").matchEntire(compileCommand.trim())
+            ?: return null
+        return match.groupValues[1].replaceFirstChar {
+            if (it.isUpperCase()) it.lowercase() else it.toString()
+        }
     }
 
     private fun suggestionTargetIdentity(compileCommand: String): String {
