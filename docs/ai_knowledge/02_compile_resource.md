@@ -1,6 +1,6 @@
 # 编译系统：资源编译链（res/assets/arsc/Compose resource）
 
-> 最后核对：2026-08-10
+> 最后核对：2026-09-01
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -38,7 +38,7 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | `CompileFile.Type.Resource` | 变更扫描 / 上游编译任务 | `ResourceOverlayCompiler` | 可能是单个文件，也可能是目录；目录会展开成真实资源文件集合 |
 | split layout XML | `DataBindingGenBaseClassesCompiler` | `ResourceCompiler.aapt2Compile()` | 原 layout 会在 aapt2 compile 前被 split XML 替换 |
 | generated Java/Kotlin | `ResourceCompiler` | `SourceCompiler` | ViewBinding/DataBinding 生成源码不部署，必须回流源码编译阶段 |
-| `.flat` | `ResourceCompiler` | `ArscCompiler` | 只作为 link 输入，不直接部署 |
+| `.flat` | `ResourceCompiler` | `ArscCompiler` | 只作为 link 输入，不直接部署；同一模块内按 resource root 隔离输出目录，避免多个 `res.srcDirs` 的同名文件相互覆盖 |
 | latest res APK | `ArscCompiler.getResApk()` | aapt2 `inclink --load` | 若当前 APK 曾部署过 `resources.arsc`，会用已部署 arsc + manifest 组成临时 res APK，避免从原始 APK 旧资源表继续 link |
 | `styleables.txt` | `StyleableFileGenerator` | aapt2 `inclink --load` | `resources.arsc` 不保存 styleable；从目标 APK 相关模块的 R.jar / R.class 补回声明 |
 | `res-guard-mapping.txt` | `ResGuardMappingFileGenerator` | aapt2 `inclink --load` | release/AabResGuard 场景把原始资源名映射到基线 APK 使用的混淆名称；生成失败时 Best-effort 退化为无 mapping 加载 |
@@ -134,7 +134,7 @@ Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGenerated
 - `getResApk()` 会优先使用已部署的 `resources.arsc` 和 manifest 组成临时资源 APK；只看原始 APK 会漏掉上轮 Jugg 资源增量。
 - `ResourceOverlayCompiler.filterResources()` 会删除根 `Manifest.java`，并在 manifest 无真实变更时删除根 `AndroidManifest.xml`，避免触发 APK repackage。
 - aapt2 可能为一个资源生成多个配置目录产物；如果额外产物对应的 override XML 已存在，过滤逻辑会移除该额外产物，避免覆盖用户显式资源。
-- `ResourceCompiler` 对目录输入使用目录路径 MD5 建子输出目录，避免不同资源目录 flat 文件名冲突。
+- `ResourceCompiler` 对文件和目录输入统一按 resource root 分组：文件使用 `CompileFile.baseDir`，目录使用自身路径；每个 root 使用规范化绝对路径 MD5 建子输出目录。这样只编译本轮实际输入，同时避免同一模块多个 `res.srcDirs` 中 `values/strings.xml` 等同名文件生成同一个 flat 并相互覆盖。
 - 全量 Gradle 构建期间新观察到的 asset/resource 变更会按 Jugg 接收事件的时间保留到下一轮增量编译，不依赖文件自身 `lastModified`；复制工具可能保留旧时间戳，而对应 Gradle merge task 已在文件出现前完成。
 - DataBinding mapper 生成不在资源阶段完成；资源阶段只处理 base class / split XML，mapper 交给 `SourceCompiler` 在源码编译前处理。
 - Compose preparation 由 Jugg 实现，不执行 Gradle Compose resource task；Kotlin 文件生成调用项目 Compose plugin JAR 的官方 generator API。当前兼容 legacy 单任务 API，以及带 converter/accessor/collector 的现代 API；API 缺失时按结构化原因回退 unsupported。
