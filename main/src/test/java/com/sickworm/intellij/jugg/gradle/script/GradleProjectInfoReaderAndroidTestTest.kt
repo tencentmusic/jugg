@@ -250,6 +250,22 @@ class GradleProjectInfoReaderAndroidTestTest {
     }
 
     @Test
+    fun `buildAndroidTestModuleInfo preserves project dependencies from test classpath`() {
+        val result = GradleProjectInfoReader.buildAndroidTestModuleInfo(
+            appModuleInfo = appModule(),
+            sourceDirs = listOf(File("/project/app/src/androidTest/java")),
+            libraryDependencies = emptyList(),
+            moduleDependencies = listOf(ModuleDependency("testkit")),
+            testApplicationId = null,
+        )
+
+        assertEquals(
+            listOf(ModuleDependency("app"), ModuleDependency("testkit")),
+            result?.moduleDependencies,
+        )
+    }
+
+    @Test
     fun `buildAndroidTestModuleInfo defaults library self targeting package to namespace dot test`() {
         val result = GradleProjectInfoReader.buildAndroidTestModuleInfo(
             appModuleInfo = libraryModule("com.example.library1"),
