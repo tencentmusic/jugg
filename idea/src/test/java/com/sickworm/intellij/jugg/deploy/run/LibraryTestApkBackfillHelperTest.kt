@@ -68,6 +68,7 @@ class LibraryTestApkBackfillHelperTest {
         assertEquals(listOf("Library Test APK missing. Run Gradle compile once to build the test APK."), uiHandler.balloons)
         assertEquals("./gradlew :library1:assembleDebugAndroidTest", compileClient.compileCommand)
         assertEquals("library1/build/outputs/apk/androidTest/debug/*.apk", compileClient.outputApkName)
+        assertEquals(false, compileClient.isCleanupFetchedApks)
         assertEquals(listOf("com.example.library1.test"), result.apks.map { it.applicationId })
         assertEquals(result.apks, backfilledApks)
         assertEquals(result.apks, installedApks)
@@ -270,10 +271,12 @@ class LibraryTestApkBackfillHelperTest {
             IGradleCompileClient.TerminalOutputListener.DEFAULT
         lateinit var compileCommand: String
         lateinit var outputApkName: String
+        var isCleanupFetchedApks = true
 
         override fun login(juggGradleCompileOptions: com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions) {
             compileCommand = juggGradleCompileOptions.compileCommand
             outputApkName = juggGradleCompileOptions.outputApkName
+            isCleanupFetchedApks = juggGradleCompileOptions.isCleanupFetchedApks
         }
 
         override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {

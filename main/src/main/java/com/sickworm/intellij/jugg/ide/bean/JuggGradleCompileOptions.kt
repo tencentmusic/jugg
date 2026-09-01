@@ -263,6 +263,8 @@ data class JuggGradleCompileOptions(
     val remoteSyncExcludePatterns: List<String> = emptyList(),
     /** Whether [remoteSyncExcludePatterns] replaces the default exclude patterns. */
     val isRemoteSyncExcludePatternsCustomized: Boolean = false,
+    /** Whether APK files absent from the current Gradle result should be removed from the local cache. */
+    val isCleanupFetchedApks: Boolean = true,
 ) {
 
     /** Rsync exclude patterns after applying the default or customized state. */
