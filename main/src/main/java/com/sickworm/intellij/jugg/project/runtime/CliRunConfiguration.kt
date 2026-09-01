@@ -91,7 +91,7 @@ object CliRunConfigurationGenerator {
         )
     }
 
-    /** Generates the same stable profile when only a verified Gradle module identity is available. */
+    /** Generates the same stable profile from a verified Gradle identity, including the root project. */
     fun generateForModuleIdentity(
         modulePath: String,
         moduleName: String,
@@ -100,9 +100,11 @@ object CliRunConfigurationGenerator {
         generatedAt: Long = System.currentTimeMillis(),
     ): CliRunConfiguration {
         val moduleStdPath = modulePath.trim(':').replace(':', '/').trim('/')
-        require(moduleStdPath.isNotEmpty()) { "Module path is empty" }
         require(variant.isNotBlank()) { "Variant is empty" }
-        val task = ":${moduleStdPath.replace('/', ':')}:assemble${variant.upperCamel()}"
+        val taskPrefix = moduleStdPath.takeIf { it.isNotEmpty() }
+            ?.let { ":${it.replace('/', ':')}:" }
+            .orEmpty()
+        val task = "${taskPrefix}assemble${variant.upperCamel()}"
         return CliRunConfiguration(
             id = stableId(moduleStdPath, variant),
             name = "$moduleName $variant",

@@ -78,6 +78,24 @@ class CliRunConfigurationTest {
     }
 
     @Test
+    fun `root application module keeps root gradle task`() {
+        val projectDir = temporaryFolder.newFolder("root_app_project")
+        val rootApp = ModuleInfo.virtualModule.copy(
+            name = "rootApp",
+            moduleType = ModuleInfo.Type.Application,
+            projectRootDir = projectDir,
+            moduleRootDir = projectDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, projectDir, "debug", buildDirRelativePath = ""),
+        )
+
+        val configuration = CliRunConfigurationGenerator.generateForModule(rootApp, generatedAt = 100L)
+
+        assertEquals("./gradlew assembleDebug", configuration.compileCommand)
+        assertEquals("build/outputs/apk/debug/*.apk", configuration.outputApkName)
+    }
+
+    @Test
     fun `verified module identity reuses module profile id`() {
         val projectDir = temporaryFolder.newFolder("module_identity_project")
         val includedApp = ModuleInfo.virtualModule.copy(
