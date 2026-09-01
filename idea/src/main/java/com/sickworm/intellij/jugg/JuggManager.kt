@@ -182,7 +182,12 @@ class JuggManager @TestOnly constructor(
     )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
     private val cliRunConfigurationStore = CliRunConfigurationStore(pathManager)
-    private val ideaCliRunConfigurationManager = IdeaCliRunConfigurationManager(runManager, compileContextManager, cliRunConfigurationStore)
+    private val ideaCliRunConfigurationManager = IdeaCliRunConfigurationManager(
+        runManager,
+        compileContextManager,
+        cliRunConfigurationStore,
+        logger.getInstance("IdeaCliRunConfigurationManager"),
+    )
     constructor(
         project2: Project,
         pathManager: JuggPathManager,
@@ -309,8 +314,25 @@ class JuggManager @TestOnly constructor(
 
     private fun updateProjectInfoAndRunConfigurations(isAfterSync: Boolean) {
         updateProjectInfo(isAfterSync)
+        val suggestions = getRunConfigurationSuggestions()
         taskRunnerManager.runProjectWriteLocked("Reconcile CLI run configurations") {
-            ideaCliRunConfigurationManager.reconcileActiveBuildVariants()
+            ideaCliRunConfigurationManager.reconcileActiveBuildVariants(suggestions)
+        }
+    }
+
+    /** Reads the fresh Android model after Sync without changing the shared compile context. */
+    private fun getRunConfigurationSuggestions(): List<SuggestRunConfiguration> {
+        val currentNames = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java).map { it.name }
+        return try {
+            AsDeployerCompat.getSuggestRunConfigurations(
+                currentNames,
+                project,
+                logger.getInstance("GetSuggestRunConfigurations"),
+                isNeedDefaultRunConfig = false,
+            ).also { logger.debug("Active Build Variant suggestions: $it") }
+        } catch (e: Throwable) {
+            logger.warn("Get Active Build Variant suggestions failed", e)
+            emptyList()
         }
     }
 

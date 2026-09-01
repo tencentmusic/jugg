@@ -53,13 +53,13 @@ Sync 后 `tryCreateRunConfigurations()` 用 `AsDeployerCompat.getSuggestRunConfi
 
 ### 3.1 develop
 
-入口：`IdeaCliRunConfigurationManager.selectActiveVariant`。
+入口：`JuggManager.updateProjectInfoAndRunConfigurations` 与 `IdeaCliRunConfigurationManager.selectActiveVariant`。
 
 判定分为 source、variant、target 三道门禁：
 
-- source：选中 command 必须精确等于 `generateForModule()` 为某个已知 variant 生成的单 task `./gradlew :modulePath:assemble{Variant}`。
-- variant：source variant 与当前 `ModuleInfo.buildVariant` 不同。
-- target：必须按 active variant 的稳定配置 id 唯一找到 command 仍等于标准生成值的目标配置。
+- source：选中 command 必须精确等于单 task `./gradlew :modulePath:assemble{Variant}`，不接受附加参数或其他 task。
+- variant：Sync 后从普通 Android Run Configuration 的最新 Android model suggestion 读取 active variant；suggestion command 必须同样是标准 assemble command，完整 Gradle module path 必须与 source 一致，且 `variantName` 必须与 command 一致。
+- target：优先按 active variant 的稳定配置 id 唯一找到精确 command；兼容旧配置时允许唯一精确匹配 suggestion command + APK output；都不存在时创建稳定目标。仅存在同 variant 自定义 target 时仍 keep。
 
 任一门禁失败都 keep。`matchesConfiguration()` 仍用于避免重复创建和保留已有配置，但不再用于挑选自动切换目标。
 
@@ -73,7 +73,9 @@ Sync 后 `tryCreateRunConfigurations()` 用 `AsDeployerCompat.getSuggestRunConfi
 | `./gradlew :app:musicApp:uploadDebug` | `release` | keep |
 | `./gradlew happyBuild` | `release` | keep |
 
-已知 variant 来自 CompileContext 里该 application module 的 `buildVariant` + `variants`。develop 在 reconcile 前先 `updateProjectInfo`，此时 CC 已是 Sync 后的模型。若 active variant 只有自定义配置，没有标准稳定 id 目标，则允许漏切并保留当前选择。
+suggestion 只作为 Run Configuration 切换的只读 active variant 证据，不覆盖 CompileContext。模块身份使用完整 Gradle task 路径，因此根工程 `:app` 与 included build `:SMCommon:app` 不会因简单名相同而互相切换。suggestion 缺失、重复、command 与 variant 不一致，或兼容层只能得到冲突身份时均允许漏切并保留当前选择。
+
+该调整修复了 `JuggDuplicateAppModules`：IDEA model 同时存在根工程 `app` 与 included build `SMCommon.app` 时，`JuggProjectInfo` 合并可能为了编译产物安全保留旧 Gradle variant；Run Configuration 不再受该编译模型降级影响，直接使用 IDEA 当前 suggestion，同时不改变 R.jar、classpath、Manifest、签名等 CompileContext 消费面。
 
 另：`Compile command changed` 日志补上 `last=` / `current=`。MCP 选配置逻辑未改。
 
@@ -104,7 +106,7 @@ main 仍会按既有逻辑创建缺失 suggestion 配置，但自定义或不确
 
 ### 3.3 两边实现不同但产品语义一致
 
-develop 使用已更新 CompileContext 的完整 variants 和稳定配置 id；main 使用 Sync 当下的 Active Build Variant suggestion、精确 command 与 APK output。两边都不再通过任意 task 后缀推断自定义 command，也都不使用 `FullBuildInfo` 作为 Sync 当前 variant。
+develop 与 main 都使用 Sync 当下的 Active Build Variant suggestion。develop 额外保留共享 CLI profile 的稳定配置 id，并兼容唯一精确匹配 command + APK output 的旧配置；main 仅使用精确 command 与 APK output。两边都不再通过任意 task 后缀推断自定义 command，也都不使用 `FullBuildInfo` 作为 Sync 当前 variant。
 
 统一失败策略是：无法证明 source、variant 或 target 时 keep，接受边界漏切。
 

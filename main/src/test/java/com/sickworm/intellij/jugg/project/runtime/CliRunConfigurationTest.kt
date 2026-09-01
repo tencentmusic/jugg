@@ -78,6 +78,37 @@ class CliRunConfigurationTest {
     }
 
     @Test
+    fun `verified module identity reuses module profile id`() {
+        val projectDir = temporaryFolder.newFolder("module_identity_project")
+        val includedApp = ModuleInfo.virtualModule.copy(
+            name = "app",
+            moduleType = ModuleInfo.Type.Application,
+            projectRootDir = projectDir,
+            moduleRootDir = File(projectDir, "SMCommon/app"),
+            buildVariant = "prodStaging",
+            buildPathInfo = ModuleBuildPathInfo(
+                projectDir,
+                File(projectDir, "SMCommon/app"),
+                "prodStaging",
+                buildDirRelativePath = "",
+            ),
+        )
+
+        val moduleConfiguration = CliRunConfigurationGenerator.generateForModule(includedApp, generatedAt = 100L)
+        val identityConfiguration = CliRunConfigurationGenerator.generateForModuleIdentity(
+            modulePath = ":SMCommon:app",
+            moduleName = "SMCommon.app",
+            variant = "prodStaging",
+            outputApkName = "SMCommon/app/build/outputs/apk/prod/staging/*.apk",
+            generatedAt = 200L,
+        )
+
+        assertEquals(moduleConfiguration.id, identityConfiguration.id)
+        assertEquals("./gradlew :SMCommon:app:assembleProdStaging", identityConfiguration.compileCommand)
+        assertEquals("SMCommon.app", identityConfiguration.moduleName)
+    }
+
+    @Test
     fun `build identity follows known variant suffix on the leaf module task`() {
         val projectDir = temporaryFolder.newFolder("variant_suffix_identity")
         val app = applicationModule(projectDir, "app", "debug").copy(

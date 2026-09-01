@@ -6,6 +6,7 @@ import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.execution.configurations.RunConfiguration
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -119,13 +120,138 @@ class IdeaCliRunConfigurationFlowTest {
         whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
         whenever(fixture.runManager.createConfiguration("app release", factory)).thenReturn(release)
 
-        val configurations = fixture.manager.reconcileActiveBuildVariants()
+        val configurations = fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
         assertTrue(configurations.any { it.moduleName == "app" && it.variant == "release" })
         assertEquals("./gradlew :app:assembleRelease", releaseOptions.compileCommand)
         verify(fixture.runManager).addConfiguration(release)
         verify(fixture.runManager).selectedConfiguration = release
         assertEquals(releaseOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
+    }
+
+    @Test
+    fun `active variant suggestion switches root app when duplicate module merge keeps stale variant`() {
+        val fixture = fixture("duplicate_app_module", appVariant = "devDebug", includePaid = false)
+        val debug = juggSettings("jugg:app", ideaOptions("./gradlew :app:assembleDevDebug", "app/build/outputs/apk/dev/debug/*.apk"))
+        val releaseOptions = ideaOptions("", "")
+        val release = juggSettings("app devRelease", releaseOptions)
+        val factory = debug.configuration.factory!!
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(debug))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
+        whenever(fixture.runManager.createConfiguration("app devRelease", factory)).thenReturn(release)
+
+        fixture.manager.reconcileActiveBuildVariants(
+            listOf(
+                suggestion("app", "devRelease"),
+                suggestion("SMCommon.app", "prodStaging"),
+            ),
+        )
+
+        assertEquals("./gradlew :app:assembleDevRelease", releaseOptions.compileCommand)
+        verify(fixture.runManager).selectedConfiguration = release
+        assertEquals(releaseOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
+    }
+
+    @Test
+    fun `active variant suggestion uses full path for included build app`() {
+        val fixture = fixture("included_app_module", appVariant = "devDebug", includePaid = false)
+        val debug = juggSettings(
+            "jugg:SMCommon.app",
+            ideaOptions("./gradlew :SMCommon:app:assembleDevDebug", "SMCommon/app/build/outputs/apk/dev/debug/*.apk"),
+        )
+        val stagingOptions = ideaOptions("", "")
+        val staging = juggSettings("SMCommon.app prodStaging", stagingOptions)
+        val factory = debug.configuration.factory!!
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(debug))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
+        whenever(fixture.runManager.createConfiguration("SMCommon.app prodStaging", factory)).thenReturn(staging)
+
+        fixture.manager.reconcileActiveBuildVariants(
+            listOf(
+                suggestion("app", "devRelease"),
+                suggestion("SMCommon.app", "prodStaging"),
+            ),
+        )
+
+        assertEquals("./gradlew :SMCommon:app:assembleProdStaging", stagingOptions.compileCommand)
+        verify(fixture.runManager).selectedConfiguration = staging
+    }
+
+    @Test
+    fun `active variant reconciliation keeps selection when suggestions conflict for the same path`() {
+        val fixture = fixture("ambiguous_suggestion", appVariant = "debug", includePaid = false)
+        val debugOptions = ideaOptions("./gradlew :app:assembleDebug", "app/build/outputs/apk/debug/*.apk")
+        val debug = juggSettings("app debug", debugOptions)
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(debug))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
+
+        fixture.manager.reconcileActiveBuildVariants(
+            listOf(
+                suggestion("app", "release"),
+                suggestion("app", "qaDebug"),
+            ),
+        )
+
+        verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
+        assertEquals(debugOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
+    }
+
+    @Test
+    fun `active variant reconciliation reuses one exact legacy target`() {
+        val fixture = fixture("legacy_target", appVariant = "devDebug", includePaid = false)
+        val debug = juggSettings(
+            "jugg:app",
+            ideaOptions("./gradlew :app:assembleDevDebug", "app/build/outputs/apk/dev/debug/*.apk"),
+        )
+        val releaseSuggestion = suggestion("app", "devRelease")
+        val release = juggSettings(
+            "jugg:app:devRelease",
+            ideaOptions(releaseSuggestion.compileCommand, releaseSuggestion.outputApkPath),
+        )
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(debug, release))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
+
+        fixture.manager.reconcileActiveBuildVariants(listOf(releaseSuggestion))
+
+        verify(fixture.runManager, org.mockito.kotlin.never()).createConfiguration(
+            org.mockito.kotlin.any<String>(),
+            org.mockito.kotlin.any<ConfigurationFactory>(),
+        )
+        verify(fixture.runManager).selectedConfiguration = release
+    }
+
+    @Test
+    fun `active variant reconciliation keeps selection when stable id belongs to a custom target`() {
+        val fixture = fixture("stable_id_collision", appVariant = "release", includePaid = false)
+        val debugOptions = ideaOptions("./gradlew :app:assembleDebug", "app/build/outputs/apk/debug/*.apk")
+        val debug = juggSettings("app debug", debugOptions)
+        val releaseSuggestion = suggestion("app", "release")
+        val expected = CliRunConfigurationGenerator.generateForModuleIdentity(
+            modulePath = ":app",
+            moduleName = "app",
+            variant = "release",
+            outputApkName = releaseSuggestion.outputApkPath,
+        )
+        val customOptions = ideaOptions("./gradlew :app:deployRelease", "artifacts/custom-release.apk").apply {
+            cliRunConfigurationId = expected.id
+        }
+        val custom = juggSettings("custom release", customOptions)
+        val legacy = juggSettings(
+            "legacy release",
+            ideaOptions(releaseSuggestion.compileCommand, releaseSuggestion.outputApkPath),
+        )
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(debug, custom, legacy))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
+
+        fixture.manager.reconcileActiveBuildVariants(listOf(releaseSuggestion))
+
+        verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
+        assertEquals(debugOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
     }
 
     @Test
@@ -138,7 +264,7 @@ class IdeaCliRunConfigurationFlowTest {
             .thenReturn(listOf(assemble, deploy))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(deploy)
 
-        fixture.manager.reconcileActiveBuildVariants()
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "debug")))
 
         verify(fixture.runManager, org.mockito.kotlin.never()).createConfiguration(
             org.mockito.kotlin.any<String>(),
@@ -159,7 +285,7 @@ class IdeaCliRunConfigurationFlowTest {
             .thenReturn(listOf(custom, release))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(custom)
 
-        fixture.manager.reconcileActiveBuildVariants()
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
         verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
         assertEquals(customOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
@@ -175,7 +301,7 @@ class IdeaCliRunConfigurationFlowTest {
             .thenReturn(listOf(custom, release))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(custom)
 
-        fixture.manager.reconcileActiveBuildVariants()
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
         verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
         assertEquals(customOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
@@ -191,7 +317,7 @@ class IdeaCliRunConfigurationFlowTest {
             .thenReturn(listOf(debug, customRelease))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
 
-        fixture.manager.reconcileActiveBuildVariants()
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
         verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
         assertEquals(debugOptions.cliRunConfigurationId, fixture.store.loadCurrent()!!.id)
@@ -206,7 +332,7 @@ class IdeaCliRunConfigurationFlowTest {
         whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java)).thenReturn(listOf(release))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(release)
 
-        fixture.manager.reconcileActiveBuildVariants()
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
         assertEquals("custom-release.apk", options.outputApkName)
         assertEquals("CHANNEL=internal", options.environmentVariables)
@@ -224,7 +350,7 @@ class IdeaCliRunConfigurationFlowTest {
         whenever(fixture.runManager.selectedConfiguration).thenReturn(other)
         whenever(fixture.runManager.createConfiguration("app release", debug.configuration.factory!!)).thenReturn(release)
 
-        fixture.manager.reconcileActiveBuildVariants()
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
         verify(fixture.runManager).addConfiguration(release)
         verify(fixture.runManager, org.mockito.kotlin.never()).selectedConfiguration = org.mockito.kotlin.any()
@@ -238,7 +364,12 @@ class IdeaCliRunConfigurationFlowTest {
         val compileContextManager = mock<CompileContextManager>()
         whenever(compileContextManager.getProjectInfo()).thenReturn(projectInfo(projectDir, appVariant, includePaid))
         val store = CliRunConfigurationStore(pathManager)
-        return Fixture(pathManager, runManager, store, IdeaCliRunConfigurationManager(runManager, compileContextManager, store))
+        return Fixture(
+            pathManager,
+            runManager,
+            store,
+            IdeaCliRunConfigurationManager(runManager, compileContextManager, store, mock()),
+        )
     }
 
     private fun juggSettings(name: String, options: JuggRunConfigurationOptions): RunnerAndConfigurationSettings {
@@ -257,6 +388,23 @@ class IdeaCliRunConfigurationFlowTest {
             outputApkName = output
             remoteSshPassword = "secret-password"
         }
+    }
+
+    private fun suggestion(moduleName: String, variant: String): SuggestRunConfiguration {
+        val modulePath = moduleName.replace('.', ':')
+        val variantTask = variant.replaceFirstChar { it.uppercaseChar() }
+        val outputMatch = Regex("^(.*?)(Debug|Release|Staging)$").matchEntire(variant)
+        val variantOutput = outputMatch?.let {
+            val flavor = it.groupValues[1]
+            val buildType = it.groupValues[2].lowercase()
+            if (flavor.isEmpty()) buildType else "$flavor/$buildType"
+        } ?: variant
+        return SuggestRunConfiguration(
+            moduleName = moduleName,
+            compileCommand = "./gradlew :$modulePath:assemble$variantTask",
+            outputApkPath = "${moduleName.replace('.', '/')}/build/outputs/apk/$variantOutput/*.apk",
+            variantName = variant,
+        )
     }
 
     private fun compileOptions(pathManager: JuggPathManager, task: String, output: String): JuggGradleCompileOptions {

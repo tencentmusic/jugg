@@ -77,23 +77,42 @@ object CliRunConfigurationGenerator {
         generatedAt: Long = System.currentTimeMillis(),
     ): CliRunConfiguration {
         val variant = module.buildVariant.ifBlank { ModuleInfo.DEFAULT_BUILD_VARIANT }
-        val modulePath = module.gradleModulePath()
-        val task = "${modulePath}assemble${variant.upperCamel()}"
         val outputPrefix = runCatching {
             module.buildPathInfo.buildDir.relativeTo(module.projectRootDir).invariantSeparatorsPath.trimEnd('/') + "/"
         }.getOrElse {
             module.moduleStdPath.takeIf { path -> path.isNotEmpty() }?.plus("/build/") ?: "build/"
         }
+        return generateForModuleIdentity(
+            modulePath = module.moduleStdPath,
+            moduleName = module.name,
+            variant = variant,
+            outputApkName = "${outputPrefix}outputs/apk/${variant.outputDirectory()}/*.apk",
+            generatedAt = generatedAt,
+        )
+    }
+
+    /** Generates the same stable profile when only a verified Gradle module identity is available. */
+    fun generateForModuleIdentity(
+        modulePath: String,
+        moduleName: String,
+        variant: String,
+        outputApkName: String,
+        generatedAt: Long = System.currentTimeMillis(),
+    ): CliRunConfiguration {
+        val moduleStdPath = modulePath.trim(':').replace(':', '/').trim('/')
+        require(moduleStdPath.isNotEmpty()) { "Module path is empty" }
+        require(variant.isNotBlank()) { "Variant is empty" }
+        val task = ":${moduleStdPath.replace('/', ':')}:assemble${variant.upperCamel()}"
         return CliRunConfiguration(
-            id = stableId(module.moduleStdPath, variant),
-            name = "${module.name} $variant",
+            id = stableId(moduleStdPath, variant),
+            name = "$moduleName $variant",
             generatedBy = "gradle-project-info",
             generatedAt = generatedAt,
-            moduleName = module.name,
+            moduleName = moduleName,
             variant = variant,
             buildTarget = BuildTarget.APP,
             compileCommand = "./gradlew $task",
-            outputApkName = "${outputPrefix}outputs/apk/${variant.outputDirectory()}/*.apk",
+            outputApkName = outputApkName,
         )
     }
 
