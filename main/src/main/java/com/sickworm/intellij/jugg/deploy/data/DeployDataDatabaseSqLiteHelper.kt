@@ -25,7 +25,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
     companion object {
-        private const val VERSION = 11
+        private const val VERSION = 12
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -1455,15 +1455,15 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             emptyList()
         } else {
             split("\n").map {
-                val parts = it.split(" ")
-                MethodNode(owner, parts[0].toInt(), parts[1], parts[2])
+                val parts = it.split(" ", limit = 4)
+                MethodNode(owner, parts[0].toInt(), parts[1], parts[2], parts.getOrNull(3))
             }
         }
     }
 
     private inline fun List<MethodNode>.toMethodString(): String {
         return joinToString("\n") {
-            "${it.access} ${it.name} ${it.desc}"
+            "${it.access} ${it.name} ${it.desc}" + (it.genericSignature?.let { signature -> " $signature" } ?: "")
         }
     }
 
@@ -1472,15 +1472,15 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             emptyList()
         } else {
             split("\n").map {
-                val parts = it.split(" ")
-                FieldNode(owner, parts[0].toInt(), parts[1], parts[2])
+                val parts = it.split(" ", limit = 4)
+                FieldNode(owner, parts[0].toInt(), parts[1], parts[2], parts.getOrNull(3))
             }
         }
     }
 
     private inline fun List<FieldNode>.toFieldString(): String {
         return joinToString("\n") {
-            "${it.access} ${it.name} ${it.type}"
+            "${it.access} ${it.name} ${it.type}" + (it.genericSignature?.let { signature -> " $signature" } ?: "")
         }
     }
 

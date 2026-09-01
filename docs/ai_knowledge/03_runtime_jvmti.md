@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-08-10
+> 最后核对：2026-08-20
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -143,10 +143,11 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - Dragonfly 源 DEX JAR 只用于离线预处理。`jvmti_agent/libs/dragonfly/preprocess.sh` 固定并校验 dex2jar、Jar Jar Abrams 版本与 SHA-256，先转为 class JAR，再将 Dragonfly API 和其内置 Kotlin、coroutines、Guava、dexlib2 依赖统一重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.**`；正式 Gradle 流程只消费仓库中的 `*-jugg.jar`，避免与宿主 App 的同名类冲突。
 - `jugg-runtime.jar` 继续合并相同的预处理 Dragonfly JAR，保持 `GradleApplicationInjector` 的单 runtime JAR 接口；构建同时校验私有 Dragonfly、Kotlin runtime 入口存在且原包 class entry 不存在。Dragonfly 不再依赖宿主 App 提供 Kotlin runtime。
 - 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
-- 修改 `jvmti_agent` 里的 native、Java runtime、setup script 或 bundle 内容后，必须递增 `agentVersion`；否则设备端已有 `{AGENT_VERSION}` 目录会让 `isAgentBundlePushed()` 误认为无需更新。
+- 修改 `jvmti_agent` 里的 native、Java runtime（含 `ViewExpressionEvaluator` / `view-inspect` 求值）、setup script 或 bundle 内容后，必须递增 `agentVersion`。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
 - 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。
 - Java runtime 入口由 `HotfixLoader` 统一做设备 API 判定；API < 26 时 `init()` 会在访问 `Context.getCodeCacheDir()` 前 return，`install()` / `installDex()` / `isNeedEnableHotfix()` 也会短路。这个判断不改变 Gradle 构建产物，`BootstrapApplication` 注入仍只受 `jugg.inject.application.enable` 控制。
 - `BootstrapApplication` 查询不到 application meta-data 时按“没有原始 Application / AppComponentFactory”处理并继续启动；仅在 meta-data 中存在 Jugg 保存的原始类名时才创建和替换对应实例。
+- API 29+ 的 `BootstrapAppComponentFactory.instantiateClassLoader()` 必须在 Framework 创建 Application 前委托原始 `AppComponentFactory`，并把原始工厂返回的 ClassLoader 直接交还 Framework。委托时传入恢复了原始 Application 和 AppComponentFactory 类名的 `ApplicationInfo`；原始工厂实例必须缓存并由 `BootstrapApplication` 复用，禁止在 `attachBaseContext()` 中重复调用 `instantiateClassLoader()`。
 - `BootstrapApplication.attachBaseContext()` 会创建并 attach 原始 Application；启动 `ContentProvider` 随后执行，早于 `BootstrapApplication.onCreate()` 中的 Application 引用替换。该窗口内 `BootstrapApplication.getApplicationContext()` 在原始 Application 已创建后直接返回原始实例，使 Provider 通过 `context.getApplicationContext()` 获得正常 Application；`ContentProvider.getContext()` 仍是 Framework 在 `attachInfo()` 时保存的 Bootstrap Context，不属于此兼容范围。
 - `InstrumentationHooks.isEnableHotfix()` 可能在 `HotfixLoader.init()` 之前被 ResourcesManager hook 调用。此时 `overlayFilesDir` 尚未初始化，只能临时返回 false，不能缓存判断结果；初始化完成后必须重新读取 compat flag。
 - framework hook transform 遵循 Best-effort：目标类不存在或单个 `RetransformClasses` 失败时记录 warning 并继续其他 transform，不把整个 Jugg agent 判为不可用。JVMTI capability、class file load hook event 等基础步骤失败仍按 agent instrumentation 失败处理。
@@ -158,7 +159,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 
 ## 6. 隐形约束
 
-- `pushAgentToApps()` 和 `attachAgentToApps()` 都受 `JuggSettings.finalIsEnableCompatibleDeploymentMode` 控制；功能关闭时不会做 agent 操作。
+- `JuggSettings.isEnableCompatibleDeploymentMode` 与 `finalIsEnableCompatibleDeploymentMode` 恒为 `true`，`pushAgentToApps()` 和 `attachAgentToApps()` 不提供用户关闭入口。
 - install 没有增量部署文件，`isNeedPushAgentAfterDeploy()` 直接返回 false；不要用 install 后缺 agent 判断为 push 失败。
 - `isNeedPushAfterDeploy()` 要同时看到 Jugg agent 和非 Jugg 的 `.so` startup agent；缺任意一类都会要求重新 push，因为 Apply Changes 首次写入 agent 时可能清空目录。
 - `isHasJvmtiCompatIssue()` 最多等待 3 秒，每 100ms 轮询一次；返回 `null` 的 app 会继续等，全部 app 都非 null 才收口。
@@ -174,13 +175,14 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 
 | 现象 | 优先入口 |
 |---|---|
-| agent bundle 未更新 | 根 `build.gradle` 的 `agentVersion`，再查 `/data/local/tmp/jugg/{version}` 文件数 |
+| agent bundle 未更新 | 根 `build.gradle` 的 `agentVersion`，再查 `/data/local/tmp/jugg/{version}` 目录时间戳与文件数 |
+| `view-inspect` 无括号字段仍报 `expected '(' after method name` | 设备仍在用旧 `jugg-instruments.jar`；确认 `agentVersion` 已递增后再部署/重启 App |
 | app sandbox 中没有 Jugg agent | `JuggJvmtiAgentManager.pushAgentToApp()`、`setupAgent()`、`jugg_agent_setup.sh` |
 | 32/64 位 so 选错 | `JuggJvmtiAgentManager.attachAgentToApp()` 的 `_alt.so` 判断和 `adb.getArch(packageName)` |
 | 部署后被判 JVMTI 不可用 | `JuggJvmtiAgentManagerHelper.isHasJvmtiCompatIssue()`，检查 `.jugg_jvmti_not_available` |
 | 检测一直不收口 | app 是否 restart、`code_cache` 是否存在、native `Agent_OnAttach` 是否写 flag |
 | Direct Overlay 缺 AS startup agent | `AsStartupAgentPusher.hasApplyChangesStartupAgent()` 与 `pushApplyChangesStartupAgent()` |
-| HarmonyOS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `hw_sc.build.platform.version` 与 `JuggSettings.finalIsEnableCompatibleDeploymentMode` |
+| HarmonyOS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `hw_sc.build.platform.version`；`JuggSettings.finalIsEnableCompatibleDeploymentMode` 应恒为 `true` |
 | WebView 初始化报 `Already registered a list of actions in this process` | 检查 `assetManager hook action=fix`、非宿主 `resDir` 和宿主 APK 路径是否已由 `ApplyChangesOverlayPolicy` 记录 |
 | compat deploy 中 Application 资源正常、Activity 报 `Resources$NotFoundException` | 检查 `isEnableHotfix()` 是否过早缓存 false，以及 `createAssetManagerNewExit()` 是否删除了 `resource.ap_` |
 | legacy Compose resource 仍是旧值 | 检查 `java/lang/ClassLoader` retransformation、`Classpath resource hook in`、overlay hit 来源，以及部署后是否重启进程 |

@@ -1,6 +1,6 @@
 # MCP UI 布局验证设计
 
-> 最后核对：2026-07-22
+> 最后核对：2026-08-21
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -29,8 +29,8 @@ activity-stack
 | `McpToolActionRegistry` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | 公开工具注册表；判断 UI 工具是否真的可通过 MCP 调用的第一入口 |
 | `LayoutDumpMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpMcpToolAction.kt` | 公开 `layout-dump`，导出 HTML 视图树 artifact |
 | `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | 复用的内部 dump 能力；生成公开 HTML 和内部 JSON |
-| `UiFindMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/UiFindMcpToolAction.kt` | 公开 `view-locate`，按 text/resourceId/contentDesc 查元素 bounds |
-| `EvalViewMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/EvalViewMcpToolAction.kt` | 公开 `view-inspect`，通过 App 内反射读取 getter 链 |
+| `UiFindMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/UiFindMcpToolAction.kt` | 公开 `view-locate`，将组合 selector、可见性和结果预算下沉到 App 侧实时查找 |
+| `EvalViewMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/EvalViewMcpToolAction.kt` | 公开 `view-inspect`，通过 App 内反射读取 getter 或 public 字段 |
 | `TapMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/TapMcpToolAction.kt` | 公开 `tap`，支持坐标、百分比和元素选择器模式 |
 | `McpAppReadyGuard` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpAppReadyGuard.kt` | runtime observe/mutate 工具的 App 在线、前台和设备交互态检查 |
 | `ViewHierarchyClient` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt` | IDE 侧 LocalSocket 客户端，连接 App 内 ViewHierarchy server |
@@ -47,7 +47,7 @@ activity-stack
 | `activity-stack` | 公开 MCP | 当前页面是否在目标 Activity | 具体 View 属性 |
 | `layout-dump` | 公开 MCP + CLI | 全局视图树、候选节点、窗口/弹窗结构 | 直接断言颜色、字号等 View getter 属性 |
 | `view-locate` | 公开 MCP + CLI | 元素是否存在、bounds、size、间距、对齐 | maxLines、ellipsize、颜色、圆角等内部属性 |
-| `view-inspect` | 公开 MCP + CLI | getter 可读的 View 属性、density、隐藏但仍在树里的 View 属性 | 点击坐标、是否安全可点 |
+| `view-inspect` | 公开 MCP + CLI | getter / Kotlin property / public 字段可读的 View 属性、density、隐藏但仍在树里的 View 属性 | 点击坐标、是否安全可点 |
 | `tap` | 公开 MCP + CLI | 执行 tap/long-press/swipe | 作为验证工具替代 `view-locate` |
 | `wait-logs` | 公开 MCP + CLI | App 日志 marker、crash、auto-run 闭环 | UI 几何属性 |
 | `layout-verify` | 未注册 | 旧批量断言实现参考 | 公开 MCP/CLI 调用 |
@@ -67,12 +67,14 @@ layout-dump
   -> DragonflyHierarchySource 适配为原有 windows/root/children JSON
   -> LayoutDumpHelper 输出 HTML artifact，并保留内部 JSON
 view-locate
-  -> 复用内部 JSON，按 text/resourceId/contentDesc 精确匹配节点
-  -> 返回 bounds/position/size/matchCount/matches
+  -> 通过 ViewHierarchyClient 请求 App 侧实时 find_elements
+  -> text/resourceId/contentDesc/className 非空字段使用 AND；className 支持完整名/simple name 精确匹配
+  -> visibleOnly 控制可见节点，maxResults 控制候选预算
+  -> 返回 matchCount/returnedCount/truncated/matches；唯一命中才返回顶层 bounds/position/size
 view-inspect
   -> 通过 ViewHierarchyClient 在 App 侧抓取实时 Dragonfly snapshot
   -> Android 节点对原始 View、Compose 节点对 Dragonfly 节点对象执行 getter 链
-  -> 返回 expression/value/type/density
+  -> 返回 expression/value/type/density，并 Best-effort 返回 sourceFile/lineNumber
 ```
 
 间距与对齐目前由 Agent 根据 `view-locate` 返回的 dp bounds 计算：
@@ -117,9 +119,11 @@ tap
 | 数据 | 来源 | 单位 / 语义 |
 |------|------|-------------|
 | `layout-dump` HTML | `LayoutDumpHelper` | 面向 Agent 阅读的公开 artifact |
-| 内部 layout JSON | `LayoutDumpHelper.dumpInternal()` | 仅供 action 内部消费，不作为公开 API |
+| 内部 layout JSON | `LayoutDumpHelper.dumpInternal()` | 仅供布局验证存量 action 内部消费，不作为公开 API |
 | `view-locate.data.bounds` | `UiFindMcpToolAction` | `[left, top, right, bottom]`，单位 dp |
-| `view-locate.data.matchCount` | `UiFindMcpToolAction` | 大于 1 时，首个结果不能直接作为安全点击目标 |
+| `view-locate.data.matchCount` | App 侧 `find_elements` | selector 总命中数；大于 1 时不返回顶层首个节点坐标 |
+| `view-locate.data.returnedCount/truncated` | App 侧 `find_elements` | 实际返回候选数，以及是否被 `maxResults` 截断 |
+| `view-locate/view-inspect.data.source` | Dragonfly 节点属性 | Best-effort `{file?, line?}`；当前不解析为 IDE 本地绝对路径 |
 | `view-inspect.data.values` | `EvalViewMcpToolAction` | getter 原始值，Agent 负责解释与换算 |
 | `view-inspect.data.density` | App 侧 ViewHierarchy 响应 | px -> dp 换算依据 |
 | Figma `dpr` | 设计稿约定 | 只用于 Agent 手动换算或未注册的 Figma 内部算法 |
@@ -142,8 +146,9 @@ tap
 | Compose layout verify 属性有限 | text、bounds 和几何关系可用；Dragonfly 未提供的 clickable/enabled/padding/alpha/background 等属性返回 unavailable |
 | Compose 虚拟 ID 依赖确定性遍历 | window/children 顺序和 UI 结构不变时跨请求一致；重排、插入或重组可能改变 ID |
 | Dragonfly Compose 依赖宿主 Compose runtime/tooling 兼容性 | Compose 能力已并入新的 Dragonfly DEX JAR，并在不兼容时局部收口；具体版本覆盖仍需目标 App 验证 |
-| `view-locate` 目前只按 text/resourceId/contentDesc 匹配 | `figmaNode` 参数存在于 schema，但当前实现没有用它做 IoU 选择 |
-| `view-locate` 多命中仍返回首个节点 | `matchCount > 1` 时必须消歧，不能把首个节点当作稳定断言或点击目标 |
+| `view-locate` selector 是精确 AND | className 只接受完整类名或 simple name 精确匹配；不要依赖子串匹配 |
+| `view-locate` 候选有响应预算 | `matchCount` 可能大于 `returnedCount`；`truncated=true` 时应收紧 selector，不要把未返回节点视为不存在 |
+| `view-locate` 多命中不返回顶层坐标 | 必须从 `matches[]` 观察候选并补充 selector，不能把首个节点当作稳定断言或点击目标 |
 | `view-inspect` 可读隐藏节点 | hidden/GONE 节点属性可作为状态证据，但不能证明可点击 |
 | `screenshot` action 未注册 | 截图不能作为当前 MCP 公开流程的默认证据来源 |
 | `layout-verify` 未注册 | checklist 和报告应使用 `view-locate` / `view-inspect` 的实际输出，而不是旧 `checks[]` 批量断言 |
@@ -155,8 +160,8 @@ tap
 | 现象 | 优先入口 |
 |------|----------|
 | Agent 声称某 UI 工具可调用但运行返回 `TOOL_NOT_FOUND` | `McpToolActionRegistry.defaultActions()` 与 `08_mcp_tools_list.md` |
-| `view-locate` 找不到元素 | `UiFindMcpToolAction.findMatches()`，再用 `layout-dump` HTML 检查 text/id/contentDesc 是否存在 |
-| `view-locate` 多命中 | `view-locate.data.matches[]`，补充更稳定 selector 或改用坐标 |
+| `view-locate` 找不到元素 | 检查 App 侧 `find_elements` selector；再用 `layout-dump` HTML 确认 text/id/contentDesc/className 与可见性 |
+| `view-locate` 多命中或截断 | 查看 `matchCount/returnedCount/truncated/matches[]`，补充更稳定 selector；必要时调高 `maxResults` 到 `100` 以内 |
 | 坐标/间距看起来不对 | 检查 bounds 单位是否已是 dp；px 值只能经 `view-inspect.data.density` 换算 |
 | `view-inspect` getter 失败 | `EvalViewMcpToolAction` 白名单、App 侧 `ViewExpressionEvaluator` |
 | runtime observe 工具报 socket 不可用 | `McpAppReadyGuard`、`ViewHierarchyFailureDiagnoser`、目标 App 前台状态 |

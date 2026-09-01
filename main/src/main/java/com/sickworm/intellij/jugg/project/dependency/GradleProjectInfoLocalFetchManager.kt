@@ -47,11 +47,13 @@ class GradleProjectInfoLocalFetchManager(
             }
         }
 
+    // JSON snapshot only. Incremental compile still requires FullBuildInfo and a finished missing-snapshot rebuild.
     val isProjectInfoAvailable: Boolean get() = pathManager.gradleProjectInfoFile.exists()
-            && deployHistoryManager.getFullBuildInfo()?.compileCommand != null
 
     val isIncrementalCompileAvailable: Boolean
-        get() = isProjectInfoAvailable && !isRebuildingMissingProjectInfo
+        get() = isProjectInfoAvailable
+                && deployHistoryManager.getFullBuildInfo()?.compileCommand != null
+                && !isRebuildingMissingProjectInfo
 
     private var isUpdating: Boolean = false
     @Volatile

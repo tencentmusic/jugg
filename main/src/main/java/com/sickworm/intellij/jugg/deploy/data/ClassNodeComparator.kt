@@ -32,6 +32,17 @@ class ClassNodeComparator(
         } else {
             null
         }
+        // Member equality excludes generic signatures and represents the erased DEX identity.
+        val newMethodsByIdentity = newClassNode.methods.associateBy { it }
+        val modifiedGenericSignatureMethods = oldClassNode.methods.filter { oldMethod ->
+            val newMethod = newMethodsByIdentity[oldMethod]
+            newMethod != null && oldMethod.genericSignature != newMethod.genericSignature
+        }
+        val newFieldsByIdentity = newClassNode.fields.associateBy { it }
+        val modifiedGenericSignatureFields = oldClassNode.fields.filter { oldField ->
+            val newField = newFieldsByIdentity[oldField]
+            newField != null && oldField.genericSignature != newField.genericSignature
+        }
 
         // here, we don't use map or set to diff result, because in most cases,
         // the order of these data is basically the same
@@ -61,6 +72,8 @@ class ClassNodeComparator(
             oldClassNode.className,
             modifiedParentClass,
             modifiedGenericSignature,
+            modifiedGenericSignatureMethods,
+            modifiedGenericSignatureFields,
             addedInterfaces,
             deletedInterfaces,
             addedFields,
@@ -114,6 +127,8 @@ class ClassNodeDiffResult(
 
     val modifiedParentClass: List<Pair<String?, String?>>, // Pair<old, new>
     val modifiedGenericSignature: Pair<String?, String?>?,
+    val modifiedGenericSignatureMethods: List<MethodNode>,
+    val modifiedGenericSignatureFields: List<FieldNode>,
 
     val addedInterfaces: List<String>,
     val deletedInterfaces: List<String>,
@@ -132,6 +147,8 @@ class ClassNodeDiffResult(
     val isSameStructure
         get() = modifiedParentClass.isEmpty() &&
                 modifiedGenericSignature == null &&
+                modifiedGenericSignatureMethods.isEmpty() &&
+                modifiedGenericSignatureFields.isEmpty() &&
                 addedInterfaces.isEmpty() &&
                 deletedInterfaces.isEmpty() &&
                 addedFields.isEmpty() &&
@@ -143,6 +160,8 @@ class ClassNodeDiffResult(
     val isCanHotReload
         get() = modifiedParentClass.isEmpty() &&
                 modifiedGenericSignature == null &&
+                modifiedGenericSignatureMethods.isEmpty() &&
+                modifiedGenericSignatureFields.isEmpty() &&
                 addedInterfaces.isEmpty() &&
                 deletedInterfaces.isEmpty() &&
                 deletedFields.isEmpty() &&
@@ -171,6 +190,12 @@ class ClassNodeDiffResult(
         }
         if (modifiedGenericSignature != null) {
             builder.append("\nmodifiedGenericSignature: $modifiedGenericSignature")
+        }
+        if (modifiedGenericSignatureMethods.isNotEmpty()) {
+            builder.append("\nmodifiedGenericSignatureMethods: ${modifiedGenericSignatureMethods.toMethodsString()}")
+        }
+        if (modifiedGenericSignatureFields.isNotEmpty()) {
+            builder.append("\nmodifiedGenericSignatureFields: ${modifiedGenericSignatureFields.toFieldsString()}")
         }
         if (addedInterfaces.isNotEmpty()) {
             builder.append("\naddedInterfaces: $addedInterfaces")

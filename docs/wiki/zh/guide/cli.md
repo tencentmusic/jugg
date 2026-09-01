@@ -126,4 +126,4 @@ jugg --if-compiling interrupt compile
 - [CLI 命令](../reference/cli-commands.md)
 - [Agent Skills](../capabilities/tools/agent-skills.md)
 - [MCP 与 CLI](../concepts/mcp-and-cli.md)
-- [Agent 或命令执行失败](../troubleshooting/agent-command-failed.md)
+- [Agent 或 CLI 执行失败](../troubleshooting/agent-command-failed.md)

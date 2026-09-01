@@ -1,6 +1,6 @@
 # 部署系统：影响分析与部署数据生成
 
-> 最后核对：2026-08-12
+> 最后核对：2026-08-28
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -21,6 +21,7 @@
 | `DeployDataDatabase` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabase.kt` | APK 与增量部署索引 facade，聚合 SQLite helper 的引用查询和 commit |
 | `DeployDataDatabaseSqLiteHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabaseSqLiteHelper.kt` | method/field/subclass/source 索引的 SQLite 查询实现，是 effectedSource 传播的主要事实来源 |
 | `ApkParserProcessLauncher` / `ApkParserProcess` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/` | 在独立 JVM 中解析 APK/Dex 并直接更新 SQLite，隔离大工程解析时的瞬时堆占用 |
+| `DexFileNodeCollector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DexFileNodeCollector.kt` | 收集 class 结构及 method/field/subclass 引用；方法 visitor 必须继续委托声明注解解析，避免丢失成员 generic signature |
 | `ClassNodeComparator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ClassNodeComparator.kt` | 比较新旧 `ClassNode`，输出结构变化、abstract 变化和 generic signature 变化 |
 | `InlineMethodDetector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/InlineMethodDetector.kt` | release/minify 场景从 mapping 里找 R8 inline 调用方，补齐字节码补偿类 |
 | `EffectedClassNode` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/EffectedClassNode.kt` | 受影响类模型，区分源码重编译、inline 补偿、minify 移除补偿 |
@@ -55,12 +56,13 @@
 
 | 字段 | 触发条件 | 下游集合 |
 |---|---|---|
-| `effectMethods` | 方法删除、签名变化、`private` 与非 private 切换、其他有效 access flag 变化 | `changedMethodRef` |
+| `effectMethods` | 方法删除、DEX descriptor 或方法级 generic signature 变化、`private` 与非 private 切换、其他有效 access flag 变化 | `changedMethodRef` |
 | `deletedFields` | 字段删除 | `changedFieldRef` |
-| `isAddedAbstractMethodForNonAbstractClass` | 抽象类/接口新增 abstract 方法 | `changedAbstractClasses` |
+| `modifiedGenericSignatureFields` | 字段的 DEX descriptor 不变，但字段级 generic signature 变化 | `changedFieldRef` |
+| `isAddedAbstractMethodForNonAbstractClass` 或父类/接口列表变化 | 抽象类/接口新增 abstract 方法，或 class hierarchy 变化 | `changedAbstractClasses` |
 | `modifiedGenericSignature` | 类级泛型 signature 变化 | `changedGenericSignatureClasses` |
 
-`effectMethods` 判断会忽略 `ACC_ABSTRACT` 和 `ACC_PRIVATE` 之外的等价细节；仅方法体变化不会进入 `effectMethods`。`R$xxx` class 会整体跳过 method/field 引用传播，避免资源修复流程制造大量误重编译。
+方法和字段的引用身份仍使用擦除后的 owner/name/descriptor，generic signature 不参与 `equals`/引用索引 key；只有新旧声明比较会检查 generic signature。这样成员泛型变化可以复用既有 `method_refs` / `field_refs` 找直接调用方，同时不破坏 DEX 引用匹配。仅方法体变化不会进入 `effectMethods`。`R$xxx` class 会整体跳过 method/field 引用传播，避免资源修复流程制造大量误重编译。
 
 ### 3.3 `EffectedType`
 
@@ -100,7 +102,7 @@
 
 ### 4.2 APK 基线索引与解析边界
 
-APK database 不只是“class 是否存在”的缓存。Jugg 需要持久化 class 结构、method/field 引用、父子类关系、source 映射，以及 APK 内 dex/resource entry 的 checksum，才能同时支撑 HOT_RELOAD/HOT_FIX 分类、影响传播、资源补全和下一次 APK 更新 diff。把这些数据长期留在 IDE heap 中会让大 APK 的解析峰值和 GC 直接影响 Android Studio，因此当前 `ApkParserProcessLauncher` 的隔离门槛为 0 MB，正常体积的 APK 会启动独立 JVM 解析；子进程直接更新 app-scoped SQLite，退出后释放解析期内存。
+APK database 不只是“class 是否存在”的缓存。Jugg 需要持久化 class 结构（包括 class/method/field generic signature）、method/field 引用、父子类关系、source 映射，以及 APK 内 dex/resource entry 的 checksum，才能同时支撑 HOT_RELOAD/HOT_FIX 分类、影响传播、资源补全和下一次 APK 更新 diff。把这些数据长期留在 IDE heap 中会让大 APK 的解析峰值和 GC 直接影响 Android Studio，因此当前 `ApkParserProcessLauncher` 的隔离门槛为 0 MB，正常体积的 APK 会启动独立 JVM 解析；子进程直接更新 app-scoped SQLite，退出后释放解析期内存。
 
 解析仍按 Best-effort 收口：独立进程启动、classpath 或执行失败时会 warn，并回退当前 IDE 进程解析，而不是直接让完整构建后的上下文初始化失败。数据库更新先按 APK `lastModified` 快速判断，再用 entry checksum 找新增、删除和变化的 dex/overlay；变化 dex 超过 3 个或达到现有 dex 数量 20% 时重建该 app 数据库，否则只解析变化部分。这个阈值是性能策略，不是部署语义，调整时必须保留“少量变化增量更新、大量变化完整重建”的契约。
 
@@ -117,13 +119,15 @@ APK database 不只是“class 是否存在”的缓存。Jugg 需要持久化 c
 | Step 1 | 将 changed method/field/abstract/generic class 转成 DB classId | 后续 SQL 都依赖历史 APK / deploy DB 中已有 classId |
 | Step 2 | 对非 static changed method 的 owner 查 `subclass_refs`，构造子类虚拟 method ref | 只模拟虚方法分发；static 方法保留给 Step 3，但不能启动子类遍历 |
 | Step 3 | 查 `method_refs` / `field_refs`，找到直接调用或访问变更成员的类 | `changedMethodRefsWithSubclasses` 包含 static 方法，保证 static 直接调用仍会命中 |
-| Step 4 | 对新增 abstract method 的 class/interface 递归找子类 | 非抽象子类必须重编；abstract 子类继续向下传播 |
+| Step 4 | 对新增 abstract method 或 class hierarchy 变化的 class/interface 递归找子类 | 所有直接子类必须重编；abstract 子类继续向下传播 |
 | Step 5 | 对 generic signature 变化类及其子类，查直接 member callers 并递归找子类 | 解决 DEX 擦除后 descriptor 不变但源码泛型约束改变的问题 |
 | Step 6 | 将受影响 classId 反查 class name/source，生成 `EffectedClassNode(SOURCE)` | 这里才形成 SourceCompiler 可消费的源码路径 |
 
 Step 2 的 static 过滤是高风险边界：`changedMethodRefsWithSubclasses` 必须保留全部 method，供 Step 3 查直接引用；但 `currentSuperClassIds` 只能来自 `access == MISS_ACCESS || non-static` 的 method owner。否则 Kotlin lambda / `$r8$lambda$` 这类 static 方法会误触发整棵子类级联重编译。
 
 Generic signature 传播只能覆盖两类确定场景：子类声明链，以及对变化类/受影响子类的 direct method/field caller。纯源码泛型约束但 DEX 中没有 direct member ref 的间接场景，不能假定一定命中。
+
+成员级 generic signature 变化不进入 Step 5 的整类泛型传播：方法变化作为旧方法引用进入 Step 3，字段变化作为旧字段引用进入 Step 3，只重编直接调用或访问该成员的源码。典型场景是 Kotlin 属性 getter 的 descriptor 仍为 `GenericEvent`，但返回 generic signature 从 `GenericEvent<Boolean>` 变成 `GenericEvent<Unit>`；若调用方仍保留旧 lambda bridge，运行时可能发生类型转换异常，因此必须在部署前重编该 getter 的直接调用方。
 
 ---
 
@@ -156,7 +160,8 @@ Generic signature 传播只能覆盖两类确定场景：子类声明链，以�
 |---|---|
 | 改动很小却触发大量 `effectedSource` | `DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()` Step 2，检查 changed method 是否 static / `$r8$lambda$` |
 | 调用方没重编译导致运行异常 | `ClassNodeComparator.compare()` 输出，以及 Step 3 `method_refs` / `field_refs` 是否命中 |
-| 修改泛型约束但 effectedSource 为空 | `ClassNodeComparator.modifiedGenericSignature` 与 Step 5 generic propagation |
+| 修改类级泛型约束但 effectedSource 为空 | `ClassNodeComparator.modifiedGenericSignature` 与 Step 5 generic propagation |
+| 修改方法/字段泛型但直接调用方未重编 | 检查 `DexFileNodeCollector` 是否保留成员 `dalvik.annotation.Signature`，以及 `modifiedGenericSignatureMethods` / `modifiedGenericSignatureFields` 是否进入 Step 3 引用查询 |
 | release 增量后缺类/缺成员 | `getEffectedClassNodesForMinify()` 与 `EffectedType.MINIFY_MEMBER_REMOVED` |
 | release 方法体修改但调用方仍旧逻辑 | `InlineMethodDetector.findInlineEffectedClasses()` 和 mapping 文件是否存在 |
 | 常量改动未触发调用方 | `ConstRefEffectProvider.ensureReadyForRecompile()`，再转 `03_deploy_const_ref.md` |

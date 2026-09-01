@@ -1,6 +1,6 @@
 ---
 name: jugg-update-version-changelog
-description: Update the Jugg plugin version and changelog files, including finalizing an existing version commit. Use only inside a Jugg project when the user asks in Chinese or English to "更新版本", "更新 change log", "更新 changelog", "版本提交收尾", "把版本提交移到最后", "把版本提交置为 HEAD", update version, update change log, release a new version, prepare Jugg release notes, or rebase an update-version commit to the last commit. Do not use outside Jugg repositories.
+description: Update the Jugg plugin version and changelog files, including changelog-only refreshes that keep the current version and finalizing an existing version commit. Use only inside a Jugg project when the user asks in Chinese or English to "更新版本", "更新 change log", "更新 changelog", "只更新 changelog", "更新 changelog 版本不变", "版本提交收尾", "把版本提交移到最后", "把版本提交置为 HEAD", update version, update change log, changelog only, keep the version unchanged, release a new version, prepare Jugg release notes, or rebase an update-version commit to the last commit. Do not use outside Jugg repositories.
 ---
 
 # Jugg Update Version Changelog
@@ -22,7 +22,15 @@ If those markers are missing, stop and tell the user this skill is only for Jugg
 
 Inside a Jugg project, follow the repository's `AGENTS.md` instructions first. In particular, read the required knowledge-base files before code or documentation changes when the project instructions require it.
 
-## Workflow
+## Choose the Workflow
+
+- **Update Version**: the user asks to 更新版本, bump the plugin version, or release a new version. Increment `versionName`, write changelog files, create a new `[other] update version to X.Y.Z` commit, and tag it.
+- **Update Changelog Without Changing Version**: the user asks to 更新 changelog, 只更新 changelog, 更新 changelog 版本不变, or to refresh release notes while keeping the current plugin version. Do not increment `versionName`. Move the latest version-update commit to `HEAD`, then add changelog entries for commits newly included by that move that are not already listed.
+- **Finalize an Existing Version Commit**: the user asks 版本提交收尾, or to summarize later changes into an already-created version commit and move that commit to `HEAD`.
+
+Never treat a changelog-only request as a version bump. Never create a second `[other] update version to X.Y.Z` commit for the same version.
+
+## Update Version
 
 1. Inspect the current state:
    - Run `git status --short`.
@@ -91,6 +99,24 @@ Inside a Jugg project, follow the repository's `AGENTS.md` instructions first. I
    - If the tag exists on any other commit, stop and report the conflict. Never force, move, or delete it unless the user explicitly requests that destructive change.
    - Verify the tag resolves to `HEAD` with `test "$(git rev-parse X.Y.Z^{commit})" = "$(git rev-parse HEAD)"`.
    - Do not push the commit or tag unless the user explicitly asks.
+
+## Update Changelog Without Changing Version
+
+Use this workflow when the plugin version stays `X.Y.Z`. The version-update commit must end at `HEAD` after the changelog refresh.
+
+1. Inspect state. Confirm root `build.gradle` `versionName` is the version to keep. Resolve the latest `[other] update version to X.Y.Z` commit for that version. Verify it is an ancestor of `HEAD`. Stash unrelated dirty or untracked files; never stage them for this task.
+2. Record `ORIG_HEAD` and the version-update commit hash. List `<version-commit>..HEAD`. Those commits are what the move newly includes under this version.
+3. Move the version-update commit to `HEAD` without squashing later commits. Replay `<version-commit>..HEAD` onto the version commit's parent, then cherry-pick the original version-update commit onto the new tip. Keep each later commit separate and in its original order.
+4. After the move, update changelog files from the newly included commits:
+   - Draft user-visible `[feature]` / `[optimize]` / `[bugfix]` entries.
+   - Skip `[docs]`, `[test]`, `[refactor]`, and `[other]` unless they have user-visible product impact.
+   - Compare each draft with the current `X.Y.Z` RC entry and the active HTML minor-series section. Add only entries that are not already described.
+   - Update `date` to the local date. Amend the matching RC declaration and follow the HTML aggregation and category-sort rules from the version workflow. Never create a second RC declaration or HTML section for the same patch version.
+5. Amend only those changelog file changes into the version-update commit now at `HEAD`. Keep the original subject, author, and author date. Do not change `versionName`. Do not squash `<version-commit>..ORIG_HEAD` into the version commit.
+6. Recreate the lightweight `X.Y.Z` tag on the amended `HEAD` only if the old tag pointed at the version commit that was moved. If it pointed elsewhere, stop and report the conflict. Do not push.
+7. Verify: `HEAD` subject is `[other] update version to X.Y.Z`, the intermediate commit count equals `<version-commit>..ORIG_HEAD`, `versionName` is unchanged, `git diff ORIG_HEAD --stat` shows only changelog files, and the working tree is clean except restored unrelated files. Report the new hash as the successor of the original version commit.
+
+If `HEAD` is already the version-update commit, skip the move. Only amend changelog files when newly included user-visible commits still need entries.
 
 ## Finalize an Existing Version Commit
 

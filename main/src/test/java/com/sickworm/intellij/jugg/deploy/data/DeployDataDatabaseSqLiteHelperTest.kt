@@ -86,6 +86,7 @@ class DeployDataDatabaseSqLiteHelperTest {
                 assertNotNull(methodNode2)
                 assertEquals(methodNode.name, methodNode2.name)
                 assertEquals(methodNode.desc, methodNode2.desc)
+                assertEquals(methodNode.genericSignature, methodNode2.genericSignature)
             }
             classNode.fields.forEachIndexed { index, fieldNode ->
                 val fieldNode2 = classNode2.fields[index]
@@ -93,6 +94,7 @@ class DeployDataDatabaseSqLiteHelperTest {
                 assertEquals(fieldNode.access, fieldNode2.access)
                 assertEquals(fieldNode.name, fieldNode2.name)
                 assertEquals(fieldNode.type, fieldNode2.type)
+                assertEquals(fieldNode.genericSignature, fieldNode2.genericSignature)
             }
         }
 

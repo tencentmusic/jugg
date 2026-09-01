@@ -155,6 +155,29 @@ class DeployDataGeneratorTest {
     }
 
     @Test
+    fun testAddingParentInterfaceTriggersImplementorRecompile() {
+        val interfaceClassName = "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementBaseInterface3"
+        val implementorClassName = "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3"
+        assertTrue(
+            parsedApk.subclassRefs.getValue(interfaceClassName.classSigName).contains(implementorClassName.classSigName),
+        )
+
+        val parsedDex = getParsedDex(interfaceClassName)
+        val addedParentInterface = "com.sickworm.jugg.demo.testcase.defaultinterface.DefaultInterfaceLambda".classSigName
+        val modifiedParsedDex = parsedDex.updates(
+            interfaceNames = parsedDex.classDeployItems.single().classNode.interfaceNames + addedParentInterface,
+        )
+
+        val deployData = generator.buildDeployData(modifiedParsedDex, emptyList())
+
+        assertTrue(
+            deployData.effectedSourceFileNames.contains("ImplementClass3.java"),
+            "ImplementClass3.java should be recompiled when its interface adds a parent interface. " +
+                "effected: ${deployData.effectedSourceFileNames}",
+        )
+    }
+
+    @Test
     fun testGetDesugarClasspath() {
         assertDesugarClasspath(
             "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1",
@@ -877,6 +900,95 @@ class DeployDataGeneratorTest {
             "GenericInvoker.java should be recompiled when StringHolder generic type changes. " +
                 "effected: ${deployData.effectedSourceFileNames}",
         )
+    }
+
+    @Test
+    fun testMemberGenericSignatureChangeTriggersCallerRecompile() {
+        val deployItems = compileMemberGenericProvider(
+            File(
+                assetsAndroidModifySourceDir,
+                "app/src/main/java/com/sickworm/jugg/demo/testcase/membergenericsignature/MemberGenericProvider.kt",
+            ),
+            File(assetsAndroidModifySourceDir, "app/src/main/java"),
+        )
+        val providerClassName =
+            "com.sickworm.jugg.demo.testcase.membergenericsignature.MemberGenericProvider".classSigName
+        val originalProvider = parsedApk.classes.getValue(providerClassName)
+        val modifiedProvider = ApkParser().parseDex(deployItems)
+            .classDeployItems
+            .flatMap { it.classNodes }
+            .single { it.className == providerClassName }
+        val originalGetter = originalProvider.methods.single { it.name == "getLiveData" }
+        val modifiedGetter = modifiedProvider.methods.single { it.name == "getLiveData" }
+        val originalField = originalProvider.fields.single { it.name == "liveData" }
+        val modifiedField = modifiedProvider.fields.single { it.name == "liveData" }
+        assertTrue(
+            originalGetter.genericSignature?.contains("Ljava/lang/Boolean;") == true,
+            "original signature: ${originalGetter.genericSignature}",
+        )
+        assertTrue(
+            modifiedGetter.genericSignature?.contains("Lkotlin/Unit;") == true,
+            "modified signature: ${modifiedGetter.genericSignature}",
+        )
+        assertTrue(originalField.genericSignature?.contains("Ljava/lang/Boolean;") == true)
+        assertTrue(modifiedField.genericSignature?.contains("Lkotlin/Unit;") == true)
+        val diffResult = ClassNodeComparator(originalProvider, modifiedProvider).compare()
+        assertTrue(diffResult.modifiedGenericSignatureMethods.contains(originalGetter))
+        assertTrue(diffResult.modifiedGenericSignatureFields.contains(originalField))
+        assertTrue(diffResult.effectMethods.contains(originalGetter))
+
+        val deployData = generator.buildDeployData(deployItems)
+
+        assertTrue(
+            deployData.effectedSourceFileNames.contains("MemberGenericObserver.kt"),
+            "MemberGenericObserver.kt should be recompiled when the provider member generic signature changes. " +
+            "effected: ${deployData.effectedSourceFileNames}",
+        )
+    }
+
+    @Test
+    fun testUnchangedMemberGenericSignatureDoesNotTriggerCallerRecompile() {
+        val deployItems = compileMemberGenericProvider(
+            File(
+                assetsAndroidDir,
+                "app/src/main/java/com/sickworm/jugg/demo/testcase/membergenericsignature/MemberGenericProvider.kt",
+            ),
+            File(assetsAndroidDir, "app/src/main/java"),
+        )
+
+        val deployData = generator.buildDeployData(deployItems)
+
+        assertFalse(deployData.effectedSourceFileNames.contains("MemberGenericObserver.kt"))
+    }
+
+    private fun compileMemberGenericProvider(providerFile: File, providerSourceRoot: File): List<DeployItem> {
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    providerFile,
+                    providerSourceRoot,
+                    context.tempModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar"),
+                ),
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File(
+                        assetsAndroidDir,
+                        "app/src/main/java/com/sickworm/jugg/demo/testcase/membergenericsignature/GenericEvent.kt",
+                    ),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    context.tempModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar"),
+                ),
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+        return compileResult.outputs.map { it.toDeployItem() }
     }
 
     private val ParsedApk.toParsedDex: ParsedDex

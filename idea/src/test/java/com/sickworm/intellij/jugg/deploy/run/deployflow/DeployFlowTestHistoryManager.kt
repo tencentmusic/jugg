@@ -34,6 +34,8 @@ class DeployFlowTestHistoryManager : IDeployHistoryManager {
 
     override fun tryGetContextRecoverInfoFromDb(isOnInit: Boolean): DeployContextRecoverInfo? = null
 
+    override fun getChangedFilesSinceLastFullCompiled(): List<File>? = emptyList()
+
     override fun beforeFullCompiled(changedFiles: List<ChangedFile>) = Unit
 
     override fun reInitAfterFullCompiled(

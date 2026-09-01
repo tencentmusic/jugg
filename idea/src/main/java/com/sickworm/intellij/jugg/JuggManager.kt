@@ -10,8 +10,11 @@ import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
@@ -34,6 +37,8 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ai.skills.JuggCliAutoUpdater
 import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
+import com.sickworm.intellij.jugg.ide.ui.CheckUpdatesProgressDialog
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.InstallJuggSkillsDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueDialog
@@ -42,6 +47,7 @@ import com.sickworm.intellij.jugg.ide.ui.ReportIssueResultDialog
 import com.sickworm.intellij.jugg.gradle.compile.CopyGeneratedSourceHelper
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.ui.RemoteCommandDialog
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -168,6 +174,7 @@ class JuggManager @TestOnly constructor(
         deployTargetManager = deployTargetManager,
         deployHistoryManager = deployHistoryManager,
         deployFileManager = deployFileManager,
+        logger = logger.getInstance("JuggControlPanelController"),
     )
     private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
         IdeaMcpRuntime(logger.getInstance("McpRuntime"), pathManager.projectDir.absolutePath, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector, taskRunnerManager, ::recoverAfterRuntimeOwnerChange),
@@ -572,15 +579,32 @@ class JuggManager @TestOnly constructor(
 
     /** Resets the Jugg cache through the existing maintenance flow. */
     override fun resetJuggCache() {
-        createMoreOptionsManager().resetJuggCache()
+        logger.info("[options] cleanAndResetJugg")
+        val confirmed = CommonConfirmDialog.showAndGetResult(
+            "Confirm Clean and Reset Jugg",
+            "<html>This will delete all cache files and reopen project.<br>Are you sure to continue?</html>"
+        )
+        if (!confirmed) return
+        logger.info("cleanAndResetJugg confirmed, start delete all files")
+        pathManager.juggRootDir.listFiles()?.forEach {
+            try {
+                it.deleteRecursively()
+            } catch (e: Exception) {
+                logger.warn("Cannot delete dir ${it.name}, skip", e)
+            }
+        }
+        logger.info("cleanAndResetJugg delete finished, start reopen all projects")
+        JuggInitializer.reopenAllProjectsAsync()
     }
 
     fun forceReInstallNextTime() {
         juggConfigurationRunner.forceReInstallNextTime()
     }
 
+    /** Keeps the stable ClassLoader bridge compatible after the legacy menu was removed. */
+    @Deprecated("for compatibility")
     override fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup {
-        return createMoreOptionsManager().createOptions(options)
+        return DefaultActionGroup()
     }
 
     override fun installSkills() {
@@ -588,15 +612,79 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun checkUpdates() {
-        createMoreOptionsManager().checkUpdates()
+        val dialog = CheckUpdatesProgressDialog()
+        taskRunnerManager.runBackgroundSafe("Check updates") {
+            val hotUpdateData = ideaHotUpdateCoordinator.checkHotUpdate(isPositiveCheck = true)
+            dialog.setHotUpdateData(hotUpdateData) {
+                taskRunnerManager.runBackgroundSafe("Download updates") {
+                    try {
+                        ideaHotUpdateCoordinator.downloadAndInstallUpdate(hotUpdateData!!)
+                        dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
+                            if (hotUpdateData.isNeedReinstall) {
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    ApplicationManager.getApplication().restart()
+                                }
+                            } else {
+                                JuggInitializer.reopenAllProjectsAsync()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        logger.warn("Download updates failed: ", e)
+                        dialog.setResult(hotUpdateData!!.targetVersion,
+                            isSuccess = false,
+                            isNeedReinstall = false,
+                            failedReason = e.toString(),
+                            onConfirmReopenProject = null
+                        )
+                    }
+                }
+            }
+        }
+        dialog.show()
     }
 
-    private fun createMoreOptionsManager(): MoreOptionsManager {
-        return MoreOptionsManager(
-            this, pathManager, taskRunnerManager, hostTaskExecutor,
-            deployHistoryManager, deployTargetManager, dependencyChangeManager,
-            juggCompilerHelper, juggServer, ideaHotUpdateCoordinator, logger,
-        )
+    fun setCustomServerUrl() {
+        logger.info("[options] setNewServerUrl")
+        juggServer.setCustomServer()
+    }
+
+    fun markAsProjectSyncedAndReInitCompiler() {
+        logger.info("[test options] markAsSyncedAndReInitCompiler")
+        onSyncEvent(SyncEvent.SUCCEEDED)
+    }
+
+    /** Reuses the selected Jugg configuration outputs as a full-build baseline without rebuilding. */
+    fun markAsGradleCompiledAndReInitCompiler() {
+        val selected = RunManager.getInstance(project).selectedConfiguration
+        val options = (selected?.configuration as? JuggRunConfiguration)?.state
+        if (options == null) {
+            Messages.showWarningDialog(
+                project,
+                "Select a Jugg run configuration first.",
+                "Mark as Gradle Compiled"
+            )
+            return
+        }
+        logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
+        taskRunnerManager.runTaskSafe("Mark as Gradle Compiled", {
+            dependencyChangeManager.onStartBuilding()
+            val compileOptions = options.toCompileOptions(pathManager)
+            val result = juggCompilerHelper.gradleCompile(
+                compileOptions,
+                JuggCompileUiHandler(project,
+                    isForceGradleCompile = true, isRpcMode = false,
+                    compileOptions, logger,
+                    progressIndicator = hostTaskExecutor.currentIndicator ?: DumbProgressIndicator.INSTANCE,
+                ),
+                isOnlyFetchResult = true,
+            )
+            dependencyChangeManager.onEndBuilding(result.isSuccess, result.isCanceled)
+            if (!result.isSuccess) {
+                logger.warn("gradleCompile(isOnlyFetchResult) failed, please check log for details.")
+                return@runTaskSafe
+            }
+            initIncrementalCompileAfterFullBuild(System.currentTimeMillis(), compileOptions)
+        })
     }
 
     override fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent {
@@ -655,7 +743,7 @@ class JuggManager @TestOnly constructor(
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    showReportIssueDialog(builder, candidates)
+                    showReportIssueDialog(builder, candidates, IssueReportUploader.JUGG_REPORT_URL)
                 }
             } catch (e: Throwable) {
                 SwingUtilities.invokeLater {
@@ -670,8 +758,9 @@ class JuggManager @TestOnly constructor(
     private fun showReportIssueDialog(
         builder: IssueReportBundleBuilder,
         candidates: List<com.sickworm.intellij.jugg.diagnostics.IssueReportCandidate>,
+        uploadUrl: String,
     ) {
-        val dialog = ReportIssueDialog(candidates)
+        val dialog = ReportIssueDialog(candidates, uploadUrl)
         if (!dialog.showAndGet()) {
             return
         }
@@ -683,20 +772,20 @@ class JuggManager @TestOnly constructor(
                     ReportIssueResultDialog(null).show()
                 }
             } else {
-                uploadIssueReport(bundle)
+                uploadIssueReport(bundle, uploadUrl)
             }
         }
     }
 
-    private fun uploadIssueReport(bundle: IssueReportBundle) {
+    private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String) {
         SwingUtilities.invokeLater {
             val progressDialog = ReportIssueProgressDialog("Uploading logs...")
             taskRunnerManager.runBackgroundSafe("Upload issue report") {
-                val uploadResult = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL)
+                val uploadResult = IssueReportUploader().upload(bundle, uploadUrl)
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
                     ReportIssueResultDialog(uploadResult) {
-                        uploadIssueReport(bundle)
+                        uploadIssueReport(bundle, uploadUrl)
                     }.show()
                 }
             }
@@ -766,17 +855,6 @@ class JuggManager @TestOnly constructor(
     private fun warmUpCompile() {
         runTaskSafe("Warm Up Compile", {
             juggCompilerHelper.warmUp()
-        })
-    }
-
-    /** Applies the persisted compat deploy switch to the IDE deployer and connected devices. */
-    fun updateCompatibleDeploymentMode() {
-        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
-        runTaskSafe("Remove Jugg JVMTI agents", {
-            deployTargetManager.getSelectedDevices().forEach {
-                val result = JuggJvmtiAgentManager(IdeaDeviceAdb(it, logger), logger).removeAllAgents()
-                logger.debug("Remove Jugg JVMTI agents result: $result, device: $it")
-            }
         })
     }
 

@@ -207,7 +207,7 @@ release APK 增量编译部署后，EventBus 报 `Subscriber class MainTabActivi
 ### 关联文档
 
 - `docs/task/2026-03/dex_obfuscator_annotation_type_mapping_fix.md`
-- `docs/ai_knowledge/09_plugin_runtime_debug.md` §4.4
+- `docs/ai_knowledge/02_compile_obfuscation.md` §5.1
 
 ---
 
@@ -244,7 +244,7 @@ dex2jar 的 visitor 模式不像 ASM 的 `ClassRemapper` 自动处理所有类�
 
 ### 关联文档
 
-- `docs/ai_knowledge/09_plugin_runtime_debug.md` §4.5
+- `docs/ai_knowledge/02_compile_obfuscation.md` §5.1
 
 ---
 
@@ -284,7 +284,7 @@ R8 对某些 `private` 非 static 方法选择不宽化（接口中的 private �
 ### 关联文档
 
 - `docs/task/2026-03/release_incremental_access_flag_mismatch.md` §6-§10
-- `docs/ai_knowledge/09_plugin_runtime_debug.md` §4.6, §4.7
+- `docs/ai_knowledge/02_compile_obfuscation.md` §5.1
 
 ---
 
@@ -324,7 +324,7 @@ D8 lambda 编号漂移 → mapping.txt 映射到错误的混淆名 → 方法名
 ### 关联文档
 
 - `docs/task/2026-03/release_incremental_access_flag_mismatch.md` §11, §12
-- `docs/ai_knowledge/09_plugin_runtime_debug.md` §4.8
+- `docs/ai_knowledge/02_compile_obfuscation.md` §5.1
 
 ---
 
@@ -360,7 +360,7 @@ R8 synthesized 条目中参数类型可能使用中间格式（混淆包名 + �
 
 ### 关联文档
 
-- `docs/ai_knowledge/09_plugin_runtime_debug.md` §4.9, §4.10, §4.11
+- `docs/ai_knowledge/02_compile_obfuscation.md` §5.1
 
 ---
 

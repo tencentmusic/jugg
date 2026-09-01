@@ -307,6 +307,7 @@ class JuggProjectInfoMerger(
                     buildDirRelativePath = gradleModuleInfo.buildPathInfo.buildDirRelativePath,
                 ), // keep the local classpath root and use Gradle's authoritative build directory relation
                 moduleDependencies = setIfEmpty(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
+                runtimeModuleDependencies = gradleModuleInfo.runtimeModuleDependencies,
                 libraryDependencies = libraryMerger.mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,
                 // below fields is only gradle has

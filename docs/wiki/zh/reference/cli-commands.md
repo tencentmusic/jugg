@@ -45,7 +45,7 @@ jugg help <subcommand>
 | `status` | 查看设备、fallback、未编译文件和 androidTest baseline 状态。 |
 | `layout-dump` | 导出 UI 层级 HTML。 |
 | `view-locate` | 通过文本、resource id 或 content-desc 查找元素位置。 |
-| `view-inspect` | 反射读取 View getter/query 属性。 |
+| `view-inspect` | 反射读取 View 只读属性，含 getter、Kotlin property 和 public 字段。 |
 | `tap` | 执行 tap、long-press 或 swipe。 |
 | `devices` | 列出已连接设备。 |
 | `activity-stack` | 查看 Activity 栈。 |
@@ -110,6 +110,7 @@ jugg activity-stack
 jugg layout-dump --include-gone --all-windows
 jugg view-locate --resource-id login_button
 jugg view-inspect --text 登录 getText() isEnabled()
+jugg view-inspect --resource-id bubble_container layoutParams.leftMargin getLayoutParams().getMarginStart()
 jugg tap --resource-id login_button
 jugg tap --x-percent 50 --y-percent 80
 jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
@@ -119,7 +120,7 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 |---|---|
 | `layout-dump` | `--root-layout`、`--include-gone`、`--all-windows` |
 | `view-locate` | `--text`、`--resource-id`、`--content-desc` |
-| `view-inspect` | `--text`、`--resource-id`、`--content-desc`、`--class-name`、getter 表达式 |
+| `view-inspect` | `--text`、`--resource-id`、`--content-desc`、`--class-name`、只读表达式 |
 | `tap` | `--action`、坐标参数、百分比参数、元素 selector、`--duration` |
 
 `tap` 的模式优先级是 coordinate > percent > element。`swipe` 只支持坐标或百分比模式，不支持元素模式。

@@ -16,7 +16,7 @@
 | 能力 | 核心入口 | 作用 |
 |------|----------|------|
 | 日志 | `main/src/main/java/com/sickworm/intellij/jugg/logger/JuggLogger.kt`、`FileLogger.kt`、`TimeLogger.kt` | 项目级 / 全局日志分发、`compile_latest.log` 快捷入口、阶段耗时埋点 |
-| 路径与临时产物 | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt`、`JuggGlobalPathManager.kt`、`main/src/main/java/com/sickworm/intellij/jugg/project/ExpiredArtifactCleaner.kt` | 项目级 `build/jugg`、稳定 `.gradle/jugg`、用户级 `~/.jugg` 文件归属，以及项目级过期产物清理 |
+| 路径与临时产物 | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt`、`JuggGlobalPathManager.kt`、`main/src/main/java/com/sickworm/intellij/jugg/project/ExpiredArtifactCleaner.kt` | 项目级 `build/jugg`、稳定 `.gradle/jugg`、用户级全局 root（优先 `~/.jugg`，不可写时 `${java.io.tmpdir}/jugg-<user>`），以及项目级过期产物清理 |
 | APK 修改 | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkFileModifier.kt`、`ResourceApkModifier.kt` | APK 插入、替换、zipalign、签名与资源 APK 增量更新 |
 | Git worktree | `main/src/main/java/com/sickworm/intellij/jugg/git/GitManager.kt`、`WorktreeFileRepository.kt` | Git 变更识别；worktree 下把 HEAD 操作定向到 worktree-local HEAD |
 | 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt`、`idea/.../ide/logic/IdeaPlatformApi.kt` | core 层调用 UI、设备、Gradle、MCP host 能力的抽象边界；hot update 时实现类及接口 JVM 描述符中的直接 Jugg 类型固定由宿主加载 |
@@ -47,9 +47,10 @@ JuggManager 初始化
 
 ```text
 需要 Jugg 自有全局文件
-  -> JuggGlobalPathManager 统一落到 ~/.jugg
+  -> JuggGlobalPathManager 优先落到 ~/.jugg，家目录不可写时回退到 ${java.io.tmpdir}/jugg-<user>
   -> settings.json / action.db / resources / hot_update / skills / library_test_build_records 等跨项目状态集中管理
-  -> 写入统一通过 ~/.jugg/locks/global.lock 串行，文件快照使用临时文件和原子替换
+  -> CLI / skills / hooks / test_flag 等也复用同一 active global root
+  -> 写入统一通过 <global-root>/locks/global.lock 串行，文件快照使用临时文件和原子替换
   -> 项目级编译缓存、日志、DB 仍由 JuggPathManager 留在 build/jugg
 ```
 
@@ -96,11 +97,11 @@ Hot update
 - IDEA 日志位于 `build/jugg/log/`，standalone 日志位于 `build/jugg/log/standlone_cli/`；两个目录各自最多保留 10 份日志。Issue Report 按两目录的修改时间合并，只带最新 10 份，并保留 `standlone_cli/` 目录层级。
 - `TimeLogger.start/end` 以字符串 tag 配对；同一 tag 被跨阶段复用会污染耗时判断，新增高频埋点前先确认 tag 唯一性。
 - `TaskRunnerManager.runTaskSafe` 仅在后台任务失败时上报任务名、耗时与异常信息；成功任务不发送事件。
-- 每次 `JuggServer.report()` 都先 Best-effort 写入 `~/.jugg/action.db`；无服务器或远端失败不影响本地记录，本地写入失败也不阻止远端上报。
+- 每次 `JuggServer.report()` 都先 Best-effort 写入全局 `action.db`（默认 `~/.jugg/action.db`）；无服务器或远端失败不影响本地记录，本地写入失败也不阻止远端上报。
 - 普通 `buildPlugin` 不携带 `config/servers.json`；`buildPluginInternal` 才校验并打包本地忽略文件。缺少内置配置时，历史自动选服地址无效，只有用户明确设置的 Custom Server 继续生效。
-- 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`，不展示地址或尝试 fallback。
+- 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`；确认窗口展示固定、单一的 HTTPS 目标地址，不持久化地址且不尝试 fallback。
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
-- `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、deployment cache、DB、日志优先 project-local；跨项目复用的 hot update、history、hook / resource 文件优先 `JuggGlobalPathManager`，写事务进入固定全局锁。
+- `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、deployment cache、DB、日志优先 project-local；跨项目复用的 hot update、history、hook / resource 文件优先 `JuggGlobalPathManager`，写事务进入 active global root 下的固定锁。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
 - `settings.json` 写入使用固定全局锁、临时文件和原子替换；同进程更新由 `JuggSettings` 串行，字段修改会在锁内基于最新磁盘快照更新，避免双 Runtime 的不同字段互相覆盖；IDEA legacy migration 只补缺失字段，不能覆盖已存在 JSON 值。Runtime owner 切换后必须丢弃进程内 settings snapshot，避免 IDEA/standalone 接管项目时继续使用另一进程更新前的兼容记录和用户开关。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 切换后 `JuggSettings` 会自动丢弃旧 root 缓存，测试通过独立 root 隔离真实用户设置。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。hot update 时 `PlatformApi`、`IPlatformApi`、`IdeaPlatformApi` 及 `IPlatformApi` JVM 方法描述符中的直接 Jugg 类型必须由同一宿主 ClassLoader 加载，`JuggLoader` 自动从接口签名生成这组类型，避免跨加载器的静态副本和 loader constraint violation。
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。

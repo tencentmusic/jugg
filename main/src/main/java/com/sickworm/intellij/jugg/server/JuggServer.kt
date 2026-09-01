@@ -200,8 +200,12 @@ class JuggServer(
         }
     }
 
-    fun setCustomServer(serverUrl: String) {
-        juggServerChooser.setCustomServer(serverUrl)
+    fun setCustomServer(serverUrl: String? = null) {
+        if (serverUrl == null) {
+            juggServerChooser.setCustomServer()
+        } else {
+            juggServerChooser.setCustomServer(serverUrl)
+        }
     }
 
     val customServerUrl: String

@@ -19,6 +19,7 @@
 |---|---|
 | `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
 | `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search/dev-only 页面排除。 |
+| `.agents/skills/wiki-writer/scripts/validate_wiki.py` | 检查中英文 Markdown 路径、nav/sidebar 路由顺序、相对链接、配置路由和构建产物。 |
 | `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布。 |
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release；仅 tag commit 已包含在 `main` 时构建，避免 develop tag 发布正式包。 |
 | `.github/workflows/nightly.yml` | 每日或手工检查 `develop`；仅在其 HEAD 与 `canary-nightly` tag 不同时构建，并更新 Canary prerelease、插件包和 SHA-256。 |
@@ -52,7 +53,7 @@ docs/wiki/
     troubleshooting/
 ```
 
-英文页面位于根路径，中文页面位于 `/zh/` 路径。新增正式用户页面时，路径应尽量镜像。
+英文页面位于根路径，中文页面位于 `/zh/` 路径。中文是唯一内容基准；去掉 `zh/` 前缀后，中英文 Markdown 路径集合必须完全一致，nav/sidebar 的层级、顺序和目标页面也必须严格镜像。
 
 ---
 

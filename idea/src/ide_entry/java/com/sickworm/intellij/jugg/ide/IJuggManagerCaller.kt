@@ -40,6 +40,7 @@ interface IJuggManagerCaller: Disposable {
 
     fun reportIssue()
 
+    @Deprecated("for compatibility")
     fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup
 
     fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent

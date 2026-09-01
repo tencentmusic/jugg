@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ai.skills.agents.CodexAgentInstaller
 import com.sickworm.intellij.jugg.ai.skills.agents.IAgentInstaller
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.File
 import java.io.FileNotFoundException
@@ -36,7 +37,7 @@ object JuggSkillInstaller {
     }
 
     fun install(projectDir: File, selectedClients: Set<InstallClient>, logger: Logger, userHome: File): InstallSummary {
-        return withGlobalResourceLock("Install Jugg skills", File(userHome, ".jugg")) {
+        return withGlobalResourceLock("Install Jugg skills", JuggGlobalPathManager.rootDirFor(userHome)) {
             if (selectedClients.isEmpty()) return@withGlobalResourceLock InstallSummary(emptyList())
             val results = selectedClients.map { client ->
                 installForClient(projectDir, client, logger, userHome)
@@ -113,8 +114,8 @@ object JuggSkillInstaller {
     }
 
     fun ensureBundledSkillsHome(userHome: File): File {
-        return withGlobalResourceLock("Prepare bundled Jugg skills", File(userHome, ".jugg")) {
-            val bundledSkillsHome = File(userHome, ".jugg/skills")
+        return withGlobalResourceLock("Prepare bundled Jugg skills", JuggGlobalPathManager.rootDirFor(userHome)) {
+            val bundledSkillsHome = JuggGlobalPathManager.skillsDir(userHome)
             extractBundledSkills(targetDir = bundledSkillsHome)
             bundledSkillsHome
         }
@@ -194,15 +195,15 @@ object JuggSkillInstaller {
      */
     fun installCli(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
         val windows = isWindows()
-        val result = withGlobalResourceLock("Install Jugg CLI", File(userHome, ".jugg")) {
+        val result = withGlobalResourceLock("Install Jugg CLI", JuggGlobalPathManager.rootDirFor(userHome)) {
             runCatching {
-                val binDir = File(userHome, ".jugg/bin")
+                val binDir = JuggGlobalPathManager.binDir(userHome)
                 extractBundledScriptsTo(binDir)
                 if (windows) {
                     normalizeWindowsCmdWrapper(binDir)
                 } else {
                     setExecutable(binDir)
-                    createSymlink(userHome, binDir)
+                    createSymlink(userHome, binDir, logger)
                 }
                 binDir
             }
@@ -240,7 +241,7 @@ object JuggSkillInstaller {
     }
 
     fun resolveHooksDir(userHome: File): File {
-        return File(userHome, ".jugg/skills/hooks")
+        return JuggGlobalPathManager.hooksDir(userHome)
     }
 
     /**
@@ -251,7 +252,7 @@ object JuggSkillInstaller {
         logger: Logger,
         userHome: File = File(System.getProperty("user.home")),
     ): Result<Unit> {
-        return withGlobalResourceLock("Update Jugg hook state", File(userHome, ".jugg")) {
+        return withGlobalResourceLock("Update Jugg hook state", JuggGlobalPathManager.rootDirFor(userHome)) {
             runCatching {
                 val hooksDir = resolveHooksDir(userHome)
                 hooksDir.mkdirs()
@@ -275,7 +276,7 @@ object JuggSkillInstaller {
      * Makes bundled hook scripts available from ~/.jugg/skills/hooks.
      */
     fun installHooks(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
-        return withGlobalResourceLock("Install Jugg hooks", File(userHome, ".jugg")) {
+        return withGlobalResourceLock("Install Jugg hooks", JuggGlobalPathManager.rootDirFor(userHome)) {
             runCatching {
                 val bundledHooksDir = File(ensureBundledSkillsHome(userHome), BUNDLED_HOOKS_DIR)
                 HOOK_SCRIPT_FILES.forEach { fileName ->
@@ -301,8 +302,12 @@ object JuggSkillInstaller {
         File(binDir, "jugg.py").takeIf { it.exists() }?.setExecutable(true, false)
     }
 
-    private fun createSymlink(userHome: File, binDir: File) {
-        val localBin = File(userHome, ".local/bin").also { it.mkdirs() }
+    private fun createSymlink(userHome: File, binDir: File, logger: Logger) {
+        val localBin = File(userHome, ".local/bin")
+        if (!localBin.exists() && !localBin.mkdirs()) {
+            logger.warn("[Install Jugg CLI] skip ~/.local/bin symlink because ${localBin.path} is not writable")
+            return
+        }
         val symlinkFile = File(localBin, "jugg")
         val target = File(binDir, "jugg").toPath()
         // Remove existing symlink or file, then create new symlink

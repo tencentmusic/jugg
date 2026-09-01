@@ -158,6 +158,24 @@ class ViewLocateBuildParamsTest(unittest.TestCase):
         result = self.build(["--resourceId", "btn_login"])
         self.assertEqual(result["target"]["resourceId"], "btn_login")
 
+    def test_combined_selector_and_budget(self):
+        result = self.build([
+            "--text", "Avatar",
+            "--resourceId", "avatar",
+            "--className", "com.example.AvatarView",
+            "--visibleOnly", "false",
+            "--maxResults", "3",
+        ])
+        self.assertEqual(result["target"]["text"], "Avatar")
+        self.assertEqual(result["target"]["resourceId"], "avatar")
+        self.assertEqual(result["target"]["className"], "com.example.AvatarView")
+        self.assertFalse(result["visibleOnly"])
+        self.assertEqual(result["maxResults"], 3)
+
+    def test_invalid_max_results_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--text", "Avatar", "--maxResults", "101"])
+
 
 class ViewInspectBuildParamsTest(unittest.TestCase):
 

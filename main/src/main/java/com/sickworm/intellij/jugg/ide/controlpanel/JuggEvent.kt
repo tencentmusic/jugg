@@ -61,6 +61,7 @@ data class JuggEvent(
         COMPILE,
         DEPLOY,
         APP,
+        USER_ACTION,
         CLI,
         MCP,
     }

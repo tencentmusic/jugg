@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
@@ -71,6 +72,8 @@ class JuggCompilerHelper(
             field = value
         }
 
+    private var allowLargeIncrementalThisCompile = false
+
     private val gradleCompileClientManager = GradleCompileClientManager(
         pathManager.projectDir, compileEnvironmentSource, logger,
     )
@@ -94,10 +97,12 @@ class JuggCompilerHelper(
             return GRADLE_PROJECT_INFO_UNAVAILABLE
         }
         checkDeviceFallback()?.let { return it.failedReason }
-        checkFilesFallback(deployFileManager.getUncompiledFiles())?.let { return it.failedReason }
         val deployState = deployStateManager.updateDeployState()
         if (!deployState.isReadyIncCompile) {
             return deployState.msg
+        }
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), logFallback = false)?.let {
+            return it.failedReason
         }
         return null
     }
@@ -107,10 +112,10 @@ class JuggCompilerHelper(
             return GRADLE_PROJECT_INFO_UNAVAILABLE
         }
         checkDeviceFallback(deployState)?.let { return it.failedReason }
-        checkFilesFallback(deployFileManager.getUncompiledFiles(), deployState)?.let { return it.failedReason }
         if (!deployState.isReadyIncCompile) {
             return deployState.msg
         }
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), deployState)?.let { return it.failedReason }
         return null
     }
 
@@ -142,6 +147,7 @@ class JuggCompilerHelper(
         uiHandler: CompileUiHandler,
         isAndroidTestRun: Boolean,
     ): CompileTaskResult {
+        allowLargeIncrementalThisCompile = false
         if (deployStateManager.isInitializingIncrementalCompile) {
             logger.info("Waiting Jugg initializing finish...")
             while (deployStateManager.isInitializingIncrementalCompile) {
@@ -171,6 +177,7 @@ class JuggCompilerHelper(
         }
 
         if (!isGradleCompile) {
+            uiHandler.onCompileStarted(false, null)
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
             incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
@@ -219,6 +226,7 @@ class JuggCompilerHelper(
         } else {
             options
         }
+        uiHandler.onCompileStarted(true, incrementalResult?.failedReason)
         val result = gradleCompile(gradleOptions, uiHandler)
         if (result.isSuccess) {
             JuggSettings.defaultCompileSettings = options.toRunConfigurationTemplate()
@@ -408,7 +416,9 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
         }
 
-        if (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo) {
+        if (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo &&
+            deployHistoryManager.getFullBuildInfo()?.compileCommand != null
+        ) {
             logger.info("Waiting Gradle project info rebuild finish...")
             while (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo) {
                 Thread.sleep(200)
@@ -416,7 +426,7 @@ class JuggCompilerHelper(
         }
 
         if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
-            logger.info("Gradle project info is unavailable, forcing Gradle full compile.")
+            logger.info("Gradle project info unavailable, forcing Gradle full compile.")
             return CompileTaskResult.incrementalFailed(true, GRADLE_PROJECT_INFO_UNAVAILABLE)
         }
 
@@ -426,9 +436,6 @@ class JuggCompilerHelper(
         }
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkFilesRollback()
-        }
-        checkFilesFallback(deployFileManager.getUncompiledFiles(), targetDeployState)?.let {
-            return it
         }
 
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
@@ -440,6 +447,9 @@ class JuggCompilerHelper(
         if (!deployState.isReadyIncCompile) {
             logger.info("Deploy state $deployState not ready for incremental compile. Return.")
             return CompileTaskResult.incrementalFailed(true, deployState.msg)
+        }
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), uiHandler = uiHandler)?.let {
+            return it
         }
 
         if (JuggSettings.isEmbeddedToApk) {
@@ -490,33 +500,37 @@ class JuggCompilerHelper(
     /**
      * @return need fallback when result is not null
      */
-    private fun checkFilesFallback(undeployedFiles: List<ChangedFile>): CompileTaskResult? {
-        return checkFilesFallback(undeployedFiles, deployStateManager.updateDeployState())
-    }
+    private fun checkFilesFallback(
+        undeployedFiles: List<ChangedFile>,
+        logFallback: Boolean = true,
+        uiHandler: CompileUiHandler? = null,
+    ): CompileTaskResult? = checkFilesFallback(
+        undeployedFiles,
+        deployStateManager.updateDeployState(),
+        logFallback,
+        uiHandler,
+    )
 
-    private fun checkFilesFallback(undeployedFiles: List<ChangedFile>, deployState: JuggDeployState): CompileTaskResult? {
-        // too many changes fallback
-        val undeployedSourceFiles = undeployedFiles.filter {
-            it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
-        }
-        val undeployedSourceModules = undeployedSourceFiles.map {
-            it.module.name + "_" + it.type
-        }.toSet()
-
-        val javaSourceFiles = undeployedSourceFiles.filter { it.type == CompileFile.Type.Java }
-        val kotlinSourceFiles = undeployedSourceFiles.filter { it.type == CompileFile.Type.Kotlin }
-        // see JuggSettings.maxCompileSourceFilePoints
-        val undeployedSourceFilesPoints = javaSourceFiles.size * 2 + kotlinSourceFiles.size * 3
-        logger.debug("javaSourceSize: ${javaSourceFiles.size}, kotlinSourceFiles ${kotlinSourceFiles.size}, undeployedSourceFilesPoints: $undeployedSourceFilesPoints")
-
-        if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
-            logger.warn("Compile modules too much(${undeployedSourceModules.size} modules), " +
-                    "will fallback to gradle compile for better performance.")
-            return CompileTaskResult.incrementalFailed(true, "Too many changes")
-        } else if (undeployedSourceFilesPoints > JuggSettings.maxCompileSourceFilePoints) {
-            logger.warn("Compile files too much(${undeployedSourceFiles.size} files), " +
-                    "will fallback to gradle compile for better performance.")
-            return CompileTaskResult.incrementalFailed(true, "Too many changes")
+    private fun checkFilesFallback(
+        undeployedFiles: List<ChangedFile>,
+        deployState: JuggDeployState,
+        logFallback: Boolean = true,
+        uiHandler: CompileUiHandler? = null,
+    ): CompileTaskResult? {
+        val tooManyChanges = TooManyChanges.evaluate(undeployedFiles)
+        if (tooManyChanges != null) {
+            logger.debug("javaSourceSize: ${tooManyChanges.javaFileCount}, " +
+                    "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
+            val confirm = uiHandler?.confirmTooManyChanges(tooManyChanges)
+                ?: TooManyChangesConfirmResult.FALLBACK
+            TooManyChanges.applyUserChoice(
+                info = tooManyChanges,
+                confirm = confirm,
+                logger = logger,
+                logFallback = logFallback,
+                onContinue = { allowLargeIncrementalThisCompile = true },
+                onCancel = { uiHandler?.cancel() },
+            )?.let { return it }
         }
 
         if (!deployState.isReadyDeploy) {
@@ -712,6 +726,7 @@ class JuggCompilerHelper(
             dependencyMissingResolver,
             logger,
             resolveTargetDevice(uiHandler.targetDeviceSerial),
+            skipTooManyChangesCheck = allowLargeIncrementalThisCompile,
         )
         return incrementalCompilerHelper.compile(undeployedFiles, uiHandler, uiHandler.createCompileStatusHolder())
     }

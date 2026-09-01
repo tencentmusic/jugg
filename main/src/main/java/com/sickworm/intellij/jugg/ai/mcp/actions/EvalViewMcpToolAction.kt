@@ -15,7 +15,7 @@ import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
- * EvalViewMcpToolAction implements MCP tool `view-inspect` that evaluates getter method
+ * EvalViewMcpToolAction implements MCP tool `view-inspect` that evaluates read-only
  * expressions on a matched View element via reflective invocation on the app side.
  */
 class EvalViewMcpToolAction : McpToolAction {
@@ -25,10 +25,10 @@ class EvalViewMcpToolAction : McpToolAction {
         name = toolName,
         description = "Query internal View properties not available in layout dump, via live reflection " +
             "(e.g. maxLines, ellipsize, textColor, cornerRadius, custom getters). " +
-            "Use Android SDK View/TextView/ImageView public getter methods. " +
+            "Use Android SDK View/TextView/ImageView public getters, Kotlin properties, or public fields. " +
             "Returns raw values for the agent to interpret. " +
-            "Only read-only getter methods are allowed (no side effects). " +
-            "✅ Use for: any property that requires calling a getter method on the View object. " +
+            "Only read-only field/getter access is allowed (no side effects). " +
+            "✅ Use for: any property that requires reading a field or getter on the View object. " +
             "❌ Do NOT use for: getting element position or size — use view-locate instead.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
@@ -59,10 +59,12 @@ class EvalViewMcpToolAction : McpToolAction {
                 ),
                 "expressions" to McpJsonSchemaProperty(
                     type = "array",
-                    description = "Getter method expressions to evaluate on the matched View. " +
-                        "Each expression is a dot-separated method chain. " +
-                        "Examples: 'getText()', 'getCurrentTextColor()', " +
-                        "'getBackground().getClass().getSimpleName()', 'isEnabled()', 'getMaxLines()'",
+                    description = "Read-only expressions to evaluate on the matched View. " +
+                        "Each expression is a dot-separated chain of methods or names. " +
+                        "A name without () is a public field first, then a Kotlin/Java getter " +
+                        "(layoutParams -> getLayoutParams(), enabled -> isEnabled()). " +
+                        "Examples: 'getText()', 'layoutParams.leftMargin', " +
+                        "'getLayoutParams().getMarginStart()', 'isEnabled()'",
                     items = McpJsonSchemaProperty(type = "string"),
                 ),
             ),
@@ -197,12 +199,18 @@ class EvalViewMcpToolAction : McpToolAction {
                     }
                 }
 
-                val data = mapOf(
-                    "className" to evalResult.className,
-                    "resourceId" to evalResult.resourceId,
-                    "density" to evalResult.density,
-                    "values" to valuesData,
-                )
+                val data = buildMap<String, Any?> {
+                    put("className", evalResult.className)
+                    put("resourceId", evalResult.resourceId)
+                    put("density", evalResult.density)
+                    evalResult.source?.let { source ->
+                        put("source", buildMap {
+                            source.file?.takeIf { it.isNotBlank() }?.let { put("file", it) }
+                            source.line?.takeIf { it > 0 }?.let { put("line", it) }
+                        })
+                    }
+                    put("values", valuesData)
+                }
 
                 val errorCount = evalResult.values.count { it.error != null }
                 val message = if (errorCount == 0) {

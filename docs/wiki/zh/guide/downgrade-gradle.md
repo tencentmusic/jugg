@@ -1,6 +1,6 @@
 ---
 title: 降级 Gradle 编译
-description: 说明无文件变化运行、主动点击降级按钮和依赖变化弹窗中，什么时候让 Jugg 改走 Gradle 编译。
+description: 说明无文件变化运行、主动点击降级按钮、依赖变化弹窗和源码过多确认框中，什么时候让 Jugg 改走 Gradle 编译。
 status: active
 tags:
   - guide
@@ -54,6 +54,18 @@ Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基�
 | 关闭弹窗 | 取消本轮运行 |
 
 不确定时选 Fallback to Gradle。这里多花一点时间，通常比带着不准的基线继续增量更省事。
+
+## 源码变化过多弹窗
+
+一次修改覆盖的源码文件或模块过多，或者这次修改需要继续编译的受影响文件过多时，Jugg 可能弹出确认框。增量编译这些文件通常比完整 Gradle 更慢，所以默认仍走 Gradle。
+
+| 选择 | 结果 |
+|---|---|
+| Fallback to Gradle | 本轮改走完整构建。按钮立刻可点 |
+| Continue Incremental Compile | 仅本轮继续增量。按钮会先倒计时 2 秒 |
+| 关闭弹窗 | 取消本轮运行 |
+
+MCP、CLI 和状态查询不会弹出这张确认框，会直接改走 Gradle。
 
 ## 相关页面
 

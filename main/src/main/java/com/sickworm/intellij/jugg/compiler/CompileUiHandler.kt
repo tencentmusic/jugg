@@ -4,6 +4,7 @@ import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -38,6 +39,8 @@ interface CompileUiHandler {
     fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult
     fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult
     fun confirmEmbeddedToApk(): ConfirmResult
+    fun confirmTooManyChanges(info: TooManyChangesInfo): TooManyChangesConfirmResult =
+        TooManyChangesConfirmResult.FALLBACK
 
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
@@ -50,6 +53,8 @@ interface CompileUiHandler {
     fun showRunWindow()
 
     fun shouldAutoConfirmDeployPrompt(message: String): Boolean = false
+    /** Notifies consumers immediately before an incremental or Gradle compile path starts. */
+    fun onCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) = Unit
     fun onDeployUiMessage(message: String) = Unit
 
     fun onEnd(runResult: RunResult) = Unit
@@ -73,6 +78,7 @@ interface CompileUiHandler {
             override fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>) = BuildChangesConfirmResult.FALLBACK
             override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?) = ConfirmResult.POSITIVE
             override fun confirmEmbeddedToApk(): ConfirmResult = ConfirmResult.POSITIVE
+            override fun confirmTooManyChanges(info: TooManyChangesInfo) = TooManyChangesConfirmResult.FALLBACK
 
             override fun updateIndicatorText(text: String) = Unit
             override fun listenCancelAction(listener: (() -> Unit)?) = Unit

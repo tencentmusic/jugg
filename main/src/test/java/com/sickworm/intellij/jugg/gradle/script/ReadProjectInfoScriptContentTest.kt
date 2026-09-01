@@ -221,6 +221,17 @@ class ReadProjectInfoScriptContentTest {
         )
     }
 
+    @Test
+    fun generatedScript_shouldIncludeGlobalPathManagerBeforePathManager() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        val globalPathManagerIndex = scriptText.indexOf("object JuggGlobalPathManager")
+        val pathManagerIndex = scriptText.indexOf("class JuggPathManager")
+        assertTrue(globalPathManagerIndex >= 0)
+        assertTrue(pathManagerIndex > globalPathManagerIndex)
+    }
+
     private fun readSource(relativePath: String): String {
         return java.io.File(System.getProperty("user.dir"), relativePath).readText()
     }

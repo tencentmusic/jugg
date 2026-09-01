@@ -120,9 +120,9 @@ end
 def write_modifications(rows)
   modified = rows.select { |row| row['modified'] == '是' }
   content = [
-    '# Third-Party Modifications',
+    '# Third-Party Modification Changelog',
     '',
-    'The following redistributed third-party components are marked as modified. The descriptions identify the known Jugg changes and the corresponding upstream reference.',
+    'This changelog lists every redistributed third-party component marked as modified in `components.csv`. Each entry records the applicable license, the known Jugg changes, and the corresponding upstream reference.',
     ''
   ]
 
@@ -130,10 +130,10 @@ def write_modifications(rows)
     content.concat([
       "## #{row['name']} #{row['version']}",
       '',
-      row['notes'],
+      "- License: #{row['license']}",
+      "- Change summary: #{row['notes']}",
+      "- Upstream reference: #{row['download_url']}",
       '',
-      "Upstream reference: #{row['download_url']}",
-      ''
     ])
   end
 

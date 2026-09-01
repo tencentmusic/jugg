@@ -85,6 +85,8 @@ class RDexForSubmoduleCompiler(
                     CompileOutput.Type.Dex,
                     destDexFile,
                     task.outputDir,
+                    apkPath = context.getBelongsApkPath(module),
+                    targetApkPaths = context.getAllBelongsApkPaths(module),
                 )
             }
         }

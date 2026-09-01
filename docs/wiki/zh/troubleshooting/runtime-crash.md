@@ -31,7 +31,7 @@ tags:
 
 ## Q：部署资源后出现 `AssetManager` native crash 怎么办？
 
-部分设备系统与 Apply Changes 的资源部署存在兼容差异。
+部分设备系统与 Apply Changes 的资源部署存在兼容性问题，尤其是 Android 11 的 Oppo/Vivo 设备。
 
 1. 连接问题设备。
 2. 在 Jugg More Options 中为该设备开启兼容模式。
@@ -40,24 +40,16 @@ tags:
 
 兼容模式会使用经典热修复部署，并为该设备持久化设置。
 
-## Q：看到 JVMTI 兼容提示后仍然崩溃怎么办？
+## Q：修改 DataBinding/ViewBinding XML 后崩溃/不生效怎么办？
 
-如果输出提示 Jugg 已切换兼容部署，先等待本轮自动恢复完成。App 仍然崩溃时，手动开启该设备的兼容模式并重新运行；设备安装状态已经不可信时，再执行 Clean And Reinstall。
+DataBinding/ViewBinding 当前支持增量生成绑定相关源码。确认 Gradle 正常而 Jugg 稳定复现时，[报告问题](../guide/report-issue.md)。
 
-## Q：修改 DataBinding/ViewBinding XML 后崩溃怎么办？
-
-DataBinding/ViewBinding 当前支持增量生成绑定相关源码。不要直接沿用旧资料中的“不支持”结论。
-
-1. 如果刚启用 DataBinding/ViewBinding、升级 AGP 或修改相关 Gradle 配置，先 Sync 并执行一次完整 Gradle 构建。
-2. 如果普通 layout 修改只在 Jugg 增量运行后崩溃，使用 Gradle 构建对照。
-3. Gradle 正常而 Jugg 稳定崩溃时，[报告问题](../guide/report-issue.md)。
-
-## Q：不知道崩溃是否与增量部署有关怎么办？
+## Q：不知道崩溃是否与 Jugg 增量编译有关怎么办？
 
 最直接的判断方式是使用相同 variant 执行一次完整 Gradle 构建并安装：
 
 - Gradle 结果也崩溃：先修复工程本身的问题。
-- Gradle 结果正常：继续使用 Gradle 结果，并提交 Jugg 问题现场。
+- Gradle 结果正常：继续使用 Gradle 结果，并[报告问题](../guide/report-issue.md)。
 
 ## 相关页面
 

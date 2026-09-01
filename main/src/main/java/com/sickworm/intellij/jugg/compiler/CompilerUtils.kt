@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.BufferedReader
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -103,8 +104,14 @@ fun copyResource(resourcePath: String): File {
         if (storePath.exists()) {
             return@withGlobalResourceLock storePath
         }
-        storePath.parentFile.mkdirs()
-        val tempFile = File(storePath.parentFile, "${storePath.name}.${UUID.randomUUID()}.tmp")
+        val parent = storePath.parentFile
+            ?: throw IOException("Invalid Jugg resource path: $resourcePath")
+        try {
+            Files.createDirectories(parent.toPath())
+        } catch (e: IOException) {
+            throw IOException("Failed to create Jugg resource directory: ${parent.absolutePath}", e)
+        }
+        val tempFile = File(parent, "${storePath.name}.${UUID.randomUUID()}.tmp")
         try {
             JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { input ->
                 tempFile.outputStream().use { output -> input.copyTo(output) }

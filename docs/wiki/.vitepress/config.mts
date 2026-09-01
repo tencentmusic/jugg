@@ -5,24 +5,25 @@ const productionSrcExclude = isWikiDev ? [] : ['dev/**', 'zh/dev/**']
 const wikiBase = process.env.JUGG_WIKI_BASE || '/'
 
 const englishNav = [
-  { text: 'Onboarding', link: '/onboarding/' },
+  { text: 'Get started', link: '/onboarding/' },
   { text: 'Guide', link: '/guide/' },
-  { text: 'How It Works', link: '/concepts/' },
+  { text: 'How it works', link: '/concepts/' },
   { text: 'Capabilities', link: '/capabilities/' },
   { text: 'Troubleshooting', link: '/troubleshooting/' },
   { text: 'Reference', link: '/reference/' },
+  { text: 'Technical Articles', link: '/articles/' },
   ...(isWikiDev ? [{ text: 'Dev', link: '/dev/elements-demo' }] : [])
 ]
 
 const englishSidebar = {
   '/onboarding/': [
     {
-      text: 'Onboarding',
+      text: 'Get started',
       items: [
         { text: 'Overview', link: '/onboarding/' },
         { text: 'Installation', link: '/onboarding/installation' },
-        { text: 'First Run', link: '/onboarding/first-run' },
-        { text: 'Agent Setup', link: '/onboarding/agent-setup' }
+        { text: 'First run', link: '/onboarding/first-run' },
+        { text: 'Remote build machine setup', link: '/onboarding/agent-setup' }
       ]
     }
   ],
@@ -31,27 +32,35 @@ const englishSidebar = {
       text: 'Guide',
       items: [
         { text: 'Overview', link: '/guide/' },
-        { text: 'Run App', link: '/guide/run' },
+        { text: 'Run an app', link: '/guide/run' },
         { text: 'Jugg Control Panel', link: '/guide/control-panel' },
-        { text: 'Run Configuration and Variants', link: '/guide/run-configuration' },
+        { text: 'Run configurations and build variants', link: '/guide/run-configuration' },
+        { text: 'Fall back to Gradle compilation', link: '/guide/downgrade-gradle' },
+        { text: 'Export an incremental APK', link: '/guide/export-incremental-apk' },
+        { text: 'Restart the app', link: '/guide/restart-app' },
+        { text: 'Clear app data', link: '/guide/clean-data' },
+        { text: 'Select multiple devices', link: '/guide/multi-device' },
+        { text: 'Android RemoteViews', link: '/guide/android-remoteviews' },
+        { text: 'Compatibility deployment', link: '/guide/compat-device' },
         { text: 'Debug', link: '/guide/debug' },
         { text: 'Android Test', link: '/guide/android-test' },
         { text: 'CLI', link: '/guide/cli' },
         { text: 'MCP', link: '/guide/mcp' },
-        { text: 'UI Inspection', link: '/guide/ui-inspection' },
+        { text: 'UI inspection', link: '/guide/ui-inspection' },
         { text: 'Remote Gradle', link: '/guide/remote-gradle' },
-        { text: 'Custom Compiler', link: '/guide/custom-compiler' },
-        { text: 'Advanced Options', link: '/guide/advanced-options' },
+        { text: 'Custom compiler', link: '/guide/custom-compiler' },
+        { text: 'Advanced options', link: '/guide/advanced-options' },
+        { text: 'Report an issue', link: '/guide/report-issue' },
         {
-          text: 'Jugg Backend',
+          text: 'Jugg backend',
           collapsed: true,
           items: [
             { text: 'Overview', link: '/guide/jugg-backend/' },
-            { text: 'Self-hosting Checklist', link: '/guide/jugg-backend/self-hosting' },
-            { text: 'Project Configuration', link: '/guide/jugg-backend/project-config' },
-            { text: 'Plugin Delivery', link: '/guide/jugg-backend/plugin-delivery' },
-            { text: 'Diagnostics', link: '/guide/jugg-backend/diagnostics' },
-            { text: 'Remote Server Apply', link: '/guide/jugg-backend/remote-server-apply' }
+            { text: 'Self-hosting checklist', link: '/guide/jugg-backend/self-hosting' },
+            { text: 'Project configuration distribution', link: '/guide/jugg-backend/project-config' },
+            { text: 'Plugin distribution and hot updates', link: '/guide/jugg-backend/plugin-delivery' },
+            { text: 'Diagnostics reporting', link: '/guide/jugg-backend/diagnostics' },
+            { text: 'Remote-machine application', link: '/guide/jugg-backend/remote-server-apply' }
           ]
         }
       ]
@@ -59,29 +68,52 @@ const englishSidebar = {
   ],
   '/concepts/': [
     {
-      text: 'How It Works',
+      text: 'How it works',
       items: [
         { text: 'Overview', link: '/concepts/' },
-        { text: 'How Jugg Works', link: '/concepts/how-jugg-works' },
+        { text: 'How Jugg works', link: '/concepts/how-jugg-works' },
         {
-          text: 'Incremental Compile',
+          text: 'Incremental compilation',
           collapsed: false,
           items: [
             { text: 'Overview', link: '/concepts/incremental-compile/' },
-            { text: 'Android Manifest', link: '/concepts/incremental-compile/manifest' },
-            { text: 'Release Incremental Compile', link: '/concepts/incremental-compile/release-compile' }
+            { text: 'Source incremental compilation', link: '/concepts/incremental-compile/source' },
+            { text: 'KMP source incremental compilation', link: '/concepts/incremental-compile/kmp-source' },
+            { text: 'Recompilation', link: '/concepts/incremental-compile/recompile-propagation' },
+            { text: 'Constant reference analysis', link: '/concepts/incremental-compile/const-ref' },
+            { text: 'Resource incremental compilation', link: '/concepts/incremental-compile/resource' },
+            { text: 'Compose Multiplatform resources', link: '/concepts/incremental-compile/compose-multiplatform-resource' },
+            { text: 'DataBinding / ViewBinding', link: '/concepts/incremental-compile/databinding-viewbinding' },
+            { text: 'Android Manifest compilation', link: '/concepts/incremental-compile/manifest' },
+            { text: 'Release incremental compilation', link: '/concepts/incremental-compile/release-compile' },
+            { text: 'Assets / native libraries', link: '/concepts/incremental-compile/assets-native' },
+            { text: 'Dependency incremental compilation', link: '/concepts/incremental-compile/dependency-incremental' },
+            { text: 'Custom compiler', link: '/concepts/incremental-compile/custom-compiler' }
           ]
         },
-        { text: 'Deploy Strategy', link: '/concepts/deploy-strategy' },
-        { text: 'Fallback and Limits', link: '/concepts/fallback-and-limits' },
-        { text: 'Project Model', link: '/concepts/project-model' },
-        { text: 'Project Information Refresh', link: '/concepts/project-info-refresh' },
-        { text: 'Compile Pipeline', link: '/concepts/compile-pipeline' },
-        { text: 'Deploy Data and Impact', link: '/concepts/deploy-data-and-impact' },
+        {
+          text: 'Incremental deployment',
+          collapsed: false,
+          items: [
+            { text: 'Overview', link: '/concepts/deploy-strategy' },
+            { text: 'Deploy data and impact analysis', link: '/concepts/deploy-data-and-impact' },
+            { text: 'Apply Changes', link: '/concepts/apply-changes' },
+            { text: 'APK update and installation', link: '/concepts/apk-update-and-install' },
+            { text: 'Direct Overlay', link: '/concepts/direct-overlay' },
+            { text: 'Compatibility deployment', link: '/concepts/compat-deploy' },
+            { text: 'Deployment state and recovery', link: '/concepts/deploy-state-recover' },
+            { text: 'Deployment self-healing', link: '/concepts/deploy-self-healing' }
+          ]
+        },
+        { text: 'Gradle fallback and baseline rebuild', link: '/concepts/gradle-fallback-baseline' },
+        { text: 'Project context', link: '/concepts/project-model' },
+        { text: 'Project information refresh and recovery', link: '/concepts/project-info-refresh' },
+        { text: 'Compilation orchestration', link: '/concepts/compile-pipeline' },
+        { text: 'In-app Jugg Runtime', link: '/concepts/jugg-runtime' },
         { text: 'Jugg JVMTI Agent', link: '/concepts/jugg-jvmti-agent' },
-        { text: 'Android Test Flow', link: '/concepts/android-test-flow' },
-        { text: 'MCP and CLI', link: '/concepts/mcp-and-cli' },
-        { text: 'Compatibility Layer', link: '/concepts/compatibility-layer' }
+        { text: 'Android Test flow', link: '/concepts/android-test-flow' },
+        { text: 'Layout dump and UI evidence', link: '/concepts/layout-dump-and-ui-evidence' },
+        { text: 'Android Studio version compatibility', link: '/concepts/compatibility-layer' }
       ]
     }
   ],
@@ -95,18 +127,20 @@ const englishSidebar = {
           collapsed: false,
           items: [
             { text: 'Overview', link: '/capabilities/compile/' },
-            { text: 'Incremental Compile', link: '/capabilities/compile/incremental-compile' },
+            { text: 'Source compilation', link: '/capabilities/compile/source-compile' },
             { text: 'KMP and Compose Multiplatform', link: '/capabilities/compile/kmp-compose-multiplatform' },
-            { text: 'Dependency Incremental Compile', link: '/capabilities/compile/dependency-incremental' },
-            { text: 'Resource Compile', link: '/capabilities/compile/resource-compile' },
-            { text: 'DataBinding and ViewBinding', link: '/capabilities/compile/databinding-viewbinding' },
-            { text: 'Manifest', link: '/capabilities/compile/manifest' },
-            { text: 'Native Library Update', link: '/capabilities/compile/so-update' },
-            { text: 'Release Compile', link: '/capabilities/compile/release-compile' },
-            { text: 'Constant Reference Analysis', link: '/capabilities/compile/const-ref' },
+            { text: 'Recompilation', link: '/capabilities/compile/recompile-propagation' },
+            { text: 'Resource compilation', link: '/capabilities/compile/resource-compile' },
+            { text: 'AndroidManifest compilation', link: '/capabilities/compile/manifest' },
+            { text: 'Native library updates', link: '/capabilities/compile/so-update' },
+            { text: 'DataBinding / ViewBinding', link: '/capabilities/compile/databinding-viewbinding' },
+            { text: 'Kotlin Compose', link: '/capabilities/compile/kotlin-compose' },
+            { text: 'Annotation processors', link: '/capabilities/compile/annotation-processors' },
+            { text: 'Dependency incremental compilation', link: '/capabilities/compile/dependency-incremental' },
+            { text: 'Release compilation', link: '/capabilities/compile/release-compile' },
             { text: 'AabResGuard', link: '/capabilities/compile/aab-resguard' },
-            { text: 'Gradle Fallback', link: '/capabilities/compile/gradle-fallback' },
-            { text: 'Custom Compiler', link: '/capabilities/compile/custom-compiler' }
+            { text: 'Gradle fallback', link: '/capabilities/compile/gradle-fallback' },
+            { text: 'Custom compiler', link: '/capabilities/compile/custom-compiler' }
           ]
         },
         {
@@ -121,10 +155,10 @@ const englishSidebar = {
             { text: 'Restart', link: '/capabilities/deploy/restart' },
             { text: 'Direct Overlay', link: '/capabilities/deploy/direct-overlay' },
             { text: 'Recover and Retry', link: '/capabilities/deploy/recover-and-retry' },
-            { text: 'Multi APK', link: '/capabilities/deploy/multi-apk' },
-            { text: 'Multi Device', link: '/capabilities/deploy/multi-device' },
-            { text: 'Deploy History and Cache', link: '/capabilities/deploy/deploy-history-cache' },
-            { text: 'HarmonyOS Compatible Deploy', link: '/capabilities/deploy/harmonyos-compat' },
+            { text: 'Multi-APK', link: '/capabilities/deploy/multi-apk' },
+            { text: 'Multiple devices', link: '/capabilities/deploy/multi-device' },
+            { text: 'Deploy History and cache', link: '/capabilities/deploy/deploy-history-cache' },
+            { text: 'HarmonyOS compatibility deployment', link: '/capabilities/deploy/harmonyos-compat' },
             { text: 'JVMTI Runtime', link: '/capabilities/deploy/jvmti-runtime' }
           ]
         },
@@ -133,10 +167,10 @@ const englishSidebar = {
           collapsed: false,
           items: [
             { text: 'Overview', link: '/capabilities/test/' },
-            { text: 'Android Test', link: '/capabilities/test/android-test' },
-            { text: 'Library Test APK', link: '/capabilities/test/library-test-apk' },
+            { text: 'Application Android Test', link: '/capabilities/test/application-android-test' },
+            { text: 'Library Android Test', link: '/capabilities/test/library-android-test' },
             { text: 'Test Results UI', link: '/capabilities/test/test-results-ui' },
-            { text: 'Logcat Attribution', link: '/capabilities/test/logcat-attribution' }
+            { text: 'Logcat attribution', link: '/capabilities/test/logcat-attribution' }
           ]
         },
         {
@@ -150,16 +184,16 @@ const englishSidebar = {
               collapsed: false,
               items: [
                 { text: 'Overview', link: '/capabilities/tools/cli' },
-                { text: 'Build and Deploy', link: '/capabilities/tools/cli-build-deploy' },
-                { text: 'Run Context and No-change Results', link: '/capabilities/tools/run-context-and-no-change' },
+                { text: 'Build and deploy', link: '/capabilities/tools/cli-build-deploy' },
+                { text: 'Run context and no-change results', link: '/capabilities/tools/run-context-and-no-change' },
                 { text: 'Android Test', link: '/capabilities/tools/cli-android-test' },
-                { text: 'Runtime and Device', link: '/capabilities/tools/cli-runtime-device' },
-                { text: 'UI Automation', link: '/capabilities/tools/ui-automation' },
-                { text: 'UI Layout Evidence', link: '/capabilities/tools/layout-verify' },
-                { text: 'Remote Diagnosis', link: '/capabilities/tools/remote-diagnosis' }
+                { text: 'Runtime and device', link: '/capabilities/tools/cli-runtime-device' },
+                { text: 'UI automation', link: '/capabilities/tools/ui-automation' },
+                { text: 'UI layout evidence', link: '/capabilities/tools/layout-verify' },
+                { text: 'Remote diagnosis', link: '/capabilities/tools/remote-diagnosis' }
               ]
             },
-            { text: 'MCP for Agents', link: '/capabilities/tools/mcp' }
+            { text: 'MCP for agents', link: '/capabilities/tools/mcp' }
           ]
         }
       ]
@@ -170,16 +204,19 @@ const englishSidebar = {
       text: 'Troubleshooting',
       items: [
         { text: 'Overview', link: '/troubleshooting/' },
-        { text: 'Compile', link: '/troubleshooting/compile' },
-        { text: 'Deploy', link: '/troubleshooting/deploy' },
-        { text: 'Runtime', link: '/troubleshooting/runtime' },
-        { text: 'Logs', link: '/troubleshooting/logs' },
-        { text: 'Android Test', link: '/troubleshooting/android-test' },
-        { text: 'Debug', link: '/troubleshooting/debug' },
-        { text: 'MCP and CLI', link: '/troubleshooting/mcp-cli' },
-        { text: 'Remote Gradle', link: '/troubleshooting/remote-gradle' },
-        { text: 'UI Tools', link: '/troubleshooting/ui-tools' },
-        { text: 'Performance', link: '/troubleshooting/performance' }
+        { text: 'Compilation failed', link: '/troubleshooting/compile-failed' },
+        { text: 'Changes did not take effect', link: '/troubleshooting/changes-not-applied' },
+        { text: 'App crashed after deployment', link: '/troubleshooting/runtime-crash' },
+        { text: 'Installation, deployment, launch, or Debug failed', link: '/troubleshooting/app-cannot-run' },
+        { text: 'Jugg is slow or stuck', link: '/troubleshooting/jugg-slow-or-stuck' }
+      ]
+    },
+    {
+      text: 'Feature-specific issues',
+      items: [
+        { text: 'Remote compilation failed', link: '/troubleshooting/remote-build-failed' },
+        { text: 'Android Test run or test failed', link: '/troubleshooting/android-test-failed' },
+        { text: 'Agent or CLI command failed', link: '/troubleshooting/agent-command-failed' }
       ]
     }
   ],
@@ -190,12 +227,27 @@ const englishSidebar = {
         { text: 'Overview', link: '/reference/' },
         { text: 'Compatibility', link: '/reference/compatibility' },
         { text: 'Glossary', link: '/reference/glossary' },
-        { text: 'CLI Commands', link: '/reference/cli-commands' },
-        { text: 'MCP Tools', link: '/reference/mcp-tools' },
+        { text: 'CLI commands', link: '/reference/cli-commands' },
+        { text: 'MCP tools', link: '/reference/mcp-tools' },
         { text: 'Configuration', link: '/reference/configuration' },
-        { text: 'Log Files', link: '/reference/log-files' },
-        { text: 'Modules', link: '/reference/modules' },
+        { text: 'Log files', link: '/reference/log-files' },
         { text: 'Limits', link: '/reference/limits' }
+      ]
+    }
+  ],
+  '/articles/': [
+    {
+      text: 'Technical Articles',
+      items: [
+        { text: 'Overview', link: '/articles/' },
+        { text: 'Jugg (1): Architecture and Usage', link: '/articles/01-jugg-introduction/' },
+        { text: 'Jugg (2): Source Incremental Compilation', link: '/articles/02-source-incremental-compilation/' },
+        { text: 'Jugg (3): Resource Incremental Compilation', link: '/articles/03-resource-incremental-compilation/' },
+        { text: 'Jugg (4): Incremental Deployment', link: '/articles/04-incremental-deployment/' },
+        { text: 'Jugg 2.0', link: '/articles/05-jugg-2-0/' },
+        { text: 'How Much Compilation Time Did Jugg Save?', link: '/articles/06-time-savings/' },
+        { text: 'Jugg 2.x Evolution', link: '/articles/07-jugg-2-x-evolution/' },
+        { text: 'Jugg 3.0: From Fast Compilation to Agent Verification', link: '/articles/08-jugg-3-0/' }
       ]
     }
   ],
@@ -218,6 +270,7 @@ const chineseNav = [
   { text: '能力', link: '/zh/capabilities/' },
   { text: '问题排查', link: '/zh/troubleshooting/' },
   { text: '参考', link: '/zh/reference/' },
+  { text: '技术文章', link: '/zh/articles/' },
   ...(isWikiDev ? [{ text: 'Dev', link: '/zh/dev/elements-demo' }] : [])
 ]
 
@@ -413,16 +466,16 @@ const chineseSidebar = {
         { text: '编译失败', link: '/zh/troubleshooting/compile-failed' },
         { text: '改动没有生效', link: '/zh/troubleshooting/changes-not-applied' },
         { text: '部署后 App 崩溃', link: '/zh/troubleshooting/runtime-crash' },
-        { text: '无法安装、启动或进入 Debug', link: '/zh/troubleshooting/app-cannot-run' },
+        { text: '无法安装、部署、启动或 Debug', link: '/zh/troubleshooting/app-cannot-run' },
         { text: 'Jugg 运行缓慢或卡住', link: '/zh/troubleshooting/jugg-slow-or-stuck' }
       ]
     },
     {
       text: '特定功能问题',
       items: [
-        { text: 'Android Test 无法运行或测试失败', link: '/zh/troubleshooting/android-test-failed' },
-        { text: '云端编译失败', link: '/zh/troubleshooting/remote-build-failed' },
-        { text: 'Agent 或命令执行失败', link: '/zh/troubleshooting/agent-command-failed' }
+        { text: '远程编译失败', link: '/zh/troubleshooting/remote-build-failed' },
+        { text: 'Android Test 运行或测试失败', link: '/zh/troubleshooting/android-test-failed' },
+        { text: 'Agent 或 CLI 执行失败', link: '/zh/troubleshooting/agent-command-failed' }
       ]
     }
   ],
@@ -438,6 +491,22 @@ const chineseSidebar = {
         { text: '配置', link: '/zh/reference/configuration' },
         { text: '日志文件', link: '/zh/reference/log-files' },
         { text: '限制', link: '/zh/reference/limits' }
+      ]
+    }
+  ],
+  '/zh/articles/': [
+    {
+      text: '技术文章',
+      items: [
+        { text: '概览', link: '/zh/articles/' },
+        { text: 'Jugg（1）：整体方案与使用介绍', link: '/zh/articles/01-jugg-introduction/' },
+        { text: 'Jugg（2）：源码增量编译方案', link: '/zh/articles/02-source-incremental-compilation/' },
+        { text: 'Jugg（3）：资源增量编译', link: '/zh/articles/03-resource-incremental-compilation/' },
+        { text: 'Jugg（4）：增量部署方案', link: '/zh/articles/04-incremental-deployment/' },
+        { text: 'Jugg 2.0', link: '/zh/articles/05-jugg-2-0/' },
+        { text: 'Jugg 节省了安卓开发多少编译时间？', link: '/zh/articles/06-time-savings/' },
+        { text: 'Jugg 2.X 能力演进', link: '/zh/articles/07-jugg-2-x-evolution/' },
+        { text: 'Jugg 3.0：从秒级编译到 Agent 自验证', link: '/zh/articles/08-jugg-3-0/' }
       ]
     }
   ],
@@ -459,6 +528,27 @@ export default defineConfig({
   description: 'User documentation for Jugg',
   cleanUrls: true,
   srcExclude: productionSrcExclude,
+  markdown: {
+    config(md) {
+      const normalizeHistoricalAssets = (content: string) =>
+        content.replace(/(<img\b[^>]*\bsrc=["'])(?![./]|https?:|data:)([^"']+)(["'])/g, '$1./$2$3')
+      const renderHtmlInline = md.renderer.rules.html_inline ?? ((tokens, idx) => tokens[idx].content)
+      const renderHtmlBlock = md.renderer.rules.html_block ?? ((tokens, idx) => tokens[idx].content)
+      md.renderer.rules.html_inline = (tokens, idx, options, env, self) => {
+        const content = tokens[idx].content
+        if (env.relativePath?.startsWith('zh/articles/') && /^<\/?[A-Za-z][A-Za-z0-9]*>$/.test(content)) {
+          return md.utils.escapeHtml(content)
+        }
+        const normalized = env.relativePath?.startsWith('zh/articles/') ? normalizeHistoricalAssets(content) : content
+        return renderHtmlInline([{ ...tokens[idx], content: normalized }], 0, options, env, self)
+      }
+      md.renderer.rules.html_block = (tokens, idx, options, env, self) => {
+        const content = tokens[idx].content
+        const normalized = env.relativePath?.startsWith('zh/articles/') ? normalizeHistoricalAssets(content) : content
+        return renderHtmlBlock([{ ...tokens[idx], content: normalized }], 0, options, env, self)
+      }
+    }
+  },
   locales: {
     root: {
       label: 'English',

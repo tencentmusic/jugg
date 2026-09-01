@@ -1,6 +1,6 @@
 ---
-title: Native Library Update
-description: Explains Jugg's native library / .so update path and APK re-sign effect path.
+title: Updating .so files
+description: Explains incremental native library and .so updates in Jugg and how they take effect through APK re-signing.
 status: active
 tags:
   - capability
@@ -9,34 +9,41 @@ tags:
   - so
 ---
 
-# Native Library Update
+# Updating .so files
 
-Jugg supports updating already produced native library / `.so` files by writing them into the APK, re-signing it, and installing the updated APK.
+Jugg can update already generated native library / `.so` files. It writes them into the APK, re-signs the APK, and installs it for the change to take effect.
 
-## Supported Capabilities
+## Supported scope
 
-| Scenario | Current support | Effect path |
+| Scenario | Current support | User-visible result |
 |---|---|---|
-| Updating existing `jniLibs/**/*.so` or `lib/<abi>/*.so` artifacts | Supported | Write into the target APK and re-sign the APK |
-| Multi-ABI native library updates | Supported per target APK ownership | Each target APK gets its own native library artifact update |
+| Update an existing `.so` under an ABI directory in the project | Supported | Updates the target APK, re-signs it, and installs it |
+| Update native libraries for multiple ABIs in the same run | Supported according to target APK ownership | Each target APK receives only its own native libraries |
+| Delete an `.so` | Does not produce a removal result | The installed APK continues containing the old native library |
+| Change C/C++ source, CMake, NDK, ABI, or packaging configuration | Not compiled incrementally directly | Uses a Gradle/NDK build to refresh the APK baseline |
 
-> [!TIP]
-> If the change touches C/C++ source, CMake, NDK, ABI, packaging rules, or native source sets, run the matching Gradle build or Sync first so the new `.so` artifact becomes an input Jugg can update.
-
-## How Native Library Update Takes Effect
+## Trigger and result
 
 ```text
-detect native library / .so artifact changes
-  -> map them to the target APK
-  -> write them into the APK during deployment
-  -> re-sign the APK
-  -> install the updated APK
+An existing .so in the project directory changes
+  -> Determine the target path from its ABI and APK ownership
+  -> Write it to the target APK's lib/<abi> directory
+  -> Re-sign the APK
+  -> Install the updated APK
 ```
 
-Native library update modifies APK contents and requires re-signing. Jugg places existing `.so` artifacts into the right APK; Gradle/NDK still owns producing `.so` artifacts from C/C++ source.
+After installation, the app uses the native library from the updated APK. Jugg only organizes and deploys already generated `.so` files. Gradle, CMake, and NDK remain responsible for producing `.so` files from C/C++ source.
 
-## Related Capabilities
+## Boundaries
 
-- [Manifest](./manifest.md)
-- [Resource Compile](./resource-compile.md)
-- [Compile Guide](../../guide/compile.md)
+- The direct file-change entry point recognizes only existing `.so` files under the project directory whose parent directory is `armeabi`, `armeabi-v7a`, `arm64-v8a`, `x86`, or `x86_64`.
+- The Gradle `build` directory is not treated as direct incremental input. After changing C/C++ source or native build configuration, run the corresponding Gradle build to refresh the APK. Complete Sync first when the project model changes as well.
+- Deleting an `.so` does not produce data that removes the file from the APK and does not fail incremental compilation by itself. The installed APK continues containing the old native library. Run a full Gradle build only when the deletion must actually take effect.
+- Multi-APK projects update native libraries according to target APK ownership instead of writing the same native library into every APK by default.
+- If signing configuration is missing or invalid, the incremental APK update fails. Use a Gradle build to restore an installable APK baseline.
+
+## Related pages
+
+- [Compilation stages](../../guide/compile.md)
+- [Assets and native library internals](../../concepts/incremental-compile/assets-native.md)
+- [Multi-APK deployment](../deploy/multi-apk.md)

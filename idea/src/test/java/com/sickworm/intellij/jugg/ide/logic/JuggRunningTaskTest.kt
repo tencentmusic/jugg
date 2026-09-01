@@ -11,6 +11,16 @@ import org.mockito.Mockito
 class JuggRunningTaskTest {
 
     @Test
+    fun `compile event title should distinguish selected path and no-op compile`() {
+        assertEquals("Incremental compile completed", buildCompileEventTitle(false, true, false, true))
+        assertEquals("Gradle compile completed", buildCompileEventTitle(true, true, false, true))
+        assertEquals("Incremental compile failed", buildCompileEventTitle(false, false, false, true))
+        assertEquals("Gradle compile failed", buildCompileEventTitle(true, false, false, true))
+        assertEquals("Incremental compile canceled", buildCompileEventTitle(false, false, true, true))
+        assertEquals("No compile needed", buildCompileEventTitle(false, true, false, false))
+    }
+
+    @Test
     fun `gradle compile install success uses BUILD_AND_INSTALL headline`() {
         val lines = buildDeploySuccessLogLines(
             deployType = JuggDeployData.DeployType.INSTALL,

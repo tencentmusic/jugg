@@ -14,7 +14,7 @@ tags:
 
 | 页面 | 适合查什么 |
 |---|---|
-| [兼容性](./compatibility.md) | Android Studio 版本、设备环境、Debug attach 和部署兼容边界。 |
+| [兼容性](./compatibility.md) | IDE、AGP、Gradle、Kotlin、Android 设备和产品能力支持范围。 |
 | [术语表](./glossary.md) | Jugg 文档里常见的 compile、deploy、fallback、code swap 等术语。 |
 | [CLI 命令](./cli-commands.md) | `jugg` 命令行子命令、全局参数和常用参数映射。 |
 | [MCP 工具](./mcp-tools.md) | 面向 Agent 的 MCP tool 名称、输入输出约定和错误码。 |

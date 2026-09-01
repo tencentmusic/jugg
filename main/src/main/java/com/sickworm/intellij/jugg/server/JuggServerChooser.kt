@@ -5,6 +5,7 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import java.net.InetAddress
 
@@ -174,6 +175,42 @@ class JuggServerChooser(logger: Logger) {
         return false
     }
 
+    fun setCustomServer() {
+        val newServerUrl = PlatformApi.showUserAndPasswordInputDialog(
+            title = "Set Custom Server",
+            content = "Custom server URL",
+            subTitle = "This server can be used for remote compilation, issue reporting, Jugg update checks, " +
+                    "and custom compiler downloads.",
+            defaultInputText = if (isSetCustomServer) JuggSettings.serverUrl else "",
+        )
+        logger.debug("New server url: $newServerUrl")
+        if (newServerUrl == null) {
+            logger.debug("User not input server url, skip update.")
+            return
+        }
+        val normalizedUrl = newServerUrl.trim()
+        if (normalizedUrl.isEmpty()) {
+            setCustomServer(normalizedUrl)
+            return
+        }
+        val displayUrl = normalizedUrl.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        val confirmed = PlatformApi.showDialog(
+            title = "Trust Custom Server?",
+            content = "<html>Jugg will connect to:<br><b>$displayUrl</b><br><br>" +
+                    "This server can check for Jugg updates, download and install Jugg update JARs, " +
+                    "and download and load custom compiler JARs. Continue only if you control or trust it.</html>",
+            okButtonText = "Trust Server",
+            cancelButtonText = "Cancel",
+        )
+        if (!confirmed) {
+            logger.debug("User cancelled custom server confirmation.")
+            return
+        }
+        setCustomServer(normalizedUrl)
+    }
+
     fun setCustomServer(newServerUrl: String) {
         val normalizedUrl = newServerUrl.trim()
         logger.debug("New server url: $normalizedUrl")
@@ -182,11 +219,10 @@ class JuggServerChooser(logger: Logger) {
             isSetCustomServer = false
             updateServerIfExpired()
             return
-        } else {
-            logger.debug("User input server url, set to custom.")
-            JuggSettings.serverUrl = normalizedUrl
-            isSetCustomServer = true
         }
+        logger.debug("User input server url, set to custom.")
+        JuggSettings.serverUrl = normalizedUrl
+        isSetCustomServer = true
     }
 
     companion object {

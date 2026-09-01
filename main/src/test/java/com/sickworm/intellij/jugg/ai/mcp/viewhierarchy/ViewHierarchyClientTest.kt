@@ -145,6 +145,97 @@ class ViewHierarchyClientTest {
         Assert.assertEquals("本工程没有 kotlin 依赖，不支持此功能", result?.errorMessage)
     }
 
+    @Test
+    fun testFindElementsSendsSelectorBudgetAndParsesSourceLocation() {
+        val client = StubViewHierarchyClient(
+            adb = FakeDeviceAdb(emptyMap()),
+            packageName = "com.example.app",
+            socketCandidates = listOf("jugg_vh"),
+            responsesBySocket = mapOf(
+                "jugg_vh" to ViewHierarchyResponse(
+                    status = "ok",
+                    message = null,
+                    data = jsonObject(
+                        """{
+                          "matchCount": 3,
+                          "returnedCount": 1,
+                          "truncated": true,
+                          "density": 2.0,
+                          "elements": [{
+                            "text": "Profile",
+                            "resourceId": "profile_card",
+                            "contentDesc": "Open profile",
+                            "className": "ProfileCard",
+                            "bounds": [10, 20, 110, 60],
+                            "centerX": 60,
+                            "centerY": 40,
+                            "source": {"file": "ProfileScreen.kt", "line": 42}
+                          }]
+                        }"""
+                    ),
+                ),
+            ),
+        )
+
+        val result = client.findElements(
+            text = "Profile",
+            resourceId = "profile_card",
+            contentDesc = "Open profile",
+            className = "com.example.ProfileCard",
+            visibleOnly = false,
+            maxResults = 1,
+        )
+
+        Assert.assertEquals("find_elements", client.requests.single().action)
+        Assert.assertEquals(
+            mapOf(
+                "text" to "Profile",
+                "resourceId" to "profile_card",
+                "contentDesc" to "Open profile",
+                "className" to "com.example.ProfileCard",
+                "visibleOnly" to false,
+                "maxResults" to 1,
+                "topWindowOnly" to true,
+            ),
+            client.requests.single().params,
+        )
+        Assert.assertEquals(3, result?.matchCount)
+        Assert.assertEquals(1, result?.returnedCount)
+        Assert.assertEquals(true, result?.truncated)
+        Assert.assertEquals(2.0, result?.density ?: 0.0, 0.0)
+        Assert.assertEquals("ProfileScreen.kt", result?.matches?.single()?.source?.file)
+        Assert.assertEquals(42, result?.matches?.single()?.source?.line)
+    }
+
+    @Test
+    fun testEvalViewParsesSourceLocation() {
+        val client = StubViewHierarchyClient(
+            adb = FakeDeviceAdb(emptyMap()),
+            packageName = "com.example.app",
+            socketCandidates = listOf("jugg_vh"),
+            responsesBySocket = mapOf(
+                "jugg_vh" to ViewHierarchyResponse(
+                    status = "ok",
+                    message = null,
+                    data = jsonObject(
+                        """{
+                          "className": "android.widget.TextView",
+                          "resourceId": "title",
+                          "density": 3.0,
+                          "source": {"file": "HomeScreen.kt", "line": 18},
+                          "values": [{"expression": "getText()", "value": "Home", "type": "string"}]
+                        }"""
+                    ),
+                ),
+            ),
+        )
+
+        val result = client.evalView(null, "title", null, null, listOf("getText()"))
+
+        Assert.assertEquals("HomeScreen.kt", result?.source?.file)
+        Assert.assertEquals(18, result?.source?.line)
+    }
+
     private fun okResponse(version: String = "1.0"): ViewHierarchyResponse {
         return ViewHierarchyResponse(
             status = "ok",
@@ -188,6 +279,7 @@ class ViewHierarchyClientTest {
         private val responsesBySocket: Map<String, ViewHierarchyResponse?> = emptyMap(),
     ) : ViewHierarchyClient(adb, packageName) {
         val attemptedSockets = mutableListOf<String>()
+        val requests = mutableListOf<ViewHierarchyRequest>()
         val versionWarnings = mutableListOf<String?>()
 
         fun socketCandidates(): List<String> {
@@ -203,6 +295,7 @@ class ViewHierarchyClientTest {
             request: ViewHierarchyRequest,
         ): ViewHierarchyResponse? {
             attemptedSockets.add(socketName)
+            requests.add(request)
             return responsesBySocket[socketName]
         }
 

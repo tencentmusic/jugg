@@ -105,6 +105,52 @@ open class ViewHierarchyClient(
     }
 
     /**
+     * Find elements on one live hierarchy snapshot with a bounded response.
+     */
+    fun findElements(
+        text: String?,
+        resourceId: String?,
+        contentDesc: String?,
+        className: String?,
+        visibleOnly: Boolean,
+        maxResults: Int,
+    ): FindElementsResult? {
+        val response = sendRequest(
+            ViewHierarchyRequest(
+                action = "find_elements",
+                params = linkedMapOf(
+                    "text" to text,
+                    "resourceId" to resourceId,
+                    "contentDesc" to contentDesc,
+                    "className" to className,
+                    "visibleOnly" to visibleOnly,
+                    "maxResults" to maxResults,
+                    "topWindowOnly" to true,
+                ),
+            )
+        ) ?: return null
+        if (!response.isOk()) {
+            return FindElementsResult(
+                matchCount = 0,
+                returnedCount = 0,
+                truncated = false,
+                density = 0.0,
+                matches = emptyList(),
+                errorMessage = response.message ?: "find_elements failed",
+            )
+        }
+        val data = response.data ?: return null
+        val matches = parseCandidates(data)
+        return FindElementsResult(
+            matchCount = data.optIntOrNull("matchCount") ?: matches.size,
+            returnedCount = data.optIntOrNull("returnedCount") ?: matches.size,
+            truncated = data.get("truncated")?.runCatching { asBoolean }?.getOrDefault(false) ?: false,
+            density = data.get("density")?.runCatching { asDouble }?.getOrDefault(0.0) ?: 0.0,
+            matches = matches,
+        )
+    }
+
+    /**
      * Execute atomic find-and-tap on device side.
      */
     fun findAndTap(
@@ -188,6 +234,7 @@ open class ViewHierarchyClient(
         val resolvedClassName = data.optStringOrNull("className").orEmpty()
         val resolvedResourceId = data.optStringOrNull("resourceId").orEmpty()
         val density = data.get("density")?.runCatching { asDouble }?.getOrDefault(0.0) ?: 0.0
+        val source = parseSourceLocation(data.optJsonObject("source"))
         val valuesArray = data.optJsonArray("values") ?: return null
 
         val values = mutableListOf<EvalViewValue>()
@@ -213,6 +260,7 @@ open class ViewHierarchyClient(
             resourceId = resolvedResourceId,
             density = density,
             values = values,
+            source = source,
         )
     }
 
@@ -295,6 +343,7 @@ open class ViewHierarchyClient(
             bounds = bounds,
             centerX = element.optIntOrNull("centerX") ?: return null,
             centerY = element.optIntOrNull("centerY") ?: return null,
+            source = parseSourceLocation(element.optJsonObject("source")),
         )
     }
 
@@ -313,8 +362,18 @@ open class ViewHierarchyClient(
                 bounds = item.optJsonArray("bounds")?.mapNotNull { it.asIntOrNull() }?.takeIf { it.size == 4 },
                 centerX = item.optIntOrNull("centerX") ?: -1,
                 centerY = item.optIntOrNull("centerY") ?: -1,
+                source = parseSourceLocation(item.optJsonObject("source")),
             )
         }
+    }
+
+    private fun parseSourceLocation(source: JsonObject?): SourceLocation? {
+        if (source == null) {
+            return null
+        }
+        val file = source.optStringOrNull("file")
+        val line = source.optIntOrNull("line")?.takeIf { it > 0 }
+        return if (file.isNullOrBlank() && line == null) null else SourceLocation(file, line)
     }
 
     private fun sendRequest(request: ViewHierarchyRequest): ViewHierarchyResponse? {

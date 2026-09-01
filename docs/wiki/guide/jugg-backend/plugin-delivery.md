@@ -1,6 +1,6 @@
 ---
-title: Jugg Backend Plugin Delivery
-description: Full plugin package upgrades, hot updates, rollout decisions, and custom compiler downloads.
+title: Jugg backend plugin distribution and hot updates
+description: Support full plugin package upgrades, hot updates, staged rollouts, and custom compiler downloads from a Jugg backend.
 status: active
 tags:
   - guide
@@ -8,42 +8,64 @@ tags:
   - update
 ---
 
-# Jugg Backend Plugin Delivery
+# Jugg backend plugin distribution and hot updates
 
-The backend can deliver full plugin packages and optional jar-level hot updates. Full packages are the normal release path. Hot updates are useful when a team wants to ship plugin jar changes without immediately replacing the whole plugin zip.
+A Jugg backend can provide two kinds of updates: full plugin package upgrades and hot updates. Full packages suit normal releases, while hot updates distribute plugin JAR changes without immediately replacing the entire package.
 
-## Full Package Upgrade
+## Full plugin package upgrades
+
+Full upgrades are driven by the `/check_update` response:
 
 ```text
-Plugin checks for updates
-  -> Backend compares the current version with the latest package
-  -> Backend returns isNeedUpgrade and downloadUrl
-  -> Jugg shows an IDE notification
-  -> User downloads and installs the plugin package
+The plugin checks for updates
+  -> The backend compares the current and latest versions
+  -> The backend returns isNeedUpgrade and downloadUrl
+  -> The plugin displays an upgrade notification in the IDE
+  -> The user opens the download page or downloads and installs the plugin package manually
 ```
 
-If your team does not distribute plugin packages from the backend, always return `isNeedUpgrade=false`.
+The backend usually needs:
 
-## Hot Update
+- A directory for plugin ZIP files.
+- An accessible download page or direct download URL.
+- A rule for selecting the latest version.
+- Optional release notes.
 
-Hot update uses `/check_hot_update` and `/download_hot_update`.
+If the team does not want the backend to manage plugin packages, always return `isNeedUpgrade=false`.
 
-| Field | Meaning |
+## Hot updates
+
+Hot updates use `/check_hot_update` and `/download_hot_update`. The backend returns the target version, update notes, whether reinstallation is required, and a set of JAR file records.
+
+| Field | Description |
 |---|---|
-| `isNeedUpdate` | Whether a hot update is available |
+| `isNeedUpdate` | Whether a hot update is required |
 | `targetVersion` | Target version |
-| `updateInfo` | Notification shown after update |
-| `jarFileInfos` | Jar files to download and verify |
-| `isNeedReinstall` | Whether the plugin should be reinstalled after the update |
+| `updateInfo` | Notification displayed to the user after the update |
+| `jarFileInfos` | List of JARs to download and verify |
+| `isNeedReinstall` | Whether to reinstall the plugin after the update |
 
-Each jar entry contains a unique file name, URL, and md5. The plugin downloads missing files and verifies md5 before using them.
+Each JAR record contains a unique filename, download URL, and md5. The plugin downloads missing files and verifies their md5 values. A file is not used after verification fails.
 
-## Rollout Strategy
+## Staged rollout strategies
 
-The backend can decide whether to return `isNeedUpdate=true` based on user allowlists, publish age, known bad versions, or a manual check action. The rollout decision stays server-side; the plugin still follows the same download and verification flow.
+The backend decides which users receive a hot update. Common strategies include:
 
-## Related Pages
+- Roll out to specified users.
+- Expand the audience in stages based on release time.
+- Force an update for versions with known issues.
+- Return an available update immediately when a user checks manually.
 
-- [Self-hosting Checklist](./self-hosting.md)
-- [Project Configuration](./project-config.md)
-- [Custom Compiler](../custom-compiler.md)
+The rollout strategy affects only whether the backend returns `isNeedUpdate=true`; it does not change the plugin-side download or verification flow.
+
+## Custom compiler downloads
+
+Custom compilers can be distributed as part of project configuration. The backend only needs to ensure that `customCompilers.path` points to a downloadable JAR and provides the matching md5.
+
+When using `/download_custom_compiler`, allow access only to files under the project configuration directory and reject file keys containing path traversal.
+
+## Related pages
+
+- [Self-hosting checklist](./self-hosting.md)
+- [Project configuration distribution](./project-config.md)
+- [Custom compiler](../custom-compiler.md)

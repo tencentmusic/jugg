@@ -140,10 +140,10 @@ object ModuleApkBelongsUtils {
                 tempBelongs.add(unit)
             }
         }
-        val modulesInBaseApk = findAllDependModules(applicationModules, modules)
+        val modulesInBaseApk = findApkModules(applicationModules, modules)
         apkModuleBelongsData.forEach {
             if (it.isFeatureApk && it.featureGeneratedModule != null) {
-                it.subModules = findAllDependModules(setOf(it.featureGeneratedModule!!), modules)
+                it.subModules = findApkModules(setOf(it.featureGeneratedModule!!), modules)
             }
         }
         modules.values.forEach { moduleInfo ->
@@ -222,6 +222,15 @@ object ModuleApkBelongsUtils {
             findingModules = nextFindingModules
         }
         return result.toList()
+    }
+
+    private fun findApkModules(topModules: Collection<ModuleInfo>, allModules: Map<String, ModuleInfo>): List<ModuleInfo> {
+        if (topModules.any { it.runtimeModuleDependencies == null }) {
+            return findAllDependModules(topModules, allModules)
+        }
+        return (topModules + topModules.flatMap { module ->
+            module.runtimeModuleDependencies.orEmpty().mapNotNull { allModules[it.moduleName] }
+        }).distinct()
     }
 
     /**

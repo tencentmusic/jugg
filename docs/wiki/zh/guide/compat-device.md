@@ -43,6 +43,6 @@ Force use compat deploy for <device>
 - [运行 App](./run.md)
 - [多设备选择](./multi-device.md)
 - [清理数据](./clean-data.md)
-- [HarmonyOS 兼容部署](../capabilities/deploy/harmonyos-compat.md)
+- [HarmonyOS（非纯血鸿蒙）兼容部署](../capabilities/deploy/harmonyos-compat.md)
 - [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)
 - [部署后 App 崩溃](../troubleshooting/runtime-crash.md)

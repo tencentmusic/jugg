@@ -1,6 +1,6 @@
 ---
-title: Jugg Backend Diagnostics
-description: Event reporting and issue log upload capabilities supported by the Jugg backend surface.
+title: Jugg backend diagnostics reporting
+description: Support Jugg event reporting and issue log uploads from a self-hosted backend.
 status: active
 tags:
   - guide
@@ -8,38 +8,53 @@ tags:
   - diagnostics
 ---
 
-# Jugg Backend Diagnostics
+# Jugg backend diagnostics reporting
 
-Diagnostics help a team understand Jugg usage and investigate user-submitted issues. Reporting failures should not block local compile or deploy.
+Diagnostics reporting helps a team understand Jugg usage and collect logs when users report problems. It does not affect local compilation or deployment results. When reporting fails, the plugin normally records a log and continues the current flow.
 
-## Event Reporting
+## Event reporting
 
-The plugin posts event JSON to `/report_event`.
+The plugin sends event JSON to `/report_event`. The backend can store these fields for metrics and diagnostics:
 
-| Field | Meaning |
+| Field | Description |
 |---|---|
 | `version` | Jugg plugin version |
-| `ide_version` | Android Studio or IntelliJ version |
+| `ide_version` | Android Studio / IntelliJ version |
 | `username` | User identifier |
-| `project_id` | Project identifier |
-| `session_id` | Compile or deploy session identifier |
-| `action` | Action name |
+| `project_id` | Project identifier, usually derived from the Git repository or project name |
+| `session_id` | Identifier for the current compilation and deployment session |
+| `action` | Action name, such as update check, compilation, or deployment |
 | `is_success` | Whether the action succeeded |
-| `cost_time` | Duration |
-| `detail` | Additional details |
+| `cost_time` | Elapsed time |
+| `detail` | Additional information |
 
-The backend can return an event ID or a simple success response.
+A self-hosted backend can return only an event ID or a simple success message. The important requirement is that event-reporting failures must not affect local development.
 
-Every report event is also appended to the local `~/.jugg/action.db` `jugg_event` table, regardless of backend availability or request outcome. This database is local history, not an automatic retry queue.
+Whether or not the server exists or the request succeeds, the plugin writes the same event to the `jugg_event` table in `~/.jugg/action.db`. The local database only retains event history; it is not an automatic compensation queue for remote failures.
 
-## Issue Log Upload
+## Issue log uploads
 
-When a user submits an issue, the plugin uploads a whitelist-generated and redacted zip by multipart form to `https://jugg.sickworm.com/report_issue`. The destination is fixed and hidden from the dialog, and the plugin does not try fallback servers. All candidates are selected by default; Jugg log files are listed first and cannot be deselected.
+When a user reports an issue, the plugin packages allowlisted and redacted diagnostic files into a ZIP and uploads it as multipart data to the complete HTTPS endpoint confirmed by the user. The client does not append a path or try a fallback server.
 
-Store the zip and return a 2xx response. The response may contain a JSON `reportId`; otherwise the plugin uses its locally generated report ID. The manifest lists the actual archive entries and their sensitivity.
+The log bundle usually helps answer:
 
-## Related Pages
+- Whether the run used incremental compilation, Gradle fallback, or Clean Reinstall.
+- Whether deployment failed during installation, hot update, restart, or device communication.
+- Whether remote compilation or a custom compiler produced logs.
+- Which important logcat excerpts appeared on the user's device.
 
-- [Log Files](../../reference/log-files.md)
-- [Compile Troubleshooting](../../troubleshooting/compile.md)
-- [Deploy Troubleshooting](../../troubleshooting/deploy.md)
+The backend should store the ZIP and return 2xx. The response can include a JSON `reportId`; without that field, the plugin uses its locally generated report ID.
+
+## Storage recommendations
+
+- Organize log files by date, project, or report ID.
+- Retain upload time, user, project, plugin version, and client IP.
+- Set a reasonable retention period so local paths and runtime logs are not stored indefinitely.
+- If the team has privacy or compliance requirements, define which local paths and build information the log bundle may contain before release.
+- Return a clear error when an upload fails so the user can resubmit it or package logs manually.
+
+## Related pages
+
+- [Log files](../../reference/log-files.md)
+- [Compilation failed](../../troubleshooting/compile-failed.md)
+- [The app cannot install, launch, or enter Debug](../../troubleshooting/app-cannot-run.md)

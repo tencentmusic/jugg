@@ -22,8 +22,9 @@ import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
 import com.sickworm.intellij.jugg.ai.skills.JuggSkillInstaller
 import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
-import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.ide.logic.StandaloneBundleInstallService
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -119,14 +120,14 @@ class InstallJuggSkillsDialog(
 
     /** Builds the CLI install row with a fixed path hint. */
     private fun buildCliRow(): JPanel {
-        return rowPanel(installCliCheckBox, "~/.jugg/bin")
+        return rowPanel(installCliCheckBox, toTildePath(JuggGlobalPathManager.binDir(userHome), userHome))
     }
 
     /** Builds the hook install row with target Claude settings paths. */
     private fun buildHooksRow(): JPanel {
         return rowPanel(
             installHooksCheckBox,
-            hooksInstallPathHint(),
+            hooksInstallPathHint(userHome),
         )
     }
 
@@ -139,13 +140,6 @@ class InstallJuggSkillsDialog(
             row.add(hint)
         }
         return row
-    }
-
-    /** Converts an absolute path to a ~-prefixed display string. */
-    private fun toTildePath(file: File, home: File): String {
-        val homePath = home.canonicalPath
-        val filePath = file.canonicalPath
-        return if (filePath.startsWith(homePath)) "~${filePath.substring(homePath.length)}" else filePath
     }
 
     /** Checks the box by default if any install dir for this client already exists on disk. */
@@ -210,7 +204,15 @@ class InstallJuggSkillsDialog(
 
         internal fun additionalOptionsTitle(): String = "Additional options: (Recommended)"
 
-        internal fun hooksInstallPathHint(): String = "~/.jugg/skills/hooks"
+        private fun toTildePath(file: File, home: File): String {
+            val homePath = home.canonicalPath
+            val filePath = file.canonicalPath
+            return if (filePath.startsWith(homePath)) "~${filePath.substring(homePath.length)}" else filePath
+        }
+
+        internal fun hooksInstallPathHint(userHome: File = File(System.getProperty("user.home"))): String {
+            return toTildePath(JuggGlobalPathManager.hooksDir(userHome), userHome)
+        }
 
         /**
          * Controls default checked state in install dialog.

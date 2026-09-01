@@ -2,8 +2,6 @@ package com.sickworm.intellij.jugg.project.change
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.deploy.CompileContextInfo
-import com.sickworm.intellij.jugg.deploy.DeployContextRecoverInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -35,13 +33,7 @@ class GitFileChangesDetectorTest {
         )
         val missingFile = File(temporaryFolder.root, "PayAlertDismissManager.kt")
         val newFile = temporaryFolder.newFile("GuideToExploreManager.kt")
-        whenever(deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = false)).thenReturn(
-            DeployContextRecoverInfo(
-                changedFiles = listOf(newFile),
-                compileContextInfo = CompileContextInfo(emptyList(), emptyMap()),
-                deployedFiles = emptyList(),
-            )
-        )
+        whenever(deployHistoryManager.getChangedFilesSinceLastFullCompiled()).thenReturn(listOf(newFile))
         whenever(deployFileManager.getUndeployedFiles()).thenReturn(
             listOf(ChangedFile(CompileFile.Type.Kotlin, missingFile, temporaryFolder.root, ModuleInfo.virtualModule))
         )

@@ -37,6 +37,28 @@ class AndroidTestCommandDeriverTest {
     }
 
     @Test
+    fun `compile client derives standard androidTest output from custom app deploy path`() {
+        val result = LocalGradleCompileClient.deriveAndroidTestApkPattern(
+            "app/puluApp/build/deploy/pulu_diy_v20000_201_build_abc1234_arm64.apk",
+        )
+        assertEquals("app/puluApp/build/outputs/apk/androidTest/*.apk", result)
+    }
+
+    @Test
+    fun `compile client adds intermediates candidate for custom app deploy path`() {
+        val result = LocalGradleCompileClient.deriveAndroidTestApkPatterns(
+            "app/puluApp/build/deploy/pulu_diy_v20000_201_build_abc1234_arm64.apk",
+        )
+        assertEquals(
+            listOf(
+                "app/puluApp/build/outputs/apk/androidTest/*.apk",
+                "app/puluApp/build/intermediates/apk/androidTest/*.apk",
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `compile client ignores already androidTest apk path`() {
         val result = LocalGradleCompileClient.deriveAndroidTestApkPattern("app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
         assertEquals(null, result)

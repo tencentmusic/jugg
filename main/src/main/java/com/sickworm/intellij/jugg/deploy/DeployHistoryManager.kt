@@ -84,12 +84,7 @@ class DeployHistoryManager(
         logger.debug("tryGetContextRecoverInfoFromDb recover feature is available")
 
         val startTime = System.currentTimeMillis()
-        val changedFiles = try {
-            deployHistoryDb.getChangedFilesSinceLastFullCompiled(isOnInit)?.filter { it.isFile }
-        } catch (e: Exception) {
-            logger.warn("getChangedFilesSinceLastFullCompiled failed ", e)
-            null
-        }
+        val changedFiles = loadChangedFilesSinceLastFullCompiled(isOnInit)
         val changedFilesTime = System.currentTimeMillis()
 
         val compileContextInfo = compileContextDb.getCompileBuildPathInfoFromDb()
@@ -117,6 +112,23 @@ class DeployHistoryManager(
         }
 
         return DeployContextRecoverInfo(changedFiles, compileContextInfo, deployedFiles)
+    }
+
+    override fun getChangedFilesSinceLastFullCompiled(): List<File>? {
+        if (!isRecoverFeatureAvailable) {
+            logger.debug("getChangedFilesSinceLastFullCompiled failed, recover feature not available")
+            return null
+        }
+        return loadChangedFilesSinceLastFullCompiled(isOnInit = false)
+    }
+
+    private fun loadChangedFilesSinceLastFullCompiled(isOnInit: Boolean): List<File>? {
+        return try {
+            deployHistoryDb.getChangedFilesSinceLastFullCompiled(isOnInit)?.filter { it.isFile }
+        } catch (e: Exception) {
+            logger.warn("getChangedFilesSinceLastFullCompiled failed ", e)
+            null
+        }
     }
 
     override fun beforeFullCompiled(changedFiles: List<ChangedFile>) {

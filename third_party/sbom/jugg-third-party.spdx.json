@@ -3,7 +3,7 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "Jugg-third-party-components",
-  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-10d1c7170f4dcee58d0b7e2177d8e4fd09e481934a8ef71cb6981ccf661c0b2b",
+  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-2840c3b8d9b4b589f8aeb08674252c332babc8e4500f916de784eccb3f936df7",
   "creationInfo": {
     "created": "2026-08-08T00:00:00Z",
     "creators": [
@@ -258,7 +258,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2017-2018 The Android Open Source Project",
-      "comment": "项目包含并修改 AOSP JVMTI Apply Changes/Slicer 源码，编译进入随插件发行的 JVMTI agent；无法定位精确上游 commit，因此版本填“无”；修改后源码保留在仓库中。"
+      "comment": "项目包含并修改 AOSP JVMTI Apply Changes/Slicer 源码，编译进入随插件发行的 JVMTI agent；Jugg 增加 Android 8-15 Application、ResourcesManager、ActivityThread 和 ClassLoader hook，增加可选 transform 的 Best-effort 降级与诊断日志；无法定位精确上游 commit，因此版本填“无”；修改后源码保留在仓库中。"
     },
     {
       "SPDXID": "SPDXRef-Package-014",

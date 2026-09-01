@@ -257,13 +257,21 @@ class JuggControlPanelModel(
     data class Settings(
         val confirmFallbackWhenNoFileChanges: Boolean = true,
         val alwaysRestartAppAfterDeployment: Boolean = false,
-        val compatibleDeployment: Boolean = true,
         val quickDeploy: Boolean = true,
         val autoFallbackAfterDeployFailure: Boolean = false,
         val embedChangesIntoApk: Boolean = false,
         val useProjectKotlinCompiler: Boolean = true,
         val backupClasspath: Boolean = false,
-    )
+        val isInjectGradleCompileEnabled: Boolean = true,
+        val canUseBackupClasspath: Boolean = false,
+        val forceCompatDevices: List<ForceCompatDevice> = emptyList(),
+    ) {
+        /** Describes one connected device whose compat deploy override can be edited. */
+        data class ForceCompatDevice(
+            val displayName: String,
+            val enabled: Boolean,
+        )
+    }
 
     /** Summarizes the only task currently running in a Jugg runtime. */
     data class TaskSnapshot(

@@ -58,7 +58,7 @@ Task list:
 ## 4. Links
 
 - Internal link: [Guide overview](/guide/)
-- Relative link: [Troubleshooting logs](../troubleshooting/logs.md)
+- Relative link: [Log files](../reference/log-files.md)
 - External link: [VitePress](https://vitepress.dev/)
 - Anchor link: [Jump to alerts](#_9-alerts)
 

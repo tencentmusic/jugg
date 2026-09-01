@@ -1,3 +1,0 @@
-# Incremental Compile
-
-Coming soon.

@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -46,6 +47,13 @@ class JuggCompileUiHandlerTest {
         val handler = createHandler(isRpcMode = true)
         val result = handler.confirmFallbackWhenNoFileChanges()
         Assert.assertEquals(ConfirmResult.NEGATIVE, result)
+    }
+
+    @Test
+    fun `confirmTooManyChanges returns FALLBACK in rpc mode`() {
+        val handler = createHandler(isRpcMode = true)
+        val result = handler.confirmTooManyChanges(TooManyChangesInfo(0, 1, 1))
+        Assert.assertEquals(TooManyChangesConfirmResult.FALLBACK, result)
     }
 
     @Test

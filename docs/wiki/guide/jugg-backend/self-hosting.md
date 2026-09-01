@@ -1,59 +1,66 @@
 ---
-title: Jugg Backend Self-hosting Checklist
-description: Minimum and optional backend endpoints for a self-hosted Jugg backend.
+title: Jugg backend self-hosting checklist
+description: Implement the minimum and optional interfaces for a self-hosted Jugg backend and verify it before launch.
 status: active
 tags:
   - guide
   - backend
 ---
 
-# Jugg Backend Self-hosting Checklist
+# Jugg backend self-hosting checklist
 
-Start with the smallest useful backend, then add update delivery, diagnostics, or remote machine provisioning only when your team needs them.
+Self-hosting usually serves two goals: centrally distributing Jugg configuration and plugin versions within a team, or collecting diagnostics and providing hot updates and remote-machine applications. Implement the minimum interfaces first, then add enhanced features gradually.
 
-## Minimum Endpoints
+## Minimum viable interfaces
 
-| Endpoint | Method | Minimum behavior |
+| Interface | Method | Minimum behavior |
 |---|---|---|
-| `/check_update` | `GET` | Return latest version metadata, optional notification, and optional project configuration |
-| `/report_event` | `POST` | Accept event JSON and return 2xx |
-| `/report_issue` | `POST multipart` | Accept a zipped log file and return 200 |
-| `/check_hot_update` | `GET` | Return an empty hot update result if hot update is not used |
+| `/check_update` | `GET` | Return the current latest version, whether an upgrade is required, a download entry point, notifications, and project configuration |
+| `/report_event` | `POST` | Accept event JSON and return 2xx on success |
+| `/report_issue` | `POST multipart` | Accept a log ZIP and return 200 on success |
+| `/check_hot_update` | `GET` | Return an empty update result when hot updates are unused |
 
-If you only need project configuration, return `isNeedUpgrade=false` from `/check_update` and put the configuration in `customConfigJson`.
+If only project configuration distribution is required, `/check_update` can return `isNeedUpgrade=false` and place project configuration in `customConfigJson`. Other interfaces can return success or an empty result.
 
-## `/check_update` Response
+## `/check_update` response
 
-| Field | Meaning |
+| Field | Description |
 |---|---|
-| `latestVersion` | Latest full plugin version known by the backend |
-| `isNeedUpgrade` | Whether the IDE should show a full-upgrade notification |
-| `downloadUrl` | Download page or direct download URL |
-| `templateList` | Legacy field; return an empty array |
-| `notification` | Optional IDE notification |
-| `customConfigJson` | Optional project configuration applied by the plugin |
+| `latestVersion` | Latest full plugin version according to the backend |
+| `isNeedUpgrade` | Whether to ask the user to download and install a full plugin package |
+| `downloadUrl` | Full plugin package download page or URL |
+| `templateList` | Legacy field; can currently return an empty array |
+| `notification` | Optional notification displayed by the plugin in the IDE |
+| `customConfigJson` | Optional project configuration applied by the plugin to the current project |
 
-## Optional Endpoints
+`customConfigJson` is the most commonly used self-hosted backend feature. It can return different configuration by project name. See [Project configuration distribution](./project-config.md).
 
-| Capability | Endpoints | Use when |
+## Optional enhanced interfaces
+
+| Feature | Related interfaces | When to add it |
 |---|---|---|
-| Full package download | `/download_page`, `/download` | You publish Jugg plugin packages from an internal server |
-| Hot update | `/check_hot_update`, `/download_hot_update` | You want jar-level plugin updates |
-| Hot update status | `/check_hot_update_status` | Operators need to inspect rollout state |
-| Custom compiler download | `/download_custom_compiler` | Project configuration references hosted compiler jars |
-| Remote server apply | `/remote_apply` and related flow endpoints | Your team has a remote build machine platform |
+| Full plugin package download | `/download_page`, `/download` | Publish plugin packages centrally from the internal backend |
+| Hot-update download | `/check_hot_update`, `/download_hot_update` | Distribute JAR-level updates |
+| Hot-update status | `/check_hot_update_status` | Operations or staged-rollout diagnostics need to inspect current hot-update state |
+| Custom compiler download | `/download_custom_compiler` | Distribute a custom compiler JAR in project configuration |
+| Remote-machine application | Interactive interfaces such as `/remote_apply` | The team has an internal cloud development machine application system |
 
-## Preflight Checks
+## Predeployment checks
 
-- The backend domain is reachable from developer machines.
-- Download URLs for plugin packages, hot update jars, and custom compiler jars are directly accessible.
-- Returned md5 values match the served files.
-- `/report_issue` accepts sufficiently large zip uploads.
-- Unused capabilities return empty results instead of 500 errors.
+- The backend domain must be reachable from development machines with Jugg installed.
+- Download links for plugin packages, hot-update JARs, and custom compiler JARs must support direct downloads.
+- When `md5` is returned, it must match the file content.
+- `/report_issue` should accept large ZIP files so users can submit logs successfully.
+- When using a database, store at least the event time, user identity, project, version, action, and result.
+- For unused features, return empty configuration or an empty update instead of 500.
 
-## Related Pages
+## Relationship to local features
 
-- [Jugg Backend](./index.md)
-- [Project Configuration](./project-config.md)
-- [Plugin Delivery](./plugin-delivery.md)
-- [Diagnostics](./diagnostics.md)
+The backend manages configuration, distribution, and diagnostics; it does not take over local compilation or deployment. Jugg Run, Debug, Android Test, CLI, and MCP still execute in the local Android Studio or command-line environment.
+
+## Related pages
+
+- [Jugg backend](./index.md)
+- [Project configuration distribution](./project-config.md)
+- [Plugin distribution and hot updates](./plugin-delivery.md)
+- [Diagnostics reporting](./diagnostics.md)

@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.execution.RunManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.SimpleColoredComponent
@@ -12,6 +13,10 @@ import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
+import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
@@ -19,7 +24,6 @@ import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
@@ -107,11 +111,14 @@ class JuggRunSettingsComponentTest {
         val settingRows = settingGroupNames.flatMap { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
         }
-        assertEquals(8, settingCheckboxes)
+        assertEquals(7, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
+            "Set custom server URL Configure the server used by Jugg services.",
             "Clear Jugg Build Delete Jugg project build data and reinitialize the project.",
+            "Mark as project synced and re-init compiler Reload project information without running Gradle sync.",
+            "Mark as Gradle compiled and re-init compiler Reuse the selected Jugg configuration outputs without building.",
         )))
         assertNotNull(findNamedComponent<JComponent>(panel, "logs.source"))
         assertNotNull(findNamedComponent<JComponent>(panel, "logs.level"))
@@ -160,27 +167,159 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `control panel should edit compat deploy setting`() {
+    fun `control panel should not expose global compat deploy setting`() {
         TestGlobal.init()
-        JuggSettings.isEnableCompatibleDeploymentMode = true
+        val panel = createPanel()
+
+        assertFalse(descendants(panel).filterIsInstance<JBCheckBox>()
+            .any { it.text == "Enable compat deploy" })
+    }
+
+    @Test
+    fun `settings should follow More Options capability conditions and connected devices`() {
+        TestGlobal.init()
         val controller = Mockito.mock(JuggControlPanelController::class.java)
         val model = JuggControlPanelModel().apply {
-            updateSettings(JuggControlPanelModel.Settings(compatibleDeployment = true))
+            updateSettings(JuggControlPanelModel.Settings(
+                isInjectGradleCompileEnabled = false,
+                canUseBackupClasspath = false,
+            ))
         }
-        val panel = JuggControlPanel(mockProject(), model, controller)
+        val panel = createPanel(model = model, controller = controller)
         javax.swing.SwingUtilities.invokeAndWait {}
 
-        val toggle = descendants(panel)
-            .filterIsInstance<JBCheckBox>()
-            .first { it.text == "Enable compat deploy" }
-        assertTrue(toggle.isSelected)
+        assertFalse(findSettingRow(panel, "Quick deploy").isVisible)
+        assertFalse(findSettingRow(panel, "Embed changes into APK").isVisible)
+        assertFalse(findSettingRow(panel, "Use project Kotlin compiler").isVisible)
+        assertFalse(findSettingRow(panel, "Backup classpath").isVisible)
 
-        toggle.doClick()
+        model.updateSettings(JuggControlPanelModel.Settings(
+            isInjectGradleCompileEnabled = true,
+            canUseBackupClasspath = true,
+            forceCompatDevices = listOf(
+                JuggControlPanelModel.Settings.ForceCompatDevice("Pixel 8 API 35", true),
+            ),
+        ))
+        javax.swing.SwingUtilities.invokeAndWait {}
 
-        Mockito.verify(controller).updateSetting(
-            JuggControlPanelController.Setting.COMPAT_DEPLOY,
-            false,
+        assertTrue(findSettingRow(panel, "Quick deploy").isVisible)
+        assertTrue(findSettingRow(panel, "Embed changes into APK").isVisible)
+        assertTrue(findSettingRow(panel, "Use project Kotlin compiler").isVisible)
+        assertTrue(findSettingRow(panel, "Backup classpath").isVisible)
+        val deviceToggle = descendants(panel).filterIsInstance<JBCheckBox>()
+            .first { it.text == "Force use compat deploy for Pixel 8 API 35" }
+        assertTrue(deviceToggle.isSelected)
+
+        deviceToggle.doClick()
+
+        Mockito.verify(controller).updateForceCompatDevice("Pixel 8 API 35", false)
+
+        findNamedComponent<JBTextField>(panel, "settings.search")!!.text = "Pixel 8"
+        javax.swing.SwingUtilities.invokeAndWait {}
+
+        assertTrue(findNamedComponent<JPanel>(panel, "settings.group.deployment")!!.isVisible)
+        assertFalse(findNamedComponent<JPanel>(panel, "settings.group.runBehavior")!!.isVisible)
+    }
+
+    @Test
+    fun `settings should refresh connected devices when selected again`() {
+        TestGlobal.init()
+        val controller = Mockito.mock(JuggControlPanelController::class.java)
+        val panel = createPanel(controller = controller)
+        val tabs = findComponent<JBTabbedPane>(panel)!!
+
+        panel.selectPage("settings")
+        panel.selectPage("settings")
+        tabs.selectedIndex = 0
+        tabs.selectedIndex = 2
+
+        Mockito.verify(controller, Mockito.times(3)).refreshSettings()
+    }
+
+    @Test
+    fun `migrated More Options actions should stay in Settings`() {
+        TestGlobal.init()
+        val controller = Mockito.mock(JuggControlPanelController::class.java)
+        val panel = createPanel(controller = controller)
+
+        findSettingAction(panel, "Set custom server URL").doClick()
+        findSettingAction(panel, "Mark as project synced and re-init compiler").doClick()
+        findSettingAction(panel, "Mark as Gradle compiled and re-init compiler").doClick()
+
+        Mockito.verify(controller).setCustomServerUrl()
+        Mockito.verify(controller).markAsProjectSyncedAndReInitCompiler()
+        Mockito.verify(controller).markAsGradleCompiledAndReInitCompiler()
+    }
+
+    @Test
+    fun `logs source filter should default to all and keep ide and cli mcp filters`() {
+        TestGlobal.init()
+        val model = JuggControlPanelModel()
+        val panel = createPanel(model = model)
+        model.record(JuggEvent(
+            source = JuggEventSource.IDE,
+            category = JuggEventCategory.COMPILE,
+            phase = JuggEventPhase.COMPILING,
+            status = JuggEventStatus.STARTED,
+            level = JuggEventLevel.INFO,
+            title = "IDE compile",
+        ))
+        model.record(JuggEvent(
+            source = JuggEventSource.MCP,
+            category = JuggEventCategory.MCP,
+            phase = JuggEventPhase.PREPARING,
+            status = JuggEventStatus.STARTED,
+            level = JuggEventLevel.INFO,
+            title = "MCP request",
+        ))
+        javax.swing.SwingUtilities.invokeAndWait {}
+
+        val source = findNamedComponent<JComboBox<*>>(panel, "logs.source")!!
+        val logs = findNamedComponent<JBList<JuggEvent>>(panel, "logs.events")!!
+        assertEquals(listOf("ALL", "IDE", "CLI / MCP"), (0 until source.itemCount).map(source::getItemAt))
+        assertEquals(listOf("IDE compile", "MCP request"), listValues(logs).map(JuggEvent::title))
+
+        source.selectedIndex = 1
+        javax.swing.SwingUtilities.invokeAndWait {}
+        assertEquals(listOf("IDE compile"), listValues(logs).map(JuggEvent::title))
+
+        source.selectedIndex = 2
+        javax.swing.SwingUtilities.invokeAndWait {}
+        assertEquals(listOf("MCP request"), listValues(logs).map(JuggEvent::title))
+    }
+
+    @Test
+    fun `quick action click should be recorded before execution`() {
+        TestGlobal.init()
+        val controller = Mockito.mock(JuggControlPanelController::class.java)
+        val panel = createPanel(controller = controller)
+        val action = descendants(panel).filterIsInstance<ActionLink>()
+            .first { it.text == "Fallback to Gradle" }
+
+        action.doClick()
+
+        Mockito.verify(controller).recordUserAction("Fallback to Gradle")
+        Mockito.verify(controller).fullGradleBuild()
+    }
+
+    @Test
+    fun `setting change should be recorded as a user action`() {
+        TestGlobal.init()
+        val controller = JuggControlPanelController(
+            project = mockProject(),
+            manager = Mockito.mock(JuggManager::class.java),
+            deployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
+            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+            deployFileManager = Mockito.mock(DeployFileManager::class.java),
+            logger = DefaultLogger("JuggControlPanelControllerTest"),
         )
+
+        controller.updateSetting(JuggControlPanelController.Setting.QUICK_DEPLOY, true)
+
+        val event = controller.model.snapshot().recentEvents.single()
+        assertEquals(JuggEventCategory.USER_ACTION, event.category)
+        assertEquals("Setting changed", event.title)
+        assertEquals("Quick deploy: enabled", event.detail)
     }
 
     @Test
@@ -494,9 +633,13 @@ class JuggRunSettingsComponentTest {
     private fun createPanel(
         project: Project = mockProject(),
         model: JuggControlPanelModel = JuggControlPanelModel(),
+        controller: JuggControlPanelController = Mockito.mock(JuggControlPanelController::class.java),
     ): JuggControlPanel {
-        val controller = Mockito.mock(JuggControlPanelController::class.java)
         return JuggControlPanel(project, model, controller)
+    }
+
+    private fun <T> listValues(list: JBList<T>): List<T> {
+        return (0 until list.model.size).map(list.model::getElementAt)
     }
 
     private fun assertRecentRunText(
@@ -551,6 +694,16 @@ class JuggRunSettingsComponentTest {
 
     private inline fun <reified T : Component> findComponent(component: Component): T? {
         return descendants(component).filterIsInstance<T>().firstOrNull()
+    }
+
+    private fun findSettingRow(panel: JuggControlPanel, label: String): JComponent {
+        return descendants(panel).filterIsInstance<JComponent>()
+            .first { it.name?.startsWith("$label ") == true }
+    }
+
+    private fun findSettingAction(panel: JuggControlPanel, label: String): ActionLink {
+        val row = findSettingRow(panel, label)
+        return descendants(row).filterIsInstance<ActionLink>().single()
     }
 
     private fun descendants(component: Component): Sequence<Component> = sequence {

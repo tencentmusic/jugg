@@ -1,6 +1,6 @@
 # MCP 设计说明
 
-> 最后核对：2026-08-05
+> 最后核对：2026-08-21
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -143,6 +143,7 @@ compile/deploy/gradle-build/instrument
 - 项目级 `ExpiredArtifactCleaner` 负责清理超过 30 天的 MCP 拉取产物。
 - compile/deploy 类日志优先看 `build/jugg/log/compile_latest.log`。
 - `wait-logs` 读取 App 日志时会复用 deploy/restart 时间戳作为起点；`LastDeployTimestampRegistry` 按 `projectDir + serial` 隔离设备记录，并仅在设备记录缺失时兼容回退旧项目级记录。
+- Control Panel 为每次 `tools/call` 记录 `MCP request` / `MCP response`。request detail 展示去除 `projectDir` 后的 arguments，response detail 展示 `status/message/data/artifacts/errorCode`；嵌套 `projectDir` 会被移除，password/token/secret/authorization/apiKey/privateKey/credential/environmentVariables 等敏感字段统一显示 `[REDACTED]`，单条内容最多保留 4096 字符。该展示脱敏不改变 MCP 实际请求与响应。
 
 ---
 
@@ -154,6 +155,7 @@ compile/deploy/gradle-build/instrument
 4. 同步 [`08_mcp_tools_list.md`](08_mcp_tools_list.md)。
 5. 如需 CLI 暴露，同步 `jugg.py::COMMANDS`、`help_registry.py`、对应 `cmd_*.py` 与 [`08_cli_tools_list.md`](08_cli_tools_list.md)。
 6. 检查 `docs/skills/jugg-android-dev-loop/` 中的 skill、CLI manual、error patterns 是否仍描述旧行为。
+7. 若改了 CLI 脚本或 skill 内容，递增 `CLI_VERSION` 和 `SKILL.md` 的 `version`/`date`，否则 `JuggCliAutoUpdater` 不会刷新已安装 CLI/skill。规则见 [`08_cli_tools_list.md`](08_cli_tools_list.md) §3.7。
 
 ---
 
@@ -164,6 +166,7 @@ compile/deploy/gradle-build/instrument
 | `deploy` / `compile` / `restart` 等命令行为变更（默认参数、重启策略、阻塞/异步等） | `SKILL.md` §Build & Deploy Commands、`flow_compile_deploy.md`、`flow_with_auto_run.md` |
 | MCP/CLI 新增或修改参数 | `SKILL.md` §Advanced Commands、`references/cli_manual.md` |
 | 错误码或错误消息变更 | `references/error_patterns.md` |
+| CLI 脚本 / skill 内容变更 | `cmd_version.py` 的 `CLI_VERSION`、`SKILL.md` 的 `version`/`date`；否则插件启动后的 `JuggCliAutoUpdater` 不会刷新 |
 | deploy 后 app 状态变化（是否重启、是否保留 runtime state） | `SKILL.md` §Mandatory Rules、`flow_with_auto_run.md` Step 3 |
 
 判断方法：改动完成后，在上表对应 Skill 文档中搜索与旧行为匹配的描述，有则更新或删除。

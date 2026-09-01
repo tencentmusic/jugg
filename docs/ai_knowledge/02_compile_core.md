@@ -55,12 +55,24 @@ JuggCompilerHelper.compile(options, uiHandler)
   -> 记录 LastCompileTimestampRegistry，用于 MCP/status/hook 基线
   -> 等待初始化和 pending file processing，避免文件事件未入队就开始判断
   -> preprocessIncrementalCompile()
-     -> 有强制回退、构建/依赖/设备/文件数量等风险时返回一个增量失败结果
+     -> 异步启动 Git 漏文件检查；它不决定本轮 Gradle 回退
+     -> 按固定优先级判断：
+        1. Force Gradle Compile
+        2. BuildTarget 切换（APP <-> ANDROID_TEST）
+        3. compile command 与 full-build 基线不一致
+        4. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
+        5. INVALID_DEVICE
+        6. 回滚内容未变的文件，再检查 build file / dependency 变化
+        7. DeployState 要求 full compile（未建立基线、上次 Gradle 失败、build file 要求 rebuild）
+        8. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
+     -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
   -> 增量失败但不可回退：提示下一次直接运行会回退，当前返回失败
   -> 需要回退：通知 fallback，执行 gradleCompile()
 ```
+
+`checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`project info 不可用 -> INVALID_DEVICE -> DeployState 必须 full compile -> 变更文件过多`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
 
 ### 4.2 单轮增量编译与影响传播
 
@@ -122,10 +134,12 @@ JuggCompiler.doCompile(task)
 - 首轮成功文件会通过 `DeployFileManager.updateUncompiledFiles()` 从待编译集合移除；后续影响传播轮不再更新这组状态，避免把派生重编译误当成用户原始变更。
 - 文件进入待编译状态时会记录 `lastModified + length` 快照。迟到的 IDE/Git 文件事件如果快照未变，会被忽略并保留原编译次数；只有文件内容确实变化时才重新进入待编译状态。成功编译后会刷新快照，避免已编译未部署文件被重复事件重新打开。
 - Git 补检有两层：失败时 resolver 可刷新 Git 发现漏掉的新文件并重试一次；成功后 `GitChangesCompileChecker` 只在出现新的待编译文件时再触发一轮。
+- Git 补检通过 `IDeployHistoryManager.getChangedFilesSinceLastFullCompiled()` 只读取 Git 变更，不加载或校验 APK、module build path、deployed data。运行期查询失败只跳过本次补检，不得删除 deploy history 或 compile context；只有项目初始化恢复调用 `tryGetContextRecoverInfoFromDb(isOnInit = true)` 时，才允许失效无法恢复的旧历史。
 - 影响传播会排除上一轮已经编译过的文件，但 Kotlin top-level file facade 相关场景会例外：`getRecompileFiles()` 会读取 `.kotlin_module` 的 file facade 列表，若调用方 source 的 `effectedByClasses` 命中这些 facade，则通过 `topLevelFacadeEffectedSourcePaths` 标记允许再编译一次。
 - `BaseCompiler` 是所有子编译器的模板层，负责类型校验、模块/androidTest 分批、APK 分流和 custom compiler hook；单个子编译器内部顺序优先直接读对应实现。
 - `splitModuleAndCompile()` 会把 androidTest module 单独分批，且 androidTest 的 module 分组 key 包含 module root，避免同名测试模块被合并。
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
+- `RDexForSubmoduleCompiler` 生成的模块 `R.dex` 必须携带 `ModuleApkBelongs` 给出的 `apkPath` / `targetApkPaths`。Dynamic Feature 场景若遗漏该归属，产物会退化为通用 class dex 并扩散到所有 APK，使同包名但资源集合不同的 R 类相互覆盖。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
 - `FileChangesHandler` 统一排除所有模块的实际 Gradle build directory 与传统 `${moduleRootDir}/build`。文件监听、Git 补检、恢复事件和源码影响传播经过该入口时，Gradle generated source、resource、asset、manifest、native lib 或 build file 都不会进入变更列表；目录事件会在递归前剪枝。该规则不影响编译器在本轮内直接登记和交接的 JuggApt/Resource/Compose generated source。
 - 删除事件只按路径移除此前登记的待编译项；已不存在的文件不会转成 `ChangedFile`，也不会生成 class、resource、asset 或 Manifest 的移除数据。删除本身因此不会让增量编译失败或自动回退，设备继续保留已安装 APK 和既有 overlay 中的旧内容。重命名会被拆成旧路径删除和新路径新增/修改，只有新路径能够进入编译。需要让旧内容真正消失时，才通过完整 Gradle build 刷新 APK 基线。
@@ -137,13 +151,15 @@ JuggCompiler.doCompile(task)
 
 ## 7. 回退与重试机制
 
-### 7.1 触发 Gradle 回退的常见条件
+### 7.1 Gradle 回退边界
 
-- 用户强制回退。
-- 当前 Configuration 的 compile command 与最近一次成功 full build 基线不一致（例如 Sync 后切换了 Active Build Variant）。日志会同时打印 `last=` 与 `current=` 两条 command，便于确认是 task 切换还是选中了另一条 Jugg Configuration。
-- 设备状态不满足增量部署。
-- 变更文件点数/模块数超过阈值。
-- 依赖变化、构建脚本变化或编译失败不可恢复。
+Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
+
+- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用。
+- 状态强制：`DeployState` 为未建立基线、上次 Gradle 失败或 build file 要求 rebuild；该类条件优先于“变更过多”，避免用户在必然 full compile 的场景看到无效确认框。
+- 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
+
+进入增量编译后的回退语义独立于 Run 前预检：编译器未初始化、无文件变化确认、未预期异常、递归跟编文件过多或运行中设备失效可在本轮转 Gradle；普通源码编译失败则本轮直接失败，不自动执行 Gradle。失败文件仍保留为已编译过的待处理变更，下一次 Run 才按无文件变化策略决定是否 Gradle。compile command 变化时日志会同时打印 `last=` 与 `current=`，便于确认是 task 切换还是选中了另一条 Jugg Configuration。
 
 无文件变化的 fallback 确认框和手动 `Force Gradle Compile` 确认框均允许用户选择忽略 Gradle build cache。选中后，本轮 Gradle command 追加 `--no-build-cache --rerun-tasks`；该选项只影响本轮回退，不写回 Run Configuration，并在任务启动后清除。
 

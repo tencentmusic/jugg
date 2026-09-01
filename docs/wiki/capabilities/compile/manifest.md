@@ -1,6 +1,6 @@
 ---
-title: Manifest
-description: Explains Jugg's incremental AndroidManifest.xml handling and APK re-sign effect path.
+title: AndroidManifest compilation
+description: Explains incremental AndroidManifest.xml compilation in Jugg and how changes take effect through APK re-signing.
 status: active
 tags:
   - capability
@@ -8,36 +8,43 @@ tags:
   - manifest
 ---
 
-# Manifest
+# AndroidManifest compilation
 
-Jugg supports incremental handling for `AndroidManifest.xml`. It does not rerun the full Gradle Manifest merge. Instead, it patches the change onto the latest merged manifest produced by a build.
+Jugg supports incremental compilation of `AndroidManifest.xml`. Instead of rerunning the complete Gradle Manifest merge, it applies the current changes to the merged manifest produced by the latest build. This page covers the supported scope and user-visible results. For the merged manifest patch mechanism, see [Android Manifest compilation](../../concepts/incremental-compile/manifest.md).
 
-## Supported Capabilities
+## Supported scope
 
-| Scenario | Current support | Effect path |
+| Scenario | Current support | User-visible result |
 |---|---|---|
-| Regular Manifest node or attribute changes | Incremental patch supported | Patch the merged manifest, write it into the APK, and re-sign the APK |
-| Manifest participation in resource link | Supported | Used as an aapt2 link input together with `resources.arsc` |
-| Manifest with no real change | Automatically filtered | Does not output root `AndroidManifest.xml`, avoiding unnecessary APK updates |
+| Add nodes or update attributes | Incremental patch supported | Takes effect after updating and re-signing the APK |
+| Delete nodes or attributes, or use `tools:remove` / `tools:replace` | Does not generate the corresponding removal or complete merge result | The installed APK continues using the existing merged manifest content |
+| Manifest and resources change in the same run | Supported | The updated Manifest and related resource artifacts are written to the APK together |
+| AndroidManifest has no actual change | Filtered automatically | Does not trigger an unnecessary APK update |
 
 > [!TIP]
-> If the change depends on Gradle placeholder sources, variant merge rules, or build-script generation logic, run the matching Gradle build or Sync first so the new merged manifest becomes the baseline.
+> If a change depends on Gradle placeholder sources, variant merge rules, or build-script generation logic, complete Sync when the project model changes, then run the corresponding Gradle build to produce a new merged manifest baseline.
 
-## How Manifest Takes Effect
+## Trigger and result
 
 ```text
-detect AndroidManifest.xml change
-  -> read the latest merged manifest
-  -> diff / patch the current change
-  -> use it as a resource link input
-  -> write it into the APK during deployment
-  -> re-sign and install the updated APK
+AndroidManifest.xml changes
+  -> Apply deterministic additions and updates to the latest merged manifest
+  -> Update and re-sign the APK when needed
+  -> Install the updated APK
 ```
 
-The key point: Jugg works from the already merged manifest baseline. It does not take over the full Gradle Manifest merge pipeline.
+When no actual patch is produced, Jugg does not update the APK. For the complete merged manifest patch and resource link mechanism, see [Android Manifest compilation](../../concepts/incremental-compile/manifest.md).
 
-## Related Capabilities
+## Boundaries
 
-- [Resource Compile](./resource-compile.md)
-- [Native Library Update](./so-update.md)
-- [Compile Guide](../../guide/compile.md)
+- When changing Gradle placeholder sources, variant merge rules, or build-script generation logic, run the corresponding Gradle build first. Complete Sync first as well when the project model changes.
+- Node deletion, attribute deletion, and `tools:*` instructions that require complete merge context are ignored and do not fail the current incremental compilation. The installed APK retains the previous merged manifest content. Run a full Gradle build only when the deletion must actually take effect.
+- Incremental patches do not update `uses-sdk`, the manifest `package`, `versionCode`, `versionName`, or application `android:name`.
+- Manifest changes enter the APK update path rather than the regular resource overlay path.
+- If signing configuration is missing or invalid, the incremental APK update fails. Use a Gradle build to restore an installable APK baseline.
+
+## Related pages
+
+- [Resource compilation](./resource-compile.md)
+- [Compilation stages](../../guide/compile.md)
+- [Android Manifest compilation](../../concepts/incremental-compile/manifest.md)

@@ -1,6 +1,6 @@
 ---
 name: wiki-writer
-description: 编写、重写和审阅 docs/wiki 下的 Jugg 用户文档。适用于实现原理、能力、使用指南、问题排查和参考页面，以及将源码、ai_knowledge、历史分享或技术笔记提炼为面向普通 Android 开发者的 Wiki 内容；也适用于判断文章的背景、问题解决价值、技术准确性、边界和中文技术表达是否充分。不要用于 docs/ai_knowledge 日常维护、任务方案、版本日志或 Jugg Wiki 之外的 Markdown。
+description: 编写、重写、审阅和中英同步 docs/wiki 下的 Jugg 用户文档。适用于实现原理、能力、使用指南、问题排查和参考页面，将源码、ai_knowledge、历史资料提炼为面向普通 Android 开发者的 Wiki 内容，以及以中文页面为唯一内容基准生成或更新严格镜像的英文页面。不要用于 docs/ai_knowledge 日常维护、任务方案、版本日志或 Jugg Wiki 之外的 Markdown。
 ---
 
 # Jugg Wiki 写作
@@ -15,10 +15,12 @@ description: 编写、重写和审阅 docs/wiki 下的 Jugg 用户文档。适�
 2. 读取 `docs/ai_knowledge/98_code_map.md`，定位行为 owner。
 3. 读取 `docs/ai_knowledge/10_wiki_authoring.md` 和 `docs/ai_knowledge/10_wiki_architecture.md`。
 4. 读取目标页面及其目录层级中最近的 `index.md`。只有最近索引无法确定页面职责或导航上下文时，才继续读取更高层索引。
-5. 同一主题存在同语言的 concept 或 capability 页面时一并读取。目标页面横跨多个独立主题时，分别读取每个主题的配对页面，并判断是否需要拆页。另一语言页面只用于检查同步情况，不作为当前行为的权威依据。
+5. 同一主题存在同语言的 concept 或 capability 页面时一并读取。目标页面横跨多个独立主题时，分别读取每个主题的配对页面，并判断是否需要拆页。
 6. 按 `99_index.md` 选择与当前主题直接相关的 `docs/ai_knowledge` 专题，禁止一次性加载整个知识库。
 
 文章涉及产品行为、兼容差异或失败恢复时，必须核对当前实现，不能只依赖文档。代码调查只围绕行为 owner 和准备写入文章的事实展开。
+
+中译英任务例外：中文 Wiki 是唯一内容基准，直接翻译目标中文页面，不重新读取专题文档或实现核对其中的产品事实。发现中文页面内部矛盾、链接失效或无法确定原意时，报告问题并停止扩大解释，不自行修正或补充事实。
 
 ## 使用历史资料
 
@@ -48,7 +50,7 @@ description: 编写、重写和审阅 docs/wiki 下的 Jugg 用户文档。适�
 
 不要让 capability 页面换一种说法重复 concept 页面。能力页只保留简短的“触发到结果”流程，机制细节链接到 concept 页面。
 
-已有路由承担外部入口时，保留简短分流页或兼容入口，不要直接删除路径。
+已有路由承担外部入口时，兼容入口必须同时存在中英文镜像；不得只为单一语言保留额外页面。
 
 ## 执行写前结构审计
 
@@ -146,14 +148,32 @@ H1 与首个 H2 之间必须有独立入口段，优先补齐读者理解正文�
 
 本节是正式 Wiki 的完整语言门禁。默认不要加载通用文本润色 skill；只有用户明确要求时才额外使用，并以本 skill 的技术精度、正式语气和术语一致性要求为准。语言清理不得改变事实、适用条件、状态语义和用户可见结果。
 
+## 执行中译英
+
+中文页面是英文页面的唯一内容基准。英文页面必须保持相同的相对路径、页面类型、章节顺序、表格条目、提示块、代码块和相关页面结构；英文 nav/sidebar 必须镜像中文的层级与顺序。
+
+- 使用美式英语和 sentence case 标题，以自然英文表达原意，不保留中文句式。
+- 可以拆分长句、调整主被动和删除中文填充连接词，但不得增加、删除、重排或弱化事实与边界。
+- `title`、`description`、H1 和导航文字翻译为英文；`status`、`tags`、`visibility` 保持一致。
+- `compile` 用作动词，`compilation` 用作过程或机制；`build` 对应构建；`fall back` 用作动词，`fallback` 用作名词或定语。
+- 统一使用 `incremental compilation`、`incremental deployment`、`recompilation`、`self-healing`、`baseline`、`take effect` 和 `project information`；“重编译”和次术语“扩散编译”都译为 `recompilation`。
+- Jugg、Android Studio、Gradle、Kotlin、Java、APK、DEX、AAPT2、JVMTI、MCP、CLI、Apply Changes、Code Swap、Full Swap、Hot Reload 以及命令、参数、路径、配置值、日志关键词和实际 UI 文案保持原样。
+- 站内链接改为对应英文镜像路径；外部链接和锚点语义保持不变。
+- 英文不得独立增加产品事实。仅修正英文拼写、语法或自然度且不改变事实、结构、边界和链接时，可以只修改英文。
+- 术语表是列结构例外：中文 `zh/reference/glossary.md` 使用“中文术语 / 英文术语 / 含义”三列，没有中文名称的术语写 `-`；英文 `reference/glossary.md` 只使用“Term / Meaning”两列，不反向加入中文。两页的术语条目、顺序和含义仍须对应。
+
 ## 控制范围和中英文同步
 
-除非需求要求修改，否则保留现有路由、`frontmatter.title`、H1、既有产品术语和有效站内链接。`description` 可以随正文更新，其他 frontmatter 字段只在页面状态或职责确实变化时调整。检查中英文镜像页面：
+中文 `/zh/` 与英文根路径必须严格镜像。除纯英文语言修正外，任何 Wiki 内容变更都按以下顺序执行：
 
-- 新增正式页面时，默认同时创建中英文版本；用户限制范围或现有证据无法支撑可靠翻译时除外。
-- 修改已有页面时，只有两个语言版本都在任务范围内才同步修改。需求只指定一个语言时，对照镜像并在结论中报告未同步事实，不要静默扩大范围。
-- 镜像页面不存在且本次只交付一个语言时，说明缺失页面和原因。
-- 只有新增页面或路由变化时才修改 nav/sidebar。
+1. 新增或修改中文页面，保持中文为内容基准。
+2. 在同一任务中创建或更新相同相对路径的英文页面。
+3. 新增、删除、移动或重命名页面时，同时更新中英文 nav/sidebar；不得保留单一语言独有页面。
+4. 内容、结构、边界或链接发生变化时，中英文镜像必须出现在同一 diff 和同一 commit 中。
+
+修改英文事实或结构时，先把变化落实到中文页面，再翻译回英文。只有英文拼写、语法或自然度修正可以单独提交，且不得触碰产品事实、章节结构、路由和链接。
+
+除非需求要求修改，否则保留中英文共有路由、`frontmatter.title`、H1、既有产品术语和有效站内链接。兼容入口也必须建立中英文镜像。
 
 用户只要求优化方案或审阅时，不修改文件。输出建议的页面主线、文章结构、应保留内容、应删除内容和验证需求，并单列默认保持不变的路由、标题、H1、产品术语和有效站内链接；确需调整时说明原因并等待确认。
 
@@ -169,18 +189,20 @@ H1 与首个 H2 之间必须有独立入口段，优先补齐读者理解正文�
 
 实际新写或改写页面：
 
-1. 运行 `python3 .agents/skills/wiki-writer/scripts/validate_wiki.py --wiki-root docs/wiki`，检查 Markdown/HTML 相对链接和 sidebar 路由对应的源码页面。
-2. 执行 `git diff --check`。
-3. 在 `docs/wiki` 下执行不包含 dev-only 页面配置的 `npm run build`。
-4. 路由未变化时，确认 `docs/wiki/.vitepress/dist/` 下生成预期 HTML，并包含新标题或能够区分本次改动的章节。
-5. 路由变化时执行提交前路由审计：
+1. 检查正式页面和 dev-only 页面在去掉 `zh/` 前缀后具有完全相同的 Markdown 路径集合。
+2. 除纯英文语言修正外，检查本次变更的每个中文页面和英文镜像都出现在 diff 中。
+3. 运行 `python3 .agents/skills/wiki-writer/scripts/validate_wiki.py --wiki-root docs/wiki`，检查语言镜像、Markdown/HTML 相对链接和 sidebar 路由对应的源码页面。
+4. 执行 `git diff --check`。
+5. 在 `docs/wiki` 下执行不包含 dev-only 页面配置的 `npm run build`。
+6. 路由未变化时，确认 `docs/wiki/.vitepress/dist/` 下生成预期 HTML，并包含新标题或能够区分本次改动的章节。
+7. 路由变化时执行提交前路由审计：
    - 使用 `rg --hidden` 扫描 `docs/wiki` 中的旧标题和旧 slug，包含 `.vitepress/config.mts`、首页、自定义卡片和 HTML 链接。
    - 用验证脚本的 `--forbid-source-text`、`--expect-html-route` 和 `--expect-html-text ROUTE::TEXT` 复核源码残留与新 HTML。
    - 未发布页面使用 `--expect-removed-route` 确认旧 HTML 不再生成；已发布页面使用 `--expect-compatible-route` 确认旧路由仍有分流页或兼容入口。
-6. 复查最终 diff，排除无证据的行为主张、过时历史状态、concept/capability 重复和意外暴露的源码细节。
-7. 按仓库 commit 规范，只提交本次任务修改的文件。
+8. 复查最终 diff，排除无证据的行为主张、过时历史状态、concept/capability 重复、意外暴露的源码细节和英文残留中文正文。
+9. 按仓库 commit 规范，只提交本次任务修改的文件。
 
-纯文字改动不新增自动化测试。使用 production Wiki build、链接检查、渲染产物检查和文档与代码对照作为验证证据。
+纯文字改动不新增自动化测试。新写或重写页面使用 production Wiki build、链接检查、渲染产物检查和文档与代码对照作为验证证据；中译英使用中文镜像、语言镜像检查和相同构建验证作为证据，不重新核对实现。
 
 ## 质量门禁
 
@@ -193,8 +215,10 @@ H1 与首个 H2 之间必须有独立入口段，优先补齐读者理解正文�
 - 存在真实失败或明确成本时，核心机制页面给出具体案例。
 - 文章解释当前方案为什么这样选择，不只描述执行步骤。
 - 明确能力边界和回退行为。
-- 产品行为与当前代码一致；历史资料已核验、标记或舍弃。
+- 新写或重写页面的产品行为与当前代码一致，历史资料已核验、标记或舍弃；中译英内容与中文基准一致。
 - `concepts` 与 `capabilities` 不重复同一段机制解释。
+- 中英文 Markdown 路径、页面结构和导航层级严格镜像；术语表仅允许已定义的列结构差异。
+- 除纯英文语言修正外，中英文内容变化已在同一任务中同步。
 - 文字克制、具体，没有明显 AI 写作痕迹。
 - 实际文章改动已通过 production build 和链接检查；只读审阅已提供仓库证据。
 

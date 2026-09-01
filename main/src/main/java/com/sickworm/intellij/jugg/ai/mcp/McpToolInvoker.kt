@@ -1,5 +1,10 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
+import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ai.mcp.actions.GlobalMcpToolAction
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
@@ -18,7 +23,23 @@ class McpToolInvoker(
     private val resultMapper: McpResultMapper = McpResultMapper(),
     private val eventModel: JuggControlPanelModel? = null,
 ) : IMcpInvoker {
+    companion object {
+        private const val MAX_PANEL_CONTENT_LENGTH = 4_096
+        private const val REDACTED = "[REDACTED]"
+        private val SENSITIVE_KEYS = setOf(
+            "password",
+            "token",
+            "secret",
+            "authorization",
+            "apikey",
+            "privatekey",
+            "credential",
+            "environmentvariables",
+        )
+    }
+
     private val logger = Logger.getInstance("McpToolInvoker")
+    private val gson = Gson()
     private val requestValidator = McpRequestValidator(currentProjectDir, toolRegistry)
 
     @Synchronized
@@ -58,11 +79,10 @@ class McpToolInvoker(
                 action.execute(request.arguments, runtime)
             }
         } catch (e: Throwable) {
-            recordCompleted(taskId, request.toolName, startTime, succeeded = false, e.message)
+            recordCompleted(taskId, request.toolName, startTime, McpToolResult.internalErrorResult(request.toolName, e.message.orEmpty()))
             throw e
         }
-        val succeeded = toolResult.status != McpToolStatus.ERROR
-        recordCompleted(taskId, request.toolName, startTime, succeeded, toolResult.message)
+        recordCompleted(taskId, request.toolName, startTime, toolResult)
         // Business-level errors (where the tool executed but results were unexpected) should consistently use
         // toolSuccess, with success/failure distinguished via structuredContent.status.
         // This prevents isError=true from causing the MCP client to display them as framework-level
@@ -79,12 +99,20 @@ class McpToolInvoker(
             status = JuggEvent.Status.STARTED,
             level = JuggEvent.Level.INFO,
             title = "MCP request",
-            detail = "${request.toolName} · ${request.projectDir}",
+            detail = "${request.toolName} · ${formatPanelContent(request.arguments)}",
             timestamp = startTime,
         ))
     }
 
-    private fun recordCompleted(taskId: String, toolName: String, startTime: Long, succeeded: Boolean, detail: String?) {
+    private fun recordCompleted(taskId: String, toolName: String, startTime: Long, toolResult: McpToolResult) {
+        val succeeded = toolResult.status != McpToolStatus.ERROR
+        val response = linkedMapOf<String, Any?>(
+            "status" to toolResult.status,
+            "message" to toolResult.message,
+            "data" to toolResult.data,
+            "artifacts" to toolResult.artifacts,
+            "errorCode" to toolResult.errorCode,
+        )
         eventModel?.record(JuggEvent(
             taskId = taskId,
             source = JuggEvent.Source.MCP,
@@ -93,10 +121,32 @@ class McpToolInvoker(
             status = if (succeeded) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.FAILED,
             level = if (succeeded) JuggEvent.Level.INFO else JuggEvent.Level.WARN,
             title = "MCP response",
-            detail = listOfNotNull(toolName, detail).joinToString(" · "),
+            detail = "$toolName · ${formatPanelContent(response)}",
             durationMillis = System.currentTimeMillis() - startTime,
             isTaskTerminal = true,
         ))
+    }
+
+    private fun formatPanelContent(content: Any?): String {
+        val text = gson.toJson(sanitize(gson.toJsonTree(content)))
+        return if (text.length <= MAX_PANEL_CONTENT_LENGTH) text else text.take(MAX_PANEL_CONTENT_LENGTH - 1) + "…"
+    }
+
+    private fun sanitize(element: JsonElement): JsonElement {
+        return when {
+            element.isJsonObject -> JsonObject().apply {
+                element.asJsonObject.entrySet().forEach { (key, value) ->
+                    val normalizedKey = key.lowercase().replace("_", "").replace("-", "")
+                    when {
+                        normalizedKey == "projectdir" -> Unit
+                        SENSITIVE_KEYS.any(normalizedKey::contains) -> add(key, JsonPrimitive(REDACTED))
+                        else -> add(key, sanitize(value))
+                    }
+                }
+            }
+            element.isJsonArray -> JsonArray().apply { element.asJsonArray.forEach { add(sanitize(it)) } }
+            else -> element
+        }
     }
 
 }

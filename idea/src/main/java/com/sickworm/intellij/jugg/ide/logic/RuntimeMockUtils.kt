@@ -13,10 +13,11 @@ import kotlin.io.path.createTempDirectory
 
 object RuntimeMockUtils {
 
-    val isTestMode = File(System.getProperty("user.home"), ".jugg_test_mode").exists()
+    val isTestMode: Boolean
+        get() = TestModeManager.isTestMode
 
     fun isNeedRunTest(): Boolean {
-        return File("${System.getProperty("user.home")}/.jugg_runtime_test").exists()
+        return TestModeManager.isRuntimeTestEnabled()
     }
 
     fun runTest(logger: Logger): ExecutionResult {

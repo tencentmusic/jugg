@@ -66,9 +66,21 @@ public class ViewExpressionEvaluatorTest {
         ViewExpressionEvaluator.parseChain("");
     }
 
-    @Test(expected = ViewExpressionEvaluator.EvalException.class)
-    public void parseChain_missingParensThrows() throws Exception {
-        ViewExpressionEvaluator.parseChain("getText");
+    @Test
+    public void parseChain_bareNameDoesNotRequireParens() throws Exception {
+        List<ViewExpressionEvaluator.MethodCall> chain =
+            ViewExpressionEvaluator.parseChain("leftMargin");
+        Assert.assertEquals(1, chain.size());
+        Assert.assertEquals("leftMargin", chain.get(0).methodName);
+    }
+
+    @Test
+    public void parseChain_methodThenBareName() throws Exception {
+        List<ViewExpressionEvaluator.MethodCall> chain =
+            ViewExpressionEvaluator.parseChain("getLayoutParams().leftMargin");
+        Assert.assertEquals(2, chain.size());
+        Assert.assertEquals("getLayoutParams", chain.get(0).methodName);
+        Assert.assertEquals("leftMargin", chain.get(1).methodName);
     }
 
     @Test(expected = ViewExpressionEvaluator.EvalException.class)
@@ -247,6 +259,98 @@ public class ViewExpressionEvaluatorTest {
         Assert.assertEquals("string", result.typeName);
     }
 
+    @Test
+    public void evaluate_publicField() throws Exception {
+        LayoutParamsStub params = new LayoutParamsStub();
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(params, "leftMargin");
+        Assert.assertEquals(-350, result.jsonValue);
+        Assert.assertEquals("int", result.typeName);
+    }
+
+    @Test
+    public void evaluate_fieldPreferredOverGetter() throws Exception {
+        LayoutParamsStub params = new LayoutParamsStub();
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(params, "leftMargin");
+        Assert.assertEquals(-350, result.jsonValue);
+        Assert.assertNotEquals(params.getLeftMargin(), result.jsonValue);
+    }
+
+    @Test
+    public void evaluate_kotlinPropertyUsesGetter() throws Exception {
+        SampleBean bean = new SampleBean("hello", 42, true);
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(bean, "text");
+        Assert.assertEquals("hello", result.jsonValue);
+    }
+
+    @Test
+    public void evaluate_layoutParamsAliasAndField() throws Exception {
+        ViewStub view = new ViewStub();
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(view, "layoutParams.leftMargin");
+        Assert.assertEquals(-350, result.jsonValue);
+    }
+
+    @Test
+    public void evaluate_bareGetterNameThenField() throws Exception {
+        ViewStub view = new ViewStub();
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(view, "getLayoutParams.leftMargin");
+        Assert.assertEquals(-350, result.jsonValue);
+    }
+
+    @Test
+    public void evaluate_explicitGetterThenField() throws Exception {
+        ViewStub view = new ViewStub();
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(view, "getLayoutParams().leftMargin");
+        Assert.assertEquals(-350, result.jsonValue);
+    }
+
+    @Test
+    public void evaluate_kotlinMarginStartProperty() throws Exception {
+        ViewStub view = new ViewStub();
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(view, "layoutParams.marginStart");
+        Assert.assertEquals(-70, result.jsonValue);
+    }
+
+    @Test
+    public void evaluate_booleanPropertyUsesIsGetter() throws Exception {
+        SampleBean bean = new SampleBean("hello", 42, true);
+        ViewExpressionEvaluator.Result result =
+            ViewExpressionEvaluator.evaluate(bean, "enabled");
+        Assert.assertEquals(true, result.jsonValue);
+    }
+
+    @Test
+    public void evaluate_blockedBareNameThrows() {
+        SampleBean bean = new SampleBean("hello", 42, true);
+        try {
+            ViewExpressionEvaluator.evaluate(bean, "setText");
+            Assert.fail("Expected EvalException");
+        } catch (ViewExpressionEvaluator.EvalException e) {
+            Assert.assertTrue(e.getMessage().contains("blocked"));
+        }
+    }
+
+    @Test
+    public void evaluate_unknownBareNameThrows() {
+        SampleBean bean = new SampleBean("hello", 42, true);
+        try {
+            ViewExpressionEvaluator.evaluate(bean, "noSuchProperty");
+            Assert.fail("Expected EvalException");
+        } catch (ViewExpressionEvaluator.EvalException e) {
+            Assert.assertTrue(
+                e.getMessage().contains("noSuchProperty")
+                    || e.getMessage().contains("NoSuchField")
+                    || e.getMessage().contains("NoSuchMethod")
+            );
+        }
+    }
+
     // ---- Serialization tests ----
 
     @Test
@@ -323,5 +427,25 @@ public class ViewExpressionEvaluatorTest {
         public boolean isEnabled() { return enabled; }
         public float getAlpha() { return 1.0f; }
         public Status getStatus() { return Status.ACTIVE; }
+    }
+
+    public static class LayoutParamsStub {
+        public int leftMargin = -350;
+
+        public int getLeftMargin() {
+            return 999;
+        }
+
+        public int getMarginStart() {
+            return -70;
+        }
+    }
+
+    public static class ViewStub {
+        private final LayoutParamsStub layoutParams = new LayoutParamsStub();
+
+        public LayoutParamsStub getLayoutParams() {
+            return layoutParams;
+        }
     }
 }

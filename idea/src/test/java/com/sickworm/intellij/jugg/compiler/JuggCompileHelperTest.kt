@@ -16,8 +16,10 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
@@ -63,6 +65,7 @@ class JuggCompileHelperTest {
         private const val DIRECT_RUN_FALLBACK_HINT = "Run again directly will fall back to gradle compile."
         private const val NO_FILE_CHANGES_FALLBACK = "No file changes. will fallback to gradle compile."
         private const val NO_FILE_CHANGES_DRY_DEPLOY = "No file changes, dry deploy once."
+        private const val TOO_MANY_FILES_FALLBACK = "Compile files too much"
 
         @BeforeClass
         @JvmStatic
@@ -385,6 +388,10 @@ class JuggCompileHelperTest {
         val isRebuilding = AtomicBoolean(true)
         val rebuildCheckStarted = CountDownLatch(1)
         val preprocessFinished = CountDownLatch(1)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
         whenever(fixture.gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo).thenAnswer {
             rebuildCheckStarted.countDown()
             isRebuilding.get()
@@ -401,6 +408,19 @@ class JuggCompileHelperTest {
         isRebuilding.set(false)
 
         assertTrue(preprocessFinished.await(1, TimeUnit.SECONDS))
+    }
+
+    @Test(timeout = 1_000)
+    fun preprocessIncrementalCompile_rebuildingWithoutFullBuild_doesNotWait() {
+        val fixture = createFixture()
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo).thenReturn(true)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(null)
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("Gradle project info unavailable", result.failedReason)
     }
 
     @Test(timeout = 1_000)
@@ -466,6 +486,24 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun prepareRemoteProjectInfo_snapshotExistsWithoutFullBuild_doesNotForceRefresh() {
+        val fixture = createFixture()
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.options.buildTarget).thenReturn(BuildTarget.APP)
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(null)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isProjectInfoAvailable).thenReturn(true)
+
+        invokePrepareRemoteProjectInfo(fixture.helper, fixture.options)
+
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).runUpdateIfNeeded(
+            any(),
+            anyOrNull(),
+            any(),
+            any(),
+        )
+    }
+
+    @Test
     fun checkFallback_bindingAdapterSourceChanged_allowsIncrementalCompile() {
         val fixture = createFixture()
         val sourceFile = temporaryFolder.newFile("BindingAdapters.kt").apply {
@@ -519,6 +557,126 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun checkFallback_tooManySourceFiles_doesNotWarnOrAskConfirm() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+
+        withLoweredSourceFilePointLimit(2) {
+            assertEquals("Too many changes", fixture.helper.checkFallback())
+        }
+
+        assertFalse(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+        verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
+    }
+
+    @Test
+    fun checkFallback_lastGradleFailureTakesPriorityOverTooManyChanges() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "last gradle compile not success",
+            ),
+        )
+
+        withLoweredSourceFilePointLimit(2) {
+            assertEquals("last gradle compile not success", fixture.helper.checkFallback())
+        }
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_fallbackAfterConfirm() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.FALLBACK)
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals("Too many changes", result?.failedReason)
+        assertTrue(result!!.isCanFallback)
+        assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_lastGradleFailureSkipsTooManyChangesConfirm() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployHistoryManager.isLastFullCompileFailed).thenReturn(true)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "last gradle compile not success",
+            ),
+        )
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals("last gradle compile not success", result?.failedReason)
+        verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_continueAllowsIncremental() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals(null, result)
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+        verify(fixture.uiHandler, never()).cancel()
+    }
+
+    @Test
+    fun checkFallback_afterContinue_stillReportsTooManyChanges() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+
+        withLoweredSourceFilePointLimit(2) {
+            val preprocessResult = invokePreprocessIncrementalCompile(
+                fixture.helper, fixture.options, fixture.uiHandler,
+            )
+            assertEquals(null, preprocessResult)
+            assertEquals("Too many changes", fixture.helper.checkFallback())
+        }
+
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_cancelStopsCompile() {
+        val fixture = createFixture()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CANCEL)
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals("Compile canceled", result?.failedReason)
+        assertFalse(result!!.isCanFallback)
+        verify(fixture.uiHandler).confirmTooManyChanges(any())
+        verify(fixture.uiHandler).cancel()
+    }
+
+    @Test
     fun compile_incrementalFailure_nonRpcModePrintsDirectRunFallbackHint() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger = logger)
@@ -552,6 +710,37 @@ class JuggCompileHelperTest {
         fixture.helper.compile(fixture.options, fixture.uiHandler)
 
         assertFalse(logger.messages.any { it.contains("Found incremental compile error:\n") })
+    }
+
+    @Test
+    fun compile_automaticFallback_reportsGradleModeBeforeExecution() {
+        val fixture = createFixture()
+        whenever(fixture.pathManager.projectDir).thenReturn(temporaryFolder.root)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleRelease")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        var selectedMode: Boolean? = null
+        var selectedFallbackReason: String? = null
+        val recordingUiHandler = object : CompileUiHandler by fixture.uiHandler {
+            override fun onCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {
+                selectedMode = isGradleCompile
+                selectedFallbackReason = fallbackReason
+                throw StopAfterModeSelected()
+            }
+        }
+
+        try {
+            fixture.helper.compile(
+                fixture.options,
+                recordingUiHandler,
+            )
+            throw AssertionError("Expected compile to stop after selecting its mode")
+        } catch (_: StopAfterModeSelected) {
+        }
+
+        assertEquals(true, selectedMode)
+        assertEquals("Compile command changed", selectedFallbackReason)
     }
 
     private fun prepareIncrementalCompileFailure(fixture: Fixture) {
@@ -665,6 +854,28 @@ class JuggCompileHelperTest {
         }
         @Suppress("UnstableApiUsage")
         override fun setLevel(level: Level) = Unit
+    }
+
+    private class StopAfterModeSelected : RuntimeException()
+
+    private fun kotlinChangedFile(): ChangedFile {
+        val sourceFile = temporaryFolder.newFile("TooMany.kt")
+        return ChangedFile(
+            CompileFile.Type.Kotlin,
+            sourceFile,
+            sourceFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+    }
+
+    private fun <T> withLoweredSourceFilePointLimit(limit: Int, block: () -> T): T {
+        val original = JuggSettings.maxCompileSourceFilePoints
+        JuggSettings.maxCompileSourceFilePoints = limit
+        try {
+            return block()
+        } finally {
+            JuggSettings.maxCompileSourceFilePoints = original
+        }
     }
 
     private fun invokePreprocessIncrementalCompile(

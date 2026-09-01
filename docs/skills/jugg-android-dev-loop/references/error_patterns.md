@@ -10,8 +10,8 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 - id: PROJECT_NOT_INITIALIZED
   stage: compile|deploy|runtime|observe
   signature: {includes: ["PROJECT_NOT_INITIALIZED"]}
-  diagnosis: project not opened in IDE/Jugg runtime
-  fix_strategy: ask_user_open_project
+  diagnosis: requested projectDir is not initialized in the current Jugg Runtime; read message Requested/Initialized projects or data.projects
+  fix_strategy: open the target project in the IDE, or pass --project-dir of an initialized project
   fix_scope: low
   confidence_hint: 0.98
   auto_apply: false

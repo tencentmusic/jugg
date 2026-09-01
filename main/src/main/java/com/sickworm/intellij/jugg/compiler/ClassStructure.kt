@@ -9,6 +9,30 @@ import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
 import java.util.concurrent.ConcurrentHashMap
 
+private const val DALVIK_SIGNATURE = "Ldalvik/annotation/Signature;"
+
+private fun List<DexAnnotationNode>?.toGenericSignature(): String? {
+    val signatureAnnotation = this
+        ?.firstOrNull { it.type == DALVIK_SIGNATURE }
+        ?: return null
+    val value = signatureAnnotation.items
+        .firstOrNull { it.name == "value" }
+        ?.value
+        ?: return null
+    return flattenSignatureValue(value)
+        .takeIf { it.isNotEmpty() }
+        ?.let(ClassStringPool::get)
+}
+
+private fun flattenSignatureValue(value: Any?): String {
+    return when (value) {
+        is Array<*> -> value.joinToString(separator = "") { flattenSignatureValue(it) }
+        is String -> value
+        null -> ""
+        else -> value.toString()
+    }
+}
+
 /**
  * A dex class structure parsed from .dex file.
  */
@@ -43,7 +67,6 @@ class ClassNode(
     companion object {
         const val JUGG_DEPLOYED_DEX_FILE_NAME = "jugg_deployed.dex" // virtual dex file name, not really exists
         const val NO_SOURCE = "no_source"
-        private const val DALVIK_SIGNATURE = "Ldalvik/annotation/Signature;"
 
         // e.g. Landroid/support/v4/os/ResultReceiver$1;
         // ->
@@ -59,27 +82,6 @@ class ClassNode(
             return this.substring(1, this.length - 1)
         }
 
-        private fun List<DexAnnotationNode>?.toGenericSignature(): String? {
-            val signatureAnnotation = this
-                ?.firstOrNull { it.type == DALVIK_SIGNATURE }
-                ?: return null
-            val value = signatureAnnotation.items
-                .firstOrNull { it.name == "value" }
-                ?.value
-                ?: return null
-            return flattenSignatureValue(value)
-                .takeIf { it.isNotEmpty() }
-                ?.let(ClassStringPool::get)
-        }
-
-        private fun flattenSignatureValue(value: Any?): String {
-            return when (value) {
-                is Array<*> -> value.joinToString(separator = "") { flattenSignatureValue(it) }
-                is String -> value
-                null -> ""
-                else -> value.toString()
-            }
-        }
     }
 
 }
@@ -92,6 +94,7 @@ class MethodNode(
     access: Int,
     name: String,
     desc: String,
+    val genericSignature: String? = null,
 ) {
 
     val isAbstract: Boolean get() = access and DexConstants.ACC_ABSTRACT != 0
@@ -100,7 +103,8 @@ class MethodNode(
         owner = node.method.owner,
         access = node.access,
         name = node.method.name,
-        desc = node.method.desc
+        desc = node.method.desc,
+        genericSignature = node.anns.toGenericSignature(),
     )
 
     constructor(method: Method): this(
@@ -125,8 +129,10 @@ class MethodNode(
                 && accessWithoutAbstract == otherAccessWithoutAbstract
                 && this.name == method.name
                 && this.desc == method.desc
+                && this.genericSignature == method.genericSignature
     }
 
+    // DEX references use erased descriptors, so generic signature is excluded from identity.
     override fun equals(other: Any?): Boolean {
         if (other !is MethodNode) {
             return false
@@ -172,13 +178,20 @@ class MethodNode(
 /**
  * A dex field structure parsed from .dex file.
  */
-class FieldNode(owner: String, access: Int, name: String, type: String) {
+class FieldNode(
+    owner: String,
+    access: Int,
+    name: String,
+    type: String,
+    val genericSignature: String? = null,
+) {
 
     constructor(node: DexFieldNode): this(
         owner = node.field.owner,
         access = node.access,
         name = node.field.name,
-        type = node.field.type
+        type = node.field.type,
+        genericSignature = node.anns.toGenericSignature(),
     )
 
     constructor(field: Field): this(
@@ -196,6 +209,7 @@ class FieldNode(owner: String, access: Int, name: String, type: String) {
 
     private val signature get() = "$access $type $owner.$name"
 
+    // DEX references use erased types, so generic signature is excluded from identity.
     override fun equals(other: Any?): Boolean {
         if (other !is FieldNode) {
             return false

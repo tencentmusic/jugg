@@ -92,6 +92,56 @@ def validate_config_routes(root: Path) -> list[str]:
     return errors
 
 
+def validate_language_mirrors(root: Path) -> list[str]:
+    english = {
+        path.relative_to(root).as_posix()
+        for path in iter_source_files(root, {".md"})
+        if path.relative_to(root).parts[0] != "zh"
+    }
+    chinese_root = root / "zh"
+    chinese = {
+        path.relative_to(chinese_root).as_posix()
+        for path in iter_source_files(chinese_root, {".md"})
+    }
+    errors: list[str] = []
+    for path in sorted(chinese - english):
+        errors.append(f"missing English mirror for zh/{path}")
+    for path in sorted(english - chinese):
+        errors.append(f"missing Chinese mirror for {path}")
+    return errors
+
+
+def config_block(content: str, start: str, end: str) -> str:
+    start_index = content.index(start)
+    end_index = content.index(end, start_index)
+    return content[start_index:end_index]
+
+
+def normalized_config_links(content: str, start: str, end: str, locale_prefix: str = "") -> list[str]:
+    links = CONFIG_LINK_RE.findall(config_block(content, start, end))
+    if not locale_prefix:
+        return links
+    return [link.removeprefix(locale_prefix) or "/" for link in links]
+
+
+def validate_locale_navigation(root: Path) -> list[str]:
+    config = root / ".vitepress" / "config.mts"
+    if not config.exists():
+        return [f"missing config: {config}"]
+    content = config.read_text(encoding="utf-8")
+    errors: list[str] = []
+    pairs = [
+        ("const englishNav", "const englishSidebar", "const chineseNav", "const chineseSidebar", "nav"),
+        ("const englishSidebar", "const chineseNav", "const chineseSidebar", "export default", "sidebar"),
+    ]
+    for english_start, english_end, chinese_start, chinese_end, label in pairs:
+        english = normalized_config_links(content, english_start, english_end)
+        chinese = normalized_config_links(content, chinese_start, chinese_end, "/zh")
+        if english != chinese:
+            errors.append(f"English and Chinese {label} routes do not have the same order")
+    return errors
+
+
 def route_html_candidates(dist: Path, route: str) -> list[Path]:
     path = route.split("#", 1)[0].split("?", 1)[0].strip("/")
     if not path:
@@ -142,7 +192,9 @@ def main() -> int:
         print(f"Wiki root does not exist: {root}", file=sys.stderr)
         return 2
 
-    errors = validate_document_links(root)
+    errors = validate_language_mirrors(root)
+    errors.extend(validate_locale_navigation(root))
+    errors.extend(validate_document_links(root))
     errors.extend(validate_config_routes(root))
     errors.extend(validate_source_text(root, args.forbid_source_text))
     errors.extend(validate_built_routes(args, root))

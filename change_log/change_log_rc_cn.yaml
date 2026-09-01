@@ -4,13 +4,45 @@
   updates:
     - 支持 Standalone Jugg CLI，不依赖 Android Studio 执行编译和部署
 
+- version: 3.3.4
+  date: 2026.08.29
+  updates:
+    - 变更文件过多时，降级 Gradle 构建前先征求确认
+    - 状态查询不再重复显示文件过多的降级警告
+    - 修复接口父类变更后实现类未重新编译的问题
+    - 修复成员泛型变更后运行时类型崩溃的问题
+    - 修复应用使用自定义部署路径时无法找到 AndroidTest APK 的问题
+
+- version: 3.3.3
+  date: 2026.08.26
+  updates:
+    - 旧版 Jugg 选项统一迁移到运行面板管理
+    - 修复应用使用自定义 ClassLoader 时的启动崩溃
+
+- version: 3.3.2
+  date: 2026.08.24
+  updates:
+    - 自定义服务器可提供更新和编译器 JAR，保存前必须明确确认信任
+    - UI 元素定位支持精确组合 selector、限制返回数量并提供源码位置
+    - Jugg 运行面板准确记录编译、部署、用户操作和 MCP 调用，并对详情脱敏
+    - 修复 APK 更新期间异步 Git 刷新误触发后续 Gradle 构建的问题
+
+- version: 3.3.1
+  date: 2026.08.20
+  updates:
+    - Gradle 项目信息不可用时继续增量编译，不再回退完整构建
+    - 请求的 projectDir 未初始化时，列出当前已打开的 Jugg 项目
+    - view-inspect 支持读取 public 字段和 Kotlin 属性
+    - 修复 feature 资源 ID 导致增量编译失败的问题
+    - 修复 home 目录不可写时增量编译无法初始化的问题
+    - 首次完整编译前不再等待 Gradle 项目信息重建
+
 - version: 3.3.0
   date: 2026.08.18
   updates:
     - 支持在选中的远程服务器运行自定义命令
     - 简化远程命令入口，空命令时禁用运行按钮
     - CLI 传入子目录时自动解析到已初始化的父项目
-
 - version: 3.2.6
   date: 2026.08.17
   updates:

@@ -8,7 +8,7 @@ import java.io.File
 class JuggPathManager(
     val projectDir: File,
     val juggRootDir: File = File("$projectDir/build/jugg"),
-    globalJuggRootDir: File = File(System.getProperty("user.home"), ".jugg"),
+    globalJuggRootDir: File = JuggGlobalPathManager.rootDir,
 ) {
     val stableGradleDir: File = File(projectDir, ".gradle/jugg")
     val constRefDir: File = File(globalJuggRootDir, "const_ref")

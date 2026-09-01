@@ -104,9 +104,9 @@ class GitFileChangesDetector(
 
     fun updateChangedFiles(filterFiles: List<File>) {
         logger.debug("updateChangedFiles")
-        val recoverData = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = false) ?: return
+        val changedFiles = deployHistoryManager.getChangedFilesSinceLastFullCompiled() ?: return
         val filterFilesSet = filterFiles.map { it.path }.toSet()
-        val allChangedFiles = recoverData.changedFiles.filter { it.path !in filterFilesSet }
+        val allChangedFiles = changedFiles.filter { it.path !in filterFilesSet }
         val deletedFiles = collectMissingUndeployedFiles()
         logger.debug("updateChangedFiles, allChangedFiles size: ${allChangedFiles.size}, " +
                 "names: ${allChangedFiles.map { it.name }}, " +

@@ -5,7 +5,8 @@ This directory accompanies every Jugg plugin distribution and records the third-
 - `components.csv`: the 104-component inventory used for the open-source information form. Rows are ordered by license-obligation group, modification status, component name, and version. Its `notes` column is written for legal review and states the usage relationship, distribution form, modification details, and source/license obligations where applicable without repeating the `modified` field.
 - `licenses/`: applicable license texts and upstream license references.
 - `sources/`: corresponding source archives tracked in the public Jugg source revision.
-- `MODIFICATIONS.md`: known modifications to redistributed third-party code or files.
+- `MODIFICATIONS.md`: changelog of known modifications to redistributed third-party code or files.
+- `INTEGRATION.md`: technical integration and address-space boundaries for copyleft or dual-licensed components reviewed by legal.
 - `sbom/`: SPDX 2.3 software bill of materials.
 - `THIRD_PARTY_NOTICES.md`: generated at the repository root and copied here during packaging.
 

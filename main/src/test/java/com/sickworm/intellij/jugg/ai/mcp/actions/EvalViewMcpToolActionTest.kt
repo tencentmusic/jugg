@@ -15,6 +15,10 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.EvalViewResult
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.EvalViewValue
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.SourceLocation
+import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import org.junit.After
@@ -22,6 +26,8 @@ import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import java.io.File
 
 /**
@@ -212,6 +218,40 @@ class EvalViewMcpToolActionTest {
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
+    }
+
+    @Test
+    fun executeReturnsSourceLocation() {
+        val projectDir = createTempDir(prefix = "jugg_eval_view_")
+        val setup = setup(projectDir) { true }
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(
+                mock.evalView(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any())
+            ).thenReturn(
+                EvalViewResult(
+                    className = "android.widget.TextView",
+                    resourceId = "title",
+                    density = 3.0,
+                    values = listOf(EvalViewValue("getText()", "Home", "string")),
+                    source = SourceLocation("HomeScreen.kt", 18),
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to projectDir.absolutePath,
+                    "target" to mapOf("resourceId" to "title"),
+                    "expressions" to listOf("getText()"),
+                ),
+                setup.runtime,
+            )
+
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any?>
+            Assert.assertEquals(mapOf("file" to "HomeScreen.kt", "line" to 18), data["source"])
+        }
     }
 
     // ---- Test infrastructure ----

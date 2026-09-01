@@ -313,6 +313,8 @@ class GradleProjectInfoReader(
             val dependencies = getDependenciesByConfig(project, dependFilterName, isAndroidDepend = moduleType.isAndroidModule)
             TraceLogger.end("getCompile")
 
+            val runtimeModuleDependencies = getRuntimeModuleDependencies(project, moduleInfo)
+
             // won't actually use this for now to save time
             val runtimeDependencies = emptyList<Dependency>()
 
@@ -332,6 +334,7 @@ class GradleProjectInfoReader(
 
             moduleInfo = moduleInfo.copy(
                 moduleDependencies = dependencies.filterIsInstance<ModuleDependency>(),
+                runtimeModuleDependencies = runtimeModuleDependencies,
                 libraryDependencies = dependencies.filterIsInstance<LibraryDependency>(),
                 runtimeLibraryDependencies = runtimeDependencies.filterIsInstance<LibraryDependency>(),
                 annotationProcessorDependencies = annotationProcessorDependencies.filterIsInstance<LibraryDependency>(),
@@ -349,6 +352,47 @@ class GradleProjectInfoReader(
 
         TraceLogger.end("getModule:${project.standardModuleName}")
         return moduleInfo
+    }
+
+    /** Reads resolved runtime project components for APK ownership without rebuilding Gradle's dependency semantics. */
+    private fun getRuntimeModuleDependencies(project: Project, moduleInfo: ModuleInfo): List<ModuleDependency>? {
+        if (moduleInfo.moduleType !in listOf(ModuleInfo.Type.Application, ModuleInfo.Type.DynamicFeature)) {
+            return null
+        }
+
+        var filterName = "${moduleInfo.buildVariant}RuntimeClasspath"
+        if (project.configurations.names.none { filterConfigs(it, filterName) }) {
+            filterName = "RuntimeClasspath"
+        }
+        val configurations = project.configurations.names
+            .filter { filterConfigs(it, filterName) }
+            .mapNotNull(project.configurations::findByName)
+            .filter { it.isCanBeResolved }
+        if (configurations.isEmpty()) {
+            return null
+        }
+
+        return try {
+            val result = linkedMapOf<String, ModuleDependency>()
+            configurations.forEach { configuration ->
+                if (configuration.allDependencies.isEmpty()) return@forEach
+                val resolutionResult = configuration.incoming.resolutionResult
+                resolutionResult.allComponents.forEach componentForEach@{ component ->
+                    val identifier = component.id as? ProjectComponentIdentifier ?: return@componentForEach
+                    if (identifier == resolutionResult.root.id) return@componentForEach
+                    val moduleName = identifier.projectPath.standardModuleNameForProjectPath.ifEmpty {
+                        identifier.projectName
+                    }
+                    if (moduleName.isEmpty()) return@componentForEach
+                    result[moduleName] = ModuleDependency(moduleName)
+                }
+            }
+            result.values.toList()
+        } catch (e: Throwable) {
+            println("Jugg: get runtime module dependencies for ${project.standardModuleName} failed: $e")
+            printException(e)
+            null
+        }
     }
 
     /** Reads Compose resource task configuration without executing tasks. */
@@ -1102,6 +1146,10 @@ class GradleProjectInfoReader(
         }
         moduleName = moduleName.replace(":", ".")
         return moduleName
+    }
+
+    private val String.standardModuleNameForProjectPath: String get() {
+        return removePrefix(":").replace(":", ".")
     }
 
     private val ResolvedDependency.moduleNameIfIsProject: String? get() {

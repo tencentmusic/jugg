@@ -1,6 +1,6 @@
 ---
-title: Jugg Backend Project Configuration
-description: Project-specific configuration that a Jugg backend can return to the plugin.
+title: Jugg backend project configuration distribution
+description: Distribute project-specific Jugg configuration from a backend and choose configuration suitable for centralized maintenance.
 status: active
 tags:
   - guide
@@ -8,46 +8,58 @@ tags:
   - configuration
 ---
 
-# Jugg Backend Project Configuration
+# Jugg backend project configuration distribution
 
-Project configuration lets a team centralize Jugg defaults. During update checks, the plugin sends the current project name and can apply the returned `customConfigJson`.
+Project configuration distribution keeps team defaults in one backend. During an update check, the plugin sends the current project name. The backend can return that project's `customConfigJson`, which the plugin then applies to the local project.
 
-## Supported Configuration
+## What to distribute
 
-| Field | Purpose |
+| Configuration | Purpose |
 |---|---|
-| `servers` | Backend server candidates for later failover |
-| `buildFileRules` | Build-file patterns that should participate in change detection |
-| `dontFilterIgnoredFileRules` | Rules that still need change detection even when files are ignored |
-| `moduleCustomConfigs` | Module-specific classpath, sync path, and ignore-filter settings |
-| `customCompilers` | Custom compiler jars for the project |
-| `embeddedApksSearchRules` | Search rules for embedded APKs |
+| `servers` | Provide a list of available backend addresses so the plugin can switch servers later |
+| `buildFileRules` | Mark build-file rules that should participate in change detection |
+| `dontFilterIgnoredFileRules` | Continue change detection for specified rules in ignored files |
+| `moduleCustomConfigs` | Add classpaths, synchronization paths, or ignore-filtering behavior for specified modules |
+| `customCompilers` | Distribute custom compiler JARs to a project |
+| `embeddedApksSearchRules` | Configure search rules for embedded APKs |
 
-Prefer `buildFileRules` for new backends. `buildFileList` is a legacy field.
+The legacy `buildFileList` field is not recommended for new use. New backends should maintain `buildFileRules` instead.
 
-## Module Configuration
+## Module configuration
 
-| Field | Meaning |
+`moduleCustomConfigs` is intended for cases where only certain modules require additional rules:
+
+| Field | Description |
 |---|---|
 | `moduleStdPath` | Normalized module path |
-| `customClasspath` | Paths to sync and add to classpath |
-| `customSyncFilePath` | Paths to sync only |
-| `isDoNotIgnored` | Keep the module in change detection even when it matches ignore rules |
+| `customClasspath` | Path to synchronize and add to the classpath |
+| `customSyncFilePath` | Path that only needs synchronization |
+| `isDoNotIgnored` | Keep the module in changed modules even when it matches an ignore rule |
 
-Use module configuration only for modules that need extra generated outputs or sync rules.
+Use this configuration only for modules that genuinely need additional artifacts or synchronization rules. Avoid placing every module in backend configuration.
 
-## Custom Compiler Configuration
+## Custom compiler configuration
 
-| Field | Meaning |
+The backend can return `customCompilers` in project configuration so the plugin downloads the team's custom compiler:
+
+| Field | Description |
 |---|---|
-| `jarFileName` | Downloaded jar file name |
+| `jarFileName` | Downloaded JAR filename |
 | `path` | Local path or HTTP download URL |
-| `md5` | File checksum |
+| `md5` | File verification value |
 
-If the backend hosts the jar, point `path` to a download endpoint such as `/download_custom_compiler`.
+When the self-hosted backend hosts custom compilers, it usually also implements `/download_custom_compiler` and points `path` to that download interface.
 
-## Related Pages
+## Configuration maintenance
 
-- [Self-hosting Checklist](./self-hosting.md)
-- [Custom Compiler](../custom-compiler.md)
+- Maintain configuration by project name instead of mixing every team's configuration in one response.
+- Return empty arrays or `null` by default, and distribute configuration only to projects that need special handling.
+- After configuration changes, ask users to check for updates again or restart the IDE so the configuration is applied to the current project.
+- Do not include passwords, private keys, or other sensitive information in project configuration responses.
+- Version custom compiler JARs and verify their md5 values to support rollback.
+
+## Related pages
+
+- [Self-hosting checklist](./self-hosting.md)
+- [Custom compiler](../custom-compiler.md)
 - [Configuration](../../reference/configuration.md)

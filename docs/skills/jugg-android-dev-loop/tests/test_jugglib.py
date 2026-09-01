@@ -1049,6 +1049,16 @@ class NormalizeArgsRoundTripTest(unittest.TestCase):
         result = self.tap(self._norm(["--text", "Login", "--class-name", "Button"]))
         self.assertEqual(result["className"], "Button")
 
+    def test_view_locate_kebab_selector_and_budget(self):
+        result = self.locate(self._norm([
+            "--class-name", "AvatarView",
+            "--visible-only", "false",
+            "--max-results", "5",
+        ]))
+        self.assertEqual(result["target"]["className"], "AvatarView")
+        self.assertFalse(result["visibleOnly"])
+        self.assertEqual(result["maxResults"], 5)
+
     def test_tap_kebab_x_percent(self):
         result = self.tap(self._norm(["--x-percent", "50", "--y-percent", "80"]))
         self.assertEqual(result["xPercent"], 50.0)

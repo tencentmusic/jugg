@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import java.io.File
 import java.util.jar.Manifest
@@ -14,6 +15,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
     fun printInfo() {
         val startTime = System.currentTimeMillis()
         try {
+            logger.debug("Jugg home directory: ${JuggGlobalPathManager.rootDir.absolutePath}")
             logger.debug("IDE version: ${AsDeployerCompat.ideVersion}")
             logger.debug("plugin info: ${PluginInfoReader.getPluginCompileInfo()}")
             logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")

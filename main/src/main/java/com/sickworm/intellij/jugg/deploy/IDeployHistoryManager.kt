@@ -55,6 +55,11 @@ interface IDeployHistoryManager {
     fun tryGetContextRecoverInfoFromDb(isOnInit: Boolean = true): DeployContextRecoverInfo?
 
     /**
+     * Returns Git changed files without validating or invalidating compile recovery state.
+     */
+    fun getChangedFilesSinceLastFullCompiled(): List<File>?
+
+    /**
      * Invoke this method to cache changed files
      */
     fun beforeFullCompiled(changedFiles: List<ChangedFile>)

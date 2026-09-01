@@ -73,6 +73,8 @@ standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、内�
 
 `jugg stop` 是 standalone CLI 专用的本地生命周期命令，不扫描 MCP 端口，也不调用 `resolve_port()`，因此不会在停止时意外拉起 Runtime。CLI 同步调用 standalone launcher 的 `--stop-all` 控制模式；bootstrap 在加载 active Runtime JAR 前按 Jugg 根目录匹配全部 standalone 进程。平台支持正常终止时先请求正常退出并等待 5 秒，仍存活时强制终止，不支持的平台直接强制终止。未找到进程时幂等成功。该命令会同时停止这些进程承载的所有项目，但不删除 run configuration、Compile Context、历史或日志；`--runtime idea` 明确失败。
 
+顶部扫描失败文案是“没有端口通过 MCP 探测”的聚合结果，只能证明本轮未发现可用 endpoint，不能单独证明具体传输原因、IDE 状态或插件生命周期。诊断时以逐端口摘要为底层分类依据；若现场输出没有保留摘要，则该层原因保持未知，继续结合生成实现和其它原始证据判断。
+
 | 文件 | 默认路径 | 环境变量 |
 |------|----------|----------|
 | 端口缓存 | `~/.cache/jugg/port`（Linux/macOS）/ `%LOCALAPPDATA%/jugg/port`（Windows） | `JUGG_PORT_CACHE` |
@@ -123,6 +125,19 @@ jugg <subcommand> --help
 
 help 在 `jugg.py` 内直接返回，只读取 `help_registry.py`，不会连接 MCP、解析 `projectDir`、触发编译或部署。
 
+### 3.7 CLI / skill 版本
+
+`jugg version` 的 `cliVersion` 来自 `scripts/py/cmd/cmd_version.py` 的 `CLI_VERSION`。
+
+插件初始化后 `JuggCliAutoUpdater` 会比较插件内 `docs-skills.zip` 与 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md` 的 `version:`。只有 bundled 更高时才覆盖 `~/.jugg/bin` 和已安装的 agent skill。比较的是 `SKILL.md` 版本，不是 `CLI_VERSION`。
+
+修改 `docs/skills/jugg-android-dev-loop/scripts/`、help 或 skill references 后必须同时：
+
+1. 递增 `CLI_VERSION`
+2. 递增 `SKILL.md` frontmatter 的 `version`，并更新 `date`
+
+只改脚本不改 `SKILL.md` version，用户更新插件后仍会继续用旧 CLI 和 skill。
+
 ---
 
 ## 4. 参数映射约束
@@ -159,7 +174,7 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 | `instrument` | `instrument` | 从 androidTest 源文件锚点运行测试 |
 | `status` | `status` | 查看部署状态、未编译文件摘要、androidTest baseline 与 compile 运行态 |
 | `layout-dump` | `layout-dump` | 导出 UI 层级 HTML |
-| `view-locate` | `view-locate` | 查找元素位置 |
+| `view-locate` | `view-locate` | 查找元素位置、候选预算和源码位置 |
 | `view-inspect` | `view-inspect` | 反射读取 View 属性 |
 | `tap` | `tap` | 坐标、百分比或元素模式触控 |
 | `devices` | `devices` | 列出设备 |
@@ -307,13 +322,14 @@ jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 | `--include-gone` / `--includeGone` | `includeGone=true` | 包含 GONE 节点 |
 | `--all-windows` / `--allWindows` | `allWindows=true` | 导出所有窗口 |
 
-公开输出是 HTML artifact；内部 JSON 仅供 `view-locate` / 布局验证实现消费。
+公开输出是 HTML artifact；内部 JSON 仅供布局验证的存量实现消费。
 App 侧所有 UI 查询和动作统一通过 Dragonfly 实时 snapshot；传统 Android View 与 Compose 节点保持原有 HTML/JSON 字段格式。Dragonfly 自带私有化 Kotlin/协程运行时，纯 Java 工程同样可用；Compose tooling 不兼容时由 Dragonfly 局部收口，不回退旧 ViewTree。5000 节点/60 层 snapshot 截断范围同时约束 dump、selector、tap、inspect 和 verify。
 
 ### `view-locate`
 
 ```text
-jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
+jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc> | --class-name <cls>)
+                 [--visible-only <true|false>] [--max-results <1..100>]
 ```
 
 | CLI flag | MCP 参数 |
@@ -321,8 +337,11 @@ jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc>)
 | `--text` | `target.text` |
 | `--resource-id` / `--resourceId` | `target.resourceId` |
 | `--content-desc` / `--contentDesc` | `target.contentDesc` |
+| `--class-name` / `--className` | `target.className` |
+| `--visible-only` / `--visibleOnly` | `visibleOnly` |
+| `--max-results` / `--maxResults` | `maxResults` |
 
-`matchCount > 1` 表示存在重复候选，不能直接把首个结果当作安全点击目标。
+多个 selector 使用 AND 逻辑；resourceId 支持完整/短 ID，className 支持完整类名/simple name 精确匹配。CLI 省略 `visibleOnly` / `maxResults` 时不发送，由 MCP 使用默认值 `true` / `10`。返回 `matchCount`、`returnedCount`、`truncated` 和 `matches[]`；只有唯一命中才返回顶层 bounds/position/size。runtime 能提供时同时返回源码文件和行号。
 
 ### `view-inspect`
 
@@ -339,7 +358,7 @@ jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>)
 | `--class-name` / `--className` | `target.className` |
 | 位置参数 | `expressions[]` |
 
-表达式使用 getter/query 方法调用格式，例如 `getText()`、`getVisibility()`、`isEnabled()`。
+表达式可以是 getter/query 方法，或无括号名字。无括号名字先读 public 字段，再按 Kotlin property / `getXxx()` / `isXxx()` 解析，例如 `getText()`、`layoutParams.leftMargin`、`getLayoutParams().getMarginStart()`。
 Android 节点读取原始 View；Compose 节点读取 Dragonfly 节点对象，因此 View 专属 getter 可能返回单项 error。
 
 ### `tap`
@@ -422,6 +441,7 @@ jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 | CLI 找不到项目 | `jugglib.resolve_project_dir()`、`list-projects` 返回 |
 | compile 类命令一直等待 | `status.isCompiling`、`jugglib.wait_for_compile_idle()` |
 | 命令显示 compile 成功但部署失败 | 终态 `isCompileSuccess` / `isDeploySuccess` 与 `full log` |
+| 更新插件后 CLI/skill 仍是旧文案或旧行为 | bundled `SKILL.md` `version` 必须高于 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md`；规则见 §3.7 |
 
 ---
 
@@ -430,4 +450,5 @@ jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 - MCP 工具参数清单：`08_mcp_tools_list.md`
 - MCP 设计说明：`08_mcp_design.md`
 - 代码路径速查：`98_code_map.md`
-- CLI / MCP 行为变更后的 skill 同步规则：`08_mcp_design.md` §9
+- CLI / MCP 行为变更后的 skill 同步规则：`08_mcp_design.md` §9–§10
+- CLI/skill 版本递增：本页 §3.7

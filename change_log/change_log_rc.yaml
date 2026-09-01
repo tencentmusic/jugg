@@ -4,13 +4,45 @@
   updates:
     - run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio
 
+- version: 3.3.4
+  date: 2026.08.29
+  updates:
+    - ask before falling back to Gradle when too many files change
+    - stop status queries from repeatedly showing too-many-files fallback warnings
+    - recompile implementation classes after interface parent changes
+    - prevent runtime type crashes after generic member changes
+    - find AndroidTest APKs when apps use custom deploy paths
+
+- version: 3.3.3
+  date: 2026.08.26
+  updates:
+    - manage legacy Jugg options from the running panel
+    - prevent startup crashes when applications use custom class loaders
+
+- version: 3.3.2
+  date: 2026.08.24
+  updates:
+    - require explicit confirmation before trusting a custom server that can deliver updates and compiler JARs
+    - locate live UI elements with exact combined selectors and return bounded matches with source locations
+    - make Jugg control panel logs reflect actual compile, deploy, user, and MCP actions with sanitized details
+    - prevent asynchronous Git refresh during APK updates from forcing a later Gradle build
+
+- version: 3.3.1
+  date: 2026.08.20
+  updates:
+    - keep incremental compilation when Gradle project info is unavailable
+    - list currently opened Jugg projects when the requested projectDir is not initialized
+    - let view-inspect read public fields and Kotlin properties
+    - prevent feature resource IDs from failing incremental compilation
+    - initialize incremental compile when home directory is not writable
+    - stop waiting for Gradle project info rebuild before the first full compile
+
 - version: 3.3.0
   date: 2026.08.18
   updates:
     - run custom commands on the selected remote server
     - simplify the remote command entry and disable Run for blank commands
     - resolve nested CLI project paths to their initialized parent project
-
 - version: 3.2.6
   date: 2026.08.17
   updates:

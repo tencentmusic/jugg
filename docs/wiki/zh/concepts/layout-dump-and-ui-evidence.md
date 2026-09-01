@@ -92,4 +92,4 @@ dp = px / density
 - [UI 自动化能力](../capabilities/tools/ui-automation.md)
 - [UI 布局证据能力](../capabilities/tools/layout-verify.md)
 - [MCP 工具参考](../reference/mcp-tools.md)
-- [Agent 或命令执行失败](../troubleshooting/agent-command-failed.md)
+- [Agent 或 CLI 执行失败](../troubleshooting/agent-command-failed.md)

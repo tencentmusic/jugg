@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method
+import com.googlecode.d2j.Visibility
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.reader.Op
 import com.googlecode.d2j.visitors.*
@@ -12,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
+private const val DALVIK_SIGNATURE = "Ldalvik/annotation/Signature;"
 
 /**
  * DexFileNodeCollector walks dex instructions and collects class/method/field/subclass reference indexes.
@@ -45,8 +47,19 @@ class DexFileNodeCollector(
         return object : DexClassVisitor(cn) {
 
             override fun visitMethod(accessFlags: Int, method: Method?): DexMethodVisitor {
-                super.visitMethod(accessFlags, method)
-                return object : DexMethodVisitor() {
+                val methodVisitor = super.visitMethod(accessFlags, method)
+                return object : DexMethodVisitor(methodVisitor) {
+                    // Class snapshots only persist generic signatures from method annotations.
+                    override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor? {
+                        return if (name == DALVIK_SIGNATURE) {
+                            super.visitAnnotation(name, visibility)
+                        } else {
+                            null
+                        }
+                    }
+
+                    override fun visitParameterAnnotation(index: Int): DexAnnotationAble? = null
+
                     override fun visitCode(): DexCodeVisitor {
                         return object : DexCodeVisitor() {
                             override fun visitFieldStmt(op: Op?, a: Int, b: Int, field: Field?) {

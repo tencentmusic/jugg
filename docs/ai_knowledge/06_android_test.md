@@ -1,6 +1,6 @@
 # androidTest 支持指南
 
-> 最后核对：2026-07-24
+> 最后核对：2026-08-29
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -109,7 +109,7 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 - 不改写已有 RunConfig 中的 compile command 或 output APK 路径；IDE model 的 build folder 只用于新建配置。
 - `BuildTarget.ANDROID_TEST` 通过 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`，并把同 variant 的 `assemble<Variant>AndroidTest` 挂到用户请求的 Gradle task 前执行。
 - 若 `LibraryTestApkBuildHistory` 命中近期 self-targeting library Test APK 记录，Gradle compile 会通过 `-Pjugg.libraryTestTasks=...` 传递历史 task 列表，init script 在同一 `projectsEvaluated` 阶段把这些 library androidTest task 也挂到用户请求的 Gradle task 前执行；`BuildTarget.APP` 不参与该逻辑。
-- Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径中的 `/outputs/apk/` 片段派生同 variant 的 `<actual-build-dir>/outputs/apk/androidTest/<variant>/*.apk`；history library Test APK output 同样从 `ModuleBuildPathInfo.buildDir` 派生，作为 optional APK 收集，命中则追加到本轮 APK 结果，缺失只记录日志，不进入 `failedApkPaths`。
+- Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径中的 `/outputs/apk/` 片段派生同 variant 的 `<actual-build-dir>/outputs/apk/androidTest/<variant>/*.apk`；若 app APK 位于 module `build` 目录下的自定义路径且不包含 `/outputs/apk/`，则保持原有查找与 APK 存储流程，依次在同 module 的 `build/outputs/apk/androidTest/*.apk` 与 `build/intermediates/apk/androidTest/*.apk` 中递归查找。history library Test APK output 同样从 `ModuleBuildPathInfo.buildDir` 派生，作为 optional APK 收集，命中则追加到本轮 APK 结果，缺失只记录日志，不进入 `failedApkPaths`。
 - `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
 - Gradle project info 读取阶段仅在 `-Pjugg.buildTarget=ANDROID_TEST` 时为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；`APP`/未传时不写入快照。project-info merge 与 localFetch 必须显式使用当前 run 的 `BuildTarget`，不能再从旧 `FullBuildInfo` 推断。首次从 `APP` 切到 `ANDROID_TEST` 且本地 Gradle full compile 成功后，`JuggCompilerHelper` 会在 install/deploy 前按本次 target 立即执行一次 localFetch merge；remote compile 不走该补偿路径。Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
 

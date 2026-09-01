@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import jugglib
 
-CLI_VERSION = "1.0.11"
+CLI_VERSION = "1.0.13"
 
 
 def cmd_version(args: list[str]) -> None:

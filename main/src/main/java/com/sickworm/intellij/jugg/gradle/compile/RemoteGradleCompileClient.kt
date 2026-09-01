@@ -649,17 +649,18 @@ class RemoteGradleCompileClient(
         outputApkName: String,
         gradleCompileSettings: JuggGradleCompileOptions,
         isRequired: Boolean = true,
+        reportMissing: Boolean = true,
     ): RemoteApk? {
         // find apk path
         val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, outputApkName)
         val findOutputResult = invoke(findOutputCommand)
         if (findOutputResult != 0) {
-            reportFindApkFailure(isRequired, "Find APK failed, please check your sync client is opened.")
+            reportFindApkFailure(isRequired, reportMissing, "Find APK failed, please check your sync client is opened.")
             return null
         }
         val apkPath = findOutputCommand.apkPath
         if (!ApkLookupPlanner.isFoundRemoteApkPath(apkPath)) {
-            reportFindApkFailure(isRequired, "Find APK failed, please check your apk name is correct.")
+            reportFindApkFailure(isRequired, reportMissing, "Find APK failed, please check your apk name is correct.")
             return null
         }
         val foundApkPath = apkPath!!
@@ -684,7 +685,7 @@ class RemoteGradleCompileClient(
         }
         val fetchOutputResult = invoke(fetchOutputCommand)
         if (fetchOutputResult != 0) {
-            reportFindApkFailure(isRequired, "Fetch output from remote to local failed, please check your sync client is opened.")
+            reportFindApkFailure(isRequired, reportMissing, "Fetch output from remote to local failed, please check your sync client is opened.")
             return null
         }
 
@@ -699,7 +700,7 @@ class RemoteGradleCompileClient(
             .findFilesRecursively(apkFileName)
 
         if (apkFiles.isNullOrEmpty()) {
-            reportFindApkFailure(isRequired, "find apk name with pattern '$outputApkName' " +
+            reportFindApkFailure(isRequired, reportMissing, "find apk name with pattern '$outputApkName' " +
                     "in ${gradleCompileSettings.remoteToLocalProjectSyncPath} failed, " +
                     "please check your 'Remote to local sync path' in configuration is correct.")
             return null
@@ -720,7 +721,10 @@ class RemoteGradleCompileClient(
         return RemoteApk(foundApkPath, apkFile)
     }
 
-    private fun reportFindApkFailure(isRequired: Boolean, message: String) {
+    private fun reportFindApkFailure(isRequired: Boolean, reportMissing: Boolean, message: String) {
+        if (!reportMissing) {
+            return
+        }
         if (isRequired) {
             printToStreamErrorIfCanceled(message)
         } else {
@@ -746,12 +750,19 @@ class RemoteGradleCompileClient(
             return emptyList()
         }
         return appApks.mapIndexedNotNull { index, appApk ->
-            val testApkPattern = LocalGradleCompileClient.deriveAndroidTestApkPattern(appApk.remotePath)
-            if (testApkPattern == null) {
+            val testApkPatterns = LocalGradleCompileClient.deriveAndroidTestApkPatterns(appApk.remotePath)
+            if (testApkPatterns.isEmpty()) {
                 logger.warn("AndroidTest mode: cannot derive test APK pattern from ${appApk.remotePath}")
                 return@mapIndexedNotNull null
             }
-            findApk(appApks.size + index, testApkPattern, gradleCompileSettings)
+            testApkPatterns.firstNotNullOfOrNull { pattern ->
+                findApk(
+                    appApks.size + index,
+                    pattern,
+                    gradleCompileSettings,
+                    reportMissing = pattern == testApkPatterns.last(),
+                )
+            }
         }
     }
 

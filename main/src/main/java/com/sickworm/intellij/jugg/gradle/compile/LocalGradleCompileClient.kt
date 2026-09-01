@@ -104,6 +104,7 @@ class LocalGradleCompileClient(
         juggGradleCompileOptions: JuggGradleCompileOptions,
         index: Int?,
         isRequired: Boolean = true,
+        reportMissing: Boolean = true,
     ): FoundApk? {
         val findOutputCommand = FindOutputCommand(projectDir.path, outputApkNameOrPath)
 
@@ -140,10 +141,12 @@ class LocalGradleCompileClient(
         if (apkFiles.isNullOrEmpty()) {
             val message = "Can't find apk \"$outputApkNameOrPath\" " +
                     "in $projectDir, please make sure your run configuration is right."
-            if (isRequired) {
-                printToStreamError(message)
-            } else {
-                logger.warn("Optional library test APK not found: $outputApkNameOrPath")
+            if (reportMissing) {
+                if (isRequired) {
+                    printToStreamError(message)
+                } else {
+                    logger.warn("Optional library test APK not found: $outputApkNameOrPath")
+                }
             }
             return null
         }
@@ -200,8 +203,10 @@ class LocalGradleCompileClient(
     private fun findAndroidTestApk(appApk: File, options: JuggGradleCompileOptions, index: Int): FoundApk? {
         val projectRoot = File(options.projectRootPath)
         val relativeAppApk = appApk.relativeToOrNull(projectRoot) ?: appApk
-        val testApkPattern = deriveAndroidTestApkPattern(relativeAppApk.path) ?: return null
-        return findApk(testApkPattern, options, index)
+        val testApkPatterns = deriveAndroidTestApkPatterns(relativeAppApk.path)
+        return testApkPatterns.firstNotNullOfOrNull { pattern ->
+            findApk(pattern, options, index, reportMissing = pattern == testApkPatterns.last())
+        }
     }
 
     private data class FoundApk(val sourceFile: File, val outputFile: File)
@@ -336,10 +341,19 @@ class LocalGradleCompileClient(
     companion object {
         fun deriveAndroidTestApkPattern(appApkPath: String): String? {
             val normalized = appApkPath.replace('\\', '/')
+            if (normalized.contains("/androidTest/")) {
+                return null
+            }
             val marker = "/outputs/apk/"
             val markerIndex = normalized.indexOf(marker)
-            if (markerIndex < 0 || normalized.contains("/androidTest/")) {
-                return null
+            if (markerIndex < 0) {
+                val buildMarker = "/build/"
+                val buildMarkerIndex = normalized.lastIndexOf(buildMarker)
+                if (buildMarkerIndex < 0) {
+                    return null
+                }
+                val buildDir = normalized.substring(0, buildMarkerIndex + buildMarker.length)
+                return "${buildDir}outputs/apk/androidTest/*.apk"
             }
             val prefix = normalized.substring(0, markerIndex + marker.length)
             val outputParts = normalized.substring(prefix.length).split("/").filter { it.isNotEmpty() }
@@ -348,6 +362,18 @@ class LocalGradleCompileClient(
             }
             val variantDirs = outputParts.dropLast(1)
             return "${prefix}androidTest/${variantDirs.joinToString("/")}/*.apk"
+        }
+
+        internal fun deriveAndroidTestApkPatterns(appApkPath: String): List<String> {
+            val primaryPattern = deriveAndroidTestApkPattern(appApkPath) ?: return emptyList()
+            val normalized = appApkPath.replace('\\', '/')
+            if (normalized.contains("/outputs/apk/")) {
+                return listOf(primaryPattern)
+            }
+            return listOf(
+                primaryPattern,
+                primaryPattern.replace("/outputs/apk/", "/intermediates/apk/"),
+            )
         }
 
 

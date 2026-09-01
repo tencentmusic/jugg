@@ -205,7 +205,7 @@ python3 {SKILL_DIR}/scripts/jugg.py tap --x-percent 50 --y-percent 80 --action s
 
 | Command | Purpose |
 |---------|---------|
-| `view-locate` | Find element position & bounds |
+| `view-locate` | Find live element position, bounds, and source location |
 | `view-inspect` | Query View properties via reflection |
 | `layout-dump` | Dump full UI hierarchy to HTML |
 
@@ -215,11 +215,20 @@ python3 {SKILL_DIR}/scripts/jugg.py tap --x-percent 50 --y-percent 80 --action s
 python3 {SKILL_DIR}/scripts/jugg.py view-locate --text "Submit"
 python3 {SKILL_DIR}/scripts/jugg.py view-locate --resource-id btn_confirm
 python3 {SKILL_DIR}/scripts/jugg.py view-locate --content-desc "Back"
+python3 {SKILL_DIR}/scripts/jugg.py view-locate --class-name android.widget.Button
+python3 {SKILL_DIR}/scripts/jugg.py view-locate --text "Item" --class-name TextView --max-results 5
+python3 {SKILL_DIR}/scripts/jugg.py view-locate --resource-id hidden_label --visible-only false
 ```
 
-At least one of `--text`/`--resource-id`/`--content-desc` required.
-Output: `bounds [left,top,right,bottom]`, `position {x,y}`, `size {width,height}`, `matchCount`, and `matches` summary (all coordinates are dp).
-If `matchCount > 1`, do not use the first result as a safe click target without a stronger selector.
+All non-empty selectors use AND logic. `className` accepts an exact full or simple class name.
+`visibleOnly` defaults to `true`; `maxResults` defaults to `10` and accepts `1..100`.
+The result reports total/returned counts and truncation. A unique match also exposes top-level
+bounds/position/size; source file and line are included when the runtime can provide them.
+
+At least one of `--text`/`--resource-id`/`--content-desc`/`--class-name` is required.
+Output always includes `matchCount`, `returnedCount`, `truncated`, and `matches`; a unique match also includes
+`bounds [left,top,right,bottom]`, `position {x,y}`, and `size {width,height}`. All coordinates are dp.
+If `matchCount > 1`, narrow the selector before relying on one candidate for verification or interaction.
 
 ### `view-inspect`
 
@@ -227,13 +236,15 @@ If `matchCount > 1`, do not use the first result as a safe click target without 
 python3 {SKILL_DIR}/scripts/jugg.py view-inspect --text "Submit" "getText()" "getVisibility()"
 python3 {SKILL_DIR}/scripts/jugg.py view-inspect --resource-id btn_confirm "getBackground()" "getTextSize()"
 python3 {SKILL_DIR}/scripts/jugg.py view-inspect --content-desc "Avatar" "getWidth()" "getHeight()" "getTranslationY()"
+python3 {SKILL_DIR}/scripts/jugg.py view-inspect --resource-id bubble_container "layoutParams.leftMargin" "getLayoutParams().getMarginStart()"
 ```
 
-- Selector: `--text`/`--resource-id`/`--content-desc` (at least one), with optional `--class-name`.
-- `<expr>`: read-only getter/query method expression. Common: `getText()`, `getVisibility()`, `getWidth()`, `getHeight()`, `getTextSize()`, `getCurrentTextColor()`, `getBackground()`, `getTranslationX()`, `getTranslationY()`, `getAlpha()`, `isClickable()`, `isEnabled()`.
+- Selector: at least one of `--text`/`--resource-id`/`--content-desc`/`--class-name`; class name is an exact full or simple name.
+- `<expr>`: read-only getter, Kotlin property, or public field expression. Common: `getText()`, `getVisibility()`, `layoutParams.leftMargin`, `getWidth()`, `getHeight()`, `getTextSize()`, `getCurrentTextColor()`, `getBackground()`, `getTranslationX()`, `getTranslationY()`, `getAlpha()`, `isClickable()`, `isEnabled()`.
+- A name without `()` is resolved as a public field first, then as `getXxx()` / `isXxx()` (`layoutParams` → `getLayoutParams()`, `enabled` → `isEnabled()`).
 - `view-inspect` may read non-clickable hidden views that stay in the hierarchy; hidden views are not safe tap targets.
 - Android nodes inspect their original View; Compose nodes inspect the Dragonfly node object, so Android View-only getters return a per-expression error.
-- Output: expression/value/type pairs + density for px→dp conversion.
+- Output: expression/value/type pairs + density for px→dp conversion, plus best-effort source file and line when available.
 
 ### `layout-dump`
 

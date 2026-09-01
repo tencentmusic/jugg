@@ -34,15 +34,15 @@ tags:
 
 ## 特定功能问题
 
-### [Android Test 无法运行或测试失败](./android-test-failed.md)
-
-适用于测试源码、test APK、测试类或 instrumentation 无法解析和运行。
-
 ### [远程编译失败](./remote-build-failed.md)
 
 适用于打开远程编译后的编译失败。如远端工程未同步、Gradle Wrapper、Windows 换行与编码、APK 回传和自定义输出目录问题。
 
-### [Agent 或命令执行失败](./agent-command-failed.md)
+### [Android Test 运行或测试失败](./android-test-failed.md)
+
+适用于测试源码、test APK、测试类或 instrumentation 无法解析和运行。
+
+### [Agent 或 CLI 执行失败](./agent-command-failed.md)
 
 适用于使用了 Jugg CLI、MCP，但遇到 UI 自动化、布局检查、截图和录屏工具的参数或运行环境错误。
 
