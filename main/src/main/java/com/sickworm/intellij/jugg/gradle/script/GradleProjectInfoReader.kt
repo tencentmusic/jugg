@@ -85,11 +85,12 @@ class GradleProjectInfoReader(
                         project,
                         "${moduleInfo.buildVariant}AndroidTestCompileClasspath",
                         isAndroidDepend = true,
-                    ).filterIsInstance<LibraryDependency>()
+                    )
                     val androidTestModuleInfo = buildAndroidTestModuleInfo(
                         appModuleInfo = moduleInfo,
                         sourceDirs = sourceDirs.filter { it.exists() },
-                        libraryDependencies = atDependencies,
+                        libraryDependencies = atDependencies.filterIsInstance<LibraryDependency>(),
+                        moduleDependencies = atDependencies.filterIsInstance<ModuleDependency>(),
                         testApplicationId = testAppId,
                     )
                     if (androidTestModuleInfo != null) {
@@ -1221,6 +1222,7 @@ class GradleProjectInfoReader(
             appModuleInfo: ModuleInfo,
             sourceDirs: List<File>,
             libraryDependencies: List<LibraryDependency>,
+            moduleDependencies: List<ModuleDependency> = emptyList(),
             testApplicationId: String?,
         ): ModuleInfo? {
             if (sourceDirs.isEmpty()) return null
@@ -1247,7 +1249,8 @@ class GradleProjectInfoReader(
                 runtimeLibraryDependencies = emptyList(),
                 annotationProcessorDependencies = emptyList(),
                 kaptDependencies = emptyList(),
-                moduleDependencies = listOf(ModuleDependency(appModuleInfo.name)),
+                moduleDependencies = (listOf(ModuleDependency(appModuleInfo.name)) + moduleDependencies)
+                    .distinctBy { it.moduleName },
                 variants = emptyList(),
                 signingConfigs = null,
             )
