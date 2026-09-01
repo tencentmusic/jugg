@@ -86,7 +86,7 @@
 | `08_mcp_design.md` | MCP 协议分层与设计约束（§7 引用 `08_mcp_layout_verify_design.md`） |
 | `08_mcp_layout_verify_design.md` | UI 布局验证设计：公开工具边界、证据链、单位流转、未注册 action 风险 |
 | `08_mcp_ui_verify_checklist.md` | MCP UI 验证执行清单：页面边界、expected/actual 证据、selector、单位换算与报告口径 |
-| `08_mcp_tools_list.md` | MCP 工具完整参数清单（18 个注册工具、通用行为、错误码） |
+| `08_mcp_tools_list.md` | MCP 工具完整参数清单（20 个注册工具、通用行为、错误码） |
 | `08_cli_tools_list.md` | `jugg` CLI（MCP 封装层）子命令参数与行为差异 |
 | `08_mcp_figma_layout_verify_internals.md` | figma-layout-verify 内部算法：Figma JSON 解析、间距/对齐关系提取、IoU 元素匹配、容差验证 |
 | `09_plugin_runtime_debug.md` | 运行时排查入口：证据边界、反证门禁、现场保全与症状到专题的第一跳路由 |

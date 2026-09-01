@@ -73,6 +73,7 @@ COMMANDS = {
     "devices":        ("cmd_devices",        "cmd_devices"),
     "activity-stack": ("cmd_activity_stack", "cmd_activity_stack"),
     "ssh-info":       ("cmd_ssh_info",       "cmd_ssh_info"),
+    "report":         ("cmd_report",         "cmd_report"),
     "wait-logs":      ("cmd_wait_logs",      "cmd_wait_logs"),
 }
 

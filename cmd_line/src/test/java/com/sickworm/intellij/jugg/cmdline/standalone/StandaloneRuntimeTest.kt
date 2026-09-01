@@ -71,6 +71,7 @@ class StandaloneRuntimeTest {
         assertEquals("4.0", version.data()["runtimeVersion"])
         val expectedCapabilities = listOf(
             "version", "list-projects", "init", "compile", "deploy", "gradle-build", "get-compile-status", "status",
+            "report-prepare", "report-upload",
         )
         assertEquals(expectedCapabilities, version.data()["capabilities"])
 

@@ -40,7 +40,7 @@ class ReportIssueResultDialog(
     override fun createCenterPanel(): JComponent {
         val message = when {
             uploadResult == null -> "Diagnostics bundle saved locally."
-            uploadResult.isSuccess -> "Report uploaded. Report ID: ${uploadResult.reportId}"
+            uploadResult.isSuccess -> "Report uploaded. Jugg Report ID: ${uploadResult.reportId}"
             else -> "Upload failed: ${uploadResult.errorMessage}"
         }
         return JPanel(BorderLayout()).apply {

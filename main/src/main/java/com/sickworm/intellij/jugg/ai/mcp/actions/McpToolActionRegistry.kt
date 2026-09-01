@@ -22,6 +22,8 @@ class McpToolActionRegistry(
         const val GRADLE_BUILD = "gradle-build"
         const val GET_COMPILE_STATUS = "get-compile-status"
         const val SSH_INFO = "ssh-info"
+        const val REPORT_PREPARE = "report-prepare"
+        const val REPORT_UPLOAD = "report-upload"
         const val DEVICES = "devices"
         const val SCREENSHOT = "screenshot"
         const val RECORD_START = "record-start"
@@ -74,6 +76,8 @@ class McpToolActionRegistry(
                 ForceGradleCompileMcpToolAction(),
                 GetCompileStatusMcpToolAction(),
                 RequestRemoteSshInfoMcpToolAction(),
+                PrepareIssueReportMcpToolAction(),
+                UploadIssueReportMcpToolAction(),
                 DeviceListMcpToolAction(),
                 LayoutDumpMcpToolAction(),
                 UiFindMcpToolAction(),

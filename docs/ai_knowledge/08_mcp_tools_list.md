@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-08-21
+> 最后核对：2026-09-01
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -32,7 +32,7 @@
 
 ## MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
 
-共 **18 个**注册工具，按注册顺序排列。
+共 **20 个**注册工具，按注册顺序排列。
 
 以下设备相关工具公开可选 `serial: string`：`restart`、`deploy`、`clean-reinstall`、`gradle-build`、`instrument`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`status`、`wait-logs`。显式 serial 按大小写敏感的在线设备精确匹配，覆盖 IDEA 选中设备与 standalone `ANDROID_SERIAL`，只影响当前请求；未命中时不得回退其他设备。`devices` 传 serial 时只返回该在线设备，未命中返回 `NO_DEVICE`。
 
@@ -49,7 +49,7 @@
 - `projects`（可选）：当各项目版本不一致时，返回 `projectDir -> version` 的 map
 - `runtimeType`：`idea` / `standalone` / `ci` / `unknown`
 - `runtimeVersion`：当前进程实际 Runtime 版本
-- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`
+- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`report-prepare`、`report-upload`
 
 ---
 
@@ -201,6 +201,28 @@
 | `projectDir` | string | **是** | 项目绝对路径 |
 | `reason` | string | **是** | 需要 SSH 信息的原因 |
 | `requestedBy` | string | 否 | 请求者身份，默认 `mcp_agent` |
+
+### `report-prepare`
+
+生成最终待上传的脱敏诊断 ZIP，不发起网络请求。IDEA 与 standalone 均注册该工具。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `projectDir` | string | **是** | 项目绝对路径 |
+
+**返回 data**：`reportId`、`filePath`、`size`、`sha256`、固定 `uploadUrl`，以及 `entries`。每个 entry 包含 `path`、`size`、`sensitivity` 和 `redaction`，与最终 ZIP manifest 完全一致。
+
+### `report-upload`
+
+上传用户已经查看并确认的诊断 ZIP。服务端重新从项目 diagnostics 目录读取 bundle，校验 report ID、目录边界、manifest、ZIP 条目和 SHA-256；任何内容变化都会在网络请求前失败。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `projectDir` | string | **是** | 项目绝对路径 |
+| `reportId` | string | **是** | `report-prepare` 返回的 8 位十六进制 ID |
+| `sha256` | string | **是** | `report-prepare` 返回的 ZIP SHA-256 |
+
+**成功返回**：message 与 IDE 对齐为 `Report uploaded. Jugg Report ID: <reportId>`；data 仅保留 `reportId`，不返回诊断 entries、本地临时路径或 file artifact。
 
 ---
 

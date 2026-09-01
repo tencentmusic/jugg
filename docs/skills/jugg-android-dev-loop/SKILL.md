@@ -1,6 +1,6 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.27
+version: 1.0.30
 date: 2026-09-01
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
@@ -35,7 +35,7 @@ Collect mandatory variables before any action. For install-only requests, skip J
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 | `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
 
-The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Automatic selection prefers an IDEA Runtime that owns the project; only when no matching IDEA Runtime exists does it select an owning standalone Runtime or reuse a running standalone daemon. Use `--runtime idea|standalone` to override automatic selection. A command keeps its selected Runtime for its full lifetime, including compile status polling, and does not migrate when ownership changes. If no Runtime owns the project, the CLI automatically registers it in the reused standalone daemon on the first valid request; only the absence of any standalone daemon starts a new process, with launch attempts serialized globally. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, compile status polling, and `status`; `stop` is a standalone-only local lifecycle command that stops all standalone projects without connecting to or starting a Runtime. Device inspection, UI, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
+The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Automatic selection prefers an IDEA Runtime that owns the project; only when no matching IDEA Runtime exists does it select an owning standalone Runtime or reuse a running standalone daemon. Use `--runtime idea|standalone` to override automatic selection. A command keeps its selected Runtime for its full lifetime, including compile status polling, and does not migrate when ownership changes. If no Runtime owns the project, the CLI automatically registers it in the reused standalone daemon on the first valid request; only the absence of any standalone daemon starts a new process, with launch attempts serialized globally. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, `report`, compile status polling, and `status`; `stop` is a standalone-only local lifecycle command that stops all standalone projects without connecting to or starting a Runtime. Device inspection, UI, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
 
 ---
 
@@ -125,6 +125,7 @@ python3 {SKILL_DIR}/scripts/jugg.py status --refresh-changes false  # skip chang
 python3 {SKILL_DIR}/scripts/jugg.py status --full-info true  # return full status information and all file paths
 python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
 python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
+python3 {SKILL_DIR}/scripts/jugg.py report               # prepare and show the exact diagnostics archive, then upload only after explicit confirmation
 python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # --marker: Java Pattern regex matched against log message; block until marker/crash/timeout
 ```
 

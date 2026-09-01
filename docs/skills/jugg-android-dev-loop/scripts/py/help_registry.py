@@ -43,6 +43,11 @@ COMMAND_HELP: dict[str, CommandHelp] = {
         "Stop all standalone Runtimes and hosted projects.",
         "jugg stop",
     ),
+    "report": CommandHelp(
+        "report",
+        "Prepare diagnostics, show the exact archive contents, and upload only after confirmation.",
+        "jugg report",
+    ),
     "compile": CommandHelp(
         "compile",
         "Compile modified sources without deploying.",
