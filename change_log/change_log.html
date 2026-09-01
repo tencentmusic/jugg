@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.3.5 (2026.09.01)</h2>
+<h2>3.3.6 (2026.09.01)</h2>
 <ol>
     <li>[feature] Run custom commands on the selected remote server</li>
     <li>[feature] Require explicit confirmation before trusting a custom server that can deliver updates and compiler JARs</li>
@@ -24,6 +24,11 @@
     <li>[bugfix] Fall back directly after a failed Gradle build without repeating the large-change confirmation</li>
     <li>[bugfix] Preserve custom Jugg run configurations during Gradle sync</li>
     <li>[bugfix] Stop rebuilding the source database repeatedly after restart</li>
+    <li>[bugfix] Show all diagnostics in the default report dialog</li>
+    <li>[bugfix] Compile androidTest sources with project dependencies</li>
+    <li>[bugfix] Preserve app APKs when running library androidTest</li>
+    <li>[bugfix] Show compile status when no-change runs deploy directly</li>
+    <li>[bugfix] Prevent unresolved resource IDs from same-named files in multiple roots</li>
 </ol>
 <h2>3.2.6 (2026.08.17)</h2>
 <ol>

@@ -1,3 +1,12 @@
+- version: 3.3.6
+  date: 2026.09.01
+  updates:
+    - show all diagnostics in the default report dialog
+    - compile androidTest sources with project dependencies
+    - preserve app APKs when running library androidTest
+    - show compile status when no-change runs deploy directly
+    - prevent unresolved resource IDs from same-named files in multiple roots
+
 - version: 3.3.5
   date: 2026.09.01
   updates:

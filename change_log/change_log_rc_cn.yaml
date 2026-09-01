@@ -1,3 +1,12 @@
+- version: 3.3.6
+  date: 2026.09.01
+  updates:
+    - 默认问题上报对话框展示全部诊断信息
+    - AndroidTest 编译保留项目依赖
+    - 运行 library AndroidTest 时保留应用 APK
+    - 没有文件变更而直接部署时展示编译状态
+    - 修复同名资源文件位于多个根目录时资源 ID 缺失的问题
+
 - version: 3.3.5
   date: 2026.09.01
   updates:
